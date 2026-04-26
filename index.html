@@ -964,6 +964,53 @@
               <img id="invoiceLogoPreview" class="invoice-logo-preview hidden" alt="Logo Vorschau" />
               <p class="helper-text full-width" data-ui-i18n="invoiceLogoHint">Das Rechnungslogo wird auch als System-Icon und Mitarbeiter-App-Icon verwendet.</p>
 
+              <!-- ── Rechnungs-Absenderadresse ── -->
+              <label class="full-width">
+                <span>Straße &amp; Hausnummer</span>
+                <input id="invoiceOperatorStreet" type="text" placeholder="Musterstraße 12" />
+              </label>
+              <label>
+                <span>PLZ &amp; Ort</span>
+                <input id="invoiceOperatorZipCity" type="text" placeholder="12345 Musterstadt" />
+              </label>
+              <label>
+                <span>Telefon</span>
+                <input id="invoiceOperatorPhone" type="text" placeholder="+49 123 456789" />
+              </label>
+              <label>
+                <span>Website</span>
+                <input id="invoiceOperatorWebsite" type="text" placeholder="www.meinefirma.de" />
+              </label>
+
+              <!-- ── Bankverbindung ── -->
+              <div class="form-section" style="margin-top:8px">
+                <div class="form-section-icon">🏦</div>
+                <div class="form-section-label">
+                  <p class="eyebrow">Bankverbindung &amp; Steuer</p>
+                  <h4>Zahlungsinformationen (PDF)</h4>
+                </div>
+              </div>
+              <label class="full-width">
+                <span>IBAN</span>
+                <input id="invoiceIban" type="text" placeholder="DE12 3456 7890 1234 5678 90" />
+              </label>
+              <label>
+                <span>BIC / SWIFT</span>
+                <input id="invoiceBic" type="text" placeholder="COBADEFFXXX" />
+              </label>
+              <label>
+                <span>Bankname</span>
+                <input id="invoiceBankName" type="text" placeholder="Commerzbank AG" />
+              </label>
+              <label>
+                <span>Steuernummer</span>
+                <input id="invoiceTaxId" type="text" placeholder="123/456/78901" />
+              </label>
+              <label>
+                <span>USt-IdNr.</span>
+                <input id="invoiceVatId" type="text" placeholder="DE123456789" />
+              </label>
+
               <!-- ── SMTP ── -->
               <div class="form-section">
                 <div class="form-section-icon">✉️</div>

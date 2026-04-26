@@ -1273,6 +1273,15 @@ def init_db():
             invoice_logo_data TEXT NOT NULL DEFAULT '',
             invoice_primary_color TEXT NOT NULL DEFAULT '#0f4c5c',
             invoice_accent_color TEXT NOT NULL DEFAULT '#e36414',
+            invoice_iban TEXT NOT NULL DEFAULT '',
+            invoice_bic TEXT NOT NULL DEFAULT '',
+            invoice_bank_name TEXT NOT NULL DEFAULT '',
+            invoice_tax_id TEXT NOT NULL DEFAULT '',
+            invoice_vat_id TEXT NOT NULL DEFAULT '',
+            invoice_operator_street TEXT NOT NULL DEFAULT '',
+            invoice_operator_zip_city TEXT NOT NULL DEFAULT '',
+            invoice_operator_phone TEXT NOT NULL DEFAULT '',
+            invoice_operator_website TEXT NOT NULL DEFAULT '',
             smtp_host TEXT NOT NULL DEFAULT '',
             smtp_port INTEGER NOT NULL DEFAULT 587,
             smtp_username TEXT NOT NULL DEFAULT '',
@@ -1535,12 +1544,14 @@ def init_db():
             INSERT INTO settings (
                 id, platform_name, operator_name, turnstile_endpoint, rental_model,
                 invoice_logo_data, invoice_primary_color, invoice_accent_color,
+                invoice_iban, invoice_bic, invoice_bank_name, invoice_tax_id, invoice_vat_id,
+                invoice_operator_street, invoice_operator_zip_city, invoice_operator_phone, invoice_operator_website,
                 smtp_host, smtp_port, smtp_username, smtp_password, smtp_sender_email, smtp_sender_name, smtp_use_tls,
                 resend_api_key, resend_from_email, brevo_api_key, brevo_from_email,
                 admin_ip_whitelist, enforce_tenant_domain
-            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", 587, "", "", "", "BauPass Control", 1, "", "", "", "", "", 0),
+            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", 587, "", "", "", "BauPass Control", 1, "", "", "", "", "", 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
@@ -1550,6 +1561,24 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_primary_color TEXT NOT NULL DEFAULT '#0f4c5c'")
     if "invoice_accent_color" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_accent_color TEXT NOT NULL DEFAULT '#e36414'")
+    if "invoice_iban" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_iban TEXT NOT NULL DEFAULT ''")
+    if "invoice_bic" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_bic TEXT NOT NULL DEFAULT ''")
+    if "invoice_bank_name" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_bank_name TEXT NOT NULL DEFAULT ''")
+    if "invoice_tax_id" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_tax_id TEXT NOT NULL DEFAULT ''")
+    if "invoice_vat_id" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_vat_id TEXT NOT NULL DEFAULT ''")
+    if "invoice_operator_street" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_street TEXT NOT NULL DEFAULT ''")
+    if "invoice_operator_zip_city" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_zip_city TEXT NOT NULL DEFAULT ''")
+    if "invoice_operator_phone" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_phone TEXT NOT NULL DEFAULT ''")
+    if "invoice_operator_website" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_website TEXT NOT NULL DEFAULT ''")
     if "smtp_host" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN smtp_host TEXT NOT NULL DEFAULT ''")
     if "smtp_port" not in settings_columns:
@@ -4254,6 +4283,15 @@ def get_settings():
             "invoiceLogoData": row["invoice_logo_data"],
             "invoicePrimaryColor": row["invoice_primary_color"],
             "invoiceAccentColor": row["invoice_accent_color"],
+            "invoiceIban": row["invoice_iban"] if "invoice_iban" in row.keys() else "",
+            "invoiceBic": row["invoice_bic"] if "invoice_bic" in row.keys() else "",
+            "invoiceBankName": row["invoice_bank_name"] if "invoice_bank_name" in row.keys() else "",
+            "invoiceTaxId": row["invoice_tax_id"] if "invoice_tax_id" in row.keys() else "",
+            "invoiceVatId": row["invoice_vat_id"] if "invoice_vat_id" in row.keys() else "",
+            "invoiceOperatorStreet": row["invoice_operator_street"] if "invoice_operator_street" in row.keys() else "",
+            "invoiceOperatorZipCity": row["invoice_operator_zip_city"] if "invoice_operator_zip_city" in row.keys() else "",
+            "invoiceOperatorPhone": row["invoice_operator_phone"] if "invoice_operator_phone" in row.keys() else "",
+            "invoiceOperatorWebsite": row["invoice_operator_website"] if "invoice_operator_website" in row.keys() else "",
             "smtpHost": row["smtp_host"],
             "smtpPort": row["smtp_port"],
             "smtpUsername": row["smtp_username"],
@@ -4553,6 +4591,10 @@ def update_settings():
         UPDATE settings
         SET platform_name = ?, operator_name = ?, turnstile_endpoint = ?, rental_model = ?,
             invoice_logo_data = ?, invoice_primary_color = ?, invoice_accent_color = ?,
+            invoice_iban = ?, invoice_bic = ?, invoice_bank_name = ?,
+            invoice_tax_id = ?, invoice_vat_id = ?,
+            invoice_operator_street = ?, invoice_operator_zip_city = ?,
+            invoice_operator_phone = ?, invoice_operator_website = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
             admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?
@@ -4566,6 +4608,15 @@ def update_settings():
             payload.get("invoiceLogoData", ""),
             payload.get("invoicePrimaryColor", "#0f4c5c"),
             payload.get("invoiceAccentColor", "#e36414"),
+            payload.get("invoiceIban", ""),
+            payload.get("invoiceBic", ""),
+            payload.get("invoiceBankName", ""),
+            payload.get("invoiceTaxId", ""),
+            payload.get("invoiceVatId", ""),
+            payload.get("invoiceOperatorStreet", ""),
+            payload.get("invoiceOperatorZipCity", ""),
+            payload.get("invoiceOperatorPhone", ""),
+            payload.get("invoiceOperatorWebsite", ""),
             payload.get("smtpHost", ""),
             int(payload.get("smtpPort", 587) or 587),
             payload.get("smtpUsername", ""),
@@ -7407,8 +7458,9 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf_buffer = io.BytesIO()
         pdf = rl_canvas.Canvas(pdf_buffer, pagesize=A4)
         page_w, page_h = A4
-        margin_x = 16 * mm
-        top_y = page_h - 16 * mm
+        margin_l = 25 * mm   # DIN 5008 left margin
+        margin_r = 20 * mm
+        content_w = page_w - margin_l - margin_r
 
         brand_primary = str(settings_row["invoice_primary_color"] or "#0f4c5c").strip() or "#0f4c5c"
         brand_accent = str(settings_row["invoice_accent_color"] or "#e36414").strip() or "#e36414"
@@ -7424,13 +7476,36 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         vat_amount = float(invoice_row["vat_amount"] or 0)
         total_amount = float(invoice_row["total_amount"] or 0)
 
-        def _draw_box(x, y, w, h, fill_hex="#ffffff", stroke=rl_colors.HexColor("#d9dee3"), radius=6):
-            pdf.setStrokeColor(stroke)
-            pdf.setFillColor(rl_colors.HexColor(fill_hex))
-            pdf.roundRect(x, y, w, h, radius, stroke=1, fill=1)
+        def _sr(key, fallback=""):
+            try:
+                return str(settings_row[key] or "").strip()
+            except (IndexError, KeyError):
+                return fallback
+
+        op_iban = _sr("invoice_iban")
+        op_bic = _sr("invoice_bic")
+        op_bank = _sr("invoice_bank_name")
+        op_tax_id = _sr("invoice_tax_id")
+        op_vat_id = _sr("invoice_vat_id")
+        op_street = _sr("invoice_operator_street")
+        op_zip_city = _sr("invoice_operator_zip_city")
+        op_phone = _sr("invoice_operator_phone")
+        op_website = _sr("invoice_operator_website")
 
         def _money(value):
             return f"{value:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        c_primary = rl_colors.HexColor(brand_primary)
+        c_accent = rl_colors.HexColor(brand_accent)
+        c_dark = rl_colors.HexColor("#1a2633")
+        c_mid = rl_colors.HexColor("#4a5568")
+        c_light = rl_colors.HexColor("#718096")
+        c_rule = rl_colors.HexColor("#cbd5e0")
+        c_bg_totals = rl_colors.HexColor("#f7fafc")
+
+        # ── 1. HEADER BAND ───────────────────────────────────────────
+        pdf.setFillColor(c_primary)
+        pdf.rect(0, page_h - 28 * mm, page_w, 28 * mm, stroke=0, fill=1)
 
         logo_data = str(settings_row["invoice_logo_data"] or "").strip()
         logo_drawn = False
@@ -7440,113 +7515,267 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 img_bytes = base64.b64decode(img_b64)
                 img_reader = ImageReader(io.BytesIO(img_bytes))
                 pdf.drawImage(
-                    img_reader,
-                    margin_x,
-                    top_y - 18 * mm,
-                    width=32 * mm,
-                    height=16 * mm,
-                    preserveAspectRatio=True,
-                    mask="auto",
+                    img_reader, margin_l, page_h - 26 * mm,
+                    width=36 * mm, height=20 * mm,
+                    preserveAspectRatio=True, mask="auto",
                 )
                 logo_drawn = True
             except Exception:
                 pass
 
-        # Header band
-        pdf.setFillColor(rl_colors.HexColor(brand_primary))
-        pdf.rect(0, page_h - 24 * mm, page_w, 24 * mm, stroke=0, fill=1)
-        pdf.setFillColor(rl_colors.white)
-        pdf.setFont("Helvetica-Bold", 18)
-        pdf.drawRightString(page_w - margin_x, page_h - 11 * mm, "RECHNUNG")
-        pdf.setFont("Helvetica", 10)
-        pdf.drawRightString(page_w - margin_x, page_h - 16 * mm, f"Rechnung von {platform_label}")
         if not logo_drawn:
-            pdf.setFillColor(rl_colors.HexColor(brand_accent))
-            pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(margin_x, page_h - 14 * mm, platform_label)
+            pdf.setFillColor(rl_colors.white)
+            pdf.setFont("Helvetica-Bold", 14)
+            pdf.drawString(margin_l, page_h - 15 * mm, platform_label)
 
-        info_top = page_h - 38 * mm
-        left_w = 108 * mm
-        right_x = margin_x + left_w + 6 * mm
-        right_w = page_w - margin_x - right_x
+        pdf.setFillColor(rl_colors.white)
+        pdf.setFont("Helvetica-Bold", 20)
+        pdf.drawRightString(page_w - margin_r, page_h - 13 * mm, "RECHNUNG")
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(rl_colors.HexColor("#c8d8e8"))
+        pdf.drawRightString(page_w - margin_r, page_h - 20 * mm, platform_label)
 
-        # Recipient box
-        _draw_box(margin_x, info_top - 34 * mm, left_w, 34 * mm, fill_hex="#f9fbfc")
-        pdf.setFillColor(rl_colors.HexColor("#36424f"))
+        # ── 2. OPERATOR ADDRESS (top-right, below header) ────────────
+        op_addr_x = page_w - margin_r - 70 * mm
+        op_addr_y = page_h - 32 * mm
         pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(margin_x + 4 * mm, info_top - 7 * mm, "RECHNUNGSEMPFAENGER")
+        pdf.setFillColor(c_dark)
+        pdf.drawString(op_addr_x, op_addr_y, operator_label)
+        op_lines = []
+        if op_street:
+            op_lines.append(op_street)
+        if op_zip_city:
+            op_lines.append(op_zip_city)
+        if op_phone:
+            op_lines.append(f"Tel.: {op_phone}")
+        if op_website:
+            op_lines.append(op_website)
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(c_mid)
+        for i, ln in enumerate(op_lines[:4]):
+            pdf.drawString(op_addr_x, op_addr_y - (i + 1) * 4.5 * mm, ln)
+
+        # ── 3. RECIPIENT ADDRESS (DIN 5008 letter window) ────────────
+        addr_win_x = margin_l
+        addr_win_y = page_h - 90 * mm
+        addr_win_h = 40 * mm
+        addr_win_w = 85 * mm
+
+        # Tiny return address line above window
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(c_light)
+        ret_addr = operator_label
+        if op_zip_city:
+            ret_addr += f"  \u2022  {op_zip_city}"
+        pdf.drawString(addr_win_x, addr_win_y + addr_win_h + 1.5 * mm, ret_addr)
+        pdf.setStrokeColor(c_rule)
+        pdf.line(addr_win_x, addr_win_y + addr_win_h, addr_win_x + addr_win_w, addr_win_y + addr_win_h)
+
         pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(margin_x + 4 * mm, info_top - 14 * mm, company_name)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(addr_win_x, addr_win_y + addr_win_h - 10 * mm, company_name)
         pdf.setFont("Helvetica", 9)
-        pdf.drawString(margin_x + 4 * mm, info_top - 20 * mm, f"E-Mail: {recipient_email}")
-        pdf.drawString(margin_x + 4 * mm, info_top - 26 * mm, f"Leistungszeitraum: {period}")
+        pdf.setFillColor(c_mid)
+        pdf.drawString(addr_win_x, addr_win_y + addr_win_h - 16 * mm, "z. Hd. Buchhaltung")
+        pdf.drawString(addr_win_x, addr_win_y + addr_win_h - 21 * mm, f"E-Mail: {recipient_email}")
 
-        # Invoice meta box
-        _draw_box(right_x, info_top - 34 * mm, right_w, 34 * mm, fill_hex="#ffffff")
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(right_x + 4 * mm, info_top - 7 * mm, "RECHNUNGSDATEN")
-        pdf.setFont("Helvetica", 9)
-        pdf.drawString(right_x + 4 * mm, info_top - 14 * mm, f"Nr.: {invoice_no}")
-        pdf.drawString(right_x + 4 * mm, info_top - 20 * mm, f"Datum: {invoice_date}")
-        pdf.drawString(right_x + 4 * mm, info_top - 26 * mm, f"Faelligkeit: {due_date}")
+        # ── 4. INVOICE META BOX (right of address block) ─────────────
+        meta_x = margin_l + addr_win_w + 10 * mm
+        meta_w = page_w - meta_x - margin_r
+        meta_y = addr_win_y + addr_win_h
+        meta_h = addr_win_h + 2 * mm
 
-        # Position table
-        table_top = info_top - 44 * mm
-        table_w = page_w - (2 * margin_x)
-        table_h = 38 * mm
-        _draw_box(margin_x, table_top - table_h, table_w, table_h, fill_hex="#ffffff")
-        pdf.setFillColor(rl_colors.HexColor("#eef3f6"))
-        pdf.rect(margin_x + 0.6, table_top - 8 * mm, table_w - 1.2, 8 * mm, stroke=0, fill=1)
-        pdf.setFillColor(rl_colors.HexColor("#2f3c49"))
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(margin_x + 4 * mm, table_top - 5.4 * mm, "Beschreibung")
-        pdf.drawRightString(margin_x + table_w - 4 * mm, table_top - 5.4 * mm, "Betrag")
+        pdf.setFillColor(c_bg_totals)
+        pdf.setStrokeColor(c_rule)
+        pdf.roundRect(meta_x, meta_y - meta_h, meta_w, meta_h, 4, stroke=1, fill=1)
 
-        text_obj = pdf.beginText(margin_x + 4 * mm, table_top - 13 * mm)
-        text_obj.setFont("Helvetica", 9)
-        text_obj.setFillColor(rl_colors.HexColor("#2f3c49"))
-        words = description.split()
-        line = ""
-        wrapped = []
-        max_chars = 78
-        for w in words:
-            candidate = (line + " " + w).strip()
-            if len(candidate) > max_chars:
-                wrapped.append(line)
-                line = w
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(c_light)
+        pdf.drawString(meta_x + 4 * mm, meta_y - 6 * mm, "RECHNUNGSDATEN")
+
+        meta_rows = [
+            ("Rechnungsnr.:", invoice_no),
+            ("Rechnungsdatum:", invoice_date),
+            ("Zahlbar bis:", due_date),
+            ("Leistungszeitraum:", period),
+        ]
+        pdf.setFillColor(c_dark)
+        for i, (lbl, val) in enumerate(meta_rows):
+            row_y = meta_y - 13 * mm - i * 6 * mm
+            pdf.setFont("Helvetica", 8)
+            pdf.drawString(meta_x + 4 * mm, row_y, lbl)
+            pdf.setFont("Helvetica-Bold", 8)
+            pdf.drawRightString(meta_x + meta_w - 4 * mm, row_y, val)
+
+        # ── 5. SUBJECT LINE ──────────────────────────────────────────
+        subj_y = addr_win_y - 8 * mm
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(margin_l, subj_y, f"Rechnung Nr. {invoice_no}")
+        pdf.setStrokeColor(c_accent)
+        pdf.setLineWidth(1.2)
+        pdf.line(margin_l, subj_y - 2 * mm, margin_l + content_w, subj_y - 2 * mm)
+        pdf.setLineWidth(0.5)
+
+        # ── 6. POSITIONS TABLE ───────────────────────────────────────
+        tbl_top = subj_y - 8 * mm
+        col_pos_w = 10 * mm
+        col_qty_w = 18 * mm
+        col_unit_w = 12 * mm
+        col_net_w = 30 * mm
+        col_total_w = 32 * mm
+        col_desc_w = content_w - col_pos_w - col_qty_w - col_unit_w - col_net_w - col_total_w
+
+        col_x = [
+            margin_l,
+            margin_l + col_pos_w,
+            margin_l + col_pos_w + col_desc_w,
+            margin_l + col_pos_w + col_desc_w + col_qty_w,
+            margin_l + col_pos_w + col_desc_w + col_qty_w + col_unit_w,
+            margin_l + col_pos_w + col_desc_w + col_qty_w + col_unit_w + col_net_w,
+        ]
+        header_h = 7 * mm
+        row_h = 7 * mm
+
+        pdf.setFillColor(c_primary)
+        pdf.rect(margin_l, tbl_top - header_h, content_w, header_h, stroke=0, fill=1)
+
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(rl_colors.white)
+        col_headers = [("Pos", "L", col_pos_w), ("Beschreibung", "L", col_desc_w),
+                       ("Menge", "R", col_qty_w), ("Einheit", "C", col_unit_w),
+                       ("Einzelpreis", "R", col_net_w), ("Gesamtbetrag", "R", col_total_w)]
+        for ci, (hdr, align, cw) in enumerate(col_headers):
+            hx = col_x[ci]
+            hy = tbl_top - header_h + 2.5 * mm
+            if align == "R":
+                pdf.drawRightString(hx + cw - 2 * mm, hy, hdr)
+            elif align == "C":
+                pdf.drawCentredString(hx + cw / 2, hy, hdr)
             else:
-                line = candidate
-        if line:
-            wrapped.append(line)
-        if not wrapped:
-            wrapped = ["-"]
-        for ln in wrapped[:4]:
-            text_obj.textLine(ln)
-        pdf.drawText(text_obj)
-        pdf.setFont("Helvetica", 10)
-        pdf.drawRightString(margin_x + table_w - 4 * mm, table_top - 13 * mm, _money(net_amount))
+                pdf.drawString(hx + 2 * mm, hy, hdr)
 
-        # Totals
-        totals_y = table_top - table_h - 6 * mm
-        totals_w = 78 * mm
-        totals_x = page_w - margin_x - totals_w
-        _draw_box(totals_x, totals_y - 28 * mm, totals_w, 28 * mm, fill_hex="#f7fafc")
-        pdf.setFont("Helvetica", 9)
-        pdf.setFillColor(rl_colors.HexColor("#33424f"))
-        pdf.drawString(totals_x + 4 * mm, totals_y - 7 * mm, "Netto")
-        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_y - 7 * mm, _money(net_amount))
-        pdf.drawString(totals_x + 4 * mm, totals_y - 13 * mm, f"MwSt ({vat_rate:.2f}%)")
-        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_y - 13 * mm, _money(vat_amount))
-        pdf.setStrokeColor(rl_colors.HexColor("#ced7de"))
-        pdf.line(totals_x + 3 * mm, totals_y - 16 * mm, totals_x + totals_w - 3 * mm, totals_y - 16 * mm)
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.setFillColor(rl_colors.HexColor(brand_primary))
-        pdf.drawString(totals_x + 4 * mm, totals_y - 23 * mm, "Gesamtbetrag")
-        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_y - 23 * mm, _money(total_amount))
+        row_y = tbl_top - header_h - row_h
+        pdf.setFillColor(rl_colors.white)
+        pdf.rect(margin_l, row_y, content_w, row_h, stroke=0, fill=1)
+        pdf.setStrokeColor(c_rule)
+        pdf.line(margin_l, row_y + row_h, margin_l + content_w, row_y + row_h)
+        pdf.line(margin_l, row_y, margin_l + content_w, row_y)
 
         pdf.setFont("Helvetica", 8)
-        pdf.setFillColor(rl_colors.HexColor("#5b6975"))
-        pdf.drawString(margin_x, 12 * mm, f"Diese Rechnung wurde automatisch von {platform_label} erstellt.")
+        pdf.setFillColor(c_dark)
+        pdf.drawString(col_x[0] + 2 * mm, row_y + 2.5 * mm, "1")
+
+        words = description.split()
+        line_buf = ""
+        wrapped_desc = []
+        for w in words:
+            candidate = (line_buf + " " + w).strip()
+            if len(candidate) > int(col_desc_w / (2.2 * mm)):
+                wrapped_desc.append(line_buf)
+                line_buf = w
+            else:
+                line_buf = candidate
+        if line_buf:
+            wrapped_desc.append(line_buf)
+        if not wrapped_desc:
+            wrapped_desc = ["-"]
+        pdf.drawString(col_x[1] + 2 * mm, row_y + 2.5 * mm, wrapped_desc[0][:60])
+        if len(wrapped_desc) > 1:
+            pdf.setFont("Helvetica", 7)
+            pdf.setFillColor(c_mid)
+            pdf.drawString(col_x[1] + 2 * mm, row_y - 1.5 * mm, wrapped_desc[1][:60])
+
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(c_dark)
+        pdf.drawRightString(col_x[2] + col_qty_w - 2 * mm, row_y + 2.5 * mm, "1")
+        pdf.drawCentredString(col_x[3] + col_unit_w / 2, row_y + 2.5 * mm, "Pauschal")
+        pdf.drawRightString(col_x[4] + col_net_w - 2 * mm, row_y + 2.5 * mm, _money(net_amount))
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.drawRightString(col_x[5] + col_total_w - 2 * mm, row_y + 2.5 * mm, _money(net_amount))
+
+        table_bottom_y = row_y
+
+        # ── 7. TOTALS BLOCK ──────────────────────────────────────────
+        totals_w = 70 * mm
+        totals_x = page_w - margin_r - totals_w
+        totals_top = table_bottom_y - 5 * mm
+
+        pdf.setFillColor(c_bg_totals)
+        pdf.setStrokeColor(c_rule)
+        pdf.roundRect(totals_x, totals_top - 30 * mm, totals_w, 30 * mm, 4, stroke=1, fill=1)
+
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(c_mid)
+        pdf.drawString(totals_x + 4 * mm, totals_top - 7 * mm, "Nettobetrag")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_top - 7 * mm, _money(net_amount))
+        pdf.drawString(totals_x + 4 * mm, totals_top - 13 * mm, f"zzgl. MwSt. {vat_rate:.0f}%")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_top - 13 * mm, _money(vat_amount))
+
+        pdf.setStrokeColor(c_primary)
+        pdf.setLineWidth(0.8)
+        pdf.line(totals_x + 3 * mm, totals_top - 16 * mm, totals_x + totals_w - 3 * mm, totals_top - 16 * mm)
+        pdf.setLineWidth(0.5)
+
+        pdf.setFillColor(c_primary)
+        pdf.roundRect(totals_x, totals_top - 28 * mm, totals_w, 10 * mm, 4, stroke=0, fill=1)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(rl_colors.white)
+        pdf.drawString(totals_x + 4 * mm, totals_top - 24 * mm, "Gesamtbetrag")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_top - 24 * mm, _money(total_amount))
+
+        # ── 8. PAYMENT / BANKVERBINDUNG ──────────────────────────────
+        pay_x = margin_l
+        pay_y = totals_top - 7 * mm
+        has_bank = op_iban or op_bic or op_bank
+        has_tax = op_tax_id or op_vat_id
+        if has_bank or has_tax:
+            pdf.setFont("Helvetica-Bold", 8)
+            pdf.setFillColor(c_light)
+            pdf.drawString(pay_x, pay_y, "ZAHLUNGSINFORMATIONEN")
+            pay_row_y = pay_y - 5.5 * mm
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(c_dark)
+            if op_bank:
+                pdf.drawString(pay_x, pay_row_y, f"Bank: {op_bank}")
+                pay_row_y -= 4.5 * mm
+            if op_iban:
+                pdf.drawString(pay_x, pay_row_y, f"IBAN: {op_iban}")
+                pay_row_y -= 4.5 * mm
+            if op_bic:
+                pdf.drawString(pay_x, pay_row_y, f"BIC: {op_bic}")
+                pay_row_y -= 4.5 * mm
+            if op_tax_id:
+                pdf.drawString(pay_x, pay_row_y, f"Steuernummer: {op_tax_id}")
+                pay_row_y -= 4.5 * mm
+            if op_vat_id:
+                pdf.drawString(pay_x, pay_row_y, f"USt-IdNr.: {op_vat_id}")
+
+        # ── 9. FOOTER BAND ───────────────────────────────────────────
+        footer_h = 12 * mm
+        pdf.setFillColor(c_primary)
+        pdf.rect(0, 0, page_w, footer_h, stroke=0, fill=1)
+        footer_parts = [operator_label]
+        if op_street:
+            footer_parts.append(op_street)
+        if op_zip_city:
+            footer_parts.append(op_zip_city)
+        if op_phone:
+            footer_parts.append(f"Tel.: {op_phone}")
+        if op_website:
+            footer_parts.append(op_website)
+        if op_tax_id:
+            footer_parts.append(f"St.-Nr.: {op_tax_id}")
+        if op_vat_id:
+            footer_parts.append(f"USt-ID: {op_vat_id}")
+        footer_line1 = "  |  ".join(footer_parts[:4])
+        footer_line2 = "  |  ".join(footer_parts[4:]) if len(footer_parts) > 4 else ""
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(rl_colors.HexColor("#c8d8e8"))
+        pdf.drawCentredString(page_w / 2, footer_h - 4 * mm, footer_line1)
+        if footer_line2:
+            pdf.drawCentredString(page_w / 2, footer_h - 8 * mm, footer_line2)
+
         pdf.save()
 
         pdf_bytes = pdf_buffer.getvalue()

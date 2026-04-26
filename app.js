@@ -10393,6 +10393,13 @@ function renderAdminSettingsForm() {
   const datenschutzText = document.querySelector("#datenschutzText");
   if (impressumText) impressumText.value = state.settings.impressumText || "";
   if (datenschutzText) datenschutzText.value = state.settings.datenschutzText || "";
+  // Invoice bank/address/tax fields
+  const invoiceFields = ["invoiceOperatorStreet", "invoiceOperatorZipCity", "invoiceOperatorPhone",
+    "invoiceOperatorWebsite", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId"];
+  for (const fid of invoiceFields) {
+    const el = document.querySelector(`#${fid}`);
+    if (el) el.value = state.settings[fid] || "";
+  }
 }
 
 function showWorkerDetailOverlay(worker) {
@@ -12192,6 +12199,15 @@ async function handleSettingsSubmit(event) {
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
       brevoApiKey: (document.querySelector("#brevoApiKey")?.value || ""),
       brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
+      invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || "").trim(),
+      invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || "").trim(),
+      invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || "").trim(),
+      invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || "").trim(),
+      invoiceIban: (document.querySelector("#invoiceIban")?.value || "").trim(),
+      invoiceBic: (document.querySelector("#invoiceBic")?.value || "").trim(),
+      invoiceBankName: (document.querySelector("#invoiceBankName")?.value || "").trim(),
+      invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || "").trim(),
+      invoiceVatId: (document.querySelector("#invoiceVatId")?.value || "").trim(),
     };
     const smtpPasswordValue = document.querySelector("#smtpPassword")?.value || "";
     if (smtpPasswordValue.trim()) {
