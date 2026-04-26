@@ -1551,7 +1551,7 @@ def init_db():
                 admin_ip_whitelist, enforce_tenant_domain
             ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", 587, "", "", "", "BauPass Control", 1, "", "", "", "", "", 0),
+            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", "BauPass Control", 1, "", "", "", "", "", 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
