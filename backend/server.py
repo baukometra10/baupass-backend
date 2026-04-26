@@ -2173,7 +2173,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
             smtp.send_message(message)
         return True, ""
     except Exception as exc:
-        fallback_ok, fallback_error = _send_via_any_api(
+        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
             subject=str(message["Subject"]),
             sender_email=smtp_sender,
             sender_name=settings_row["smtp_sender_name"] or "",
@@ -2675,7 +2675,7 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
 
     # Skip SMTP attempt entirely if not configured — go straight to API fallback
     if not smtp_configured:
-        fallback_ok, fallback_error = _send_via_any_api(
+        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
             subject=msg["Subject"],
             sender_email=smtp_sender,
             sender_name=smtp_sender_name,
@@ -2699,7 +2699,7 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
         return True
     except Exception as exc:
         app.logger.error(f"[OTP-MAIL] SMTP-Fehler beim Senden an {email}: {exc}")
-        fallback_ok, fallback_error = _send_via_any_api(
+        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
             subject=msg["Subject"],
             sender_email=smtp_sender,
             sender_name=smtp_sender_name,
@@ -2997,7 +2997,7 @@ def check_visitor_card_expiry_notifications(db):
                 f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im BauPass-Admin-Panel.\n\n"
                 f"Viele Gr\u00fc\u00dfe\n{settings['operator_name']}"
             )
-            fallback_ok, _ = _send_via_any_api(
+            fallback_ok, _, _provider_used = _send_via_any_api(
                 subject=str(msg["Subject"]),
                 sender_email=smtp_sender,
                 sender_name=settings["smtp_sender_name"] or "",
@@ -4347,7 +4347,7 @@ def smtp_test():
         resend_api_key, resend_key_source = _get_resend_api_key_and_source()
         brevo_api_key = _get_brevo_api_key()
         resend_env = _collect_resend_env_presence()
-        fallback_ok, fallback_error = _send_via_any_api(
+        fallback_ok, fallback_error, fallback_provider = _send_via_any_api(
             subject=msg["Subject"] if "msg" in locals() else f"{platform_name}: SMTP Test-Mail",
             sender_email=smtp_settings["smtp_sender_email"],
             sender_name=smtp_settings["smtp_sender_name"],
@@ -4357,7 +4357,7 @@ def smtp_test():
         )
         if fallback_ok:
             app.logger.warning(f"[SMTP-TEST] SMTP ausgefallen, Test-Mail über API-Fallback versendet an {recipient}")
-            return jsonify({"ok": True, "recipient": recipient, "delivery": "resend_fallback"})
+            return jsonify({"ok": True, "recipient": recipient, "delivery": fallback_provider})
         if not diag_result.get("ok"):
             app.logger.error(
                 f"[SMTP-TEST-DIAG] stage={diag_result.get('stage')} type={diag_result.get('errorType')} error={diag_result.get('error')}"
@@ -7454,7 +7454,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 f"Gesamtbetrag: {invoice_row['total_amount']:.2f} EUR\n\n"
                 f"Viele Grüße\n{settings_row['operator_name']}"
             )
-            ok, err = _send_via_any_api(
+            ok, err, _provider_used = _send_via_any_api(
                 subject=f"Rechnung {invoice_row['invoice_number']} - {settings_row['operator_name']}",
                 sender_email=smtp_sender or "noreply@example.com",
                 sender_name=settings_row["smtp_sender_name"] or "",
@@ -7501,7 +7501,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             smtp.send_message(message)
         return True, ""
     except Exception as exc:
-        fallback_ok, fallback_error = _send_via_any_api(
+        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
             subject=str(message["Subject"]),
             sender_email=smtp_sender,
             sender_name=settings_row["smtp_sender_name"] or "",
@@ -8271,7 +8271,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
         return True, "sent"
     except Exception as exc:
         for r in recipients:
-            fallback_ok, _ = _send_via_any_api(
+            fallback_ok, _, _provider_used = _send_via_any_api(
                 subject=str(message["Subject"]),
                 sender_email=smtp_sender,
                 sender_name=settings["smtp_sender_name"] or "",
