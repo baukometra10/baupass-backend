@@ -1,4 +1,4 @@
-/ ALLE ELEMENTE OBEN DEFINIEREN!
+// ALLE ELEMENTE OBEN DEFINIEREN!
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 
