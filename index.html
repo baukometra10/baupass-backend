@@ -429,7 +429,10 @@
                 <h3 data-ui-i18n="workersListH3">Registrierte Mitarbeiter</h3>
               </div>
               <button id="workerCsvButton" type="button" class="ghost-button" data-ui-i18n="btnWorkerCsv">Mitarbeiterliste als PDF herunterladen</button>
+              <button id="workerCsvImportButton" type="button" class="ghost-button" title="CSV-Datei mit Mitarbeitern hochladen (Massenimport)">CSV importieren</button>
+              <input type="file" id="workerCsvImportInput" accept=".csv" style="display:none;" />
             </div>
+            <div id="workerCsvImportResult" style="display:none;margin:6px 0;padding:8px 12px;border-radius:6px;font-size:13px;"></div>
             <div class="worker-list-toolbar">
               <input id="workerSearchInput" type="search" placeholder="Suchen: Name, Badge-ID, Baustelle …" data-ui-i18n="workerSearchPlaceholder" data-ui-i18n-attr="placeholder" autocomplete="off" />
               <label class="bulk-select-all-label">
@@ -1010,6 +1013,14 @@
                 <span>USt-IdNr.</span>
                 <input id="invoiceVatId" type="text" placeholder="DE123456789" />
               </label>
+              <label class="full-width">
+                <span>Rechnungs-E-Mail Betreff <small style="font-weight:400">(leer = Standard: "Rechnung von … Nr. …")</small></span>
+                <input id="invoiceEmailSubject" type="text" placeholder="Ihre Rechnung Nr. {invoiceNumber} von {platformName}" />
+              </label>
+              <label class="full-width">
+                <span>Rechnungs-E-Mail Einleitungstext <small style="font-weight:400">(leer = Standardtext)</small></span>
+                <textarea id="invoiceEmailIntro" rows="3" placeholder="anbei finden Sie Ihre Rechnung…"></textarea>
+              </label>
 
               <!-- ── SMTP ── -->
               <div class="form-section">
@@ -1374,7 +1385,10 @@
               </label>
               <label>
                 <span data-ui-i18n="labelInvNumber">Rechnungsnummer</span>
-                <input id="invoiceNumber" type="text" placeholder="RE-2026-0001" />
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input id="invoiceNumber" type="text" placeholder="RE-2026-0001" style="flex:1;" />
+                  <button type="button" id="invoiceNumberAutoBtn" class="ghost-button" style="white-space:nowrap;padding:6px 10px;" title="Nächste freie Nummer laden">Auto</button>
+                </div>
               </label>
               <label>
                 <span data-ui-i18n="labelInvRecipient">Empfänger E-Mail</span>
@@ -1393,12 +1407,38 @@
                 <input id="invoicePeriod" type="text" placeholder="01.04.2026 - 30.04.2026" required />
               </label>
               <label class="full-width">
-                <span data-ui-i18n="labelInvDescription">Leistungsbeschreibung</span>
+                <span data-ui-i18n="labelInvDescription">Leistungsbeschreibung (Kurzform für Betreff)</span>
                 <input id="invoiceDescription" type="text" placeholder="Digitale Baustellen-Ausweise + Zutrittskontrolle" required />
               </label>
+
+              <!-- Mehrere Positionen -->
+              <div class="full-width" id="invoicePositionsBlock">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <span style="font-weight:600;font-size:13px;">Positionen</span>
+                  <button type="button" id="addInvoicePositionBtn" class="ghost-button" style="padding:4px 10px;font-size:12px;">+ Position hinzufügen</button>
+                </div>
+                <div id="invoicePositionRows">
+                  <!-- dynamic rows injected by JS -->
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                    <input type="checkbox" id="invoiceDiscountToggle" /> Rabatt / Skonto anwenden
+                  </label>
+                </div>
+                <div id="invoiceDiscountRow" style="display:none;margin-top:6px;">
+                  <label>
+                    <span>Rabattbetrag (EUR netto)</span>
+                    <input id="invoiceDiscountAmount" type="number" min="0" step="0.01" value="0" style="max-width:160px;" />
+                  </label>
+                </div>
+                <div style="margin-top:8px;font-size:13px;color:#4a5568;">
+                  Nettosumme: <strong id="invoicePositionNetTotal">0,00 EUR</strong>
+                </div>
+              </div>
+
               <label>
-                <span data-ui-i18n="labelInvNet">Nettobetrag (EUR)</span>
-                <input id="invoiceNetAmount" type="number" min="0" step="0.01" value="0" required />
+                <span data-ui-i18n="labelInvNet">Nettobetrag manuell (EUR) <small style="font-weight:400">(wird von Positionen überschrieben)</small></span>
+                <input id="invoiceNetAmount" type="number" min="0" step="0.01" value="0" />
               </label>
               <label>
                 <span data-ui-i18n="labelInvVat">MwSt. (%)</span>

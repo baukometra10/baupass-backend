@@ -1,4 +1,4 @@
-﻿// ALLE ELEMENTE OBEN DEFINIEREN!
+/ ALLE ELEMENTE OBEN DEFINIEREN!
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 
@@ -10395,7 +10395,8 @@ function renderAdminSettingsForm() {
   if (datenschutzText) datenschutzText.value = state.settings.datenschutzText || "";
   // Invoice bank/address/tax fields
   const invoiceFields = ["invoiceOperatorStreet", "invoiceOperatorZipCity", "invoiceOperatorPhone",
-    "invoiceOperatorWebsite", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId"];
+    "invoiceOperatorWebsite", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId",
+    "invoiceEmailSubject", "invoiceEmailIntro"];
   for (const fid of invoiceFields) {
     const el = document.querySelector(`#${fid}`);
     if (el) el.value = state.settings[fid] || "";
@@ -12208,6 +12209,8 @@ async function handleSettingsSubmit(event) {
       invoiceBankName: (document.querySelector("#invoiceBankName")?.value || "").trim(),
       invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || "").trim(),
       invoiceVatId: (document.querySelector("#invoiceVatId")?.value || "").trim(),
+      invoiceEmailSubject: (document.querySelector("#invoiceEmailSubject")?.value || "").trim(),
+      invoiceEmailIntro: (document.querySelector("#invoiceEmailIntro")?.value || "").trim(),
     };
     const smtpPasswordValue = document.querySelector("#smtpPassword")?.value || "";
     if (smtpPasswordValue.trim()) {
@@ -12675,6 +12678,8 @@ async function handleInvoiceSend() {
         description: invoice.invoiceDescription,
         netAmount: invoice.netAmount,
         vatRate: invoice.vatRate,
+        discountAmount: invoice.discountAmount || 0,
+        items: invoice.items || [],
         renderedHtml: html
       }
     });
@@ -12773,11 +12778,25 @@ function buildInvoiceDraft(options = {}) {
   // Extrahiere Datumsbereich aus invoicePeriod (z. B. "01.04.2026 - 30.04.2026")
   const accessLineItems = extractAccessLineItems(company.id, invoicePeriod);
 
+  // Multi-position items
+  const positionItems = getInvoicePositions ? getInvoicePositions() : [];
+  const positionsNetAmount = positionItems.reduce((sum, item) => sum + (item.total || 0), 0);
+
   const lineItemsNet = accessLineItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const fallbackNetAmount = getPlanNetPrice(company.plan);
-  const netAmount = requestedNetAmount > 0
+  const netAmount = positionsNetAmount > 0
+    ? Math.round(positionsNetAmount * 100) / 100
+    : requestedNetAmount > 0
     ? requestedNetAmount
     : (lineItemsNet > 0 ? Math.round(lineItemsNet * 100) / 100 : fallbackNetAmount);
+
+  // Discount / Skonto
+  const discountToggle = document.querySelector("#invoiceDiscountToggle");
+  const discountAmount = (discountToggle?.checked)
+    ? Math.round((parseFloat(document.querySelector("#invoiceDiscountAmount")?.value || "0") || 0) * 100) / 100
+    : 0;
+  const netAfterDiscount = Math.max(0, Math.round((netAmount - discountAmount) * 100) / 100);
+
   const vatRate = Number(document.querySelector("#invoiceVatRate").value || "0");
   if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
     if (!silent) {
@@ -12785,8 +12804,8 @@ function buildInvoiceDraft(options = {}) {
     }
     return null;
   }
-  const vatAmount = Math.round(netAmount * (vatRate / 100) * 100) / 100;
-  const totalAmount = Math.round((netAmount + vatAmount) * 100) / 100;
+  const vatAmount = Math.round(netAfterDiscount * (vatRate / 100) * 100) / 100;
+  const totalAmount = Math.round((netAfterDiscount + vatAmount) * 100) / 100;
 
   return {
     company,
@@ -12801,6 +12820,8 @@ function buildInvoiceDraft(options = {}) {
     vatRate,
     vatAmount,
     totalAmount,
+    discountAmount,
+    items: positionItems.length > 0 ? positionItems : undefined,
     accessLineItems,
     primaryColor: normalizeHexColor(state.settings.invoicePrimaryColor, "#0f4c5c"),
     accentColor: normalizeHexColor(state.settings.invoiceAccentColor, "#e36414"),
@@ -16437,6 +16458,142 @@ if (invoiceCompanySelect) {
   invoiceCompanySelect.addEventListener("change", () => {
     syncInvoiceRecipientFromCompany();
     refreshInvoicePreview({ silent: true });
+  });
+}
+
+// ── Auto-fill invoice number ──────────────────────────────────────────────
+const invoiceNumberAutoBtn = document.querySelector("#invoiceNumberAutoBtn");
+if (invoiceNumberAutoBtn) {
+  invoiceNumberAutoBtn.addEventListener("click", async () => {
+    try {
+      const data = await apiRequest(API_BASE + "/api/invoices/next-number");
+      const field = document.querySelector("#invoiceNumber");
+      if (field) field.value = data.nextNumber || "";
+    } catch (e) {
+      window.alert("Konnte nächste Rechnungsnummer nicht laden: " + e.message);
+    }
+  });
+}
+
+// ── Dynamic invoice positions ─────────────────────────────────────────────
+function createPositionRow(pos = {}) {
+  const row = document.createElement("div");
+  row.className = "invoice-position-row";
+  row.style.cssText = "display:grid;grid-template-columns:1fr 70px 90px 90px 34px;gap:4px;margin-bottom:4px;align-items:center;";
+  const desc = pos.description || "";
+  const qty = pos.qty != null ? pos.qty : 1;
+  const unit = pos.unit || "Pauschal";
+  const unitPrice = pos.unitPrice != null ? pos.unitPrice : 0;
+  row.innerHTML = `
+    <input type="text" class="pos-desc" placeholder="Beschreibung" value="${escapeAttr(desc)}" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;" required />
+    <input type="number" class="pos-qty" placeholder="Menge" value="${qty}" min="0" step="any" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;text-align:right;" />
+    <select class="pos-unit" style="padding:5px 4px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
+      <option${unit==="Pauschal"?" selected":""}>Pauschal</option>
+      <option${unit==="Stunden"?" selected":""}>Stunden</option>
+      <option${unit==="Stück"?" selected":""}>Stück</option>
+      <option${unit==="Monat"?" selected":""}>Monat</option>
+      <option${unit==="Tag"?" selected":""}>Tag</option>
+    </select>
+    <input type="number" class="pos-unit-price" placeholder="Einzelpreis" value="${unitPrice}" min="0" step="0.01" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;text-align:right;" />
+    <button type="button" class="remove-pos-btn" style="background:none;border:none;cursor:pointer;color:#e53e3e;font-size:18px;line-height:1;padding:2px;">×</button>
+  `;
+  row.querySelector(".remove-pos-btn").addEventListener("click", () => {
+    row.remove();
+    updatePositionNetTotal();
+  });
+  ["pos-qty", "pos-unit-price"].forEach((cls) => {
+    row.querySelector("." + cls).addEventListener("input", updatePositionNetTotal);
+  });
+  return row;
+}
+
+function escapeAttr(str) {
+  return String(str || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function updatePositionNetTotal() {
+  const rows = document.querySelectorAll("#invoicePositionRows .invoice-position-row");
+  let total = 0;
+  rows.forEach((r) => {
+    const qty = parseFloat(r.querySelector(".pos-qty")?.value || "1") || 0;
+    const price = parseFloat(r.querySelector(".pos-unit-price")?.value || "0") || 0;
+    total += qty * price;
+  });
+  total = Math.round(total * 100) / 100;
+  const el = document.querySelector("#invoicePositionNetTotal");
+  if (el) el.textContent = total.toLocaleString("de-DE", {minimumFractionDigits: 2}) + " EUR";
+  refreshInvoicePreview({ silent: true });
+}
+
+function getInvoicePositions() {
+  const rows = document.querySelectorAll("#invoicePositionRows .invoice-position-row");
+  if (!rows.length) return [];
+  return Array.from(rows).map((r) => {
+    const qty = parseFloat(r.querySelector(".pos-qty")?.value || "1") || 1;
+    const unitPrice = parseFloat(r.querySelector(".pos-unit-price")?.value || "0") || 0;
+    return {
+      description: (r.querySelector(".pos-desc")?.value || "").trim(),
+      qty,
+      unit: r.querySelector(".pos-unit")?.value || "Pauschal",
+      unitPrice,
+      total: Math.round(qty * unitPrice * 100) / 100,
+    };
+  });
+}
+
+function initInvoicePositions() {
+  const container = document.querySelector("#invoicePositionRows");
+  const addBtn = document.querySelector("#addInvoicePositionBtn");
+  if (!container || !addBtn) return;
+  if (!container.children.length) {
+    container.appendChild(createPositionRow({ description: "", qty: 1, unit: "Pauschal", unitPrice: 0 }));
+  }
+  addBtn.addEventListener("click", () => {
+    container.appendChild(createPositionRow());
+    updatePositionNetTotal();
+  });
+  const discountToggle = document.querySelector("#invoiceDiscountToggle");
+  const discountRow = document.querySelector("#invoiceDiscountRow");
+  if (discountToggle && discountRow) {
+    discountToggle.addEventListener("change", () => {
+      discountRow.style.display = discountToggle.checked ? "block" : "none";
+    });
+    const discountInput = document.querySelector("#invoiceDiscountAmount");
+    if (discountInput) discountInput.addEventListener("input", updatePositionNetTotal);
+  }
+}
+initInvoicePositions();
+
+// ── CSV Worker Import ─────────────────────────────────────────────────────
+const workerCsvImportButton = document.querySelector("#workerCsvImportButton");
+const workerCsvImportInput = document.querySelector("#workerCsvImportInput");
+if (workerCsvImportButton && workerCsvImportInput) {
+  workerCsvImportButton.addEventListener("click", () => workerCsvImportInput.click());
+  workerCsvImportInput.addEventListener("change", async () => {
+    const file = workerCsvImportInput.files?.[0];
+    if (!file) return;
+    const resultEl = document.querySelector("#workerCsvImportResult");
+    if (resultEl) { resultEl.style.display = "block"; resultEl.textContent = "Importiere…"; resultEl.style.background = "#ebf4ff"; }
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch(API_BASE + "/api/workers/import-csv", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.message || resp.statusText); }
+      const data = await resp.json();
+      if (resultEl) {
+        resultEl.style.background = data.errors === 0 ? "#f0fff4" : "#fffbeb";
+        resultEl.innerHTML = `<strong>Import abgeschlossen:</strong> ${data.created} erstellt, ${data.skipped} übersprungen, ${data.errors} Fehler.` +
+          (data.details?.errors?.length ? `<br><small style="color:#c05621">${data.details.errors.map(e => `Zeile ${e.row}: ${e.reason}`).join("; ")}</small>` : "");
+      }
+      workerCsvImportInput.value = "";
+      refreshAll();
+    } catch (err) {
+      if (resultEl) { resultEl.style.background = "#fff5f5"; resultEl.textContent = "Fehler: " + err.message; }
+    }
   });
 }
 

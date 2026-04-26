@@ -1,4 +1,4 @@
-import os
+mport os
 import sqlite3
 import secrets
 import csv
@@ -1579,6 +1579,10 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_phone TEXT NOT NULL DEFAULT ''")
     if "invoice_operator_website" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_website TEXT NOT NULL DEFAULT ''")
+    if "invoice_email_subject" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_email_subject TEXT NOT NULL DEFAULT ''")
+    if "invoice_email_intro" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_email_intro TEXT NOT NULL DEFAULT ''")
     if "smtp_host" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN smtp_host TEXT NOT NULL DEFAULT ''")
     if "smtp_port" not in settings_columns:
@@ -1749,6 +1753,10 @@ def init_db():
         cur.execute("ALTER TABLE invoices ADD COLUMN last_send_attempt_at TEXT")
     if "next_retry_at" not in invoice_columns:
         cur.execute("ALTER TABLE invoices ADD COLUMN next_retry_at TEXT")
+    if "items_json" not in invoice_columns:
+        cur.execute("ALTER TABLE invoices ADD COLUMN items_json TEXT NOT NULL DEFAULT ''")
+    if "discount_amount" not in invoice_columns:
+        cur.execute("ALTER TABLE invoices ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0")
 
     operation_approval_columns = [row[1] for row in cur.execute("PRAGMA table_info(operation_approvals)").fetchall()]
     if "expires_at" not in operation_approval_columns:
@@ -4292,6 +4300,8 @@ def get_settings():
             "invoiceOperatorZipCity": row["invoice_operator_zip_city"] if "invoice_operator_zip_city" in row.keys() else "",
             "invoiceOperatorPhone": row["invoice_operator_phone"] if "invoice_operator_phone" in row.keys() else "",
             "invoiceOperatorWebsite": row["invoice_operator_website"] if "invoice_operator_website" in row.keys() else "",
+            "invoiceEmailSubject": row["invoice_email_subject"] if "invoice_email_subject" in row.keys() else "",
+            "invoiceEmailIntro": row["invoice_email_intro"] if "invoice_email_intro" in row.keys() else "",
             "smtpHost": row["smtp_host"],
             "smtpPort": row["smtp_port"],
             "smtpUsername": row["smtp_username"],
@@ -4595,6 +4605,7 @@ def update_settings():
             invoice_tax_id = ?, invoice_vat_id = ?,
             invoice_operator_street = ?, invoice_operator_zip_city = ?,
             invoice_operator_phone = ?, invoice_operator_website = ?,
+            invoice_email_subject = ?, invoice_email_intro = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
             admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?
@@ -4617,6 +4628,8 @@ def update_settings():
             payload.get("invoiceOperatorZipCity", ""),
             payload.get("invoiceOperatorPhone", ""),
             payload.get("invoiceOperatorWebsite", ""),
+            payload.get("invoiceEmailSubject", ""),
+            payload.get("invoiceEmailIntro", ""),
             payload.get("smtpHost", ""),
             int(payload.get("smtpPort", 587) or 587),
             payload.get("smtpUsername", ""),
@@ -5209,6 +5222,134 @@ def list_workers():
         item.update(get_worker_lock_metadata(db, row))
         serialized.append(item)
     return jsonify(serialized)
+
+
+@app.post("/api/workers/import-csv")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def import_workers_csv():
+    """Bulk-import workers from a CSV file.
+    Expected columns (case-insensitive):
+    vorname, nachname, firma, versicherungsnr, typ, rolle, baustelle, gueltig_bis
+    Returns a summary: created, skipped, errors.
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+    uploaded_file = request.files["file"]
+    if not uploaded_file.filename or not uploaded_file.filename.lower().endswith(".csv"):
+        return jsonify({"error": "invalid_file_type", "message": "Nur CSV-Dateien erlaubt."}), 400
+
+    db = get_db()
+    # Read CSV safely
+    raw_bytes = uploaded_file.read(2 * 1024 * 1024)  # max 2 MB
+    try:
+        raw_text = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raw_text = raw_bytes.decode("latin-1", errors="replace")
+
+    reader = csv.DictReader(io.StringIO(raw_text), delimiter=None)
+    # Try to detect delimiter (csv.Sniffer)
+    try:
+        sample = raw_text[:2048]
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;|\t")
+        reader = csv.DictReader(io.StringIO(raw_text), dialect=dialect)
+    except csv.Error:
+        reader = csv.DictReader(io.StringIO(raw_text))
+
+    # Normalize header names
+    def _col(row, *candidates):
+        for key in row:
+            norm = key.strip().lower().replace(" ", "_").replace("-", "_").replace("ä","ae").replace("ö","oe").replace("ü","ue").replace("ß","ss")
+            if norm in candidates:
+                return str(row[key] or "").strip()
+        return ""
+
+    created = []
+    skipped = []
+    errors = []
+
+    # Pre-load companies for name->id lookup
+    all_companies = {str(r["name"]).strip().lower(): str(r["id"]) for r in db.execute("SELECT id, name FROM companies WHERE deleted_at IS NULL").fetchall()}
+
+    for row_num, row in enumerate(reader, start=2):
+        try:
+            first_name = _col(row, "vorname", "first_name", "firstname")
+            last_name = _col(row, "nachname", "last_name", "lastname", "name")
+            if not first_name or not last_name:
+                skipped.append({"row": row_num, "reason": "Vor- oder Nachname fehlt"})
+                continue
+
+            company_name_raw = _col(row, "firma", "company", "unternehmen", "company_name")
+            company_id = all_companies.get(company_name_raw.lower(), "")
+            if not company_id:
+                # Try partial match
+                for cn, cid in all_companies.items():
+                    if company_name_raw.lower() in cn or cn in company_name_raw.lower():
+                        company_id = cid
+                        break
+            if not company_id:
+                if g.current_user["role"] == "company-admin":
+                    company_id = g.current_user.get("company_id", "")
+                else:
+                    skipped.append({"row": row_num, "reason": f"Firma '{company_name_raw}' nicht gefunden"})
+                    continue
+
+            if g.current_user["role"] == "company-admin" and company_id != g.current_user.get("company_id"):
+                skipped.append({"row": row_num, "reason": "Firma nicht erlaubt"})
+                continue
+
+            insurance_number = _col(row, "versicherungsnr", "insurance_number", "sozialversicherungsnr", "svnr")
+            worker_type_raw = _col(row, "typ", "type", "worker_type").lower()
+            worker_type = "worker" if worker_type_raw not in ("visitor", "besucher") else "visitor"
+            role_value = _col(row, "rolle", "role", "position") or "Mitarbeiter"
+            site_value = _col(row, "baustelle", "site", "standort") or ""
+            valid_until_raw = _col(row, "gueltig_bis", "gueltigbis", "valid_until", "validuntil", "ablaufdatum")
+            # Normalize date
+            valid_until_value = None
+            if valid_until_raw:
+                # Try DD.MM.YYYY and YYYY-MM-DD
+                for fmt in ("%d.%m.%Y", "%Y-%m-%d", "%d/%m/%Y"):
+                    try:
+                        from datetime import datetime as _dt
+                        parsed = _dt.strptime(valid_until_raw, fmt)
+                        valid_until_value = parsed.strftime("%Y-%m-%dT23:59:00")
+                        break
+                    except ValueError:
+                        continue
+
+            worker_id = f"wrk-{secrets.token_hex(6)}"
+            # Generate unique badge_id
+            badge_id_value = str(row_num).zfill(6)
+            existing_badge = db.execute("SELECT id FROM workers WHERE badge_id = ?", (badge_id_value,)).fetchone()
+            if existing_badge:
+                badge_id_value = secrets.token_hex(4)
+
+            db.execute(
+                """
+                INSERT INTO workers (
+                    id, company_id, subcompany_id, first_name, last_name, insurance_number,
+                    worker_type, role, site, valid_until, visitor_company, visit_purpose,
+                    host_name, visit_end_at, status, photo_data, badge_id, badge_pin_hash,
+                    physical_card_id, deleted_at
+                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, 'active', '', ?, '', '', NULL)
+                """,
+                (worker_id, company_id, first_name, last_name, insurance_number,
+                 worker_type, role_value, site_value, valid_until_value, badge_id_value),
+            )
+            created.append({"row": row_num, "name": f"{first_name} {last_name}", "id": worker_id})
+        except Exception as exc:
+            errors.append({"row": row_num, "reason": str(exc)[:200]})
+
+    if created:
+        db.commit()
+        log_audit("workers.bulk_imported", f"{len(created)} Mitarbeiter per CSV importiert", actor=g.current_user)
+
+    return jsonify({
+        "created": len(created),
+        "skipped": len(skipped),
+        "errors": len(errors),
+        "details": {"created": created[:50], "skipped": skipped[:50], "errors": errors[:50]},
+    })
 
 
 @app.get("/api/workers/export.csv")
@@ -7475,6 +7616,16 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         vat_rate = float(invoice_row["vat_rate"] or 0)
         vat_amount = float(invoice_row["vat_amount"] or 0)
         total_amount = float(invoice_row["total_amount"] or 0)
+        discount_amount = float(invoice_row["discount_amount"] if "discount_amount" in invoice_row.keys() else 0)
+
+        # Parse multi-position items
+        try:
+            items_json_raw = str(invoice_row["items_json"] if "items_json" in invoice_row.keys() else "") or ""
+            pdf_items = json.loads(items_json_raw) if items_json_raw.strip().startswith("[") else []
+        except Exception:
+            pdf_items = []
+        if not pdf_items:
+            pdf_items = [{"description": description, "qty": 1, "unit": "Pauschal", "unitPrice": net_amount, "total": net_amount}]
 
         def _sr(key, fallback=""):
             try:
@@ -7660,44 +7811,56 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             else:
                 pdf.drawString(hx + 2 * mm, hy, hdr)
 
-        row_y = tbl_top - header_h - row_h
-        pdf.setFillColor(rl_colors.white)
-        pdf.rect(margin_l, row_y, content_w, row_h, stroke=0, fill=1)
-        pdf.setStrokeColor(c_rule)
-        pdf.line(margin_l, row_y + row_h, margin_l + content_w, row_y + row_h)
-        pdf.line(margin_l, row_y, margin_l + content_w, row_y)
+        # ── 6b. Draw position rows (multi-item support) ──────────────
+        row_y = tbl_top - header_h
+        for pos_idx, item in enumerate(pdf_items):
+            row_y -= row_h
+            row_bg = rl_colors.white if pos_idx % 2 == 0 else rl_colors.HexColor("#f7fafc")
+            pdf.setFillColor(row_bg)
+            pdf.rect(margin_l, row_y, content_w, row_h, stroke=0, fill=1)
+            pdf.setStrokeColor(c_rule)
+            pdf.line(margin_l, row_y, margin_l + content_w, row_y)
 
-        pdf.setFont("Helvetica", 8)
-        pdf.setFillColor(c_dark)
-        pdf.drawString(col_x[0] + 2 * mm, row_y + 2.5 * mm, "1")
+            item_desc = str(item.get("description") or "-")
+            item_qty = float(item.get("qty") or 1)
+            item_unit = str(item.get("unit") or "Pauschal")
+            item_unit_price = float(item.get("unitPrice") or 0)
+            item_total = float(item.get("total") or 0)
 
-        words = description.split()
-        line_buf = ""
-        wrapped_desc = []
-        for w in words:
-            candidate = (line_buf + " " + w).strip()
-            if len(candidate) > int(col_desc_w / (2.2 * mm)):
+            qty_str = f"{item_qty:g}" if item_qty != int(item_qty) else str(int(item_qty))
+
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(c_dark)
+            pdf.drawString(col_x[0] + 2 * mm, row_y + 2.5 * mm, str(pos_idx + 1))
+
+            # Wrap description
+            words = item_desc.split()
+            line_buf = ""
+            wrapped_desc = []
+            for w in words:
+                candidate = (line_buf + " " + w).strip()
+                if len(candidate) > int(col_desc_w / (2.2 * mm)):
+                    wrapped_desc.append(line_buf)
+                    line_buf = w
+                else:
+                    line_buf = candidate
+            if line_buf:
                 wrapped_desc.append(line_buf)
-                line_buf = w
-            else:
-                line_buf = candidate
-        if line_buf:
-            wrapped_desc.append(line_buf)
-        if not wrapped_desc:
-            wrapped_desc = ["-"]
-        pdf.drawString(col_x[1] + 2 * mm, row_y + 2.5 * mm, wrapped_desc[0][:60])
-        if len(wrapped_desc) > 1:
-            pdf.setFont("Helvetica", 7)
-            pdf.setFillColor(c_mid)
-            pdf.drawString(col_x[1] + 2 * mm, row_y - 1.5 * mm, wrapped_desc[1][:60])
+            if not wrapped_desc:
+                wrapped_desc = ["-"]
+            pdf.drawString(col_x[1] + 2 * mm, row_y + 2.5 * mm, wrapped_desc[0][:60])
+            if len(wrapped_desc) > 1:
+                pdf.setFont("Helvetica", 7)
+                pdf.setFillColor(c_mid)
+                pdf.drawString(col_x[1] + 2 * mm, row_y - 1.5 * mm, wrapped_desc[1][:60])
 
-        pdf.setFont("Helvetica", 8)
-        pdf.setFillColor(c_dark)
-        pdf.drawRightString(col_x[2] + col_qty_w - 2 * mm, row_y + 2.5 * mm, "1")
-        pdf.drawCentredString(col_x[3] + col_unit_w / 2, row_y + 2.5 * mm, "Pauschal")
-        pdf.drawRightString(col_x[4] + col_net_w - 2 * mm, row_y + 2.5 * mm, _money(net_amount))
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.drawRightString(col_x[5] + col_total_w - 2 * mm, row_y + 2.5 * mm, _money(net_amount))
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(c_dark)
+            pdf.drawRightString(col_x[2] + col_qty_w - 2 * mm, row_y + 2.5 * mm, qty_str)
+            pdf.drawCentredString(col_x[3] + col_unit_w / 2, row_y + 2.5 * mm, item_unit[:10])
+            pdf.drawRightString(col_x[4] + col_net_w - 2 * mm, row_y + 2.5 * mm, _money(item_unit_price))
+            pdf.setFont("Helvetica-Bold", 8)
+            pdf.drawRightString(col_x[5] + col_total_w - 2 * mm, row_y + 2.5 * mm, _money(item_total))
 
         table_bottom_y = row_y
 
@@ -7706,28 +7869,41 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         totals_x = page_w - margin_r - totals_w
         totals_top = table_bottom_y - 5 * mm
 
+        totals_rows_count = 2 + (1 if discount_amount > 0 else 0)  # Netto + MwSt [+ Rabatt]
+        totals_inner_h = (totals_rows_count * 6 + 12) * mm  # rows + total band
+
         pdf.setFillColor(c_bg_totals)
         pdf.setStrokeColor(c_rule)
-        pdf.roundRect(totals_x, totals_top - 30 * mm, totals_w, 30 * mm, 4, stroke=1, fill=1)
+        pdf.roundRect(totals_x, totals_top - totals_inner_h, totals_w, totals_inner_h, 4, stroke=1, fill=1)
 
+        t_row = totals_top
         pdf.setFont("Helvetica", 8)
         pdf.setFillColor(c_mid)
-        pdf.drawString(totals_x + 4 * mm, totals_top - 7 * mm, "Nettobetrag")
-        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_top - 7 * mm, _money(net_amount))
-        pdf.drawString(totals_x + 4 * mm, totals_top - 13 * mm, f"zzgl. MwSt. {vat_rate:.0f}%")
-        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_top - 13 * mm, _money(vat_amount))
+        t_row -= 7 * mm
+        pdf.drawString(totals_x + 4 * mm, t_row, "Nettobetrag")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, t_row, _money(net_amount))
+        if discount_amount > 0:
+            t_row -= 6 * mm
+            pdf.setFillColor(rl_colors.HexColor("#e07000"))
+            pdf.drawString(totals_x + 4 * mm, t_row, "Abzgl. Rabatt")
+            pdf.drawRightString(totals_x + totals_w - 4 * mm, t_row, f"- {_money(discount_amount)}")
+            pdf.setFillColor(c_mid)
+        t_row -= 6 * mm
+        pdf.setFillColor(c_mid)
+        pdf.drawString(totals_x + 4 * mm, t_row, f"zzgl. MwSt. {vat_rate:.0f}%")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, t_row, _money(vat_amount))
 
         pdf.setStrokeColor(c_primary)
         pdf.setLineWidth(0.8)
-        pdf.line(totals_x + 3 * mm, totals_top - 16 * mm, totals_x + totals_w - 3 * mm, totals_top - 16 * mm)
+        pdf.line(totals_x + 3 * mm, t_row - 3 * mm, totals_x + totals_w - 3 * mm, t_row - 3 * mm)
         pdf.setLineWidth(0.5)
 
         pdf.setFillColor(c_primary)
-        pdf.roundRect(totals_x, totals_top - 28 * mm, totals_w, 10 * mm, 4, stroke=0, fill=1)
+        pdf.roundRect(totals_x, t_row - 12 * mm, totals_w, 10 * mm, 4, stroke=0, fill=1)
         pdf.setFont("Helvetica-Bold", 10)
         pdf.setFillColor(rl_colors.white)
-        pdf.drawString(totals_x + 4 * mm, totals_top - 24 * mm, "Gesamtbetrag")
-        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_top - 24 * mm, _money(total_amount))
+        pdf.drawString(totals_x + 4 * mm, t_row - 8 * mm, "Gesamtbetrag")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, t_row - 8 * mm, _money(total_amount))
 
         # ── 8. PAYMENT / BANKVERBINDUNG ──────────────────────────────
         pay_x = margin_l
@@ -7800,17 +7976,26 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     if not attachment_payload:
         return False, "PDF-Anhang konnte nicht erzeugt werden (reportlab/Logo/Rendering prüfen)"
 
+    # Use custom email template from settings if configured
+    custom_subject = str(settings_row["invoice_email_subject"] if "invoice_email_subject" in settings_row.keys() else "") or ""
+    custom_intro = str(settings_row["invoice_email_intro"] if "invoice_email_intro" in settings_row.keys() else "") or ""
+    if custom_subject.strip():
+        mail_subject = custom_subject.replace("{invoiceNumber}", str(invoice_row["invoice_number"] or "")).replace("{platformName}", platform_label)
+    intro_text = custom_intro.strip() if custom_intro.strip() else f"anbei erhalten Sie Ihre Rechnung Nr. {invoice_row['invoice_number']} von {platform_label}.\nAlle Details entnehmen Sie bitte dem beigefügten PDF-Anhang."
+    intro_html = custom_intro.strip() if custom_intro.strip() else (
+        f"anbei erhalten Sie Ihre Rechnung Nr. <strong>{html.escape(str(invoice_row['invoice_number'] or '-'))}</strong> "
+        f"von <strong>{html.escape(platform_label)}</strong>.</p>"
+        f"<p style='margin:0 0 14px;'>Alle Details entnehmen Sie bitte dem beigefügten <strong>PDF-Anhang</strong>."
+    )
+
     text_body = (
         f"Guten Tag,\n\n"
-        f"anbei erhalten Sie Ihre Rechnung Nr. {invoice_row['invoice_number']} von {platform_label}.\n"
-        f"Alle Details entnehmen Sie bitte dem beigefügten PDF-Anhang.\n\n"
+        f"{intro_text}\n\n"
         f"Viele Grüße\n{operator_label}"
     )
     body_html = (
         f"<p style='margin:0 0 14px;'>Guten Tag,</p>"
-        f"<p style='margin:0 0 14px;'>anbei erhalten Sie Ihre Rechnung Nr. <strong>{html.escape(str(invoice_row['invoice_number'] or '-'))}</strong> "
-        f"von <strong>{html.escape(platform_label)}</strong>.</p>"
-        f"<p style='margin:0 0 14px;'>Alle Details entnehmen Sie bitte dem beigefügten <strong>PDF-Anhang</strong>.</p>"
+        f"<p style='margin:0 0 14px;'>{intro_html}</p>"
         f"<p style='margin:0;color:#6b7280;font-size:13px;'>Mit freundlichen Grüßen<br><strong>{html.escape(operator_label)}</strong></p>"
     )
 
@@ -8983,6 +9168,27 @@ def list_invoice_dead_letters():
     return jsonify(get_invoice_dead_letters(db))
 
 
+@app.get("/api/invoices/next-number")
+@require_auth
+@require_roles("superadmin")
+def get_next_invoice_number():
+    """Return the next sequential invoice number in RE-YYYY-NNN format."""
+    db = get_db()
+    year = datetime.now().year
+    prefix = f"RE-{year}-"
+    rows = db.execute(
+        "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY invoice_number DESC",
+        (f"{prefix}%",),
+    ).fetchall()
+    max_seq = 0
+    for row in rows:
+        num_part = str(row["invoice_number"] or "")[len(prefix):]
+        if num_part.isdigit():
+            max_seq = max(max_seq, int(num_part))
+    next_num = f"{prefix}{str(max_seq + 1).zfill(4)}"
+    return jsonify({"nextNumber": next_num})
+
+
 @app.post("/api/invoices/send")
 @require_auth
 @require_roles("superadmin")
@@ -9021,12 +9227,41 @@ def send_invoice():
     invoice_period = (payload.get("invoicePeriod") or "").strip()
     description = (payload.get("description") or "").strip()
     rendered_html = payload.get("renderedHtml") or ""
-    net_amount = calculate_net_amount_by_plan(company["plan"], payload.get("netAmount"))
+
+    # Multi-position support
+    items_raw = payload.get("items") or []
+    items_json_str = ""
+    if items_raw and isinstance(items_raw, list):
+        cleaned_items = []
+        computed_net = 0.0
+        for item in items_raw:
+            qty = float(item.get("qty") or 1)
+            unit_price = float(item.get("unitPrice") or 0)
+            total_item = round(qty * unit_price, 2)
+            cleaned_items.append({
+                "description": str(item.get("description") or "").strip()[:200],
+                "qty": qty,
+                "unit": str(item.get("unit") or "Pauschal").strip()[:30],
+                "unitPrice": unit_price,
+                "total": total_item,
+            })
+            computed_net += total_item
+        items_json_str = json.dumps(cleaned_items, ensure_ascii=False)
+        net_amount = round(computed_net, 2)
+    else:
+        net_amount = calculate_net_amount_by_plan(company["plan"], payload.get("netAmount"))
+
+    # Discount / Skonto
+    discount_amount = round(float(payload.get("discountAmount") or 0), 2)
+    if discount_amount < 0 or discount_amount > net_amount:
+        discount_amount = 0.0
+    net_after_discount = round(net_amount - discount_amount, 2)
+
     vat_rate = float(payload.get("vatRate") or 0)
     if vat_rate < 0 or vat_rate > 100:
         return jsonify({"error": "invalid_vat_rate", "message": "MwSt. muss zwischen 0 und 100 liegen."}), 400
-    vat_amount = round(net_amount * (vat_rate / 100), 2)
-    total_amount = round(net_amount + vat_amount, 2)
+    vat_amount = round(net_after_discount * (vat_rate / 100), 2)
+    total_amount = round(net_after_discount + vat_amount, 2)
 
     if not invoice_period or not description or not rendered_html:
         return jsonify({"error": "missing_invoice_fields"}), 400
@@ -9038,8 +9273,8 @@ def send_invoice():
             id, invoice_number, company_id, recipient_email, invoice_date, invoice_period, description,
             net_amount, vat_rate, vat_amount, total_amount, status, error_message, sent_at,
             rendered_html, created_by_user_id, created_at, due_date, reminder_stage, last_reminder_sent_at, last_reminder_error,
-            send_attempt_count, last_send_attempt_at, next_retry_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            send_attempt_count, last_send_attempt_at, next_retry_at, items_json, discount_amount
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             invoice_id,
@@ -9066,6 +9301,8 @@ def send_invoice():
             0,
             None,
             None,
+            items_json_str,
+            discount_amount,
         ),
     )
     db.commit()
