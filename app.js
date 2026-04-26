@@ -10368,6 +10368,17 @@ function renderAdminSettingsForm() {
     resendKeyHint.textContent = hasKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
     resendKeyHint.style.color = hasKey ? "#16a34a" : "#9ca3af";
   }
+  // Brevo-Felder
+  const brevoApiKeyEl = document.querySelector("#brevoApiKey");
+  const brevoFromEmailEl = document.querySelector("#brevoFromEmail");
+  if (brevoApiKeyEl) brevoApiKeyEl.value = "";
+  if (brevoFromEmailEl) brevoFromEmailEl.value = state.settings.brevoFromEmail || "";
+  const brevoKeyHint = document.querySelector("#brevoKeyStoredHint");
+  if (brevoKeyHint) {
+    const hasBrevoKey = !!(state.settings.brevoApiKey);
+    brevoKeyHint.textContent = hasBrevoKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
+    brevoKeyHint.style.color = hasBrevoKey ? "#16a34a" : "#9ca3af";
+  }
   if (elements.invoiceLogoData) {
     elements.invoiceLogoData.value = state.settings.invoiceLogoData || "";
   }
@@ -12193,6 +12204,8 @@ async function handleSettingsSubmit(event) {
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
       resendApiKey: (document.querySelector("#resendApiKey")?.value || ""),
       resendFromEmail: (document.querySelector("#resendFromEmail")?.value || "").trim(),
+      brevoApiKey: (document.querySelector("#brevoApiKey")?.value || ""),
+      brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
     };
     const smtpPasswordValue = document.querySelector("#smtpPassword")?.value || "";
     if (smtpPasswordValue.trim()) {
@@ -12241,6 +12254,8 @@ function getCurrentSmtpSettingsFromForm() {
     smtpUseTls: document.querySelector("#smtpUseTls")?.value === "1",
     resendApiKey: document.querySelector("#resendApiKey")?.value || "",
     resendFromEmail: document.querySelector("#resendFromEmail")?.value.trim() || "",
+    brevoApiKey: document.querySelector("#brevoApiKey")?.value || "",
+    brevoFromEmail: document.querySelector("#brevoFromEmail")?.value.trim() || "",
   };
   const smtpPassword = document.querySelector("#smtpPassword")?.value || "";
   if (smtpPassword.trim()) {
@@ -12334,6 +12349,43 @@ async function runResendDirectTest(recipient = "") {
     });
   } catch (err) {
     return err?.payload || { ok: false, error: err?.code || "resend_test_failed" };
+  }
+}
+
+async function saveAndTestBrevo() {
+  const keyEl = document.querySelector("#brevoApiKey");
+  const fromEl = document.querySelector("#brevoFromEmail");
+  const resultEl = document.querySelector("#brevoTestResult");
+  const hintEl = document.querySelector("#brevoKeyStoredHint");
+  const key = keyEl?.value?.trim() || "";
+  const fromEmail = fromEl?.value?.trim() || "";
+  if (!key) {
+    if (resultEl) { resultEl.textContent = "Bitte Brevo API-Key eingeben"; resultEl.style.color = "#dc2626"; }
+    return;
+  }
+  if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
+  try {
+    await apiRequest(API_BASE + "/api/settings", {
+      method: "PUT",
+      body: { ...getCurrentSmtpSettingsFromForm(), brevoApiKey: key, brevoFromEmail: fromEmail }
+    });
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`; resultEl.style.color = "#dc2626"; }
+    return;
+  }
+  if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
+  if (keyEl) keyEl.value = "";
+  if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
+  // Test via resend-test endpoint (will use Brevo internally since Resend not configured)
+  const data = await runResendDirectTest("");
+  if (!resultEl) return;
+  if (data?.ok) {
+    resultEl.textContent = "✓ Brevo: Mail gesendet!";
+    resultEl.style.color = "#16a34a";
+  } else {
+    const detail = data?.detail ? ` → ${data.detail}` : "";
+    resultEl.textContent = `✗ ${data?.error || "Fehler"}${detail}`;
+    resultEl.style.color = "#dc2626";
   }
 }
 

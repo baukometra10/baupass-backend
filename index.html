@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">BauPass Control</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260427a";
+        const buildTag = "20260427b";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -1018,17 +1018,36 @@
                 <div class="form-section-icon">📡</div>
                 <div class="form-section-label">
                   <p class="eyebrow">E-Mail Fallback</p>
-                  <h4>Resend API (HTTPS-Fallback)</h4>
+                  <h4>Brevo API <small style="font-weight:400;color:#6b7280">(empfohlen)</small> &amp; Resend API</h4>
                   <p style="font-size:0.82rem;color:#6b7280;margin-top:4px;line-height:1.5;">
-                    Wenn Railway SMTP blockiert, sendet BauPass automatisch über
-                    <a href="https://resend.com" target="_blank" rel="noopener">Resend</a>.
-                    Trage hier deinen Resend-API-Key ein – er wird in der Datenbank gespeichert und
-                    braucht <strong>keine</strong> Railway-Umgebungsvariable.
+                    Wenn Railway SMTP blockiert, sendet BauPass über eine HTTPS-API.
+                    <strong>Brevo</strong> (<a href="https://brevo.com" target="_blank" rel="noopener">brevo.com</a>) — kostenlos, kein Cloudflare-Block, Gmail-Absender erlaubt.<br>
+                    Alternativ: <a href="https://resend.com" target="_blank" rel="noopener">Resend</a> (braucht verifizierte Domain).
+                    Keys werden in der Datenbank gespeichert — keine Railway-Umgebungsvariable nötig.
                   </p>
                 </div>
               </div>
               <label>
-                <span>Resend API-Key</span>
+                <span>Brevo API-Key <span style="font-weight:400;color:#16a34a;font-size:0.8rem">← empfohlen</span></span>
+                <input id="brevoApiKey" type="password" autocomplete="off" placeholder="xkeysib-..." style="font-family:monospace" />
+                <small id="brevoKeyStoredHint" style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Kein Key gespeichert</small>
+              </label>
+              <label>
+                <span>Brevo Absender-E-Mail</span>
+                <input id="brevoFromEmail" type="email" placeholder="deine@gmail.com" />
+              </label>
+              <label class="full-width">
+                <span></span>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                  <button type="button" class="btn btn-primary" onclick="saveAndTestBrevo()">💾 Brevo Speichern &amp; Testen</button>
+                  <span id="brevoTestResult" style="font-size:0.85rem"></span>
+                </div>
+                <small style="display:block;margin-top:6px;color:#6b7280;font-size:0.8rem;">
+                  Brevo-Key findest du unter <strong>brevo.com → SMTP &amp; API → API Keys</strong>. Beginnt mit <code>xkeysib-</code>.
+                </small>
+              </label>
+              <label>
+                <span>Resend API-Key <span style="font-weight:400;color:#6b7280;font-size:0.8rem">(optional, Fallback)</span></span>
                 <input id="resendApiKey" type="password" autocomplete="off" placeholder="re_xxxxxxxxxxxxxxxxxxxx" style="font-family:monospace" />
                 <small id="resendKeyStoredHint" style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Kein Key gespeichert</small>
               </label>
@@ -1039,12 +1058,9 @@
               <label class="full-width">
                 <span></span>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                  <button type="button" class="btn btn-primary" onclick="saveAndTestResend()">💾 Speichern &amp; Testen</button>
+                  <button type="button" class="btn btn-secondary" onclick="saveAndTestResend()">💾 Resend Speichern &amp; Testen</button>
                   <span id="resendDirectTestResult" style="font-size:0.85rem"></span>
                 </div>
-                <small style="display:block;margin-top:6px;color:#6b7280;font-size:0.8rem;">
-                  Absender muss eine bei Resend verifizierte Domain sein. Für Tests ohne eigene Domain: <code>onboarding@resend.dev</code>
-                </small>
               </label>
 
               <!-- ── Dokument-Postfach (IMAP) ── -->
@@ -1432,7 +1448,7 @@
   </template>
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js" crossorigin="anonymous"></script>
-  <script src="./app.js?v=20260427a"></script>
+  <script src="./app.js?v=20260427b"></script>
   <script src="./desktop/renderer.js?v=20260420a"></script>
 </body>
 </html>

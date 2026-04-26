@@ -1663,6 +1663,10 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN resend_api_key TEXT NOT NULL DEFAULT ''")
     if "resend_from_email" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN resend_from_email TEXT NOT NULL DEFAULT ''")
+    if "brevo_api_key" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN brevo_api_key TEXT NOT NULL DEFAULT ''")
+    if "brevo_from_email" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN brevo_from_email TEXT NOT NULL DEFAULT ''")
 
     inbox_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_inbox)").fetchall()]
     if "to_addr" not in inbox_columns:
@@ -1813,10 +1817,12 @@ def init_db():
     # opening a second connection. Safe here because we're still in init_db's raw connection.
     try:
         db.row_factory = sqlite3.Row
-        _cache_row = db.execute("SELECT resend_api_key, resend_from_email FROM settings WHERE id = 1").fetchone()
+        _cache_row = db.execute("SELECT resend_api_key, resend_from_email, brevo_api_key, brevo_from_email FROM settings WHERE id = 1").fetchone()
         if _cache_row:
             _resend_key_cache["key"] = str(_cache_row["resend_api_key"] or "").strip()
             _resend_key_cache["from_email"] = str(_cache_row["resend_from_email"] or "").strip()
+            _resend_key_cache["brevo_key"] = str(_cache_row["brevo_api_key"] or "").strip()
+            _resend_key_cache["brevo_from_email"] = str(_cache_row["brevo_from_email"] or "").strip()
     except Exception:
         pass
 
@@ -2156,7 +2162,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
             smtp.send_message(message)
         return True, ""
     except Exception as exc:
-        fallback_ok, fallback_error = _send_via_resend(
+        fallback_ok, fallback_error = _send_via_any_api(
             subject=str(message["Subject"]),
             sender_email=smtp_sender,
             sender_name=settings_row["smtp_sender_name"] or "",
@@ -2382,6 +2388,85 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
         return False, f"resend_error: {exc}"
 
 
+def _get_brevo_api_key():
+    """Return Brevo API key from module-level cache (DB) or env var."""
+    cached = _normalize_env_value(_resend_key_cache.get("brevo_key") or "")
+    if cached:
+        return cached
+    return _normalize_env_value(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
+
+
+def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body):
+    """Send e-mail via Brevo (formerly Sendinblue) API — no Cloudflare, allows any from address."""
+    api_key = _get_brevo_api_key()
+    if not api_key:
+        return False, "brevo_not_configured"
+
+    from_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or sender_email or ""
+    from_name = sender_name or ""
+    if not from_email:
+        return False, "brevo_missing_from_email"
+
+    payload = {
+        "sender": {"name": from_name, "email": from_email},
+        "to": [{"email": recipient}],
+        "subject": subject,
+        "textContent": text_body,
+        "htmlContent": html_body,
+    }
+    req = Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=15) as resp:
+            status = int(getattr(resp, "status", 200) or 200)
+            if 200 <= status < 300:
+                return True, ""
+            return False, f"brevo_http_{status}"
+    except HTTPError as exc:
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        return False, f"brevo_http_{exc.code}: {body[:300]}"
+    except URLError as exc:
+        return False, f"brevo_url_error: {exc}"
+    except Exception as exc:
+        return False, f"brevo_error: {exc}"
+
+
+def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body):
+    """Try Resend first, then Brevo. Returns (ok, error_string, provider_used)."""
+    resend_key, _ = _get_resend_api_key_and_source()
+    if resend_key:
+        ok, err = _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body)
+        if ok:
+            return True, "", "resend"
+        # Fall through to Brevo on any Resend failure
+        app.logger.warning(f"[API-MAIL] Resend fehlgeschlagen ({err}), versuche Brevo")
+
+    brevo_key = _get_brevo_api_key()
+    if brevo_key:
+        ok, err = _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body)
+        if ok:
+            return True, "", "brevo"
+        return False, f"brevo: {err}", "brevo"
+
+    if resend_key:
+        # Resend was tried but failed, Brevo not configured
+        _, resend_err = _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body)
+        return False, f"resend: {resend_err}", "resend"
+
+    return False, "no_api_provider_configured (set Resend or Brevo key in Einstellungen)", "none"
+
+
 def _build_email_html(platform_name: str, primary_color: str, accent_color: str, title: str, body_html: str, footer_name: str) -> str:
     """Return a branded HTML email string."""
     # Inline SVG logo (simplified icon part only for email compatibility)
@@ -2540,7 +2625,7 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
 
     # Skip SMTP attempt entirely if not configured — go straight to Resend
     if not smtp_configured:
-        fallback_ok, fallback_error = _send_via_resend(
+        fallback_ok, fallback_error = _send_via_any_api(
             subject=msg["Subject"],
             sender_email=smtp_sender,
             sender_name=smtp_sender_name,
@@ -2564,7 +2649,7 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
         return True
     except Exception as exc:
         app.logger.error(f"[OTP-MAIL] SMTP-Fehler beim Senden an {email}: {exc}")
-        fallback_ok, fallback_error = _send_via_resend(
+        fallback_ok, fallback_error = _send_via_any_api(
             subject=msg["Subject"],
             sender_email=smtp_sender,
             sender_name=smtp_sender_name,
@@ -2862,7 +2947,7 @@ def check_visitor_card_expiry_notifications(db):
                 f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im BauPass-Admin-Panel.\n\n"
                 f"Viele Gr\u00fc\u00dfe\n{settings['operator_name']}"
             )
-            fallback_ok, _ = _send_via_resend(
+            fallback_ok, _ = _send_via_any_api(
                 subject=str(msg["Subject"]),
                 sender_email=smtp_sender,
                 sender_name=settings["smtp_sender_name"] or "",
@@ -3036,7 +3121,7 @@ def start_background_jobs():
                             smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
                         smtp.send_message(msg)
                 except Exception:
-                    _send_via_resend(
+                    _send_via_any_api(
                         subject=str(msg["Subject"]),
                         sender_email=smtp_sender,
                         sender_name=settings["smtp_sender_name"] or "",
@@ -4136,6 +4221,8 @@ def get_settings():
             "datenschutzText": row["datenschutz_text"] or "",
             "resendApiKey": row["resend_api_key"] if "resend_api_key" in row.keys() else "",
             "resendFromEmail": row["resend_from_email"] if "resend_from_email" in row.keys() else "",
+            "brevoApiKey": row["brevo_api_key"] if "brevo_api_key" in row.keys() else "",
+            "brevoFromEmail": row["brevo_from_email"] if "brevo_from_email" in row.keys() else "",
         }
     )
 
@@ -4207,7 +4294,7 @@ def smtp_test():
         app.logger.error(f"[SMTP-TEST] Fehler beim Senden an {recipient}: {exc}")
         resend_api_key, resend_key_source = _get_resend_api_key_and_source()
         resend_env = _collect_resend_env_presence()
-        fallback_ok, fallback_error = _send_via_resend(
+        fallback_ok, fallback_error = _send_via_any_api(
             subject=msg["Subject"] if "msg" in locals() else f"{platform_name}: SMTP Test-Mail",
             sender_email=smtp_settings["smtp_sender_email"],
             sender_name=smtp_settings["smtp_sender_name"],
@@ -4287,7 +4374,8 @@ def resend_test():
 
     env_presence = _collect_resend_env_presence()
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
-    if not resend_api_key:
+    brevo_api_key = _get_brevo_api_key()
+    if not resend_api_key and not brevo_api_key:
         return jsonify({
             "ok": False,
             "error": "resend_not_configured",
@@ -4308,7 +4396,7 @@ def resend_test():
         "<p>Wenn diese Mail ankommt, ist die Railway-Umgebungsvariable korrekt im Container verfuegbar.</p>"
     )
 
-    fallback_ok, fallback_error = _send_via_resend(
+    fallback_ok, fallback_error = _send_via_any_api(
         subject=subject,
         sender_email=sender_email,
         sender_name=sender_name,
@@ -4320,9 +4408,10 @@ def resend_test():
         return jsonify({
             "ok": True,
             "recipient": recipient,
-            "delivery": "resend",
-            "resendConfigured": True,
+            "delivery": "api",
+            "resendConfigured": bool(resend_api_key),
             "resendKeySource": resend_key_source,
+            "brevoConfigured": bool(brevo_api_key),
             "resendEnv": env_presence,
         })
 
@@ -4394,7 +4483,6 @@ def update_settings():
     resend_api_key_payload = str(payload.get("resendApiKey") or "").strip()
     resend_from_email_payload = str(payload.get("resendFromEmail") or "").strip()
     if resend_api_key_payload:
-        # New key provided — save it and update cache
         db.execute(
             "UPDATE settings SET resend_api_key = ?, resend_from_email = ? WHERE id = 1",
             (resend_api_key_payload, resend_from_email_payload),
@@ -4402,12 +4490,21 @@ def update_settings():
         _resend_key_cache["key"] = resend_api_key_payload
         _resend_key_cache["from_email"] = resend_from_email_payload
     elif resend_from_email_payload:
-        # Only from_email changed, keep existing key
-        db.execute(
-            "UPDATE settings SET resend_from_email = ? WHERE id = 1",
-            (resend_from_email_payload,),
-        )
+        db.execute("UPDATE settings SET resend_from_email = ? WHERE id = 1", (resend_from_email_payload,))
         _resend_key_cache["from_email"] = resend_from_email_payload
+    # Brevo-Konfiguration (kein Cloudflare-Block, erlaubt Gmail als Absender)
+    brevo_api_key_payload = str(payload.get("brevoApiKey") or "").strip()
+    brevo_from_email_payload = str(payload.get("brevoFromEmail") or "").strip()
+    if brevo_api_key_payload:
+        db.execute(
+            "UPDATE settings SET brevo_api_key = ?, brevo_from_email = ? WHERE id = 1",
+            (brevo_api_key_payload, brevo_from_email_payload),
+        )
+        _resend_key_cache["brevo_key"] = brevo_api_key_payload
+        _resend_key_cache["brevo_from_email"] = brevo_from_email_payload
+    elif brevo_from_email_payload:
+        db.execute("UPDATE settings SET brevo_from_email = ? WHERE id = 1", (brevo_from_email_payload,))
+        _resend_key_cache["brevo_from_email"] = brevo_from_email_payload
     # IMAP-Felder separat aktualisieren (immer optional)
     payload_imap_password = str(payload.get("imapPassword") or "")
     imap_fields = {
@@ -7196,7 +7293,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 f"Gesamtbetrag: {invoice_row['total_amount']:.2f} EUR\n\n"
                 f"Viele Grüße\n{settings_row['operator_name']}"
             )
-            ok, err = _send_via_resend(
+            ok, err = _send_via_any_api(
                 subject=f"Rechnung {invoice_row['invoice_number']} - {settings_row['operator_name']}",
                 sender_email=smtp_sender or "noreply@example.com",
                 sender_name=settings_row["smtp_sender_name"] or "",
@@ -7232,7 +7329,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             smtp.send_message(message)
         return True, ""
     except Exception as exc:
-        fallback_ok, fallback_error = _send_via_resend(
+        fallback_ok, fallback_error = _send_via_any_api(
             subject=str(message["Subject"]),
             sender_email=smtp_sender,
             sender_name=settings_row["smtp_sender_name"] or "",
@@ -8001,7 +8098,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
         return True, "sent"
     except Exception as exc:
         for r in recipients:
-            fallback_ok, _ = _send_via_resend(
+            fallback_ok, _ = _send_via_any_api(
                 subject=str(message["Subject"]),
                 sender_email=smtp_sender,
                 sender_name=settings["smtp_sender_name"] or "",
