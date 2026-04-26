@@ -4530,8 +4530,7 @@ body.desktop-app .topbar {
 
   #settingsForm #smtpTestResult,
   #settingsForm #otpTestResult,
-  #settingsForm #brevoTestResult,
-  #settingsForm #resendTestResult {
+  #settingsForm #brevoTestResult {
     display: inline-flex;
     align-items: center;
     min-height: 34px;

@@ -10367,17 +10367,6 @@ function renderAdminSettingsForm() {
     brevoKeyHint.textContent = hasBrevoKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
     brevoKeyHint.style.color = hasBrevoKey ? "#16a34a" : "#9ca3af";
   }
-  // Resend-Felder (optional/legacy fallback)
-  const resendApiKeyEl = document.querySelector("#resendApiKey");
-  const resendFromEmailEl = document.querySelector("#resendFromEmail");
-  if (resendApiKeyEl) resendApiKeyEl.value = "";
-  if (resendFromEmailEl) resendFromEmailEl.value = state.settings.resendFromEmail || "";
-  const resendKeyHint = document.querySelector("#resendKeyStoredHint");
-  if (resendKeyHint) {
-    const hasResendKey = !!(state.settings.resendApiKey);
-    resendKeyHint.textContent = hasResendKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
-    resendKeyHint.style.color = hasResendKey ? "#16a34a" : "#9ca3af";
-  }
   if (elements.invoiceLogoData) {
     elements.invoiceLogoData.value = state.settings.invoiceLogoData || "";
   }
@@ -12201,8 +12190,6 @@ async function handleSettingsSubmit(event) {
       imapUseSsl: document.querySelector("#imapUseSsl")?.value !== "0",
       impressumText: (document.querySelector("#impressumText")?.value || ""),
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
-      resendApiKey: (document.querySelector("#resendApiKey")?.value || ""),
-      resendFromEmail: (document.querySelector("#resendFromEmail")?.value || "").trim(),
       brevoApiKey: (document.querySelector("#brevoApiKey")?.value || ""),
       brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
     };
@@ -12251,8 +12238,6 @@ function getCurrentSmtpSettingsFromForm() {
     smtpSenderEmail: document.querySelector("#smtpSenderEmail")?.value.trim() || "",
     smtpSenderName: document.querySelector("#smtpSenderName")?.value.trim() || "",
     smtpUseTls: document.querySelector("#smtpUseTls")?.value === "1",
-    resendApiKey: document.querySelector("#resendApiKey")?.value || "",
-    resendFromEmail: document.querySelector("#resendFromEmail")?.value.trim() || "",
     brevoApiKey: document.querySelector("#brevoApiKey")?.value || "",
     brevoFromEmail: document.querySelector("#brevoFromEmail")?.value.trim() || "",
   };
@@ -12313,7 +12298,7 @@ function formatSmtpTestError(err) {
       ? "API-Fallback ist nicht aktiv. Setze Brevo in den Einstellungen (empfohlen) oder RESEND_API_KEY in Railway."
       : "";
     const apiState = formatApiFallbackState(err?.payload || {});
-    const resendEnvState = formatResendEnvState(err?.payload);
+    const resendEnvState = err?.payload?.resendConfigured ? formatResendEnvState(err?.payload) : "";
     const parts = [base];
     if (diag) parts.push(diag);
     if (fallbackHint && !base.includes(fallbackHint) && !diag.includes(fallbackHint)) parts.push(fallbackHint);
@@ -12335,7 +12320,7 @@ function formatSmtpDiagnosticsPayload(payload) {
   const type = payload.errorType ? `${payload.errorType}: ` : "";
   const message = payload.error || "Unbekannter Fehler";
   const apiState = formatApiFallbackState(payload);
-  const resendEnvState = formatResendEnvState(payload);
+  const resendEnvState = payload?.resendConfigured ? formatResendEnvState(payload) : "";
   return `${stage} - ${type}${message}${apiState ? ` | ${apiState}` : ""}${resendEnvState ? ` | ${resendEnvState}` : ""}`;
 }
 
@@ -12358,60 +12343,6 @@ async function runResendDirectTest(recipient = "", provider = "") {
     });
   } catch (err) {
     return err?.payload || { ok: false, error: err?.code || "resend_test_failed" };
-  }
-}
-
-async function saveAndTestResend() {
-  const keyEl = document.querySelector("#resendApiKey");
-  const fromEl = document.querySelector("#resendFromEmail");
-  const resultEl = document.querySelector("#resendTestResult");
-  const hintEl = document.querySelector("#resendKeyStoredHint");
-  const key = keyEl?.value?.trim() || "";
-  const fromEmail = fromEl?.value?.trim() || "";
-  const hasStoredKey = Boolean(state?.settings?.resendApiKey) || Boolean((hintEl?.textContent || "").includes("gespeichert"));
-  if (!key && !hasStoredKey) {
-    if (resultEl) { resultEl.textContent = "Bitte Resend API-Key eingeben"; resultEl.style.color = "#dc2626"; }
-    return;
-  }
-
-  if (key || fromEmail) {
-    if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
-    try {
-      await apiRequest(API_BASE + "/api/settings", {
-        method: "PUT",
-        body: { ...getCurrentSmtpSettingsFromForm(), resendApiKey: key, resendFromEmail: fromEmail }
-      });
-      if (state?.settings) {
-        state.settings.resendApiKey = state.settings.resendApiKey || "stored";
-        if (fromEmail) state.settings.resendFromEmail = fromEmail;
-      }
-    } catch (e) {
-      if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`; resultEl.style.color = "#dc2626"; }
-      return;
-    }
-  }
-
-  if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
-  if (keyEl) keyEl.value = "";
-  if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
-
-  let data = await runResendDirectTest("", "resend");
-  if (data?.error === "missing_recipient") {
-    const addr = window.prompt("Resend-Test: An welche E-Mail senden? (Keine Empfaenger-E-Mail gefunden)");
-    if (!addr || !addr.includes("@")) {
-      if (resultEl) { resultEl.textContent = "Abgebrochen"; resultEl.style.color = "#9ca3af"; }
-      return;
-    }
-    data = await runResendDirectTest(addr, "resend");
-  }
-  if (!resultEl) return;
-  if (data?.ok) {
-    resultEl.textContent = "✓ Resend: Mail gesendet!";
-    resultEl.style.color = "#16a34a";
-  } else {
-    const detail = data?.detail ? ` → ${data.detail}` : "";
-    resultEl.textContent = `✗ ${data?.error || "Fehler"}${detail}`;
-    resultEl.style.color = "#dc2626";
   }
 }
 
@@ -12519,7 +12450,7 @@ async function sendSmtpTestMail() {
     });
     if (result) {
       result.style.color = "#16a34a";
-      if (res?.delivery === "resend_fallback") {
+      if (res?.delivery && res.delivery !== "smtp") {
         result.textContent = `✅ Mail gesendet an ${res.recipient} (Fallback via HTTPS-API)`;
       } else {
         result.textContent = `✅ Mail gesendet an ${res.recipient}`;
