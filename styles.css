@@ -4442,6 +4442,99 @@ body.desktop-app .topbar {
     box-shadow: 0 14px 28px rgba(227, 100, 20, 0.24);
   }
 
+  /* Settings action buttons: stronger hierarchy and clearer affordance */
+  #settingsForm .btn,
+  #settingsForm .primary-button,
+  #settingsForm .ghost-button {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 180ms ease, filter 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+
+  #settingsForm .btn:hover,
+  #settingsForm .primary-button:hover,
+  #settingsForm .ghost-button:hover {
+    transform: translateY(-1px);
+  }
+
+  #settingsForm .btn:active,
+  #settingsForm .primary-button:active,
+  #settingsForm .ghost-button:active {
+    transform: translateY(0);
+  }
+
+  #settingsForm .btn:focus-visible,
+  #settingsForm .primary-button:focus-visible,
+  #settingsForm .ghost-button:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.2), 0 8px 18px rgba(15, 76, 92, 0.18);
+  }
+
+  #settingsForm .btn.btn-primary {
+    color: #fff;
+    background: linear-gradient(135deg, #0f4c5c, #1f6a7c);
+    border-color: rgba(15, 76, 92, 0.4);
+    box-shadow: 0 10px 20px rgba(15, 76, 92, 0.24);
+  }
+
+  #settingsForm .btn.btn-primary:hover {
+    filter: saturate(1.08) brightness(1.03);
+    box-shadow: 0 14px 24px rgba(15, 76, 92, 0.28);
+  }
+
+  #settingsForm .btn.btn-secondary {
+    color: #0f4c5c;
+    background: linear-gradient(135deg, #fffdf7, #f4ead8);
+    border-color: rgba(227, 100, 20, 0.35);
+    box-shadow: 0 8px 16px rgba(227, 100, 20, 0.16);
+  }
+
+  #settingsForm .btn.btn-secondary:hover {
+    background: linear-gradient(135deg, #fff7ea, #f7e7cc);
+    box-shadow: 0 12px 22px rgba(227, 100, 20, 0.22);
+  }
+
+  #settingsForm .ghost-button {
+    color: #16323b;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 246, 247, 0.92));
+    border-color: rgba(15, 76, 92, 0.22);
+    box-shadow: 0 6px 14px rgba(15, 76, 92, 0.1);
+  }
+
+  #settingsForm .ghost-button:hover {
+    border-color: rgba(15, 76, 92, 0.34);
+    box-shadow: 0 10px 18px rgba(15, 76, 92, 0.14);
+  }
+
+  #settingsForm .btn:disabled,
+  #settingsForm .primary-button:disabled,
+  #settingsForm .ghost-button:disabled {
+    opacity: 0.62;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    filter: grayscale(0.1);
+  }
+
+  #settingsForm #smtpTestResult,
+  #settingsForm #otpTestResult,
+  #settingsForm #brevoTestResult,
+  #settingsForm #resendTestResult {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 10px;
+    background: rgba(15, 76, 92, 0.06);
+    border: 1px solid rgba(15, 76, 92, 0.12);
+  }
+
   @media (max-width: 860px) {
     #settingsForm {
       padding: 12px;
