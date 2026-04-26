@@ -117,7 +117,13 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 # Module-level cache for Resend credentials stored in DB.
 # Populated at startup (init_db) and refreshed after settings save.
 # Avoids opening a second SQLite connection from background threads.
-_resend_key_cache: dict = {"key": "", "from_email": "", "source": ""}
+_resend_key_cache: dict = {
+    "key": "",
+    "from_email": "",
+    "source": "",
+    "brevo_key": "",
+    "brevo_from_email": "",
+}
 
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
@@ -2332,7 +2338,7 @@ def _collect_resend_env_presence():
     return {"known": details, "dynamic": dynamic_names}
 
 
-def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body):
+def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
     """Send e-mail via Resend API over HTTPS (fallback when SMTP egress is blocked)."""
     api_key, _key_source = _get_resend_api_key_and_source()
     if not api_key:
@@ -2359,6 +2365,16 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
         "text": text_body,
         "html": html_body,
     }
+    if attachments:
+        payload["attachments"] = [
+            {
+                "filename": str(item.get("filename") or "attachment.bin"),
+                "content": str(item.get("content_b64") or ""),
+                "content_type": str(item.get("mime_type") or "application/octet-stream"),
+            }
+            for item in attachments
+            if item and item.get("content_b64")
+        ]
     req = Request(
         endpoint,
         data=json.dumps(payload).encode("utf-8"),
@@ -2396,7 +2412,7 @@ def _get_brevo_api_key():
     return _normalize_env_value(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
 
 
-def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body):
+def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
     """Send e-mail via Brevo (formerly Sendinblue) API — no Cloudflare, allows any from address."""
     api_key = _get_brevo_api_key()
     if not api_key:
@@ -2414,6 +2430,15 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         "textContent": text_body,
         "htmlContent": html_body,
     }
+    if attachments:
+        payload["attachment"] = [
+            {
+                "name": str(item.get("filename") or "attachment.bin"),
+                "content": str(item.get("content_b64") or ""),
+            }
+            for item in attachments
+            if item and item.get("content_b64")
+        ]
     req = Request(
         "https://api.brevo.com/v3/smtp/email",
         data=json.dumps(payload).encode("utf-8"),
@@ -2442,11 +2467,11 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         return False, f"brevo_error: {exc}"
 
 
-def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body):
+def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
     """Try API providers (Resend, then Brevo). Returns (ok, error_string, provider_used)."""
     resend_key, _ = _get_resend_api_key_and_source()
     if resend_key:
-        ok, err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body)
+        ok, err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments)
         if ok:
             return True, "", "resend"
         # Fall through to Brevo on any Resend failure
@@ -2454,14 +2479,14 @@ def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, 
 
     brevo_key = _get_brevo_api_key()
     if brevo_key:
-        ok, err = _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body)
+        ok, err = _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments)
         if ok:
             return True, "", "brevo"
         return False, f"brevo: {err}", "brevo"
 
     if resend_key:
         # Resend was tried but failed, Brevo not configured
-        _, resend_err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body)
+        _, resend_err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments)
         return False, f"resend: {resend_err}", "resend"
 
     return False, "no_api_provider_configured (set Resend or Brevo key in Einstellungen)", "none"
@@ -7295,10 +7320,68 @@ def gate_tap():
 def send_invoice_email(invoice_row, company_row, settings_row):
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
+    if not smtp_sender:
+        smtp_sender = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
+    if not smtp_sender:
+        smtp_sender = _normalize_env_value(_resend_key_cache.get("from_email") or "")
+
+    attachment_payload = []
+    pdf_filename = f"{invoice_row['invoice_number']}.pdf"
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import mm
+        from reportlab.lib.utils import ImageReader
+        from reportlab.pdfgen import canvas as rl_canvas
+
+        pdf_buffer = io.BytesIO()
+        pdf = rl_canvas.Canvas(pdf_buffer, pagesize=A4)
+        page_w, page_h = A4
+        x = 18 * mm
+        y = page_h - 20 * mm
+
+        logo_data = str(settings_row["invoice_logo_data"] or "").strip()
+        if logo_data.startswith("data:image") and ";base64," in logo_data:
+            try:
+                img_b64 = logo_data.split(";base64,", 1)[1]
+                img_bytes = base64.b64decode(img_b64)
+                img_reader = ImageReader(io.BytesIO(img_bytes))
+                pdf.drawImage(img_reader, x, y - 22 * mm, width=34 * mm, height=18 * mm, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
+
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(x, y - 28 * mm, f"Rechnung {invoice_row['invoice_number']}")
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(x, y - 35 * mm, f"Firma: {company_row['name']}")
+        pdf.drawString(x, y - 41 * mm, f"Empfaenger: {invoice_row['recipient_email']}")
+        pdf.drawString(x, y - 47 * mm, f"Rechnungsdatum: {invoice_row['invoice_date']}")
+        pdf.drawString(x, y - 53 * mm, f"Faelligkeit: {invoice_row['due_date'] or '-'}")
+        pdf.drawString(x, y - 59 * mm, f"Leistungszeitraum: {invoice_row['invoice_period']}")
+        pdf.drawString(x, y - 65 * mm, f"Beschreibung: {invoice_row['description']}")
+        pdf.drawString(x, y - 74 * mm, f"Netto: {float(invoice_row['net_amount'] or 0):.2f} EUR")
+        pdf.drawString(x, y - 80 * mm, f"MwSt ({float(invoice_row['vat_rate'] or 0):.2f}%): {float(invoice_row['vat_amount'] or 0):.2f} EUR")
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(x, y - 88 * mm, f"Gesamt: {float(invoice_row['total_amount'] or 0):.2f} EUR")
+        pdf.save()
+
+        pdf_bytes = pdf_buffer.getvalue()
+        if pdf_bytes:
+            attachment_payload.append(
+                {
+                    "filename": pdf_filename,
+                    "mime_type": "application/pdf",
+                    "content_b64": base64.b64encode(pdf_bytes).decode("ascii"),
+                    "raw": pdf_bytes,
+                }
+            )
+    except Exception as exc:
+        app.logger.warning(f"[INVOICE-MAIL] PDF-Anhang konnte nicht erzeugt werden: {exc}")
+
     if not smtp_host or not smtp_sender:
         # Try API fallback path if SMTP is not configured but an API key is available
         resend_key, _resend_key_source = _get_resend_api_key_and_source()
-        if resend_key:
+        brevo_key = _get_brevo_api_key()
+        if resend_key or brevo_key:
             text_body = (
                 f"Guten Tag,\n\n"
                 f"anbei erhalten Sie die Rechnung {invoice_row['invoice_number']} für {company_row['name']}.\n"
@@ -7313,6 +7396,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 recipient=invoice_row["recipient_email"],
                 text_body=text_body,
                 html_body=invoice_row["rendered_html"] or "",
+                attachments=attachment_payload,
             )
             return ok, err if not ok else ""
         return False, "SMTP ist nicht konfiguriert"
@@ -7331,6 +7415,16 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     message["To"] = invoice_row["recipient_email"]
     message.set_content(text_body)
     message.add_alternative(html_body, subtype="html")
+    if attachment_payload:
+        for att in attachment_payload:
+            raw_bytes = att.get("raw") or b""
+            if raw_bytes:
+                message.add_attachment(
+                    raw_bytes,
+                    maintype="application",
+                    subtype="pdf",
+                    filename=str(att.get("filename") or "rechnung.pdf"),
+                )
 
     try:
         with smtplib.SMTP(smtp_host, int(settings_row["smtp_port"] or 587), timeout=20) as smtp:
@@ -7349,6 +7443,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             recipient=invoice_row["recipient_email"],
             text_body=text_body,
             html_body=html_body,
+            attachments=attachment_payload,
         )
         if fallback_ok:
             return True, ""

@@ -4408,3 +4408,47 @@ body.desktop-app .topbar {
   .print-badge-root .print-badge-root-hide { display: none !important; }
   .print-badge-root .helper-text { font-size: 8pt; }
 }
+
+  /* Admin settings visual refresh */
+  #settingsForm {
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(246, 239, 226, 0.84));
+    border: 1px solid rgba(15, 76, 92, 0.12);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 10px 30px rgba(15, 76, 92, 0.08);
+  }
+
+  #settingsForm label {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(15, 76, 92, 0.08);
+    border-radius: 14px;
+    padding: 10px 12px;
+  }
+
+  #settingsForm .form-section {
+    margin-top: 16px;
+    padding: 12px 12px 0;
+    border-top: 1px solid rgba(15, 76, 92, 0.14);
+  }
+
+  #settingsForm .form-section-icon {
+    background: linear-gradient(135deg, rgba(15, 76, 92, 0.16), rgba(227, 100, 20, 0.16));
+  }
+
+  #settingsForm .primary-button.full-width {
+    position: sticky;
+    bottom: 8px;
+    z-index: 2;
+    box-shadow: 0 14px 28px rgba(227, 100, 20, 0.24);
+  }
+
+  @media (max-width: 860px) {
+    #settingsForm {
+      padding: 12px;
+      border-radius: 16px;
+    }
+
+    #settingsForm label {
+      padding: 9px 10px;
+    }
+  }

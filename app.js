@@ -12350,20 +12350,29 @@ async function saveAndTestBrevo() {
   const hintEl = document.querySelector("#brevoKeyStoredHint");
   const key = keyEl?.value?.trim() || "";
   const fromEmail = fromEl?.value?.trim() || "";
-  if (!key) {
+  const hasStoredKey = Boolean(state?.settings?.brevoApiKey) || Boolean((hintEl?.textContent || "").includes("gespeichert"));
+  if (!key && !hasStoredKey) {
     if (resultEl) { resultEl.textContent = "Bitte Brevo API-Key eingeben"; resultEl.style.color = "#dc2626"; }
     return;
   }
-  if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
-  try {
-    await apiRequest(API_BASE + "/api/settings", {
-      method: "PUT",
-      body: { ...getCurrentSmtpSettingsFromForm(), brevoApiKey: key, brevoFromEmail: fromEmail }
-    });
-  } catch (e) {
-    if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`; resultEl.style.color = "#dc2626"; }
-    return;
+
+  if (key || fromEmail) {
+    if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
+    try {
+      await apiRequest(API_BASE + "/api/settings", {
+        method: "PUT",
+        body: { ...getCurrentSmtpSettingsFromForm(), brevoApiKey: key, brevoFromEmail: fromEmail }
+      });
+      if (state?.settings) {
+        state.settings.brevoApiKey = state.settings.brevoApiKey || "stored";
+        if (fromEmail) state.settings.brevoFromEmail = fromEmail;
+      }
+    } catch (e) {
+      if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`; resultEl.style.color = "#dc2626"; }
+      return;
+    }
   }
+
   if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
   if (keyEl) keyEl.value = "";
   if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }

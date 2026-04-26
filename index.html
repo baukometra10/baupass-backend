@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">BauPass Control</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260427e";
+        const buildTag = "20260427f";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -42,7 +42,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=20260420c" />
+  <link rel="stylesheet" href="./styles.css?v=20260427f" />
 </head>
 <body class="auth-locked notranslate" translate="no">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -987,6 +987,7 @@
               <label>
                 <span data-ui-i18n="labelSmtpPass">SMTP Passwort</span>
                 <input id="smtpPassword" type="password" placeholder="App-Passwort" autocomplete="off" />
+                <small style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Leer lassen = bereits gespeichertes Passwort bleibt unverändert.</small>
               </label>
               <label>
                 <span data-ui-i18n="labelSenderEmail">Absender E-Mail</span>
@@ -1030,6 +1031,7 @@
                 <span>Brevo API-Key <span style="font-weight:400;color:#16a34a;font-size:0.8rem">← empfohlen</span></span>
                 <input id="brevoApiKey" type="password" autocomplete="off" placeholder="xkeysib-..." style="font-family:monospace" />
                 <small id="brevoKeyStoredHint" style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Kein Key gespeichert</small>
+                <small style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Wenn Key gespeichert ist, kannst du direkt testen ohne erneute Eingabe.</small>
               </label>
               <label>
                 <span>Brevo Absender-E-Mail</span>
@@ -1431,7 +1433,7 @@
   </template>
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js" crossorigin="anonymous"></script>
-  <script src="./app.js?v=20260427e"></script>
+  <script src="./app.js?v=20260427f"></script>
   <script src="./desktop/renderer.js?v=20260420a"></script>
 </body>
 </html>
