@@ -7401,37 +7401,152 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.units import mm
         from reportlab.lib.utils import ImageReader
+        from reportlab.lib import colors as rl_colors
         from reportlab.pdfgen import canvas as rl_canvas
 
         pdf_buffer = io.BytesIO()
         pdf = rl_canvas.Canvas(pdf_buffer, pagesize=A4)
         page_w, page_h = A4
-        x = 18 * mm
-        y = page_h - 20 * mm
+        margin_x = 16 * mm
+        top_y = page_h - 16 * mm
+
+        brand_primary = str(settings_row["invoice_primary_color"] or "#0f4c5c").strip() or "#0f4c5c"
+        brand_accent = str(settings_row["invoice_accent_color"] or "#e36414").strip() or "#e36414"
+        invoice_no = str(invoice_row["invoice_number"] or "-")
+        invoice_date = str(invoice_row["invoice_date"] or "-")
+        due_date = str(invoice_row["due_date"] or "-")
+        period = str(invoice_row["invoice_period"] or "-")
+        recipient_email = str(invoice_row["recipient_email"] or "-")
+        company_name = str(company_row["name"] or "-")
+        description = str(invoice_row["description"] or "-")
+        net_amount = float(invoice_row["net_amount"] or 0)
+        vat_rate = float(invoice_row["vat_rate"] or 0)
+        vat_amount = float(invoice_row["vat_amount"] or 0)
+        total_amount = float(invoice_row["total_amount"] or 0)
+
+        def _draw_box(x, y, w, h, fill_hex="#ffffff", stroke=rl_colors.HexColor("#d9dee3"), radius=6):
+            pdf.setStrokeColor(stroke)
+            pdf.setFillColor(rl_colors.HexColor(fill_hex))
+            pdf.roundRect(x, y, w, h, radius, stroke=1, fill=1)
+
+        def _money(value):
+            return f"{value:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", ".")
 
         logo_data = str(settings_row["invoice_logo_data"] or "").strip()
+        logo_drawn = False
         if logo_data.startswith("data:image") and ";base64," in logo_data:
             try:
                 img_b64 = logo_data.split(";base64,", 1)[1]
                 img_bytes = base64.b64decode(img_b64)
                 img_reader = ImageReader(io.BytesIO(img_bytes))
-                pdf.drawImage(img_reader, x, y - 22 * mm, width=34 * mm, height=18 * mm, preserveAspectRatio=True, mask="auto")
+                pdf.drawImage(
+                    img_reader,
+                    margin_x,
+                    top_y - 18 * mm,
+                    width=32 * mm,
+                    height=16 * mm,
+                    preserveAspectRatio=True,
+                    mask="auto",
+                )
+                logo_drawn = True
             except Exception:
                 pass
 
-        pdf.setFont("Helvetica-Bold", 16)
-        pdf.drawString(x, y - 28 * mm, f"Rechnung {invoice_row['invoice_number']}")
+        # Header band
+        pdf.setFillColor(rl_colors.HexColor(brand_primary))
+        pdf.rect(0, page_h - 24 * mm, page_w, 24 * mm, stroke=0, fill=1)
+        pdf.setFillColor(rl_colors.white)
+        pdf.setFont("Helvetica-Bold", 18)
+        pdf.drawRightString(page_w - margin_x, page_h - 11 * mm, "RECHNUNG")
         pdf.setFont("Helvetica", 10)
-        pdf.drawString(x, y - 35 * mm, f"Firma: {company_row['name']}")
-        pdf.drawString(x, y - 41 * mm, f"Empfaenger: {invoice_row['recipient_email']}")
-        pdf.drawString(x, y - 47 * mm, f"Rechnungsdatum: {invoice_row['invoice_date']}")
-        pdf.drawString(x, y - 53 * mm, f"Faelligkeit: {invoice_row['due_date'] or '-'}")
-        pdf.drawString(x, y - 59 * mm, f"Leistungszeitraum: {invoice_row['invoice_period']}")
-        pdf.drawString(x, y - 65 * mm, f"Beschreibung: {invoice_row['description']}")
-        pdf.drawString(x, y - 74 * mm, f"Netto: {float(invoice_row['net_amount'] or 0):.2f} EUR")
-        pdf.drawString(x, y - 80 * mm, f"MwSt ({float(invoice_row['vat_rate'] or 0):.2f}%): {float(invoice_row['vat_amount'] or 0):.2f} EUR")
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(x, y - 88 * mm, f"Gesamt: {float(invoice_row['total_amount'] or 0):.2f} EUR")
+        pdf.drawRightString(page_w - margin_x, page_h - 16 * mm, f"Rechnung von {platform_label}")
+        if not logo_drawn:
+            pdf.setFillColor(rl_colors.HexColor(brand_accent))
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.drawString(margin_x, page_h - 14 * mm, platform_label)
+
+        info_top = page_h - 38 * mm
+        left_w = 108 * mm
+        right_x = margin_x + left_w + 6 * mm
+        right_w = page_w - margin_x - right_x
+
+        # Recipient box
+        _draw_box(margin_x, info_top - 34 * mm, left_w, 34 * mm, fill_hex="#f9fbfc")
+        pdf.setFillColor(rl_colors.HexColor("#36424f"))
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(margin_x + 4 * mm, info_top - 7 * mm, "RECHNUNGSEMPFAENGER")
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(margin_x + 4 * mm, info_top - 14 * mm, company_name)
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(margin_x + 4 * mm, info_top - 20 * mm, f"E-Mail: {recipient_email}")
+        pdf.drawString(margin_x + 4 * mm, info_top - 26 * mm, f"Leistungszeitraum: {period}")
+
+        # Invoice meta box
+        _draw_box(right_x, info_top - 34 * mm, right_w, 34 * mm, fill_hex="#ffffff")
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(right_x + 4 * mm, info_top - 7 * mm, "RECHNUNGSDATEN")
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(right_x + 4 * mm, info_top - 14 * mm, f"Nr.: {invoice_no}")
+        pdf.drawString(right_x + 4 * mm, info_top - 20 * mm, f"Datum: {invoice_date}")
+        pdf.drawString(right_x + 4 * mm, info_top - 26 * mm, f"Faelligkeit: {due_date}")
+
+        # Position table
+        table_top = info_top - 44 * mm
+        table_w = page_w - (2 * margin_x)
+        table_h = 38 * mm
+        _draw_box(margin_x, table_top - table_h, table_w, table_h, fill_hex="#ffffff")
+        pdf.setFillColor(rl_colors.HexColor("#eef3f6"))
+        pdf.rect(margin_x + 0.6, table_top - 8 * mm, table_w - 1.2, 8 * mm, stroke=0, fill=1)
+        pdf.setFillColor(rl_colors.HexColor("#2f3c49"))
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(margin_x + 4 * mm, table_top - 5.4 * mm, "Beschreibung")
+        pdf.drawRightString(margin_x + table_w - 4 * mm, table_top - 5.4 * mm, "Betrag")
+
+        text_obj = pdf.beginText(margin_x + 4 * mm, table_top - 13 * mm)
+        text_obj.setFont("Helvetica", 9)
+        text_obj.setFillColor(rl_colors.HexColor("#2f3c49"))
+        words = description.split()
+        line = ""
+        wrapped = []
+        max_chars = 78
+        for w in words:
+            candidate = (line + " " + w).strip()
+            if len(candidate) > max_chars:
+                wrapped.append(line)
+                line = w
+            else:
+                line = candidate
+        if line:
+            wrapped.append(line)
+        if not wrapped:
+            wrapped = ["-"]
+        for ln in wrapped[:4]:
+            text_obj.textLine(ln)
+        pdf.drawText(text_obj)
+        pdf.setFont("Helvetica", 10)
+        pdf.drawRightString(margin_x + table_w - 4 * mm, table_top - 13 * mm, _money(net_amount))
+
+        # Totals
+        totals_y = table_top - table_h - 6 * mm
+        totals_w = 78 * mm
+        totals_x = page_w - margin_x - totals_w
+        _draw_box(totals_x, totals_y - 28 * mm, totals_w, 28 * mm, fill_hex="#f7fafc")
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(rl_colors.HexColor("#33424f"))
+        pdf.drawString(totals_x + 4 * mm, totals_y - 7 * mm, "Netto")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_y - 7 * mm, _money(net_amount))
+        pdf.drawString(totals_x + 4 * mm, totals_y - 13 * mm, f"MwSt ({vat_rate:.2f}%)")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_y - 13 * mm, _money(vat_amount))
+        pdf.setStrokeColor(rl_colors.HexColor("#ced7de"))
+        pdf.line(totals_x + 3 * mm, totals_y - 16 * mm, totals_x + totals_w - 3 * mm, totals_y - 16 * mm)
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.setFillColor(rl_colors.HexColor(brand_primary))
+        pdf.drawString(totals_x + 4 * mm, totals_y - 23 * mm, "Gesamtbetrag")
+        pdf.drawRightString(totals_x + totals_w - 4 * mm, totals_y - 23 * mm, _money(total_amount))
+
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(rl_colors.HexColor("#5b6975"))
+        pdf.drawString(margin_x, 12 * mm, f"Diese Rechnung wurde automatisch von {platform_label} erstellt.")
         pdf.save()
 
         pdf_bytes = pdf_buffer.getvalue()
