@@ -7702,25 +7702,114 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         c_rule = rl_colors.HexColor("#cbd5e0")
         c_bg_totals = rl_colors.HexColor("#f7fafc")
 
+        def _build_baukometra_wordmark_png():
+            try:
+                from PIL import Image, ImageDraw, ImageFont
+            except Exception:
+                return None
+
+            width, height = 980, 260
+            image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(image)
+            draw.rounded_rectangle([0, 28, 220, 232], radius=36, fill=(15, 76, 92, 255))
+
+            font_main = None
+            font_sub = None
+            for font_name in [
+                "segoeuib.ttf",
+                "arialbd.ttf",
+                "arial.ttf",
+                "DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            ]:
+                try:
+                    font_main = ImageFont.truetype(font_name, 112)
+                    font_sub = ImageFont.truetype(font_name, 60)
+                    break
+                except Exception:
+                    continue
+            if font_main is None:
+                font_main = ImageFont.load_default()
+            if font_sub is None:
+                font_sub = ImageFont.load_default()
+
+            draw.text((56, 78), "BK", fill=(255, 255, 255, 255), font=font_sub)
+            draw.text((262, 48), "BauKometra", fill=(255, 255, 255, 255), font=font_main)
+            draw.line([(264, 188), (760, 188)], fill=(227, 100, 20, 255), width=12)
+
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            return buffer.getvalue()
+
+        def _decode_data_url(raw_data_url):
+            value = str(raw_data_url or "").strip()
+            if not value.startswith("data:image") or "," not in value:
+                return "", b""
+            header, payload = value.split(",", 1)
+            header = header.lower()
+            mime_type = header[5:].split(";", 1)[0].strip()
+            try:
+                if ";base64" in header:
+                    return mime_type, base64.b64decode(payload)
+                return mime_type, unquote_to_bytes(payload)
+            except Exception:
+                return "", b""
+
+        def _svg_bytes_to_png_bytes(svg_bytes):
+            if not svg_bytes:
+                return b""
+            try:
+                from svglib.svglib import svg2rlg
+                from reportlab.graphics import renderPM
+                drawing = svg2rlg(io.BytesIO(svg_bytes))
+                if not drawing:
+                    return b""
+                pil_image = renderPM.drawToPIL(drawing, dpi=220)
+                output = io.BytesIO()
+                pil_image.save(output, format="PNG")
+                return output.getvalue()
+            except Exception:
+                return b""
+
+        def _resolve_invoice_logo_image_bytes():
+            logo_data_url = str(settings_row["invoice_logo_data"] or "").strip()
+            if not logo_data_url:
+                fallback_logo_file = BASE_DIR / "branding" / "baukometra-logo.svg"
+                if fallback_logo_file.exists():
+                    try:
+                        fallback_svg_text = fallback_logo_file.read_text(encoding="utf-8")
+                        logo_data_url = f"data:image/svg+xml;charset=utf-8,{quote(fallback_svg_text)}"
+                    except Exception:
+                        logo_data_url = ""
+
+            mime_type, raw_bytes = _decode_data_url(logo_data_url)
+            if mime_type == "image/svg+xml":
+                png_bytes = _svg_bytes_to_png_bytes(raw_bytes)
+                if png_bytes:
+                    return png_bytes
+            elif raw_bytes:
+                return raw_bytes
+
+            return _build_baukometra_wordmark_png() or b""
+
         # ── 1. HEADER BAND ───────────────────────────────────────────
         pdf.setFillColor(c_primary)
         pdf.rect(0, page_h - 28 * mm, page_w, 28 * mm, stroke=0, fill=1)
 
-        logo_data = str(settings_row["invoice_logo_data"] or "").strip()
         logo_drawn = False
-        if logo_data.startswith("data:image") and ";base64," in logo_data:
-            try:
-                img_b64 = logo_data.split(";base64,", 1)[1]
-                img_bytes = base64.b64decode(img_b64)
-                img_reader = ImageReader(io.BytesIO(img_bytes))
+        try:
+            resolved_logo_bytes = _resolve_invoice_logo_image_bytes()
+            if resolved_logo_bytes:
+                img_reader = ImageReader(io.BytesIO(resolved_logo_bytes))
                 pdf.drawImage(
                     img_reader, margin_l, page_h - 26 * mm,
                     width=36 * mm, height=20 * mm,
                     preserveAspectRatio=True, mask="auto",
                 )
                 logo_drawn = True
-            except Exception:
-                pass
+        except Exception:
+            logo_drawn = False
 
         if not logo_drawn:
             pdf.setFillColor(rl_colors.white)
@@ -7753,7 +7842,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             op_lines.append(op_email)
         pdf.setFont("Helvetica", 8)
         pdf.setFillColor(c_mid)
-        for i, ln in enumerate(op_lines[:5]):
+        for i, ln in enumerate(op_lines[:6]):
             pdf.drawString(op_addr_x, op_addr_y - (i + 1) * 4.5 * mm, ln)
 
         # ── 3. RECIPIENT ADDRESS (DIN 5008 letter window) ────────────
@@ -7949,32 +8038,68 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.drawString(totals_x + 4 * mm, t_row - 8 * mm, "Gesamtbetrag")
         pdf.drawRightString(totals_x + totals_w - 4 * mm, t_row - 8 * mm, _money(total_amount))
 
-        # ── 8. PAYMENT / BANKVERBINDUNG ──────────────────────────────
+        # ── 8. PAYMENT / BANKVERBINDUNG + KONTAKT ───────────────────
         pay_x = margin_l
         pay_y = totals_top - 7 * mm
         has_bank = op_iban or op_bic or op_bank
         has_tax = op_tax_id or op_vat_id
-        if has_bank or has_tax:
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.setFillColor(c_light)
-            pdf.drawString(pay_x, pay_y, "ZAHLUNGSINFORMATIONEN")
-            pay_row_y = pay_y - 5.5 * mm
-            pdf.setFont("Helvetica", 8)
-            pdf.setFillColor(c_dark)
-            if op_bank:
-                pdf.drawString(pay_x, pay_row_y, f"Bank: {op_bank}")
-                pay_row_y -= 4.5 * mm
-            if op_iban:
-                pdf.drawString(pay_x, pay_row_y, f"IBAN: {op_iban}")
-                pay_row_y -= 4.5 * mm
-            if op_bic:
-                pdf.drawString(pay_x, pay_row_y, f"BIC: {op_bic}")
-                pay_row_y -= 4.5 * mm
-            if op_tax_id:
-                pdf.drawString(pay_x, pay_row_y, f"Steuernummer: {op_tax_id}")
-                pay_row_y -= 4.5 * mm
-            if op_vat_id:
-                pdf.drawString(pay_x, pay_row_y, f"USt-IdNr.: {op_vat_id}")
+
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(c_light)
+        pdf.drawString(pay_x, pay_y, "ZAHLUNGSINFORMATIONEN")
+        pay_row_y = pay_y - 5.5 * mm
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(c_dark)
+        if op_bank:
+            pdf.drawString(pay_x, pay_row_y, f"Bank: {op_bank}")
+            pay_row_y -= 4.5 * mm
+        if op_iban:
+            pdf.drawString(pay_x, pay_row_y, f"IBAN: {op_iban}")
+            pay_row_y -= 4.5 * mm
+        if op_bic:
+            pdf.drawString(pay_x, pay_row_y, f"BIC: {op_bic}")
+            pay_row_y -= 4.5 * mm
+        if op_tax_id:
+            pdf.drawString(pay_x, pay_row_y, f"Steuernummer: {op_tax_id}")
+            pay_row_y -= 4.5 * mm
+        if op_vat_id:
+            pdf.drawString(pay_x, pay_row_y, f"USt-IdNr.: {op_vat_id}")
+            pay_row_y -= 4.5 * mm
+        if not has_bank and not has_tax:
+            pdf.setFillColor(c_mid)
+            pdf.drawString(pay_x, pay_row_y, "Keine Bank-/Steuerdaten hinterlegt")
+            pay_row_y -= 4.5 * mm
+
+        # Make due date/reference explicit in the details block.
+        pdf.setFillColor(c_dark)
+        pdf.drawString(pay_x, pay_row_y, f"Verwendungszweck: Rechnung {invoice_no}")
+        pay_row_y -= 4.5 * mm
+        pdf.drawString(pay_x, pay_row_y, f"Faellig bis: {due_date}")
+
+        contact_title_y = pay_y - 1.5 * mm
+        contact_x = margin_l + 88 * mm
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(c_light)
+        pdf.drawString(contact_x, contact_title_y, "KONTAKT")
+        contact_lines = []
+        if op_street:
+            contact_lines.append(op_street)
+        if op_zip_city:
+            contact_lines.append(op_zip_city)
+        if op_phone:
+            contact_lines.append(f"Tel.: {op_phone}")
+        if op_email:
+            contact_lines.append(op_email)
+        if op_website:
+            contact_lines.append(op_website)
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(c_dark)
+        if contact_lines:
+            for i, ln in enumerate(contact_lines[:5]):
+                pdf.drawString(contact_x, contact_title_y - (i + 1) * 4.5 * mm, ln)
+        else:
+            pdf.setFillColor(c_mid)
+            pdf.drawString(contact_x, contact_title_y - 4.5 * mm, "Kontaktdaten nicht hinterlegt")
 
         # ── 9. FOOTER BAND ───────────────────────────────────────────
         footer_h = 12 * mm
@@ -7987,8 +8112,12 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             footer_parts.append(op_zip_city)
         if op_phone:
             footer_parts.append(f"Tel.: {op_phone}")
+        if op_email:
+            footer_parts.append(op_email)
         if op_website:
             footer_parts.append(op_website)
+        if op_bank:
+            footer_parts.append(op_bank)
         if op_tax_id:
             footer_parts.append(f"St.-Nr.: {op_tax_id}")
         if op_vat_id:
