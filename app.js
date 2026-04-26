@@ -56,6 +56,9 @@ function resolveApiBase() {
 }
 
 const API_BASE = resolveApiBase();
+const DEFAULT_BRAND_LOGO = API_BASE
+  ? `${API_BASE}/branding/baukometra-logo.svg`
+  : `${window.location.origin}/branding/baukometra-logo.svg`;
 const SESSION_TOKEN_STORAGE_KEY = "baupass-control-token";
 const SUPPORT_LOGIN_CONTEXT_KEY = "baupass-support-login-context";
 const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
