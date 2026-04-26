@@ -970,19 +970,23 @@
               <!-- ── Rechnungs-Absenderadresse ── -->
               <label class="full-width">
                 <span>Straße &amp; Hausnummer</span>
-                <input id="invoiceOperatorStreet" type="text" placeholder="Musterstraße 12" />
+                <input id="invoiceOperatorStreet" type="text" maxlength="120" placeholder="Musterstraße 12" />
               </label>
               <label>
                 <span>PLZ &amp; Ort</span>
-                <input id="invoiceOperatorZipCity" type="text" placeholder="12345 Musterstadt" />
+                <input id="invoiceOperatorZipCity" type="text" maxlength="80" placeholder="12345 Musterstadt" />
               </label>
               <label>
                 <span>Telefon</span>
-                <input id="invoiceOperatorPhone" type="text" placeholder="+49 123 456789" />
+                <input id="invoiceOperatorPhone" type="text" maxlength="40" placeholder="+49 123 456789" />
               </label>
               <label>
                 <span>Website</span>
-                <input id="invoiceOperatorWebsite" type="text" placeholder="www.meinefirma.de" />
+                <input id="invoiceOperatorWebsite" type="text" maxlength="120" placeholder="www.meinefirma.de" />
+              </label>
+              <label>
+                <span>Rechnungs-E-Mail (Kontakt auf PDF)</span>
+                <input id="invoiceOperatorEmail" type="email" maxlength="120" placeholder="rechnung@meinefirma.de" />
               </label>
 
               <!-- ── Bankverbindung ── -->
@@ -995,23 +999,23 @@
               </div>
               <label class="full-width">
                 <span>IBAN</span>
-                <input id="invoiceIban" type="text" placeholder="DE12 3456 7890 1234 5678 90" />
+                <input id="invoiceIban" type="text" maxlength="34" placeholder="DE12 3456 7890 1234 5678 90" />
               </label>
               <label>
                 <span>BIC / SWIFT</span>
-                <input id="invoiceBic" type="text" placeholder="COBADEFFXXX" />
+                <input id="invoiceBic" type="text" maxlength="11" placeholder="COBADEFFXXX" />
               </label>
               <label>
                 <span>Bankname</span>
-                <input id="invoiceBankName" type="text" placeholder="Commerzbank AG" />
+                <input id="invoiceBankName" type="text" maxlength="80" placeholder="Commerzbank AG" />
               </label>
               <label>
                 <span>Steuernummer</span>
-                <input id="invoiceTaxId" type="text" placeholder="123/456/78901" />
+                <input id="invoiceTaxId" type="text" maxlength="32" placeholder="123/456/78901" />
               </label>
               <label>
                 <span>USt-IdNr.</span>
-                <input id="invoiceVatId" type="text" placeholder="DE123456789" />
+                <input id="invoiceVatId" type="text" maxlength="24" placeholder="DE123456789" />
               </label>
               <label class="full-width">
                 <span>Rechnungs-E-Mail Betreff <small style="font-weight:400">(leer = Standard: "Rechnung von … Nr. …")</small></span>

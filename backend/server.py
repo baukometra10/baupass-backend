@@ -258,6 +258,42 @@ def clean_text_input(value, max_len=255):
     return raw
 
 
+def sanitize_hex_color(value, fallback="#0f4c5c"):
+    raw = clean_text_input(value, max_len=7)
+    if re.fullmatch(r"#[0-9A-Fa-f]{6}", raw):
+        return raw.lower()
+    return fallback
+
+
+def sanitize_optional_email(value, field_error="invalid_email"):
+    raw = clean_text_input(value, max_len=254)
+    if not raw:
+        return ""
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", raw):
+        raise ValueError(field_error)
+    return raw
+
+
+def sanitize_iban(value):
+    raw = clean_text_input(value, max_len=64).upper().replace(" ", "")
+    raw = re.sub(r"[^A-Z0-9]", "", raw)
+    if not raw:
+        return ""
+    if len(raw) < 15 or len(raw) > 34:
+        raise ValueError("invalid_iban")
+    return raw
+
+
+def sanitize_bic(value):
+    raw = clean_text_input(value, max_len=20).upper().replace(" ", "")
+    raw = re.sub(r"[^A-Z0-9]", "", raw)
+    if not raw:
+        return ""
+    if not re.fullmatch(r"[A-Z0-9]{8}([A-Z0-9]{3})?", raw):
+        raise ValueError("invalid_bic")
+    return raw
+
+
 def clean_id_input(value, max_len=64):
     candidate = clean_text_input(value, max_len=max_len)
     if candidate and not _SAFE_ID_RE.fullmatch(candidate):
@@ -1579,6 +1615,8 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_phone TEXT NOT NULL DEFAULT ''")
     if "invoice_operator_website" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_website TEXT NOT NULL DEFAULT ''")
+    if "invoice_operator_email" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_operator_email TEXT NOT NULL DEFAULT ''")
     if "invoice_email_subject" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_email_subject TEXT NOT NULL DEFAULT ''")
     if "invoice_email_intro" not in settings_columns:
@@ -4300,6 +4338,7 @@ def get_settings():
             "invoiceOperatorZipCity": row["invoice_operator_zip_city"] if "invoice_operator_zip_city" in row.keys() else "",
             "invoiceOperatorPhone": row["invoice_operator_phone"] if "invoice_operator_phone" in row.keys() else "",
             "invoiceOperatorWebsite": row["invoice_operator_website"] if "invoice_operator_website" in row.keys() else "",
+            "invoiceOperatorEmail": row["invoice_operator_email"] if "invoice_operator_email" in row.keys() else "",
             "invoiceEmailSubject": row["invoice_email_subject"] if "invoice_email_subject" in row.keys() else "",
             "invoiceEmailIntro": row["invoice_email_intro"] if "invoice_email_intro" in row.keys() else "",
             "smtpHost": row["smtp_host"],
@@ -4596,6 +4635,13 @@ def update_settings():
     current_smtp_password = str(current_row["smtp_password"] or "") if current_row else ""
     current_imap_password = str(current_row["imap_password"] or "") if current_row else ""
     payload_smtp_password = str(payload.get("smtpPassword") or "")
+    try:
+        invoice_operator_email = sanitize_optional_email(
+            payload.get("invoiceOperatorEmail", ""),
+            field_error="invalid_invoice_operator_email",
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     db.execute(
         """
         UPDATE settings
@@ -4604,7 +4650,7 @@ def update_settings():
             invoice_iban = ?, invoice_bic = ?, invoice_bank_name = ?,
             invoice_tax_id = ?, invoice_vat_id = ?,
             invoice_operator_street = ?, invoice_operator_zip_city = ?,
-            invoice_operator_phone = ?, invoice_operator_website = ?,
+            invoice_operator_phone = ?, invoice_operator_website = ?, invoice_operator_email = ?,
             invoice_email_subject = ?, invoice_email_intro = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
@@ -4628,6 +4674,7 @@ def update_settings():
             payload.get("invoiceOperatorZipCity", ""),
             payload.get("invoiceOperatorPhone", ""),
             payload.get("invoiceOperatorWebsite", ""),
+            invoice_operator_email,
             payload.get("invoiceEmailSubject", ""),
             payload.get("invoiceEmailIntro", ""),
             payload.get("smtpHost", ""),
@@ -7603,8 +7650,8 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         margin_r = 20 * mm
         content_w = page_w - margin_l - margin_r
 
-        brand_primary = str(settings_row["invoice_primary_color"] or "#0f4c5c").strip() or "#0f4c5c"
-        brand_accent = str(settings_row["invoice_accent_color"] or "#e36414").strip() or "#e36414"
+        brand_primary = sanitize_hex_color(settings_row["invoice_primary_color"], fallback="#0f4c5c")
+        brand_accent = sanitize_hex_color(settings_row["invoice_accent_color"], fallback=brand_primary)
         invoice_no = str(invoice_row["invoice_number"] or "-")
         invoice_date = str(invoice_row["invoice_date"] or "-")
         due_date = str(invoice_row["due_date"] or "-")
@@ -7642,6 +7689,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         op_zip_city = _sr("invoice_operator_zip_city")
         op_phone = _sr("invoice_operator_phone")
         op_website = _sr("invoice_operator_website")
+        op_email = _sr("invoice_operator_email")
 
         def _money(value):
             return f"{value:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -7701,12 +7749,8 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             op_lines.append(f"Tel.: {op_phone}")
         if op_website:
             op_lines.append(op_website)
-        # Add sender email to operator block
-        sender_email_display = str(settings_row["smtp_sender_email"] or "").strip()
-        if not sender_email_display:
-            sender_email_display = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
-        if sender_email_display:
-            op_lines.append(sender_email_display)
+        if op_email:
+            op_lines.append(op_email)
         pdf.setFont("Helvetica", 8)
         pdf.setFillColor(c_mid)
         for i, ln in enumerate(op_lines[:5]):

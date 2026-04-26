@@ -10395,7 +10395,7 @@ function renderAdminSettingsForm() {
   if (datenschutzText) datenschutzText.value = state.settings.datenschutzText || "";
   // Invoice bank/address/tax fields
   const invoiceFields = ["invoiceOperatorStreet", "invoiceOperatorZipCity", "invoiceOperatorPhone",
-    "invoiceOperatorWebsite", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId",
+    "invoiceOperatorWebsite", "invoiceOperatorEmail", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId",
     "invoiceEmailSubject", "invoiceEmailIntro"];
   for (const fid of invoiceFields) {
     const el = document.querySelector(`#${fid}`);
@@ -12204,6 +12204,7 @@ async function handleSettingsSubmit(event) {
       invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || "").trim(),
       invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || "").trim(),
       invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || "").trim(),
+      invoiceOperatorEmail: (document.querySelector("#invoiceOperatorEmail")?.value || "").trim(),
       invoiceIban: (document.querySelector("#invoiceIban")?.value || "").trim(),
       invoiceBic: (document.querySelector("#invoiceBic")?.value || "").trim(),
       invoiceBankName: (document.querySelector("#invoiceBankName")?.value || "").trim(),
