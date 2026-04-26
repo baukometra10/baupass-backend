@@ -7768,6 +7768,19 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 return raw
             return _build_baukometra_wordmark_png() or b""
 
+        def _draw_logo_text_fallback(x, y):
+            # Draw a built-in fallback mark so a logo is always visible even without PIL/svglib.
+            tile_h = 11 * mm
+            tile_w = 11 * mm
+            pdf.setFillColor(rl_colors.white)
+            pdf.roundRect(x, y, tile_w, tile_h, 1.8 * mm, stroke=0, fill=1)
+            pdf.setFillColor(c_primary)
+            pdf.setFont("Helvetica-Bold", 8)
+            pdf.drawString(x + 2.3 * mm, y + 3.6 * mm, "BK")
+            pdf.setFillColor(rl_colors.white)
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(x + tile_w + 2.5 * mm, y + 4.2 * mm, "BauKometra")
+
         # ════════════════════════════════════════════════════════════
         # 1  HEADER-BAND (Höhe 30 mm)
         # ════════════════════════════════════════════════════════════
@@ -7787,9 +7800,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         except Exception:
             pass
         if not logo_drawn:
-            pdf.setFillColor(rl_colors.white)
-            pdf.setFont("Helvetica-Bold", 15)
-            pdf.drawString(M_L, page_h - HDR_H + 10 * mm, platform_label)
+            _draw_logo_text_fallback(M_L, page_h - HDR_H + 8.5 * mm)
 
         pdf.setFillColor(rl_colors.white)
         pdf.setFont("Helvetica-Bold", 22)
@@ -7918,8 +7929,17 @@ def send_invoice_email(invoice_row, company_row, settings_row):
 
         # Tabellenzeilen
         row_y = TBL_TOP - HDR_ROW_H
+        INFO_SECTION_H = 52 * mm   # reservierter Block von unten (über Footer)
+        FOOTER_H = 14 * mm
+        table_stop_y = FOOTER_H + INFO_SECTION_H + 40 * mm
+        visible_rows = 0
+        hidden_rows = 0
         for idx, item in enumerate(pdf_items):
+            if row_y - DATA_ROW_H < table_stop_y:
+                hidden_rows = len(pdf_items) - idx
+                break
             row_y -= DATA_ROW_H
+            visible_rows += 1
             pdf.setFillColor(rl_colors.white if idx % 2 == 0 else c_stripe)
             pdf.rect(M_L, row_y, CW, DATA_ROW_H, stroke=0, fill=1)
             pdf.setStrokeColor(c_rule)
@@ -7947,6 +7967,12 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.drawRightString(cx[4] + C_NET  - 2 * mm, text_y, _money(i_price))
             pdf.setFont("Helvetica-Bold", 8)
             pdf.drawRightString(cx[5] + C_TOT  - 2 * mm, text_y, _money(i_total))
+
+        if hidden_rows > 0:
+            row_y -= 6 * mm
+            pdf.setFont("Helvetica-Oblique", 7.5)
+            pdf.setFillColor(c_mid)
+            pdf.drawString(M_L, row_y, f"Weitere Positionen im System: {hidden_rows} (aus Platzgruenden nicht angezeigt)")
 
         TABLE_BOTTOM = row_y  # unterkante letzte Zeile
 
@@ -7998,7 +8024,6 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         # ════════════════════════════════════════════════════════════
         # 8  FOOTER-BAND  (immer am Seitenende, zuerst zeichnen)
         # ════════════════════════════════════════════════════════════
-        FOOTER_H = 14 * mm
         pdf.setFillColor(c_primary)
         pdf.rect(0, 0, page_w, FOOTER_H, stroke=0, fill=1)
         fp = [operator_label]
@@ -8021,9 +8046,12 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         # 7  ZAHLUNGSINFORMATIONEN + KONTAKT
         #    Fest verankert oberhalb des Footers – immer sichtbar
         # ════════════════════════════════════════════════════════════
-        INFO_SECTION_H = 52 * mm   # reservierter Block von unten (über Footer)
         INFO_TOP = FOOTER_H + INFO_SECTION_H
         INFO_COL2_X = M_L + CW / 2
+
+        # White panel behind payment/contact so it stays readable regardless of above content.
+        pdf.setFillColor(rl_colors.white)
+        pdf.rect(M_L - 2 * mm, FOOTER_H + 1 * mm, CW + 4 * mm, INFO_SECTION_H - 2 * mm, stroke=0, fill=1)
 
         # Trennlinie
         pdf.setStrokeColor(c_rule)
@@ -8062,9 +8090,13 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         if op_phone:    contact_lines.append(f"Tel.: {op_phone}")
         if op_email:    contact_lines.append(op_email)
         if op_website:  contact_lines.append(op_website)
-        for ln in contact_lines[:5]:
-            pdf.drawString(INFO_COL2_X, cy, ln)
-            cy -= 5 * mm
+        if contact_lines:
+            for ln in contact_lines[:5]:
+                pdf.drawString(INFO_COL2_X, cy, ln)
+                cy -= 5 * mm
+        else:
+            pdf.setFillColor(c_mid)
+            pdf.drawString(INFO_COL2_X, cy, "Keine Kontaktdaten hinterlegt")
 
         pdf.save()
         pdf_bytes = pdf_buffer.getvalue()
