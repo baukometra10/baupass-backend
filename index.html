@@ -1069,6 +1069,13 @@
                 <span>Resend Absender-E-Mail</span>
                 <input id="resendFromEmail" type="email" placeholder="mail@deinedomain.de" />
               </label>
+              <label class="full-width">
+                <span></span>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                  <button type="button" class="btn btn-secondary" onclick="saveAndTestResend()">💾 Resend Speichern &amp; Testen</button>
+                  <span id="resendTestResult" style="font-size:0.85rem"></span>
+                </div>
+              </label>
 
               <!-- ── Dokument-Postfach (IMAP) ── -->
               <div class="form-section">

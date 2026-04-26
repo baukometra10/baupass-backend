@@ -12346,8 +12346,11 @@ async function runSmtpDiagnostics() {
   });
 }
 
-async function runResendDirectTest(recipient = "") {
+async function runResendDirectTest(recipient = "", provider = "") {
   const payload = recipient ? { recipient } : {};
+  if (provider) {
+    payload.provider = provider;
+  }
   try {
     return await apiRequest(API_BASE + "/api/settings/resend-test", {
       method: "POST",
@@ -12355,6 +12358,60 @@ async function runResendDirectTest(recipient = "") {
     });
   } catch (err) {
     return err?.payload || { ok: false, error: err?.code || "resend_test_failed" };
+  }
+}
+
+async function saveAndTestResend() {
+  const keyEl = document.querySelector("#resendApiKey");
+  const fromEl = document.querySelector("#resendFromEmail");
+  const resultEl = document.querySelector("#resendTestResult");
+  const hintEl = document.querySelector("#resendKeyStoredHint");
+  const key = keyEl?.value?.trim() || "";
+  const fromEmail = fromEl?.value?.trim() || "";
+  const hasStoredKey = Boolean(state?.settings?.resendApiKey) || Boolean((hintEl?.textContent || "").includes("gespeichert"));
+  if (!key && !hasStoredKey) {
+    if (resultEl) { resultEl.textContent = "Bitte Resend API-Key eingeben"; resultEl.style.color = "#dc2626"; }
+    return;
+  }
+
+  if (key || fromEmail) {
+    if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
+    try {
+      await apiRequest(API_BASE + "/api/settings", {
+        method: "PUT",
+        body: { ...getCurrentSmtpSettingsFromForm(), resendApiKey: key, resendFromEmail: fromEmail }
+      });
+      if (state?.settings) {
+        state.settings.resendApiKey = state.settings.resendApiKey || "stored";
+        if (fromEmail) state.settings.resendFromEmail = fromEmail;
+      }
+    } catch (e) {
+      if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`; resultEl.style.color = "#dc2626"; }
+      return;
+    }
+  }
+
+  if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
+  if (keyEl) keyEl.value = "";
+  if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
+
+  let data = await runResendDirectTest("", "resend");
+  if (data?.error === "missing_recipient") {
+    const addr = window.prompt("Resend-Test: An welche E-Mail senden? (Keine Empfaenger-E-Mail gefunden)");
+    if (!addr || !addr.includes("@")) {
+      if (resultEl) { resultEl.textContent = "Abgebrochen"; resultEl.style.color = "#9ca3af"; }
+      return;
+    }
+    data = await runResendDirectTest(addr, "resend");
+  }
+  if (!resultEl) return;
+  if (data?.ok) {
+    resultEl.textContent = "✓ Resend: Mail gesendet!";
+    resultEl.style.color = "#16a34a";
+  } else {
+    const detail = data?.detail ? ` → ${data.detail}` : "";
+    resultEl.textContent = `✗ ${data?.error || "Fehler"}${detail}`;
+    resultEl.style.color = "#dc2626";
   }
 }
 
@@ -12392,14 +12449,14 @@ async function saveAndTestBrevo() {
   if (keyEl) keyEl.value = "";
   if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
   // Test via resend-test endpoint (uses API fallback: Resend/Brevo)
-  let data = await runResendDirectTest("");
+  let data = await runResendDirectTest("", "brevo");
   if (data?.error === "missing_recipient") {
     const addr = window.prompt("Brevo-Test: An welche E-Mail senden? (Keine Empfaenger-E-Mail gefunden)");
     if (!addr || !addr.includes("@")) {
       if (resultEl) { resultEl.textContent = "Abgebrochen"; resultEl.style.color = "#9ca3af"; }
       return;
     }
-    data = await runResendDirectTest(addr);
+    data = await runResendDirectTest(addr, "brevo");
   }
   if (!resultEl) return;
   if (data?.ok) {

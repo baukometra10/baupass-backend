@@ -4414,6 +4414,9 @@ def resend_test():
     """Test API fallback delivery directly (without SMTP)."""
     db = get_db()
     payload = request.get_json(silent=True) or {}
+    requested_provider = str(payload.get("provider") or "").strip().lower()
+    if requested_provider not in ("", "resend", "brevo"):
+        requested_provider = ""
     settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
 
     recipient = (str(payload.get("recipient") or "").strip() or (g.current_user["email"] or "").strip())
@@ -4435,7 +4438,24 @@ def resend_test():
     env_presence = _collect_resend_env_presence()
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
     brevo_api_key = _get_brevo_api_key()
-    if not resend_api_key and not brevo_api_key:
+    if requested_provider == "resend" and not resend_api_key:
+        return jsonify({
+            "ok": False,
+            "error": "resend_not_configured",
+            "provider": "resend",
+            "resendConfigured": False,
+            "resendKeySource": "",
+            "resendEnv": env_presence,
+        })
+    if requested_provider == "brevo" and not brevo_api_key:
+        return jsonify({
+            "ok": False,
+            "error": "brevo_not_configured",
+            "provider": "brevo",
+            "brevoConfigured": False,
+            "resendEnv": env_presence,
+        })
+    if not requested_provider and not resend_api_key and not brevo_api_key:
         return jsonify({
             "ok": False,
             "error": "resend_not_configured",
@@ -4456,19 +4476,41 @@ def resend_test():
         "<p>Wenn diese Mail ankommt, funktioniert die API-Zustellung korrekt im Container.</p>"
     )
 
-    fallback_ok, fallback_error = _send_via_any_api(
-        subject=subject,
-        sender_email=sender_email,
-        sender_name=sender_name,
-        recipient=recipient,
-        text_body=text_body,
-        html_body=html_body,
-    )
+    used_provider = requested_provider or "auto"
+    if requested_provider == "resend":
+        fallback_ok, fallback_error = _send_via_resend(
+            subject=subject,
+            sender_email=sender_email,
+            sender_name=sender_name,
+            recipient=recipient,
+            text_body=text_body,
+            html_body=html_body,
+        )
+    elif requested_provider == "brevo":
+        fallback_ok, fallback_error = _send_via_brevo(
+            subject=subject,
+            sender_email=sender_email,
+            sender_name=sender_name,
+            recipient=recipient,
+            text_body=text_body,
+            html_body=html_body,
+        )
+    else:
+        fallback_ok, fallback_error, used_provider = _send_via_any_api(
+            subject=subject,
+            sender_email=sender_email,
+            sender_name=sender_name,
+            recipient=recipient,
+            text_body=text_body,
+            html_body=html_body,
+        )
+
     if fallback_ok:
         return jsonify({
             "ok": True,
             "recipient": recipient,
-            "delivery": "api",
+            "delivery": used_provider,
+            "provider": used_provider,
             "resendConfigured": bool(resend_api_key),
             "resendKeySource": resend_key_source,
             "brevoConfigured": bool(brevo_api_key),
@@ -4485,6 +4527,7 @@ def resend_test():
         "ok": False,
         "error": "resend_send_failed",
         "detail": detail_hint,
+        "provider": used_provider,
         "resendConfigured": True,
         "resendKeySource": resend_key_source,
         "resendEnv": env_presence,
