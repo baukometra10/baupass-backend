@@ -7550,9 +7550,15 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             op_lines.append(f"Tel.: {op_phone}")
         if op_website:
             op_lines.append(op_website)
+        # Add sender email to operator block
+        sender_email_display = str(settings_row["smtp_sender_email"] or "").strip()
+        if not sender_email_display:
+            sender_email_display = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
+        if sender_email_display:
+            op_lines.append(sender_email_display)
         pdf.setFont("Helvetica", 8)
         pdf.setFillColor(c_mid)
-        for i, ln in enumerate(op_lines[:4]):
+        for i, ln in enumerate(op_lines[:5]):
             pdf.drawString(op_addr_x, op_addr_y - (i + 1) * 4.5 * mm, ln)
 
         # ── 3. RECIPIENT ADDRESS (DIN 5008 letter window) ────────────
@@ -7577,7 +7583,6 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFont("Helvetica", 9)
         pdf.setFillColor(c_mid)
         pdf.drawString(addr_win_x, addr_win_y + addr_win_h - 16 * mm, "z. Hd. Buchhaltung")
-        pdf.drawString(addr_win_x, addr_win_y + addr_win_h - 21 * mm, f"E-Mail: {recipient_email}")
 
         # ── 4. INVOICE META BOX (right of address block) ─────────────
         meta_x = margin_l + addr_win_w + 10 * mm
@@ -7797,26 +7802,16 @@ def send_invoice_email(invoice_row, company_row, settings_row):
 
     text_body = (
         f"Guten Tag,\n\n"
-        f"anbei erhalten Sie die Rechnung von {platform_label}.\n"
-        f"Rechnungsnummer: {invoice_row['invoice_number']}\n"
-        f"Firma: {company_row['name']}\n"
-        f"Faellig am: {(invoice_row['due_date'] or '-')}\n"
-        f"Gesamtbetrag: {float(invoice_row['total_amount'] or 0):.2f} EUR\n\n"
-        f"Der PDF-Anhang enthaelt alle Rechnungsdetails.\n\n"
-        f"Viele Gruesse\n{operator_label}"
+        f"anbei erhalten Sie Ihre Rechnung Nr. {invoice_row['invoice_number']} von {platform_label}.\n"
+        f"Alle Details entnehmen Sie bitte dem beigefügten PDF-Anhang.\n\n"
+        f"Viele Grüße\n{operator_label}"
     )
-    html_invoice_details = invoice_row["rendered_html"] or ""
     body_html = (
-        f"<p style='margin:0 0 12px;'>Guten Tag,</p>"
-        f"<p style='margin:0 0 12px;'>anbei erhalten Sie die Rechnung von <strong>{html.escape(platform_label)}</strong>.</p>"
-        f"<p style='margin:0 0 16px;'>"
-        f"<strong>Rechnungsnummer:</strong> {html.escape(str(invoice_row['invoice_number'] or '-'))}<br>"
-        f"<strong>Firma:</strong> {html.escape(str(company_row['name'] or '-'))}<br>"
-        f"<strong>Fällig am:</strong> {html.escape(str(invoice_row['due_date'] or '-'))}<br>"
-        f"<strong>Gesamtbetrag:</strong> {float(invoice_row['total_amount'] or 0):.2f} EUR"
-        f"</p>"
-        f"<p style='margin:0 0 16px;'>Die vollständige Rechnung finden Sie im PDF-Anhang.</p>"
-        + (f"<hr style='border:none;border-top:1px solid #e5e7eb;margin:18px 0;'>{html_invoice_details}" if html_invoice_details else "")
+        f"<p style='margin:0 0 14px;'>Guten Tag,</p>"
+        f"<p style='margin:0 0 14px;'>anbei erhalten Sie Ihre Rechnung Nr. <strong>{html.escape(str(invoice_row['invoice_number'] or '-'))}</strong> "
+        f"von <strong>{html.escape(platform_label)}</strong>.</p>"
+        f"<p style='margin:0 0 14px;'>Alle Details entnehmen Sie bitte dem beigefügten <strong>PDF-Anhang</strong>.</p>"
+        f"<p style='margin:0;color:#6b7280;font-size:13px;'>Mit freundlichen Grüßen<br><strong>{html.escape(operator_label)}</strong></p>"
     )
 
     if not smtp_host or not smtp_sender:

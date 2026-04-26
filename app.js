@@ -10306,7 +10306,7 @@ function syncInvoiceRecipientFromCompany() {
   const companyId = elements.invoiceCompanySelect.value;
   const company = state.companies.find((entry) => entry.id === companyId);
   const billingEmail = getCompanyBillingEmail(company);
-  if (billingEmail && !elements.invoiceRecipientEmail.value.trim()) {
+  if (billingEmail) {
     elements.invoiceRecipientEmail.value = billingEmail;
   }
 }
