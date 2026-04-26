@@ -10367,6 +10367,17 @@ function renderAdminSettingsForm() {
     brevoKeyHint.textContent = hasBrevoKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
     brevoKeyHint.style.color = hasBrevoKey ? "#16a34a" : "#9ca3af";
   }
+  // Resend-Felder (optional/legacy fallback)
+  const resendApiKeyEl = document.querySelector("#resendApiKey");
+  const resendFromEmailEl = document.querySelector("#resendFromEmail");
+  if (resendApiKeyEl) resendApiKeyEl.value = "";
+  if (resendFromEmailEl) resendFromEmailEl.value = state.settings.resendFromEmail || "";
+  const resendKeyHint = document.querySelector("#resendKeyStoredHint");
+  if (resendKeyHint) {
+    const hasResendKey = !!(state.settings.resendApiKey);
+    resendKeyHint.textContent = hasResendKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
+    resendKeyHint.style.color = hasResendKey ? "#16a34a" : "#9ca3af";
+  }
   if (elements.invoiceLogoData) {
     elements.invoiceLogoData.value = state.settings.invoiceLogoData || "";
   }
@@ -12190,6 +12201,8 @@ async function handleSettingsSubmit(event) {
       imapUseSsl: document.querySelector("#imapUseSsl")?.value !== "0",
       impressumText: (document.querySelector("#impressumText")?.value || ""),
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
+      resendApiKey: (document.querySelector("#resendApiKey")?.value || ""),
+      resendFromEmail: (document.querySelector("#resendFromEmail")?.value || "").trim(),
       brevoApiKey: (document.querySelector("#brevoApiKey")?.value || ""),
       brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
     };
@@ -12238,6 +12251,8 @@ function getCurrentSmtpSettingsFromForm() {
     smtpSenderEmail: document.querySelector("#smtpSenderEmail")?.value.trim() || "",
     smtpSenderName: document.querySelector("#smtpSenderName")?.value.trim() || "",
     smtpUseTls: document.querySelector("#smtpUseTls")?.value === "1",
+    resendApiKey: document.querySelector("#resendApiKey")?.value || "",
+    resendFromEmail: document.querySelector("#resendFromEmail")?.value.trim() || "",
     brevoApiKey: document.querySelector("#brevoApiKey")?.value || "",
     brevoFromEmail: document.querySelector("#brevoFromEmail")?.value.trim() || "",
   };

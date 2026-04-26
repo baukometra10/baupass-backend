@@ -1048,6 +1048,28 @@
                 </small>
               </label>
 
+              <!-- ── Resend (optional/legacy) ── -->
+              <div class="form-section" style="margin-top:10px">
+                <div class="form-section-icon">🧩</div>
+                <div class="form-section-label">
+                  <p class="eyebrow">Optional</p>
+                  <h4>Resend API <small style="font-weight:400;color:#6b7280">(legacy fallback)</small></h4>
+                  <p style="font-size:0.82rem;color:#6b7280;margin-top:4px;line-height:1.5;">
+                    Wenn du weiterhin Resend nutzen willst, kannst du den Key hier speichern.
+                    Brevo bleibt die empfohlene Standardoption.
+                  </p>
+                </div>
+              </div>
+              <label>
+                <span>Resend API-Key</span>
+                <input id="resendApiKey" type="password" autocomplete="off" placeholder="re_..." style="font-family:monospace" />
+                <small id="resendKeyStoredHint" style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Kein Key gespeichert</small>
+              </label>
+              <label>
+                <span>Resend Absender-E-Mail</span>
+                <input id="resendFromEmail" type="email" placeholder="mail@deinedomain.de" />
+              </label>
+
               <!-- ── Dokument-Postfach (IMAP) ── -->
               <div class="form-section">
                 <div class="form-section-icon">📥</div>

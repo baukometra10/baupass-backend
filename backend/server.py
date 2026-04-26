@@ -1280,6 +1280,10 @@ def init_db():
             smtp_sender_email TEXT NOT NULL DEFAULT '',
             smtp_sender_name TEXT NOT NULL DEFAULT 'BauPass Control',
             smtp_use_tls INTEGER NOT NULL DEFAULT 1,
+            resend_api_key TEXT NOT NULL DEFAULT '',
+            resend_from_email TEXT NOT NULL DEFAULT '',
+            brevo_api_key TEXT NOT NULL DEFAULT '',
+            brevo_from_email TEXT NOT NULL DEFAULT '',
             admin_ip_whitelist TEXT NOT NULL DEFAULT '',
             enforce_tenant_domain INTEGER NOT NULL DEFAULT 0
         );
@@ -1532,10 +1536,11 @@ def init_db():
                 id, platform_name, operator_name, turnstile_endpoint, rental_model,
                 invoice_logo_data, invoice_primary_color, invoice_accent_color,
                 smtp_host, smtp_port, smtp_username, smtp_password, smtp_sender_email, smtp_sender_name, smtp_use_tls,
+                resend_api_key, resend_from_email, brevo_api_key, brevo_from_email,
                 admin_ip_whitelist, enforce_tenant_domain
-            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", 587, "", "", "", "BauPass Control", 1, "", 0),
+            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", 587, "", "", "", "BauPass Control", 1, "", "", "", "", "", 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
@@ -2260,6 +2265,23 @@ def _get_resend_api_key_and_source():
     cached_key = _normalize_env_value(_resend_key_cache.get("key") or "")
     if cached_key:
         return cached_key, "db_settings"
+
+    # Fallback: read from DB directly in case cache is stale/empty.
+    try:
+        with closing(sqlite3.connect(DB_PATH)) as db:
+            db.row_factory = sqlite3.Row
+            row = db.execute("SELECT resend_api_key, resend_from_email FROM settings WHERE id = 1").fetchone()
+            if row:
+                db_key = _normalize_env_value(row["resend_api_key"] or "")
+                db_from_email = _normalize_env_value(row["resend_from_email"] or "")
+                if db_key:
+                    _resend_key_cache["key"] = db_key
+                    _resend_key_cache["from_email"] = db_from_email
+                    return db_key, "db_settings"
+                if db_from_email and not _resend_key_cache.get("from_email"):
+                    _resend_key_cache["from_email"] = db_from_email
+    except Exception:
+        pass
 
     # Accept common variable names to reduce deployment misconfiguration issues.
     for key_name in (
