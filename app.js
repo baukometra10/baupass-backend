@@ -12269,6 +12269,15 @@ function formatResendEnvState(payload) {
   return states.length ? `Env-Check: ${states.join(", ")}` : "";
 }
 
+function formatApiFallbackState(payload) {
+  const hasResend = payload?.resendConfigured === true;
+  const hasBrevo = payload?.brevoConfigured === true;
+  if (!hasResend && !hasBrevo) return "API-Fallback nicht erkannt";
+  if (hasResend && hasBrevo) return "API-Fallback erkannt (Resend + Brevo)";
+  if (hasBrevo) return "API-Fallback erkannt (Brevo)";
+  return `API-Fallback erkannt (Resend${payload?.resendKeySource ? `: ${payload.resendKeySource}` : ""})`;
+}
+
 function formatSmtpTestError(err) {
   if (err?.code === "smtp_not_configured") {
     const missingFields = Array.isArray(err?.payload?.missingFields) ? err.payload.missingFields : [];
@@ -12286,17 +12295,15 @@ function formatSmtpTestError(err) {
     const diag = formatSmtpDiagnosticsPayload(err?.payload?.diagnostics);
     const fallbackError = String(err?.payload?.fallbackError || "");
     const fallbackHint = fallbackError.startsWith("resend_not_configured")
-      ? "Resend-Fallback ist nicht aktiv. Setze in Railway die Variable RESEND_API_KEY."
+      ? "API-Fallback ist nicht aktiv. Setze Brevo in den Einstellungen (empfohlen) oder RESEND_API_KEY in Railway."
       : "";
-    const resendState = err?.payload?.resendConfigured === true
-      ? `Resend erkannt (${err?.payload?.resendKeySource || "unbekannt"})`
-      : (err?.payload?.resendConfigured === false ? "Resend nicht erkannt" : "");
+    const apiState = formatApiFallbackState(err?.payload || {});
     const resendEnvState = formatResendEnvState(err?.payload);
     const parts = [base];
     if (diag) parts.push(diag);
     if (fallbackHint && !base.includes(fallbackHint) && !diag.includes(fallbackHint)) parts.push(fallbackHint);
-    const diagHasResendState = diag.includes("Resend erkannt") || diag.includes("Resend nicht erkannt");
-    if (resendState && !diagHasResendState && !base.includes(resendState)) parts.push(resendState);
+    const diagHasApiState = diag.includes("API-Fallback erkannt") || diag.includes("API-Fallback nicht erkannt");
+    if (apiState && !diagHasApiState && !base.includes(apiState)) parts.push(apiState);
     if (resendEnvState) parts.push(resendEnvState);
     return parts.join(" | ");
   }
@@ -12306,15 +12313,15 @@ function formatSmtpTestError(err) {
 function formatSmtpDiagnosticsPayload(payload) {
   if (!payload) return "";
   if (payload.ok) {
-    const resendState = payload.resendConfigured ? `, Resend erkannt (${payload.resendKeySource || "unbekannt"})` : ", Resend nicht erkannt";
-    return `Diagnose OK: Host ${payload.host}:${payload.port}, TLS ${payload.useTls ? "an" : "aus"}, Auth ${payload.hasUsername ? "gesetzt" : "ohne Login"}${resendState}`;
+    const apiState = formatApiFallbackState(payload);
+    return `Diagnose OK: Host ${payload.host}:${payload.port}, TLS ${payload.useTls ? "an" : "aus"}, Auth ${payload.hasUsername ? "gesetzt" : "ohne Login"}${apiState ? `, ${apiState}` : ""}`;
   }
   const stage = payload.stage ? `Stufe ${payload.stage}` : "Diagnose fehlgeschlagen";
   const type = payload.errorType ? `${payload.errorType}: ` : "";
   const message = payload.error || "Unbekannter Fehler";
-  const resendState = payload.resendConfigured ? ` | Resend erkannt (${payload.resendKeySource || "unbekannt"})` : " | Resend nicht erkannt";
+  const apiState = formatApiFallbackState(payload);
   const resendEnvState = formatResendEnvState(payload);
-  return `${stage} - ${type}${message}${resendState}${resendEnvState ? ` | ${resendEnvState}` : ""}`;
+  return `${stage} - ${type}${message}${apiState ? ` | ${apiState}` : ""}${resendEnvState ? ` | ${resendEnvState}` : ""}`;
 }
 
 async function runSmtpDiagnostics() {

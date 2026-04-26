@@ -2575,14 +2575,17 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
     # If SMTP is not configured at all, use API fallback directly (no fallback loop needed)
     smtp_configured = bool(smtp_host and smtp_sender)
     resend_api_key, _ = _get_resend_api_key_and_source()
-    if not smtp_configured and not resend_api_key:
+    brevo_api_key = _get_brevo_api_key()
+    if not smtp_configured and not resend_api_key and not brevo_api_key:
         app.logger.warning("[OTP-MAIL] Weder SMTP noch API-Fallback konfiguriert – E-Mail-Versand nicht möglich")
         return False
     if not smtp_configured:
         app.logger.info("[OTP-MAIL] SMTP nicht konfiguriert, sende OTP direkt über API-Fallback")
-    # Use smtp_sender as from address, fall back to resend_from_email cache
+    # Use smtp_sender as from address, fall back to stored API sender addresses
     if not smtp_sender:
         smtp_sender = _normalize_env_value(_resend_key_cache.get("from_email") or "")
+    if not smtp_sender:
+        smtp_sender = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
     if not smtp_sender:
         app.logger.warning("[OTP-MAIL] Keine Absender-E-Mail konfiguriert – E-Mail-Versand nicht möglich")
         return False
@@ -4295,6 +4298,7 @@ def smtp_test():
         diag_result = _run_smtp_diagnostics(smtp_settings)
         app.logger.error(f"[SMTP-TEST] Fehler beim Senden an {recipient}: {exc}")
         resend_api_key, resend_key_source = _get_resend_api_key_and_source()
+        brevo_api_key = _get_brevo_api_key()
         resend_env = _collect_resend_env_presence()
         fallback_ok, fallback_error = _send_via_any_api(
             subject=msg["Subject"] if "msg" in locals() else f"{platform_name}: SMTP Test-Mail",
@@ -4319,6 +4323,7 @@ def smtp_test():
             "fallbackError": fallback_error,
             "resendConfigured": bool(resend_api_key),
             "resendKeySource": resend_key_source,
+            "brevoConfigured": bool(brevo_api_key),
             "resendEnv": resend_env,
         }), 500
 
@@ -4342,8 +4347,10 @@ def smtp_diagnose():
         return jsonify({"ok": False, "error": "smtp_not_configured", "missingFields": missing_fields}), 400
     result = _run_smtp_diagnostics(smtp_settings)
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
+    brevo_api_key = _get_brevo_api_key()
     result["resendConfigured"] = bool(resend_api_key)
     result["resendKeySource"] = resend_key_source
+    result["brevoConfigured"] = bool(brevo_api_key)
     result["resendEnv"] = _collect_resend_env_presence()
     status_code = 200
     if not result.get("ok"):
@@ -10503,11 +10510,14 @@ def otp_test_send():
             f"[OTP-TEST-DIAG] stage={diag_result.get('stage')} type={diag_result.get('errorType')} error={diag_result.get('error')}"
         )
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
+    brevo_api_key = _get_brevo_api_key()
     resend_configured = bool(resend_api_key)
+    brevo_configured = bool(brevo_api_key)
+    api_fallback_configured = resend_configured or brevo_configured
     detail_text = "SMTP delivery failed. Check server logs for [OTP-MAIL]."
     fallback_error = ""
     if diag_result.get("stage") == "connect" and "Network is unreachable" in str(diag_result.get("error") or ""):
-        if resend_configured:
+        if api_fallback_configured:
             detail_text = "SMTP egress blocked on Railway. API fallback is configured; check [OTP-MAIL] logs for provider errors."
             fallback_error = "resend_configured_but_send_failed"
         else:
@@ -10524,6 +10534,7 @@ def otp_test_send():
         "fallbackError": fallback_error,
         "resendConfigured": resend_configured,
         "resendKeySource": resend_key_source,
+        "brevoConfigured": brevo_configured,
         "resendEnv": _collect_resend_env_presence(),
     }), 500
 
