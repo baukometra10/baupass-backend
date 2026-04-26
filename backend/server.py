@@ -2457,6 +2457,7 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
             {
                 "name": str(item.get("filename") or "attachment.bin"),
                 "content": str(item.get("content_b64") or ""),
+                "contentType": str(item.get("mime_type") or "application/octet-stream"),
             }
             for item in attachments
             if item and item.get("content_b64")
@@ -7391,7 +7392,11 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         smtp_sender = _normalize_env_value(_resend_key_cache.get("from_email") or "")
 
     attachment_payload = []
-    pdf_filename = f"{invoice_row['invoice_number']}.pdf"
+    safe_invoice_no = re.sub(r"[^A-Za-z0-9._-]+", "-", str(invoice_row["invoice_number"] or "rechnung")).strip("-") or "rechnung"
+    pdf_filename = f"rechnung-von-baupass-{safe_invoice_no}.pdf"
+    platform_label = str(settings_row["platform_name"] or "BauPass").strip() or "BauPass"
+    operator_label = str(settings_row["operator_name"] or platform_label).strip() or platform_label
+    mail_subject = f"Rechnung von {platform_label} - {invoice_row['invoice_number']}"
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.units import mm
@@ -7442,40 +7447,67 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     except Exception as exc:
         app.logger.warning(f"[INVOICE-MAIL] PDF-Anhang konnte nicht erzeugt werden: {exc}")
 
+    # Rechnungen sollen immer mit PDF-Anhang rausgehen.
+    if not attachment_payload:
+        return False, "PDF-Anhang konnte nicht erzeugt werden (reportlab/Logo/Rendering prüfen)"
+
+    text_body = (
+        f"Guten Tag,\n\n"
+        f"anbei erhalten Sie die Rechnung von {platform_label}.\n"
+        f"Rechnungsnummer: {invoice_row['invoice_number']}\n"
+        f"Firma: {company_row['name']}\n"
+        f"Faellig am: {(invoice_row['due_date'] or '-')}\n"
+        f"Gesamtbetrag: {float(invoice_row['total_amount'] or 0):.2f} EUR\n\n"
+        f"Der PDF-Anhang enthaelt alle Rechnungsdetails.\n\n"
+        f"Viele Gruesse\n{operator_label}"
+    )
+    html_invoice_details = invoice_row["rendered_html"] or ""
+    body_html = (
+        f"<p style='margin:0 0 12px;'>Guten Tag,</p>"
+        f"<p style='margin:0 0 12px;'>anbei erhalten Sie die Rechnung von <strong>{html.escape(platform_label)}</strong>.</p>"
+        f"<p style='margin:0 0 16px;'>"
+        f"<strong>Rechnungsnummer:</strong> {html.escape(str(invoice_row['invoice_number'] or '-'))}<br>"
+        f"<strong>Firma:</strong> {html.escape(str(company_row['name'] or '-'))}<br>"
+        f"<strong>Fällig am:</strong> {html.escape(str(invoice_row['due_date'] or '-'))}<br>"
+        f"<strong>Gesamtbetrag:</strong> {float(invoice_row['total_amount'] or 0):.2f} EUR"
+        f"</p>"
+        f"<p style='margin:0 0 16px;'>Die vollständige Rechnung finden Sie im PDF-Anhang.</p>"
+        + (f"<hr style='border:none;border-top:1px solid #e5e7eb;margin:18px 0;'>{html_invoice_details}" if html_invoice_details else "")
+    )
+
     if not smtp_host or not smtp_sender:
         # Try API fallback path if SMTP is not configured but an API key is available
         resend_key, _resend_key_source = _get_resend_api_key_and_source()
         brevo_key = _get_brevo_api_key()
         if resend_key or brevo_key:
-            text_body = (
-                f"Guten Tag,\n\n"
-                f"anbei erhalten Sie die Rechnung {invoice_row['invoice_number']} für {company_row['name']}.\n"
-                f"Faellig am: {(invoice_row['due_date'] or '-')}\n"
-                f"Gesamtbetrag: {invoice_row['total_amount']:.2f} EUR\n\n"
-                f"Viele Grüße\n{settings_row['operator_name']}"
-            )
             ok, err, _provider_used = _send_via_any_api(
-                subject=f"Rechnung {invoice_row['invoice_number']} - {settings_row['operator_name']}",
+                subject=mail_subject,
                 sender_email=smtp_sender or "noreply@example.com",
                 sender_name=settings_row["smtp_sender_name"] or "",
                 recipient=invoice_row["recipient_email"],
                 text_body=text_body,
-                html_body=invoice_row["rendered_html"] or "",
+                html_body=_build_email_html(
+                    platform_label,
+                    str(settings_row["invoice_primary_color"] or "#0f4c5c"),
+                    str(settings_row["invoice_accent_color"] or "#e36414"),
+                    "Rechnung von BauPass",
+                    body_html,
+                    operator_label,
+                ),
                 attachments=attachment_payload,
             )
             return ok, err if not ok else ""
         return False, "SMTP ist nicht konfiguriert"
-
-    text_body = (
-        f"Guten Tag,\n\n"
-        f"anbei erhalten Sie die Rechnung {invoice_row['invoice_number']} für {company_row['name']}.\n"
-        f"Faellig am: {(invoice_row['due_date'] or '-')}\n"
-        f"Gesamtbetrag: {invoice_row['total_amount']:.2f} EUR\n\n"
-        f"Viele Grüße\n{settings_row['operator_name']}"
+    html_body = _build_email_html(
+        platform_label,
+        str(settings_row["invoice_primary_color"] or "#0f4c5c"),
+        str(settings_row["invoice_accent_color"] or "#e36414"),
+        "Rechnung von BauPass",
+        body_html,
+        operator_label,
     )
-    html_body = invoice_row["rendered_html"] or ""
     message = EmailMessage()
-    message["Subject"] = f"Rechnung {invoice_row['invoice_number']} - {settings_row['operator_name']}"
+    message["Subject"] = mail_subject
     message["From"] = f"{settings_row['smtp_sender_name']} <{smtp_sender}>"
     message["To"] = invoice_row["recipient_email"]
     message.set_content(text_body)
