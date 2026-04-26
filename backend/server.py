@@ -7996,49 +7996,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         BLOCK_BOTTOM = TOT_TOP - TOT_INNER_H  # unterste Y-Koordinate des Summenblocks
 
         # ════════════════════════════════════════════════════════════
-        # 7  ZAHLUNGSINFORMATIONEN + KONTAKT  (unterhalb Summenblock)
-        # ════════════════════════════════════════════════════════════
-        INFO_TOP = BLOCK_BOTTOM - 10 * mm
-        INFO_COL2_X = M_L + CW / 2  # zweite Spalte mittig
-
-        # Linke Spalte: Bankdaten
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.setFillColor(c_light)
-        pdf.drawString(M_L, INFO_TOP, "BANKVERBINDUNG & ZAHLUNG")
-        iy = INFO_TOP - 6 * mm
-        pdf.setFont("Helvetica", 8.5)
-        pdf.setFillColor(c_dark)
-        bank_lines = []
-        if op_bank:  bank_lines.append(f"Bank: {op_bank}")
-        if op_iban:  bank_lines.append(f"IBAN: {op_iban}")
-        if op_bic:   bank_lines.append(f"BIC:  {op_bic}")
-        if op_tax_id: bank_lines.append(f"St.-Nr.: {op_tax_id}")
-        if op_vat_id: bank_lines.append(f"USt-ID: {op_vat_id}")
-        bank_lines.append(f"Verwendungszweck: Rg. {invoice_no}")
-        bank_lines.append(f"Fällig bis: {due_date}")
-        for ln in bank_lines:
-            pdf.drawString(M_L, iy, ln)
-            iy -= 5 * mm
-
-        # Rechte Spalte: Kontakt
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.setFillColor(c_light)
-        pdf.drawString(INFO_COL2_X, INFO_TOP, "KONTAKT")
-        cy = INFO_TOP - 6 * mm
-        pdf.setFont("Helvetica", 8.5)
-        pdf.setFillColor(c_dark)
-        contact_lines = []
-        if op_street:   contact_lines.append(op_street)
-        if op_zip_city: contact_lines.append(op_zip_city)
-        if op_phone:    contact_lines.append(f"Tel.: {op_phone}")
-        if op_email:    contact_lines.append(op_email)
-        if op_website:  contact_lines.append(op_website)
-        for ln in contact_lines[:5]:
-            pdf.drawString(INFO_COL2_X, cy, ln)
-            cy -= 5 * mm
-
-        # ════════════════════════════════════════════════════════════
-        # 8  FOOTER-BAND
+        # 8  FOOTER-BAND  (immer am Seitenende, zuerst zeichnen)
         # ════════════════════════════════════════════════════════════
         FOOTER_H = 14 * mm
         pdf.setFillColor(c_primary)
@@ -8058,6 +8016,55 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.drawCentredString(page_w / 2, FOOTER_H - 5 * mm, fl1)
         if fl2:
             pdf.drawCentredString(page_w / 2, FOOTER_H - 9 * mm, fl2)
+
+        # ════════════════════════════════════════════════════════════
+        # 7  ZAHLUNGSINFORMATIONEN + KONTAKT
+        #    Fest verankert oberhalb des Footers – immer sichtbar
+        # ════════════════════════════════════════════════════════════
+        INFO_SECTION_H = 52 * mm   # reservierter Block von unten (über Footer)
+        INFO_TOP = FOOTER_H + INFO_SECTION_H
+        INFO_COL2_X = M_L + CW / 2
+
+        # Trennlinie
+        pdf.setStrokeColor(c_rule)
+        pdf.setLineWidth(0.4)
+        pdf.line(M_L, INFO_TOP + 2 * mm, M_L + CW, INFO_TOP + 2 * mm)
+
+        # Linke Spalte: Bankdaten
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(c_light)
+        pdf.drawString(M_L, INFO_TOP - 2 * mm, "BANKVERBINDUNG & ZAHLUNG")
+        iy = INFO_TOP - 9 * mm
+        pdf.setFont("Helvetica", 8.5)
+        pdf.setFillColor(c_dark)
+        bank_lines = []
+        if op_bank:   bank_lines.append(f"Bank: {op_bank}")
+        if op_iban:   bank_lines.append(f"IBAN: {op_iban}")
+        if op_bic:    bank_lines.append(f"BIC:  {op_bic}")
+        if op_tax_id: bank_lines.append(f"St.-Nr.: {op_tax_id}")
+        if op_vat_id: bank_lines.append(f"USt-ID: {op_vat_id}")
+        bank_lines.append(f"Verwendungszweck: Rg. {invoice_no}")
+        bank_lines.append(f"Fällig bis: {due_date}")
+        for ln in bank_lines:
+            pdf.drawString(M_L, iy, ln)
+            iy -= 5 * mm
+
+        # Rechte Spalte: Kontakt
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFillColor(c_light)
+        pdf.drawString(INFO_COL2_X, INFO_TOP - 2 * mm, "KONTAKT")
+        cy = INFO_TOP - 9 * mm
+        pdf.setFont("Helvetica", 8.5)
+        pdf.setFillColor(c_dark)
+        contact_lines = []
+        if op_street:   contact_lines.append(op_street)
+        if op_zip_city: contact_lines.append(op_zip_city)
+        if op_phone:    contact_lines.append(f"Tel.: {op_phone}")
+        if op_email:    contact_lines.append(op_email)
+        if op_website:  contact_lines.append(op_website)
+        for ln in contact_lines[:5]:
+            pdf.drawString(INFO_COL2_X, cy, ln)
+            cy -= 5 * mm
 
         pdf.save()
         pdf_bytes = pdf_buffer.getvalue()
