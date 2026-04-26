@@ -4449,10 +4449,16 @@ body.desktop-app .topbar {
     appearance: none;
     border: 1px solid transparent;
     border-radius: 12px;
-    padding: 10px 14px;
-    font-size: 0.92rem;
+    padding: 8px 12px;
+    font-size: 0.88rem;
     font-weight: 700;
     letter-spacing: 0.01em;
+    line-height: 1.1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
     cursor: pointer;
     transition: transform 150ms ease, box-shadow 180ms ease, filter 180ms ease, border-color 180ms ease, background 180ms ease;
   }
@@ -4489,15 +4495,15 @@ body.desktop-app .topbar {
   }
 
   #settingsForm .btn.btn-secondary {
-    color: #0f4c5c;
-    background: linear-gradient(135deg, #fffdf7, #f4ead8);
-    border-color: rgba(227, 100, 20, 0.35);
-    box-shadow: 0 8px 16px rgba(227, 100, 20, 0.16);
+    color: #0c3139;
+    background: linear-gradient(135deg, #fff1dc, #f6d9b2);
+    border-color: rgba(191, 89, 15, 0.52);
+    box-shadow: 0 9px 18px rgba(191, 89, 15, 0.22);
   }
 
   #settingsForm .btn.btn-secondary:hover {
-    background: linear-gradient(135deg, #fff7ea, #f7e7cc);
-    box-shadow: 0 12px 22px rgba(227, 100, 20, 0.22);
+    background: linear-gradient(135deg, #ffe6c3, #f2c88d);
+    box-shadow: 0 12px 24px rgba(191, 89, 15, 0.26);
   }
 
   #settingsForm .ghost-button {
