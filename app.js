@@ -12665,6 +12665,12 @@ async function handleInvoiceSend() {
     return;
   }
 
+  const sendBtn = document.querySelector("#invoiceSendButton");
+  if (sendBtn) {
+    if (sendBtn.disabled) return;  // prevent double-click
+    sendBtn.disabled = true;
+  }
+
   const html = renderInvoiceHtml(invoice);
   try {
     const payload = await apiRequest(API_BASE + "/api/invoices/send", {
@@ -12703,6 +12709,8 @@ async function handleInvoiceSend() {
       return;
     }
     window.alert(uiT("alertInvoiceSendFailed").replace("{error}", error.message));
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
