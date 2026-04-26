@@ -14,6 +14,11 @@ backend/baupass.db
 # Generated local docs and temporary scripts
 backend/uploads/documents/
 task.ps1
+backend/show_users.py
+backend/unlock_admin.py
+fix_html_i18n.py
+fix_placeholders.py
+fix_porter_keys.py
 
 # Node dependencies
 node_modules/
