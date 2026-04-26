@@ -10356,18 +10356,6 @@ function renderAdminSettingsForm() {
   if (enforceTenantDomain) enforceTenantDomain.value = state.settings.enforceTenantDomain ? "1" : "0";
   if (supportPhone) supportPhone.value = getSupportPhoneForLockScreen();
   if (workerAppEnabled) workerAppEnabled.value = state.settings.workerAppEnabled === false ? "0" : "1";
-  // Resend-Felder (Key nicht vorausfüllen; leer lassen wenn gesetzt = kein Überschreiben)
-  const resendApiKeyEl = document.querySelector("#resendApiKey");
-  const resendFromEmailEl = document.querySelector("#resendFromEmail");
-  if (resendApiKeyEl) resendApiKeyEl.value = ""; // nie vorausfüllen (security)
-  if (resendFromEmailEl) resendFromEmailEl.value = state.settings.resendFromEmail || "";
-  // Hinweis anzeigen ob API-Key gespeichert ist
-  const resendKeyHint = document.querySelector("#resendKeyStoredHint");
-  if (resendKeyHint) {
-    const hasKey = !!(state.settings.resendApiKey);
-    resendKeyHint.textContent = hasKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
-    resendKeyHint.style.color = hasKey ? "#16a34a" : "#9ca3af";
-  }
   // Brevo-Felder
   const brevoApiKeyEl = document.querySelector("#brevoApiKey");
   const brevoFromEmailEl = document.querySelector("#brevoFromEmail");
@@ -12202,8 +12190,6 @@ async function handleSettingsSubmit(event) {
       imapUseSsl: document.querySelector("#imapUseSsl")?.value !== "0",
       impressumText: (document.querySelector("#impressumText")?.value || ""),
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
-      resendApiKey: (document.querySelector("#resendApiKey")?.value || ""),
-      resendFromEmail: (document.querySelector("#resendFromEmail")?.value || "").trim(),
       brevoApiKey: (document.querySelector("#brevoApiKey")?.value || ""),
       brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
     };
@@ -12252,8 +12238,6 @@ function getCurrentSmtpSettingsFromForm() {
     smtpSenderEmail: document.querySelector("#smtpSenderEmail")?.value.trim() || "",
     smtpSenderName: document.querySelector("#smtpSenderName")?.value.trim() || "",
     smtpUseTls: document.querySelector("#smtpUseTls")?.value === "1",
-    resendApiKey: document.querySelector("#resendApiKey")?.value || "",
-    resendFromEmail: document.querySelector("#resendFromEmail")?.value.trim() || "",
     brevoApiKey: document.querySelector("#brevoApiKey")?.value || "",
     brevoFromEmail: document.querySelector("#brevoFromEmail")?.value.trim() || "",
   };
@@ -12376,55 +12360,10 @@ async function saveAndTestBrevo() {
   if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
   if (keyEl) keyEl.value = "";
   if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
-  // Test via resend-test endpoint (will use Brevo internally since Resend not configured)
-  const data = await runResendDirectTest("");
-  if (!resultEl) return;
-  if (data?.ok) {
-    resultEl.textContent = "✓ Brevo: Mail gesendet!";
-    resultEl.style.color = "#16a34a";
-  } else {
-    const detail = data?.detail ? ` → ${data.detail}` : "";
-    resultEl.textContent = `✗ ${data?.error || "Fehler"}${detail}`;
-    resultEl.style.color = "#dc2626";
-  }
-}
-
-async function saveAndTestResend() {
-  const keyEl = document.querySelector("#resendApiKey");
-  const fromEl = document.querySelector("#resendFromEmail");
-  const resultEl = document.querySelector("#resendDirectTestResult");
-  const hintEl = document.querySelector("#resendKeyStoredHint");
-  const key = keyEl?.value?.trim() || "";
-  const fromEmail = fromEl?.value?.trim() || "";
-  if (!key) {
-    if (resultEl) { resultEl.textContent = "Bitte API-Key eingeben"; resultEl.style.color = "#dc2626"; }
-    return;
-  }
-  if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
-  // Save via PUT /api/settings with just the Resend fields
-  try {
-    await apiRequest(API_BASE + "/api/settings", {
-      method: "PUT",
-      body: { ...getCurrentSmtpSettingsFromForm(), resendApiKey: key, resendFromEmail: fromEmail }
-    });
-  } catch (e) {
-    if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`;  resultEl.style.color = "#dc2626"; }
-    return;
-  }
-  if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
-  if (keyEl) keyEl.value = "";
-  // Now test
-  if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
-  await handleResendDirectTestClick();
-}
-
-async function handleResendDirectTestClick() {
-  const resultEl = document.querySelector("#resendDirectTestResult");
-  if (resultEl) { resultEl.textContent = "…"; resultEl.style.color = "#6b7280"; }
+  // Test via resend-test endpoint (uses API fallback: Resend/Brevo)
   let data = await runResendDirectTest("");
-  // If missing_recipient the server has no email to fall back to — ask the user
   if (data?.error === "missing_recipient") {
-    const addr = window.prompt("Resend-Test: An welche E-Mail senden? (Absender-E-Mail in SMTP nicht konfiguriert)");
+    const addr = window.prompt("Brevo-Test: An welche E-Mail senden? (Keine Empfaenger-E-Mail gefunden)");
     if (!addr || !addr.includes("@")) {
       if (resultEl) { resultEl.textContent = "Abgebrochen"; resultEl.style.color = "#9ca3af"; }
       return;
@@ -12433,15 +12372,11 @@ async function handleResendDirectTestClick() {
   }
   if (!resultEl) return;
   if (data?.ok) {
-    resultEl.textContent = "✓ Resend: OK";
+    resultEl.textContent = "✓ Brevo: Mail gesendet!";
     resultEl.style.color = "#16a34a";
   } else {
-    const envLine = formatResendEnvState(data);
-    const errText = data?.error || "Fehler";
     const detail = data?.detail ? ` → ${data.detail}` : "";
-    const dbHint = data?.resendDbKeySet === false ? " (DB: kein Key gespeichert)" : data?.resendDbKeySet === true ? " (DB: Key vorhanden?)" : "";
-    const cacheDebug = data?.resendCacheDebug ? ` [${data.resendCacheDebug}]` : "";
-    resultEl.textContent = `✗ ${errText}${detail}${dbHint}${cacheDebug}${envLine ? ` | ${envLine}` : ""}`;
+    resultEl.textContent = `✗ ${data?.error || "Fehler"}${detail}`;
     resultEl.style.color = "#dc2626";
   }
 }
@@ -12497,7 +12432,7 @@ async function sendSmtpTestMail() {
     if (result) {
       result.style.color = "#16a34a";
       if (res?.delivery === "resend_fallback") {
-        result.textContent = `✅ Mail gesendet an ${res.recipient} (Fallback via HTTPS/Resend)`;
+        result.textContent = `✅ Mail gesendet an ${res.recipient} (Fallback via HTTPS-API)`;
       } else {
         result.textContent = `✅ Mail gesendet an ${res.recipient}`;
       }
@@ -12520,12 +12455,12 @@ async function sendSmtpTestMail() {
       const isConnectFailure = String(err?.payload?.diagnostics?.stage || "") === "connect";
       if (isConnectFailure) {
         const fallbackRecipient = document.querySelector("#smtpSenderEmail")?.value.trim() || "";
-        const resendCheck = await runResendDirectTest(fallbackRecipient);
-        if (resendCheck?.ok) {
-          message += " | Resend Direkt-Test: OK";
-        } else if (resendCheck?.error) {
-          const resendSource = resendCheck?.resendKeySource ? ` (${resendCheck.resendKeySource})` : "";
-          message += ` | Resend Direkt-Test: ${resendCheck.error}${resendSource}`;
+        const apiCheck = await runResendDirectTest(fallbackRecipient);
+        if (apiCheck?.ok) {
+          message += " | API Direkt-Test: OK";
+        } else if (apiCheck?.error) {
+          const apiSource = apiCheck?.resendKeySource ? ` (${apiCheck.resendKeySource})` : "";
+          message += ` | API Direkt-Test: ${apiCheck.error}${apiSource}`;
         }
       }
       result.textContent = `❌ Fehler: ${message}`;

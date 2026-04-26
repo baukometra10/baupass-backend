@@ -2172,7 +2172,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         )
         if fallback_ok:
             return True, ""
-        return False, f"{exc} | Resend-Fallback: {fallback_error}"
+        return False, f"{exc} | API-Fallback: {fallback_error}"
 
 
 @contextmanager
@@ -2443,10 +2443,10 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
 
 
 def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body):
-    """Try Resend first, then Brevo. Returns (ok, error_string, provider_used)."""
+    """Try API providers (Resend, then Brevo). Returns (ok, error_string, provider_used)."""
     resend_key, _ = _get_resend_api_key_and_source()
     if resend_key:
-        ok, err = _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body)
+        ok, err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body)
         if ok:
             return True, "", "resend"
         # Fall through to Brevo on any Resend failure
@@ -2461,7 +2461,7 @@ def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, 
 
     if resend_key:
         # Resend was tried but failed, Brevo not configured
-        _, resend_err = _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body)
+        _, resend_err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body)
         return False, f"resend: {resend_err}", "resend"
 
     return False, "no_api_provider_configured (set Resend or Brevo key in Einstellungen)", "none"
@@ -2572,14 +2572,14 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
     username = user_row["username"] if hasattr(user_row, "keys") else str(user_row)
     operator_name = smtp_settings["operator_name"]
 
-    # If SMTP is not configured at all, use Resend directly (no fallback loop needed)
+    # If SMTP is not configured at all, use API fallback directly (no fallback loop needed)
     smtp_configured = bool(smtp_host and smtp_sender)
     resend_api_key, _ = _get_resend_api_key_and_source()
     if not smtp_configured and not resend_api_key:
-        app.logger.warning("[OTP-MAIL] Weder SMTP noch Resend konfiguriert – E-Mail-Versand nicht möglich")
+        app.logger.warning("[OTP-MAIL] Weder SMTP noch API-Fallback konfiguriert – E-Mail-Versand nicht möglich")
         return False
     if not smtp_configured:
-        app.logger.info("[OTP-MAIL] SMTP nicht konfiguriert, sende OTP direkt über Resend")
+        app.logger.info("[OTP-MAIL] SMTP nicht konfiguriert, sende OTP direkt über API-Fallback")
     # Use smtp_sender as from address, fall back to resend_from_email cache
     if not smtp_sender:
         smtp_sender = _normalize_env_value(_resend_key_cache.get("from_email") or "")
@@ -2623,7 +2623,7 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
     msg.set_content(text_content)
     msg.add_alternative(html_content, subtype="html")
 
-    # Skip SMTP attempt entirely if not configured — go straight to Resend
+    # Skip SMTP attempt entirely if not configured — go straight to API fallback
     if not smtp_configured:
         fallback_ok, fallback_error = _send_via_any_api(
             subject=msg["Subject"],
@@ -2634,9 +2634,9 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
             html_body=html_content,
         )
         if fallback_ok:
-            app.logger.info(f"[OTP-MAIL] OTP über Resend versendet an {email} (Benutzer: {username})")
+            app.logger.info(f"[OTP-MAIL] OTP über API-Fallback versendet an {email} (Benutzer: {username})")
             return True
-        app.logger.error(f"[OTP-MAIL] Resend fehlgeschlagen: {fallback_error}")
+        app.logger.error(f"[OTP-MAIL] API-Fallback fehlgeschlagen: {fallback_error}")
         return False
 
     try:
@@ -2658,9 +2658,9 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
             html_body=html_content,
         )
         if fallback_ok:
-            app.logger.warning(f"[OTP-MAIL] SMTP ausgefallen, OTP über Resend versendet an {email}")
+            app.logger.warning(f"[OTP-MAIL] SMTP ausgefallen, OTP über API-Fallback versendet an {email}")
             return True
-        app.logger.error(f"[OTP-MAIL] Resend-Fallback fehlgeschlagen: {fallback_error}")
+        app.logger.error(f"[OTP-MAIL] API-Fallback fehlgeschlagen: {fallback_error}")
         return False
 
 
@@ -3590,6 +3590,7 @@ def phone_test_page():
 
 def get_runtime_diagnostics():
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
+    brevo_api_key = _get_brevo_api_key()
     diagnostics = {
         "warnings": [],
         "recoveryEnabled": bool((os.getenv("BAUPASS_RECOVERY_SECRET") or "").strip()),
@@ -3597,6 +3598,7 @@ def get_runtime_diagnostics():
         "publicBaseUrlConfigured": bool((os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").strip()),
         "resendConfigured": bool(resend_api_key),
         "resendKeySource": resend_key_source,
+        "brevoConfigured": bool(brevo_api_key),
     }
 
     if not diagnostics["recoveryEnabled"]:
@@ -3620,13 +3622,13 @@ def get_runtime_diagnostics():
                 "message": "PUBLIC_BASE_URL ist nicht gesetzt. Externe Links koennen auf lokalen Host zeigen.",
             }
         )
-    if not diagnostics["resendConfigured"]:
+    if not diagnostics["resendConfigured"] and not diagnostics["brevoConfigured"]:
         diagnostics["warnings"].append(
             {
                 "code": "missing_resend_api_key",
                 "message": (
-                    "Resend API Key nicht erkannt. Erwartet z.B. RESEND_API_KEY "
-                    "(alternativ RESEND_KEY / RESEND_API_TOKEN)."
+                    "Kein API-Fallback-Key erkannt. Brevo-Key in Einstellungen setzen "
+                    "(empfohlen) oder RESEND_API_KEY / RESEND_KEY / RESEND_API_TOKEN bereitstellen."
                 ),
             }
         )
@@ -4303,7 +4305,7 @@ def smtp_test():
             html_body=html_content if "html_content" in locals() else "<p>SMTP Test</p>",
         )
         if fallback_ok:
-            app.logger.warning(f"[SMTP-TEST] SMTP ausgefallen, Test-Mail über Resend versendet an {recipient}")
+            app.logger.warning(f"[SMTP-TEST] SMTP ausgefallen, Test-Mail über API-Fallback versendet an {recipient}")
             return jsonify({"ok": True, "recipient": recipient, "delivery": "resend_fallback"})
         if not diag_result.get("ok"):
             app.logger.error(
@@ -4355,7 +4357,7 @@ def smtp_diagnose():
 @require_auth
 @require_roles("superadmin")
 def resend_test():
-    """Test Resend API directly (without SMTP) to verify Railway env wiring."""
+    """Test API fallback delivery directly (without SMTP)."""
     db = get_db()
     payload = request.get_json(silent=True) or {}
     settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
@@ -4363,6 +4365,10 @@ def resend_test():
     recipient = (str(payload.get("recipient") or "").strip() or (g.current_user["email"] or "").strip())
     if not recipient and settings:
         recipient = str(settings["smtp_sender_email"] or "").strip()
+    if not recipient and settings:
+        recipient = str(settings["brevo_from_email"] or "").strip()
+    if not recipient and settings:
+        recipient = str(settings["resend_from_email"] or "").strip()
     if not recipient:
         return jsonify({"ok": False, "error": "missing_recipient"})
 
@@ -4386,14 +4392,14 @@ def resend_test():
             "resendCacheDebug": f"cache_key_len={len(_resend_key_cache.get('key',''))}",
         })
 
-    subject = "BauPass: Resend Direkt-Test"
+    subject = "BauPass: API Direkt-Test"
     text_body = (
-        "Dieser Test wurde direkt ueber Resend (HTTPS) versendet.\n"
-        "Wenn diese Mail ankommt, ist die Railway-Umgebungsvariable korrekt im Container verfuegbar."
+        "Dieser Test wurde direkt ueber die HTTPS API-Fallback-Zustellung versendet.\n"
+        "Wenn diese Mail ankommt, funktioniert die API-Zustellung korrekt im Container."
     )
     html_body = (
-        "<p>Dieser Test wurde direkt ueber <strong>Resend (HTTPS)</strong> versendet.</p>"
-        "<p>Wenn diese Mail ankommt, ist die Railway-Umgebungsvariable korrekt im Container verfuegbar.</p>"
+        "<p>Dieser Test wurde direkt ueber die <strong>HTTPS API-Fallback-Zustellung</strong> versendet.</p>"
+        "<p>Wenn diese Mail ankommt, funktioniert die API-Zustellung korrekt im Container.</p>"
     )
 
     fallback_ok, fallback_error = _send_via_any_api(
@@ -4415,12 +4421,12 @@ def resend_test():
             "resendEnv": env_presence,
         })
 
-    # Enrich error with a hint about unverified sender domain (most common cause)
+    # Enrich error with a hint about provider-specific restrictions
     detail_hint = fallback_error
     if "1010" in str(fallback_error):
         detail_hint += " — Tipp: Cloudflare blockiert den Request (Bot-Erkennung). User-Agent wurde gesetzt, bitte erneut versuchen."
     elif "403" in str(fallback_error) or "validation_error" in str(fallback_error) or "domain" in str(fallback_error).lower():
-        detail_hint += " — Tipp: Absender-Domain muss in Resend verifiziert sein. Kein Gmail als Absender möglich."
+        detail_hint += " — Tipp: API-Provider-Policies prüfen (Absender/Domain verifizieren). Bei Resend ist Gmail als Absender nicht erlaubt."
     return jsonify({
         "ok": False,
         "error": "resend_send_failed",
@@ -7283,7 +7289,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
     if not smtp_host or not smtp_sender:
-        # Try Resend-only path if SMTP not configured but Resend key is available
+        # Try API fallback path if SMTP is not configured but an API key is available
         resend_key, _resend_key_source = _get_resend_api_key_and_source()
         if resend_key:
             text_body = (
@@ -7339,7 +7345,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         )
         if fallback_ok:
             return True, ""
-        return False, f"{exc} | Resend-Fallback: {fallback_error}"
+        return False, f"{exc} | API-Fallback: {fallback_error}"
 
 
 def get_invoice_retry_delay_seconds(attempt_count):
@@ -8110,7 +8116,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
                 record_ops_alert_email_sent(
                     db,
                     event_type,
-                    f"Retry-Backlog Alert (Resend-Fallback) versendet ({severity}) an {r}.",
+                    f"Retry-Backlog Alert (API-Fallback) versendet ({severity}) an {r}.",
                 )
                 return True, "sent_via_resend"
         return False, str(exc)
@@ -10502,12 +10508,12 @@ def otp_test_send():
     fallback_error = ""
     if diag_result.get("stage") == "connect" and "Network is unreachable" in str(diag_result.get("error") or ""):
         if resend_configured:
-            detail_text = "SMTP egress blocked on Railway. Resend fallback is configured; check [OTP-MAIL] logs for provider errors."
+            detail_text = "SMTP egress blocked on Railway. API fallback is configured; check [OTP-MAIL] logs for provider errors."
             fallback_error = "resend_configured_but_send_failed"
         else:
             detail_text = (
-                "SMTP egress blocked on Railway and Resend API key is missing. "
-                "Configure RESEND_API_KEY (or RESEND_KEY / RESEND_API_TOKEN) for HTTPS fallback."
+                "SMTP egress blocked on Railway and no API fallback key was found. "
+                "Configure Brevo API key in settings (recommended) or RESEND_API_KEY for HTTPS fallback."
             )
             fallback_error = "resend_not_configured"
     return jsonify({
