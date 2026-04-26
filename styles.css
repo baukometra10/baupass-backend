@@ -4411,11 +4411,11 @@ body.desktop-app .topbar {
 
   /* Admin settings visual refresh */
   #settingsForm {
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(246, 239, 226, 0.84));
-    border: 1px solid rgba(15, 76, 92, 0.12);
+    background: var(--surface);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 20px;
     padding: 18px;
-    box-shadow: 0 10px 30px rgba(15, 76, 92, 0.08);
+    box-shadow: var(--shadow);
   }
 
   #settingsForm label {
