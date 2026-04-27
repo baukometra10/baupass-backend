@@ -7943,7 +7943,16 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.drawString(M_L, ADDR_TOP - 10 * mm, company_name[:50])
         pdf.setFont("Helvetica", 9)
         pdf.setFillColor(c_mid)
-        pdf.drawString(M_L, ADDR_TOP - 17 * mm, "z. Hd. Buchhaltung")
+        _company_contact = str(company_row["contact"] or "").strip() if company_row else ""
+        _company_billing_email = str(company_row["billing_email"] or "").strip() if company_row else ""
+        if _company_contact:
+            pdf.drawString(M_L, ADDR_TOP - 17 * mm, _company_contact[:60])
+        if _company_billing_email:
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColor(c_light)
+            pdf.drawString(M_L, ADDR_TOP - 22 * mm, _company_billing_email[:60])
+        if not _company_contact:
+            pdf.drawString(M_L, ADDR_TOP - 17 * mm, "z. Hd. Buchhaltung")
 
         # ════════════════════════════════════════════════════════════
         # 4  BETREFFZEILE
@@ -7983,7 +7992,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             cx.append(cx[-1] + w)
 
         HDR_ROW_H = 7 * mm
-        DATA_ROW_H = 8 * mm
+        DATA_ROW_H = 11 * mm
 
         # Tabellenkopf
         pdf.setFillColor(c_primary)
@@ -8039,9 +8048,23 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.setFillColor(c_mid)
             pdf.drawString(cx[0] + 2 * mm, text_y, str(idx + 1))
 
-            # Beschreibung (einfache Kürzung)
+            # Beschreibung – mehrzeilig umbrechen wenn nötig
+            try:
+                from reportlab.lib.utils import simpleSplit as _simpleSplit
+                _desc_lines = _simpleSplit(i_desc, "Helvetica", 8, C_DESC - 4 * mm)[:2]
+            except Exception:
+                _desc_lines = [i_desc[:55]]
+            pdf.setFont("Helvetica", 8)
             pdf.setFillColor(c_dark)
-            pdf.drawString(cx[1] + 2 * mm, text_y, i_desc[:55])
+            if len(_desc_lines) > 1:
+                pdf.drawString(cx[1] + 2 * mm, row_y + DATA_ROW_H / 2 + 1 * mm, _desc_lines[0])
+                pdf.setFont("Helvetica", 7.5)
+                pdf.setFillColor(c_mid)
+                pdf.drawString(cx[1] + 2 * mm, row_y + DATA_ROW_H / 2 - 3.5 * mm, _desc_lines[1])
+                pdf.setFont("Helvetica", 8)
+                pdf.setFillColor(c_dark)
+            else:
+                pdf.drawString(cx[1] + 2 * mm, text_y, _desc_lines[0] if _desc_lines else i_desc[:55])
 
             pdf.drawRightString(cx[2] + C_QTY  - 2 * mm, text_y, qty_str)
             pdf.drawCentredString(cx[3] + C_UNIT / 2,    text_y, i_unit[:10])
@@ -8157,8 +8180,6 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         if op_bic:    bank_lines.append(f"BIC:  {op_bic}")
         if op_tax_id: bank_lines.append(f"St.-Nr.: {op_tax_id}")
         if op_vat_id: bank_lines.append(f"USt-ID: {op_vat_id}")
-        bank_lines.append(f"Verwendungszweck: Rg. {invoice_no}")
-        bank_lines.append(f"Fällig bis: {due_date}")
         for ln in bank_lines:
             if ln.startswith("IBAN:"):
                 # IBAN-Zeile hervorheben
@@ -8167,15 +8188,34 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 pdf.setFont("Helvetica-Bold", 8.5)
                 pdf.setFillColor(c_primary)
                 pdf.drawString(M_L, iy, ln)
-            elif ln.startswith("Verwendungszweck:"):
-                pdf.setFont("Helvetica-Bold", 8.5)
-                pdf.setFillColor(c_dark)
-                pdf.drawString(M_L, iy, ln)
             else:
                 pdf.setFont("Helvetica", 8.5)
                 pdf.setFillColor(c_dark)
                 pdf.drawString(M_L, iy, ln)
             iy -= 5.5 * mm
+
+        # Verwendungszweck als eigene hervorgehobene Box
+        _vzweck_lbl = f"Rg. {invoice_no}  ·  Fällig: {due_date}"
+        _vzweck_box_w = CW / 2 - 2 * mm
+        _vzweck_box_h = 9 * mm
+        iy -= 1 * mm
+        pdf.setFillColor(rl_colors.HexColor("#fff7ed"))
+        pdf.setStrokeColor(rl_colors.HexColor("#f59e0b"))
+        pdf.setLineWidth(0.7)
+        pdf.roundRect(M_L - 1.5 * mm, iy - _vzweck_box_h + 3 * mm, _vzweck_box_w, _vzweck_box_h, 2, stroke=1, fill=1)
+        pdf.setFont("Helvetica-Bold", 7.5)
+        pdf.setFillColor(rl_colors.HexColor("#b45309"))
+        pdf.drawString(M_L, iy + 2 * mm, "Verwendungszweck:")
+        pdf.setFont("Helvetica-Bold", 8.5)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(M_L, iy - 2 * mm, _vzweck_lbl)
+        pdf.setLineWidth(0.4)
+
+        # Vertikaler Trennstrich zwischen Bank- und Kontaktspalte
+        pdf.setStrokeColor(c_rule)
+        pdf.setLineWidth(0.5)
+        pdf.line(INFO_COL2_X - 4 * mm, FOOTER_H + 3 * mm, INFO_COL2_X - 4 * mm, INFO_TOP + 4 * mm)
+        pdf.setLineWidth(0.4)
 
         # Rechte Spalte: Kontakt
         pdf.setFont("Helvetica-Bold", 8)
@@ -8197,6 +8237,23 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         else:
             pdf.setFillColor(c_mid)
             pdf.drawString(INFO_COL2_X, cy, "Keine Kontaktdaten hinterlegt")
+
+        # ════════════════════════════════════════════════════════════
+        # 9  BEZAHLT-WASSERZEICHEN  (nur wenn Rechnung bezahlt ist)
+        # ════════════════════════════════════════════════════════════
+        if _inv_status == "bezahlt":
+            try:
+                from reportlab.lib.colors import Color as _WmColor
+                pdf.saveState()
+                pdf.translate(page_w / 2, page_h / 2)
+                pdf.rotate(35)
+                _wm_col = _WmColor(0.086, 0.639, 0.290, alpha=0.09)
+                pdf.setFillColor(_wm_col)
+                pdf.setFont("Helvetica-Bold", 96)
+                pdf.drawCentredString(0, 0, "BEZAHLT")
+                pdf.restoreState()
+            except Exception:
+                pass
 
         pdf.save()
         pdf_bytes = pdf_buffer.getvalue()
