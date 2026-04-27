@@ -3669,6 +3669,10 @@ def auto_close_open_entries_after_midnight(db):
 @app.get("/api/health")
 def health():
     diagnostics = get_runtime_diagnostics()
+    db_path_str = str(DB_PATH)
+    data_dir_exists = Path("/data").is_dir()
+    data_dir_writable = data_dir_exists and os.access(Path("/data"), os.W_OK)
+    db_file_exists = DB_PATH.exists()
     return jsonify(
         {
             "status": "ok",
@@ -3676,6 +3680,15 @@ def health():
             "warnings": len(diagnostics["warnings"]),
             "recoveryEnabled": diagnostics["recoveryEnabled"],
             "gateApiConfigured": diagnostics["gateApiConfigured"],
+            "db": {
+                "path": db_path_str,
+                "persistent": db_path_str.startswith("/data/"),
+                "exists": db_file_exists,
+                "sizeBytes": DB_PATH.stat().st_size if db_file_exists else 0,
+                "dataDirExists": data_dir_exists,
+                "dataDirWritable": data_dir_writable,
+                "envVar": os.getenv("BAUPASS_DB_PATH", ""),
+            },
         }
     )
 
