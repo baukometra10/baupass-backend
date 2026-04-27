@@ -111,7 +111,14 @@ def _generate_icon_png(size: int) -> bytes:
     _icon_png_cache[size] = data
     return data
 _default_db_path = BASE_DIR / "backend" / "baupass.db"
-DB_PATH = Path((os.getenv("BAUPASS_DB_PATH") or str(_default_db_path)).strip() or str(_default_db_path)).expanduser()
+# Auto-detect Railway persistent volume (/data) when BAUPASS_DB_PATH is not explicitly set.
+# On Railway, a volume is mounted at /data – using it prevents data loss on redeploys.
+_env_db_path = os.getenv("BAUPASS_DB_PATH", "").strip()
+if not _env_db_path:
+    _railway_data = Path("/data")
+    if _railway_data.is_dir() and os.access(_railway_data, os.W_OK):
+        _env_db_path = str(_railway_data / "baupass.db")
+DB_PATH = Path((_env_db_path or str(_default_db_path))).expanduser()
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # Module-level cache for Resend credentials stored in DB.

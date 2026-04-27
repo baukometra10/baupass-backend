@@ -10651,6 +10651,24 @@ function renderAdminSettingsForm() {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }
+  // Direkte Validierung nach Befüllung (unabhängig von Event-Listenern)
+  const _ibanEl = document.querySelector("#invoiceIban");
+  if (_ibanEl) {
+    const _n = normalizeIban(_ibanEl.value);
+    if (!_n) {
+      markInvoiceFieldInvalid("#invoiceIban", "IBAN unvollstaendig oder ungueltig");
+    } else if (isValidIban(_n)) {
+      markInvoiceFieldValid("#invoiceIban");
+    } else {
+      markInvoiceFieldInvalid("#invoiceIban", "IBAN unvollstaendig oder ungueltig");
+    }
+  }
+  const _bicEl = document.querySelector("#invoiceBic");
+  if (_bicEl) {
+    const _b = String(_bicEl.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!_b || isValidBic(_b)) markInvoiceFieldValid("#invoiceBic");
+    else markInvoiceFieldInvalid("#invoiceBic", "BIC muss 8 oder 11 Zeichen haben");
+  }
 }
 
 function showWorkerDetailOverlay(worker) {
