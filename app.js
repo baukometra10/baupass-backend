@@ -10646,7 +10646,10 @@ function renderAdminSettingsForm() {
     "invoiceEmailSubject", "invoiceEmailIntro"];
   for (const fid of invoiceFields) {
     const el = document.querySelector(`#${fid}`);
-    if (el) el.value = state.settings[fid] || "";
+    if (el) {
+      el.value = state.settings[fid] || "";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
   }
 }
 
