@@ -10318,9 +10318,28 @@ function normalizeIban(value) {
   return String(value || "").toUpperCase().replace(/\s+/g, "").trim();
 }
 
+const IBAN_LENGTHS = {
+  AD: 24, AE: 23, AL: 28, AT: 20, AZ: 28, BA: 20, BE: 16, BG: 22,
+  BH: 22, BR: 29, BY: 28, CH: 21, CR: 22, CY: 28, CZ: 24, DE: 22,
+  DK: 18, DO: 28, EE: 20, EG: 29, ES: 24, FI: 18, FK: 18, FO: 18,
+  FR: 27, GB: 22, GE: 22, GI: 23, GL: 18, GR: 27, GT: 28, HR: 21,
+  HU: 28, IE: 22, IL: 23, IQ: 23, IS: 26, IT: 27, JO: 30, KW: 30,
+  KZ: 20, LB: 28, LC: 32, LI: 21, LT: 20, LU: 20, LV: 21, LY: 25,
+  MC: 27, MD: 24, ME: 22, MK: 19, MR: 27, MT: 31, MU: 30, NL: 18,
+  NO: 15, PK: 24, PL: 28, PS: 29, PT: 25, QA: 29, RO: 24, RS: 22,
+  RU: 33, SA: 24, SC: 31, SD: 18, SE: 24, SI: 19, SK: 24, SM: 27,
+  ST: 25, SV: 28, TL: 23, TN: 24, TR: 26, UA: 29, VA: 22, VG: 24,
+  XK: 20,
+};
+
 function isValidIban(value) {
   const iban = normalizeIban(value);
   if (!iban || !/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) {
+    return false;
+  }
+  const countryCode = iban.slice(0, 2);
+  const expectedLength = IBAN_LENGTHS[countryCode];
+  if (expectedLength && iban.length !== expectedLength) {
     return false;
   }
   const rearranged = `${iban.slice(4)}${iban.slice(0, 4)}`;
@@ -17930,6 +17949,19 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
 
     function isValidVatId(value) {
       const text = sanitizeVatId(value);
+      if (!text) return true; // leer = optional
+      const country = text.slice(0, 2);
+      if (country === "DE") return /^DE\d{9}$/.test(text);
+      if (country === "AT") return /^ATU\d{8}$/.test(text);
+      if (country === "CH") return /^CHE\d{9}$/.test(text);
+      if (country === "NL") return /^NL\d{9}B\d{2}$/.test(text);
+      if (country === "FR") return /^FR[A-Z0-9]{2}\d{9}$/.test(text);
+      if (country === "IT") return /^IT\d{11}$/.test(text);
+      if (country === "PL") return /^PL\d{10}$/.test(text);
+      if (country === "ES") return /^ES[A-Z0-9]\d{7}[A-Z0-9]$/.test(text);
+      if (country === "BE") return /^BE\d{10}$/.test(text);
+      if (country === "LU") return /^LU\d{8}$/.test(text);
+      // Generische Regel für alle anderen EU-Länder
       return /^[A-Z]{2}[A-Z0-9]{8,12}$/.test(text);
     }
 

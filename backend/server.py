@@ -187,6 +187,7 @@ REQUEST_RATE_LIMITS = {
     "import": {"max": 10, "window_seconds": 60},
     "login": {"max": 30, "window_seconds": 60},
     "worker_login": {"max": 30, "window_seconds": 60},
+    "password_reset": {"max": 5, "window_seconds": 300},
 }
 request_rate_state = {}
 _rate_lock = threading.Lock()
@@ -6851,6 +6852,7 @@ def compliance_overview():
 # ── Passwort-Reset per E-Mail ──────────────────────────────────────────────
 
 @app.post("/api/auth/request-password-reset")
+@require_rate_limit("password_reset")
 def request_password_reset():
     payload = request.get_json(silent=True) or {}
     username = clean_text_input(payload.get("username") or "", max_len=120)
