@@ -123,6 +123,16 @@ if not _env_db_path:
     _railway_candidate = _railway_data / "baupass.db"
     if _railway_data.is_dir() and os.access(_railway_data, os.W_OK):
         _env_db_path = str(_railway_candidate)
+        # Auto-migrate: if the persistent volume is empty but the local fallback DB
+        # already has data (companies, workers etc.), copy it over automatically so
+        # no data is lost on the first deployment after enabling the volume.
+        if not _railway_candidate.exists() and _default_db_path.exists() and _default_db_path.stat().st_size > 0:
+            try:
+                import shutil as _shutil
+                _shutil.copy2(str(_default_db_path), str(_railway_candidate))
+                print(f"[baupass] Auto-migrated existing DB from {_default_db_path} to {_railway_candidate}", flush=True)
+            except Exception as _migrate_err:
+                print(f"[baupass] WARNING: DB auto-migration failed: {_migrate_err}", flush=True)
 DB_PATH = Path((_env_db_path or str(_default_db_path))).expanduser()
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
