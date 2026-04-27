@@ -1552,5 +1552,21 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js" crossorigin="anonymous"></script>
   <script src="./app.js?v=20260427f"></script>
   <script src="./desktop/renderer.js?v=20260420a"></script>
+  <script>
+    (function applyPublicBranding() {
+      fetch('/api/public/branding').then(function(r) { return r.json(); }).then(function(b) {
+        var root = document.documentElement;
+        if (b.primaryColor) {
+          root.style.setProperty('--teal-soft', b.primaryColor);
+          root.style.setProperty('--teal', b.primaryColor);
+        }
+        if (b.accentColor) root.style.setProperty('--accent', b.accentColor);
+        if (b.platformName && b.platformName !== 'BauPass') document.title = b.platformName;
+        if (b.logoData && b.logoData.startsWith('data:image/')) {
+          document.querySelectorAll('.website-logo-auth').forEach(function(el) { el.src = b.logoData; });
+        }
+      }).catch(function() {});
+    })();
+  </script>
 </body>
 </html>

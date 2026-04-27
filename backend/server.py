@@ -1777,6 +1777,10 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN brevo_api_key TEXT NOT NULL DEFAULT ''")
     if "brevo_from_email" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN brevo_from_email TEXT NOT NULL DEFAULT ''")
+    if "admin_summary_email" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN admin_summary_email TEXT NOT NULL DEFAULT ''")
+    if "worker_expiry_warn_days" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN worker_expiry_warn_days INTEGER NOT NULL DEFAULT 7")
 
     inbox_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_inbox)").fetchall()]
     if "to_addr" not in inbox_columns:
@@ -3240,55 +3244,223 @@ def start_background_jobs():
                 smtp_host = (settings["smtp_host"] or "").strip()
                 smtp_sender = (settings["smtp_sender_email"] or "").strip()
                 admin_email = ((settings["admin_summary_email"] if "admin_summary_email" in settings.keys() else "") or smtp_sender)
-                if not smtp_host or not admin_email:
+                if not admin_email:
                     return
 
                 today = now_iso()[:10]
                 yesterday = (utc_now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
                 total_entries = db.execute(
-                    "SELECT COUNT(*) AS c FROM access_logs WHERE DATE(check_in_time) = ?", (yesterday,)
+                    "SELECT COUNT(*) AS c FROM access_logs WHERE DATE(timestamp) = ?", (yesterday,)
                 ).fetchone()["c"]
                 companies_active = db.execute(
-                    "SELECT COUNT(DISTINCT company_id) AS c FROM access_logs WHERE DATE(check_in_time) = ?", (yesterday,)
+                    """SELECT COUNT(DISTINCT w.company_id) AS c
+                       FROM access_logs al JOIN workers w ON w.id = al.worker_id
+                       WHERE DATE(al.timestamp) = ?""", (yesterday,)
                 ).fetchone()["c"]
                 new_workers = db.execute(
-                    "SELECT COUNT(*) AS c FROM workers WHERE DATE(created_at) = ?", (yesterday,)
+                    """SELECT COUNT(*) AS c FROM workers
+                       WHERE deleted_at IS NULL AND DATE(COALESCE(valid_until,'')) <= DATE('now','+7 day')
+                         AND DATE(COALESCE(valid_until,'')) >= DATE('now')""",
                 ).fetchone()["c"]
                 expired_docs_count = db.execute(
                     "SELECT COUNT(*) AS c FROM worker_documents WHERE expiry_date IS NOT NULL AND expiry_date < ?", (today,)
                 ).fetchone()["c"]
+                open_invoices_count = db.execute(
+                    "SELECT COUNT(*) AS c FROM invoices WHERE paid_at IS NULL AND status NOT IN ('bezahlt','draft')"
+                ).fetchone()["c"]
 
-                import email.message, smtplib
-                msg = email.message.EmailMessage()
-                msg["Subject"] = f"BauPass Tageszusammenfassung {yesterday}"
-                msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>"
-                msg["To"] = admin_email
+                platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+                operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 summary_text = (
-                    f"BauPass Tageszusammenfassung f\u00fcr {yesterday}:\n\n"
-                    f"  Zutritte gestern:       {total_entries}\n"
-                    f"  Aktive Firmen gestern:  {companies_active}\n"
-                    f"  Neue Mitarbeiter:       {new_workers}\n"
-                    f"  Abgelaufene Dokumente:  {expired_docs_count}\n\n"
-                    f"Diese Zusammenfassung wurde automatisch von BauPass Control erstellt."
+                    f"{platform_label} Tageszusammenfassung für {yesterday}:\n\n"
+                    f"  Zutritte gestern:           {total_entries}\n"
+                    f"  Aktive Firmen gestern:      {companies_active}\n"
+                    f"  Mitarbeiter bald ablaufend: {new_workers}\n"
+                    f"  Abgelaufene Dokumente:      {expired_docs_count}\n"
+                    f"  Offene Rechnungen:          {open_invoices_count}\n\n"
+                    f"Diese Zusammenfassung wurde automatisch von {operator_label} erstellt."
                 )
+                import email.message as _email_mod, smtplib as _smtplib
+                msg = _email_mod.EmailMessage()
+                msg["Subject"] = f"{platform_label} Tageszusammenfassung {yesterday}"
+                msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>" if smtp_sender else operator_label
+                msg["To"] = admin_email
                 msg.set_content(summary_text)
+                _primary = str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+                html_body = _build_email_html(
+                    platform_label, _primary, _primary,
+                    f"Tageszusammenfassung {yesterday}",
+                    (
+                        f"<p style='margin:0 0 10px'>Hier ist Ihre tägliche Übersicht für <strong>{yesterday}</strong>:</p>"
+                        f"<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+                        f"<tr><td style='padding:6px 0;color:#555'>Zutritte gestern</td><td style='text-align:right;font-weight:700'>{total_entries}</td></tr>"
+                        f"<tr><td style='padding:6px 0;color:#555'>Aktive Firmen gestern</td><td style='text-align:right;font-weight:700'>{companies_active}</td></tr>"
+                        f"<tr><td style='padding:6px 0;color:#555'>Mitarbeiter bald ablaufend (7 Tage)</td><td style='text-align:right;font-weight:700'>{new_workers}</td></tr>"
+                        f"<tr><td style='padding:6px 0;color:#555'>Abgelaufene Dokumente</td><td style='text-align:right;font-weight:700'>{expired_docs_count}</td></tr>"
+                        f"<tr style='border-top:1px solid #eee'><td style='padding:6px 0;color:#555'>Offene Rechnungen</td><td style='text-align:right;font-weight:700'>{open_invoices_count}</td></tr>"
+                        f"</table>"
+                    ),
+                    operator_label,
+                )
                 try:
-                    with smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=15) as smtp:
-                        if int(settings["smtp_use_tls"] or 0):
-                            smtp.starttls()
-                        if (settings["smtp_username"] or "").strip():
-                            smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
-                        smtp.send_message(msg)
+                    if smtp_host:
+                        with _smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=15) as smtp:
+                            if int(settings["smtp_use_tls"] or 0):
+                                smtp.starttls()
+                            if (settings["smtp_username"] or "").strip():
+                                smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
+                            smtp.send_message(msg)
+                    else:
+                        _send_via_any_api(
+                            subject=str(msg["Subject"]),
+                            sender_email=smtp_sender or "",
+                            sender_name=settings["smtp_sender_name"] or "",
+                            recipient=admin_email,
+                            text_body=summary_text,
+                            html_body=html_body,
+                        )
                 except Exception:
                     _send_via_any_api(
                         subject=str(msg["Subject"]),
-                        sender_email=smtp_sender,
+                        sender_email=smtp_sender or "",
                         sender_name=settings["smtp_sender_name"] or "",
                         recipient=admin_email,
                         text_body=summary_text,
-                        html_body="",
+                        html_body=html_body,
                     )
+        except Exception:
+            pass
+
+    def send_worker_expiry_reminders():
+        """Sendet Erinnerungs-E-Mails wenn Mitarbeiter-Ausweise bald ablaufen."""
+        try:
+            with app.app_context():
+                db = get_db()
+                settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+                if not settings:
+                    return
+                smtp_sender = (settings["smtp_sender_email"] or "").strip()
+                warn_days = int(settings["worker_expiry_warn_days"] if "worker_expiry_warn_days" in settings.keys() else 7)
+                if warn_days <= 0:
+                    return
+
+                warn_date = (utc_now() + timedelta(days=warn_days)).strftime("%Y-%m-%d")
+                today = now_iso()[:10]
+
+                # Workers whose valid_until is within the next N days and not yet reminded today
+                rows = db.execute(
+                    """SELECT w.id, w.first_name, w.last_name, w.badge_id, w.valid_until,
+                              w.company_id, c.name AS company_name, c.billing_email,
+                              u.email AS admin_email
+                       FROM workers w
+                       JOIN companies c ON c.id = w.company_id
+                       LEFT JOIN users u ON u.company_id = c.id AND u.role = 'company-admin'
+                       WHERE w.deleted_at IS NULL
+                         AND w.worker_type != 'visitor'
+                         AND w.valid_until != ''
+                         AND DATE(w.valid_until) <= ?
+                         AND DATE(w.valid_until) >= ?
+                         AND c.deleted_at IS NULL
+                       ORDER BY w.valid_until ASC""",
+                    (warn_date, today),
+                ).fetchall()
+
+                # Group by company
+                by_company: dict = {}
+                for row in rows:
+                    cid = row["company_id"]
+                    if cid not in by_company:
+                        by_company[cid] = {
+                            "company_name": row["company_name"],
+                            "billing_email": row["billing_email"] or "",
+                            "admin_email": row["admin_email"] or "",
+                            "workers": [],
+                        }
+                    by_company[cid]["workers"].append(row)
+
+                platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+                operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
+                _primary = str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+
+                for cid, data in by_company.items():
+                    recipient = data["admin_email"] or data["billing_email"]
+                    if not recipient:
+                        continue
+                    alert_code = f"worker_expiry_reminder_{cid}_{today}"
+                    existing = db.execute(
+                        "SELECT id FROM system_alerts WHERE code = ?", (alert_code,)
+                    ).fetchone()
+                    if existing:
+                        continue  # Already sent today
+
+                    worker_lines_text = "\n".join(
+                        f"  - {w['first_name']} {w['last_name']} ({w['badge_id']}): gültig bis {w['valid_until']}"
+                        for w in data["workers"]
+                    )
+                    worker_rows_html = "".join(
+                        f"<tr><td style='padding:5px 8px'>{w['first_name']} {w['last_name']}</td>"
+                        f"<td style='padding:5px 8px'>{w['badge_id']}</td>"
+                        f"<td style='padding:5px 8px;color:#c53d2f;font-weight:700'>{w['valid_until']}</td></tr>"
+                        for w in data["workers"]
+                    )
+                    subject = f"{platform_label}: {len(data['workers'])} Mitarbeiter-Ausweis/Ausweise laufen bald ab"
+                    text_body = (
+                        f"Guten Tag,\n\n"
+                        f"folgende Mitarbeiter bei {data['company_name']} haben Ausweise, die in den nächsten {warn_days} Tagen ablaufen:\n\n"
+                        f"{worker_lines_text}\n\n"
+                        f"Bitte verlängern Sie die Gültigkeiten rechtzeitig in {platform_label}.\n\n"
+                        f"Mit freundlichen Grüßen\n{operator_label}"
+                    )
+                    html_body = _build_email_html(
+                        platform_label, _primary, _primary,
+                        "Ablaufende Mitarbeiterausweise",
+                        (
+                            f"<p style='margin:0 0 10px'>Folgende Mitarbeiter bei <strong>{data['company_name']}</strong> "
+                            f"haben Ausweise, die in den nächsten <strong>{warn_days} Tagen</strong> ablaufen:</p>"
+                            f"<table style='width:100%;border-collapse:collapse;font-size:13px;border:1px solid #eee'>"
+                            f"<thead><tr style='background:#f5f5f5'><th style='padding:5px 8px;text-align:left'>Name</th>"
+                            f"<th style='padding:5px 8px;text-align:left'>Badge-ID</th>"
+                            f"<th style='padding:5px 8px;text-align:left'>Gültig bis</th></tr></thead>"
+                            f"<tbody>{worker_rows_html}</tbody></table>"
+                            f"<p style='margin:12px 0 0;font-size:13px;color:#555'>Bitte verlängern Sie die Gültigkeiten rechtzeitig.</p>"
+                        ),
+                        operator_label,
+                    )
+                    try:
+                        smtp_host = (settings["smtp_host"] or "").strip()
+                        import email.message as _em, smtplib as _sl
+                        msg = _em.EmailMessage()
+                        msg["Subject"] = subject
+                        msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>" if smtp_sender else operator_label
+                        msg["To"] = recipient
+                        msg.set_content(text_body)
+                        msg.add_alternative(html_body, subtype="html")
+                        if smtp_host:
+                            with _sl.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=15) as smtp:
+                                if int(settings["smtp_use_tls"] or 0):
+                                    smtp.starttls()
+                                if (settings["smtp_username"] or "").strip():
+                                    smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
+                                smtp.send_message(msg)
+                        else:
+                            _send_via_any_api(
+                                subject=subject,
+                                sender_email=smtp_sender or "",
+                                sender_name=settings["smtp_sender_name"] or "",
+                                recipient=recipient,
+                                text_body=text_body,
+                                html_body=html_body,
+                            )
+                        # Mark as sent so we don't spam
+                        create_system_alert(
+                            db, code=alert_code, severity="info",
+                            message=f"Ablauf-Erinnerung für {len(data['workers'])} Mitarbeiter bei {data['company_name']} gesendet.",
+                            details={"companyId": cid, "recipientCount": len(data["workers"])},
+                        )
+                        db.commit()
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -3298,13 +3470,14 @@ def start_background_jobs():
         lock_workers_with_expired_documents(get_db())
 
     def daily_job_loop():
-        """Läuft einmal täglich: Dokument-Ablauf-Prüfung + Zusammenfassungs-E-Mail."""
+        """Läuft einmal täglich: Dokument-Ablauf-Prüfung + Zusammenfassungs-E-Mail + Ablauf-Erinnerungen."""
         while True:
             time.sleep(86400)  # 24 Stunden warten
             check_doc_expiry_warnings()
             with app.app_context():
                 lock_workers_with_expired_documents(get_db())
             send_daily_summary_email()
+            send_worker_expiry_reminders()
 
     threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()
 
@@ -3691,6 +3864,26 @@ def health():
             },
         }
     )
+
+
+@app.get("/api/public/branding")
+def public_branding():
+    """Oeffentlicher Endpunkt fuer Branding-Informationen (kein Login noetig)."""
+    try:
+        db = get_db()
+        row = db.execute(
+            "SELECT platform_name, invoice_primary_color, invoice_accent_color, invoice_logo_data FROM settings WHERE id = 1"
+        ).fetchone()
+        if not row:
+            return jsonify({"platformName": "BauPass", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": ""})
+        return jsonify({
+            "platformName": str(row["platform_name"] or "BauPass"),
+            "primaryColor": str(row["invoice_primary_color"] or "#0f4c5c"),
+            "accentColor": str(row["invoice_accent_color"] or "#e36414"),
+            "logoData": str(row["invoice_logo_data"] or ""),
+        })
+    except Exception:
+        return jsonify({"platformName": "BauPass", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": ""})
 
 
 @app.get("/api/phone-test")
@@ -5649,6 +5842,144 @@ def export_workers_pdf():
     pdf.save()
     buffer.seek(0)
     filename = f"mitarbeiterliste-{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/workers/attendance.pdf")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def export_attendance_pdf():
+    """Anwesenheitsliste als PDF – alle Mitarbeiter mit offenem Check-in."""
+    date_param = (request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip()
+    try:
+        datetime.strptime(date_param, "%Y-%m-%d")
+    except ValueError:
+        date_param = datetime.now().strftime("%Y-%m-%d")
+
+    db = get_db()
+    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    platform_label = str(settings["platform_name"] or "BauPass").strip() if settings else "BauPass"
+
+    # Get the latest access log entry per worker for today
+    clause, params = visible_worker_clause(g.current_user, prefix="w.")
+    rows = db.execute(
+        f"""
+        SELECT w.id AS worker_id, w.first_name, w.last_name, w.badge_id,
+               al.direction, al.gate, al.timestamp,
+               c.name AS company_name
+        FROM workers w
+        JOIN (
+            SELECT worker_id, MAX(timestamp) AS latest_ts
+            FROM access_logs
+            WHERE DATE(timestamp) = ?
+            GROUP BY worker_id
+        ) latest ON latest.worker_id = w.id
+        JOIN access_logs al ON al.worker_id = w.id AND al.timestamp = latest.latest_ts
+        JOIN companies c ON c.id = w.company_id
+        {clause}
+        WHERE w.deleted_at IS NULL
+        ORDER BY al.timestamp DESC
+        """,
+        [date_param] + list(params),
+    ).fetchall()
+
+    now_dt = datetime.now(timezone.utc)
+    open_entries = build_open_entries_from_rows(rows, now_dt)
+
+    # Add company_name for each entry
+    worker_id_to_company = {row["worker_id"]: row["company_name"] for row in rows}
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib import colors as rl_colors
+    except Exception:
+        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
+
+    buffer = io.BytesIO()
+    page_width, page_height = A4
+    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
+    primary_color = str(settings["invoice_primary_color"] or "#0f4c5c").strip() if settings else "#0f4c5c"
+
+    def hex_to_rgb(h):
+        h = h.lstrip("#")
+        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    try:
+        pr, pg, pb = hex_to_rgb(primary_color)
+    except Exception:
+        pr, pg, pb = 0.059, 0.298, 0.361
+
+    row_height = 16
+
+    def draw_header(y):
+        # Header band
+        pdf.setFillColorRGB(pr, pg, pb)
+        pdf.rect(0, page_height - 56, page_width, 56, fill=1, stroke=0)
+        pdf.setFillColorRGB(1, 1, 1)
+        pdf.setFont("Helvetica-Bold", 14)
+        pdf.drawString(36, page_height - 28, f"{platform_label} – Anwesenheitsliste")
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(36, page_height - 44, f"Datum: {date_param}  |  Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}  |  {len(open_entries)} aktive Eintritte")
+
+        y = page_height - 72
+        pdf.setFillColorRGB(0.95, 0.95, 0.95)
+        pdf.rect(36, y - 2, page_width - 72, row_height, fill=1, stroke=0)
+        pdf.setFillColorRGB(pr, pg, pb)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.drawString(40, y + 2, "Name")
+        pdf.drawString(180, y + 2, "Firma")
+        pdf.drawString(310, y + 2, "Badge-ID")
+        pdf.drawString(390, y + 2, "Eintritt (UTC)")
+        pdf.drawString(490, y + 2, "Tor")
+        pdf.drawString(550, y + 2, "Dauer (Min)")
+        return y - row_height - 4
+
+    y = draw_header(page_height)
+    pdf.setFont("Helvetica", 8)
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+    severity_colors = {
+        "green": (0.1, 0.6, 0.3),
+        "yellow": (0.8, 0.55, 0.0),
+        "red": (0.75, 0.1, 0.1),
+    }
+
+    for entry in open_entries:
+        if y < 40:
+            pdf.showPage()
+            y = draw_header(page_height)
+            pdf.setFont("Helvetica", 8)
+            pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+        sr, sg, sb = severity_colors.get(entry.get("severity", "green"), (0.1, 0.6, 0.3))
+        pdf.setFillColorRGB(sr, sg, sb)
+        pdf.circle(38, y + 5, 3, fill=1, stroke=0)
+        pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+        pdf.drawString(44, y + 2, str(entry.get("name", ""))[:26])
+        company_name = worker_id_to_company.get(entry.get("workerId", ""), "")
+        pdf.drawString(184, y + 2, str(company_name)[:20])
+        pdf.drawString(314, y + 2, str(entry.get("badgeId", ""))[:14])
+        ts = str(entry.get("timestamp", ""))[:16]
+        pdf.drawString(394, y + 2, ts)
+        pdf.drawString(494, y + 2, str(entry.get("gate", ""))[:12])
+        pdf.drawString(554, y + 2, str(entry.get("openMinutes", "")))
+
+        y -= row_height
+
+    if not open_entries:
+        pdf.setFont("Helvetica", 10)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        pdf.drawString(36, y + 20, "Keine aktiven Eintritte für dieses Datum.")
+
+    pdf.save()
+    buffer.seek(0)
+    filename = f"anwesenheitsliste-{date_param}.pdf"
     return Response(
         buffer.getvalue(),
         mimetype="application/pdf",
@@ -10263,6 +10594,302 @@ def mark_invoice_paid(invoice_id):
     db.commit()
     result = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
     return jsonify({"invoice": row_to_dict(result)})
+
+
+@app.get("/api/invoices/<invoice_id>/reminder-letter.pdf")
+@require_auth
+@require_roles("superadmin")
+def invoice_reminder_letter_pdf(invoice_id):
+    """Mahnungs-PDF fuer eine Rechnung generieren (Zahlungserinnerung / Mahnung)."""
+    db = get_db()
+    invoice = db.execute(
+        """SELECT invoices.*, companies.name AS company_name, companies.contact AS company_contact,
+                  companies.billing_email AS company_billing_email
+           FROM invoices JOIN companies ON companies.id = invoices.company_id
+           WHERE invoices.id = ?""",
+        (invoice_id,),
+    ).fetchone()
+    if not invoice:
+        return jsonify({"error": "invoice_not_found"}), 404
+
+    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.platypus import Paragraph
+        from reportlab.lib.styles import getSampleStyleSheet
+    except Exception:
+        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
+
+    reminder_stage = int(invoice["reminder_stage"] or 0)
+    # Determine dunning level labels
+    if reminder_stage == 0:
+        letter_type = "Zahlungserinnerung"
+        deadline_days = 14
+        warning_text = ""
+    elif reminder_stage == 1:
+        letter_type = "1. Mahnung"
+        deadline_days = 10
+        warning_text = "Bitte beachten Sie, dass bei Nichtzahlung weitere Mahnschritte folgen."
+    elif reminder_stage == 2:
+        letter_type = "2. Mahnung"
+        deadline_days = 7
+        warning_text = "Dies ist unsere zweite Zahlungsaufforderung. Wir behalten uns rechtliche Schritte vor."
+    else:
+        letter_type = "Letzte Mahnung vor rechtlichen Schritten"
+        deadline_days = 5
+        warning_text = "Wir werden ohne Zahlungseingang innerhalb der gesetzten Frist ein Inkassobüro beauftragen."
+
+    new_due_date = (utc_now() + timedelta(days=deadline_days)).strftime("%d.%m.%Y")
+    invoice_date_str = str(invoice["invoice_date"] or "")
+    original_due_str = str(invoice["due_date"] or "")
+    total_amount = float(invoice["total_amount"] or 0)
+
+    operator_name = str(settings["operator_name"] or settings["platform_name"] or "BauPass").strip() if settings else "BauPass"
+    operator_street = str(settings["invoice_operator_street"] or "").strip() if settings else ""
+    operator_zip_city = str(settings["invoice_operator_zip_city"] or "").strip() if settings else ""
+    operator_phone = str(settings["invoice_operator_phone"] or "").strip() if settings else ""
+    operator_email = str(settings["invoice_operator_email"] or "").strip() if settings else ""
+    primary_color = str(settings["invoice_primary_color"] or "#0f4c5c").strip() if settings else "#0f4c5c"
+
+    def hex_to_rgb(h):
+        h = h.lstrip("#")
+        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    try:
+        pr, pg, pb = hex_to_rgb(primary_color)
+    except Exception:
+        pr, pg, pb = 0.059, 0.298, 0.361
+
+    buffer = io.BytesIO()
+    page_width, page_height = A4
+    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
+
+    # ── Header band ──
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.rect(0, page_height - 50, page_width, 50, fill=1, stroke=0)
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(36, page_height - 30, letter_type.upper())
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(36, page_height - 44, operator_name)
+
+    # ── Sender address block (small above recipient) ──
+    y = page_height - 80
+    pdf.setFillColorRGB(0.5, 0.5, 0.5)
+    pdf.setFont("Helvetica", 7)
+    sender_line = f"{operator_name}, {operator_street}, {operator_zip_city}".strip(", ")
+    pdf.drawString(36, y, sender_line)
+
+    # ── Recipient address block ──
+    y -= 18
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(36, y, str(invoice["company_name"] or ""))
+    if invoice["company_contact"]:
+        y -= 14
+        pdf.drawString(36, y, str(invoice["company_contact"] or ""))
+    if invoice["company_billing_email"]:
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        pdf.drawString(36, y, str(invoice["company_billing_email"] or ""))
+        pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+    # ── Date / Ref block right-aligned ──
+    ref_y = page_height - 98
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+    pdf.drawRightString(page_width - 36, ref_y, f"Datum: {datetime.now().strftime('%d.%m.%Y')}")
+    ref_y -= 13
+    pdf.drawRightString(page_width - 36, ref_y, f"Rechnungs-Nr.: {invoice['invoice_number']}")
+    ref_y -= 13
+    pdf.drawRightString(page_width - 36, ref_y, f"Urspr. Fälligkeit: {original_due_str}")
+
+    # ── Subject line ──
+    y = page_height - 200
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(36, y, f"{letter_type}: Rechnung {invoice['invoice_number']}")
+    y -= 18
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+    # ── Body text ──
+    pdf.setFont("Helvetica", 10)
+    salutation = f"Sehr geehrte Damen und Herren,"
+    pdf.drawString(36, y, salutation)
+    y -= 18
+    pdf.setFont("Helvetica", 9)
+    body_lines = [
+        f"für nachfolgend aufgeführte Rechnung haben wir bis heute keinen Zahlungseingang",
+        f"verzeichnet. Wir bitten Sie, den ausstehenden Betrag bis zum {new_due_date} zu begleichen.",
+    ]
+    for line in body_lines:
+        pdf.drawString(36, y, line)
+        y -= 13
+
+    # ── Invoice detail box ──
+    y -= 8
+    box_y = y - 58
+    pdf.setFillColorRGB(0.97, 0.97, 0.97)
+    pdf.rect(36, box_y, page_width - 72, 60, fill=1, stroke=0)
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(44, box_y + 44, "Rechnungs-Nr.")
+    pdf.drawString(160, box_y + 44, "Datum")
+    pdf.drawString(240, box_y + 44, "Zeitraum")
+    pdf.drawString(380, box_y + 44, "Betrag (brutto)")
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(44, box_y + 26, str(invoice["invoice_number"] or ""))
+    pdf.drawString(160, box_y + 26, str(invoice_date_str)[:10])
+    pdf.drawString(240, box_y + 26, str(invoice["invoice_period"] or "")[:22])
+    pdf.drawString(380, box_y + 26, f"{total_amount:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", "."))
+    y = box_y - 18
+
+    if warning_text:
+        pdf.setFillColorRGB(0.75, 0.1, 0.1)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(36, y, warning_text[:110])
+        y -= 16
+        pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+    # ── Payment reference ──
+    y -= 6
+    pdf.setFont("Helvetica", 9)
+    iban = str(settings["invoice_iban"] or "").strip() if settings else ""
+    bic = str(settings["invoice_bic"] or "").strip() if settings else ""
+    bank_name = str(settings["invoice_bank_name"] or "").strip() if settings else ""
+    if iban:
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        pdf.drawString(36, y, f"Bitte überweisen Sie auf: IBAN {iban}" + (f" | BIC {bic}" if bic else "") + (f" ({bank_name})" if bank_name else ""))
+        y -= 13
+        pdf.drawString(36, y, f"Verwendungszweck: {invoice['invoice_number']}")
+        y -= 13
+
+    # ── Closing ──
+    y -= 8
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(36, y, "Mit freundlichen Grüßen")
+    y -= 14
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(36, y, operator_name)
+    if operator_phone or operator_email:
+        y -= 12
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        contact_parts = []
+        if operator_phone:
+            contact_parts.append(f"Tel: {operator_phone}")
+        if operator_email:
+            contact_parts.append(f"E-Mail: {operator_email}")
+        pdf.drawString(36, y, "  |  ".join(contact_parts))
+
+    # ── Footer ──
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.rect(0, 0, page_width, 24, fill=1, stroke=0)
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont("Helvetica", 7)
+    footer_parts = [operator_name]
+    if operator_street:
+        footer_parts.append(operator_street)
+    if operator_zip_city:
+        footer_parts.append(operator_zip_city)
+    pdf.drawString(36, 8, "  |  ".join(footer_parts)[:120])
+
+    pdf.save()
+    buffer.seek(0)
+
+    stage_label = {0: "zahlungserinnerung", 1: "mahnung-1", 2: "mahnung-2"}.get(reminder_stage, "letzte-mahnung")
+    filename = f"RE-{invoice['invoice_number']}-{stage_label}.pdf"
+    log_audit(
+        "invoice.reminder_letter_generated",
+        f"Mahnungs-PDF fuer Rechnung {invoice['invoice_number']} (Stufe {reminder_stage}) erstellt",
+        target_type="invoice",
+        target_id=invoice_id,
+        company_id=invoice["company_id"],
+        actor=g.current_user,
+    )
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/documents/expiring")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def list_expiring_documents():
+    """Ablaufende Dokumente in den naechsten N Tagen zurueckgeben."""
+    db = get_db()
+    user = g.current_user
+    try:
+        days = min(max(int(request.args.get("days", "30")), 1), 365)
+    except (ValueError, TypeError):
+        days = 30
+
+    limit_date = (utc_now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    today = now_iso()[:10]
+
+    if user["role"] == "superadmin":
+        company_filter_sql = ""
+        params = [today, limit_date]
+    else:
+        company_filter_sql = "AND w.company_id = ?"
+        params = [today, limit_date, user["company_id"]]
+
+    rows = db.execute(
+        f"""
+        SELECT wd.id AS doc_id, wd.doc_type, wd.expiry_date, wd.worker_id,
+               w.first_name, w.last_name, w.badge_id, w.company_id,
+               c.name AS company_name
+        FROM worker_documents wd
+        JOIN workers w ON w.id = wd.worker_id
+        JOIN companies c ON c.id = w.company_id
+        WHERE wd.expiry_date IS NOT NULL
+          AND wd.expiry_date != ''
+          AND wd.expiry_date >= ?
+          AND wd.expiry_date <= ?
+          AND w.deleted_at IS NULL
+          {company_filter_sql}
+        ORDER BY wd.expiry_date ASC
+        LIMIT 500
+        """,
+        params,
+    ).fetchall()
+
+    result = []
+    for row in rows:
+        expiry = row["expiry_date"]
+        try:
+            days_left = (datetime.strptime(expiry, "%Y-%m-%d").date() - utc_now().date()).days
+        except Exception:
+            days_left = None
+
+        if days_left is not None and days_left <= 7:
+            urgency = "critical"
+        elif days_left is not None and days_left <= 14:
+            urgency = "warning"
+        else:
+            urgency = "info"
+
+        result.append({
+            "docId": row["doc_id"],
+            "docType": row["doc_type"],
+            "expiryDate": expiry,
+            "daysLeft": days_left,
+            "urgency": urgency,
+            "workerId": row["worker_id"],
+            "workerName": f"{row['first_name']} {row['last_name']}".strip(),
+            "badgeId": row["badge_id"],
+            "companyId": row["company_id"],
+            "companyName": row["company_name"],
+        })
+
+    return jsonify({"count": len(result), "daysWindow": days, "items": result})
 
 
 @app.get("/api/audit-logs")
