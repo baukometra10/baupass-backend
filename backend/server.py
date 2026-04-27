@@ -6887,11 +6887,13 @@ def request_password_reset():
     msg = __import__("email.message", fromlist=["EmailMessage"]).EmailMessage()
     msg["Subject"] = "Passwort zurücksetzen – BauPass Control"
     msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>"
-    msg["To"] = username  # Falls username eine E-Mail ist; wird gebounced wenn nicht
 
-    # Suche nach E-Mail-Adresse in der users-Tabelle (optional) – nutze billing_email der Firma
-    company_row = db.execute("SELECT billing_email FROM companies WHERE id = ?", (user["company_id"] or "",)).fetchone()
-    recipient = (company_row["billing_email"] if company_row else "") or username
+    # Empfänger-Priorität: 1) users.email, 2) billing_email der Firma, 3) username als Fallback
+    user_email = (user["email"] or "").strip() if user["email"] else ""
+    if not user_email:
+        company_row = db.execute("SELECT billing_email FROM companies WHERE id = ?", (user["company_id"] or "",)).fetchone()
+        user_email = (company_row["billing_email"] if company_row else "") or username
+    recipient = user_email or username
     msg["To"] = recipient
     msg.set_content(
         f"Hallo {user['name']},\n\nKlicke auf folgenden Link, um dein Passwort zurückzusetzen (gültig 2 Stunden):\n\n{reset_link}\n\nWenn du das nicht angefordert hast, ignoriere diese E-Mail.\n\nViele Grüße\n{settings['operator_name']}"
@@ -6899,12 +6901,20 @@ def request_password_reset():
 
     try:
         import smtplib
-        with smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=15) as smtp:
-            if int(settings["smtp_use_tls"] or 0):
-                smtp.starttls()
-            if (settings["smtp_username"] or "").strip():
-                smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
-            smtp.send_message(msg)
+        smtp_port = int(settings["smtp_port"] or 587)
+        use_ssl = smtp_port == 465
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as smtp:
+                if (settings["smtp_username"] or "").strip():
+                    smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as smtp:
+                if int(settings["smtp_use_tls"] or 0):
+                    smtp.starttls()
+                if (settings["smtp_username"] or "").strip():
+                    smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
+                smtp.send_message(msg)
     except Exception as exc:
         return jsonify({"error": "smtp_error", "message": str(exc)}), 502
 
