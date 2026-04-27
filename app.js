@@ -10656,7 +10656,7 @@ function renderAdminSettingsForm() {
   if (_ibanEl) {
     const _n = normalizeIban(_ibanEl.value);
     if (!_n) {
-      markInvoiceFieldInvalid("#invoiceIban", "IBAN unvollstaendig oder ungueltig");
+      markInvoiceFieldValid("#invoiceIban"); // leer = kein Fehler
     } else if (isValidIban(_n)) {
       markInvoiceFieldValid("#invoiceIban");
     } else {
@@ -18032,6 +18032,26 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
           try { this.setSelectionRange(rawPos + newExtra, rawPos + newExtra); } catch (_) {}
         }
         const normalized = normalizeIban(this.value);
+        if (!normalized) {
+          // Feld leer – kein Fehler anzeigen
+          markInvoiceFieldValid("#invoiceIban");
+        } else {
+          const _cc = normalized.slice(0, 2);
+          const _expectedLen = IBAN_LENGTHS[_cc];
+          const _minLen = _expectedLen || 15;
+          if (normalized.length >= _minLen) {
+            // Vollständige Länge erreicht – vollständig prüfen
+            setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
+          } else {
+            // Noch am Tippen – keinen Fehler anzeigen
+            markInvoiceFieldValid("#invoiceIban");
+          }
+        }
+      });
+      // Bei Verlassen des Feldes immer vollständig prüfen
+      ibanInput.addEventListener("blur", function () {
+        const normalized = normalizeIban(this.value);
+        if (!normalized) { markInvoiceFieldValid("#invoiceIban"); return; }
         setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
       });
     }
@@ -18079,7 +18099,8 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
 
     if (ibanInput) {
       const normalized = normalizeIban(ibanInput.value || "");
-      setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
+      if (!normalized) { markInvoiceFieldValid("#invoiceIban"); }
+      else { setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig"); }
     }
     if (bicInput) {
       const cleaned = String(bicInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
