@@ -7854,6 +7854,23 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(rl_colors.HexColor("#a8c4d4"))
         pdf.drawRightString(page_w - M_R, page_h - HDR_H + 7 * mm, platform_label)
 
+        # Status-Badge (OFFEN / ÜBERFÄLLIG / BEZAHLT)
+        _inv_status = str(invoice_row["status"] if "status" in invoice_row.keys() else "").lower()
+        if _inv_status == "bezahlt":
+            _badge_bg, _badge_txt = rl_colors.HexColor("#16a34a"), "BEZAHLT"
+        elif _inv_status in ("overdue", "überfällig"):
+            _badge_bg, _badge_txt = rl_colors.HexColor("#dc2626"), "ÜBERFÄLLIG"
+        else:
+            _badge_bg, _badge_txt = rl_colors.HexColor("#d97706"), "OFFEN"
+        _BDG_W, _BDG_H = 24 * mm, 6.5 * mm
+        _BDG_X = M_L
+        _BDG_Y = page_h - HDR_H + 8 * mm
+        pdf.setFillColor(_badge_bg)
+        pdf.roundRect(_BDG_X, _BDG_Y, _BDG_W, _BDG_H, 1.5, stroke=0, fill=1)
+        pdf.setFont("Helvetica-Bold", 7)
+        pdf.setFillColor(rl_colors.white)
+        pdf.drawCentredString(_BDG_X + _BDG_W / 2, _BDG_Y + 1.8 * mm, _badge_txt)
+
         # ════════════════════════════════════════════════════════════
         # 2  ABSENDER + RECHNUNGSDATEN-BOX  (unterhalb Header)
         # ════════════════════════════════════════════════════════════
@@ -7929,10 +7946,16 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.line(M_L, SUBJ_Y - 2.5 * mm, M_L + CW, SUBJ_Y - 2.5 * mm)
         pdf.setLineWidth(0.5)
 
+        # Intro-Satz
+        INTRO_Y = SUBJ_Y - 10 * mm
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColor(c_mid)
+        pdf.drawString(M_L, INTRO_Y, f"Sehr geehrte Damen und Herren, hiermit stellen wir Ihnen für den Zeitraum {period} folgende Leistungen in Rechnung:")
+
         # ════════════════════════════════════════════════════════════
         # 5  POSITIONSTABELLE
         # ════════════════════════════════════════════════════════════
-        TBL_TOP = SUBJ_Y - 9 * mm
+        TBL_TOP = INTRO_Y - 7 * mm
 
         C_POS  = 9  * mm
         C_TOT  = 30 * mm
@@ -8098,6 +8121,11 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(rl_colors.white)
         pdf.rect(M_L - 2 * mm, FOOTER_H + 1 * mm, CW + 4 * mm, INFO_SECTION_H - 2 * mm, stroke=0, fill=1)
 
+        # Vielen-Dank-Zeile
+        pdf.setFont("Helvetica-Oblique", 8.5)
+        pdf.setFillColor(c_mid)
+        pdf.drawString(M_L, INFO_TOP + 10 * mm, "Vielen Dank für Ihr Vertrauen. Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer.")
+
         # Trennlinie
         pdf.setStrokeColor(c_rule)
         pdf.setLineWidth(0.4)
@@ -8119,8 +8147,22 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         bank_lines.append(f"Verwendungszweck: Rg. {invoice_no}")
         bank_lines.append(f"Fällig bis: {due_date}")
         for ln in bank_lines:
-            pdf.drawString(M_L, iy, ln)
-            iy -= 5 * mm
+            if ln.startswith("IBAN:"):
+                # IBAN-Zeile hervorheben
+                pdf.setFillColor(rl_colors.HexColor("#e8f4fc"))
+                pdf.roundRect(M_L - 1.5 * mm, iy - 1.5 * mm, CW / 2 - 2 * mm, 6 * mm, 1.5, stroke=0, fill=1)
+                pdf.setFont("Helvetica-Bold", 8.5)
+                pdf.setFillColor(c_primary)
+                pdf.drawString(M_L, iy, ln)
+            elif ln.startswith("Verwendungszweck:"):
+                pdf.setFont("Helvetica-Bold", 8.5)
+                pdf.setFillColor(c_dark)
+                pdf.drawString(M_L, iy, ln)
+            else:
+                pdf.setFont("Helvetica", 8.5)
+                pdf.setFillColor(c_dark)
+                pdf.drawString(M_L, iy, ln)
+            iy -= 5.5 * mm
 
         # Rechte Spalte: Kontakt
         pdf.setFont("Helvetica-Bold", 8)
