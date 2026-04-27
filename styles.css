@@ -1146,6 +1146,31 @@ select {
   color: #1f2937;
 }
 
+.auth-panel input.invoice-field-invalid,
+.auth-panel select.invoice-field-invalid,
+.auth-panel textarea.invoice-field-invalid {
+  border-color: rgba(197, 61, 47, 0.9) !important;
+  box-shadow: 0 0 0 3px rgba(197, 61, 47, 0.14);
+}
+
+input.invoice-field-invalid,
+select.invoice-field-invalid,
+textarea.invoice-field-invalid {
+  border-color: #c53d2f !important;
+  box-shadow: 0 0 0 3px rgba(197, 61, 47, 0.18);
+}
+
+input.invoice-field-valid,
+select.invoice-field-valid,
+textarea.invoice-field-valid {
+  border-color: #148a4b !important;
+  box-shadow: 0 0 0 3px rgba(20, 138, 75, 0.2);
+}
+
+.invoice-field-error-hint {
+  margin-top: 2px;
+}
+
 .auth-form .primary-button {
   margin-top: 8px;
   margin-bottom: 4px;

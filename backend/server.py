@@ -4460,7 +4460,7 @@ def smtp_test():
             "resendKeySource": resend_key_source,
             "brevoConfigured": bool(brevo_api_key),
             "resendEnv": resend_env,
-        }), 500
+        })
 
 
 @app.post("/api/settings/smtp-diagnose")
@@ -9014,7 +9014,7 @@ def log_invoice_send_attempt(db, invoice_id, attempt_number, outcome, error_mess
     )
 
 
-def attempt_invoice_delivery(db, invoice_id, actor=None, audit_event_success="invoice.sent", audit_event_failed="invoice.send_failed"):
+def attempt_invoice_delivery(db, invoice_id, actor=None, audit_event_success="invoice.sent", audit_event_failed="invoice.send_failed", settings_override=None):
     invoice_row = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
     if not invoice_row:
         return False, "invoice_not_found", None
@@ -9058,6 +9058,10 @@ def attempt_invoice_delivery(db, invoice_id, actor=None, audit_event_success="in
             return False, "company_not_available", row_to_dict(invoice_row)
 
         settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+        effective_settings = dict(settings) if settings else {}
+        if isinstance(settings_override, dict):
+            for key, value in settings_override.items():
+                effective_settings[str(key)] = value
 
         if is_invoice_smtp_circuit_open():
             open_until = get_invoice_smtp_circuit_open_until()
@@ -9083,7 +9087,7 @@ def attempt_invoice_delivery(db, invoice_id, actor=None, audit_event_success="in
             refreshed = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
             return False, "smtp_circuit_open", row_to_dict(refreshed)
 
-        sent_ok, error_message = send_invoice_email(invoice_row, company, settings)
+        sent_ok, error_message = send_invoice_email(invoice_row, company, effective_settings)
 
         if sent_ok:
             on_invoice_send_success_reset_circuit()
@@ -9366,6 +9370,36 @@ def send_invoice():
     description = (payload.get("description") or "").strip()
     rendered_html = payload.get("renderedHtml") or ""
 
+    # Optional one-shot override values from the current UI state.
+    raw_overrides = payload.get("invoiceSettingsOverrides") or {}
+    settings_override = {}
+    if isinstance(raw_overrides, dict):
+        override_map = {
+            "invoiceLogoData": "invoice_logo_data",
+            "invoicePrimaryColor": "invoice_primary_color",
+            "invoiceAccentColor": "invoice_accent_color",
+            "invoiceIban": "invoice_iban",
+            "invoiceBic": "invoice_bic",
+            "invoiceBankName": "invoice_bank_name",
+            "invoiceTaxId": "invoice_tax_id",
+            "invoiceVatId": "invoice_vat_id",
+            "invoiceOperatorStreet": "invoice_operator_street",
+            "invoiceOperatorZipCity": "invoice_operator_zip_city",
+            "invoiceOperatorPhone": "invoice_operator_phone",
+            "invoiceOperatorWebsite": "invoice_operator_website",
+        }
+        for source_key, target_key in override_map.items():
+            if source_key in raw_overrides:
+                settings_override[target_key] = str(raw_overrides.get(source_key) or "").strip()
+        if "invoiceOperatorEmail" in raw_overrides:
+            try:
+                settings_override["invoice_operator_email"] = sanitize_optional_email(
+                    raw_overrides.get("invoiceOperatorEmail", ""),
+                    field_error="invalid_invoice_operator_email",
+                )
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+
     # Multi-position support
     items_raw = payload.get("items") or []
     items_json_str = ""
@@ -9376,16 +9410,22 @@ def send_invoice():
             qty = float(item.get("qty") or 1)
             unit_price = float(item.get("unitPrice") or 0)
             total_item = round(qty * unit_price, 2)
+            item_description = str(item.get("description") or "").strip()[:200]
+            if not item_description and total_item <= 0:
+                continue
             cleaned_items.append({
-                "description": str(item.get("description") or "").strip()[:200],
+                "description": item_description,
                 "qty": qty,
                 "unit": str(item.get("unit") or "Pauschal").strip()[:30],
                 "unitPrice": unit_price,
                 "total": total_item,
             })
             computed_net += total_item
-        items_json_str = json.dumps(cleaned_items, ensure_ascii=False)
-        net_amount = round(computed_net, 2)
+        if cleaned_items:
+            items_json_str = json.dumps(cleaned_items, ensure_ascii=False)
+            net_amount = round(computed_net, 2)
+        else:
+            net_amount = calculate_net_amount_by_plan(company["plan"], payload.get("netAmount"))
     else:
         net_amount = calculate_net_amount_by_plan(company["plan"], payload.get("netAmount"))
 
@@ -9445,7 +9485,12 @@ def send_invoice():
     )
     db.commit()
 
-    sent_ok, error_message, result = attempt_invoice_delivery(db, invoice_id, actor=g.current_user)
+    sent_ok, error_message, result = attempt_invoice_delivery(
+        db,
+        invoice_id,
+        actor=g.current_user,
+        settings_override=settings_override,
+    )
     return jsonify({"invoice": result, "sent": sent_ok, "error": error_message if not sent_ok else ""})
 
 
@@ -11442,7 +11487,7 @@ def otp_test_send():
         "resendKeySource": resend_key_source,
         "brevoConfigured": brevo_configured,
         "resendEnv": _collect_resend_env_presence(),
-    }), 500
+    })
 
 
 # IMAP-Settings GET/PATCH (in allgemeine Settings integriert)

@@ -10340,6 +10340,27 @@ function isValidBic(value) {
   return /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic);
 }
 
+function sanitizeInvoiceTaxId(value) {
+  const normalized = String(value || "").replace(/[^0-9/.-]/g, "");
+  return normalized.slice(0, 18);
+}
+
+function sanitizeInvoiceVatId(value) {
+  const normalized = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return normalized.slice(0, 14);
+}
+
+function isValidInvoiceTaxId(value) {
+  const text = sanitizeInvoiceTaxId(value);
+  const digits = text.replace(/\D/g, "");
+  return /^[0-9/.-]{8,18}$/.test(text) && digits.length >= 8 && digits.length <= 13;
+}
+
+function isValidInvoiceVatId(value) {
+  const text = sanitizeInvoiceVatId(value);
+  return /^[A-Z]{2}[A-Z0-9]{8,12}$/.test(text);
+}
+
 function isValidEmailValue(value) {
   const email = String(value || "").trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -10373,31 +10394,37 @@ function autoFillInvoiceBusinessFields(company) {
 
 function clearInvoiceFieldValidationState() {
   document.querySelectorAll(".invoice-field-invalid").forEach((el) => el.classList.remove("invoice-field-invalid"));
+  document.querySelectorAll(".invoice-field-valid").forEach((el) => el.classList.remove("invoice-field-valid"));
+  document.querySelectorAll("[aria-invalid='true']").forEach((el) => el.removeAttribute("aria-invalid"));
   document.querySelectorAll(".invoice-field-error-hint").forEach((el) => el.remove());
+}
+
+function markInvoiceFieldValid(selector) {
+  const el = document.querySelector(selector);
+  if (!el) return null;
+  el.classList.remove("invoice-field-invalid");
+  el.classList.add("invoice-field-valid");
+  el.removeAttribute("aria-invalid");
+  const parent = el.parentElement;
+  const ownHint = parent?.querySelector(".invoice-field-error-hint");
+  if (ownHint) ownHint.remove();
+  return el;
 }
 
 function markInvoiceFieldInvalid(selector, message) {
   const el = document.querySelector(selector);
   if (!el) return null;
+  el.classList.remove("invoice-field-valid");
   el.classList.add("invoice-field-invalid");
   el.setAttribute("aria-invalid", "true");
+  const parent = el.parentElement;
+  const existingHint = parent?.querySelector(".invoice-field-error-hint");
+  if (existingHint) existingHint.remove();
   const hint = document.createElement("small");
   hint.className = "helper-text helper-text-warning invoice-field-error-hint";
   hint.textContent = message;
-  const parent = el.parentElement;
   if (parent) {
     parent.appendChild(hint);
-  }
-  if (!el.dataset.invoiceValidationBound) {
-    const clear = () => {
-      el.classList.remove("invoice-field-invalid");
-      el.removeAttribute("aria-invalid");
-      const ownHint = parent?.querySelector(".invoice-field-error-hint");
-      if (ownHint) ownHint.remove();
-    };
-    el.addEventListener("input", clear);
-    el.addEventListener("change", clear);
-    el.dataset.invoiceValidationBound = "1";
   }
   return el;
 }
@@ -10410,6 +10437,8 @@ function validateInvoiceBusinessFieldsForSend(company) {
     { selector: "#invoiceOperatorEmail", label: "Rechnungs-E-Mail" },
     { selector: "#invoiceIban", label: "IBAN" },
     { selector: "#invoiceBankName", label: "Bankname" },
+    { selector: "#invoiceTaxId", label: "Steuernummer" },
+    { selector: "#invoiceVatId", label: "USt-IdNr." },
   ];
 
   const missing = [];
@@ -10428,6 +10457,20 @@ function validateInvoiceBusinessFieldsForSend(company) {
 
   if (missing.length) {
     firstInvalidField?.focus();
+    return false;
+  }
+
+  const operatorStreet = String(document.querySelector("#invoiceOperatorStreet")?.value || "").trim();
+  if (operatorStreet.length < 5) {
+    const streetEl = markInvoiceFieldInvalid("#invoiceOperatorStreet", "Adresse unvollstaendig");
+    streetEl?.focus();
+    return false;
+  }
+
+  const operatorZipCity = String(document.querySelector("#invoiceOperatorZipCity")?.value || "").trim();
+  if (operatorZipCity.length < 5) {
+    const zipCityEl = markInvoiceFieldInvalid("#invoiceOperatorZipCity", "PLZ/Ort unvollstaendig");
+    zipCityEl?.focus();
     return false;
   }
 
@@ -10467,6 +10510,31 @@ function validateInvoiceBusinessFieldsForSend(company) {
     bicInput?.focus();
     return false;
   }
+
+  const bankNameValue = String(document.querySelector("#invoiceBankName")?.value || "").trim();
+  if (bankNameValue.length < 3) {
+    const bankInput = markInvoiceFieldInvalid("#invoiceBankName", "Bankname ist zu kurz");
+    bankInput?.focus();
+    return false;
+  }
+
+  const taxIdEl = document.querySelector("#invoiceTaxId");
+  const taxIdValue = sanitizeInvoiceTaxId(String(taxIdEl?.value || ""));
+  if (!isValidInvoiceTaxId(taxIdValue)) {
+    const taxEl = markInvoiceFieldInvalid("#invoiceTaxId", "Ungueltige Steuernummer");
+    taxEl?.focus();
+    return false;
+  }
+  if (taxIdEl) taxIdEl.value = taxIdValue;
+
+  const vatIdEl = document.querySelector("#invoiceVatId");
+  const vatIdValue = sanitizeInvoiceVatId(String(vatIdEl?.value || ""));
+  if (!isValidInvoiceVatId(vatIdValue)) {
+    const vatEl = markInvoiceFieldInvalid("#invoiceVatId", "Ungueltige USt-IdNr.");
+    vatEl?.focus();
+    return false;
+  }
+  if (vatIdEl) vatIdEl.value = vatIdValue;
 
   return true;
 }
@@ -12580,11 +12648,17 @@ async function saveAndTestBrevo() {
   }
 }
 
+let otpTestInFlight = false;
 async function sendOtpTestMail() {
+  if (otpTestInFlight) return;
+  otpTestInFlight = true;
   const btn = document.querySelector("#otpTestBtn");
   const result = document.querySelector("#otpTestResult");
   const email = window.prompt("OTP-Test: An welche E-Mail-Adresse soll der Code gesendet werden?");
-  if (!email || !email.includes("@")) return;
+  if (!email || !email.includes("@")) {
+    otpTestInFlight = false;
+    return;
+  }
   if (btn) btn.disabled = true;
   if (result) result.textContent = "⏳ …";
   try {
@@ -12592,6 +12666,13 @@ async function sendOtpTestMail() {
       method: "POST",
       body: { ...getCurrentSmtpSettingsFromForm(), email }
     });
+    if (!res?.ok) {
+      throw {
+        code: res?.error || "otp_send_failed",
+        payload: res,
+        message: res?.detail || "OTP-Versand fehlgeschlagen."
+      };
+    }
     if (result) {
       result.style.color = "#16a34a";
       result.textContent = `✅ OTP-Code gesendet an ${res.recipient} (Code: 123456)`;
@@ -12615,10 +12696,14 @@ async function sendOtpTestMail() {
     }
   } finally {
     if (btn) btn.disabled = false;
+    otpTestInFlight = false;
   }
 }
 
+let smtpTestInFlight = false;
 async function sendSmtpTestMail() {
+  if (smtpTestInFlight) return;
+  smtpTestInFlight = true;
   const btn = document.querySelector("#smtpTestBtn");
   const result = document.querySelector("#smtpTestResult");
   if (btn) btn.disabled = true;
@@ -12628,6 +12713,13 @@ async function sendSmtpTestMail() {
       method: "POST",
       body: getCurrentSmtpSettingsFromForm()
     });
+    if (!res?.ok) {
+      throw {
+        code: res?.error || "smtp_send_failed",
+        payload: res,
+        message: res?.detail || "SMTP-Versand fehlgeschlagen."
+      };
+    }
     if (result) {
       result.style.color = "#16a34a";
       if (res?.delivery && res.delivery !== "smtp") {
@@ -12666,6 +12758,7 @@ async function sendSmtpTestMail() {
     }
   } finally {
     if (btn) btn.disabled = false;
+    smtpTestInFlight = false;
   }
 }
 
@@ -17819,6 +17912,48 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
 
   // ── Feld-Formatierung: IBAN, BIC, Versicherungsnummer ─────────────────────
   (function setupSecureFieldFormatters() {
+    function sanitizeTaxId(value) {
+      const normalized = String(value || "").replace(/[^0-9/.-]/g, "");
+      return normalized.slice(0, 18);
+    }
+
+    function sanitizeVatId(value) {
+      const normalized = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return normalized.slice(0, 14);
+    }
+
+    function isValidTaxId(value) {
+      const text = sanitizeTaxId(value);
+      const digits = text.replace(/\D/g, "");
+      return /^[0-9/.-]{8,18}$/.test(text) && digits.length >= 8 && digits.length <= 13;
+    }
+
+    function isValidVatId(value) {
+      const text = sanitizeVatId(value);
+      return /^[A-Z]{2}[A-Z0-9]{8,12}$/.test(text);
+    }
+
+    function setInvoiceFieldState(selector, valid, invalidMessage) {
+      if (valid) {
+        markInvoiceFieldValid(selector);
+      } else {
+        markInvoiceFieldInvalid(selector, invalidMessage);
+      }
+    }
+
+    function bindLiveFieldValidation(selector, validator, invalidMessage) {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      const run = () => {
+        const value = String(el.value || "").trim();
+        const isValid = validator(value);
+        setInvoiceFieldState(selector, isValid, invalidMessage);
+      };
+      el.addEventListener("input", run);
+      el.addEventListener("change", run);
+      run();
+    }
+
     // IBAN: Großbuchstaben + automatische 4er-Gruppen + erste 2 Zeichen müssen Buchstaben sein
     const ibanInput = document.querySelector("#invoiceIban");
     if (ibanInput) {
@@ -17843,6 +17978,8 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
           const newExtra = (grouped.substring(0, rawPos + Math.floor(rawPos / 4)).match(/ /g) || []).length;
           try { this.setSelectionRange(rawPos + newExtra, rawPos + newExtra); } catch (_) {}
         }
+        const normalized = normalizeIban(this.value);
+        setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
       });
     }
 
@@ -17850,9 +17987,66 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
     const bicInput = document.querySelector("#invoiceBic");
     if (bicInput) {
       bicInput.addEventListener("input", function () {
-        const cleaned = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const cleaned = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
         if (this.value !== cleaned) this.value = cleaned;
+        setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), "BIC muss 8 oder 11 Zeichen haben");
       });
+    }
+
+    const taxIdInput = document.querySelector("#invoiceTaxId");
+    if (taxIdInput) {
+      taxIdInput.addEventListener("input", function () {
+        const cleaned = sanitizeTaxId(this.value);
+        if (this.value !== cleaned) this.value = cleaned;
+        setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), "Steuernummer unvollstaendig oder ungueltig");
+      });
+    }
+
+    const vatIdInput = document.querySelector("#invoiceVatId");
+    if (vatIdInput) {
+      vatIdInput.addEventListener("input", function () {
+        const cleaned = sanitizeVatId(this.value);
+        if (this.value !== cleaned) this.value = cleaned;
+        setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), "USt-IdNr. unvollstaendig oder ungueltig");
+      });
+    }
+
+    const bankNameInput = document.querySelector("#invoiceBankName");
+    if (bankNameInput) {
+      bankNameInput.addEventListener("input", function () {
+        const cleaned = String(this.value || "").replace(/\s{2,}/g, " ").trimStart().slice(0, 80);
+        if (this.value !== cleaned) this.value = cleaned;
+        setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, "Bankname ist zu kurz");
+      });
+    }
+
+    bindLiveFieldValidation("#invoiceOperatorStreet", (value) => value.length >= 5, "Adresse unvollstaendig");
+    bindLiveFieldValidation("#invoiceOperatorZipCity", (value) => value.length >= 5, "PLZ/Ort unvollstaendig");
+    bindLiveFieldValidation("#invoiceOperatorEmail", (value) => isValidEmailValue(value), "Ungueltige E-Mail");
+
+    if (ibanInput) {
+      const normalized = normalizeIban(ibanInput.value || "");
+      setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
+    }
+    if (bicInput) {
+      const cleaned = String(bicInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
+      bicInput.value = cleaned;
+      setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), "BIC muss 8 oder 11 Zeichen haben");
+    }
+    if (taxIdInput) {
+      const cleaned = sanitizeTaxId(taxIdInput.value);
+      taxIdInput.value = cleaned;
+      setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), "Steuernummer unvollstaendig oder ungueltig");
+    }
+    if (vatIdInput) {
+      const cleaned = sanitizeVatId(vatIdInput.value);
+      vatIdInput.value = cleaned;
+      setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), "USt-IdNr. unvollstaendig oder ungueltig");
+    }
+    if (bankNameInput) {
+      const cleaned = String(bankNameInput.value || "").replace(/\s{2,}/g, " ").trimStart().slice(0, 80);
+      bankNameInput.value = cleaned;
+      setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, "Bankname ist zu kurz");
     }
 
     // Versicherungsnummer: Format "12 345678 A 123" (max 15 Zeichen mit Leerzeichen)
