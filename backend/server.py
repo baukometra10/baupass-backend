@@ -113,14 +113,15 @@ def _generate_icon_png(size: int) -> bytes:
 _default_db_path = BASE_DIR / "backend" / "baupass.db"
 # DB path selection:
 # 1. Explicit env var BAUPASS_DB_PATH always wins (Render, custom setups).
-# 2. Auto-detect Railway persistent volume (/data/baupass.db) ONLY if the file
-#    already exists there – prevents accidentally starting with an empty database
-#    on the first deployment before BAUPASS_DB_PATH is configured.
+# 2. Auto-detect Railway persistent volume: if /data exists and is writable,
+#    always use /data/baupass.db – even on first deploy (init_db creates it).
+#    This ensures data survives redeployments without manual env var config.
 # 3. Fall back to backend/baupass.db (local / default).
 _env_db_path = os.getenv("BAUPASS_DB_PATH", "").strip()
 if not _env_db_path:
-    _railway_candidate = Path("/data") / "baupass.db"
-    if _railway_candidate.is_file() and os.access(_railway_candidate, os.R_OK):
+    _railway_data = Path("/data")
+    _railway_candidate = _railway_data / "baupass.db"
+    if _railway_data.is_dir() and os.access(_railway_data, os.W_OK):
         _env_db_path = str(_railway_candidate)
 DB_PATH = Path((_env_db_path or str(_default_db_path))).expanduser()
 try:
