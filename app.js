@@ -10314,6 +10314,163 @@ function syncInvoiceRecipientFromCompany() {
   }
 }
 
+function normalizeIban(value) {
+  return String(value || "").toUpperCase().replace(/\s+/g, "").trim();
+}
+
+function isValidIban(value) {
+  const iban = normalizeIban(value);
+  if (!iban || !/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) {
+    return false;
+  }
+  const rearranged = `${iban.slice(4)}${iban.slice(0, 4)}`;
+  let remainder = 0;
+  for (const char of rearranged) {
+    const chunk = /[A-Z]/.test(char) ? String(char.charCodeAt(0) - 55) : char;
+    for (const digit of chunk) {
+      remainder = (remainder * 10 + Number(digit)) % 97;
+    }
+  }
+  return remainder === 1;
+}
+
+function isValidBic(value) {
+  const bic = String(value || "").toUpperCase().replace(/\s+/g, "").trim();
+  if (!bic) return true;
+  return /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic);
+}
+
+function isValidEmailValue(value) {
+  const email = String(value || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function autoFillInvoiceBusinessFields(company) {
+  const recipientInput = elements.invoiceRecipientEmail;
+  if (recipientInput && !String(recipientInput.value || "").trim()) {
+    const suggestedRecipient = getCompanyBillingEmail(company) || getCompanyDocumentEmail(company);
+    if (suggestedRecipient) {
+      recipientInput.value = suggestedRecipient;
+    }
+  }
+
+  const opEmailEl = document.querySelector("#invoiceOperatorEmail");
+  if (opEmailEl && !String(opEmailEl.value || "").trim()) {
+    const fallbackEmail = (document.querySelector("#smtpSenderEmail")?.value || state.settings.smtpSenderEmail || "").trim();
+    if (fallbackEmail) {
+      opEmailEl.value = fallbackEmail;
+    }
+  }
+
+  const opWebsiteEl = document.querySelector("#invoiceOperatorWebsite");
+  if (opWebsiteEl && !String(opWebsiteEl.value || "").trim()) {
+    const endpoint = (document.querySelector("#companyTurnstileEndpoint")?.value || state.settings.turnstileEndpoint || "").trim();
+    if (/^https?:\/\//i.test(endpoint)) {
+      opWebsiteEl.value = endpoint;
+    }
+  }
+}
+
+function clearInvoiceFieldValidationState() {
+  document.querySelectorAll(".invoice-field-invalid").forEach((el) => el.classList.remove("invoice-field-invalid"));
+  document.querySelectorAll(".invoice-field-error-hint").forEach((el) => el.remove());
+}
+
+function markInvoiceFieldInvalid(selector, message) {
+  const el = document.querySelector(selector);
+  if (!el) return null;
+  el.classList.add("invoice-field-invalid");
+  el.setAttribute("aria-invalid", "true");
+  const hint = document.createElement("small");
+  hint.className = "helper-text helper-text-warning invoice-field-error-hint";
+  hint.textContent = message;
+  const parent = el.parentElement;
+  if (parent) {
+    parent.appendChild(hint);
+  }
+  if (!el.dataset.invoiceValidationBound) {
+    const clear = () => {
+      el.classList.remove("invoice-field-invalid");
+      el.removeAttribute("aria-invalid");
+      const ownHint = parent?.querySelector(".invoice-field-error-hint");
+      if (ownHint) ownHint.remove();
+    };
+    el.addEventListener("input", clear);
+    el.addEventListener("change", clear);
+    el.dataset.invoiceValidationBound = "1";
+  }
+  return el;
+}
+
+function validateInvoiceBusinessFieldsForSend(company) {
+  clearInvoiceFieldValidationState();
+  const requiredFields = [
+    { selector: "#invoiceOperatorStreet", label: "Strasse und Hausnummer" },
+    { selector: "#invoiceOperatorZipCity", label: "PLZ und Ort" },
+    { selector: "#invoiceOperatorEmail", label: "Rechnungs-E-Mail" },
+    { selector: "#invoiceIban", label: "IBAN" },
+    { selector: "#invoiceBankName", label: "Bankname" },
+  ];
+
+  const missing = [];
+  let firstInvalidField = null;
+  for (const field of requiredFields) {
+    const value = String(document.querySelector(field.selector)?.value || "").trim();
+    if (!value) {
+      missing.push(field.label);
+      if (!firstInvalidField) {
+        firstInvalidField = markInvoiceFieldInvalid(field.selector, "Pflichtfeld");
+      } else {
+        markInvoiceFieldInvalid(field.selector, "Pflichtfeld");
+      }
+    }
+  }
+
+  if (missing.length) {
+    firstInvalidField?.focus();
+    return false;
+  }
+
+  const recipientEmail = String(elements.invoiceRecipientEmail?.value || "").trim();
+  if (!isValidEmailValue(recipientEmail)) {
+    const fallbackRecipient = getCompanyBillingEmail(company) || getCompanyDocumentEmail(company);
+    if (fallbackRecipient && isValidEmailValue(fallbackRecipient) && elements.invoiceRecipientEmail) {
+      elements.invoiceRecipientEmail.value = fallbackRecipient;
+    } else {
+      const recipientEl = markInvoiceFieldInvalid("#invoiceRecipientEmail", "Ungueltige E-Mail");
+      recipientEl?.focus();
+      return false;
+    }
+  }
+
+  const operatorEmail = String(document.querySelector("#invoiceOperatorEmail")?.value || "").trim();
+  if (!isValidEmailValue(operatorEmail)) {
+    const operatorMailEl = markInvoiceFieldInvalid("#invoiceOperatorEmail", "Ungueltige E-Mail");
+    operatorMailEl?.focus();
+    return false;
+  }
+
+  const ibanValue = String(document.querySelector("#invoiceIban")?.value || "").trim();
+  if (!isValidIban(ibanValue)) {
+    const ibanInput = markInvoiceFieldInvalid("#invoiceIban", "Ungueltige IBAN");
+    ibanInput?.focus();
+    return false;
+  }
+  const ibanEl = document.querySelector("#invoiceIban");
+  if (ibanEl) {
+    ibanEl.value = normalizeIban(ibanValue);
+  }
+
+  const bicValue = String(document.querySelector("#invoiceBic")?.value || "").trim();
+  if (bicValue && !isValidBic(bicValue)) {
+    const bicInput = markInvoiceFieldInvalid("#invoiceBic", "Ungueltige BIC");
+    bicInput?.focus();
+    return false;
+  }
+
+  return true;
+}
+
 function renderSystemIdentity() {
   const platform = document.querySelector("#loginPlatformName");
   const operator = document.querySelector("#loginOperatorName");
@@ -12663,6 +12820,13 @@ async function handleInvoicePrint(event) {
 }
 
 async function handleInvoiceSend() {
+  const companyId = document.querySelector("#invoiceCompanySelect")?.value || "";
+  const company = state.companies.find((entry) => entry.id === companyId);
+  autoFillInvoiceBusinessFields(company);
+  if (!validateInvoiceBusinessFieldsForSend(company)) {
+    return;
+  }
+
   const invoice = buildInvoiceDraft({ silent: false });
   if (!invoice) {
     return;
@@ -12675,6 +12839,21 @@ async function handleInvoiceSend() {
   }
 
   const html = renderInvoiceHtml(invoice);
+  const invoiceSettingsOverrides = {
+    invoiceLogoData: elements.invoiceLogoData?.value || state.settings.invoiceLogoData || "",
+    invoicePrimaryColor: document.querySelector("#invoicePrimaryColor")?.value || state.settings.invoicePrimaryColor || "",
+    invoiceAccentColor: document.querySelector("#invoiceAccentColor")?.value || state.settings.invoiceAccentColor || "",
+    invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || state.settings.invoiceOperatorStreet || "").trim(),
+    invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || state.settings.invoiceOperatorZipCity || "").trim(),
+    invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || state.settings.invoiceOperatorPhone || "").trim(),
+    invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || state.settings.invoiceOperatorWebsite || "").trim(),
+    invoiceOperatorEmail: (document.querySelector("#invoiceOperatorEmail")?.value || state.settings.invoiceOperatorEmail || "").trim(),
+    invoiceIban: (document.querySelector("#invoiceIban")?.value || state.settings.invoiceIban || "").trim(),
+    invoiceBic: (document.querySelector("#invoiceBic")?.value || state.settings.invoiceBic || "").trim(),
+    invoiceBankName: (document.querySelector("#invoiceBankName")?.value || state.settings.invoiceBankName || "").trim(),
+    invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || state.settings.invoiceTaxId || "").trim(),
+    invoiceVatId: (document.querySelector("#invoiceVatId")?.value || state.settings.invoiceVatId || "").trim(),
+  };
   try {
     const payload = await apiRequest(API_BASE + "/api/invoices/send", {
       method: "POST",
@@ -12690,7 +12869,8 @@ async function handleInvoiceSend() {
         vatRate: invoice.vatRate,
         discountAmount: invoice.discountAmount || 0,
         items: invoice.items || [],
-        renderedHtml: html
+        renderedHtml: html,
+        invoiceSettingsOverrides,
       }
     });
 
@@ -16550,6 +16730,10 @@ function getInvoicePositions() {
       unitPrice,
       total: Math.round(qty * unitPrice * 100) / 100,
     };
+  }).filter((item) => {
+    const hasDescription = item.description.length > 0;
+    const hasValue = Number(item.total || 0) > 0;
+    return hasDescription || hasValue;
   });
 }
 
@@ -17632,4 +17816,58 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
   }
 
   maybeHandlePasswordResetToken();
+
+  // ── Feld-Formatierung: IBAN, BIC, Versicherungsnummer ─────────────────────
+  (function setupSecureFieldFormatters() {
+    // IBAN: Großbuchstaben + automatische 4er-Gruppen + erste 2 Zeichen müssen Buchstaben sein
+    const ibanInput = document.querySelector("#invoiceIban");
+    if (ibanInput) {
+      ibanInput.addEventListener("input", function () {
+        const pos = this.selectionStart;
+        // Normalisieren: nur A-Z und 0-9 behalten, Großbuchstaben
+        let raw = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        // Ersten 2 Zeichen müssen Buchstaben sein (IBAN-Ländercode)
+        if (raw.length >= 1 && !/^[A-Z]/.test(raw[0])) {
+          raw = raw.replace(/^[^A-Z]+/, "");
+        }
+        if (raw.length >= 2 && !/^[A-Z]{2}/.test(raw.substring(0, 2))) {
+          raw = raw[0] + raw.substring(1).replace(/^[^A-Z]+/, "");
+        }
+        // Gruppen à 4 Zeichen mit Leerzeichen trennen
+        const grouped = raw.match(/.{1,4}/g)?.join(" ") || raw;
+        if (this.value !== grouped) {
+          this.value = grouped;
+          // Cursor-Position anpassen (Leerzeichen berücksichtigen)
+          const extra = (grouped.substring(0, pos).match(/ /g) || []).length;
+          const rawPos = pos - extra;
+          const newExtra = (grouped.substring(0, rawPos + Math.floor(rawPos / 4)).match(/ /g) || []).length;
+          try { this.setSelectionRange(rawPos + newExtra, rawPos + newExtra); } catch (_) {}
+        }
+      });
+    }
+
+    // BIC: Großbuchstaben + nur A-Z und 0-9
+    const bicInput = document.querySelector("#invoiceBic");
+    if (bicInput) {
+      bicInput.addEventListener("input", function () {
+        const cleaned = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (this.value !== cleaned) this.value = cleaned;
+      });
+    }
+
+    // Versicherungsnummer: Format "12 345678 A 123" (max 15 Zeichen mit Leerzeichen)
+    const svInput = document.querySelector("#insuranceNumber");
+    if (svInput) {
+      svInput.addEventListener("input", function () {
+        const raw = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!raw) { this.value = ""; return; }
+        // Format: 2 digits – 6 digits – 1 letter – 3 digits → "12 345678 A 123"
+        let formatted = raw;
+        if (raw.length > 2)  formatted = raw.substring(0, 2) + " " + raw.substring(2);
+        if (raw.length > 8)  formatted = raw.substring(0, 2) + " " + raw.substring(2, 8) + " " + raw.substring(8);
+        if (raw.length > 9)  formatted = raw.substring(0, 2) + " " + raw.substring(2, 8) + " " + raw.substring(8, 9) + " " + raw.substring(9);
+        if (this.value !== formatted) this.value = formatted;
+      });
+    }
+  })();
 })();

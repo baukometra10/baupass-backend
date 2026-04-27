@@ -322,7 +322,7 @@
               </label>
               <label>
                 <span data-ui-i18n="labelInsuranceNumber">Rentenversicherungsnummer</span>
-                <input id="insuranceNumber" type="text" placeholder="12 345678 A 123" required />
+                <input id="insuranceNumber" type="text" maxlength="15" placeholder="12 345678 A 123" autocomplete="off" spellcheck="false" required />
               </label>
               <label>
                 <span data-ui-i18n="labelRoleField">Funktion</span>
@@ -999,15 +999,41 @@
               </div>
               <label class="full-width">
                 <span>IBAN</span>
-                <input id="invoiceIban" type="text" maxlength="34" placeholder="DE12 3456 7890 1234 5678 90" />
+                <input id="invoiceIban" type="text" maxlength="42" placeholder="DE12 3456 7890 1234 5678 90" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label>
                 <span>BIC / SWIFT</span>
-                <input id="invoiceBic" type="text" maxlength="11" placeholder="COBADEFFXXX" />
+                <input id="invoiceBic" type="text" maxlength="11" placeholder="COBADEFFXXX" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label>
-                <span>Bankname</span>
-                <input id="invoiceBankName" type="text" maxlength="80" placeholder="Commerzbank AG" />
+                <span>🏦 Bankname</span>
+                <input id="invoiceBankName" type="text" maxlength="80" placeholder="Bankname eingeben oder wählen…" list="bankNameList" autocomplete="off" />
+                <datalist id="bankNameList">
+                  <option value="Sparkasse"></option>
+                  <option value="Volksbank"></option>
+                  <option value="Raiffeisenbank"></option>
+                  <option value="Deutsche Bank"></option>
+                  <option value="Commerzbank"></option>
+                  <option value="Postbank"></option>
+                  <option value="DKB – Deutsche Kreditbank"></option>
+                  <option value="ING"></option>
+                  <option value="Comdirect"></option>
+                  <option value="HypoVereinsbank (HVB)"></option>
+                  <option value="Santander"></option>
+                  <option value="Targobank"></option>
+                  <option value="N26"></option>
+                  <option value="Bunq"></option>
+                  <option value="DZ Bank"></option>
+                  <option value="BayernLB"></option>
+                  <option value="LBBW – Landesbank Baden-Württemberg"></option>
+                  <option value="Helaba – Landesbank Hessen-Thüringen"></option>
+                  <option value="Nord/LB"></option>
+                  <option value="KfW Bank"></option>
+                  <option value="UniCredit"></option>
+                  <option value="Triodos Bank"></option>
+                  <option value="GLS Gemeinschaftsbank"></option>
+                  <option value="Ethikbank"></option>
+                </datalist>
               </label>
               <label>
                 <span>Steuernummer</span>
@@ -1036,7 +1062,7 @@
               </div>
               <label>
                 <span data-ui-i18n="labelSmtpHost">SMTP Host</span>
-                <input id="smtpHost" type="text" placeholder="smtp.dein-provider.de" />
+                <input id="smtpHost" type="text" maxlength="255" placeholder="smtp.dein-provider.de" />
               </label>
               <label>
                 <span data-ui-i18n="labelSmtpPort">SMTP Port</span>
@@ -1044,20 +1070,20 @@
               </label>
               <label>
                 <span data-ui-i18n="labelSmtpUser">SMTP Benutzer</span>
-                <input id="smtpUsername" type="text" placeholder="mailer@deinefirma.de" />
+                <input id="smtpUsername" type="text" maxlength="255" placeholder="mailer@deinefirma.de" />
               </label>
               <label>
                 <span data-ui-i18n="labelSmtpPass">SMTP Passwort</span>
-                <input id="smtpPassword" type="password" placeholder="App-Passwort" autocomplete="off" />
+                <input id="smtpPassword" type="password" maxlength="255" placeholder="App-Passwort" autocomplete="off" />
                 <small style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Leer lassen = bereits gespeichertes Passwort bleibt unverändert.</small>
               </label>
               <label>
                 <span data-ui-i18n="labelSenderEmail">Absender E-Mail</span>
-                <input id="smtpSenderEmail" type="email" placeholder="rechnung@deinefirma.de" />
+                <input id="smtpSenderEmail" type="email" maxlength="120" placeholder="rechnung@deinefirma.de" />
               </label>
               <label>
                 <span data-ui-i18n="labelSenderName">Absender Name</span>
-                <input id="smtpSenderName" type="text" placeholder="Deine Firma" />
+                <input id="smtpSenderName" type="text" maxlength="120" placeholder="Deine Firma" />
               </label>
               <label>
                 <span data-ui-i18n="labelTls">TLS aktiv</span>
