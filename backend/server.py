@@ -111,15 +111,24 @@ def _generate_icon_png(size: int) -> bytes:
     _icon_png_cache[size] = data
     return data
 _default_db_path = BASE_DIR / "backend" / "baupass.db"
-# Auto-detect Railway persistent volume (/data) when BAUPASS_DB_PATH is not explicitly set.
-# On Railway, a volume is mounted at /data – using it prevents data loss on redeploys.
+# DB path selection:
+# 1. Explicit env var BAUPASS_DB_PATH always wins (Render, custom setups).
+# 2. Auto-detect Railway persistent volume (/data/baupass.db) ONLY if the file
+#    already exists there – prevents accidentally starting with an empty database
+#    on the first deployment before BAUPASS_DB_PATH is configured.
+# 3. Fall back to backend/baupass.db (local / default).
 _env_db_path = os.getenv("BAUPASS_DB_PATH", "").strip()
 if not _env_db_path:
-    _railway_data = Path("/data")
-    if _railway_data.is_dir() and os.access(_railway_data, os.W_OK):
-        _env_db_path = str(_railway_data / "baupass.db")
+    _railway_candidate = Path("/data") / "baupass.db"
+    if _railway_candidate.is_file() and os.access(_railway_candidate, os.R_OK):
+        _env_db_path = str(_railway_candidate)
 DB_PATH = Path((_env_db_path or str(_default_db_path))).expanduser()
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+try:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+except OSError:
+    # Fallback to default if the configured path is not writable (e.g. wrong env var).
+    DB_PATH = _default_db_path
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # Module-level cache for Resend credentials stored in DB.
 # Populated at startup (init_db) and refreshed after settings save.
@@ -1924,7 +1933,13 @@ def init_db():
     db.close()
 
 
-init_db()
+try:
+    init_db()
+except Exception as _init_db_exc:
+    import traceback as _tb
+    print(f"[baupass] CRITICAL: init_db() failed: {_init_db_exc}", flush=True)
+    _tb.print_exc()
+    raise
 
 
 def row_to_dict(row):
