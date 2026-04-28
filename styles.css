@@ -230,6 +230,13 @@
   border: 1.5px solid #ece3d1;
   padding: 28px 28px 18px 28px;
 }
+.stat-card-critical {
+  border-color: #e55a2b;
+  background: #fff5f2;
+}
+.stat-card-critical strong {
+  color: #c0392b;
+}
 .stat-card .stat-label {
   color: #e36414;
   font-weight: 700;

@@ -9288,16 +9288,22 @@ function renderStats() {
   }
   const accessToday = Object.values(lastLogByWorker).filter((log) => log.direction === "check-in").length;
 
+  const expiringCritical = Number(state.expiringDocsCriticalCount ?? 0);
+
   const cards = [
     [texts.statsWorkersTotal, totalWorkers],
     [texts.statsWorkersActive, activeWorkers],
     [texts.statsVisitorsTotal, totalVisitors],
     [texts.statsCompanies, totalCompanies],
-    [texts.statsAccessToday, accessToday]
+    [texts.statsAccessToday, accessToday],
+    ["Ablaufende Dokumente (kritisch)", expiringCritical]
   ];
 
   elements.statsGrid.innerHTML = cards
-    .map(([label, value]) => `<article class="stat-card"><p>${escapeHtml(label)}</p><strong>${escapeHtml(String(value))}</strong></article>`)
+    .map(([label, value]) => {
+      const isCritical = label.includes("Ablaufende") && Number(value) > 0;
+      return `<article class="stat-card${isCritical ? " stat-card-critical" : ""}"><p>${escapeHtml(label)}</p><strong>${escapeHtml(String(value))}</strong></article>`;
+    })
     .join("");
 }
 
@@ -16540,6 +16546,17 @@ if (accessResetButton) {
   accessResetButton.addEventListener("click", resetAccessFilter);
 }
 
+const accessTodayButton = document.querySelector("#accessTodayButton");
+if (accessTodayButton) {
+  accessTodayButton.addEventListener("click", () => {
+    const today = new Date().toISOString().slice(0, 10);
+    state.accessFilter.from = today;
+    state.accessFilter.to = today;
+    renderAccessLog();
+    renderAccessSummary();
+  });
+}
+
 const accessCsvButton = document.querySelector("#accessCsvButton");
 if (accessCsvButton) {
   accessCsvButton.addEventListener("click", exportAccessCsv);
@@ -17287,14 +17304,17 @@ async function loadDocumentInbox() {
 
 async function loadExpiringDocuments() {
   const listEl = document.querySelector("#expiringDocsList");
-  if (!listEl) return;
   const days = Number(document.querySelector("#expiringDocsDaysFilter")?.value || 30);
-  listEl.innerHTML = `<div class="empty-state">Wird geladen...</div>`;
+  if (listEl) listEl.innerHTML = `<div class="empty-state">Wird geladen...</div>`;
   try {
     const data = await apiRequest(`${API_BASE}/api/documents/expiring?days=${days}`);
-    renderExpiringDocuments(Array.isArray(data) ? data : []);
+    const rows = Array.isArray(data) ? data : [];
+    // Kritische Dokumente (≤ 7 Tage) für Dashboard-Kachel zählen
+    state.expiringDocsCriticalCount = rows.filter((r) => r.urgency === "critical").length;
+    renderStats();
+    renderExpiringDocuments(rows);
   } catch (e) {
-    listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
+    if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -17305,18 +17325,45 @@ function renderExpiringDocuments(rows) {
     listEl.innerHTML = `<div class="empty-state">Keine ablaufenden Dokumente im gewählten Zeitraum.</div>`;
     return;
   }
+  const urgencyClass = { critical: "helper-text-warning", warning: "helper-text-info", info: "" };
   const urgencyIcon = { critical: "🔴", warning: "🟡", info: "🔵" };
   listEl.innerHTML = rows.map((row) => {
     const icon = urgencyIcon[row.urgency] || "⚪";
-    const daysLeft = row.daysLeft != null ? ` (${row.daysLeft} Tage)` : "";
-    const docLabel = row.docType ? row.docType.replace(/_/g, " ") : "–";
+    const docLabel = (row.doc_type || "–").replace(/_/g, " ");
+    const cls = urgencyClass[row.urgency] || "";
     return `
-      <div class="list-item">
-        <span>${icon} <strong>${escapeHtml(row.firstName || "")} ${escapeHtml(row.lastName || "")}</strong></span>
-        <span class="helper-text">${escapeHtml(docLabel)} · Ablauf: ${escapeHtml(row.expiryDate || "–")}${daysLeft}</span>
-        ${row.companyName ? `<span class="meta-text">${escapeHtml(row.companyName)}</span>` : ""}
-      </div>`;
+      <article class="card-item" style="cursor:pointer;" data-expiring-worker-id="${escapeHtml(row.worker_id || "")}">
+        <div class="invoice-management-head">
+          <div class="invoice-management-main">
+            <strong>${icon} ${escapeHtml(row.first_name || "")} ${escapeHtml(row.last_name || "")}</strong>
+            <p class="helper-text">${escapeHtml(row.company_name || "")}${row.badge_id ? ` · Badge: ${escapeHtml(row.badge_id)}` : ""}</p>
+          </div>
+          <div class="invoice-management-side">
+            <p class="meta-text ${cls}">${escapeHtml(row.expiry_date || "–")}</p>
+            <p class="helper-text">${escapeHtml(docLabel)}</p>
+          </div>
+        </div>
+      </article>`;
   }).join("");
+
+  // Klick → Mitarbeiter-Profil öffnen
+  listEl.querySelectorAll("[data-expiring-worker-id]").forEach((card) => {
+    card.addEventListener("click", () => {
+      const wid = card.dataset.expiringWorkerId;
+      if (!wid) return;
+      setView("workers");
+      const worker = state.workers.find((w) => w.id === wid);
+      if (worker && elements.workerSearchInput) {
+        elements.workerSearchInput.value = worker.badgeId || `${worker.firstName} ${worker.lastName}`;
+        renderWorkerList();
+        // Nach kurzer Verzögerung zum Element scrollen
+        setTimeout(() => {
+          const el = elements.workerList?.querySelector(`[data-worker-edit="${CSS.escape(wid)}"]`);
+          if (el) el.closest("article")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+      }
+    });
+  });
 }
 
 function renderDocumentInbox(emails) {

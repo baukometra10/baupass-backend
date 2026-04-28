@@ -3464,6 +3464,132 @@ def start_background_jobs():
         except Exception:
             pass
 
+    def send_document_expiry_notifications():
+        """Sendet E-Mail-Benachrichtigungen an Firmen-Admins wenn Dokumente bald ablaufen."""
+        try:
+            with app.app_context():
+                db = get_db()
+                settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+                if not settings:
+                    return
+                smtp_sender = (settings["smtp_sender_email"] or "").strip()
+                warn_days = 30
+                warn_date = (utc_now() + timedelta(days=warn_days)).strftime("%Y-%m-%d")
+                today = now_iso()[:10]
+
+                rows = db.execute(
+                    """SELECT wd.id AS doc_id, wd.doc_type, wd.expiry_date,
+                              w.first_name, w.last_name, w.badge_id, w.company_id,
+                              c.name AS company_name, c.billing_email,
+                              u.email AS admin_email
+                       FROM worker_documents wd
+                       JOIN workers w ON w.id = wd.worker_id
+                       JOIN companies c ON c.id = w.company_id
+                       LEFT JOIN users u ON u.company_id = c.id AND u.role = 'company-admin'
+                       WHERE wd.expiry_date IS NOT NULL
+                         AND wd.expiry_date <= ?
+                         AND wd.expiry_date >= ?
+                         AND w.deleted_at IS NULL
+                         AND c.deleted_at IS NULL
+                       ORDER BY wd.expiry_date ASC""",
+                    (warn_date, today),
+                ).fetchall()
+
+                by_company: dict = {}
+                for row in rows:
+                    cid = row["company_id"]
+                    if cid not in by_company:
+                        by_company[cid] = {
+                            "company_name": row["company_name"],
+                            "billing_email": row["billing_email"] or "",
+                            "admin_email": row["admin_email"] or "",
+                            "docs": [],
+                        }
+                    by_company[cid]["docs"].append(row)
+
+                platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+                operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
+                _primary = str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+
+                for cid, data in by_company.items():
+                    recipient = data["admin_email"] or data["billing_email"]
+                    if not recipient:
+                        continue
+                    alert_code = f"doc_expiry_notification_{cid}_{today}"
+                    if db.execute("SELECT id FROM system_alerts WHERE code = ?", (alert_code,)).fetchone():
+                        continue  # Heute bereits gesendet
+
+                    doc_lines_text = "\n".join(
+                        f"  - {d['first_name']} {d['last_name']} ({d['badge_id']}): {d['doc_type'].replace('_', ' ')} · Ablauf {d['expiry_date']}"
+                        for d in data["docs"]
+                    )
+                    doc_rows_html = "".join(
+                        f"<tr><td style='padding:5px 8px'>{d['first_name']} {d['last_name']}</td>"
+                        f"<td style='padding:5px 8px'>{d['badge_id']}</td>"
+                        f"<td style='padding:5px 8px'>{d['doc_type'].replace('_', ' ')}</td>"
+                        f"<td style='padding:5px 8px;color:#c53d2f;font-weight:700'>{d['expiry_date']}</td></tr>"
+                        for d in data["docs"]
+                    )
+                    subject = f"{platform_label}: {len(data['docs'])} Dokument(e) bei {data['company_name']} laufen bald ab"
+                    text_body = (
+                        f"Guten Tag,\n\nfolgende Dokumente bei {data['company_name']} laufen in den nächsten {warn_days} Tagen ab:\n\n"
+                        f"{doc_lines_text}\n\n"
+                        f"Bitte aktualisieren Sie die Dokumente rechtzeitig in {platform_label}.\n\n"
+                        f"Mit freundlichen Grüßen\n{operator_label}"
+                    )
+                    html_body = _build_email_html(
+                        platform_label, _primary, _primary,
+                        "Ablaufende Dokumente",
+                        (
+                            f"<p style='margin:0 0 10px'>Folgende Dokumente bei <strong>{data['company_name']}</strong> "
+                            f"laufen in den nächsten <strong>{warn_days} Tagen</strong> ab:</p>"
+                            f"<table style='width:100%;border-collapse:collapse;font-size:13px;border:1px solid #eee'>"
+                            f"<thead><tr style='background:#f5f5f5'>"
+                            f"<th style='padding:5px 8px;text-align:left'>Name</th>"
+                            f"<th style='padding:5px 8px;text-align:left'>Badge-ID</th>"
+                            f"<th style='padding:5px 8px;text-align:left'>Dokument</th>"
+                            f"<th style='padding:5px 8px;text-align:left'>Ablaufdatum</th>"
+                            f"</tr></thead><tbody>{doc_rows_html}</tbody></table>"
+                            f"<p style='margin:12px 0 0;font-size:13px;color:#555'>Bitte aktualisieren Sie die Dokumente rechtzeitig.</p>"
+                        ),
+                        operator_label,
+                    )
+                    try:
+                        smtp_host = (settings["smtp_host"] or "").strip()
+                        import email.message as _em2, smtplib as _sl2
+                        msg = _em2.EmailMessage()
+                        msg["Subject"] = subject
+                        msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>" if smtp_sender else operator_label
+                        msg["To"] = recipient
+                        msg.set_content(text_body)
+                        msg.add_alternative(html_body, subtype="html")
+                        if smtp_host:
+                            with _sl2.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=15) as smtp:
+                                if int(settings["smtp_use_tls"] or 0):
+                                    smtp.starttls()
+                                if (settings["smtp_username"] or "").strip():
+                                    smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
+                                smtp.send_message(msg)
+                        else:
+                            _send_via_any_api(
+                                subject=subject,
+                                sender_email=smtp_sender or "",
+                                sender_name=settings["smtp_sender_name"] or "",
+                                recipient=recipient,
+                                text_body=text_body,
+                                html_body=html_body,
+                            )
+                        create_system_alert(
+                            db, code=alert_code, severity="info",
+                            message=f"Dokument-Ablauf-Benachrichtigung für {len(data['docs'])} Dokument(e) bei {data['company_name']} gesendet.",
+                            details={"companyId": cid, "docCount": len(data["docs"]), "recipient": recipient},
+                        )
+                        db.commit()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     # Expiry-Check beim Start einmal ausführen, danach täglich
     check_doc_expiry_warnings()
     with app.app_context():
@@ -3478,6 +3604,7 @@ def start_background_jobs():
                 lock_workers_with_expired_documents(get_db())
             send_daily_summary_email()
             send_worker_expiry_reminders()
+            send_document_expiry_notifications()
 
     threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()
 
