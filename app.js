@@ -15343,6 +15343,10 @@ async function requestPasswordResetFromLogin() {
 }
 
 async function maybeHandlePasswordResetToken() {
+  // Legacy prompt flow: skip when dedicated reset panel exists.
+  if (document.querySelector("#pwResetPanel")) {
+    return;
+  }
   const url = new URL(window.location.href);
   const rawToken = url.searchParams.get("resetToken");
   if (!rawToken) {
@@ -17663,6 +17667,7 @@ if (loginResetPasswordButton) {
       } else {
         const msg = data.error === "token_not_found" ? "Link ist ungültig oder wurde bereits verwendet."
           : data.error === "token_expired" ? "Link ist abgelaufen. Bitte fordere einen neuen an."
+          : data.error === "password_too_short" ? "Passwort muss mindestens 8 Zeichen haben."
           : (data.message || "Unbekannter Fehler.");
         if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = msg; }
         if (submitBtn) submitBtn.disabled = false;
