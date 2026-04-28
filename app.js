@@ -9898,6 +9898,7 @@ function renderCompanyList() {
             <button type="button" class="ghost-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Rechnungs-Sprache</button>
             <button type="button" class="ghost-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-OTP</button>
             <button type="button" class="ghost-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔑 Passwort-Reset senden</button>
+            <button type="button" class="ghost-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔒 Passwort direkt setzen</button>
             <button type="button" class="ghost-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Drehkreuz hinzufügen</button>
             <button type="button" class="ghost-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? "Login wird vorbereitet..." : "Firmen-Login"}</button>
             <button type="button" class="ghost-button" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? "Speichert..." : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "Sperre aufheben" : "Firma sperren"}</button>
@@ -10058,6 +10059,40 @@ function bindCompanyRowActions() {
       }
       return;
     }
+
+    // ── Passwort direkt setzen (ohne E-Mail) ──
+    const setPasswordButton = event.target.closest("[data-company-set-password]");
+    if (setPasswordButton && !setPasswordButton.disabled && elements.companyList.contains(setPasswordButton)) {
+      const companyId = setPasswordButton.dataset.companySetPassword;
+      const company = state.companies.find((c) => c.id === companyId);
+      const sec = state.companyAdminSecurity?.[companyId];
+      if (!companyId || !company || !sec?.username) {
+        window.alert("Kein Admin-Account für diese Firma gefunden.");
+        return;
+      }
+      const newPassword = window.prompt(
+        `Neues Passwort für Admin „${sec.username}" der Firma „${company.name}":\n(Mindestens 8 Zeichen)`
+      );
+      if (newPassword === null) return;
+      if (newPassword.trim().length < 8) {
+        window.alert("Das Passwort muss mindestens 8 Zeichen lang sein.");
+        return;
+      }
+      try {
+        setPasswordButton.disabled = true;
+        await apiRequest(`${API_BASE}/api/companies/${companyId}/set-admin-password`, {
+          method: "POST",
+          body: { newPassword: newPassword.trim() },
+        });
+        window.alert(`✅ Passwort für „${sec.username}" wurde gesetzt.\nAlle aktiven Sitzungen wurden beendet.`);
+      } catch (err) {
+        window.alert(`Fehler: ${err.message}`);
+      } finally {
+        setPasswordButton.disabled = false;
+      }
+      return;
+    }
+
 
     const otpSetupButton = event.target.closest("[data-company-otp-setup]");
     if (otpSetupButton && !otpSetupButton.disabled && elements.companyList.contains(otpSetupButton)) {

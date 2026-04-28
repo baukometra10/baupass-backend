@@ -7178,6 +7178,39 @@ def get_company_admin_security(company_id):
     })
 
 
+@app.post("/api/companies/<company_id>/set-admin-password")
+@require_auth
+@require_roles("superadmin")
+def set_company_admin_password(company_id):
+    """Superadmin setzt das Passwort des Firmen-Admins direkt (ohne E-Mail)."""
+    payload = request.get_json(silent=True) or {}
+    new_password = (payload.get("newPassword") or "").strip()
+    if len(new_password) < 8:
+        return jsonify({"ok": False, "error": "password_too_short"}), 400
+
+    db = get_db()
+    admin_user = db.execute(
+        "SELECT id, username FROM users WHERE company_id = ? AND role = 'company-admin' LIMIT 1",
+        (company_id,)
+    ).fetchone()
+    if not admin_user:
+        return jsonify({"ok": False, "error": "admin_not_found"}), 404
+
+    db.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (generate_password_hash(new_password), admin_user["id"])
+    )
+    db.execute("DELETE FROM sessions WHERE user_id = ?", (admin_user["id"],))
+    db.commit()
+    log_audit(
+        "superadmin.set_company_admin_password",
+        f"Superadmin setzte Passwort fuer Company-Admin {admin_user['username']} (Firma {company_id})",
+        target_type="user",
+        target_id=admin_user["id"],
+    )
+    return jsonify({"ok": True, "username": admin_user["username"]})
+
+
 @app.post("/api/companies/<company_id>/add-turnstile")
 @require_auth
 @require_roles("superadmin")
