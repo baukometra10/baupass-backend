@@ -7940,8 +7940,6 @@ function clearSession() {
   persistSessionToken("");
   state.currentUser = null;
   state.loginOtpPending = false;
-  // Greeting darf beim nächsten Login wieder erscheinen
-  localStorage.removeItem(GREETING_SHOWN_KEY);
 }
 
 function handleExpiredControlSession() {
