@@ -1,6 +1,12 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
+const LOCAL_API_BASE_FALLBACKS = [
+  "http://127.0.0.1:8000",
+  "http://localhost:8000",
+  "https://127.0.0.1:8443",
+  "https://localhost:8443",
+];
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -55,7 +61,7 @@ function resolveApiBase() {
   return "";
 }
 
-const API_BASE = resolveApiBase();
+let API_BASE = resolveApiBase();
 const DEFAULT_BRAND_LOGO = API_BASE
   ? `${API_BASE}/branding/baukometra-logo.svg`
   : `${window.location.origin}/branding/baukometra-logo.svg`;
@@ -87,6 +93,68 @@ function persistSessionToken(value) {
   } catch {
     // ignore storage failures (private mode / quota)
   }
+}
+
+function isLocalHostName(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+function switchApiBaseForSession(nextBase) {
+  const normalized = sanitizeApiBase(nextBase);
+  if (!normalized || normalized === API_BASE) {
+    return;
+  }
+  API_BASE = normalized;
+  try {
+    window.localStorage.setItem(API_BASE_STORAGE_KEY, normalized);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function resolveLocalApiFallbackRequest(url) {
+  const currentBase = sanitizeApiBase(API_BASE);
+  let currentHost = "";
+  if (currentBase) {
+    try {
+      currentHost = new URL(currentBase).hostname;
+    } catch {
+      currentHost = "";
+    }
+  }
+  if (currentHost && isLocalHostName(currentHost)) {
+    return null;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(String(url || ""), window.location.origin);
+  } catch {
+    return null;
+  }
+  const requestPath = `${parsedUrl.pathname}${parsedUrl.search}`;
+  if (!requestPath.startsWith("/api/")) {
+    return null;
+  }
+
+  const fallbackOrder = [...LOCAL_API_BASE_FALLBACKS].sort((a, b) => {
+    const aHttps = a.startsWith("https://") ? 0 : 1;
+    const bHttps = b.startsWith("https://") ? 0 : 1;
+    return window.location.protocol === "https:" ? aHttps - bHttps : bHttps - aHttps;
+  });
+
+  for (const candidateBaseRaw of fallbackOrder) {
+    const candidateBase = sanitizeApiBase(candidateBaseRaw);
+    if (!candidateBase || candidateBase === currentBase) {
+      continue;
+    }
+    return {
+      base: candidateBase,
+      url: `${candidateBase}${requestPath}`,
+    };
+  }
+  return null;
 }
 
 function loadSupportLoginContext() {
@@ -8054,7 +8122,21 @@ async function apiRequest(url, options = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
   } catch {
-    throw new Error("backend_unreachable");
+    const fallback = resolveLocalApiFallbackRequest(url);
+    if (!fallback) {
+      throw new Error("backend_unreachable");
+    }
+    try {
+      response = await fetch(fallback.url, {
+        method,
+        headers,
+        credentials: "include",
+        body: body === undefined ? undefined : JSON.stringify(body)
+      });
+      switchApiBaseForSession(fallback.base);
+    } catch {
+      throw new Error("backend_unreachable");
+    }
   }
 
   const payload = await response.json().catch(() => ({}));
