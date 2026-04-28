@@ -17907,7 +17907,7 @@ wireDesktopInstallPrompt();
           const res = await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
           const imapStatus = res?.imap?.status;
           if (imapStatus === "not_configured") {
-            window.alert("IMAP ist nicht konfiguriert. Bitte in den Einstellungen ein Postfach hinterlegen.");
+            window.alert(getImapNotConfiguredMessage(res?.imap));
           } else if (imapStatus === "connect_error" || imapStatus === "error") {
             window.alert("IMAP-Fehler: " + (res?.imap?.error || "Unbekannter Fehler"));
           }
@@ -18012,6 +18012,13 @@ function getBackendUnreachableMessage() {
   const activeBase = API_BASE || window.location.origin;
   const localHint = "Wenn du lokal testest: ?apiBase=http://127.0.0.1:8000";
   return `Backend nicht erreichbar (${activeBase}). ${localHint}`;
+}
+
+function getImapNotConfiguredMessage(imapPayload) {
+  const activeBase = API_BASE || window.location.origin;
+  const missing = Array.isArray(imapPayload?.missing) ? imapPayload.missing : [];
+  const missingLabel = missing.length ? ` Fehlend: ${missing.join(", ")}.` : "";
+  return `IMAP ist auf diesem Backend nicht konfiguriert (${activeBase}).${missingLabel}`;
 }
 
 async function loadDocumentInbox() {
@@ -18701,7 +18708,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       const res = await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
       const imapStatus = res?.imap?.status;
       if (imapStatus === "not_configured") {
-        window.alert("IMAP ist nicht konfiguriert. Bitte in den Einstellungen ein Postfach hinterlegen.");
+        window.alert(getImapNotConfiguredMessage(res?.imap));
       } else if (imapStatus === "connect_error" || imapStatus === "error") {
         window.alert("IMAP-Fehler: " + (res?.imap?.error || "Unbekannter Fehler"));
       }

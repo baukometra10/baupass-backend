@@ -12242,7 +12242,12 @@ def poll_imap_inbox():
             db = get_db()
             cfg = get_imap_settings(db)
             if not cfg or not cfg.get("imap_host") or not cfg.get("imap_username"):
-                _result = {"status": "not_configured", "newEmails": 0}
+                missing = []
+                if not cfg or not str(cfg.get("imap_host") or "").strip():
+                    missing.append("imap_host")
+                if not cfg or not str(cfg.get("imap_username") or "").strip():
+                    missing.append("imap_username")
+                _result = {"status": "not_configured", "newEmails": 0, "missing": missing}
                 return _result
 
             host = cfg["imap_host"]
