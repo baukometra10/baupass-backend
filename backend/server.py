@@ -12217,13 +12217,76 @@ def _stored_file_path(file_path: Path) -> str:
         return str(resolved)
 
 
+def _first_nonempty_env(*names):
+    for name in names:
+        raw = os.getenv(name)
+        if raw is None:
+            continue
+        value = str(raw).strip()
+        if value:
+            return value
+    return ""
+
+
+def _parse_optional_int(raw_value, default_value):
+    if raw_value is None:
+        return default_value
+    text = str(raw_value).strip()
+    if not text:
+        return default_value
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return default_value
+
+
+def _parse_optional_bool(raw_value, default_value):
+    if raw_value is None:
+        return default_value
+    text = str(raw_value).strip().lower()
+    if not text:
+        return default_value
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return default_value
+
+
 def get_imap_settings(db):
     row = db.execute(
         "SELECT imap_host, imap_port, imap_username, imap_password, imap_folder, imap_use_ssl FROM settings WHERE id = 1"
     ).fetchone()
-    if not row:
-        return None
-    return dict(row)
+    cfg = dict(row) if row else {}
+
+    env_host = _first_nonempty_env("BAUPASS_IMAP_HOST", "IMAP_HOST")
+    env_username = _first_nonempty_env("BAUPASS_IMAP_USERNAME", "IMAP_USERNAME")
+    env_password = _first_nonempty_env("BAUPASS_IMAP_PASSWORD", "IMAP_PASSWORD")
+    env_folder = _first_nonempty_env("BAUPASS_IMAP_FOLDER", "IMAP_FOLDER")
+    env_port = _first_nonempty_env("BAUPASS_IMAP_PORT", "IMAP_PORT")
+    env_use_ssl = _first_nonempty_env("BAUPASS_IMAP_USE_SSL", "IMAP_USE_SSL")
+
+    if env_host:
+        cfg["imap_host"] = env_host
+    if env_username:
+        cfg["imap_username"] = env_username
+    if env_password:
+        cfg["imap_password"] = env_password
+    if env_folder:
+        cfg["imap_folder"] = env_folder
+
+    cfg["imap_port"] = _parse_optional_int(env_port, cfg.get("imap_port") or 993)
+    cfg["imap_use_ssl"] = 1 if _parse_optional_bool(env_use_ssl, bool(cfg.get("imap_use_ssl", 1))) else 0
+
+    # Guarantee a stable shape for callers, even when settings row is missing.
+    cfg.setdefault("imap_host", "")
+    cfg.setdefault("imap_username", "")
+    cfg.setdefault("imap_password", "")
+    cfg.setdefault("imap_folder", "INBOX")
+    if not str(cfg.get("imap_folder") or "").strip():
+        cfg["imap_folder"] = "INBOX"
+
+    return cfg
 
 
 def poll_imap_inbox():
