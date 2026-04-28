@@ -8308,6 +8308,7 @@ function refreshAll() {
   applyActiveCompanyBrandingPreset();
 
   renderStats();
+  renderComplianceKpi();
   renderReportingPanels();
   renderWorkerList();
   renderPhotoOverrideApprovalPanel();
@@ -9307,6 +9308,64 @@ function renderStats() {
     .join("");
 }
 
+async function renderComplianceKpi() {
+  const container = document.querySelector("#complianceKpiGrid");
+  if (!container) return;
+  
+  try {
+    const data = await apiRequest(`${API_BASE}/api/compliance/overview`);
+    if (!Array.isArray(data)) return;
+    
+    const summary = {
+      totalCompanies: data.length,
+      companiesWithIssues: 0,
+      totalRed: 0,
+      totalYellow: 0,
+      totalGreen: 0
+    };
+    
+    data.forEach(company => {
+      const red = company.redCount || 0;
+      const yellow = company.yellowCount || 0;
+      if (red > 0 || yellow > 0) {
+        summary.companiesWithIssues++;
+      }
+      summary.totalRed += red;
+      summary.totalYellow += yellow;
+      summary.totalGreen += company.greenCount || 0;
+    });
+    
+    const issuePercentage = summary.totalCompanies > 0 ? Math.round((summary.companiesWithIssues / summary.totalCompanies) * 100) : 0;
+    
+    container.innerHTML = `
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;">
+        <article class="stat-card">
+          <p>Unternehmen mit Problemen</p>
+          <strong>${summary.companiesWithIssues}/${summary.totalCompanies}</strong>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">${issuePercentage}%</p>
+        </article>
+        <article class="stat-card" style="border-color: #dc2626;">
+          <p style="color: #dc2626;">Kritisch</p>
+          <strong style="color: #dc2626;">${summary.totalRed}</strong>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">Mitarbeiter</p>
+        </article>
+        <article class="stat-card" style="border-color: #ea9b18;">
+          <p style="color: #ea9b18;">Warnung</p>
+          <strong style="color: #ea9b18;">${summary.totalYellow}</strong>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">Mitarbeiter</p>
+        </article>
+        <article class="stat-card" style="border-color: #16a34a;">
+          <p style="color: #16a34a;">OK</p>
+          <strong style="color: #16a34a;">${summary.totalGreen}</strong>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">Mitarbeiter</p>
+        </article>
+      </div>
+    `;
+  } catch (error) {
+    container.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
+}
+
 function formatCurrencyEur(value) {
   const numeric = Number(value || 0);
   return new Intl.NumberFormat("de-DE", {
@@ -9412,11 +9471,19 @@ function renderReportingPanels() {
 function renderWorkerList() {
   if (!elements.workerList) return;
   const searchTerm = ((elements.workerSearchInput?.value) || "").trim().toLowerCase();
+  const statusFilter = (document.querySelector("#workerStatusFilter")?.value || "").trim().toLowerCase();
   const workers = getUiVisibleWorkers()
     .filter((w) => {
-      if (!searchTerm) return true;
-      const hay = [w.firstName, w.lastName, w.badgeId, w.site, w.role, w.status, w.visitorCompany].join(" ").toLowerCase();
-      return hay.includes(searchTerm);
+      if (!searchTerm) {
+        // If no search term, only filter by status
+        if (statusFilter && w.status?.toLowerCase() !== statusFilter) return false;
+        return true;
+      }
+      // If search term exists, check both search and status
+      const hay = [w.firstName, w.lastName, w.badgeId, w.site, w.role, w.status, w.visitorCompany, w.insuranceNumber || ""].join(" ").toLowerCase();
+      const matchesSearch = hay.includes(searchTerm);
+      const matchesStatus = !statusFilter || w.status?.toLowerCase() === statusFilter;
+      return matchesSearch && matchesStatus;
     })
     .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
 
@@ -14084,6 +14151,7 @@ function renderInvoiceManagementList() {
           ${inv.auto_suspend_triggered_at ? `<p class="helper-text helper-text-warning">Auto-Sperrung ausgelöst: ${formatTimestamp(inv.auto_suspend_triggered_at)}</p>` : ""}
 
           <div class="button-row invoice-management-actions">
+            <button type="button" class="ghost-button invoice-preview-btn" data-invoice-preview-id="${escapeHtml(inv.id)}">Vorschau</button>
             ${canMarkPaid ? `<button type="button" class="ghost-button invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">Als bezahlt markieren</button>` : ""}
             ${canRetrySend ? `<button type="button" class="ghost-button" data-invoice-retry-id="${escapeHtml(inv.id)}">Erneut senden</button>` : ""}
             ${canViewHistory ? `<button type="button" class="ghost-button" data-invoice-history-toggle-id="${escapeHtml(inv.id)}">${historyLabel}</button>` : ""}
@@ -14203,6 +14271,75 @@ function renderInvoiceManagementList() {
       } finally {
         event.target.disabled = false;
       }
+    });
+  });
+
+  // Preview invoice button listeners
+  container.querySelectorAll("[data-invoice-preview-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const invId = String(event.target.dataset.invoicePreviewId || "").trim();
+      if (!invId) return;
+      const inv = allInvoices.find(i => i.id === invId);
+      if (!inv) return;
+      
+      const modal = document.querySelector("#invoicePdfPreviewModal");
+      if (!modal) return;
+      
+      const statusMap = { "draft": "Entwurf", "sent": "Versendet", "overdue": "Überfällig", "bezahlt": "Bezahlt", "send_failed": "Fehler" };
+      const status = statusMap[inv.status] || inv.status;
+      
+      const previewHtml = `
+        <div style="padding: 24px; font-family: Arial, sans-serif; color: #333;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Rechnungsnummer</p>
+              <p style="margin: 0; font-size: 16px;">${escapeHtml(inv.invoice_number || "–")}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Status</p>
+              <p style="margin: 0;">${escapeHtml(status)}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Firma</p>
+              <p style="margin: 0;">${escapeHtml(inv.company_name || "–")}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Betrag</p>
+              <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e36414;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Rechnungsdatum</p>
+              <p style="margin: 0;">${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "–"}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Fälligkeitsdatum</p>
+              <p style="margin: 0;">${inv.due_date ? formatTimestamp(inv.due_date) : "–"}</p>
+            </div>
+            ${inv.paid_at ? `
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Bezahlt am</p>
+              <p style="margin: 0;">${formatTimestamp(inv.paid_at)}</p>
+            </div>
+            ` : ""}
+            <div>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">Rechnungsperiode</p>
+              <p style="margin: 0;">${escapeHtml(inv.invoice_period || "–")}</p>
+            </div>
+          </div>
+          <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin-top: 24px;">
+            <p style="margin: 0 0 8px 0; font-weight: bold;">Rechnungspositionen</p>
+            <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(inv.line_items_description || "Keine Details verfügbar")}</p>
+          </div>
+        </div>
+      `;
+      
+      const frame = document.querySelector("#invoicePdfFrame");
+      if (frame) {
+        frame.srcdoc = previewHtml;
+      }
+      
+      modal.classList.remove("hidden");
+      modal.dataset.invoiceId = invId;
     });
   });
 
@@ -16581,6 +16718,57 @@ if (invoiceFilterStatus) {
   invoiceFilterStatus.addEventListener("change", () => renderInvoiceManagementList());
 }
 
+// Quick filter buttons
+document.querySelectorAll(".quick-filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const status = btn.dataset.status;
+    if (invoiceFilterStatus) {
+      invoiceFilterStatus.value = status;
+      invoiceFilterStatus.dispatchEvent(new Event("change"));
+    }
+    // Update active state
+    document.querySelectorAll(".quick-filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderInvoiceManagementList();
+  });
+});
+
+// Invoice PDF Preview Modal
+const closePdfPreviewBtn = document.querySelector("#closePdfPreviewBtn");
+const closePdfPreviewBtn2 = document.querySelector("#closePdfPreviewBtn2");
+const downloadPdfPreviewBtn = document.querySelector("#downloadPdfPreviewBtn");
+const invoicePdfPreviewModal = document.querySelector("#invoicePdfPreviewModal");
+
+if (closePdfPreviewBtn) {
+  closePdfPreviewBtn.addEventListener("click", () => {
+    invoicePdfPreviewModal.classList.add("hidden");
+  });
+}
+
+if (closePdfPreviewBtn2) {
+  closePdfPreviewBtn2.addEventListener("click", () => {
+    invoicePdfPreviewModal.classList.add("hidden");
+  });
+}
+
+if (downloadPdfPreviewBtn) {
+  downloadPdfPreviewBtn.addEventListener("click", async () => {
+    const invId = invoicePdfPreviewModal.dataset.invoiceId;
+    if (!invId) return;
+    const inv = state.invoices?.find(i => i.id === invId);
+    if (!inv) return;
+    
+    // Generate a simple PDF (or we could call a backend endpoint)
+    const element = document.querySelector("#invoicePdfFrame");
+    if (element && element.srcdoc) {
+      const printWindow = window.open("", "_blank");
+      printWindow.document.write(element.srcdoc);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  });
+}
+
 const invoiceRetryFilterMode = document.querySelector("#invoiceRetryFilterMode");
 if (invoiceRetryFilterMode) {
   invoiceRetryFilterMode.addEventListener("change", () => renderInvoiceManagementList());
@@ -17093,6 +17281,12 @@ wireDesktopInstallPrompt();
   // ── Search ──
   if (elements.workerSearchInput) {
     elements.workerSearchInput.addEventListener("input", () => renderWorkerList());
+  }
+
+  // ── Status Filter ──
+  const workerStatusFilter = document.querySelector("#workerStatusFilter");
+  if (workerStatusFilter) {
+    workerStatusFilter.addEventListener("change", () => renderWorkerList());
   }
 
   // ── Bulk select all ──

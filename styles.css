@@ -1,3 +1,36 @@
+/* Quick-Filter Buttons für Rechnungen */
+.invoice-quick-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.quick-filter-btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.quick-filter-btn:hover {
+  background: #f0f0f0;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.quick-filter-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 /* --- Verbesserungen Dashboard-Detailfenster: Animation, Overlay, Close-Button, Responsive --- */
 .dashboard-detail-overlay {
   position: fixed;

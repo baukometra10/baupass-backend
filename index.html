@@ -238,6 +238,16 @@
 
         <div class="stats-grid" id="statsGrid"></div>
 
+        <article class="panel" style="margin-top: 24px;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Compliance</p>
+              <h3>Dokumentenstatus Übersicht</h3>
+            </div>
+          </div>
+          <div id="complianceKpiGrid" class="list"></div>
+        </article>
+
         <div class="panel-grid two-columns" id="reportingPanels">
           <article class="panel">
             <div class="panel-heading">
@@ -428,13 +438,21 @@
                 <p class="eyebrow" data-ui-i18n="workersListEyebrow">Datenbestand</p>
                 <h3 data-ui-i18n="workersListH3">Registrierte Mitarbeiter</h3>
               </div>
+              <button id="workerExportOptionsButton" type="button" class="ghost-button">Erweiterte Export-Optionen</button>
               <button id="workerCsvButton" type="button" class="ghost-button" data-ui-i18n="btnWorkerCsv">Mitarbeiterliste als PDF herunterladen</button>
               <button id="workerCsvImportButton" type="button" class="ghost-button" title="CSV-Datei mit Mitarbeitern hochladen (Massenimport)">CSV importieren</button>
               <input type="file" id="workerCsvImportInput" accept=".csv" style="display:none;" />
             </div>
             <div id="workerCsvImportResult" style="display:none;margin:6px 0;padding:8px 12px;border-radius:6px;font-size:13px;"></div>
             <div class="worker-list-toolbar">
-              <input id="workerSearchInput" type="search" placeholder="Suchen: Name, Badge-ID, Baustelle …" data-ui-i18n="workerSearchPlaceholder" data-ui-i18n-attr="placeholder" autocomplete="off" />
+              <input id="workerSearchInput" type="search" placeholder="Suchen: Name, Badge-ID, Baustelle, Versicherungsnummer …" data-ui-i18n="workerSearchPlaceholder" data-ui-i18n-attr="placeholder" autocomplete="off" />
+              <select id="workerStatusFilter" style="max-width: 140px;">
+                <option value="">Alle Status</option>
+                <option value="aktiv">Aktiv</option>
+                <option value="inaktiv">Inaktiv</option>
+                <option value="gesperrt">Gesperrt</option>
+                <option value="abgelaufen">Abgelaufen</option>
+              </select>
               <label class="bulk-select-all-label">
                 <input id="bulkSelectAll" type="checkbox" /> <span id="bulkSelectAllText" data-ui-i18n="bulkSelectAll">Alle auswählen</span>
               </label>
@@ -448,6 +466,28 @@
             </div>
             <div id="workerList" class="card-list"></div>
             <div id="workerDetailOverlay" class="worker-detail-overlay hidden"></div>
+
+            <div id="workerExportModal" class="export-modal hidden" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 24px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 1001; width: 90%; max-width: 400px;">
+              <h3 style="margin: 0 0 16px 0;">Export-Optionen</h3>
+              <div style="display: grid; gap: 12px;">
+                <label><input type="checkbox" id="exportIncludeDeleted" /> Gelöschte Mitarbeiter einbeziehen</label>
+                <label><input type="checkbox" id="exportIncludePhotos" /> Fotos einbeziehen (nur PDF)</label>
+                <label>
+                  Zeitraum (nur PDF):
+                  <select id="exportPeriod" style="margin-top: 4px; width: 100%;">
+                    <option value="all">Alle Mitarbeiter</option>
+                    <option value="day">Heute</option>
+                    <option value="week">Diese Woche</option>
+                  </select>
+                </label>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 20px;">
+                <button id="exportCsvBtn" type="button" class="primary-button" style="flex: 1;">CSV exportieren</button>
+                <button id="exportPdfBtn" type="button" class="primary-button" style="flex: 1;">PDF exportieren</button>
+                <button id="exportCancelBtn" type="button" class="ghost-button" style="flex: 1;">Abbrechen</button>
+              </div>
+            </div>
+            <div id="exportModalBackdrop" class="export-modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1000;"></div>
           <style>
             .worker-detail-overlay {
               position: fixed;
@@ -696,9 +736,28 @@
               <button type="button" class="ghost-button" id="invoiceRefreshButton" data-ui-i18n="btnRefreshList">Aktualisieren</button>
             </div>
 
+            <div class="button-row invoice-quick-filters">
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOpen" data-status="open">Offen</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue">Überfällig</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed">Fehler</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="">Alle</button>
+            </div>
+
             <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid"></div>
 
             <div id="invoiceManagementList" class="list"></div>
+
+            <div id="invoicePdfPreviewModal" class="pdf-preview-modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1002; display: flex; flex-direction: column;">
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
+                <h3 style="margin: 0;">Rechnungsvorschau</h3>
+                <button id="closePdfPreviewBtn" type="button" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+              </div>
+              <iframe id="invoicePdfFrame" style="flex: 1; border: none;"></iframe>
+              <div style="display: flex; gap: 8px; padding: 12px; background: #f5f5f5; border-top: 1px solid #ddd;">
+                <button id="downloadPdfPreviewBtn" type="button" class="primary-button">Herunterladen</button>
+                <button id="closePdfPreviewBtn2" type="button" class="ghost-button" style="flex: 1;">Schließen</button>
+              </div>
+            </div>
 
             <div class="divider"></div>
 
