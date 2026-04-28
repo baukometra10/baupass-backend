@@ -7608,7 +7608,9 @@ def request_password_reset():
     base_url = request.host_url.rstrip("/")
     reset_link = f"{base_url}/?resetToken={raw_token}"
     msg = __import__("email.message", fromlist=["EmailMessage"]).EmailMessage()
-    msg["Subject"] = "Passwort zurücksetzen – BauPass Control"
+    platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+    operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
+    msg["Subject"] = f"Passwort zurücksetzen – {platform_label}"
     msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>"
 
     # Empfänger-Priorität: 1) users.email, 2) billing_email der Firma, 3) username als Fallback
@@ -7618,8 +7620,55 @@ def request_password_reset():
         user_email = (company_row["billing_email"] if company_row else "") or username
     recipient = user_email or username
     msg["To"] = recipient
+
+    _user_name_safe = html.escape(str(user["name"] or username))
+    _operator_safe = html.escape(operator_label)
+    _platform_safe = html.escape(platform_label)
+    _link_safe = html.escape(reset_link)
+
     msg.set_content(
-        f"Hallo {user['name']},\n\nKlicke auf folgenden Link, um dein Passwort zurückzusetzen (gültig 2 Stunden):\n\n{reset_link}\n\nWenn du das nicht angefordert hast, ignoriere diese E-Mail.\n\nViele Grüße\n{settings['operator_name']}"
+        f"Hallo {user['name']},\n\nKlicke auf folgenden Link, um dein Passwort zurückzusetzen (gültig 2 Stunden):\n\n{reset_link}\n\nWenn du das nicht angefordert hast, ignoriere diese E-Mail.\n\nViele Grüße\n{operator_label}"
+    )
+    msg.add_alternative(
+        f"""<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:520px;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+        <tr><td style="background:#1e293b;padding:24px 32px;">
+          <p style="margin:0;font-size:1.2rem;font-weight:700;color:#ffffff;">{_platform_safe}</p>
+          <p style="margin:4px 0 0;font-size:0.85rem;color:#94a3b8;">Passwort zurücksetzen</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;font-size:1rem;color:#1e293b;">Hallo {_user_name_safe},</p>
+          <p style="margin:0 0 24px;font-size:0.95rem;color:#374151;line-height:1.6;">
+            du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt.<br>
+            Klicke auf den Button, um ein neues Passwort festzulegen. Der Link ist <strong>2 Stunden gültig</strong>.
+          </p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="background:#2563eb;border-radius:8px;padding:14px 28px;">
+              <a href="{_link_safe}" style="color:#ffffff;text-decoration:none;font-size:1rem;font-weight:600;">Passwort zurücksetzen</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;font-size:0.8rem;color:#6b7280;">Oder kopiere diesen Link in deinen Browser:</p>
+          <p style="margin:0 0 24px;font-size:0.78rem;color:#6b7280;word-break:break-all;">{_link_safe}</p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;">
+          <p style="margin:0;font-size:0.8rem;color:#9ca3af;">
+            Wenn du kein Passwort-Reset angefordert hast, kannst du diese E-Mail ignorieren.<br>
+            Dein Passwort wurde nicht geändert.
+          </p>
+        </td></tr>
+        <tr><td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;font-size:0.8rem;color:#6b7280;">Mit freundlichen Grüßen · {_operator_safe}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>""",
+        subtype="html"
     )
 
     try:

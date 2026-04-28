@@ -9897,6 +9897,7 @@ function renderCompanyList() {
             <button type="button" class="ghost-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Dokument-Mail setzen</button>
             <button type="button" class="ghost-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Rechnungs-Sprache</button>
             <button type="button" class="ghost-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-OTP</button>
+            <button type="button" class="ghost-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔑 Passwort-Reset senden</button>
             <button type="button" class="ghost-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Drehkreuz hinzufügen</button>
             <button type="button" class="ghost-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? "Login wird vorbereitet..." : "Firmen-Login"}</button>
             <button type="button" class="ghost-button" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? "Speichert..." : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "Sperre aufheben" : "Firma sperren"}</button>
@@ -10023,6 +10024,41 @@ function bindCompanyRowActions() {
 
   elements.companyList.addEventListener("click", async (event) => {
     // ── Admin-OTP einrichten ──
+    // ── Passwort-Reset für Firmen-Admin ──
+    const sendResetButton = event.target.closest("[data-company-send-reset]");
+    if (sendResetButton && !sendResetButton.disabled && elements.companyList.contains(sendResetButton)) {
+      const companyId = sendResetButton.dataset.companySendReset;
+      const company = state.companies.find((c) => c.id === companyId);
+      const sec = state.companyAdminSecurity?.[companyId];
+      if (!companyId || !company || !sec?.username) {
+        window.alert("Kein Admin-Account für diese Firma gefunden.");
+        return;
+      }
+      const recipientHint = sec.email || "(Rechnungs-E-Mail der Firma als Fallback)";
+      if (!window.confirm(`Passwort-Reset-Link an den Admin der Firma „${company.name}" senden?\n\nBenutzername: ${sec.username}\nEmpfänger: ${recipientHint}\n\nFortfahren?`)) return;
+      try {
+        sendResetButton.disabled = true;
+        const resp = await fetch(`${API_BASE}/api/auth/request-password-reset`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: sec.username }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok && data.error === "smtp_not_configured") {
+          window.alert("E-Mail-Versand ist nicht konfiguriert. Bitte zuerst SMTP einrichten.");
+        } else if (!resp.ok) {
+          window.alert(`Fehler beim Senden: ${data.message || resp.status}`);
+        } else {
+          window.alert(`✅ Reset-Link wurde an „${sec.username}" gesendet.`);
+        }
+      } catch (_e) {
+        window.alert("Netzwerkfehler. Bitte erneut versuchen.");
+      } finally {
+        sendResetButton.disabled = false;
+      }
+      return;
+    }
+
     const otpSetupButton = event.target.closest("[data-company-otp-setup]");
     if (otpSetupButton && !otpSetupButton.disabled && elements.companyList.contains(otpSetupButton)) {
       const companyId = otpSetupButton.dataset.companyOtpSetup;
