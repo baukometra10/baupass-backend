@@ -9861,6 +9861,7 @@ function renderCompanyList() {
           <p class="${statusMeta.className}">Status: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>Design:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>Dokument-E-Mail:</strong> ${escapeHtml(documentEmail || "Nicht gesetzt")}</p>
+          <p><strong>Rechnungs-Mail Sprache:</strong> ${{ de: "Deutsch", en: "English", fr: "Français" }[company.invoiceEmailLang || company.invoice_email_lang] || "Deutsch"}</p>
           ${(() => {
             const sec = state.companyAdminSecurity?.[companyId];
             if (!sec) return "";
@@ -9894,6 +9895,7 @@ function renderCompanyList() {
           ${repairStatus ? `<p class="${repairStatusClass}">${escapeHtml(repairStatus.message || "")}</p>` : ""}
           <div class="button-row">
             <button type="button" class="ghost-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Dokument-Mail setzen</button>
+            <button type="button" class="ghost-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Rechnungs-Sprache</button>
             <button type="button" class="ghost-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-OTP</button>
             <button type="button" class="ghost-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Drehkreuz hinzufügen</button>
             <button type="button" class="ghost-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? "Login wird vorbereitet..." : "Firmen-Login"}</button>
@@ -10083,6 +10085,43 @@ function bindCompanyRowActions() {
         refreshAll();
       } catch (error) {
         window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
+      }
+      return;
+    }
+
+    const invoiceLangButton = event.target.closest("[data-company-invoice-lang]");
+    if (invoiceLangButton && !invoiceLangButton.disabled && elements.companyList.contains(invoiceLangButton)) {
+      const companyId = invoiceLangButton.dataset.companyInvoiceLang;
+      const company = state.companies.find((e) => e.id === companyId);
+      if (!companyId || !company) return;
+      const currentLang = company.invoiceEmailLang || company.invoice_email_lang || "de";
+      const options = [["de", "Deutsch"], ["en", "English"], ["fr", "Français"]];
+      const choices = options.map(([val, label]) => `${val === currentLang ? "▶ " : ""}${label} (${val})`).join("\n");
+      const input = window.prompt(`Rechnungs-E-Mail Sprache für "${company.name}":\n\n${choices}\n\nBitte "de", "en" oder "fr" eingeben:`, currentLang);
+      if (input === null) return;
+      const nextLang = input.trim().toLowerCase();
+      if (!["de", "en", "fr"].includes(nextLang)) {
+        window.alert("Ungültige Sprache. Erlaubt: de, en, fr");
+        return;
+      }
+      try {
+        await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+          method: "PUT",
+          body: {
+            name: company.name,
+            contact: company.contact,
+            billingEmail: getCompanyBillingEmail(company),
+            documentEmail: getCompanyDocumentEmail(company),
+            accessHost: company.accessHost || company.access_host || "",
+            plan: company.plan,
+            status: company.status,
+            invoiceEmailLang: nextLang,
+          }
+        });
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        window.alert(`Fehler beim Speichern: ${error.message}`);
       }
       return;
     }
