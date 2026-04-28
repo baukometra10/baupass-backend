@@ -17831,7 +17831,11 @@ wireDesktopInstallPrompt();
           }
           await loadDocumentInbox();
         } catch (e) {
-          window.alert(e.message);
+          if (e?.message === "backend_unreachable") {
+            window.alert(getBackendUnreachableMessage());
+          } else {
+            window.alert(e.message);
+          }
         } finally {
           actionEl.disabled = false;
         }
@@ -17922,6 +17926,12 @@ function docTypeLabelForValue(value) {
   return found ? uiT(found.key) : value;
 }
 
+function getBackendUnreachableMessage() {
+  const activeBase = API_BASE || window.location.origin;
+  const localHint = "Wenn du lokal testest: ?apiBase=http://127.0.0.1:8000";
+  return `Backend nicht erreichbar (${activeBase}). ${localHint}`;
+}
+
 async function loadDocumentInbox() {
   const listEl = document.querySelector("#docInboxList");
   if (!listEl) return;
@@ -17933,7 +17943,8 @@ async function loadDocumentInbox() {
     const data = await apiRequest(API_BASE + "/api/documents/inbox");
     renderDocumentInbox(Array.isArray(data) ? data : (data.emails || []));
   } catch (e) {
-    if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
+    const message = e?.message === "backend_unreachable" ? getBackendUnreachableMessage() : e.message;
+    if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
   }
   // Auch ablaufende Dokumente mitladen wenn in der Dokumente-View
   loadExpiringDocuments().catch(() => {});
@@ -18614,7 +18625,11 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       }
       await loadDocumentInbox();
     } catch (e) {
-      window.alert(e.message);
+      if (e?.message === "backend_unreachable") {
+        window.alert(getBackendUnreachableMessage());
+      } else {
+        window.alert(e.message);
+      }
     } finally {
       if (buttonEl) buttonEl.disabled = false;
     }
