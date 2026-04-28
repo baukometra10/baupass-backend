@@ -17515,6 +17515,94 @@ if (validatePhotoBtnEl) {
   validatePhotoBtnEl.addEventListener("click", validateWorkerPhotoUI);
 }
 
+// ── Passwort-Reset: "Passwort vergessen"-Button ────────────────────────────
+const loginResetPasswordButton = document.querySelector("#loginResetPasswordButton");
+if (loginResetPasswordButton) {
+  loginResetPasswordButton.addEventListener("click", async () => {
+    const username = (window.prompt("Benutzername eingeben, um einen Passwort-Reset-Link zu erhalten:") || "").trim();
+    if (!username) return;
+    try {
+      loginResetPasswordButton.disabled = true;
+      const resp = await fetch(`${API_BASE}/api/auth/request-password-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok && data.error === "smtp_not_configured") {
+        window.alert("E-Mail-Versand ist nicht konfiguriert. Bitte wende dich an den Administrator.");
+      } else {
+        window.alert("Falls ein Account mit diesem Benutzernamen existiert und eine E-Mail-Adresse hinterlegt ist, wurde ein Reset-Link verschickt.");
+      }
+    } catch (_e) {
+      window.alert("Fehler beim Senden der Anfrage. Bitte versuche es später erneut.");
+    } finally {
+      loginResetPasswordButton.disabled = false;
+    }
+  });
+}
+
+// ── Passwort-Reset: Token aus URL (?resetToken=...) ────────────────────────
+(function handlePasswordResetToken() {
+  const params = new URL(window.location.href).searchParams;
+  const rawToken = (params.get("resetToken") || "").trim();
+  if (!rawToken) return;
+
+  const loginForm = document.querySelector("#loginForm");
+  const pwResetPanel = document.querySelector("#pwResetPanel");
+  if (!pwResetPanel) return;
+
+  if (loginForm) loginForm.style.display = "none";
+  if (loginResetPasswordButton) loginResetPasswordButton.style.display = "none";
+  pwResetPanel.style.display = "";
+
+  const pwResetForm = document.querySelector("#pwResetForm");
+  const pwResetMsg = document.querySelector("#pwResetMsg");
+
+  if (!pwResetForm) return;
+  pwResetForm.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const newPw = (document.querySelector("#pwResetNewPassword")?.value || "").trim();
+    const confirmPw = (document.querySelector("#pwResetConfirm")?.value || "").trim();
+    if (newPw.length < 8) {
+      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = "Passwort muss mindestens 8 Zeichen haben."; }
+      return;
+    }
+    if (newPw !== confirmPw) {
+      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = "Passwörter stimmen nicht überein."; }
+      return;
+    }
+    const submitBtn = pwResetForm.querySelector("button[type='submit']");
+    if (submitBtn) submitBtn.disabled = true;
+    if (pwResetMsg) { pwResetMsg.style.color = "#6b7280"; pwResetMsg.textContent = "Wird gespeichert…"; }
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/reset-password/${encodeURIComponent(rawToken)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPw }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) {
+        if (pwResetMsg) { pwResetMsg.style.color = "#16a34a"; pwResetMsg.textContent = "Passwort wurde geändert. Du wirst zur Anmeldung weitergeleitet…"; }
+        setTimeout(() => {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("resetToken");
+          window.location.replace(cleanUrl.toString());
+        }, 2000);
+      } else {
+        const msg = data.error === "token_not_found" ? "Link ist ungültig oder wurde bereits verwendet."
+          : data.error === "token_expired" ? "Link ist abgelaufen. Bitte fordere einen neuen an."
+          : (data.message || "Unbekannter Fehler.");
+        if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = msg; }
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    } catch (_e) {
+      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = "Netzwerkfehler. Bitte versuche es erneut."; }
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+})();
+
 const companySelect = document.querySelector("#companySelect");
 if (companySelect) {
   companySelect.addEventListener("change", populateSubcompanySelects);

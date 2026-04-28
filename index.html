@@ -141,6 +141,23 @@
         <button id="loginResetPasswordButton" type="button" class="ghost-button" data-ui-i18n="loginForgotPassword">Passwort vergessen</button>
       </form>
 
+      <!-- Passwort-Reset per Token (URL: ?resetToken=...) -->
+      <div id="pwResetPanel" style="display:none;">
+        <p style="margin:0 0 14px;font-size:0.92rem;color:#374151;font-weight:600;">Neues Passwort festlegen</p>
+        <form id="pwResetForm" class="auth-form">
+          <label>
+            <span>Neues Passwort</span>
+            <input id="pwResetNewPassword" type="password" placeholder="Mind. 8 Zeichen" required autocomplete="new-password" minlength="8" />
+          </label>
+          <label>
+            <span>Passwort bestätigen</span>
+            <input id="pwResetConfirm" type="password" placeholder="Passwort wiederholen" required autocomplete="new-password" minlength="8" />
+          </label>
+          <button type="submit" class="primary-button">Passwort speichern</button>
+          <p id="pwResetMsg" style="margin:10px 0 0;font-size:0.85rem;min-height:1.2em;"></p>
+        </form>
+      </div>
+
       <div class="auth-hints">
         <div class="meta-box install-box">
           <p data-ui-i18n="desktopAppTitle">Desktop-App</p>
