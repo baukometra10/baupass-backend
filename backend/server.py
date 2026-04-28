@@ -7624,8 +7624,6 @@ def request_password_reset():
     settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     smtp_host = (settings["smtp_host"] if settings else "").strip()
     smtp_sender = (settings["smtp_sender_email"] if settings else "").strip()
-    if not smtp_host or not smtp_sender:
-        return jsonify({"error": "smtp_not_configured", "message": "E-Mail-Versand ist nicht konfiguriert."}), 503
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = __import__("hashlib").sha256(raw_token.encode()).hexdigest()
@@ -7643,8 +7641,9 @@ def request_password_reset():
     msg = __import__("email.message", fromlist=["EmailMessage"]).EmailMessage()
     platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
     operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
+    smtp_sender_name = str(settings["smtp_sender_name"] or operator_label).strip() or operator_label
     msg["Subject"] = f"Passwort zurücksetzen – {platform_label}"
-    msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>"
+    msg["From"] = f"{smtp_sender_name} <{smtp_sender}>" if smtp_sender else smtp_sender_name
 
     # Empfänger-Priorität: 1) users.email, 2) billing_email der Firma, 3) username als Fallback
     user_email = (user["email"] or "").strip() if user["email"] else ""
@@ -7659,11 +7658,10 @@ def request_password_reset():
     _platform_safe = html.escape(platform_label)
     _link_safe = html.escape(reset_link)
 
-    msg.set_content(
+    text_body = (
         f"Hallo {user['name']},\n\nKlicke auf folgenden Link, um dein Passwort zurückzusetzen (gültig 2 Stunden):\n\n{reset_link}\n\nWenn du das nicht angefordert hast, ignoriere diese E-Mail.\n\nViele Grüße\n{operator_label}"
     )
-    msg.add_alternative(
-        f"""<!DOCTYPE html>
+    html_body = f"""<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
@@ -7700,9 +7698,42 @@ def request_password_reset():
     </td></tr>
   </table>
 </body>
-</html>""",
-        subtype="html"
-    )
+</html>"""
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    def _try_password_reset_api_fallback():
+        sender_email = smtp_sender
+        if not sender_email:
+            sender_email = (settings["brevo_from_email"] or "").strip() if settings and "brevo_from_email" in settings.keys() else ""
+        if not sender_email:
+            sender_email = (settings["resend_from_email"] or "").strip() if settings and "resend_from_email" in settings.keys() else ""
+        if not sender_email:
+            sender_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
+        if not sender_email:
+            sender_email = _normalize_env_value(_resend_key_cache.get("from_email") or "")
+        return _send_via_any_api(
+            msg["Subject"],
+            sender_email,
+            smtp_sender_name,
+            recipient,
+            text_body,
+            html_body,
+        )
+
+    if not smtp_host or not smtp_sender:
+        fallback_ok, fallback_error, fallback_provider = _try_password_reset_api_fallback()
+        if fallback_ok:
+            log_audit(
+                "security.password_reset_requested",
+                f"Passwort-Reset angefordert für {username} (versendet via {fallback_provider})",
+            )
+            return jsonify({"ok": True, "delivery": fallback_provider})
+        return jsonify({
+            "error": "smtp_not_configured",
+            "message": "E-Mail-Versand ist nicht konfiguriert.",
+            "detail": fallback_error,
+        }), 503
 
     try:
         import smtplib
@@ -7721,7 +7752,14 @@ def request_password_reset():
                     smtp.login(settings["smtp_username"], settings["smtp_password"] or "")
                 smtp.send_message(msg)
     except Exception as exc:
-        return jsonify({"error": "smtp_error", "message": str(exc)}), 502
+        fallback_ok, fallback_error, fallback_provider = _try_password_reset_api_fallback()
+        if fallback_ok:
+            log_audit(
+                "security.password_reset_requested",
+                f"Passwort-Reset angefordert für {username} (SMTP fehlgeschlagen, versendet via {fallback_provider})",
+            )
+            return jsonify({"ok": True, "delivery": fallback_provider, "smtpError": str(exc)})
+        return jsonify({"error": "smtp_error", "message": f"{exc} | api_fallback_failed: {fallback_error}"}), 502
 
     log_audit("security.password_reset_requested", f"Passwort-Reset angefordert für {username}")
     return jsonify({"ok": True})
