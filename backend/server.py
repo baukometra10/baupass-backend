@@ -8177,20 +8177,6 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(c_primary)
         pdf.rect(0, page_h - HDR_H, page_w, HDR_H, stroke=0, fill=1)
 
-        logo_drawn = False
-        try:
-            lb = _logo_bytes()
-            if lb:
-                ir = ImageReader(io.BytesIO(lb))
-                pdf.drawImage(ir, M_L, page_h - HDR_H + 4 * mm,
-                              width=44 * mm, height=22 * mm,
-                              preserveAspectRatio=True, mask="auto")
-                logo_drawn = True
-        except Exception:
-            pass
-        if not logo_drawn:
-            _draw_logo_text_fallback(M_L, page_h - HDR_H + 8.5 * mm)
-
         pdf.setFillColor(rl_colors.white)
         pdf.setFont("Helvetica-Bold", 22)
         pdf.drawRightString(page_w - M_R, page_h - HDR_H + 14 * mm, "RECHNUNG")
