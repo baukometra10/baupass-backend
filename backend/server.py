@@ -5333,8 +5333,11 @@ def create_company():
     db = get_db()
     if turnstile_endpoint:
         db.execute("UPDATE settings SET turnstile_endpoint = ? WHERE id = 1", (turnstile_endpoint,))
+    invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", "de") or "de", max_len=8)
+    if invoice_email_lang not in ("de", "en", "fr"):
+        invoice_email_lang = "de"
     db.execute(
-        "INSERT INTO companies (id, name, contact, billing_email, document_email, access_host, branding_preset, plan, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO companies (id, name, contact, billing_email, document_email, access_host, branding_preset, plan, status, invoice_email_lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             company_id,
             company_name,
@@ -5345,6 +5348,7 @@ def create_company():
             branding_preset,
             normalize_company_plan(payload.get("plan", "tageskarte")),
             company_status,
+            invoice_email_lang,
         ),
     )
 

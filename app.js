@@ -10218,6 +10218,7 @@ function bindCompanyRowActions() {
             brandingPreset,
             plan: company.plan,
             status: company.status,
+            invoiceEmailLang: company.invoiceEmailLang || "de",
           }
         });
         companyBrandingPreviewOverride = brandingPreset;
