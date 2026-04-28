@@ -10076,6 +10076,7 @@ function bindCompanyRowActions() {
             accessHost: company.accessHost || company.access_host || "",
             plan: company.plan,
             status: company.status,
+            invoiceEmailLang: company.invoiceEmailLang || "de",
           }
         });
         await loadAllData();
@@ -10815,7 +10816,7 @@ function renderAdminSettingsForm() {
   // Invoice bank/address/tax fields
   const invoiceFields = ["invoiceOperatorStreet", "invoiceOperatorZipCity", "invoiceOperatorPhone",
     "invoiceOperatorWebsite", "invoiceOperatorEmail", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId",
-    "invoiceEmailSubject", "invoiceEmailIntro"];
+    "invoiceEmailSubject", "invoiceEmailIntro", "invoiceEmailBodyTemplate"];
   for (const fid of invoiceFields) {
     const el = document.querySelector(`#${fid}`);
     if (el) {
@@ -10823,6 +10824,11 @@ function renderAdminSettingsForm() {
       el.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }
+  // Dunning-Intervalle
+  const d1El = document.querySelector("#dunningStage1Days");
+  const d2El = document.querySelector("#dunningStage2Days");
+  if (d1El) d1El.value = state.settings.dunningStage1Days ?? 7;
+  if (d2El) d2El.value = state.settings.dunningStage2Days ?? 3;
   // Direkte Validierung nach Befüllung (unabhängig von Event-Listenern)
   const _ibanEl = document.querySelector("#invoiceIban");
   if (_ibanEl) {
@@ -12682,6 +12688,9 @@ async function handleSettingsSubmit(event) {
       invoiceVatId: (document.querySelector("#invoiceVatId")?.value || "").trim(),
       invoiceEmailSubject: (document.querySelector("#invoiceEmailSubject")?.value || "").trim(),
       invoiceEmailIntro: (document.querySelector("#invoiceEmailIntro")?.value || "").trim(),
+      invoiceEmailBodyTemplate: (document.querySelector("#invoiceEmailBodyTemplate")?.value || "").trim(),
+      dunningStage1Days: Number(document.querySelector("#dunningStage1Days")?.value || 7),
+      dunningStage2Days: Number(document.querySelector("#dunningStage2Days")?.value || 3),
     };
     const smtpPasswordValue = document.querySelector("#smtpPassword")?.value || "";
     if (smtpPasswordValue.trim()) {
@@ -13644,6 +13653,7 @@ async function handleCompanySubmit(event) {
         adminPassword: document.querySelector("#companyAdminPassword").value.trim() || undefined,
         turnstilePassword: (document.querySelector("#companyTurnstilePassword")?.value || "").trim() || undefined,
         turnstileCount: Number(document.querySelector("#companyTurnstileCount")?.value || 1),
+        invoiceEmailLang: (document.querySelector("#companyInvoiceEmailLang")?.value || "de"),
       }
     });
 
@@ -17426,6 +17436,43 @@ if (elements.photoSharpen) {
 
 if (elements.photoResetButton) {
   elements.photoResetButton.addEventListener("click", resetCapturedPhotoPosition);
+}
+
+// ── Foto-Validierung ─────────────────────────────────────────────────────────
+async function validateWorkerPhotoUI() {
+  const photoData = document.querySelector("#photoData")?.value || "";
+  const resultEl = document.querySelector("#photoValidationResult");
+  if (!resultEl) return;
+  if (!photoData) {
+    resultEl.innerHTML = '<span style="color:#6b7280;font-size:0.82rem">Erst Foto aufnehmen oder hochladen.</span>';
+    return;
+  }
+  resultEl.innerHTML = '<span style="color:#6b7280;font-size:0.82rem">Prüfe Foto…</span>';
+  try {
+    const result = await apiRequest(`${API_BASE}/api/workers/validate-photo`, {
+      method: "POST",
+      body: { photoData },
+    });
+    const color = result.score >= 80 ? "#16a34a" : result.score >= 50 ? "#d97706" : "#dc2626";
+    const icon = result.valid ? "✅" : "⚠️";
+    const errorItems = (result.errors || []).map(e => `<li style="color:#dc2626">❌ ${escapeHtml(e)}</li>`).join("");
+    const warnItems = (result.warnings || []).map(w => `<li style="color:#d97706">⚠️ ${escapeHtml(w)}</li>`).join("");
+    const metaText = result.meta?.width
+      ? `<p style="margin:4px 0 0;color:#9ca3af;font-size:0.78rem">${result.meta.width}×${result.meta.height}px · ${result.meta.sizeKb} KB</p>`
+      : "";
+    resultEl.innerHTML = `<div style="font-size:0.82rem;margin-top:4px;padding:8px 10px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;text-align:left;">
+      <strong style="color:${color}">${icon} Foto-Score: ${result.score}/100</strong>
+      ${errorItems || warnItems ? `<ul style="margin:5px 0 0;padding-left:18px;">${errorItems}${warnItems}</ul>` : "<p style='margin:4px 0 0;color:#6b7280'>Foto sieht gut aus.</p>"}
+      ${metaText}
+    </div>`;
+  } catch (_e) {
+    resultEl.innerHTML = '<span style="color:#6b7280;font-size:0.82rem">Validierung nicht verfügbar.</span>';
+  }
+}
+
+const validatePhotoBtnEl = document.querySelector("#validatePhotoBtn");
+if (validatePhotoBtnEl) {
+  validatePhotoBtnEl.addEventListener("click", validateWorkerPhotoUI);
 }
 
 const companySelect = document.querySelector("#companySelect");

@@ -4722,6 +4722,10 @@ def get_settings():
             "invoiceOperatorEmail": row["invoice_operator_email"] if "invoice_operator_email" in row.keys() else "",
             "invoiceEmailSubject": row["invoice_email_subject"] if "invoice_email_subject" in row.keys() else "",
             "invoiceEmailIntro": row["invoice_email_intro"] if "invoice_email_intro" in row.keys() else "",
+            "invoiceEmailBodyTemplate": row["invoice_email_body_template"] if "invoice_email_body_template" in row.keys() else "",
+            "dunningStage1Days": int(row["dunning_stage1_days"] if "dunning_stage1_days" in row.keys() else 7) or 7,
+            "dunningStage2Days": int(row["dunning_stage2_days"] if "dunning_stage2_days" in row.keys() else 3) or 3,
+            "workerExpiryWarnDays": int(row["worker_expiry_warn_days"] if "worker_expiry_warn_days" in row.keys() else 30) or 30,
             "smtpHost": row["smtp_host"],
             "smtpPort": row["smtp_port"],
             "smtpUsername": row["smtp_username"],
@@ -5033,6 +5037,7 @@ def update_settings():
             invoice_operator_street = ?, invoice_operator_zip_city = ?,
             invoice_operator_phone = ?, invoice_operator_website = ?, invoice_operator_email = ?,
             invoice_email_subject = ?, invoice_email_intro = ?,
+            invoice_email_body_template = ?, dunning_stage1_days = ?, dunning_stage2_days = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
             admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?
@@ -5058,6 +5063,9 @@ def update_settings():
             invoice_operator_email,
             payload.get("invoiceEmailSubject", ""),
             payload.get("invoiceEmailIntro", ""),
+            str(payload.get("invoiceEmailBodyTemplate") or "")[:5000],
+            int(payload.get("dunningStage1Days") or 7),
+            int(payload.get("dunningStage2Days") or 3),
             payload.get("smtpHost", ""),
             int(payload.get("smtpPort", 587) or 587),
             payload.get("smtpUsername", ""),
@@ -7464,6 +7472,100 @@ def worker_stats():
     })
 
 
+# ── Worker-Foto Validierung ───────────────────────────────────────────────────
+
+@app.post("/api/workers/validate-photo")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def validate_worker_photo():
+    """Basis-Validierung eines Worker-Fotos per PIL (Abmessungen, Helligkeit, Kontrast)."""
+    payload = request.get_json(silent=True) or {}
+    photo_data = str(payload.get("photoData") or "").strip()
+    if not photo_data:
+        return jsonify({"valid": False, "score": 0, "errors": ["Kein Foto vorhanden"], "warnings": [], "meta": {}})
+
+    if photo_data.startswith("data:"):
+        try:
+            _header, b64_data = photo_data.split(",", 1)
+        except ValueError:
+            return jsonify({"valid": False, "score": 0, "errors": ["Ungültiges Datenformat"], "warnings": [], "meta": {}})
+    else:
+        b64_data = photo_data
+
+    try:
+        img_bytes = base64.b64decode(b64_data)
+    except Exception:
+        return jsonify({"valid": False, "score": 0, "errors": ["Base64-Dekodierung fehlgeschlagen"], "warnings": [], "meta": {}})
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    size_kb = len(img_bytes) / 1024
+
+    if size_kb < 5:
+        errors.append("Bild zu klein (< 5 KB) – möglicherweise kein echtes Foto")
+    elif size_kb < 20:
+        warnings.append("Bildgröße sehr gering (< 20 KB) – niedrige Qualität möglich")
+    if size_kb > 5000:
+        warnings.append("Bild sehr groß (> 5 MB) – Komprimierung empfohlen")
+
+    try:
+        from PIL import Image as _PilImage
+        img = _PilImage.open(io.BytesIO(img_bytes))
+        w, h = img.size
+        img_format = img.format or "unbekannt"
+
+        if w < 100 or h < 100:
+            errors.append(f"Auflösung zu niedrig ({w}×{h} px) – mindestens 100×100 px erforderlich")
+        elif w < 200 or h < 250:
+            warnings.append(f"Auflösung gering ({w}×{h} px) – empfohlen: mind. 200×300 px")
+
+        ratio = w / h if h > 0 else 1.0
+        if ratio < 0.3 or ratio > 3.0:
+            warnings.append(f"Ungewöhnliches Seitenverhältnis ({ratio:.2f}) – Portraitformat empfohlen")
+
+        thumb = img.convert("RGB").resize((50, 50))
+        pixels = list(thumb.getdata())
+        r_vals = [p[0] for p in pixels]
+        g_vals = [p[1] for p in pixels]
+        b_vals = [p[2] for p in pixels]
+        avg_brightness = (sum(r_vals) + sum(g_vals) + sum(b_vals)) / (len(pixels) * 3)
+
+        def _var(vals):
+            avg = sum(vals) / len(vals)
+            return sum((v - avg) ** 2 for v in vals) / len(vals)
+
+        total_variance = _var(r_vals) + _var(g_vals) + _var(b_vals)
+
+        if avg_brightness < 20:
+            errors.append("Foto zu dunkel – bitte ein besser belichtetes Foto verwenden")
+        elif avg_brightness > 235:
+            errors.append("Foto überbelichtet – bitte Belichtung korrigieren")
+        elif avg_brightness < 50:
+            warnings.append("Foto wirkt dunkel – bessere Beleuchtung empfohlen")
+
+        if total_variance < 100:
+            errors.append("Foto zeigt fast keine Details – möglicherweise ein einfarbiges Bild")
+        elif total_variance < 500:
+            warnings.append("Geringer Kontrast – bitte prüfen, ob ein echtes Portraitfoto vorhanden ist")
+
+        score = max(0, min(100, 100 - len(errors) * 25 - len(warnings) * 10))
+        return jsonify({
+            "valid": len(errors) == 0,
+            "score": score,
+            "errors": errors,
+            "warnings": warnings,
+            "meta": {"width": w, "height": h, "sizeKb": round(size_kb, 1),
+                     "avgBrightness": round(avg_brightness, 1), "format": img_format},
+        })
+    except ImportError:
+        score = max(0, min(100, 70 - len(errors) * 25))
+        return jsonify({"valid": len(errors) == 0, "score": score,
+                        "errors": errors, "warnings": warnings + ["Erweiterte Bildanalyse nicht verfügbar"], "meta": {}})
+    except Exception as exc:
+        errors.append(f"Bildverarbeitung fehlgeschlagen: {str(exc)[:80]}")
+        return jsonify({"valid": False, "score": 0, "errors": errors, "warnings": warnings, "meta": {}})
+
+
 # ── Passwort-Reset per E-Mail ──────────────────────────────────────────────
 
 @app.post("/api/auth/request-password-reset")
@@ -8263,6 +8365,48 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     platform_label = str(settings_row["platform_name"] or "BauPass").strip() or "BauPass"
     operator_label = str(settings_row["operator_name"] or platform_label).strip() or platform_label
     mail_subject = f"Rechnung von {platform_label} - {invoice_row['invoice_number']}"
+    # ── Mehrsprachigkeit ─────────────────────────────────────────────────────────
+    try:
+        invoice_lang = str(company_row["invoice_email_lang"] if "invoice_email_lang" in company_row.keys() else "de") or "de"
+    except Exception:
+        invoice_lang = "de"
+    if invoice_lang not in ("de", "en", "fr"):
+        invoice_lang = "de"
+    _inv_no = str(invoice_row["invoice_number"] or "-")
+    _INVOICE_I18N = {
+        "de": {
+            "subject": f"Rechnung von {platform_label} \u2013 {_inv_no}",
+            "greeting": "Guten Tag,",
+            "intro_plain": f"anbei erhalten Sie Ihre Rechnung Nr.\u00a0{_inv_no} von {platform_label}.\nAlle Details entnehmen Sie bitte dem beigef\u00fcgten PDF-Anhang.",
+            "intro_html": (f"anbei erhalten Sie Ihre Rechnung Nr.\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"von <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>Alle Details entnehmen Sie bitte dem beigef\u00fcgten <strong>PDF-Anhang</strong>."),
+            "closing": "Mit freundlichen Gr\u00fc\u00dfen",
+            "email_header": f"Rechnung von {platform_label}",
+        },
+        "en": {
+            "subject": f"Invoice from {platform_label} \u2013 {_inv_no}",
+            "greeting": "Dear Sir or Madam,",
+            "intro_plain": f"please find enclosed your invoice No.\u00a0{_inv_no} from {platform_label}.\nAll details are in the attached PDF.",
+            "intro_html": (f"please find enclosed your invoice No.\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"from <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>All details are in the attached <strong>PDF</strong>."),
+            "closing": "Kind regards",
+            "email_header": f"Invoice from {platform_label}",
+        },
+        "fr": {
+            "subject": f"Facture de {platform_label} \u2013 {_inv_no}",
+            "greeting": "Madame, Monsieur,",
+            "intro_plain": f"veuillez trouver ci-joint votre facture n\u00b0\u00a0{_inv_no} de {platform_label}.\nTous les d\u00e9tails figurent dans le PDF joint.",
+            "intro_html": (f"veuillez trouver ci-joint votre facture n\u00b0\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"de <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>Tous les d\u00e9tails figurent dans le <strong>PDF joint</strong>."),
+            "closing": "Cordialement",
+            "email_header": f"Facture de {platform_label}",
+        },
+    }
+    _lang = _INVOICE_I18N[invoice_lang]
+    mail_subject = _lang["subject"]
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.units import mm
@@ -8844,26 +8988,31 @@ def send_invoice_email(invoice_row, company_row, settings_row):
 
     # Use custom email template from settings if configured
     custom_subject = str(settings_row["invoice_email_subject"] if "invoice_email_subject" in settings_row.keys() else "") or ""
+    custom_body_template = str(settings_row["invoice_email_body_template"] if "invoice_email_body_template" in settings_row.keys() else "") or ""
     custom_intro = str(settings_row["invoice_email_intro"] if "invoice_email_intro" in settings_row.keys() else "") or ""
     if custom_subject.strip():
         mail_subject = custom_subject.replace("{invoiceNumber}", str(invoice_row["invoice_number"] or "")).replace("{platformName}", platform_label)
-    intro_text = custom_intro.strip() if custom_intro.strip() else f"anbei erhalten Sie Ihre Rechnung Nr. {invoice_row['invoice_number']} von {platform_label}.\nAlle Details entnehmen Sie bitte dem beigefügten PDF-Anhang."
-    intro_html = custom_intro.strip() if custom_intro.strip() else (
-        f"anbei erhalten Sie Ihre Rechnung Nr. <strong>{html.escape(str(invoice_row['invoice_number'] or '-'))}</strong> "
-        f"von <strong>{html.escape(platform_label)}</strong>.</p>"
-        f"<p style='margin:0 0 14px;'>Alle Details entnehmen Sie bitte dem beigefügten <strong>PDF-Anhang</strong>."
-    )
+    if custom_body_template.strip():
+        intro_text = custom_body_template.replace("{invoiceNumber}", _inv_no).replace("{platformName}", platform_label).replace("{companyName}", str(company_row["name"] or ""))
+        intro_html = html.escape(intro_text).replace("\n", "<br>")
+    elif custom_intro.strip():
+        intro_text = custom_intro.strip()
+        intro_html = html.escape(intro_text).replace("\n", "<br>")
+    else:
+        intro_text = _lang["intro_plain"]
+        intro_html = _lang["intro_html"]
 
     text_body = (
-        f"Guten Tag,\n\n"
+        f"{_lang['greeting']}\n\n"
         f"{intro_text}\n\n"
-        f"Viele Grüße\n{operator_label}"
+        f"{_lang['closing']}\n{operator_label}"
     )
     body_html = (
-        f"<p style='margin:0 0 14px;'>Guten Tag,</p>"
+        f"<p style='margin:0 0 14px;'>{html.escape(_lang['greeting'])}</p>"
         f"<p style='margin:0 0 14px;'>{intro_html}</p>"
-        f"<p style='margin:0;color:#6b7280;font-size:13px;'>Mit freundlichen Grüßen<br><strong>{html.escape(operator_label)}</strong></p>"
+        f"<p style='margin:0;color:#6b7280;font-size:13px;'>{html.escape(_lang['closing'])}<br><strong>{html.escape(operator_label)}</strong></p>"
     )
+    email_header_label = _lang["email_header"]
 
     if not smtp_host or not smtp_sender:
         # Try API fallback path if SMTP is not configured but an API key is available
@@ -8880,7 +9029,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                     platform_label,
                     str(settings_row["invoice_primary_color"] or "#0f4c5c"),
                     str(settings_row["invoice_accent_color"] or "#e36414"),
-                    "Rechnung von BauPass",
+                    email_header_label,
                     body_html,
                     operator_label,
                 ),
@@ -8892,7 +9041,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         platform_label,
         str(settings_row["invoice_primary_color"] or "#0f4c5c"),
         str(settings_row["invoice_accent_color"] or "#e36414"),
-        "Rechnung von BauPass",
+        email_header_label,
         body_html,
         operator_label,
     )

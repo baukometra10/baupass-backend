@@ -408,6 +408,10 @@
                 <div class="photo-preview-block" style="margin: 12px 0; text-align: center;">
                   <img id="capturedPhoto" src="" alt="Foto-Vorschau" style="max-width: 220px; max-height: 280px; border-radius: 10px; border: 1px solid #ccc; background: #fff; display: none;" />
                 </div>
+                <div style="text-align:center; margin-bottom: 8px;">
+                  <button type="button" id="validatePhotoBtn" class="ghost-button" style="font-size:0.85rem;">Foto prüfen</button>
+                  <div id="photoValidationResult" style="margin-top:8px; font-size:0.82rem;"></div>
+                </div>
                 <div class="photo-adjust-controls">
                   <p id="photoAdjustHelp" class="helper-text" data-ui-i18n="photoAdjustHelp">Foto nach Aufnahme verschieben, damit es rechts im Ausweis sauber passt.</p>
                   <p id="photoRequiredHint" class="helper-text helper-text-warning" data-ui-i18n="photoRequiredHint">Pflicht: Ohne Foto kann der Ausweis nicht gespeichert werden.</p>
@@ -1148,6 +1152,18 @@
                 <span>Rechnungs-E-Mail Einleitungstext <small style="font-weight:400">(leer = Standardtext)</small></span>
                 <textarea id="invoiceEmailIntro" rows="3" placeholder="anbei finden Sie Ihre Rechnung…"></textarea>
               </label>
+              <label class="full-width">
+                <span>Rechnungs-E-Mail Vorlage <small style="font-weight:400">(überschreibt Einleitungstext; Platzhalter: {invoiceNumber}, {platformName}, {companyName})</small></span>
+                <textarea id="invoiceEmailBodyTemplate" rows="4" placeholder="anbei erhalten Sie Ihre Rechnung {invoiceNumber}…"></textarea>
+              </label>
+              <label>
+                <span>Mahnungs-Stufe 1 (Tage nach Fälligkeit)</span>
+                <input id="dunningStage1Days" type="number" min="1" max="60" value="7" />
+              </label>
+              <label>
+                <span>Mahnungs-Stufe 2 (Tage nach Fälligkeit)</span>
+                <input id="dunningStage2Days" type="number" min="1" max="30" value="3" />
+              </label>
 
               <!-- ── SMTP ── -->
               <div class="form-section">
@@ -1392,6 +1408,14 @@
                   <option value="construction" data-ui-i18n="optBrandingConstruction">Bau</option>
                   <option value="industry" data-ui-i18n="optBrandingIndustry">Industrie</option>
                   <option value="premium" data-ui-i18n="optBrandingPremium">Premium</option>
+                </select>
+              </label>
+              <label>
+                <span>Rechnungs-E-Mail Sprache</span>
+                <select id="companyInvoiceEmailLang">
+                  <option value="de">Deutsch</option>
+                  <option value="en">English</option>
+                  <option value="fr">Français</option>
                 </select>
               </label>
               <label>
