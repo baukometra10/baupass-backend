@@ -8177,6 +8177,22 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(c_primary)
         pdf.rect(0, page_h - HDR_H, page_w, HDR_H, stroke=0, fill=1)
 
+        # ── Logo links im Header ──────────────────────────────────
+        logo_drawn = False
+        try:
+            lb = _logo_bytes()
+            if lb:
+                ir = ImageReader(io.BytesIO(lb))
+                pdf.drawImage(ir, M_L, page_h - HDR_H + 5 * mm,
+                              width=50 * mm, height=20 * mm,
+                              preserveAspectRatio=True, mask="auto")
+                logo_drawn = True
+        except Exception:
+            pass
+        if not logo_drawn:
+            _draw_logo_text_fallback(M_L, page_h - HDR_H + 10 * mm)
+
+        # ── RECHNUNG + Plattformname rechts ──────────────────────
         pdf.setFillColor(rl_colors.white)
         pdf.setFont("Helvetica-Bold", 22)
         pdf.drawRightString(page_w - M_R, page_h - HDR_H + 14 * mm, "RECHNUNG")
@@ -8184,7 +8200,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(rl_colors.HexColor("#a8c4d4"))
         pdf.drawRightString(page_w - M_R, page_h - HDR_H + 7 * mm, platform_label)
 
-        # Status-Badge (OFFEN / ÜBERFÄLLIG / BEZAHLT)
+        # Status-Badge (OFFEN / ÜBERFÄLLIG / BEZAHLT) – rechts unter "RECHNUNG"
         _inv_status = str(invoice_row["status"] if "status" in invoice_row.keys() else "").lower()
         if _inv_status == "bezahlt":
             _badge_bg, _badge_txt = rl_colors.HexColor("#16a34a"), "BEZAHLT"
@@ -8193,8 +8209,8 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         else:
             _badge_bg, _badge_txt = rl_colors.HexColor("#d97706"), "OFFEN"
         _BDG_W, _BDG_H = 24 * mm, 6.5 * mm
-        _BDG_X = M_L
-        _BDG_Y = page_h - HDR_H + 8 * mm
+        _BDG_X = page_w - M_R - _BDG_W
+        _BDG_Y = page_h - HDR_H + 0.5 * mm
         pdf.setFillColor(_badge_bg)
         pdf.roundRect(_BDG_X, _BDG_Y, _BDG_W, _BDG_H, 1.5, stroke=0, fill=1)
         pdf.setFont("Helvetica-Bold", 7)
