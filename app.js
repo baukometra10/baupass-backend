@@ -17822,7 +17822,13 @@ wireDesktopInstallPrompt();
       (async () => {
         actionEl.disabled = true;
         try {
-          await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
+          const res = await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
+          const imapStatus = res?.imap?.status;
+          if (imapStatus === "not_configured") {
+            window.alert("IMAP ist nicht konfiguriert. Bitte in den Einstellungen ein Postfach hinterlegen.");
+          } else if (imapStatus === "connect_error" || imapStatus === "error") {
+            window.alert("IMAP-Fehler: " + (res?.imap?.error || "Unbekannter Fehler"));
+          }
           await loadDocumentInbox();
         } catch (e) {
           window.alert(e.message);
@@ -18599,7 +18605,13 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
     }
     if (buttonEl) buttonEl.disabled = true;
     try {
-      await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
+      const res = await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
+      const imapStatus = res?.imap?.status;
+      if (imapStatus === "not_configured") {
+        window.alert("IMAP ist nicht konfiguriert. Bitte in den Einstellungen ein Postfach hinterlegen.");
+      } else if (imapStatus === "connect_error" || imapStatus === "error") {
+        window.alert("IMAP-Fehler: " + (res?.imap?.error || "Unbekannter Fehler"));
+      }
       await loadDocumentInbox();
     } catch (e) {
       window.alert(e.message);

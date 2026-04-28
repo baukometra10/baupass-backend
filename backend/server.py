@@ -12227,17 +12227,23 @@ def get_imap_settings(db):
 
 
 def poll_imap_inbox():
-    """Pollt das konfigurierte IMAP-Postfach und speichert neue Mails in email_inbox."""
+    """Pollt das konfigurierte IMAP-Postfach und speichert neue Mails in email_inbox.
+
+    Gibt ein Dict zurück: {"status": "not_configured"|"connect_error"|"ok"|"error", "newEmails": int}
+    """
     import imaplib
     import email as _email
     import email.policy as _email_policy
+
+    _result = {"status": "ok", "newEmails": 0}
 
     try:
         with app.app_context():
             db = get_db()
             cfg = get_imap_settings(db)
             if not cfg or not cfg.get("imap_host") or not cfg.get("imap_username"):
-                return  # IMAP nicht konfiguriert
+                _result = {"status": "not_configured", "newEmails": 0}
+                return _result
 
             host = cfg["imap_host"]
             port = int(cfg.get("imap_port") or 993)
@@ -12254,17 +12260,19 @@ def poll_imap_inbox():
                     conn.starttls()
                 conn.login(username, password)
             except Exception as exc:
-                with app.app_context():
-                    inner_db = get_db()
+                _result = {"status": "connect_error", "newEmails": 0, "error": str(exc)}
+                try:
                     create_system_alert(
-                        inner_db,
+                        db,
                         code="imap_connect_failed",
                         severity="warning",
                         message="IMAP-Verbindung fehlgeschlagen.",
                         details={"error": str(exc)},
                     )
-                    inner_db.commit()
-                return
+                    db.commit()
+                except Exception:
+                    pass
+                return _result
 
             conn.select(folder, readonly=False)
             # Alle Mails im Ordner berücksichtigen. Deduplizierung passiert über
@@ -12272,9 +12280,11 @@ def poll_imap_inbox():
             status, data = conn.search(None, "ALL")
             if status != "OK":
                 conn.logout()
-                return
+                _result = {"status": "error", "newEmails": 0, "error": "IMAP SEARCH fehlgeschlagen"}
+                return _result
 
             msg_ids = (data[0] or b"").split()
+            new_email_count = 0
             for num in msg_ids:
                 status, msg_data = conn.fetch(num, "(RFC822)")
                 if status != "OK":
@@ -12354,6 +12364,7 @@ def poll_imap_inbox():
                     "INSERT INTO email_inbox (id, message_id, from_addr, to_addr, subject, body_text, matched_company_id, received_at) VALUES (?,?,?,?,?,?,?,?)",
                     (inbox_id, message_id, from_addr, to_addr, subject, body_text[:2000], matched_company_id, received_at),
                 )
+                new_email_count += 1
 
                 for att in attachments_data:
                     att_id = f"att-{secrets.token_hex(8)}"
@@ -12376,7 +12387,9 @@ def poll_imap_inbox():
 
             db.commit()
             conn.logout()
+            _result = {"status": "ok", "newEmails": new_email_count}
     except Exception as exc:
+        _result = {"status": "error", "newEmails": 0, "error": str(exc)}
         try:
             with app.app_context():
                 inner_db = get_db()
@@ -12390,6 +12403,8 @@ def poll_imap_inbox():
                 inner_db.commit()
         except Exception:
             pass
+
+    return _result
 
 
 # IMAP-Polling in Background-Jobs einhängen
@@ -12435,8 +12450,8 @@ def _start_imap_thread():
 def trigger_imap_poll():
     """Manueller IMAP-Abruf auf Anforderung."""
     try:
-        poll_imap_inbox()
-        return jsonify({"ok": True})
+        imap_result = poll_imap_inbox() or {"status": "ok", "newEmails": 0}
+        return jsonify({"ok": True, "imap": imap_result})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
