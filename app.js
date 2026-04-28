@@ -12258,11 +12258,12 @@ async function exportAccessCsv() {
 }
 
 function exportWorkersPdf() {
+  closeSecretDialog();
   const today = new Date().toISOString().slice(0, 10);
   const overlay = document.createElement("div");
-  overlay.className = "turnstile-secret-overlay";
+  overlay.className = "worker-app-qr-overlay turnstile-secret-overlay";
   overlay.innerHTML = `
-    <div class="turnstile-secret-card" style="max-width:420px">
+    <div class="worker-app-qr-card turnstile-secret-card" style="max-width:420px">
       <p class="eyebrow">Mitarbeiterliste</p>
       <h3 style="margin:0 0 18px">PDF-Export Optionen</h3>
       <div style="display:grid;gap:14px;margin-bottom:20px">
