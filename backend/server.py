@@ -1836,6 +1836,18 @@ def init_db():
             ((utc_now() + timedelta(minutes=OPERATION_APPROVAL_EXPIRY_MINUTES)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),),
         )
 
+    # ── Neue Features: Migration ──────────────────────────────────────────────────────────
+    company_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(companies)").fetchall()]
+    if "invoice_email_lang" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN invoice_email_lang TEXT NOT NULL DEFAULT 'de'")
+    settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
+    if "dunning_stage1_days" not in settings_columns_new:
+        cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage1_days INTEGER NOT NULL DEFAULT 7")
+    if "dunning_stage2_days" not in settings_columns_new:
+        cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage2_days INTEGER NOT NULL DEFAULT 3")
+    if "invoice_email_body_template" not in settings_columns_new:
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_email_body_template TEXT NOT NULL DEFAULT ''")
+
     # Rechnungsnummern pro Firma eindeutig halten: Alt-Duplikate bereinigen und Unique-Index setzen.
     duplicates = cur.execute(
         """
@@ -2868,9 +2880,11 @@ def run_invoice_dunning_cycle(db):
             result["overdueUpdated"] += 1
 
         target_stage = 0
-        if days_until_due <= 7 and days_until_due > 3:
+        stage1_days = int((settings["dunning_stage1_days"] if settings and "dunning_stage1_days" in settings.keys() else None) or 7)
+        stage2_days = int((settings["dunning_stage2_days"] if settings and "dunning_stage2_days" in settings.keys() else None) or 3)
+        if days_until_due <= stage1_days and days_until_due > stage2_days:
             target_stage = 1
-        elif days_until_due <= 3 and days_until_due >= 0:
+        elif days_until_due <= stage2_days and days_until_due >= 0:
             target_stage = 2
         elif days_until_due < 0:
             target_stage = 3
@@ -6766,6 +6780,33 @@ def create_worker_app_access(worker_id):
     return jsonify(payload)
 
 
+@app.get("/api/workers/<worker_id>/qr.png")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def worker_badge_qr(worker_id):
+    """QR-Code fuer den Worker-Badge generieren (Badge-ID als QR)."""
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden"}), 403
+    badge_id = worker["badge_id"]
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=4)
+    qr.add_data(badge_id)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    safe_name = re.sub(r"[^A-Za-z0-9_-]", "-", badge_id.lower())
+    return Response(
+        buf.getvalue(),
+        mimetype="image/png",
+        headers={"Content-Disposition": f'attachment; filename="qr-{safe_name}.png"'},
+    )
+
+
 @app.post("/api/worker-app/login")
 @require_rate_limit("worker_login")
 def worker_app_login():
@@ -6971,9 +7012,12 @@ def update_company(company_id):
     company_access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or company["access_host"]), max_len=180)
     company_branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset") or company["branding_preset"])
     company_status = clean_text_input(payload.get("status", company["status"]), max_len=32) or company["status"]
+    company_invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", company["invoice_email_lang"] if "invoice_email_lang" in company.keys() else "de") or "de", max_len=8)
+    if company_invoice_email_lang not in ("de", "en", "fr"):
+        company_invoice_email_lang = "de"
 
     db.execute(
-        "UPDATE companies SET name = ?, contact = ?, billing_email = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ? WHERE id = ?",
+        "UPDATE companies SET name = ?, contact = ?, billing_email = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",
         (
             company_name,
             company_contact,
@@ -6983,6 +7027,7 @@ def update_company(company_id):
             company_branding_preset,
             payload.get("plan", company["plan"]),
             company_status,
+            company_invoice_email_lang,
             company_id,
         ),
     )
@@ -7351,6 +7396,72 @@ def compliance_overview():
         result.append(company_entry)
 
     return jsonify(result)
+
+
+# ── Worker-Statistiken ────────────────────────────────────────────────────────
+
+@app.get("/api/workers/stats")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def worker_stats():
+    """Statistiken ueber Mitarbeiter: Status-Verteilung, Top-Baustellen, Tore, Check-In-Stunden."""
+    user = g.current_user
+    db = get_db()
+    company_filter = ""
+    params: list = []
+    access_filter = ""
+    access_params: list = []
+    if user["role"] != "superadmin":
+        cid = user.get("company_id")
+        company_filter = "AND w.company_id = ?"
+        params.append(cid)
+        access_filter = "AND w.company_id = ?"
+        access_params.append(cid)
+
+    status_rows = db.execute(
+        f"SELECT COALESCE(status,'unbekannt') AS status, COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL {company_filter} GROUP BY status ORDER BY cnt DESC",
+        params,
+    ).fetchall()
+
+    site_rows = db.execute(
+        f"SELECT site, COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL AND TRIM(COALESCE(site,'')) != '' {company_filter} GROUP BY site ORDER BY cnt DESC LIMIT 10",
+        params,
+    ).fetchall()
+
+    type_rows = db.execute(
+        f"SELECT COALESCE(worker_type,'worker') AS worker_type, COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL {company_filter} GROUP BY worker_type",
+        params,
+    ).fetchall()
+
+    total_count = db.execute(
+        f"SELECT COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL {company_filter}",
+        params,
+    ).fetchone()["cnt"]
+
+    gate_rows = db.execute(
+        f"""SELECT COALESCE(NULLIF(TRIM(al.gate),''), 'Unbekannt') AS gate, COUNT(*) AS cnt
+            FROM access_logs al JOIN workers w ON w.id = al.worker_id
+            WHERE DATE(al.timestamp) >= DATE('now', '-30 day') {access_filter}
+            GROUP BY gate ORDER BY cnt DESC LIMIT 10""",
+        access_params,
+    ).fetchall()
+
+    hour_rows = db.execute(
+        f"""SELECT CAST(strftime('%H', al.timestamp) AS INTEGER) AS hour, COUNT(*) AS cnt
+            FROM access_logs al JOIN workers w ON w.id = al.worker_id
+            WHERE al.direction = 'check-in' AND DATE(al.timestamp) >= DATE('now', '-30 day') {access_filter}
+            GROUP BY hour ORDER BY hour ASC""",
+        access_params,
+    ).fetchall()
+
+    return jsonify({
+        "totalWorkers": total_count,
+        "byStatus": [{"status": r["status"], "count": r["cnt"]} for r in status_rows],
+        "bySite": [{"site": r["site"] or "Keine Baustelle", "count": r["cnt"]} for r in site_rows],
+        "byGate": [{"gate": r["gate"], "count": r["cnt"]} for r in gate_rows],
+        "checkInsByHour": [{"hour": r["hour"], "count": r["cnt"]} for r in hour_rows],
+        "byType": [{"type": r["worker_type"], "count": r["cnt"]} for r in type_rows],
+    })
 
 
 # ── Passwort-Reset per E-Mail ──────────────────────────────────────────────
@@ -10723,6 +10834,49 @@ def mark_invoice_paid(invoice_id):
     db.commit()
     result = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
     return jsonify({"invoice": row_to_dict(result)})
+
+
+@app.post("/api/invoices/bulk-mark-paid")
+@require_auth
+@require_roles("superadmin")
+def bulk_mark_invoices_paid():
+    """Mehrere Rechnungen auf einmal als bezahlt markieren."""
+    payload = request.get_json(silent=True) or {}
+    invoice_ids = [str(i).strip() for i in (payload.get("ids") or []) if str(i).strip()]
+    if not invoice_ids or len(invoice_ids) > 100:
+        return jsonify({"error": "invalid_ids", "message": "1–100 IDs erforderlich"}), 400
+    payment_date = (payload.get("paymentDate") or now_iso().split("T")[0]).strip()
+    db = get_db()
+    updated = 0
+    for invoice_id in invoice_ids:
+        inv = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+        if not inv or inv["paid_at"]:
+            continue
+        db.execute(
+            "UPDATE invoices SET status = 'bezahlt', paid_at = ?, last_reminder_error = '' WHERE id = ?",
+            (payment_date, invoice_id),
+        )
+        log_audit(
+            "invoice.marked_paid",
+            f"Rechnung {inv['invoice_number']} als bezahlt markiert (Bulk)",
+            target_type="invoice", target_id=invoice_id, company_id=inv["company_id"], actor=g.current_user,
+        )
+        updated += 1
+    db.commit()
+    return jsonify({"ok": True, "updated": updated})
+
+
+@app.post("/api/invoices/trigger-dunning")
+@require_auth
+@require_roles("superadmin")
+def trigger_dunning_run():
+    """Manuell einen Mahnungs-Durchlauf ausloesen."""
+    try:
+        run_dunning_job_once()
+        result = dict(DUNNING_LAST_RESULT or {})
+        return jsonify({"ok": True, "result": result})
+    except Exception as exc:
+        return jsonify({"error": "dunning_failed", "message": str(exc)}), 500
 
 
 @app.get("/api/invoices/<invoice_id>/reminder-letter.pdf")

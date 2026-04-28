@@ -6166,6 +6166,7 @@ const state = {
   invoiceJustPaidId: "",
   invoiceSeenIds: {},
   invoiceNewIds: {},
+  invoiceSelectedIds: [],
   invoiceRetrySelectedIds: [],
   invoiceAttemptHistoryById: {},
   invoiceAttemptHistoryLoadingById: {},
@@ -8309,6 +8310,7 @@ function refreshAll() {
 
   renderStats();
   renderComplianceKpi();
+  renderWorkerStatsPanel();
   renderReportingPanels();
   renderWorkerList();
   renderPhotoOverrideApprovalPanel();
@@ -9363,6 +9365,76 @@ async function renderComplianceKpi() {
     `;
   } catch (error) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function renderWorkerStatsPanel() {
+  const container = document.querySelector("#workerStatsPanel");
+  if (!container) return;
+  container.innerHTML = '<p class="helper-text">Lade Statistiken\u2026</p>';
+  try {
+    const stats = await apiRequest(`${API_BASE}/api/workers/stats`);
+    const byStatus = Array.isArray(stats.byStatus) ? stats.byStatus : [];
+    const bySite = Array.isArray(stats.bySite) ? stats.bySite : [];
+    const byGate = Array.isArray(stats.byGate) ? stats.byGate : [];
+    const byHour = Array.isArray(stats.checkInsByHour) ? stats.checkInsByHour : [];
+    const maxSiteCount = bySite.reduce((m, s) => Math.max(m, s.count), 1);
+    const maxGateCount = byGate.reduce((m, g) => Math.max(m, g.count), 1);
+    const maxHourCount = byHour.reduce((m, h) => Math.max(m, h.count), 1);
+    const statusColors = { aktiv: "#16a34a", inaktiv: "#6b7280", gesperrt: "#dc2626", abgelaufen: "#ea9b18" };
+
+    container.innerHTML = `
+      <div class="worker-stats-grid">
+        <article class="worker-stats-kpi">
+          <p class="eyebrow">Gesamt</p>
+          <strong>${Number(stats.totalWorkers || 0)}</strong>
+          <p class="meta-text">Mitarbeiter</p>
+        </article>
+        ${byStatus.map(s => `
+          <article class="worker-stats-kpi" style="border-left: 3px solid ${statusColors[s.status] || "#aaa"};">
+            <p class="eyebrow">${escapeHtml(s.status.charAt(0).toUpperCase() + s.status.slice(1))}</p>
+            <strong>${s.count}</strong>
+            <p class="meta-text">Mitarbeiter</p>
+          </article>`).join("")}
+      </div>
+      ${bySite.length ? `
+      <div style="margin-top:16px;">
+        <p class="eyebrow" style="margin-bottom:8px;">Top Baustellen</p>
+        ${bySite.map(s => `
+          <div class="worker-stats-bar-row">
+            <span class="worker-stats-bar-label" title="${escapeHtml(s.site)}">${escapeHtml(s.site)}</span>
+            <div class="worker-stats-bar-track">
+              <div class="worker-stats-bar-fill" style="width:${Math.round((s.count / maxSiteCount) * 100)}%;"></div>
+            </div>
+            <span class="worker-stats-bar-count">${s.count}</span>
+          </div>`).join("")}
+      </div>` : ""}
+      ${byGate.length ? `
+      <div style="margin-top:16px;">
+        <p class="eyebrow" style="margin-bottom:8px;">Top Tore (letzte 30 Tage)</p>
+        ${byGate.map(g => `
+          <div class="worker-stats-bar-row">
+            <span class="worker-stats-bar-label">${escapeHtml(g.gate)}</span>
+            <div class="worker-stats-bar-track">
+              <div class="worker-stats-bar-fill accent" style="width:${Math.round((g.count / maxGateCount) * 100)}%;"></div>
+            </div>
+            <span class="worker-stats-bar-count">${g.count}</span>
+          </div>`).join("")}
+      </div>` : ""}
+      ${byHour.length ? `
+      <div style="margin-top:16px;">
+        <p class="eyebrow" style="margin-bottom:8px;">Check-Ins nach Uhrzeit (letzte 30 Tage)</p>
+        <div class="worker-stats-hour-grid">
+          ${byHour.map(h => `
+            <div class="worker-stats-hour-col" title="${h.hour}:00 Uhr \u2013 ${h.count} Check-Ins">
+              <div class="worker-stats-hour-bar" style="height:${maxHourCount > 0 ? Math.max(4, Math.round((h.count / maxHourCount) * 60)) : 4}px;"></div>
+              <span class="worker-stats-hour-label">${String(h.hour).padStart(2,"0")}</span>
+            </div>`).join("")}
+        </div>
+      </div>` : ""}
+    `;
+  } catch (_err) {
+    container.innerHTML = '<p class="helper-text">Statistiken nicht verf\u00fcgbar.</p>';
   }
 }
 
@@ -10800,6 +10872,7 @@ function showWorkerDetailOverlay(worker) {
         <button type="button" class="primary-button" id="workerCheckInBtn" ${readOnly ? "disabled" : ""}>${uiT("detailCheckinBtn")}</button>
         <button type="button" class="ghost-button" id="workerCheckOutBtn" ${readOnly ? "disabled" : ""}>${uiT("detailCheckoutBtn")}</button>
         ${canResetPin ? `<button type="button" class="ghost-button" id="workerResetPinBtn">${uiT("btnResetPin")}</button>` : ""}
+        ${!isVisitorWorker(worker) && ["superadmin", "company-admin"].includes(role) ? `<button type="button" class="ghost-button" id="workerQrBtn">QR-Code</button>` : ""}
       </div>
       ${!isVisitorWorker(worker) ? `
       <hr style="margin:16px 0; border:none; border-top:1px solid #e5e7eb;" />
@@ -10844,6 +10917,34 @@ function showWorkerDetailOverlay(worker) {
         refreshAll();
       } catch (error) {
         window.alert(uiT("alertPinResetFailed").replace("{error}", error.message));
+      }
+    };
+  }
+
+  // QR-Code herunterladen
+  const qrBtn = overlay.querySelector("#workerQrBtn");
+  if (qrBtn) {
+    qrBtn.onclick = async () => {
+      qrBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/api/workers/${worker.id}/qr.png`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error(`API Fehler ${response.status}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `qr-${(worker.badgeId || worker.id).toLowerCase()}.png`;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        window.alert(`QR-Code konnte nicht geladen werden: ${error.message}`);
+      } finally {
+        qrBtn.disabled = false;
       }
     };
   }
@@ -14132,6 +14233,9 @@ function renderInvoiceManagementList() {
 
       return `
         <article class="card-item invoice-management-item invoice-status-${escapeHtml(statusKey)}${justPaidClass}">
+          <label class="invoice-bulk-checkbox-label" title="Auswählen">
+            <input type="checkbox" class="invoice-bulk-cb" data-invoice-select-id="${escapeHtml(inv.id)}" />
+          </label>
           <div class="invoice-management-head">
             <div class="invoice-management-main">
               <strong>${escapeHtml(inv.invoice_number || "RE-???")} ${newBadge}</strong>
@@ -14342,6 +14446,69 @@ function renderInvoiceManagementList() {
       modal.dataset.invoiceId = invId;
     });
   });
+
+  // ── Invoice Bulk-Selektion ────────────────────────────────────────────────
+  const bulkBar = document.querySelector("#invoiceBulkBar");
+  const bulkCount = document.querySelector("#invoiceBulkCount");
+  const bulkMarkPaidBtn = document.querySelector("#invoiceBulkMarkPaid");
+  const bulkCancelBtn = document.querySelector("#invoiceBulkCancel");
+
+  function updateInvoiceBulkBar() {
+    const count = (state.invoiceSelectedIds || []).length;
+    if (bulkBar) bulkBar.classList.toggle("hidden", count === 0);
+    if (bulkCount) bulkCount.textContent = `${count} ausgewählt`;
+  }
+
+  container.querySelectorAll("[data-invoice-select-id]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const id = cb.dataset.invoiceSelectId;
+      if (!id) return;
+      state.invoiceSelectedIds = state.invoiceSelectedIds || [];
+      if (cb.checked) {
+        if (!state.invoiceSelectedIds.includes(id)) state.invoiceSelectedIds.push(id);
+      } else {
+        state.invoiceSelectedIds = state.invoiceSelectedIds.filter(i => i !== id);
+      }
+      updateInvoiceBulkBar();
+    });
+    cb.checked = (state.invoiceSelectedIds || []).includes(cb.dataset.invoiceSelectId);
+  });
+
+  if (bulkCancelBtn) {
+    bulkCancelBtn.onclick = () => {
+      state.invoiceSelectedIds = [];
+      updateInvoiceBulkBar();
+      renderInvoiceManagementList();
+    };
+  }
+
+  if (bulkMarkPaidBtn) {
+    bulkMarkPaidBtn.onclick = async () => {
+      const ids = state.invoiceSelectedIds || [];
+      if (!ids.length) return;
+      if (!window.confirm(`${ids.length} Rechnung(en) als bezahlt markieren?`)) return;
+      bulkMarkPaidBtn.disabled = true;
+      try {
+        const result = await apiRequest(`${API_BASE}/api/invoices/bulk-mark-paid`, {
+          method: "POST",
+          body: { ids, paymentDate: new Date().toISOString().split("T")[0] }
+        });
+        state.invoiceSelectedIds = [];
+        updateInvoiceBulkBar();
+        window.alert(`${result.updated || 0} Rechnung(en) als bezahlt markiert.`);
+        await loadAndRenderInvoices();
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        window.alert(`Fehler: ${error.message}`);
+      } finally {
+        bulkMarkPaidBtn.disabled = false;
+      }
+    };
+  }
+
+  updateInvoiceBulkBar();
+  // ── Ende Bulk-Selektion ────────────────────────────────────────────────────
 
   renderInvoiceRetryQueue(retryQueueContainer, allInvoices);
   renderInvoiceApprovalQueue();
@@ -16919,6 +17086,25 @@ if (invoiceRetryCriticalSendBtn) {
       refreshAll();
     } catch (error) {
       window.alert(uiT("alertCriticalBulkRetryFailed").replace("{error}", error.message));
+    }
+  });
+}
+
+// ── Dunning manuell auslösen ────────────────────────────────────────────────
+const triggerDunningBtn = document.querySelector("#triggerDunningBtn");
+if (triggerDunningBtn) {
+  triggerDunningBtn.addEventListener("click", async () => {
+    if (!window.confirm("Mahnungs-Durchlauf jetzt manuell starten?")) return;
+    triggerDunningBtn.disabled = true;
+    try {
+      const result = await apiRequest(`${API_BASE}/api/invoices/trigger-dunning`, { method: "POST", body: {} });
+      window.alert(`Mahnungs-Durchlauf: ${result.result?.remindersSent || 0} Erinnerungen gesendet.`);
+      await loadAndRenderInvoices();
+      refreshAll();
+    } catch (error) {
+      window.alert(`Fehler: ${error.message}`);
+    } finally {
+      triggerDunningBtn.disabled = false;
     }
   });
 }

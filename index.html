@@ -467,6 +467,16 @@
             <div id="workerList" class="card-list"></div>
             <div id="workerDetailOverlay" class="worker-detail-overlay hidden"></div>
 
+            <article class="panel" style="margin-top: 24px;">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Statistiken</p>
+                  <h3>Mitarbeiter-Übersicht</h3>
+                </div>
+              </div>
+              <div id="workerStatsPanel" class="list" style="padding: 16px;"></div>
+            </article>
+
             <div id="workerExportModal" class="export-modal hidden" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 24px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 1001; width: 90%; max-width: 400px;">
               <h3 style="margin: 0 0 16px 0;">Export-Optionen</h3>
               <div style="display: grid; gap: 12px;">
@@ -741,6 +751,13 @@
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue">Überfällig</button>
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed">Fehler</button>
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="">Alle</button>
+              <button type="button" class="ghost-button" id="triggerDunningBtn">Mahnungs-Durchlauf starten</button>
+            </div>
+
+            <div id="invoiceBulkBar" class="bulk-action-bar hidden">
+              <span id="invoiceBulkCount">0 ausgewählt</span>
+              <button type="button" class="primary-button" id="invoiceBulkMarkPaid">Auswahl als bezahlt markieren</button>
+              <button type="button" class="ghost-button" id="invoiceBulkCancel">Abbrechen</button>
             </div>
 
             <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid"></div>
