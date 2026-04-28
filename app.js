@@ -7740,6 +7740,35 @@ function clearWorkerEditor() {
   syncWorkerEditorUi();
 }
 
+async function loadPublicBranding() {
+  try {
+    const data = await fetch(`${API_BASE}/api/public/branding`).then((r) => r.json()).catch(() => null);
+    if (!data) return;
+    // Logo on auth/login page
+    if (data.logoData) {
+      const authLogo = document.querySelector(".website-logo-auth");
+      if (authLogo) {
+        authLogo.src = data.logoData;
+        authLogo.classList.remove("hidden");
+      }
+    }
+    // Platform name as page title prefix
+    if (data.platformName) {
+      document.title = data.platformName + " Control";
+    }
+    // Brand colors as CSS variables for the login page
+    const root = document.documentElement;
+    if (data.primaryColor && /^#[0-9a-fA-F]{6}$/.test(data.primaryColor)) {
+      root.style.setProperty("--brand-primary", data.primaryColor);
+    }
+    if (data.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.accentColor)) {
+      root.style.setProperty("--brand-accent", data.accentColor);
+    }
+  } catch {
+    // Public branding not critical – ignore errors
+  }
+}
+
 function applyWebsiteLogo(dataUrl) {
   const fixedBpIconPath = "./worker-icon-192.png?v=20260421bp";
   const hasLogo = Boolean(dataUrl);
@@ -14016,6 +14045,7 @@ function renderInvoiceManagementList() {
       const canMarkPaid = !isPaid && (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
       const canRetrySend = !isPaid && statusKey === "send_failed" && (getCurrentUser()?.role === "superadmin");
       const canViewHistory = getCurrentUser()?.role === "superadmin";
+      const canDownloadReminder = !isPaid && ["sent", "overdue"].includes(statusKey) && getCurrentUser()?.role === "superadmin";
       const justPaidClass = state.invoiceJustPaidId && state.invoiceJustPaidId === inv.id ? " invoice-status-just-paid" : "";
       const newBadge = state.invoiceNewIds?.[inv.id] ? '<span class="invoice-new-badge">Neu</span>' : "";
       const maxRetryAttempts = 5;
@@ -14051,6 +14081,7 @@ function renderInvoiceManagementList() {
             ${canMarkPaid ? `<button type="button" class="ghost-button invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">Als bezahlt markieren</button>` : ""}
             ${canRetrySend ? `<button type="button" class="ghost-button" data-invoice-retry-id="${escapeHtml(inv.id)}">Erneut senden</button>` : ""}
             ${canViewHistory ? `<button type="button" class="ghost-button" data-invoice-history-toggle-id="${escapeHtml(inv.id)}">${historyLabel}</button>` : ""}
+            ${canDownloadReminder ? `<button type="button" class="ghost-button" data-invoice-reminder-id="${escapeHtml(inv.id)}">Mahnung herunterladen</button>` : ""}
             <span class="helper-text invoice-management-error">${inv.error_message ? `Fehler: ${escapeHtml(inv.error_message)}` : ""}</span>
           </div>
           ${retryInfo}
@@ -14138,6 +14169,34 @@ function renderInvoiceManagementList() {
         window.alert(uiT("alertInvoiceHistoryLoadFailed").replace("{error}", error.message));
       }
       renderInvoiceManagementList();
+    });
+  });
+
+  container.querySelectorAll("[data-invoice-reminder-id]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const invId = String(event.target.dataset.invoiceReminderId || "").trim();
+      if (!invId) return;
+      event.target.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/api/invoices/${invId}/reminder-letter.pdf`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error(`API Fehler ${response.status}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `mahnung-${invId}.pdf`;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        window.alert(`Mahnung konnte nicht geladen werden: ${error.message}`);
+      } finally {
+        event.target.disabled = false;
+      }
     });
   });
 
@@ -17163,6 +17222,7 @@ async function bulkSetStatus(status) {
 (async () => {
   initSystemThemeControl();
   setView("dashboard");
+  loadPublicBranding(); // kein await – läuft nebenläufig, Login-Page-Branding
   
   // Try to restore session from storage before showing UI
   try {
@@ -17221,6 +17281,42 @@ async function loadDocumentInbox() {
   } catch (e) {
     if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
   }
+  // Auch ablaufende Dokumente mitladen wenn in der Dokumente-View
+  loadExpiringDocuments().catch(() => {});
+}
+
+async function loadExpiringDocuments() {
+  const listEl = document.querySelector("#expiringDocsList");
+  if (!listEl) return;
+  const days = Number(document.querySelector("#expiringDocsDaysFilter")?.value || 30);
+  listEl.innerHTML = `<div class="empty-state">Wird geladen...</div>`;
+  try {
+    const data = await apiRequest(`${API_BASE}/api/documents/expiring?days=${days}`);
+    renderExpiringDocuments(Array.isArray(data) ? data : []);
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderExpiringDocuments(rows) {
+  const listEl = document.querySelector("#expiringDocsList");
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="empty-state">Keine ablaufenden Dokumente im gewählten Zeitraum.</div>`;
+    return;
+  }
+  const urgencyIcon = { critical: "🔴", warning: "🟡", info: "🔵" };
+  listEl.innerHTML = rows.map((row) => {
+    const icon = urgencyIcon[row.urgency] || "⚪";
+    const daysLeft = row.daysLeft != null ? ` (${row.daysLeft} Tage)` : "";
+    const docLabel = row.docType ? row.docType.replace(/_/g, " ") : "–";
+    return `
+      <div class="list-item">
+        <span>${icon} <strong>${escapeHtml(row.firstName || "")} ${escapeHtml(row.lastName || "")}</strong></span>
+        <span class="helper-text">${escapeHtml(docLabel)} · Ablauf: ${escapeHtml(row.expiryDate || "–")}${daysLeft}</span>
+        ${row.companyName ? `<span class="meta-text">${escapeHtml(row.companyName)}</span>` : ""}
+      </div>`;
+  }).join("");
 }
 
 function renderDocumentInbox(emails) {
@@ -17758,6 +17854,22 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
         return;
       }
       loadDocumentInbox();
+    });
+  }
+
+  // Ablaufende Dokumente: Filter + Aktualisieren-Button
+  const expiringRefreshBtn = document.querySelector("#expiringDocsRefreshBtn");
+  if (expiringRefreshBtn) {
+    expiringRefreshBtn.addEventListener("click", () => {
+      if (!token) { handleExpiredControlSession(); return; }
+      loadExpiringDocuments().catch(() => {});
+    });
+  }
+  const expiringDaysFilter = document.querySelector("#expiringDocsDaysFilter");
+  if (expiringDaysFilter) {
+    expiringDaysFilter.addEventListener("change", () => {
+      if (!token) { handleExpiredControlSession(); return; }
+      loadExpiringDocuments().catch(() => {});
     });
   }
 
