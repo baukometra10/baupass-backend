@@ -12263,29 +12263,29 @@ function exportWorkersPdf() {
   const overlay = document.createElement("div");
   overlay.className = "worker-app-qr-overlay turnstile-secret-overlay";
   overlay.innerHTML = `
-    <div class="worker-app-qr-card turnstile-secret-card" style="max-width:420px">
+    <div class="worker-app-qr-card turnstile-secret-card worker-export-dialog">
       <p class="eyebrow">Mitarbeiterliste</p>
-      <h3 style="margin:0 0 18px">PDF-Export Optionen</h3>
-      <div style="display:grid;gap:14px;margin-bottom:20px">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-          <input type="checkbox" id="wlIncludePhotos" style="width:18px;height:18px" />
+      <h3 class="worker-export-title">PDF-Export Optionen</h3>
+      <div class="worker-export-grid">
+        <label class="worker-export-check">
+          <input type="checkbox" id="wlIncludePhotos" />
           <span>Mit Fotos (Passfoto je Mitarbeiter)</span>
         </label>
-        <label style="display:flex;flex-direction:column;gap:6px">
-          <span style="font-weight:600">Zeitraum</span>
-          <select id="wlPeriod" style="padding:8px 12px;border-radius:8px;border:1.5px solid #ddd;font-size:14px">
+        <label class="worker-export-field">
+          <span>Zeitraum</span>
+          <select id="wlPeriod">
             <option value="all">Alle aktiven Mitarbeiter</option>
             <option value="today">Heute</option>
             <option value="week">Diese Woche</option>
             <option value="day">Bestimmter Tag</option>
           </select>
         </label>
-        <label id="wlCustomDateWrap" style="display:none;flex-direction:column;gap:6px">
-          <span style="font-weight:600">Datum</span>
-          <input type="date" id="wlCustomDate" value="${today}" style="padding:8px 12px;border-radius:8px;border:1.5px solid #ddd;font-size:14px" />
+        <label id="wlCustomDateWrap" class="worker-export-field worker-export-field-hidden">
+          <span>Datum</span>
+          <input type="date" id="wlCustomDate" value="${today}" />
         </label>
       </div>
-      <div style="display:flex;gap:12px;justify-content:flex-end">
+      <div class="button-row worker-export-actions">
         <button type="button" class="ghost-button" id="wlCancelBtn">Abbrechen</button>
         <button type="button" class="primary-button" id="wlDownloadBtn">PDF herunterladen</button>
       </div>
@@ -12296,7 +12296,7 @@ function exportWorkersPdf() {
   const periodSel = overlay.querySelector("#wlPeriod");
   const customWrap = overlay.querySelector("#wlCustomDateWrap");
   periodSel.addEventListener("change", () => {
-    customWrap.style.display = periodSel.value === "day" ? "flex" : "none";
+    customWrap.classList.toggle("worker-export-field-hidden", periodSel.value !== "day");
   });
   overlay.querySelector("#wlCancelBtn").addEventListener("click", () => overlay.remove());
   overlay.addEventListener("click", (ev) => { if (ev.target === overlay) overlay.remove(); });

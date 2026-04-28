@@ -1089,6 +1089,69 @@ select {
   width: min(100%, 540px);
 }
 
+.worker-export-dialog {
+  width: min(100%, 420px);
+  gap: 16px;
+}
+
+.worker-export-title {
+  margin: 0;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: #18212b;
+}
+
+.worker-export-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.worker-export-check,
+.worker-export-field {
+  display: grid;
+  gap: 8px;
+  color: #1b2430;
+}
+
+.worker-export-check {
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(18, 21, 24, 0.05);
+  border: 1px solid rgba(18, 21, 24, 0.08);
+  cursor: pointer;
+}
+
+.worker-export-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.worker-export-check span,
+.worker-export-field span {
+  font-weight: 700;
+  color: #18212b;
+}
+
+.worker-export-field select,
+.worker-export-field input {
+  width: 100%;
+  background: #ffffff;
+  color: #1b2430;
+}
+
+.worker-export-field-hidden {
+  display: none;
+}
+
+.worker-export-actions {
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 .turnstile-secret-copy {
   display: grid;
   gap: 8px;
