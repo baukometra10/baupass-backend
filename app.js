@@ -18208,7 +18208,7 @@ function openDocAssignPanel(inboxId, attachmentId, filename, matchedCompanyId = 
     try {
       await apiRequest(API_BASE + `/api/documents/inbox/${inboxId}/attachments/${attachmentId}/assign`, {
         method: "POST",
-        body: { workerId: Number(workerId), docType, notes },
+        body: { workerId, docType, notes },
       });
       msgEl.textContent = uiT("docAssignSuccess");
       msgEl.style.color = "var(--color-success, green)";
