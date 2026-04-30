@@ -11910,6 +11910,16 @@ function renderAccessLog() {
   }
 
   elements.accessLogList.innerHTML = entries.map(renderAccessItem).join("");
+
+  // Klick auf Mitarbeiter-Eintrag → Detail-Overlay öffnen
+  elements.accessLogList.querySelectorAll("article[data-worker-id]").forEach((item) => {
+    const wid = item.dataset.workerId;
+    if (!wid) return;
+    item.addEventListener("click", () => {
+      const w = state.workers.find((x) => x.id === wid);
+      if (w) showWorkerDetailOverlay(w);
+    });
+  });
 }
 
 function renderAccessSummary() {
@@ -18399,18 +18409,24 @@ function openDocAssignPanel(inboxId, attachmentId, filename, matchedCompanyId = 
   panel.style.display = "";
 
   // Mitarbeiter-Liste aus state.workers (aktive Nicht-Besucher)
-  const workers = (state.workers || []).filter((w) => {
-    if (isVisitorWorker(w) || w.status === "inaktiv") {
-      return false;
-    }
-    if (matchedCompanyId && String(w.companyId || w.company_id || "") !== String(matchedCompanyId)) {
-      return false;
-    }
-    return true;
-  });
-  const workerOptions = workers.map((w) =>
-    `<option value="${escapeHtml(String(w.id))}">${escapeHtml(w.firstName + " " + w.lastName)} — ${escapeHtml(w.badgeId)}</option>`
-  ).join("");
+  const allActiveWorkers = (state.workers || []).filter((w) => !isVisitorWorker(w) && w.status !== "inaktiv");
+  const companyWorkers = matchedCompanyId
+    ? allActiveWorkers.filter((w) => String(w.companyId || w.company_id || "") === String(matchedCompanyId))
+    : allActiveWorkers;
+  // Fallback: wenn zur erkannten Firma keine Mitarbeiter vorhanden, alle zeigen
+  const workers = companyWorkers.length > 0 ? companyWorkers : allActiveWorkers;
+  const showAllFallback = matchedCompanyId && companyWorkers.length === 0;
+
+  const getCompanyName = (w) => {
+    const cid = String(w.companyId || w.company_id || "");
+    const c = (state.companies || []).find((x) => String(x.id) === cid);
+    return c ? c.name : "";
+  };
+  const workerOptions = workers.map((w) => {
+    const cname = getCompanyName(w);
+    const label = cname ? `${w.firstName} ${w.lastName} — ${w.badgeId} (${cname})` : `${w.firstName} ${w.lastName} — ${w.badgeId}`;
+    return `<option value="${escapeHtml(String(w.id))}">${escapeHtml(label)}</option>`;
+  }).join("");
 
   const docTypeOptions = DOC_TYPES.map((d) =>
     `<option value="${escapeHtml(d.value)}">${escapeHtml(uiT(d.key))}</option>`
@@ -18419,7 +18435,7 @@ function openDocAssignPanel(inboxId, attachmentId, filename, matchedCompanyId = 
   content.innerHTML = `
     <form id="docAssignForm" class="settings-form">
       <p class="muted">📎 ${escapeHtml(filename)}</p>
-      ${matchedCompanyId ? `<p class="muted">Vorauswahl auf erkannte Firma eingeschränkt.</p>` : ""}
+      ${matchedCompanyId ? `<p class="muted">${showAllFallback ? "⚠️ Keine Mitarbeiter der erkannten Firma — alle Mitarbeiter werden angezeigt." : "Vorauswahl auf erkannte Firma eingeschränkt."}</p>` : ""}
       <label>
         <span>${escapeHtml(uiT("docAssignWorkerLabel"))}</span>
         <select id="docAssignWorkerId" required>
@@ -18664,6 +18680,20 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
   const canDelete = ["superadmin", "company-admin"].includes(role);
   const canUpload = ["superadmin", "company-admin", "turnstile"].includes(role);
 
+  // Doc-Status-Badges: welche Typen sind vorhanden / fehlen
+  const today = new Date().toISOString().slice(0, 10);
+  const presentTypes = new Set(docs.map((d) => d.doc_type));
+  const statusBadges = DOC_TYPES.map((d) => {
+    const present = presentTypes.has(d.value);
+    const docOfType = docs.find((x) => x.doc_type === d.value);
+    const expired = docOfType?.expiry_date && docOfType.expiry_date < today;
+    const icon = expired ? "⚠️" : present ? "✅" : "❌";
+    const color = expired ? "var(--color-warning, #b45309)" : present ? "var(--color-success, #166534)" : "var(--color-danger, #b42318)";
+    const label = uiT(d.key);
+    return `<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.82em; color:${color}; background:${present ? (expired ? "rgba(253,230,138,0.4)" : "rgba(187,247,208,0.4)") : "rgba(254,202,202,0.4)"}; border-radius:6px; padding:2px 8px; white-space:nowrap;">${icon} ${escapeHtml(label)}</span>`;
+  }).join("");
+  const statusRow = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">${statusBadges}</div>`;
+
   const docTypeOptions = DOC_TYPES.map((d) =>
     `<option value="${escapeHtml(d.value)}">${escapeHtml(uiT(d.key))}</option>`
   ).join("");
@@ -18705,7 +18735,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       </li>`).join("") + `</ul>`
     : `<p class="muted">${escapeHtml(uiT("workerDocsEmpty"))}</p>`;
 
-  containerEl.innerHTML = listHtml + uploadForm;
+  containerEl.innerHTML = statusRow + listHtml + uploadForm;
 
   containerEl.querySelectorAll("[data-delete-doc-id]").forEach((btn) => {
     btn.addEventListener("click", async () => {
