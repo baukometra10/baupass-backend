@@ -12540,6 +12540,62 @@ def poll_imap_inbox():
                                 "UPDATE email_inbox SET matched_company_id = ?, to_addr = ? WHERE id = ?",
                                 (matched_company_id, to_addr, existing["id"]),
                             )
+                        elif to_addr and not str(existing["to_addr"] or "").strip():
+                            db.execute(
+                                "UPDATE email_inbox SET to_addr = ? WHERE id = ?",
+                                (to_addr, existing["id"]),
+                            )
+
+                        existing_attachment = db.execute(
+                            "SELECT id FROM email_attachments WHERE inbox_id = ? LIMIT 1",
+                            (existing["id"],),
+                        ).fetchone()
+                        if not existing_attachment:
+                            fallback_text = ""
+                            for part in msg.walk():
+                                if part.is_multipart():
+                                    continue
+                                ctype = part.get_content_type()
+                                disposition = str(part.get_content_disposition() or "").lower()
+                                filename_header = part.get_filename()
+                                if disposition == "attachment" or filename_header:
+                                    continue
+                                if ctype == "text/plain":
+                                    try:
+                                        payload_text = part.get_payload(decode=True)
+                                        if payload_text:
+                                            charset = part.get_content_charset() or "utf-8"
+                                            fallback_text = payload_text.decode(charset, errors="replace")
+                                            if fallback_text.strip():
+                                                break
+                                    except Exception:
+                                        pass
+                                elif ctype == "text/html" and not fallback_text:
+                                    try:
+                                        payload_html = part.get_payload(decode=True)
+                                        if payload_html:
+                                            charset = part.get_content_charset() or "utf-8"
+                                            html_text = payload_html.decode(charset, errors="replace")
+                                            plain_text = re.sub(r"<[^>]+>", " ", html_text)
+                                            plain_text = html.unescape(plain_text)
+                                            fallback_text = re.sub(r"\s+", " ", plain_text).strip()
+                                    except Exception:
+                                        pass
+
+                            if fallback_text.strip():
+                                fallback_bytes = fallback_text.encode("utf-8", errors="replace")
+                                att_id = f"att-{secrets.token_hex(8)}"
+                                db.execute(
+                                    "INSERT INTO email_attachments (id, inbox_id, filename, content_type, file_size, file_data) VALUES (?,?,?,?,?,?)",
+                                    (
+                                        att_id,
+                                        existing["id"],
+                                        "email-text.txt",
+                                        "text/plain; charset=utf-8",
+                                        len(fallback_bytes),
+                                        fallback_bytes,
+                                    ),
+                                )
                         continue
 
                 body_text = ""
