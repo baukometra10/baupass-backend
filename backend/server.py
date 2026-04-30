@@ -933,10 +933,17 @@ def get_user_from_session_token(token_value):
     if not token_value:
         return None
     db = get_db()
-    session = db.execute(
-        "SELECT user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id FROM sessions WHERE token = ?",
-        (token_value,),
-    ).fetchone()
+    try:
+        session = db.execute(
+            "SELECT user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id FROM sessions WHERE token = ?",
+            (token_value,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        # Backward compatibility for containers that still have an older sessions schema.
+        session = db.execute(
+            "SELECT user_id, expires_at FROM sessions WHERE token = ?",
+            (token_value,),
+        ).fetchone()
     if not session:
         return None
     if session["expires_at"] < now_iso():
@@ -946,11 +953,12 @@ def get_user_from_session_token(token_value):
     user = db.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
     if not user:
         return None
+    session_keys = set(session.keys()) if hasattr(session, "keys") else set()
     payload = row_to_dict(user)
-    payload["support_read_only"] = is_read_only_support_session(session)
-    payload["support_company_name"] = session["support_company_name"] or ""
-    payload["support_actor_name"] = session["support_actor_name"] or ""
-    payload["preview_company_id"] = session["preview_company_id"] or ""
+    payload["support_read_only"] = bool(session["support_read_only"]) if "support_read_only" in session_keys else False
+    payload["support_company_name"] = session["support_company_name"] if "support_company_name" in session_keys and session["support_company_name"] else ""
+    payload["support_actor_name"] = session["support_actor_name"] if "support_actor_name" in session_keys and session["support_actor_name"] else ""
+    payload["preview_company_id"] = session["preview_company_id"] if "preview_company_id" in session_keys and session["preview_company_id"] else ""
     return payload
 
 
@@ -4330,13 +4338,20 @@ def login():
 
     token = secrets.token_urlsafe(24)
     db.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
-    db.execute(
-        """
-        INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (token, user["id"], expiry_iso(), support_read_only, support_company_name, support_actor_name),
-    )
+    try:
+        db.execute(
+            """
+            INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (token, user["id"], expiry_iso(), support_read_only, support_company_name, support_actor_name),
+        )
+    except sqlite3.OperationalError:
+        # Backward compatibility for environments with an older sessions table.
+        db.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            (token, user["id"], expiry_iso()),
+        )
     db.commit()
 
     login_message = f"Benutzer {user['username']} angemeldet"
@@ -5312,6 +5327,7 @@ def create_company():
     document_email = clean_text_input(payload.get("documentEmail", ""), max_len=160)
     if not document_email:
         document_email = suggest_company_document_email(company_name)
+    document_email = normalize_email_address(document_email)
     access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or "").strip().lower(), max_len=180)
     branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset"))
     company_status = clean_text_input(payload.get("status", "aktiv"), max_len=32) or "aktiv"
@@ -5331,6 +5347,19 @@ def create_company():
         return jsonify({"error": "turnstile_password_too_short", "message": "Drehkreuz-Passwort muss mindestens 4 Zeichen haben."}), 400
 
     db = get_db()
+    if document_email:
+        duplicate_company = db.execute(
+            "SELECT id, name FROM companies WHERE deleted_at IS NULL AND lower(document_email) = ? LIMIT 1",
+            (document_email,),
+        ).fetchone()
+        if duplicate_company:
+            return jsonify({
+                "error": "duplicate_document_email",
+                "message": "Diese Dokument-E-Mail ist bereits einer anderen Firma zugeordnet.",
+                "conflictCompanyId": duplicate_company["id"],
+                "conflictCompanyName": duplicate_company["name"],
+            }), 409
+
     if turnstile_endpoint:
         db.execute("UPDATE settings SET turnstile_endpoint = ? WHERE id = 1", (turnstile_endpoint,))
     invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", "de") or "de", max_len=8)
@@ -7021,12 +7050,27 @@ def update_company(company_id):
     company_document_email = clean_text_input(payload.get("documentEmail", company["document_email"]), max_len=160)
     if not company_document_email:
         company_document_email = suggest_company_document_email(company_name)
+    company_document_email = normalize_email_address(company_document_email)
     company_access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or company["access_host"]), max_len=180)
     company_branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset") or company["branding_preset"])
     company_status = clean_text_input(payload.get("status", company["status"]), max_len=32) or company["status"]
     company_invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", company["invoice_email_lang"] if "invoice_email_lang" in company.keys() else "de") or "de", max_len=8)
     if company_invoice_email_lang not in ("de", "en", "fr"):
         company_invoice_email_lang = "de"
+
+    current_document_email = normalize_email_address(company["document_email"] or "")
+    if company_document_email and company_document_email != current_document_email:
+        duplicate_company = db.execute(
+            "SELECT id, name FROM companies WHERE deleted_at IS NULL AND id != ? AND lower(document_email) = ? LIMIT 1",
+            (company_id, company_document_email),
+        ).fetchone()
+        if duplicate_company:
+            return jsonify({
+                "error": "duplicate_document_email",
+                "message": "Diese Dokument-E-Mail ist bereits einer anderen Firma zugeordnet.",
+                "conflictCompanyId": duplicate_company["id"],
+                "conflictCompanyName": duplicate_company["name"],
+            }), 409
 
     db.execute(
         "UPDATE companies SET name = ?, contact = ?, billing_email = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",

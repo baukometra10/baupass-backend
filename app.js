@@ -7291,7 +7291,7 @@ function applySupportReadOnlyUiState() {
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
     "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin]",
-    "[data-company-doc-email], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
+    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
 
@@ -9943,6 +9943,10 @@ function renderCompanyList() {
           <p class="${statusMeta.className}">Status: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>Design:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>Dokument-E-Mail:</strong> ${escapeHtml(documentEmail || "Nicht gesetzt")}</p>
+          <div class="button-row" style="margin-top:2px;">
+            <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Auto setzen</button>
+            <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>Mail kopieren</button>
+          </div>
           <p><strong>Rechnungs-Mail Sprache:</strong> ${{ de: "Deutsch", en: "English", fr: "Français" }[company.invoiceEmailLang || company.invoice_email_lang] || "Deutsch"}</p>
           ${(() => {
             const sec = state.companyAdminSecurity?.[companyId];
@@ -10220,6 +10224,15 @@ function bindCompanyRowActions() {
         return;
       }
 
+      const normalizedNextDocEmail = normalizeEmailAddress(nextValue);
+      if (normalizedNextDocEmail) {
+        const conflict = findCompanyByDocumentEmail(normalizedNextDocEmail, companyId);
+        if (conflict) {
+          window.alert(`Diese Dokument-Mail ist bereits bei "${conflict.name}" hinterlegt.`);
+          return;
+        }
+      }
+
       try {
         await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
           method: "PUT",
@@ -10227,7 +10240,7 @@ function bindCompanyRowActions() {
             name: company.name,
             contact: company.contact,
             billingEmail: getCompanyBillingEmail(company),
-            documentEmail: nextValue.trim(),
+            documentEmail: normalizedNextDocEmail,
             accessHost: company.accessHost || company.access_host || "",
             plan: company.plan,
             status: company.status,
@@ -10237,7 +10250,81 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
+        if (error.code === "duplicate_document_email") {
+          const conflictName = String(error?.payload?.conflictCompanyName || "anderen Firma");
+          window.alert(`Diese Dokument-Mail ist bereits bei "${conflictName}" hinterlegt.`);
+          return;
+        }
         window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
+      }
+      return;
+    }
+
+    const autoDocEmailButton = event.target.closest("[data-company-doc-email-auto]");
+    if (autoDocEmailButton && !autoDocEmailButton.disabled && elements.companyList.contains(autoDocEmailButton)) {
+      const companyId = autoDocEmailButton.dataset.companyDocEmailAuto;
+      const company = state.companies.find((entry) => entry.id === companyId);
+      if (!companyId || !company) {
+        return;
+      }
+
+      const suggested = suggestCompanyDocumentEmail(company.name);
+      if (!suggested) {
+        window.alert("Keine IMAP-Basisadresse gefunden. Bitte zuerst IMAP-Benutzer im Admin setzen.");
+        return;
+      }
+
+      const conflict = findCompanyByDocumentEmail(suggested, companyId);
+      if (conflict) {
+        window.alert(`Auto-Mail kollidiert mit "${conflict.name}". Bitte manuell setzen.`);
+        return;
+      }
+
+      try {
+        await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+          method: "PUT",
+          body: {
+            name: company.name,
+            contact: company.contact,
+            billingEmail: getCompanyBillingEmail(company),
+            documentEmail: suggested,
+            accessHost: company.accessHost || company.access_host || "",
+            plan: company.plan,
+            status: company.status,
+            invoiceEmailLang: company.invoiceEmailLang || "de",
+          }
+        });
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        if (error.code === "duplicate_document_email") {
+          const conflictName = String(error?.payload?.conflictCompanyName || "anderen Firma");
+          window.alert(`Diese Dokument-Mail ist bereits bei "${conflictName}" hinterlegt.`);
+          return;
+        }
+        window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
+      }
+      return;
+    }
+
+    const copyDocEmailButton = event.target.closest("[data-company-doc-email-copy]");
+    if (copyDocEmailButton && !copyDocEmailButton.disabled && elements.companyList.contains(copyDocEmailButton)) {
+      const companyId = copyDocEmailButton.dataset.companyDocEmailCopy;
+      const company = state.companies.find((entry) => entry.id === companyId);
+      const documentEmail = getCompanyDocumentEmail(company);
+      if (!documentEmail) {
+        window.alert("Für diese Firma ist noch keine Dokument-Mail gesetzt.");
+        return;
+      }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(documentEmail);
+          window.alert(uiT("alertDataCopied"));
+        } else {
+          window.prompt(uiT("promptCopyData"), documentEmail);
+        }
+      } catch {
+        window.prompt(uiT("promptCopyData"), documentEmail);
       }
       return;
     }
@@ -10606,6 +10693,26 @@ function populateCompanySelectOptions() {
 
 function getCompanyBillingEmail(company) {
   return (company?.billingEmail || company?.billing_email || "").trim();
+}
+
+function normalizeEmailAddress(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function findCompanyByDocumentEmail(documentEmail, excludedCompanyId = "") {
+  const target = normalizeEmailAddress(documentEmail);
+  if (!target) {
+    return null;
+  }
+  return state.companies.find((entry) => {
+    if (excludedCompanyId && String(entry?.id || "") === String(excludedCompanyId)) {
+      return false;
+    }
+    if (entry?.deleted_at || entry?.deletedAt) {
+      return false;
+    }
+    return normalizeEmailAddress(getCompanyDocumentEmail(entry)) === target;
+  }) || null;
 }
 
 function getCompanyDocumentEmail(company) {
@@ -13829,16 +13936,27 @@ async function handleCompanySubmit(event) {
 
   const companyTurnstileEndpointInput = document.querySelector("#companyTurnstileEndpoint");
   const companyTurnstileEndpoint = (companyTurnstileEndpointInput?.value || "").trim();
+  const rawCompanyName = document.querySelector("#companyName").value.trim();
+  const enteredDocumentEmail = document.querySelector("#companyDocumentEmail").value.trim();
+  const resolvedDocumentEmail = normalizeEmailAddress(enteredDocumentEmail || suggestCompanyDocumentEmail(rawCompanyName));
+
+  if (resolvedDocumentEmail) {
+    const conflict = findCompanyByDocumentEmail(resolvedDocumentEmail);
+    if (conflict) {
+      window.alert(`Diese Dokument-Mail ist bereits bei "${conflict.name}" hinterlegt.`);
+      return;
+    }
+  }
 
   try {
     const response = await apiRequest(API_BASE + "/api/companies", {
       method: "POST",
       body: {
         turnstileEndpoint: companyTurnstileEndpoint || undefined,
-        name: document.querySelector("#companyName").value.trim(),
+        name: rawCompanyName,
         contact: document.querySelector("#companyContact").value.trim(),
         billingEmail: document.querySelector("#companyBillingEmail").value.trim(),
-        documentEmail: document.querySelector("#companyDocumentEmail").value.trim(),
+        documentEmail: resolvedDocumentEmail,
         accessHost: document.querySelector("#companyAccessHost").value.trim().toLowerCase(),
         brandingPreset: (document.querySelector("#companyBrandingPreset")?.value || "construction").trim(),
         plan: document.querySelector("#companyPlan").value,
@@ -13904,6 +14022,11 @@ async function handleCompanySubmit(event) {
       );
     }
   } catch (error) {
+    if (error.code === "duplicate_document_email") {
+      const conflictName = String(error?.payload?.conflictCompanyName || "anderen Firma");
+      window.alert(`Diese Dokument-Mail ist bereits bei "${conflictName}" hinterlegt.`);
+      return;
+    }
     window.alert(uiT("alertCompanyCreateFailed").replace("{error}", error.message));
   }
 }
