@@ -1,4 +1,6 @@
 const { test, expect } = require('@playwright/test');
+const { execFileSync } = require('child_process');
+const path = require('path');
 
 async function login(request, { username, password, loginScope, otpCode }) {
   const response = await request.post('/api/login', {
@@ -21,6 +23,74 @@ function authHeaders(token) {
 function env(name, fallback) {
   const value = String(process.env[name] || '').trim();
   return value || fallback;
+}
+
+function getWorkspacePythonExecutable() {
+  return process.platform === 'win32'
+    ? path.resolve('.venv', 'Scripts', 'python.exe')
+    : path.resolve('.venv', 'bin', 'python');
+}
+
+function ensureLocalCompanyAdminCredentials(username, displayName) {
+  const pythonExecutable = getWorkspacePythonExecutable();
+  const script = [
+    'import sqlite3',
+    'from pathlib import Path',
+    'from werkzeug.security import generate_password_hash',
+    `username = ${JSON.stringify(username)}`,
+    `display_name = ${JSON.stringify(displayName)}`,
+    "db_path = Path('backend') / 'baupass.db'",
+    'conn = sqlite3.connect(db_path)',
+    "company = conn.execute(\"SELECT id FROM companies WHERE deleted_at IS NULL ORDER BY id LIMIT 1\").fetchone()",
+    "assert company is not None, 'No active company found for E2E company-admin bootstrap'",
+    'company_id = company[0]',
+    'password_hash = generate_password_hash("1234")',
+    'user = conn.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (username,)).fetchone()',
+    'if user:',
+    '    user_id = user[0]',
+    '    conn.execute("UPDATE users SET password_hash = ?, name = ?, role = ?, company_id = ?, twofa_enabled = 0, twofa_secret = ?, email = ? WHERE id = ?", (password_hash, display_name, "company-admin", company_id, "", "", user_id))',
+    'else:',
+    '    user_id = f"usr-{username}"',
+    '    conn.execute("INSERT INTO users (id, username, password_hash, name, role, company_id, twofa_enabled, email) VALUES (?, ?, ?, ?, ?, ?, 0, ?)", (user_id, username, password_hash, display_name, "company-admin", company_id, ""))',
+    'conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))',
+    'conn.execute("DELETE FROM otp_codes WHERE user_id = ?", (user_id,))',
+    'conn.commit()',
+    'conn.close()',
+  ].join('\n');
+  execFileSync(pythonExecutable, ['-c', script], {
+    cwd: process.cwd(),
+    stdio: 'ignore',
+  });
+}
+
+function ensureLocalSuperadminCredentials(username, displayName, password = '1234') {
+  const pythonExecutable = getWorkspacePythonExecutable();
+  const script = [
+    'import sqlite3',
+    'from pathlib import Path',
+    'from werkzeug.security import generate_password_hash',
+    `username = ${JSON.stringify(username)}`,
+    `display_name = ${JSON.stringify(displayName)}`,
+    `password = ${JSON.stringify(password)}`,
+    "db_path = Path('backend') / 'baupass.db'",
+    'conn = sqlite3.connect(db_path)',
+    'password_hash = generate_password_hash(password)',
+    'user = conn.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (username,)).fetchone()',
+    'if user:',
+    '    user_id = user[0]',
+    '    conn.execute("UPDATE users SET password_hash = ?, name = ?, role = ?, company_id = NULL, twofa_enabled = 0, twofa_secret = ?, email = ? WHERE id = ?", (password_hash, display_name, "superadmin", "", "", user_id))',
+    'else:',
+    '    user_id = f"usr-{username}"',
+    '    conn.execute("INSERT INTO users (id, username, password_hash, name, role, company_id, twofa_enabled, email) VALUES (?, ?, ?, ?, ?, NULL, 0, ?)", (user_id, username, password_hash, display_name, "superadmin", ""))',
+    'conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))',
+    'conn.execute("DELETE FROM otp_codes WHERE user_id = ?", (user_id,))',
+    'conn.commit()',
+    'conn.close()',
+  ].join('\n');
+  execFileSync(pythonExecutable, ['-c', script], {
+    cwd: process.cwd(),
+    stdio: 'ignore',
+  });
 }
 
 async function loginSuperadminOrSkip(request, credentials) {
@@ -50,8 +120,9 @@ async function firstActiveCompany(request, token) {
 }
 
 test('company-admin is forbidden for invoice ops endpoints', async ({ request }) => {
+  ensureLocalCompanyAdminCredentials('firma_invoice_ops', 'E2E Invoice Ops Admin');
   const companyAdmin = await login(request, {
-    username: env('E2E_COMPANY_ADMIN_USERNAME', 'firma'),
+    username: env('E2E_COMPANY_ADMIN_USERNAME', 'firma_invoice_ops'),
     password: env('E2E_COMPANY_ADMIN_PASSWORD', '1234'),
     loginScope: 'company-admin',
   });
@@ -69,8 +140,10 @@ test('company-admin is forbidden for invoice ops endpoints', async ({ request })
 });
 
 test('superadmin bulk retry approval requires second approver and can be approved', async ({ request }) => {
+  ensureLocalSuperadminCredentials(env('E2E_SUPERADMIN_USERNAME', 'superadmin_invoice_ops_1'), 'E2E Invoice Ops Superadmin 1', env('E2E_SUPERADMIN_PASSWORD', '1234'));
+  ensureLocalSuperadminCredentials(env('E2E_SUPERADMIN2_USERNAME', 'superadmin_invoice_ops_2'), 'E2E Invoice Ops Superadmin 2', env('E2E_SUPERADMIN2_PASSWORD', 'E2Epass!123'));
   const requester = await loginSuperadminOrSkip(request, {
-    username: env('E2E_SUPERADMIN_USERNAME', 'superadmin'),
+    username: env('E2E_SUPERADMIN_USERNAME', 'superadmin_invoice_ops_1'),
     password: env('E2E_SUPERADMIN_PASSWORD', '1234'),
     loginScope: 'server-admin',
     otpCode: env('E2E_SUPERADMIN_OTP', ''),
@@ -80,7 +153,7 @@ test('superadmin bulk retry approval requires second approver and can be approve
   }
 
   const approver = await loginSuperadminOrSkip(request, {
-    username: env('E2E_SUPERADMIN2_USERNAME', 'e2e_superadmin'),
+    username: env('E2E_SUPERADMIN2_USERNAME', 'superadmin_invoice_ops_2'),
     password: env('E2E_SUPERADMIN2_PASSWORD', 'E2Epass!123'),
     loginScope: 'server-admin',
     otpCode: env('E2E_SUPERADMIN2_OTP', ''),

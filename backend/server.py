@@ -32,6 +32,12 @@ import qrcode
 BASE_DIR = Path(__file__).resolve().parent.parent
 WORKER_LOGIN_MAX_DISTANCE_METERS = 100
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
+ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
+_access_maintenance_lock = threading.Lock()
+_access_maintenance_state = {
+    "last_visitor_close_monotonic": 0.0,
+    "last_midnight_close_date": "",
+}
 
 # ──────────────────────────────────────────────
 # PWA-Icon-Generierung (PNG, einmalig gecacht)
@@ -552,6 +558,29 @@ def lock_workers_with_expired_documents(db, today_value=None):
     if changed > 0:
         db.commit()
     return changed
+
+
+def run_access_maintenance_if_due(db, reference_dt=None):
+    now_dt = reference_dt or datetime.now(timezone.utc)
+    today = now_dt.date().isoformat()
+    now_monotonic = time.monotonic()
+    run_visitor_autoclose = False
+    run_midnight_close = False
+
+    with _access_maintenance_lock:
+        last_visitor_close = float(_access_maintenance_state.get("last_visitor_close_monotonic") or 0.0)
+        if now_monotonic - last_visitor_close >= ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS:
+            _access_maintenance_state["last_visitor_close_monotonic"] = now_monotonic
+            run_visitor_autoclose = True
+
+        if _access_maintenance_state.get("last_midnight_close_date") != today:
+            _access_maintenance_state["last_midnight_close_date"] = today
+            run_midnight_close = True
+
+    if run_visitor_autoclose:
+        auto_close_expired_visitor_entries(db, reference_dt=now_dt)
+    if run_midnight_close:
+        auto_close_open_entries_after_midnight(db, reference_dt=now_dt)
 
 
 def get_rate_limit_key(scope):
@@ -1690,6 +1719,10 @@ def init_db():
         """
     )
 
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_physical_card_active ON workers(physical_card_id, deleted_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_worker_timestamp ON access_logs(worker_id, timestamp DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_documents_worker_type_created ON worker_documents(worker_id, doc_type, created_at DESC)")
+
     setting_exists = cur.execute("SELECT id FROM settings WHERE id = 1").fetchone()
     if not setting_exists:
         cur.execute(
@@ -1840,6 +1873,8 @@ def init_db():
 
     if "worker_app_enabled" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN worker_app_enabled INTEGER NOT NULL DEFAULT 1")
+    if "worker_pass_lock_enabled" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN worker_pass_lock_enabled INTEGER NOT NULL DEFAULT 0")
 
     # IMAP-Einstellungen fuer Dokumenten-Postfach
     if "imap_host" not in settings_columns:
@@ -2076,8 +2111,34 @@ def init_db_with_retry(attempts=5, base_delay_seconds=0.3):
             time.sleep(base_delay_seconds * (attempt + 1))
 
 
+def normalize_e2e_superadmin_credentials():
+    """Stabilize local Playwright runs against mutable developer databases."""
+    reset_flag = (os.getenv("BAUPASS_E2E_RESET_SUPERADMIN") or "").strip().lower()
+    if reset_flag not in {"1", "true", "yes", "on"}:
+        return
+
+    db = sqlite3.connect(DB_PATH, timeout=60)
+    try:
+        db.execute(
+            """
+            UPDATE users
+            SET password_hash = ?, twofa_enabled = 0, twofa_secret = '', email = ''
+            WHERE lower(username) = 'superadmin' AND role = 'superadmin'
+            """,
+            (generate_password_hash("1234"),),
+        )
+        db.execute(
+            "DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE lower(username) = 'superadmin' AND role = 'superadmin')"
+        )
+        db.execute("DELETE FROM otp_codes WHERE user_id IN (SELECT id FROM users WHERE lower(username) = 'superadmin' AND role = 'superadmin')")
+        db.commit()
+    finally:
+        db.close()
+
+
 try:
     init_db_with_retry()
+    normalize_e2e_superadmin_credentials()
 except Exception as _init_db_exc:
     import traceback as _tb
     print(f"[baupass] CRITICAL: init_db() failed: {_init_db_exc}", flush=True)
@@ -3911,6 +3972,33 @@ def parse_iso_utc(value):
         return None
 
 
+def parse_invoice_period_bounds(value):
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None, None
+
+    parts = [part.strip() for part in re.split(r"\s+-\s+|\s+bis\s+|\s+to\s+", normalized, flags=re.IGNORECASE) if part.strip()]
+    if len(parts) < 2:
+        return None, None
+
+    def parse_part(token):
+        raw = str(token or "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+            return parse_iso_date(raw)
+        if re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", raw):
+            try:
+                return datetime.strptime(raw, "%d.%m.%Y").date()
+            except ValueError:
+                return None
+        return None
+
+    from_date = parse_part(parts[0])
+    to_date = parse_part(parts[1])
+    if not from_date or not to_date or to_date < from_date:
+        return None, None
+    return from_date, to_date
+
+
 def build_access_filters(user, direction="", gate="", from_date="", to_date=""):
     clause, base_params = visible_log_clause(user)
     params = list(base_params)
@@ -4039,8 +4127,8 @@ def auto_close_expired_visitor_entries(db, reference_dt=None):
     return auto_closed
 
 
-def auto_close_open_entries_after_midnight(db):
-    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+def auto_close_open_entries_after_midnight(db, reference_dt=None):
+    day_start = (reference_dt or datetime.now(timezone.utc)).replace(hour=0, minute=0, second=0, microsecond=0)
     day_start_iso = day_start.isoformat().replace("+00:00", "Z")
 
     rows = db.execute(
@@ -4874,6 +4962,7 @@ def get_settings():
             "adminIpWhitelist": row["admin_ip_whitelist"],
             "enforceTenantDomain": int(row["enforce_tenant_domain"]) == 1,
             "workerAppEnabled": int(row["worker_app_enabled"]) == 1,
+            "workerPassLockEnabled": int(row["worker_pass_lock_enabled"]) == 1 if "worker_pass_lock_enabled" in row.keys() else False,
             "imapHost": row["imap_host"],
             "imapPort": int(row["imap_port"] or 993),
             "imapUsername": row["imap_username"],
@@ -5178,7 +5267,7 @@ def update_settings():
             invoice_email_body_template = ?, dunning_stage1_days = ?, dunning_stage2_days = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
-            admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?
+            admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?
         WHERE id = 1
         """,
         (
@@ -5214,6 +5303,8 @@ def update_settings():
             payload.get("adminIpWhitelist", ""),
             1 if payload.get("enforceTenantDomain", False) else 0,
             1 if payload.get("workerAppEnabled", True) else 0,
+            1 if payload.get("workerPassLockEnabled", False) else 0,
+            max(0, int(payload.get("workerExpiryWarnDays") or 7)),
         ),
     )
     # Impressum / Datenschutz
@@ -7119,6 +7210,7 @@ def worker_app_me():
             "settings": {
                 "platformName": setting["platform_name"],
                 "operatorName": setting["operator_name"],
+                "workerPassLockEnabled": int(setting["worker_pass_lock_enabled"]) if setting and "worker_pass_lock_enabled" in setting.keys() else 0,
             },
             "sessionExpiresAt": getattr(g, "worker_session_expires_at", ""),
             "cardType": normalize_worker_type(worker["worker_type"]),
@@ -7164,6 +7256,50 @@ def worker_app_logout():
     db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (g.worker_token,))
     db.commit()
     return jsonify({"ok": True})
+
+
+_pin_fail_counts: dict = {}  # worker_id -> [fail_count, window_start_ts]
+_PIN_MAX_ATTEMPTS = 5
+_PIN_LOCKOUT_SECONDS = 300  # 5 minutes
+
+
+@app.post("/api/worker-app/verify-pin")
+@require_worker_session
+def worker_app_verify_pin():
+    worker = g.worker
+    worker_id = worker["id"]
+    now = time.time()
+
+    # Rate-limit: max 5 failed attempts per worker per 5-minute window
+    entry = _pin_fail_counts.get(worker_id)
+    if entry:
+        fail_count, window_start = entry
+        if now - window_start < _PIN_LOCKOUT_SECONDS:
+            if fail_count >= _PIN_MAX_ATTEMPTS:
+                retry_after = int(_PIN_LOCKOUT_SECONDS - (now - window_start))
+                return jsonify({"valid": False, "error": "too_many_attempts", "retryAfter": retry_after}), 429
+        else:
+            # Window expired — reset
+            _pin_fail_counts.pop(worker_id, None)
+
+    payload = request.get_json(silent=True) or {}
+    pin_candidate = str(payload.get("pin") or "").strip()
+    if not pin_candidate:
+        return jsonify({"valid": False, "error": "missing_pin"}), 400
+    stored_hash = worker["badge_pin_hash"] or ""
+    if not stored_hash:
+        return jsonify({"valid": False, "error": "no_pin_set"}), 400
+    from werkzeug.security import check_password_hash
+    valid = check_password_hash(stored_hash, pin_candidate)
+    if not valid:
+        cur_entry = _pin_fail_counts.get(worker_id)
+        if cur_entry and now - cur_entry[1] < _PIN_LOCKOUT_SECONDS:
+            _pin_fail_counts[worker_id] = [cur_entry[0] + 1, cur_entry[1]]
+        else:
+            _pin_fail_counts[worker_id] = [1, now]
+    else:
+        _pin_fail_counts.pop(worker_id, None)
+    return jsonify({"valid": valid})
 
 
 @app.put("/api/companies/<company_id>")
@@ -8038,29 +8174,141 @@ def restore_company(company_id):
 @app.get("/api/access-logs")
 @require_auth
 def list_access_logs():
-    auto_close_open_entries_after_midnight(get_db())
+    db = get_db()
+    run_access_maintenance_if_due(db)
     direction = (request.args.get("direction") or "").strip()
     gate = (request.args.get("gate") or "").strip()
     from_date = (request.args.get("from") or "").strip()
     to_date = (request.args.get("to") or "").strip()
+    offset = max(int(request.args.get("offset", "0")), 0)
     limit = min(max(int(request.args.get("limit", "1000")), 1), 5000)
+    paginated = str(request.args.get("paginated") or "").strip().lower() in {"1", "true", "yes"}
 
     conditions, params = build_access_filters(g.current_user, direction, gate, from_date, to_date)
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    rows = get_db().execute(
+    rows = db.execute(
         f"""
         SELECT access_logs.*
         FROM access_logs
         JOIN workers ON workers.id = access_logs.worker_id
         {where_clause}
         ORDER BY timestamp DESC
-        LIMIT ?
+        LIMIT ? OFFSET ?
         """,
-        [*params, limit],
+        [*params, limit, offset],
+    ).fetchall()
+    items = [row_to_dict(row) for row in rows]
+    if not paginated:
+        return jsonify(items)
+
+    return jsonify(
+        {
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "hasMore": len(items) == limit,
+            "filtersApplied": bool(direction or gate or from_date or to_date),
+        }
+    )
+
+
+@app.get("/api/access-logs/latest")
+@require_auth
+def list_latest_access_logs():
+    db = get_db()
+    run_access_maintenance_if_due(db)
+
+    conditions, params = build_access_filters(g.current_user)
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    rows = db.execute(
+        f"""
+        SELECT id, worker_id, direction, gate, note, timestamp
+        FROM (
+            SELECT access_logs.id,
+                   access_logs.worker_id,
+                   access_logs.direction,
+                   access_logs.gate,
+                   access_logs.note,
+                   access_logs.timestamp,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY access_logs.worker_id
+                       ORDER BY access_logs.timestamp DESC, access_logs.id DESC
+                   ) AS row_no
+            FROM access_logs
+            JOIN workers ON workers.id = access_logs.worker_id
+            {where_clause}
+        ) latest
+        WHERE row_no = 1
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 5000
+        """,
+        params,
     ).fetchall()
 
-    return jsonify([row_to_dict(row) for row in rows])
+    items = [row_to_dict(row) for row in rows]
+    return jsonify(
+        {
+            "items": items,
+            "latest": items[0] if items else None,
+        }
+    )
+
+
+@app.get("/api/invoices/access-line-items")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def invoice_access_line_items():
+    company_id = clean_id_input(request.args.get("companyId") or "")
+    invoice_period = str(request.args.get("invoicePeriod") or "").strip()
+    if not company_id:
+        return jsonify({"error": "missing_company_id"}), 400
+
+    from_date, to_date = parse_invoice_period_bounds(invoice_period)
+    if not from_date or not to_date:
+        return jsonify({"items": []})
+
+    db = get_db()
+    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not company or company["deleted_at"]:
+        return jsonify({"error": "company_not_available"}), 400
+    if g.current_user["role"] != "superadmin" and company_id != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_company"}), 403
+
+    from_iso = f"{from_date.isoformat()}T00:00:00Z"
+    to_iso = f"{to_date.isoformat()}T23:59:59.999999Z"
+    rows = db.execute(
+        """
+        SELECT access_logs.worker_id, workers.first_name, workers.last_name, COUNT(*) AS access_count
+        FROM access_logs
+        JOIN workers ON workers.id = access_logs.worker_id
+        WHERE workers.company_id = ?
+          AND workers.deleted_at IS NULL
+          AND access_logs.timestamp >= ?
+          AND access_logs.timestamp <= ?
+        GROUP BY access_logs.worker_id, workers.first_name, workers.last_name
+        ORDER BY workers.last_name ASC, workers.first_name ASC, access_logs.worker_id ASC
+        """,
+        (company_id, from_iso, to_iso),
+    ).fetchall()
+
+    price_per_access = 2.0
+    items = []
+    for row in rows:
+        access_count = int(row["access_count"] or 0)
+        amount = round(access_count * price_per_access, 2)
+        worker_name = f"{str(row['first_name'] or '').strip()} {str(row['last_name'] or '').strip()}".strip() or "Unbekannt"
+        items.append(
+            {
+                "workerId": row["worker_id"],
+                "workerName": worker_name,
+                "accessCount": access_count,
+                "amount": amount,
+            }
+        )
+
+    return jsonify({"items": items})
 
 
 @app.get("/api/access-logs/export.csv")
@@ -8487,8 +8735,7 @@ def acknowledge_day_close():
 @app.post("/api/access-logs")
 @require_auth
 def create_access_log():
-    auto_close_expired_visitor_entries(get_db())
-    auto_close_open_entries_after_midnight(get_db())
+    run_access_maintenance_if_due(get_db())
     payload = request.get_json(silent=True) or {}
     worker_id = payload.get("workerId")
     user = g.current_user
@@ -8537,13 +8784,12 @@ def create_access_log():
 
 @app.post("/api/gates/tap")
 def gate_tap():
-    auto_close_expired_visitor_entries(get_db())
-    auto_close_open_entries_after_midnight(get_db())
     provided_key = (request.headers.get("X-Gate-Key") or "").strip()
     if not provided_key:
         return jsonify({"error": "gate_unauthorized"}), 401
 
     db = get_db()
+    run_access_maintenance_if_due(db)
     turnstile_user = find_turnstile_by_api_key(db, provided_key)
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
@@ -12324,6 +12570,11 @@ ALLOWED_DOC_TYPES = {
     "gesundheitszeugnis",
     "sonstiges",
 }
+DOC_TYPES_WITH_REQUIRED_EXPIRY = {
+    "personalausweis",
+    "arbeitserlaubnis",
+    "gesundheitszeugnis",
+}
 
 ALLOWED_UPLOAD_MIMETYPES = {
     "application/pdf",
@@ -12348,6 +12599,25 @@ def _parse_imap_attachment_limit_bytes() -> int:
 
 
 MAX_IMAP_ATTACHMENT_BYTES = _parse_imap_attachment_limit_bytes()
+
+
+def validate_document_expiry_date(doc_type, expiry_date_raw, today_value=None):
+    expiry_date = clean_text_input(expiry_date_raw or "", max_len=10)
+    today = str(today_value or now_iso()[:10])
+    if not expiry_date:
+        if doc_type in DOC_TYPES_WITH_REQUIRED_EXPIRY:
+            return None, "document_expiry_required", "Fuer diesen Dokumenttyp ist ein Gueltigkeitsdatum erforderlich."
+        return None, None, None
+
+    try:
+        parsed = datetime.strptime(expiry_date, "%Y-%m-%d")
+    except ValueError:
+        return None, "invalid_expiry_date", "Das Gueltigkeitsdatum ist ungueltig."
+
+    normalized = parsed.strftime("%Y-%m-%d")
+    if normalized < today:
+        return None, "document_expiry_in_past", "Das Gueltigkeitsdatum darf nicht in der Vergangenheit liegen."
+    return normalized, None, None
 
 
 def _decode_mime_header(value) -> str:
@@ -13026,15 +13296,12 @@ def upload_worker_document(worker_id):
     """Direkt-Upload eines Dokuments vom PC für einen Mitarbeiter."""
     doc_type = clean_text_input(request.form.get("docType", ""), max_len=64).lower()
     notes = clean_text_input(request.form.get("notes", ""), max_len=500)
-    expiry_date = clean_text_input(request.form.get("expiryDate", ""), max_len=10) or None
-    if expiry_date:
-        try:
-            datetime.strptime(expiry_date, "%Y-%m-%d")
-        except ValueError:
-            expiry_date = None
+    expiry_date, expiry_error, expiry_message = validate_document_expiry_date(doc_type, request.form.get("expiryDate", ""))
 
     if doc_type not in ALLOWED_DOC_TYPES:
         return jsonify({"error": "invalid_doc_type", "allowed": sorted(ALLOWED_DOC_TYPES)}), 400
+    if expiry_error:
+        return jsonify({"error": expiry_error, "message": expiry_message}), 400
 
     uploaded_file = request.files.get("file")
     if not uploaded_file or not uploaded_file.filename:
@@ -13045,6 +13312,8 @@ def upload_worker_document(worker_id):
         return jsonify({"error": "invalid_file_type"}), 400
 
     file_data = uploaded_file.read()
+    if not file_data:
+        return jsonify({"error": "empty_file", "message": "Die Datei ist leer."}), 400
     if len(file_data) > MAX_IMAP_ATTACHMENT_BYTES:
         return jsonify({"error": "file_too_large", "maxBytes": MAX_IMAP_ATTACHMENT_BYTES}), 400
 

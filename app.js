@@ -391,6 +391,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "Runter \u2193",
     btnPhotoReset: "Position zur\u00fccksetzen",
     btnWorkerSubmit: "Mitarbeiter speichern und Ausweis erzeugen",
+    btnWorkerUpdate: "Mitarbeiter aktualisieren",
     btnWorkerCancelEdit: "Bearbeiten abbrechen",
     workersListEyebrow: "Datenbestand",
     workersListH3: "Registrierte Mitarbeiter",
@@ -720,6 +721,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "Mitarbeiter-App",
     adminWorkerAppSectionCopy: "Steuert die komplette Mitarbeiter-App: Login, digitaler Ausweis und QR-Nutzung auf dem Handy.",
     adminWorkerAppPinLockHint: "Nach 2 Minuten ohne Interaktion muss der Mitarbeiter seine Badge-PIN erneut eingeben, um den Ausweis zu sehen.",
+    workerExpiryWarnDaysLabel: "Ablauf-Warnung (Tage vor Gültigkeitsende)",
+    workerExpiryWarnDaysHint: "E-Mail-Erinnerung wird N Tage vor dem Ablaufdatum des Ausweises gesendet. 0 = deaktiviert.",
     optPlanDayPassRecommended: "Besucherkarte (empfohlen)",
     optPlanMonthlySite: "Monatlich pro Baustelle",
     optPlanPerWorker: "Pro Mitarbeiter",
@@ -1040,6 +1043,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "Down \u2193",
     btnPhotoReset: "Reset position",
     btnWorkerSubmit: "Save worker and generate badge",
+    btnWorkerUpdate: "Update worker",
     btnWorkerCancelEdit: "Cancel editing",
     workersListEyebrow: "Records",
     workersListH3: "Registered Workers",
@@ -1092,6 +1096,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "Worker App",
     adminWorkerAppSectionCopy: "Controls the complete worker app: login, digital badge and QR usage on mobile.",
     adminWorkerAppPinLockHint: "After 2 minutes of inactivity the worker must re-enter their badge PIN to see the badge.",
+    workerExpiryWarnDaysLabel: "Expiry warning (days before expiry)",
+    workerExpiryWarnDaysHint: "Email reminder is sent N days before the badge expires. 0 = disabled.",
     optPlanDayPassRecommended: "Visitor card (recommended)",
     optPlanMonthlySite: "Monthly per site",
     optPlanPerWorker: "Per worker",
@@ -1621,6 +1627,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "A\u015fa\u011f\u0131 \u2193",
     btnPhotoReset: "Konumu s\u0131f\u0131rla",
     btnWorkerSubmit: "\u00c7al\u0131\u015fan\u0131 kaydet ve rozet olu\u015ftur",
+    btnWorkerUpdate: "\u00c7al\u0131\u015fan\u0131 g\u00fcncelle",
     btnWorkerCancelEdit: "D\u00fczenli\u015f i\u00e7in iptal",
     workersListEyebrow: "Kay\u0131tlar",
     workersListH3: "Kay\u0131tl\u0131 \u00c7al\u0131\u015fanlar",
@@ -1950,6 +1957,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "Çalışan Uygulaması",
     adminWorkerAppSectionCopy: "Çalışan uygulamasının tamamını kontrol eder: giriş, dijital kimlik ve telefonda QR kullanımı.",
     adminWorkerAppPinLockHint: "2 dakika etkisizlikten sonra çalışanın kimliği görmek için rozet PIN'ini yeniden girmesi gerekir.",
+    workerExpiryWarnDaysLabel: "Sona erme uyarısı (sona ermeden kaç gün önce)",
+    workerExpiryWarnDaysHint: "E-posta hatırlatıcısı kimlik sona ermeden N gün önce gönderilir. 0 = devre dışı.",
     optPlanDayPassRecommended: "Ziyaretçi kartı (önerilen)",
     optPlanMonthlySite: "Aylık şantiye başına",
     optPlanPerWorker: "Çalışan başına",
@@ -2239,6 +2248,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "للأسفل ↓",
     btnPhotoReset: "إعادة ضبط الموضع",
     btnWorkerSubmit: "حفظ العامل وإنشاء البطاقة",
+    btnWorkerUpdate: "تحديث العامل",
     btnWorkerCancelEdit: "إلغاء التحرير",
     workersListEyebrow: "السجلات",
     workersListH3: "العمال المسجلون",
@@ -2594,6 +2604,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "تطبيق العمال",
     adminWorkerAppSectionCopy: "يتحكم في تطبيق العمال بالكامل: تسجيل الدخول والهوية الرقمية واستخدام QR.",
     adminWorkerAppPinLockHint: "بعد دقيقتين من عدم النشاط يجب على العامل إدخال رمز PIN لرؤية بطاقته.",
+    workerExpiryWarnDaysLabel: "تحذير انتهاء الصلاحية (أيام قبل الانتهاء)",
+    workerExpiryWarnDaysHint: "يُرسل تذكير بالبريد الإلكتروني قبل N يوم من انتهاء صلاحية البطاقة. 0 = معطّل.",
     optPlanDayPassRecommended: "بطاقة زائر (موصى به)",
     optPlanMonthlySite: "شهرياً لكل موقع",
     optPlanPerWorker: "لكل عامل",
@@ -2883,6 +2895,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "Bas ↓",
     btnPhotoReset: "Réinitialiser position",
     btnWorkerSubmit: "Sauvegarder travailleur et créer badge",
+    btnWorkerUpdate: "Mettre à jour le travailleur",
     btnWorkerCancelEdit: "Annuler l'édition",
     workersListEyebrow: "Enregistrements",
     workersListH3: "Travailleurs enregistrés",
@@ -3238,6 +3251,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "Application travailleurs",
     adminWorkerAppSectionCopy: "Contrôle l'application travailleurs complète : connexion, badge numérique et utilisation QR.",
     adminWorkerAppPinLockHint: "Après 2 minutes d'inactivité, le travailleur doit saisir à nouveau son badge PIN pour voir son badge.",
+    workerExpiryWarnDaysLabel: "Alerte expiration (jours avant expiration)",
+    workerExpiryWarnDaysHint: "Un rappel par e-mail est envoyé N jours avant l'expiration du badge. 0 = désactivé.",
     optPlanDayPassRecommended: "Carte visiteur (recommandé)",
     optPlanMonthlySite: "Mensuel par chantier",
     optPlanPerWorker: "Par travailleur",
@@ -3527,6 +3542,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "Abajo ↓",
     btnPhotoReset: "Restablecer posición",
     btnWorkerSubmit: "Guardar trabajador y crear credencial",
+    btnWorkerUpdate: "Actualizar trabajador",
     btnWorkerCancelEdit: "Cancelar edición",
     workersListEyebrow: "Registros",
     workersListH3: "Trabajadores registrados",
@@ -3882,6 +3898,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "App de trabajadores",
     adminWorkerAppSectionCopy: "Controla toda la app de trabajadores: acceso, credencial digital y uso de QR.",
     adminWorkerAppPinLockHint: "Después de 2 minutos sin interacción el trabajador debe volver a introducir su PIN de credencial.",
+    workerExpiryWarnDaysLabel: "Aviso de vencimiento (días antes del vencimiento)",
+    workerExpiryWarnDaysHint: "Se envía un recordatorio por correo N días antes de que venza el credencial. 0 = desactivado.",
     optPlanDayPassRecommended: "Tarjeta de visitante (recomendado)",
     optPlanMonthlySite: "Mensual por obra",
     optPlanPerWorker: "Por trabajador",
@@ -4163,6 +4181,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "Giù ↓",
     btnPhotoReset: "Reimposta posizione",
     btnWorkerSubmit: "Salva lavoratore e crea badge",
+    btnWorkerUpdate: "Aggiorna lavoratore",
     btnWorkerCancelEdit: "Annulla modifica",
     workersListEyebrow: "Registrazioni",
     workersListH3: "Lavoratori registrati",
@@ -4518,6 +4537,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "App lavoratori",
     adminWorkerAppSectionCopy: "Controlla l'intera app lavoratori: accesso, badge digitale e utilizzo QR.",
     adminWorkerAppPinLockHint: "Dopo 2 minuti di inattività il lavoratore deve inserire di nuovo il badge PIN per vedere il badge.",
+    workerExpiryWarnDaysLabel: "Avviso scadenza (giorni prima della scadenza)",
+    workerExpiryWarnDaysHint: "Il promemoria via e-mail viene inviato N giorni prima della scadenza del badge. 0 = disabilitato.",
     optPlanDayPassRecommended: "Tessera visitatore (consigliato)",
     optPlanMonthlySite: "Mensile per cantiere",
     optPlanPerWorker: "Per lavoratore",
@@ -4807,6 +4828,7 @@ const UI_TRANSLATIONS = {
     btnPhotoDown: "Dół ↓",
     btnPhotoReset: "Resetuj pozycję",
     btnWorkerSubmit: "Zapisz pracownika i utwórz identyfikator",
+    btnWorkerUpdate: "Aktualizuj pracownika",
     btnWorkerCancelEdit: "Anuluj edycję",
     workersListEyebrow: "Rekordy",
     workersListH3: "Zarejestrowani pracownicy",
@@ -5162,6 +5184,8 @@ const UI_TRANSLATIONS = {
     adminWorkerAppSectionTitle: "Aplikacja pracowników",
     adminWorkerAppSectionCopy: "Kontroluje całą aplikację pracowników: logowanie, cyfrowy identyfikator i użycie QR.",
     adminWorkerAppPinLockHint: "Po 2 minutach braku aktywności pracownik musi ponownie wpisać PIN identyfikatora.",
+    workerExpiryWarnDaysLabel: "Ostrzeżenie o wygaśnięciu (dni przed wygaśnięciem)",
+    workerExpiryWarnDaysHint: "Przypomnienie e-mail jest wysyłane N dni przed wygaśnięciem identyfikatora. 0 = wyłączone.",
     optPlanDayPassRecommended: "Karta gościa (zalecane)",
     optPlanMonthlySite: "Miesięcznie za budowę",
     optPlanPerWorker: "Na pracownika",
@@ -5798,16 +5822,38 @@ function applyUiPlaceholders() {
   });
 }
 
+function getUiPlaceholderText(elementId, lang = getStoredUiLang()) {
+  const texts = UI_PLACEHOLDER_TEXTS[elementId];
+  if (!texts) {
+    return "";
+  }
+  const normalized = normalizeUiLang(lang);
+  return normalized === "de"
+    ? (texts.de || "")
+    : (texts[normalized] || texts.intl || texts.de || "");
+}
+
 const UI_LANGUAGE_META = {
-  de: { code: "DE", flag: "de" },
-  en: { code: "EN", flag: "en" },
-  tr: { code: "TR", flag: "tr" },
-  ar: { code: "AR", flag: "ar" },
-  fr: { code: "FR", flag: "fr" },
-  es: { code: "ES", flag: "es" },
-  it: { code: "IT", flag: "it" },
-  pl: { code: "PL", flag: "pl" },
+  de: { code: "DE", flag: "de", locale: "de-DE" },
+  en: { code: "EN", flag: "en", locale: "en-GB" },
+  tr: { code: "TR", flag: "tr", locale: "tr-TR" },
+  ar: { code: "AR", flag: "ar", locale: "ar" },
+  fr: { code: "FR", flag: "fr", locale: "fr-FR" },
+  es: { code: "ES", flag: "es", locale: "es-ES" },
+  it: { code: "IT", flag: "it", locale: "it-IT" },
+  pl: { code: "PL", flag: "pl", locale: "pl-PL" },
 };
+
+function getUiLocale(lang = getStoredUiLang()) {
+  const normalized = normalizeUiLang(lang);
+  return UI_LANGUAGE_META[normalized]?.locale || UI_LANGUAGE_META[UI_FALLBACK_LANG]?.locale || "de-DE";
+}
+
+function formatUiNumber(value, options = {}) {
+  const numeric = Number(value);
+  const safeValue = Number.isFinite(numeric) ? numeric : 0;
+  return new Intl.NumberFormat(getUiLocale(), options).format(safeValue);
+}
 
 function updateAuthLanguageControl(lang) {
   const normalized = normalizeUiLang(lang);
@@ -6198,6 +6244,10 @@ const state = {
   subcompanies: [],
   workers: [],
   accessLogs: [],
+  accessLogsMeta: { limit: 0, offset: 0, hasMore: false, filtersApplied: false },
+  latestAccessEntries: [],
+  latestAccessByWorker: {},
+  invoiceAccessLineItemsCache: {},
   accessInsights: { hourly: [], openEntries: [] },
   reporting: { kpis: {}, accessDaily: [], topOverdueCompanies: [] },
   invoices: [],
@@ -6380,6 +6430,520 @@ function getRuntimeUiTexts() {
     porterTotal: "Total",
     porterPersonSingular: "person",
     porterPersonPlural: "persons",
+    detailsShow: "Details",
+    detailsHide: "Less",
+    docInboxStatusUnmatched: "Unmatched",
+    docInboxStatusNew: "New",
+    docInboxStatusPartial: "Partial",
+    docInboxStatusAssigned: "Assigned",
+    docInboxNoSubject: "(no subject)",
+    docManualCompanyAssignBtn: "Assign company manually",
+    attachmentFallback: "Attachment",
+    docAssignFallbackAllWorkers: "No workers found for the detected company - all workers are shown.",
+    docAssignMatchedCompanyOnly: "Pre-filtered to the detected company.",
+    selectPlaceholder: "- please select -",
+    manualCompanyMatchNoCompanies: "No active companies available.",
+    manualCompanyMatchIntro: "Manually assign this inbox email to a company.",
+    manualCompanyMatchSearchLabel: "Search company",
+    manualCompanyMatchSearchPlaceholder: "Enter name or email",
+    manualCompanyMatchSelectCompany: "Please select a company.",
+    manualCompanyMatchFailed: "Assignment failed: {error}",
+    docEmailMissing: "no document email",
+    docExpiryOptional: "Expiry date (optional)",
+    docExpiryLabel: "Expiry date",
+    accessWarningsEmpty: "No open entries found.",
+    accessWarningGate: "Gate",
+    accessWarningLastEntry: "Last entry",
+    accessWarningOpenSince: "Open since",
+    workerRoleFallback: "Worker",
+    workerStatusInactive: "Inactive",
+    workerStatusReasonLabel: "Lock reason",
+    photoOverrideNewPhotoAlt: "New photo",
+    photoOverrideRequesterHint: "You are the requester - another superadmin must approve.",
+    photoOverrideComparisonLabel: "Photo comparison",
+    photoOverrideReasonLabel: "Reason",
+    photoOverrideRequestedAtLabel: "Requested",
+    photoOverrideExpiresAtLabel: "Valid until",
+    approvalApproveBtn: "Approve",
+    approvalRejectBtn: "Reject",
+    companyListEmpty: "No companies yet.",
+    companyRepairHistoryEmpty: "No repairs in the selected period.",
+    turnstileAccountsTitle: "Turnstile accounts",
+    turnstileDefaultName: "Turnstile",
+    turnstileStateActive: "active",
+    turnstileStateInactive: "inactive",
+    turnstileApiKeyActive: "API key active",
+    turnstileApiKeyMissing: "no API key",
+    turnstilePasswordResetBtn: "Reset password",
+    turnstileRotateApiKeyBtn: "Rotate API key",
+    turnstileDeactivateBtn: "Deactivate",
+    turnstileActivateBtn: "Activate",
+    turnstileAccountsEmpty: "No turnstile accounts available.",
+    companyDocEmailNotSet: "Not set",
+    companyDocEmailAutoBtn: "Set automatically",
+    companyDocEmailCopyBtn: "Copy email",
+    companyInvoiceMailLanguageLabel: "Invoice mail language",
+    companyInvoiceLangGerman: "German",
+    companyInvoiceLangEnglish: "English",
+    companyInvoiceLangFrench: "French",
+    companyInvoiceLangPrompt: "Invoice mail language for \"{company}\":\n\n{choices}\n\nEnter \"de\", \"en\" or \"fr\":",
+    companyInvoiceLangInvalid: "Invalid language. Allowed: de, en, fr",
+    companyInvoiceLangSaveFailed: "Error while saving: {error}",
+    companyDocEmailMissingAlert: "No document email is set for this company yet.",
+    companyCardDesignLabel: "Design",
+    companyDocEmailConflictFallback: "another company",
+    companyCreatedTitle: "Company created",
+    companyCreatedIntro: "Access credentials and API keys are shown in full only now.",
+    companyCreatedCopyLabel: "Copy access credentials",
+    companyAdminAccessLabel: "Admin access",
+    turnstileAccessLabel: "Turnstile access {index}",
+    turnstileApiKeyLabel: "Turnstile API key {index}",
+    credentialUsernameLabel: "Username",
+    credentialPasswordLabel: "Password",
+    credentialApiKeyLabel: "API key",
+    credentialUnavailable: "not available",
+    copyApiKeyLabel: "Copy API key",
+    turnstileCreatedTitle: "Turnstile access created",
+    turnstileApiKeyRotatedTitle: "New turnstile API key",
+    turnstileApiKeyNotReceived: "No API key received",
+    companyOtpAdminLabel: "Admin OTP",
+    companyOtpEnabled: "OTP enabled",
+    companyOtpDisabled: "OTP disabled",
+    companyOtpNotConfigured: "OTP not configured",
+    companyNoEmail: "no email",
+    companyBrandingPreviewLabel: "Preview",
+    companyLatestRepairsTitle: "Latest repairs",
+    accessFeedbackCheckinTitle: "CHECK-IN SUCCESSFUL",
+    accessFeedbackCheckoutTitle: "CHECK-OUT SUCCESSFUL",
+    accessFeedbackCheckinMessage: "You are now checked in.",
+    accessFeedbackCheckoutMessage: "You are now checked out.",
+    accessFeedbackDirectionCheckin: "Check-in",
+    accessFeedbackDirectionCheckout: "Check-out",
+    accessFeedbackUnknownWorker: "Worker",
+    workerExportEyebrow: "Worker list",
+    workerExportTitle: "PDF export options",
+    workerExportIncludePhotos: "Include photos (passport photo per worker)",
+    workerExportPeriodLabel: "Period",
+    workerExportPeriodAll: "All active workers",
+    workerExportPeriodToday: "Today",
+    workerExportPeriodWeek: "This week",
+    workerExportPeriodDay: "Specific day",
+    workerExportDateLabel: "Date",
+    workerExportDownloadBtn: "Download PDF",
+    accessReportTitle: "Access report",
+    accessReportPeriodLabel: "Period",
+    accessReportRoleLabel: "Role",
+    accessReportOverviewTitle: "Turnstile overview",
+    accessReportNoData: "No data.",
+    accessReportVisitorsTitle: "Visitors in period",
+    accessReportVisitorsNone: "No visitors in period.",
+    visitorWeeklyTitle: "Visitor weekly list",
+    visitorWeeklyNone: "No visitors this week.",
+    tableHeaderName: "Name",
+    tableHeaderCompany: "Company",
+    tableHeaderPurpose: "Purpose",
+    tableHeaderContact: "Contact person",
+    tableHeaderSite: "Site",
+    tableHeaderLastActivity: "Last activity",
+    workerAppQrPrintTitle: "Worker app QR",
+    workerAppQrHeading: "Install worker app",
+    workerAppQrHint: "Scan the QR code with the camera and start the app.",
+    workerAppQrAlt: "Worker app QR",
+    workerAppQrVisitorHeading: "Visitor pass QR",
+    workerAppQrVisitorHint: "Scan the code with the camera to open the visitor pass digitally in the app.",
+    workerAppQrForLabel: "For",
+    workerAppQrValidUntil: "Valid until: {when}",
+    workerAppQrOneTimeHint: "One-time link: invalid after the first sign-in.",
+    workerAppQrPrintBtn: "Print QR",
+    workerAppQrCopyBtn: "Copy link",
+    secretDialogIntro: "This data is shown only now.",
+    secretDialogCopyBtn: "Copy data",
+    secretDialogDefaultTitle: "Secret key",
+    workerStatsLoading: "Loading statistics...",
+    workerStatsTotal: "Total",
+    workerStatsWorkers: "Workers",
+    workerStatsTopSites: "Top sites",
+    workerStatsTopGates: "Top gates (last 30 days)",
+    workerStatsCheckinsByHour: "Check-ins by hour (last 30 days)",
+    workerStatsUnavailable: "Statistics unavailable.",
+    accessDuplicateCheckin: "This card is already checked in. Check out first before checking in again.",
+    accessDuplicateCheckout: "This card is already checked out. Check in first before checking out again.",
+    accessDeniedTitle: "ACCESS DENIED",
+    accessBookingFailedPrefix: "Booking failed",
+    invoiceAttemptNone: "No delivery attempts logged yet.",
+    invoiceAttemptLabel: "Attempt {count}",
+    invoiceAttemptFailed: "Failed",
+    invoiceAttemptSuccess: "Successful",
+    invoiceActorSystem: "system",
+    invoiceRetryNextLabel: "Next retry",
+    invoiceErrorLabel: "Error",
+    invoiceKpiOpen: "Open",
+    invoiceKpiOverdue: "Overdue",
+    invoiceKpiPaid: "Paid",
+    invoiceKpiFailed: "Error",
+    invoiceListEmpty: "No invoices available or no matches.",
+    invoiceHistoryHide: "Hide history",
+    invoiceHistoryShow: "Delivery history",
+    invoiceHistoryLoading: "Loading history...",
+    invoiceSelectTitle: "Select",
+    invoicePaidAtLabel: "Paid",
+    invoiceStatusLabel: "Status",
+    invoiceDueDateLabel: "Due date",
+    invoiceAutoSuspendedLabel: "Auto suspension triggered",
+    invoicePreviewBtn: "Preview",
+    invoiceMarkPaidBtn: "Mark as paid",
+    invoiceRetryBtn: "Send again",
+    invoiceReminderDownloadBtn: "Download reminder",
+    invoiceLineItemsTitle: "Invoice items",
+    invoiceDetailsUnavailable: "No details available",
+    invoiceNumberAutoFailed: "Could not load the next invoice number: {error}",
+    invoicePositionDescriptionPlaceholder: "Description",
+    invoicePositionQtyPlaceholder: "Qty",
+    invoicePositionUnitPricePlaceholder: "Unit price",
+    invoicePositionUnitFlat: "Flat rate",
+    invoicePositionUnitHours: "Hours",
+    invoicePositionUnitPiece: "Piece",
+    invoicePositionUnitMonth: "Month",
+    invoicePositionUnitDay: "Day",
+    workerCsvImportLoading: "Importing...",
+    workerCsvImportSummary: "Import completed: {created} created, {skipped} skipped, {errors} errors.",
+    workerCsvImportRowError: "Row {row}: {reason}",
+    workerCsvImportErrorPrefix: "Error: {error}",
+    importPreviewTitle: "Import preview (dry run)",
+    importPreviewCheckHint: "Please review the numbers before applying the import.",
+    importPreviewModeLine: "Mode: {mode} · Unchanged detected: {count}",
+    importPreviewModeChanges: "Changes only",
+    importPreviewModeAll: "All records",
+    importPreviewLegendGreen: "Green: OK / no conflicts",
+    importPreviewLegendYellow: "Yellow: 1-5 conflicts",
+    importPreviewLegendRed: "Red: more than 5 conflicts",
+    importPreviewAreaHeader: "Area",
+    importPreviewAcceptedHeader: "Accepted",
+    importPreviewConflictsHeader: "Conflicts",
+    importPreviewCompanies: "Companies",
+    importPreviewSubcompanies: "Subcompanies",
+    importPreviewWorkers: "Workers",
+    importPreviewAccessLogs: "Access logs",
+    importPreviewInvoices: "Invoices",
+    importPreviewSkippedTitle: "Skipped entries:",
+    importPreviewSkippedForbidden: "Forbidden (permission):",
+    importPreviewSkippedInvalid: "Invalid (format):",
+    importPreviewCancel: "Cancel",
+    importPreviewApply: "Apply import",
+    invoiceValidationIban: "IBAN incomplete or invalid",
+    invoiceValidationBic: "BIC must have 8 or 11 characters",
+    invoiceValidationTaxId: "Tax number incomplete or invalid",
+    invoiceValidationVatId: "VAT ID incomplete or invalid",
+    invoiceValidationBankName: "Bank name is too short",
+    invoiceValidationAddress: "Address incomplete",
+    invoiceValidationZipCity: "ZIP/city incomplete",
+    invoiceValidationEmail: "Invalid email",
+    invoiceValidationRequired: "Required field",
+    invoiceLabelStreetHouseNumber: "Street and house number",
+    invoiceLabelZipCity: "ZIP and city",
+    invoiceLabelBankName: "Bank name",
+    invoiceLabelTaxId: "Tax number",
+    invoiceLabelVatId: "VAT ID",
+    previewActiveLabel: "Preview active",
+    previewCompanyViewLabel: "Company view",
+    previewEndBtn: "End preview",
+    simulationActiveTitle: "Simulation active",
+    companyViewLabel: "Company view",
+    workerStatsHourTitle: "{hour}:00 - {count} check-ins",
+    photoSimilarityUnavailable: "n/a",
+    qrCodeLoadFailed: "QR code could not be loaded: {error}",
+    dunningRunConfirm: "Start the dunning run manually now?",
+    dunningRunResult: "Dunning run: {count} reminders sent.",
+    appLinkCreating: "Creating...",
+    appLinkPhoneButton: "📱 App on smartphone",
+    imapTesting: "Testing...",
+    accessPreviewNoWorker: "No worker selected yet.",
+    loginLockRemainingMinutes: "{count} min",
+    exportScopeForCompany: " for {company}",
+    exportDownloadedMessage: "System export{scope} downloaded (companies: {companies}, workers: {workers}, logs: {logs}).",
+    demoDataLoadedMessage: "Demo data for {company} loaded (mode: {mode}, workers: {workers}, logs: {logs}, invoices: {invoices}).",
+    companyNotFoundError: "The company was not found or has been deleted in the meantime.",
+    companyLockedError: "This company is currently locked.",
+    companyHasWorkersError: "The company still has active workers. Please use full deletion as superadmin.",
+    companyThisFallback: "this company",
+    companySelectedFallback: "the selected company",
+    repairExecutedFallback: "Repair executed",
+    visitorCompanyFallback: "Visitor company",
+    visitPurposeFallback: "Visit",
+    systemIdentityUnset: "Not set yet",
+    companyLockingMessage: "Locking company...",
+    companyUnlockingMessage: "Removing lock...",
+    companyNowLockedMessage: "Company is now locked.",
+    companyNowUnlockedMessage: "Company is active again.",
+    tapLastHint: "Last tap: {cardId} ({direction})",
+    tapDeniedHint: "Tap denied: {reason}",
+    tapUnknownReason: "Unknown reason",
+    accessOkShort: "Access OK",
+    accessDeniedShort: "Access denied",
+    turnstileQuickModeTitle: "Turnstile quick mode",
+    turnstileQuickModeIntro: "Present card, send Enter, done. The direction switches automatically.",
+    turnstileTapReady: "Ready for tap",
+    turnstileCardPlaceholder: "Card ID (NFC/RFID)",
+    turnstileTapSubmitButton: "Book tap",
+    turnstileTapNextHint: "Ready for the next tap.",
+    turnstileQuickFallbackHint: "Fallback: select worker manually and book direction.",
+    turnstileQuickSearchPlaceholder: "Search worker",
+    turnstileQuickCheckinButton: "Quick check-in",
+    turnstileQuickCheckoutButton: "Quick check-out",
+    turnstileTapNoCardHint: "No card ID read. Please present again.",
+    turnstileTapNoCardLive: "No card detected",
+    turnstileTapNoCardTitle: "CARD NOT DETECTED",
+    turnstileTapNoCardMessage: "No card ID read.",
+    turnstileTapUnknownCardHint: "Unknown card: {cardId}",
+    turnstileTapUnknownCardLive: "Unknown card {cardId}",
+    turnstileTapDeniedTitle: "ACCESS DENIED",
+    turnstileTapUnassignedMessage: "Card {cardId} is not assigned to a worker.",
+    turnstileTapProcessingHint: "Processing {cardId} ...",
+    turnstileTapCheckingLive: "Checking card {cardId}",
+    turnstileScannerLabel: "Turnstile scanner",
+    turnstileQuickModeLabel: "Turnstile quick mode",
+    turnstileNfcTapLabel: "NFC/RFID tap",
+    turnstileTerminalBookingLabel: "Terminal booking",
+    photoValidationCaptureFirst: "Take or upload a photo first.",
+    photoValidationChecking: "Checking photo...",
+    photoValidationScore: "Photo score",
+    photoValidationLooksGood: "Photo looks good.",
+    photoValidationUnavailable: "Validation unavailable.",
+    photoZoomValue: "{value}x",
+    passwordResetPromptUsername: "Enter the username to receive a password reset link:",
+    passwordResetSmtpNotConfigured: "Email sending is not configured. Please contact the administrator.",
+    passwordResetRequestSent: "If an account with this username exists and has an email address stored, a reset link has been sent.",
+    passwordResetRequestFailed: "Error sending the request. Please try again later.",
+    passwordResetMinLength: "Password must have at least 8 characters.",
+    passwordResetMismatch: "Passwords do not match.",
+    passwordResetSaving: "Saving...",
+    passwordResetTokenInvalid: "The link is invalid or has already been used.",
+    passwordResetTokenExpired: "The link has expired. Please request a new one.",
+    genericUnknownError: "Unknown error.",
+    genericNetworkRetry: "Network error. Please try again.",
+    passwordResetSavedRedirect: "Password changed. You will be redirected to sign in...",
+    expiringDocsEmpty: "No expiring documents in the selected period.",
+    backendUnreachableWithBase: "Backend unreachable ({base}). {hint}",
+    backendUnreachableLocalHint: "For local testing use: ?apiBase=http://127.0.0.1:8000",
+    imapNotConfiguredWithBase: "IMAP is not configured on this backend ({base}).{missing}",
+    imapMissingFields: " Missing: {fields}.",
+    imapErrorWithReason: "IMAP error: {reason}",
+    docInboxSummaryRecognized: "Recognized",
+    docInboxSummaryReview: "Review basket",
+    docInboxRecognizedEmpty: "No recognized emails.",
+    docInboxReviewIntro: "Recipient address could not be assigned to a company",
+    docInboxReviewEmpty: "No unresolved emails.",
+    imapTestMissingFields: "Please fill in IMAP host, username, and password and save.",
+    systemStatusLoading: "Loading status...",
+    systemStatusLoadFailed: "Status could not be loaded: {error}",
+    companyBrandingDirtyUnsaved: "Not saved yet",
+    companyAdminMissing: "No admin account found for this company.",
+    companyAdminResetRecipientFallback: "(company invoice email as fallback)",
+    companyAdminResetConfirm: "Send a password reset link to the admin of company \"{company}\"?\n\nUsername: {username}\nRecipient: {recipient}\n\nContinue?",
+    companyAdminResetSmtpSetupMissing: "Email sending is not configured. Please set up SMTP first.",
+    companyAdminResetSendFailed: "Sending failed: {error}",
+    companyAdminResetSent: "Reset link was sent to \"{username}\".",
+    companyAdminPasswordPrompt: "New password for admin \"{username}\" of company \"{company}\":\n(Minimum 8 characters)",
+    companyAdminPasswordMinLength: "The password must be at least 8 characters long.",
+    companyAdminPasswordSet: "Password for \"{username}\" was set.\nAll active sessions were terminated.",
+    companyOtpPrompt: "OTP email for the admin of company \"{company}\":\n(leave empty = disable OTP)",
+    companyOtpEnabledMessage: "OTP enabled.\nEmail: {email}\n\nThe admin will receive a code at this address on the next sign-in.",
+    companyOtpDisabledMessage: "OTP disabled for the admin of company \"{company}\".",
+    companyDocEmailConflict: "This document email is already stored for \"{company}\".",
+    companyDocEmailAutoBaseMissing: "No IMAP base address found. Please set the IMAP user in Admin first.",
+    companyDocEmailAutoConflict: "Auto email conflicts with \"{company}\". Please set it manually.",
+    invoiceDeadLetterEmpty: "No open dead-letter cases.",
+    invoiceFallbackCompany: "Company",
+    invoiceAmountLabel: "Amount",
+    invoiceAttemptsLabel: "Attempts",
+    invoiceCreatedLabel: "Created",
+    invoiceLastAttemptLabel: "Last attempt",
+    invoiceLastErrorLabel: "Last error",
+    invoiceLastErrorNone: "No last error available.",
+    invoiceRetryNowBtn: "Send again now",
+    invoiceResolveBtn: "Mark as resolved",
+    invoiceReminderLoadFailed: "Could not load reminder: {error}",
+    invoicePreviewStatusDraft: "Draft",
+    invoicePreviewStatusSent: "Sent",
+    invoicePreviewStatusOverdue: "Overdue",
+    invoicePreviewStatusPaid: "Paid",
+    invoicePreviewStatusFailed: "Error",
+    invoicePreviewNumberLabel: "Invoice number",
+    invoicePreviewStatusLabel: "Status",
+    invoicePreviewCompanyLabel: "Company",
+    invoicePreviewAmountLabel: "Amount",
+    invoicePreviewDateLabel: "Invoice date",
+    invoicePreviewDueDateLabel: "Due date",
+    invoicePreviewPaidAtLabel: "Paid on",
+    invoicePreviewPeriodLabel: "Invoice period",
+    invoiceBulkSelectedCount: "{count} selected",
+    invoiceBulkMarkPaidConfirm: "Mark {count} invoice(s) as paid?",
+    invoiceBulkMarkPaidDone: "{count} invoice(s) marked as paid.",
+    retryQueueCriticalSendBtn: "Send critical only now ({count})",
+    retryQueueOpenFailed: "Open failed",
+    retryQueueInQueue: "In queue",
+    retryQueueTodayRecovered: "Recovered after retry today",
+    retryQueueResent: "Delivered again",
+    retryQueueMaxRetries: "Max retries reached",
+    retryQueueManualReview: "Manual review required",
+    retryQueueCriticalPriority: "Critical priority",
+    retryQueueScoreThreshold: "Score >= 70",
+    retryQueueEmpty: "No open delivery errors in the queue.",
+    collectionsKpiAll: "Open total",
+    collectionsKpiOverdue: "Overdue",
+    collectionsKpiPrelock: "Before lock",
+    collectionsKpiLocked: "Locked companies",
+    retryPriorityLow: "low",
+    retryPriorityHigh: "high",
+    retryPriorityCritical: "critical",
+    retryQueuePriorityLabel: "Priority",
+    retryQueueAgeLabel: "Age",
+    retryQueueAgeDays: "{count} days",
+    retryQueueCompanyOpenLabel: "Company",
+    retryQueueCompanyOpenCount: "{count} open",
+    collectionsEmpty: "No collections cases for the selected filter.",
+    collectionsOverdueDays: "{count} day(s) overdue",
+    collectionsNotOverdue: "not overdue yet",
+    collectionsBadgeLocked: "Company locked",
+    collectionsBadgePrelock: "Before lock",
+    collectionsBadgeOverdue: "Overdue",
+    collectionsBadgeOpen: "Open",
+    collectionsDueLabel: "Due",
+    collectionsReminderStageLabel: "Reminder stage",
+    collectionsMarkPaidBtn: "Mark as paid",
+    collectionsUnlockBtn: "Remove lock",
+    collectionsLockBtn: "Lock company",
+    invoiceApprovalsEmpty: "No open approvals.",
+    invoiceApprovalActionBulkRetrySend: "Bulk retry invoice delivery",
+    invoiceApprovalActionDeadLetterResolve: "Resolve dead letter",
+    invoiceApprovalFallbackTitle: "Approval",
+    invoiceApprovalRequestedByLabel: "Requested by",
+    invoiceApprovalRequestLabel: "Request",
+    invoiceApprovalTimestampLabel: "Timestamp",
+    invoiceApprovalScopeLabel: "Scope",
+    invoiceApprovalStateOpen: "open",
+    invoiceApprovalStateCritical: "critical",
+    invoiceApprovalStateUrgent: "urgent",
+    invoiceApprovalExpiryUnknown: "Expiry: -",
+    invoiceApprovalExpiryExpired: "Expiry: expired",
+    invoiceApprovalExpiryInMinutes: "Expires in: {count} min",
+    invoiceApprovalInvoiceCount: "{count} invoice(s)",
+    invoiceApprovalSingleInvoice: "Invoice {id}",
+    statsExpiringCritical: "Expiring documents (critical)",
+    systemAlertCriticalInvoices: "{count} critical invoice delivery failures (score >= 70) require attention.",
+    systemAlertOpenInvoices: "Open invoices ({count})",
+    complianceEmpty: "No compliance data loaded.",
+    complianceFallbackCompany: "Company",
+    complianceSummaryCounts: "Green {green} | Yellow {yellow} | Red {red}",
+    complianceNoCriticalGaps: "No critical document gaps.",
+    complianceWorkerFallback: "Worker",
+    auditLogEmpty: "No audit entries available.",
+    complianceKpiCompaniesWithIssues: "Companies with issues",
+    complianceKpiWorkers: "Workers",
+    complianceKpiCritical: "Critical",
+    complianceKpiWarning: "Warning",
+    complianceKpiOk: "OK",
+    accessReportOpenEntriesTitle: "Open entries",
+    accessReportOpenEntriesEmpty: "No open entries.",
+    systemStatusServerTime: "Server time",
+    systemStatusActiveAdminSessions: "Active admin sessions",
+    systemStatusActiveWorkerSessions: "Active worker app sessions",
+    systemStatusOpenEntries: "Open entries",
+    systemStatusLoginLocks: "Login locks",
+    systemStatusRecentIssues: "Recent issues",
+    invoiceOpsTimeToFirstSuccess: "Time to first success",
+    invoiceOpsAvgSuccessfulSends: "Average across successful deliveries",
+    invoiceOpsCriticalCases24h: "Critical cases >24h",
+    invoiceOpsCriticalCasesMeta: "Score >= 70 and older than 24h",
+    invoiceOpsTopErrorReason: "Top error reason",
+    invoiceOpsOccurrences: "{count} occurrences",
+    invoiceOpsRetriesCount: "{count} retry(s)",
+    invoiceOpsNoDominantErrors: "No dominant error reasons yet.",
+    severityCritical: "Critical",
+    severityWarning: "Warning",
+    severityOk: "OK",
+    companyHistoryShownCount: "{shown} of {total} companies shown",
+    companyHistoryPeriodLabel: "Period",
+    companyHistoryLast7Days: "Last 7 days",
+    companyHistoryLast30Days: "Last 30 days",
+    companyHistoryLast90Days: "Last 90 days",
+    companyHistoryAllPeriods: "All",
+    companyHistoryOnlyProblems: "Show problems only",
+    companyPreviewLabel: "Company preview:",
+    companyPreviewNone: "No preview (superadmin view)",
+    deviceListEmpty: "No devices registered yet.",
+    deviceDeleteConfirm: "Delete device?",
+    deviceApiKeyLabel: "API key (shown only once):",
+    deviceSeenSecondsAgo: "{count}s ago",
+    deviceSeenMinutesAgo: "{count}min ago",
+    languageNameArabic: "Arabic",
+    languageNameTurkish: "Turkish",
+    languageNameGerman: "German",
+    languageNameEnglish: "English",
+    languageNameFrench: "French",
+    languageNameSpanish: "Spanish",
+    languageNameItalian: "Italian",
+    languageNamePolish: "Polish",
+    ttsUnsupportedTitle: "Speech output (Web Speech API) is not supported by this browser.",
+    ttsUnsupportedBrowserHint: "Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> for speech output.",
+    ttsNoVoicesTitle: "No speech voices found",
+    ttsNoVoicesCauses: "Possible causes and fixes:",
+    ttsNoVoicesWindows: "<strong>Windows:</strong> Settings -> Time &amp; Language -> Language -> Add a language (for example Arabic, Turkish)",
+    ttsNoVoicesChrome: "<strong>Chrome:</strong> Open <code>chrome://settings/languages</code> and add languages",
+    ttsNoVoicesFirefox: "<strong>Firefox:</strong> Web Speech API support is limited - Chrome/Edge is recommended",
+    ttsNoVoicesServer: "<strong>Server/Linux:</strong> <code>apt install speech-dispatcher espeak-ng</code>",
+    ttsNoVoicesJingleHint: "The greeting will still play a <strong>jingle</strong> if no voice is available.",
+    ttsRetryBtn: "Try again",
+    ttsVoicesAvailable: "{count} voices available",
+    ttsMissingLanguages: "Missing languages: {languages}",
+    ttsInstallWindows: "How to install (Windows):",
+    ttsInstallStep1: "Open <strong>Settings -> Time &amp; Language -> Language</strong>",
+    ttsInstallStep2: "Click <strong>\"Add a language\"</strong>",
+    ttsInstallStep3: "Search for the missing language (for example <strong>العربية</strong> for Arabic) and install it",
+    ttsInstallStep4: "Make sure <strong>\"Speech\"</strong> is enabled for the installed language",
+    ttsInstallStep5: "Restart the browser and click <strong>\"Load voices\"</strong> again",
+    ttsFallbackEnglish: "Until installation is complete, the greeting uses <strong>English</strong> as fallback.",
+    ttsVoiceCountOne: "{count} voice",
+    ttsVoiceCountMany: "{count} voices",
+    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in BauPass",
+    ttsLoadingVoices: "Loading voices...",
+    smtpEnvCheckPrefix: "Env check",
+    smtpEnvSet: "set",
+    smtpEnvEmpty: "empty",
+    smtpApiFallbackMissing: "API fallback not detected",
+    smtpApiFallbackBoth: "API fallback detected (Resend + Brevo)",
+    smtpApiFallbackBrevo: "API fallback detected (Brevo)",
+    smtpApiFallbackResend: "API fallback detected (Resend{source})",
+    smtpIncomplete: "SMTP is not fully configured.",
+    smtpMissingFields: "Missing fields: {fields}",
+    smtpFieldSenderEmail: "Sender email",
+    smtpSendFailed: "SMTP delivery failed.",
+    smtpFallbackHint: "API fallback is not active. Configure Brevo in settings (recommended) or set RESEND_API_KEY in Railway.",
+    smtpDiagnosticsOk: "Diagnostics OK: host {host}:{port}, TLS {tls}, auth {auth}{apiState}",
+    smtpTlsOn: "on",
+    smtpTlsOff: "off",
+    smtpAuthSet: "set",
+    smtpAuthMissing: "without login",
+    smtpDiagnosticsStage: "Stage {stage}",
+    smtpDiagnosticsFailed: "Diagnostics failed",
+    brevoApiKeyRequired: "Please enter a Brevo API key",
+    brevoSaving: "Saving...",
+    brevoSaveFailed: "Saving failed: {error}",
+    brevoApiKeyStored: "API key saved",
+    brevoNoApiKeyStored: "No key saved",
+    brevoTesting: "Testing...",
+    brevoPromptRecipient: "Brevo test: which email should receive the message? (No recipient email found)",
+    operationCanceled: "Canceled",
+    brevoMailSent: "Brevo: mail sent!",
+    brevoTestFailed: "{error}{detail}",
+    otpPromptRecipient: "OTP test: which email address should receive the code?",
+    otpSentTo: "OTP code sent to {recipient} (Code: 123456)",
+    genericErrorPrefix: "Error: {message}",
+    smtpSending: "Sending...",
+    smtpSentTo: "Mail sent to {recipient}",
+    smtpSentToFallback: "Mail sent to {recipient} (fallback via HTTPS API)",
+    smtpDirectApiTestOk: "API direct test: OK",
+    smtpDirectApiTestResult: "API direct test: {error}{source}",
   };
   const map = {
     de: {
@@ -6486,6 +7050,520 @@ function getRuntimeUiTexts() {
       porterTotal: "Gesamt",
       porterPersonSingular: "Person",
       porterPersonPlural: "Personen",
+      detailsShow: "Details",
+      detailsHide: "Weniger",
+      docInboxStatusUnmatched: "Nicht erkannt",
+      docInboxStatusNew: "Neu",
+      docInboxStatusPartial: "Teilweise",
+      docInboxStatusAssigned: "Zugeordnet",
+      docInboxNoSubject: "(kein Betreff)",
+      docManualCompanyAssignBtn: "Firma manuell zuweisen",
+      attachmentFallback: "Anhang",
+      docAssignFallbackAllWorkers: "Keine Mitarbeiter der erkannten Firma - alle Mitarbeiter werden angezeigt.",
+      docAssignMatchedCompanyOnly: "Vorauswahl auf erkannte Firma eingeschraenkt.",
+      selectPlaceholder: "- bitte waehlen -",
+      manualCompanyMatchNoCompanies: "Keine aktiven Firmen vorhanden.",
+      manualCompanyMatchIntro: "Mail aus Pruefkorb manuell einer Firma zuordnen.",
+      manualCompanyMatchSearchLabel: "Firma suchen",
+      manualCompanyMatchSearchPlaceholder: "Name oder Mail eingeben",
+      manualCompanyMatchSelectCompany: "Bitte eine Firma waehlen.",
+      manualCompanyMatchFailed: "Zuordnung fehlgeschlagen: {error}",
+      docEmailMissing: "keine Dokument-Mail",
+      docExpiryOptional: "Ablaufdatum (optional)",
+      docExpiryLabel: "Ablaufdatum",
+      accessWarningsEmpty: "Keine offenen Eintritte gefunden.",
+      accessWarningGate: "Drehkreuz",
+      accessWarningLastEntry: "Letzter Eintritt",
+      accessWarningOpenSince: "Offen seit",
+      workerRoleFallback: "Mitarbeiter",
+      workerStatusInactive: "Inaktiv",
+      workerStatusReasonLabel: "Sperrgrund",
+      photoOverrideNewPhotoAlt: "Neues Foto",
+      photoOverrideRequesterHint: "Du bist der Antragsteller - ein anderer Superadmin muss freigeben.",
+      photoOverrideComparisonLabel: "Fotovergleich",
+      photoOverrideReasonLabel: "Grund",
+      photoOverrideRequestedAtLabel: "Beantragt",
+      photoOverrideExpiresAtLabel: "Gueltig bis",
+      approvalApproveBtn: "Freigeben",
+      approvalRejectBtn: "Ablehnen",
+      companyListEmpty: "Noch keine Firmen vorhanden.",
+      companyRepairHistoryEmpty: "Keine Reparaturen im gewaelten Zeitraum.",
+      turnstileAccountsTitle: "Drehkreuz-Accounts",
+      turnstileDefaultName: "Drehkreuz",
+      turnstileStateActive: "aktiv",
+      turnstileStateInactive: "deaktiviert",
+      turnstileApiKeyActive: "API-Key aktiv",
+      turnstileApiKeyMissing: "kein API-Key",
+      turnstilePasswordResetBtn: "Passwort neu",
+      turnstileRotateApiKeyBtn: "API-Key neu",
+      turnstileDeactivateBtn: "Deaktivieren",
+      turnstileActivateBtn: "Aktivieren",
+      turnstileAccountsEmpty: "Keine Drehkreuz-Accounts vorhanden.",
+      companyDocEmailNotSet: "Nicht gesetzt",
+      companyDocEmailAutoBtn: "Auto setzen",
+      companyDocEmailCopyBtn: "Mail kopieren",
+      companyInvoiceMailLanguageLabel: "Rechnungs-Mail Sprache",
+      companyInvoiceLangGerman: "Deutsch",
+      companyInvoiceLangEnglish: "Englisch",
+      companyInvoiceLangFrench: "Franzoesisch",
+      companyInvoiceLangPrompt: "Rechnungs-E-Mail Sprache fuer \"{company}\":\n\n{choices}\n\nBitte \"de\", \"en\" oder \"fr\" eingeben:",
+      companyInvoiceLangInvalid: "Ungueltige Sprache. Erlaubt: de, en, fr",
+      companyInvoiceLangSaveFailed: "Fehler beim Speichern: {error}",
+      companyDocEmailMissingAlert: "Fuer diese Firma ist noch keine Dokument-Mail gesetzt.",
+      companyCardDesignLabel: "Design",
+      companyDocEmailConflictFallback: "anderen Firma",
+      companyCreatedTitle: "Firma angelegt",
+      companyCreatedIntro: "Zugangsdaten und API-Keys werden nur jetzt vollstaendig angezeigt.",
+      companyCreatedCopyLabel: "Zugangsdaten kopieren",
+      companyAdminAccessLabel: "Admin-Zugang",
+      turnstileAccessLabel: "Drehkreuz-Zugang {index}",
+      turnstileApiKeyLabel: "Drehkreuz-API-Key {index}",
+      credentialUsernameLabel: "Benutzername",
+      credentialPasswordLabel: "Passwort",
+      credentialApiKeyLabel: "API-Key",
+      credentialUnavailable: "nicht verfuegbar",
+      copyApiKeyLabel: "API-Key kopieren",
+      turnstileCreatedTitle: "Drehkreuz-Zugang angelegt",
+      turnstileApiKeyRotatedTitle: "Neuer Drehkreuz-API-Key",
+      turnstileApiKeyNotReceived: "Kein API-Key erhalten",
+      companyOtpAdminLabel: "Admin-OTP",
+      companyOtpEnabled: "OTP aktiv",
+      companyOtpDisabled: "OTP deaktiviert",
+      companyOtpNotConfigured: "OTP nicht konfiguriert",
+      companyNoEmail: "keine E-Mail",
+      companyBrandingPreviewLabel: "Vorschau",
+      companyLatestRepairsTitle: "Letzte Reparaturen",
+      accessFeedbackCheckinTitle: "ANMELDUNG ERFOLGREICH",
+      accessFeedbackCheckoutTitle: "ABMELDUNG ERFOLGREICH",
+      accessFeedbackCheckinMessage: "Du bist jetzt angemeldet.",
+      accessFeedbackCheckoutMessage: "Du bist jetzt abgemeldet.",
+      accessFeedbackDirectionCheckin: "Anmeldung",
+      accessFeedbackDirectionCheckout: "Abmeldung",
+      accessFeedbackUnknownWorker: "Mitarbeiter",
+      workerExportEyebrow: "Mitarbeiterliste",
+      workerExportTitle: "PDF-Export Optionen",
+      workerExportIncludePhotos: "Mit Fotos (Passfoto je Mitarbeiter)",
+      workerExportPeriodLabel: "Zeitraum",
+      workerExportPeriodAll: "Alle aktiven Mitarbeiter",
+      workerExportPeriodToday: "Heute",
+      workerExportPeriodWeek: "Diese Woche",
+      workerExportPeriodDay: "Bestimmter Tag",
+      workerExportDateLabel: "Datum",
+      workerExportDownloadBtn: "PDF herunterladen",
+      accessReportTitle: "Zutrittsreport",
+      accessReportPeriodLabel: "Zeitraum",
+      accessReportRoleLabel: "Rolle",
+      accessReportOverviewTitle: "Drehkreuz-Uebersicht",
+      accessReportNoData: "Keine Daten.",
+      accessReportVisitorsTitle: "Besucher im Zeitraum",
+      accessReportVisitorsNone: "Keine Besucher im Zeitraum.",
+      visitorWeeklyTitle: "Besucher-Wochenliste",
+      visitorWeeklyNone: "Keine Besucher in dieser Woche.",
+      tableHeaderName: "Name",
+      tableHeaderCompany: "Firma",
+      tableHeaderPurpose: "Zweck",
+      tableHeaderContact: "Ansprechpartner",
+      tableHeaderSite: "Baustelle",
+      tableHeaderLastActivity: "Letzte Aktivitaet",
+      workerAppQrPrintTitle: "Mitarbeiter-App QR",
+      workerAppQrHeading: "Mitarbeiter-App installieren",
+      workerAppQrHint: "QR-Code mit der Kamera scannen und App starten.",
+      workerAppQrAlt: "Mitarbeiter App QR",
+      workerAppQrVisitorHeading: "Besucherkarte QR",
+      workerAppQrVisitorHint: "Code mit der Kamera scannen, um die Besucherkarte digital in der App zu oeffnen.",
+      workerAppQrForLabel: "Fuer",
+      workerAppQrValidUntil: "Gueltig bis: {when} Uhr",
+      workerAppQrOneTimeHint: "Einmal-Link: Nach erstem Login ungueltig.",
+      workerAppQrPrintBtn: "QR drucken",
+      workerAppQrCopyBtn: "Link kopieren",
+      secretDialogIntro: "Diese Daten werden nur jetzt angezeigt.",
+      secretDialogCopyBtn: "Daten kopieren",
+      secretDialogDefaultTitle: "Geheimer Schluessel",
+      workerStatsLoading: "Lade Statistiken...",
+      workerStatsTotal: "Gesamt",
+      workerStatsWorkers: "Mitarbeiter",
+      workerStatsTopSites: "Top Baustellen",
+      workerStatsTopGates: "Top Tore (letzte 30 Tage)",
+      workerStatsCheckinsByHour: "Check-Ins nach Uhrzeit (letzte 30 Tage)",
+      workerStatsUnavailable: "Statistiken nicht verfuegbar.",
+      accessDuplicateCheckin: "Diese Karte ist bereits angemeldet. Erst abmelden, dann erneut anmelden.",
+      accessDuplicateCheckout: "Diese Karte ist bereits abgemeldet. Erst anmelden, dann erneut abmelden.",
+      accessDeniedTitle: "ZUTRITT ABGELEHNT",
+      accessBookingFailedPrefix: "Buchung fehlgeschlagen",
+      invoiceAttemptNone: "Noch keine Versandversuche protokolliert.",
+      invoiceAttemptLabel: "Versuch {count}",
+      invoiceAttemptFailed: "Fehlgeschlagen",
+      invoiceAttemptSuccess: "Erfolgreich",
+      invoiceActorSystem: "System",
+      invoiceRetryNextLabel: "Naechster Retry",
+      invoiceErrorLabel: "Fehler",
+      invoiceKpiOpen: "Offen",
+      invoiceKpiOverdue: "Ueberfaellig",
+      invoiceKpiPaid: "Bezahlt",
+      invoiceKpiFailed: "Fehler",
+      invoiceListEmpty: "Keine Rechnungen vorhanden oder keine Treffer.",
+      invoiceHistoryHide: "Historie ausblenden",
+      invoiceHistoryShow: "Versand-Historie",
+      invoiceHistoryLoading: "Historie wird geladen...",
+      invoiceSelectTitle: "Auswaehlen",
+      invoicePaidAtLabel: "Bezahlt",
+      invoiceStatusLabel: "Status",
+      invoiceDueDateLabel: "Faelligkeitsdatum",
+      invoiceAutoSuspendedLabel: "Auto-Sperrung ausgeloest",
+      invoicePreviewBtn: "Vorschau",
+      invoiceMarkPaidBtn: "Als bezahlt markieren",
+      invoiceRetryBtn: "Erneut senden",
+      invoiceReminderDownloadBtn: "Mahnung herunterladen",
+      invoiceLineItemsTitle: "Rechnungspositionen",
+      invoiceDetailsUnavailable: "Keine Details verfuegbar",
+      invoiceNumberAutoFailed: "Konnte naechste Rechnungsnummer nicht laden: {error}",
+      invoicePositionDescriptionPlaceholder: "Beschreibung",
+      invoicePositionQtyPlaceholder: "Menge",
+      invoicePositionUnitPricePlaceholder: "Einzelpreis",
+      invoicePositionUnitFlat: "Pauschal",
+      invoicePositionUnitHours: "Stunden",
+      invoicePositionUnitPiece: "Stueck",
+      invoicePositionUnitMonth: "Monat",
+      invoicePositionUnitDay: "Tag",
+      workerCsvImportLoading: "Importiere...",
+      workerCsvImportSummary: "Import abgeschlossen: {created} erstellt, {skipped} uebersprungen, {errors} Fehler.",
+      workerCsvImportRowError: "Zeile {row}: {reason}",
+      workerCsvImportErrorPrefix: "Fehler: {error}",
+      importPreviewTitle: "Import Vorschau (Dry-Run)",
+      importPreviewCheckHint: "Bitte Zahlen pruefen, bevor der Import angewendet wird.",
+      importPreviewModeLine: "Modus: {mode} · Unveraendert erkannt: {count}",
+      importPreviewModeChanges: "Nur Aenderungen",
+      importPreviewModeAll: "Alle Datensaetze",
+      importPreviewLegendGreen: "Gruen: OK / keine Konflikte",
+      importPreviewLegendYellow: "Gelb: 1-5 Konflikte",
+      importPreviewLegendRed: "Rot: mehr als 5 Konflikte",
+      importPreviewAreaHeader: "Bereich",
+      importPreviewAcceptedHeader: "Accepted",
+      importPreviewConflictsHeader: "Conflicts",
+      importPreviewCompanies: "Firmen",
+      importPreviewSubcompanies: "Subunternehmen",
+      importPreviewWorkers: "Mitarbeiter",
+      importPreviewAccessLogs: "Zutrittsprotokolle",
+      importPreviewInvoices: "Rechnungen",
+      importPreviewSkippedTitle: "Uebersprungene Eintraege:",
+      importPreviewSkippedForbidden: "Verboten (Berechtigung):",
+      importPreviewSkippedInvalid: "Ungueltig (Format):",
+      importPreviewCancel: "Abbrechen",
+      importPreviewApply: "Import anwenden",
+      invoiceValidationIban: "IBAN unvollstaendig oder ungueltig",
+      invoiceValidationBic: "BIC muss 8 oder 11 Zeichen haben",
+      invoiceValidationTaxId: "Steuernummer unvollstaendig oder ungueltig",
+      invoiceValidationVatId: "USt-IdNr. unvollstaendig oder ungueltig",
+      invoiceValidationBankName: "Bankname ist zu kurz",
+      invoiceValidationAddress: "Adresse unvollstaendig",
+      invoiceValidationZipCity: "PLZ/Ort unvollstaendig",
+      invoiceValidationEmail: "Ungueltige E-Mail",
+      invoiceValidationRequired: "Pflichtfeld",
+      invoiceLabelStreetHouseNumber: "Strasse und Hausnummer",
+      invoiceLabelZipCity: "PLZ und Ort",
+      invoiceLabelBankName: "Bankname",
+      invoiceLabelTaxId: "Steuernummer",
+      invoiceLabelVatId: "USt-IdNr.",
+      previewActiveLabel: "Vorschau aktiv",
+      previewCompanyViewLabel: "Firmenansicht",
+      previewEndBtn: "Vorschau beenden",
+      simulationActiveTitle: "Simulation aktiv",
+      companyViewLabel: "Firmenansicht",
+      workerStatsHourTitle: "{hour}:00 Uhr - {count} Check-Ins",
+      photoSimilarityUnavailable: "k.A.",
+      qrCodeLoadFailed: "QR-Code konnte nicht geladen werden: {error}",
+      dunningRunConfirm: "Mahnungs-Durchlauf jetzt manuell starten?",
+      dunningRunResult: "Mahnungs-Durchlauf: {count} Erinnerungen gesendet.",
+      appLinkCreating: "Wird erstellt ...",
+      appLinkPhoneButton: "📱 App auf Smartphone",
+      imapTesting: "Teste...",
+      accessPreviewNoWorker: "Noch kein Mitarbeiter ausgewaehlt.",
+      loginLockRemainingMinutes: "{count} min",
+      exportScopeForCompany: " fuer {company}",
+      exportDownloadedMessage: "System-Export{scope} wurde heruntergeladen (Firmen: {companies}, Mitarbeiter: {workers}, Logs: {logs}).",
+      demoDataLoadedMessage: "Demo-Daten fuer {company} wurden geladen (Modus: {mode}, Mitarbeiter: {workers}, Logs: {logs}, Rechnungen: {invoices}).",
+      companyNotFoundError: "Die Firma wurde nicht gefunden oder wurde inzwischen geloescht.",
+      companyLockedError: "Diese Firma ist aktuell gesperrt.",
+      companyHasWorkersError: "Die Firma hat noch aktive Mitarbeiter. Bitte komplette Loeschung als Superadmin verwenden.",
+      companyThisFallback: "diese Firma",
+      companySelectedFallback: "die ausgewaehlte Firma",
+      repairExecutedFallback: "Reparatur ausgefuehrt",
+      visitorCompanyFallback: "Besucherfirma",
+      visitPurposeFallback: "Besuch",
+      systemIdentityUnset: "Noch nicht gesetzt",
+      companyLockingMessage: "Firma wird gesperrt...",
+      companyUnlockingMessage: "Sperre wird aufgehoben...",
+      companyNowLockedMessage: "Firma ist jetzt gesperrt.",
+      companyNowUnlockedMessage: "Firma ist wieder aktiv.",
+      tapLastHint: "Letzter Tap: {cardId} ({direction})",
+      tapDeniedHint: "Tap abgelehnt: {reason}",
+      tapUnknownReason: "Unbekannter Grund",
+      accessOkShort: "Zutritt OK",
+      accessDeniedShort: "Zutritt abgelehnt",
+      turnstileQuickModeTitle: "Drehkreuz-Schnellmodus",
+      turnstileQuickModeIntro: "Karte auflegen, Enter senden, fertig. Die Richtung wird automatisch gewechselt.",
+      turnstileTapReady: "Bereit fuer Tap",
+      turnstileCardPlaceholder: "Karten-ID (NFC/RFID)",
+      turnstileTapSubmitButton: "Tap buchen",
+      turnstileTapNextHint: "Bereit fuer den naechsten Tap.",
+      turnstileQuickFallbackHint: "Fallback: Mitarbeiter manuell waehlen und Richtung buchen.",
+      turnstileQuickSearchPlaceholder: "Mitarbeiter suchen",
+      turnstileQuickCheckinButton: "Schnell Check-in",
+      turnstileQuickCheckoutButton: "Schnell Check-out",
+      turnstileTapNoCardHint: "Keine Karten-ID gelesen. Bitte erneut auflegen.",
+      turnstileTapNoCardLive: "Keine Karte erkannt",
+      turnstileTapNoCardTitle: "KARTE NICHT ERKANNT",
+      turnstileTapNoCardMessage: "Keine Karten-ID gelesen.",
+      turnstileTapUnknownCardHint: "Unbekannte Karte: {cardId}",
+      turnstileTapUnknownCardLive: "Unbekannte Karte {cardId}",
+      turnstileTapDeniedTitle: "ZUTRITT ABGELEHNT",
+      turnstileTapUnassignedMessage: "Karte {cardId} ist keinem Mitarbeiter zugewiesen.",
+      turnstileTapProcessingHint: "Verarbeite {cardId} ...",
+      turnstileTapCheckingLive: "Pruefe Karte {cardId}",
+      turnstileScannerLabel: "Drehkreuz Scanner",
+      turnstileQuickModeLabel: "Drehkreuz Schnellmodus",
+      turnstileNfcTapLabel: "NFC/RFID Tap",
+      turnstileTerminalBookingLabel: "Terminalbuchung",
+      photoValidationCaptureFirst: "Erst Foto aufnehmen oder hochladen.",
+      photoValidationChecking: "Pruefe Foto...",
+      photoValidationScore: "Foto-Score",
+      photoValidationLooksGood: "Foto sieht gut aus.",
+      photoValidationUnavailable: "Validierung nicht verfuegbar.",
+      photoZoomValue: "{value}x",
+      passwordResetPromptUsername: "Benutzername eingeben, um einen Passwort-Reset-Link zu erhalten:",
+      passwordResetSmtpNotConfigured: "E-Mail-Versand ist nicht konfiguriert. Bitte wende dich an den Administrator.",
+      passwordResetRequestSent: "Falls ein Account mit diesem Benutzernamen existiert und eine E-Mail-Adresse hinterlegt ist, wurde ein Reset-Link verschickt.",
+      passwordResetRequestFailed: "Fehler beim Senden der Anfrage. Bitte versuche es spaeter erneut.",
+      passwordResetMinLength: "Passwort muss mindestens 8 Zeichen haben.",
+      passwordResetMismatch: "Passwoerter stimmen nicht ueberein.",
+      passwordResetSaving: "Wird gespeichert...",
+      passwordResetTokenInvalid: "Link ist ungueltig oder wurde bereits verwendet.",
+      passwordResetTokenExpired: "Link ist abgelaufen. Bitte fordere einen neuen an.",
+      genericUnknownError: "Unbekannter Fehler.",
+      genericNetworkRetry: "Netzwerkfehler. Bitte versuche es erneut.",
+      passwordResetSavedRedirect: "Passwort wurde geaendert. Du wirst zur Anmeldung weitergeleitet...",
+      expiringDocsEmpty: "Keine ablaufenden Dokumente im gewaehlten Zeitraum.",
+      backendUnreachableWithBase: "Backend nicht erreichbar ({base}). {hint}",
+      backendUnreachableLocalHint: "Wenn du lokal testest: ?apiBase=http://127.0.0.1:8000",
+      imapNotConfiguredWithBase: "IMAP ist auf diesem Backend nicht konfiguriert ({base}).{missing}",
+      imapMissingFields: " Fehlend: {fields}.",
+      imapErrorWithReason: "IMAP-Fehler: {reason}",
+      docInboxSummaryRecognized: "Erkannt",
+      docInboxSummaryReview: "Pruefkorb",
+      docInboxRecognizedEmpty: "Keine erkannten Mails.",
+      docInboxReviewIntro: "Empfaengeradresse konnte keiner Firma zugeordnet werden",
+      docInboxReviewEmpty: "Keine ungeklaerten Mails.",
+      imapTestMissingFields: "Bitte IMAP Host, Benutzername und Passwort ausfuellen und speichern.",
+      systemStatusLoading: "Status wird geladen...",
+      systemStatusLoadFailed: "Status konnte nicht geladen werden: {error}",
+      companyBrandingDirtyUnsaved: "Noch nicht gespeichert",
+      companyAdminMissing: "Kein Admin-Account fuer diese Firma gefunden.",
+      companyAdminResetRecipientFallback: "(Rechnungs-E-Mail der Firma als Fallback)",
+      companyAdminResetConfirm: "Passwort-Reset-Link an den Admin der Firma \"{company}\" senden?\n\nBenutzername: {username}\nEmpfaenger: {recipient}\n\nFortfahren?",
+      companyAdminResetSmtpSetupMissing: "E-Mail-Versand ist nicht konfiguriert. Bitte zuerst SMTP einrichten.",
+      companyAdminResetSendFailed: "Fehler beim Senden: {error}",
+      companyAdminResetSent: "Reset-Link wurde an \"{username}\" gesendet.",
+      companyAdminPasswordPrompt: "Neues Passwort fuer Admin \"{username}\" der Firma \"{company}\":\n(Mindestens 8 Zeichen)",
+      companyAdminPasswordMinLength: "Das Passwort muss mindestens 8 Zeichen lang sein.",
+      companyAdminPasswordSet: "Passwort fuer \"{username}\" wurde gesetzt.\nAlle aktiven Sitzungen wurden beendet.",
+      companyOtpPrompt: "OTP-E-Mail fuer Admin der Firma \"{company}\":\n(Leer lassen = OTP deaktivieren)",
+      companyOtpEnabledMessage: "OTP aktiviert.\nE-Mail: {email}\n\nDer Admin erhaelt beim naechsten Login einen Code an diese Adresse.",
+      companyOtpDisabledMessage: "OTP deaktiviert fuer Admin der Firma \"{company}\".",
+      companyDocEmailConflict: "Diese Dokument-Mail ist bereits bei \"{company}\" hinterlegt.",
+      companyDocEmailAutoBaseMissing: "Keine IMAP-Basisadresse gefunden. Bitte zuerst IMAP-Benutzer im Admin setzen.",
+      companyDocEmailAutoConflict: "Auto-Mail kollidiert mit \"{company}\". Bitte manuell setzen.",
+      invoiceDeadLetterEmpty: "Keine offenen Dead-Letter-Faelle.",
+      invoiceFallbackCompany: "Firma",
+      invoiceAmountLabel: "Betrag",
+      invoiceAttemptsLabel: "Versuche",
+      invoiceCreatedLabel: "Erstellt",
+      invoiceLastAttemptLabel: "Letzter Versuch",
+      invoiceLastErrorLabel: "Letzter Fehler",
+      invoiceLastErrorNone: "Letzter Fehler nicht vorhanden.",
+      invoiceRetryNowBtn: "Jetzt erneut senden",
+      invoiceResolveBtn: "Als erledigt markieren",
+      invoiceReminderLoadFailed: "Mahnung konnte nicht geladen werden: {error}",
+      invoicePreviewStatusDraft: "Entwurf",
+      invoicePreviewStatusSent: "Versendet",
+      invoicePreviewStatusOverdue: "Ueberfaellig",
+      invoicePreviewStatusPaid: "Bezahlt",
+      invoicePreviewStatusFailed: "Fehler",
+      invoicePreviewNumberLabel: "Rechnungsnummer",
+      invoicePreviewStatusLabel: "Status",
+      invoicePreviewCompanyLabel: "Firma",
+      invoicePreviewAmountLabel: "Betrag",
+      invoicePreviewDateLabel: "Rechnungsdatum",
+      invoicePreviewDueDateLabel: "Faelligkeitsdatum",
+      invoicePreviewPaidAtLabel: "Bezahlt am",
+      invoicePreviewPeriodLabel: "Rechnungsperiode",
+      invoiceBulkSelectedCount: "{count} ausgewaehlt",
+      invoiceBulkMarkPaidConfirm: "{count} Rechnung(en) als bezahlt markieren?",
+      invoiceBulkMarkPaidDone: "{count} Rechnung(en) als bezahlt markiert.",
+      retryQueueCriticalSendBtn: "Nur kritische jetzt senden ({count})",
+      retryQueueOpenFailed: "Offen fehlgeschlagen",
+      retryQueueInQueue: "In Warteschlange",
+      retryQueueTodayRecovered: "Heute nach Retry ok",
+      retryQueueResent: "Erneut zugestellt",
+      retryQueueMaxRetries: "Max Retries erreicht",
+      retryQueueManualReview: "Manuelle Pruefung noetig",
+      retryQueueCriticalPriority: "Kritische Prioritaet",
+      retryQueueScoreThreshold: "Score >= 70",
+      retryQueueEmpty: "Keine offenen Versand-Fehler in der Warteschlange.",
+      collectionsKpiAll: "Offen gesamt",
+      collectionsKpiOverdue: "Ueberfaellig",
+      collectionsKpiPrelock: "Vor Sperre",
+      collectionsKpiLocked: "Gesperrte Firmen",
+      retryPriorityLow: "niedrig",
+      retryPriorityHigh: "hoch",
+      retryPriorityCritical: "kritisch",
+      retryQueuePriorityLabel: "Prio",
+      retryQueueAgeLabel: "Alter",
+      retryQueueAgeDays: "{count} Tage",
+      retryQueueCompanyOpenLabel: "Firma",
+      retryQueueCompanyOpenCount: "{count} offen",
+      collectionsEmpty: "Keine Inkasso-Faelle fuer den gewaehlten Filter.",
+      collectionsOverdueDays: "{count} Tag(e) ueberfaellig",
+      collectionsNotOverdue: "noch nicht ueberfaellig",
+      collectionsBadgeLocked: "Firma gesperrt",
+      collectionsBadgePrelock: "Vor Sperre",
+      collectionsBadgeOverdue: "Ueberfaellig",
+      collectionsBadgeOpen: "Offen",
+      collectionsDueLabel: "Faellig",
+      collectionsReminderStageLabel: "Mahnstufe",
+      collectionsMarkPaidBtn: "Als bezahlt markieren",
+      collectionsUnlockBtn: "Sperre aufheben",
+      collectionsLockBtn: "Firma sperren",
+      invoiceApprovalsEmpty: "Keine offenen Freigaben.",
+      invoiceApprovalActionBulkRetrySend: "Bulk-Retry Rechnungsversand",
+      invoiceApprovalActionDeadLetterResolve: "Dead-Letter aufloesen",
+      invoiceApprovalFallbackTitle: "Freigabe",
+      invoiceApprovalRequestedByLabel: "Angefordert von",
+      invoiceApprovalRequestLabel: "Anfrage",
+      invoiceApprovalTimestampLabel: "Zeitpunkt",
+      invoiceApprovalScopeLabel: "Umfang",
+      invoiceApprovalStateOpen: "offen",
+      invoiceApprovalStateCritical: "kritisch",
+      invoiceApprovalStateUrgent: "dringend",
+      invoiceApprovalExpiryUnknown: "Ablauf: -",
+      invoiceApprovalExpiryExpired: "Ablauf: abgelaufen",
+      invoiceApprovalExpiryInMinutes: "Ablauf in: {count} min",
+      invoiceApprovalInvoiceCount: "{count} Rechnung(en)",
+      invoiceApprovalSingleInvoice: "Rechnung {id}",
+      statsExpiringCritical: "Ablaufende Dokumente (kritisch)",
+      systemAlertCriticalInvoices: "{count} kritische Rechnungs-Fehlversaende (Score >= 70) erfordern Aufmerksamkeit.",
+      systemAlertOpenInvoices: "Rechnungen oeffnen ({count})",
+      complianceEmpty: "Keine Compliance-Daten geladen.",
+      complianceFallbackCompany: "Firma",
+      complianceSummaryCounts: "Gruen {green} | Gelb {yellow} | Rot {red}",
+      complianceNoCriticalGaps: "Keine kritischen Dokumentluecken.",
+      complianceWorkerFallback: "Mitarbeiter",
+      auditLogEmpty: "Keine Audit-Eintraege vorhanden.",
+      complianceKpiCompaniesWithIssues: "Unternehmen mit Problemen",
+      complianceKpiWorkers: "Mitarbeiter",
+      complianceKpiCritical: "Kritisch",
+      complianceKpiWarning: "Warnung",
+      complianceKpiOk: "OK",
+      accessReportOpenEntriesTitle: "Offene Eintritte",
+      accessReportOpenEntriesEmpty: "Keine offenen Eintritte.",
+      systemStatusServerTime: "Serverzeit",
+      systemStatusActiveAdminSessions: "Aktive Admin-Sitzungen",
+      systemStatusActiveWorkerSessions: "Aktive Mitarbeiter-App-Sitzungen",
+      systemStatusOpenEntries: "Offene Eintritte",
+      systemStatusLoginLocks: "Login-Sperren",
+      systemStatusRecentIssues: "Letzte Probleme",
+      invoiceOpsTimeToFirstSuccess: "Zeit bis erster Erfolg",
+      invoiceOpsAvgSuccessfulSends: "Durchschnitt ueber erfolgreiche Sendungen",
+      invoiceOpsCriticalCases24h: "Kritische Faelle >24h",
+      invoiceOpsCriticalCasesMeta: "Score >= 70 und aelter als 24h",
+      invoiceOpsTopErrorReason: "Top Fehlergrund",
+      invoiceOpsOccurrences: "{count} Vorkommen",
+      invoiceOpsRetriesCount: "{count} Retry(s)",
+      invoiceOpsNoDominantErrors: "Noch keine dominanten Fehlergruende.",
+      severityCritical: "Kritisch",
+      severityWarning: "Warnung",
+      severityOk: "OK",
+      companyHistoryShownCount: "{shown} von {total} Firmen angezeigt",
+      companyHistoryPeriodLabel: "Zeitraum",
+      companyHistoryLast7Days: "Letzte 7 Tage",
+      companyHistoryLast30Days: "Letzte 30 Tage",
+      companyHistoryLast90Days: "Letzte 90 Tage",
+      companyHistoryAllPeriods: "Alle",
+      companyHistoryOnlyProblems: "Nur Probleme anzeigen",
+      companyPreviewLabel: "Firmenvorschau:",
+      companyPreviewNone: "Keine Vorschau (Superadmin-Sicht)",
+      deviceListEmpty: "Noch keine Geraete registriert.",
+      deviceDeleteConfirm: "Geraet wirklich loeschen?",
+      deviceApiKeyLabel: "API-Schluessel (nur einmal sichtbar):",
+      deviceSeenSecondsAgo: "vor {count}s",
+      deviceSeenMinutesAgo: "vor {count}min",
+      languageNameArabic: "Arabisch",
+      languageNameTurkish: "Tuerkisch",
+      languageNameGerman: "Deutsch",
+      languageNameEnglish: "Englisch",
+      languageNameFrench: "Franzoesisch",
+      languageNameSpanish: "Spanisch",
+      languageNameItalian: "Italienisch",
+      languageNamePolish: "Polnisch",
+      ttsUnsupportedTitle: "Sprachausgabe (Web Speech API) wird von diesem Browser nicht unterstuetzt.",
+      ttsUnsupportedBrowserHint: "Bitte verwende <strong>Google Chrome</strong> oder <strong>Microsoft Edge</strong> fuer Sprachausgabe.",
+      ttsNoVoicesTitle: "Keine Sprachstimmen gefunden",
+      ttsNoVoicesCauses: "Moegliche Ursachen und Loesungen:",
+      ttsNoVoicesWindows: "<strong>Windows:</strong> Einstellungen -> Zeit &amp; Sprache -> Sprache -> Sprache hinzufuegen (z.B. Arabisch, Tuerkisch)",
+      ttsNoVoicesChrome: "<strong>Chrome:</strong> Oeffne <code>chrome://settings/languages</code> und fuege Sprachen hinzu",
+      ttsNoVoicesFirefox: "<strong>Firefox:</strong> Unterstuetzt Web Speech API eingeschraenkt - besser Chrome/Edge nutzen",
+      ttsNoVoicesServer: "<strong>Server/Linux:</strong> <code>apt install speech-dispatcher espeak-ng</code>",
+      ttsNoVoicesJingleHint: "Die Begruessung spielt trotzdem einen <strong>Jingle</strong> ab, wenn keine Stimme verfuegbar ist.",
+      ttsRetryBtn: "Erneut versuchen",
+      ttsVoicesAvailable: "{count} Stimmen verfuegbar",
+      ttsMissingLanguages: "Fehlende Sprachen: {languages}",
+      ttsInstallWindows: "So installieren (Windows):",
+      ttsInstallStep1: "Oeffne <strong>Einstellungen -> Zeit &amp; Sprache -> Sprache</strong>",
+      ttsInstallStep2: "Klicke auf <strong>\"Sprache hinzufuegen\"</strong>",
+      ttsInstallStep3: "Suche nach der fehlenden Sprache (z.B. <strong>العربية</strong> fuer Arabisch) und installiere sie",
+      ttsInstallStep4: "Stelle sicher, dass bei der installierten Sprache <strong>\"Sprachausgabe\"</strong> aktiviert ist",
+      ttsInstallStep5: "Browser neu starten und <strong>\"Stimmen laden\"</strong> erneut klicken",
+      ttsFallbackEnglish: "Bis zur Installation spricht die Begruessung auf <strong>Englisch</strong> als Fallback.",
+      ttsVoiceCountOne: "{count} Stimme",
+      ttsVoiceCountMany: "{count} Stimmen",
+      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in BauPass genutzte Sprachen",
+      ttsLoadingVoices: "Lade Stimmen...",
+      smtpEnvCheckPrefix: "Env-Check",
+      smtpEnvSet: "gesetzt",
+      smtpEnvEmpty: "leer",
+      smtpApiFallbackMissing: "API-Fallback nicht erkannt",
+      smtpApiFallbackBoth: "API-Fallback erkannt (Resend + Brevo)",
+      smtpApiFallbackBrevo: "API-Fallback erkannt (Brevo)",
+      smtpApiFallbackResend: "API-Fallback erkannt (Resend{source})",
+      smtpIncomplete: "SMTP ist nicht vollstaendig konfiguriert.",
+      smtpMissingFields: "Fehlende Felder: {fields}",
+      smtpFieldSenderEmail: "Absender E-Mail",
+      smtpSendFailed: "SMTP-Versand fehlgeschlagen.",
+      smtpFallbackHint: "API-Fallback ist nicht aktiv. Setze Brevo in den Einstellungen (empfohlen) oder RESEND_API_KEY in Railway.",
+      smtpDiagnosticsOk: "Diagnose OK: Host {host}:{port}, TLS {tls}, Auth {auth}{apiState}",
+      smtpTlsOn: "an",
+      smtpTlsOff: "aus",
+      smtpAuthSet: "gesetzt",
+      smtpAuthMissing: "ohne Login",
+      smtpDiagnosticsStage: "Stufe {stage}",
+      smtpDiagnosticsFailed: "Diagnose fehlgeschlagen",
+      brevoApiKeyRequired: "Bitte Brevo API-Key eingeben",
+      brevoSaving: "Speichern...",
+      brevoSaveFailed: "Speichern fehlgeschlagen: {error}",
+      brevoApiKeyStored: "API-Key gespeichert",
+      brevoNoApiKeyStored: "Kein Key gespeichert",
+      brevoTesting: "Teste...",
+      brevoPromptRecipient: "Brevo-Test: An welche E-Mail senden? (Keine Empfaenger-E-Mail gefunden)",
+      operationCanceled: "Abgebrochen",
+      brevoMailSent: "Brevo: Mail gesendet!",
+      brevoTestFailed: "{error}{detail}",
+      otpPromptRecipient: "OTP-Test: An welche E-Mail-Adresse soll der Code gesendet werden?",
+      otpSentTo: "OTP-Code gesendet an {recipient} (Code: 123456)",
+      genericErrorPrefix: "Fehler: {message}",
+      smtpSending: "Sende...",
+      smtpSentTo: "Mail gesendet an {recipient}",
+      smtpSentToFallback: "Mail gesendet an {recipient} (Fallback via HTTPS-API)",
+      smtpDirectApiTestOk: "API Direkt-Test: OK",
+      smtpDirectApiTestResult: "API Direkt-Test: {error}{source}",
     },
     tr: {
       sessionLoggedIn: "Giris yapan",
@@ -7358,13 +8436,13 @@ function mapCompanyRepairError(error) {
     return "Backend nicht erreichbar. Bitte Server und Netzwerk prüfen.";
   }
   if (message === "company_not_found") {
-    return "Die Firma wurde nicht gefunden oder wurde inzwischen gelöscht.";
+    return runtimeText("companyNotFoundError");
   }
   if (message === "company_locked") {
-    return "Diese Firma ist aktuell gesperrt.";
+    return runtimeText("companyLockedError");
   }
   if (message === "company_has_workers") {
-    return "Die Firma hat noch aktive Mitarbeiter. Bitte komplette Löschung als Superadmin verwenden.";
+    return runtimeText("companyHasWorkersError");
   }
   return message || "unbekannter_fehler";
 }
@@ -7372,15 +8450,15 @@ function mapCompanyRepairError(error) {
 function getCompanyStatusMeta(status) {
   const normalized = String(status || "aktiv").trim().toLowerCase();
   if (normalized === "gesperrt") {
-    return { label: "Gesperrt", className: "helper-text helper-text-warning" };
+    return { label: uiT("optCompanyLocked"), className: "helper-text helper-text-warning" };
   }
   if (normalized === "pausiert") {
-    return { label: "Pausiert", className: "helper-text helper-text-info" };
+    return { label: uiT("optCompanyPaused"), className: "helper-text helper-text-info" };
   }
   if (normalized === "test") {
-    return { label: "Testphase", className: "helper-text helper-text-info" };
+    return { label: uiT("optCompanyTest"), className: "helper-text helper-text-info" };
   }
-  return { label: "Aktiv", className: "helper-text helper-text-ok" };
+  return { label: uiT("optCompanyActive"), className: "helper-text helper-text-ok" };
 }
 
 function isStandaloneDesktopApp() {
@@ -7500,7 +8578,7 @@ function initNativeDesktopShell() {
     elements.desktopInstallButton.hidden = true;
   }
   if (elements.desktopInstallHint) {
-    elements.desktopInstallHint.textContent = "Desktop-Modus aktiv - ohne Browser-Titelleiste.";
+    updateDesktopInstallHint();
   }
 
   if (elements.desktopMinimizeBtn) {
@@ -7784,7 +8862,7 @@ function syncWorkerEditorUi() {
   const cancelButton = document.querySelector("#workerCancelEditButton");
   const editing = Boolean(state.editingWorkerId);
   if (submitButton) {
-    submitButton.textContent = editing ? "Mitarbeiter aktualisieren" : "Mitarbeiter speichern und Ausweis erzeugen";
+    submitButton.textContent = editing ? uiT("btnWorkerUpdate") : uiT("btnWorkerSubmit");
   }
   if (cancelButton) {
     cancelButton.classList.toggle("hidden", !editing);
@@ -7892,6 +8970,119 @@ function getUiVisibleAccessLogs() {
   const workers = getUiVisibleWorkers();
   const allowedWorkerIds = new Set(workers.map((entry) => entry.id));
   return state.accessLogs.filter((entry) => allowedWorkerIds.has(entry.workerId));
+}
+
+function getUiVisibleLatestAccessEntries() {
+  const workers = getUiVisibleWorkers();
+  const allowedWorkerIds = new Set(workers.map((entry) => entry.id));
+  return state.latestAccessEntries.filter((entry) => allowedWorkerIds.has(entry.workerId));
+}
+
+function setLatestAccessSnapshot(entries) {
+  const normalizedEntries = (entries || []).map(normalizeLog)
+    .filter((entry) => entry.workerId)
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+  state.latestAccessEntries = normalizedEntries;
+  state.latestAccessByWorker = Object.fromEntries(normalizedEntries.map((entry) => [entry.workerId, entry]));
+}
+
+function applyLatestAccessLogEntry(entry) {
+  const normalizedEntry = normalizeLog(entry);
+  if (!normalizedEntry.workerId) {
+    return;
+  }
+  const nextEntries = [
+    normalizedEntry,
+    ...state.latestAccessEntries.filter((item) => item.workerId !== normalizedEntry.workerId)
+  ].sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+  state.latestAccessEntries = nextEntries;
+  state.latestAccessByWorker = {
+    ...state.latestAccessByWorker,
+    [normalizedEntry.workerId]: normalizedEntry
+  };
+}
+
+function getLatestAccessForWorker(workerId) {
+  if (!workerId) {
+    return null;
+  }
+  return state.latestAccessByWorker[String(workerId)] || null;
+}
+
+function buildAccessLogsRequestConfig(options = {}) {
+  const append = Boolean(options.append);
+  const query = new URLSearchParams();
+  const hasAccessFilters = Boolean(
+    state.accessFilter.from
+    || state.accessFilter.to
+    || state.accessFilter.direction
+    || state.accessFilter.gate
+  );
+
+  if (state.accessFilter.from) {
+    query.set("from", state.accessFilter.from);
+  }
+  if (state.accessFilter.to) {
+    query.set("to", state.accessFilter.to);
+  }
+  if (state.accessFilter.direction) {
+    query.set("direction", state.accessFilter.direction);
+  }
+  if (state.accessFilter.gate) {
+    query.set("gate", state.accessFilter.gate);
+  }
+
+  const limit = hasAccessFilters ? 5000 : 400;
+  const offset = append ? state.accessLogs.length : 0;
+  query.set("limit", String(limit));
+  query.set("offset", String(offset));
+  query.set("paginated", "1");
+
+  return {
+    hasAccessFilters,
+    limit,
+    offset,
+    url: `${API_BASE}/api/access-logs?${query.toString()}`
+  };
+}
+
+function normalizeAccessLogsResponse(payload, fallbackMeta = {}) {
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+  return {
+    items: items.map(normalizeLog),
+    meta: {
+      limit: Number(payload?.limit || fallbackMeta.limit || 0),
+      offset: Number(payload?.offset || fallbackMeta.offset || 0),
+      hasMore: Boolean(payload?.hasMore),
+      filtersApplied: Boolean(payload?.filtersApplied || fallbackMeta.filtersApplied)
+    }
+  };
+}
+
+async function loadMoreAccessLogs() {
+  if (!state.accessLogsMeta?.hasMore) {
+    return false;
+  }
+
+  const requestConfig = buildAccessLogsRequestConfig({ append: true });
+  const payload = await apiRequest(requestConfig.url);
+  const normalized = normalizeAccessLogsResponse(payload, requestConfig);
+  const knownIds = new Set(state.accessLogs.map((entry) => entry.id));
+  const additionalItems = normalized.items.filter((entry) => !knownIds.has(entry.id));
+
+  if (!additionalItems.length) {
+    state.accessLogsMeta = normalized.meta;
+    return false;
+  }
+
+  state.accessLogs = [...state.accessLogs, ...additionalItems];
+  state.accessLogsMeta = normalized.meta;
+  return true;
 }
 
 function getDefaultViewForRole(role) {
@@ -8230,6 +9421,8 @@ async function loadAllData() {
   }
 
   sessionExpiryNoticeShown = false;
+  const accessLogsRequest = buildAccessLogsRequestConfig();
+  const latestAccessUrl = `${API_BASE}/api/access-logs/latest`;
 
   const reportUrl = `${API_BASE}/api/reporting/summary`;
   const requests = await Promise.allSettled([
@@ -8237,7 +9430,8 @@ async function loadAllData() {
     apiRequest(`${API_BASE}/api/companies`),
     apiRequest(`${API_BASE}/api/subcompanies`),
     apiRequest(`${API_BASE}/api/workers`),
-    apiRequest(`${API_BASE}/api/access-logs`),
+    apiRequest(accessLogsRequest.url),
+    apiRequest(latestAccessUrl),
     apiRequest(`${API_BASE}/api/invoices`),
     apiRequest(`${API_BASE}/api/access-logs/summary`),
     apiRequest(`${API_BASE}/api/access-logs/day-close-check`),
@@ -8247,7 +9441,7 @@ async function loadAllData() {
     apiRequest(`${API_BASE}/api/audit-logs?limit=50`)
   ]);
 
-  const [settings, companies, subcompanies, workers, accessLogs, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, auditLogs] = requests;
+  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, auditLogs] = requests;
   if (settings.status === "fulfilled") {
     state.settings = settings.value || state.settings;
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
@@ -8264,7 +9458,15 @@ async function loadAllData() {
   }
   if (subcompanies.status === "fulfilled") state.subcompanies = subcompanies.value || [];
   if (workers.status === "fulfilled") state.workers = workers.value || [];
-  if (accessLogs.status === "fulfilled") state.accessLogs = (accessLogs.value || []).map(normalizeLog);
+  if (accessLogs.status === "fulfilled") {
+    const normalizedAccessLogs = normalizeAccessLogsResponse(accessLogs.value, accessLogsRequest);
+    state.accessLogs = normalizedAccessLogs.items;
+    state.accessLogsMeta = normalizedAccessLogs.meta;
+  }
+  if (latestAccess.status === "fulfilled") {
+    const latestAccessItems = Array.isArray(latestAccess.value?.items) ? latestAccess.value.items : [];
+    setLatestAccessSnapshot(latestAccessItems);
+  }
   if (invoices.status === "fulfilled") state.invoices = invoices.value || [];
   if (invoices.status !== "fulfilled") state.invoices = [];
   if (summary.status === "fulfilled") state.accessInsights = summary.value || state.accessInsights;
@@ -8376,7 +9578,7 @@ function refreshAll() {
       : "";
     const previewCompany = state.companies.find((entry) => String(entry?.id || "") === String(superadminUiPreviewCompanyId || ""));
     const previewMarkup = isSuperadminCompanyPreviewMode() && previewCompany
-      ? `<br /><strong>Vorschau:</strong> Firmenansicht ${escapeHtml(previewCompany.name || "Firma")}`
+      ? `<br /><strong>${escapeHtml(runtimeText("companyBrandingPreviewLabel"))}:</strong> ${escapeHtml(runtimeText("companyViewLabel"))} ${escapeHtml(previewCompany.name || uiT("supportCompanyFallback"))}`
       : "";
     elements.sessionCard.innerHTML = `<strong>${escapeHtml(texts.sessionLoggedIn)}:</strong> ${escapeHtml(user)} | <strong>${escapeHtml(texts.sessionRole)}:</strong> ${escapeHtml(role)}${supportModeMarkup}${previewMarkup}`;
   }
@@ -8548,8 +9750,8 @@ function loadTtsVoiceList() {
 
   if (!window.speechSynthesis) {
     panel.innerHTML = `
-      <p style="color:#dc2626;font-size:0.88rem">⚠️ Sprachausgabe (Web Speech API) wird von diesem Browser nicht unterstützt.</p>
-      <p style="color:#555;font-size:0.83rem;margin-top:6px">Bitte verwende <strong>Google Chrome</strong> oder <strong>Microsoft Edge</strong> für Sprachausgabe.</p>`;
+      <p style="color:#dc2626;font-size:0.88rem">⚠️ ${runtimeText("ttsUnsupportedTitle")}</p>
+      <p style="color:#555;font-size:0.83rem;margin-top:6px">${runtimeText("ttsUnsupportedBrowserHint")}</p>`;
     return;
   }
 
@@ -8558,16 +9760,16 @@ function loadTtsVoiceList() {
     if (!voices.length) {
       panel.innerHTML = `
         <div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:6px;padding:12px;font-size:0.85rem">
-          <p style="margin:0 0 8px;font-weight:600;color:#92400e">⚠️ Keine Sprachstimmen gefunden</p>
-          <p style="margin:0 0 6px;color:#555">Mögliche Ursachen und Lösungen:</p>
+          <p style="margin:0 0 8px;font-weight:600;color:#92400e">⚠️ ${runtimeText("ttsNoVoicesTitle")}</p>
+          <p style="margin:0 0 6px;color:#555">${runtimeText("ttsNoVoicesCauses")}</p>
           <ul style="margin:0 0 10px;padding-left:18px;color:#555;line-height:1.7">
-            <li><strong>Windows:</strong> Einstellungen → Zeit &amp; Sprache → Sprache → Sprache hinzufügen (z.B. Arabisch, Türkisch)</li>
-            <li><strong>Chrome:</strong> Öffne <code>chrome://settings/languages</code> und füge Sprachen hinzu</li>
-            <li><strong>Firefox:</strong> Unterstützt Web Speech API eingeschränkt – besser Chrome/Edge nutzen</li>
-            <li><strong>Server/Linux:</strong> <code>apt install speech-dispatcher espeak-ng</code></li>
+            <li>${runtimeText("ttsNoVoicesWindows")}</li>
+            <li>${runtimeText("ttsNoVoicesChrome")}</li>
+            <li>${runtimeText("ttsNoVoicesFirefox")}</li>
+            <li>${runtimeText("ttsNoVoicesServer")}</li>
           </ul>
-          <p style="margin:0;color:#555">Die Begrüßung spielt trotzdem einen <strong>Jingle</strong> ab, wenn keine Stimme verfügbar ist.</p>
-          <button type="button" class="ghost-button" style="margin-top:10px" onclick="loadTtsVoiceList()">🔄 Erneut versuchen</button>
+          <p style="margin:0;color:#555">${runtimeText("ttsNoVoicesJingleHint")}</p>
+          <button type="button" class="ghost-button" style="margin-top:10px" onclick="loadTtsVoiceList()">🔄 ${runtimeText("ttsRetryBtn")}</button>
         </div>`;
       return;
     }
@@ -8582,27 +9784,36 @@ function loadTtsVoiceList() {
     const langKeys = Object.keys(byLang).sort();
     const highlighted = ["de", "ar", "tr", "en", "fr", "es", "it", "pl"];
 
-    let html = `<p style="font-size:0.82rem;color:#555;margin:0 0 10px">${voices.length} Stimmen verfügbar</p>`;
+    let html = `<p style="font-size:0.82rem;color:#555;margin:0 0 10px">${runtimeTextTemplate("ttsVoicesAvailable", { count: voices.length })}</p>`;
 
     // Warnung wenn wichtige Sprachen fehlen
     const missingLangs = [];
     const availPrefixes = new Set(Object.keys(byLang).map((l) => l.split("-")[0].toLowerCase()));
-    const needed = { ar: "Arabisch", tr: "Türkisch", de: "Deutsch", en: "Englisch", fr: "Französisch", es: "Spanisch", it: "Italienisch", pl: "Polnisch" };
+    const needed = {
+      ar: runtimeText("languageNameArabic"),
+      tr: runtimeText("languageNameTurkish"),
+      de: runtimeText("languageNameGerman"),
+      en: runtimeText("languageNameEnglish"),
+      fr: runtimeText("languageNameFrench"),
+      es: runtimeText("languageNameSpanish"),
+      it: runtimeText("languageNameItalian"),
+      pl: runtimeText("languageNamePolish")
+    };
     for (const [code, label] of Object.entries(needed)) {
       if (!availPrefixes.has(code)) missingLangs.push({ code, label });
     }
     if (missingLangs.length) {
       html += `<div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:0.83rem">`;
-      html += `<p style="margin:0 0 4px;font-weight:600;color:#92400e">⚠️ Fehlende Sprachen: ${missingLangs.map((l) => l.label).join(", ")}</p>`;
-      html += `<p style="margin:0 0 6px;color:#555">So installieren (Windows):</p>`;
+      html += `<p style="margin:0 0 4px;font-weight:600;color:#92400e">⚠️ ${runtimeTextTemplate("ttsMissingLanguages", { languages: missingLangs.map((l) => l.label).join(", ") })}</p>`;
+      html += `<p style="margin:0 0 6px;color:#555">${runtimeText("ttsInstallWindows")}</p>`;
       html += `<ol style="margin:0 0 6px;padding-left:18px;color:#555;line-height:1.75">`;
-      html += `<li>Öffne <strong>Einstellungen → Zeit &amp; Sprache → Sprache</strong></li>`;
-      html += `<li>Klicke auf <strong>„Sprache hinzufügen"</strong></li>`;
-      html += `<li>Suche nach der fehlenden Sprache (z.B. <strong>العربية</strong> für Arabisch) und installiere sie</li>`;
-      html += `<li>Stelle sicher dass bei der installierten Sprache <strong>„Sprachausgabe"</strong> aktiviert ist</li>`;
-      html += `<li>Browser neu starten und <strong>„Stimmen laden"</strong> erneut klicken</li>`;
+      html += `<li>${runtimeText("ttsInstallStep1")}</li>`;
+      html += `<li>${runtimeText("ttsInstallStep2")}</li>`;
+      html += `<li>${runtimeText("ttsInstallStep3")}</li>`;
+      html += `<li>${runtimeText("ttsInstallStep4")}</li>`;
+      html += `<li>${runtimeText("ttsInstallStep5")}</li>`;
       html += `</ol>`;
-      html += `<p style="margin:0;color:#555">Bis zur Installation spricht die Begrüßung auf <strong>Englisch</strong> als Fallback.</p>`;
+      html += `<p style="margin:0;color:#555">${runtimeText("ttsFallbackEnglish")}</p>`;
       html += `</div>`;
     }
     html += `<div style="max-height:400px;overflow-y:auto;font-size:0.83rem">`;
@@ -8611,9 +9822,12 @@ function loadTtsVoiceList() {
       const isHighlighted = highlighted.includes(prefix);
       const color = isHighlighted ? "#0f4c5c" : "#555";
       const weight = isHighlighted ? "600" : "400";
+      const voiceCountLabel = byLang[lang].length === 1
+        ? runtimeTextTemplate("ttsVoiceCountOne", { count: byLang[lang].length })
+        : runtimeTextTemplate("ttsVoiceCountMany", { count: byLang[lang].length });
       html += `<div style="margin-bottom:6px">`;
       html += `<span style="font-weight:${weight};color:${color}">${escapeHtml(lang)}</span>`;
-      html += `<span style="color:#999;margin-left:6px">(${byLang[lang].length} Stimme${byLang[lang].length !== 1 ? "n" : ""})</span>`;
+      html += `<span style="color:#999;margin-left:6px">(${escapeHtml(voiceCountLabel)})</span>`;
       html += `<div style="margin-left:12px;display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">`;
       for (const v of byLang[lang]) {
         const label = v.name + (v.localService ? " 🖥️" : " ☁️");
@@ -8624,11 +9838,11 @@ function loadTtsVoiceList() {
       html += `</div></div>`;
     }
     html += `</div>`;
-    html += `<p style="font-size:0.78rem;color:#888;margin-top:8px">🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in BauPass genutzte Sprachen</p>`;
+    html += `<p style="font-size:0.78rem;color:#888;margin-top:8px">${runtimeText("ttsLegend")}</p>`;
     panel.innerHTML = html;
   }
 
-  panel.innerHTML = `<p style="color:#888;font-size:0.88rem">Lade Stimmen…</p>`;
+  panel.innerHTML = `<p style="color:#888;font-size:0.88rem">${runtimeText("ttsLoadingVoices")}</p>`;
   const voices = window.speechSynthesis.getVoices();
   if (voices.length > 0) {
     renderVoices();
@@ -8824,7 +10038,7 @@ function renderDevices() {
   if (!list) return;
   const devices = state.devices || [];
   if (!devices.length) {
-    list.innerHTML = `<p class="empty-state" style="padding:1rem;">${escapeHtml("Noch keine Geräte registriert.")}</p>`;
+    list.innerHTML = `<p class="empty-state" style="padding:1rem;">${escapeHtml(runtimeText("deviceListEmpty"))}</p>`;
     return;
   }
   list.innerHTML = devices.map(d => {
@@ -8833,7 +10047,11 @@ function renderDevices() {
       ? (uiT("deviceOnline") || "Online")
       : ago === null ? (uiT("deviceNeverSeen") || "Noch kein Heartbeat") : (uiT("deviceOffline") || "Offline");
     const dotClass = d.online ? "device-dot online" : "device-dot offline";
-    const agoText = ago !== null ? ` · ${ago < 60 ? ago + "s" : Math.round(ago/60) + "min"} ago` : "";
+    const agoText = ago !== null
+      ? ` · ${ago < 60
+        ? runtimeTextTemplate("deviceSeenSecondsAgo", { count: ago })
+        : runtimeTextTemplate("deviceSeenMinutesAgo", { count: Math.round(ago / 60) })}`
+      : "";
     return `<div class="device-status-item" data-device-id="${escapeHtml(d.id)}">
       <span class="${dotClass}"></span>
       <span class="device-name">${escapeHtml(d.name)}</span>
@@ -8845,7 +10063,7 @@ function renderDevices() {
 }
 
 async function deleteDevice(id) {
-  if (!confirm("Gerät wirklich löschen?")) return;
+  if (!confirm(runtimeText("deviceDeleteConfirm"))) return;
   try {
     await apiRequest(`${API_BASE}/api/admin/devices/${encodeURIComponent(id)}`, { method: "DELETE" });
     state.devices = (state.devices || []).filter(d => d.id !== id);
@@ -8875,7 +10093,7 @@ async function deleteDevice(id) {
       if (keyResult) {
         const createdKey = res?.apiKey || res?.device?.apiKey || "";
         keyResult.classList.remove("hidden");
-        keyResult.innerHTML = `<strong>API-Schlüssel (nur einmal sichtbar):</strong><br><code style="word-break:break-all;">${escapeHtml(createdKey || "-")}</code>`;
+        keyResult.innerHTML = `<strong>${runtimeText("deviceApiKeyLabel")}</strong><br><code style="word-break:break-all;">${escapeHtml(createdKey || "-")}</code>`;
       }
       form.reset();
       await loadDevices();
@@ -8936,7 +10154,7 @@ function getWorkerCardRoleLabel(worker) {
   if (isVisitorWorker(worker)) {
     return uiT("optVisitor");
   }
-  return worker.role || "Mitarbeiter";
+  return worker.role || runtimeText("workerRoleFallback");
 }
 
 function getWorkerCardPassSubLabel(worker) {
@@ -9039,8 +10257,8 @@ function renderSystemAlertBanner(loggedIn) {
     return;
   }
 
-  elements.systemAlertText.textContent = `${criticalCount} kritische Rechnungs-Fehlversände (Score >= 70) erfordern Aufmerksamkeit.`;
-  elements.systemAlertActionBtn.textContent = `Rechnungen öffnen (${criticalCount})`;
+  elements.systemAlertText.textContent = runtimeTextTemplate("systemAlertCriticalInvoices", { count: criticalCount });
+  elements.systemAlertActionBtn.textContent = runtimeTextTemplate("systemAlertOpenInvoices", { count: criticalCount });
   elements.systemAlertBanner.style.display = "flex";
   elements.systemAlertBanner.classList.remove("system-alert-banner-warn", "system-alert-banner-alert");
   if (criticalCount >= 20) {
@@ -9054,7 +10272,7 @@ function renderCompliancePanel() {
   if (!elements.compliancePanel) return;
   const items = Array.isArray(state.complianceOverview) ? state.complianceOverview : [];
   if (!items.length) {
-    elements.compliancePanel.innerHTML = '<div class="card-item"><p class="muted">Keine Compliance-Daten geladen.</p></div>';
+    elements.compliancePanel.innerHTML = `<div class="card-item"><p class="muted">${escapeHtml(runtimeText("complianceEmpty"))}</p></div>`;
     return;
   }
   elements.compliancePanel.innerHTML = items.map((company) => {
@@ -9063,11 +10281,11 @@ function renderCompliancePanel() {
       <article class="card-item">
         <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
           <div>
-            <strong>${escapeHtml(company.companyName || "Firma")}</strong>
-            <p class="helper-text">Gruen ${Number(company.greenCount || 0)} | Gelb ${Number(company.yellowCount || 0)} | Rot ${Number(company.redCount || 0)}</p>
+            <strong>${escapeHtml(company.companyName || runtimeText("complianceFallbackCompany"))}</strong>
+            <p class="helper-text">${escapeHtml(runtimeTextTemplate("complianceSummaryCounts", { green: Number(company.greenCount || 0), yellow: Number(company.yellowCount || 0), red: Number(company.redCount || 0) }))}</p>
           </div>
         </div>
-        ${criticalWorkers.length ? `<div class="meta-box">${criticalWorkers.map((worker) => `<span>• ${escapeHtml(worker.name || "Mitarbeiter")}: ${Object.entries(worker.docs || {}).filter(([, value]) => value !== "ok").map(([key, value]) => `${escapeHtml(key)}=${escapeHtml(value)}`).join(", ")}</span>`).join("")}</div>` : '<p class="helper-text helper-text-ok">Keine kritischen Dokumentluecken.</p>'}
+        ${criticalWorkers.length ? `<div class="meta-box">${criticalWorkers.map((worker) => `<span>• ${escapeHtml(worker.name || runtimeText("complianceWorkerFallback"))}: ${Object.entries(worker.docs || {}).filter(([, value]) => value !== "ok").map(([key, value]) => `${escapeHtml(key)}=${escapeHtml(value)}`).join(", ")}</span>`).join("")}</div>` : `<p class="helper-text helper-text-ok">${escapeHtml(runtimeText("complianceNoCriticalGaps"))}</p>`}
       </article>
     `;
   }).join("");
@@ -9077,7 +10295,7 @@ function renderAuditLogPanel() {
   if (!elements.auditLogPanel) return;
   const logs = Array.isArray(state.auditLogs) ? state.auditLogs : [];
   if (!logs.length) {
-    elements.auditLogPanel.innerHTML = '<div class="card-item"><p class="muted">Keine Audit-Eintraege vorhanden.</p></div>';
+    elements.auditLogPanel.innerHTML = `<div class="card-item"><p class="muted">${escapeHtml(runtimeText("auditLogEmpty"))}</p></div>`;
     return;
   }
   elements.auditLogPanel.innerHTML = `
@@ -9202,7 +10420,7 @@ function renderSuperadminPreviewTopbar(loggedIn) {
     const closeButton = document.createElement("button");
     closeButton.type = "button";
     closeButton.className = "ghost-button small-button superadmin-preview-pill-close";
-    closeButton.textContent = "Vorschau beenden";
+    closeButton.textContent = runtimeText("previewEndBtn");
     closeButton.addEventListener("click", () => clearSuperadminPreviewMode());
     previewPill.appendChild(closeButton);
 
@@ -9218,8 +10436,8 @@ function renderSuperadminPreviewTopbar(loggedIn) {
 
   const previewCompany = state.companies.find((entry) => String(entry?.id || "") === String(superadminUiPreviewCompanyId || ""));
   const labelText = previewCompany?.name
-    ? `Vorschau aktiv: ${previewCompany.name}`
-    : "Vorschau aktiv";
+    ? `${runtimeText("previewActiveLabel")}: ${previewCompany.name}`
+    : runtimeText("previewActiveLabel");
   const labelNode = document.querySelector("#superadminPreviewTopbarLabel");
   if (labelNode) {
     labelNode.textContent = labelText;
@@ -9242,7 +10460,7 @@ function renderSuperadminSimulationBar(loggedIn) {
   }
 
   const previewCompany = state.companies.find((entry) => String(entry?.id || "") === String(superadminUiPreviewCompanyId || ""));
-  const previewCompanyName = String(previewCompany?.name || "Firma");
+  const previewCompanyName = String(previewCompany?.name || uiT("supportCompanyFallback"));
   const previewPreset = getCompanyBrandingPreset(previewCompany);
   const previewPresetLabel = getCompanyBrandingPresetLabel(previewPreset);
 
@@ -9256,8 +10474,8 @@ function renderSuperadminSimulationBar(loggedIn) {
     const main = document.createElement("div");
     main.className = "superadmin-simulation-main";
     main.innerHTML = `
-      <strong id="superadminSimulationBarTitle">Simulation aktiv</strong>
-      <span id="superadminSimulationBarMeta">Firmenansicht</span>
+      <strong id="superadminSimulationBarTitle">${escapeHtml(runtimeText("simulationActiveTitle"))}</strong>
+      <span id="superadminSimulationBarMeta">${escapeHtml(runtimeText("previewCompanyViewLabel"))}</span>
     `;
     simulationBar.appendChild(main);
 
@@ -9267,7 +10485,7 @@ function renderSuperadminSimulationBar(loggedIn) {
     const closeButton = document.createElement("button");
     closeButton.type = "button";
     closeButton.className = "ghost-button small-button superadmin-simulation-close";
-    closeButton.textContent = "Vorschau beenden";
+    closeButton.textContent = runtimeText("previewEndBtn");
     closeButton.addEventListener("click", () => clearSuperadminPreviewMode());
     actions.appendChild(closeButton);
 
@@ -9289,10 +10507,10 @@ function renderSuperadminSimulationBar(loggedIn) {
   const titleNode = document.querySelector("#superadminSimulationBarTitle");
   const metaNode = document.querySelector("#superadminSimulationBarMeta");
   if (titleNode) {
-    titleNode.textContent = "Simulation aktiv";
+    titleNode.textContent = runtimeText("simulationActiveTitle");
   }
   if (metaNode) {
-    metaNode.textContent = `Firmenansicht: ${previewCompanyName} (${previewPresetLabel})`;
+    metaNode.textContent = `${runtimeText("companyViewLabel")}: ${previewCompanyName} (${previewPresetLabel})`;
   }
 }
 
@@ -9312,7 +10530,7 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
   }
 
   const previewCompany = state.companies.find((entry) => String(entry?.id || "") === String(superadminUiPreviewCompanyId || ""));
-  const previewCompanyName = String(previewCompany?.name || "Firma");
+  const previewCompanyName = String(previewCompany?.name || uiT("reportingFallbackCompany"));
   const previewPreset = getCompanyBrandingPreset(previewCompany);
 
   if (!sidebarStatus) {
@@ -9322,10 +10540,10 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
     sidebarStatus.innerHTML = `
       <span class="superadmin-sidebar-preview-dot" aria-hidden="true"></span>
       <div class="superadmin-sidebar-preview-main">
-        <strong id="superadminSidebarPreviewTitle">Simulation laeuft</strong>
-        <span id="superadminSidebarPreviewMeta">Firmenansicht</span>
+        <strong id="superadminSidebarPreviewTitle">${escapeHtml(runtimeText("simulationActiveTitle"))}</strong>
+        <span id="superadminSidebarPreviewMeta">${escapeHtml(runtimeText("previewCompanyViewLabel"))}</span>
       </div>
-      <button type="button" class="ghost-button small-button superadmin-sidebar-preview-close" id="superadminSidebarPreviewClose">Beenden</button>
+      <button type="button" class="ghost-button small-button superadmin-sidebar-preview-close" id="superadminSidebarPreviewClose">${escapeHtml(runtimeText("previewEndBtn"))}</button>
     `;
     sidebarCard.appendChild(sidebarStatus);
 
@@ -9341,7 +10559,7 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
   const titleNode = document.querySelector("#superadminSidebarPreviewTitle");
   const metaNode = document.querySelector("#superadminSidebarPreviewMeta");
   if (titleNode) {
-    titleNode.textContent = "Simulation laeuft";
+    titleNode.textContent = runtimeText("simulationActiveTitle");
   }
   if (metaNode) {
     metaNode.textContent = previewCompanyName;
@@ -9352,26 +10570,14 @@ function renderStats() {
   if (!elements.statsGrid) return;
   const texts = getRuntimeUiTexts();
   const visibleWorkers = getUiVisibleWorkers();
-  const visibleLogs = getUiVisibleAccessLogs();
+  const visibleLatestAccessEntries = getUiVisibleLatestAccessEntries();
   const scopedCompanyId = getEffectiveUiCompanyId();
 
   const totalWorkers = visibleWorkers.filter((w) => !w.deletedAt).length;
   const activeWorkers = visibleWorkers.filter((w) => !w.deletedAt && w.status === "aktiv").length;
   const totalVisitors = visibleWorkers.filter((w) => !w.deletedAt && isVisitorWorker(w)).length;
   const totalCompanies = scopedCompanyId ? 1 : state.companies.filter((c) => !c.deleted_at).length;
-  const today = new Date().toISOString().slice(0, 10);
-  const todayLogs = visibleLogs.filter((log) => String(log.timestamp || "").slice(0, 10) === today);
-  // Nur Mitarbeiter zählen, die aktuell noch auf der Baustelle sind:
-  // letzter Eintrag des Tages muss "check-in" sein (nicht check-out).
-  const lastLogByWorker = {};
-  for (const log of todayLogs) {
-    const wid = log.workerId || log.worker_id || "";
-    if (!wid) continue;
-    if (!lastLogByWorker[wid] || log.timestamp > lastLogByWorker[wid].timestamp) {
-      lastLogByWorker[wid] = log;
-    }
-  }
-  const accessToday = Object.values(lastLogByWorker).filter((log) => log.direction === "check-in").length;
+  const accessToday = visibleLatestAccessEntries.filter((log) => log.direction === "check-in").length;
 
   const expiringCritical = Number(state.expiringDocsCriticalCount ?? 0);
 
@@ -9381,7 +10587,7 @@ function renderStats() {
     [texts.statsVisitorsTotal, totalVisitors],
     [texts.statsCompanies, totalCompanies],
     [texts.statsAccessToday, accessToday],
-    ["Ablaufende Dokumente (kritisch)", expiringCritical]
+    [runtimeText("statsExpiringCritical"), expiringCritical]
   ];
 
   elements.statsGrid.innerHTML = cards
@@ -9424,24 +10630,24 @@ async function renderComplianceKpi() {
     container.innerHTML = `
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;">
         <article class="stat-card">
-          <p>Unternehmen mit Problemen</p>
+          <p>${escapeHtml(runtimeText("complianceKpiCompaniesWithIssues"))}</p>
           <strong>${summary.companiesWithIssues}/${summary.totalCompanies}</strong>
           <p style="font-size: 12px; color: #666; margin-top: 4px;">${issuePercentage}%</p>
         </article>
         <article class="stat-card" style="border-color: #dc2626;">
-          <p style="color: #dc2626;">Kritisch</p>
+          <p style="color: #dc2626;">${escapeHtml(runtimeText("complianceKpiCritical"))}</p>
           <strong style="color: #dc2626;">${summary.totalRed}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">Mitarbeiter</p>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
         </article>
         <article class="stat-card" style="border-color: #ea9b18;">
-          <p style="color: #ea9b18;">Warnung</p>
+          <p style="color: #ea9b18;">${escapeHtml(runtimeText("complianceKpiWarning"))}</p>
           <strong style="color: #ea9b18;">${summary.totalYellow}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">Mitarbeiter</p>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
         </article>
         <article class="stat-card" style="border-color: #16a34a;">
-          <p style="color: #16a34a;">OK</p>
+          <p style="color: #16a34a;">${escapeHtml(runtimeText("complianceKpiOk"))}</p>
           <strong style="color: #16a34a;">${summary.totalGreen}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">Mitarbeiter</p>
+          <p style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
         </article>
       </div>
     `;
@@ -9453,7 +10659,7 @@ async function renderComplianceKpi() {
 async function renderWorkerStatsPanel() {
   const container = document.querySelector("#workerStatsPanel");
   if (!container) return;
-  container.innerHTML = '<p class="helper-text">Lade Statistiken\u2026</p>';
+  container.innerHTML = `<p class="helper-text">${escapeHtml(runtimeText("workerStatsLoading"))}</p>`;
   try {
     const stats = await apiRequest(`${API_BASE}/api/workers/stats`);
     const byStatus = Array.isArray(stats.byStatus) ? stats.byStatus : [];
@@ -9464,24 +10670,30 @@ async function renderWorkerStatsPanel() {
     const maxGateCount = byGate.reduce((m, g) => Math.max(m, g.count), 1);
     const maxHourCount = byHour.reduce((m, h) => Math.max(m, h.count), 1);
     const statusColors = { aktiv: "#16a34a", inaktiv: "#6b7280", gesperrt: "#dc2626", abgelaufen: "#ea9b18" };
+    const statusLabels = {
+      aktiv: uiT("optStatusActive"),
+      inaktiv: runtimeText("workerStatusInactive"),
+      gesperrt: uiT("optStatusLocked"),
+      abgelaufen: uiT("optStatusExpired")
+    };
 
     container.innerHTML = `
       <div class="worker-stats-grid">
         <article class="worker-stats-kpi">
-          <p class="eyebrow">Gesamt</p>
+          <p class="eyebrow">${escapeHtml(runtimeText("workerStatsTotal"))}</p>
           <strong>${Number(stats.totalWorkers || 0)}</strong>
-          <p class="meta-text">Mitarbeiter</p>
+          <p class="meta-text">${escapeHtml(runtimeText("workerStatsWorkers"))}</p>
         </article>
         ${byStatus.map(s => `
           <article class="worker-stats-kpi" style="border-left: 3px solid ${statusColors[s.status] || "#aaa"};">
-            <p class="eyebrow">${escapeHtml(s.status.charAt(0).toUpperCase() + s.status.slice(1))}</p>
+            <p class="eyebrow">${escapeHtml(statusLabels[String(s.status || "").toLowerCase()] || s.status)}</p>
             <strong>${s.count}</strong>
-            <p class="meta-text">Mitarbeiter</p>
+            <p class="meta-text">${escapeHtml(runtimeText("workerStatsWorkers"))}</p>
           </article>`).join("")}
       </div>
       ${bySite.length ? `
       <div style="margin-top:16px;">
-        <p class="eyebrow" style="margin-bottom:8px;">Top Baustellen</p>
+        <p class="eyebrow" style="margin-bottom:8px;">${escapeHtml(runtimeText("workerStatsTopSites"))}</p>
         ${bySite.map(s => `
           <div class="worker-stats-bar-row">
             <span class="worker-stats-bar-label" title="${escapeHtml(s.site)}">${escapeHtml(s.site)}</span>
@@ -9493,7 +10705,7 @@ async function renderWorkerStatsPanel() {
       </div>` : ""}
       ${byGate.length ? `
       <div style="margin-top:16px;">
-        <p class="eyebrow" style="margin-bottom:8px;">Top Tore (letzte 30 Tage)</p>
+        <p class="eyebrow" style="margin-bottom:8px;">${escapeHtml(runtimeText("workerStatsTopGates"))}</p>
         ${byGate.map(g => `
           <div class="worker-stats-bar-row">
             <span class="worker-stats-bar-label">${escapeHtml(g.gate)}</span>
@@ -9505,10 +10717,10 @@ async function renderWorkerStatsPanel() {
       </div>` : ""}
       ${byHour.length ? `
       <div style="margin-top:16px;">
-        <p class="eyebrow" style="margin-bottom:8px;">Check-Ins nach Uhrzeit (letzte 30 Tage)</p>
+        <p class="eyebrow" style="margin-bottom:8px;">${escapeHtml(runtimeText("workerStatsCheckinsByHour"))}</p>
         <div class="worker-stats-hour-grid">
           ${byHour.map(h => `
-            <div class="worker-stats-hour-col" title="${h.hour}:00 Uhr \u2013 ${h.count} Check-Ins">
+            <div class="worker-stats-hour-col" title="${escapeHtml(runtimeTextTemplate("workerStatsHourTitle", { hour: h.hour, count: h.count }))}">
               <div class="worker-stats-hour-bar" style="height:${maxHourCount > 0 ? Math.max(4, Math.round((h.count / maxHourCount) * 60)) : 4}px;"></div>
               <span class="worker-stats-hour-label">${String(h.hour).padStart(2,"0")}</span>
             </div>`).join("")}
@@ -9516,18 +10728,17 @@ async function renderWorkerStatsPanel() {
       </div>` : ""}
     `;
   } catch (_err) {
-    container.innerHTML = '<p class="helper-text">Statistiken nicht verf\u00fcgbar.</p>';
+    container.innerHTML = `<p class="helper-text">${escapeHtml(runtimeText("workerStatsUnavailable"))}</p>`;
   }
 }
 
 function formatCurrencyEur(value) {
-  const numeric = Number(value || 0);
-  return new Intl.NumberFormat("de-DE", {
+  return formatUiNumber(value, {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).format(Number.isFinite(numeric) ? numeric : 0);
+  });
 }
 
 function renderReportingPanels() {
@@ -9667,12 +10878,12 @@ function renderWorkerList() {
               <strong>${escapeHtml(worker.firstName)} ${escapeHtml(worker.lastName)}</strong>
               <span>${escapeHtml(worker.badgeId || "-")}</span>
             </div>
-            <span class="status-pill">${escapeHtml(worker.status || "-")}</span>
+            <span class="status-pill">${escapeHtml(worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : (worker.status || "-"))}</span>
           </header>
           <p>${escapeHtml(visitor ? uiT("optVisitor") : (worker.role || "-"))} | ${escapeHtml(worker.site || "-")}</p>
           <p>${uiT("appPinLabel")}: <strong>${visitor ? uiT("pinNotRequired") : (worker.badgePinConfigured ? uiT("pinSet") : uiT("pinMissing"))}</strong> | ${uiT("cardLabel")}: <strong>${escapeHtml(worker.physicalCardId || uiT("cardUnassigned"))}</strong></p>
-          ${sub ? `<p>Subunternehmen: ${escapeHtml(sub)}</p>` : ""}
-          ${lockReason ? `<p class="helper-text helper-text-warning"><strong>Sperrgrund:</strong> ${escapeHtml(lockReason)}</p>` : ""}
+          ${sub ? `<p>${escapeHtml(uiT("labelSubcompany"))}: ${escapeHtml(sub)}</p>` : ""}
+          ${lockReason ? `<p class="helper-text helper-text-warning"><strong>${escapeHtml(runtimeText("workerStatusReasonLabel"))}:</strong> ${escapeHtml(lockReason)}</p>` : ""}
           ${visitorMeta}
           <div class="button-row">
             <button type="button" class="ghost-button" data-worker-edit="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>${uiT("btnEdit")}</button>
@@ -9821,21 +11032,21 @@ async function renderPhotoOverrideApprovalPanel() {
   list.innerHTML = approvals.map((a) => {
     const canDecide = a.requestedByUserId !== currentUserId;
     const photoHtml = a.photoData
-      ? `<img src="${escapeHtml(a.photoData)}" alt="Neues Foto" style="max-width:80px;max-height:100px;border-radius:8px;border:1px solid #ccc;margin-bottom:8px;" />`
+      ? `<img src="${escapeHtml(a.photoData)}" alt="${escapeHtml(runtimeText("photoOverrideNewPhotoAlt"))}" style="max-width:80px;max-height:100px;border-radius:8px;border:1px solid #ccc;margin-bottom:8px;" />`
       : "";
-    const similarityText = a.similarity != null ? `${a.similarity}%` : "k.A.";
-    const notSelfHint = canDecide ? "" : `<p class="helper-text helper-text-warning">Du bist der Antragsteller – ein anderer Superadmin muss freigeben.</p>`;
+    const similarityText = a.similarity != null ? `${a.similarity}%` : runtimeText("photoSimilarityUnavailable");
+    const notSelfHint = canDecide ? "" : `<p class="helper-text helper-text-warning">${escapeHtml(runtimeText("photoOverrideRequesterHint"))}</p>`;
     return `
       <div class="card" data-approval-id="${escapeHtml(a.approvalId)}">
         ${photoHtml}
         <p><strong>${escapeHtml(a.workerName || a.workerId || "?")}</strong></p>
-        <p class="helper-text">Fotovergleich: ${escapeHtml(similarityText)} | Grund: ${escapeHtml(a.overrideReason || "–")}</p>
-        <p class="helper-text">Beantragt: ${escapeHtml(a.requestedAt || "")} | Gültig bis: ${escapeHtml(a.expiresAt || "")}</p>
+        <p class="helper-text">${escapeHtml(runtimeText("photoOverrideComparisonLabel"))}: ${escapeHtml(similarityText)} | ${escapeHtml(runtimeText("photoOverrideReasonLabel"))}: ${escapeHtml(a.overrideReason || "–")}</p>
+        <p class="helper-text">${escapeHtml(runtimeText("photoOverrideRequestedAtLabel"))}: ${escapeHtml(a.requestedAt || "")} | ${escapeHtml(runtimeText("photoOverrideExpiresAtLabel"))}: ${escapeHtml(a.expiresAt || "")}</p>
         ${notSelfHint}
         ${canDecide ? `
         <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="primary-button approval-approve-btn" data-approval-id="${escapeHtml(a.approvalId)}">Freigeben</button>
-          <button class="danger-button approval-reject-btn" data-approval-id="${escapeHtml(a.approvalId)}">Ablehnen</button>
+          <button class="primary-button approval-approve-btn" data-approval-id="${escapeHtml(a.approvalId)}">${escapeHtml(runtimeText("approvalApproveBtn"))}</button>
+          <button class="danger-button approval-reject-btn" data-approval-id="${escapeHtml(a.approvalId)}">${escapeHtml(runtimeText("approvalRejectBtn"))}</button>
         </div>` : ""}
       </div>`;
   }).join("");
@@ -9881,7 +11092,7 @@ async function renderPhotoOverrideApprovalPanel() {
 function renderCompanyList() {
   if (!elements.companyList) return;
   if (!state.companies.length) {
-    elements.companyList.innerHTML = '<div class="empty-state">Noch keine Firmen vorhanden.</div>';
+    elements.companyList.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("companyListEmpty"))}</div>`;
     return;
   }
   const userRole = getEffectiveUiRole();
@@ -9930,34 +11141,34 @@ function renderCompanyList() {
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
       const historyMarkup = repairHistory.length
         ? repairHistory
-            .map((entry) => `<span>• ${escapeHtml(formatTimestamp(entry.created_at))}: ${escapeHtml(entry.message || "Reparatur ausgefuehrt")}</span>`)
+            .map((entry) => `<span>• ${escapeHtml(formatTimestamp(entry.created_at))}: ${escapeHtml(entry.message || runtimeText("repairExecutedFallback"))}</span>`)
             .join("")
-        : "<span>Keine Reparaturen im gewaelten Zeitraum.</span>";
+        : `<span>${escapeHtml(runtimeText("companyRepairHistoryEmpty"))}</span>`;
       const turnstileMarkup = turnstiles.length
-        ? `<div class="meta-box"><p><strong>Drehkreuz-Accounts</strong></p>${turnstiles.map((entry) => `<span>• ${escapeHtml(entry.username || entry.name || "Drehkreuz")} | ${entry.isActive ? "aktiv" : "deaktiviert"} | ${entry.hasApiKey ? "API-Key aktiv" : "kein API-Key"} <button type="button" class="ghost-button small-button" data-turnstile-reset="${escapeHtml(entry.id)}" data-turnstile-company="${escapeHtml(companyId)}">Passwort neu</button>${userRole === "superadmin" ? ` <button type="button" class="ghost-button small-button" data-turnstile-rotate-key="${escapeHtml(entry.id)}" data-turnstile-company="${escapeHtml(companyId)}">API-Key neu</button>` : ""} <button type="button" class="ghost-button small-button" data-turnstile-toggle="${escapeHtml(entry.id)}" data-turnstile-company="${escapeHtml(companyId)}">${entry.isActive ? "Deaktivieren" : "Aktivieren"}</button></span>`).join("")}</div>`
-        : '<div class="meta-box"><span>Keine Drehkreuz-Accounts vorhanden.</span></div>';
+        ? `<div class="meta-box"><p><strong>${escapeHtml(runtimeText("turnstileAccountsTitle"))}</strong></p>${turnstiles.map((entry) => `<span>• ${escapeHtml(entry.username || entry.name || runtimeText("turnstileDefaultName"))} | ${entry.isActive ? runtimeText("turnstileStateActive") : runtimeText("turnstileStateInactive")} | ${entry.hasApiKey ? runtimeText("turnstileApiKeyActive") : runtimeText("turnstileApiKeyMissing")} <button type="button" class="ghost-button small-button" data-turnstile-reset="${escapeHtml(entry.id)}" data-turnstile-company="${escapeHtml(companyId)}">${escapeHtml(runtimeText("turnstilePasswordResetBtn"))}</button>${userRole === "superadmin" ? ` <button type="button" class="ghost-button small-button" data-turnstile-rotate-key="${escapeHtml(entry.id)}" data-turnstile-company="${escapeHtml(companyId)}">${escapeHtml(runtimeText("turnstileRotateApiKeyBtn"))}</button>` : ""} <button type="button" class="ghost-button small-button" data-turnstile-toggle="${escapeHtml(entry.id)}" data-turnstile-company="${escapeHtml(companyId)}">${escapeHtml(entry.isActive ? runtimeText("turnstileDeactivateBtn") : runtimeText("turnstileActivateBtn"))}</button></span>`).join("")}</div>`
+        : `<div class="meta-box"><span>${escapeHtml(runtimeText("turnstileAccountsEmpty"))}</span></div>`;
       return `
         <article class="card-item ${deleted ? "is-deleted" : ""}">
-          <strong>${escapeHtml(company.name || "Firma")}</strong>
+          <strong>${escapeHtml(company.name || runtimeText("invoiceFallbackCompany"))}</strong>
           <span>${escapeHtml(company.plan || "-")}</span>
-          <p class="${statusMeta.className}">Status: ${escapeHtml(statusMeta.label)}</p>
-          <p><strong>Design:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
-          <p><strong>Dokument-E-Mail:</strong> ${escapeHtml(documentEmail || "Nicht gesetzt")}</p>
+          <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
+          <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
+          <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
           <div class="button-row" style="margin-top:2px;">
-            <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Auto setzen</button>
-            <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>Mail kopieren</button>
+            <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailAutoBtn"))}</button>
+            <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
-          <p><strong>Rechnungs-Mail Sprache:</strong> ${{ de: "Deutsch", en: "English", fr: "Français" }[company.invoiceEmailLang || company.invoice_email_lang] || "Deutsch"}</p>
+          <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
           ${(() => {
             const sec = state.companyAdminSecurity?.[companyId];
             if (!sec) return "";
             const otpIcon = sec.twofa_enabled ? "🔐" : "🔓";
             const otpLabel = sec.twofa_enabled
-              ? `OTP aktiv · ${escapeHtml(sec.email || "keine E-Mail")}`
+              ? `${escapeHtml(runtimeText("companyOtpEnabled"))} · ${escapeHtml(sec.email || runtimeText("companyNoEmail"))}`
               : sec.email
-                ? `OTP deaktiviert · ${escapeHtml(sec.email)}`
-                : "OTP nicht konfiguriert";
-            return `<p>${otpIcon} <strong>Admin-OTP:</strong> ${otpLabel}</p>`;
+                ? `${escapeHtml(runtimeText("companyOtpDisabled"))} · ${escapeHtml(sec.email)}`
+                : escapeHtml(runtimeText("companyOtpNotConfigured"));
+            return `<p>${otpIcon} <strong>${escapeHtml(runtimeText("companyOtpAdminLabel"))}:</strong> ${otpLabel}</p>`;
           })()}
           <div class="button-row" style="align-items:center; margin-top:2px;">
             <select data-company-branding-select="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>
@@ -9970,12 +11181,12 @@ function renderCompanyList() {
           </div>
           <div class="button-row" style="align-items:center; margin-top:2px;">
             <span class="company-branding-preview preview-${escapeHtml(brandingPreset)}" data-company-branding-preview="${escapeHtml(companyId)}" aria-hidden="true"></span>
-            <span class="helper-text" data-company-branding-preview-label="${escapeHtml(companyId)}">Vorschau: ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</span>
+            <span class="helper-text" data-company-branding-preview-label="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBrandingPreviewLabel"))}: ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</span>
             <span class="helper-text" data-company-branding-dirty="${escapeHtml(companyId)}"></span>
           </div>
           ${turnstileMarkup}
           <div class="meta-box">
-            <p><strong>Letzte Reparaturen</strong></p>
+            <p><strong>${escapeHtml(runtimeText("companyLatestRepairsTitle"))}</strong></p>
             ${historyMarkup}
           </div>
           ${repairStatus ? `<p class="${repairStatusClass}">${escapeHtml(repairStatus.message || "")}</p>` : ""}
@@ -10000,36 +11211,36 @@ function renderCompanyList() {
       <div class="button-row" style="justify-content:space-between; align-items:center;">
         <div>
           <strong>Reparatur-Verlauf filtern</strong>
-          <p class="helper-text">${shownCount} von ${totalCount} Firmen angezeigt</p>
+          <p class="helper-text">${runtimeTextTemplate("companyHistoryShownCount", { shown: shownCount, total: totalCount })}</p>
         </div>
         <div class="button-row" style="gap:10px;">
           <label>
-            Zeitraum
+            ${runtimeText("companyHistoryPeriodLabel")}
             <select id="companyRepairHistoryWindow" style="margin-left:8px;">
-              <option value="7" ${historyWindowValue === "7" ? "selected" : ""}>Letzte 7 Tage</option>
-              <option value="30" ${historyWindowValue === "30" ? "selected" : ""}>Letzte 30 Tage</option>
-              <option value="90" ${historyWindowValue === "90" ? "selected" : ""}>Letzte 90 Tage</option>
-              <option value="0" ${historyWindowValue === "0" ? "selected" : ""}>Alle</option>
+              <option value="7" ${historyWindowValue === "7" ? "selected" : ""}>${runtimeText("companyHistoryLast7Days")}</option>
+              <option value="30" ${historyWindowValue === "30" ? "selected" : ""}>${runtimeText("companyHistoryLast30Days")}</option>
+              <option value="90" ${historyWindowValue === "90" ? "selected" : ""}>${runtimeText("companyHistoryLast90Days")}</option>
+              <option value="0" ${historyWindowValue === "0" ? "selected" : ""}>${runtimeText("companyHistoryAllPeriods")}</option>
             </select>
           </label>
           <label>
             <input id="companyOnlyProblems" type="checkbox" ${onlyProblemsChecked ? "checked" : ""} />
-            Nur Probleme anzeigen
+            ${runtimeText("companyHistoryOnlyProblems")}
           </label>
         </div>
       </div>
       ${superadminPreviewEnabled ? `
       <div class="button-row" style="margin-top:10px; align-items:center; gap:10px;">
-        <strong>Firmenvorschau:</strong>
+        <strong>${runtimeText("companyPreviewLabel")}</strong>
         <select id="superadminCompanyPreviewSelect">
-          <option value="">Keine Vorschau (Superadmin-Sicht)</option>
+          <option value="">${runtimeText("companyPreviewNone")}</option>
           ${previewCompanyOptions}
         </select>
-        <button type="button" class="ghost-button small-button" id="superadminCompanyPreviewReset">Vorschau beenden</button>
+        <button type="button" class="ghost-button small-button" id="superadminCompanyPreviewReset">${runtimeText("previewEndBtn")}</button>
       </div>
       ` : ""}
     </article>
-    ${cardsMarkup || '<div class="empty-state">Keine Firmen mit Reparaturen im ausgewaehlten Zeitraum.</div>'}
+    ${cardsMarkup || `<div class="empty-state">${runtimeText("companyRepairHistoryEmpty")}</div>`}
   `;
 
   bindCompanyHistoryControls();
@@ -10100,10 +11311,10 @@ function bindCompanyRowActions() {
       previewDot.classList.add(`preview-${selectedPreset}`);
     }
     if (previewLabel) {
-      previewLabel.textContent = `Vorschau: ${getCompanyBrandingPresetLabel(selectedPreset)}`;
+      previewLabel.textContent = `${runtimeText("companyBrandingPreviewLabel")}: ${getCompanyBrandingPresetLabel(selectedPreset)}`;
     }
     if (dirtyLabel) {
-      dirtyLabel.textContent = "Noch nicht gespeichert";
+      dirtyLabel.textContent = runtimeText("companyBrandingDirtyUnsaved");
     }
     companyBrandingPreviewOverride = selectedPreset;
     applyActiveCompanyBrandingPreset();
@@ -10118,11 +11329,11 @@ function bindCompanyRowActions() {
       const company = state.companies.find((c) => c.id === companyId);
       const sec = state.companyAdminSecurity?.[companyId];
       if (!companyId || !company || !sec?.username) {
-        window.alert("Kein Admin-Account für diese Firma gefunden.");
+        window.alert(runtimeText("companyAdminMissing"));
         return;
       }
-      const recipientHint = sec.email || "(Rechnungs-E-Mail der Firma als Fallback)";
-      if (!window.confirm(`Passwort-Reset-Link an den Admin der Firma „${company.name}" senden?\n\nBenutzername: ${sec.username}\nEmpfänger: ${recipientHint}\n\nFortfahren?`)) return;
+      const recipientHint = sec.email || runtimeText("companyAdminResetRecipientFallback");
+      if (!window.confirm(runtimeTextTemplate("companyAdminResetConfirm", { company: company.name, username: sec.username, recipient: recipientHint }))) return;
       try {
         sendResetButton.disabled = true;
         const resp = await fetch(`${API_BASE}/api/auth/request-password-reset`, {
@@ -10132,14 +11343,14 @@ function bindCompanyRowActions() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok && data.error === "smtp_not_configured") {
-          window.alert("E-Mail-Versand ist nicht konfiguriert. Bitte zuerst SMTP einrichten.");
+          window.alert(runtimeText("companyAdminResetSmtpSetupMissing"));
         } else if (!resp.ok) {
-          window.alert(`Fehler beim Senden: ${data.message || resp.status}`);
+          window.alert(runtimeTextTemplate("companyAdminResetSendFailed", { error: data.message || resp.status }));
         } else {
-          window.alert(`✅ Reset-Link wurde an „${sec.username}" gesendet.`);
+          window.alert(runtimeTextTemplate("companyAdminResetSent", { username: sec.username }));
         }
       } catch (_e) {
-        window.alert("Netzwerkfehler. Bitte erneut versuchen.");
+        window.alert(runtimeText("genericNetworkRetry"));
       } finally {
         sendResetButton.disabled = false;
       }
@@ -10153,15 +11364,13 @@ function bindCompanyRowActions() {
       const company = state.companies.find((c) => c.id === companyId);
       const sec = state.companyAdminSecurity?.[companyId];
       if (!companyId || !company || !sec?.username) {
-        window.alert("Kein Admin-Account für diese Firma gefunden.");
+        window.alert(runtimeText("companyAdminMissing"));
         return;
       }
-      const newPassword = window.prompt(
-        `Neues Passwort für Admin „${sec.username}" der Firma „${company.name}":\n(Mindestens 8 Zeichen)`
-      );
+      const newPassword = window.prompt(runtimeTextTemplate("companyAdminPasswordPrompt", { username: sec.username, company: company.name }));
       if (newPassword === null) return;
       if (newPassword.trim().length < 8) {
-        window.alert("Das Passwort muss mindestens 8 Zeichen lang sein.");
+        window.alert(runtimeText("companyAdminPasswordMinLength"));
         return;
       }
       try {
@@ -10170,9 +11379,9 @@ function bindCompanyRowActions() {
           method: "POST",
           body: { newPassword: newPassword.trim() },
         });
-        window.alert(`✅ Passwort für „${sec.username}" wurde gesetzt.\nAlle aktiven Sitzungen wurden beendet.`);
+        window.alert(runtimeTextTemplate("companyAdminPasswordSet", { username: sec.username }));
       } catch (err) {
-        window.alert(`Fehler: ${err.message}`);
+        window.alert(uiT("alertGenericError").replace("{error}", err.message));
       } finally {
         setPasswordButton.disabled = false;
       }
@@ -10187,10 +11396,7 @@ function bindCompanyRowActions() {
       if (!companyId || !company) return;
       const sec = state.companyAdminSecurity?.[companyId];
       const currentEmail = sec?.email || "";
-      const newEmail = window.prompt(
-        `OTP-E-Mail für Admin der Firma „${company.name}":\n(Leer lassen = OTP deaktivieren)`,
-        currentEmail
-      );
+      const newEmail = window.prompt(runtimeTextTemplate("companyOtpPrompt", { company: company.name }), currentEmail);
       if (newEmail === null) return;
       const enable = newEmail.trim().length > 0;
       try {
@@ -10201,11 +11407,11 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
         window.alert(enable
-          ? `✅ OTP aktiviert!\nE-Mail: ${newEmail.trim()}\n\nDer Admin erhält beim nächsten Login einen Code an diese Adresse.`
-          : `🔓 OTP deaktiviert für Admin der Firma „${company.name}".`
+          ? runtimeTextTemplate("companyOtpEnabledMessage", { email: newEmail.trim() })
+          : runtimeTextTemplate("companyOtpDisabledMessage", { company: company.name })
         );
       } catch (err) {
-        window.alert(`Fehler: ${err.message}`);
+        window.alert(uiT("alertGenericError").replace("{error}", err.message));
       }
       return;
     }
@@ -10228,7 +11434,7 @@ function bindCompanyRowActions() {
       if (normalizedNextDocEmail) {
         const conflict = findCompanyByDocumentEmail(normalizedNextDocEmail, companyId);
         if (conflict) {
-          window.alert(`Diese Dokument-Mail ist bereits bei "${conflict.name}" hinterlegt.`);
+          window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflict.name }));
           return;
         }
       }
@@ -10251,8 +11457,8 @@ function bindCompanyRowActions() {
         refreshAll();
       } catch (error) {
         if (error.code === "duplicate_document_email") {
-          const conflictName = String(error?.payload?.conflictCompanyName || "anderen Firma");
-          window.alert(`Diese Dokument-Mail ist bereits bei "${conflictName}" hinterlegt.`);
+          const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
+          window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
           return;
         }
         window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
@@ -10270,13 +11476,13 @@ function bindCompanyRowActions() {
 
       const suggested = suggestCompanyDocumentEmail(company.name);
       if (!suggested) {
-        window.alert("Keine IMAP-Basisadresse gefunden. Bitte zuerst IMAP-Benutzer im Admin setzen.");
+        window.alert(runtimeText("companyDocEmailAutoBaseMissing"));
         return;
       }
 
       const conflict = findCompanyByDocumentEmail(suggested, companyId);
       if (conflict) {
-        window.alert(`Auto-Mail kollidiert mit "${conflict.name}". Bitte manuell setzen.`);
+        window.alert(runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }));
         return;
       }
 
@@ -10298,8 +11504,8 @@ function bindCompanyRowActions() {
         refreshAll();
       } catch (error) {
         if (error.code === "duplicate_document_email") {
-          const conflictName = String(error?.payload?.conflictCompanyName || "anderen Firma");
-          window.alert(`Diese Dokument-Mail ist bereits bei "${conflictName}" hinterlegt.`);
+          const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
+          window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
           return;
         }
         window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
@@ -10313,7 +11519,7 @@ function bindCompanyRowActions() {
       const company = state.companies.find((entry) => entry.id === companyId);
       const documentEmail = getCompanyDocumentEmail(company);
       if (!documentEmail) {
-        window.alert("Für diese Firma ist noch keine Dokument-Mail gesetzt.");
+        window.alert(runtimeText("companyDocEmailMissingAlert"));
         return;
       }
       try {
@@ -10335,13 +11541,13 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       const currentLang = company.invoiceEmailLang || company.invoice_email_lang || "de";
-      const options = [["de", "Deutsch"], ["en", "English"], ["fr", "Français"]];
+      const options = [["de", runtimeText("companyInvoiceLangGerman")], ["en", runtimeText("companyInvoiceLangEnglish")], ["fr", runtimeText("companyInvoiceLangFrench")]];
       const choices = options.map(([val, label]) => `${val === currentLang ? "▶ " : ""}${label} (${val})`).join("\n");
-      const input = window.prompt(`Rechnungs-E-Mail Sprache für "${company.name}":\n\n${choices}\n\nBitte "de", "en" oder "fr" eingeben:`, currentLang);
+      const input = window.prompt(runtimeTextTemplate("companyInvoiceLangPrompt", { company: company.name, choices }), currentLang);
       if (input === null) return;
       const nextLang = input.trim().toLowerCase();
       if (!["de", "en", "fr"].includes(nextLang)) {
-        window.alert("Ungültige Sprache. Erlaubt: de, en, fr");
+        window.alert(runtimeText("companyInvoiceLangInvalid"));
         return;
       }
       try {
@@ -10361,7 +11567,7 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(`Fehler beim Speichern: ${error.message}`);
+        window.alert(runtimeTextTemplate("companyInvoiceLangSaveFailed", { error: error.message }));
       }
       return;
     }
@@ -10373,7 +11579,7 @@ function bindCompanyRowActions() {
         return;
       }
       const company = state.companies.find((entry) => entry.id === companyId);
-      const companyName = company?.name || "diese Firma";
+      const companyName = company?.name || runtimeText("companyThisFallback");
       const forceDelete = window.confirm(
         uiT("confirmDeleteCompanyText").replace("{name}", companyName)
       );
@@ -10400,7 +11606,7 @@ function bindCompanyRowActions() {
         return;
       }
       const company = state.companies.find((entry) => entry.id === companyId);
-      const companyName = company?.name || "diese Firma";
+      const companyName = company?.name || runtimeText("companyThisFallback");
       const currentStatus = String(company?.status || "aktiv").toLowerCase();
       const nextStatus = currentStatus === "gesperrt" ? "aktiv" : "gesperrt";
       const promptText = nextStatus === "gesperrt"
@@ -10413,7 +11619,7 @@ function bindCompanyRowActions() {
       state.companyLockBusy[companyId] = true;
       state.companyRepairStatus[companyId] = {
         kind: "info",
-        message: nextStatus === "gesperrt" ? "Firma wird gesperrt..." : "Sperre wird aufgehoben..."
+        message: nextStatus === "gesperrt" ? runtimeText("companyLockingMessage") : runtimeText("companyUnlockingMessage")
       };
       renderCompanyList();
 
@@ -10421,7 +11627,7 @@ function bindCompanyRowActions() {
         await apiRequest(`${API_BASE}/api/companies/${companyId}`, { method: "PUT", body: { status: nextStatus } });
         state.companyRepairStatus[companyId] = {
           kind: nextStatus === "gesperrt" ? "error" : "success",
-          message: nextStatus === "gesperrt" ? "Firma ist jetzt gesperrt." : "Firma ist wieder aktiv."
+          message: nextStatus === "gesperrt" ? runtimeText("companyNowLockedMessage") : runtimeText("companyNowUnlockedMessage")
         };
         await loadAllData();
         refreshAll();
@@ -10465,7 +11671,7 @@ function bindCompanyRowActions() {
         previewDot.classList.add(`preview-${savedPreset}`);
       }
       if (previewLabel) {
-        previewLabel.textContent = `Vorschau: ${getCompanyBrandingPresetLabel(savedPreset)}`;
+        previewLabel.textContent = `${runtimeText("companyPreviewLabel")} ${getCompanyBrandingPresetLabel(savedPreset)}`;
       }
       if (dirtyLabel) {
         dirtyLabel.textContent = "";
@@ -10530,15 +11736,15 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
         showSecretDialog(
-          "Drehkreuz-Zugang angelegt",
+          runtimeText("turnstileCreatedTitle"),
           [
-            `Benutzername: ${result.username}`,
-            `Passwort: ${result.password}`,
-            `API-Key: ${result.apiKey || "nicht verfuegbar"}`,
+            `${runtimeText("credentialUsernameLabel")}: ${result.username}`,
+            `${runtimeText("credentialPasswordLabel")}: ${result.password}`,
+            `${runtimeText("credentialApiKeyLabel")}: ${result.apiKey || runtimeText("credentialUnavailable")}`,
           ],
           {
-            copyLabel: "API-Key kopieren",
-            copyValue: result.apiKey || `Benutzername: ${result.username}\nPasswort: ${result.password}`,
+            copyLabel: runtimeText("copyApiKeyLabel"),
+            copyValue: result.apiKey || `${runtimeText("credentialUsernameLabel")}: ${result.username}\n${runtimeText("credentialPasswordLabel")}: ${result.password}`,
           }
         );
       } catch (error) {
@@ -10583,10 +11789,10 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
         showSecretDialog(
-          "Neuer Drehkreuz-API-Key",
-          [result.apiKey || "Kein API-Key erhalten"],
+          runtimeText("turnstileApiKeyRotatedTitle"),
+          [result.apiKey || runtimeText("turnstileApiKeyNotReceived")],
           {
-            copyLabel: "API-Key kopieren",
+            copyLabel: runtimeText("copyApiKeyLabel"),
             copyValue: result.apiKey || "",
           }
         );
@@ -10621,7 +11827,7 @@ function bindCompanyRowActions() {
     }
 
     const company = state.companies.find((entry) => entry.id === companyId);
-    const companyName = company?.name || "diese Firma";
+    const companyName = company?.name || runtimeText("companyThisFallback");
     if (!window.confirm(`${uiT("supportCompanyLoginConfirmPrefix")} ${companyName} ${uiT("supportCompanyLoginConfirmSuffix")}`)) {
       return;
     }
@@ -10924,13 +12130,13 @@ function markInvoiceFieldInvalid(selector, message) {
 function validateInvoiceBusinessFieldsForSend(company) {
   clearInvoiceFieldValidationState();
   const requiredFields = [
-    { selector: "#invoiceOperatorStreet", label: "Strasse und Hausnummer" },
-    { selector: "#invoiceOperatorZipCity", label: "PLZ und Ort" },
-    { selector: "#invoiceOperatorEmail", label: "Rechnungs-E-Mail" },
+    { selector: "#invoiceOperatorStreet", label: runtimeText("invoiceLabelStreetHouseNumber") },
+    { selector: "#invoiceOperatorZipCity", label: runtimeText("invoiceLabelZipCity") },
+    { selector: "#invoiceOperatorEmail", label: uiT("labelBillingEmail") || runtimeText("invoiceValidationEmail") },
     { selector: "#invoiceIban", label: "IBAN" },
-    { selector: "#invoiceBankName", label: "Bankname" },
-    { selector: "#invoiceTaxId", label: "Steuernummer" },
-    { selector: "#invoiceVatId", label: "USt-IdNr." },
+    { selector: "#invoiceBankName", label: runtimeText("invoiceLabelBankName") },
+    { selector: "#invoiceTaxId", label: runtimeText("invoiceLabelTaxId") },
+    { selector: "#invoiceVatId", label: runtimeText("invoiceLabelVatId") },
   ];
 
   const missing = [];
@@ -10940,9 +12146,9 @@ function validateInvoiceBusinessFieldsForSend(company) {
     if (!value) {
       missing.push(field.label);
       if (!firstInvalidField) {
-        firstInvalidField = markInvoiceFieldInvalid(field.selector, "Pflichtfeld");
+        firstInvalidField = markInvoiceFieldInvalid(field.selector, runtimeText("invoiceValidationRequired"));
       } else {
-        markInvoiceFieldInvalid(field.selector, "Pflichtfeld");
+        markInvoiceFieldInvalid(field.selector, runtimeText("invoiceValidationRequired"));
       }
     }
   }
@@ -10954,14 +12160,14 @@ function validateInvoiceBusinessFieldsForSend(company) {
 
   const operatorStreet = String(document.querySelector("#invoiceOperatorStreet")?.value || "").trim();
   if (operatorStreet.length < 5) {
-    const streetEl = markInvoiceFieldInvalid("#invoiceOperatorStreet", "Adresse unvollstaendig");
+    const streetEl = markInvoiceFieldInvalid("#invoiceOperatorStreet", runtimeText("invoiceValidationAddress"));
     streetEl?.focus();
     return false;
   }
 
   const operatorZipCity = String(document.querySelector("#invoiceOperatorZipCity")?.value || "").trim();
   if (operatorZipCity.length < 5) {
-    const zipCityEl = markInvoiceFieldInvalid("#invoiceOperatorZipCity", "PLZ/Ort unvollstaendig");
+    const zipCityEl = markInvoiceFieldInvalid("#invoiceOperatorZipCity", runtimeText("invoiceValidationZipCity"));
     zipCityEl?.focus();
     return false;
   }
@@ -10972,7 +12178,7 @@ function validateInvoiceBusinessFieldsForSend(company) {
     if (fallbackRecipient && isValidEmailValue(fallbackRecipient) && elements.invoiceRecipientEmail) {
       elements.invoiceRecipientEmail.value = fallbackRecipient;
     } else {
-      const recipientEl = markInvoiceFieldInvalid("#invoiceRecipientEmail", "Ungueltige E-Mail");
+      const recipientEl = markInvoiceFieldInvalid("#invoiceRecipientEmail", runtimeText("invoiceValidationEmail"));
       recipientEl?.focus();
       return false;
     }
@@ -10980,14 +12186,14 @@ function validateInvoiceBusinessFieldsForSend(company) {
 
   const operatorEmail = String(document.querySelector("#invoiceOperatorEmail")?.value || "").trim();
   if (!isValidEmailValue(operatorEmail)) {
-    const operatorMailEl = markInvoiceFieldInvalid("#invoiceOperatorEmail", "Ungueltige E-Mail");
+    const operatorMailEl = markInvoiceFieldInvalid("#invoiceOperatorEmail", runtimeText("invoiceValidationEmail"));
     operatorMailEl?.focus();
     return false;
   }
 
   const ibanValue = String(document.querySelector("#invoiceIban")?.value || "").trim();
   if (!isValidIban(ibanValue)) {
-    const ibanInput = markInvoiceFieldInvalid("#invoiceIban", "Ungueltige IBAN");
+    const ibanInput = markInvoiceFieldInvalid("#invoiceIban", runtimeText("invoiceValidationIban"));
     ibanInput?.focus();
     return false;
   }
@@ -10998,14 +12204,14 @@ function validateInvoiceBusinessFieldsForSend(company) {
 
   const bicValue = String(document.querySelector("#invoiceBic")?.value || "").trim();
   if (bicValue && !isValidBic(bicValue)) {
-    const bicInput = markInvoiceFieldInvalid("#invoiceBic", "Ungueltige BIC");
+    const bicInput = markInvoiceFieldInvalid("#invoiceBic", runtimeText("invoiceValidationBic"));
     bicInput?.focus();
     return false;
   }
 
   const bankNameValue = String(document.querySelector("#invoiceBankName")?.value || "").trim();
   if (bankNameValue.length < 3) {
-    const bankInput = markInvoiceFieldInvalid("#invoiceBankName", "Bankname ist zu kurz");
+    const bankInput = markInvoiceFieldInvalid("#invoiceBankName", runtimeText("invoiceValidationBankName"));
     bankInput?.focus();
     return false;
   }
@@ -11013,7 +12219,7 @@ function validateInvoiceBusinessFieldsForSend(company) {
   const taxIdEl = document.querySelector("#invoiceTaxId");
   const taxIdValue = sanitizeInvoiceTaxId(String(taxIdEl?.value || ""));
   if (!isValidInvoiceTaxId(taxIdValue)) {
-    const taxEl = markInvoiceFieldInvalid("#invoiceTaxId", "Ungueltige Steuernummer");
+    const taxEl = markInvoiceFieldInvalid("#invoiceTaxId", runtimeText("invoiceValidationTaxId"));
     taxEl?.focus();
     return false;
   }
@@ -11022,7 +12228,7 @@ function validateInvoiceBusinessFieldsForSend(company) {
   const vatIdEl = document.querySelector("#invoiceVatId");
   const vatIdValue = sanitizeInvoiceVatId(String(vatIdEl?.value || ""));
   if (!isValidInvoiceVatId(vatIdValue)) {
-    const vatEl = markInvoiceFieldInvalid("#invoiceVatId", "Ungueltige USt-IdNr.");
+    const vatEl = markInvoiceFieldInvalid("#invoiceVatId", runtimeText("invoiceValidationVatId"));
     vatEl?.focus();
     return false;
   }
@@ -11035,9 +12241,9 @@ function renderSystemIdentity() {
   const platform = document.querySelector("#loginPlatformName");
   const operator = document.querySelector("#loginOperatorName");
   const endpoint = document.querySelector("#loginTurnstileEndpoint");
-  if (platform) platform.textContent = state.settings.platformName || "BauPass Control";
-  if (operator) operator.textContent = state.settings.operatorName || "Deine Betriebsfirma";
-  if (endpoint) endpoint.textContent = state.settings.turnstileEndpoint || "Noch nicht gesetzt";
+  if (platform) platform.textContent = state.settings.platformName || uiT("appTitle");
+  if (operator) operator.textContent = state.settings.operatorName || getUiPlaceholderText("operatorName");
+  if (endpoint) endpoint.textContent = state.settings.turnstileEndpoint || runtimeText("systemIdentityUnset");
 }
 
 function renderAdminSettingsForm() {
@@ -11058,9 +12264,11 @@ function renderAdminSettingsForm() {
   const enforceTenantDomain = document.querySelector("#enforceTenantDomain");
   const supportPhone = document.querySelector("#supportPhone");
   const workerAppEnabled = document.querySelector("#workerAppEnabled");
+  const workerPassLockEnabled = document.querySelector("#workerPassLockEnabled");
+  const workerExpiryWarnDays = document.querySelector("#workerExpiryWarnDays");
 
-  if (platformName) platformName.value = state.settings.platformName || "BauPass Control";
-  if (operatorName) operatorName.value = state.settings.operatorName || "Deine Betriebsfirma";
+  if (platformName) platformName.value = state.settings.platformName || getUiPlaceholderText("platformName");
+  if (operatorName) operatorName.value = state.settings.operatorName || getUiPlaceholderText("operatorName");
   if (turnstileEndpoint) turnstileEndpoint.value = state.settings.turnstileEndpoint || "";
   if (rentalModel) rentalModel.value = state.settings.rentalModel || "tageskarte";
   if (invoicePrimaryColor) invoicePrimaryColor.value = state.settings.invoicePrimaryColor || "#0f4c5c";
@@ -11076,6 +12284,8 @@ function renderAdminSettingsForm() {
   if (enforceTenantDomain) enforceTenantDomain.value = state.settings.enforceTenantDomain ? "1" : "0";
   if (supportPhone) supportPhone.value = getSupportPhoneForLockScreen();
   if (workerAppEnabled) workerAppEnabled.value = state.settings.workerAppEnabled === false ? "0" : "1";
+  if (workerPassLockEnabled) workerPassLockEnabled.value = state.settings.workerPassLockEnabled ? "1" : "0";
+  if (workerExpiryWarnDays) workerExpiryWarnDays.value = String(state.settings.workerExpiryWarnDays ?? 7);
   // Brevo-Felder
   const brevoApiKeyEl = document.querySelector("#brevoApiKey");
   const brevoFromEmailEl = document.querySelector("#brevoFromEmail");
@@ -11084,7 +12294,7 @@ function renderAdminSettingsForm() {
   const brevoKeyHint = document.querySelector("#brevoKeyStoredHint");
   if (brevoKeyHint) {
     const hasBrevoKey = !!(state.settings.brevoApiKey);
-    brevoKeyHint.textContent = hasBrevoKey ? "✓ API-Key gespeichert" : "Kein Key gespeichert";
+    brevoKeyHint.textContent = hasBrevoKey ? `✓ ${runtimeText("brevoApiKeyStored")}` : runtimeText("brevoNoApiKeyStored");
     brevoKeyHint.style.color = hasBrevoKey ? "#16a34a" : "#9ca3af";
   }
   if (elements.invoiceLogoData) {
@@ -11248,7 +12458,7 @@ function showWorkerDetailOverlay(worker) {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
       } catch (error) {
-        window.alert(`QR-Code konnte nicht geladen werden: ${error.message}`);
+        window.alert(runtimeTextTemplate("qrCodeLoadFailed", { error: error.message }));
       } finally {
         qrBtn.disabled = false;
       }
@@ -11266,23 +12476,25 @@ function showWorkerDetailOverlay(worker) {
   }
 }
 
-async function triggerWorkerAccess(worker, direction) {
-  try {
-    await apiRequest(API_BASE + "/api/access-logs", {
-      method: "POST",
-      body: {
-        workerId: worker.id,
-        direction,
-        gate: "Dashboard",
-        note: "Dashboard Schnellbuchung"
-      }
-    });
-    await loadAllData();
-    refreshAll();
-    showAccessFeedback(worker.id, direction, "Dashboard", new Date().toISOString());
-  } catch (error) {
-    window.alert(uiT("alertAccessBookingFailed").replace("{error}", error.message));
+async function triggerWorkerAccess(worker, direction, options = {}) {
+  const sourceView = options.sourceView || getCurrentViewName();
+  const result = await bookAccess(worker.id, direction, "Dashboard", "Dashboard Schnellbuchung");
+  if (!result?.ok) {
+    return result;
   }
+
+  if (sourceView && getCurrentViewName() !== sourceView) {
+    setView(sourceView);
+  }
+
+  const overlay = document.getElementById("dashboardDetailOverlay");
+  const detailIsVisible = overlay && !overlay.classList.contains("hidden");
+  if (detailIsVisible) {
+    const refreshedWorker = state.workers.find((entry) => entry.id === worker.id) || worker;
+    renderDashboardWorkerDetail(refreshedWorker, { sourceView });
+  }
+
+  return result;
 }
 
 window.triggerWorkerAccess = triggerWorkerAccess;
@@ -11378,19 +12590,19 @@ function closeSecretDialog() {
 function showSecretDialog(title, lines, options = {}) {
   closeSecretDialog();
 
-  const intro = options.intro || "Diese Daten werden nur jetzt angezeigt.";
-  const copyLabel = options.copyLabel || "Daten kopieren";
+  const intro = options.intro || runtimeText("secretDialogIntro");
+  const copyLabel = options.copyLabel || runtimeText("secretDialogCopyBtn");
   const copyValue = options.copyValue || lines.join("\n");
   const dialog = document.createElement("div");
   dialog.className = "worker-app-qr-overlay turnstile-secret-overlay";
   dialog.innerHTML = `
     <div class="worker-app-qr-card turnstile-secret-card">
-      <h3>${escapeHtml(title || "Geheimer Schluessel")}</h3>
+      <h3>${escapeHtml(title || runtimeText("secretDialogDefaultTitle"))}</h3>
       <p>${escapeHtml(intro)}</p>
       <div class="turnstile-secret-copy">${lines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}</div>
       <div class="button-row">
         <button type="button" class="primary-button" data-secret-copy>${escapeHtml(copyLabel)}</button>
-        <button type="button" class="ghost-button" data-secret-close>Schliessen</button>
+        <button type="button" class="ghost-button" data-secret-close>${escapeHtml(uiT("legalCloseTitle"))}</button>
       </div>
     </div>
   `;
@@ -11428,15 +12640,16 @@ function printWorkerAppQr(workerName, qrSrc) {
     return;
   }
 
-  const safeName = escapeHtml(workerName || "Mitarbeiter");
+  const safeName = escapeHtml(workerName || runtimeText("accessFeedbackUnknownWorker"));
+  const lang = getStoredUiLang();
   w.document.write(`
     <!DOCTYPE html>
-    <html lang="de" translate="no">
+    <html lang="${escapeHtml(lang)}" translate="no">
     <head>
       <meta charset="UTF-8" />
       <meta name="google" content="notranslate" />
-      <meta http-equiv="Content-Language" content="de" />
-      <title>Mitarbeiter-App QR</title>
+      <meta http-equiv="Content-Language" content="${escapeHtml(lang)}" />
+      <title>${escapeHtml(runtimeText("workerAppQrPrintTitle"))}</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 24px; text-align: center; }
         .sheet { border: 1px solid #ddd; border-radius: 16px; padding: 24px; }
@@ -11447,10 +12660,10 @@ function printWorkerAppQr(workerName, qrSrc) {
     </head>
     <body>
       <div class="sheet">
-        <h1>Mitarbeiter-App installieren</h1>
+        <h1>${escapeHtml(runtimeText("workerAppQrHeading"))}</h1>
         <p><strong>${safeName}</strong></p>
-        <p>QR-Code mit der Kamera scannen und App starten.</p>
-        <img src="${qrSrc}" alt="Mitarbeiter App QR" />
+        <p>${escapeHtml(runtimeText("workerAppQrHint"))}</p>
+        <img src="${qrSrc}" alt="${escapeHtml(runtimeText("workerAppQrAlt"))}" />
       </div>
       <script>window.onload = () => window.print();</script>
     </body>
@@ -11462,26 +12675,26 @@ function printWorkerAppQr(workerName, qrSrc) {
 function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
   closeWorkerAppQrDialog();
 
-  const workerName = worker ? `${worker.firstName} ${worker.lastName}` : "Mitarbeiter";
+  const workerName = worker ? `${worker.firstName} ${worker.lastName}` : runtimeText("workerRoleFallback");
   const isVisitorCard = worker ? isVisitorWorker(worker) : true;
   const linkExpiresAt = payload?.accessExpiresAt ? formatDateTime(payload.accessExpiresAt) : "-";
-  const oneTimeHint = payload?.oneTime ? "Einmal-Link: Nach erstem Login ungueltig." : "";
+  const oneTimeHint = payload?.oneTime ? runtimeText("workerAppQrOneTimeHint") : "";
   const dialog = document.createElement("div");
   dialog.className = "worker-app-qr-overlay";
 
   const qrId = `workerAppQr-${Date.now()}`;
   dialog.innerHTML = `
     <div class="worker-app-qr-card">
-      <h3>Besucherkarte QR</h3>
-      <p>Fuer: <strong>${escapeHtml(workerName)}</strong></p>
-      <p>Code mit der Kamera scannen, um die Besucherkarte digital in der App zu oeffnen.</p>
-      <p class="helper-text">Gueltig bis: ${escapeHtml(linkExpiresAt)} Uhr</p>
+      <h3>${escapeHtml(isVisitorCard ? runtimeText("workerAppQrVisitorHeading") : runtimeText("workerAppQrHeading"))}</h3>
+      <p>${escapeHtml(runtimeText("workerAppQrForLabel"))}: <strong>${escapeHtml(workerName)}</strong></p>
+      <p>${escapeHtml(isVisitorCard ? runtimeText("workerAppQrVisitorHint") : runtimeText("workerAppQrHint"))}</p>
+      <p class="helper-text">${escapeHtml(runtimeTextTemplate("workerAppQrValidUntil", { when: linkExpiresAt }))}</p>
       ${oneTimeHint ? `<p class="helper-text">${escapeHtml(oneTimeHint)}</p>` : ""}
-      <img id="${qrId}" alt="Mitarbeiter App QR" />
+      <img id="${qrId}" alt="${escapeHtml(runtimeText("workerAppQrAlt"))}" />
       <div class="button-row">
-        ${isVisitorCard ? "" : `<button type="button" class="primary-button" data-worker-app-print>QR drucken</button>`}
-        <button type="button" class="ghost-button" data-worker-app-copy>Link kopieren</button>
-        <button type="button" class="ghost-button" data-worker-app-close>Schliessen</button>
+        ${isVisitorCard ? "" : `<button type="button" class="primary-button" data-worker-app-print>${escapeHtml(runtimeText("workerAppQrPrintBtn"))}</button>`}
+        <button type="button" class="ghost-button" data-worker-app-copy>${escapeHtml(runtimeText("workerAppQrCopyBtn"))}</button>
+        <button type="button" class="ghost-button" data-worker-app-close>${escapeHtml(uiT("legalCloseTitle"))}</button>
       </div>
     </div>
   `;
@@ -11566,7 +12779,7 @@ function renderBadge() {
         ${visitor ? `
         <div class="badge-info-row">
           <span class="badge-info-icon">👤</span>
-          <span class="badge-info-label">${uiT("labelVisitorCompany") || "Firma"}</span>
+          <span class="badge-info-label">${uiT("labelVisitorCompany")}</span>
           <span class="badge-info-value">${escapeHtml(worker.visitorCompany || "–")}</span>
         </div>
         <div class="badge-info-row">
@@ -11636,7 +12849,7 @@ function renderBadge() {
   if (elements.appLinkBadgeButton) {
     elements.appLinkBadgeButton.onclick = async () => {
       elements.appLinkBadgeButton.disabled = true;
-      elements.appLinkBadgeButton.textContent = "Wird erstellt …";
+      elements.appLinkBadgeButton.textContent = runtimeText("appLinkCreating");
       try {
         const payload = await apiRequest(`${API_BASE}/api/workers/${worker.id}/app-access`, { method: "POST" });
         const absoluteLink = normalizeWorkerAppLink(payload.link);
@@ -11645,7 +12858,7 @@ function renderBadge() {
         window.alert(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
       } finally {
         elements.appLinkBadgeButton.disabled = false;
-        elements.appLinkBadgeButton.textContent = "📱 App auf Smartphone";
+        elements.appLinkBadgeButton.textContent = runtimeText("appLinkPhoneButton");
       }
     };
   }
@@ -11725,19 +12938,13 @@ function renderRecentAccess() {
 }
 
 function getPorterOnSiteByCompany() {
-  const visibleLogs = [...getUiVisibleAccessLogs()].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
   const workerById = new Map(getUiVisibleWorkers().map((worker) => [worker.id, worker]));
-  const lastDirectionByWorker = new Map();
-
-  for (const entry of visibleLogs) {
-    if (!entry?.workerId) {
-      continue;
-    }
-    lastDirectionByWorker.set(entry.workerId, entry.direction);
-  }
+  const latestEntries = getUiVisibleLatestAccessEntries();
 
   const companyCounts = new Map();
-  for (const [workerId, direction] of lastDirectionByWorker.entries()) {
+  for (const entry of latestEntries) {
+    const workerId = entry?.workerId || "";
+    const direction = entry?.direction || "";
     if (direction !== "check-in") {
       continue;
     }
@@ -11779,7 +12986,7 @@ function renderDashboardPorterLivePanel() {
       </div>
     `;
 
-  const latest = [...state.accessLogs].sort((left, right) => right.timestamp.localeCompare(left.timestamp))[0] || null;
+  const latest = state.porterLive.lastEvent || getUiVisibleLatestAccessEntries()[0] || null;
   if (!latest) {
     panel.className = "porter-live-card empty-state";
     panel.innerHTML = `${runtimeText("dashboardLastAccessPlaceholder")}${companySummaryHtml}`;
@@ -11853,32 +13060,52 @@ function renderPorterLivePanel() {
 }
 
 // Zeige Mitarbeiterdetails direkt im Dashboard-Bereich
-function renderDashboardWorkerDetail(worker) {
+function renderDashboardWorkerDetail(worker, options = {}) {
   // Overlay und Detail-Elemente holen
   const overlay = document.getElementById("dashboardDetailOverlay");
   const detail = document.getElementById("dashboardWorkerDetail");
   if (!overlay || !detail) return;
+  const sourceView = options.sourceView || getCurrentViewName();
   const company = state.companies.find((entry) => entry.id === worker.companyId);
   const subcompanyLabel = getSubcompanyLabel(worker);
   const safePhoto = sanitizeImageSrc(worker.photoData, createAvatar(worker));
+  const latestAccess = getLatestAccessForWorker(worker.id)
+    || [...state.accessLogs]
+      .filter((entry) => entry.workerId === worker.id)
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp))[0]
+    || null;
+  const statusValueMap = {
+    aktiv: uiT("optStatusActive"),
+    gesperrt: uiT("optStatusLocked"),
+    abgelaufen: uiT("optStatusExpired")
+  };
+  const statusLabel = statusValueMap[String(worker.status || "").trim().toLowerCase()] || worker.status;
+  const latestDirectionLabel = latestAccess
+    ? latestAccess.direction === "check-in"
+      ? runtimeText("dashboardDirectionCheckin")
+      : runtimeText("dashboardDirectionCheckout")
+    : "";
   detail.innerHTML = `
-    <button class="close-btn" title="Schließen">&times;</button>
+    <button class="close-btn" title="${escapeHtml(uiT("detailCloseTitle"))}">&times;</button>
     <div class="worker-detail-card">
-      <img src="${safePhoto}" alt="Mitarbeiterfoto" />
+      <img src="${safePhoto}" alt="${escapeHtml(uiT("detailPhotoAlt"))}" />
       <h2>${escapeHtml(worker.firstName)} ${escapeHtml(worker.lastName)}</h2>
-      <p><strong>Firma:</strong> ${escapeHtml(company?.name || "-")}</p>
-      ${subcompanyLabel ? `<p><strong>Subunternehmen:</strong> ${escapeHtml(subcompanyLabel)}</p>` : ""}
-      <p><strong>Badge-ID:</strong> ${escapeHtml(worker.badgeId)}</p>
-      <p><strong>Rentenversicherung:</strong> ${escapeHtml(worker.insuranceNumber)}</p>
-      <p><strong>Funktion:</strong> ${escapeHtml(worker.role)}</p>
-      <p><strong>Baustelle:</strong> ${escapeHtml(worker.site)}</p>
-      <p><strong>Gültig bis:</strong> ${formatDate(worker.validUntil)}</p>
-      <p><strong>Status:</strong> ${escapeHtml(worker.status)}</p>
-      <p><strong>Badge-PIN:</strong> ${worker.badgePinConfigured ? "gesetzt" : "nicht gesetzt"}</p>
-      <p><strong>Karten-ID:</strong> ${escapeHtml(worker.physicalCardId || "nicht zugewiesen")}</p>
-      <div class="button-row">
-        <button type="button" class="primary-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-in">Anmelden (Check-in)</button>
-        <button type="button" class="ghost-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-out">Abmelden (Check-out)</button>
+      <p><strong>${escapeHtml(uiT("labelFirm"))}:</strong> ${escapeHtml(company?.name || "-")}</p>
+      ${subcompanyLabel ? `<p><strong>${escapeHtml(uiT("labelSubcompany"))}:</strong> ${escapeHtml(subcompanyLabel)}</p>` : ""}
+      <p><strong>${escapeHtml(uiT("badgeLabelBadgeId"))}:</strong> ${escapeHtml(worker.badgeId)}</p>
+      <p><strong>${escapeHtml(uiT("labelInsuranceNumber"))}:</strong> ${escapeHtml(worker.insuranceNumber)}</p>
+      <p><strong>${escapeHtml(uiT("labelRoleField"))}:</strong> ${escapeHtml(worker.role)}</p>
+      <p><strong>${escapeHtml(uiT("labelSite"))}:</strong> ${escapeHtml(worker.site || "-")}</p>
+      <p><strong>${escapeHtml(uiT("labelValidUntil"))}:</strong> ${formatDate(worker.validUntil)}</p>
+      <p><strong>${escapeHtml(uiT("labelWorkerStatus"))}:</strong> ${escapeHtml(statusLabel || "")}</p>
+      <p><strong>${escapeHtml(uiT("labelBadgePin"))}:</strong> ${escapeHtml(worker.badgePinConfigured ? uiT("pinSet") : uiT("pinMissing"))}</p>
+      <p><strong>${escapeHtml(uiT("cardLabel"))}:</strong> ${escapeHtml(worker.physicalCardId || uiT("cardUnassigned"))}</p>
+      <p><strong>${escapeHtml(runtimeText("dashboardLastAccessHeading"))}:</strong> ${escapeHtml(latestDirectionLabel || runtimeText("dashboardLastAccessPlaceholder"))}</p>
+      ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("accessWarningGate"))}:</strong> ${escapeHtml(latestAccess.gate || runtimeText("unknownTurnstile"))}</p>` : ""}
+      ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("summaryLastBooking"))}:</strong> ${escapeHtml(formatTimestamp(latestAccess.timestamp))}</p>` : ""}
+      <div class="button-row dashboard-worker-detail-actions">
+        <button type="button" class="primary-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-in" data-source-view="${escapeHtml(sourceView)}">${escapeHtml(uiT("detailCheckinBtn"))}</button>
+        <button type="button" class="ghost-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-out" data-source-view="${escapeHtml(sourceView)}">${escapeHtml(uiT("detailCheckoutBtn"))}</button>
       </div>
     </div>
   `;
@@ -11891,7 +13118,9 @@ function renderDashboardWorkerDetail(worker) {
       if (!targetWorker) {
         return;
       }
-      triggerWorkerAccess(targetWorker, button.dataset.direction);
+      triggerWorkerAccess(targetWorker, button.dataset.direction, {
+        sourceView: button.dataset.sourceView || sourceView
+      });
     });
   });
 }
@@ -11909,17 +13138,45 @@ function renderAccessLog() {
     return;
   }
 
-  elements.accessLogList.innerHTML = entries.map(renderAccessItem).join("");
+  const loadMoreMarkup = state.accessLogsMeta?.hasMore
+    ? `
+      <div class="button-row" style="justify-content:center; margin-top:12px;">
+        <button type="button" class="ghost-button small-button" data-access-load-more>${escapeHtml(runtimeText("accessLoadMoreButton") || "Mehr laden")}</button>
+      </div>
+    `
+    : "";
 
-  // Klick auf Mitarbeiter-Eintrag → Detail-Overlay öffnen
+  elements.accessLogList.innerHTML = entries.map(renderAccessItem).join("") + loadMoreMarkup;
+
+  // Klick auf Mitarbeiter-Eintrag -> neutralen Detaildialog oeffnen
   elements.accessLogList.querySelectorAll("article[data-worker-id]").forEach((item) => {
     const wid = item.dataset.workerId;
     if (!wid) return;
     item.addEventListener("click", () => {
       const w = state.workers.find((x) => x.id === wid);
-      if (w) showWorkerDetailOverlay(w);
+      if (w) renderDashboardWorkerDetail(w);
     });
   });
+
+  const loadMoreButton = elements.accessLogList.querySelector("[data-access-load-more]");
+  if (loadMoreButton) {
+    loadMoreButton.addEventListener("click", async () => {
+      loadMoreButton.disabled = true;
+      try {
+        const loaded = await loadMoreAccessLogs();
+        if (loaded) {
+          renderAccessLog();
+          renderAccessSummary();
+        } else {
+          state.accessLogsMeta = { ...state.accessLogsMeta, hasMore: false };
+          renderAccessLog();
+        }
+      } catch (error) {
+        loadMoreButton.disabled = false;
+        window.alert(uiT("alertAccessBookingFailed").replace("{error}", error.message));
+      }
+    });
+  }
 }
 
 function renderAccessSummary() {
@@ -11931,7 +13188,7 @@ function renderAccessSummary() {
 
   const grouped = new Map();
   entries.forEach((entry) => {
-    const gateKey = (entry.gate || "Unbekanntes Drehkreuz").trim() || "Unbekanntes Drehkreuz";
+    const gateKey = (entry.gate || runtimeText("unknownTurnstile")).trim() || runtimeText("unknownTurnstile");
     const current = grouped.get(gateKey) || {
       gate: gateKey,
       total: 0,
@@ -11944,7 +13201,7 @@ function renderAccessSummary() {
     const worker = state.workers.find((item) => item.id === entry.workerId);
     const visitorName = worker ? `${worker.firstName} ${worker.lastName}` : `Mitarbeiter ${entry.workerId}`;
     const visitorMeta = worker && isVisitorWorker(worker)
-      ? `${worker.visitorCompany || "Besucherfirma"} | ${worker.visitPurpose || "Besuch"}`
+      ? `${worker.visitorCompany || runtimeText("visitorCompanyFallback")} | ${worker.visitPurpose || runtimeText("visitPurposeFallback")}`
       : "";
 
     current.total += 1;
@@ -12008,7 +13265,7 @@ function renderAccessHourly() {
 function renderAccessWarnings() {
   const warnings = state.accessInsights.openEntries || [];
   if (!warnings.length) {
-    elements.accessOpenWarnings.innerHTML = '<div class="empty-state">Keine offenen Eintritte gefunden.</div>';
+    elements.accessOpenWarnings.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("accessWarningsEmpty"))}</div>`;
     return;
   }
 
@@ -12024,9 +13281,9 @@ function renderAccessWarnings() {
             </div>
             <span class="status-pill status-check-in">${escapeHtml(getSeverityLabel(getSeverity(entry)))}</span>
           </header>
-          <span>Drehkreuz: ${escapeHtml(entry.gate || "Unbekannt")}</span>
-          <span>Letzter Eintritt: ${formatTimestamp(entry.timestamp)}</span>
-          <span>Offen seit: ${escapeHtml(formatDurationMinutes(getOpenMinutes(entry)))}</span>
+          <span>${escapeHtml(runtimeText("accessWarningGate"))}: ${escapeHtml(entry.gate || runtimeText("unknownTurnstile"))}</span>
+          <span>${escapeHtml(runtimeText("accessWarningLastEntry"))}: ${formatTimestamp(entry.timestamp)}</span>
+          <span>${escapeHtml(runtimeText("accessWarningOpenSince"))}: ${escapeHtml(formatDurationMinutes(getOpenMinutes(entry)))}</span>
         </article>
       `
     )
@@ -12153,12 +13410,12 @@ function getSeverity(entry) {
 
 function getSeverityLabel(severity) {
   if (severity === "red") {
-    return "Kritisch";
+    return runtimeText("severityCritical");
   }
   if (severity === "yellow") {
-    return "Warnung";
+    return runtimeText("severityWarning");
   }
-  return "OK";
+  return runtimeText("severityOk");
 }
 
 function formatDurationMinutes(minutes) {
@@ -12205,24 +13462,24 @@ function renderTurnstileQuickPanel() {
 
   elements.turnstileQuickPanel.innerHTML = `
     <div class="quick-panel-card">
-      <strong>Drehkreuz-Schnellmodus</strong>
-      <p class="helper-text">Karte auflegen, Enter senden, fertig. Die Richtung wird automatisch gewechselt.</p>
+      <strong>${escapeHtml(runtimeText("turnstileQuickModeTitle"))}</strong>
+      <p class="helper-text">${escapeHtml(runtimeText("turnstileQuickModeIntro"))}</p>
       <div id="turnstileTapLive" class="turnstile-tap-live is-idle" role="status" aria-live="polite">
         <span class="turnstile-tap-dot" aria-hidden="true"></span>
-        <strong id="turnstileTapLiveText">Bereit fuer Tap</strong>
+        <strong id="turnstileTapLiveText">${escapeHtml(runtimeText("turnstileTapReady"))}</strong>
       </div>
-      <input type="search" id="turnstileCardTapInput" class="turnstile-card-input" placeholder="Karten-ID (NFC/RFID)" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <input type="search" id="turnstileCardTapInput" class="turnstile-card-input" placeholder="${escapeAttr(runtimeText("turnstileCardPlaceholder"))}" autocomplete="off" autocapitalize="off" spellcheck="false" />
       <div class="button-row">
-        <button type="button" class="ghost-button" id="turnstileCardTapSubmit">Tap buchen</button>
+        <button type="button" class="ghost-button" id="turnstileCardTapSubmit">${escapeHtml(runtimeText("turnstileTapSubmitButton"))}</button>
       </div>
-      <p id="turnstileCardTapHint" class="helper-text">Bereit fuer den naechsten Tap.</p>
+      <p id="turnstileCardTapHint" class="helper-text">${escapeHtml(runtimeText("turnstileTapNextHint"))}</p>
       <hr style="width:100%; border:none; border-top:1px solid rgba(23,23,23,0.08); margin:8px 0;" />
-      <p class="helper-text">Fallback: Mitarbeiter manuell waehlen und Richtung buchen.</p>
-      <input type="search" id="turnstileQuickSearch" placeholder="Mitarbeiter suchen" />
+      <p class="helper-text">${escapeHtml(runtimeText("turnstileQuickFallbackHint"))}</p>
+      <input type="search" id="turnstileQuickSearch" placeholder="${escapeAttr(runtimeText("turnstileQuickSearchPlaceholder"))}" />
       <div id="turnstileQuickPreview" class="meta-box" style="display:flex; gap:12px; align-items:center; margin:10px 0;"></div>
       <div class="button-row">
-        <button type="button" class="ghost-button" data-quick-direction="check-in">Schnell Check-in</button>
-        <button type="button" class="ghost-button" data-quick-direction="check-out">Schnell Check-out</button>
+        <button type="button" class="ghost-button" data-quick-direction="check-in">${escapeHtml(runtimeText("turnstileQuickCheckinButton"))}</button>
+        <button type="button" class="ghost-button" data-quick-direction="check-out">${escapeHtml(runtimeText("turnstileQuickCheckoutButton"))}</button>
       </div>
     </div>
   `;
@@ -12258,7 +13515,7 @@ function renderTurnstileQuickPanel() {
       window.clearTimeout(turnstileTapLiveResetTimer);
     }
     turnstileTapLiveResetTimer = window.setTimeout(() => {
-      setTapLiveState("is-idle", "Bereit fuer Tap");
+      setTapLiveState("is-idle", runtimeText("turnstileTapReady"));
       turnstileTapLiveResetTimer = null;
     }, delayMs);
   };
@@ -12274,9 +13531,11 @@ function renderTurnstileQuickPanel() {
   };
 
   const resolveNextDirection = (workerId) => {
-    const latest = [...state.accessLogs]
-      .filter((log) => log.workerId === workerId)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+    const latest = getLatestAccessForWorker(workerId)
+      || [...state.accessLogs]
+        .filter((log) => log.workerId === workerId)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+      || null;
     return latest?.direction === "check-in" ? "check-out" : "check-in";
   };
 
@@ -12286,13 +13545,13 @@ function renderTurnstileQuickPanel() {
     }
     const normalizedCardId = normalizeCardId(cardTapInput?.value);
     if (!normalizedCardId) {
-      setTapHint("Keine Karten-ID gelesen. Bitte erneut auflegen.");
-      setTapLiveState("is-error", "Keine Karte erkannt");
+      setTapHint(runtimeText("turnstileTapNoCardHint"));
+      setTapLiveState("is-error", runtimeText("turnstileTapNoCardLive"));
       scheduleTapLiveIdleReset();
-      showAccessFeedback(null, "check-in", "Drehkreuz Scanner", new Date().toISOString(), {
+      showAccessFeedback(null, "check-in", runtimeText("turnstileScannerLabel"), new Date().toISOString(), {
         isError: true,
-        title: "KARTE NICHT ERKANNT",
-        message: "Keine Karten-ID gelesen.",
+        title: runtimeText("turnstileTapNoCardTitle"),
+        message: runtimeText("turnstileTapNoCardMessage"),
         tone: "error"
       });
       cardTapInput?.focus();
@@ -12301,13 +13560,13 @@ function renderTurnstileQuickPanel() {
 
     const worker = findWorkerByCardId(normalizedCardId);
     if (!worker) {
-      setTapHint(`Unbekannte Karte: ${normalizedCardId}`);
-      setTapLiveState("is-error", `Unbekannte Karte ${normalizedCardId}`);
+      setTapHint(runtimeTextTemplate("turnstileTapUnknownCardHint", { cardId: normalizedCardId }));
+      setTapLiveState("is-error", runtimeTextTemplate("turnstileTapUnknownCardLive", { cardId: normalizedCardId }));
       scheduleTapLiveIdleReset();
-      showAccessFeedback(null, "check-in", "Drehkreuz Scanner", new Date().toISOString(), {
+      showAccessFeedback(null, "check-in", runtimeText("turnstileScannerLabel"), new Date().toISOString(), {
         isError: true,
-        title: "ZUTRITT ABGELEHNT",
-        message: `Karte ${normalizedCardId} ist keinem Mitarbeiter zugewiesen.`,
+        title: runtimeText("turnstileTapDeniedTitle"),
+        message: runtimeTextTemplate("turnstileTapUnassignedMessage", { cardId: normalizedCardId }),
         tone: "error"
       });
       if (cardTapInput) {
@@ -12319,26 +13578,26 @@ function renderTurnstileQuickPanel() {
 
     const nextDirection = resolveNextDirection(worker.id);
     turnstileTapInFlight = true;
-    setTapHint(`Verarbeite ${normalizedCardId} ...`);
+    setTapHint(runtimeTextTemplate("turnstileTapProcessingHint", { cardId: normalizedCardId }));
     if (turnstileTapLiveResetTimer) {
       window.clearTimeout(turnstileTapLiveResetTimer);
       turnstileTapLiveResetTimer = null;
     }
-    setTapLiveState("is-pending", `Pruefe Karte ${normalizedCardId}`);
+    setTapLiveState("is-pending", runtimeTextTemplate("turnstileTapCheckingLive", { cardId: normalizedCardId }));
 
     try {
       if (elements.accessWorkerSelect) {
         elements.accessWorkerSelect.value = worker.id;
       }
       renderPreview();
-      const booking = await bookAccess(worker.id, nextDirection, "Drehkreuz Scanner", "NFC/RFID Tap");
+      const booking = await bookAccess(worker.id, nextDirection, runtimeText("turnstileScannerLabel"), runtimeText("turnstileNfcTapLabel"));
       if (booking?.ok) {
-        setTapHint(`Letzter Tap: ${normalizedCardId} (${nextDirection === "check-in" ? "Anmeldung" : "Abmeldung"})`);
-        setTapLiveState("is-success", `${worker.firstName || ""} ${worker.lastName || ""}`.trim() || "Zutritt OK");
+        setTapHint(runtimeTextTemplate("tapLastHint", { cardId: normalizedCardId, direction: nextDirection === "check-in" ? runtimeText("accessFeedbackDirectionCheckin") : runtimeText("accessFeedbackDirectionCheckout") }));
+        setTapLiveState("is-success", `${worker.firstName || ""} ${worker.lastName || ""}`.trim() || runtimeText("accessOkShort"));
         scheduleTapLiveIdleReset();
       } else {
-        setTapHint(`Tap abgelehnt: ${booking?.message || "Unbekannter Grund"}`);
-        setTapLiveState("is-error", "Zutritt abgelehnt");
+        setTapHint(runtimeTextTemplate("tapDeniedHint", { reason: booking?.message || runtimeText("tapUnknownReason") }));
+        setTapLiveState("is-error", runtimeText("accessDeniedShort"));
         scheduleTapLiveIdleReset();
       }
     } finally {
@@ -12354,7 +13613,7 @@ function renderTurnstileQuickPanel() {
     const worker = state.workers.find((entry) => entry.id === elements.accessWorkerSelect.value);
     if (!preview) return;
     if (!worker) {
-      preview.innerHTML = '<span class="helper-text">Noch kein Mitarbeiter ausgewaehlt.</span>';
+      preview.innerHTML = `<span class="helper-text">${escapeHtml(runtimeText("accessPreviewNoWorker"))}</span>`;
       return;
     }
     const photoSrc = sanitizeImageSrc(worker.photoData, createAvatar(worker));
@@ -12406,7 +13665,7 @@ function renderTurnstileQuickPanel() {
         window.alert(runtimeText("turnstileSelectWorkerFirst"));
         return;
       }
-      bookAccess(workerId, button.dataset.quickDirection, "Drehkreuz Schnellmodus", "Terminalbuchung");
+      bookAccess(workerId, button.dataset.quickDirection, runtimeText("turnstileQuickModeLabel"), runtimeText("turnstileTerminalBookingLabel"));
     });
   });
 }
@@ -12560,6 +13819,31 @@ async function handleAccessSubmit(event) {
   );
 }
 
+async function refreshAccessStateAfterBooking(createdLog) {
+  const normalizedCreatedLog = normalizeLog(createdLog);
+  state.accessLogs = [
+    normalizedCreatedLog,
+    ...state.accessLogs.filter((entry) => entry.id !== normalizedCreatedLog.id)
+  ];
+  applyLatestAccessLogEntry(normalizedCreatedLog);
+  state.invoiceAccessLineItemsCache = {};
+  const currentLimit = Number(state.accessLogsMeta?.limit || 0);
+  if (currentLimit > 0 && state.accessLogs.length > currentLimit) {
+    state.accessLogs = state.accessLogs.slice(0, currentLimit);
+  }
+
+  const [summary, dayClose] = await Promise.allSettled([
+    apiRequest(`${API_BASE}/api/access-logs/summary`),
+    apiRequest(`${API_BASE}/api/access-logs/day-close-check`)
+  ]);
+  if (summary.status === "fulfilled") {
+    state.accessInsights = summary.value || state.accessInsights;
+  }
+  if (dayClose.status === "fulfilled") {
+    state.dayClose = dayClose.value || null;
+  }
+}
+
 async function bookAccess(workerId, direction, gate, note) {
   if (isSupportReadOnlyMode()) {
     showSupportReadOnlyAlert();
@@ -12570,18 +13854,20 @@ async function bookAccess(workerId, direction, gate, note) {
   }
 
   // Prevent multiple consecutive check-ins or check-outs
-  const lastEvent = [...state.accessLogs]
-    .filter((log) => log.workerId === workerId)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+  const lastEvent = getLatestAccessForWorker(workerId)
+    || [...state.accessLogs]
+      .filter((log) => log.workerId === workerId)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+    || null;
   if (lastEvent && lastEvent.direction === direction) {
     const duplicateMessage =
       direction === "check-in"
-        ? "Diese Karte ist bereits angemeldet. Erst abmelden, dann erneut anmelden."
-        : "Diese Karte ist bereits abgemeldet. Erst anmelden, dann erneut abmelden.";
+        ? runtimeText("accessDuplicateCheckin")
+        : runtimeText("accessDuplicateCheckout");
     if (getCurrentUser()?.role === "turnstile") {
       showAccessFeedback(workerId, direction, gate, new Date().toISOString(), {
         isError: true,
-        title: "ZUTRITT ABGELEHNT",
+        title: runtimeText("accessDeniedTitle"),
         message: duplicateMessage,
         tone: "error"
       });
@@ -12613,20 +13899,20 @@ async function bookAccess(workerId, direction, gate, note) {
     state.porterLive.workerId = workerId;
     state.porterLive.lastEvent = normalizeLog(createdLog);
     showAccessFeedback(workerId, direction, gate, createdLog.timestamp, {
-      title: direction === "check-in" ? "ANMELDUNG ERFOLGREICH" : "ABMELDUNG ERFOLGREICH",
-      message: direction === "check-in" ? "Du bist jetzt angemeldet." : "Du bist jetzt abgemeldet.",
+      title: direction === "check-in" ? runtimeText("accessFeedbackCheckinTitle") : runtimeText("accessFeedbackCheckoutTitle"),
+      message: direction === "check-in" ? runtimeText("accessFeedbackCheckinMessage") : runtimeText("accessFeedbackCheckoutMessage"),
       tone: direction === "check-in" ? "success_in" : "success_out"
     });
-    await loadAllData();
+    await refreshAccessStateAfterBooking(createdLog);
     refreshAll();
     return { ok: true, direction, timestamp: createdLog.timestamp };
   } catch (error) {
-    const denyMessage = error?.message ? String(error.message) : "Unbekannter Fehler";
+    const denyMessage = error?.message ? String(error.message) : runtimeText("genericUnknownError");
     if (getCurrentUser()?.role === "turnstile") {
       showAccessFeedback(workerId, direction, gate, new Date().toISOString(), {
         isError: true,
-        title: "ZUTRITT ABGELEHNT",
-        message: `Buchung fehlgeschlagen: ${denyMessage}`,
+        title: runtimeText("accessDeniedTitle"),
+        message: `${runtimeText("accessBookingFailedPrefix")}: ${denyMessage}`,
         tone: "error"
       });
       return { ok: false, reason: denyMessage, message: denyMessage };
@@ -12641,12 +13927,12 @@ function showAccessFeedback(workerId, direction, gate, timestamp, options = {}) 
   const company = worker ? state.companies.find((entry) => entry.id === worker.companyId) : null;
   const subcompanyLabel = getSubcompanyLabel(worker);
   const isError = Boolean(options.isError);
-  const title = options.title || (direction === "check-in" ? "ANMELDUNG ERFOLGREICH" : "ABMELDUNG ERFOLGREICH");
+  const title = options.title || (direction === "check-in" ? runtimeText("accessFeedbackCheckinTitle") : runtimeText("accessFeedbackCheckoutTitle"));
   const primaryMessage =
-    options.message || (direction === "check-in" ? "Du bist jetzt angemeldet." : "Du bist jetzt abgemeldet.");
-  const dirLabel = direction === "check-in" ? "Anmeldung" : "Abmeldung";
-  const who = worker ? `${worker.firstName} ${worker.lastName}` : "Mitarbeiter";
-  const companyLabel = company?.name || "Unbekannte Firma";
+    options.message || (direction === "check-in" ? runtimeText("accessFeedbackCheckinMessage") : runtimeText("accessFeedbackCheckoutMessage"));
+  const dirLabel = direction === "check-in" ? runtimeText("accessFeedbackDirectionCheckin") : runtimeText("accessFeedbackDirectionCheckout");
+  const who = worker ? `${worker.firstName} ${worker.lastName}` : runtimeText("accessFeedbackUnknownWorker");
+  const companyLabel = company?.name || runtimeText("unknownCompany");
   const subLabel = subcompanyLabel ? ` | ${subcompanyLabel}` : "";
   const when = formatTimestamp(timestamp || new Date().toISOString());
 
@@ -12655,21 +13941,12 @@ function showAccessFeedback(workerId, direction, gate, timestamp, options = {}) 
   elements.accessFeedbackPhoto.src = worker
     ? sanitizeImageSrc(worker.photoData, createAvatar(worker))
     : createAvatar({ firstName: "?", lastName: "?" });
-  elements.accessFeedbackPhoto.alt = worker ? `${worker.firstName} ${worker.lastName}` : "Mitarbeiterfoto";
+  elements.accessFeedbackPhoto.alt = worker ? `${worker.firstName} ${worker.lastName}` : uiT("detailPhotoAlt");
   elements.accessFeedbackOverlay.classList.remove("hidden", "feedback-in", "feedback-out", "feedback-error");
   if (isError) {
     elements.accessFeedbackOverlay.classList.add("feedback-error");
   } else {
     elements.accessFeedbackOverlay.classList.add(direction === "check-in" ? "feedback-in" : "feedback-out");
-  }
-
-  // Zeige auch den Baustellen-Ausweis mit Foto
-  if (worker && !isError) {
-    state.selectedWorkerId = worker.id;
-    renderBadge();
-    // Schalte zur Badge-Ansicht um
-    const badgeTab = document.querySelector('a[href="#badge"]') || document.querySelector('[data-view="badge"]');
-    if (badgeTab) badgeTab.click();
   }
 
   playAccessTone(options.tone || (isError ? "error" : direction));
@@ -12781,30 +14058,30 @@ function exportWorkersPdf() {
   overlay.className = "worker-app-qr-overlay turnstile-secret-overlay";
   overlay.innerHTML = `
     <div class="worker-app-qr-card turnstile-secret-card worker-export-dialog">
-      <p class="eyebrow">Mitarbeiterliste</p>
-      <h3 class="worker-export-title">PDF-Export Optionen</h3>
+      <p class="eyebrow">${escapeHtml(runtimeText("workerExportEyebrow"))}</p>
+      <h3 class="worker-export-title">${escapeHtml(runtimeText("workerExportTitle"))}</h3>
       <div class="worker-export-grid">
         <label class="worker-export-check">
           <input type="checkbox" id="wlIncludePhotos" />
-          <span>Mit Fotos (Passfoto je Mitarbeiter)</span>
+          <span>${escapeHtml(runtimeText("workerExportIncludePhotos"))}</span>
         </label>
         <label class="worker-export-field">
-          <span>Zeitraum</span>
+          <span>${escapeHtml(runtimeText("workerExportPeriodLabel"))}</span>
           <select id="wlPeriod">
-            <option value="all">Alle aktiven Mitarbeiter</option>
-            <option value="today">Heute</option>
-            <option value="week">Diese Woche</option>
-            <option value="day">Bestimmter Tag</option>
+            <option value="all">${escapeHtml(runtimeText("workerExportPeriodAll"))}</option>
+            <option value="today">${escapeHtml(runtimeText("workerExportPeriodToday"))}</option>
+            <option value="week">${escapeHtml(runtimeText("workerExportPeriodWeek"))}</option>
+            <option value="day">${escapeHtml(runtimeText("workerExportPeriodDay"))}</option>
           </select>
         </label>
         <label id="wlCustomDateWrap" class="worker-export-field worker-export-field-hidden">
-          <span>Datum</span>
+          <span>${escapeHtml(runtimeText("workerExportDateLabel"))}</span>
           <input type="date" id="wlCustomDate" value="${today}" />
         </label>
       </div>
       <div class="button-row worker-export-actions">
-        <button type="button" class="ghost-button" id="wlCancelBtn">Abbrechen</button>
-        <button type="button" class="primary-button" id="wlDownloadBtn">PDF herunterladen</button>
+        <button type="button" class="ghost-button" id="wlCancelBtn">${escapeHtml(uiT("btnBulkCancel"))}</button>
+        <button type="button" class="primary-button" id="wlDownloadBtn">${escapeHtml(runtimeText("workerExportDownloadBtn"))}</button>
       </div>
     </div>
   `;
@@ -12857,6 +14134,7 @@ function printDailyReport() {
   const fromLabel = state.accessFilter.from || now.toISOString().slice(0, 10);
   const toLabel = state.accessFilter.to || fromLabel;
   const role = getRoleLabel(getCurrentUser()?.role || "unbekannt");
+  const lang = getStoredUiLang();
   const summaryItems = Array.from(document.querySelectorAll("#accessSummaryGrid .summary-card")).map((card) => card.outerHTML).join("");
   const warningItems = Array.from(document.querySelectorAll("#accessOpenWarnings .warning-item")).map((card) => card.outerHTML).join("");
   const visitorRows = getVisitorReportRows(fromLabel, toLabel)
@@ -12865,12 +14143,12 @@ function printDailyReport() {
 
   const html = `
     <!DOCTYPE html>
-    <html lang="de" translate="no">
+    <html lang="${escapeHtml(lang)}" translate="no">
     <head>
       <meta charset="UTF-8" />
       <meta name="google" content="notranslate" />
-      <meta http-equiv="Content-Language" content="de" />
-      <title>Zutrittsreport</title>
+      <meta http-equiv="Content-Language" content="${escapeHtml(lang)}" />
+      <title>${escapeHtml(runtimeText("accessReportTitle"))}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 24px; color: #222; }
         h1, h2 { margin: 0 0 10px; }
@@ -12887,14 +14165,14 @@ function printDailyReport() {
       </style>
     </head>
     <body>
-      <h1>Zutrittsreport</h1>
-      <p class="muted">Zeitraum: ${fromLabel} bis ${toLabel} | Rolle: ${escapeHtml(role)}</p>
-      <h2>Drehkreuz-Uebersicht</h2>
-      <div class="grid">${summaryItems || "<p>Keine Daten.</p>"}</div>
-      <h2>Offene Eintritte</h2>
-      <div class="grid">${warningItems || "<p>Keine offenen Eintritte.</p>"}</div>
-      <h2>Besucher im Zeitraum</h2>
-      ${visitorRows ? `<table><thead><tr><th>Name</th><th>Firma</th><th>Zweck</th><th>Ansprechpartner</th><th>Baustelle</th><th>Letzte Aktivität</th></tr></thead><tbody>${visitorRows}</tbody></table>` : "<p>Keine Besucher im Zeitraum.</p>"}
+      <h1>${escapeHtml(runtimeText("accessReportTitle"))}</h1>
+      <p class="muted">${escapeHtml(runtimeText("accessReportPeriodLabel"))}: ${fromLabel} bis ${toLabel} | ${escapeHtml(runtimeText("accessReportRoleLabel"))}: ${escapeHtml(role)}</p>
+      <h2>${escapeHtml(runtimeText("accessReportOverviewTitle"))}</h2>
+      <div class="grid">${summaryItems || `<p>${escapeHtml(runtimeText("accessReportNoData"))}</p>`}</div>
+      <h2>${escapeHtml(runtimeText("accessReportOpenEntriesTitle"))}</h2>
+      <div class="grid">${warningItems || `<p>${escapeHtml(runtimeText("accessReportOpenEntriesEmpty"))}</p>`}</div>
+      <h2>${escapeHtml(runtimeText("accessReportVisitorsTitle"))}</h2>
+      ${visitorRows ? `<table><thead><tr><th>${escapeHtml(runtimeText("tableHeaderName"))}</th><th>${escapeHtml(runtimeText("tableHeaderCompany"))}</th><th>${escapeHtml(runtimeText("tableHeaderPurpose"))}</th><th>${escapeHtml(runtimeText("tableHeaderContact"))}</th><th>${escapeHtml(runtimeText("tableHeaderSite"))}</th><th>${escapeHtml(runtimeText("tableHeaderLastActivity"))}</th></tr></thead><tbody>${visitorRows}</tbody></table>` : `<p>${escapeHtml(runtimeText("accessReportVisitorsNone"))}</p>`}
     </body>
     </html>
   `;
@@ -12917,9 +14195,11 @@ function getVisitorReportRows(fromDate, toDate) {
   return state.workers
     .filter((worker) => !worker.deletedAt && isVisitorWorker(worker))
     .map((worker) => {
-      const lastLog = [...state.accessLogs]
-        .filter((log) => log.workerId === worker.id)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+      const lastLog = getLatestAccessForWorker(worker.id)
+        || [...state.accessLogs]
+          .filter((log) => log.workerId === worker.id)
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+        || null;
       const lastSeenTs = lastLog ? new Date(lastLog.timestamp).getTime() : 0;
       return {
         id: worker.id,
@@ -12941,13 +14221,14 @@ function printVisitorWeeklyReport() {
   const start = new Date(Date.now() - (6 * 24 * 60 * 60 * 1000));
   const rows = getVisitorReportRows(toDateInputValue(start), toDateInputValue(end));
   const htmlRows = rows.map((entry) => `<tr><td>${escapeHtml(entry.name)}</td><td>${escapeHtml(entry.visitorCompany || "-")}</td><td>${escapeHtml(entry.purpose || "-")}</td><td>${escapeHtml(entry.hostName || "-")}</td><td>${escapeHtml(entry.site || "-")}</td><td>${escapeHtml(entry.lastSeen || "-")}</td></tr>`).join("");
+  const lang = getStoredUiLang();
   const reportWindow = window.open("", "_blank", "width=1100,height=800");
   if (!reportWindow) {
     window.alert(runtimeText("popupBlockedAllow"));
     return;
   }
   reportWindow.document.open();
-  reportWindow.document.write(`<!DOCTYPE html><html lang="de" translate="no"><head><meta charset="UTF-8" /><meta name="google" content="notranslate" /><meta http-equiv="Content-Language" content="de" /><title>Besucher-Wochenliste</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:12px}th{background:#f3f6f8}h1{margin:0 0 8px}.muted{color:#555}</style></head><body><h1>Besucher-Wochenliste</h1><p class="muted">Zeitraum: ${escapeHtml(toDateInputValue(start))} bis ${escapeHtml(toDateInputValue(end))}</p>${htmlRows ? `<table><thead><tr><th>Name</th><th>Firma</th><th>Zweck</th><th>Ansprechpartner</th><th>Baustelle</th><th>Letzte Aktivität</th></tr></thead><tbody>${htmlRows}</tbody></table>` : "<p>Keine Besucher in dieser Woche.</p>"}</body></html>`);
+  reportWindow.document.write(`<!DOCTYPE html><html lang="${escapeHtml(lang)}" translate="no"><head><meta charset="UTF-8" /><meta name="google" content="notranslate" /><meta http-equiv="Content-Language" content="${escapeHtml(lang)}" /><title>${escapeHtml(runtimeText("visitorWeeklyTitle"))}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#222}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:12px}th{background:#f3f6f8}h1{margin:0 0 8px}.muted{color:#555}</style></head><body><h1>${escapeHtml(runtimeText("visitorWeeklyTitle"))}</h1><p class="muted">${escapeHtml(runtimeText("accessReportPeriodLabel"))}: ${escapeHtml(toDateInputValue(start))} bis ${escapeHtml(toDateInputValue(end))}</p>${htmlRows ? `<table><thead><tr><th>${escapeHtml(runtimeText("tableHeaderName"))}</th><th>${escapeHtml(runtimeText("tableHeaderCompany"))}</th><th>${escapeHtml(runtimeText("tableHeaderPurpose"))}</th><th>${escapeHtml(runtimeText("tableHeaderContact"))}</th><th>${escapeHtml(runtimeText("tableHeaderSite"))}</th><th>${escapeHtml(runtimeText("tableHeaderLastActivity"))}</th></tr></thead><tbody>${htmlRows}</tbody></table>` : `<p>${escapeHtml(runtimeText("visitorWeeklyNone"))}</p>`}</body></html>`);
   reportWindow.document.close();
   reportWindow.focus();
   reportWindow.print();
@@ -12977,6 +14258,8 @@ async function handleSettingsSubmit(event) {
       adminIpWhitelist: document.querySelector("#adminIpWhitelist").value.trim(),
       enforceTenantDomain: document.querySelector("#enforceTenantDomain").value === "1",
       workerAppEnabled: document.querySelector("#workerAppEnabled").value !== "0",
+      workerPassLockEnabled: document.querySelector("#workerPassLockEnabled")?.value === "1",
+      workerExpiryWarnDays: Math.max(0, parseInt(document.querySelector("#workerExpiryWarnDays")?.value || "7", 10) || 0),
       imapHost: (document.querySelector("#imapHost")?.value || "").trim(),
       imapPort: Number(document.querySelector("#imapPort")?.value || 993),
       imapUsername: (document.querySelector("#imapUsername")?.value || "").trim(),
@@ -13072,62 +14355,77 @@ function formatResendEnvState(payload) {
     .map((name) => {
       const row = known.find((item) => item?.name === name);
       if (!row) return "";
-      return `${name}: ${row.set ? "gesetzt" : "leer"}`;
+      return `${name}: ${row.set ? runtimeText("smtpEnvSet") : runtimeText("smtpEnvEmpty")}`;
     })
     .filter(Boolean);
-  return states.length ? `Env-Check: ${states.join(", ")}` : "";
+  return states.length ? `${runtimeText("smtpEnvCheckPrefix")}: ${states.join(", ")}` : "";
 }
 
 function formatApiFallbackState(payload) {
   const hasResend = payload?.resendConfigured === true;
   const hasBrevo = payload?.brevoConfigured === true;
-  if (!hasResend && !hasBrevo) return "API-Fallback nicht erkannt";
-  if (hasResend && hasBrevo) return "API-Fallback erkannt (Resend + Brevo)";
-  if (hasBrevo) return "API-Fallback erkannt (Brevo)";
-  return `API-Fallback erkannt (Resend${payload?.resendKeySource ? `: ${payload.resendKeySource}` : ""})`;
+  if (!hasResend && !hasBrevo) return runtimeText("smtpApiFallbackMissing");
+  if (hasResend && hasBrevo) return runtimeText("smtpApiFallbackBoth");
+  if (hasBrevo) return runtimeText("smtpApiFallbackBrevo");
+  return runtimeTextTemplate("smtpApiFallbackResend", {
+    source: payload?.resendKeySource ? `: ${payload.resendKeySource}` : ""
+  });
 }
 
 function formatSmtpTestError(err) {
   if (err?.code === "smtp_not_configured") {
     const missingFields = Array.isArray(err?.payload?.missingFields) ? err.payload.missingFields : [];
     if (!missingFields.length) {
-      return "SMTP ist nicht vollständig konfiguriert.";
+      return runtimeText("smtpIncomplete");
     }
     const labels = {
       smtpHost: "SMTP Host",
-      smtpSenderEmail: "Absender E-Mail"
+      smtpSenderEmail: runtimeText("smtpFieldSenderEmail")
     };
-    return `Fehlende Felder: ${missingFields.map((field) => labels[field] || field).join(", ")}`;
+    return runtimeTextTemplate("smtpMissingFields", {
+      fields: missingFields.map((field) => labels[field] || field).join(", ")
+    });
   }
   if (err?.code === "smtp_send_failed" || err?.code === "otp_send_failed") {
-    const base = err?.payload?.detail || err?.message || "SMTP-Versand fehlgeschlagen.";
+    const base = err?.payload?.detail || err?.message || runtimeText("smtpSendFailed");
     const diag = formatSmtpDiagnosticsPayload(err?.payload?.diagnostics);
     const fallbackError = String(err?.payload?.fallbackError || "");
     const fallbackHint = fallbackError.startsWith("resend_not_configured")
-      ? "API-Fallback ist nicht aktiv. Setze Brevo in den Einstellungen (empfohlen) oder RESEND_API_KEY in Railway."
+      ? runtimeText("smtpFallbackHint")
       : "";
     const apiState = formatApiFallbackState(err?.payload || {});
     const resendEnvState = err?.payload?.resendConfigured ? formatResendEnvState(err?.payload) : "";
     const parts = [base];
     if (diag) parts.push(diag);
     if (fallbackHint && !base.includes(fallbackHint) && !diag.includes(fallbackHint)) parts.push(fallbackHint);
-    const diagHasApiState = diag.includes("API-Fallback erkannt") || diag.includes("API-Fallback nicht erkannt");
+    const diagHasApiState = [
+      runtimeText("smtpApiFallbackMissing"),
+      runtimeText("smtpApiFallbackBoth"),
+      runtimeText("smtpApiFallbackBrevo"),
+      runtimeTextTemplate("smtpApiFallbackResend", { source: "" }).replace(")", "")
+    ].some((label) => label && diag.includes(label));
     if (apiState && !diagHasApiState && !base.includes(apiState)) parts.push(apiState);
     if (resendEnvState) parts.push(resendEnvState);
     return parts.join(" | ");
   }
-  return err?.message || "Unbekannter Fehler";
+  return err?.message || runtimeText("genericUnknownError");
 }
 
 function formatSmtpDiagnosticsPayload(payload) {
   if (!payload) return "";
   if (payload.ok) {
     const apiState = formatApiFallbackState(payload);
-    return `Diagnose OK: Host ${payload.host}:${payload.port}, TLS ${payload.useTls ? "an" : "aus"}, Auth ${payload.hasUsername ? "gesetzt" : "ohne Login"}${apiState ? `, ${apiState}` : ""}`;
+    return runtimeTextTemplate("smtpDiagnosticsOk", {
+      host: payload.host,
+      port: payload.port,
+      tls: payload.useTls ? runtimeText("smtpTlsOn") : runtimeText("smtpTlsOff"),
+      auth: payload.hasUsername ? runtimeText("smtpAuthSet") : runtimeText("smtpAuthMissing"),
+      apiState: apiState ? `, ${apiState}` : ""
+    });
   }
-  const stage = payload.stage ? `Stufe ${payload.stage}` : "Diagnose fehlgeschlagen";
+  const stage = payload.stage ? runtimeTextTemplate("smtpDiagnosticsStage", { stage: payload.stage }) : runtimeText("smtpDiagnosticsFailed");
   const type = payload.errorType ? `${payload.errorType}: ` : "";
-  const message = payload.error || "Unbekannter Fehler";
+  const message = payload.error || runtimeText("genericUnknownError");
   const apiState = formatApiFallbackState(payload);
   const resendEnvState = payload?.resendConfigured ? formatResendEnvState(payload) : "";
   return `${stage} - ${type}${message}${apiState ? ` | ${apiState}` : ""}${resendEnvState ? ` | ${resendEnvState}` : ""}`;
@@ -13162,14 +14460,14 @@ async function saveAndTestBrevo() {
   const hintEl = document.querySelector("#brevoKeyStoredHint");
   const key = keyEl?.value?.trim() || "";
   const fromEmail = fromEl?.value?.trim() || "";
-  const hasStoredKey = Boolean(state?.settings?.brevoApiKey) || Boolean((hintEl?.textContent || "").includes("gespeichert"));
+  const hasStoredKey = Boolean(state?.settings?.brevoApiKey) || Boolean((hintEl?.textContent || "").includes(runtimeText("brevoApiKeyStored")));
   if (!key && !hasStoredKey) {
-    if (resultEl) { resultEl.textContent = "Bitte Brevo API-Key eingeben"; resultEl.style.color = "#dc2626"; }
+    if (resultEl) { resultEl.textContent = runtimeText("brevoApiKeyRequired"); resultEl.style.color = "#dc2626"; }
     return;
   }
 
   if (key || fromEmail) {
-    if (resultEl) { resultEl.textContent = "⏳ Speichern…"; resultEl.style.color = "#6b7280"; }
+    if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoSaving")}`; resultEl.style.color = "#6b7280"; }
     try {
       await apiRequest(API_BASE + "/api/settings", {
         method: "PUT",
@@ -13180,31 +14478,37 @@ async function saveAndTestBrevo() {
         if (fromEmail) state.settings.brevoFromEmail = fromEmail;
       }
     } catch (e) {
-      if (resultEl) { resultEl.textContent = `✗ Speichern fehlgeschlagen: ${e?.code || e}`; resultEl.style.color = "#dc2626"; }
+      if (resultEl) {
+        resultEl.textContent = `✗ ${runtimeTextTemplate("brevoSaveFailed", { error: e?.code || e })}`;
+        resultEl.style.color = "#dc2626";
+      }
       return;
     }
   }
 
-  if (hintEl) { hintEl.textContent = "✓ API-Key gespeichert"; hintEl.style.color = "#16a34a"; }
+  if (hintEl) { hintEl.textContent = `✓ ${runtimeText("brevoApiKeyStored")}`; hintEl.style.color = "#16a34a"; }
   if (keyEl) keyEl.value = "";
-  if (resultEl) { resultEl.textContent = "⏳ Teste…"; resultEl.style.color = "#6b7280"; }
+  if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoTesting")}`; resultEl.style.color = "#6b7280"; }
   // Test via resend-test endpoint (uses API fallback: Resend/Brevo)
   let data = await runResendDirectTest("", "brevo");
   if (data?.error === "missing_recipient") {
-    const addr = window.prompt("Brevo-Test: An welche E-Mail senden? (Keine Empfaenger-E-Mail gefunden)");
+    const addr = window.prompt(runtimeText("brevoPromptRecipient"));
     if (!addr || !addr.includes("@")) {
-      if (resultEl) { resultEl.textContent = "Abgebrochen"; resultEl.style.color = "#9ca3af"; }
+      if (resultEl) { resultEl.textContent = runtimeText("operationCanceled"); resultEl.style.color = "#9ca3af"; }
       return;
     }
     data = await runResendDirectTest(addr, "brevo");
   }
   if (!resultEl) return;
   if (data?.ok) {
-    resultEl.textContent = "✓ Brevo: Mail gesendet!";
+    resultEl.textContent = `✓ ${runtimeText("brevoMailSent")}`;
     resultEl.style.color = "#16a34a";
   } else {
     const detail = data?.detail ? ` → ${data.detail}` : "";
-    resultEl.textContent = `✗ ${data?.error || "Fehler"}${detail}`;
+    resultEl.textContent = `✗ ${runtimeTextTemplate("brevoTestFailed", {
+      error: data?.error || runtimeText("invoiceErrorLabel"),
+      detail
+    })}`;
     resultEl.style.color = "#dc2626";
   }
 }
@@ -13215,13 +14519,13 @@ async function sendOtpTestMail() {
   otpTestInFlight = true;
   const btn = document.querySelector("#otpTestBtn");
   const result = document.querySelector("#otpTestResult");
-  const email = window.prompt("OTP-Test: An welche E-Mail-Adresse soll der Code gesendet werden?");
+  const email = window.prompt(runtimeText("otpPromptRecipient"));
   if (!email || !email.includes("@")) {
     otpTestInFlight = false;
     return;
   }
   if (btn) btn.disabled = true;
-  if (result) result.textContent = "⏳ …";
+  if (result) result.textContent = `⏳ ${runtimeText("smtpSending")}`;
   try {
     const res = await apiRequest(API_BASE + "/api/settings/otp-test", {
       method: "POST",
@@ -13236,7 +14540,7 @@ async function sendOtpTestMail() {
     }
     if (result) {
       result.style.color = "#16a34a";
-      result.textContent = `✅ OTP-Code gesendet an ${res.recipient} (Code: 123456)`;
+      result.textContent = `✅ ${runtimeTextTemplate("otpSentTo", { recipient: res.recipient })}`;
     }
   } catch (err) {
     if (result) {
@@ -13253,7 +14557,7 @@ async function sendOtpTestMail() {
           if (diagText) message += ` | ${diagText}`;
         }
       }
-      result.textContent = `❌ Fehler: ${message}`;
+      result.textContent = `❌ ${runtimeTextTemplate("genericErrorPrefix", { message })}`;
     }
   } finally {
     if (btn) btn.disabled = false;
@@ -13268,7 +14572,7 @@ async function sendSmtpTestMail() {
   const btn = document.querySelector("#smtpTestBtn");
   const result = document.querySelector("#smtpTestResult");
   if (btn) btn.disabled = true;
-  if (result) result.textContent = "⏳ …";
+  if (result) result.textContent = `⏳ ${runtimeText("smtpSending")}`;
   try {
     const res = await apiRequest(API_BASE + "/api/settings/smtp-test", {
       method: "POST",
@@ -13278,15 +14582,15 @@ async function sendSmtpTestMail() {
       throw {
         code: res?.error || "smtp_send_failed",
         payload: res,
-        message: res?.detail || "SMTP-Versand fehlgeschlagen."
+        message: res?.detail || runtimeText("smtpSendFailed")
       };
     }
     if (result) {
       result.style.color = "#16a34a";
       if (res?.delivery && res.delivery !== "smtp") {
-        result.textContent = `✅ Mail gesendet an ${res.recipient} (Fallback via HTTPS-API)`;
+        result.textContent = `✅ ${runtimeTextTemplate("smtpSentToFallback", { recipient: res.recipient })}`;
       } else {
-        result.textContent = `✅ Mail gesendet an ${res.recipient}`;
+        result.textContent = `✅ ${runtimeTextTemplate("smtpSentTo", { recipient: res.recipient })}`;
       }
     }
   } catch (err) {
@@ -13309,13 +14613,16 @@ async function sendSmtpTestMail() {
         const fallbackRecipient = document.querySelector("#smtpSenderEmail")?.value.trim() || "";
         const apiCheck = await runResendDirectTest(fallbackRecipient);
         if (apiCheck?.ok) {
-          message += " | API Direkt-Test: OK";
+          message += ` | ${runtimeText("smtpDirectApiTestOk")}`;
         } else if (apiCheck?.error) {
           const apiSource = apiCheck?.resendKeySource ? ` (${apiCheck.resendKeySource})` : "";
-          message += ` | API Direkt-Test: ${apiCheck.error}${apiSource}`;
+          message += ` | ${runtimeTextTemplate("smtpDirectApiTestResult", {
+            error: apiCheck.error,
+            source: apiSource
+          })}`;
         }
       }
-      result.textContent = `❌ Fehler: ${message}`;
+      result.textContent = `❌ ${runtimeTextTemplate("genericErrorPrefix", { message })}`;
     }
   } finally {
     if (btn) btn.disabled = false;
@@ -13328,7 +14635,7 @@ function renderSystemStatusPanel(statusPayload) {
   if (!panel) return;
 
   if (!statusPayload) {
-    panel.innerHTML = "<p>Status konnte nicht geladen werden.</p>";
+    panel.innerHTML = `<p>${escapeHtml(runtimeTextTemplate("systemStatusLoadFailed", { error: runtimeText("genericUnknownError") }))}</p>`;
     return;
   }
 
@@ -13340,19 +14647,19 @@ function renderSystemStatusPanel(statusPayload) {
   const serverTime = formatTimestamp(statusPayload.serverTime || new Date().toISOString());
 
   panel.innerHTML = `
-    <p><strong>Serverzeit:</strong> ${escapeHtml(serverTime)}</p>
-    <p><strong>Aktive Admin-Sitzungen:</strong> ${activeSessions}</p>
-    <p><strong>Aktive Mitarbeiter-App-Sitzungen:</strong> ${activeWorkerSessions}</p>
-    <p><strong>Offene Eintritte:</strong> ${openEntries}</p>
-    <p><strong>Login-Sperren:</strong> ${loginLocks}</p>
-    <p><strong>Letzte Probleme:</strong> ${recentIssues}</p>
+    <p><strong>${escapeHtml(runtimeText("systemStatusServerTime"))}:</strong> ${escapeHtml(serverTime)}</p>
+    <p><strong>${escapeHtml(runtimeText("systemStatusActiveAdminSessions"))}:</strong> ${activeSessions}</p>
+    <p><strong>${escapeHtml(runtimeText("systemStatusActiveWorkerSessions"))}:</strong> ${activeWorkerSessions}</p>
+    <p><strong>${escapeHtml(runtimeText("systemStatusOpenEntries"))}:</strong> ${openEntries}</p>
+    <p><strong>${escapeHtml(runtimeText("systemStatusLoginLocks"))}:</strong> ${loginLocks}</p>
+    <p><strong>${escapeHtml(runtimeText("systemStatusRecentIssues"))}:</strong> ${recentIssues}</p>
   `;
 }
 
 async function refreshSystemStatus() {
   const panel = document.querySelector("#systemStatusPanel");
   if (panel) {
-    panel.innerHTML = "<p>Status wird geladen...</p>";
+    panel.innerHTML = `<p>${escapeHtml(runtimeText("systemStatusLoading"))}</p>`;
   }
 
   try {
@@ -13360,7 +14667,7 @@ async function refreshSystemStatus() {
     renderSystemStatusPanel(status);
   } catch (error) {
     if (panel) {
-      panel.innerHTML = `<p>Status konnte nicht geladen werden: ${escapeHtml(error.message)}</p>`;
+      panel.innerHTML = `<p>${escapeHtml(runtimeTextTemplate("systemStatusLoadFailed", { error: error.message }))}</p>`;
     }
   }
 }
@@ -13455,8 +14762,14 @@ async function loadCustomBrandingPresetAlt() {
 
 async function handleInvoicePrint(event) {
   event.preventDefault();
-  const invoice = buildInvoiceDraft({ silent: false });
-  if (!invoice) {
+  let invoice;
+  try {
+    invoice = await buildInvoiceDraft({ silent: false });
+    if (!invoice) {
+      return;
+    }
+  } catch (error) {
+    window.alert(error.message || runtimeText("genericUnknownError"));
     return;
   }
   const html = renderInvoiceHtml(invoice);
@@ -13481,8 +14794,14 @@ async function handleInvoiceSend() {
     return;
   }
 
-  const invoice = buildInvoiceDraft({ silent: false });
-  if (!invoice) {
+  let invoice;
+  try {
+    invoice = await buildInvoiceDraft({ silent: false });
+    if (!invoice) {
+      return;
+    }
+  } catch (error) {
+    window.alert(error.message || runtimeText("genericUnknownError"));
     return;
   }
 
@@ -13551,7 +14870,7 @@ async function handleInvoiceSend() {
   }
 }
 
-function buildInvoiceDraft(options = {}) {
+async function buildInvoiceDraft(options = {}) {
   const { silent = false } = options;
   const companyId = document.querySelector("#invoiceCompanySelect").value;
   const company = state.companies.find((entry) => entry.id === companyId);
@@ -13622,7 +14941,7 @@ function buildInvoiceDraft(options = {}) {
   }
 
   // Extrahiere Datumsbereich aus invoicePeriod (z. B. "01.04.2026 - 30.04.2026")
-  const accessLineItems = extractAccessLineItems(company.id, invoicePeriod);
+  const accessLineItems = await fetchInvoiceAccessLineItems(company.id, invoicePeriod);
 
   // Multi-position items
   const positionItems = getInvoicePositions ? getInvoicePositions() : [];
@@ -13752,6 +15071,27 @@ function extractAccessLineItems(companyId, invoicePeriod) {
     .sort((a, b) => a.workerName.localeCompare(b.workerName));
 }
 
+async function fetchInvoiceAccessLineItems(companyId, invoicePeriod) {
+  const range = parseInvoicePeriodRange(invoicePeriod);
+  if (!range) {
+    return [];
+  }
+
+  const cacheKey = `${companyId}::${invoicePeriod}`;
+  if (state.invoiceAccessLineItemsCache[cacheKey]) {
+    return state.invoiceAccessLineItemsCache[cacheKey];
+  }
+
+  const query = new URLSearchParams({
+    companyId: String(companyId || ""),
+    invoicePeriod: String(invoicePeriod || "")
+  });
+  const payload = await apiRequest(`${API_BASE}/api/invoices/access-line-items?${query.toString()}`);
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  state.invoiceAccessLineItemsCache[cacheKey] = items;
+  return items;
+}
+
 function renderInvoiceHtml(invoice) {
   return `
     <!DOCTYPE html>
@@ -13859,13 +15199,18 @@ function renderInvoiceHtml(invoice) {
   `;
 }
 
-function refreshInvoicePreview(options = {}) {
+async function refreshInvoicePreview(options = {}) {
   const { silent = true } = options;
   if (!elements.invoicePreviewFrame) {
     return;
   }
 
-  const invoice = buildInvoiceDraft({ silent });
+  let invoice;
+  try {
+    invoice = await buildInvoiceDraft({ silent });
+  } catch {
+    invoice = null;
+  }
   if (!invoice) {
     elements.invoicePreviewFrame.srcdoc = "";
     return;
@@ -13887,7 +15232,7 @@ function renderInvoiceHistory() {
           <header>
             <div>
               <strong>${escapeHtml(invoice.invoice_number)}</strong>
-              <span>${escapeHtml(invoice.company_name || "Firma")}</span>
+              <span>${escapeHtml(invoice.company_name || runtimeText("invoiceFallbackCompany"))}</span>
             </div>
             <span class="status-pill status-${escapeHtml(invoice.status || "test")}">${escapeHtml(invoice.status || "-")}</span>
           </header>
@@ -13903,7 +15248,7 @@ function renderInvoiceHistory() {
 }
 
 function formatCurrency(value) {
-  return new Intl.NumberFormat("de-DE", {
+  return new Intl.NumberFormat(getUiLocale(), {
     style: "currency",
     currency: "EUR"
   }).format(Number(value) || 0);
@@ -13953,7 +15298,7 @@ async function handleCompanySubmit(event) {
   if (resolvedDocumentEmail) {
     const conflict = findCompanyByDocumentEmail(resolvedDocumentEmail);
     if (conflict) {
-      window.alert(`Diese Dokument-Mail ist bereits bei "${conflict.name}" hinterlegt.`);
+      window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflict.name }));
       return;
     }
   }
@@ -13998,7 +15343,7 @@ async function handleCompanySubmit(event) {
 
     if (response.adminCredentials) {
       const accessLines = [
-        `Admin-Zugang: ${response.adminCredentials.username} / ${response.adminCredentials.password}`,
+        `${runtimeText("companyAdminAccessLabel")}: ${response.adminCredentials.username} / ${response.adminCredentials.password}`,
       ];
 
       const turnstileCredentials = Array.isArray(response.turnstileCredentialsList)
@@ -14008,33 +15353,33 @@ async function handleCompanySubmit(event) {
           : [];
 
       turnstileCredentials.forEach((credential, index) => {
-        accessLines.push(`Drehkreuz-Zugang ${index + 1}: ${credential.username} / ${credential.password}`);
+        accessLines.push(`${runtimeTextTemplate("turnstileAccessLabel", { index: index + 1 })}: ${credential.username} / ${credential.password}`);
         if (credential.apiKey) {
-          accessLines.push(`Drehkreuz-API-Key ${index + 1}: ${credential.apiKey}`);
+          accessLines.push(`${runtimeTextTemplate("turnstileApiKeyLabel", { index: index + 1 })}: ${credential.apiKey}`);
         }
       });
 
       if (!turnstileCredentials.length && response.turnstileCredentials?.username) {
-        accessLines.push(`Drehkreuz-Zugang: ${response.turnstileCredentials.username} / ${response.turnstileCredentials.password}`);
+        accessLines.push(`${runtimeTextTemplate("turnstileAccessLabel", { index: "" }).trim()}: ${response.turnstileCredentials.username} / ${response.turnstileCredentials.password}`);
         if (response.turnstileCredentials.apiKey) {
-          accessLines.push(`Drehkreuz-API-Key: ${response.turnstileCredentials.apiKey}`);
+          accessLines.push(`${runtimeTextTemplate("turnstileApiKeyLabel", { index: "" }).trim()}: ${response.turnstileCredentials.apiKey}`);
         }
       }
 
       showSecretDialog(
-        "Firma angelegt",
+        runtimeText("companyCreatedTitle"),
         accessLines,
         {
-          intro: "Zugangsdaten und API-Keys werden nur jetzt vollstaendig angezeigt.",
-          copyLabel: "Zugangsdaten kopieren",
+          intro: runtimeText("companyCreatedIntro"),
+          copyLabel: runtimeText("companyCreatedCopyLabel"),
           copyValue: accessLines.join("\n"),
         }
       );
     }
   } catch (error) {
     if (error.code === "duplicate_document_email") {
-      const conflictName = String(error?.payload?.conflictCompanyName || "anderen Firma");
-      window.alert(`Diese Dokument-Mail ist bereits bei "${conflictName}" hinterlegt.`);
+      const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
+      window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
       return;
     }
     window.alert(uiT("alertCompanyCreateFailed").replace("{error}", error.message));
@@ -14128,14 +15473,14 @@ function renderInvoiceApprovalQueue() {
   });
 
   if (!rows.length) {
-    container.innerHTML = '<div class="empty-state">Keine offenen Freigaben.</div>';
+    container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("invoiceApprovalsEmpty"))}</div>`;
     container.onclick = null;
     return;
   }
 
   const actionLabels = {
-    "invoice.retry_send_bulk": "Bulk-Retry Rechnungsversand",
-    "invoice.dead_letter_resolve": "Dead-Letter auflösen",
+    "invoice.retry_send_bulk": runtimeText("invoiceApprovalActionBulkRetrySend"),
+    "invoice.dead_letter_resolve": runtimeText("invoiceApprovalActionDeadLetterResolve"),
   };
 
   container.innerHTML = rows.map((item) => {
@@ -14151,27 +15496,27 @@ function renderInvoiceApprovalQueue() {
       ? "invoice-priority-kritisch"
       : (minutesLeft !== null && minutesLeft <= 5 ? "invoice-priority-hoch" : "invoice-priority-niedrig");
     const urgencyChipText = minutesLeft === null
-      ? "offen"
-      : (minutesLeft <= 1 ? "kritisch" : (minutesLeft <= 5 ? "dringend" : "offen"));
+      ? runtimeText("invoiceApprovalStateOpen")
+      : (minutesLeft <= 1 ? runtimeText("invoiceApprovalStateCritical") : (minutesLeft <= 5 ? runtimeText("invoiceApprovalStateUrgent") : runtimeText("invoiceApprovalStateOpen")));
     const expiryLabel = minutesLeft === null
-      ? "Ablauf: -"
-      : (minutesLeft <= 0 ? "Ablauf: abgelaufen" : `Ablauf in: ${minutesLeft} min`);
+      ? runtimeText("invoiceApprovalExpiryUnknown")
+      : (minutesLeft <= 0 ? runtimeText("invoiceApprovalExpiryExpired") : runtimeTextTemplate("invoiceApprovalExpiryInMinutes", { count: minutesLeft }));
     const payloadHint = invoiceCount
-      ? `${invoiceCount} Rechnung(en)`
-      : (payload.invoiceId ? `Rechnung ${escapeHtml(payload.invoiceId)}` : "-");
+      ? runtimeTextTemplate("invoiceApprovalInvoiceCount", { count: invoiceCount })
+      : (payload.invoiceId ? runtimeTextTemplate("invoiceApprovalSingleInvoice", { id: payload.invoiceId }) : "-");
     return `
       <article class="card-item invoice-approval-item${urgencyClass}">
         <div class="retry-queue-head">
           <div>
-            <strong>${escapeHtml(actionLabels[item.action_type] || item.action_type || "Freigabe")}</strong>
-            <p class="helper-text">Anfrage: ${escapeHtml(item.id || "-")}</p>
+            <strong>${escapeHtml(actionLabels[item.action_type] || item.action_type || runtimeText("invoiceApprovalFallbackTitle"))}</strong>
+            <p class="helper-text">${escapeHtml(runtimeText("invoiceApprovalRequestLabel"))}: ${escapeHtml(item.id || "-")}</p>
           </div>
           <span class="invoice-priority-chip ${urgencyChipClass}">${urgencyChipText}</span>
         </div>
-        <p class="helper-text">Angefordert von: ${escapeHtml(item.requested_by_name || item.requested_by_username || "Unbekannt")}</p>
-        <p class="helper-text">Zeitpunkt: ${formatTimestamp(item.requested_at || "")}</p>
+        <p class="helper-text">${escapeHtml(runtimeText("invoiceApprovalRequestedByLabel"))}: ${escapeHtml(item.requested_by_name || item.requested_by_username || runtimeText("unknownPerson"))}</p>
+        <p class="helper-text">${escapeHtml(runtimeText("invoiceApprovalTimestampLabel"))}: ${formatTimestamp(item.requested_at || "")}</p>
         <p class="helper-text">${expiryLabel}</p>
-        <p class="helper-text">Umfang: ${payloadHint}</p>
+        <p class="helper-text">${escapeHtml(runtimeText("invoiceApprovalScopeLabel"))}: ${escapeHtml(payloadHint)}</p>
         <div class="button-row invoice-management-actions">
           <button type="button" class="ghost-button" data-approval-decision="approve" data-approval-id="${escapeHtml(item.id || "")}">Freigeben</button>
           <button type="button" class="ghost-button" data-approval-decision="reject" data-approval-id="${escapeHtml(item.id || "")}">Ablehnen</button>
@@ -14236,7 +15581,7 @@ function renderInvoiceDeadLetters() {
 
   const rows = Array.isArray(state.invoiceDeadLetters) ? state.invoiceDeadLetters : [];
   if (!rows.length) {
-    container.innerHTML = '<div class="empty-state">Keine offenen Dead-Letter-Fälle.</div>';
+    container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("invoiceDeadLetterEmpty"))}</div>`;
     container.onclick = null;
     return;
   }
@@ -14246,16 +15591,16 @@ function renderInvoiceDeadLetters() {
       <div class="retry-queue-head">
         <div>
           <strong>${escapeHtml(item.invoice_number || "RE-???")}</strong>
-          <p class="helper-text">${escapeHtml(item.company_name || "Firma")}</p>
+          <p class="helper-text">${escapeHtml(item.company_name || runtimeText("invoiceFallbackCompany"))}</p>
         </div>
         <span class="invoice-priority-chip invoice-priority-hoch">${escapeHtml(item.reason || "manual_review")}</span>
       </div>
-      <p class="helper-text">Betrag: ${formatCurrency(item.total_amount)} • Versuche: ${Number(item.send_attempt_count || 0)}</p>
-      <p class="helper-text">Erstellt: ${formatTimestamp(item.created_at || "")} ${item.last_send_attempt_at ? `• Letzter Versuch: ${formatTimestamp(item.last_send_attempt_at)}` : ""}</p>
-      <p class="helper-text invoice-management-error">${item.last_error ? `Letzter Fehler: ${escapeHtml(item.last_error)}` : "Letzter Fehler nicht vorhanden."}</p>
+      <p class="helper-text">${escapeHtml(runtimeText("invoiceAmountLabel"))}: ${formatCurrency(item.total_amount)} • ${escapeHtml(runtimeText("invoiceAttemptsLabel"))}: ${Number(item.send_attempt_count || 0)}</p>
+      <p class="helper-text">${escapeHtml(runtimeText("invoiceCreatedLabel"))}: ${formatTimestamp(item.created_at || "")} ${item.last_send_attempt_at ? `• ${escapeHtml(runtimeText("invoiceLastAttemptLabel"))}: ${formatTimestamp(item.last_send_attempt_at)}` : ""}</p>
+      <p class="helper-text invoice-management-error">${item.last_error ? `${escapeHtml(runtimeText("invoiceLastErrorLabel"))}: ${escapeHtml(item.last_error)}` : escapeHtml(runtimeText("invoiceLastErrorNone"))}</p>
       <div class="button-row invoice-management-actions">
-        <button type="button" class="ghost-button" data-dead-letter-retry-id="${escapeHtml(item.invoice_id || "")}">Jetzt erneut senden</button>
-        <button type="button" class="ghost-button" data-dead-letter-resolve-id="${escapeHtml(item.invoice_id || "")}">Als erledigt markieren</button>
+        <button type="button" class="ghost-button" data-dead-letter-retry-id="${escapeHtml(item.invoice_id || "")}">${escapeHtml(runtimeText("invoiceRetryNowBtn"))}</button>
+        <button type="button" class="ghost-button" data-dead-letter-resolve-id="${escapeHtml(item.invoice_id || "")}">${escapeHtml(runtimeText("invoiceResolveBtn"))}</button>
       </div>
     </article>
   `).join("");
@@ -14275,7 +15620,7 @@ function renderInvoiceDeadLetters() {
         if (payload?.sent) {
           window.alert(uiT("alertInvoiceRetrySentDeadLetter"));
         } else {
-          window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || "Unbekannter Fehler"));
+          window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
         }
         await loadAndRenderInvoices();
         await loadAllData();
@@ -14324,19 +15669,19 @@ function renderInvoiceOpsMetrics() {
 
   kpiContainer.innerHTML = `
     <article class="summary-block invoice-kpi-card invoice-kpi-open">
-      <p class="eyebrow">Zeit bis erster Erfolg</p>
+      <p class="eyebrow">${escapeHtml(runtimeText("invoiceOpsTimeToFirstSuccess"))}</p>
       <strong>${avgMinutes ? `${avgMinutes} min` : "-"}</strong>
-      <p class="meta-text">Durchschnitt über erfolgreiche Sendungen</p>
+      <p class="meta-text">${escapeHtml(runtimeText("invoiceOpsAvgSuccessfulSends"))}</p>
     </article>
     <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
-      <p class="eyebrow">Kritische Fälle >24h</p>
+      <p class="eyebrow">${escapeHtml(runtimeText("invoiceOpsCriticalCases24h"))}</p>
       <strong>${criticalOver24h}</strong>
-      <p class="meta-text">Score >= 70 und älter als 24h</p>
+      <p class="meta-text">${escapeHtml(runtimeText("invoiceOpsCriticalCasesMeta"))}</p>
     </article>
     <article class="summary-block invoice-kpi-card invoice-kpi-failed">
-      <p class="eyebrow">Top Fehlergrund</p>
+      <p class="eyebrow">${escapeHtml(runtimeText("invoiceOpsTopErrorReason"))}</p>
       <strong>${escapeHtml(topErrors[0]?.label || "-")}</strong>
-      <p class="meta-text">${topErrors[0]?.count || 0} Vorkommen</p>
+      <p class="meta-text">${escapeHtml(runtimeTextTemplate("invoiceOpsOccurrences", { count: topErrors[0]?.count || 0 }))}</p>
     </article>
   `;
 
@@ -14347,7 +15692,7 @@ function renderInvoiceOpsMetrics() {
       <article class="card-item invoice-ops-trend-item">
         <div class="invoice-ops-trend-head">
           <strong>${escapeHtml(day || "-")}</strong>
-          <span class="meta-text">${count} Retry(s)</span>
+          <span class="meta-text">${escapeHtml(runtimeTextTemplate("invoiceOpsRetriesCount", { count }))}</span>
         </div>
         <div class="invoice-ops-bar-track">
           <div class="invoice-ops-bar-fill" style="width:${Math.min(100, count * 12)}%"></div>
@@ -14358,7 +15703,7 @@ function renderInvoiceOpsMetrics() {
 
   const errorRows = topErrors.length
     ? topErrors.map((item) => `<span class="invoice-ops-error-chip">${escapeHtml(item.label || "-")}: ${Number(item.count || 0)}</span>`).join("")
-    : '<span class="helper-text">Noch keine dominanten Fehlergründe.</span>';
+    : `<span class="helper-text">${escapeHtml(runtimeText("invoiceOpsNoDominantErrors"))}</span>`;
 
   trendContainer.innerHTML = `
     <div class="invoice-ops-trend-grid">${trendBars}</div>
@@ -14395,28 +15740,28 @@ function renderInvoiceAttemptTimelineHtml(invoiceId) {
   }
 
   if (state.invoiceAttemptHistoryLoadingById?.[id]) {
-    return '<div class="invoice-attempt-timeline"><p class="helper-text">Historie wird geladen...</p></div>';
+    return `<div class="invoice-attempt-timeline"><p class="helper-text">${escapeHtml(runtimeText("invoiceHistoryLoading"))}</p></div>`;
   }
 
   const attempts = Array.isArray(state.invoiceAttemptHistoryById?.[id]) ? state.invoiceAttemptHistoryById[id] : [];
   if (!attempts.length) {
-    return '<div class="invoice-attempt-timeline"><p class="helper-text">Noch keine Versandversuche protokolliert.</p></div>';
+    return `<div class="invoice-attempt-timeline"><p class="helper-text">${escapeHtml(runtimeText("invoiceAttemptNone"))}</p></div>`;
   }
 
   const rows = attempts
     .map((attempt) => {
       const failed = String(attempt?.outcome || "").toLowerCase() !== "sent";
-      const statusText = failed ? "Fehlgeschlagen" : "Erfolgreich";
+      const statusText = failed ? runtimeText("invoiceAttemptFailed") : runtimeText("invoiceAttemptSuccess");
       const statusClass = failed ? "invoice-attempt-status-failed" : "invoice-attempt-status-sent";
       return `
         <li class="invoice-attempt-item">
           <div class="invoice-attempt-row">
-            <p class="helper-text">Versuch ${escapeHtml(String(attempt?.attempt_number || "-"))}</p>
+            <p class="helper-text">${escapeHtml(runtimeTextTemplate("invoiceAttemptLabel", { count: String(attempt?.attempt_number || "-") }))}</p>
             <span class="invoice-attempt-status ${statusClass}">${statusText}</span>
           </div>
-          <p class="meta-text">${escapeHtml(formatTimestamp(attempt?.created_at || ""))} • ${escapeHtml(String(attempt?.actor_label || "system"))}</p>
-          ${attempt?.next_retry_at ? `<p class="helper-text">Nächster Retry: ${escapeHtml(formatTimestamp(attempt.next_retry_at))}</p>` : ""}
-          ${attempt?.error_message ? `<p class="helper-text invoice-management-error">Fehler: ${escapeHtml(String(attempt.error_message || ""))}</p>` : ""}
+          <p class="meta-text">${escapeHtml(formatTimestamp(attempt?.created_at || ""))} • ${escapeHtml(String(attempt?.actor_label || runtimeText("invoiceActorSystem")))}</p>
+          ${attempt?.next_retry_at ? `<p class="helper-text">${escapeHtml(runtimeText("invoiceRetryNextLabel"))}: ${escapeHtml(formatTimestamp(attempt.next_retry_at))}</p>` : ""}
+          ${attempt?.error_message ? `<p class="helper-text invoice-management-error">${escapeHtml(runtimeText("invoiceErrorLabel"))}: ${escapeHtml(String(attempt.error_message || ""))}</p>` : ""}
         </li>
       `;
     })
@@ -14481,22 +15826,22 @@ function renderInvoiceManagementList() {
 
     kpiContainer.innerHTML = `
       <article class="summary-block invoice-kpi-card invoice-kpi-open">
-        <p class="eyebrow">Offen</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiOpen"))}</p>
         <strong>${totals.openCount}</strong>
         <p class="meta-text">${formatCurrency(totals.openAmount)}</p>
       </article>
       <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
-        <p class="eyebrow">Überfällig</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiOverdue"))}</p>
         <strong>${totals.overdueCount}</strong>
         <p class="meta-text">${formatCurrency(totals.overdueAmount)}</p>
       </article>
       <article class="summary-block invoice-kpi-card invoice-kpi-paid">
-        <p class="eyebrow">Bezahlt</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiPaid"))}</p>
         <strong>${totals.paidCount}</strong>
         <p class="meta-text">${formatCurrency(totals.paidAmount)}</p>
       </article>
       <article class="summary-block invoice-kpi-card invoice-kpi-failed">
-        <p class="eyebrow">Fehler</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiFailed"))}</p>
         <strong>${totals.failedCount}</strong>
         <p class="meta-text">${formatCurrency(totals.failedAmount)}</p>
       </article>
@@ -14516,7 +15861,7 @@ function renderInvoiceManagementList() {
   }
 
   if (!invoices.length) {
-    container.innerHTML = '<div class="empty-state">Keine Rechnungen vorhanden oder keine Treffer.</div>';
+    container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("invoiceListEmpty"))}</div>`;
     renderInvoiceRetryQueue(retryQueueContainer, allInvoices);
     renderInvoiceApprovalQueue();
     renderInvoiceDeadLetters();
@@ -14561,42 +15906,42 @@ function renderInvoiceManagementList() {
       const maxRetryAttempts = 5;
       const retryAttemptCount = Number(inv.send_attempt_count || 0);
       const retryInfo = canRetrySend
-        ? `<p class="helper-text invoice-retry-meta">Versuch ${Math.max(1, retryAttemptCount)}/${maxRetryAttempts}${inv.next_retry_at ? ` • Nächster Retry: ${formatTimestamp(inv.next_retry_at)}` : ""}</p>`
+        ? `<p class="helper-text invoice-retry-meta">${escapeHtml(runtimeTextTemplate("invoiceAttemptLabel", { count: `${Math.max(1, retryAttemptCount)}/${maxRetryAttempts}` }))}${inv.next_retry_at ? ` • ${escapeHtml(runtimeText("invoiceRetryNextLabel"))}: ${formatTimestamp(inv.next_retry_at)}` : ""}</p>`
         : "";
       const historyExpanded = Boolean(state.invoiceHistoryExpandedById?.[inv.id]);
-      const historyLabel = historyExpanded ? "Historie ausblenden" : "Versand-Historie";
+      const historyLabel = historyExpanded ? runtimeText("invoiceHistoryHide") : runtimeText("invoiceHistoryShow");
       const historyTimeline = canViewHistory ? renderInvoiceAttemptTimelineHtml(inv.id) : "";
 
       return `
         <article class="card-item invoice-management-item invoice-status-${escapeHtml(statusKey)}${justPaidClass}">
-          <label class="invoice-bulk-checkbox-label" title="Auswählen">
+          <label class="invoice-bulk-checkbox-label" title="${escapeHtml(runtimeText("invoiceSelectTitle"))}">
             <input type="checkbox" class="invoice-bulk-cb" data-invoice-select-id="${escapeHtml(inv.id)}" />
           </label>
           <div class="invoice-management-head">
             <div class="invoice-management-main">
               <strong>${escapeHtml(inv.invoice_number || "RE-???")} ${newBadge}</strong>
-              <p class="helper-text">${escapeHtml(inv.company_name || "Firma")}</p>
+              <p class="helper-text">${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</p>
               <p class="meta-text">
                 ${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "-"} 
-                ${inv.paid_at ? ` • Bezahlt: ${formatTimestamp(inv.paid_at)}` : ""}
+                ${inv.paid_at ? ` • ${escapeHtml(runtimeText("invoicePaidAtLabel"))}: ${formatTimestamp(inv.paid_at)}` : ""}
               </p>
             </div>
             <div class="invoice-management-side">
               <p class="meta-text">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
-              <p class="helper-text ${statusClass}">Status: <span class="invoice-status-badge invoice-status-badge-${escapeHtml(statusKey)}"><span class="invoice-status-icon" aria-hidden="true">${statusIcon}</span><span>${statusLabel}</span></span></p>
+              <p class="helper-text ${statusClass}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: <span class="invoice-status-badge invoice-status-badge-${escapeHtml(statusKey)}"><span class="invoice-status-icon" aria-hidden="true">${statusIcon}</span><span>${statusLabel}</span></span></p>
             </div>
           </div>
 
-          ${inv.due_date ? `<p class="helper-text">Fälligkeitsdatum: ${formatTimestamp(inv.due_date)}</p>` : ""}
-          ${inv.auto_suspend_triggered_at ? `<p class="helper-text helper-text-warning">Auto-Sperrung ausgelöst: ${formatTimestamp(inv.auto_suspend_triggered_at)}</p>` : ""}
+          ${inv.due_date ? `<p class="helper-text">${escapeHtml(runtimeText("invoiceDueDateLabel"))}: ${formatTimestamp(inv.due_date)}</p>` : ""}
+          ${inv.auto_suspend_triggered_at ? `<p class="helper-text helper-text-warning">${escapeHtml(runtimeText("invoiceAutoSuspendedLabel"))}: ${formatTimestamp(inv.auto_suspend_triggered_at)}</p>` : ""}
 
           <div class="button-row invoice-management-actions">
-            <button type="button" class="ghost-button invoice-preview-btn" data-invoice-preview-id="${escapeHtml(inv.id)}">Vorschau</button>
-            ${canMarkPaid ? `<button type="button" class="ghost-button invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">Als bezahlt markieren</button>` : ""}
-            ${canRetrySend ? `<button type="button" class="ghost-button" data-invoice-retry-id="${escapeHtml(inv.id)}">Erneut senden</button>` : ""}
+            <button type="button" class="ghost-button invoice-preview-btn" data-invoice-preview-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoicePreviewBtn"))}</button>
+            ${canMarkPaid ? `<button type="button" class="ghost-button invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceMarkPaidBtn"))}</button>` : ""}
+            ${canRetrySend ? `<button type="button" class="ghost-button" data-invoice-retry-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceRetryBtn"))}</button>` : ""}
             ${canViewHistory ? `<button type="button" class="ghost-button" data-invoice-history-toggle-id="${escapeHtml(inv.id)}">${historyLabel}</button>` : ""}
-            ${canDownloadReminder ? `<button type="button" class="ghost-button" data-invoice-reminder-id="${escapeHtml(inv.id)}">Mahnung herunterladen</button>` : ""}
-            <span class="helper-text invoice-management-error">${inv.error_message ? `Fehler: ${escapeHtml(inv.error_message)}` : ""}</span>
+            ${canDownloadReminder ? `<button type="button" class="ghost-button" data-invoice-reminder-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceReminderDownloadBtn"))}</button>` : ""}
+            <span class="helper-text invoice-management-error">${inv.error_message ? `${escapeHtml(runtimeText("invoiceErrorLabel"))}: ${escapeHtml(inv.error_message)}` : ""}</span>
           </div>
           ${retryInfo}
           ${historyTimeline}
@@ -14650,7 +15995,7 @@ function renderInvoiceManagementList() {
         if (payload?.sent) {
           window.alert(uiT("alertInvoiceRetrySent"));
         } else {
-          window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || "Unbekannter Fehler"));
+          window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
         }
         await loadAndRenderInvoices();
         await loadAllData();
@@ -14707,7 +16052,7 @@ function renderInvoiceManagementList() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
       } catch (error) {
-        window.alert(`Mahnung konnte nicht geladen werden: ${error.message}`);
+        window.alert(runtimeTextTemplate("invoiceReminderLoadFailed", { error: error.message }));
       } finally {
         event.target.disabled = false;
       }
@@ -14725,50 +16070,56 @@ function renderInvoiceManagementList() {
       const modal = document.querySelector("#invoicePdfPreviewModal");
       if (!modal) return;
       
-      const statusMap = { "draft": "Entwurf", "sent": "Versendet", "overdue": "Überfällig", "bezahlt": "Bezahlt", "send_failed": "Fehler" };
+      const statusMap = {
+        draft: runtimeText("invoicePreviewStatusDraft"),
+        sent: runtimeText("invoicePreviewStatusSent"),
+        overdue: runtimeText("invoicePreviewStatusOverdue"),
+        bezahlt: runtimeText("invoicePreviewStatusPaid"),
+        send_failed: runtimeText("invoicePreviewStatusFailed")
+      };
       const status = statusMap[inv.status] || inv.status;
       
       const previewHtml = `
         <div style="padding: 24px; font-family: Arial, sans-serif; color: #333;">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Rechnungsnummer</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewNumberLabel"))}</p>
               <p style="margin: 0; font-size: 16px;">${escapeHtml(inv.invoice_number || "–")}</p>
             </div>
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Status</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewStatusLabel"))}</p>
               <p style="margin: 0;">${escapeHtml(status)}</p>
             </div>
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Firma</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewCompanyLabel"))}</p>
               <p style="margin: 0;">${escapeHtml(inv.company_name || "–")}</p>
             </div>
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Betrag</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewAmountLabel"))}</p>
               <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e36414;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
             </div>
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Rechnungsdatum</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDateLabel"))}</p>
               <p style="margin: 0;">${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "–"}</p>
             </div>
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Fälligkeitsdatum</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDueDateLabel"))}</p>
               <p style="margin: 0;">${inv.due_date ? formatTimestamp(inv.due_date) : "–"}</p>
             </div>
             ${inv.paid_at ? `
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Bezahlt am</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewPaidAtLabel"))}</p>
               <p style="margin: 0;">${formatTimestamp(inv.paid_at)}</p>
             </div>
             ` : ""}
             <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">Rechnungsperiode</p>
+              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewPeriodLabel"))}</p>
               <p style="margin: 0;">${escapeHtml(inv.invoice_period || "–")}</p>
             </div>
           </div>
           <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin-top: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: bold;">Rechnungspositionen</p>
-            <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(inv.line_items_description || "Keine Details verfügbar")}</p>
+            <p style="margin: 0 0 8px 0; font-weight: bold;">${escapeHtml(runtimeText("invoiceLineItemsTitle"))}</p>
+            <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(inv.line_items_description || runtimeText("invoiceDetailsUnavailable"))}</p>
           </div>
         </div>
       `;
@@ -14792,7 +16143,7 @@ function renderInvoiceManagementList() {
   function updateInvoiceBulkBar() {
     const count = (state.invoiceSelectedIds || []).length;
     if (bulkBar) bulkBar.classList.toggle("hidden", count === 0);
-    if (bulkCount) bulkCount.textContent = `${count} ausgewählt`;
+    if (bulkCount) bulkCount.textContent = runtimeTextTemplate("invoiceBulkSelectedCount", { count });
   }
 
   container.querySelectorAll("[data-invoice-select-id]").forEach((cb) => {
@@ -14822,7 +16173,7 @@ function renderInvoiceManagementList() {
     bulkMarkPaidBtn.onclick = async () => {
       const ids = state.invoiceSelectedIds || [];
       if (!ids.length) return;
-      if (!window.confirm(`${ids.length} Rechnung(en) als bezahlt markieren?`)) return;
+      if (!window.confirm(runtimeTextTemplate("invoiceBulkMarkPaidConfirm", { count: ids.length }))) return;
       bulkMarkPaidBtn.disabled = true;
       try {
         const result = await apiRequest(`${API_BASE}/api/invoices/bulk-mark-paid`, {
@@ -14831,12 +16182,12 @@ function renderInvoiceManagementList() {
         });
         state.invoiceSelectedIds = [];
         updateInvoiceBulkBar();
-        window.alert(`${result.updated || 0} Rechnung(en) als bezahlt markiert.`);
+        window.alert(runtimeTextTemplate("invoiceBulkMarkPaidDone", { count: result.updated || 0 }));
         await loadAndRenderInvoices();
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(`Fehler: ${error.message}`);
+        window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
       } finally {
         bulkMarkPaidBtn.disabled = false;
       }
@@ -14865,7 +16216,7 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
   const selectedIds = state.invoiceRetrySelectedIds || [];
   const criticalIds = getCriticalRetryInvoiceIds(sourceInvoices, 50);
   if (criticalSendButton) {
-    criticalSendButton.textContent = `Nur kritische jetzt senden (${criticalIds.length})`;
+    criticalSendButton.textContent = runtimeTextTemplate("retryQueueCriticalSendBtn", { count: criticalIds.length });
     criticalSendButton.disabled = criticalIds.length === 0;
     criticalSendButton.classList.remove("invoice-critical-btn-warn", "invoice-critical-btn-alert");
     if (criticalIds.length >= 20) {
@@ -14906,24 +16257,24 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
 
     kpiContainer.innerHTML = `
       <article class="summary-block invoice-kpi-card invoice-kpi-failed">
-        <p class="eyebrow">Offen fehlgeschlagen</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("retryQueueOpenFailed"))}</p>
         <strong>${failed.length}</strong>
-        <p class="meta-text">In Warteschlange</p>
+        <p class="meta-text">${escapeHtml(runtimeText("retryQueueInQueue"))}</p>
       </article>
       <article class="summary-block invoice-kpi-card invoice-kpi-paid">
-        <p class="eyebrow">Heute nach Retry ok</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("retryQueueTodayRecovered"))}</p>
         <strong>${retriedSentToday}</strong>
-        <p class="meta-text">Erneut zugestellt</p>
+        <p class="meta-text">${escapeHtml(runtimeText("retryQueueResent"))}</p>
       </article>
       <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
-        <p class="eyebrow">Max Retries erreicht</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("retryQueueMaxRetries"))}</p>
         <strong>${maxedOut}</strong>
-        <p class="meta-text">Manuelle Prüfung nötig</p>
+        <p class="meta-text">${escapeHtml(runtimeText("retryQueueManualReview"))}</p>
       </article>
       <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
-        <p class="eyebrow">Kritische Priorität</p>
+        <p class="eyebrow">${escapeHtml(runtimeText("retryQueueCriticalPriority"))}</p>
         <strong>${highPriority}</strong>
-        <p class="meta-text">Score >= 70</p>
+        <p class="meta-text">${escapeHtml(runtimeText("retryQueueScoreThreshold"))}</p>
       </article>
     `;
   }
@@ -14968,7 +16319,7 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
   }
 
   if (!filteredFailed.length) {
-    container.innerHTML = '<div class="empty-state">Keine offenen Versand-Fehler in der Warteschlange.</div>';
+    container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("retryQueueEmpty"))}</div>`;
     container.onclick = null;
     return;
   }
@@ -14980,28 +16331,33 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
       const checked = selectedIds.includes(inv.id) ? "checked" : "";
       const priority = buildRetryPriority(inv);
       const priorityClass = `invoice-priority-${priority.tier}`;
+      const priorityTierLabel = priority.tier === "kritisch"
+        ? runtimeText("retryPriorityCritical")
+        : priority.tier === "hoch"
+          ? runtimeText("retryPriorityHigh")
+          : runtimeText("retryPriorityLow");
       return `
         <article class="card-item retry-queue-item">
           <div class="retry-queue-head">
             <div>
               <label class="invoice-retry-select">
                 <input type="checkbox" data-retry-queue-select="${escapeHtml(inv.id || "")}" ${checked} />
-                <span>Auswählen</span>
+                <span>${escapeHtml(runtimeText("invoiceSelectTitle"))}</span>
               </label>
               <strong>${escapeHtml(inv.invoice_number || "RE-???")}</strong>
-              <p class="helper-text">${escapeHtml(inv.company_name || "Firma")}</p>
+              <p class="helper-text">${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</p>
             </div>
             <p class="meta-text">${formatCurrency(inv.total_amount)}</p>
           </div>
           <p class="helper-text">
-            <span class="invoice-priority-chip ${priorityClass}">Prio ${priority.score} (${escapeHtml(priority.tier)})</span>
-            • Alter: ${priority.ageDays} Tage
-            • Firma: ${priority.companyIssueCount} offen
+            <span class="invoice-priority-chip ${priorityClass}">${escapeHtml(runtimeText("retryQueuePriorityLabel"))} ${priority.score} (${escapeHtml(priorityTierLabel)})</span>
+            • ${escapeHtml(runtimeText("retryQueueAgeLabel"))}: ${escapeHtml(runtimeTextTemplate("retryQueueAgeDays", { count: priority.ageDays }))}
+            • ${escapeHtml(runtimeText("retryQueueCompanyOpenLabel"))}: ${escapeHtml(runtimeTextTemplate("retryQueueCompanyOpenCount", { count: priority.companyIssueCount }))}
           </p>
-          <p class="helper-text">Versuch ${Math.max(1, attempts)}/${maxRetryAttempts}${inv?.next_retry_at ? ` • Nächster Retry: ${formatTimestamp(inv.next_retry_at)}` : ""}</p>
-          <p class="helper-text invoice-management-error">${inv?.error_message ? `Letzter Fehler: ${escapeHtml(inv.error_message)}` : ""}</p>
+          <p class="helper-text">${escapeHtml(runtimeTextTemplate("invoiceAttemptLabel", { count: `${Math.max(1, attempts)}/${maxRetryAttempts}` }))}${inv?.next_retry_at ? ` • ${escapeHtml(runtimeText("invoiceRetryNextLabel"))}: ${formatTimestamp(inv.next_retry_at)}` : ""}</p>
+          <p class="helper-text invoice-management-error">${inv?.error_message ? `${escapeHtml(runtimeText("invoiceLastErrorLabel"))}: ${escapeHtml(inv.error_message)}` : ""}</p>
           <div class="button-row invoice-management-actions">
-            <button type="button" class="ghost-button" data-retry-queue-send="${escapeHtml(inv.id || "")}">Jetzt erneut senden</button>
+            <button type="button" class="ghost-button" data-retry-queue-send="${escapeHtml(inv.id || "")}">${escapeHtml(runtimeText("invoiceRetryNowBtn"))}</button>
           </div>
         </article>
       `;
@@ -15037,7 +16393,7 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
       if (payload?.sent) {
         window.alert(uiT("alertInvoiceRetrySent"));
       } else {
-        window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || "Unbekannter Fehler"));
+        window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
       }
       await loadAndRenderInvoices();
       await loadAllData();
@@ -15162,10 +16518,10 @@ function renderCollectionsKpis(allOpenRows) {
   });
 
   const cards = [
-    ["Offen gesamt", totals.all],
-    ["Ueberfaellig", totals.overdue],
-    ["Vor Sperre", totals.prelock],
-    ["Gesperrte Firmen", totals.locked],
+    [runtimeText("collectionsKpiAll"), totals.all],
+    [runtimeText("collectionsKpiOverdue"), totals.overdue],
+    [runtimeText("collectionsKpiPrelock"), totals.prelock],
+    [runtimeText("collectionsKpiLocked"), totals.locked],
   ];
 
   kpiContainer.innerHTML = cards
@@ -15206,7 +16562,7 @@ function renderCollectionsList() {
   }
 
   if (!rows.length) {
-    container.innerHTML = '<div class="empty-state">Keine Inkasso-Faelle fuer den gewaehlten Filter.</div>';
+    container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("collectionsEmpty"))}</div>`;
     return;
   }
 
@@ -15219,22 +16575,22 @@ function renderCollectionsList() {
     .map(({ invoice, meta }) => {
       const stage = Number(invoice?.reminder_stage || 0);
       const dueText = invoice?.due_date ? formatDate(invoice.due_date) : "-";
-      const overdueText = meta.daysOverdue > 0 ? `${meta.daysOverdue} Tag(e) ueberfaellig` : "noch nicht ueberfaellig";
+      const overdueText = meta.daysOverdue > 0 ? runtimeTextTemplate("collectionsOverdueDays", { count: meta.daysOverdue }) : runtimeText("collectionsNotOverdue");
       const badge = meta.locked
-        ? '<span class="helper-text helper-text-warning">Firma gesperrt</span>'
+        ? `<span class="helper-text helper-text-warning">${escapeHtml(runtimeText("collectionsBadgeLocked"))}</span>`
         : meta.prelock
-          ? '<span class="helper-text helper-text-warning">Vor Sperre</span>'
+          ? `<span class="helper-text helper-text-warning">${escapeHtml(runtimeText("collectionsBadgePrelock"))}</span>`
           : meta.overdue
-            ? '<span class="helper-text helper-text-warning">Ueberfaellig</span>'
-            : '<span class="helper-text helper-text-info">Offen</span>';
+            ? `<span class="helper-text helper-text-warning">${escapeHtml(runtimeText("collectionsBadgeOverdue"))}</span>`
+            : `<span class="helper-text helper-text-info">${escapeHtml(runtimeText("collectionsBadgeOpen"))}</span>`;
       return `
         <article class="card-item">
           <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
             <div style="flex:1;">
               <strong>${escapeHtml(invoice.invoice_number || "RE-???")}</strong>
-              <p class="helper-text">${escapeHtml(invoice.company_name || "Firma")}</p>
-              <p class="helper-text">Faellig: ${escapeHtml(dueText)} | ${escapeHtml(overdueText)}</p>
-              <p class="helper-text">Mahnstufe: ${escapeHtml(String(stage))}</p>
+              <p class="helper-text">${escapeHtml(invoice.company_name || runtimeText("invoiceFallbackCompany"))}</p>
+              <p class="helper-text">${escapeHtml(runtimeText("collectionsDueLabel"))}: ${escapeHtml(dueText)} | ${escapeHtml(overdueText)}</p>
+              <p class="helper-text">${escapeHtml(runtimeText("collectionsReminderStageLabel"))}: ${escapeHtml(String(stage))}</p>
             </div>
             <div style="text-align:right; min-width:160px;">
               <p class="meta-text">${formatCurrency(invoice.total_amount)}</p>
@@ -15242,8 +16598,8 @@ function renderCollectionsList() {
             </div>
           </div>
           <div class="button-row" style="margin-top:8px;">
-            <button type="button" class="ghost-button" data-collections-mark-paid="${escapeHtml(invoice.id || "")}">Als bezahlt markieren</button>
-            ${canToggleLock ? `<button type="button" class="ghost-button" data-collections-toggle-lock="${escapeHtml(invoice.company_id || "")}">${meta.companyLocked ? "Sperre aufheben" : "Firma sperren"}</button>` : ""}
+            <button type="button" class="ghost-button" data-collections-mark-paid="${escapeHtml(invoice.id || "")}">${escapeHtml(runtimeText("collectionsMarkPaidBtn"))}</button>
+            ${canToggleLock ? `<button type="button" class="ghost-button" data-collections-toggle-lock="${escapeHtml(invoice.company_id || "")}">${escapeHtml(meta.companyLocked ? runtimeText("collectionsUnlockBtn") : runtimeText("collectionsLockBtn"))}</button>` : ""}
           </div>
         </article>
       `;
@@ -15329,7 +16685,7 @@ function updateLoginLockScreenCountdown() {
     clearLoginSecurityLockScreen();
     return;
   }
-  countdown.textContent = `${remainingMinutes} min`;
+  countdown.textContent = runtimeTextTemplate("loginLockRemainingMinutes", { count: remainingMinutes });
 }
 
 function showLoginSecurityLockScreen() {
@@ -15963,7 +17319,7 @@ async function capturePhoto() {
     let badgeImg = elements.badgePreview.querySelector('img');
     if (!badgeImg) {
       badgeImg = document.createElement('img');
-      badgeImg.alt = "Mitarbeiterfoto";
+      badgeImg.alt = uiT("detailPhotoAlt");
       badgeImg.style.maxWidth = "120px";
       badgeImg.style.maxHeight = "150px";
       badgeImg.style.borderRadius = "14px";
@@ -16281,7 +17637,12 @@ function updatePhotoAdjustControlsState() {
   }
 
   if (elements.photoZoomValue) {
-    elements.photoZoomValue.textContent = `${photoEditorZoom.toFixed(2)}x`;
+    elements.photoZoomValue.textContent = runtimeTextTemplate("photoZoomValue", {
+      value: formatUiNumber(photoEditorZoom, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    });
   }
 
   if (elements.photoSharpen) {
@@ -16329,7 +17690,12 @@ function updatePhotoAdjustControlsState() {
     elements.photoZoom.value = String(photoEditorZoom);
   }
   if (elements.photoZoomValue) {
-    elements.photoZoomValue.textContent = `${photoEditorZoom.toFixed(2)}x`;
+    elements.photoZoomValue.textContent = runtimeTextTemplate("photoZoomValue", {
+      value: formatUiNumber(photoEditorZoom, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    });
   }
   if (elements.photoSharpen) {
     elements.photoSharpen.disabled = !hasPhoto;
@@ -16643,7 +18009,9 @@ async function exportState(options = {}) {
     const currentUser = getCurrentUser();
     const exportCompanyId = currentUser?.company_id || currentUser?.companyId || "";
     const exportCompany = state.companies.find((entry) => entry.id === exportCompanyId);
-    const exportScopeLabel = exportCompany ? ` fuer ${exportCompany.name}` : "";
+    const exportScopeLabel = exportCompany
+      ? runtimeTextTemplate("exportScopeForCompany", { company: exportCompany.name })
+      : "";
     const fileScope = exportPayload?.meta?.scope || (companyId ? "company" : "system");
     const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -16656,7 +18024,12 @@ async function exportState(options = {}) {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     if (elements.photoDebugText) {
       const counts = exportPayload?.meta?.counts || {};
-      elements.photoDebugText.textContent = `System-Export${exportScopeLabel} wurde heruntergeladen (Firmen: ${counts.companies || 0}, Mitarbeiter: ${counts.workers || 0}, Logs: ${counts.accessLogs || 0}).`;
+      elements.photoDebugText.textContent = runtimeTextTemplate("exportDownloadedMessage", {
+        scope: exportScopeLabel,
+        companies: counts.companies || 0,
+        workers: counts.workers || 0,
+        logs: counts.accessLogs || 0,
+      });
       elements.photoDebugText.style.color = "#0b7a3b";
     }
   } catch (error) {
@@ -16683,7 +18056,7 @@ async function loadDemoData() {
   }
 
   const company = state.companies.find((entry) => entry.id === companyId);
-  const companyName = company?.name || "die ausgewaehlte Firma";
+  const companyName = company?.name || runtimeText("companySelectedFallback");
   const modeRaw = window.prompt(
     uiT("promptDemoMode").replace("{name}", companyName),
     "replace"
@@ -16723,7 +18096,13 @@ async function loadDemoData() {
     await loadAllData();
     refreshAll();
     window.alert(
-      `Demo-Daten fuer ${companyName} wurden geladen (Modus: ${result.mode}, Mitarbeiter: ${result.workersCreated}, Logs: ${result.accessLogsCreated}, Rechnungen: ${result.invoicesCreated}).`
+      runtimeTextTemplate("demoDataLoadedMessage", {
+        company: companyName,
+        mode: result.mode,
+        workers: result.workersCreated,
+        logs: result.accessLogsCreated,
+        invoices: result.invoicesCreated,
+      })
     );
   } catch (error) {
     window.alert(uiT("alertDemoLoadFailed").replace("{error}", error.message));
@@ -16737,7 +18116,9 @@ async function handleTopbarExport() {
   }
   const exportCompanyId = state.currentUser?.company_id || state.currentUser?.companyId || "";
   const exportCompany = state.companies.find((entry) => entry.id === exportCompanyId);
-  const exportScopeLabel = exportCompany ? ` fuer ${exportCompany.name}` : "";
+  const exportScopeLabel = exportCompany
+    ? runtimeTextTemplate("exportScopeForCompany", { company: exportCompany.name })
+    : "";
   const includeAudit = window.confirm(uiT("confirmExportAudit"));
   const includeDayClose = window.confirm(uiT("confirmExportDayClose"));
   const includeDeleted = window.confirm(uiT("confirmExportDeleted"));
@@ -16777,6 +18158,11 @@ function showImportDryRunDialog(summary) {
     const skipped = summary?.skipped || {};
     const unchanged = summary?.unchanged || {};
     const importOnlyChanges = Boolean(summary?.importOnlyChanges);
+    const unchangedCount = Number(unchanged.companies || 0)
+      + Number(unchanged.subcompanies || 0)
+      + Number(unchanged.workers || 0)
+      + Number(unchanged.accessLogs || 0)
+      + Number(unchanged.invoices || 0);
 
     const formatBadge = (value, mode) => {
       const numeric = Number(value || 0);
@@ -16831,53 +18217,53 @@ function showImportDryRunDialog(summary) {
     panel.style.boxShadow = "0 12px 38px rgba(0,0,0,0.22)";
 
     panel.innerHTML = `
-      <h3 style="margin:0 0 8px;">Import Vorschau (Dry-Run)</h3>
-      <p class="helper-text" style="margin:0 0 12px;">Bitte Zahlen prüfen, bevor der Import angewendet wird.</p>
-      <p class="helper-text" style="margin:0 0 12px; color:#475569;">Modus: <strong>${importOnlyChanges ? "Nur Änderungen" : "Alle Datensätze"}</strong> · Unverändert erkannt: ${Number(unchanged.companies || 0) + Number(unchanged.subcompanies || 0) + Number(unchanged.workers || 0) + Number(unchanged.accessLogs || 0) + Number(unchanged.invoices || 0)}</p>
+      <h3 style="margin:0 0 8px;">${escapeHtml(runtimeText("importPreviewTitle"))}</h3>
+      <p class="helper-text" style="margin:0 0 12px;">${escapeHtml(runtimeText("importPreviewCheckHint"))}</p>
+      <p class="helper-text" style="margin:0 0 12px; color:#475569;">${escapeHtml(runtimeTextTemplate("importPreviewModeLine", { mode: importOnlyChanges ? runtimeText("importPreviewModeChanges") : runtimeText("importPreviewModeAll"), count: unchangedCount }))}</p>
       
       <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px; padding:10px; background:#f9fafb; border-radius:8px; border:1px solid #e5e7eb;">
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
           <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:#dcfce7; color:#166534; font-weight:700; font-size:0.8rem;">✓</span>
-          <span style="color:#16a34a;"><strong>Grün:</strong> OK / keine Konflikte</span>
+          <span style="color:#16a34a;">${escapeHtml(runtimeText("importPreviewLegendGreen"))}</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
           <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:#fef3c7; color:#92400e; font-weight:700; font-size:0.8rem;">⚠</span>
-          <span style="color:#b45309;"><strong>Gelb:</strong> 1-5 Konflikte</span>
+          <span style="color:#b45309;">${escapeHtml(runtimeText("importPreviewLegendYellow"))}</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
           <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem;">✕</span>
-          <span style="color:#dc2626;"><strong>Rot:</strong> >5 Konflikte</span>
+          <span style="color:#dc2626;">${escapeHtml(runtimeText("importPreviewLegendRed"))}</span>
         </div>
       </div>
 
       <table style="width:100%; border-collapse:collapse; font-size:0.95rem; margin-bottom:12px;">
         <thead>
           <tr style="background:#f5f7fa; text-align:left;">
-            <th style="padding:8px; border:1px solid #d8dee8;">Bereich</th>
-            <th style="padding:8px; border:1px solid #d8dee8;">Accepted</th>
-            <th style="padding:8px; border:1px solid #d8dee8;">Conflicts</th>
+            <th style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAreaHeader"))}</th>
+            <th style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAcceptedHeader"))}</th>
+            <th style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewConflictsHeader"))}</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td style="padding:8px; border:1px solid #d8dee8;">Companies</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.companies, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.companies, "conflict")}</td></tr>
-          <tr><td style="padding:8px; border:1px solid #d8dee8;">Subcompanies</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.subcompanies, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.subcompanies, "conflict")}</td></tr>
-          <tr><td style="padding:8px; border:1px solid #d8dee8;">Workers</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.workers, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.workers, "conflict")}</td></tr>
-          <tr><td style="padding:8px; border:1px solid #d8dee8;">Access Logs</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.accessLogs, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.accessLogs, "conflict")}</td></tr>
-          <tr><td style="padding:8px; border:1px solid #d8dee8;">Invoices</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.invoices, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.invoices, "conflict")}</td></tr>
+              <p class="meta-text">${formatCurrency(inv.total_amount)}</p>
+          <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewSubcompanies"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.subcompanies, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.subcompanies, "conflict")}</td></tr>
+          <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewWorkers"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.workers, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.workers, "conflict")}</td></tr>
+          <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAccessLogs"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.accessLogs, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.accessLogs, "conflict")}</td></tr>
+          <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewInvoices"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.invoices, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.invoices, "conflict")}</td></tr>
         </tbody>
       </table>
 
       <div style="padding:8px 10px; background:#fef3c7; border-radius:6px; border-left:4px solid #b45309; margin-bottom:14px;">
-        <p style="margin:0 0 6px; font-weight:600; color:#92400e; font-size:0.9rem;">⚠ Übersprungene Einträge:</p>
+        <p style="margin:0 0 6px; font-weight:600; color:#92400e; font-size:0.9rem;">⚠ ${escapeHtml(runtimeText("importPreviewSkippedTitle"))}</p>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem; color:#78350f;">
-          <div><strong>Verboten (Berechtigung):</strong> ${formatBadge(skipped.forbidden, "skip")}</div>
-          <div><strong>Ungültig (Format):</strong> ${formatBadge(skipped.invalid, "skip")}</div>
+          <div><strong>${escapeHtml(runtimeText("importPreviewSkippedForbidden"))}</strong> ${formatBadge(skipped.forbidden, "skip")}</div>
+          <div><strong>${escapeHtml(runtimeText("importPreviewSkippedInvalid"))}</strong> ${formatBadge(skipped.invalid, "skip")}</div>
         </div>
       </div>
 
       <div style="display:flex; gap:10px; justify-content:flex-end;">
-        <button type="button" class="ghost-button" data-import-preview="cancel">Abbrechen</button>
-        <button type="button" class="primary-button" data-import-preview="apply">Import anwenden</button>
+        <button type="button" class="ghost-button" data-import-preview="cancel">${escapeHtml(runtimeText("importPreviewCancel"))}</button>
+        <button type="button" class="primary-button" data-import-preview="apply">${escapeHtml(runtimeText("importPreviewApply"))}</button>
       </div>
     `;
 
@@ -17024,7 +18410,7 @@ function formatDate(value) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(getUiLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric"
@@ -17032,7 +18418,7 @@ function formatDate(value) {
 }
 
 function formatTimestamp(value) {
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(getUiLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -17046,7 +18432,7 @@ function formatDateTime(value) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("de-DE", {
+  return new Intl.DateTimeFormat(getUiLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -17434,15 +18820,15 @@ if (invoiceRetryCriticalSendBtn) {
 const triggerDunningBtn = document.querySelector("#triggerDunningBtn");
 if (triggerDunningBtn) {
   triggerDunningBtn.addEventListener("click", async () => {
-    if (!window.confirm("Mahnungs-Durchlauf jetzt manuell starten?")) return;
+    if (!window.confirm(runtimeText("dunningRunConfirm"))) return;
     triggerDunningBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/trigger-dunning`, { method: "POST", body: {} });
-      window.alert(`Mahnungs-Durchlauf: ${result.result?.remindersSent || 0} Erinnerungen gesendet.`);
+      window.alert(runtimeTextTemplate("dunningRunResult", { count: result.result?.remindersSent || 0 }));
       await loadAndRenderInvoices();
       refreshAll();
     } catch (error) {
-      window.alert(`Fehler: ${error.message}`);
+      window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
     } finally {
       triggerDunningBtn.disabled = false;
     }
@@ -17584,7 +18970,7 @@ if (invoiceNumberAutoBtn) {
       const field = document.querySelector("#invoiceNumber");
       if (field) field.value = data.nextNumber || "";
     } catch (e) {
-      window.alert("Konnte nächste Rechnungsnummer nicht laden: " + e.message);
+      window.alert(runtimeTextTemplate("invoiceNumberAutoFailed", { error: e.message }));
     }
   });
 }
@@ -17596,19 +18982,19 @@ function createPositionRow(pos = {}) {
   row.style.cssText = "display:grid;grid-template-columns:1fr 70px 90px 90px 34px;gap:4px;margin-bottom:4px;align-items:center;";
   const desc = pos.description || "";
   const qty = pos.qty != null ? pos.qty : 1;
-  const unit = pos.unit || "Pauschal";
+  const unit = pos.unit || runtimeText("invoicePositionUnitFlat");
   const unitPrice = pos.unitPrice != null ? pos.unitPrice : 0;
   row.innerHTML = `
-    <input type="text" class="pos-desc" placeholder="Beschreibung" value="${escapeAttr(desc)}" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;" required />
-    <input type="number" class="pos-qty" placeholder="Menge" value="${qty}" min="0" step="any" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;text-align:right;" />
+    <input type="text" class="pos-desc" placeholder="${escapeAttr(runtimeText("invoicePositionDescriptionPlaceholder"))}" value="${escapeAttr(desc)}" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;" required />
+    <input type="number" class="pos-qty" placeholder="${escapeAttr(runtimeText("invoicePositionQtyPlaceholder"))}" value="${qty}" min="0" step="any" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;text-align:right;" />
     <select class="pos-unit" style="padding:5px 4px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;">
-      <option${unit==="Pauschal"?" selected":""}>Pauschal</option>
-      <option${unit==="Stunden"?" selected":""}>Stunden</option>
-      <option${unit==="Stück"?" selected":""}>Stück</option>
-      <option${unit==="Monat"?" selected":""}>Monat</option>
-      <option${unit==="Tag"?" selected":""}>Tag</option>
+      <option${unit===runtimeText("invoicePositionUnitFlat")?" selected":""}>${escapeHtml(runtimeText("invoicePositionUnitFlat"))}</option>
+      <option${unit===runtimeText("invoicePositionUnitHours")?" selected":""}>${escapeHtml(runtimeText("invoicePositionUnitHours"))}</option>
+      <option${unit===runtimeText("invoicePositionUnitPiece")?" selected":""}>${escapeHtml(runtimeText("invoicePositionUnitPiece"))}</option>
+      <option${unit===runtimeText("invoicePositionUnitMonth")?" selected":""}>${escapeHtml(runtimeText("invoicePositionUnitMonth"))}</option>
+      <option${unit===runtimeText("invoicePositionUnitDay")?" selected":""}>${escapeHtml(runtimeText("invoicePositionUnitDay"))}</option>
     </select>
-    <input type="number" class="pos-unit-price" placeholder="Einzelpreis" value="${unitPrice}" min="0" step="0.01" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;text-align:right;" />
+    <input type="number" class="pos-unit-price" placeholder="${escapeAttr(runtimeText("invoicePositionUnitPricePlaceholder"))}" value="${unitPrice}" min="0" step="0.01" style="padding:5px 7px;border:1px solid #cbd5e0;border-radius:4px;font-size:13px;text-align:right;" />
     <button type="button" class="remove-pos-btn" style="background:none;border:none;cursor:pointer;color:#e53e3e;font-size:18px;line-height:1;padding:2px;">×</button>
   `;
   row.querySelector(".remove-pos-btn").addEventListener("click", () => {
@@ -17635,7 +19021,7 @@ function updatePositionNetTotal() {
   });
   total = Math.round(total * 100) / 100;
   const el = document.querySelector("#invoicePositionNetTotal");
-  if (el) el.textContent = total.toLocaleString("de-DE", {minimumFractionDigits: 2}) + " EUR";
+  if (el) el.textContent = formatCurrency(total);
   refreshInvoicePreview({ silent: true });
 }
 
@@ -17648,7 +19034,7 @@ function getInvoicePositions() {
     return {
       description: (r.querySelector(".pos-desc")?.value || "").trim(),
       qty,
-      unit: r.querySelector(".pos-unit")?.value || "Pauschal",
+      unit: r.querySelector(".pos-unit")?.value || runtimeText("invoicePositionUnitFlat"),
       unitPrice,
       total: Math.round(qty * unitPrice * 100) / 100,
     };
@@ -17664,7 +19050,7 @@ function initInvoicePositions() {
   const addBtn = document.querySelector("#addInvoicePositionBtn");
   if (!container || !addBtn) return;
   if (!container.children.length) {
-    container.appendChild(createPositionRow({ description: "", qty: 1, unit: "Pauschal", unitPrice: 0 }));
+    container.appendChild(createPositionRow({ description: "", qty: 1, unit: runtimeText("invoicePositionUnitFlat"), unitPrice: 0 }));
   }
   addBtn.addEventListener("click", () => {
     container.appendChild(createPositionRow());
@@ -17691,7 +19077,7 @@ if (workerCsvImportButton && workerCsvImportInput) {
     const file = workerCsvImportInput.files?.[0];
     if (!file) return;
     const resultEl = document.querySelector("#workerCsvImportResult");
-    if (resultEl) { resultEl.style.display = "block"; resultEl.textContent = "Importiere…"; resultEl.style.background = "#ebf4ff"; }
+    if (resultEl) { resultEl.style.display = "block"; resultEl.textContent = runtimeText("workerCsvImportLoading"); resultEl.style.background = "#ebf4ff"; }
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -17704,13 +19090,13 @@ if (workerCsvImportButton && workerCsvImportInput) {
       const data = await resp.json();
       if (resultEl) {
         resultEl.style.background = data.errors === 0 ? "#f0fff4" : "#fffbeb";
-        resultEl.innerHTML = `<strong>Import abgeschlossen:</strong> ${data.created} erstellt, ${data.skipped} übersprungen, ${data.errors} Fehler.` +
-          (data.details?.errors?.length ? `<br><small style="color:#c05621">${data.details.errors.map(e => `Zeile ${e.row}: ${e.reason}`).join("; ")}</small>` : "");
+        resultEl.innerHTML = `<strong>${escapeHtml(runtimeTextTemplate("workerCsvImportSummary", { created: data.created, skipped: data.skipped, errors: data.errors }))}</strong>` +
+          (data.details?.errors?.length ? `<br><small style="color:#c05621">${data.details.errors.map(e => escapeHtml(runtimeTextTemplate("workerCsvImportRowError", { row: e.row, reason: e.reason }))).join("; ")}</small>` : "");
       }
       workerCsvImportInput.value = "";
       refreshAll();
     } catch (err) {
-      if (resultEl) { resultEl.style.background = "#fff5f5"; resultEl.textContent = "Fehler: " + err.message; }
+      if (resultEl) { resultEl.style.background = "#fff5f5"; resultEl.textContent = runtimeTextTemplate("workerCsvImportErrorPrefix", { error: err.message }); }
     }
   });
 }
@@ -17774,10 +19160,10 @@ async function validateWorkerPhotoUI() {
   const resultEl = document.querySelector("#photoValidationResult");
   if (!resultEl) return;
   if (!photoData) {
-    resultEl.innerHTML = '<span style="color:#6b7280;font-size:0.82rem">Erst Foto aufnehmen oder hochladen.</span>';
+    resultEl.innerHTML = `<span style="color:#6b7280;font-size:0.82rem">${escapeHtml(runtimeText("photoValidationCaptureFirst"))}</span>`;
     return;
   }
-  resultEl.innerHTML = '<span style="color:#6b7280;font-size:0.82rem">Prüfe Foto…</span>';
+  resultEl.innerHTML = `<span style="color:#6b7280;font-size:0.82rem">${escapeHtml(runtimeText("photoValidationChecking"))}</span>`;
   try {
     const result = await apiRequest(`${API_BASE}/api/workers/validate-photo`, {
       method: "POST",
@@ -17791,12 +19177,12 @@ async function validateWorkerPhotoUI() {
       ? `<p style="margin:4px 0 0;color:#9ca3af;font-size:0.78rem">${result.meta.width}×${result.meta.height}px · ${result.meta.sizeKb} KB</p>`
       : "";
     resultEl.innerHTML = `<div style="font-size:0.82rem;margin-top:4px;padding:8px 10px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;text-align:left;">
-      <strong style="color:${color}">${icon} Foto-Score: ${result.score}/100</strong>
-      ${errorItems || warnItems ? `<ul style="margin:5px 0 0;padding-left:18px;">${errorItems}${warnItems}</ul>` : "<p style='margin:4px 0 0;color:#6b7280'>Foto sieht gut aus.</p>"}
+      <strong style="color:${color}">${icon} ${escapeHtml(runtimeText("photoValidationScore"))}: ${result.score}/100</strong>
+      ${errorItems || warnItems ? `<ul style="margin:5px 0 0;padding-left:18px;">${errorItems}${warnItems}</ul>` : `<p style='margin:4px 0 0;color:#6b7280'>${escapeHtml(runtimeText("photoValidationLooksGood"))}</p>`}
       ${metaText}
     </div>`;
   } catch (_e) {
-    resultEl.innerHTML = '<span style="color:#6b7280;font-size:0.82rem">Validierung nicht verfügbar.</span>';
+    resultEl.innerHTML = `<span style="color:#6b7280;font-size:0.82rem">${escapeHtml(runtimeText("photoValidationUnavailable"))}</span>`;
   }
 }
 
@@ -17809,7 +19195,7 @@ if (validatePhotoBtnEl) {
 const loginResetPasswordButton = document.querySelector("#loginResetPasswordButton");
 if (loginResetPasswordButton) {
   loginResetPasswordButton.addEventListener("click", async () => {
-    const username = (window.prompt("Benutzername eingeben, um einen Passwort-Reset-Link zu erhalten:") || "").trim();
+    const username = (window.prompt(runtimeText("passwordResetPromptUsername")) || "").trim();
     if (!username) return;
     try {
       loginResetPasswordButton.disabled = true;
@@ -17820,12 +19206,12 @@ if (loginResetPasswordButton) {
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok && data.error === "smtp_not_configured") {
-        window.alert("E-Mail-Versand ist nicht konfiguriert. Bitte wende dich an den Administrator.");
+        window.alert(runtimeText("passwordResetSmtpNotConfigured"));
       } else {
-        window.alert("Falls ein Account mit diesem Benutzernamen existiert und eine E-Mail-Adresse hinterlegt ist, wurde ein Reset-Link verschickt.");
+        window.alert(runtimeText("passwordResetRequestSent"));
       }
     } catch (_e) {
-      window.alert("Fehler beim Senden der Anfrage. Bitte versuche es später erneut.");
+      window.alert(runtimeText("passwordResetRequestFailed"));
     } finally {
       loginResetPasswordButton.disabled = false;
     }
@@ -17855,16 +19241,16 @@ if (loginResetPasswordButton) {
     const newPw = (document.querySelector("#pwResetNewPassword")?.value || "").trim();
     const confirmPw = (document.querySelector("#pwResetConfirm")?.value || "").trim();
     if (newPw.length < 8) {
-      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = "Passwort muss mindestens 8 Zeichen haben."; }
+      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = runtimeText("passwordResetMinLength"); }
       return;
     }
     if (newPw !== confirmPw) {
-      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = "Passwörter stimmen nicht überein."; }
+      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = runtimeText("passwordResetMismatch"); }
       return;
     }
     const submitBtn = pwResetForm.querySelector("button[type='submit']");
     if (submitBtn) submitBtn.disabled = true;
-    if (pwResetMsg) { pwResetMsg.style.color = "#6b7280"; pwResetMsg.textContent = "Wird gespeichert…"; }
+    if (pwResetMsg) { pwResetMsg.style.color = "#6b7280"; pwResetMsg.textContent = runtimeText("passwordResetSaving"); }
     try {
       const resp = await fetch(`${API_BASE}/api/auth/reset-password/${encodeURIComponent(rawToken)}`, {
         method: "POST",
@@ -17873,22 +19259,22 @@ if (loginResetPasswordButton) {
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
-        if (pwResetMsg) { pwResetMsg.style.color = "#16a34a"; pwResetMsg.textContent = "Passwort wurde geändert. Du wirst zur Anmeldung weitergeleitet…"; }
+        if (pwResetMsg) { pwResetMsg.style.color = "#16a34a"; pwResetMsg.textContent = runtimeText("passwordResetSavedRedirect"); }
         setTimeout(() => {
           const cleanUrl = new URL(window.location.href);
           cleanUrl.searchParams.delete("resetToken");
           window.location.replace(cleanUrl.toString());
         }, 2000);
       } else {
-        const msg = data.error === "token_not_found" ? "Link ist ungültig oder wurde bereits verwendet."
-          : data.error === "token_expired" ? "Link ist abgelaufen. Bitte fordere einen neuen an."
-          : data.error === "password_too_short" ? "Passwort muss mindestens 8 Zeichen haben."
-          : (data.message || "Unbekannter Fehler.");
+        const msg = data.error === "token_not_found" ? runtimeText("passwordResetTokenInvalid")
+          : data.error === "token_expired" ? runtimeText("passwordResetTokenExpired")
+          : data.error === "password_too_short" ? runtimeText("passwordResetMinLength")
+          : (data.message || runtimeText("genericUnknownError"));
         if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = msg; }
         if (submitBtn) submitBtn.disabled = false;
       }
     } catch (_e) {
-      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = "Netzwerkfehler. Bitte versuche es erneut."; }
+      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = runtimeText("genericNetworkRetry"); }
       if (submitBtn) submitBtn.disabled = false;
     }
   });
@@ -18042,7 +19428,7 @@ wireDesktopInstallPrompt();
           if (imapStatus === "not_configured") {
             window.alert(getImapNotConfiguredMessage(res?.imap));
           } else if (imapStatus === "connect_error" || imapStatus === "error") {
-            window.alert("IMAP-Fehler: " + (res?.imap?.error || "Unbekannter Fehler"));
+            window.alert(runtimeTextTemplate("imapErrorWithReason", { reason: res?.imap?.error || runtimeText("genericUnknownError") }));
           }
           await loadDocumentInbox();
         } catch (e) {
@@ -18143,15 +19529,15 @@ function docTypeLabelForValue(value) {
 
 function getBackendUnreachableMessage() {
   const activeBase = API_BASE || window.location.origin;
-  const localHint = "Wenn du lokal testest: ?apiBase=http://127.0.0.1:8000";
-  return `Backend nicht erreichbar (${activeBase}). ${localHint}`;
+  const localHint = runtimeText("backendUnreachableLocalHint");
+  return runtimeTextTemplate("backendUnreachableWithBase", { base: activeBase, hint: localHint });
 }
 
 function getImapNotConfiguredMessage(imapPayload) {
   const activeBase = API_BASE || window.location.origin;
   const missing = Array.isArray(imapPayload?.missing) ? imapPayload.missing : [];
-  const missingLabel = missing.length ? ` Fehlend: ${missing.join(", ")}.` : "";
-  return `IMAP ist auf diesem Backend nicht konfiguriert (${activeBase}).${missingLabel}`;
+  const missingLabel = missing.length ? runtimeTextTemplate("imapMissingFields", { fields: missing.join(", ") }) : "";
+  return runtimeTextTemplate("imapNotConfiguredWithBase", { base: activeBase, missing: missingLabel });
 }
 
 async function loadDocumentInbox() {
@@ -18175,7 +19561,7 @@ async function loadDocumentInbox() {
 async function loadExpiringDocuments() {
   const listEl = document.querySelector("#expiringDocsList");
   const days = Number(document.querySelector("#expiringDocsDaysFilter")?.value || 30);
-  if (listEl) listEl.innerHTML = `<div class="empty-state">Wird geladen...</div>`;
+  if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(uiT("statusLoading"))}</div>`;
   try {
     const data = await apiRequest(`${API_BASE}/api/documents/expiring?days=${days}`);
     const rows = Array.isArray(data) ? data : [];
@@ -18192,7 +19578,7 @@ function renderExpiringDocuments(rows) {
   const listEl = document.querySelector("#expiringDocsList");
   if (!listEl) return;
   if (!rows.length) {
-    listEl.innerHTML = `<div class="empty-state">Keine ablaufenden Dokumente im gewählten Zeitraum.</div>`;
+    listEl.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("expiringDocsEmpty"))}</div>`;
     return;
   }
   const urgencyClass = { critical: "helper-text-warning", warning: "helper-text-info", info: "" };
@@ -18248,15 +19634,15 @@ function renderDocumentInbox(emails) {
     const attachments = Array.isArray(email.attachments) ? email.attachments : [];
     const assignedCount = attachments.filter((att) => att.assigned_worker_id).length;
     if (!email.matched_company_id) {
-      return '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ffe8e8; color:#9f1d1d; font-size:0.75em; font-weight:700;">Nicht erkannt</span>';
+      return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ffe8e8; color:#9f1d1d; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusUnmatched"))}</span>`;
     }
     if (!attachments.length || assignedCount === 0) {
-      return '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff3d1; color:#8a5b00; font-size:0.75em; font-weight:700;">Neu</span>';
+      return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff3d1; color:#8a5b00; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusNew"))}</span>`;
     }
     if (assignedCount < attachments.length) {
-      return '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e7f0ff; color:#114b9f; font-size:0.75em; font-weight:700;">Teilweise</span>';
+      return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e7f0ff; color:#114b9f; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusPartial"))}</span>`;
     }
-    return '<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e7ffe9; color:#1f7a35; font-size:0.75em; font-weight:700;">Zugeordnet</span>';
+    return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e7ffe9; color:#1f7a35; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusAssigned"))}</span>`;
   };
 
   const renderEmailCard = (email) => {
@@ -18279,13 +19665,13 @@ function renderDocumentInbox(emails) {
           <strong>${escapeHtml(email.from_addr || "-")}</strong> ${statusChip(email)}
           <span class="muted">${escapeHtml(email.received_at ? formatTimestamp(email.received_at) : "")}</span>
         </div>
-        ${recipientLine ? `<div class="muted" style="margin-top:4px; font-size:0.85em;"><strong>An:</strong> ${escapeHtml(recipientLine)}</div>` : ""}
-        ${matchedCompanyName ? `<div class="muted" style="margin-top:2px; font-size:0.85em;"><strong>Firma:</strong> ${escapeHtml(matchedCompanyName)}</div>` : ""}
-        <div class="list-item-subject">${escapeHtml(email.subject || "(kein Betreff)")}</div>
+        ${recipientLine ? `<div class="muted" style="margin-top:4px; font-size:0.85em;"><strong>${escapeHtml(uiT("labelTo"))}:</strong> ${escapeHtml(recipientLine)}</div>` : ""}
+        ${matchedCompanyName ? `<div class="muted" style="margin-top:2px; font-size:0.85em;"><strong>${escapeHtml(uiT("labelFirm"))}:</strong> ${escapeHtml(matchedCompanyName)}</div>` : ""}
+        <div class="list-item-subject">${escapeHtml(email.subject || runtimeText("docInboxNoSubject"))}</div>
         ${previewShort ? `
           <div class="muted" style="margin-top:6px; font-size:0.9em; white-space:pre-wrap;">${escapeHtml(previewShort)}</div>
           <button class="link-button" type="button" data-toggle-mail-details="${escapeHtml(String(email.id))}" style="margin-top:4px;">
-            ${escapeHtml("Details")}
+            ${escapeHtml(runtimeText("detailsShow"))}
           </button>
           <div class="muted" data-mail-details="${escapeHtml(String(email.id))}" style="display:none; margin-top:6px; white-space:pre-wrap; line-height:1.4; border-left:3px solid var(--color-border, #ddd); padding-left:10px;">
             ${escapeHtml(previewText)}
@@ -18293,7 +19679,7 @@ function renderDocumentInbox(emails) {
         ` : ""}
         ${isSuperadmin && !email.matched_company_id ? `
           <div class="button-row" style="margin-top:6px;">
-            <button class="ghost-button small-button" data-manual-company-match="${escapeHtml(String(email.id))}">Firma manuell zuweisen</button>
+            <button class="ghost-button small-button" data-manual-company-match="${escapeHtml(String(email.id))}">${escapeHtml(runtimeText("docManualCompanyAssignBtn"))}</button>
           </div>
         ` : ""}
         ${attachments ? `<div class="attachment-list">${attachments}</div>` : ""}
@@ -18305,7 +19691,7 @@ function renderDocumentInbox(emails) {
               data-assign-first
               data-inbox-id="${escapeHtml(String(email.id))}"
               data-attachment-id="${escapeHtml(String(firstUnassignedAttachment.id))}"
-              data-filename="${escapeHtml(firstUnassignedAttachment.filename || "Anhang")}" 
+              data-filename="${escapeHtml(firstUnassignedAttachment.filename || runtimeText("attachmentFallback"))}" 
               data-matched-company-id="${escapeHtml(String(email.matched_company_id || ""))}">
               ${escapeHtml(uiT("docAssignWorkerLabel"))}
             </button>
@@ -18322,13 +19708,13 @@ function renderDocumentInbox(emails) {
 
   listEl.innerHTML = `
     <div class="meta-box" style="margin-bottom:8px;">
-      <p style="margin:0;"><strong>Erkannt:</strong> ${recognized.length} | <strong>Prüfkorb:</strong> ${unrecognized.length}</p>
+      <p style="margin:0;"><strong>${escapeHtml(runtimeText("docInboxSummaryRecognized"))}:</strong> ${recognized.length} | <strong>${escapeHtml(runtimeText("docInboxSummaryReview"))}:</strong> ${unrecognized.length}</p>
     </div>
-    ${recognized.length ? recognized.map(renderEmailCard).join("") : '<div class="empty-state">Keine erkannten Mails.</div>'}
+    ${recognized.length ? recognized.map(renderEmailCard).join("") : `<div class="empty-state">${escapeHtml(runtimeText("docInboxRecognizedEmpty"))}</div>`}
     <div class="meta-box" style="margin-top:12px;">
-      <p style="margin:0;"><strong>Prüfkorb</strong> (Empfängeradresse konnte keiner Firma zugeordnet werden)</p>
+      <p style="margin:0;"><strong>${escapeHtml(runtimeText("docInboxSummaryReview"))}</strong> (${escapeHtml(runtimeText("docInboxReviewIntro"))})</p>
     </div>
-    ${unrecognized.length ? unrecognized.map(renderEmailCard).join("") : '<div class="empty-state">Keine ungeklärten Mails.</div>'}
+    ${unrecognized.length ? unrecognized.map(renderEmailCard).join("") : `<div class="empty-state">${escapeHtml(runtimeText("docInboxReviewEmpty"))}</div>`}
   `;
 
   // Assign-Buttons
@@ -18391,7 +19777,7 @@ function renderDocumentInbox(emails) {
       if (!detailsEl) return;
       const isHidden = detailsEl.style.display === "none" || !detailsEl.style.display;
       detailsEl.style.display = isHidden ? "" : "none";
-      btn.textContent = isHidden ? "Weniger" : "Details";
+      btn.textContent = isHidden ? runtimeText("detailsHide") : runtimeText("detailsShow");
     });
   });
 
@@ -18435,11 +19821,11 @@ function openDocAssignPanel(inboxId, attachmentId, filename, matchedCompanyId = 
   content.innerHTML = `
     <form id="docAssignForm" class="settings-form">
       <p class="muted">📎 ${escapeHtml(filename)}</p>
-      ${matchedCompanyId ? `<p class="muted">${showAllFallback ? "⚠️ Keine Mitarbeiter der erkannten Firma — alle Mitarbeiter werden angezeigt." : "Vorauswahl auf erkannte Firma eingeschränkt."}</p>` : ""}
+      ${matchedCompanyId ? `<p class="muted">${escapeHtml(showAllFallback ? runtimeText("docAssignFallbackAllWorkers") : runtimeText("docAssignMatchedCompanyOnly"))}</p>` : ""}
       <label>
         <span>${escapeHtml(uiT("docAssignWorkerLabel"))}</span>
         <select id="docAssignWorkerId" required>
-          <option value="">— bitte wählen —</option>
+          <option value="">${escapeHtml(runtimeText("selectPlaceholder"))}</option>
           ${workerOptions}
         </select>
       </label>
@@ -18455,7 +19841,7 @@ function openDocAssignPanel(inboxId, attachmentId, filename, matchedCompanyId = 
       </label>
       <div class="button-row">
         <button type="submit" class="primary-button">${escapeHtml(uiT("btnConfirmAssign"))}</button>
-        <button type="button" class="ghost-button" id="docAssignCancelBtn">Abbrechen</button>
+        <button type="button" class="ghost-button" id="docAssignCancelBtn">${escapeHtml(uiT("btnBulkCancel"))}</button>
       </div>
       <p id="docAssignMsg" class="helper-text"></p>
     </form>`;
@@ -18512,9 +19898,9 @@ function openManualCompanyMatchPanel(inboxId) {
   if (!activeCompanies.length) {
     content.innerHTML = `
       <div class="settings-form">
-        <p class="helper-text" style="color:var(--color-danger, red);">Keine aktiven Firmen vorhanden.</p>
+        <p class="helper-text" style="color:var(--color-danger, red);">${escapeHtml(runtimeText("manualCompanyMatchNoCompanies"))}</p>
         <div class="button-row">
-          <button type="button" class="ghost-button" id="docAssignCancelBtn">Schließen</button>
+          <button type="button" class="ghost-button" id="docAssignCancelBtn">${escapeHtml(uiT("detailCloseTitle"))}</button>
         </div>
       </div>`;
     const closeBtn = document.querySelector("#docAssignCancelBtn");
@@ -18524,20 +19910,20 @@ function openManualCompanyMatchPanel(inboxId) {
 
   content.innerHTML = `
     <form id="docCompanyMatchForm" class="settings-form">
-      <p class="muted">Mail aus Prüfkorb manuell einer Firma zuordnen.</p>
+      <p class="muted">${escapeHtml(runtimeText("manualCompanyMatchIntro"))}</p>
       <label>
-        <span>Firma suchen</span>
-        <input id="docCompanyMatchFilter" type="text" placeholder="Name oder Mail eingeben" />
+        <span>${escapeHtml(runtimeText("manualCompanyMatchSearchLabel"))}</span>
+        <input id="docCompanyMatchFilter" type="text" placeholder="${escapeHtml(runtimeText("manualCompanyMatchSearchPlaceholder"))}" />
       </label>
       <label>
-        <span>Firma</span>
+        <span>${escapeHtml(uiT("labelFirm"))}</span>
         <select id="docCompanyMatchSelect" required>
-          <option value="">— bitte wählen —</option>
+          <option value="">${escapeHtml(runtimeText("selectPlaceholder"))}</option>
         </select>
       </label>
       <div class="button-row">
-        <button type="submit" class="primary-button">Zuordnen</button>
-        <button type="button" class="ghost-button" id="docAssignCancelBtn">Abbrechen</button>
+        <button type="submit" class="primary-button">${escapeHtml(uiT("btnAssignDoc"))}</button>
+        <button type="button" class="ghost-button" id="docAssignCancelBtn">${escapeHtml(uiT("btnBulkCancel"))}</button>
       </div>
       <p id="docCompanyMatchMsg" class="helper-text"></p>
     </form>`;
@@ -18555,10 +19941,10 @@ function openManualCompanyMatchPanel(inboxId) {
         const mail = String(getCompanyDocumentEmail(company) || "").toLowerCase();
         return name.includes(needle) || mail.includes(needle);
       })
-      .map((company) => `<option value="${escapeHtml(String(company.id))}">${escapeHtml(String(company.name || "Firma"))} (${escapeHtml(getCompanyDocumentEmail(company) || "keine Dokument-Mail")})</option>`)
+      .map((company) => `<option value="${escapeHtml(String(company.id))}">${escapeHtml(String(company.name || uiT("labelFirm")))} (${escapeHtml(getCompanyDocumentEmail(company) || runtimeText("docEmailMissing"))})</option>`)
       .join("");
 
-    selectEl.innerHTML = `<option value="">— bitte wählen —</option>${options}`;
+    selectEl.innerHTML = `<option value="">${escapeHtml(runtimeText("selectPlaceholder"))}</option>${options}`;
     if (prev && Array.from(selectEl.options).some((opt) => opt.value === prev)) {
       selectEl.value = prev;
     }
@@ -18622,7 +20008,7 @@ function openManualCompanyMatchPanel(inboxId) {
     const msgEl = document.querySelector("#docCompanyMatchMsg");
     if (!companyId) {
       if (msgEl) {
-        msgEl.textContent = "Bitte eine Firma wählen.";
+        msgEl.textContent = runtimeText("manualCompanyMatchSelectCompany");
         msgEl.style.color = "var(--color-danger, red)";
       }
       return;
@@ -18637,7 +20023,7 @@ function openManualCompanyMatchPanel(inboxId) {
       await loadDocumentInbox();
     } catch (error) {
       if (msgEl) {
-        msgEl.textContent = `Zuordnung fehlgeschlagen: ${error.message}`;
+        msgEl.textContent = runtimeTextTemplate("manualCompanyMatchFailed", { error: error.message });
         msgEl.style.color = "var(--color-danger, red)";
       }
     }
@@ -18653,9 +20039,45 @@ async function loadWorkerDocuments(workerId) {
   }
 }
 
+const DOC_TYPES_REQUIRING_EXPIRY_DATE = new Set(["personalausweis", "arbeitserlaubnis", "gesundheitszeugnis"]);
+
+function validateWorkerDocumentUpload(file, docType, expiryDate) {
+  if (!file || file.size <= 0) {
+    return "Die Datei ist leer.";
+  }
+
+  const normalizedExpiryDate = String(expiryDate || "").trim();
+  if (!normalizedExpiryDate) {
+    if (DOC_TYPES_REQUIRING_EXPIRY_DATE.has(String(docType || "").trim().toLowerCase())) {
+      return "Fuer diesen Dokumenttyp ist ein Gueltigkeitsdatum erforderlich.";
+    }
+    return "";
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedExpiryDate)) {
+    return "Das Gueltigkeitsdatum ist ungueltig.";
+  }
+
+  const parsedDate = new Date(`${normalizedExpiryDate}T00:00:00Z`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "Das Gueltigkeitsdatum ist ungueltig.";
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (normalizedExpiryDate < today) {
+    return "Das Gueltigkeitsdatum darf nicht in der Vergangenheit liegen.";
+  }
+
+  return "";
+}
+
 async function uploadWorkerDocument(workerId, file, docType, notes, expiryDate) {
   if (isSupportReadOnlyMode()) {
     throw new Error("support_session_read_only");
+  }
+  const validationError = validateWorkerDocumentUpload(file, docType, expiryDate);
+  if (validationError) {
+    throw new Error(validationError);
   }
   const fd = new FormData();
   fd.append("file", file);
@@ -18670,7 +20092,7 @@ async function uploadWorkerDocument(workerId, file, docType, notes, expiryDate) 
     body: fd
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.error || `http_${response.status}`);
+  if (!response.ok) throw new Error(payload?.message || payload?.error || `http_${response.status}`);
   return payload;
 }
 
@@ -18706,7 +20128,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
         <select class="doc-upload-type" required>${docTypeOptions}</select>
         <input type="text" class="doc-upload-notes" placeholder="${escapeHtml(uiT("docAssignNotesLabel"))}" />
         <label style="display:flex; flex-direction:column; gap:4px;">
-          <span class="helper-text">Ablaufdatum (optional)</span>
+          <span class="helper-text">${escapeHtml(runtimeText("docExpiryOptional"))}</span>
           <input type="date" class="doc-upload-expiry" />
         </label>
         <div class="button-row">
@@ -18724,7 +20146,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
             <span style="font-weight:600;">📄 ${escapeHtml(docTypeLabelForValue(doc.doc_type))}</span>
             <span class="muted" style="display:block; font-size:0.8em;">${escapeHtml(doc.filename)}</span>
             ${doc.notes ? `<span class="muted" style="display:block; font-size:0.8em;">${escapeHtml(doc.notes)}</span>` : ""}
-            ${doc.expiry_date ? `<span class="muted" style="display:block; font-size:0.8em; color:${doc.expiry_date < new Date().toISOString().slice(0, 10) ? "var(--color-danger, #b42318)" : "inherit"};">Ablaufdatum: ${escapeHtml(doc.expiry_date)}</span>` : ""}
+            ${doc.expiry_date ? `<span class="muted" style="display:block; font-size:0.8em; color:${doc.expiry_date < new Date().toISOString().slice(0, 10) ? "var(--color-danger, #b42318)" : "inherit"};">${escapeHtml(runtimeText("docExpiryLabel"))}: ${escapeHtml(doc.expiry_date)}</span>` : ""}
             <span class="muted" style="display:block; font-size:0.8em;">${escapeHtml(doc.created_at ? formatTimestamp(doc.created_at) : "")}</span>
           </div>
           <div class="button-row" style="flex-shrink:0;">
@@ -18888,7 +20310,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       if (imapStatus === "not_configured") {
         window.alert(getImapNotConfiguredMessage(res?.imap));
       } else if (imapStatus === "connect_error" || imapStatus === "error") {
-        window.alert("IMAP-Fehler: " + (res?.imap?.error || "Unbekannter Fehler"));
+        window.alert(runtimeTextTemplate("imapErrorWithReason", { reason: res?.imap?.error || runtimeText("genericUnknownError") }));
       }
       await loadDocumentInbox();
     } catch (e) {
@@ -18952,13 +20374,13 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       const imapPassword = document.querySelector("#imapPassword")?.value || "";
       if (!imapHost || !imapUsername || !imapPassword) {
         if (resultEl) {
-          resultEl.textContent = "Bitte IMAP Host, Benutzername und Passwort ausfüllen und speichern.";
+          resultEl.textContent = runtimeText("imapTestMissingFields");
           resultEl.style.color = "var(--color-danger, red)";
         }
         return;
       }
       imapTestBtn.disabled = true;
-      if (resultEl) resultEl.textContent = "…";
+      if (resultEl) resultEl.textContent = runtimeText("imapTesting");
       try {
         const res = await apiRequest(API_BASE + "/api/settings/imap/test", {
           method: "POST",
@@ -19124,7 +20546,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
           const _minLen = _expectedLen || 15;
           if (normalized.length >= _minLen) {
             // Vollständige Länge erreicht – vollständig prüfen
-            setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
+            setInvoiceFieldState("#invoiceIban", isValidIban(normalized), runtimeText("invoiceValidationIban"));
           } else {
             // Noch am Tippen – keinen Fehler anzeigen
             markInvoiceFieldValid("#invoiceIban");
@@ -19135,7 +20557,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       ibanInput.addEventListener("blur", function () {
         const normalized = normalizeIban(this.value);
         if (!normalized) { markInvoiceFieldValid("#invoiceIban"); return; }
-        setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig");
+        setInvoiceFieldState("#invoiceIban", isValidIban(normalized), runtimeText("invoiceValidationIban"));
       });
     }
 
@@ -19145,7 +20567,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       bicInput.addEventListener("input", function () {
         const cleaned = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
         if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), "BIC muss 8 oder 11 Zeichen haben");
+        setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), runtimeText("invoiceValidationBic"));
       });
     }
 
@@ -19154,7 +20576,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       taxIdInput.addEventListener("input", function () {
         const cleaned = sanitizeTaxId(this.value);
         if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), "Steuernummer unvollstaendig oder ungueltig");
+        setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), runtimeText("invoiceValidationTaxId"));
       });
     }
 
@@ -19163,7 +20585,7 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       vatIdInput.addEventListener("input", function () {
         const cleaned = sanitizeVatId(this.value);
         if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), "USt-IdNr. unvollstaendig oder ungueltig");
+        setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), runtimeText("invoiceValidationVatId"));
       });
     }
 
@@ -19172,38 +20594,38 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
       bankNameInput.addEventListener("input", function () {
         const cleaned = String(this.value || "").replace(/\s{2,}/g, " ").trimStart().slice(0, 80);
         if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, "Bankname ist zu kurz");
+        setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, runtimeText("invoiceValidationBankName"));
       });
     }
 
-    bindLiveFieldValidation("#invoiceOperatorStreet", (value) => value.length >= 5, "Adresse unvollstaendig");
-    bindLiveFieldValidation("#invoiceOperatorZipCity", (value) => value.length >= 5, "PLZ/Ort unvollstaendig");
-    bindLiveFieldValidation("#invoiceOperatorEmail", (value) => isValidEmailValue(value), "Ungueltige E-Mail");
+    bindLiveFieldValidation("#invoiceOperatorStreet", (value) => value.length >= 5, runtimeText("invoiceValidationAddress"));
+    bindLiveFieldValidation("#invoiceOperatorZipCity", (value) => value.length >= 5, runtimeText("invoiceValidationZipCity"));
+    bindLiveFieldValidation("#invoiceOperatorEmail", (value) => isValidEmailValue(value), runtimeText("invoiceValidationEmail"));
 
     if (ibanInput) {
       const normalized = normalizeIban(ibanInput.value || "");
       if (!normalized) { markInvoiceFieldValid("#invoiceIban"); }
-      else { setInvoiceFieldState("#invoiceIban", isValidIban(normalized), "IBAN unvollstaendig oder ungueltig"); }
+      else { setInvoiceFieldState("#invoiceIban", isValidIban(normalized), runtimeText("invoiceValidationIban")); }
     }
     if (bicInput) {
       const cleaned = String(bicInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
       bicInput.value = cleaned;
-      setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), "BIC muss 8 oder 11 Zeichen haben");
+      setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), runtimeText("invoiceValidationBic"));
     }
     if (taxIdInput) {
       const cleaned = sanitizeTaxId(taxIdInput.value);
       taxIdInput.value = cleaned;
-      setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), "Steuernummer unvollstaendig oder ungueltig");
+      setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), runtimeText("invoiceValidationTaxId"));
     }
     if (vatIdInput) {
       const cleaned = sanitizeVatId(vatIdInput.value);
       vatIdInput.value = cleaned;
-      setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), "USt-IdNr. unvollstaendig oder ungueltig");
+      setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), runtimeText("invoiceValidationVatId"));
     }
     if (bankNameInput) {
       const cleaned = String(bankNameInput.value || "").replace(/\s{2,}/g, " ").trimStart().slice(0, 80);
       bankNameInput.value = cleaned;
-      setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, "Bankname ist zu kurz");
+      setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, runtimeText("invoiceValidationBankName"));
     }
 
     // Versicherungsnummer: Format "12 345678 A 123" (max 15 Zeichen mit Leerzeichen)

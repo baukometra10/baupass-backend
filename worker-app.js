@@ -153,7 +153,7 @@ const TRANSLATIONS = {
     accessFailed: "Zugang fehlgeschlagen",
     inactiveReLogin: "Zu lange inaktiv. Bitte melde dich neu an.",
     wrongPinRetry: "Falsche PIN. Versuche erneut.",
-    gateReadyScan: "📱 Bereit zum Scannen...",
+    pinLockTooManyAttempts: "Zu viele Versuche – bitte warte 5 Minuten.",    gateReadyScan: "📱 Bereit zum Scannen...",
     lowLightDetected: "Dunkle Umgebung erkannt. High-Contrast QR empfohlen.",
     qrLoadFailedAlt: "QR-Code konnte nicht geladen werden",
     installHintStandalone: "App ist installiert. Am Drehkreuz einfach den QR-Code im Vollbild zeigen.",
@@ -174,6 +174,19 @@ const TRANSLATIONS = {
     scannerAutoOpened: "Scanner wurde automatisch geoeffnet, weil weniger als 2 Minuten verbleiben.",
     autoEndedAtMidnight: "Digitale Besucherkarte wurde um 00:00 automatisch beendet. Bitte neu anmelden.",
     siteLocationUnavailable: "Standort dieser Baustelle konnte nicht ermittelt werden – Login trotzdem erlaubt. Bitte Admin informieren.",
+    gateBtn: "Drehkreuz-Modus öffnen",
+    changePhotoBtn: "Foto ändern",
+    autoOpenScannerLabel: "Scanner bei Ablauf automatisch öffnen",
+    sessionKicker: "Session",
+    sessionTitle: "Tagesausweis",
+    actionsKicker: "Aktionen",
+    actionsTitle: "Schnellzugriff",
+    visitorMetaKicker: "Besuch",
+    visitorMetaTitle: "Besuchsdetails",
+    fieldVisitorCompany: "Gastfirma",
+    fieldVisitPurpose: "Besuchsgrund",
+    fieldHostName: "Ansprechpartner",
+    fieldVisitEndAt: "Besuch bis",
   },
   en: {
     pageTitle: "BauPass Worker App",
@@ -257,7 +270,7 @@ const TRANSLATIONS = {
     accessFailed: "Access failed",
     inactiveReLogin: "Inactive for too long. Please log in again.",
     wrongPinRetry: "Wrong PIN. Try again.",
-    gateReadyScan: "📱 Ready to scan...",
+    pinLockTooManyAttempts: "Too many attempts – please wait 5 minutes.",    gateReadyScan: "📱 Ready to scan...",
     lowLightDetected: "Low light detected. High-contrast QR recommended.",
     qrLoadFailedAlt: "QR code could not be loaded",
     installHintStandalone: "App is installed. At the turnstile, show the QR code in fullscreen.",
@@ -278,6 +291,19 @@ const TRANSLATIONS = {
     scannerAutoOpened: "Scanner opened automatically because less than 2 minutes remain.",
     autoEndedAtMidnight: "Digital visitor pass ended automatically at 00:00. Please log in again.",
     siteLocationUnavailable: "Site location could not be determined – login still allowed. Please inform admin.",
+    gateBtn: "Open Turnstile Mode",
+    changePhotoBtn: "Change Photo",
+    autoOpenScannerLabel: "Auto-open scanner before expiry",
+    sessionKicker: "Session",
+    sessionTitle: "Day Pass",
+    actionsKicker: "Actions",
+    actionsTitle: "Quick Access",
+    visitorMetaKicker: "Visit",
+    visitorMetaTitle: "Visit Details",
+    fieldVisitorCompany: "Visitor Company",
+    fieldVisitPurpose: "Visit Purpose",
+    fieldHostName: "Contact Person",
+    fieldVisitEndAt: "Visit Until",
   },
   tr: {
     pageTitle: "BauPass Çalışan Uygulaması",
@@ -361,7 +387,7 @@ const TRANSLATIONS = {
     accessFailed: "Erişim başarısız",
     inactiveReLogin: "Çok uzun süre işlem yapılmadı. Lütfen yeniden giriş yapın.",
     wrongPinRetry: "PIN yanlış. Tekrar deneyin.",
-    gateReadyScan: "📱 Taramaya hazır...",
+    pinLockTooManyAttempts: "Çok fazla deneme – lütfen 5 dakika bekleyin.",    gateReadyScan: "📱 Taramaya hazır...",
     lowLightDetected: "Karanlık ortam algılandı. Yüksek kontrast QR önerilir.",
     qrLoadFailedAlt: "QR kodu yüklenemedi",
     installHintStandalone: "Uygulama kurulu. Turnikede QR kodunu tam ekranda göster.",
@@ -381,6 +407,19 @@ const TRANSLATIONS = {
     expiringSoonNotice: "Bilgi: Ziyaretçi kartınızın süresi 5 dakikadan az kaldı.",
     scannerAutoOpened: "2 dakikadan az kaldığı için tarayıcı otomatik açıldı.",
     autoEndedAtMidnight: "Dijital ziyaretçi kartı 00:00\'da otomatik sona erdi. Lütfen yeniden giriş yapın.",
+    gateBtn: "Turnike Modunu Aç",
+    changePhotoBtn: "Fotoğrafı Değiştir",
+    autoOpenScannerLabel: "Bitiş öncesi tarayıcıyı otomatik aç",
+    sessionKicker: "Oturum",
+    sessionTitle: "Günlük Kart",
+    actionsKicker: "İşlemler",
+    actionsTitle: "Hızlı Erişim",
+    visitorMetaKicker: "Ziyaret",
+    visitorMetaTitle: "Ziyaret Detayları",
+    fieldVisitorCompany: "Ziyaretçi Firması",
+    fieldVisitPurpose: "Ziyaret Amacı",
+    fieldHostName: "İlgili Kişi",
+    fieldVisitEndAt: "Ziyaret Bitiş",
   },
   ar: {
     pageTitle: "تطبيق BauPass للعمال",
@@ -464,7 +503,7 @@ const TRANSLATIONS = {
     accessFailed: "فشل الوصول",
     inactiveReLogin: "خمول لفترة طويلة. يرجى تسجيل الدخول مرة أخرى.",
     wrongPinRetry: "رمز PIN غير صحيح. حاول مرة أخرى.",
-    gateReadyScan: "📱 جاهز للمسح...",
+    pinLockTooManyAttempts: "محاولات كثيرة جداً – الرجاء الانتظار 5 دقائق.",    gateReadyScan: "📱 جاهز للمسح...",
     lowLightDetected: "تم اكتشاف إضاءة منخفضة. يوصى برمز QR عالي التباين.",
     qrLoadFailedAlt: "تعذر تحميل رمز QR",
     installHintStandalone: "التطبيق مثبت. عند البوابة اعرض رمز QR بملء الشاشة.",
@@ -484,6 +523,19 @@ const TRANSLATIONS = {
     expiringSoonNotice: "تنبيه: ستنتهي صلاحية بطاقة الزائر خلال أقل من 5 دقائق.",
     scannerAutoOpened: "تم فتح الماسح تلقائياً لأن المتبقي أقل من دقيقتين.",
     autoEndedAtMidnight: "انتهت بطاقة الزائر الرقمية تلقائياً عند 00:00. يرجى تسجيل الدخول مجدداً.",
+    gateBtn: "فتح وضع البوابة",
+    changePhotoBtn: "تغيير الصورة",
+    autoOpenScannerLabel: "فتح الماسح تلقائياً قبل الانتهاء",
+    sessionKicker: "الجلسة",
+    sessionTitle: "بطاقة اليوم",
+    actionsKicker: "الإجراءات",
+    actionsTitle: "وصول سريع",
+    visitorMetaKicker: "الزيارة",
+    visitorMetaTitle: "تفاصيل الزيارة",
+    fieldVisitorCompany: "شركة الزائر",
+    fieldVisitPurpose: "هدف الزيارة",
+    fieldHostName: "جهة الاتصال",
+    fieldVisitEndAt: "الزيارة حتى",
   },
 };
 
@@ -1338,7 +1390,11 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       elements.workerAccessToken.value = normalizedBadgeId;
     }
     if (elements.workerBadgePin) {
-      elements.workerBadgePin.value = normalizedBadgePin;
+      elements.workerBadgePin.value = "";
+    }
+    // Store PIN in sessionStorage for offline fallback (not persisted, not in DOM)
+    if (normalizedBadgePin) {
+      try { sessionStorage.setItem("_wpf", normalizedBadgePin); } catch (_) {}
     }
     await loadWorkerData();
     await persistOfflineBadgeProfile(normalizedBadgeId, normalizedBadgePin, payload);
@@ -1553,7 +1609,7 @@ function renderWorker(payload) {
     const validUntilDate = new Date(worker.validUntil || "");
     const isExpired = validUntilDate < new Date();
     
-    elements.workerStatusBanner.style.display = "flex";
+    elements.workerStatusBanner.classList.remove("status-banner-hidden");
     
     if (banned) {
       elements.workerStatusBanner.className = "status-banner error";
@@ -1733,12 +1789,15 @@ async function handlePassLockUnlock(pin) {
       if (passLockTimer) clearTimeout(passLockTimer);
       initializePassLockProtection();
       console.log("✓ Pass entsperrt");
+    } else if (payload.error === "too_many_attempts") {
+      showPassLockError(t("pinLockTooManyAttempts") || "Zu viele Versuche – bitte warte kurz.");
     } else {
       showPassLockError(t("wrongPinRetry"));
     }
   } catch (error) {
-    // Fallback: Lokal verifizieren basierend auf Login
-    if (elements.workerBadgePin && elements.workerBadgePin.value === normalizeBadgePinInput(pin)) {
+    // Fallback: Locally verify using sessionStorage (used when backend unreachable)
+    const storedPin = (() => { try { return sessionStorage.getItem("_wpf") || ""; } catch (_) { return ""; } })();
+    if (storedPin && storedPin === normalizeBadgePinInput(pin)) {
       isPassLocked = false;
       hidePassLockOverlay();
       lastPassInteractionAt = Date.now();

@@ -1,4 +1,6 @@
 const { test, expect } = require('@playwright/test');
+const { execFileSync } = require('child_process');
+const path = require('path');
 
 async function login(request, { username, password, loginScope, otpCode }) {
   const response = await request.post('/api/login', {
@@ -21,6 +23,73 @@ function authHeaders(token) {
 function getEnvOrDefault(name, fallback) {
   const value = String(process.env[name] || '').trim();
   return value || fallback;
+}
+
+function getWorkspacePythonExecutable() {
+  return process.platform === 'win32'
+    ? path.resolve('.venv', 'Scripts', 'python.exe')
+    : path.resolve('.venv', 'bin', 'python');
+}
+
+function ensureLocalSuperadminCredentials(username, displayName) {
+  const pythonExecutable = getWorkspacePythonExecutable();
+  const script = [
+    'import sqlite3',
+    'from pathlib import Path',
+    'from werkzeug.security import generate_password_hash',
+    `username = ${JSON.stringify(username)}`,
+    `display_name = ${JSON.stringify(displayName)}`,
+    "db_path = Path('backend') / 'baupass.db'",
+    'conn = sqlite3.connect(db_path)',
+    'password_hash = generate_password_hash("1234")',
+    'user = conn.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (username,)).fetchone()',
+    'if user:',
+    '    user_id = user[0]',
+    '    conn.execute("UPDATE users SET password_hash = ?, name = ?, role = ?, company_id = NULL, twofa_enabled = 0, twofa_secret = ?, email = ? WHERE id = ?", (password_hash, display_name, "superadmin", "", "", user_id))',
+    'else:',
+    '    user_id = f"usr-{username}"',
+    '    conn.execute("INSERT INTO users (id, username, password_hash, name, role, company_id, twofa_enabled, email) VALUES (?, ?, ?, ?, ?, NULL, 0, ?)", (user_id, username, password_hash, display_name, "superadmin", ""))',
+    'conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))',
+    'conn.execute("DELETE FROM otp_codes WHERE user_id = ?", (user_id,))',
+    'conn.commit()',
+    'conn.close()',
+  ].join('\n');
+  execFileSync(pythonExecutable, ['-c', script], {
+    cwd: process.cwd(),
+    stdio: 'ignore',
+  });
+}
+
+function ensureLocalCompanyAdminCredentials(username, displayName) {
+  const pythonExecutable = getWorkspacePythonExecutable();
+  const script = [
+    'import sqlite3',
+    'from pathlib import Path',
+    'from werkzeug.security import generate_password_hash',
+    `username = ${JSON.stringify(username)}`,
+    `display_name = ${JSON.stringify(displayName)}`,
+    "db_path = Path('backend') / 'baupass.db'",
+    'conn = sqlite3.connect(db_path)',
+    "company = conn.execute(\"SELECT id FROM companies WHERE deleted_at IS NULL ORDER BY id LIMIT 1\").fetchone()",
+    "assert company is not None, 'No active company found for E2E company-admin bootstrap'",
+    'company_id = company[0]',
+    'password_hash = generate_password_hash("1234")',
+    'user = conn.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (username,)).fetchone()',
+    'if user:',
+    '    user_id = user[0]',
+    '    conn.execute("UPDATE users SET password_hash = ?, name = ?, role = ?, company_id = ?, twofa_enabled = 0, twofa_secret = ?, email = ? WHERE id = ?", (password_hash, display_name, "company-admin", company_id, "", "", user_id))',
+    'else:',
+    '    user_id = f"usr-{username}"',
+    '    conn.execute("INSERT INTO users (id, username, password_hash, name, role, company_id, twofa_enabled, email) VALUES (?, ?, ?, ?, ?, ?, 0, ?)", (user_id, username, password_hash, display_name, "company-admin", company_id, ""))',
+    'conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))',
+    'conn.execute("DELETE FROM otp_codes WHERE user_id = ?", (user_id,))',
+    'conn.commit()',
+    'conn.close()',
+  ].join('\n');
+  execFileSync(pythonExecutable, ['-c', script], {
+    cwd: process.cwd(),
+    stdio: 'ignore',
+  });
 }
 
 async function ensureSecondCompany(request, token) {
@@ -82,8 +151,9 @@ async function createVisitorWorker(request, token, companyId, suffix) {
 
 test('superadmin preview session scopes workers and companies, then resets', async ({ request }) => {
   const otpCode = process.env.E2E_SUPERADMIN_OTP || '';
-  const superadminUsername = getEnvOrDefault('E2E_SUPERADMIN_USERNAME', 'superadmin');
+  const superadminUsername = getEnvOrDefault('E2E_SUPERADMIN_USERNAME', 'superadmin_preview');
   const superadminPassword = getEnvOrDefault('E2E_SUPERADMIN_PASSWORD', '1234');
+  ensureLocalSuperadminCredentials(superadminUsername, 'E2E Preview Superadmin');
   let superadmin;
   try {
     superadmin = await login(request, {
@@ -153,8 +223,9 @@ test('superadmin preview session scopes workers and companies, then resets', asy
 });
 
 test('company-admin can access scoped endpoints and cannot set preview session', async ({ request }) => {
-  const companyAdminUsername = getEnvOrDefault('E2E_COMPANY_ADMIN_USERNAME', 'firma');
+  const companyAdminUsername = getEnvOrDefault('E2E_COMPANY_ADMIN_USERNAME', 'firma_preview');
   const companyAdminPassword = getEnvOrDefault('E2E_COMPANY_ADMIN_PASSWORD', '1234');
+  ensureLocalCompanyAdminCredentials(companyAdminUsername, 'E2E Preview Company Admin');
   const companyAdmin = await login(request, {
     username: companyAdminUsername,
     password: companyAdminPassword,
@@ -191,8 +262,9 @@ test('company-admin can access scoped endpoints and cannot set preview session',
 
 test('ui flow: superadmin sets and clears preview mode from admin view', async ({ page, request }) => {
   const otpCode = process.env.E2E_SUPERADMIN_OTP || '';
-  const superadminUsername = getEnvOrDefault('E2E_SUPERADMIN_USERNAME', 'superadmin');
+  const superadminUsername = getEnvOrDefault('E2E_SUPERADMIN_USERNAME', 'superadmin_preview');
   const superadminPassword = getEnvOrDefault('E2E_SUPERADMIN_PASSWORD', '1234');
+  ensureLocalSuperadminCredentials(superadminUsername, 'E2E Preview Superadmin');
 
   let superadmin;
   try {

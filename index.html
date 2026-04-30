@@ -298,9 +298,6 @@
             </div>
             <div id="dashboardPorterLivePanel" class="porter-live-card empty-state" data-ui-i18n="porterLiveEmpty">Letzter Zutritt wird angezeigt, sobald eine An- oder Abmeldung vorliegt.</div>
             <div id="recentAccessList" class="list"></div>
-            <div id="dashboardDetailOverlay" class="dashboard-detail-overlay hidden">
-              <div id="dashboardWorkerDetail" class="dashboard-worker-detail"></div>
-            </div>
           </article>
 
         </div>
@@ -1355,6 +1352,11 @@
                 </select>
               </label>
               <p class="helper-text full-width" data-ui-i18n="adminWorkerAppPinLockHint">Nach 2 Minuten ohne Interaktion muss der Mitarbeiter seine Badge-PIN erneut eingeben, um den Ausweis zu sehen.</p>
+              <label class="full-width">
+                <span data-ui-i18n="workerExpiryWarnDaysLabel">Ablauf-Warnung (Tage vor Gültigkeitsende)</span>
+                <input type="number" id="workerExpiryWarnDays" min="0" max="365" step="1" placeholder="7" />
+              </label>
+              <p class="helper-text full-width" data-ui-i18n="workerExpiryWarnDaysHint">E-Mail-Erinnerung wird N Tage vor dem Ablaufdatum des Ausweises gesendet. 0 = deaktiviert.</p>
 
               <!-- ── Rechtliches ── -->
               <div class="form-section">
@@ -1667,6 +1669,10 @@
           </article>
         </div>
       </section>
+
+      <div id="dashboardDetailOverlay" class="dashboard-detail-overlay hidden">
+        <div id="dashboardWorkerDetail" class="dashboard-worker-detail"></div>
+      </div>
     </main>
   </div>
 

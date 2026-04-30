@@ -900,6 +900,112 @@ body.worker-loaded .app-shell {
   box-shadow: 0 16px 35px rgba(68, 41, 25, .09);
 }
 
+/* ── Pass-Header (Titel + Status-Banner) ── */
+.pass-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pass-title {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+
+/* ── Visitor Meta Card ── */
+.visitor-meta-card {
+  display: grid;
+  gap: 10px;
+}
+
+/* ── Session Info Card ── */
+.session-info-card {
+  display: grid;
+  gap: 10px;
+}
+
+/* ── Actions Panel ── */
+.actions-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.actions-gate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  border-radius: 18px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+
+.actions-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.logout-btn {
+  color: #b91c1c !important;
+  border-color: rgba(185, 28, 28, .18) !important;
+}
+
+.logout-btn:hover {
+  background: rgba(185, 28, 28, .08) !important;
+}
+
+.status-banner-hidden {
+  display: none !important;
+}
+
+.gate-btn-icon {
+  flex-shrink: 0;
+}
+
+/* ── Quick Gate FAB ── */
+.quick-gate-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 18px;
+  z-index: 800;
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #df623d, #a63b22);
+  color: #fff;
+  border: none;
+  display: none; /* hidden until worker-loaded */
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(166, 59, 34, .40), 0 2px 8px rgba(0,0,0,.18);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  padding: 0;
+}
+
+.quick-gate-fab:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 12px 32px rgba(166, 59, 34, .5), 0 4px 12px rgba(0,0,0,.22);
+}
+
+.quick-gate-fab:active {
+  transform: scale(0.96);
+}
+
+body.worker-loaded .quick-gate-fab {
+  display: flex;
+}
+
 .route-card {
   display: grid;
   gap: 14px;
