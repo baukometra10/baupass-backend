@@ -6238,6 +6238,15 @@ def create_worker():
     badge_id_value = normalize_badge_id(clean_text_input(payload.get("badgeId", f"{'VS' if worker_type == 'visitor' else 'BP'}-{secrets.token_hex(3).upper()}"), max_len=64))
 
     worker_id = f"wrk-{secrets.token_hex(6)}"
+    try:
+        base_upload_root = DOCS_UPLOAD_DIR.resolve()
+        worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
+        if worker_doc_dir != base_upload_root and base_upload_root not in worker_doc_dir.parents:
+            raise ValueError("invalid_worker_doc_path")
+        worker_doc_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        return jsonify({"error": "worker_doc_folder_create_failed", "detail": str(exc)}), 500
+
     db.execute(
         """
         INSERT INTO workers (

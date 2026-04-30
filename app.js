@@ -307,7 +307,7 @@ const UI_TRANSLATIONS = {
     docEmailInfoLabel: "Dokument-E-Mail (Mitarbeiter schicken Nachweise hierhin):",
     btnCopyEmail: "Kopieren",
     btnCopyEmailDone: "Kopiert!",
-    docInboxHint: "Mitarbeiter schicken ihre Nachweise an die konfigurierte Dokuments-E-Mail. Der Pf\u00f6rtner ordnet die Anh\u00e4nge hier einem Mitarbeiter zu.",
+    docInboxHint: "Alle Firmen nutzen ein gemeinsames IMAP-Postfach. Pro Firma wird automatisch eine Dokument-E-Mail (Alias) genutzt. Der Pf\u00f6rtner ordnet die Anh\u00e4nge hier einem Mitarbeiter zu.",
     docAssignEyebrow: "Zuweisen",
     docAssignH3: "Anhang einem Mitarbeiter zuordnen",
     docInboxEmpty: "Kein unverarbeiteter Posteingang.",
@@ -18254,11 +18254,13 @@ function renderDocumentInbox(emails) {
     const previewShort = previewText.length > 220 ? `${previewText.slice(0, 220)}…` : previewText;
     const recipientLine = String(email.to_addr || "").trim();
     const matchedCompanyName = String(email.matched_company_name || "").trim();
-    const attachments = (email.attachments || []).map((att) => `
+    const attachmentRows = Array.isArray(email.attachments) ? email.attachments : [];
+    const firstUnassignedAttachment = attachmentRows.find((att) => !att.assigned_worker_id);
+    const attachments = attachmentRows.map((att) => `
       <span class="attachment-chip">
         📎 ${escapeHtml(att.filename)}
         <button class="link-button" data-inbox-id="${escapeHtml(String(email.id))}" data-attachment-id="${escapeHtml(String(att.id))}" data-filename="${escapeHtml(att.filename)}" data-matched-company-id="${escapeHtml(String(email.matched_company_id || ""))}" data-assign-btn>
-          ${escapeHtml(uiT("btnAssignDoc"))}
+          ${escapeHtml(uiT("docAssignWorkerLabel"))}
         </button>
       </span>`).join("");
     return `
@@ -18286,6 +18288,18 @@ function renderDocumentInbox(emails) {
         ` : ""}
         ${attachments ? `<div class="attachment-list">${attachments}</div>` : ""}
         <div class="button-row" style="margin-top:8px">
+          ${firstUnassignedAttachment ? `
+            <button
+              class="primary-button small-button"
+              type="button"
+              data-assign-first
+              data-inbox-id="${escapeHtml(String(email.id))}"
+              data-attachment-id="${escapeHtml(String(firstUnassignedAttachment.id))}"
+              data-filename="${escapeHtml(firstUnassignedAttachment.filename || "Anhang")}" 
+              data-matched-company-id="${escapeHtml(String(email.matched_company_id || ""))}">
+              ${escapeHtml(uiT("docAssignWorkerLabel"))}
+            </button>
+          ` : ""}
           <button class="ghost-button small-button" data-dismiss-email-id="${escapeHtml(String(email.id))}">
             ${escapeHtml(uiT("btnDismissEmail"))}
           </button>
@@ -18309,6 +18323,17 @@ function renderDocumentInbox(emails) {
 
   // Assign-Buttons
   listEl.querySelectorAll("[data-assign-btn]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (isSupportReadOnlyMode()) {
+        showSupportReadOnlyAlert();
+        return;
+      }
+      openDocAssignPanel(btn.dataset.inboxId, btn.dataset.attachmentId, btn.dataset.filename, btn.dataset.matchedCompanyId || "");
+    });
+  });
+
+  // Quick-Assign pro Mail (erstes noch nicht zugewiesenes Attachment)
+  listEl.querySelectorAll("[data-assign-first]").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (isSupportReadOnlyMode()) {
         showSupportReadOnlyAlert();
