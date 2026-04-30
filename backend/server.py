@@ -659,6 +659,8 @@ def normalize_email_address(value):
 
 
 def suggest_company_document_email(company_name, settings_row=None):
+    imap_username = ""
+
     row = settings_row
     if row is None:
         try:
@@ -666,7 +668,18 @@ def suggest_company_document_email(company_name, settings_row=None):
         except Exception:
             row = None
 
-    imap_username = (row["imap_username"] if row and "imap_username" in row.keys() else "") or ""
+    if row and hasattr(row, "keys") and "imap_username" in row.keys():
+        imap_username = row["imap_username"] or ""
+
+    # Fallback auf zusammengeführte IMAP-Config (DB + ENV), damit Auto-Alias
+    # auch auf Plattformen mit ENV-only IMAP-Konfiguration funktioniert.
+    if "@" not in str(imap_username or ""):
+        try:
+            cfg = get_imap_settings(get_db())
+            imap_username = cfg.get("imap_username") or imap_username
+        except Exception:
+            pass
+
     imap_username = normalize_email_address(imap_username)
     if "@" not in imap_username:
         return ""
