@@ -12364,11 +12364,12 @@ def poll_imap_inbox():
             folder = cfg.get("imap_folder") or "INBOX"
             use_ssl = bool(cfg.get("imap_use_ssl", 1))
 
+            _imap_timeout = 30  # Sekunden – verhindert 502 durch hängenden Socket
             try:
                 if use_ssl:
-                    conn = imaplib.IMAP4_SSL(host, port)
+                    conn = imaplib.IMAP4_SSL(host, port, timeout=_imap_timeout)
                 else:
-                    conn = imaplib.IMAP4(host, port)
+                    conn = imaplib.IMAP4(host, port, timeout=_imap_timeout)
                     conn.starttls()
                 conn.login(username, password)
             except Exception as exc:
@@ -12561,8 +12562,14 @@ def _start_imap_thread():
 @require_roles("superadmin", "company-admin", "turnstile")
 def trigger_imap_poll():
     """Manueller IMAP-Abruf auf Anforderung."""
+    import concurrent.futures
     try:
-        imap_result = poll_imap_inbox() or {"status": "ok", "newEmails": 0}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(poll_imap_inbox)
+            try:
+                imap_result = future.result(timeout=45) or {"status": "ok", "newEmails": 0}
+            except concurrent.futures.TimeoutError:
+                return jsonify({"ok": False, "error": "imap_timeout", "imap": {"status": "timeout", "newEmails": 0}}), 504
         return jsonify({"ok": True, "imap": imap_result})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
