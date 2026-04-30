@@ -12527,11 +12527,19 @@ def poll_imap_inbox():
                 matched_company_id = matched_company["id"] if matched_company else None
 
                 # Doppelten Einlese-Schutz via message_id
+                # Bei bereits vorhandenen Mails trotzdem Firmen-Match nachziehen,
+                # falls früher ohne matched_company_id gespeichert wurde.
                 if message_id:
                     existing = db.execute(
-                        "SELECT id FROM email_inbox WHERE message_id = ?", (message_id,)
+                        "SELECT id, matched_company_id, to_addr FROM email_inbox WHERE message_id = ?",
+                        (message_id,),
                     ).fetchone()
                     if existing:
+                        if matched_company_id and not existing["matched_company_id"]:
+                            db.execute(
+                                "UPDATE email_inbox SET matched_company_id = ?, to_addr = ? WHERE id = ?",
+                                (matched_company_id, to_addr, existing["id"]),
+                            )
                         continue
 
                 body_text = ""
