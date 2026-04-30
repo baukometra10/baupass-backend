@@ -1411,9 +1411,9 @@ def ip_allowed(ip_value, whitelist):
 
 
 def init_db():
-    db = sqlite3.connect(DB_PATH, timeout=30)
+    db = sqlite3.connect(DB_PATH, timeout=60)
     db.execute("PRAGMA journal_mode=WAL")
-    db.execute("PRAGMA busy_timeout=30000")
+    db.execute("PRAGMA busy_timeout=60000")
     cur = db.cursor()
     cur.executescript(
         """
@@ -2063,8 +2063,21 @@ def init_db():
     db.close()
 
 
+def init_db_with_retry(attempts=5, base_delay_seconds=0.3):
+    """Retry init_db on transient SQLite lock contention during app startup."""
+    for attempt in range(attempts):
+        try:
+            init_db()
+            return
+        except sqlite3.OperationalError as exc:
+            is_locked = "database is locked" in str(exc).lower()
+            if not is_locked or attempt >= attempts - 1:
+                raise
+            time.sleep(base_delay_seconds * (attempt + 1))
+
+
 try:
-    init_db()
+    init_db_with_retry()
 except Exception as _init_db_exc:
     import traceback as _tb
     print(f"[baupass] CRITICAL: init_db() failed: {_init_db_exc}", flush=True)
