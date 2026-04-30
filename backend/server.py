@@ -233,11 +233,11 @@ _invoice_retry_inflight = {}
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH, timeout=30)
+        g.db = sqlite3.connect(DB_PATH, timeout=60)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA journal_mode=WAL")
         g.db.execute("PRAGMA synchronous=NORMAL")
-        g.db.execute("PRAGMA busy_timeout=30000")
+        g.db.execute("PRAGMA busy_timeout=60000")
     return g.db
 
 
@@ -257,6 +257,18 @@ def utc_iso(value=None):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat() + "Z"
+
+
+def run_db_write_with_retry(write_callable, attempts=5, base_delay_seconds=0.15):
+    """Retry short SQLite write collisions (database is locked) with backoff."""
+    for attempt in range(attempts):
+        try:
+            return write_callable()
+        except sqlite3.OperationalError as exc:
+            is_locked = "database is locked" in str(exc).lower()
+            if not is_locked or attempt >= attempts - 1:
+                raise
+            time.sleep(base_delay_seconds * (attempt + 1))
 
 
 def now_iso():
@@ -4406,22 +4418,34 @@ def login():
     clear_login_failures(throttle_key)
 
     token = secrets.token_urlsafe(24)
-    db.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
-    try:
-        db.execute(
-            """
-            INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (token, user["id"], expiry_iso(), support_read_only, support_company_name, support_actor_name),
-        )
-    except sqlite3.OperationalError:
-        # Backward compatibility for environments with an older sessions table.
-        db.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            (token, user["id"], expiry_iso()),
-        )
-    db.commit()
+    def _persist_login_session():
+        db.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+        try:
+            db.execute(
+                """
+                INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (token, user["id"], expiry_iso(), support_read_only, support_company_name, support_actor_name),
+            )
+        except sqlite3.OperationalError as exc:
+            message = str(exc).lower()
+            legacy_schema = (
+                "no such column" in message
+                or "has no column named support_read_only" in message
+                or "has no column named support_company_name" in message
+                or "has no column named support_actor_name" in message
+            )
+            if not legacy_schema:
+                raise
+            # Backward compatibility for environments with an older sessions table.
+            db.execute(
+                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                (token, user["id"], expiry_iso()),
+            )
+        db.commit()
+
+    run_db_write_with_retry(_persist_login_session)
 
     login_message = f"Benutzer {user['username']} angemeldet"
     if support_read_only:
