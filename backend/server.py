@@ -729,6 +729,44 @@ def find_company_by_document_email(db, email_address):
     ).fetchone()
 
 
+def find_company_by_recipient_headers(db, msg):
+    """Fallback-Matching über komplette Empfänger-Header bei ungewöhnlichen Mailformaten."""
+    header_chunks = []
+    for header_name in (
+        "Delivered-To",
+        "X-Original-To",
+        "Envelope-To",
+        "X-Envelope-To",
+        "X-Forwarded-To",
+        "To",
+        "Cc",
+        "Resent-To",
+    ):
+        for header_value in msg.get_all(header_name, []):
+            normalized = normalize_email_address(header_value)
+            if normalized:
+                header_chunks.append(normalized)
+
+    if not header_chunks:
+        return None, ""
+
+    header_blob = " ".join(header_chunks)
+    rows = db.execute(
+        "SELECT * FROM companies WHERE deleted_at IS NULL AND COALESCE(document_email, '') <> ''"
+    ).fetchall()
+
+    # Längere Adressen zuerst prüfen, damit keine Teilstring-Fehlzuordnung passiert.
+    companies = sorted(rows, key=lambda row: len(normalize_email_address(row["document_email"] or "")), reverse=True)
+    for company in companies:
+        document_email = normalize_email_address(company["document_email"] or "")
+        if not document_email:
+            continue
+        if document_email in header_blob:
+            return company, document_email
+
+    return None, ""
+
+
 def rematch_inbox_company_links(db, company_id=None):
     """Rebuild inbox-company matches by recipient address. Optionally limited to one company."""
     if company_id:
@@ -12476,6 +12514,15 @@ def poll_imap_inbox():
                         matched_company = company_match
                         matched_recipient = candidate
                         break
+
+                # Fallback: komplette Header prüfen (manche Provider liefern Alias
+                # nicht als saubere Einzeladresse, aber im Header-Text).
+                if not matched_company:
+                    header_company, header_recipient = find_company_by_recipient_headers(db, msg)
+                    if header_company:
+                        matched_company = header_company
+                        matched_recipient = header_recipient
+
                 to_addr = matched_recipient or (recipient_candidates[0] if recipient_candidates else "")
                 matched_company_id = matched_company["id"] if matched_company else None
 
