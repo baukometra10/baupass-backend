@@ -689,16 +689,34 @@ def suggest_company_document_email(company_name, settings_row=None):
     return f"{alias_base}+{slugify_company_alias(company_name)}@{domain}"
 
 
-def extract_message_recipient_address(msg):
-    for header_name in ("Delivered-To", "X-Original-To", "Envelope-To", "To"):
+def extract_message_recipient_addresses(msg):
+    candidates = []
+    seen = set()
+    for header_name in (
+        "Delivered-To",
+        "X-Original-To",
+        "Envelope-To",
+        "X-Envelope-To",
+        "X-Forwarded-To",
+        "To",
+        "Cc",
+        "Resent-To",
+    ):
         header_value = msg.get(header_name)
         if not header_value:
             continue
         for _, email_addr in getaddresses([header_value]):
             normalized = normalize_email_address(email_addr)
-            if normalized:
-                return normalized
-    return ""
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            candidates.append(normalized)
+    return candidates
+
+
+def extract_message_recipient_address(msg):
+    recipients = extract_message_recipient_addresses(msg)
+    return recipients[0] if recipients else ""
 
 
 def find_company_by_document_email(db, email_address):
@@ -12447,10 +12465,18 @@ def poll_imap_inbox():
                 if not message_id and imap_uid:
                     message_id = f"imap-uid:{imap_uid}"
                 from_addr = _decode_mime_header(msg.get("From") or "")
-                to_addr = extract_message_recipient_address(msg)
+                recipient_candidates = extract_message_recipient_addresses(msg)
                 subject = _decode_mime_header(msg.get("Subject") or "")
                 received_at = now_iso()
-                matched_company = find_company_by_document_email(db, to_addr)
+                matched_company = None
+                matched_recipient = ""
+                for candidate in recipient_candidates:
+                    company_match = find_company_by_document_email(db, candidate)
+                    if company_match:
+                        matched_company = company_match
+                        matched_recipient = candidate
+                        break
+                to_addr = matched_recipient or (recipient_candidates[0] if recipient_candidates else "")
                 matched_company_id = matched_company["id"] if matched_company else None
 
                 # Doppelten Einlese-Schutz via message_id
@@ -12607,9 +12633,27 @@ def list_document_inbox():
             "SELECT * FROM email_inbox WHERE dismissed = 0 ORDER BY received_at DESC LIMIT 100"
         ).fetchall()
     else:
+        company_id = g.current_user.get("company_id")
         rows = db.execute(
-            "SELECT * FROM email_inbox WHERE dismissed = 0 AND matched_company_id = ? ORDER BY received_at DESC LIMIT 100",
-            (g.current_user.get("company_id"),),
+            """
+            SELECT *
+            FROM email_inbox
+            WHERE dismissed = 0
+              AND (
+                    matched_company_id = ?
+                 OR lower(COALESCE(to_addr, '')) = lower(
+                        COALESCE((
+                            SELECT document_email
+                            FROM companies
+                            WHERE id = ?
+                            LIMIT 1
+                        ), '')
+                    )
+              )
+            ORDER BY received_at DESC
+            LIMIT 100
+            """,
+            (company_id, company_id),
         ).fetchall()
 
     result = []
