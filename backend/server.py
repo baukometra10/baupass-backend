@@ -12561,6 +12561,20 @@ def poll_imap_inbox():
                                 body_text = payload_text.decode(charset, errors="replace")
                         except Exception:
                             body_text = ""
+                    elif ctype == "text/html" and disposition != "attachment" and not filename_header and not body_text:
+                        # Fallback für HTML-only Mails: in einfachen Klartext wandeln.
+                        try:
+                            payload_html = part.get_payload(decode=True)
+                            if payload_html:
+                                charset = part.get_content_charset() or "utf-8"
+                                html_text = payload_html.decode(charset, errors="replace")
+                                plain_text = re.sub(r"<[^>]+>", " ", html_text)
+                                plain_text = html.unescape(plain_text)
+                                plain_text = re.sub(r"\s+", " ", plain_text).strip()
+                                if plain_text:
+                                    body_text = plain_text
+                        except Exception:
+                            pass
                     elif filename_header or disposition == "attachment":
                         filename = _sanitize_attachment_filename(filename_header or "anhang.bin")
                         payload = part.get_payload(decode=True)
@@ -12574,6 +12588,17 @@ def poll_imap_inbox():
                                 "file_size": len(payload),
                                 "file_data": payload,
                             })
+
+                # Wenn kein klassischer Anhang vorhanden ist, den Mailinhalt als
+                # zuweisbaren Text-Anhang anbieten (Pförtner-Flow bleibt konsistent).
+                if not attachments_data and str(body_text or "").strip():
+                    fallback_bytes = body_text.encode("utf-8", errors="replace")
+                    attachments_data.append({
+                        "filename": "email-text.txt",
+                        "content_type": "text/plain; charset=utf-8",
+                        "file_size": len(fallback_bytes),
+                        "file_data": fallback_bytes,
+                    })
 
                 inbox_id = f"inb-{secrets.token_hex(8)}"
                 db.execute(
