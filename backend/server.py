@@ -1877,6 +1877,20 @@ def init_db():
     if "matched_company_id" not in inbox_columns:
         cur.execute("ALTER TABLE email_inbox ADD COLUMN matched_company_id TEXT")
 
+    attachment_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_attachments)").fetchall()]
+    if "content_type" not in attachment_columns:
+        cur.execute("ALTER TABLE email_attachments ADD COLUMN content_type TEXT NOT NULL DEFAULT ''")
+    if "file_size" not in attachment_columns:
+        cur.execute("ALTER TABLE email_attachments ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0")
+    if "file_data" not in attachment_columns:
+        cur.execute("ALTER TABLE email_attachments ADD COLUMN file_data BLOB")
+    if "assigned_worker_id" not in attachment_columns:
+        cur.execute("ALTER TABLE email_attachments ADD COLUMN assigned_worker_id TEXT")
+    if "assigned_doc_type" not in attachment_columns:
+        cur.execute("ALTER TABLE email_attachments ADD COLUMN assigned_doc_type TEXT")
+    if "saved_path" not in attachment_columns:
+        cur.execute("ALTER TABLE email_attachments ADD COLUMN saved_path TEXT NOT NULL DEFAULT ''")
+
     system_alert_columns = [row[1] for row in cur.execute("PRAGMA table_info(system_alerts)").fetchall()]
     if "resolved_at" not in system_alert_columns:
         cur.execute("ALTER TABLE system_alerts ADD COLUMN resolved_at TEXT")
@@ -4356,12 +4370,15 @@ def login():
                 otp = str(secrets.randbelow(900000) + 100000)
                 otp_id = secrets.token_urlsafe(16)
                 expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-                db.execute("DELETE FROM otp_codes WHERE user_id = ?", (user["id"],))
-                db.execute(
-                    "INSERT INTO otp_codes (id, user_id, code, expires_at) VALUES (?,?,?,?)",
-                    (otp_id, user["id"], otp, expires)
-                )
-                db.commit()
+                def _persist_otp_code():
+                    db.execute("DELETE FROM otp_codes WHERE user_id = ?", (user["id"],))
+                    db.execute(
+                        "INSERT INTO otp_codes (id, user_id, code, expires_at) VALUES (?,?,?,?)",
+                        (otp_id, user["id"], otp, expires)
+                    )
+                    db.commit()
+
+                run_db_write_with_retry(_persist_otp_code)
                 sent = _send_otp_email_to_user(db, user, otp)
                 if not sent:
                     # E-Mail-Versand fehlgeschlagen → Code im Server-Log ausgeben als Notfall-Fallback
