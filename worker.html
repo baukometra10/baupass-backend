@@ -280,7 +280,7 @@
             <p class="section-kicker" data-i18n="leaveRequestKicker">Abwesenheit</p>
             <h3 data-i18n="leaveRequestTitle">Urlaubsantrag</h3>
           </div>
-          <div id="leaveRequestFormWrapper" style="display:none;">
+          <div id="leaveRequestFormWrapper" class="hidden">
             <form id="leaveRequestForm" class="leave-request-form">
               <label>
                 <span data-i18n="leaveRequestTypeLabel">Art</span>
@@ -316,6 +316,32 @@
           <span data-i18n="notificationBannerText">Benachrichtigungen für Checkout-Erinnerungen aktivieren?</span>
           <button id="enableNotificationsBtn" type="button" data-i18n="notificationEnableBtn">Aktivieren</button>
         </div>
+
+        <!-- Stundennachweise / Zeiterfassung -->
+        <div id="timesheetCard" class="below-card timesheet-card hidden">
+          <div class="section-head compact-head section-head-inline">
+            <div>
+              <p class="section-kicker" data-i18n="timesheetKicker">Zeiterfassung</p>
+              <h3 data-i18n="timesheetTitle">Meine Stunden</h3>
+            </div>
+            <button id="timesheetRefreshBtn" class="ghost small-btn" type="button" data-i18n="refreshBtn">↻</button>
+          </div>
+          <div id="timesheetList" class="timesheet-list">
+            <p class="muted-info" data-i18n="timesheetLoading">Lade Einträge…</p>
+          </div>
+        </div>
+
+        <!-- Dokumente -->
+        <div id="documentsCard" class="below-card documents-card hidden">
+          <div class="section-head compact-head">
+            <p class="section-kicker" data-i18n="documentsKicker">Dokumente</p>
+            <h3 data-i18n="documentsTitle">Meine Unterlagen</h3>
+          </div>
+          <div id="documentsList" class="documents-list">
+            <p class="muted-info" data-i18n="documentsLoading">Lade Dokumente…</p>
+          </div>
+        </div>
+
       </div>
 
       <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" />

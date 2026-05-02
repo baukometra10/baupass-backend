@@ -14176,6 +14176,34 @@ def review_leave_request(req_id):
     return jsonify({"ok": True})
 
 
+# ── Mitarbeiter-App: eigene Stundennachweise ────────────────────────────────
+
+@app.get("/api/worker-app/my-timesheets")
+@require_worker_session
+def worker_app_my_timesheets():
+    db = get_db()
+    worker = g.worker
+    rows = db.execute(
+        "SELECT direction, gate, note, timestamp FROM access_logs WHERE worker_id = ? ORDER BY timestamp DESC LIMIT 60",
+        (worker["id"],),
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+# ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
+
+@app.get("/api/worker-app/my-documents")
+@require_worker_session
+def worker_app_my_documents():
+    db = get_db()
+    worker = g.worker
+    rows = db.execute(
+        "SELECT doc_type, filename, file_size, created_at, notes, expiry_date FROM worker_documents WHERE worker_id = ? ORDER BY created_at DESC",
+        (worker["id"],),
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8080"))

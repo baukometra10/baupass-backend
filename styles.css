@@ -3230,9 +3230,9 @@ body[data-branding-preset="premium"] {
   width: 100%;
   max-width: 430px;
   margin: 0 auto;
-  aspect-ratio: 85.6 / 54;
+  aspect-ratio: 85.6 / 58;
   border-radius: 22px;
-  padding: 5.5% 6%;
+  padding: 5.5% 6% 6%;
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
   box-shadow:
     0 28px 60px rgba(0, 0, 0, .55),

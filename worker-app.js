@@ -205,6 +205,20 @@ const TRANSLATIONS = {
     leaveRequestNewBtn: "+ Neuer Antrag",
     notificationBannerText: "Benachrichtigungen für Checkout-Erinnerungen aktivieren?",
     notificationEnableBtn: "Aktivieren",
+    timesheetKicker: "Zeiterfassung",
+    timesheetTitle: "Meine Stunden",
+    timesheetLoading: "Lade Einträge…",
+    timesheetEmpty: "Noch keine Einträge vorhanden.",
+    timesheetDirectionIn: "Einlass",
+    timesheetDirectionOut: "Auslass",
+    documentsKicker: "Dokumente",
+    documentsTitle: "Meine Unterlagen",
+    documentsLoading: "Lade Dokumente…",
+    documentsEmpty: "Keine Dokumente hochgeladen.",
+    documentsExpiry: "Ablauf",
+    documentsStatusOk: "✓ Gültig",
+    documentsStatusExpired: "⚠ Abgelaufen",
+    documentsStatusNoExpiry: "Kein Ablaufdatum",
   },
   en: {
     pageTitle: "Worker App",
@@ -338,6 +352,20 @@ const TRANSLATIONS = {
     leaveRequestNewBtn: "+ New Request",
     notificationBannerText: "Enable notifications for checkout reminders?",
     notificationEnableBtn: "Enable",
+    timesheetKicker: "Time Tracking",
+    timesheetTitle: "My Hours",
+    timesheetLoading: "Loading entries…",
+    timesheetEmpty: "No entries yet.",
+    timesheetDirectionIn: "Check-In",
+    timesheetDirectionOut: "Check-Out",
+    documentsKicker: "Documents",
+    documentsTitle: "My Documents",
+    documentsLoading: "Loading documents…",
+    documentsEmpty: "No documents uploaded.",
+    documentsExpiry: "Expiry",
+    documentsStatusOk: "✓ Valid",
+    documentsStatusExpired: "⚠ Expired",
+    documentsStatusNoExpiry: "No expiry date",
   },
   tr: {
     pageTitle: "Çalışan Uygulaması",
@@ -470,6 +498,20 @@ const TRANSLATIONS = {
     leaveRequestNewBtn: "+ Yeni Talep",
     notificationBannerText: "Çıkış hatırlatmaları için bildirimleri etkinleştir?",
     notificationEnableBtn: "Etkinleştir",
+    timesheetKicker: "Zaman Takibi",
+    timesheetTitle: "Saatlerim",
+    timesheetLoading: "Girişler yükleniyor…",
+    timesheetEmpty: "Henüz giriş yok.",
+    timesheetDirectionIn: "Giriş",
+    timesheetDirectionOut: "Çıkış",
+    documentsKicker: "Belgeler",
+    documentsTitle: "Belgelerim",
+    documentsLoading: "Belgeler yükleniyor…",
+    documentsEmpty: "Belge yüklenmedi.",
+    documentsExpiry: "Son geçerlilik",
+    documentsStatusOk: "✓ Geçerli",
+    documentsStatusExpired: "⚠ Süresi doldu",
+    documentsStatusNoExpiry: "Tarih yok",
   },
   ar: {
     pageTitle: "تطبيق العمال",
@@ -602,6 +644,20 @@ const TRANSLATIONS = {
     leaveRequestNewBtn: "+ طلب جديد",
     notificationBannerText: "تفعيل الإشعارات لتذكيرات الخروج؟",
     notificationEnableBtn: "تفعيل",
+    timesheetKicker: "تتبع الوقت",
+    timesheetTitle: "ساعاتي",
+    timesheetLoading: "جارٍ التحميل…",
+    timesheetEmpty: "لا توجد سجلات بعد.",
+    timesheetDirectionIn: "دخول",
+    timesheetDirectionOut: "خروج",
+    documentsKicker: "المستندات",
+    documentsTitle: "مستنداتي",
+    documentsLoading: "تحميل المستندات…",
+    documentsEmpty: "لم يتم رفع أي مستند.",
+    documentsExpiry: "انتهاء الصلاحية",
+    documentsStatusOk: "✓ صالح",
+    documentsStatusExpired: "⚠ منتهي",
+    documentsStatusNoExpiry: "بدون تاريخ انتهاء",
   },
 };
 
@@ -811,7 +867,12 @@ const elements = {
   leaveRequestType: document.querySelector("#leaveRequestType"),
   leaveRequestStart: document.querySelector("#leaveRequestStart"),
   leaveRequestEnd: document.querySelector("#leaveRequestEnd"),
-  leaveRequestNote: document.querySelector("#leaveRequestNote")
+  leaveRequestNote: document.querySelector("#leaveRequestNote"),
+  timesheetCard: document.querySelector("#timesheetCard"),
+  timesheetList: document.querySelector("#timesheetList"),
+  timesheetRefreshBtn: document.querySelector("#timesheetRefreshBtn"),
+  documentsCard: document.querySelector("#documentsCard"),
+  documentsList: document.querySelector("#documentsList")
 };
 
 const splashStartedAt = performance.now();
@@ -1108,6 +1169,10 @@ function bindEvents() {
       event.preventDefault();
       await submitLeaveRequest();
     });
+  }
+
+  if (elements.timesheetRefreshBtn) {
+    elements.timesheetRefreshBtn.addEventListener("click", () => void loadMyTimesheets());
   }
 
   window.addEventListener("beforeunload", stopCameraStream);
@@ -1746,9 +1811,19 @@ function renderWorker(payload) {
   if (elements.leaveRequestCard) {
     elements.leaveRequestCard.classList.remove("hidden");
   }
+
+  // Show timesheet and documents cards
+  if (elements.timesheetCard) {
+    elements.timesheetCard.classList.remove("hidden");
+  }
+  if (elements.documentsCard) {
+    elements.documentsCard.classList.remove("hidden");
+  }
   
   // Load leave requests after render
   void loadLeaveRequests();
+  void loadMyTimesheets();
+  void loadMyDocuments();
 }
 
 function showLogin() {
@@ -2868,6 +2943,89 @@ async function loadLeaveRequests() {
   } catch (error) {
     console.warn("Could not load leave requests:", error);
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE: TIMESHEETS (Stundennachweise) ──
+// ═════════════════════════════════════════════════════════════════════
+
+async function loadMyTimesheets() {
+  if (!workerToken || !elements.timesheetList) return;
+  elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetLoading")}</p>`;
+  try {
+    const rows = await fetchJson(`${API_BASE}/my-timesheets`, {
+      headers: { Authorization: `Bearer ${workerToken}` }
+    });
+    if (!Array.isArray(rows) || rows.length === 0) {
+      elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
+      return;
+    }
+    // Group by date
+    const byDate = {};
+    for (const row of rows) {
+      const date = (row.timestamp || "").slice(0, 10);
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(row);
+    }
+    elements.timesheetList.innerHTML = Object.entries(byDate).map(([date, entries]) => `
+      <div class="timesheet-day">
+        <div class="timesheet-date">${formatDate(date)}</div>
+        ${entries.map((e) => {
+          const isIn = (e.direction || "").toLowerCase() === "in";
+          return `<div class="timesheet-entry ${isIn ? "entry-in" : "entry-out"}">
+            <span class="entry-direction">${isIn ? t("timesheetDirectionIn") : t("timesheetDirectionOut")}</span>
+            <span class="entry-time">${(e.timestamp || "").slice(11, 16)}</span>
+            ${e.gate ? `<span class="entry-gate">${e.gate}</span>` : ""}
+          </div>`;
+        }).join("")}
+      </div>
+    `).join("");
+  } catch (error) {
+    elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
+    console.warn("Could not load timesheets:", error);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE: DOCUMENTS (Meine Dokumente) ──
+// ═════════════════════════════════════════════════════════════════════
+
+async function loadMyDocuments() {
+  if (!workerToken || !elements.documentsList) return;
+  elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsLoading")}</p>`;
+  try {
+    const rows = await fetchJson(`${API_BASE}/my-documents`, {
+      headers: { Authorization: `Bearer ${workerToken}` }
+    });
+    if (!Array.isArray(rows) || rows.length === 0) {
+      elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsEmpty")}</p>`;
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    elements.documentsList.innerHTML = rows.map((doc) => {
+      const isExpired = doc.expiry_date && doc.expiry_date < today;
+      const statusLabel = doc.expiry_date
+        ? (isExpired ? t("documentsStatusExpired") : t("documentsStatusOk"))
+        : t("documentsStatusNoExpiry");
+      const statusClass = doc.expiry_date
+        ? (isExpired ? "doc-expired" : "doc-ok")
+        : "doc-no-expiry";
+      return `<div class="document-item ${statusClass}">
+        <div class="doc-type">${escapeHtmlBasic(doc.doc_type?.replace(/_/g, " ") || "–")}</div>
+        <div class="doc-meta">
+          ${doc.expiry_date ? `<span>${t("documentsExpiry")}: ${formatDate(doc.expiry_date)}</span>` : ""}
+          <span class="doc-status-badge ${statusClass}">${statusLabel}</span>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (error) {
+    elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsEmpty")}</p>`;
+    console.warn("Could not load documents:", error);
+  }
+}
+
+function escapeHtmlBasic(str) {
+  return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // ═════════════════════════════════════════════════════════════════════
