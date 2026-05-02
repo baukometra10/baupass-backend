@@ -1086,6 +1086,30 @@ function bindEvents() {
     elements.badgeCard.addEventListener("scroll", markPassInteraction, { passive: true });
   }
 
+  // ── NEW FEATURES EVENT LISTENERS ──
+  if (elements.themeToggleBtn) {
+    elements.themeToggleBtn.addEventListener("click", toggleTheme);
+  }
+  
+  if (elements.voiceCommandBtn) {
+    elements.voiceCommandBtn.addEventListener("click", initVoiceCommands);
+  }
+  
+  if (elements.enableNotificationsBtn) {
+    elements.enableNotificationsBtn.addEventListener("click", requestNotificationPermission);
+  }
+  
+  if (elements.leaveRequestToggleBtn) {
+    elements.leaveRequestToggleBtn.addEventListener("click", toggleLeaveRequestForm);
+  }
+  
+  if (elements.leaveRequestForm) {
+    elements.leaveRequestForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await submitLeaveRequest();
+    });
+  }
+
   window.addEventListener("beforeunload", stopCameraStream);
 }
 
@@ -1717,6 +1741,14 @@ function renderWorker(payload) {
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
+  
+  // Show leave request card
+  if (elements.leaveRequestCard) {
+    elements.leaveRequestCard.classList.remove("hidden");
+  }
+  
+  // Load leave requests after render
+  void loadLeaveRequests();
 }
 
 function showLogin() {
@@ -2655,4 +2687,312 @@ function createAvatar(firstName, lastName) {
     </svg>
   `;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE 1: DARK MODE TOGGLE ──
+// ═════════════════════════════════════════════════════════════════════
+
+function toggleTheme() {
+  const current = localStorage.getItem(WORKER_THEME_KEY) || "auto";
+  let next = "auto";
+  if (current === "auto") next = "light";
+  else if (current === "light") next = "dark";
+  applyTheme(next);
+  localStorage.setItem(WORKER_THEME_KEY, next);
+}
+
+function applyTheme(theme) {
+  if (theme === "auto") {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE 2: PUSH NOTIFICATIONS (VAPID) ──
+// ═════════════════════════════════════════════════════════════════════
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    showWorkerNotice("Push-Benachrichtigungen werden von Ihrem Browser nicht unterstützt.");
+    return;
+  }
+  
+  if (Notification.permission === "granted") {
+    showWorkerNotice("Benachrichtigungen sind bereits aktiviert.");
+    await subscribePushNotifications();
+    return;
+  }
+  
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    showWorkerNotice("Benachrichtigungen aktiviert!");
+    await subscribePushNotifications();
+    if (elements.notificationBanner) {
+      elements.notificationBanner.classList.add("hidden");
+    }
+  }
+}
+
+async function subscribePushNotifications() {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return;
+    }
+    
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    
+    if (subscription) {
+      return;
+    }
+    
+    const vapidKeyRes = await fetchJson(`${API_BASE}/push-vapid-key`);
+    const vapidPublicKey = vapidKeyRes.vapidPublicKey;
+    
+    if (!vapidPublicKey) {
+      console.warn("No VAPID public key from server");
+      return;
+    }
+    
+    const newSubscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+    });
+    
+    await fetchJson(`${API_BASE}/push-subscribe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${workerToken}`
+      },
+      body: JSON.stringify({
+        endpoint: newSubscription.endpoint,
+        p256dh: arrayBufferToBase64(newSubscription.getKey("p256dh")),
+        auth: arrayBufferToBase64(newSubscription.getKey("auth"))
+      })
+    });
+    
+    console.log("✓ Push subscription registered");
+  } catch (error) {
+    console.error("Push subscription failed:", error);
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return new Uint8Array([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE 3: LEAVE REQUESTS ──
+// ═════════════════════════════════════════════════════════════════════
+
+async function submitLeaveRequest() {
+  if (!workerToken || !elements.leaveRequestForm) return;
+  
+  const type = elements.leaveRequestType?.value || "urlaub";
+  const start = elements.leaveRequestStart?.value || "";
+  const end = elements.leaveRequestEnd?.value || "";
+  const note = elements.leaveRequestNote?.value || "";
+  
+  if (!start || !end) {
+    showWorkerNotice(t("enterAccessCode")); // Reuse: please enter dates
+    return;
+  }
+  
+  try {
+    await fetchJson(`${API_BASE}/leave-requests`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${workerToken}`
+      },
+      body: JSON.stringify({ type, start_date: start, end_date: end, note })
+    });
+    
+    showWorkerNotice("✓ Urlaubsantrag eingereicht");
+    elements.leaveRequestForm.reset();
+    toggleLeaveRequestForm();
+    await loadLeaveRequests();
+  } catch (error) {
+    showWorkerNotice(`Fehler: ${error.message}`);
+  }
+}
+
+function toggleLeaveRequestForm() {
+  if (!elements.leaveRequestFormWrapper) return;
+  const isHidden = elements.leaveRequestFormWrapper.classList.toggle("hidden");
+  if (elements.leaveRequestToggleBtn) {
+    elements.leaveRequestToggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestTitle");
+  }
+}
+
+async function loadLeaveRequests() {
+  if (!workerToken || !elements.leaveRequestList) return;
+  
+  try {
+    const res = await fetchJson(`${API_BASE}/leave-requests`, {
+      headers: { Authorization: `Bearer ${workerToken}` }
+    });
+    
+    const requests = Array.isArray(res) ? res : res.requests || [];
+    elements.leaveRequestList.innerHTML = requests.map((req) => `
+      <div class="leave-request-item" data-status="${req.status || 'ausstehend'}">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <strong>${t(`leaveType${req.type?.charAt(0).toUpperCase() + req.type?.slice(1) || "Vacation"}`) || req.type}</strong>
+            <div style="font-size:0.85em; opacity:0.7;">${req.start_date} → ${req.end_date}</div>
+          </div>
+          <div style="padding:4px 8px; border-radius:4px; font-size:0.8em; font-weight:bold; 
+            background:${req.status === "genehmigt" ? "#4caf50" : req.status === "abgelehnt" ? "#f44336" : "#ff9800"}; color:#fff;">
+            ${req.status === "genehmigt" ? "✓ Genehmigt" : req.status === "abgelehnt" ? "✗ Abgelehnt" : "⏳ Ausstehend"}
+          </div>
+        </div>
+        ${req.note ? `<div style="margin-top:8px; font-size:0.9em; opacity:0.8;">Notiz: ${req.note}</div>` : ""}
+      </div>
+    `).join("");
+  } catch (error) {
+    console.warn("Could not load leave requests:", error);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE 4: VOICE COMMANDS (Web Speech API) ──
+// ═════════════════════════════════════════════════════════════════════
+
+let voiceRecognition = null;
+let isListening = false;
+
+function initVoiceCommands() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showWorkerNotice("Sprachsteuerung wird von Ihrem Browser nicht unterstützt.");
+    return;
+  }
+  
+  if (!voiceRecognition) {
+    voiceRecognition = new SpeechRecognition();
+    voiceRecognition.lang = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "en-GB";
+    voiceRecognition.continuous = false;
+    voiceRecognition.interimResults = false;
+    
+    voiceRecognition.onstart = () => {
+      isListening = true;
+      if (elements.voiceCommandBtn) {
+        elements.voiceCommandBtn.classList.add("listening");
+      }
+      showWorkerNotice("🎤 Zuhören...");
+    };
+    
+    voiceRecognition.onend = () => {
+      isListening = false;
+      if (elements.voiceCommandBtn) {
+        elements.voiceCommandBtn.classList.remove("listening");
+      }
+    };
+    
+    voiceRecognition.onerror = (event) => {
+      showWorkerNotice(`Fehler: ${event.error}`);
+    };
+    
+    voiceRecognition.onresult = (event) => {
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          processVoiceCommand(transcript);
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      if (interimTranscript) {
+        showWorkerNotice(`Hört: "${interimTranscript}"`);
+      }
+    };
+  }
+  
+  if (isListening) {
+    voiceRecognition.stop();
+  } else {
+    voiceRecognition.start();
+  }
+}
+
+function processVoiceCommand(text) {
+  const cmd = text.toLowerCase().trim();
+  showWorkerNotice(`Befehl: "${text}"`);
+  
+  if (cmd.includes("ausbuchen") || cmd.includes("checkout")) {
+    openGateMode();
+  } else if (cmd.includes("antrag") || cmd.includes("urlaub")) {
+    toggleLeaveRequestForm();
+  } else if (cmd.includes("thema") || cmd.includes("theme")) {
+    toggleTheme();
+  } else if (cmd.includes("beenden") || cmd.includes("exit")) {
+    if (!elements.gateScannerOverlay?.classList.contains("hidden")) {
+      closeGateMode();
+    }
+  } else {
+    showWorkerNotice(`"${text}" nicht erkannt. Versuchen Sie: Ausbuchen, Antrag, Thema`);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE 5: OFFLINE QUEUE + IndexedDB ──
+// ═════════════════════════════════════════════════════════════════════
+
+async function initOfflineStorage() {
+  // Already handled by existing offline queue in localStorage
+  // IndexedDB can be added here for larger data persistence
+  if (!("indexedDB" in window)) {
+    console.warn("IndexedDB not supported");
+    return;
+  }
+  
+  try {
+    const db = indexedDB.open("baupass-offline", 1);
+    db.onupgradeneeded = (event) => {
+      const idb = event.target.result;
+      if (!idb.objectStoreNames.contains("events")) {
+        idb.createObjectStore("events", { keyPath: "id", autoIncrement: true });
+      }
+    };
+  } catch (error) {
+    console.warn("Could not init IndexedDB:", error);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── INITIALIZATION ──
+// ═════════════════════════════════════════════════════════════════════
+
+// Apply stored theme on load
+const storedTheme = localStorage.getItem(WORKER_THEME_KEY) || "auto";
+applyTheme(storedTheme);
+
+// Initialize offline storage
+void initOfflineStorage();
+
+// Show notification permission banner if not yet granted
+if ("Notification" in window && Notification.permission === "default" && elements.notificationBanner) {
+  elements.notificationBanner.classList.remove("hidden");
+}
+
+// Load leave requests on login
+if (workerToken) {
+  void loadLeaveRequests();
 }
