@@ -6962,6 +6962,35 @@ def restore_worker(worker_id):
     return jsonify({"ok": True})
 
 
+@app.post("/api/workers/<worker_id>/lock")
+@require_auth
+def set_worker_lock(worker_id):
+    role = g.current_user.get("role")
+    if role not in ("superadmin", "company-admin", "turnstile"):
+        return jsonify({"error": "forbidden"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    status = str(payload.get("status", "")).strip().lower()
+    if status not in ("gesperrt", "aktiv"):
+        return jsonify({"error": "invalid_status"}), 400
+
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if worker["deleted_at"]:
+        return jsonify({"error": "worker_deleted"}), 400
+
+    if role != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+
+    db.execute("UPDATE workers SET status = ? WHERE id = ?", (status, worker_id))
+    db.commit()
+    action = "worker.locked" if status == "gesperrt" else "worker.unlocked"
+    log_audit(action, f"Mitarbeiter {worker_id} -> {status}", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
+    return jsonify({"ok": True, "status": status})
+
+
 @app.post("/api/workers/<worker_id>/reset-pin")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
