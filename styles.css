@@ -3821,6 +3821,12 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   color: #45484d;
 }
 
+.status-pill.status-late {
+  background: rgba(197, 61, 47, 0.18);
+  color: var(--danger);
+  font-weight: 600;
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;

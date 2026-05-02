@@ -1559,6 +1559,7 @@ def init_db():
             status TEXT NOT NULL,
             photo_data TEXT NOT NULL,
             badge_id TEXT NOT NULL,
+            badge_id_lookup TEXT NOT NULL DEFAULT '',
             badge_pin_hash TEXT NOT NULL DEFAULT '',
             physical_card_id TEXT,
             deleted_at TEXT,
@@ -1720,6 +1721,7 @@ def init_db():
     )
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_physical_card_active ON workers(physical_card_id, deleted_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_badge_lookup_active ON workers(badge_id_lookup, deleted_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_worker_timestamp ON access_logs(worker_id, timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_documents_worker_type_created ON worker_documents(worker_id, doc_type, created_at DESC)")
 
@@ -1862,6 +1864,8 @@ def init_db():
         cur.execute("ALTER TABLE workers ADD COLUMN host_name TEXT NOT NULL DEFAULT ''")
     if "visit_end_at" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN visit_end_at TEXT NOT NULL DEFAULT ''")
+    if "badge_id_lookup" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN badge_id_lookup TEXT NOT NULL DEFAULT ''")
     if "badge_pin_hash" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN badge_pin_hash TEXT NOT NULL DEFAULT ''")
     if "physical_card_id" not in worker_columns:
@@ -1870,6 +1874,12 @@ def init_db():
         cur.execute("ALTER TABLE workers ADD COLUMN site_latitude REAL")
     if "site_longitude" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN site_longitude REAL")
+
+    worker_badge_rows = cur.execute("SELECT id, badge_id, badge_id_lookup FROM workers").fetchall()
+    for row in worker_badge_rows:
+        normalized_badge_lookup = normalize_badge_id(row["badge_id"])
+        if (row["badge_id_lookup"] or "") != normalized_badge_lookup:
+            cur.execute("UPDATE workers SET badge_id_lookup = ? WHERE id = ?", (normalized_badge_lookup, row["id"]))
 
     if "worker_app_enabled" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN worker_app_enabled INTEGER NOT NULL DEFAULT 1")
@@ -1905,6 +1915,15 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN admin_summary_email TEXT NOT NULL DEFAULT ''")
     if "worker_expiry_warn_days" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN worker_expiry_warn_days INTEGER NOT NULL DEFAULT 7")
+    if "work_start_time" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN work_start_time TEXT NOT NULL DEFAULT ''")
+    if "work_end_time" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN work_end_time TEXT NOT NULL DEFAULT ''")
+
+    # access_logs: lateness flag
+    access_log_columns = [row[1] for row in cur.execute("PRAGMA table_info(access_logs)").fetchall()]
+    if "checked_in_late" not in access_log_columns:
+        cur.execute("ALTER TABLE access_logs ADD COLUMN checked_in_late INTEGER NOT NULL DEFAULT 0")
 
     inbox_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_inbox)").fetchall()]
     if "to_addr" not in inbox_columns:
@@ -3494,6 +3513,25 @@ def start_background_jobs():
                     ),
                     operator_label,
                 )
+                # Build CSV attachment with all active workers
+                import csv as _csv, io as _io_mod
+                worker_rows = db.execute(
+                    """SELECT first_name, last_name, badge_id, role, site, valid_until, status, worker_type
+                       FROM workers WHERE deleted_at IS NULL ORDER BY last_name, first_name"""
+                ).fetchall()
+                csv_buf = _io_mod.StringIO()
+                csv_writer = _csv.writer(csv_buf, delimiter=";", quoting=_csv.QUOTE_MINIMAL)
+                csv_writer.writerow(["Vorname", "Nachname", "Badge-ID", "Rolle", "Standort", "Gültig bis", "Status", "Typ"])
+                for wr in worker_rows:
+                    csv_writer.writerow([
+                        wr["first_name"] or "", wr["last_name"] or "", wr["badge_id"] or "",
+                        wr["role"] or "", wr["site"] or "", wr["valid_until"] or "",
+                        wr["status"] or "", wr["worker_type"] or "",
+                    ])
+                csv_bytes = csv_buf.getvalue().encode("utf-8-sig")
+                csv_filename = f"mitarbeiterliste_{yesterday}.csv"
+                msg.add_attachment(csv_bytes, maintype="text", subtype="csv", filename=csv_filename)
+
                 try:
                     if smtp_host:
                         with _smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=15) as smtp:
@@ -3510,6 +3548,7 @@ def start_background_jobs():
                             recipient=admin_email,
                             text_body=summary_text,
                             html_body=html_body,
+                            attachments=[{"content": csv_bytes, "filename": csv_filename, "type": "text/csv"}],
                         )
                 except Exception:
                     _send_via_any_api(
@@ -3519,6 +3558,7 @@ def start_background_jobs():
                         recipient=admin_email,
                         text_body=summary_text,
                         html_body=html_body,
+                        attachments=[{"content": csv_bytes, "filename": csv_filename, "type": "text/csv"}],
                     )
         except Exception:
             pass
@@ -4963,6 +5003,8 @@ def get_settings():
             "enforceTenantDomain": int(row["enforce_tenant_domain"]) == 1,
             "workerAppEnabled": int(row["worker_app_enabled"]) == 1,
             "workerPassLockEnabled": int(row["worker_pass_lock_enabled"]) == 1 if "worker_pass_lock_enabled" in row.keys() else False,
+            "workStartTime": row["work_start_time"] if "work_start_time" in row.keys() else "",
+            "workEndTime": row["work_end_time"] if "work_end_time" in row.keys() else "",
             "imapHost": row["imap_host"],
             "imapPort": int(row["imap_port"] or 993),
             "imapUsername": row["imap_username"],
@@ -5267,7 +5309,8 @@ def update_settings():
             invoice_email_body_template = ?, dunning_stage1_days = ?, dunning_stage2_days = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
-            admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?
+            admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?,
+            work_start_time = ?, work_end_time = ?
         WHERE id = 1
         """,
         (
@@ -5305,6 +5348,8 @@ def update_settings():
             1 if payload.get("workerAppEnabled", True) else 0,
             1 if payload.get("workerPassLockEnabled", False) else 0,
             max(0, int(payload.get("workerExpiryWarnDays") or 7)),
+            str(payload.get("workStartTime") or "")[:5],
+            str(payload.get("workEndTime") or "")[:5],
         ),
     )
     # Impressum / Datenschutz
@@ -6012,12 +6057,12 @@ def import_workers_csv():
                 INSERT INTO workers (
                     id, company_id, subcompany_id, first_name, last_name, insurance_number,
                     worker_type, role, site, valid_until, visitor_company, visit_purpose,
-                    host_name, visit_end_at, status, photo_data, badge_id, badge_pin_hash,
+                    host_name, visit_end_at, status, photo_data, badge_id, badge_id_lookup, badge_pin_hash,
                     physical_card_id, deleted_at
-                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, 'active', '', ?, '', '', NULL)
+                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, 'active', '', ?, ?, '', '', NULL)
                 """,
                 (worker_id, company_id, first_name, last_name, insurance_number,
-                 worker_type, role_value, site_value, valid_until_value, badge_id_value),
+                 worker_type, role_value, site_value, valid_until_value, badge_id_value, normalize_badge_id(badge_id_value)),
             )
             created.append({"row": row_num, "name": f"{first_name} {last_name}", "id": worker_id})
         except Exception as exc:
@@ -6464,8 +6509,8 @@ def create_worker():
     db.execute(
         """
         INSERT INTO workers (
-            id, company_id, subcompany_id, first_name, last_name, insurance_number, worker_type, role, site, valid_until, visitor_company, visit_purpose, host_name, visit_end_at, status, photo_data, badge_id, badge_pin_hash, physical_card_id, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, company_id, subcompany_id, first_name, last_name, insurance_number, worker_type, role, site, valid_until, visitor_company, visit_purpose, host_name, visit_end_at, status, photo_data, badge_id, badge_id_lookup, badge_pin_hash, physical_card_id, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             worker_id,
@@ -6485,6 +6530,7 @@ def create_worker():
             status_value,
             photo_data,
             badge_id_value,
+            normalize_badge_id(badge_id_value),
             badge_pin_hash,
             physical_card_id,
             None,
@@ -6984,10 +7030,23 @@ def ensure_unique_physical_card_id_or_raise(db, physical_card_id, worker_id_to_e
         raise ValueError("duplicate_physical_card_id")
 
 
-def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_value=None):
+def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_value=None, worker_type="worker"):
     log_id = f"log-{secrets.token_hex(6)}"
+    late = 0
+    if direction == "check-in" and worker_type != "visitor":
+        try:
+            setting_row = db.execute("SELECT work_start_time FROM settings WHERE id = 1").fetchone()
+            work_start = (setting_row["work_start_time"] if setting_row and "work_start_time" in setting_row.keys() else "") or ""
+            if work_start and ":" in work_start:
+                from datetime import datetime as _dt
+                now_local = _dt.now()
+                sh, sm = int(work_start.split(":")[0]), int(work_start.split(":")[1])
+                if (now_local.hour, now_local.minute) > (sh, sm):
+                    late = 1
+        except Exception:
+            pass
     db.execute(
-        "INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp, checked_in_late) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             log_id,
             worker_id,
@@ -6995,6 +7054,7 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
             gate,
             note,
             timestamp_value or now_iso(),
+            late,
         ),
     )
     return log_id
@@ -7135,8 +7195,8 @@ def worker_app_login():
         """
         SELECT *
         FROM workers
-                WHERE UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(badge_id, ' ', ''), char(9), ''), char(10), ''), char(13), ''), '‐', '-'), '‑', '-'), '–', '-'), '—', '-')) = ?
-                    AND deleted_at IS NULL
+        WHERE badge_id_lookup = ?
+          AND deleted_at IS NULL
         ORDER BY id
         LIMIT 2
         """,
@@ -8147,7 +8207,8 @@ def repair_company(company_id):
         (company_id,)
     ).fetchall()
     for w in no_badge:
-        db.execute("UPDATE workers SET badge_id = ? WHERE id = ?", (f"BP-{w['id'][-6:].upper()}", w["id"]))
+        generated_badge_id = f"BP-{w['id'][-6:].upper()}"
+        db.execute("UPDATE workers SET badge_id = ?, badge_id_lookup = ? WHERE id = ?", (generated_badge_id, normalize_badge_id(generated_badge_id), w["id"]))
     if no_badge:
         fixed.append(f"{len(no_badge)} fehlende Ausweisnummern ergaenzt")
 
@@ -8787,6 +8848,7 @@ def create_access_log():
         payload.get("gate", "Drehkreuz Nord"),
         payload.get("note", ""),
         payload.get("timestamp", now_iso()),
+        worker_type=str(worker["worker_type"] or "worker"),
     )
     db.commit()
     log_audit("access.booked", f"Zutritt {payload.get('direction', 'check-in')} fuer Worker {worker_id}", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
@@ -8873,7 +8935,7 @@ def gate_tap():
     if worker["status"] != "aktiv":
         return jsonify({"error": "worker_not_active"}), 403
 
-    log_id = create_access_log_entry(db, worker["id"], direction, gate_name, gate_note, timestamp_value)
+    log_id = create_access_log_entry(db, worker["id"], direction, gate_name, gate_note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
     db.commit()
     log_audit(
         "access.gate_tap",

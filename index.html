@@ -1357,6 +1357,15 @@
                 <input type="number" id="workerExpiryWarnDays" min="0" max="365" step="1" placeholder="7" />
               </label>
               <p class="helper-text full-width" data-ui-i18n="workerExpiryWarnDaysHint">E-Mail-Erinnerung wird N Tage vor dem Ablaufdatum des Ausweises gesendet. 0 = deaktiviert.</p>
+              <label>
+                <span data-ui-i18n="workStartTimeLabel">Arbeitsbeginn (HH:MM)</span>
+                <input type="time" id="workStartTime" placeholder="08:00" />
+              </label>
+              <label>
+                <span data-ui-i18n="workEndTimeLabel">Arbeitsende (HH:MM)</span>
+                <input type="time" id="workEndTime" placeholder="17:00" />
+              </label>
+              <p class="helper-text full-width" data-ui-i18n="workTimesHint">Mitarbeiter die sich nach dem Arbeitsbeginn einloggen werden als „zu spät" markiert. Leer lassen zum Deaktivieren.</p>
 
               <!-- ── Rechtliches ── -->
               <div class="form-section">

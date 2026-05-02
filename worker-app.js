@@ -72,8 +72,8 @@ const WORKER_PASS_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
 // ── i18n ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
   de: {
-    pageTitle: "BauPass Mitarbeiter-App",
-    appTitle: "BauPass Mobile",
+    pageTitle: "Mitarbeiter-App",
+    appTitle: "Control Pass Mobile",
     appEyebrow: "Mitarbeiter-App",
     appLead: "Dein Ausweis, dein Arbeitsweg und dein Einlass an einem Ort. Schnell, sauber und direkt auf dem Homescreen.",
     languageLabel: "Sprache",
@@ -91,14 +91,14 @@ const TRANSLATIONS = {
     loginBtn: "Ausweis laden",
     tipBadge: "Badge-ID plus PIN statt QR",
     tipHome: "Funktioniert als Homescreen-App",
-    tipRoute: "Direkter Weg zur Baustelle",
+    tipRoute: "Direkter Weg zum Standort",
     geolocationHint: "Standort wird für Badge-Login benötigt",
     logoutBtn: "Abmelden",
     refreshBtn: "Aktualisieren",
     fieldBadgeId: "Badge-ID",
     fieldValidUntil: "Gültig bis",
-    fieldSite: "Baustelle",
-    workerCardTitle: "Dein BauPass für heute",
+    fieldSite: "Standort",
+    workerCardTitle: "Dein Ausweis für heute",
     visitorCardTitle: "Deine digitale Besucherkarte",
     workerPassSubLabel: "Mitarbeiterausweis",
     visitorPassSubLabel: "Besucherkarte",
@@ -173,7 +173,7 @@ const TRANSLATIONS = {
     expiringSoonNotice: "Hinweis: Deine Besucherkarte laeuft in weniger als 5 Minuten ab.",
     scannerAutoOpened: "Scanner wurde automatisch geoeffnet, weil weniger als 2 Minuten verbleiben.",
     autoEndedAtMidnight: "Digitale Besucherkarte wurde um 00:00 automatisch beendet. Bitte neu anmelden.",
-    siteLocationUnavailable: "Standort dieser Baustelle konnte nicht ermittelt werden – Login trotzdem erlaubt. Bitte Admin informieren.",
+    siteLocationUnavailable: "Standort konnte nicht ermittelt werden – Login trotzdem erlaubt. Bitte Admin informieren.",
     gateBtn: "Drehkreuz-Modus öffnen",
     changePhotoBtn: "Foto ändern",
     autoOpenScannerLabel: "Scanner bei Ablauf automatisch öffnen",
@@ -189,8 +189,8 @@ const TRANSLATIONS = {
     fieldVisitEndAt: "Besuch bis",
   },
   en: {
-    pageTitle: "BauPass Worker App",
-    appTitle: "BauPass Mobile",
+    pageTitle: "Worker App",
+    appTitle: "Control Pass Mobile",
     appEyebrow: "Worker App",
     appLead: "Your ID, your route, and your site access in one place. Fast, clean, and right on your home screen.",
     languageLabel: "Language",
@@ -208,14 +208,14 @@ const TRANSLATIONS = {
     loginBtn: "Load ID",
     tipBadge: "Badge ID + PIN instead of QR",
     tipHome: "Works as a home screen app",
-    tipRoute: "Direct route to the site",
+    tipRoute: "Direct route to your location",
     geolocationHint: "Location required for badge login",
     logoutBtn: "Logout",
     refreshBtn: "Refresh",
     fieldBadgeId: "Badge ID",
     fieldValidUntil: "Valid Until",
-    fieldSite: "Site",
-    workerCardTitle: "Your BauPass for Today",
+    fieldSite: "Location",
+    workerCardTitle: "Your Pass for Today",
     visitorCardTitle: "Your Digital Visitor Pass",
     workerPassSubLabel: "Employee ID",
     visitorPassSubLabel: "Visitor Pass",
@@ -306,8 +306,8 @@ const TRANSLATIONS = {
     fieldVisitEndAt: "Visit Until",
   },
   tr: {
-    pageTitle: "BauPass Çalışan Uygulaması",
-    appTitle: "BauPass Mobil",
+    pageTitle: "Çalışan Uygulaması",
+    appTitle: "Control Pass Mobil",
     appEyebrow: "Çalışan Uygulaması",
     appLead: "Kimliğin, rotanın ve şantiye girişin tek bir yerde. Hızlı, temiz ve ana ekranında.",
     languageLabel: "Dil",
@@ -325,14 +325,14 @@ const TRANSLATIONS = {
     loginBtn: "Kimliği Yükle",
     tipBadge: "Rozet ID + PIN QR yerine",
     tipHome: "Ana ekran uygulaması olarak çalışır",
-    tipRoute: "Şantiyeye doğrudan yol",
+    tipRoute: "Konuma doğrudan yol",
     geolocationHint: "Rozet girişi için konum gereklidir",
     logoutBtn: "Çıkış Yap",
     refreshBtn: "Yenile",
     fieldBadgeId: "Rozet ID",
     fieldValidUntil: "Geçerlilik Tarihi",
-    fieldSite: "Şantiye",
-    workerCardTitle: "Bugünkü BauPass'ın",
+    fieldSite: "Konum",
+    workerCardTitle: "Bugünkü Pasın",
     visitorCardTitle: "Dijital Ziyaretçi Kartın",
     workerPassSubLabel: "Çalışan Kimliği",
     visitorPassSubLabel: "Ziyaretçi Kartı",
@@ -422,8 +422,8 @@ const TRANSLATIONS = {
     fieldVisitEndAt: "Ziyaret Bitiş",
   },
   ar: {
-    pageTitle: "تطبيق BauPass للعمال",
-    appTitle: "BauPass موبايل",
+    pageTitle: "تطبيق العمال",
+    appTitle: "Control Pass موبايل",
     appEyebrow: "تطبيق العمال",
     appLead: "هويتك وطريقك ودخولك إلى الموقع في مكان واحد. سريع وسهل على الشاشة الرئيسية.",
     languageLabel: "اللغة",
@@ -1500,6 +1500,16 @@ function renderWorker(payload) {
   if (pinLockEnabled) {
     initializePassLockProtection();
   }
+
+  // ── Dynamic platform branding ──
+  const platformName = ((payload.settings?.platformName) || "Control Pass").trim() || "Control Pass";
+  document.title = platformName + " – " + t("pageTitle");
+  const brandEl = document.getElementById("workerBrandName");
+  if (brandEl) brandEl.textContent = platformName.toUpperCase();
+  const appTitleEl = document.getElementById("workerAppTitle");
+  if (appTitleEl) appTitleEl.textContent = platformName;
+  const splashTitleEl = document.getElementById("workerSplashTitle");
+  if (splashTitleEl) splashTitleEl.textContent = platformName;
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");

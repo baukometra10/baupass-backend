@@ -723,6 +723,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "Nach 2 Minuten ohne Interaktion muss der Mitarbeiter seine Badge-PIN erneut eingeben, um den Ausweis zu sehen.",
     workerExpiryWarnDaysLabel: "Ablauf-Warnung (Tage vor Gültigkeitsende)",
     workerExpiryWarnDaysHint: "E-Mail-Erinnerung wird N Tage vor dem Ablaufdatum des Ausweises gesendet. 0 = deaktiviert.",
+    workStartTimeLabel: "Arbeitsbeginn (HH:MM)",
+    workEndTimeLabel: "Arbeitsende (HH:MM)",
+    workTimesHint: "Mitarbeiter werden als \u201ezuspät\u201c markiert wenn sie sich nach dem Arbeitsbeginn einloggen.",
+    checkedInLate: "Zu spät",
     optPlanDayPassRecommended: "Besucherkarte (empfohlen)",
     optPlanMonthlySite: "Monatlich pro Baustelle",
     optPlanPerWorker: "Pro Mitarbeiter",
@@ -1098,6 +1102,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "After 2 minutes of inactivity the worker must re-enter their badge PIN to see the badge.",
     workerExpiryWarnDaysLabel: "Expiry warning (days before expiry)",
     workerExpiryWarnDaysHint: "Email reminder is sent N days before the badge expires. 0 = disabled.",
+    workStartTimeLabel: "Work start time (HH:MM)",
+    workEndTimeLabel: "Work end time (HH:MM)",
+    workTimesHint: "Workers are marked as late when they check in after the work start time.",
+    checkedInLate: "Late",
     optPlanDayPassRecommended: "Visitor card (recommended)",
     optPlanMonthlySite: "Monthly per site",
     optPlanPerWorker: "Per worker",
@@ -1959,6 +1967,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "2 dakika etkisizlikten sonra çalışanın kimliği görmek için rozet PIN'ini yeniden girmesi gerekir.",
     workerExpiryWarnDaysLabel: "Sona erme uyarısı (sona ermeden kaç gün önce)",
     workerExpiryWarnDaysHint: "E-posta hatırlatıcısı kimlik sona ermeden N gün önce gönderilir. 0 = devre dışı.",
+    workStartTimeLabel: "Mesai başlangıcı (SS:DD)",
+    workEndTimeLabel: "Mesai bitişi (SS:DD)",
+    workTimesHint: "Mesai başlangıcından sonra giriş yapan çalışanlar geç olarak işaretlenir.",
+    checkedInLate: "Geç geldi",
     optPlanDayPassRecommended: "Ziyaretçi kartı (önerilen)",
     optPlanMonthlySite: "Aylık şantiye başına",
     optPlanPerWorker: "Çalışan başına",
@@ -2606,6 +2618,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "بعد دقيقتين من عدم النشاط يجب على العامل إدخال رمز PIN لرؤية بطاقته.",
     workerExpiryWarnDaysLabel: "تحذير انتهاء الصلاحية (أيام قبل الانتهاء)",
     workerExpiryWarnDaysHint: "يُرسل تذكير بالبريد الإلكتروني قبل N يوم من انتهاء صلاحية البطاقة. 0 = معطّل.",
+    workStartTimeLabel: "وقت بداية العمل (HH:MM)",
+    workEndTimeLabel: "وقت نهاية العمل (HH:MM)",
+    workTimesHint: "يُعلَّم العمال بالتأخر إذا سجّلوا دخولهم بعد وقت بداية العمل.",
+    checkedInLate: "تأخّر",
     optPlanDayPassRecommended: "بطاقة زائر (موصى به)",
     optPlanMonthlySite: "شهرياً لكل موقع",
     optPlanPerWorker: "لكل عامل",
@@ -3253,6 +3269,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "Après 2 minutes d'inactivité, le travailleur doit saisir à nouveau son badge PIN pour voir son badge.",
     workerExpiryWarnDaysLabel: "Alerte expiration (jours avant expiration)",
     workerExpiryWarnDaysHint: "Un rappel par e-mail est envoyé N jours avant l'expiration du badge. 0 = désactivé.",
+    workStartTimeLabel: "Heure de début (HH:MM)",
+    workEndTimeLabel: "Heure de fin (HH:MM)",
+    workTimesHint: "Les employés arrivés après l’heure de début sont marqués comme en retard.",
+    checkedInLate: "En retard",
     optPlanDayPassRecommended: "Carte visiteur (recommandé)",
     optPlanMonthlySite: "Mensuel par chantier",
     optPlanPerWorker: "Par travailleur",
@@ -3900,6 +3920,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "Después de 2 minutos sin interacción el trabajador debe volver a introducir su PIN de credencial.",
     workerExpiryWarnDaysLabel: "Aviso de vencimiento (días antes del vencimiento)",
     workerExpiryWarnDaysHint: "Se envía un recordatorio por correo N días antes de que venza el credencial. 0 = desactivado.",
+    workStartTimeLabel: "Hora de entrada (HH:MM)",
+    workEndTimeLabel: "Hora de salida (HH:MM)",
+    workTimesHint: "Los empleados que lleguen después de la hora de entrada serán marcados como tarde.",
+    checkedInLate: "Tarde",
     optPlanDayPassRecommended: "Tarjeta de visitante (recomendado)",
     optPlanMonthlySite: "Mensual por obra",
     optPlanPerWorker: "Por trabajador",
@@ -4539,6 +4563,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "Dopo 2 minuti di inattività il lavoratore deve inserire di nuovo il badge PIN per vedere il badge.",
     workerExpiryWarnDaysLabel: "Avviso scadenza (giorni prima della scadenza)",
     workerExpiryWarnDaysHint: "Il promemoria via e-mail viene inviato N giorni prima della scadenza del badge. 0 = disabilitato.",
+    workStartTimeLabel: "Inizio lavoro (HH:MM)",
+    workEndTimeLabel: "Fine lavoro (HH:MM)",
+    workTimesHint: "I dipendenti che entrano dopo l’orario di inizio sono segnati in ritardo.",
+    checkedInLate: "In ritardo",
     optPlanDayPassRecommended: "Tessera visitatore (consigliato)",
     optPlanMonthlySite: "Mensile per cantiere",
     optPlanPerWorker: "Per lavoratore",
@@ -5186,6 +5214,10 @@ const UI_TRANSLATIONS = {
     adminWorkerAppPinLockHint: "Po 2 minutach braku aktywności pracownik musi ponownie wpisać PIN identyfikatora.",
     workerExpiryWarnDaysLabel: "Ostrzeżenie o wygaśnięciu (dni przed wygaśnięciem)",
     workerExpiryWarnDaysHint: "Przypomnienie e-mail jest wysyłane N dni przed wygaśnięciem identyfikatora. 0 = wyłączone.",
+    workStartTimeLabel: "Godzina rozpoczęcia pracy (GG:MM)",
+    workEndTimeLabel: "Godzina zakończenia pracy (GG:MM)",
+    workTimesHint: "Pracownicy, którzy zalogują się po godzinie rozpoczęcia, są oznaczani jako spóźnieni.",
+    checkedInLate: "Spóźniony",
     optPlanDayPassRecommended: "Karta gościa (zalecane)",
     optPlanMonthlySite: "Miesięcznie za budowę",
     optPlanPerWorker: "Na pracownika",
@@ -12286,6 +12318,10 @@ function renderAdminSettingsForm() {
   if (workerAppEnabled) workerAppEnabled.value = state.settings.workerAppEnabled === false ? "0" : "1";
   if (workerPassLockEnabled) workerPassLockEnabled.value = state.settings.workerPassLockEnabled ? "1" : "0";
   if (workerExpiryWarnDays) workerExpiryWarnDays.value = String(state.settings.workerExpiryWarnDays ?? 7);
+  const workStartTime = document.querySelector("#workStartTime");
+  const workEndTime = document.querySelector("#workEndTime");
+  if (workStartTime) workStartTime.value = state.settings.workStartTime || "";
+  if (workEndTime) workEndTime.value = state.settings.workEndTime || "";
   // Brevo-Felder
   const brevoApiKeyEl = document.querySelector("#brevoApiKey");
   const brevoFromEmailEl = document.querySelector("#brevoFromEmail");
@@ -13445,6 +13481,7 @@ function renderAccessItem(log, options = {}) {
               <span>${escapeHtml(log.gate)}${subcompanyLabel ? ` | ${escapeHtml(subcompanyLabel)}` : ""}</span>
             </div>
             <span class="status-pill status-${escapeHtml(log.direction)}">${escapeHtml(log.direction)}</span>
+            ${log.checked_in_late == 1 ? `<span class="status-pill status-late" title="${uiT("checkedInLate")}">${uiT("checkedInLate")}</span>` : ""}
           </header>
           <span>${formatTimestamp(log.timestamp)}</span>
           <span>${escapeHtml(log.note || "Keine Notiz")}</span>
@@ -14260,6 +14297,8 @@ async function handleSettingsSubmit(event) {
       workerAppEnabled: document.querySelector("#workerAppEnabled").value !== "0",
       workerPassLockEnabled: document.querySelector("#workerPassLockEnabled")?.value === "1",
       workerExpiryWarnDays: Math.max(0, parseInt(document.querySelector("#workerExpiryWarnDays")?.value || "7", 10) || 0),
+      workStartTime: (document.querySelector("#workStartTime")?.value || "").trim(),
+      workEndTime: (document.querySelector("#workEndTime")?.value || "").trim(),
       imapHost: (document.querySelector("#imapHost")?.value || "").trim(),
       imapPort: Number(document.querySelector("#imapPort")?.value || 993),
       imapUsername: (document.querySelector("#imapUsername")?.value || "").trim(),
