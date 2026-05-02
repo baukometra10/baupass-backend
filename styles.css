@@ -1316,6 +1316,12 @@ textarea.invoice-field-valid {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .support-readonly-badge-flash {
+    animation: none;
+  }
+}
+
 .superadmin-preview-pill {
   display: inline-flex;
   align-items: center;
