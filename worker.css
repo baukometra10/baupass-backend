@@ -2145,3 +2145,14 @@ body {
 /* ── Worker: Timesheet total ───────────────────────────────────────── */
 .timesheet-date-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .timesheet-total { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.15); border-radius: 12px; padding: 2px 10px; }
+
+/* ── Logout button prominent ────────────────────────────────────── */
+.logout-btn-prominent {
+  border-color: rgba(185,28,28,.35) !important;
+  font-weight: 600 !important;
+  letter-spacing: .01em;
+}
+.logout-btn-prominent:hover {
+  background: rgba(185,28,28,.15) !important;
+  border-color: rgba(185,28,28,.6) !important;
+}

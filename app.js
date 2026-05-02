@@ -9287,6 +9287,9 @@ function setView(viewName) {
   if (targetView === "leave") {
     loadLeaveRequests();
   }
+  if (targetView === "dashboard") {
+    void renderHrStats();
+  }
 }
 
 function stopInvoiceAutoRefresh() {
@@ -9722,6 +9725,7 @@ function refreshAll() {
   applyActiveCompanyBrandingPreset();
 
   renderStats();
+  void renderHrStats();
   renderComplianceKpi();
   renderWorkerStatsPanel();
   renderReportingPanels();
@@ -10695,6 +10699,27 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
   if (metaNode) {
     metaNode.textContent = previewCompanyName;
   }
+}
+
+async function renderHrStats() {
+  const container = document.getElementById("hrStatsGrid");
+  if (!container) return;
+  try {
+    const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) return;
+    const res = await fetch(`${API_BASE}/api/leave-requests?status=ausstehend`, {
+      headers: { "Authorization": `Bearer ${sessionToken}` }
+    });
+    if (!res.ok) return;
+    const pending = await res.json();
+    const pendingCount = Array.isArray(pending) ? pending.length : 0;
+    updateLeavePendingBadge(pendingCount);
+    container.innerHTML = `
+      <article class="stat-card${pendingCount > 0 ? " stat-card-critical" : ""}" style="cursor:pointer;" onclick="setView('leave')" title="Zu den Urlaubsanträgen">
+        <p>Offene Urlaubsanträge</p>
+        <strong>${pendingCount}</strong>
+      </article>`;
+  } catch (_) { /* silent */ }
 }
 
 function renderStats() {
@@ -21034,26 +21059,41 @@ async function approveLeaveRequest(id) {
 /**
  * Reject leave request
  */
-async function rejectLeaveRequest(id) {
-  const reason = prompt('Enter rejection reason:');
-  if (!reason) return;
-  
-  try {
-    const sessionToken = loadStoredSessionToken();
-    const response = await fetch(`${API_BASE}/api/leave-requests/${id}`, {
-      method: "PUT",
-      headers: {
-        "Authorization": `Bearer ${sessionToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ status: "abgelehnt", review_note: reason }),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    showToast('Antrag abgelehnt', 'info');
-    loadLeaveRequests();
-  } catch (error) {
-    alert('Error: ' + error.message);
+function rejectLeaveRequest(requestId) {
+  const modal = document.getElementById("leaveRejectModal");
+  const noteEl = document.getElementById("leaveRejectNote");
+  if (!modal) return;
+  noteEl.value = "";
+  modal.classList.remove("hidden");
+  noteEl.focus();
+
+  function cleanup() {
+    modal.classList.add("hidden");
+    const c = document.getElementById("leaveRejectConfirmBtn");
+    const x = document.getElementById("leaveRejectCancelBtn");
+    if (c) { const nc = c.cloneNode(true); c.replaceWith(nc); }
+    if (x) { const nx = x.cloneNode(true); x.replaceWith(nx); }
   }
+
+  document.getElementById("leaveRejectCancelBtn").addEventListener("click", cleanup, { once: true });
+  document.getElementById("leaveRejectConfirmBtn").addEventListener("click", async () => {
+    const note = (noteEl.value || "").trim();
+    cleanup();
+    try {
+      const sessionToken = loadStoredSessionToken();
+      if (!sessionToken) { showAlert("alertSessionExpired"); return; }
+      const response = await fetch(`${API_BASE}/api/leave-requests/${requestId}`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${sessionToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "abgelehnt", review_note: note }),
+      });
+      if (!response.ok) { showAlert("alertActionFailed", { error: `HTTP ${response.status}` }); return; }
+      showToast("Antrag abgelehnt", "info");
+      loadLeaveRequests();
+    } catch (error) {
+      showAlert("alertActionFailed", { error: String(error) });
+    }
+  }, { once: true });
 }
 
 /**
@@ -21290,6 +21330,48 @@ function renderAbsenceCalendarSection() {
   if (leaveSection) leaveSection.parentElement?.insertBefore(section, leaveSection);
   else (document.querySelector(".main-content") || document.body).appendChild(section);
   renderAbsenceCalendar();
+}
+
+// ── Leave Reject Modal: close on backdrop click ──
+(function() {
+  const overlay = document.getElementById("leaveRejectModal");
+  if (overlay) {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.add("hidden");
+    });
+  }
+})();
+
+// ── Leave CSV export button ──
+(function() {
+  const btn = document.getElementById("leaveExportCsvBtn");
+  if (!btn) return;
+  btn.addEventListener("click", exportLeaveCsv);
+})();
+
+async function exportLeaveCsv() {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) { showAlert("alertSessionExpired"); return; }
+    const res = await fetch(`${API_BASE}/api/leave-requests`, {
+      headers: { "Authorization": `Bearer ${sessionToken}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    const cols = ["id","worker_name","first_name","last_name","type","start_date","end_date","days_count","status","review_note","created_at"];
+    const header = ["ID","Mitarbeiter","Vorname","Nachname","Art","Von","Bis","Arbeitstage","Status","Entscheidungs-Notiz","Erstellt"];
+    const csv = [header.join(";"), ...rows.map(r =>
+      cols.map(k => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(";")
+    )].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `urlaubsantraege_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showAlert("alertActionFailed", { error: String(e) });
+  }
 }
 
 function showToast(msg, type = 'info') {
