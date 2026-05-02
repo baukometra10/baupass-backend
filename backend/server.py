@@ -175,7 +175,7 @@ def get_cors_origins():
 
 @app.route("/user/<id>")
 def user(id):
-    return f"Baustellenausweis für User {id}"
+    return f"Mitarbeiterausweis für User {id}"
 
 from flask_cors import CORS
 # CORS mit erlaubten Origins und Credentials aktivieren (kein Wildcard!)
@@ -7229,13 +7229,13 @@ def worker_app_login():
     except ValueError as exc:
         error_code = str(exc)
         if error_code == "worker_geolocation_required":
-            return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt auf der Baustelle anmelden."}), 400
+            return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt am Standort anmelden."}), 400
         if error_code == "site_location_unavailable":
             return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden. Bitte Admin informieren."}), 403
         raise
     except PermissionError as exc:
         distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
-        return jsonify({"error": "outside_site_radius", "message": f"Login nur auf der Baustelle moeglich (max. {WORKER_LOGIN_MAX_DISTANCE_METERS} m). Aktuell ca. {distance_text} m entfernt."}), 403
+        return jsonify({"error": "outside_site_radius", "message": f"Login nur am Standort moeglich (max. {WORKER_LOGIN_MAX_DISTANCE_METERS} m). Aktuell ca. {distance_text} m entfernt."}), 403
 
     session_data = create_worker_app_session(db, worker)
     login_type = "Besucher" if is_visitor else "Mitarbeiter"
