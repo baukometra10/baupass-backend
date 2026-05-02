@@ -1835,6 +1835,7 @@ async function workerLogout() {
   localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
   localStorage.removeItem(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
   localStorage.removeItem(OFFLINE_EVENT_QUEUE_KEY);
+  try { sessionStorage.removeItem("_wpf"); } catch (_) {}
   offlineWorkerSessionActive = false;
   workerToken = "";
   clearWorkerSessionExpiryTimer();

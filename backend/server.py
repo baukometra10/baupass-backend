@@ -7263,12 +7263,24 @@ _PIN_MAX_ATTEMPTS = 5
 _PIN_LOCKOUT_SECONDS = 300  # 5 minutes
 
 
+def _prune_pin_fail_counts():
+    """Remove expired entries to prevent unbounded memory growth."""
+    now = time.time()
+    expired = [k for k, v in _pin_fail_counts.items() if now - v[1] >= _PIN_LOCKOUT_SECONDS]
+    for k in expired:
+        _pin_fail_counts.pop(k, None)
+
+
 @app.post("/api/worker-app/verify-pin")
 @require_worker_session
 def worker_app_verify_pin():
     worker = g.worker
     worker_id = worker["id"]
     now = time.time()
+
+    # Periodically prune stale entries (every ~100 calls)
+    if len(_pin_fail_counts) > 100:
+        _prune_pin_fail_counts()
 
     # Rate-limit: max 5 failed attempts per worker per 5-minute window
     entry = _pin_fail_counts.get(worker_id)
