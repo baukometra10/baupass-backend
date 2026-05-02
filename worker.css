@@ -2091,3 +2091,35 @@ body {
   color: var(--muted);
 }
 
+
+/* Urlaubstage-Hinweis */
+.leave-days-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a7a3a;
+  padding: 4px 10px;
+  background: rgba(26, 122, 58, .1);
+  border-radius: 6px;
+  display: inline-block;
+  margin: 4px 0 8px;
+  min-height: 1em;
+}
+
+/* Dokument-Ablauf-Warnungen */
+.doc-warning-banner {
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.doc-warning-expired {
+  background: rgba(197, 61, 47, .12);
+  color: #c53d2f;
+  border: 1px solid rgba(197, 61, 47, .25);
+}
+.doc-warning-soon {
+  background: rgba(234, 139, 22, .12);
+  color: #b86b00;
+  border: 1px solid rgba(234, 139, 22, .3);
+}

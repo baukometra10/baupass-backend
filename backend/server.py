@@ -1894,6 +1894,8 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN worker_app_enabled INTEGER NOT NULL DEFAULT 1")
     if "worker_pass_lock_enabled" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN worker_pass_lock_enabled INTEGER NOT NULL DEFAULT 0")
+    if "contact_email" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''")
 
     # IMAP-Einstellungen fuer Dokumenten-Postfach
     if "imap_host" not in settings_columns:
@@ -2862,6 +2864,59 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         return False, f"brevo_url_error: {exc}"
     except Exception as exc:
         return False, f"brevo_error: {exc}"
+
+
+def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
+    """Schickt eine Web-Push-Nachricht an alle Subscriptions eines Mitarbeiters.
+    Gibt die Anzahl der erfolgreich gesendeten Nachrichten zurueck."""
+    try:
+        from pywebpush import webpush  # noqa: F401
+    except ImportError:
+        return 0
+    vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+    vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
+    if not vapid_private_key:
+        return 0
+    subs = db.execute(
+        "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
+        (worker_id,)
+    ).fetchall()
+    sent = 0
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={"endpoint": sub["endpoint"], "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}},
+                data=json.dumps({"title": title, "body": body, "tag": tag}),
+                vapid_private_key=vapid_private_key,
+                vapid_claims={"sub": vapid_email}
+            )
+            sent += 1
+        except Exception:
+            pass
+    return sent
+
+
+def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html_body: str):
+    """Sendet E-Mail an Mitarbeiter, falls contact_email gesetzt ist."""
+    worker_row = db.execute(
+        "SELECT contact_email, first_name, last_name FROM workers WHERE id = ?", (worker_id,)
+    ).fetchone()
+    if not worker_row:
+        return False
+    email = (worker_row["contact_email"] or "").strip()
+    if not email or "@" not in email:
+        return False
+    settings_row = db.execute(
+        "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
+    ).fetchone()
+    settings = dict(settings_row) if settings_row else {}
+    sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
+    sender_name = (settings.get("smtp_sender_name") or "BauPass").strip()
+    try:
+        _send_via_any_api(subject, sender_email, sender_name, email, text_body, html_body)
+        return True
+    except Exception:
+        return False
 
 
 def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
@@ -6005,6 +6060,50 @@ def list_workers():
     return jsonify(serialized)
 
 
+@app.get("/api/workers/current-visitors")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def get_current_visitors():
+    """Gibt Besucher zurück die sich aktuell auf dem Gelände befinden (visit_end_at in der Zukunft)."""
+    db = get_db()
+    user = g.current_user
+    company_filter = "" if user["role"] == "superadmin" else f" AND w.company_id = '{user.get('company_id', '')}'"
+    now_str = datetime.utcnow().isoformat()
+    rows = db.execute(
+        f"""SELECT w.id, w.first_name, w.last_name, w.badge_id, w.visitor_company,
+                   w.visit_purpose, w.host_name, w.visit_end_at, w.status
+            FROM workers w
+            WHERE w.worker_type = 'visitor'
+              AND w.deleted_at IS NULL
+              AND (w.visit_end_at = '' OR w.visit_end_at > ?)
+              AND w.status != 'gesperrt'
+              {company_filter}
+            ORDER BY w.visit_end_at ASC""",
+        (now_str,)
+    ).fetchall()
+    result = []
+    for r in rows:
+        expires_at = r["visit_end_at"] or ""
+        minutes_left = None
+        if expires_at:
+            try:
+                delta = datetime.fromisoformat(expires_at) - datetime.utcnow()
+                minutes_left = int(delta.total_seconds() / 60)
+            except Exception:
+                pass
+        result.append({
+            "id": r["id"],
+            "name": f"{r['first_name']} {r['last_name']}",
+            "badge_id": r["badge_id"],
+            "visitor_company": r["visitor_company"],
+            "visit_purpose": r["visit_purpose"],
+            "host_name": r["host_name"],
+            "visit_end_at": expires_at,
+            "minutes_left": minutes_left,
+        })
+    return jsonify(result)
+
+
 @app.post("/api/workers/import-csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
@@ -6742,7 +6841,7 @@ def update_worker(worker_id):
     db.execute(
         """
         UPDATE workers
-        SET company_id = ?, subcompany_id = ?, first_name = ?, last_name = ?, insurance_number = ?, worker_type = ?, role = ?, site = ?, valid_until = ?, visitor_company = ?, visit_purpose = ?, host_name = ?, visit_end_at = ?, status = ?, photo_data = ?, badge_pin_hash = ?, physical_card_id = ?
+        SET company_id = ?, subcompany_id = ?, first_name = ?, last_name = ?, insurance_number = ?, worker_type = ?, role = ?, site = ?, valid_until = ?, visitor_company = ?, visit_purpose = ?, host_name = ?, visit_end_at = ?, status = ?, photo_data = ?, badge_pin_hash = ?, physical_card_id = ?, contact_email = ?
         WHERE id = ?
         """,
         (
@@ -6763,6 +6862,7 @@ def update_worker(worker_id):
             updated_photo_data,
             next_badge_pin_hash if worker_type != "visitor" else "",
             next_physical_card_id,
+            clean_text_input(payload.get("contactEmail", worker["contact_email"] or "") or "", max_len=200),
             worker_id,
         ),
     )
@@ -14116,6 +14216,45 @@ def worker_submit_leave_request():
         f"Antrag von {worker['first_name']} {worker['last_name']}: {req_type} {start_date}–{end_date}",
         target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
     )
+
+    # E-Mail-Benachrichtigung an Firmen-Admins
+    admin_rows = db.execute(
+        "SELECT name, email FROM users WHERE company_id = ? AND role = 'company-admin' AND email != ''",
+        (worker["company_id"],)
+    ).fetchall()
+    if admin_rows:
+        type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiger Antrag"}
+        req_type_label = type_labels.get(req_type, req_type)
+        worker_name = f"{worker['first_name']} {worker['last_name']}"
+        subject = f"Neuer Antrag: {req_type_label} – {worker_name}"
+        note_html = f'<p style="color:#555;margin:8px 0 0;"><strong>Notiz:</strong> {note}</p>' if note else ""
+        html_mail = f"""<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f8;margin:0;padding:32px 0;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="580" style="background:#fff;border-radius:12px;overflow:hidden;max-width:580px;width:100%;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+  <tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:24px 32px;">
+    <h1 style="margin:0;color:#fff;font-size:20px;">Neuer Abwesenheitsantrag</h1>
+    <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Bitte im Admin-Portal prüfen</p>
+  </td></tr>
+  <tr><td style="padding:28px 32px;">
+    <p style="color:#444;font-size:16px;"><strong>{worker_name}</strong> ({worker['badge_id']}) hat einen neuen Antrag eingereicht:</p>
+    <p style="font-size:18px;font-weight:700;color:#1a1a2e;">{req_type_label} · {start_date} – {end_date}</p>
+    {note_html}
+    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt im BauPass Admin-Portal prüfen und genehmigen oder ablehnen.</p>
+  </td></tr>
+</table></td></tr></table></body></html>"""
+        text_mail = f"Neuer Antrag von {worker_name}: {req_type_label} {start_date}–{end_date}." + (f"\nNotiz: {note}" if note else "")
+        settings_row = db.execute("SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1").fetchone()
+        s = dict(settings_row) if settings_row else {}
+        sender_email = (s.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
+        sender_name = (s.get("smtp_sender_name") or "BauPass").strip()
+        for admin in admin_rows:
+            try:
+                _send_via_any_api(subject, sender_email, sender_name, admin["email"], text_mail, html_mail)
+            except Exception:
+                pass
+
     return jsonify({"ok": True, "id": req_id}), 201
 
 
@@ -14178,6 +14317,40 @@ def review_leave_request(req_id):
         target_type="worker", target_id=req_row["worker_id"],
         company_id=req_row["company_id"], actor=user
     )
+
+    # Push-Benachrichtigung an Mitarbeiter
+    status_label_de = {"genehmigt": "genehmigt ✓", "abgelehnt": "abgelehnt ✗", "ausstehend": "ausstehend"}.get(new_status, new_status)
+    type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Antrag"}
+    req_type_label = type_labels.get(req_row["type"], req_row["type"])
+    push_title = f"Antrag {status_label_de}"
+    push_body = f"{req_type_label} {req_row['start_date']}–{req_row['end_date']}"
+    if review_note:
+        push_body += f" – {review_note[:80]}"
+    _send_push_to_worker(db, req_row["worker_id"], push_title, push_body, tag="leave-request-status")
+
+    # E-Mail-Benachrichtigung an Mitarbeiter (falls contact_email gesetzt)
+    if new_status in ("genehmigt", "abgelehnt"):
+        html_note = f'<p style="color:#555;margin:12px 0 0;"><strong>Bemerkung:</strong> {review_note}</p>' if review_note else ""
+        status_color = "#1a7a3a" if new_status == "genehmigt" else "#c53d2f"
+        status_icon = "✓" if new_status == "genehmigt" else "✗"
+        html_mail = f"""<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f8;margin:0;padding:32px 0;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="580" style="background:#fff;border-radius:12px;overflow:hidden;max-width:580px;width:100%;box-shadow:0 2px 12px rgba(0,0,0,.08);">
+  <tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:24px 32px;">
+    <h1 style="margin:0;color:#fff;font-size:20px;">Ihr Antrag wurde bearbeitet</h1>
+  </td></tr>
+  <tr><td style="padding:28px 32px;">
+    <p style="font-size:22px;font-weight:700;color:{status_color};">{status_icon} {req_type_label} {status_label_de}</p>
+    <p style="color:#444;">Zeitraum: <strong>{req_row['start_date']}</strong> bis <strong>{req_row['end_date']}</strong></p>
+    {html_note}
+    <p style="margin-top:24px;color:#888;font-size:13px;">Bei Fragen wenden Sie sich an Ihren Administrator.</p>
+  </td></tr>
+</table></td></tr></table></body></html>"""
+        text_mail = f"Ihr {req_type_label} ({req_row['start_date']}–{req_row['end_date']}) wurde {status_label_de}.\n" + (f"Bemerkung: {review_note}" if review_note else "")
+        _send_email_to_worker(db, req_row["worker_id"], f"Antrag {status_label_de}: {req_type_label}", text_mail, html_mail)
+
     return jsonify({"ok": True})
 
 

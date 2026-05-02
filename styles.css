@@ -5020,3 +5020,95 @@ body.desktop-app .topbar {
   white-space: nowrap;
   vertical-align: middle;
 }
+
+/* Aktuelle Besucher Live-Karte */
+.visitor-live-card {
+  padding: 12px 14px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.vlc-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.vlc-badge {
+  display: inline-block;
+  background: #e8f0fe;
+  color: #1a6fbf;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.vlc-meta { font-size: 12px; color: var(--muted, #6b7280); }
+.visitor-time {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.visitor-time.ok { background: rgba(26,122,58,.1); color: #1a7a3a; }
+.visitor-time.soon { background: rgba(234,139,22,.12); color: #b86b00; }
+.visitor-time.expired { background: rgba(197,61,47,.12); color: #c53d2f; }
+
+/* Abwesenheitskalender */
+.absence-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px 14px;
+  font-size: 16px;
+}
+.absence-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #6b7280);
+  padding: 4px 2px;
+  text-transform: uppercase;
+}
+.cal-head.weekend { color: #c53d2f; }
+.cal-cell {
+  min-height: 52px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  padding: 4px;
+  font-size: 11px;
+  position: relative;
+  overflow: hidden;
+}
+.cal-cell.empty { background: transparent; border-color: transparent; }
+.cal-cell.weekend { background: rgba(239,68,68,.04); }
+.cal-cell.today { border-color: #2563eb; background: rgba(37,99,235,.05); }
+.cal-cell.has-entries { background: rgba(37,99,235,.04); }
+.cal-day { font-size: 12px; font-weight: 700; color: #374151; display: block; }
+.cal-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin: 1px;
+}
+.cal-names {
+  font-size: 9px;
+  color: #374151;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.cal-names span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+.cal-legend span { display: flex; align-items: center; gap: 4px; }

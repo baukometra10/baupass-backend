@@ -1243,6 +1243,23 @@ function bindEvents() {
     elements.leaveRequestAiBtn.addEventListener("click", applyAiLeaveSuggestion);
   }
 
+  // Urlaubstage live berechnen
+  const calcDays = () => {
+    const start = elements.leaveRequestStart?.value;
+    const end = elements.leaveRequestEnd?.value;
+    const hint = document.getElementById("leaveDaysHint");
+    if (!hint) return;
+    if (start && end && end >= start) {
+      const days = countWorkingDays(start, end);
+      hint.textContent = `${days} Arbeitstag${days !== 1 ? "e" : ""}`;
+      hint.className = "leave-days-hint";
+    } else {
+      hint.textContent = "";
+    }
+  };
+  if (elements.leaveRequestStart) elements.leaveRequestStart.addEventListener("change", calcDays);
+  if (elements.leaveRequestEnd) elements.leaveRequestEnd.addEventListener("change", calcDays);
+
   if (elements.sendToBossBtn) {
     elements.sendToBossBtn.addEventListener("click", async () => {
       await sendLastLeaveRequestToBoss();
@@ -3219,7 +3236,21 @@ async function loadMyDocuments() {
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
-    elements.documentsList.innerHTML = rows.map((doc) => {
+    const soon = new Date(); soon.setDate(soon.getDate() + 30);
+    const soonStr = soon.toISOString().slice(0, 10);
+
+    // Ablauf-Warnung Banner
+    const expiringSoon = rows.filter(d => d.expiry_date && d.expiry_date > today && d.expiry_date <= soonStr);
+    const expired = rows.filter(d => d.expiry_date && d.expiry_date <= today);
+    let warningBanner = "";
+    if (expired.length > 0) {
+      warningBanner += `<div class="doc-warning-banner doc-warning-expired">⚠️ ${expired.length} Dokument${expired.length > 1 ? "e" : ""} abgelaufen</div>`;
+    }
+    if (expiringSoon.length > 0) {
+      warningBanner += `<div class="doc-warning-banner doc-warning-soon">🕐 ${expiringSoon.length} Dokument${expiringSoon.length > 1 ? "e laufen" : " läuft"} bald ab</div>`;
+    }
+
+    elements.documentsList.innerHTML = warningBanner + rows.map((doc) => {
       const isExpired = doc.expiry_date && doc.expiry_date < today;
       const statusLabel = doc.expiry_date
         ? (isExpired ? t("documentsStatusExpired") : t("documentsStatusOk"))
@@ -3243,6 +3274,20 @@ async function loadMyDocuments() {
 
 function escapeHtmlBasic(str) {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Zählt Arbeitstage (Mo–Fr) zwischen start und end (inkl.) */
+function countWorkingDays(startStr, endStr) {
+  const start = new Date(startStr);
+  const end = new Date(endStr);
+  let count = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
 }
 
 // ═════════════════════════════════════════════════════════════════════
