@@ -1896,6 +1896,13 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN worker_pass_lock_enabled INTEGER NOT NULL DEFAULT 0")
     if "contact_email" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''")
+    if "leave_balance" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN leave_balance INTEGER NOT NULL DEFAULT 30")
+
+    # ── Urlaubstage-Zaehler in leave_requests ────────────────────
+    leave_req_columns = [row[1] for row in cur.execute("PRAGMA table_info(leave_requests)").fetchall()]
+    if "days_count" not in leave_req_columns:
+        cur.execute("ALTER TABLE leave_requests ADD COLUMN days_count INTEGER NOT NULL DEFAULT 0")
 
     # IMAP-Einstellungen fuer Dokumenten-Postfach
     if "imap_host" not in settings_columns:
@@ -2864,6 +2871,25 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         return False, f"brevo_url_error: {exc}"
     except Exception as exc:
         return False, f"brevo_error: {exc}"
+
+
+def _count_working_days(start_str: str, end_str: str) -> int:
+    """Zählt Arbeitstage (Mo–Fr) zwischen zwei ISO-Datums-Strings (inklusive)."""
+    try:
+        from datetime import date, timedelta
+        start = date.fromisoformat(start_str)
+        end = date.fromisoformat(end_str)
+        if end < start:
+            return 0
+        count = 0
+        current = start
+        while current <= end:
+            if current.weekday() < 5:  # 0=Mo … 4=Fr
+                count += 1
+            current += timedelta(days=1)
+        return count
+    except Exception:
+        return 0
 
 
 def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
@@ -6104,6 +6130,20 @@ def get_current_visitors():
     return jsonify(result)
 
 
+@app.get("/api/devices")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def list_devices():
+    """Gibt alle registrierten Scanner-Geräte zurück."""
+    db = get_db()
+    user = g.current_user
+    if user["role"] == "superadmin":
+        rows = db.execute("SELECT * FROM devices ORDER BY name").fetchall()
+    else:
+        rows = db.execute("SELECT * FROM devices WHERE company_id = ? ORDER BY name", (user["company_id"],)).fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
 @app.post("/api/workers/import-csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
@@ -6841,7 +6881,7 @@ def update_worker(worker_id):
     db.execute(
         """
         UPDATE workers
-        SET company_id = ?, subcompany_id = ?, first_name = ?, last_name = ?, insurance_number = ?, worker_type = ?, role = ?, site = ?, valid_until = ?, visitor_company = ?, visit_purpose = ?, host_name = ?, visit_end_at = ?, status = ?, photo_data = ?, badge_pin_hash = ?, physical_card_id = ?, contact_email = ?
+        SET company_id = ?, subcompany_id = ?, first_name = ?, last_name = ?, insurance_number = ?, worker_type = ?, role = ?, site = ?, valid_until = ?, visitor_company = ?, visit_purpose = ?, host_name = ?, visit_end_at = ?, status = ?, photo_data = ?, badge_pin_hash = ?, physical_card_id = ?, contact_email = ?, leave_balance = ?
         WHERE id = ?
         """,
         (
@@ -6863,6 +6903,7 @@ def update_worker(worker_id):
             next_badge_pin_hash if worker_type != "visitor" else "",
             next_physical_card_id,
             clean_text_input(payload.get("contactEmail", worker["contact_email"] or "") or "", max_len=200),
+            max(0, int(payload.get("leaveBalance", worker["leave_balance"] if worker["leave_balance"] is not None else 30))),
             worker_id,
         ),
     )
@@ -7020,6 +7061,7 @@ def serialize_worker_for_app(worker):
         "photoData": worker["photo_data"],
         "badgeId": worker["badge_id"],
         "siteLocation": site_location,
+        "leaveBalance": int(worker["leave_balance"]) if (hasattr(worker, "keys") and "leave_balance" in worker.keys() and worker["leave_balance"] is not None) else 30,
     }
 
 
@@ -7436,6 +7478,15 @@ def worker_app_me():
     if worker["subcompany_id"]:
         subcompany = db.execute("SELECT * FROM subcompanies WHERE id = ?", (worker["subcompany_id"],)).fetchone()
     setting = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    # Urlaubstage: genommene Tage dieses Jahr (genehmigt, Typ=urlaub)
+    from datetime import datetime as _dt
+    this_year = str(_dt.now().year)
+    taken_rows = db.execute(
+        "SELECT SUM(days_count) as total FROM leave_requests WHERE worker_id = ? AND status = 'genehmigt' AND type = 'urlaub' AND start_date LIKE ?",
+        (worker["id"], f"{this_year}-%")
+    ).fetchone()
+    leave_taken = int(taken_rows["total"] or 0)
+    leave_balance = int(worker["leave_balance"]) if (worker["leave_balance"] is not None) else 30
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker),
@@ -7452,6 +7503,11 @@ def worker_app_me():
             },
             "sessionExpiresAt": getattr(g, "worker_session_expires_at", ""),
             "cardType": normalize_worker_type(worker["worker_type"]),
+            "leaveStats": {
+                "balance": leave_balance,
+                "taken": leave_taken,
+                "remaining": max(0, leave_balance - leave_taken),
+            },
         }
     )
 
@@ -14204,11 +14260,12 @@ def worker_submit_leave_request():
     if start_date > end_date:
         return jsonify({"error": "end_before_start"}), 400
     req_id = f"leave-{secrets.token_hex(8)}"
+    days_count = _count_working_days(start_date, end_date)
     db = get_db()
     db.execute(
-        "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, created_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?)",
-        (req_id, worker["id"], worker["company_id"], req_type, start_date, end_date, note, now_iso())
+        "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, days_count, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?, ?)",
+        (req_id, worker["id"], worker["company_id"], req_type, start_date, end_date, note, days_count, now_iso())
     )
     db.commit()
     log_audit(
@@ -14272,7 +14329,9 @@ def get_leave_requests():
     query = """
         SELECT lr.id, lr.worker_id, lr.company_id, lr.type, lr.start_date, lr.end_date,
                lr.note, lr.status, lr.reviewed_by_user_id, lr.reviewed_at, lr.review_note,
-               lr.created_at, lr.email_forwarded_to, w.first_name, w.last_name, w.badge_id
+               lr.created_at, lr.email_forwarded_to, lr.days_count,
+               w.first_name, w.last_name, w.badge_id,
+               (w.first_name || ' ' || w.last_name) AS worker_name
         FROM leave_requests lr
         JOIN workers w ON w.id = lr.worker_id
         WHERE 1=1

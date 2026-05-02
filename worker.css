@@ -2123,3 +2123,9 @@ body {
   color: #b86b00;
   border: 1px solid rgba(234, 139, 22, .3);
 }
+
+/* ── Leave Balance Badge ── */
+.leave-balance-badge { display:inline-flex; align-items:center; gap:6px; background:rgba(26,122,58,.12); color:#1a7a3a; border:1px solid rgba(26,122,58,.25); border-radius:20px; padding:6px 14px; margin:8px 0; font-size:14px; font-weight:700; }
+.leave-balance-badge.medium { background:rgba(234,139,22,.12); color:#b86b00; border-color:rgba(234,139,22,.3); }
+.leave-balance-badge.low { background:rgba(197,61,47,.12); color:#c53d2f; border-color:rgba(197,61,47,.25); }
+.leave-balance-label { font-weight:400; font-size:12px; opacity:.8; }

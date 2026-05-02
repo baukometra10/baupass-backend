@@ -1918,6 +1918,18 @@ function renderWorker(payload) {
     elements.leaveRequestCard.classList.remove("hidden");
   }
 
+  // Show leave balance badge
+  const leaveStats = payload.leaveStats;
+  const balanceBadge = document.getElementById("leaveBalanceBadge");
+  const balanceRemaining = document.getElementById("leaveBalanceRemaining");
+  if (leaveStats && balanceBadge && balanceRemaining && !isVisitor) {
+    balanceRemaining.textContent = leaveStats.remaining;
+    balanceBadge.classList.remove("hidden");
+    balanceBadge.title = `Anspruch: ${leaveStats.balance} Tage · Genommen: ${leaveStats.taken} Tage`;
+    const pct = leaveStats.balance > 0 ? leaveStats.remaining / leaveStats.balance : 1;
+    balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
+  }
+
   // Show timesheet and documents cards
   if (elements.timesheetCard) {
     elements.timesheetCard.classList.remove("hidden");

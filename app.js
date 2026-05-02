@@ -11058,6 +11058,8 @@ function bindWorkerRowActions() {
       document.querySelector("#role").value = worker.role || "";
       document.querySelector("#site").value = worker.site || "";
       document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
+      document.querySelector("#workerContactEmail") && (document.querySelector("#workerContactEmail").value = worker.contactEmail || worker.contact_email || "");
+      document.querySelector("#workerLeaveBalance") && (document.querySelector("#workerLeaveBalance").value = (worker.leaveBalance !== undefined ? worker.leaveBalance : (worker.leave_balance !== undefined ? worker.leave_balance : 30)));
       document.querySelector("#validUntil").value = worker.validUntil || "";
       if (elements.visitorCompany) elements.visitorCompany.value = worker.visitorCompany || "";
       if (elements.visitPurpose) elements.visitPurpose.value = worker.visitPurpose || "";
@@ -12652,6 +12654,8 @@ window.triggerWorkerAccess = triggerWorkerAccess;
       document.querySelector("#role").value = worker.role;
       document.querySelector("#site").value = worker.site;
       document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
+      document.querySelector("#workerContactEmail") && (document.querySelector("#workerContactEmail").value = worker.contactEmail || worker.contact_email || "");
+      document.querySelector("#workerLeaveBalance") && (document.querySelector("#workerLeaveBalance").value = (worker.leaveBalance !== undefined ? worker.leaveBalance : (worker.leave_balance !== undefined ? worker.leave_balance : 30)));
       document.querySelector("#validUntil").value = worker.validUntil;
       document.querySelector("#workerStatus").value = worker.status;
       document.querySelector("#badgePin").value = "";
@@ -12940,6 +12944,8 @@ function renderBadge() {
         document.querySelector("#role").value = worker.role || "";
         document.querySelector("#site").value = worker.site || "";
         document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
+        document.querySelector("#workerContactEmail") && (document.querySelector("#workerContactEmail").value = worker.contactEmail || worker.contact_email || "");
+        document.querySelector("#workerLeaveBalance") && (document.querySelector("#workerLeaveBalance").value = (worker.leaveBalance !== undefined ? worker.leaveBalance : (worker.leave_balance !== undefined ? worker.leave_balance : 30)));
         document.querySelector("#validUntil").value = worker.validUntil || "";
         document.querySelector("#workerStatus").value = worker.status || "aktiv";
         document.querySelector("#badgePin").value = "";
@@ -13832,6 +13838,8 @@ async function handleWorkerSubmit(event) {
     role: document.querySelector("#role").value.trim(),
     site: document.querySelector("#site").value.trim(),
     physicalCardId: document.querySelector("#physicalCardId").value.trim(),
+    contactEmail: document.querySelector("#workerContactEmail")?.value.trim() || "",
+    leaveBalance: parseInt(document.querySelector("#workerLeaveBalance")?.value || "30", 10),
     validUntil: document.querySelector("#validUntil").value,
     visitorCompany: elements.visitorCompany?.value.trim() || "",
     visitPurpose: elements.visitPurpose?.value.trim() || "",
@@ -20937,13 +20945,14 @@ async function loadLeaveRequests(filterStatus = null) {
       <div class="leave-requests-section">
         <h3>Leave Requests</h3>
         <table>
-          <tr><th>Worker</th><th>Type</th><th>Start</th><th>End</th><th>Status</th><th>Action</th></tr>
+          <tr><th>Mitarbeiter</th><th>Art</th><th>Von</th><th>Bis</th><th>Tage</th><th>Status</th><th>Aktion</th></tr>
           ${filtered.map(req => `
             <tr>
-              <td>${req.worker_name || 'N/A'}</td>
-              <td>${req.type || 'N/A'}</td>
+              <td>${req.worker_name || req.first_name + ' ' + req.last_name || 'N/A'}</td>
+              <td>${req.type === 'urlaub' ? 'Urlaub' : req.type === 'krank' ? 'Krank' : req.type || 'N/A'}</td>
               <td>${req.start_date}</td>
               <td>${req.end_date}</td>
+              <td>${req.days_count > 0 ? req.days_count : '-'}</td>
               <td>${req.status}${req.email_forwarded_to ? `<br><span class="leave-forwarded-badge" title="An ${escapeHtml(req.email_forwarded_to)} weitergeleitet">📧 ${escapeHtml(req.email_forwarded_to)}</span>` : ""}</td>
               <td>${req.status === 'ausstehend' ? `<button onclick="approveLeaveRequest(${req.id})">Approve</button><button onclick="rejectLeaveRequest(${req.id})">Reject</button>` : '-'}</td>
             </tr>
