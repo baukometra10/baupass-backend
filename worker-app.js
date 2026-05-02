@@ -846,6 +846,7 @@ let lastPassInteractionAt = Date.now();
 let passLockTimer = null;
 let lastSubmittedLeaveRequestId = "";
 let leaveRefreshInterval = null;
+let quickMenuObserver = null;
 
 const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
@@ -965,6 +966,34 @@ function dismissSplash() {
 // ── Globale User-Interaktions-Tracking-Funktion ──
 function markUserInteraction() {
   lastUserInteractionAt = Date.now();
+}
+
+function setActiveQuickMenuTarget(targetId) {
+  if (!elements.quickMenuButtons?.length) return;
+  elements.quickMenuButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-scroll-target") === targetId);
+  });
+}
+
+function initQuickMenuObserver() {
+  if (!elements.quickMenuButtons?.length || typeof IntersectionObserver === "undefined") return;
+  if (quickMenuObserver) {
+    quickMenuObserver.disconnect();
+  }
+  const targets = ["badgeCard", "actionsPanel", "leaveRequestCard", "timesheetCard", "documentsCard"];
+  quickMenuObserver = new IntersectionObserver((entries) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+    if (visible.length > 0) {
+      setActiveQuickMenuTarget(visible[0].target.id);
+    }
+  }, { threshold: [0.25, 0.5, 0.75], rootMargin: "-20% 0px -45% 0px" });
+
+  targets.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) quickMenuObserver.observe(el);
+  });
 }
 
 init().finally(dismissSplash);
@@ -1247,6 +1276,7 @@ function bindEvents() {
       btn.addEventListener("click", () => {
         const targetId = btn.getAttribute("data-scroll-target") || "";
         if (!targetId) return;
+        setActiveQuickMenuTarget(targetId);
         const target = document.getElementById(targetId);
         if (target) {
           target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1930,6 +1960,8 @@ function renderWorker(payload) {
   document.body.classList.add("worker-loaded");
   if (elements.workerQuickMenu) {
     elements.workerQuickMenu.classList.remove("hidden");
+    setActiveQuickMenuTarget("badgeCard");
+    initQuickMenuObserver();
   }
   
   // Show leave request card
@@ -1982,6 +2014,10 @@ function showLogin() {
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
+  if (quickMenuObserver) {
+    quickMenuObserver.disconnect();
+    quickMenuObserver = null;
+  }
   document.body.classList.remove("worker-loaded");
 }
 
