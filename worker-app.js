@@ -2958,60 +2958,18 @@ function clearWorkerSessionCountdown() {
 }
 
 function renderWorkerSessionCountdown(expiresAt) {
+  // Worker cards (Mitarbeiter) don't show countdown timer - only visitors do
+  // Mitarbeiter-Karten zeigen keinen Countdown - nur Besucher
   clearWorkerSessionCountdown();
   sessionExpiringSoonNotified = false;
   gateAutoOpenTriggered = false;
   if (!elements.workerSessionCountdown) {
     return;
   }
-  if (!expiresAt) {
-    elements.workerSessionCountdown.textContent = t("expiresUnknown");
-    return;
-  }
-
-  const updateCountdown = () => {
-    const target = new Date(expiresAt).getTime();
-    const remainingMs = target - Date.now();
-    if (!Number.isFinite(target) || remainingMs <= 0) {
-      elements.workerSessionCountdown.textContent = t("expiresNow");
-      elements.workerSessionCountdown.classList.remove("ok", "warn", "critical");
-      elements.workerSessionCountdown.classList.add("critical");
-      clearWorkerSessionCountdown();
-      return;
-    }
-    const totalSeconds = Math.floor(remainingMs / 1000);
-    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
-    const seconds = String(totalSeconds % 60).padStart(2, "0");
-    elements.workerSessionCountdown.textContent = tf("expiresIn", { time: `${hours}:${minutes}:${seconds}` });
-
-    elements.workerSessionCountdown.classList.remove("ok", "warn", "critical");
-    if (totalSeconds <= 300) {
-      elements.workerSessionCountdown.classList.add("critical");
-      if (!sessionExpiringSoonNotified) {
-        sessionExpiringSoonNotified = true;
-        if (navigator.vibrate) {
-          navigator.vibrate([120, 80, 120]);
-        }
-        showWorkerNotice(t("expiringSoonNotice"));
-      }
-
-      const gateIsClosed = Boolean(elements.gateScannerOverlay?.classList.contains("hidden"));
-      const recentlyActive = (Date.now() - lastUserInteractionAt) <= AUTO_OPEN_ACTIVITY_WINDOW_MS;
-      if (totalSeconds <= 120 && autoOpenScannerEnabled && !gateAutoOpenTriggered && gateIsClosed && document.visibilityState === "visible" && recentlyActive) {
-        gateAutoOpenTriggered = true;
-        showWorkerNotice(t("scannerAutoOpened"));
-        void openGateMode();
-      }
-    } else if (totalSeconds <= 1800) {
-      elements.workerSessionCountdown.classList.add("warn");
-    } else {
-      elements.workerSessionCountdown.classList.add("ok");
-    }
-  };
-
-  updateCountdown();
-  workerSessionCountdownInterval = window.setInterval(updateCountdown, 1000);
+  // Hide worker session countdown for clean UI
+  // Verstecke den Countdown für sauberes UI
+  elements.workerSessionCountdown.textContent = "";
+  elements.workerSessionCountdown.classList.remove("ok", "warn", "critical");
 }
 
 function clearWorkerSessionExpiryTimer() {
