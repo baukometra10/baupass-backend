@@ -6130,20 +6130,6 @@ def get_current_visitors():
     return jsonify(result)
 
 
-@app.get("/api/devices")
-@require_auth
-@require_roles("superadmin", "company-admin")
-def list_devices():
-    """Gibt alle registrierten Scanner-Geräte zurück."""
-    db = get_db()
-    user = g.current_user
-    if user["role"] == "superadmin":
-        rows = db.execute("SELECT * FROM devices ORDER BY name").fetchall()
-    else:
-        rows = db.execute("SELECT * FROM devices WHERE company_id = ? ORDER BY name", (user["company_id"],)).fetchall()
-    return jsonify([row_to_dict(r) for r in rows])
-
-
 @app.post("/api/workers/import-csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
