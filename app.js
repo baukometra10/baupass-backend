@@ -20907,3 +20907,169 @@ function renderWorkerDocuments(docs, workerId, containerEl) {
     }
   })();
 })();
+
+// ============ ADMIN PANEL: LEAVE REQUESTS, EXPORTS, PUSH NOTIFICATIONS ============
+
+/**
+ * Load and display leave requests list
+ */
+async function loadLeaveRequests(filterStatus = null) {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) {
+      alert('Session expired. Please sign in again.');
+      return;
+    }
+
+    const response = await fetch(`${API_BASE}/api/leave-requests`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${sessionToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const requests = await response.json();
+    
+    const filtered = filterStatus ? requests.filter(r => r.status === filterStatus) : requests;
+    const html = `
+      <div class="leave-requests-section">
+        <h3>Leave Requests</h3>
+        <table>
+          <tr><th>Worker</th><th>Type</th><th>Start</th><th>End</th><th>Status</th><th>Action</th></tr>
+          ${filtered.map(req => `
+            <tr>
+              <td>${req.worker_name || 'N/A'}</td>
+              <td>${req.type || 'N/A'}</td>
+              <td>${req.start_date}</td>
+              <td>${req.end_date}</td>
+              <td>${req.status}</td>
+              <td>${req.status === 'ausstehend' ? `<button onclick="approveLeaveRequest(${req.id})">Approve</button><button onclick="rejectLeaveRequest(${req.id})">Reject</button>` : '-'}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </div>
+    `;
+    const container = document.getElementById('adminPanel') || document.body;
+    container.innerHTML += html;
+  } catch (error) {
+    alert('Error loading leave requests: ' + error.message);
+  }
+}
+
+/**
+ * Approve leave request
+ */
+async function approveLeaveRequest(id) {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    const response = await fetch(`${API_BASE}/api/leave-requests/${id}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${sessionToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "genehmigt" }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    alert('Request approved');
+    loadLeaveRequests();
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+/**
+ * Reject leave request
+ */
+async function rejectLeaveRequest(id) {
+  const reason = prompt('Enter rejection reason:');
+  if (!reason) return;
+  
+  try {
+    const sessionToken = loadStoredSessionToken();
+    const response = await fetch(`${API_BASE}/api/leave-requests/${id}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${sessionToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "abgelehnt", review_note: reason }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    alert('Request rejected');
+    loadLeaveRequests();
+  } catch (error) {
+    alert('Error: ' + error.message);
+  }
+}
+
+/**
+ * Export timesheets CSV
+ */
+async function exportTimesheets() {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    const response = await fetch(`${API_BASE}/api/export/timesheets`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${sessionToken}` },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `timesheets_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    alert('Export failed: ' + error.message);
+  }
+}
+
+/**
+ * Export audit logs CSV
+ */
+async function exportAuditLogs() {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    const response = await fetch(`${API_BASE}/api/export/audit-logs`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${sessionToken}` },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    alert('Export failed: ' + error.message);
+  }
+}
+
+/**
+ * Trigger push notifications
+ */
+async function triggerCheckoutReminders() {
+  if (!confirm('Send checkout reminders to all checked-in workers?')) return;
+  
+  try {
+    const sessionToken = loadStoredSessionToken();
+    const response = await fetch(`${API_BASE}/api/push/trigger-checkout-reminders`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${sessionToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    alert('Reminders sent successfully');
+  } catch (error) {
+    alert('Error sending reminders: ' + error.message);
+  }
+}
