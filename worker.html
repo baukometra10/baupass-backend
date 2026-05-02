@@ -267,8 +267,54 @@
             <button id="qrContrastToggle" class="ghost small-btn" type="button" data-i18n="qrContrastOff">High-Contrast QR: Aus</button>
             <button id="changePhotoButton" class="ghost small-btn" type="button" data-i18n="changePhotoBtn">Foto ändern</button>
             <button id="refreshButton" class="ghost small-btn" type="button" data-i18n="refreshBtn">Aktualisieren</button>
+            <button id="themeToggleBtn" class="theme-toggle-btn ghost small-btn" type="button" title="Theme toggle (light/dark/auto)" data-i18n="themeToggleBtn">🌙</button>
+            <button id="voiceCommandBtn" class="voice-command-btn ghost small-btn" type="button" title="Voice commands" data-i18n="voiceCommandBtn">🎤</button>
+            <button id="notificationPermissionBtn" class="ghost small-btn" type="button" data-i18n="notificationPermissionBtn" style="display:none;">Benachrichtigungen</button>
             <button id="logoutButton" class="ghost small-btn logout-btn" type="button" data-i18n="logoutBtn">Abmelden</button>
           </div>
+        </div>
+
+        <!-- Urlaubsantraege & Krankmeldungen -->
+        <div id="leaveRequestCard" class="below-card leave-request-card hidden">
+          <div class="section-head compact-head">
+            <p class="section-kicker" data-i18n="leaveRequestKicker">Abwesenheit</p>
+            <h3 data-i18n="leaveRequestTitle">Urlaubsantrag</h3>
+          </div>
+          <div id="leaveRequestFormWrapper" style="display:none;">
+            <form id="leaveRequestForm" class="leave-request-form">
+              <label>
+                <span data-i18n="leaveRequestTypeLabel">Art</span>
+                <select id="leaveRequestType" required>
+                  <option value="urlaub" data-i18n="leaveTypeVacation">Urlaub</option>
+                  <option value="krank" data-i18n="leaveTypeSick">Krank</option>
+                  <option value="sonstiges" data-i18n="leaveTypeOther">Sonstiges</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="leaveRequestStartLabel">Von</span>
+                <input id="leaveRequestStart" type="date" required />
+              </label>
+              <label>
+                <span data-i18n="leaveRequestEndLabel">Bis</span>
+                <input id="leaveRequestEnd" type="date" required />
+              </label>
+              <label>
+                <span data-i18n="leaveRequestNoteLabel">Notiz</span>
+                <textarea id="leaveRequestNote" placeholder="Optional"></textarea>
+              </label>
+              <button type="submit" class="primary" data-i18n="leaveRequestSubmitBtn">Antrag einreichen</button>
+            </form>
+          </div>
+          <div id="leaveRequestListWrapper">
+            <button id="leaveRequestToggleBtn" class="ghost small-btn" type="button" data-i18n="leaveRequestNewBtn">+ Neuer Antrag</button>
+            <div id="leaveRequestList" class="leave-request-list"></div>
+          </div>
+        </div>
+
+        <!-- Notification Permission Banner -->
+        <div id="notificationBanner" class="notification-permission-banner hidden">
+          <span data-i18n="notificationBannerText">Benachrichtigungen für Checkout-Erinnerungen aktivieren?</span>
+          <button id="enableNotificationsBtn" type="button" data-i18n="notificationEnableBtn">Aktivieren</button>
         </div>
       </div>
 

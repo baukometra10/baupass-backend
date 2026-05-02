@@ -1486,6 +1486,8 @@ def init_db():
             billing_email TEXT NOT NULL DEFAULT '',
             document_email TEXT NOT NULL DEFAULT '',
             access_host TEXT NOT NULL DEFAULT '',
+            work_start_time TEXT NOT NULL DEFAULT '',
+            work_end_time TEXT NOT NULL DEFAULT '',
             branding_preset TEXT NOT NULL DEFAULT 'construction',
             plan TEXT NOT NULL,
             status TEXT NOT NULL,
@@ -1844,6 +1846,10 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN access_host TEXT NOT NULL DEFAULT ''")
     if "document_email" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN document_email TEXT NOT NULL DEFAULT ''")
+    if "work_start_time" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN work_start_time TEXT NOT NULL DEFAULT ''")
+    if "work_end_time" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN work_end_time TEXT NOT NULL DEFAULT ''")
     if "branding_preset" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN branding_preset TEXT NOT NULL DEFAULT 'construction'")
 
@@ -2102,6 +2108,45 @@ def init_db():
         cur.execute("ALTER TABLE devices ADD COLUMN last_seen_at TEXT")
     if "created_at" not in device_columns:
         cur.execute("ALTER TABLE devices ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
+
+    # ── Neu: Urlaubsantraege & Krankmeldungen ──────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leave_requests (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'urlaub',
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'ausstehend',
+            reviewed_by_user_id TEXT,
+            reviewed_at TEXT,
+            review_note TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        )
+        """
+    )
+
+    # ── Neu: Push-Subscriptions (VAPID-Web-Push) ───────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        )
+        """
+    )
 
     # Populate Resend key cache from DB so _get_resend_api_key_and_source() works without
     # opening a second connection. Safe here because we're still in init_db's raw connection.
@@ -7006,6 +7051,32 @@ def normalize_physical_card_id(value):
     return normalized or None
 
 
+def normalize_work_time_value(value):
+    normalized = str(value or "").strip()
+    if not normalized:
+        return ""
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", normalized):
+        raise ValueError("invalid_work_time")
+    return normalized
+
+
+def get_effective_work_start_time(db, worker_id):
+    row = db.execute(
+        """
+        SELECT c.work_start_time AS company_work_start_time, s.work_start_time AS global_work_start_time
+        FROM workers w
+        LEFT JOIN companies c ON c.id = w.company_id
+        LEFT JOIN settings s ON s.id = 1
+        WHERE w.id = ?
+        LIMIT 1
+        """,
+        (worker_id,),
+    ).fetchone()
+    if not row:
+        return ""
+    return str(row["company_work_start_time"] or row["global_work_start_time"] or "").strip()
+
+
 def ensure_unique_physical_card_id_or_raise(db, physical_card_id, worker_id_to_exclude=None):
     if not physical_card_id:
         return
@@ -7038,8 +7109,7 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
     late = 0
     if direction == "check-in" and worker_type != "visitor":
         try:
-            setting_row = db.execute("SELECT work_start_time FROM settings WHERE id = 1").fetchone()
-            work_start = (setting_row["work_start_time"] if setting_row and "work_start_time" in setting_row.keys() else "") or ""
+            work_start = get_effective_work_start_time(db, worker_id)
             if work_start and ":" in work_start:
                 from datetime import datetime as _dt
                 now_local = _dt.now()
@@ -7434,6 +7504,52 @@ def update_company(company_id):
     db.commit()
     log_audit("company.updated", f"Firma {company_id} aktualisiert", target_type="company", target_id=company_id, company_id=company_id, actor=g.current_user)
     return jsonify({"ok": True})
+
+
+@app.put("/api/companies/<company_id>/work-times")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def update_company_work_times(company_id):
+    db = get_db()
+    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not company:
+        return jsonify({"error": "company_not_found"}), 404
+
+    user = g.current_user
+    user_role = str(user.get("role") or "").strip().lower()
+    if user_role != "superadmin" and str(user.get("company_id") or "") != str(company_id):
+        return jsonify({"error": "forbidden_company"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        work_start_time = normalize_work_time_value(payload.get("workStartTime"))
+        work_end_time = normalize_work_time_value(payload.get("workEndTime"))
+    except ValueError:
+        return jsonify({"error": "invalid_work_time"}), 400
+
+    db.execute(
+        "UPDATE companies SET work_start_time = ?, work_end_time = ? WHERE id = ?",
+        (work_start_time, work_end_time, company_id),
+    )
+    db.commit()
+
+    log_audit(
+        "company.work_times.updated",
+        f"Arbeitszeiten fuer Firma {company_id} aktualisiert",
+        target_type="company",
+        target_id=company_id,
+        company_id=company_id,
+        actor=user,
+    )
+
+    return jsonify(
+        {
+            "ok": True,
+            "companyId": company_id,
+            "workStartTime": work_start_time,
+            "workEndTime": work_end_time,
+        }
+    )
 
 
 @app.post("/api/documents/inbox/rematch-company-links")
@@ -13763,6 +13879,301 @@ def device_heartbeat():
     db.execute("UPDATE devices SET last_seen_at = ? WHERE id = ?", (now_iso(), matched["id"]))
     db.commit()
     return jsonify({"ok": True, "device": matched["name"], "ts": now_iso()})
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# NEUE FEATURES: Export · Push-Benachrichtigungen · Urlaubsantraege
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── Stundenzettel CSV-Export ─────────────────────────────────────────
+@app.route("/api/export/timesheets")
+@require_auth
+def export_timesheets():
+    user = g.current_user
+    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+        return jsonify({"error": "forbidden"}), 403
+    db = get_db()
+    company_id = user.get("company_id")
+    if user["role"] == "superadmin":
+        company_id = request.args.get("company_id") or None
+    date_from = request.args.get("from", (datetime.utcnow() - timedelta(days=30)).date().isoformat())
+    date_to = request.args.get("to", datetime.utcnow().date().isoformat())
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from) or not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to):
+        return jsonify({"error": "invalid_date"}), 400
+    base_query = """
+        SELECT w.last_name, w.first_name, w.badge_id, w.site,
+               al.direction, al.gate, al.note, al.timestamp
+        FROM access_logs al
+        JOIN workers w ON w.id = al.worker_id
+        WHERE al.timestamp >= ? AND al.timestamp <= ?
+    """
+    params = [date_from, date_to + "T23:59:59"]
+    if company_id:
+        base_query += " AND w.company_id = ?"
+        params.append(company_id)
+    base_query += " AND w.deleted_at IS NULL ORDER BY w.last_name, w.first_name, al.timestamp"
+    rows = db.execute(base_query, params).fetchall()
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Nachname", "Vorname", "Badge-ID", "Standort", "Richtung", "Tor", "Notiz", "Zeitstempel"])
+    for row in rows:
+        writer.writerow([row["last_name"], row["first_name"], row["badge_id"], row["site"],
+                         row["direction"], row["gate"], row["note"], row["timestamp"]])
+    output.seek(0)
+    filename = f"stundenliste_{date_from}_{date_to}.csv"
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+# ── Audit-Log CSV-Export ─────────────────────────────────────────────
+@app.route("/api/export/audit-logs")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def export_audit_logs():
+    user = g.current_user
+    db = get_db()
+    company_id = user.get("company_id")
+    if user["role"] == "superadmin":
+        company_id = request.args.get("company_id") or None
+    limit = min(int(request.args.get("limit", 10000)), 50000)
+    if company_id:
+        rows = db.execute(
+            "SELECT * FROM audit_logs WHERE company_id = ? ORDER BY created_at DESC LIMIT ?",
+            (company_id, limit)
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["ID", "Ereignistyp", "Akteur-User-ID", "Akteur-Rolle", "Firma-ID", "Ziel-Typ", "Ziel-ID", "Nachricht", "Zeitstempel"])
+    for row in rows:
+        writer.writerow([
+            row["id"], row["event_type"], row["actor_user_id"] or "",
+            row["actor_role"] or "", row["company_id"] or "",
+            row["target_type"] or "", row["target_id"] or "",
+            row["message"], row["created_at"]
+        ])
+    output.seek(0)
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="audit_log.csv"'}
+    )
+
+
+# ── Push-Benachrichtigungen (VAPID) ──────────────────────────────────
+@app.route("/api/worker-app/push-vapid-key")
+def get_vapid_public_key():
+    key = os.getenv("VAPID_PUBLIC_KEY", "").strip()
+    return jsonify({"publicKey": key or None})
+
+
+@app.post("/api/worker-app/push-subscribe")
+@require_worker_session
+def worker_push_subscribe():
+    worker = g.worker
+    data = request.get_json(silent=True) or {}
+    endpoint = str(data.get("endpoint", "")).strip()
+    p256dh = str(data.get("p256dh", "")).strip()
+    auth_key = str(data.get("auth", "")).strip()
+    if not endpoint or not p256dh or not auth_key:
+        return jsonify({"error": "missing_fields"}), 400
+    if len(endpoint) > 600 or len(p256dh) > 256 or len(auth_key) > 64:
+        return jsonify({"error": "invalid_subscription"}), 400
+    db = get_db()
+    existing = db.execute("SELECT id FROM push_subscriptions WHERE endpoint = ?", (endpoint,)).fetchone()
+    if existing:
+        db.execute(
+            "UPDATE push_subscriptions SET worker_id = ?, company_id = ?, p256dh = ?, auth = ? WHERE endpoint = ?",
+            (worker["id"], worker["company_id"], p256dh, auth_key, endpoint)
+        )
+    else:
+        sub_id = f"psub-{secrets.token_hex(8)}"
+        db.execute(
+            "INSERT INTO push_subscriptions (id, worker_id, company_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (sub_id, worker["id"], worker["company_id"], endpoint, p256dh, auth_key, now_iso())
+        )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/push/trigger-checkout-reminders")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def trigger_checkout_reminders():
+    try:
+        from pywebpush import webpush, WebPushException  # noqa: F401
+    except ImportError:
+        return jsonify({"error": "push_not_configured", "detail": "pywebpush not installed"}), 503
+    vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+    vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
+    if not vapid_private_key:
+        return jsonify({"error": "vapid_not_configured"}), 503
+    user = g.current_user
+    db = get_db()
+    company_id = user.get("company_id")
+    if user["role"] == "superadmin":
+        body = request.get_json(silent=True) or {}
+        company_id = body.get("company_id") or company_id
+    today = datetime.utcnow().date().isoformat()
+    if company_id:
+        checked_in_rows = db.execute(
+            """SELECT DISTINCT al.worker_id FROM access_logs al
+               JOIN workers w ON w.id = al.worker_id
+               WHERE al.direction = 'in' AND al.timestamp >= ?
+               AND w.company_id = ?
+               AND al.worker_id NOT IN (
+                   SELECT worker_id FROM access_logs WHERE direction = 'out' AND timestamp >= ?
+               )""",
+            (today, company_id, today)
+        ).fetchall()
+    else:
+        checked_in_rows = db.execute(
+            """SELECT DISTINCT worker_id FROM access_logs
+               WHERE direction = 'in' AND timestamp >= ?
+               AND worker_id NOT IN (
+                   SELECT worker_id FROM access_logs WHERE direction = 'out' AND timestamp >= ?
+               )""",
+            (today, today)
+        ).fetchall()
+    worker_ids = [r[0] for r in checked_in_rows]
+    sent = 0
+    errors = 0
+    for wid in worker_ids:
+        subs = db.execute("SELECT * FROM push_subscriptions WHERE worker_id = ?", (wid,)).fetchall()
+        for sub in subs:
+            try:
+                from pywebpush import webpush  # noqa: F811
+                webpush(
+                    subscription_info={
+                        "endpoint": sub["endpoint"],
+                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}
+                    },
+                    data=json.dumps({
+                        "title": "Nicht ausgebucht?",
+                        "body": "Du bist noch eingebucht. Vergessen auszustempeln?",
+                        "tag": "checkout-reminder"
+                    }),
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims={"sub": vapid_email}
+                )
+                sent += 1
+            except Exception:
+                errors += 1
+    return jsonify({"ok": True, "sent": sent, "errors": errors, "workers_reminded": len(worker_ids)})
+
+
+# ── Urlaubsantraege & Krankmeldungen ─────────────────────────────────
+@app.route("/api/worker-app/leave-requests", methods=["GET"])
+@require_worker_session
+def worker_get_leave_requests():
+    worker = g.worker
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM leave_requests WHERE worker_id = ? ORDER BY created_at DESC LIMIT 100",
+        (worker["id"],)
+    ).fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
+@app.route("/api/worker-app/leave-requests", methods=["POST"])
+@require_worker_session
+def worker_submit_leave_request():
+    worker = g.worker
+    data = request.get_json(silent=True) or {}
+    req_type = str(data.get("type", "")).strip()
+    start_date = str(data.get("start_date", "")).strip()
+    end_date = str(data.get("end_date", "")).strip()
+    note = str(data.get("note", "")).strip()[:500]
+    if req_type not in ("urlaub", "krank", "sonstiges"):
+        return jsonify({"error": "invalid_type"}), 400
+    if not start_date or not end_date:
+        return jsonify({"error": "missing_dates"}), 400
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", start_date) or not re.match(r"^\d{4}-\d{2}-\d{2}$", end_date):
+        return jsonify({"error": "invalid_date_format"}), 400
+    if start_date > end_date:
+        return jsonify({"error": "end_before_start"}), 400
+    req_id = f"leave-{secrets.token_hex(8)}"
+    db = get_db()
+    db.execute(
+        "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?)",
+        (req_id, worker["id"], worker["company_id"], req_type, start_date, end_date, note, now_iso())
+    )
+    db.commit()
+    log_audit(
+        "leave_request.created",
+        f"Antrag von {worker['first_name']} {worker['last_name']}: {req_type} {start_date}–{end_date}",
+        target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
+    )
+    return jsonify({"ok": True, "id": req_id}), 201
+
+
+@app.route("/api/leave-requests")
+@require_auth
+def get_leave_requests():
+    user = g.current_user
+    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+        return jsonify({"error": "forbidden"}), 403
+    db = get_db()
+    company_id = user.get("company_id")
+    if user["role"] == "superadmin":
+        company_id = request.args.get("company_id") or None
+    status_filter = request.args.get("status", "").strip()
+    query = """
+        SELECT lr.id, lr.worker_id, lr.company_id, lr.type, lr.start_date, lr.end_date,
+               lr.note, lr.status, lr.reviewed_by_user_id, lr.reviewed_at, lr.review_note,
+               lr.created_at, w.first_name, w.last_name, w.badge_id
+        FROM leave_requests lr
+        JOIN workers w ON w.id = lr.worker_id
+        WHERE 1=1
+    """
+    params = []
+    if company_id:
+        query += " AND lr.company_id = ?"
+        params.append(company_id)
+    if status_filter:
+        query += " AND lr.status = ?"
+        params.append(status_filter)
+    query += " ORDER BY lr.created_at DESC LIMIT 500"
+    rows = db.execute(query, params).fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
+@app.route("/api/leave-requests/<req_id>", methods=["PUT"])
+@require_auth
+def review_leave_request(req_id):
+    user = g.current_user
+    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+        return jsonify({"error": "forbidden"}), 403
+    data = request.get_json(silent=True) or {}
+    new_status = str(data.get("status", "")).strip()
+    review_note = str(data.get("review_note", "")).strip()[:500]
+    if new_status not in ("genehmigt", "abgelehnt", "ausstehend"):
+        return jsonify({"error": "invalid_status"}), 400
+    db = get_db()
+    req_row = db.execute("SELECT * FROM leave_requests WHERE id = ?", (req_id,)).fetchone()
+    if not req_row:
+        return jsonify({"error": "not_found"}), 404
+    if user["role"] != "superadmin" and req_row["company_id"] != user.get("company_id"):
+        return jsonify({"error": "forbidden"}), 403
+    db.execute(
+        "UPDATE leave_requests SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_note = ? WHERE id = ?",
+        (new_status, user["id"], now_iso(), review_note, req_id)
+    )
+    db.commit()
+    log_audit(
+        f"leave_request.{new_status}",
+        f"Antrag {req_id} → {new_status} von {user['username']}",
+        target_type="worker", target_id=req_row["worker_id"],
+        company_id=req_row["company_id"], actor=user
+    )
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

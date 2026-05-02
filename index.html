@@ -1733,6 +1733,24 @@
       <label class="modal-search-label">
         <input id="manualEntrySearch" type="text" autocomplete="off" placeholder="Name oder Badge-ID suchen…" />
       </label>
+      <div id="manualEntryContextHint" class="manual-entry-context-hint"></div>
+      <div id="manualEntryWorkTimePanel" class="manual-entry-worktime-panel hidden">
+        <div class="manual-entry-worktime-head">
+          <strong id="manualEntryWorkTimeTitle">Arbeitszeiten</strong>
+          <span id="manualEntryWorkTimeStatus" class="manual-entry-worktime-status"></span>
+        </div>
+        <div class="manual-entry-worktime-grid">
+          <label class="manual-entry-worktime-label">
+            <span id="manualEntryWorkStartLabel">Arbeitsbeginn (HH:MM)</span>
+            <input id="manualEntryWorkStart" type="time" step="60" />
+          </label>
+          <label class="manual-entry-worktime-label">
+            <span id="manualEntryWorkEndLabel">Arbeitsende (HH:MM)</span>
+            <input id="manualEntryWorkEnd" type="time" step="60" />
+          </label>
+        </div>
+        <button id="manualEntryWorkTimeSave" type="button" class="ghost-button small-button">Arbeitszeiten speichern</button>
+      </div>
       <div id="manualEntryList" class="manual-entry-list"></div>
       <div id="manualEntryFeedback" class="manual-entry-feedback hidden" role="status"></div>
     </div>
