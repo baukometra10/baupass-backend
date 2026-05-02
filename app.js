@@ -21052,7 +21052,7 @@ async function approveLeaveRequest(id) {
     showToast('Antrag genehmigt', 'success');
     loadLeaveRequests();
   } catch (error) {
-    alert('Error: ' + error.message);
+    showAlert('alertActionFailed', { error: String(error) });
   }
 }
 

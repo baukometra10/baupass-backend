@@ -3056,6 +3056,10 @@ async function submitLeaveRequest() {
     showWorkerNotice(t("enterAccessCode")); // Reuse: please enter dates
     return;
   }
+  if (start > end) {
+    showWorkerNotice("Startdatum muss vor dem Enddatum liegen.");
+    return;
+  }
   
   try {
     const result = await fetchJson(`${API_BASE}/leave-requests`, {
@@ -3098,7 +3102,7 @@ function applyAiLeaveSuggestion() {
   }
 }
 
-async function sendLastLeaveRequestToBoss() {
+async async function sendLastLeaveRequestToBoss() {
   if (!workerToken) return;
   if (!lastSubmittedLeaveRequestId) {
     showWorkerNotice("Bitte zuerst einen Antrag einreichen.");
@@ -3111,7 +3115,7 @@ async function sendLastLeaveRequestToBoss() {
   }
 
   try {
-    await fetchJson(`${API_BASE}/leave-requests/${encodeURIComponent(lastSubmittedLeaveRequestId)}/send-email`, {
+    await fetchJson(`${API_BASE}/worker-app/leave-requests/${encodeURIComponent(lastSubmittedLeaveRequestId)}/send-email`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
