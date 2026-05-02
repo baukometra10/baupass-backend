@@ -3060,6 +3060,10 @@ async function submitLeaveRequest() {
     showWorkerNotice("Startdatum muss vor dem Enddatum liegen.");
     return;
   }
+  if (start > end) {
+    showWorkerNotice("Startdatum muss vor dem Enddatum liegen.");
+    return;
+  }
   
   try {
     const result = await fetchJson(`${API_BASE}/leave-requests`, {
@@ -3102,7 +3106,7 @@ function applyAiLeaveSuggestion() {
   }
 }
 
-async async function sendLastLeaveRequestToBoss() {
+async async async function sendLastLeaveRequestToBoss() {
   if (!workerToken) return;
   if (!lastSubmittedLeaveRequestId) {
     showWorkerNotice("Bitte zuerst einen Antrag einreichen.");

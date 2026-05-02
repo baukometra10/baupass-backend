@@ -673,10 +673,22 @@ def resolve_worker_access_token_expiry_iso(worker):
     return link_end.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat() + "Z"
 
 
+_last_session_purge_ts: float = 0.0
+
 def purge_expired_worker_app_sessions(db, now_value=None):
     timestamp = now_value or now_iso()
     result = db.execute("DELETE FROM worker_app_sessions WHERE expires_at < ?", (timestamp,))
     return int(result.rowcount or 0)
+
+def _throttled_session_purge(db):
+    """Purge abgelaufene Sessions höchstens 1x pro Minute (verhindert DB-Write-Lock bei parallelen Requests)."""
+    global _last_session_purge_ts
+    import time as _time
+    now = _time.monotonic()
+    if now - _last_session_purge_ts < 60:
+        return 0
+    _last_session_purge_ts = now
+    return purge_expired_worker_app_sessions(db)
 
 
 def normalize_company_plan(plan_value):
@@ -2421,8 +2433,9 @@ def require_worker_session(handler):
 
         token = auth_header.split(" ", 1)[1]
         db = get_db()
-        purge_expired_worker_app_sessions(db)
-        db.commit()
+        purged = _throttled_session_purge(db)
+        if purged > 0:
+            db.commit()
         session = db.execute("SELECT worker_id, expires_at FROM worker_app_sessions WHERE token = ?", (token,)).fetchone()
         if not session:
             return jsonify({"error": "invalid_worker_session"}), 401

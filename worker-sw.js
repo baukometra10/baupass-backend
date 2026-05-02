@@ -1,4 +1,4 @@
-const CACHE_NAME = "baupass-worker-v10";
+const CACHE_NAME = "baupass-worker-v11";
 const STATIC_FILES = [
   "/worker.html",
   "/worker.css",
@@ -41,16 +41,18 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
-  // Statische Kern-Dateien: Network first fuer schnelle Updates.
+  // Statische Kern-Dateien: Stale-while-revalidate – Cache sofort, Update im Hintergrund.
   if (STATIC_FILES.includes(requestUrl.pathname)) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+      caches.open(CACHE_NAME).then((cache) => {
+        return cache.match(event.request).then((cached) => {
+          const networkFetch = fetch(event.request).then((response) => {
+            cache.put(event.request, response.clone()).catch(() => {});
+            return response;
+          }).catch(() => cached);
+          return cached || networkFetch;
+        });
+      })
     );
     return;
   }
