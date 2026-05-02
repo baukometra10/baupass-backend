@@ -2129,3 +2129,19 @@ body {
 .leave-balance-badge.medium { background:rgba(234,139,22,.12); color:#b86b00; border-color:rgba(234,139,22,.3); }
 .leave-balance-badge.low { background:rgba(197,61,47,.12); color:#c53d2f; border-color:rgba(197,61,47,.25); }
 .leave-balance-label { font-weight:400; font-size:12px; opacity:.8; }
+
+/* ── Worker: Leave request list ────────────────────────────────────── */
+.leave-request-item { border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); }
+.leave-req-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.leave-req-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; }
+.leave-status-ok .leave-req-badge { background: #2e7d32; color: #fff; }
+.leave-status-no .leave-req-badge { background: #c62828; color: #fff; }
+.leave-status-pending .leave-req-badge { background: #e65100; color: #fff; }
+.leave-req-dates { font-size: 13px; opacity: .8; display: flex; align-items: center; gap: 8px; }
+.leave-req-days { font-size: 11px; background: rgba(255,255,255,.18); border-radius: 10px; padding: 1px 7px; font-weight: 700; }
+.leave-req-note { font-size: 12px; opacity: .7; font-style: italic; margin-top: 6px; }
+.leave-req-review { font-size: 12px; margin-top: 6px; background: rgba(255,255,255,.1); border-radius: 4px; padding: 4px 8px; }
+
+/* ── Worker: Timesheet total ───────────────────────────────────────── */
+.timesheet-date-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.timesheet-total { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.15); border-radius: 12px; padding: 2px 10px; }

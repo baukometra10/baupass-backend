@@ -195,6 +195,7 @@
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
         <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
+        <button class="nav-link" data-view="leave" id="navLeaveBtn">Urlaubsanträge <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
         <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
         <button class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
@@ -888,6 +889,21 @@
             </div>
             <div id="collectionsKpiGrid" class="list invoice-kpi-grid"></div>
             <div id="collectionsList" class="list"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ── Urlaubsanträge ─────────────────────────────────────────── -->
+      <section class="view" data-view="leave">
+        <div class="panel-grid one-column">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Personalverwaltung</p>
+                <h3>Urlaubsanträge &amp; Abwesenheiten</h3>
+              </div>
+            </div>
+            <div id="leaveRequestsTable"></div>
           </article>
         </div>
       </section>

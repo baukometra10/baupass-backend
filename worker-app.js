@@ -3171,21 +3171,25 @@ async function loadLeaveRequests() {
     });
     
     const requests = Array.isArray(res) ? res : res.requests || [];
-    elements.leaveRequestList.innerHTML = requests.map((req) => `
-      <div class="leave-request-item" data-status="${req.status || 'ausstehend'}">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <strong>${t(`leaveType${req.type?.charAt(0).toUpperCase() + req.type?.slice(1) || "Vacation"}`) || req.type}</strong>
-            <div style="font-size:0.85em; opacity:0.7;">${req.start_date} → ${req.end_date}</div>
+    if (requests.length === 0) {
+      elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests") || "Keine Anträge vorhanden."}</p>`;
+    } else {
+      elements.leaveRequestList.innerHTML = requests.map((req) => {
+        const typeMap = { urlaub: "Urlaub", krank: "Krank", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" };
+        const typeLabel = typeMap[req.type] || req.type || "–";
+        const statusCls = req.status === "genehmigt" ? "leave-status-ok" : req.status === "abgelehnt" ? "leave-status-no" : "leave-status-pending";
+        const statusTxt = req.status === "genehmigt" ? "✓ Genehmigt" : req.status === "abgelehnt" ? "✗ Abgelehnt" : "⏳ Ausstehend";
+        return `<div class="leave-request-item ${statusCls}">
+          <div class="leave-req-row">
+            <strong>${typeLabel}</strong>
+            <span class="leave-req-badge ${statusCls}">${statusTxt}</span>
           </div>
-          <div style="padding:4px 8px; border-radius:4px; font-size:0.8em; font-weight:bold; 
-            background:${req.status === "genehmigt" ? "#4caf50" : req.status === "abgelehnt" ? "#f44336" : "#ff9800"}; color:#fff;">
-            ${req.status === "genehmigt" ? "✓ Genehmigt" : req.status === "abgelehnt" ? "✗ Abgelehnt" : "⏳ Ausstehend"}
-          </div>
-        </div>
-        ${req.note ? `<div style="margin-top:8px; font-size:0.9em; opacity:0.8;">Notiz: ${req.note}</div>` : ""}
-      </div>
-    `).join("");
+          <div class="leave-req-dates">${req.start_date} → ${req.end_date}${req.days_count > 0 ? ` <span class="leave-req-days">${req.days_count} AT</span>` : ""}</div>
+          ${req.note ? `<div class="leave-req-note">${req.note}</div>` : ""}
+          ${req.review_note ? `<div class="leave-req-review">📋 ${req.review_note}</div>` : ""}
+        </div>`;
+      }).join("");
+    }
   } catch (error) {
     console.warn("Could not load leave requests:", error);
   }
@@ -3213,9 +3217,23 @@ async function loadMyTimesheets() {
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(row);
     }
-    elements.timesheetList.innerHTML = Object.entries(byDate).map(([date, entries]) => `
-      <div class="timesheet-day">
-        <div class="timesheet-date">${formatDate(date)}</div>
+    elements.timesheetList.innerHTML = Object.entries(byDate).map(([date, entries]) => {
+        // Pair IN/OUT entries to calculate total hours
+        const ins = entries.filter(e => (e.direction || "").toLowerCase() === "in").sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
+        const outs = entries.filter(e => (e.direction || "").toLowerCase() === "out").sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
+        let totalMin = 0;
+        const pairCount = Math.min(ins.length, outs.length);
+        for (let i = 0; i < pairCount; i++) {
+          const inTime = new Date(ins[i].timestamp);
+          const outTime = new Date(outs[i].timestamp);
+          if (outTime > inTime) totalMin += (outTime - inTime) / 60000;
+        }
+        const totalLabel = totalMin > 0 ? `${Math.floor(totalMin/60)}:${String(Math.round(totalMin%60)).padStart(2,"0")} h` : "";
+        return `<div class="timesheet-day">
+        <div class="timesheet-date-row">
+          <span class="timesheet-date">${formatDate(date)}</span>
+          ${totalLabel ? `<span class="timesheet-total">${totalLabel}</span>` : ""}
+        </div>
         ${entries.map((e) => {
           const isIn = (e.direction || "").toLowerCase() === "in";
           return `<div class="timesheet-entry ${isIn ? "entry-in" : "entry-out"}">
@@ -3224,8 +3242,8 @@ async function loadMyTimesheets() {
             ${e.gate ? `<span class="entry-gate">${e.gate}</span>` : ""}
           </div>`;
         }).join("")}
-      </div>
-    `).join("");
+      </div>`;
+      }).join("");
   } catch (error) {
     elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
     console.warn("Could not load timesheets:", error);
