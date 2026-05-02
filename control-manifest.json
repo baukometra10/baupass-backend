@@ -1,8 +1,8 @@
 {
   "id": "/index.html",
-  "name": "BauPass Control",
-  "short_name": "BauPass",
-  "description": "Installierbares BauPass Control Portal fuer Admin und Pforte auf dem Desktop.",
+  "name": "Control Pass",
+  "short_name": "Control Pass",
+  "description": "Installierbares Control Pass Portal fuer Admin und Pforte auf dem Desktop.",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",

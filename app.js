@@ -216,7 +216,7 @@ function clearSupportLoginContext() {
 const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
-    authTitle: "Sicher in BauPass Control anmelden",
+    authTitle: "Sicher in Control Pass anmelden",
     authCopy: "Super-Admin behält die Systemhoheit. Firmen-Admins sehen nur ihre Firma. Der Drehkreuz-Login bekommt einen schnellen Zutrittsmodus.",
     authPlatform: "Plattform",
     authOperator: "Betreiber",
@@ -255,7 +255,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop-App",
     desktopInstallHint: "Dieses Portal kann auf dem Computer wie ein Programm installiert werden.",
     desktopInstallButton: "Auf diesem Computer installieren",
-    appTitle: "BauPass Control",
+    appTitle: "Control Pass",
     alertInstallUnavailable: "Die Installation ist in diesem Browser gerade nicht direkt verfuegbar. In Chrome oder Edge kannst du im Browser-Menue 'App installieren' waehlen.",
     alertSessionExpired: "Sitzung abgelaufen. Bitte neu anmelden.",
     // Shell
@@ -271,7 +271,7 @@ const UI_TRANSLATIONS = {
     navInvoices: "Rechnungen",
     navAdmin: "Admin",
     topbarEyebrow: "Systemstatus",
-    topbarHeading: "Baustellen-Ausweise und Zutritt",
+    topbarHeading: "Mitarbeiter-Ausweise und Zutritt",
     btnSeedData: "Demo-Daten einspielen",
     btnExport: "System exportieren",
     btnImport: "System importieren",
@@ -368,7 +368,7 @@ const UI_TRANSLATIONS = {
     labelLastName: "Nachname",
     labelInsuranceNumber: "Rentenversicherungsnummer",
     labelRoleField: "Funktion",
-    labelSite: "Baustelle",
+    labelSite: "Standort",
     siteFieldHint: "Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt",
     labelPhysicalCard: "Physische Karten-ID (NFC/RFID)",
     labelValidUntil: "G\u00fcltig bis",
@@ -407,8 +407,8 @@ const UI_TRANSLATIONS = {
     badgeScanH3: "Badge-Code",
     badgeScanEmpty: "Kein Badge ausgew\u00e4hlt.",
     badgeTitleVisitor: "Digitale Besucherkarte",
-    badgeTitleDayPass: "Digitaler Baustellen-Tagesausweis",
-    badgeTitleRegular: "Digitaler Baustellen-Ausweis",
+    badgeTitleDayPass: "Digitaler Tagesausweis",
+    badgeTitleRegular: "Digitaler Mitarbeiterausweis",
     badgeUnknownCompany: "Unbekannte Firma",
     badgeQrHint: "QR scannen, App installieren und Ausweis direkt oeffnen.",
     badgeLabelBadgeId: "Badge-ID",
@@ -728,7 +728,7 @@ const UI_TRANSLATIONS = {
     workTimesHint: "Mitarbeiter werden als \u201ezuspät\u201c markiert wenn sie sich nach dem Arbeitsbeginn einloggen.",
     checkedInLate: "Zu spät",
     optPlanDayPassRecommended: "Besucherkarte (empfohlen)",
-    optPlanMonthlySite: "Monatlich pro Baustelle",
+    optPlanMonthlySite: "Monatlich pro Standort",
     optPlanPerWorker: "Pro Mitarbeiter",
     optPlanFlatCompany: "Pauschal pro Firma",
     optPlanDayPassPrice: "Besucherkarte (19 EUR/Tag)",
@@ -789,7 +789,7 @@ const UI_TRANSLATIONS = {
     turnstilePasswordLabel: "Drehkreuz-Startpasswort",
     workerAppEnabledLabel: "Mobile-Ausweis-App (digitaler Ausweis + QR)",
     workerPassLockLabel: "Ausweis mit PIN-Sperre sichern (nach 2min Inaktivität)",
-    workerSearchPlaceholder: "Suchen: Name, Badge-ID, Baustelle …",
+    workerSearchPlaceholder: "Suchen: Name, Badge-ID, Standort …",
     confirmDeleteCompanyText: "Firma {name} und alle zugeh\u00f6rigen Datens\u00e4tze l\u00f6schen?\n\nOK = komplette L\u00f6schung (inkl. Mitarbeiter, Subunternehmen und Logs)\nAbbrechen = nicht l\u00f6schen",
     confirmLockCompany: "Firma {name} jetzt sperren? Firmen-Admin, Drehkreuz und Mitarbeiter-App dieser Firma werden blockiert.",
     confirmUnlockCompany: "Sperre f\u00fcr {name} jetzt aufheben? Die Firma kann sich danach wieder anmelden.",
@@ -872,7 +872,7 @@ const UI_TRANSLATIONS = {
   },
   en: {
     authEyebrow: "Login Page",
-    authTitle: "Secure Sign-in to BauPass Control",
+    authTitle: "Secure Sign-in to Control Pass",
     authCopy: "Super admin keeps full system control. Company admins only see their own company. Turnstile login gets a fast access mode.",
     authPlatform: "Platform",
     authOperator: "Operator",
@@ -911,7 +911,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop App",
     desktopInstallHint: "This portal can be installed on your computer like a native app.",
     desktopInstallButton: "Install on this computer",
-    appTitle: "BauPass Control",
+    appTitle: "Control Pass",
     alertInstallUnavailable: "Installation is not directly available in this browser right now. In Chrome or Edge, choose 'Install app' from the browser menu.",
     alertSessionExpired: "Session expired. Please sign in again.",
     // Shell
@@ -1528,7 +1528,7 @@ const UI_TRANSLATIONS = {
   },
   tr: {
     authEyebrow: "Giriş Sayfası",
-    authTitle: "BauPass Control'a Güvenli Giriş",
+    authTitle: "Control Pass'a Güvenli Giriş",
     authCopy: "Süper admin tüm sistem kontrolünü elinde tutar. Firma adminleri yalnızca kendi firmalarını görür. Turnike girişi hızlı geçiş moduna sahiptir.",
     authPlatform: "Platform",
     authOperator: "İşletmeci",
@@ -2153,7 +2153,7 @@ const UI_TRANSLATIONS = {
   },
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
-    authTitle: "تسجيل دخول آمن إلى BauPass Control",
+    authTitle: "تسجيل دخول آمن إلى Control Pass",
     authCopy: "يمتلك المشرف العام التحكم الكامل بالنظام. مديرو الشركات يرون شركتهم فقط. تسجيل دخول البوابة الدوّارة يوفر وضع وصول سريع.",
     authPlatform: "المنصة",
     authOperator: "المشغّل",
@@ -2804,7 +2804,7 @@ const UI_TRANSLATIONS = {
   },
   fr: {
     authEyebrow: "Page de connexion",
-    authTitle: "Connexion sécurisée à BauPass Control",
+    authTitle: "Connexion sécurisée à Control Pass",
     authCopy: "Le super admin garde le contrôle total du système. Les admins d'entreprise ne voient que leur entreprise. Le login tourniquet offre un mode d'accès rapide.",
     authPlatform: "Plateforme",
     authOperator: "Opérateur",
@@ -3455,7 +3455,7 @@ const UI_TRANSLATIONS = {
   },
   es: {
     authEyebrow: "Página de acceso",
-    authTitle: "Inicio de sesión seguro en BauPass Control",
+    authTitle: "Inicio de sesión seguro en Control Pass",
     authCopy: "El super admin mantiene el control completo del sistema. Los admins de empresa solo ven su empresa. El acceso de torniquete ofrece un modo rápido.",
     authPlatform: "Plataforma",
     authOperator: "Operador",
@@ -4098,7 +4098,7 @@ const UI_TRANSLATIONS = {
   },
   it: {
     authEyebrow: "Pagina di accesso",
-    authTitle: "Accesso sicuro a BauPass Control",
+    authTitle: "Accesso sicuro a Control Pass",
     authCopy: "Il super admin mantiene il controllo completo del sistema. Gli admin aziendali vedono solo la propria azienda. L'accesso tornello ha una modalità rapida.",
     authPlatform: "Piattaforma",
     authOperator: "Operatore",
@@ -4749,7 +4749,7 @@ const UI_TRANSLATIONS = {
   },
   pl: {
     authEyebrow: "Strona logowania",
-    authTitle: "Bezpieczne logowanie do BauPass Control",
+    authTitle: "Bezpieczne logowanie do Control Pass",
     authCopy: "Super administrator zachowuje pełną kontrolę nad systemem. Administratorzy firm widzą tylko swoją firmę. Logowanie bramki ma szybki tryb dostępu.",
     authPlatform: "Platforma",
     authOperator: "Operator",
@@ -5546,14 +5546,14 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Bramka Północna",
   },
   platformName: {
-    de: "BauPass Control",
-    en: "BauPass Control",
-    tr: "BauPass Control",
-    ar: "BauPass Control",
-    fr: "BauPass Control",
-    es: "BauPass Control",
-    it: "BauPass Control",
-    pl: "BauPass Control",
+    de: "Control Pass",
+    en: "Control Pass",
+    tr: "Control Pass",
+    ar: "Control Pass",
+    fr: "Control Pass",
+    es: "Control Pass",
+    it: "Control Pass",
+    pl: "Control Pass",
   },
   operatorName: {
     de: "Deine Firma",
@@ -6268,7 +6268,7 @@ const state = {
   currentUser: null,
   supportLoginContext: loadSupportLoginContext(),
   settings: {
-    platformName: "BauPass Control",
+    platformName: "Control Pass",
     operatorName: "Deine Betriebsfirma",
     turnstileEndpoint: ""
   },
@@ -6937,7 +6937,7 @@ function getRuntimeUiTexts() {
     ttsFallbackEnglish: "Until installation is complete, the greeting uses <strong>English</strong> as fallback.",
     ttsVoiceCountOne: "{count} voice",
     ttsVoiceCountMany: "{count} voices",
-    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in BauPass",
+    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in Control Pass",
     ttsLoadingVoices: "Loading voices...",
     smtpEnvCheckPrefix: "Env check",
     smtpEnvSet: "set",
@@ -6989,7 +6989,7 @@ function getRuntimeUiTexts() {
       statsWorkersActive: "Aktive Mitarbeiter",
       statsVisitorsTotal: "Besucher gesamt",
       statsCompanies: "Firmen",
-      statsAccessToday: "Aktiv auf Baustelle",
+      statsAccessToday: "Aktiv am Standort",
       badgePinHintVisitor: "Besucher nutzen den Einmal-Link/QR. Eine Badge-PIN ist fuer Besucher nicht erforderlich.",
       badgePinHintWorker: "Badge-Login in der Mitarbeiter-App funktioniert nur noch mit Badge-ID und dieser PIN. Beim Bearbeiten kannst du hier eine neue PIN setzen.",
       workerListEmpty: "Noch keine Mitarbeiter angelegt.",
@@ -7076,8 +7076,8 @@ function getRuntimeUiTexts() {
       loginResponseIncomplete: "Login-Antwort vom Server ist unvollstaendig. Bitte Seite neu laden und erneut versuchen.",
       demoAdminOnly: "Nur Admin-Rollen duerfen Demo-Daten laden.",
       loginFirst: "Bitte zuerst anmelden.",
-      porterOnSiteByCompanyHeading: "Aktuell auf der Baustelle je Firma",
-      porterOnSiteHeading: "Aktuell auf der Baustelle",
+      porterOnSiteByCompanyHeading: "Aktuell am Standort je Firma",
+      porterOnSiteHeading: "Aktuell am Standort",
       porterNoActiveCheckins: "Noch keine aktiven Anmeldungen vorhanden.",
       porterTotal: "Gesamt",
       porterPersonSingular: "Person",
@@ -7195,7 +7195,7 @@ function getRuntimeUiTexts() {
       tableHeaderCompany: "Firma",
       tableHeaderPurpose: "Zweck",
       tableHeaderContact: "Ansprechpartner",
-      tableHeaderSite: "Baustelle",
+      tableHeaderSite: "Standort",
       tableHeaderLastActivity: "Letzte Aktivitaet",
       workerAppQrPrintTitle: "Mitarbeiter-App QR",
       workerAppQrHeading: "Mitarbeiter-App installieren",
@@ -7214,7 +7214,7 @@ function getRuntimeUiTexts() {
       workerStatsLoading: "Lade Statistiken...",
       workerStatsTotal: "Gesamt",
       workerStatsWorkers: "Mitarbeiter",
-      workerStatsTopSites: "Top Baustellen",
+      workerStatsTopSites: "Top Standorte",
       workerStatsTopGates: "Top Tore (letzte 30 Tage)",
       workerStatsCheckinsByHour: "Check-Ins nach Uhrzeit (letzte 30 Tage)",
       workerStatsUnavailable: "Statistiken nicht verfuegbar.",
@@ -7557,7 +7557,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Bis zur Installation spricht die Begruessung auf <strong>Englisch</strong> als Fallback.",
       ttsVoiceCountOne: "{count} Stimme",
       ttsVoiceCountMany: "{count} Stimmen",
-      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in BauPass genutzte Sprachen",
+      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in Control Pass genutzte Sprachen",
       ttsLoadingVoices: "Lade Stimmen...",
       smtpEnvCheckPrefix: "Env-Check",
       smtpEnvSet: "gesetzt",
@@ -8504,14 +8504,14 @@ function updateDesktopInstallHint() {
 
   const lang = getStoredUiLang();
   const installHintInstalledByLang = {
-    de: "BauPass Control ist auf diesem Geraet bereits als Desktop-App installiert.",
-    en: "BauPass Control is already installed as a desktop app on this device.",
-    tr: "BauPass Control bu cihazda zaten masaustu uygulamasi olarak kurulu.",
-    ar: "BauPass Control مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
-    fr: "BauPass Control est deja installe comme application de bureau sur cet appareil.",
-    es: "BauPass Control ya esta instalado como aplicacion de escritorio en este dispositivo.",
-    it: "BauPass Control e gia installato come app desktop su questo dispositivo.",
-    pl: "BauPass Control jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
+    de: "Control Pass ist auf diesem Geraet bereits als Desktop-App installiert.",
+    en: "Control Pass is already installed as a desktop app on this device.",
+    tr: "Control Pass bu cihazda zaten masaustu uygulamasi olarak kurulu.",
+    ar: "Control Pass مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
+    fr: "Control Pass est deja installe comme application de bureau sur cet appareil.",
+    es: "Control Pass ya esta instalado como aplicacion de escritorio en este dispositivo.",
+    it: "Control Pass e gia installato come app desktop su questo dispositivo.",
+    pl: "Control Pass jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
   };
   const installHintDefaultByLang = {
     de: "Dieses Portal kann auf Windows, macOS und Linux wie ein lokales Programm installiert werden.",
@@ -8933,7 +8933,7 @@ async function loadPublicBranding() {
     }
     // Platform name as page title prefix
     if (data.platformName) {
-      document.title = data.platformName + " Control";
+      document.title = data.platformName;
     }
     // Brand colors as CSS variables for the login page
     const root = document.documentElement;
@@ -10218,7 +10218,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
             </svg>
           </div>
           <div class="wc-brand-text">
-            <span class="wc-brand-name">BAUPASS</span>
+            <span class="wc-brand-name">${escapeHtml((state.settings?.platformName || "CONTROL PASS").toUpperCase())}</span>
             <span class="wc-brand-sub">${escapeHtml(passSubLabel)}</span>
           </div>
         </div>
@@ -12798,7 +12798,7 @@ function renderBadge() {
       <div class="badge-card-note">
         <div class="badge-info-row">
           <span class="badge-info-icon">📍</span>
-          <span class="badge-info-label">${uiT("labelSite") || "Baustelle"}</span>
+          <span class="badge-info-label">${uiT("labelSite") || "Standort"}</span>
           <a class="badge-info-value badge-info-link" href="${escapeHtml(siteMapHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(worker.site || "–")}</a>
         </div>
         <div class="badge-info-row">
