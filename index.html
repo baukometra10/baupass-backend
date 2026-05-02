@@ -646,6 +646,7 @@
                 <input id="accessNote" type="text" placeholder="Optional" />
               </label>
               <button type="submit" class="primary-button full-width" data-ui-i18n="btnAccessSubmit">Zutritt buchen</button>
+              <button id="manualEntryBtn" type="button" class="manual-entry-btn full-width" data-ui-i18n="manualEntryBtn">🚪 Manueller Einlass</button>
             </form>
 
             <div id="accessDuplicateError" class="access-duplicate-error hidden" role="alert"></div>
@@ -1721,5 +1722,21 @@
       }).catch(function() {});
     })();
   </script>
+
+  <!-- Manual Entry Modal -->
+  <div id="manualEntryModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="manualEntryModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="manualEntryModalTitle" data-ui-i18n="manualEntryTitle">🚪 Manueller Einlass ohne Karte / Handy</h3>
+        <button id="manualEntryClose" class="close-btn" type="button" aria-label="Schließen">&times;</button>
+      </div>
+      <label class="modal-search-label">
+        <input id="manualEntrySearch" type="text" autocomplete="off" placeholder="Name oder Badge-ID suchen…" />
+      </label>
+      <div id="manualEntryList" class="manual-entry-list"></div>
+      <div id="manualEntryFeedback" class="manual-entry-feedback hidden" role="status"></div>
+    </div>
+  </div>
+
 </body>
 </html>

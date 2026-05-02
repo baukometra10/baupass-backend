@@ -4731,3 +4731,192 @@ body.desktop-app .topbar {
   position: absolute;
   bottom: 0;
 }
+
+/* ── Manual Entry Button & Modal ─────────────────────────────────────── */
+.manual-entry-btn {
+  margin-top: 8px;
+  background: linear-gradient(135deg, #e86c1a, #d45a0a);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 18px;
+  font-size: 0.97rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 14px rgba(232, 108, 26, 0.35);
+}
+
+.manual-entry-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(232, 108, 26, 0.45);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(18, 20, 23, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-card {
+  background: var(--card-bg, #fff);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(18, 20, 23, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  flex: 1;
+}
+
+.modal-search-label input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border, #e0ddd8);
+  border-radius: 10px;
+  font-size: 0.97rem;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.modal-search-label input:focus {
+  border-color: var(--teal, #4db6ac);
+}
+
+.manual-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.manual-entry-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface, #f8f7f4);
+  border: 1px solid var(--border, #e0ddd8);
+}
+
+.manual-entry-photo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.manual-entry-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.manual-entry-info strong {
+  font-size: 0.93rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.manual-entry-info span {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.manual-entry-badge {
+  font-size: 0.75rem !important;
+  font-family: monospace;
+  opacity: 0.7;
+}
+
+.manual-entry-status {
+  font-size: 0.72rem !important;
+  padding: 2px 7px;
+  border-radius: 20px;
+  align-self: flex-start;
+}
+
+.manual-entry-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.manual-entry-actions .primary-button,
+.manual-entry-actions .ghost-button {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+.manual-entry-empty {
+  color: #9ca3af;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 12px 0;
+  margin: 0;
+}
+
+.manual-entry-feedback {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.manual-entry-feedback.success {
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+}
+
+.manual-entry-feedback.error {
+  background: rgba(197, 61, 47, 0.12);
+  color: var(--danger, #c53d2f);
+  border: 1px solid rgba(197, 61, 47, 0.25);
+}
+
+@media (max-width: 520px) {
+  .manual-entry-row {
+    flex-wrap: wrap;
+  }
+  .manual-entry-actions {
+    width: 100%;
+  }
+  .manual-entry-actions .primary-button,
+  .manual-entry-actions .ghost-button {
+    flex: 1;
+  }
+}

@@ -734,6 +734,15 @@ const UI_TRANSLATIONS = {
     optPlanDayPassPrice: "Besucherkarte (19 EUR/Tag)",
     btnDocInboxRematch: "Neu zuordnen",
     accessFeedbackCheckin: "Zutritt gebucht",
+    manualEntryBtn: "Manueller Einlass",
+    manualEntryTitle: "Manueller Einlass ohne Karte / Handy",
+    manualEntrySearch: "Name oder Badge-ID suchen…",
+    manualEntryCheckin: "Einlass",
+    manualEntryCheckout: "Auslass",
+    manualEntryNote: "Automatisch: Karte/Handy vergessen",
+    manualEntryNoResults: "Kein Mitarbeiter gefunden.",
+    manualEntrySuccess: "{name} wurde manuell eingelassen.",
+    manualEntryCheckoutSuccess: "{name} wurde manuell ausgelassen.",
     badgePinHint: "Badge-Login in der Mitarbeiter-App funktioniert nur noch mit Badge-ID und dieser PIN. Beim Bearbeiten kannst du hier eine neue PIN setzen.",
     badgePinPlaceholder: "4 bis 8 Ziffern",
     bulkSelectAll: "Alle auswählen",
@@ -1112,6 +1121,15 @@ const UI_TRANSLATIONS = {
     optPlanFlatCompany: "Flat rate per company",
     optPlanDayPassPrice: "Visitor card (19 EUR/day)",
     btnDocInboxRematch: "Re-assign",
+    manualEntryBtn: "Manual Entry",
+    manualEntryTitle: "Manual entry without card / phone",
+    manualEntrySearch: "Search name or badge ID…",
+    manualEntryCheckin: "Check in",
+    manualEntryCheckout: "Check out",
+    manualEntryNote: "Auto: forgot card/phone",
+    manualEntryNoResults: "No worker found.",
+    manualEntrySuccess: "{name} was manually checked in.",
+    manualEntryCheckoutSuccess: "{name} was manually checked out.",
     cardUnassigned: "not assigned",
     btnEdit: "Edit",
     btnDelete: "Delete",
@@ -1782,6 +1800,15 @@ const UI_TRANSLATIONS = {
     btnDocInboxSync: "Sistem kutusunu al",
     btnDocInboxPoll: "Posta kutusunu şimdi getir",
     btnDocInboxRematch: "Yeniden eşleştir",
+    manualEntryBtn: "Manuel Giriş",
+    manualEntryTitle: "Kart / Telefon Olmadan Manuel Giriş",
+    manualEntrySearch: "Ad veya Rozet ID ara…",
+    manualEntryCheckin: "Giriş",
+    manualEntryCheckout: "Çıkış",
+    manualEntryNote: "Otomatik: kart/telefon unutuldu",
+    manualEntryNoResults: "Çalışan bulunamadı.",
+    manualEntrySuccess: "{name} manuel olarak giriş yaptı.",
+    manualEntryCheckoutSuccess: "{name} manuel olarak çıkış yaptı.",
     docEmailInfoLabel: "Belge e-postası (çalışanlar kanıtlarını buraya gönderir):",
     btnCopyEmail: "Kopyala",
     btnCopyEmailDone: "Kopyalandı!",
@@ -2622,6 +2649,15 @@ const UI_TRANSLATIONS = {
     workEndTimeLabel: "وقت نهاية العمل (HH:MM)",
     workTimesHint: "يُعلَّم العمال بالتأخر إذا سجّلوا دخولهم بعد وقت بداية العمل.",
     checkedInLate: "تأخّر",
+    manualEntryBtn: "دخول يدوي",
+    manualEntryTitle: "دخول يدوي بدون بطاقة / هاتف",
+    manualEntrySearch: "ابحث عن الاسم أو رقم البطاقة…",
+    manualEntryCheckin: "دخول",
+    manualEntryCheckout: "خروج",
+    manualEntryNote: "تلقائي: نسي البطاقة/الهاتف",
+    manualEntryNoResults: "لا يوجد موظف.",
+    manualEntrySuccess: "تم دخول {name} يدويًا.",
+    manualEntryCheckoutSuccess: "تم خروج {name} يدويًا.",
     optPlanDayPassRecommended: "بطاقة زائر (موصى به)",
     optPlanMonthlySite: "شهرياً لكل موقع",
     optPlanPerWorker: "لكل عامل",
@@ -3273,6 +3309,15 @@ const UI_TRANSLATIONS = {
     workEndTimeLabel: "Heure de fin (HH:MM)",
     workTimesHint: "Les employés arrivés après l’heure de début sont marqués comme en retard.",
     checkedInLate: "En retard",
+    manualEntryBtn: "Entrée manuelle",
+    manualEntryTitle: "Entrée manuelle sans carte / téléphone",
+    manualEntrySearch: "Rechercher nom ou badge…",
+    manualEntryCheckin: "Entrée",
+    manualEntryCheckout: "Sortie",
+    manualEntryNote: "Auto: carte/téléphone oublié",
+    manualEntryNoResults: "Aucun employé trouvé.",
+    manualEntrySuccess: "{name} a été enregistré manuellement.",
+    manualEntryCheckoutSuccess: "{name} a été sorti manuellement.",
     optPlanDayPassRecommended: "Carte visiteur (recommandé)",
     optPlanMonthlySite: "Mensuel par chantier",
     optPlanPerWorker: "Par travailleur",
@@ -3924,6 +3969,15 @@ const UI_TRANSLATIONS = {
     workEndTimeLabel: "Hora de salida (HH:MM)",
     workTimesHint: "Los empleados que lleguen después de la hora de entrada serán marcados como tarde.",
     checkedInLate: "Tarde",
+    manualEntryBtn: "Entrada manual",
+    manualEntryTitle: "Entrada manual sin tarjeta / teléfono",
+    manualEntrySearch: "Buscar nombre o badge…",
+    manualEntryCheckin: "Entrada",
+    manualEntryCheckout: "Salida",
+    manualEntryNote: "Auto: olvidó tarjeta/teléfono",
+    manualEntryNoResults: "No se encontró empleado.",
+    manualEntrySuccess: "{name} fue registrado manualmente.",
+    manualEntryCheckoutSuccess: "{name} fue dado de baja manualmente.",
     optPlanDayPassRecommended: "Tarjeta de visitante (recomendado)",
     optPlanMonthlySite: "Mensual por obra",
     optPlanPerWorker: "Por trabajador",
@@ -4567,6 +4621,15 @@ const UI_TRANSLATIONS = {
     workEndTimeLabel: "Fine lavoro (HH:MM)",
     workTimesHint: "I dipendenti che entrano dopo l’orario di inizio sono segnati in ritardo.",
     checkedInLate: "In ritardo",
+    manualEntryBtn: "Ingresso manuale",
+    manualEntryTitle: "Ingresso manuale senza carta / telefono",
+    manualEntrySearch: "Cerca nome o badge…",
+    manualEntryCheckin: "Ingresso",
+    manualEntryCheckout: "Uscita",
+    manualEntryNote: "Auto: dimenticato carta/telefono",
+    manualEntryNoResults: "Nessun dipendente trovato.",
+    manualEntrySuccess: "{name} è stato registrato manualmente.",
+    manualEntryCheckoutSuccess: "{name} è uscito manualmente.",
     optPlanDayPassRecommended: "Tessera visitatore (consigliato)",
     optPlanMonthlySite: "Mensile per cantiere",
     optPlanPerWorker: "Per lavoratore",
@@ -5218,6 +5281,15 @@ const UI_TRANSLATIONS = {
     workEndTimeLabel: "Godzina zakończenia pracy (GG:MM)",
     workTimesHint: "Pracownicy, którzy zalogują się po godzinie rozpoczęcia, są oznaczani jako spóźnieni.",
     checkedInLate: "Spóźniony",
+    manualEntryBtn: "Ręczne wejście",
+    manualEntryTitle: "Ręczne wejście bez karty / telefonu",
+    manualEntrySearch: "Szukaj nazwiska lub badge…",
+    manualEntryCheckin: "Wejście",
+    manualEntryCheckout: "Wyjście",
+    manualEntryNote: "Auto: zapomniana karta/telefon",
+    manualEntryNoResults: "Nie znaleziono pracownika.",
+    manualEntrySuccess: "{name} został ręcznie zarejestrowany.",
+    manualEntryCheckoutSuccess: "{name} został ręcznie wyrejestrowany.",
     optPlanDayPassRecommended: "Karta gościa (zalecane)",
     optPlanMonthlySite: "Miesięcznie za budowę",
     optPlanPerWorker: "Na pracownika",
@@ -9646,6 +9718,8 @@ function refreshAll() {
   renderDayCloseBanner();
   renderTurnstileQuickPanel();
   renderPorterLivePanel();
+  if (typeof window._refreshManualEntryListIfOpen === "function") window._refreshManualEntryListIfOpen();
+  if (typeof window._syncManualEntryBtnVisibility === "function") window._syncManualEntryBtnVisibility();
   renderBadge();
   loadDevices();
   showLoginGreeting();
@@ -13881,7 +13955,7 @@ async function refreshAccessStateAfterBooking(createdLog) {
   }
 }
 
-async function bookAccess(workerId, direction, gate, note) {
+async function bookAccess(workerId, direction, gate, note, options = {}) {
   if (isSupportReadOnlyMode()) {
     showSupportReadOnlyAlert();
     return;
@@ -13908,7 +13982,7 @@ async function bookAccess(workerId, direction, gate, note) {
         message: duplicateMessage,
         tone: "error"
       });
-    } else {
+    } else if (!options.skipFeedbackOverlay) {
       // Roten Banner im Formular anzeigen statt window.alert
       const banner = elements.accessDuplicateError;
       if (banner) {
@@ -13935,11 +14009,13 @@ async function bookAccess(workerId, direction, gate, note) {
     });
     state.porterLive.workerId = workerId;
     state.porterLive.lastEvent = normalizeLog(createdLog);
-    showAccessFeedback(workerId, direction, gate, createdLog.timestamp, {
-      title: direction === "check-in" ? runtimeText("accessFeedbackCheckinTitle") : runtimeText("accessFeedbackCheckoutTitle"),
-      message: direction === "check-in" ? runtimeText("accessFeedbackCheckinMessage") : runtimeText("accessFeedbackCheckoutMessage"),
-      tone: direction === "check-in" ? "success_in" : "success_out"
-    });
+    if (!options.skipFeedbackOverlay) {
+      showAccessFeedback(workerId, direction, gate, createdLog.timestamp, {
+        title: direction === "check-in" ? runtimeText("accessFeedbackCheckinTitle") : runtimeText("accessFeedbackCheckoutTitle"),
+        message: direction === "check-in" ? runtimeText("accessFeedbackCheckinMessage") : runtimeText("accessFeedbackCheckoutMessage"),
+        tone: direction === "check-in" ? "success_in" : "success_out"
+      });
+    }
     await refreshAccessStateAfterBooking(createdLog);
     refreshAll();
     return { ok: true, direction, timestamp: createdLog.timestamp };
@@ -18604,6 +18680,132 @@ const accessForm = document.querySelector("#accessForm");
 if (accessForm) {
   accessForm.addEventListener("submit", handleAccessSubmit);
 }
+
+// ── Manual Entry Modal ──────────────────────────────────────────────────────
+(function initManualEntryModal() {
+  const btn = document.getElementById("manualEntryBtn");
+  const modal = document.getElementById("manualEntryModal");
+  const closeBtn = document.getElementById("manualEntryClose");
+  const searchInput = document.getElementById("manualEntrySearch");
+  const listEl = document.getElementById("manualEntryList");
+  const feedbackEl = document.getElementById("manualEntryFeedback");
+  if (!btn || !modal) return;
+
+  function openModal() {
+    modal.classList.remove("hidden");
+    searchInput.value = "";
+    searchInput.placeholder = runtimeText("manualEntrySearch");
+    feedbackEl.classList.add("hidden");
+    renderList("");
+    searchInput.focus();
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+  }
+
+  function renderList(query) {
+    const q = query.trim().toLowerCase();
+    const workers = getUiVisibleWorkers().filter((w) => {
+      const status = String(w.status || "").trim().toLowerCase();
+      if (status === "gesperrt" || status === "abgelaufen") return false;
+      if (q.length < 1) return true;
+      const full = `${w.firstName} ${w.lastName} ${w.badgeId}`.toLowerCase();
+      return full.includes(q);
+    }).sort((a, b) => {
+      const aIn = getLatestAccessForWorker(a.id)?.direction === "check-in";
+      const bIn = getLatestAccessForWorker(b.id)?.direction === "check-in";
+      if (aIn !== bIn) return aIn ? 1 : -1;
+      return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, "de");
+    });
+
+    if (!workers.length) {
+      listEl.innerHTML = `<p class="manual-entry-empty">${runtimeText("manualEntryNoResults")}</p>`;
+      return;
+    }
+
+    listEl.innerHTML = workers.slice(0, 30).map((w) => {
+      const company = state.companies.find((c) => c.id === w.companyId);
+      const photo = sanitizeImageSrc(w.photoData, createAvatar(w));
+      const name = escapeHtml(`${w.firstName} ${w.lastName}`);
+      const companyName = escapeHtml(company?.name || "");
+      const badgeId = escapeHtml(w.badgeId);
+      const latest = getLatestAccessForWorker(w.id);
+      const isCheckedIn = latest?.direction === "check-in";
+      const statusPill = latest
+        ? `<span class="status-pill manual-entry-status ${isCheckedIn ? "status-active" : "status-inactive"}">${isCheckedIn ? runtimeText("dashboardDirectionCheckin") : runtimeText("dashboardDirectionCheckout")}</span>`
+        : "";
+      const checkinClass = isCheckedIn ? "ghost-button" : "primary-button";
+      const checkoutClass = isCheckedIn ? "primary-button" : "ghost-button";
+      return `
+        <div class="manual-entry-row" data-worker-id="${escapeHtml(w.id)}">
+          <img class="manual-entry-photo" src="${photo}" alt="${name}" />
+          <div class="manual-entry-info">
+            <strong>${name}</strong>
+            <span>${companyName}</span>
+            <span class="manual-entry-badge">${badgeId}</span>
+            ${statusPill}
+          </div>
+          <div class="manual-entry-actions">
+            <button type="button" class="${checkinClass} manual-entry-checkin" data-worker-id="${escapeHtml(w.id)}" data-direction="check-in">${runtimeText("manualEntryCheckin")}</button>
+            <button type="button" class="${checkoutClass} manual-entry-checkout" data-worker-id="${escapeHtml(w.id)}" data-direction="check-out">${runtimeText("manualEntryCheckout")}</button>
+          </div>
+        </div>`;
+    }).join("");
+
+    listEl.querySelectorAll("[data-worker-id][data-direction]").forEach((actionBtn) => {
+      actionBtn.addEventListener("click", async () => {
+        const worker = state.workers.find((w) => w.id === actionBtn.dataset.workerId);
+        if (!worker) return;
+        const direction = actionBtn.dataset.direction;
+        const gate = document.getElementById("accessGate")?.value || "Pforte";
+        const note = "Manueller Einlass – Ausweis/Telefon vergessen";
+        const result = await bookAccess(worker.id, direction, gate, note, { skipFeedbackOverlay: true });
+        const workerName = `${worker.firstName} ${worker.lastName}`;
+        if (result && result.ok === false && result.reason === "duplicate_direction") {
+          feedbackEl.textContent = result.message;
+          feedbackEl.className = "manual-entry-feedback error";
+          feedbackEl.classList.remove("hidden");
+          renderList(searchInput.value);
+        } else if (result === undefined || (result && result.ok !== false)) {
+          const successKey = direction === "check-in" ? "manualEntrySuccess" : "manualEntryCheckoutSuccess";
+          feedbackEl.textContent = runtimeText(successKey).replace("{name}", workerName);
+          feedbackEl.className = "manual-entry-feedback success";
+          feedbackEl.classList.remove("hidden");
+          renderList(searchInput.value);
+          setTimeout(closeModal, 2000);
+        } else {
+          feedbackEl.textContent = runtimeText("manualEntryError") || "Fehler beim Buchen.";
+          feedbackEl.className = "manual-entry-feedback error";
+          feedbackEl.classList.remove("hidden");
+        }
+      });
+    });
+  }
+
+  btn.addEventListener("click", openModal);
+  closeBtn.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  searchInput.addEventListener("input", () => renderList(searchInput.value));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+  });
+
+  // Hide button for turnstile role (they have NFC-scan flow)
+  function syncManualEntryBtnVisibility() {
+    const role = getCurrentUser()?.role || "";
+    btn.style.display = role === "turnstile" ? "none" : "";
+  }
+  syncManualEntryBtnVisibility();
+  window._syncManualEntryBtnVisibility = syncManualEntryBtnVisibility;
+
+  // Refresh list if modal is open when refreshAll() runs
+  window._refreshManualEntryListIfOpen = function () {
+    if (!modal.classList.contains("hidden")) {
+      renderList(searchInput.value);
+    }
+  };
+})();
 
 const accessFilterForm = document.querySelector("#accessFilterForm");
 if (accessFilterForm) {
