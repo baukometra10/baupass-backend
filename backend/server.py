@@ -1877,12 +1877,12 @@ def init_db():
 
     worker_badge_rows = cur.execute("SELECT id, badge_id, badge_id_lookup FROM workers").fetchall()
     for row in worker_badge_rows:
-        _raw = str(row["badge_id"] or "").strip().upper()
+        _raw = str(row[1] or "").strip().upper()
         _raw = re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]", "-", _raw)
         _raw = re.sub(r"\s+", "", _raw)
         normalized_badge_lookup = _raw
-        if (row["badge_id_lookup"] or "") != normalized_badge_lookup:
-            cur.execute("UPDATE workers SET badge_id_lookup = ? WHERE id = ?", (normalized_badge_lookup, row["id"]))
+        if (row[2] or "") != normalized_badge_lookup:
+            cur.execute("UPDATE workers SET badge_id_lookup = ? WHERE id = ?", (normalized_badge_lookup, row[0]))
 
     if "worker_app_enabled" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN worker_app_enabled INTEGER NOT NULL DEFAULT 1")
