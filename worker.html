@@ -194,6 +194,15 @@
       </div>
 
       <div class="worker-panel-grid">
+          <!-- Besucher-Countdown (nur für Besucher, zeigt Zeit bis Besuchsende) -->
+          <div id="visitorCountdownBanner" class="visitor-countdown-banner hidden">
+            <span class="vcd-icon">⏱</span>
+            <div class="vcd-text">
+              <span class="vcd-label" data-i18n="visitorCountdownLabel">Besuch endet in</span>
+              <span id="visitorCountdownTime" class="vcd-time">--:--:--</span>
+            </div>
+          </div>
+
         <div class="below-card route-card">
           <div class="section-head compact-head">
             <p class="section-kicker" data-i18n="fieldSite">Baustelle</p>
@@ -300,9 +309,16 @@
               </label>
               <label>
                 <span data-i18n="leaveRequestNoteLabel">Notiz</span>
-                <textarea id="leaveRequestNote" placeholder="Optional"></textarea>
+                  <textarea id="leaveRequestNote" rows="3" placeholder="Optional"></textarea>
               </label>
-              <button type="submit" class="primary" data-i18n="leaveRequestSubmitBtn">Antrag einreichen</button>
+                <div class="leave-ai-row">
+                  <button type="button" id="leaveRequestAiBtn" class="ai-suggest-btn" data-i18n="aiSuggestBtn">✨ KI Vorschlag</button>
+                </div>
+                <label>
+                  <span data-i18n="bossEmailLabel">An Chef senden (optional)</span>
+                  <input id="leaveRequestBossEmail" type="email" placeholder="chef@firma.de" />
+                </label>
+                <button type="submit" class="primary" data-i18n="leaveRequestSubmitBtn">Antrag einreichen</button>
             </form>
           </div>
           <div id="leaveRequestListWrapper">

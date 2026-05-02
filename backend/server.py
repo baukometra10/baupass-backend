@@ -14204,6 +14204,108 @@ def worker_app_my_documents():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/api/worker-app/leave-requests/<req_id>/send-email", methods=["POST"])
+@require_worker_session
+def worker_send_leave_request_email(req_id):
+    worker = g.worker
+    db = get_db()
+    req_row = db.execute(
+        "SELECT * FROM leave_requests WHERE id = ? AND worker_id = ?",
+        (req_id, worker["id"])
+    ).fetchone()
+    if not req_row:
+        return jsonify({"error": "not_found"}), 404
+    data = request.get_json(silent=True) or {}
+    recipient_email = str(data.get("recipient_email", "")).strip()
+    if not recipient_email or "@" not in recipient_email:
+        return jsonify({"error": "invalid_email"}), 400
+
+    type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiger Antrag"}
+    req_type = type_labels.get(req_row["type"], req_row["type"])
+    worker_name = f"{worker['first_name']} {worker['last_name']}"
+    subject = f"Abwesenheitsantrag: {req_type} – {worker_name}"
+
+    note_html = (
+        f'<tr><td style="padding:10px 12px;border-bottom:1px solid #eee;color:#555;width:40%;">Anmerkung</td>'
+        f'<td style="padding:10px 12px;border-bottom:1px solid #eee;">{req_row["note"]}</td></tr>'
+    ) if req_row["note"] else ""
+
+    html_body = f"""<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"><title>{subject}</title></head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:600px;width:100%;">
+      <tr><td style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:28px 36px;">
+        <h1 style="margin:0;color:#fff;font-size:22px;">Abwesenheitsantrag</h1>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über BauPass Worker App</p>
+      </td></tr>
+      <tr><td style="padding:28px 36px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eee;border-radius:8px;overflow:hidden;border-spacing:0;">
+          <tr><td style="padding:10px 12px;background:#f8f9fa;border-bottom:1px solid #eee;color:#555;width:40%;font-weight:600;">Mitarbeiter</td><td style="padding:10px 12px;background:#f8f9fa;border-bottom:1px solid #eee;font-weight:600;">{worker_name}</td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid #eee;color:#555;">Badge-ID</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">{worker['badge_id']}</td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid #eee;color:#555;">Art</td><td style="padding:10px 12px;border-bottom:1px solid #eee;"><strong>{req_type}</strong></td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid #eee;color:#555;">Von</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">{req_row['start_date']}</td></tr>
+          <tr><td style="padding:10px 12px;border-bottom:1px solid #eee;color:#555;">Bis</td><td style="padding:10px 12px;border-bottom:1px solid #eee;">{req_row['end_date']}</td></tr>
+          {note_html}
+          <tr><td style="padding:10px 12px;color:#555;">Eingereicht am</td><td style="padding:10px 12px;">{req_row['created_at'][:10]}</td></tr>
+        </table>
+        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag im BauPass Admin-Portal.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+    text_body = (
+        f"Abwesenheitsantrag von {worker_name} (Badge-ID: {worker['badge_id']})\n"
+        f"Art: {req_type}\n"
+        f"Zeitraum: {req_row['start_date']} bis {req_row['end_date']}\n"
+        f"Anmerkung: {req_row['note'] or chr(8211)}\n"
+        f"Eingereicht am: {req_row['created_at'][:10]}"
+    )
+
+    settings_row = db.execute(
+        "SELECT smtp_sender_email, smtp_sender_name, smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls FROM settings WHERE id = 1"
+    ).fetchone()
+    settings = dict(settings_row) if settings_row else {}
+    sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
+    sender_name = (settings.get("smtp_sender_name") or "BauPass").strip()
+
+    ok, err, _ = _send_via_any_api(subject, sender_email, sender_name, recipient_email, text_body, html_body)
+    if not ok:
+        smtp_host = (settings.get("smtp_host") or "").strip()
+        if smtp_host:
+            try:
+                import smtplib
+                from email.message import EmailMessage as _EM
+                msg = _EM()
+                msg["Subject"] = subject
+                msg["From"] = f'"{sender_name}" <{sender_email}>'
+                msg["To"] = recipient_email
+                msg.set_content(text_body)
+                msg.add_alternative(html_body, subtype="html")
+                with smtplib.SMTP(smtp_host, int(settings.get("smtp_port") or 587), timeout=20) as smtp:
+                    if int(settings.get("smtp_use_tls") or 0) == 1:
+                        smtp.starttls()
+                    smtp_user = (settings.get("smtp_username") or "").strip()
+                    if smtp_user:
+                        smtp.login(smtp_user, settings.get("smtp_password") or "")
+                    smtp.send_message(msg)
+            except Exception as exc:
+                app.logger.error(f"[LEAVE-MAIL] SMTP failed: {exc}")
+                return jsonify({"error": "send_failed", "details": str(exc)}), 500
+        else:
+            return jsonify({"error": "no_email_provider", "details": err}), 500
+
+    log_audit(
+        "leave_request.email_sent",
+        f"Antrag {req_id} per E-Mail an {recipient_email} gesendet ({worker_name})",
+        target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
+    )
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8080"))

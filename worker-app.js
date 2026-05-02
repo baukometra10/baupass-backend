@@ -660,8 +660,7 @@ const TRANSLATIONS = {
     documentsStatusNoExpiry: "بدون تاريخ انتهاء",
   },
 };
-
-TRANSLATIONS.fr = {
+  TRANSLATIONS.fr = {
   ...TRANSLATIONS.en,
   pageTitle: "BauPass App Ouvrier",
   appEyebrow: "App Ouvrier",
@@ -685,6 +684,66 @@ TRANSLATIONS.pl = {
   appEyebrow: "Aplikacja Pracownika",
   languageLabel: "Jezyk"
 };
+
+Object.assign(TRANSLATIONS.de, {
+  visitorCountdownLabel: "Besuch endet in",
+  visitorCountdownExpired: "Besuchszeit abgelaufen – Abmeldung",
+  visitEndedLogout: "Ihre Besuchszeit ist abgelaufen. Bitte neu anmelden.",
+  aiSuggestBtn: "✨ KI Vorschlag",
+  bossEmailLabel: "An Chef senden (optional)",
+  bossEmailPlaceholder: "chef@firma.de",
+  sendToBossBtn: "Senden",
+  sendToBossKicker: "Per E-Mail weiterleiten",
+  sendToBossSuccess: "✓ Antrag wurde an den Chef gesendet.",
+  sendToBossError: "Fehler beim Senden – E-Mail-Einstellungen prüfen.",
+  visitorExpiredBadgeLogin: "Diese Besucherkarte ist abgelaufen und kann nicht mehr genutzt werden.",
+  refreshBtn: "↻"
+});
+
+Object.assign(TRANSLATIONS.en, {
+  visitorCountdownLabel: "Visit ends in",
+  visitorCountdownExpired: "Visit time expired – logging out",
+  visitEndedLogout: "Your visit time has expired. Please log in again.",
+  aiSuggestBtn: "✨ AI Suggestion",
+  bossEmailLabel: "Send to manager (optional)",
+  bossEmailPlaceholder: "manager@company.com",
+  sendToBossBtn: "Send",
+  sendToBossKicker: "Forward by email",
+  sendToBossSuccess: "✓ Request sent to manager.",
+  sendToBossError: "Failed to send – check email settings.",
+  visitorExpiredBadgeLogin: "This visitor card has expired and can no longer be used.",
+  refreshBtn: "↻"
+});
+
+Object.assign(TRANSLATIONS.tr, {
+  visitorCountdownLabel: "Ziyaret bitiyor",
+  visitorCountdownExpired: "Ziyaret süresi doldu – çıkış yapılıyor",
+  visitEndedLogout: "Ziyaret süreniz doldu. Lütfen yeniden giriş yapın.",
+  aiSuggestBtn: "✨ Yapay Zeka Önerisi",
+  bossEmailLabel: "Amire gönder (isteğe bağlı)",
+  bossEmailPlaceholder: "amir@sirket.com",
+  sendToBossBtn: "Gönder",
+  sendToBossKicker: "E-posta ile ilet",
+  sendToBossSuccess: "✓ Talep amire gönderildi.",
+  sendToBossError: "Gönderim başarısız – e-posta ayarlarını kontrol edin.",
+  visitorExpiredBadgeLogin: "Bu ziyaretçi kartının süresi doldu ve artık kullanılamaz.",
+  refreshBtn: "↻"
+});
+
+Object.assign(TRANSLATIONS.ar, {
+  visitorCountdownLabel: "الزيارة تنتهي خلال",
+  visitorCountdownExpired: "انتهت مدة الزيارة – جارٍ تسجيل الخروج",
+  visitEndedLogout: "انتهت مدة زيارتك. يرجى تسجيل الدخول مرة أخرى.",
+  aiSuggestBtn: "✨ اقتراح ذكاء اصطناعي",
+  bossEmailLabel: "إرسال إلى المدير (اختياري)",
+  bossEmailPlaceholder: "مدير@شركة.com",
+  sendToBossBtn: "إرسال",
+  sendToBossKicker: "إرسال بالبريد الإلكتروني",
+  sendToBossSuccess: "✓ تم إرسال الطلب إلى المدير.",
+  sendToBossError: "فشل الإرسال – تحقق من إعدادات البريد.",
+  visitorExpiredBadgeLogin: "انتهت صلاحية هذه البطاقة ولا يمكن استخدامها.",
+  refreshBtn: "↻"
+});
 
 const LANG_META = {
   de: { label: "DE", flag: "🇩🇪", dir: "ltr" },
@@ -771,6 +830,7 @@ let wakeLockHandle = null;
 let dynamicManifestUrl = "";
 let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
+let visitorCountdownInterval = null;
 let inactivityCheckInterval = null;
 let qrHighContrastEnabled = localStorage.getItem(QR_HIGH_CONTRAST_KEY) === "1";
 let sessionExpiringSoonNotified = false;
@@ -784,6 +844,7 @@ let pinLockEnabled = false; // Wird vom Backend gesetzt
 let isPassLocked = false; // Aktueller Status
 let lastPassInteractionAt = Date.now();
 let passLockTimer = null;
+let lastSubmittedLeaveRequestId = "";
 
 const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
@@ -868,6 +929,13 @@ const elements = {
   leaveRequestStart: document.querySelector("#leaveRequestStart"),
   leaveRequestEnd: document.querySelector("#leaveRequestEnd"),
   leaveRequestNote: document.querySelector("#leaveRequestNote"),
+  leaveRequestAiBtn: document.querySelector("#leaveRequestAiBtn"),
+  leaveRequestBossEmail: document.querySelector("#leaveRequestBossEmail"),
+  visitorCountdownBanner: document.querySelector("#visitorCountdownBanner"),
+  visitorCountdownTime: document.querySelector("#visitorCountdownTime"),
+  sendToBossPanel: document.querySelector("#sendToBossPanel"),
+  bossEmailInput: document.querySelector("#bossEmailInput"),
+  sendToBossBtn: document.querySelector("#sendToBossBtn"),
   timesheetCard: document.querySelector("#timesheetCard"),
   timesheetList: document.querySelector("#timesheetList"),
   timesheetRefreshBtn: document.querySelector("#timesheetRefreshBtn"),
@@ -1168,6 +1236,16 @@ function bindEvents() {
     elements.leaveRequestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       await submitLeaveRequest();
+    });
+  }
+
+  if (elements.leaveRequestAiBtn) {
+    elements.leaveRequestAiBtn.addEventListener("click", applyAiLeaveSuggestion);
+  }
+
+  if (elements.sendToBossBtn) {
+    elements.sendToBossBtn.addEventListener("click", async () => {
+      await sendLastLeaveRequestToBoss();
     });
   }
 
@@ -1589,6 +1667,11 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       showLogin();
       return;
     }
+    if (error.code === "visitor_visit_expired") {
+      localStorage.removeItem(WORKER_BADGE_LOGIN_KEY);
+      showWorkerNotice(t("visitorExpiredBadgeLogin"));
+      return;
+    }
     if (error.code === "worker_app_disabled") {
       showWorkerNotice(t("workerAppDisabled"));
       return;
@@ -1729,6 +1812,12 @@ function renderWorker(payload) {
     elements.workerVisitEndAt.textContent = worker.visitEndAt ? formatDateTime(worker.visitEndAt) : "-";
   }
 
+  if (isVisitor) {
+    startVisitorCountdown(payload);
+  } else {
+    stopVisitorCountdown();
+  }
+
   if (elements.workerPhoto) {
     if (worker.photoData && String(worker.photoData).startsWith("data:image")) {
       elements.workerPhoto.src = worker.photoData;
@@ -1829,6 +1918,7 @@ function renderWorker(payload) {
 function showLogin() {
   clearWorkerSessionExpiryTimer();
   clearWorkerSessionCountdown();
+  stopVisitorCountdown();
   sessionExpiringSoonNotified = false;
   gateAutoOpenTriggered = false;
   stopAmbientLightRecommendation();
@@ -2723,6 +2813,54 @@ function clearWorkerSessionExpiryTimer() {
   }
 }
 
+function stopVisitorCountdown() {
+  if (visitorCountdownInterval !== null) {
+    window.clearInterval(visitorCountdownInterval);
+    visitorCountdownInterval = null;
+  }
+  if (elements.visitorCountdownBanner) {
+    elements.visitorCountdownBanner.classList.add("hidden");
+  }
+}
+
+function startVisitorCountdown(payload) {
+  stopVisitorCountdown();
+  if (!elements.visitorCountdownBanner || !elements.visitorCountdownTime) {
+    return;
+  }
+
+  const worker = payload?.worker || {};
+  const targetIso = String(worker.visitEndAt || payload?.sessionExpiresAt || "").trim();
+  if (!targetIso) {
+    return;
+  }
+  const targetMs = new Date(targetIso).getTime();
+  if (!Number.isFinite(targetMs)) {
+    return;
+  }
+
+  elements.visitorCountdownBanner.classList.remove("hidden");
+
+  const update = () => {
+    const remaining = targetMs - Date.now();
+    if (remaining <= 0) {
+      elements.visitorCountdownTime.textContent = "00:00:00";
+      stopVisitorCountdown();
+      showWorkerNotice(t("visitorCountdownExpired"));
+      void workerLogout();
+      return;
+    }
+    const totalSeconds = Math.floor(remaining / 1000);
+    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+    const s = String(totalSeconds % 60).padStart(2, "0");
+    elements.visitorCountdownTime.textContent = `${h}:${m}:${s}`;
+  };
+
+  update();
+  visitorCountdownInterval = window.setInterval(update, 1000);
+}
+
 function expireDailyCardInClient() {
   localStorage.removeItem(WORKER_TOKEN_KEY);
   workerToken = "";
@@ -2890,7 +3028,7 @@ async function submitLeaveRequest() {
   }
   
   try {
-    await fetchJson(`${API_BASE}/leave-requests`, {
+    const result = await fetchJson(`${API_BASE}/leave-requests`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -2898,13 +3036,62 @@ async function submitLeaveRequest() {
       },
       body: JSON.stringify({ type, start_date: start, end_date: end, note })
     });
+    lastSubmittedLeaveRequestId = String(result?.id || "");
     
     showWorkerNotice("✓ Urlaubsantrag eingereicht");
+    if (elements.sendToBossPanel) {
+      elements.sendToBossPanel.classList.remove("hidden");
+      if (elements.bossEmailInput && elements.leaveRequestBossEmail?.value) {
+        elements.bossEmailInput.value = elements.leaveRequestBossEmail.value;
+      }
+    }
     elements.leaveRequestForm.reset();
     toggleLeaveRequestForm();
     await loadLeaveRequests();
   } catch (error) {
     showWorkerNotice(`Fehler: ${error.message}`);
+  }
+}
+
+function applyAiLeaveSuggestion() {
+  const type = elements.leaveRequestType?.value || "urlaub";
+  const start = elements.leaveRequestStart?.value || "";
+  const end = elements.leaveRequestEnd?.value || "";
+
+  const typeLabel = type === "krank" ? "krankheitsbedingt" : type === "sonstiges" ? "aus persönlichem Grund" : "urlaubsbedingt";
+  const dateRange = start && end ? `vom ${start} bis ${end}` : "im gewünschten Zeitraum";
+  const suggestion = `Hiermit beantrage ich ${typeLabel} meine Abwesenheit ${dateRange}. Ich bitte um Genehmigung und danke für die Rückmeldung.`;
+
+  if (elements.leaveRequestNote) {
+    elements.leaveRequestNote.value = suggestion;
+    showWorkerNotice("✓ KI-Vorschlag eingefügt");
+  }
+}
+
+async function sendLastLeaveRequestToBoss() {
+  if (!workerToken) return;
+  if (!lastSubmittedLeaveRequestId) {
+    showWorkerNotice("Bitte zuerst einen Antrag einreichen.");
+    return;
+  }
+  const recipient = (elements.bossEmailInput?.value || "").trim();
+  if (!recipient || !recipient.includes("@")) {
+    showWorkerNotice("Bitte eine gültige Chef-E-Mail eingeben.");
+    return;
+  }
+
+  try {
+    await fetchJson(`${API_BASE}/leave-requests/${encodeURIComponent(lastSubmittedLeaveRequestId)}/send-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${workerToken}`
+      },
+      body: JSON.stringify({ recipient_email: recipient })
+    });
+    showWorkerNotice(t("sendToBossSuccess"));
+  } catch (error) {
+    showWorkerNotice(`${t("sendToBossError")}: ${error.message}`);
   }
 }
 
@@ -3041,10 +3228,25 @@ function initVoiceCommands() {
     showWorkerNotice("Sprachsteuerung wird von Ihrem Browser nicht unterstützt.");
     return;
   }
+
+  if (!window.isSecureContext) {
+    showWorkerNotice("Sprachsteuerung benötigt HTTPS oder localhost.");
+    return;
+  }
   
   if (!voiceRecognition) {
     voiceRecognition = new SpeechRecognition();
-    voiceRecognition.lang = currentLang === "de" ? "de-DE" : currentLang === "en" ? "en-GB" : "en-GB";
+    const langMap = {
+      de: "de-DE",
+      en: "en-GB",
+      tr: "tr-TR",
+      ar: "ar-SA",
+      fr: "fr-FR",
+      es: "es-ES",
+      it: "it-IT",
+      pl: "pl-PL"
+    };
+    voiceRecognition.lang = langMap[currentLang] || "de-DE";
     voiceRecognition.continuous = false;
     voiceRecognition.interimResults = false;
     
@@ -3064,7 +3266,16 @@ function initVoiceCommands() {
     };
     
     voiceRecognition.onerror = (event) => {
-      showWorkerNotice(`Fehler: ${event.error}`);
+      const code = String(event.error || "");
+      if (code === "not-allowed" || code === "service-not-allowed") {
+        showWorkerNotice("Mikrofonzugriff wurde blockiert. Bitte Browser-Berechtigung erlauben.");
+        return;
+      }
+      if (code === "no-speech") {
+        showWorkerNotice("Keine Sprache erkannt. Bitte erneut versuchen.");
+        return;
+      }
+      showWorkerNotice(`Fehler: ${code || "unknown"}`);
     };
     
     voiceRecognition.onresult = (event) => {
