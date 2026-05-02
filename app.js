@@ -20944,7 +20944,7 @@ async function loadLeaveRequests(filterStatus = null) {
               <td>${req.type || 'N/A'}</td>
               <td>${req.start_date}</td>
               <td>${req.end_date}</td>
-              <td>${req.status}</td>
+              <td>${req.status}${req.email_forwarded_to ? `<br><span class="leave-forwarded-badge" title="An ${escapeHtml(req.email_forwarded_to)} weitergeleitet">📧 ${escapeHtml(req.email_forwarded_to)}</span>` : ""}</td>
               <td>${req.status === 'ausstehend' ? `<button onclick="approveLeaveRequest(${req.id})">Approve</button><button onclick="rejectLeaveRequest(${req.id})">Reject</button>` : '-'}</td>
             </tr>
           `).join('')}

@@ -5003,3 +5003,20 @@ body.desktop-app .topbar {
     flex: 1;
   }
 }
+
+/* Leave request forwarded badge */
+.leave-forwarded-badge {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #1a6fbf;
+  background: #e8f0fe;
+  border: 1px solid #b3d0f7;
+  border-radius: 4px;
+  padding: 1px 6px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}

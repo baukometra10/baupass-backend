@@ -2131,6 +2131,11 @@ def init_db():
         """
     )
 
+    # ── email_forwarded_to Spalte fuer leave_requests ──────────
+    leave_req_columns = [row[1] for row in cur.execute("PRAGMA table_info(leave_requests)").fetchall()]
+    if "email_forwarded_to" not in leave_req_columns:
+        cur.execute("ALTER TABLE leave_requests ADD COLUMN email_forwarded_to TEXT NOT NULL DEFAULT ''")
+
     # ── Neu: Push-Subscriptions (VAPID-Web-Push) ───────────────
     cur.execute(
         """
@@ -14128,7 +14133,7 @@ def get_leave_requests():
     query = """
         SELECT lr.id, lr.worker_id, lr.company_id, lr.type, lr.start_date, lr.end_date,
                lr.note, lr.status, lr.reviewed_by_user_id, lr.reviewed_at, lr.review_note,
-               lr.created_at, w.first_name, w.last_name, w.badge_id
+               lr.created_at, lr.email_forwarded_to, w.first_name, w.last_name, w.badge_id
         FROM leave_requests lr
         JOIN workers w ON w.id = lr.worker_id
         WHERE 1=1
@@ -14204,6 +14209,19 @@ def worker_app_my_documents():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/api/worker-app/company-admins", methods=["GET"])
+@require_worker_session
+def worker_get_company_admins():
+    """Gibt Firmen-Admin-E-Mail-Adressen zurueck (fuer Chef-Versand-Vorschlag)."""
+    worker = g.worker
+    db = get_db()
+    rows = db.execute(
+        "SELECT name, email FROM users WHERE company_id = ? AND role = 'company-admin' AND email != '' ORDER BY name",
+        (worker["company_id"],)
+    ).fetchall()
+    return jsonify([{"name": r["name"], "email": r["email"]} for r in rows])
+
+
 @app.route("/api/worker-app/leave-requests/<req_id>/send-email", methods=["POST"])
 @require_worker_session
 def worker_send_leave_request_email(req_id):
@@ -14272,7 +14290,12 @@ def worker_send_leave_request_email(req_id):
     sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
     sender_name = (settings.get("smtp_sender_name") or "BauPass").strip()
 
-    ok, err, _ = _send_via_any_api(subject, sender_email, sender_name, recipient_email, text_body, html_body)
+    # HTML-Datei als Anhang (base64)
+    import base64 as _b64
+    html_attachment_content = _b64.b64encode(html_body.encode("utf-8")).decode("ascii")
+    attachments = [{"filename": "Urlaubsantrag.html", "content": html_attachment_content, "type": "text/html"}]
+
+    ok, err, _ = _send_via_any_api(subject, sender_email, sender_name, recipient_email, text_body, html_body, attachments=attachments)
     if not ok:
         smtp_host = (settings.get("smtp_host") or "").strip()
         if smtp_host:
@@ -14285,6 +14308,11 @@ def worker_send_leave_request_email(req_id):
                 msg["To"] = recipient_email
                 msg.set_content(text_body)
                 msg.add_alternative(html_body, subtype="html")
+                msg.add_attachment(
+                    html_body.encode("utf-8"),
+                    maintype="text", subtype="html",
+                    filename="Urlaubsantrag.html"
+                )
                 with smtplib.SMTP(smtp_host, int(settings.get("smtp_port") or 587), timeout=20) as smtp:
                     if int(settings.get("smtp_use_tls") or 0) == 1:
                         smtp.starttls()
@@ -14297,6 +14325,13 @@ def worker_send_leave_request_email(req_id):
                 return jsonify({"error": "send_failed", "details": str(exc)}), 500
         else:
             return jsonify({"error": "no_email_provider", "details": err}), 500
+
+    # Weitergeleitete E-Mail-Adresse speichern
+    db.execute(
+        "UPDATE leave_requests SET email_forwarded_to = ? WHERE id = ?",
+        (recipient_email, req_id)
+    )
+    db.commit()
 
     log_audit(
         "leave_request.email_sent",

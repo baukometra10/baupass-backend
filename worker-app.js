@@ -1913,6 +1913,7 @@ function renderWorker(payload) {
   void loadLeaveRequests();
   void loadMyTimesheets();
   void loadMyDocuments();
+  void prefillCompanyAdminEmails();
 }
 
 function showLogin() {
@@ -3095,9 +3096,38 @@ async function sendLastLeaveRequestToBoss() {
   }
 }
 
+async function prefillCompanyAdminEmails() {
+  if (!workerToken) return;
+  try {
+    const admins = await fetchJson(`${API_BASE}/company-admins`, {
+      headers: { Authorization: `Bearer ${workerToken}` }
+    });
+    if (!Array.isArray(admins) || admins.length === 0) return;
+
+    const emailList = admins.map(a => a.email).filter(Boolean);
+    const firstEmail = emailList[0] || "";
+
+    const populateDatalist = (inputEl, listId) => {
+      if (!inputEl) return;
+      let dl = document.getElementById(listId);
+      if (!dl) {
+        dl = document.createElement("datalist");
+        dl.id = listId;
+        inputEl.parentNode.appendChild(dl);
+      }
+      dl.innerHTML = emailList.map(e => `<option value="${e}"></option>`).join("");
+      inputEl.setAttribute("list", listId);
+      if (!inputEl.value && firstEmail) inputEl.value = firstEmail;
+    };
+
+    populateDatalist(elements.leaveRequestBossEmail, "bossEmailDatalist1");
+    populateDatalist(elements.bossEmailInput, "bossEmailDatalist2");
+  } catch (_) {
+    // Vorschlag ist optional – Fehler ignorieren
+  }
+}
+
 function toggleLeaveRequestForm() {
-  if (!elements.leaveRequestFormWrapper) return;
-  const isHidden = elements.leaveRequestFormWrapper.classList.toggle("hidden");
   if (elements.leaveRequestToggleBtn) {
     elements.leaveRequestToggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestTitle");
   }
