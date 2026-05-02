@@ -10,6 +10,7 @@ __pycache__/
 
 # Local runtime database
 backend/baupass.db
+backend/site.db
 
 # Generated local docs and temporary scripts
 backend/uploads/documents/
