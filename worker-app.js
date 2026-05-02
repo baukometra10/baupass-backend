@@ -847,6 +847,7 @@ let passLockTimer = null;
 let lastSubmittedLeaveRequestId = "";
 let leaveRefreshInterval = null;
 let quickMenuObserver = null;
+let activeWorkerPageTarget = "";
 
 const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
@@ -935,6 +936,10 @@ const elements = {
   leaveRequestBossEmail: document.querySelector("#leaveRequestBossEmail"),
   workerQuickMenu: document.querySelector("#workerQuickMenu"),
   quickMenuButtons: document.querySelectorAll(".quick-menu-btn"),
+  workerMenuButtons: document.querySelectorAll("[data-worker-page-target]"),
+  workerPageNav: document.querySelector("#workerPageNav"),
+  workerPageBackButton: document.querySelector("#workerPageBackButton"),
+  workerPageLabel: document.querySelector("#workerPageLabel"),
   visitorCountdownBanner: document.querySelector("#visitorCountdownBanner"),
   visitorCountdownTime: document.querySelector("#visitorCountdownTime"),
   sendToBossPanel: document.querySelector("#sendToBossPanel"),
@@ -973,6 +978,67 @@ function setActiveQuickMenuTarget(targetId) {
   elements.quickMenuButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-scroll-target") === targetId);
   });
+}
+
+function getWorkerPageTitle(targetId) {
+  if (targetId === "sessionInfoCard") return t("sessionTitle");
+  if (targetId === "actionsPanel") return t("actionsTitle");
+  if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
+  if (targetId === "timesheetCard") return "Eintritte & Zeiten";
+  if (targetId === "documentsCard") return t("documentsTitle");
+  if (targetId === "workerVisitorMeta") return t("visitorMetaTitle");
+  return "Bereich";
+}
+
+function getWorkerPageSections() {
+  return [
+    elements.workerVisitorMeta,
+    document.querySelector("#sessionInfoCard"),
+    document.querySelector("#actionsPanel"),
+    elements.leaveRequestCard,
+    elements.timesheetCard,
+    elements.documentsCard,
+  ].filter(Boolean);
+}
+
+function applyWorkerPageView(targetId = "") {
+  const sections = getWorkerPageSections();
+  const useFocusMode = Boolean(targetId);
+  activeWorkerPageTarget = useFocusMode ? targetId : "";
+
+  if (!useFocusMode) {
+    sections.forEach((section) => {
+      if (section.dataset.pageWasVisible !== undefined) {
+        section.classList.toggle("hidden", section.dataset.pageWasVisible !== "1");
+        delete section.dataset.pageWasVisible;
+      }
+      section.classList.remove("worker-page-active");
+    });
+
+    if (elements.workerPageNav) {
+      elements.workerPageNav.classList.add("hidden");
+    }
+    if (elements.workerPageLabel) {
+      elements.workerPageLabel.textContent = "";
+    }
+    return;
+  }
+
+  sections.forEach((section) => {
+    if (section.dataset.pageWasVisible === undefined) {
+      section.dataset.pageWasVisible = section.classList.contains("hidden") ? "0" : "1";
+    }
+    const shouldShow = section.id === targetId;
+    section.classList.toggle("hidden", !shouldShow);
+    section.classList.toggle("worker-page-active", shouldShow);
+  });
+
+  if (elements.workerPageNav) {
+    elements.workerPageNav.classList.remove("hidden");
+  }
+  if (elements.workerPageLabel) {
+    elements.workerPageLabel.textContent = `Geoeffnet: ${getWorkerPageTitle(targetId)}`;
+  }
 }
 
 function initQuickMenuObserver() {
@@ -1282,6 +1348,30 @@ function bindEvents() {
           target.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
+    });
+  }
+
+  if (elements.workerMenuButtons?.length) {
+    elements.workerMenuButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.getAttribute("data-worker-page-target") || "";
+        if (!targetId) return;
+        applyWorkerPageView(targetId);
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    });
+  }
+
+  if (elements.workerPageBackButton) {
+    elements.workerPageBackButton.addEventListener("click", () => {
+      applyWorkerPageView("");
+      const route = document.getElementById("routeCard");
+      if (route) {
+        route.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     });
   }
 
@@ -1959,9 +2049,11 @@ function renderWorker(payload) {
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
   if (elements.workerQuickMenu) {
-    elements.workerQuickMenu.classList.remove("hidden");
-    setActiveQuickMenuTarget("badgeCard");
-    initQuickMenuObserver();
+    elements.workerQuickMenu.classList.add("hidden");
+  }
+  if (quickMenuObserver) {
+    quickMenuObserver.disconnect();
+    quickMenuObserver = null;
   }
   
   // Show leave request card
@@ -1988,6 +2080,7 @@ function renderWorker(payload) {
   if (elements.documentsCard) {
     elements.documentsCard.classList.remove("hidden");
   }
+  applyWorkerPageView("");
   
   // Load leave requests after render
   void loadLeaveRequests();
@@ -2014,6 +2107,7 @@ function showLogin() {
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
+  applyWorkerPageView("");
   if (quickMenuObserver) {
     quickMenuObserver.disconnect();
     quickMenuObserver = null;

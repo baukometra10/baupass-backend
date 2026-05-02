@@ -223,6 +223,25 @@
           </div>
         </div>
 
+        <div id="workerMenuCard" class="below-card worker-menu-card">
+          <div class="section-head compact-head">
+            <p class="section-kicker">Menü</p>
+            <h3>Deine Bereiche</h3>
+          </div>
+          <div class="worker-menu-grid">
+            <button type="button" class="worker-menu-btn" data-worker-page-target="sessionInfoCard">🕒 <span data-i18n="sessionTitle">Tagesausweis</span></button>
+            <button type="button" class="worker-menu-btn" data-worker-page-target="actionsPanel">⚡ <span data-i18n="actionsTitle">Schnellzugriff</span></button>
+            <button type="button" class="worker-menu-btn" data-worker-page-target="leaveRequestCard">🗓 <span data-i18n="leaveRequestTitle">Urlaubsantrag</span></button>
+            <button type="button" class="worker-menu-btn" data-worker-page-target="timesheetCard">📊 Eintritte & Zeiten</button>
+            <button type="button" class="worker-menu-btn" data-worker-page-target="documentsCard">📁 <span data-i18n="documentsTitle">Meine Unterlagen</span></button>
+          </div>
+        </div>
+
+        <div id="workerPageNav" class="worker-page-nav hidden">
+          <button id="workerPageBackButton" class="ghost small-btn" type="button">← Übersicht</button>
+          <p id="workerPageLabel" class="worker-page-label"></p>
+        </div>
+
         <!-- Besucher-Details (nur für Besucher) -->
         <div id="workerVisitorMeta" class="below-card visitor-meta-card hidden">
           <div class="section-head compact-head">
@@ -252,7 +271,7 @@
         </div>
 
         <!-- Session-Info: Tagesausweis & Countdown -->
-        <div class="below-card session-info-card">
+        <div id="sessionInfoCard" class="below-card session-info-card">
           <div class="section-head compact-head">
             <p class="section-kicker" data-i18n="sessionKicker">Session</p>
             <h3 data-i18n="sessionTitle">Tagesausweis</h3>
