@@ -1721,7 +1721,6 @@ def init_db():
     )
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_physical_card_active ON workers(physical_card_id, deleted_at)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_badge_lookup_active ON workers(badge_id_lookup, deleted_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_worker_timestamp ON access_logs(worker_id, timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_documents_worker_type_created ON worker_documents(worker_id, doc_type, created_at DESC)")
 
@@ -1866,6 +1865,7 @@ def init_db():
         cur.execute("ALTER TABLE workers ADD COLUMN visit_end_at TEXT NOT NULL DEFAULT ''")
     if "badge_id_lookup" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN badge_id_lookup TEXT NOT NULL DEFAULT ''")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_badge_lookup_active ON workers(badge_id_lookup, deleted_at)")
     if "badge_pin_hash" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN badge_pin_hash TEXT NOT NULL DEFAULT ''")
     if "physical_card_id" not in worker_columns:
