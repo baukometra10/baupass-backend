@@ -1286,6 +1286,11 @@ body.qr-high-contrast #gateQr {
 @media (max-width: 520px) {
   .app-shell {
     padding: 14px 12px 24px;
+    /* respect iPhone notch / Dynamic Island */
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
   }
 
   .top-panel {
@@ -1298,6 +1303,22 @@ body.qr-high-contrast #gateQr {
 
   .worker-pass {
     padding: 14px;
+  }
+}
+
+/* Very small phones (≤360px) */
+@media (max-width: 360px) {
+  .wc-name {
+    font-size: .65rem;
+  }
+  .wc-brand-name {
+    font-size: .5rem;
+  }
+  .app-shell {
+    padding: 10px 8px 20px;
+  }
+  button {
+    min-height: 48px;
   }
 }
 
