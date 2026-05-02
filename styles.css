@@ -1268,10 +1268,12 @@ textarea.invoice-field-valid {
 .support-readonly-badge {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   min-height: 32px;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid rgba(178, 84, 0, 0.32);
+  border-left: 4px solid #c15b00;
   background: linear-gradient(140deg, rgba(255, 241, 222, 0.95), rgba(255, 228, 194, 0.92));
   color: #7a3600;
   font-size: 0.76rem;
@@ -1281,8 +1283,15 @@ textarea.invoice-field-valid {
   box-shadow: 0 6px 16px rgba(107, 52, 0, 0.16);
 }
 
+.support-readonly-badge::before {
+  content: "\1F512";
+  font-size: 0.86rem;
+  line-height: 1;
+}
+
 .theme-black .support-readonly-badge {
   border-color: rgba(255, 176, 102, 0.46);
+  border-left-color: #ffb066;
   background: linear-gradient(140deg, rgba(91, 52, 14, 0.88), rgba(72, 39, 10, 0.9));
   color: #ffd6ae;
   box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
