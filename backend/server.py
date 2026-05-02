@@ -1912,8 +1912,9 @@ def init_db():
         cur.execute("ALTER TABLE workers ADD COLUMN leave_balance INTEGER NOT NULL DEFAULT 30")
 
     # ── Urlaubstage-Zaehler in leave_requests ────────────────────
+    # Bei frischen DBs kann die Tabelle hier noch nicht existieren.
     leave_req_columns = [row[1] for row in cur.execute("PRAGMA table_info(leave_requests)").fetchall()]
-    if "days_count" not in leave_req_columns:
+    if leave_req_columns and "days_count" not in leave_req_columns:
         cur.execute("ALTER TABLE leave_requests ADD COLUMN days_count INTEGER NOT NULL DEFAULT 0")
 
     # IMAP-Einstellungen fuer Dokumenten-Postfach
@@ -2140,6 +2141,7 @@ def init_db():
             type TEXT NOT NULL DEFAULT 'urlaub',
             start_date TEXT NOT NULL,
             end_date TEXT NOT NULL,
+            days_count INTEGER NOT NULL DEFAULT 0,
             note TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'ausstehend',
             reviewed_by_user_id TEXT,
