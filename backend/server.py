@@ -1720,7 +1720,6 @@ def init_db():
         """
     )
 
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_physical_card_active ON workers(physical_card_id, deleted_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_worker_timestamp ON access_logs(worker_id, timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_documents_worker_type_created ON worker_documents(worker_id, doc_type, created_at DESC)")
 
@@ -1870,6 +1869,7 @@ def init_db():
         cur.execute("ALTER TABLE workers ADD COLUMN badge_pin_hash TEXT NOT NULL DEFAULT ''")
     if "physical_card_id" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN physical_card_id TEXT")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_workers_physical_card_active ON workers(physical_card_id, deleted_at)")
     if "site_latitude" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN site_latitude REAL")
     if "site_longitude" not in worker_columns:
