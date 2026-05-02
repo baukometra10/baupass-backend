@@ -845,6 +845,7 @@ let isPassLocked = false; // Aktueller Status
 let lastPassInteractionAt = Date.now();
 let passLockTimer = null;
 let lastSubmittedLeaveRequestId = "";
+let leaveRefreshInterval = null;
 
 const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
@@ -931,6 +932,8 @@ const elements = {
   leaveRequestNote: document.querySelector("#leaveRequestNote"),
   leaveRequestAiBtn: document.querySelector("#leaveRequestAiBtn"),
   leaveRequestBossEmail: document.querySelector("#leaveRequestBossEmail"),
+  workerQuickMenu: document.querySelector("#workerQuickMenu"),
+  quickMenuButtons: document.querySelectorAll(".quick-menu-btn"),
   visitorCountdownBanner: document.querySelector("#visitorCountdownBanner"),
   visitorCountdownTime: document.querySelector("#visitorCountdownTime"),
   sendToBossPanel: document.querySelector("#sendToBossPanel"),
@@ -1236,6 +1239,19 @@ function bindEvents() {
     elements.leaveRequestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       await submitLeaveRequest();
+    });
+  }
+
+  if (elements.quickMenuButtons?.length) {
+    elements.quickMenuButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.getAttribute("data-scroll-target") || "";
+        if (!targetId) return;
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
     });
   }
 
@@ -1912,6 +1928,9 @@ function renderWorker(payload) {
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
+  if (elements.workerQuickMenu) {
+    elements.workerQuickMenu.classList.remove("hidden");
+  }
   
   // Show leave request card
   if (elements.leaveRequestCard) {
@@ -1940,6 +1959,14 @@ function renderWorker(payload) {
   
   // Load leave requests after render
   void loadLeaveRequests();
+  if (leaveRefreshInterval) {
+    clearInterval(leaveRefreshInterval);
+  }
+  leaveRefreshInterval = setInterval(() => {
+    if (workerToken) {
+      void loadLeaveRequests();
+    }
+  }, 60000);
   void loadMyTimesheets();
   void loadMyDocuments();
   void prefillCompanyAdminEmails();
@@ -1954,6 +1981,7 @@ function showLogin() {
   stopAmbientLightRecommendation();
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
+  if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
   document.body.classList.remove("worker-loaded");
 }
 
@@ -2160,6 +2188,10 @@ async function workerLogout() {
   if (inactivityCheckInterval) {
     clearInterval(inactivityCheckInterval);
     inactivityCheckInterval = null;
+  }
+  if (leaveRefreshInterval) {
+    clearInterval(leaveRefreshInterval);
+    leaveRefreshInterval = null;
   }
   closeGateMode();
   showLogin();
@@ -3106,7 +3138,7 @@ function applyAiLeaveSuggestion() {
   }
 }
 
-async async async function sendLastLeaveRequestToBoss() {
+async function sendLastLeaveRequestToBoss() {
   if (!workerToken) return;
   if (!lastSubmittedLeaveRequestId) {
     showWorkerNotice("Bitte zuerst einen Antrag einreichen.");

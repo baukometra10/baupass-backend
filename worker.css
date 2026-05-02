@@ -151,6 +151,41 @@ body {
   z-index: 1;
 }
 
+.worker-quick-menu {
+  position: sticky;
+  top: 6px;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.quick-menu-btn {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1a1f24;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 7px 12px;
+  white-space: nowrap;
+}
+
+.quick-menu-btn:active {
+  transform: translateY(1px);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 /* ── Shared Typography ─────────────────────────── */
 .top h1, .card h2 { margin: 0; font-family: "Space Grotesk", sans-serif; }
 

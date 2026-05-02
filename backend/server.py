@@ -10,6 +10,7 @@ import ipaddress
 import html
 import socket
 import re
+import textwrap
 import threading
 import time
 import math
@@ -14412,6 +14413,101 @@ def review_leave_request(req_id):
         _send_email_to_worker(db, req_row["worker_id"], f"Antrag {status_label_de}: {req_type_label}", text_mail, html_mail)
 
     return jsonify({"ok": True})
+
+
+@app.get("/api/leave-requests/<req_id>/export.pdf")
+@require_auth
+def export_leave_request_pdf(req_id):
+    user = g.current_user
+    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+        return jsonify({"error": "forbidden"}), 403
+
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT lr.*, w.first_name, w.last_name, w.badge_id,
+               reviewer.username AS reviewer_username
+        FROM leave_requests lr
+        JOIN workers w ON w.id = lr.worker_id
+        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by_user_id
+        WHERE lr.id = ?
+        """,
+        (req_id,),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "not_found"}), 404
+
+    if user["role"] != "superadmin" and row["company_id"] != user.get("company_id"):
+        return jsonify({"error": "forbidden"}), 403
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as rl_canvas
+    except Exception:
+        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
+
+    data = row_to_dict(row)
+    worker_name = f"{data.get('first_name', '')} {data.get('last_name', '')}".strip() or data.get("worker_id", "-")
+    type_label = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiges"}.get(data.get("type"), data.get("type") or "-")
+
+    buffer = io.BytesIO()
+    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
+    page_width, page_height = A4
+    y = page_height - 48
+
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawString(40, y, "BauPass - Urlaubsantrag")
+    y -= 20
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(40, y, f"Exportiert: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+
+    y -= 24
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(40, y, "Antragsdaten")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+
+    lines = [
+        f"ID: {data.get('id', '-')}",
+        f"Mitarbeiter: {worker_name}",
+        f"Badge-ID: {data.get('badge_id', '-')}",
+        f"Art: {type_label}",
+        f"Zeitraum: {data.get('start_date', '-')} bis {data.get('end_date', '-')}",
+        f"Arbeitstage: {int(data.get('days_count') or 0)}",
+        f"Status: {data.get('status', '-')}",
+        f"Eingereicht am: {data.get('created_at', '-')}",
+        f"Bearbeitet von: {data.get('reviewer_username') or '-'}",
+        f"Bearbeitet am: {data.get('reviewed_at') or '-'}",
+    ]
+    for line in lines:
+        pdf.drawString(40, y, line)
+        y -= 14
+
+    note = (data.get("note") or "").strip() or "-"
+    review_note = (data.get("review_note") or "").strip() or "-"
+
+    y -= 8
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(40, y, "Notiz")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    for chunk in textwrap.wrap(note, width=95)[:10]:
+        pdf.drawString(40, y, chunk)
+        y -= 13
+
+    y -= 6
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(40, y, "Entscheidungsnotiz")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    for chunk in textwrap.wrap(review_note, width=95)[:10]:
+        pdf.drawString(40, y, chunk)
+        y -= 13
+
+    pdf.save()
+    buffer.seek(0)
+    filename = f"urlaubsantrag-{str(req_id)[:24]}.pdf"
+    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 
 # ── Mitarbeiter-App: eigene Stundennachweise ────────────────────────────────
