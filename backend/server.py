@@ -1822,12 +1822,12 @@ def init_db():
         (DEFAULT_PLATFORM_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company')",
+        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass')",
         (DEFAULT_OPERATOR_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass Control', 'Control Pass')",
-        (DEFAULT_PLATFORM_NAME,),
+        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass Control', 'Control Pass', 'BauPass')",
+        (DEFAULT_OPERATOR_NAME,),
     )
 
     company_exists = cur.execute("SELECT id FROM companies LIMIT 1").fetchone()
@@ -9927,16 +9927,25 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.line(M_L, SUBJ_Y - 2.5 * mm, M_L + CW, SUBJ_Y - 2.5 * mm)
         pdf.setLineWidth(0.5)
 
-        # Intro-Satz
+        # Intro-Satz (mit automatischem Zeilenumbruch, damit der Text nicht überläuft)
         INTRO_Y = SUBJ_Y - 10 * mm
         pdf.setFont("Helvetica", 9)
         pdf.setFillColor(c_mid)
-        pdf.drawString(M_L, INTRO_Y, f"Sehr geehrte Damen und Herren, hiermit stellen wir Ihnen für den Zeitraum {period} folgende Leistungen in Rechnung:")
+        _intro_full = f"Sehr geehrte Damen und Herren, hiermit stellen wir Ihnen für den Zeitraum {period} folgende Leistungen in Rechnung:"
+        # Breite pro Zeichen bei Helvetica 9pt ≈ 5pt; CW in Punkten → max ~75 Zeichen pro Zeile
+        _max_chars = max(40, int(CW / 5.0))
+        import textwrap as _tw
+        _intro_lines = _tw.wrap(_intro_full, width=_max_chars)
+        _il_y = INTRO_Y
+        for _il in _intro_lines:
+            pdf.drawString(M_L, _il_y, _il)
+            _il_y -= 4.5 * mm
+        INTRO_BOTTOM_Y = _il_y
 
         # ════════════════════════════════════════════════════════════
         # 5  POSITIONSTABELLE
         # ════════════════════════════════════════════════════════════
-        TBL_TOP = INTRO_Y - 7 * mm
+        TBL_TOP = INTRO_BOTTOM_Y - 3 * mm
 
         C_POS  = 9  * mm
         C_TOT  = 30 * mm
