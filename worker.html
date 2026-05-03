@@ -54,6 +54,15 @@
     <span class="backdrop-orb orb-two"></span>
     <span class="backdrop-grid"></span>
   </div>
+
+  <!-- Update-Banner: wird per JS eingeblendet wenn neue App-Version bereit ist -->
+  <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
+    <span class="update-banner-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0116 0" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M20 12l-3-3m3 3l-3 3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <span id="updateBannerText" data-i18n="updateAvailable">Neue Version verfügbar – wird geladen…</span>
+  </div>
+
   <main class="app-shell">
     <header class="top top-panel">
       <div class="top-copy">

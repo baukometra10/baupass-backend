@@ -1,6 +1,8 @@
-const CACHE_NAME = "baupass-worker-v12";
+const CACHE_NAME = "baupass-worker-v13";
+// worker.html is intentionally excluded from STATIC_FILES so it is always
+// fetched from the network (network-first). This ensures Android and iOS
+// users always get the latest version without needing to clear the cache.
 const STATIC_FILES = [
-  "/worker.html",
   "/worker.css",
   "/worker-app.js",
   "/worker-manifest.json",
@@ -24,6 +26,13 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Allow the app to force-activate a waiting SW immediately.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method !== "GET") {
@@ -38,6 +47,18 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => new Response(JSON.stringify({ offline: true }), { status: 503, headers: { "Content-Type": "application/json" } }))
+    );
+    return;
+  }
+  // worker.html: Network-first so every load gets the latest version.
+  if (requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          caches.open(CACHE_NAME).then((c) => c.put(event.request, response.clone())).catch(() => {});
+          return response;
+        })
+        .catch(() => caches.match("/worker.html"))
     );
     return;
   }

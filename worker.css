@@ -2324,3 +2324,79 @@ body {
   background: rgba(185,28,28,.15) !important;
   border-color: rgba(185,28,28,.6) !important;
 }
+
+/* ── Update-Banner (neue App-Version verfügbar) ──────────────────── */
+.update-banner {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  max-width: 420px;
+  width: calc(100% - 28px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0f1923, #1a2d3d);
+  color: #e8f4ff;
+  font-size: .88rem;
+  font-weight: 700;
+  box-shadow: 0 10px 36px rgba(0,0,0,.45), 0 2px 10px rgba(0,0,0,.22);
+  border: 1px solid rgba(255,255,255,.12);
+  animation: updateBannerIn .4s cubic-bezier(.22,1,.36,1) both;
+}
+
+.update-banner.hidden {
+  display: none !important;
+}
+
+.update-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  animation: spinOnce 1.2s .4s ease both;
+}
+
+@keyframes updateBannerIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-14px) scale(.95); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes spinOnce {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Top-Panel Verbesserungen ──────────────────────────────────────── */
+.top-panel .install-cta {
+  background: linear-gradient(135deg, rgba(199, 134, 82, 0.22), rgba(199, 134, 82, 0.10));
+  border: 1px solid rgba(199, 134, 82, 0.45);
+  color: #f5e8d5;
+  font-weight: 800;
+  letter-spacing: .01em;
+  font-size: .95rem;
+  box-shadow: 0 4px 16px rgba(100, 60, 20, 0.18);
+  transition: background .2s ease, box-shadow .2s ease, transform .15s ease;
+}
+
+.top-panel .install-cta:hover {
+  background: linear-gradient(135deg, rgba(199, 134, 82, 0.35), rgba(199, 134, 82, 0.18));
+  box-shadow: 0 8px 24px rgba(100, 60, 20, 0.28);
+}
+
+/* Stat-Karten im Top-Panel – warm coffee palette */
+.top-stat-card {
+  background: rgba(88, 52, 26, 0.18) !important;
+  border: 1px solid rgba(116, 80, 52, 0.28) !important;
+}
+
+.top-stat-card strong {
+  color: #f5e8d5 !important;
+}
+
+.top-stat-label {
+  color: rgba(220, 190, 158, 0.68) !important;
+}
+

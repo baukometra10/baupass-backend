@@ -175,6 +175,7 @@ const TRANSLATIONS = {
     expiringSoonNotice: "Hinweis: Deine Besucherkarte laeuft in weniger als 5 Minuten ab.",
     scannerAutoOpened: "Scanner wurde automatisch geoeffnet, weil weniger als 2 Minuten verbleiben.",
     autoEndedAtMidnight: "Digitale Besucherkarte wurde um 00:00 automatisch beendet. Bitte neu anmelden.",
+    updateAvailable: "Neue App-Version verfügbar – wird in wenigen Sekunden neu geladen …",
     siteLocationUnavailable: "Standort konnte nicht ermittelt werden – Login trotzdem erlaubt. Bitte Admin informieren.",
     gateBtn: "Drehkreuz-Modus öffnen",
     changePhotoBtn: "Foto ändern",
@@ -326,6 +327,7 @@ const TRANSLATIONS = {
     expiringSoonNotice: "Notice: Your visitor pass expires in less than 5 minutes.",
     scannerAutoOpened: "Scanner opened automatically because less than 2 minutes remain.",
     autoEndedAtMidnight: "Digital visitor pass ended automatically at 00:00. Please log in again.",
+    updateAvailable: "New app version available – reloading in a few seconds …",,
     siteLocationUnavailable: "Site location could not be determined – login still allowed. Please inform admin.",
     gateBtn: "Open Turnstile Mode",
     changePhotoBtn: "Change Photo",
@@ -1639,12 +1641,46 @@ function registerWorkerSw() {
     return;
   }
   navigator.serviceWorker.register("./worker-sw.js").then((registration) => {
-    registration.update().catch(() => {
-      // ignore update check failures
+    registration.update().catch(() => {});
+
+    // When a new SW takes control, reload once to serve fresh assets.
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
     });
-  }).catch(() => {
-    // ignore service worker install failures
-  });
+
+    // Show update banner and force-activate waiting SW.
+    function showUpdateAndActivate(sw) {
+      if (!sw) return;
+      const banner = document.querySelector("#updateBanner");
+      const bannerText = document.querySelector("#updateBannerText");
+      if (banner) {
+        if (bannerText) bannerText.textContent = t("updateAvailable");
+        banner.classList.remove("hidden");
+      }
+      sw.addEventListener("statechange", (e) => {
+        if (e.target.state === "activated") {
+          window.location.reload();
+        }
+      });
+      // Delay slightly so the banner is visible, then force skip-waiting.
+      setTimeout(() => {
+        sw.postMessage({ type: "SKIP_WAITING" });
+      }, 1800);
+    }
+
+    if (registration.waiting) {
+      showUpdateAndActivate(registration.waiting);
+    }
+    registration.addEventListener("updatefound", () => {
+      const newSw = registration.installing;
+      if (!newSw) return;
+      newSw.addEventListener("statechange", () => {
+        if (newSw.state === "installed" && navigator.serviceWorker.controller) {
+          showUpdateAndActivate(newSw);
+        }
+      });
+    });
+  }).catch(() => {});
 }
 
 function wireInstallPrompt() {

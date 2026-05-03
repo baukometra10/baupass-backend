@@ -1,8 +1,8 @@
 {
   "id": "/worker.html",
-  "name": "Control Pass – Mitarbeiter-App",
-  "short_name": "CP",
-  "description": "Digitaler Mitarbeiterausweis fuer Einlasskontrolle am Drehkreuz.",
+  "name": "BauPass – Mitarbeiter",
+  "short_name": "BauPass",
+  "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
   "start_url": "/worker.html",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
