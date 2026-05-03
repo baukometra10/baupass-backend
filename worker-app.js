@@ -1113,6 +1113,14 @@ async function init() {
     if (elements.workerAccessToken) {
       elements.workerAccessToken.value = urlToken;
     }
+    // If already logged in with a valid session, just use it (token may be already used)
+    if (workerToken) {
+      const loaded = await loadWorkerData();
+      if (loaded) {
+        if (viewParam === "card") applyWorkerPageView("badgeCard");
+        return;
+      }
+    }
     const locationPayload = await resolveLoginLocation();
     // keepUrlToken: false → URL wird sofort bereinigt, damit ein Seitenrefresh
     // nicht denselben (bereits verbrauchten) Einmalcode nochmals sendet.
@@ -1798,6 +1806,15 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
   } catch (error) {
     if (["invalid_access_token", "access_token_revoked", "access_token_expired", "access_token_already_used"].includes(error.code)) {
       localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+      // If the worker already has an active session, just load that instead of showing the login screen
+      const existingToken = localStorage.getItem(WORKER_TOKEN_KEY);
+      if (existingToken) {
+        workerToken = existingToken;
+        const loaded = await loadWorkerData();
+        if (loaded) {
+          return;
+        }
+      }
       showWorkerNotice("QR-Link ungueltig oder bereits verbraucht. Bitte QR-Code neu scannen.");
       return;
     }
