@@ -1809,6 +1809,15 @@ const UI_TRANSLATIONS = {
     manualEntryNoResults: "Çalışan bulunamadı.",
     manualEntrySuccess: "{name} manuel olarak giriş yaptı.",
     manualEntryCheckoutSuccess: "{name} manuel olarak çıkış yaptı.",
+    manualEntryContextSite: "Şantiyede aktif olan kişiler için manuel giriş",
+    manualEntryContextBuilding: "Binada aktif olan kişiler için manuel giriş",
+    manualEntryLocationSite: "şantiyede",
+    manualEntryLocationBuilding: "binada",
+    manualEntryWorkTimesTitle: "Bu firmanın çalışma saatleri",
+    manualEntryWorkTimesSaveBtn: "Saatleri kaydet",
+    manualEntryWorkTimesSaved: "Çalışma saatleri kaydedildi.",
+    manualEntryWorkTimesSaveFailed: "Kaydedilemedi: {error}",
+    manualEntryWorkTimesMissingCompany: "Firma bağlamı seçili değil.",
     docEmailInfoLabel: "Belge e-postası (çalışanlar kanıtlarını buraya gönderir):",
     btnCopyEmail: "Kopyala",
     btnCopyEmailDone: "Kopyalandı!",
@@ -2658,6 +2667,15 @@ const UI_TRANSLATIONS = {
     manualEntryNoResults: "لا يوجد موظف.",
     manualEntrySuccess: "تم دخول {name} يدويًا.",
     manualEntryCheckoutSuccess: "تم خروج {name} يدويًا.",
+    manualEntryContextSite: "دخول يدوي للأشخاص النشطين حاليًا في موقع البناء",
+    manualEntryContextBuilding: "دخول يدوي للأشخاص النشطين حاليًا في المبنى",
+    manualEntryLocationSite: "في الموقع",
+    manualEntryLocationBuilding: "في المبنى",
+    manualEntryWorkTimesTitle: "أوقات العمل لهذه الشركة",
+    manualEntryWorkTimesSaveBtn: "حفظ أوقات العمل",
+    manualEntryWorkTimesSaved: "تم حفظ أوقات العمل.",
+    manualEntryWorkTimesSaveFailed: "فشل الحفظ: {error}",
+    manualEntryWorkTimesMissingCompany: "لم يتم تحديد سياق الشركة.",
     optPlanDayPassRecommended: "بطاقة زائر (موصى به)",
     optPlanMonthlySite: "شهرياً لكل موقع",
     optPlanPerWorker: "لكل عامل",
@@ -3318,6 +3336,15 @@ const UI_TRANSLATIONS = {
     manualEntryNoResults: "Aucun employé trouvé.",
     manualEntrySuccess: "{name} a été enregistré manuellement.",
     manualEntryCheckoutSuccess: "{name} a été sorti manuellement.",
+    manualEntryContextSite: "Entrée manuelle pour personnes actives sur chantier",
+    manualEntryContextBuilding: "Entrée manuelle pour personnes actives dans le bâtiment",
+    manualEntryLocationSite: "sur chantier",
+    manualEntryLocationBuilding: "dans le bâtiment",
+    manualEntryWorkTimesTitle: "Horaires de travail de cette entreprise",
+    manualEntryWorkTimesSaveBtn: "Enregistrer les horaires",
+    manualEntryWorkTimesSaved: "Horaires enregistrés.",
+    manualEntryWorkTimesSaveFailed: "Échec de l'enregistrement: {error}",
+    manualEntryWorkTimesMissingCompany: "Aucune entreprise sélectionnée.",
     optPlanDayPassRecommended: "Carte visiteur (recommandé)",
     optPlanMonthlySite: "Mensuel par chantier",
     optPlanPerWorker: "Par travailleur",
@@ -3978,6 +4005,15 @@ const UI_TRANSLATIONS = {
     manualEntryNoResults: "No se encontró empleado.",
     manualEntrySuccess: "{name} fue registrado manualmente.",
     manualEntryCheckoutSuccess: "{name} fue dado de baja manualmente.",
+    manualEntryContextSite: "Entrada manual para personas activas en la obra",
+    manualEntryContextBuilding: "Entrada manual para personas activas en el edificio",
+    manualEntryLocationSite: "en la obra",
+    manualEntryLocationBuilding: "en el edificio",
+    manualEntryWorkTimesTitle: "Horario laboral de esta empresa",
+    manualEntryWorkTimesSaveBtn: "Guardar horario",
+    manualEntryWorkTimesSaved: "Horario guardado.",
+    manualEntryWorkTimesSaveFailed: "Error al guardar: {error}",
+    manualEntryWorkTimesMissingCompany: "No hay empresa seleccionada.",
     optPlanDayPassRecommended: "Tarjeta de visitante (recomendado)",
     optPlanMonthlySite: "Mensual por obra",
     optPlanPerWorker: "Por trabajador",
@@ -4630,6 +4666,15 @@ const UI_TRANSLATIONS = {
     manualEntryNoResults: "Nessun dipendente trovato.",
     manualEntrySuccess: "{name} è stato registrato manualmente.",
     manualEntryCheckoutSuccess: "{name} è uscito manualmente.",
+    manualEntryContextSite: "Ingresso manuale per persone attive in cantiere",
+    manualEntryContextBuilding: "Ingresso manuale per persone attive nell'edificio",
+    manualEntryLocationSite: "in cantiere",
+    manualEntryLocationBuilding: "nell'edificio",
+    manualEntryWorkTimesTitle: "Orario di lavoro di questa azienda",
+    manualEntryWorkTimesSaveBtn: "Salva orario",
+    manualEntryWorkTimesSaved: "Orario salvato.",
+    manualEntryWorkTimesSaveFailed: "Salvataggio fallito: {error}",
+    manualEntryWorkTimesMissingCompany: "Nessuna azienda selezionata.",
     optPlanDayPassRecommended: "Tessera visitatore (consigliato)",
     optPlanMonthlySite: "Mensile per cantiere",
     optPlanPerWorker: "Per lavoratore",
@@ -5290,6 +5335,15 @@ const UI_TRANSLATIONS = {
     manualEntryNoResults: "Nie znaleziono pracownika.",
     manualEntrySuccess: "{name} został ręcznie zarejestrowany.",
     manualEntryCheckoutSuccess: "{name} został ręcznie wyrejestrowany.",
+    manualEntryContextSite: "Ręczne wejście dla osób aktywnych na budowie",
+    manualEntryContextBuilding: "Ręczne wejście dla osób aktywnych w budynku",
+    manualEntryLocationSite: "na budowie",
+    manualEntryLocationBuilding: "w budynku",
+    manualEntryWorkTimesTitle: "Godziny pracy tej firmy",
+    manualEntryWorkTimesSaveBtn: "Zapisz godziny pracy",
+    manualEntryWorkTimesSaved: "Godziny pracy zapisane.",
+    manualEntryWorkTimesSaveFailed: "Błąd zapisu: {error}",
+    manualEntryWorkTimesMissingCompany: "Nie wybrano firmy.",
     optPlanDayPassRecommended: "Karta gościa (zalecane)",
     optPlanMonthlySite: "Miesięcznie za budowę",
     optPlanPerWorker: "Na pracownika",
@@ -5618,24 +5672,24 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Bramka Północna",
   },
   platformName: {
-    de: "Control Pass",
-    en: "Control Pass",
-    tr: "Control Pass",
-    ar: "Control Pass",
-    fr: "Control Pass",
-    es: "Control Pass",
-    it: "Control Pass",
-    pl: "Control Pass",
+    de: "BauPass",
+    en: "BauPass",
+    tr: "BauPass",
+    ar: "BauPass",
+    fr: "BauPass",
+    es: "BauPass",
+    it: "BauPass",
+    pl: "BauPass",
   },
   operatorName: {
-    de: "Deine Firma",
-    en: "Your company",
-    tr: "Firmanız",
-    ar: "شركتك",
-    fr: "Votre entreprise",
-    es: "Tu empresa",
-    it: "La tua azienda",
-    pl: "Twoja firma",
+    de: "Baukometra",
+    en: "Baukometra",
+    tr: "Baukometra",
+    ar: "Baukometra",
+    fr: "Baukometra",
+    es: "Baukometra",
+    it: "Baukometra",
+    pl: "Baukometra",
   },
   companyTurnstileEndpoint: {
     de: "https://api.dein-gateway.de/access",
@@ -6209,6 +6263,7 @@ const elements = {
   loginSupportNotice: document.querySelector("#loginSupportNotice"),
   loginResetPasswordButton: document.querySelector("#loginResetPasswordButton"),
   systemThemeToggleButton: document.querySelector("#systemThemeToggleButton"),
+  topbarSupportReadOnlyBadge: document.querySelector("#topbarSupportReadOnlyBadge"),
   desktopInstallButton: document.querySelector("#desktopInstallButton"),
   desktopInstallHint: document.querySelector("#desktopInstallHint"),
   logoutButton: document.querySelector("#logoutButton"),
@@ -6340,8 +6395,8 @@ const state = {
   currentUser: null,
   supportLoginContext: loadSupportLoginContext(),
   settings: {
-    platformName: "Control Pass",
-    operatorName: "Deine Betriebsfirma",
+    platformName: "BauPass",
+    operatorName: "Baukometra",
     turnstileEndpoint: ""
   },
   companies: [],
@@ -6362,6 +6417,7 @@ const state = {
     retryVolume7d: [],
     topErrorReasons: [],
   },
+  monthlyInvoiceStatus: null,
   invoiceDeadLetters: [],
   invoiceApprovalRequests: [],
   companyRepairHistory: {},
@@ -6769,6 +6825,20 @@ function getRuntimeUiTexts() {
     qrCodeLoadFailed: "QR code could not be loaded: {error}",
     dunningRunConfirm: "Start the dunning run manually now?",
     dunningRunResult: "Dunning run: {count} reminders sent.",
+    monthlyInvoiceRunConfirm: "Start the monthly invoice run manually now?",
+    monthlyInvoiceRunResult: "Monthly invoice run: {created} created, {sent} sent, {skipped} skipped, {failed} failed.",
+    simulateMonthlyRunConfirm: "Simulate the monthly invoice run for the CURRENT month? This creates invoices as if today were the start of next month.",
+    simulateMonthlyRunResult: "Simulation: {created} created, {sent} sent, {skipped} skipped, {failed} failed.",
+    monthlyInvoiceAutoEnabled: "Monthly automation",
+    monthlyInvoiceAutoOn: "Active",
+    monthlyInvoiceAutoOff: "Disabled",
+    monthlyInvoiceScheduleMeta: "Day {day}, payment term {dueDays} days",
+    monthlyInvoiceCurrentCycle: "Current cycle",
+    monthlyInvoiceCycleDone: "Already executed",
+    monthlyInvoiceCyclePending: "Pending",
+    monthlyInvoiceLastRun: "Last run",
+    monthlyInvoiceNeverRan: "No run yet",
+    monthlyInvoiceNextRun: "Next automatic run: {date}",
     appLinkCreating: "Creating...",
     appLinkPhoneButton: "📱 App on smartphone",
     imapTesting: "Testing...",
@@ -7400,6 +7470,20 @@ function getRuntimeUiTexts() {
       qrCodeLoadFailed: "QR-Code konnte nicht geladen werden: {error}",
       dunningRunConfirm: "Mahnungs-Durchlauf jetzt manuell starten?",
       dunningRunResult: "Mahnungs-Durchlauf: {count} Erinnerungen gesendet.",
+      monthlyInvoiceRunConfirm: "Monatsrechnungs-Lauf jetzt manuell starten?",
+      monthlyInvoiceRunResult: "Monatsrechnungs-Lauf: {created} erstellt, {sent} versendet, {skipped} uebersprungen, {failed} fehlgeschlagen.",
+      simulateMonthlyRunConfirm: "Monatsrechnungs-Lauf fuer den AKTUELLEN Monat simulieren? Erstellt Rechnungen so, als waere heute Anfang naechsten Monats.",
+      simulateMonthlyRunResult: "Simulation: {created} erstellt, {sent} versendet, {skipped} uebersprungen, {failed} fehlgeschlagen.",
+      monthlyInvoiceAutoEnabled: "Monats-Automatik",
+      monthlyInvoiceAutoOn: "Aktiv",
+      monthlyInvoiceAutoOff: "Deaktiviert",
+      monthlyInvoiceScheduleMeta: "Tag {day}, Zahlungsfrist {dueDays} Tage",
+      monthlyInvoiceCurrentCycle: "Aktueller Zyklus",
+      monthlyInvoiceCycleDone: "Bereits ausgefuehrt",
+      monthlyInvoiceCyclePending: "Noch offen",
+      monthlyInvoiceLastRun: "Letzter Lauf",
+      monthlyInvoiceNeverRan: "Noch kein Lauf",
+      monthlyInvoiceNextRun: "Naechster Automatiktag: {date}",
       appLinkCreating: "Wird erstellt ...",
       appLinkPhoneButton: "📱 App auf Smartphone",
       imapTesting: "Teste...",
@@ -7703,6 +7787,8 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "Toplam ziyaret\u00e7i",
       statsCompanies: "Firmalar",
       statsAccessToday: "Şu an sahada",
+      statsAccessTodaySite: "Şu an şantiyede",
+      statsAccessTodayBuilding: "Şu an binada",
       badgePinHintVisitor: "Ziyaret\u00e7iler tek kullan\u0131ml\u0131k link/QR kullan\u0131r. Ziyaret\u00e7iler i\u00e7in Badge PIN gerekli de\u011fildir.",
       badgePinHintWorker: "\u00c7al\u0131\u015fan uygulamas\u0131nda rozet giri\u015fi yaln\u0131zca Badge ID ve PIN ile \u00e7al\u0131\u015f\u0131r. D\u00fczenleme s\u0131ras\u0131nda burada yeni PIN ayarlayabilirsiniz.",
       workerListEmpty: "Hen\u00fcz \u00e7al\u0131\u015fan eklenmemi\u015f.",
@@ -7808,6 +7894,8 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "إجمالي الزوار",
       statsCompanies: "الشركات",
       statsAccessToday: "في الموقع الآن",
+      statsAccessTodaySite: "نشط في موقع البناء",
+      statsAccessTodayBuilding: "نشط في المبنى",
       badgePinHintVisitor: "يستخدم الزوار الرابط/QR لمرة واحدة. لا يلزم وجود Badge PIN للزوار.",
       badgePinHintWorker: "يعمل تسجيل الدخول برمز الشارة في تطبيق العمال فقط مع Badge ID وهذا PIN. يمكنك تعيين PIN جديد هنا عند التحرير.",
       workerListEmpty: "لم يتم إضافة أي عمال بعد.",
@@ -7913,6 +8001,8 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "Visiteurs total",
       statsCompanies: "Entreprises",
       statsAccessToday: "Actifs sur site",
+      statsAccessTodaySite: "Actifs sur chantier",
+      statsAccessTodayBuilding: "Actifs dans le bâtiment",
       badgePinHintVisitor: "Les visiteurs utilisent le lien/QR à usage unique. Un Badge PIN n'est pas nécessaire pour les visiteurs.",
       badgePinHintWorker: "La connexion via badge dans l'app travailleurs fonctionne uniquement avec Badge ID et ce PIN. Vous pouvez définir un nouveau PIN ici lors de la modification.",
       workerListEmpty: "Aucun travailleur créé.",
@@ -8018,6 +8108,8 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "Visitantes total",
       statsCompanies: "Empresas",
       statsAccessToday: "Activos en obra",
+      statsAccessTodaySite: "Activos en la obra",
+      statsAccessTodayBuilding: "Activos en el edificio",
       badgePinHintVisitor: "Los visitantes usan el enlace/QR de un solo uso. No se requiere Badge PIN para visitantes.",
       badgePinHintWorker: "El inicio de sesión en la app de trabajadores solo funciona con Badge ID y este PIN. Puede establecer un nuevo PIN aquí al editar.",
       workerListEmpty: "No hay trabajadores creados aún.",
@@ -8123,6 +8215,8 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "Visitatori totali",
       statsCompanies: "Aziende",
       statsAccessToday: "Attivi in cantiere",
+      statsAccessTodaySite: "Attivi in cantiere",
+      statsAccessTodayBuilding: "Attivi nell'edificio",
       badgePinHintVisitor: "I visitatori utilizzano il link/QR monouso. Un Badge PIN non è necessario per i visitatori.",
       badgePinHintWorker: "L'accesso tramite badge nell'app lavoratori funziona solo con Badge ID e questo PIN. È possibile impostare un nuovo PIN qui durante la modifica.",
       workerListEmpty: "Nessun lavoratore creato.",
@@ -8228,6 +8322,8 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "Goście łącznie",
       statsCompanies: "Firmy",
       statsAccessToday: "Aktywni na budowie",
+      statsAccessTodaySite: "Aktywni na budowie",
+      statsAccessTodayBuilding: "Aktywni w budynku",
       badgePinHintVisitor: "Odwiedzający używają jednorazowego linku/QR. PIN Badge nie jest wymagany dla odwiedzających.",
       badgePinHintWorker: "Logowanie przez badge w aplikacji pracownika działa tylko z Badge ID i tym PIN. Możesz ustawić nowy PIN tutaj podczas edycji.",
       workerListEmpty: "Nie dodano jeszcze pracowników.",
@@ -8403,6 +8499,47 @@ function showSupportReadOnlyAlert() {
   window.alert(uiT("supportReadOnlyAlert"));
 }
 
+function renderSupportReadOnlyTopbarBadge(loggedIn) {
+  const badge = elements.topbarSupportReadOnlyBadge;
+  if (!badge) {
+    return;
+  }
+  const readOnly = Boolean(loggedIn && isSupportReadOnlyMode());
+  const wasVisible = badge.dataset.visible === "1";
+  badge.classList.toggle("hidden", !readOnly);
+  badge.setAttribute("aria-hidden", readOnly ? "false" : "true");
+  badge.dataset.visible = readOnly ? "1" : "0";
+  if (!readOnly) {
+    if (badge._supportReadOnlyFlashTimer) {
+      window.clearTimeout(badge._supportReadOnlyFlashTimer);
+      badge._supportReadOnlyFlashTimer = null;
+    }
+    badge.classList.remove("support-readonly-badge-flash");
+    badge.textContent = "";
+    badge.title = "";
+    return;
+  }
+
+  const supportCompany = String(
+    state.currentUser?.support_company_name
+    || state.supportLoginContext?.companyName
+    || uiT("supportCompanyFallback")
+  );
+  badge.textContent = `${uiT("supportReadOnlyFor")}: ${supportCompany}`;
+  badge.title = uiT("supportReadOnlyAlert");
+
+  if (!wasVisible) {
+    badge.classList.add("support-readonly-badge-flash");
+    if (badge._supportReadOnlyFlashTimer) {
+      window.clearTimeout(badge._supportReadOnlyFlashTimer);
+    }
+    badge._supportReadOnlyFlashTimer = window.setTimeout(() => {
+      badge.classList.remove("support-readonly-badge-flash");
+      badge._supportReadOnlyFlashTimer = null;
+    }, 1200);
+  }
+}
+
 function updateLoginOtpVisibility() {
   const otpLabel = elements.loginOtpCode?.closest("label");
   if (!otpLabel) {
@@ -8494,7 +8631,7 @@ function applySupportReadOnlyUiState() {
     ".worker-doc-upload-form input, .worker-doc-upload-form select, .worker-doc-upload-form textarea, .worker-doc-upload-form button",
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
-    "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin]",
+    "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin], [data-worker-toggle-lock]",
     "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
@@ -9222,10 +9359,10 @@ function getDefaultViewForRole(role) {
 function getAllowedViewsForRole(role) {
   const normalized = String(role || "").toLowerCase();
   if (normalized === "superadmin") {
-    return ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices", "leave"];
+    return ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices"];
   }
   if (normalized === "company-admin") {
-    return ["dashboard", "workers", "badge", "access", "documents", "leave"];
+    return ["dashboard", "workers", "badge", "access", "documents"];
   }
   if (normalized === "turnstile") {
     return ["access", "documents", "dashboard"];
@@ -9283,12 +9420,6 @@ function setView(viewName) {
 
   if (targetView === "devices") {
     loadDevices();
-  }
-  if (targetView === "leave") {
-    loadLeaveRequests();
-  }
-  if (targetView === "dashboard") {
-    void renderHrStats();
   }
 }
 
@@ -9700,6 +9831,7 @@ function refreshAll() {
   renderSuperadminSimulationBar(loggedIn);
   renderSuperadminPreviewSidebarStatus(loggedIn);
   renderSystemAlertBanner(loggedIn);
+  renderSupportReadOnlyTopbarBadge(loggedIn);
 
   if (loggedIn && elements.sessionCard) {
     const texts = getRuntimeUiTexts();
@@ -9725,7 +9857,6 @@ function refreshAll() {
   applyActiveCompanyBrandingPreset();
 
   renderStats();
-  void renderHrStats();
   renderComplianceKpi();
   renderWorkerStatsPanel();
   renderReportingPanels();
@@ -10701,27 +10832,6 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
   }
 }
 
-async function renderHrStats() {
-  const container = document.getElementById("hrStatsGrid");
-  if (!container) return;
-  try {
-    const sessionToken = loadStoredSessionToken();
-    if (!sessionToken) return;
-    const res = await fetch(`${API_BASE}/api/leave-requests?status=ausstehend`, {
-      headers: { "Authorization": `Bearer ${sessionToken}` }
-    });
-    if (!res.ok) return;
-    const pending = await res.json();
-    const pendingCount = Array.isArray(pending) ? pending.length : 0;
-    updateLeavePendingBadge(pendingCount);
-    container.innerHTML = `
-      <article class="stat-card${pendingCount > 0 ? " stat-card-critical" : ""}" style="cursor:pointer;" onclick="setView('leave')" title="Zu den Urlaubsanträgen">
-        <p>Offene Urlaubsanträge</p>
-        <strong>${pendingCount}</strong>
-      </article>`;
-  } catch (_) { /* silent */ }
-}
-
 function renderStats() {
   if (!elements.statsGrid) return;
   const texts = getRuntimeUiTexts();
@@ -11046,6 +11156,7 @@ function renderWorkerList() {
             <button type="button" class="ghost-button" data-worker-delete="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>${uiT("btnDelete")}</button>
             <button type="button" class="ghost-button" data-worker-restore="${escapeHtml(worker.id)}" ${deleted ? "" : "disabled"}>${uiT("btnRestore")}</button>
             <button type="button" class="ghost-button" data-worker-app-link="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>${uiT("btnAppLink")}</button>
+            ${!deleted ? `<button type="button" class="ghost-button" data-worker-toggle-lock="${escapeHtml(worker.id)}">${String(worker.status || "").toLowerCase() === "gesperrt" ? "Entsperren" : "Sperren"}</button>` : ""}
             ${!visitor && !deleted ? `<button type="button" class="ghost-button" data-worker-reset-pin="${escapeHtml(worker.id)}">${uiT("btnResetPin")}</button>` : ""}
           </div>
         </article>
@@ -11086,8 +11197,6 @@ function bindWorkerRowActions() {
       document.querySelector("#role").value = worker.role || "";
       document.querySelector("#site").value = worker.site || "";
       document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
-      document.querySelector("#workerContactEmail") && (document.querySelector("#workerContactEmail").value = worker.contactEmail || worker.contact_email || "");
-      document.querySelector("#workerLeaveBalance") && (document.querySelector("#workerLeaveBalance").value = (worker.leaveBalance !== undefined ? worker.leaveBalance : (worker.leave_balance !== undefined ? worker.leave_balance : 30)));
       document.querySelector("#validUntil").value = worker.validUntil || "";
       if (elements.visitorCompany) elements.visitorCompany.value = worker.visitorCompany || "";
       if (elements.visitPurpose) elements.visitPurpose.value = worker.visitPurpose || "";
@@ -11156,6 +11265,34 @@ function bindWorkerRowActions() {
         window.alert(uiT("alertPinResetSuccessFor").replace("{name}", name));
       } catch (error) {
         window.alert(uiT("alertPinResetFailed").replace("{error}", error.message));
+      }
+    };
+  });
+
+  elements.workerList.querySelectorAll("[data-worker-toggle-lock]").forEach((button) => {
+    button.onclick = async () => {
+      const workerId = button.dataset.workerToggleLock;
+      const worker = state.workers.find((w) => w.id === workerId);
+      if (!worker) return;
+      const currentStatus = String(worker.status || "").toLowerCase();
+      const nextStatus = currentStatus === "gesperrt" ? "aktiv" : "gesperrt";
+      const promptText = nextStatus === "gesperrt"
+        ? `Mitarbeiter ${worker.firstName} ${worker.lastName} jetzt sperren?`
+        : `Mitarbeiter ${worker.firstName} ${worker.lastName} jetzt entsperren?`;
+      if (!window.confirm(promptText)) return;
+      try {
+        await apiRequest(`${API_BASE}/api/workers/${workerId}/lock`, {
+          method: "POST",
+          body: { status: nextStatus },
+        });
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
+          showSupportReadOnlyAlert();
+          return;
+        }
+        window.alert(`Sperren/Entsperren fehlgeschlagen: ${error.message}`);
       }
     };
   });
@@ -12499,8 +12636,14 @@ function renderAdminSettingsForm() {
   // Dunning-Intervalle
   const d1El = document.querySelector("#dunningStage1Days");
   const d2El = document.querySelector("#dunningStage2Days");
+  const monthlyAutoEl = document.querySelector("#monthlyInvoiceAutoEnabled");
+  const monthlyRunDayEl = document.querySelector("#monthlyInvoiceRunDay");
+  const monthlyDueDaysEl = document.querySelector("#monthlyInvoiceDueDays");
   if (d1El) d1El.value = state.settings.dunningStage1Days ?? 7;
   if (d2El) d2El.value = state.settings.dunningStage2Days ?? 3;
+  if (monthlyAutoEl) monthlyAutoEl.value = state.settings.monthlyInvoiceAutoEnabled === false ? "0" : "1";
+  if (monthlyRunDayEl) monthlyRunDayEl.value = String(state.settings.monthlyInvoiceRunDay ?? 1);
+  if (monthlyDueDaysEl) monthlyDueDaysEl.value = String(state.settings.monthlyInvoiceDueDays ?? 14);
   // Direkte Validierung nach Befüllung (unabhängig von Event-Listenern)
   const _ibanEl = document.querySelector("#invoiceIban");
   if (_ibanEl) {
@@ -12682,8 +12825,6 @@ window.triggerWorkerAccess = triggerWorkerAccess;
       document.querySelector("#role").value = worker.role;
       document.querySelector("#site").value = worker.site;
       document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
-      document.querySelector("#workerContactEmail") && (document.querySelector("#workerContactEmail").value = worker.contactEmail || worker.contact_email || "");
-      document.querySelector("#workerLeaveBalance") && (document.querySelector("#workerLeaveBalance").value = (worker.leaveBalance !== undefined ? worker.leaveBalance : (worker.leave_balance !== undefined ? worker.leave_balance : 30)));
       document.querySelector("#validUntil").value = worker.validUntil;
       document.querySelector("#workerStatus").value = worker.status;
       document.querySelector("#badgePin").value = "";
@@ -12972,8 +13113,6 @@ function renderBadge() {
         document.querySelector("#role").value = worker.role || "";
         document.querySelector("#site").value = worker.site || "";
         document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
-        document.querySelector("#workerContactEmail") && (document.querySelector("#workerContactEmail").value = worker.contactEmail || worker.contact_email || "");
-        document.querySelector("#workerLeaveBalance") && (document.querySelector("#workerLeaveBalance").value = (worker.leaveBalance !== undefined ? worker.leaveBalance : (worker.leave_balance !== undefined ? worker.leave_balance : 30)));
         document.querySelector("#validUntil").value = worker.validUntil || "";
         document.querySelector("#workerStatus").value = worker.status || "aktiv";
         document.querySelector("#badgePin").value = "";
@@ -13866,8 +14005,6 @@ async function handleWorkerSubmit(event) {
     role: document.querySelector("#role").value.trim(),
     site: document.querySelector("#site").value.trim(),
     physicalCardId: document.querySelector("#physicalCardId").value.trim(),
-    contactEmail: document.querySelector("#workerContactEmail")?.value.trim() || "",
-    leaveBalance: parseInt(document.querySelector("#workerLeaveBalance")?.value || "30", 10),
     validUntil: document.querySelector("#validUntil").value,
     visitorCompany: elements.visitorCompany?.value.trim() || "",
     visitPurpose: elements.visitPurpose?.value.trim() || "",
@@ -14457,6 +14594,9 @@ async function handleSettingsSubmit(event) {
       invoiceEmailBodyTemplate: (document.querySelector("#invoiceEmailBodyTemplate")?.value || "").trim(),
       dunningStage1Days: Number(document.querySelector("#dunningStage1Days")?.value || 7),
       dunningStage2Days: Number(document.querySelector("#dunningStage2Days")?.value || 3),
+      monthlyInvoiceAutoEnabled: document.querySelector("#monthlyInvoiceAutoEnabled")?.value !== "0",
+      monthlyInvoiceRunDay: Number(document.querySelector("#monthlyInvoiceRunDay")?.value || 1),
+      monthlyInvoiceDueDays: Number(document.querySelector("#monthlyInvoiceDueDays")?.value || 14),
     };
     const smtpPasswordValue = document.querySelector("#smtpPassword")?.value || "";
     if (smtpPasswordValue.trim()) {
@@ -14891,8 +15031,8 @@ async function loadCustomBrandingPreset() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "BauKometra Control";
-    document.querySelector("#operatorName").value = "BauKometra";
+    document.querySelector("#platformName").value = "BauPass";
+    document.querySelector("#operatorName").value = "Baukometra";
     document.querySelector("#invoicePrimaryColor").value = "#0f4c5c";
     document.querySelector("#invoiceAccentColor").value = "#e36414";
 
@@ -14917,8 +15057,8 @@ async function loadCustomBrandingPresetAlt() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "BauKometra Control";
-    document.querySelector("#operatorName").value = "BauKometra";
+    document.querySelector("#platformName").value = "BauPass";
+    document.querySelector("#operatorName").value = "Baukometra";
     document.querySelector("#invoicePrimaryColor").value = "#24324a";
     document.querySelector("#invoiceAccentColor").value = "#c65a2e";
 
@@ -15564,11 +15704,12 @@ async function loadAndRenderInvoices(options = {}) {
   try {
     const hadSeenInvoices = Object.keys(state.invoiceSeenIds || {}).length > 0;
     const previousSeen = { ...(state.invoiceSeenIds || {}) };
-    const [invoiceResponse, opsResponse, deadLetterResponse, approvalResponse] = await Promise.all([
+    const [invoiceResponse, opsResponse, deadLetterResponse, approvalResponse, monthlyStatusResponse] = await Promise.all([
       apiRequest(API_BASE + "/api/invoices"),
       apiRequest(API_BASE + "/api/invoices/ops-metrics"),
       apiRequest(API_BASE + "/api/invoices/dead-letters"),
       apiRequest(API_BASE + "/api/invoices/approvals/pending"),
+      apiRequest(API_BASE + "/api/invoices/monthly-cycle-status"),
     ]);
     state.invoices = invoiceResponse || [];
     state.invoiceOpsMetrics = opsResponse || {
@@ -15577,6 +15718,7 @@ async function loadAndRenderInvoices(options = {}) {
       retryVolume7d: [],
       topErrorReasons: [],
     };
+    state.monthlyInvoiceStatus = monthlyStatusResponse || null;
     state.invoiceDeadLetters = Array.isArray(deadLetterResponse) ? deadLetterResponse : [];
     state.invoiceApprovalRequests = Array.isArray(approvalResponse) ? approvalResponse : [];
 
@@ -15614,6 +15756,7 @@ async function loadAndRenderInvoices(options = {}) {
       retryVolume7d: [],
       topErrorReasons: [],
     };
+    state.monthlyInvoiceStatus = null;
     state.invoiceDeadLetters = [];
     state.invoiceApprovalRequests = [];
     renderInvoiceManagementList();
@@ -15884,6 +16027,44 @@ function renderInvoiceOpsMetrics() {
   `;
 }
 
+function renderMonthlyInvoiceStatus() {
+  const container = document.querySelector("#monthlyInvoiceStatusGrid");
+  if (!container) {
+    return;
+  }
+
+  const status = state.monthlyInvoiceStatus || {};
+  const autoLabel = status.autoEnabled ? runtimeText("monthlyInvoiceAutoOn") : runtimeText("monthlyInvoiceAutoOff");
+  const cycleLabel = status.currentCycleAlreadyRan ? runtimeText("monthlyInvoiceCycleDone") : runtimeText("monthlyInvoiceCyclePending");
+  const scheduleMeta = runtimeTextTemplate("monthlyInvoiceScheduleMeta", {
+    day: String(status.runDay || 1),
+    dueDays: String(status.dueDays || 14),
+  });
+  const lastRunLabel = status.lastRunAt ? formatTimestamp(status.lastRunAt) : runtimeText("monthlyInvoiceNeverRan");
+  const nextRunLabel = runtimeTextTemplate("monthlyInvoiceNextRun", { date: String(status.nextScheduledRunDate || "-") });
+  const lastRunMeta = status.lastRunCycleKey ? `${status.lastRunCycleKey} • ${lastRunLabel}` : lastRunLabel;
+  const lastRunDetail = status.lastRunMessage ? escapeHtml(String(status.lastRunMessage)) : "";
+
+  container.innerHTML = `
+    <article class="summary-block invoice-kpi-card invoice-kpi-open">
+      <p class="eyebrow">${escapeHtml(runtimeText("monthlyInvoiceAutoEnabled"))}</p>
+      <strong>${escapeHtml(autoLabel)}</strong>
+      <p class="meta-text">${escapeHtml(scheduleMeta)}</p>
+    </article>
+    <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
+      <p class="eyebrow">${escapeHtml(runtimeText("monthlyInvoiceCurrentCycle"))}</p>
+      <strong>${escapeHtml(cycleLabel)}</strong>
+      <p class="meta-text">${escapeHtml(String(status.currentCycleKey || "-"))}</p>
+    </article>
+    <article class="summary-block invoice-kpi-card invoice-kpi-failed">
+      <p class="eyebrow">${escapeHtml(runtimeText("monthlyInvoiceLastRun"))}</p>
+      <strong>${escapeHtml(lastRunMeta)}</strong>
+      <p class="meta-text">${escapeHtml(nextRunLabel)}</p>
+      ${lastRunDetail ? `<p class="meta-text" style="margin-top:2px;opacity:.75">${lastRunDetail}</p>` : ""}
+    </article>
+  `;
+}
+
 async function loadInvoiceAttemptHistory(invoiceId, options = {}) {
   const id = String(invoiceId || "").trim();
   if (!id) {
@@ -15956,6 +16137,7 @@ function renderInvoiceManagementList() {
   if (!container) return;
 
   renderInvoiceOpsMetrics();
+  renderMonthlyInvoiceStatus();
 
   const filterCompany = (document.querySelector("#invoiceFilterCompany")?.value || "").toLowerCase();
   const filterStatus = (document.querySelector("#invoiceFilterStatus")?.value || "");
@@ -18747,13 +18929,136 @@ if (accessForm) {
   const searchInput = document.getElementById("manualEntrySearch");
   const listEl = document.getElementById("manualEntryList");
   const feedbackEl = document.getElementById("manualEntryFeedback");
+  const workTimePanel = document.getElementById("manualEntryWorkTimePanel");
+  const workStartInput = document.getElementById("manualEntryWorkStart");
+  const workEndInput = document.getElementById("manualEntryWorkEnd");
+  const workTimeSaveBtn = document.getElementById("manualEntryWorkTimeSave");
+  const workTimesTitle = document.getElementById("manualEntryWorkTimeTitle");
+  const workStartLabel = document.getElementById("manualEntryWorkStartLabel");
+  const workEndLabel = document.getElementById("manualEntryWorkEndLabel");
+  const workTimeStatus = document.getElementById("manualEntryWorkTimeStatus");
+  const contextHint = document.getElementById("manualEntryContextHint");
+
   if (!btn || !modal) return;
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  function getEffectiveWorkTimes() {
+    const companyId = getEffectiveUiCompanyId();
+    const company = companyId ? state.companies.find((c) => c.id === companyId) : null;
+    const start = String(company?.workStartTime || company?.work_start_time || state.settings?.workStartTime || "").trim();
+    const end   = String(company?.workEndTime   || company?.work_end_time   || state.settings?.workEndTime   || "").trim();
+    return { start, end, companyId, company };
+  }
+
+  function isWorkerLate(w) {
+    const { start } = getEffectiveWorkTimes();
+    if (!start) return false;
+    const latest = getLatestAccessForWorker(w.id);
+    if (latest?.direction === "check-in") return false; // already in
+    const [hh, mm] = start.split(":").map(Number);
+    const now = new Date();
+    return (now.getHours() * 60 + now.getMinutes()) > (hh * 60 + mm);
+  }
+
+  function syncWorkTimePanel() {
+    if (!workTimePanel) return;
+    const role = String(getCurrentUser()?.role || "").toLowerCase();
+    const canEdit = ["superadmin", "company-admin", "turnstile"].includes(role);
+    if (!canEdit) { workTimePanel.classList.add("hidden"); return; }
+
+    const { start, end, companyId } = getEffectiveWorkTimes();
+    workTimePanel.classList.toggle("hidden", !companyId);
+    if (!companyId) return;
+
+    if (workTimesTitle) workTimesTitle.textContent = runtimeText("manualEntryWorkTimesTitle");
+    if (workStartLabel) workStartLabel.textContent = runtimeText("workStartTimeLabel");
+    if (workEndLabel)   workEndLabel.textContent   = runtimeText("workEndTimeLabel");
+    if (workTimeSaveBtn) workTimeSaveBtn.textContent = runtimeText("manualEntryWorkTimesSaveBtn");
+    if (workStartInput) workStartInput.value = start;
+    if (workEndInput)   workEndInput.value   = end;
+
+    if (workTimeStatus) {
+      const now = new Date();
+      const timeStr = now.toTimeString().slice(0, 5);
+      if (start && end) {
+        const active = timeStr >= start && timeStr <= end;
+        workTimeStatus.textContent = active ? `✅ ${start}–${end}` : `⏸ ${start}–${end}`;
+        workTimeStatus.className = `manual-entry-worktime-status ${active ? "active" : "inactive"}`;
+      } else {
+        workTimeStatus.textContent = "";
+      }
+    }
+  }
+
+  // ── work time save ────────────────────────────────────────────────────────
+  if (workTimeSaveBtn) {
+    workTimeSaveBtn.addEventListener("click", async () => {
+      const { companyId } = getEffectiveWorkTimes();
+      if (!companyId) {
+        if (feedbackEl) {
+          feedbackEl.textContent = runtimeText("manualEntryWorkTimesMissingCompany");
+          feedbackEl.className = "manual-entry-feedback error";
+          feedbackEl.classList.remove("hidden");
+        }
+        return;
+      }
+      workTimeSaveBtn.disabled = true;
+      try {
+        await apiRequest(`${API_BASE}/api/companies/${companyId}/work-times`, {
+          method: "PUT",
+          body: {
+            workStartTime: workStartInput?.value || "",
+            workEndTime:   workEndInput?.value   || "",
+          },
+        });
+        // Update local state so UI reflects immediately
+        const comp = state.companies.find((c) => c.id === companyId);
+        if (comp) {
+          comp.workStartTime = workStartInput?.value || "";
+          comp.work_start_time = comp.workStartTime;
+          comp.workEndTime   = workEndInput?.value   || "";
+          comp.work_end_time = comp.workEndTime;
+        }
+        if (feedbackEl) {
+          feedbackEl.textContent = runtimeText("manualEntryWorkTimesSaved");
+          feedbackEl.className = "manual-entry-feedback success";
+          feedbackEl.classList.remove("hidden");
+          setTimeout(() => feedbackEl.classList.add("hidden"), 2500);
+        }
+        syncWorkTimePanel();
+        renderList(searchInput.value);
+      } catch (e) {
+        if (feedbackEl) {
+          feedbackEl.textContent = runtimeText("manualEntryWorkTimesSaveFailed").replace("{error}", e.message || "?");
+          feedbackEl.className = "manual-entry-feedback error";
+          feedbackEl.classList.remove("hidden");
+        }
+      } finally {
+        workTimeSaveBtn.disabled = false;
+      }
+    });
+  }
+
+  // ── open / close ──────────────────────────────────────────────────────────
 
   function openModal() {
     modal.classList.remove("hidden");
     searchInput.value = "";
     searchInput.placeholder = runtimeText("manualEntrySearch");
     feedbackEl.classList.add("hidden");
+    syncWorkTimePanel();
+
+    // Context hint: "Aktiv auf der Baustelle" or "im Gebäude"
+    if (contextHint) {
+      const companyId = getEffectiveUiCompanyId();
+      const company = companyId ? state.companies.find((c) => c.id === companyId) : null;
+      const preset = String(company?.brandingPreset || company?.branding_preset || "construction").trim().toLowerCase();
+      const key = preset === "construction" ? "manualEntryContextSite" : "manualEntryContextBuilding";
+      contextHint.textContent = runtimeText(key);
+      contextHint.className = `manual-entry-context-hint${companyId ? "" : " hidden"}`;
+    }
+
     renderList("");
     searchInput.focus();
   }
@@ -18761,6 +19066,8 @@ if (accessForm) {
   function closeModal() {
     modal.classList.add("hidden");
   }
+
+  // ── list rendering ────────────────────────────────────────────────────────
 
   function renderList(query) {
     const q = query.trim().toLowerCase();
@@ -18774,6 +19081,9 @@ if (accessForm) {
       const aIn = getLatestAccessForWorker(a.id)?.direction === "check-in";
       const bIn = getLatestAccessForWorker(b.id)?.direction === "check-in";
       if (aIn !== bIn) return aIn ? 1 : -1;
+      const aLate = isWorkerLate(a);
+      const bLate = isWorkerLate(b);
+      if (aLate !== bLate) return aLate ? -1 : 1; // late workers first
       return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, "de");
     });
 
@@ -18782,7 +19092,7 @@ if (accessForm) {
       return;
     }
 
-    listEl.innerHTML = workers.slice(0, 30).map((w) => {
+    listEl.innerHTML = workers.slice(0, 40).map((w) => {
       const company = state.companies.find((c) => c.id === w.companyId);
       const photo = sanitizeImageSrc(w.photoData, createAvatar(w));
       const name = escapeHtml(`${w.firstName} ${w.lastName}`);
@@ -18790,19 +19100,23 @@ if (accessForm) {
       const badgeId = escapeHtml(w.badgeId);
       const latest = getLatestAccessForWorker(w.id);
       const isCheckedIn = latest?.direction === "check-in";
+      const late = isWorkerLate(w);
       const statusPill = latest
         ? `<span class="status-pill manual-entry-status ${isCheckedIn ? "status-active" : "status-inactive"}">${isCheckedIn ? runtimeText("dashboardDirectionCheckin") : runtimeText("dashboardDirectionCheckout")}</span>`
+        : "";
+      const latePill = late
+        ? `<span class="status-pill status-late manual-entry-late-pill">${runtimeText("checkedInLate")}</span>`
         : "";
       const checkinClass = isCheckedIn ? "ghost-button" : "primary-button";
       const checkoutClass = isCheckedIn ? "primary-button" : "ghost-button";
       return `
-        <div class="manual-entry-row" data-worker-id="${escapeHtml(w.id)}">
+        <div class="manual-entry-row${late ? " manual-entry-row-late" : ""}" data-worker-id="${escapeHtml(w.id)}">
           <img class="manual-entry-photo" src="${photo}" alt="${name}" />
           <div class="manual-entry-info">
             <strong>${name}</strong>
             <span>${companyName}</span>
             <span class="manual-entry-badge">${badgeId}</span>
-            ${statusPill}
+            <div class="manual-entry-pills">${statusPill}${latePill}</div>
           </div>
           <div class="manual-entry-actions">
             <button type="button" class="${checkinClass} manual-entry-checkin" data-worker-id="${escapeHtml(w.id)}" data-direction="check-in">${runtimeText("manualEntryCheckin")}</button>
@@ -18813,11 +19127,13 @@ if (accessForm) {
 
     listEl.querySelectorAll("[data-worker-id][data-direction]").forEach((actionBtn) => {
       actionBtn.addEventListener("click", async () => {
-        const worker = state.workers.find((w) => w.id === actionBtn.dataset.workerId);
+        const worker = state.workers.find((wr) => wr.id === actionBtn.dataset.workerId);
         if (!worker) return;
         const direction = actionBtn.dataset.direction;
         const gate = document.getElementById("accessGate")?.value || "Pforte";
-        const note = "Manueller Einlass – Ausweis/Telefon vergessen";
+        const note = direction === "check-in"
+          ? runtimeText("manualEntryNoteCheckin") || "Manueller Einlass – Ausweis/Telefon vergessen"
+          : runtimeText("manualEntryNoteCheckout") || "Manueller Auslass – Ausweis/Telefon vergessen";
         const result = await bookAccess(worker.id, direction, gate, note, { skipFeedbackOverlay: true });
         const workerName = `${worker.firstName} ${worker.lastName}`;
         if (result && result.ok === false && result.reason === "duplicate_direction") {
@@ -18831,7 +19147,7 @@ if (accessForm) {
           feedbackEl.className = "manual-entry-feedback success";
           feedbackEl.classList.remove("hidden");
           renderList(searchInput.value);
-          setTimeout(closeModal, 2000);
+          setTimeout(closeModal, 2200);
         } else {
           feedbackEl.textContent = runtimeText("manualEntryError") || "Fehler beim Buchen.";
           feedbackEl.className = "manual-entry-feedback error";
@@ -18841,6 +19157,7 @@ if (accessForm) {
     });
   }
 
+  // ── event listeners ───────────────────────────────────────────────────────
   btn.addEventListener("click", openModal);
   closeBtn.addEventListener("click", closeModal);
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
@@ -18857,9 +19174,10 @@ if (accessForm) {
   syncManualEntryBtnVisibility();
   window._syncManualEntryBtnVisibility = syncManualEntryBtnVisibility;
 
-  // Refresh list if modal is open when refreshAll() runs
+  // Refresh list + work-time panel if modal is open when refreshAll() runs
   window._refreshManualEntryListIfOpen = function () {
     if (!modal.classList.contains("hidden")) {
+      syncWorkTimePanel();
       renderList(searchInput.value);
     }
   };
@@ -19130,6 +19448,52 @@ if (triggerDunningBtn) {
       window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
     } finally {
       triggerDunningBtn.disabled = false;
+    }
+  });
+}
+
+const triggerMonthlyInvoiceBtn = document.querySelector("#triggerMonthlyInvoiceBtn");
+if (triggerMonthlyInvoiceBtn) {
+  triggerMonthlyInvoiceBtn.addEventListener("click", async () => {
+    if (!window.confirm(runtimeText("monthlyInvoiceRunConfirm"))) return;
+    triggerMonthlyInvoiceBtn.disabled = true;
+    try {
+      const result = await apiRequest(`${API_BASE}/api/invoices/trigger-monthly-cycle`, { method: "POST", body: {} });
+      window.alert(runtimeTextTemplate("monthlyInvoiceRunResult", {
+        created: String(result.result?.created || 0),
+        sent: String(result.result?.sent || 0),
+        skipped: String(result.result?.skipped || 0),
+        failed: String(result.result?.failed || 0),
+      }));
+      await loadAndRenderInvoices();
+      refreshAll();
+    } catch (error) {
+      window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
+    } finally {
+      triggerMonthlyInvoiceBtn.disabled = false;
+    }
+  });
+}
+
+const simulateCurrentMonthBtn = document.querySelector("#simulateCurrentMonthBtn");
+if (simulateCurrentMonthBtn) {
+  simulateCurrentMonthBtn.addEventListener("click", async () => {
+    if (!window.confirm(runtimeText("simulateMonthlyRunConfirm"))) return;
+    simulateCurrentMonthBtn.disabled = true;
+    try {
+      const result = await apiRequest(`${API_BASE}/api/invoices/simulate-monthly-cycle`, { method: "POST", body: {} });
+      window.alert(runtimeTextTemplate("simulateMonthlyRunResult", {
+        created: String(result.result?.created || 0),
+        sent: String(result.result?.sent || 0),
+        skipped: String(result.result?.skipped || 0),
+        failed: String(result.result?.failed || 0),
+      }));
+      await loadAndRenderInvoices();
+      refreshAll();
+    } catch (error) {
+      window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
+    } finally {
+      simulateCurrentMonthBtn.disabled = false;
     }
   });
 }
@@ -19416,1740 +19780,322 @@ const loadCustomBrandButton = document.querySelector("#loadCustomBrandButton");
 if (loadCustomBrandButton) {
   loadCustomBrandButton.addEventListener("click", loadCustomBrandingPreset);
 }
-
 const loadCustomBrandAltButton = document.querySelector("#loadCustomBrandAltButton");
 if (loadCustomBrandAltButton) {
   loadCustomBrandAltButton.addEventListener("click", loadCustomBrandingPresetAlt);
 }
 
-const startCameraButton = document.querySelector("#startCameraButton");
-if (startCameraButton) {
-  startCameraButton.addEventListener("click", startCamera);
-}
-
-const capturePhotoButton = document.querySelector("#capturePhotoButton");
-if (capturePhotoButton) {
-  capturePhotoButton.addEventListener("click", capturePhoto);
-}
-
-const uploadPhotoButton = document.querySelector("#uploadPhotoButton");
-if (uploadPhotoButton) {
-  uploadPhotoButton.addEventListener("click", openPhotoFilePicker);
-}
-
-if (elements.photoFileInput) {
-  elements.photoFileInput.addEventListener("change", handlePhotoFileSelected);
-}
-
-if (elements.photoZoom) {
-  elements.photoZoom.addEventListener("input", handlePhotoZoomInput);
-}
-
-if (elements.photoSharpen) {
-  elements.photoSharpen.addEventListener("input", handlePhotoSharpenInput);
-}
-
-if (elements.photoResetButton) {
-  elements.photoResetButton.addEventListener("click", resetCapturedPhotoPosition);
-}
-
-// ── Foto-Validierung ─────────────────────────────────────────────────────────
-async function validateWorkerPhotoUI() {
-  const photoData = document.querySelector("#photoData")?.value || "";
-  const resultEl = document.querySelector("#photoValidationResult");
-  if (!resultEl) return;
-  if (!photoData) {
-    resultEl.innerHTML = `<span style="color:#6b7280;font-size:0.82rem">${escapeHtml(runtimeText("photoValidationCaptureFirst"))}</span>`;
-    return;
-  }
-  resultEl.innerHTML = `<span style="color:#6b7280;font-size:0.82rem">${escapeHtml(runtimeText("photoValidationChecking"))}</span>`;
-  try {
-    const result = await apiRequest(`${API_BASE}/api/workers/validate-photo`, {
-      method: "POST",
-      body: { photoData },
-    });
-    const color = result.score >= 80 ? "#16a34a" : result.score >= 50 ? "#d97706" : "#dc2626";
-    const icon = result.valid ? "✅" : "⚠️";
-    const errorItems = (result.errors || []).map(e => `<li style="color:#dc2626">❌ ${escapeHtml(e)}</li>`).join("");
-    const warnItems = (result.warnings || []).map(w => `<li style="color:#d97706">⚠️ ${escapeHtml(w)}</li>`).join("");
-    const metaText = result.meta?.width
-      ? `<p style="margin:4px 0 0;color:#9ca3af;font-size:0.78rem">${result.meta.width}×${result.meta.height}px · ${result.meta.sizeKb} KB</p>`
-      : "";
-    resultEl.innerHTML = `<div style="font-size:0.82rem;margin-top:4px;padding:8px 10px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;text-align:left;">
-      <strong style="color:${color}">${icon} ${escapeHtml(runtimeText("photoValidationScore"))}: ${result.score}/100</strong>
-      ${errorItems || warnItems ? `<ul style="margin:5px 0 0;padding-left:18px;">${errorItems}${warnItems}</ul>` : `<p style='margin:4px 0 0;color:#6b7280'>${escapeHtml(runtimeText("photoValidationLooksGood"))}</p>`}
-      ${metaText}
-    </div>`;
-  } catch (_e) {
-    resultEl.innerHTML = `<span style="color:#6b7280;font-size:0.82rem">${escapeHtml(runtimeText("photoValidationUnavailable"))}</span>`;
-  }
-}
-
-const validatePhotoBtnEl = document.querySelector("#validatePhotoBtn");
-if (validatePhotoBtnEl) {
-  validatePhotoBtnEl.addEventListener("click", validateWorkerPhotoUI);
-}
-
-// ── Passwort-Reset: "Passwort vergessen"-Button ────────────────────────────
-const loginResetPasswordButton = document.querySelector("#loginResetPasswordButton");
-if (loginResetPasswordButton) {
-  loginResetPasswordButton.addEventListener("click", async () => {
-    const username = (window.prompt(runtimeText("passwordResetPromptUsername")) || "").trim();
-    if (!username) return;
-    try {
-      loginResetPasswordButton.disabled = true;
-      const resp = await fetch(`${API_BASE}/api/auth/request-password-reset`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok && data.error === "smtp_not_configured") {
-        window.alert(runtimeText("passwordResetSmtpNotConfigured"));
-      } else {
-        window.alert(runtimeText("passwordResetRequestSent"));
-      }
-    } catch (_e) {
-      window.alert(runtimeText("passwordResetRequestFailed"));
-    } finally {
-      loginResetPasswordButton.disabled = false;
-    }
-  });
-}
-
-// ── Passwort-Reset: Token aus URL (?resetToken=...) ────────────────────────
-(function handlePasswordResetToken() {
-  const params = new URL(window.location.href).searchParams;
-  const rawToken = (params.get("resetToken") || "").trim();
-  if (!rawToken) return;
-
-  const loginForm = document.querySelector("#loginForm");
-  const pwResetPanel = document.querySelector("#pwResetPanel");
-  if (!pwResetPanel) return;
-
-  if (loginForm) loginForm.style.display = "none";
-  if (loginResetPasswordButton) loginResetPasswordButton.style.display = "none";
-  pwResetPanel.style.display = "";
-
-  const pwResetForm = document.querySelector("#pwResetForm");
-  const pwResetMsg = document.querySelector("#pwResetMsg");
-
-  if (!pwResetForm) return;
-  pwResetForm.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const newPw = (document.querySelector("#pwResetNewPassword")?.value || "").trim();
-    const confirmPw = (document.querySelector("#pwResetConfirm")?.value || "").trim();
-    if (newPw.length < 8) {
-      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = runtimeText("passwordResetMinLength"); }
-      return;
-    }
-    if (newPw !== confirmPw) {
-      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = runtimeText("passwordResetMismatch"); }
-      return;
-    }
-    const submitBtn = pwResetForm.querySelector("button[type='submit']");
-    if (submitBtn) submitBtn.disabled = true;
-    if (pwResetMsg) { pwResetMsg.style.color = "#6b7280"; pwResetMsg.textContent = runtimeText("passwordResetSaving"); }
-    try {
-      const resp = await fetch(`${API_BASE}/api/auth/reset-password/${encodeURIComponent(rawToken)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: newPw }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (resp.ok) {
-        if (pwResetMsg) { pwResetMsg.style.color = "#16a34a"; pwResetMsg.textContent = runtimeText("passwordResetSavedRedirect"); }
-        setTimeout(() => {
-          const cleanUrl = new URL(window.location.href);
-          cleanUrl.searchParams.delete("resetToken");
-          window.location.replace(cleanUrl.toString());
-        }, 2000);
-      } else {
-        const msg = data.error === "token_not_found" ? runtimeText("passwordResetTokenInvalid")
-          : data.error === "token_expired" ? runtimeText("passwordResetTokenExpired")
-          : data.error === "password_too_short" ? runtimeText("passwordResetMinLength")
-          : (data.message || runtimeText("genericUnknownError"));
-        if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = msg; }
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    } catch (_e) {
-      if (pwResetMsg) { pwResetMsg.style.color = "#dc2626"; pwResetMsg.textContent = runtimeText("genericNetworkRetry"); }
-      if (submitBtn) submitBtn.disabled = false;
-    }
-  });
-})();
-
-const companySelect = document.querySelector("#companySelect");
-if (companySelect) {
-  companySelect.addEventListener("change", populateSubcompanySelects);
-}
-
-const addSubcompanyButton = document.querySelector("#addSubcompanyButton");
-if (addSubcompanyButton) {
-  addSubcompanyButton.addEventListener("click", async () => {
-    const companyId = document.querySelector("#companySelect")?.value || "";
-    const name = (document.querySelector("#subcompanyName")?.value || "").trim();
-    if (!companyId || !name) {
-      window.alert(runtimeText("subcompanyNameRequired"));
-      return;
-    }
-    try {
-      await apiRequest(`${API_BASE}/api/subcompanies`, { method: "POST", body: { companyId, name } });
-      const input = document.querySelector("#subcompanyName");
-      if (input) input.value = "";
-      await loadAllData();
-      populateSubcompanySelects();
-      refreshAll();
-    } catch (error) {
-      if (error.message === "session_expired") {
-        return;
-      }
-      window.alert(uiT("alertSubcompanyCreateFailed").replace("{error}", error.message));
-    }
-  });
-}
-
-registerControlServiceWorker();
-initUiLanguageControl();
-initNativeDesktopShell();
-wireDesktopInstallPrompt();
-
-(function initWorkerListControls() {
-  // ── Search ──
-  if (elements.workerSearchInput) {
-    elements.workerSearchInput.addEventListener("input", () => renderWorkerList());
-  }
-
-  // ── Status Filter ──
-  const workerStatusFilter = document.querySelector("#workerStatusFilter");
-  if (workerStatusFilter) {
-    workerStatusFilter.addEventListener("change", () => renderWorkerList());
-  }
-
-  // ── Bulk select all ──
-  if (elements.bulkSelectAll) {
-    elements.bulkSelectAll.addEventListener("change", () => {
-      const checked = elements.bulkSelectAll.checked;
-      elements.workerList?.querySelectorAll(".bulk-checkbox").forEach((cb) => { cb.checked = checked; });
-      updateBulkActionBar();
-    });
-  }
-
-  // ── Bulk action buttons ──
-  if (elements.bulkCancelButton) {
-    elements.bulkCancelButton.addEventListener("click", () => {
-      elements.workerList?.querySelectorAll(".bulk-checkbox").forEach((cb) => { cb.checked = false; });
-      if (elements.bulkSelectAll) elements.bulkSelectAll.checked = false;
-      updateBulkActionBar();
-    });
-  }
-
-  if (elements.bulkDeleteButton) {
-    elements.bulkDeleteButton.addEventListener("click", async () => {
-      const ids = getSelectedWorkerIds();
-      if (!ids.length) return;
-      if (!window.confirm(uiT("confirmDeleteWorkerBulk").replace("{count}", ids.length))) return;
-      try {
-        await Promise.all(ids.map((id) => apiRequest(`${API_BASE}/api/workers/${id}`, { method: "DELETE" })));
-        await loadAllData();
-        if (elements.bulkSelectAll) elements.bulkSelectAll.checked = false;
-        refreshAll();
-      } catch (error) {
-        window.alert(uiT("alertDeleteFailed").replace("{error}", error.message));
-      }
-    });
-  }
-
-  if (elements.bulkSetActiveButton) {
-    elements.bulkSetActiveButton.addEventListener("click", () => bulkSetStatus("aktiv"));
-  }
-  if (elements.bulkSetInactiveButton) {
-    elements.bulkSetInactiveButton.addEventListener("click", () => bulkSetStatus("inaktiv"));
-  }
-})();
-
-// Robuster Fallback: delegierte Handler fuer Dokument-Aktionen.
-// So funktionieren die Buttons auch dann, wenn ein direkter Listener nicht gebunden wurde.
-(function wireDocumentActionFallbacks() {
-  if (window.__baupassDocActionFallbackBound) {
-    return;
-  }
-  window.__baupassDocActionFallbackBound = true;
-
-  document.addEventListener("click", (event) => {
-    const actionEl = event.target.closest("#docInboxRefreshBtn, #docInboxSyncBtn, .nav-link[data-view='documents']");
-    if (!actionEl) {
-      return;
-    }
-
-    const ensureSession = () => {
-      if (!token) {
-        handleExpiredControlSession();
-        return false;
-      }
-      return true;
-    };
-
-    if (actionEl.matches(".nav-link[data-view='documents']")) {
-      if (!ensureSession()) {
-        return;
-      }
-      // setView laeuft ueber den normalen Nav-Handler; danach Inbox nachladen.
-      window.setTimeout(() => {
-        loadDocumentInbox().catch((e) => {
-          window.alert(e.message);
-        });
-      }, 0);
-      return;
-    }
-
-    if (actionEl.id === "docInboxRefreshBtn") {
-      event.preventDefault();
-      if (!ensureSession()) {
-        return;
-      }
-      loadDocumentInbox().catch((e) => {
-        window.alert(e.message);
-      });
-      return;
-    }
-
-    if (actionEl.id === "docInboxSyncBtn") {
-      event.preventDefault();
-      if (!ensureSession()) {
-        return;
-      }
-      (async () => {
-        actionEl.disabled = true;
-        try {
-          const res = await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
-          const imapStatus = res?.imap?.status;
-          if (imapStatus === "not_configured") {
-            window.alert(getImapNotConfiguredMessage(res?.imap));
-          } else if (imapStatus === "connect_error" || imapStatus === "error") {
-            window.alert(runtimeTextTemplate("imapErrorWithReason", { reason: res?.imap?.error || runtimeText("genericUnknownError") }));
-          }
-          await loadDocumentInbox();
-        } catch (e) {
-          if (e?.message === "backend_unreachable") {
-            window.alert(getBackendUnreachableMessage());
-          } else {
-            window.alert(e.message);
-          }
-        } finally {
-          actionEl.disabled = false;
-        }
-      })();
-      return;
-    }
-  });
-})();
-
-function getSelectedWorkerIds() {
-  return [...(elements.workerList?.querySelectorAll(".bulk-checkbox:checked") || [])].map((cb) => cb.dataset.bulkId);
-}
-
-function updateBulkActionBar() {
-  const count = getSelectedWorkerIds().length;
-  if (elements.bulkActionBar) elements.bulkActionBar.classList.toggle("hidden", count === 0);
-  if (elements.bulkSelectionCount) {
-    elements.bulkSelectionCount.textContent = runtimeTextTemplate("bulkSelectedCount", { count });
-  }
-}
-
-async function bulkSetStatus(status) {
-  const ids = getSelectedWorkerIds();
-  if (!ids.length) return;
-  try {
-    await Promise.all(ids.map((id) => {
-      const worker = state.workers.find((w) => w.id === id);
-      if (!worker) return Promise.resolve();
-      return apiRequest(`${API_BASE}/api/workers/${id}`, {
-        method: "PUT",
-        body: { ...worker, status, companyId: worker.companyId }
-      });
-    }));
-    await loadAllData();
-    if (elements.bulkSelectAll) elements.bulkSelectAll.checked = false;
-    refreshAll();
-  } catch (error) {
-    window.alert(uiT("alertStatusChangeFailed").replace("{error}", error.message));
-  }
-}
-
-(async () => {
-  initSystemThemeControl();
-  setView("dashboard");
-  loadPublicBranding(); // kein await – läuft nebenläufig, Login-Page-Branding
-  
-  // Try to restore session from storage before showing UI
-  try {
-    console.log("[App Init] Starting bootstrap with token:", token ? "present" : "missing");
-    await loadAllData();
-    console.log("[App Init] Bootstrap complete. CurrentUser:", state.currentUser?.username || "none");
-    
-    if (token && state.currentUser) {
-      console.log("[App Init] Session restored successfully");
-      startHeartbeat();
-      startBackendStatusMonitor();
-      setView(getDefaultViewForRole(state.currentUser.role));
-    } else {
-      console.log("[App Init] No session after bootstrap");
-    }
-  } catch (error) {
-    if (error.message !== "session_expired" && error.message !== "backend_unreachable") {
-      console.warn("Initial session bootstrap failed:", error);
-    }
-    clearSession();
-  }
-
-  // Show appropriate UI after session is loaded
-  refreshAll();
-})();
-
-// ─────────────────────────────────────────────────────────────────────
-// Dokument-Inbox (IMAP) & Worker-Dokumente
-// ─────────────────────────────────────────────────────────────────────
-
-// Dokumenttypen für die Auswahlfelder
-const DOC_TYPES = [
-  { value: "mindestlohnnachweis", key: "docTypeMindestlohnnachweis" },
-  { value: "personalausweis", key: "docTypePersonalausweis" },
-  { value: "sozialversicherungsnachweis", key: "docTypeSozialversicherungsnachweis" },
-  { value: "arbeitserlaubnis", key: "docTypeArbeitserlaubnis" },
-  { value: "gesundheitszeugnis", key: "docTypeGesundheitszeugnis" },
-  { value: "sonstiges", key: "docTypeSonstiges" },
-];
-
-function docTypeLabelForValue(value) {
-  const found = DOC_TYPES.find((d) => d.value === value);
-  return found ? uiT(found.key) : value;
-}
-
-function getBackendUnreachableMessage() {
-  const activeBase = API_BASE || window.location.origin;
-  const localHint = runtimeText("backendUnreachableLocalHint");
-  return runtimeTextTemplate("backendUnreachableWithBase", { base: activeBase, hint: localHint });
-}
-
-function getImapNotConfiguredMessage(imapPayload) {
-  const activeBase = API_BASE || window.location.origin;
-  const missing = Array.isArray(imapPayload?.missing) ? imapPayload.missing : [];
-  const missingLabel = missing.length ? runtimeTextTemplate("imapMissingFields", { fields: missing.join(", ") }) : "";
-  return runtimeTextTemplate("imapNotConfiguredWithBase", { base: activeBase, missing: missingLabel });
-}
-
-async function loadDocumentInbox() {
-  const listEl = document.querySelector("#docInboxList");
-  if (!listEl) return;
-  const rematchBtn = document.querySelector("#docInboxRematchBtn");
-  if (rematchBtn) {
-    rematchBtn.style.display = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin" ? "" : "none";
-  }
-  try {
-    const data = await apiRequest(API_BASE + "/api/documents/inbox");
-    renderDocumentInbox(Array.isArray(data) ? data : (data.emails || []));
-  } catch (e) {
-    const message = e?.message === "backend_unreachable" ? getBackendUnreachableMessage() : e.message;
-    if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
-  }
-  // Auch ablaufende Dokumente mitladen wenn in der Dokumente-View
-  loadExpiringDocuments().catch(() => {});
-}
-
-async function loadExpiringDocuments() {
-  const listEl = document.querySelector("#expiringDocsList");
-  const days = Number(document.querySelector("#expiringDocsDaysFilter")?.value || 30);
-  if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(uiT("statusLoading"))}</div>`;
-  try {
-    const data = await apiRequest(`${API_BASE}/api/documents/expiring?days=${days}`);
-    const rows = Array.isArray(data) ? data : [];
-    // Kritische Dokumente (≤ 7 Tage) für Dashboard-Kachel zählen
-    state.expiringDocsCriticalCount = rows.filter((r) => r.urgency === "critical").length;
-    renderStats();
-    renderExpiringDocuments(rows);
-  } catch (e) {
-    if (listEl) listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
-  }
-}
-
-function renderExpiringDocuments(rows) {
-  const listEl = document.querySelector("#expiringDocsList");
-  if (!listEl) return;
-  if (!rows.length) {
-    listEl.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("expiringDocsEmpty"))}</div>`;
-    return;
-  }
-  const urgencyClass = { critical: "helper-text-warning", warning: "helper-text-info", info: "" };
-  const urgencyIcon = { critical: "🔴", warning: "🟡", info: "🔵" };
-  listEl.innerHTML = rows.map((row) => {
-    const icon = urgencyIcon[row.urgency] || "⚪";
-    const docLabel = (row.doc_type || "–").replace(/_/g, " ");
-    const cls = urgencyClass[row.urgency] || "";
-    return `
-      <article class="card-item" style="cursor:pointer;" data-expiring-worker-id="${escapeHtml(row.worker_id || "")}">
-        <div class="invoice-management-head">
-          <div class="invoice-management-main">
-            <strong>${icon} ${escapeHtml(row.first_name || "")} ${escapeHtml(row.last_name || "")}</strong>
-            <p class="helper-text">${escapeHtml(row.company_name || "")}${row.badge_id ? ` · Badge: ${escapeHtml(row.badge_id)}` : ""}</p>
-          </div>
-          <div class="invoice-management-side">
-            <p class="meta-text ${cls}">${escapeHtml(row.expiry_date || "–")}</p>
-            <p class="helper-text">${escapeHtml(docLabel)}</p>
-          </div>
-        </div>
-      </article>`;
-  }).join("");
-
-  // Klick → Mitarbeiter-Profil öffnen
-  listEl.querySelectorAll("[data-expiring-worker-id]").forEach((card) => {
-    card.addEventListener("click", () => {
-      const wid = card.dataset.expiringWorkerId;
-      if (!wid) return;
-      setView("workers");
-      const worker = state.workers.find((w) => w.id === wid);
-      if (worker && elements.workerSearchInput) {
-        elements.workerSearchInput.value = worker.badgeId || `${worker.firstName} ${worker.lastName}`;
-        renderWorkerList();
-        // Nach kurzer Verzögerung zum Element scrollen
-        setTimeout(() => {
-          const el = elements.workerList?.querySelector(`[data-worker-edit="${CSS.escape(wid)}"]`);
-          if (el) el.closest("article")?.scrollIntoView({ behavior: "smooth", block: "center" });
-        }, 100);
-      }
-    });
-  });
-}
-
-function renderDocumentInbox(emails) {
-  const listEl = document.querySelector("#docInboxList");
-  if (!listEl) return;
-  const isSuperadmin = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin";
-  if (!emails.length) {
-    listEl.innerHTML = `<div class="empty-state">${escapeHtml(uiT("docInboxEmpty"))}</div>`;
-    return;
-  }
-  const statusChip = (email) => {
-    const attachments = Array.isArray(email.attachments) ? email.attachments : [];
-    const assignedCount = attachments.filter((att) => att.assigned_worker_id).length;
-    if (!email.matched_company_id) {
-      return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#ffe8e8; color:#9f1d1d; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusUnmatched"))}</span>`;
-    }
-    if (!attachments.length || assignedCount === 0) {
-      return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#fff3d1; color:#8a5b00; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusNew"))}</span>`;
-    }
-    if (assignedCount < attachments.length) {
-      return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e7f0ff; color:#114b9f; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusPartial"))}</span>`;
-    }
-    return `<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e7ffe9; color:#1f7a35; font-size:0.75em; font-weight:700;">${escapeHtml(runtimeText("docInboxStatusAssigned"))}</span>`;
-  };
-
-  const renderEmailCard = (email) => {
-    const previewText = String(email.body_text || "").trim();
-    const previewShort = previewText.length > 220 ? `${previewText.slice(0, 220)}…` : previewText;
-    const recipientLine = String(email.to_addr || "").trim();
-    const matchedCompanyName = String(email.matched_company_name || "").trim();
-    const attachmentRows = Array.isArray(email.attachments) ? email.attachments : [];
-    const firstUnassignedAttachment = attachmentRows.find((att) => !att.assigned_worker_id);
-    const attachments = attachmentRows.map((att) => `
-      <span class="attachment-chip">
-        📎 ${escapeHtml(att.filename)}
-        <button class="link-button" data-inbox-id="${escapeHtml(String(email.id))}" data-attachment-id="${escapeHtml(String(att.id))}" data-filename="${escapeHtml(att.filename)}" data-matched-company-id="${escapeHtml(String(email.matched_company_id || ""))}" data-assign-btn>
-          ${escapeHtml(uiT("docAssignWorkerLabel"))}
-        </button>
-      </span>`).join("");
-    return `
-      <div class="list-item" data-email-id="${escapeHtml(String(email.id))}">
-        <div class="list-item-meta">
-          <strong>${escapeHtml(email.from_addr || "-")}</strong> ${statusChip(email)}
-          <span class="muted">${escapeHtml(email.received_at ? formatTimestamp(email.received_at) : "")}</span>
-        </div>
-        ${recipientLine ? `<div class="muted" style="margin-top:4px; font-size:0.85em;"><strong>${escapeHtml(uiT("labelTo"))}:</strong> ${escapeHtml(recipientLine)}</div>` : ""}
-        ${matchedCompanyName ? `<div class="muted" style="margin-top:2px; font-size:0.85em;"><strong>${escapeHtml(uiT("labelFirm"))}:</strong> ${escapeHtml(matchedCompanyName)}</div>` : ""}
-        <div class="list-item-subject">${escapeHtml(email.subject || runtimeText("docInboxNoSubject"))}</div>
-        ${previewShort ? `
-          <div class="muted" style="margin-top:6px; font-size:0.9em; white-space:pre-wrap;">${escapeHtml(previewShort)}</div>
-          <button class="link-button" type="button" data-toggle-mail-details="${escapeHtml(String(email.id))}" style="margin-top:4px;">
-            ${escapeHtml(runtimeText("detailsShow"))}
-          </button>
-          <div class="muted" data-mail-details="${escapeHtml(String(email.id))}" style="display:none; margin-top:6px; white-space:pre-wrap; line-height:1.4; border-left:3px solid var(--color-border, #ddd); padding-left:10px;">
-            ${escapeHtml(previewText)}
-          </div>
-        ` : ""}
-        ${isSuperadmin && !email.matched_company_id ? `
-          <div class="button-row" style="margin-top:6px;">
-            <button class="ghost-button small-button" data-manual-company-match="${escapeHtml(String(email.id))}">${escapeHtml(runtimeText("docManualCompanyAssignBtn"))}</button>
-          </div>
-        ` : ""}
-        ${attachments ? `<div class="attachment-list">${attachments}</div>` : ""}
-        <div class="button-row" style="margin-top:8px">
-          ${firstUnassignedAttachment ? `
-            <button
-              class="primary-button small-button"
-              type="button"
-              data-assign-first
-              data-inbox-id="${escapeHtml(String(email.id))}"
-              data-attachment-id="${escapeHtml(String(firstUnassignedAttachment.id))}"
-              data-filename="${escapeHtml(firstUnassignedAttachment.filename || runtimeText("attachmentFallback"))}" 
-              data-matched-company-id="${escapeHtml(String(email.matched_company_id || ""))}">
-              ${escapeHtml(uiT("docAssignWorkerLabel"))}
-            </button>
-          ` : ""}
-          <button class="ghost-button small-button" data-dismiss-email-id="${escapeHtml(String(email.id))}">
-            ${escapeHtml(uiT("btnDismissEmail"))}
-          </button>
-        </div>
-      </div>`;
-  };
-
-  const recognized = emails.filter((entry) => Boolean(entry.matched_company_id));
-  const unrecognized = emails.filter((entry) => !entry.matched_company_id);
-
-  listEl.innerHTML = `
-    <div class="meta-box" style="margin-bottom:8px;">
-      <p style="margin:0;"><strong>${escapeHtml(runtimeText("docInboxSummaryRecognized"))}:</strong> ${recognized.length} | <strong>${escapeHtml(runtimeText("docInboxSummaryReview"))}:</strong> ${unrecognized.length}</p>
-    </div>
-    ${recognized.length ? recognized.map(renderEmailCard).join("") : `<div class="empty-state">${escapeHtml(runtimeText("docInboxRecognizedEmpty"))}</div>`}
-    <div class="meta-box" style="margin-top:12px;">
-      <p style="margin:0;"><strong>${escapeHtml(runtimeText("docInboxSummaryReview"))}</strong> (${escapeHtml(runtimeText("docInboxReviewIntro"))})</p>
-    </div>
-    ${unrecognized.length ? unrecognized.map(renderEmailCard).join("") : `<div class="empty-state">${escapeHtml(runtimeText("docInboxReviewEmpty"))}</div>`}
-  `;
-
-  // Assign-Buttons
-  listEl.querySelectorAll("[data-assign-btn]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      openDocAssignPanel(btn.dataset.inboxId, btn.dataset.attachmentId, btn.dataset.filename, btn.dataset.matchedCompanyId || "");
-    });
-  });
-
-  // Quick-Assign pro Mail (erstes noch nicht zugewiesenes Attachment)
-  listEl.querySelectorAll("[data-assign-first]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      openDocAssignPanel(btn.dataset.inboxId, btn.dataset.attachmentId, btn.dataset.filename, btn.dataset.matchedCompanyId || "");
-    });
-  });
-
-  // Dismiss-Buttons
-  listEl.querySelectorAll("[data-dismiss-email-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      const emailId = btn.dataset.dismissEmailId;
-      try {
-        await apiRequest(API_BASE + `/api/documents/inbox/${emailId}/dismiss`, { method: "POST" });
-        loadDocumentInbox();
-      } catch (e) {
-        window.alert(e.message);
-      }
-    });
-  });
-
-  // Manueller Firmen-Match für Prüfkorb
-  listEl.querySelectorAll("[data-manual-company-match]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      const inboxId = btn.dataset.manualCompanyMatch;
-      if (!inboxId) return;
-      openManualCompanyMatchPanel(inboxId);
-    });
-  });
-
-  // Mail-Details ein-/ausblenden
-  listEl.querySelectorAll("[data-toggle-mail-details]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const emailId = btn.dataset.toggleMailDetails;
-      const detailsEl = listEl.querySelector(`[data-mail-details="${CSS.escape(emailId || "")}"]`);
-      if (!detailsEl) return;
-      const isHidden = detailsEl.style.display === "none" || !detailsEl.style.display;
-      detailsEl.style.display = isHidden ? "" : "none";
-      btn.textContent = isHidden ? runtimeText("detailsHide") : runtimeText("detailsShow");
-    });
-  });
-
-  applySupportReadOnlyUiState();
-}
-
-function openDocAssignPanel(inboxId, attachmentId, filename, matchedCompanyId = "") {
-  if (isSupportReadOnlyMode()) {
-    showSupportReadOnlyAlert();
-    return;
-  }
-  const panel = document.querySelector("#docAssignPanel");
-  const content = document.querySelector("#docAssignContent");
-  if (!panel || !content) return;
-  panel.style.display = "";
-
-  // Mitarbeiter-Liste aus state.workers (aktive Nicht-Besucher)
-  const allActiveWorkers = (state.workers || []).filter((w) => !isVisitorWorker(w) && w.status !== "inaktiv");
-  const companyWorkers = matchedCompanyId
-    ? allActiveWorkers.filter((w) => String(w.companyId || w.company_id || "") === String(matchedCompanyId))
-    : allActiveWorkers;
-  // Fallback: wenn zur erkannten Firma keine Mitarbeiter vorhanden, alle zeigen
-  const workers = companyWorkers.length > 0 ? companyWorkers : allActiveWorkers;
-  const showAllFallback = matchedCompanyId && companyWorkers.length === 0;
-
-  const getCompanyName = (w) => {
-    const cid = String(w.companyId || w.company_id || "");
-    const c = (state.companies || []).find((x) => String(x.id) === cid);
-    return c ? c.name : "";
-  };
-  const workerOptions = workers.map((w) => {
-    const cname = getCompanyName(w);
-    const label = cname ? `${w.firstName} ${w.lastName} — ${w.badgeId} (${cname})` : `${w.firstName} ${w.lastName} — ${w.badgeId}`;
-    return `<option value="${escapeHtml(String(w.id))}">${escapeHtml(label)}</option>`;
-  }).join("");
-
-  const docTypeOptions = DOC_TYPES.map((d) =>
-    `<option value="${escapeHtml(d.value)}">${escapeHtml(uiT(d.key))}</option>`
-  ).join("");
-
-  content.innerHTML = `
-    <form id="docAssignForm" class="settings-form">
-      <p class="muted">📎 ${escapeHtml(filename)}</p>
-      ${matchedCompanyId ? `<p class="muted">${escapeHtml(showAllFallback ? runtimeText("docAssignFallbackAllWorkers") : runtimeText("docAssignMatchedCompanyOnly"))}</p>` : ""}
-      <label>
-        <span>${escapeHtml(uiT("docAssignWorkerLabel"))}</span>
-        <select id="docAssignWorkerId" required>
-          <option value="">${escapeHtml(runtimeText("selectPlaceholder"))}</option>
-          ${workerOptions}
-        </select>
-      </label>
-      <label>
-        <span>${escapeHtml(uiT("docAssignTypeLabel"))}</span>
-        <select id="docAssignType" required>
-          ${docTypeOptions}
-        </select>
-      </label>
-      <label>
-        <span>${escapeHtml(uiT("docAssignNotesLabel"))}</span>
-        <input id="docAssignNotes" type="text" />
-      </label>
-      <div class="button-row">
-        <button type="submit" class="primary-button">${escapeHtml(uiT("btnConfirmAssign"))}</button>
-        <button type="button" class="ghost-button" id="docAssignCancelBtn">${escapeHtml(uiT("btnBulkCancel"))}</button>
-      </div>
-      <p id="docAssignMsg" class="helper-text"></p>
-    </form>`;
-
-  document.querySelector("#docAssignCancelBtn").addEventListener("click", () => {
-    panel.style.display = "none";
-  });
-
-  document.querySelector("#docAssignForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (isSupportReadOnlyMode()) {
-      showSupportReadOnlyAlert();
-      return;
-    }
-    const workerId = document.querySelector("#docAssignWorkerId").value;
-    const docType = document.querySelector("#docAssignType").value;
-    const notes = document.querySelector("#docAssignNotes").value.trim();
-    const msgEl = document.querySelector("#docAssignMsg");
-    if (!workerId) return;
-    try {
-      await apiRequest(API_BASE + `/api/documents/inbox/${inboxId}/attachments/${attachmentId}/assign`, {
-        method: "POST",
-        body: { workerId, docType, notes },
-      });
-      msgEl.textContent = uiT("docAssignSuccess");
-      msgEl.style.color = "var(--color-success, green)";
-      panel.style.display = "none";
-      loadDocumentInbox();
-    } catch (err) {
-      msgEl.textContent = err.message;
-      msgEl.style.color = "var(--color-danger, red)";
-    }
-  });
-}
-
-function openManualCompanyMatchPanel(inboxId) {
-  if (isSupportReadOnlyMode()) {
-    showSupportReadOnlyAlert();
-    return;
-  }
-  const panel = document.querySelector("#docAssignPanel");
-  const content = document.querySelector("#docAssignContent");
-  if (!panel || !content) return;
-  panel.style.display = "";
-
-  const closePanel = () => {
-    panel.style.display = "none";
-  };
-
-  const activeCompanies = (state.companies || [])
-    .filter((company) => !company.deleted_at)
-    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "de"));
-
-  if (!activeCompanies.length) {
-    content.innerHTML = `
-      <div class="settings-form">
-        <p class="helper-text" style="color:var(--color-danger, red);">${escapeHtml(runtimeText("manualCompanyMatchNoCompanies"))}</p>
-        <div class="button-row">
-          <button type="button" class="ghost-button" id="docAssignCancelBtn">${escapeHtml(uiT("detailCloseTitle"))}</button>
-        </div>
-      </div>`;
-    const closeBtn = document.querySelector("#docAssignCancelBtn");
-    if (closeBtn) closeBtn.addEventListener("click", closePanel);
-    return;
-  }
-
-  content.innerHTML = `
-    <form id="docCompanyMatchForm" class="settings-form">
-      <p class="muted">${escapeHtml(runtimeText("manualCompanyMatchIntro"))}</p>
-      <label>
-        <span>${escapeHtml(runtimeText("manualCompanyMatchSearchLabel"))}</span>
-        <input id="docCompanyMatchFilter" type="text" placeholder="${escapeHtml(runtimeText("manualCompanyMatchSearchPlaceholder"))}" />
-      </label>
-      <label>
-        <span>${escapeHtml(uiT("labelFirm"))}</span>
-        <select id="docCompanyMatchSelect" required>
-          <option value="">${escapeHtml(runtimeText("selectPlaceholder"))}</option>
-        </select>
-      </label>
-      <div class="button-row">
-        <button type="submit" class="primary-button">${escapeHtml(uiT("btnAssignDoc"))}</button>
-        <button type="button" class="ghost-button" id="docAssignCancelBtn">${escapeHtml(uiT("btnBulkCancel"))}</button>
-      </div>
-      <p id="docCompanyMatchMsg" class="helper-text"></p>
-    </form>`;
-
-  const filterInput = document.querySelector("#docCompanyMatchFilter");
-  const selectEl = document.querySelector("#docCompanyMatchSelect");
-  const renderCompanyOptions = (filterValue = "") => {
-    if (!selectEl) return;
-    const prev = String(selectEl.value || "");
-    const needle = String(filterValue || "").trim().toLowerCase();
-    const options = activeCompanies
-      .filter((company) => {
-        if (!needle) return true;
-        const name = String(company.name || "").toLowerCase();
-        const mail = String(getCompanyDocumentEmail(company) || "").toLowerCase();
-        return name.includes(needle) || mail.includes(needle);
-      })
-      .map((company) => `<option value="${escapeHtml(String(company.id))}">${escapeHtml(String(company.name || uiT("labelFirm")))} (${escapeHtml(getCompanyDocumentEmail(company) || runtimeText("docEmailMissing"))})</option>`)
-      .join("");
-
-    selectEl.innerHTML = `<option value="">${escapeHtml(runtimeText("selectPlaceholder"))}</option>${options}`;
-    if (prev && Array.from(selectEl.options).some((opt) => opt.value === prev)) {
-      selectEl.value = prev;
-    }
-  };
-
-  renderCompanyOptions("");
-  if (filterInput) {
-    filterInput.addEventListener("input", () => {
-      renderCompanyOptions(filterInput.value);
-    });
-  }
-
-  const closeBtn = document.querySelector("#docAssignCancelBtn");
-  if (closeBtn) {
-    closeBtn.addEventListener("click", closePanel);
-  }
-
-  const form = document.querySelector("#docCompanyMatchForm");
-  if (!form) return;
-
-  if (filterInput) {
-    // UX: sofort Suchfeld fokussieren, damit direkt getippt werden kann.
-    window.setTimeout(() => {
-      filterInput.focus();
-      filterInput.select();
-    }, 0);
-
-    filterInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        if (!selectEl) return;
-        if (selectEl.value) {
-          return;
-        }
-        const firstRealOption = Array.from(selectEl.options).find((opt) => opt.value);
-        if (firstRealOption) {
-          selectEl.value = firstRealOption.value;
-        }
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closePanel();
-      }
-    });
-  }
-
-  form.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closePanel();
-    }
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (isSupportReadOnlyMode()) {
-      showSupportReadOnlyAlert();
-      return;
-    }
-    const companyId = String(document.querySelector("#docCompanyMatchSelect")?.value || "").trim();
-    const msgEl = document.querySelector("#docCompanyMatchMsg");
-    if (!companyId) {
-      if (msgEl) {
-        msgEl.textContent = runtimeText("manualCompanyMatchSelectCompany");
-        msgEl.style.color = "var(--color-danger, red)";
-      }
-      return;
-    }
-
-    try {
-      await apiRequest(`${API_BASE}/api/documents/inbox/${inboxId}/match-company`, {
-        method: "POST",
-        body: { companyId },
-      });
-      closePanel();
-      await loadDocumentInbox();
-    } catch (error) {
-      if (msgEl) {
-        msgEl.textContent = runtimeTextTemplate("manualCompanyMatchFailed", { error: error.message });
-        msgEl.style.color = "var(--color-danger, red)";
-      }
-    }
-  });
-}
-
-async function loadWorkerDocuments(workerId) {
-  try {
-    const data = await apiRequest(API_BASE + `/api/workers/${workerId}/documents`);
-    return Array.isArray(data) ? data : (data.documents || []);
-  } catch {
-    return [];
-  }
-}
-
-const DOC_TYPES_REQUIRING_EXPIRY_DATE = new Set(["personalausweis", "arbeitserlaubnis", "gesundheitszeugnis"]);
-
-function validateWorkerDocumentUpload(file, docType, expiryDate) {
-  if (!file || file.size <= 0) {
-    return "Die Datei ist leer.";
-  }
-
-  const normalizedExpiryDate = String(expiryDate || "").trim();
-  if (!normalizedExpiryDate) {
-    if (DOC_TYPES_REQUIRING_EXPIRY_DATE.has(String(docType || "").trim().toLowerCase())) {
-      return "Fuer diesen Dokumenttyp ist ein Gueltigkeitsdatum erforderlich.";
-    }
-    return "";
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedExpiryDate)) {
-    return "Das Gueltigkeitsdatum ist ungueltig.";
-  }
-
-  const parsedDate = new Date(`${normalizedExpiryDate}T00:00:00Z`);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return "Das Gueltigkeitsdatum ist ungueltig.";
-  }
-
-  const today = new Date().toISOString().slice(0, 10);
-  if (normalizedExpiryDate < today) {
-    return "Das Gueltigkeitsdatum darf nicht in der Vergangenheit liegen.";
-  }
-
-  return "";
-}
-
-async function uploadWorkerDocument(workerId, file, docType, notes, expiryDate) {
-  if (isSupportReadOnlyMode()) {
-    throw new Error("support_session_read_only");
-  }
-  const validationError = validateWorkerDocumentUpload(file, docType, expiryDate);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("docType", docType);
-  fd.append("notes", notes);
-  if (expiryDate) {
-    fd.append("expiryDate", expiryDate);
-  }
-  const response = await fetch(API_BASE + `/api/workers/${workerId}/documents/upload`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.message || payload?.error || `http_${response.status}`);
-  return payload;
-}
-
-function renderWorkerDocuments(docs, workerId, containerEl) {
-  if (!containerEl) return;
-  const role = String(getCurrentUser()?.role || "").toLowerCase();
-  const canDelete = ["superadmin", "company-admin"].includes(role);
-  const canUpload = ["superadmin", "company-admin", "turnstile"].includes(role);
-
-  // Doc-Status-Badges: welche Typen sind vorhanden / fehlen
-  const today = new Date().toISOString().slice(0, 10);
-  const presentTypes = new Set(docs.map((d) => d.doc_type));
-  const statusBadges = DOC_TYPES.map((d) => {
-    const present = presentTypes.has(d.value);
-    const docOfType = docs.find((x) => x.doc_type === d.value);
-    const expired = docOfType?.expiry_date && docOfType.expiry_date < today;
-    const icon = expired ? "⚠️" : present ? "✅" : "❌";
-    const color = expired ? "var(--color-warning, #b45309)" : present ? "var(--color-success, #166534)" : "var(--color-danger, #b42318)";
-    const label = uiT(d.key);
-    return `<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.82em; color:${color}; background:${present ? (expired ? "rgba(253,230,138,0.4)" : "rgba(187,247,208,0.4)") : "rgba(254,202,202,0.4)"}; border-radius:6px; padding:2px 8px; white-space:nowrap;">${icon} ${escapeHtml(label)}</span>`;
-  }).join("");
-  const statusRow = `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">${statusBadges}</div>`;
-
-  const docTypeOptions = DOC_TYPES.map((d) =>
-    `<option value="${escapeHtml(d.value)}">${escapeHtml(uiT(d.key))}</option>`
-  ).join("");
-
-  const uploadForm = canUpload ? `
-    <details style="margin-top:12px;">
-      <summary style="cursor:pointer; font-weight:600; padding:6px 0;">${escapeHtml(uiT("btnUploadWorkerDoc"))}</summary>
-      <form class="worker-doc-upload-form" style="margin-top:8px; display:flex; flex-direction:column; gap:8px;">
-        <input type="file" class="doc-upload-file" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx" required />
-        <select class="doc-upload-type" required>${docTypeOptions}</select>
-        <input type="text" class="doc-upload-notes" placeholder="${escapeHtml(uiT("docAssignNotesLabel"))}" />
-        <label style="display:flex; flex-direction:column; gap:4px;">
-          <span class="helper-text">${escapeHtml(runtimeText("docExpiryOptional"))}</span>
-          <input type="date" class="doc-upload-expiry" />
-        </label>
-        <div class="button-row">
-          <button type="submit" class="primary-button small-button">${escapeHtml(uiT("btnConfirmUpload"))}</button>
-        </div>
-        <p class="doc-upload-msg helper-text" style="display:none;"></p>
-      </form>
-    </details>` : "";
-
-  const listHtml = docs.length
-    ? `<ul class="document-list">` + docs.map((doc) => `
-      <li class="document-list-item">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-          <div>
-            <span style="font-weight:600;">📄 ${escapeHtml(docTypeLabelForValue(doc.doc_type))}</span>
-            <span class="muted" style="display:block; font-size:0.8em;">${escapeHtml(doc.filename)}</span>
-            ${doc.notes ? `<span class="muted" style="display:block; font-size:0.8em;">${escapeHtml(doc.notes)}</span>` : ""}
-            ${doc.expiry_date ? `<span class="muted" style="display:block; font-size:0.8em; color:${doc.expiry_date < new Date().toISOString().slice(0, 10) ? "var(--color-danger, #b42318)" : "inherit"};">${escapeHtml(runtimeText("docExpiryLabel"))}: ${escapeHtml(doc.expiry_date)}</span>` : ""}
-            <span class="muted" style="display:block; font-size:0.8em;">${escapeHtml(doc.created_at ? formatTimestamp(doc.created_at) : "")}</span>
-          </div>
-          <div class="button-row" style="flex-shrink:0;">
-            <a class="ghost-button small-button" href="${API_BASE}/api/workers/${workerId}/documents/${doc.id}/download" target="_blank" rel="noopener noreferrer">${escapeHtml(uiT("btnDownloadDoc"))}</a>
-            ${canDelete ? `<button class="ghost-button small-button danger" data-delete-doc-id="${escapeHtml(String(doc.id))}">${escapeHtml(uiT("btnDeleteDoc"))}</button>` : ""}
-          </div>
-        </div>
-      </li>`).join("") + `</ul>`
-    : `<p class="muted">${escapeHtml(uiT("workerDocsEmpty"))}</p>`;
-
-  containerEl.innerHTML = statusRow + listHtml + uploadForm;
-
-  containerEl.querySelectorAll("[data-delete-doc-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      if (!window.confirm(uiT("confirmDeleteDoc"))) return;
-      try {
-        await apiRequest(API_BASE + `/api/workers/${workerId}/documents/${btn.dataset.deleteDocId}`, { method: "DELETE" });
-        const updatedDocs = await loadWorkerDocuments(workerId);
-        renderWorkerDocuments(updatedDocs, workerId, containerEl);
-      } catch (e) {
-        window.alert(e.message);
-      }
-    });
-  });
-
-  const uploadFormEl = containerEl.querySelector(".worker-doc-upload-form");
-  if (uploadFormEl) {
-    uploadFormEl.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      const fileInput = uploadFormEl.querySelector(".doc-upload-file");
-      const typeSelect = uploadFormEl.querySelector(".doc-upload-type");
-      const notesInput = uploadFormEl.querySelector(".doc-upload-notes");
-      const expiryInput = uploadFormEl.querySelector(".doc-upload-expiry");
-      const msgEl = uploadFormEl.querySelector(".doc-upload-msg");
-      const submitBtn = uploadFormEl.querySelector("[type='submit']");
-      const file = fileInput?.files?.[0];
-      if (!file) return;
-      submitBtn.disabled = true;
-      msgEl.style.display = "none";
-      try {
-        await uploadWorkerDocument(workerId, file, typeSelect.value, notesInput.value.trim(), expiryInput?.value || "");
-        msgEl.textContent = uiT("docUploadSuccess");
-        msgEl.style.color = "var(--color-success, green)";
-        msgEl.style.display = "";
-        uploadFormEl.reset();
-        const updatedDocs = await loadWorkerDocuments(workerId);
-        renderWorkerDocuments(updatedDocs, workerId, containerEl);
-      } catch (err) {
-        msgEl.textContent = err.message === "support_session_read_only" ? uiT("supportReadOnlyShort") : err.message;
-        msgEl.style.color = "var(--color-danger, red)";
-        msgEl.style.display = "";
-        submitBtn.disabled = false;
-      }
-    });
-  }
-
-  applySupportReadOnlyUiState();
-}
-
-// Dokument-Inbox beim Wechsel zur documents-View laden
-// DOM ist bereits bereit wenn app.js am Ende von <body> läuft.
-// Führe sofort aus, statt auf DOMContentLoaded zu warten (wird sonst nie gefeuert).
-(function initDocumentSection() {
-  // Documents Nav-Link
-  const docNavLink = document.querySelector("[data-view='documents']");
-  if (docNavLink) {
-    docNavLink.addEventListener("click", () => {
-      if (!token) {
-        handleExpiredControlSession();
-        return;
-      }
-      loadDocumentInbox();
-    });
-  }
-
-  const refreshBtn = document.querySelector("#docInboxRefreshBtn");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", () => {
-      if (!token) {
-        handleExpiredControlSession();
-        return;
-      }
-      loadDocumentInbox();
-    });
-  }
-
-  // Ablaufende Dokumente: Filter + Aktualisieren-Button
-  const expiringRefreshBtn = document.querySelector("#expiringDocsRefreshBtn");
-  if (expiringRefreshBtn) {
-    expiringRefreshBtn.addEventListener("click", () => {
-      if (!token) { handleExpiredControlSession(); return; }
-      loadExpiringDocuments().catch(() => {});
-    });
-  }
-  const expiringDaysFilter = document.querySelector("#expiringDocsDaysFilter");
-  if (expiringDaysFilter) {
-    expiringDaysFilter.addEventListener("change", () => {
-      if (!token) { handleExpiredControlSession(); return; }
-      loadExpiringDocuments().catch(() => {});
-    });
-  }
-
-  // Zeige die konfigurierte Dokument-E-Mail-Adresse für den Pförtner
-  function updateDocEmailInfoBar() {
-    const bar = document.querySelector("#docEmailInfoBar");
-    const addrEl = document.querySelector("#docEmailInfoAddr");
-    const copyBtn = document.querySelector("#docEmailCopyBtn");
-    if (!bar || !addrEl) return;
-    const currentUser = getCurrentUser();
-    const role = String(currentUser?.role || "").toLowerCase();
-    const currentCompanyId = currentUser?.company_id || currentUser?.companyId || "";
-    const currentCompany = (state.companies || []).find((company) => company.id === currentCompanyId);
-    const companyEmail = getCompanyDocumentEmail(currentCompany);
-    const globalEmail = (state.settings?.imapUsername || "").trim();
-    const email = companyEmail || (role === "superadmin" ? globalEmail : "");
-    if (email) {
-      addrEl.textContent = email;
-      bar.style.display = "";
-    } else {
-      bar.style.display = "none";
-    }
-    if (copyBtn) {
-      copyBtn.onclick = async () => {
-        try {
-          if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(email);
-          } else {
-            window.prompt(uiT("docEmailInfoLabel"), email);
-          }
-          const orig = copyBtn.textContent;
-          copyBtn.textContent = uiT("btnCopyEmailDone");
-          window.setTimeout(() => { copyBtn.textContent = orig; }, 1800);
-        } catch {
-          window.prompt(uiT("docEmailInfoLabel"), email);
-        }
-      };
-    }
-  }
-
-  updateDocEmailInfoBar();
-  // Auch aktualisieren wenn Einstellungen neu geladen werden
-  document.addEventListener("baupass:settingsLoaded", updateDocEmailInfoBar);
-
-  const runDocumentInboxSync = async (buttonEl) => {
-    if (isSupportReadOnlyMode()) {
-      showSupportReadOnlyAlert();
-      return;
-    }
-    if (buttonEl) buttonEl.disabled = true;
-    try {
-      const res = await apiRequest(API_BASE + "/api/documents/imap/trigger", { method: "POST" });
-      const imapStatus = res?.imap?.status;
-      if (imapStatus === "not_configured") {
-        window.alert(getImapNotConfiguredMessage(res?.imap));
-      } else if (imapStatus === "connect_error" || imapStatus === "error") {
-        window.alert(runtimeTextTemplate("imapErrorWithReason", { reason: res?.imap?.error || runtimeText("genericUnknownError") }));
-      }
-      await loadDocumentInbox();
-    } catch (e) {
-      if (e?.message === "backend_unreachable") {
-        window.alert(getBackendUnreachableMessage());
-      } else {
-        window.alert(e.message);
-      }
-    } finally {
-      if (buttonEl) buttonEl.disabled = false;
-    }
-  };
-
-  const syncBtn = document.querySelector("#docInboxSyncBtn");
-  if (syncBtn) {
-    syncBtn.addEventListener("click", async () => {
-      if (!token) {
-        handleExpiredControlSession();
-        return;
-      }
-      await runDocumentInboxSync(syncBtn);
-    });
-  }
-
-  const rematchBtn = document.querySelector("#docInboxRematchBtn");
-  if (rematchBtn) {
-    rematchBtn.style.display = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin" ? "" : "none";
-    rematchBtn.addEventListener("click", async () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      if (!token) {
-        handleExpiredControlSession();
-        return;
-      }
-      rematchBtn.disabled = true;
-      try {
-        const res = await apiRequest(API_BASE + "/api/documents/inbox/rematch-company-links", { method: "POST", body: {} });
-        await loadDocumentInbox();
-        window.alert(uiT("alertReassignmentDone").replace("{count}", Number(res?.matchedCount || 0)));
-      } catch (error) {
-        window.alert(uiT("alertReassignmentFailed").replace("{error}", error.message));
-      } finally {
-        rematchBtn.disabled = false;
-      }
-    });
-  }
-
-  // IMAP-Test-Button
-  const imapTestBtn = document.querySelector("#imapTestBtn");
-  if (imapTestBtn) {
-    imapTestBtn.addEventListener("click", async () => {
-      if (isSupportReadOnlyMode()) {
-        showSupportReadOnlyAlert();
-        return;
-      }
-      const resultEl = document.querySelector("#imapTestResult");
-      const imapHost = (document.querySelector("#imapHost")?.value || "").trim();
-      const imapUsername = (document.querySelector("#imapUsername")?.value || "").trim();
-      const imapPassword = document.querySelector("#imapPassword")?.value || "";
-      if (!imapHost || !imapUsername || !imapPassword) {
-        if (resultEl) {
-          resultEl.textContent = runtimeText("imapTestMissingFields");
-          resultEl.style.color = "var(--color-danger, red)";
-        }
-        return;
-      }
-      imapTestBtn.disabled = true;
-      if (resultEl) resultEl.textContent = runtimeText("imapTesting");
-      try {
-        const res = await apiRequest(API_BASE + "/api/settings/imap/test", {
-          method: "POST",
-          body: {
-            imapHost,
-            imapPort: Number(document.querySelector("#imapPort")?.value || 993),
-            imapUsername,
-            imapPassword,
-            imapFolder: (document.querySelector("#imapFolder")?.value || "INBOX").trim() || "INBOX",
-            imapUseSsl: document.querySelector("#imapUseSsl")?.value !== "0",
-          },
-        });
-        if (resultEl) {
-          resultEl.textContent = uiT("imapTestOk") + (res.message ? ` (${res.message})` : "");
-          resultEl.style.color = "var(--color-success, green)";
-        }
-      } catch (e) {
-        if (resultEl) {
-          resultEl.textContent = `${uiT("imapTestFail")}: ${e.message}`;
-          resultEl.style.color = "var(--color-danger, red)";
-        }
-      } finally {
-        imapTestBtn.disabled = false;
-      }
-    });
-  }
-
-  if (elements.loginResetPasswordButton) {
-    elements.loginResetPasswordButton.addEventListener("click", requestPasswordResetFromLogin);
-  }
-
-  // ── Impressum / Datenschutz Modal ─────────────────────────────────────────
-  const legalModal = document.getElementById("legalModal");
-  const legalModalTitle = document.getElementById("legalModalTitle");
-  const legalModalBody = document.getElementById("legalModalBody");
-  const legalModalClose = document.getElementById("legalModalClose");
-
-  function openLegalModal(title, text) {
-    if (!legalModal) return;
-    if (legalModalTitle) legalModalTitle.textContent = title;
-    if (legalModalBody) legalModalBody.textContent = text || uiT("legalFallbackEmpty");
-    legalModal.classList.remove("hidden");
-    legalModal.focus?.();
-  }
-
-  if (legalModalClose) {
-    legalModalClose.addEventListener("click", () => legalModal?.classList.add("hidden"));
-  }
-  if (legalModal) {
-    legalModal.addEventListener("click", (event) => {
-      if (event.target === legalModal) legalModal.classList.add("hidden");
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !legalModal.classList.contains("hidden")) {
-        legalModal.classList.add("hidden");
-      }
-    });
-  }
-
-  const showImpressumBtn = document.getElementById("showImpressumBtn");
-  const showDatenschutzBtn = document.getElementById("showDatenschutzBtn");
-  if (showImpressumBtn) {
-    showImpressumBtn.addEventListener("click", () => {
-      openLegalModal(uiT("legalImpressum"), state.settings?.impressumText || "");
-    });
-  }
-  if (showDatenschutzBtn) {
-    showDatenschutzBtn.addEventListener("click", () => {
-      openLegalModal(uiT("legalPrivacy"), state.settings?.datenschutzText || "");
-    });
-  }
-
-  maybeHandlePasswordResetToken();
-
-  // ── Feld-Formatierung: IBAN, BIC, Versicherungsnummer ─────────────────────
-  (function setupSecureFieldFormatters() {
-    function sanitizeTaxId(value) {
-      const normalized = String(value || "").replace(/[^0-9/.-]/g, "");
-      return normalized.slice(0, 18);
-    }
-
-    function sanitizeVatId(value) {
-      const normalized = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-      return normalized.slice(0, 14);
-    }
-
-    function isValidTaxId(value) {
-      const text = sanitizeTaxId(value);
-      const digits = text.replace(/\D/g, "");
-      return /^[0-9/.-]{8,18}$/.test(text) && digits.length >= 8 && digits.length <= 13;
-    }
-
-    function isValidVatId(value) {
-      const text = sanitizeVatId(value);
-      if (!text) return true; // leer = optional
-      const country = text.slice(0, 2);
-      if (country === "DE") return /^DE\d{9}$/.test(text);
-      if (country === "AT") return /^ATU\d{8}$/.test(text);
-      if (country === "CH") return /^CHE\d{9}$/.test(text);
-      if (country === "NL") return /^NL\d{9}B\d{2}$/.test(text);
-      if (country === "FR") return /^FR[A-Z0-9]{2}\d{9}$/.test(text);
-      if (country === "IT") return /^IT\d{11}$/.test(text);
-      if (country === "PL") return /^PL\d{10}$/.test(text);
-      if (country === "ES") return /^ES[A-Z0-9]\d{7}[A-Z0-9]$/.test(text);
-      if (country === "BE") return /^BE\d{10}$/.test(text);
-      if (country === "LU") return /^LU\d{8}$/.test(text);
-      // Generische Regel für alle anderen EU-Länder
-      return /^[A-Z]{2}[A-Z0-9]{8,12}$/.test(text);
-    }
-
-    function setInvoiceFieldState(selector, valid, invalidMessage) {
-      if (valid) {
-        markInvoiceFieldValid(selector);
-      } else {
-        markInvoiceFieldInvalid(selector, invalidMessage);
-      }
-    }
-
-    function bindLiveFieldValidation(selector, validator, invalidMessage) {
-      const el = document.querySelector(selector);
-      if (!el) return;
-      const run = () => {
-        const value = String(el.value || "").trim();
-        const isValid = validator(value);
-        setInvoiceFieldState(selector, isValid, invalidMessage);
-      };
-      el.addEventListener("input", run);
-      el.addEventListener("change", run);
-      run();
-    }
-
-    // IBAN: Großbuchstaben + automatische 4er-Gruppen + erste 2 Zeichen müssen Buchstaben sein
-    const ibanInput = document.querySelector("#invoiceIban");
-    if (ibanInput) {
-      ibanInput.addEventListener("input", function () {
-        const pos = this.selectionStart;
-        // Normalisieren: nur A-Z und 0-9 behalten, Großbuchstaben
-        let raw = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-        // Ersten 2 Zeichen müssen Buchstaben sein (IBAN-Ländercode)
-        if (raw.length >= 1 && !/^[A-Z]/.test(raw[0])) {
-          raw = raw.replace(/^[^A-Z]+/, "");
-        }
-        if (raw.length >= 2 && !/^[A-Z]{2}/.test(raw.substring(0, 2))) {
-          raw = raw[0] + raw.substring(1).replace(/^[^A-Z]+/, "");
-        }
-        // Gruppen à 4 Zeichen mit Leerzeichen trennen
-        const grouped = raw.match(/.{1,4}/g)?.join(" ") || raw;
-        if (this.value !== grouped) {
-          this.value = grouped;
-          // Cursor-Position anpassen (Leerzeichen berücksichtigen)
-          const extra = (grouped.substring(0, pos).match(/ /g) || []).length;
-          const rawPos = pos - extra;
-          const newExtra = (grouped.substring(0, rawPos + Math.floor(rawPos / 4)).match(/ /g) || []).length;
-          try { this.setSelectionRange(rawPos + newExtra, rawPos + newExtra); } catch (_) {}
-        }
-        const normalized = normalizeIban(this.value);
-        if (!normalized) {
-          // Feld leer – kein Fehler anzeigen
-          markInvoiceFieldValid("#invoiceIban");
-        } else {
-          const _cc = normalized.slice(0, 2);
-          const _expectedLen = IBAN_LENGTHS[_cc];
-          const _minLen = _expectedLen || 15;
-          if (normalized.length >= _minLen) {
-            // Vollständige Länge erreicht – vollständig prüfen
-            setInvoiceFieldState("#invoiceIban", isValidIban(normalized), runtimeText("invoiceValidationIban"));
-          } else {
-            // Noch am Tippen – keinen Fehler anzeigen
-            markInvoiceFieldValid("#invoiceIban");
-          }
-        }
-      });
-      // Bei Verlassen des Feldes immer vollständig prüfen
-      ibanInput.addEventListener("blur", function () {
-        const normalized = normalizeIban(this.value);
-        if (!normalized) { markInvoiceFieldValid("#invoiceIban"); return; }
-        setInvoiceFieldState("#invoiceIban", isValidIban(normalized), runtimeText("invoiceValidationIban"));
-      });
-    }
-
-    // BIC: Großbuchstaben + nur A-Z und 0-9
-    const bicInput = document.querySelector("#invoiceBic");
-    if (bicInput) {
-      bicInput.addEventListener("input", function () {
-        const cleaned = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
-        if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), runtimeText("invoiceValidationBic"));
-      });
-    }
-
-    const taxIdInput = document.querySelector("#invoiceTaxId");
-    if (taxIdInput) {
-      taxIdInput.addEventListener("input", function () {
-        const cleaned = sanitizeTaxId(this.value);
-        if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), runtimeText("invoiceValidationTaxId"));
-      });
-    }
-
-    const vatIdInput = document.querySelector("#invoiceVatId");
-    if (vatIdInput) {
-      vatIdInput.addEventListener("input", function () {
-        const cleaned = sanitizeVatId(this.value);
-        if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), runtimeText("invoiceValidationVatId"));
-      });
-    }
-
-    const bankNameInput = document.querySelector("#invoiceBankName");
-    if (bankNameInput) {
-      bankNameInput.addEventListener("input", function () {
-        const cleaned = String(this.value || "").replace(/\s{2,}/g, " ").trimStart().slice(0, 80);
-        if (this.value !== cleaned) this.value = cleaned;
-        setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, runtimeText("invoiceValidationBankName"));
-      });
-    }
-
-    bindLiveFieldValidation("#invoiceOperatorStreet", (value) => value.length >= 5, runtimeText("invoiceValidationAddress"));
-    bindLiveFieldValidation("#invoiceOperatorZipCity", (value) => value.length >= 5, runtimeText("invoiceValidationZipCity"));
-    bindLiveFieldValidation("#invoiceOperatorEmail", (value) => isValidEmailValue(value), runtimeText("invoiceValidationEmail"));
-
-    if (ibanInput) {
-      const normalized = normalizeIban(ibanInput.value || "");
-      if (!normalized) { markInvoiceFieldValid("#invoiceIban"); }
-      else { setInvoiceFieldState("#invoiceIban", isValidIban(normalized), runtimeText("invoiceValidationIban")); }
-    }
-    if (bicInput) {
-      const cleaned = String(bicInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
-      bicInput.value = cleaned;
-      setInvoiceFieldState("#invoiceBic", isValidBic(cleaned), runtimeText("invoiceValidationBic"));
-    }
-    if (taxIdInput) {
-      const cleaned = sanitizeTaxId(taxIdInput.value);
-      taxIdInput.value = cleaned;
-      setInvoiceFieldState("#invoiceTaxId", isValidTaxId(cleaned), runtimeText("invoiceValidationTaxId"));
-    }
-    if (vatIdInput) {
-      const cleaned = sanitizeVatId(vatIdInput.value);
-      vatIdInput.value = cleaned;
-      setInvoiceFieldState("#invoiceVatId", isValidVatId(cleaned), runtimeText("invoiceValidationVatId"));
-    }
-    if (bankNameInput) {
-      const cleaned = String(bankNameInput.value || "").replace(/\s{2,}/g, " ").trimStart().slice(0, 80);
-      bankNameInput.value = cleaned;
-      setInvoiceFieldState("#invoiceBankName", cleaned.length >= 3, runtimeText("invoiceValidationBankName"));
-    }
-
-    // Versicherungsnummer: Format "12 345678 A 123" (max 15 Zeichen mit Leerzeichen)
-    const svInput = document.querySelector("#insuranceNumber");
-    if (svInput) {
-      svInput.addEventListener("input", function () {
-        const raw = this.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-        if (!raw) { this.value = ""; return; }
-        // Format: 2 digits – 6 digits – 1 letter – 3 digits → "12 345678 A 123"
-        let formatted = raw;
-        if (raw.length > 2)  formatted = raw.substring(0, 2) + " " + raw.substring(2);
-        if (raw.length > 8)  formatted = raw.substring(0, 2) + " " + raw.substring(2, 8) + " " + raw.substring(8);
-        if (raw.length > 9)  formatted = raw.substring(0, 2) + " " + raw.substring(2, 8) + " " + raw.substring(8, 9) + " " + raw.substring(9);
-        if (this.value !== formatted) this.value = formatted;
-      });
-    }
-  })();
-})();
-
 // ============ ADMIN PANEL: LEAVE REQUESTS, EXPORTS, PUSH NOTIFICATIONS ============
 
 /**
  * Load and display leave requests list
+ * Fetches all pending/approved/rejected leave requests from backend
  */
 async function loadLeaveRequests(filterStatus = null) {
-  const container = document.getElementById("leaveRequestsTable");
-  if (container) container.innerHTML = '<p class="muted-info" style="padding:16px;">Lade Daten…</p>';
   try {
     const sessionToken = loadStoredSessionToken();
-    if (!sessionToken) { showAlert("alertSessionExpired"); return; }
+    if (!sessionToken) {
+      showAlert("alertSessionExpired");
+      return;
+    }
 
     const response = await fetch(`${API_BASE}/api/leave-requests`, {
       method: "GET",
-      headers: { "Authorization": `Bearer ${sessionToken}`, "Content-Type": "application/json" },
-    });
-    if (!response.ok) {
-      if (response.status === 401) { showAlert("alertSessionExpired"); return; }
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const requests = await response.json();
-    renderLeaveRequestsTable(requests, filterStatus);
-  } catch (error) {
-    if (container) container.innerHTML = '<p class="muted-info" style="padding:16px;">Fehler beim Laden.</p>';
-    console.warn("loadLeaveRequests:", error);
-  }
-}
-
-function renderLeaveRequestsTable(requests, filterStatus = null) {
-  const container = document.getElementById("leaveRequestsTable");
-  if (!container) return;
-
-  const filtered = filterStatus ? requests.filter(r => r.status === filterStatus) : requests;
-  const pending = requests.filter(r => r.status === "ausstehend").length;
-  updateLeavePendingBadge(pending);
-
-  const typeLabel = (t) => ({ urlaub: "Urlaub", krank: "Krank", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" }[t] || t || "–");
-  const statusLabel = (s) => ({ ausstehend: "Ausstehend", genehmigt: "Genehmigt", abgelehnt: "Abgelehnt" }[s] || s || "–");
-  const statusIcon = (s) => ({ ausstehend: "⏳", genehmigt: "✓", abgelehnt: "✗" }[s] || "");
-
-  const filterBar = `
-    <div class="leave-filter-bar">
-      <button class="btn-filter${!filterStatus ? " active" : ""}" onclick="loadLeaveRequests()">Alle (${requests.length})</button>
-      <button class="btn-filter${filterStatus === "ausstehend" ? " active" : ""}" onclick="loadLeaveRequests('ausstehend')">⏳ Ausstehend${pending > 0 ? ` (${pending})` : ""}</button>
-      <button class="btn-filter${filterStatus === "genehmigt" ? " active" : ""}" onclick="loadLeaveRequests('genehmigt')">✓ Genehmigt</button>
-      <button class="btn-filter${filterStatus === "abgelehnt" ? " active" : ""}" onclick="loadLeaveRequests('abgelehnt')">✗ Abgelehnt</button>
-    </div>`;
-
-  if (filtered.length === 0) {
-    container.innerHTML = filterBar + '<p class="muted-info" style="padding:16px;">Keine Anträge gefunden.</p>';
-    return;
-  }
-
-  container.innerHTML = filterBar + `
-    <div class="leave-cards-grid">
-      ${filtered.map(req => `
-        <div class="leave-card leave-card-${req.status || "ausstehend"}">
-          <div class="leave-card-header">
-            <span class="leave-card-worker">${escapeHtml(req.worker_name || (req.first_name ? req.first_name + " " + req.last_name : String(req.worker_id || "–")))}</span>
-            <span class="leave-card-status leave-status-${req.status}">${statusIcon(req.status)} ${statusLabel(req.status)}</span>
-          </div>
-          <div class="leave-card-type">${typeLabel(req.type)}</div>
-          <div class="leave-card-dates">
-            ${req.start_date} → ${req.end_date}
-            ${req.days_count > 0 ? `<span class="leave-card-days">${req.days_count} AT</span>` : ""}
-          </div>
-          ${req.note ? `<div class="leave-card-note">${escapeHtml(req.note)}</div>` : ""}
-          ${req.review_note ? `<div class="leave-card-review-note">📋 ${escapeHtml(req.review_note)}</div>` : ""}
-          ${req.email_forwarded_to ? `<div class="leave-card-forwarded">📧 ${escapeHtml(req.email_forwarded_to)}</div>` : ""}
-          ${req.status === "ausstehend" ? `
-            <div class="leave-card-actions">
-              <button class="btn-small btn-approve" onclick="approveLeaveRequest(${req.id})">✓ Genehmigen</button>
-              <button class="btn-small btn-danger" onclick="rejectLeaveRequest(${req.id})">✗ Ablehnen</button>
-            </div>` : ""}
-        </div>
-      `).join("")}
-    </div>`;
-}
-
-function updateLeavePendingBadge(count) {
-  const badge = document.getElementById("leavePendingBadge");
-  if (!badge) return;
-  if (count > 0) {
-    badge.textContent = count;
-    badge.classList.remove("hidden");
-  } else {
-    badge.classList.add("hidden");
-  }
-}
-
-/**
- * Approve leave request
- */
-async function approveLeaveRequest(id) {
-  try {
-    const sessionToken = loadStoredSessionToken();
-    const response = await fetch(`${API_BASE}/api/leave-requests/${id}`, {
-      method: "PUT",
       headers: {
         "Authorization": `Bearer ${sessionToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ status: "genehmigt" }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    showToast('Antrag genehmigt', 'success');
-    loadLeaveRequests();
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        showAlert("alertSessionExpired");
+      } else {
+        showAlert("alertActionFailed", { error: `HTTP ${response.status}` });
+      }
+      return;
+    }
+
+    const requests = await response.json();
+    renderLeaveRequestsTable(requests, filterStatus);
   } catch (error) {
-    showAlert('alertActionFailed', { error: String(error) });
+    showAlert("alertActionFailed", { error: String(error) });
+  }
+}
+
+function renderLeaveRequestsTable(requests, filterStatus = null) {
+  const container = document.getElementById("leaveRequestsTable") || createLeaveRequestsPanel();
+  const filtered = filterStatus
+    ? requests.filter((req) => req.status === filterStatus)
+    : requests;
+
+  const pendingCount = requests.filter((req) => req.status === "ausstehend").length;
+  const pendingBadge = document.getElementById("leavePendingBadge");
+  if (pendingBadge) {
+    pendingBadge.textContent = String(pendingCount);
+    pendingBadge.classList.toggle("hidden", pendingCount === 0);
+  }
+
+  container.innerHTML = `
+    <div class="leave-filter-bar">
+      <button class="btn-filter ${!filterStatus ? "active" : ""}" onclick="loadLeaveRequests()">Alle</button>
+      <button class="btn-filter ${filterStatus === "ausstehend" ? "active" : ""}" onclick="loadLeaveRequests('ausstehend')">Ausstehend</button>
+      <button class="btn-filter ${filterStatus === "genehmigt" ? "active" : ""}" onclick="loadLeaveRequests('genehmigt')">Genehmigt</button>
+      <button class="btn-filter ${filterStatus === "abgelehnt" ? "active" : ""}" onclick="loadLeaveRequests('abgelehnt')">Abgelehnt</button>
+    </div>
+    <div class="leave-cards-grid">
+      ${filtered.map((req) => {
+        const requestId = String(req.id || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const statusClass = `leave-status-${String(req.status || "").toLowerCase()}`;
+        const cardClass = `leave-card leave-card-${String(req.status || "").toLowerCase()}`;
+        const daysText = Number(req.days_count || 0) > 0 ? `${Number(req.days_count)} Tage` : "-";
+        const actions = req.status === "ausstehend"
+          ? `
+            <div class="leave-card-actions">
+              <button class="primary-button btn-approve" onclick="approveLeaveRequest('${requestId}')">✓ Genehmigen</button>
+              <button class="ghost-button btn-danger-solid" onclick="rejectLeaveRequest('${requestId}')">✗ Ablehnen</button>
+              <button class="ghost-button" onclick="downloadLeaveRequestPdf('${requestId}')">⬇ PDF</button>
+            </div>
+          `
+          : `
+            <div class="leave-card-actions">
+              <button class="ghost-button" onclick="downloadLeaveRequestPdf('${requestId}')">⬇ PDF</button>
+            </div>
+          `;
+        return `
+          <article class="${cardClass}">
+            <div class="leave-card-header">
+              <div class="leave-card-worker">${escapeHtml(req.worker_name || req.worker_id || "-")}</div>
+              <div class="leave-card-status ${statusClass}">${escapeHtml(req.status || "-")}</div>
+            </div>
+            <div class="leave-card-type">${escapeHtml(req.type || "-")}</div>
+            <div class="leave-card-dates">
+              <span>${escapeHtml(req.start_date || "-")} - ${escapeHtml(req.end_date || "-")}</span>
+              <span class="leave-card-days">${escapeHtml(daysText)}</span>
+            </div>
+            ${req.note ? `<div class="leave-card-note">${escapeHtml(req.note)}</div>` : ""}
+            ${req.review_note ? `<div class="leave-card-review-note">Entscheidungsnotiz: ${escapeHtml(req.review_note)}</div>` : ""}
+            ${req.email_forwarded_to ? `<div class="leave-card-forwarded">📧 Weitergeleitet an: ${escapeHtml(req.email_forwarded_to)}</div>` : ""}
+            ${actions}
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function createLeaveRequestsPanel() {
+  const panel = document.createElement("div");
+  panel.id = "leaveRequestsTable";
+  document.body.appendChild(panel);
+  return panel;
+}
+
+async function downloadLeaveRequestPdf(requestId) {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) {
+      showAlert("alertSessionExpired");
+      return;
+    }
+    const response = await fetch(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}/export.pdf`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${sessionToken}` }
+    });
+    if (!response.ok) {
+      showAlert("alertActionFailed", { error: `HTTP ${response.status}` });
+      return;
+    }
+    const blob = await response.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `urlaubsantrag_${String(requestId)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (error) {
+    showAlert("alertActionFailed", { error: String(error) });
   }
 }
 
 /**
- * Reject leave request
+ * Approve a leave request
  */
-function rejectLeaveRequest(requestId) {
+async function approveLeaveRequest(requestId) {
+  try {
+    await apiRequest(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`, {
+      method: "PUT",
+      body: { status: "genehmigt" },
+    });
+
+    showAlert("alertApprovalConfirmed");
+    loadLeaveRequests();
+  } catch (error) {
+    if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
+      showSupportReadOnlyAlert();
+      return;
+    }
+    showAlert("alertActionFailed", { error: String(error) });
+  }
+}
+
+/**
+ * Reject a leave request with optional review note
+ */
+async function rejectLeaveRequest(requestId) {
   const modal = document.getElementById("leaveRejectModal");
   const noteEl = document.getElementById("leaveRejectNote");
-  if (!modal) return;
+  if (!modal || !noteEl) {
+    showAlert("alertActionFailed", { error: "Reject-Modal fehlt" });
+    return;
+  }
+
   noteEl.value = "";
   modal.classList.remove("hidden");
   noteEl.focus();
 
-  function cleanup() {
+  const cleanup = () => {
     modal.classList.add("hidden");
-    const c = document.getElementById("leaveRejectConfirmBtn");
-    const x = document.getElementById("leaveRejectCancelBtn");
-    if (c) { const nc = c.cloneNode(true); c.replaceWith(nc); }
-    if (x) { const nx = x.cloneNode(true); x.replaceWith(nx); }
+    const confirmBtn = document.getElementById("leaveRejectConfirmBtn");
+    const cancelBtn = document.getElementById("leaveRejectCancelBtn");
+    if (confirmBtn) {
+      const cloned = confirmBtn.cloneNode(true);
+      confirmBtn.replaceWith(cloned);
+    }
+    if (cancelBtn) {
+      const cloned = cancelBtn.cloneNode(true);
+      cancelBtn.replaceWith(cloned);
+    }
+  };
+
+  const cancelBtn = document.getElementById("leaveRejectCancelBtn");
+  const confirmBtn = document.getElementById("leaveRejectConfirmBtn");
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", cleanup, { once: true });
+  }
+  if (!confirmBtn) {
+    cleanup();
+    return;
   }
 
-  document.getElementById("leaveRejectCancelBtn").addEventListener("click", cleanup, { once: true });
-  document.getElementById("leaveRejectConfirmBtn").addEventListener("click", async () => {
-    const note = (noteEl.value || "").trim();
+  confirmBtn.addEventListener("click", async () => {
+    const reason = (noteEl.value || "").trim();
+    if (!reason) {
+      showAlert("alertApprovalRejectReasonRequired");
+      return;
+    }
+
     cleanup();
+
     try {
-      const sessionToken = loadStoredSessionToken();
-      if (!sessionToken) { showAlert("alertSessionExpired"); return; }
-      const response = await fetch(`${API_BASE}/api/leave-requests/${requestId}`, {
+      await apiRequest(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`, {
         method: "PUT",
-        headers: { "Authorization": `Bearer ${sessionToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "abgelehnt", review_note: note }),
+        body: {
+          status: "abgelehnt",
+          review_note: reason,
+        },
       });
-      if (!response.ok) { showAlert("alertActionFailed", { error: `HTTP ${response.status}` }); return; }
+
       showToast("Antrag abgelehnt", "info");
       loadLeaveRequests();
     } catch (error) {
+      if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
+        showSupportReadOnlyAlert();
+        return;
+      }
       showAlert("alertActionFailed", { error: String(error) });
     }
   }, { once: true });
 }
 
 /**
- * Export timesheets CSV
+ * Export timesheets as CSV
  */
 async function exportTimesheets() {
   try {
     const sessionToken = loadStoredSessionToken();
-    const response = await fetch(`${API_BASE}/api/export/timesheets`, {
+    if (!sessionToken) {
+      showAlert("alertSessionExpired");
+      return;
+    }
+
+    const fromDate = document.getElementById("timesheetFromDate")?.value || "";
+    const toDate = document.getElementById("timesheetToDate")?.value || "";
+    const companyId = loadSupportLoginContext()?.companyId || "";
+
+    let queryParams = "";
+    if (companyId) queryParams += `company_id=${companyId}&`;
+    if (fromDate) queryParams += `from=${fromDate}&`;
+    if (toDate) queryParams += `to=${toDate}&`;
+
+    const url = `${API_BASE}/api/export/timesheets${queryParams ? "?" + queryParams.slice(0, -1) : ""}`;
+
+    const response = await fetch(url, {
       method: "GET",
-      headers: { "Authorization": `Bearer ${sessionToken}` },
+      headers: {
+        "Authorization": `Bearer ${sessionToken}`,
+      },
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    if (!response.ok) {
+      showAlert("alertCsvExportFailed", { error: `HTTP ${response.status}` });
+      return;
+    }
+
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `timesheets_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const filename = `timesheets_${new Date().toISOString().split("T")[0]}.csv`;
+    downloadBlob(blob, filename);
   } catch (error) {
-    alert('Export failed: ' + error.message);
+    showAlert("alertCsvExportFailed", { error: String(error) });
   }
 }
 
 /**
- * Export audit logs CSV
+ * Export audit logs as CSV
  */
 async function exportAuditLogs() {
   try {
     const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) {
+      showAlert("alertSessionExpired");
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/api/export/audit-logs`, {
       method: "GET",
-      headers: { "Authorization": `Bearer ${sessionToken}` },
+      headers: {
+        "Authorization": `Bearer ${sessionToken}`,
+      },
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    if (!response.ok) {
+      showAlert("alertCsvExportFailed", { error: `HTTP ${response.status}` });
+      return;
+    }
+
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const filename = `audit_logs_${new Date().toISOString().split("T")[0]}.csv`;
+    downloadBlob(blob, filename);
   } catch (error) {
-    alert('Export failed: ' + error.message);
+    showAlert("alertCsvExportFailed", { error: String(error) });
   }
 }
 
 /**
- * Trigger push notifications
+ * Trigger push notifications to checked-in workers
  */
 async function triggerCheckoutReminders() {
-  if (!confirm('Send checkout reminders to all checked-in workers?')) return;
-  
+  const confirmed = confirm("Send checkout reminders to all checked-in workers?");
+  if (!confirmed) return;
+
   try {
     const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) {
+      showAlert("alertSessionExpired");
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/api/push/trigger-checkout-reminders`, {
       method: "POST",
       headers: {
@@ -21158,231 +20104,52 @@ async function triggerCheckoutReminders() {
       },
       body: JSON.stringify({}),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    alert('Reminders sent successfully');
-  } catch (error) {
-    alert('Error sending reminders: ' + error.message);
-  }
-}
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AKTUELLE BESUCHER (Live-Ansicht)
-// ─────────────────────────────────────────────────────────────────────────────
-
-let currentVisitorsRefreshTimer = null;
-
-async function loadCurrentVisitors() {
-  const container = document.getElementById("currentVisitorsPanel");
-  if (!container) return;
-  const sessionToken = loadStoredSessionToken();
-  if (!sessionToken) return;
-  try {
-    const res = await fetch(`${API_BASE}/api/workers/current-visitors`, {
-      headers: { Authorization: `Bearer ${sessionToken}` }
-    });
-    if (!res.ok) { container.innerHTML = `<p class="muted">Fehler beim Laden</p>`; return; }
-    const visitors = await res.json();
-    if (visitors.length === 0) {
-      container.innerHTML = `<p class="muted" style="padding:16px;">Aktuell keine Besucher auf dem Gelände.</p>`;
+    if (!response.ok) {
+      showAlert("alertActionFailed", { error: `HTTP ${response.status}` });
       return;
     }
-    container.innerHTML = visitors.map(v => {
-      const mins = v.minutes_left;
-      let timeLabel = "";
-      if (mins !== null) {
-        if (mins < 0) timeLabel = `<span class="visitor-time expired">Abgelaufen</span>`;
-        else if (mins < 30) timeLabel = `<span class="visitor-time soon">${mins} Min verbleibend</span>`;
-        else {
-          const h = Math.floor(mins / 60), m = mins % 60;
-          timeLabel = `<span class="visitor-time ok">${h > 0 ? h + "h " : ""}${m}m verbleibend</span>`;
-        }
-      }
-      return `<div class="visitor-live-card">
-        <div class="vlc-name">${escapeHtml(v.name)} <span class="vlc-badge">${escapeHtml(v.badge_id)}</span></div>
-        <div class="vlc-meta">${escapeHtml(v.visitor_company || "")}${v.host_name ? " · Gastgeber: " + escapeHtml(v.host_name) : ""}</div>
-        <div class="vlc-meta">${escapeHtml(v.visit_purpose || "")}</div>
-        ${timeLabel}
-      </div>`;
-    }).join("");
-  } catch(e) {
-    container.innerHTML = `<p class="muted">Fehler: ${escapeHtml(String(e))}</p>`;
+
+    const result = await response.json();
+    showAlert("alertApprovalConfirmed");
+  } catch (error) {
+    showAlert("alertActionFailed", { error: String(error) });
   }
 }
 
-function renderCurrentVisitorsSection() {
-  const existing = document.getElementById("currentVisitorsSectionWrapper");
-  if (existing) { loadCurrentVisitors(); return; }
-  const section = document.createElement("div");
-  section.id = "currentVisitorsSectionWrapper";
-  section.className = "dashboard-card";
-  section.innerHTML = `
-    <div class="dashboard-card-header" style="display:flex;align-items:center;justify-content:space-between;">
-      <h3 style="margin:0;">👥 Aktuelle Besucher</h3>
-      <button class="btn-icon" onclick="loadCurrentVisitors()" title="Aktualisieren">↻</button>
-    </div>
-    <div id="currentVisitorsPanel"><p class="muted" style="padding:16px;">Lädt...</p></div>
-  `;
-  const target = document.getElementById("leaveRequestsTable")?.parentElement
-    || document.querySelector(".main-content") || document.body;
-  target.insertBefore(section, target.firstChild);
-  loadCurrentVisitors();
-  if (currentVisitorsRefreshTimer) clearInterval(currentVisitorsRefreshTimer);
-  currentVisitorsRefreshTimer = setInterval(loadCurrentVisitors, 30000);
+/**
+ * Helper: Download blob as file
+ */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ABWESENHEITSKALENDER
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Show alert message (existing function wrapper)
+ */
+function showAlert(key, vars = {}) {
+  const msg = UI_TRANSLATIONS[getCurrentLang()]?.[key] || key;
+  let text = msg;
+  for (const [k, v] of Object.entries(vars)) {
+    text = text.replace(`{${k}}`, String(v));
+  }
+  alert(text);
+}
 
-let calendarYear = new Date().getFullYear();
-let calendarMonth = new Date().getMonth(); // 0-based
-
-async function renderAbsenceCalendar() {
-  const container = document.getElementById("absenceCalendarPanel");
-  if (!container) return;
-  const sessionToken = loadStoredSessionToken();
-  if (!sessionToken) return;
+/**
+ * Get current UI language
+ */
+function getCurrentLang() {
   try {
-    const res = await fetch(`${API_BASE}/api/leave-requests`, {
-      headers: { Authorization: `Bearer ${sessionToken}` }
-    });
-    if (!res.ok) return;
-    const requests = await res.json();
-    drawAbsenceCalendar(container, requests);
-  } catch(e) { /* silent */ }
-}
-
-function drawAbsenceCalendar(container, requests) {
-  const year = calendarYear, month = calendarMonth;
-  const firstDay = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startDow = (firstDay.getDay() + 6) % 7; // 0=Mo
-  const monthName = firstDay.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
-
-  const pad = d => String(d).padStart(2, "0");
-  const toISO = d => `${year}-${pad(month + 1)}-${pad(d)}`;
-
-  // leave requests -> map day -> list of workers+type
-  const dayMap = {};
-  const typeColors = { urlaub: "#2563eb", krank: "#c53d2f", sonstiges: "#7c3aed" };
-  requests.filter(r => r.status !== "abgelehnt").forEach(r => {
-    const start = new Date(r.start_date), end = new Date(r.end_date);
-    for (let d = 1; d <= daysInMonth; d++) {
-      const iso = toISO(d);
-      if (iso >= r.start_date && iso <= r.end_date) {
-        if (!dayMap[d]) dayMap[d] = [];
-        dayMap[d].push({ name: r.worker_name || r.worker_id, type: r.type, status: r.status });
-      }
-    }
-  });
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  let html = `<div class="absence-cal-header">
-    <button class="btn-icon" onclick="calendarMonth--;if(calendarMonth<0){calendarMonth=11;calendarYear--;}renderAbsenceCalendar()">‹</button>
-    <strong>${monthName}</strong>
-    <button class="btn-icon" onclick="calendarMonth++;if(calendarMonth>11){calendarMonth=0;calendarYear++;}renderAbsenceCalendar()">›</button>
-  </div>
-  <div class="absence-cal-grid">
-    <div class="cal-head">Mo</div><div class="cal-head">Di</div><div class="cal-head">Mi</div>
-    <div class="cal-head">Do</div><div class="cal-head">Fr</div>
-    <div class="cal-head weekend">Sa</div><div class="cal-head weekend">So</div>`;
-
-  for (let i = 0; i < startDow; i++) html += `<div class="cal-cell empty"></div>`;
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = toISO(d);
-    const isToday = iso === today;
-    const dow = (startDow + d - 1) % 7;
-    const isWeekend = dow >= 5;
-    const entries = dayMap[d] || [];
-    const dots = entries.map(e => `<span class="cal-dot" style="background:${typeColors[e.type] || '#888'}" title="${escapeHtml(e.name)}: ${e.type}"></span>`).join("");
-    const names = entries.length > 0
-      ? `<div class="cal-names">${entries.slice(0, 3).map(e => `<span title="${e.type}">${escapeHtml((e.name || "").split(" ").pop() || e.name)}</span>`).join("") + (entries.length > 3 ? `<span>+${entries.length - 3}</span>` : "")}</div>`
-      : "";
-    html += `<div class="cal-cell${isWeekend ? " weekend" : ""}${isToday ? " today" : ""}${entries.length ? " has-entries" : ""}">
-      <span class="cal-day">${d}</span>${dots}${names}
-    </div>`;
+    return window.localStorage.getItem(UI_LANG_STORAGE_KEY) || "de";
+  } catch {
+    return "de";
   }
-  html += `</div>
-  <div class="cal-legend">
-    <span><span class="cal-dot" style="background:#2563eb"></span> Urlaub</span>
-    <span><span class="cal-dot" style="background:#c53d2f"></span> Krank</span>
-    <span><span class="cal-dot" style="background:#7c3aed"></span> Sonstiges</span>
-  </div>`;
-
-  container.innerHTML = html;
-}
-
-function renderAbsenceCalendarSection() {
-  const existing = document.getElementById("absenceCalendarPanel");
-  if (existing) { renderAbsenceCalendar(); return; }
-  const section = document.createElement("div");
-  section.className = "dashboard-card absence-calendar-section";
-  section.innerHTML = `
-    <div class="dashboard-card-header">
-      <h3 style="margin:0;">📅 Abwesenheitskalender</h3>
-    </div>
-    <div id="absenceCalendarPanel"><p class="muted" style="padding:16px;">Lädt...</p></div>
-  `;
-  const leaveSection = document.getElementById("leaveRequestsTable")?.parentElement;
-  if (leaveSection) leaveSection.parentElement?.insertBefore(section, leaveSection);
-  else (document.querySelector(".main-content") || document.body).appendChild(section);
-  renderAbsenceCalendar();
-}
-
-// ── Leave Reject Modal: close on backdrop click ──
-(function() {
-  const overlay = document.getElementById("leaveRejectModal");
-  if (overlay) {
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) overlay.classList.add("hidden");
-    });
-  }
-})();
-
-// ── Leave CSV export button ──
-(function() {
-  const btn = document.getElementById("leaveExportCsvBtn");
-  if (!btn) return;
-  btn.addEventListener("click", exportLeaveCsv);
-})();
-
-async function exportLeaveCsv() {
-  try {
-    const sessionToken = loadStoredSessionToken();
-    if (!sessionToken) { showAlert("alertSessionExpired"); return; }
-    const res = await fetch(`${API_BASE}/api/leave-requests`, {
-      headers: { "Authorization": `Bearer ${sessionToken}` }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const rows = await res.json();
-    const cols = ["id","worker_name","first_name","last_name","type","start_date","end_date","days_count","status","review_note","created_at"];
-    const header = ["ID","Mitarbeiter","Vorname","Nachname","Art","Von","Bis","Arbeitstage","Status","Entscheidungs-Notiz","Erstellt"];
-    const csv = [header.join(";"), ...rows.map(r =>
-      cols.map(k => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(";")
-    )].join("\r\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `urlaubsantraege_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    showAlert("alertActionFailed", { error: String(e) });
-  }
-}
-
-function showToast(msg, type = 'info') {
-  const el = document.createElement('div');
-  el.className = 'admin-toast admin-toast-' + type;
-  el.textContent = msg;
-  document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('admin-toast-show'));
-  setTimeout(() => {
-    el.classList.remove('admin-toast-show');
-    el.addEventListener('transitionend', () => el.remove(), { once: true });
-    setTimeout(() => { if (el.parentNode) el.remove(); }, 500);
-  }, 2800);
 }

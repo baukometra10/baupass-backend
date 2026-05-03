@@ -225,6 +225,34 @@ html {
   gap: 8px;
 }
 
+.brand-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, .12);
+}
+
+.brand-chip-platform {
+  background: rgba(255, 247, 241, .12);
+  color: #fff7f1;
+}
+
+.brand-chip-operator {
+  background: rgba(217, 93, 57, .18);
+  color: #ffd9c8;
+}
+
 .top-panel .eyebrow {
   color: var(--accent-soft);
 }
@@ -246,6 +274,35 @@ html {
 .top-actions {
   display: grid;
   gap: 12px;
+}
+
+.top-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.top-stat-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.top-stat-card strong {
+  display: block;
+  margin-top: 4px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  color: #fff7f1;
+}
+
+.top-stat-label {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: rgba(255, 247, 241, .62);
 }
 
 /* ── Language Option (under Standort) ── */
@@ -1782,6 +1839,12 @@ body {
 
 .lang-option-block {
   border: 1px solid rgba(120, 84, 56, 0.22);
+
+@media (max-width: 420px) {
+  .top-stats {
+    grid-template-columns: 1fr;
+  }
+}
   background: rgba(248, 237, 225, 0.92);
 }
 

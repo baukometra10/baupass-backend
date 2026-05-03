@@ -195,6 +195,9 @@ PLAN_NET_PRICE_EUR = {
     "enterprise": 199.0,
 }
 
+DEFAULT_PLATFORM_NAME = "BauPass"
+DEFAULT_OPERATOR_NAME = "Baukometra"
+
 AUTO_SUSPEND_GRACE_DAYS = 3
 APP_STARTED_AT = datetime.now(timezone.utc)
 DUNNING_LAST_RUN_AT = None
@@ -1089,8 +1092,8 @@ def render_login_page():
     db = get_db()
     settings_row = db.execute("SELECT invoice_logo_data, platform_name, operator_name, turnstile_endpoint FROM settings WHERE id = 1").fetchone()
     logo_src = ""
-    platform_name = "BauPass Control"
-    operator_name = "Deine Betriebsfirma"
+    platform_name = DEFAULT_PLATFORM_NAME
+    operator_name = DEFAULT_OPERATOR_NAME
     turnstile_endpoint = "Noch nicht gesetzt"
     if settings_row:
         logo_src = (settings_row["invoice_logo_data"] or "").strip()
@@ -1465,6 +1468,9 @@ def init_db():
             operator_name TEXT NOT NULL,
             turnstile_endpoint TEXT NOT NULL,
             rental_model TEXT NOT NULL,
+            monthly_invoice_auto_enabled INTEGER NOT NULL DEFAULT 1,
+            monthly_invoice_run_day INTEGER NOT NULL DEFAULT 1,
+            monthly_invoice_due_days INTEGER NOT NULL DEFAULT 14,
             invoice_logo_data TEXT NOT NULL DEFAULT '',
             invoice_primary_color TEXT NOT NULL DEFAULT '#0f4c5c',
             invoice_accent_color TEXT NOT NULL DEFAULT '#e36414',
@@ -1482,7 +1488,7 @@ def init_db():
             smtp_username TEXT NOT NULL DEFAULT '',
             smtp_password TEXT NOT NULL DEFAULT '',
             smtp_sender_email TEXT NOT NULL DEFAULT '',
-            smtp_sender_name TEXT NOT NULL DEFAULT 'BauPass Control',
+            smtp_sender_name TEXT NOT NULL DEFAULT 'BauPass',
             smtp_use_tls INTEGER NOT NULL DEFAULT 1,
             resend_api_key TEXT NOT NULL DEFAULT '',
             resend_from_email TEXT NOT NULL DEFAULT '',
@@ -1744,20 +1750,27 @@ def init_db():
             """
             INSERT INTO settings (
                 id, platform_name, operator_name, turnstile_endpoint, rental_model,
+                monthly_invoice_auto_enabled, monthly_invoice_run_day, monthly_invoice_due_days,
                 invoice_logo_data, invoice_primary_color, invoice_accent_color,
                 invoice_iban, invoice_bic, invoice_bank_name, invoice_tax_id, invoice_vat_id,
                 invoice_operator_street, invoice_operator_zip_city, invoice_operator_phone, invoice_operator_website,
                 smtp_host, smtp_port, smtp_username, smtp_password, smtp_sender_email, smtp_sender_name, smtp_use_tls,
                 resend_api_key, resend_from_email, brevo_api_key, brevo_from_email,
                 admin_ip_whitelist, enforce_tenant_domain
-            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("BauPass Control", "Deine Betriebsfirma", "", "tageskarte", "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", "BauPass Control", 1, "", "", "", "", "", 0),
+            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "invoice_logo_data" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_logo_data TEXT NOT NULL DEFAULT ''")
+    if "monthly_invoice_auto_enabled" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN monthly_invoice_auto_enabled INTEGER NOT NULL DEFAULT 1")
+    if "monthly_invoice_run_day" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN monthly_invoice_run_day INTEGER NOT NULL DEFAULT 1")
+    if "monthly_invoice_due_days" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN monthly_invoice_due_days INTEGER NOT NULL DEFAULT 14")
     if "invoice_primary_color" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_primary_color TEXT NOT NULL DEFAULT '#0f4c5c'")
     if "invoice_accent_color" not in settings_columns:
@@ -1797,13 +1810,25 @@ def init_db():
     if "smtp_sender_email" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN smtp_sender_email TEXT NOT NULL DEFAULT ''")
     if "smtp_sender_name" not in settings_columns:
-        cur.execute("ALTER TABLE settings ADD COLUMN smtp_sender_name TEXT NOT NULL DEFAULT 'BauPass Control'")
+        cur.execute(f"ALTER TABLE settings ADD COLUMN smtp_sender_name TEXT NOT NULL DEFAULT '{DEFAULT_PLATFORM_NAME}'")
     if "smtp_use_tls" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN smtp_use_tls INTEGER NOT NULL DEFAULT 1")
     if "admin_ip_whitelist" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN admin_ip_whitelist TEXT NOT NULL DEFAULT ''")
     if "enforce_tenant_domain" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN enforce_tenant_domain INTEGER NOT NULL DEFAULT 0")
+    cur.execute(
+        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass Control', 'Control Pass')",
+        (DEFAULT_PLATFORM_NAME,),
+    )
+    cur.execute(
+        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company')",
+        (DEFAULT_OPERATOR_NAME,),
+    )
+    cur.execute(
+        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass Control', 'Control Pass')",
+        (DEFAULT_PLATFORM_NAME,),
+    )
 
     company_exists = cur.execute("SELECT id FROM companies LIMIT 1").fetchone()
     if not company_exists:
@@ -3052,8 +3077,8 @@ def _resolve_smtp_settings(saved_settings, override_payload=None):
         "smtp_sender_email": str(payload.get("smtpSenderEmail") if "smtpSenderEmail" in payload else (saved_settings["smtp_sender_email"] if saved_settings else "") or "").strip(),
         "smtp_sender_name": str(payload.get("smtpSenderName") if "smtpSenderName" in payload else (saved_settings["smtp_sender_name"] if saved_settings else "") or "").strip(),
         "smtp_use_tls": (1 if bool(payload.get("smtpUseTls")) else 0) if "smtpUseTls" in payload else (int(saved_settings["smtp_use_tls"] or 0) if saved_settings else 0),
-        "platform_name": str(payload.get("platformName") if "platformName" in payload else (saved_settings["platform_name"] if saved_settings else "BauPass Control") or "BauPass Control").strip(),
-        "operator_name": str(payload.get("operatorName") if "operatorName" in payload else (saved_settings["operator_name"] if saved_settings else "BauPass Control") or "BauPass Control").strip(),
+        "platform_name": str(payload.get("platformName") if "platformName" in payload else (saved_settings["platform_name"] if saved_settings else DEFAULT_PLATFORM_NAME) or DEFAULT_PLATFORM_NAME).strip(),
+        "operator_name": str(payload.get("operatorName") if "operatorName" in payload else (saved_settings["operator_name"] if saved_settings else DEFAULT_OPERATOR_NAME) or DEFAULT_OPERATOR_NAME).strip(),
         "invoice_primary_color": str(payload.get("invoicePrimaryColor") if "invoicePrimaryColor" in payload else (saved_settings["invoice_primary_color"] if saved_settings else "#0f4c5c") or "#0f4c5c").strip(),
         "invoice_accent_color": str(payload.get("invoiceAccentColor") if "invoiceAccentColor" in payload else (saved_settings["invoice_accent_color"] if saved_settings else "#e36414") or "#e36414").strip(),
     }
@@ -3518,6 +3543,274 @@ def run_dunning_job_once():
         DUNNING_LAST_RESULT = result
 
 
+def _month_period_range(reference_date=None):
+    today = reference_date or utc_now().date()
+    current_month_start = today.replace(day=1)
+    previous_month_end = current_month_start - timedelta(days=1)
+    previous_month_start = previous_month_end.replace(day=1)
+    return previous_month_start, previous_month_end
+
+
+def _resolve_company_invoice_recipient(db, company_row):
+    billing_email = str(company_row["billing_email"] or "").strip()
+    if billing_email:
+        return billing_email
+    admin_row = db.execute(
+        """
+        SELECT email
+        FROM users
+        WHERE company_id = ? AND role = 'company-admin' AND COALESCE(email, '') <> ''
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        (company_row["id"],),
+    ).fetchone()
+    if admin_row:
+        return str(admin_row["email"] or "").strip()
+    return ""
+
+
+def _resolve_monthly_invoice_creator_user_id(db):
+    row = db.execute("SELECT id FROM users WHERE role = 'superadmin' ORDER BY id ASC LIMIT 1").fetchone()
+    return str(row["id"] or "") if row else ""
+
+
+def _build_monthly_invoice_html(company_name, invoice_number, period_label, platform_label, operator_label, total_amount):
+    company_safe = html.escape(str(company_name or "Firma"))
+    number_safe = html.escape(str(invoice_number or "-"))
+    period_safe = html.escape(str(period_label or "-"))
+    platform_safe = html.escape(str(platform_label or DEFAULT_PLATFORM_NAME))
+    operator_safe = html.escape(str(operator_label or DEFAULT_OPERATOR_NAME))
+    amount_safe = html.escape(f"{float(total_amount or 0):.2f} EUR".replace(".", ","))
+    return f"""<!DOCTYPE html>
+<html lang=\"de\">
+<head><meta charset=\"utf-8\"><title>{number_safe}</title></head>
+<body>
+  <h1>{platform_safe} Monatsrechnung</h1>
+  <p>Firma: {company_safe}</p>
+  <p>Rechnungsnummer: {number_safe}</p>
+  <p>Leistungszeitraum: {period_safe}</p>
+  <p>Betrag: {amount_safe}</p>
+  <p>Erstellt durch {operator_safe}.</p>
+</body>
+</html>"""
+
+
+def _get_monthly_invoice_settings_values(settings_row):
+    auto_enabled = int(settings_row["monthly_invoice_auto_enabled"] if settings_row and "monthly_invoice_auto_enabled" in settings_row.keys() else 1) == 1
+    run_day = int(settings_row["monthly_invoice_run_day"] if settings_row and "monthly_invoice_run_day" in settings_row.keys() else 1) or 1
+    due_days = int(settings_row["monthly_invoice_due_days"] if settings_row and "monthly_invoice_due_days" in settings_row.keys() else 14) or 14
+    return {
+        "autoEnabled": auto_enabled,
+        "runDay": min(max(run_day, 1), 28),
+        "dueDays": min(max(due_days, 1), 90),
+    }
+
+
+def _calculate_next_monthly_invoice_run_date(run_day, reference_date=None):
+    today = reference_date or utc_now().date()
+    run_day = min(max(int(run_day or 1), 1), 28)
+    year = today.year
+    month = today.month
+    if today.day > run_day:
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+    return datetime(year, month, run_day).date()
+
+
+def get_monthly_invoice_cycle_status(db, reference_date=None):
+    today = reference_date or utc_now().date()
+    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    config = _get_monthly_invoice_settings_values(settings)
+    previous_month_start, _previous_month_end = _month_period_range(reference_date=today)
+    current_cycle_key = previous_month_start.strftime("%Y-%m")
+    current_cycle = db.execute(
+        """
+        SELECT created_at, message, target_id
+        FROM audit_logs
+        WHERE event_type = ? AND target_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        ("invoice.monthly_auto_cycle", current_cycle_key),
+    ).fetchone()
+    latest_cycle = db.execute(
+        """
+        SELECT created_at, message, target_id
+        FROM audit_logs
+        WHERE event_type = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        ("invoice.monthly_auto_cycle",),
+    ).fetchone()
+    next_run_date = _calculate_next_monthly_invoice_run_date(config["runDay"], reference_date=today)
+    return {
+        "autoEnabled": config["autoEnabled"],
+        "runDay": config["runDay"],
+        "dueDays": config["dueDays"],
+        "currentCycleKey": current_cycle_key,
+        "currentCycleAlreadyRan": bool(current_cycle),
+        "currentCycleRanAt": current_cycle["created_at"] if current_cycle else "",
+        "lastRunAt": latest_cycle["created_at"] if latest_cycle else "",
+        "lastRunCycleKey": latest_cycle["target_id"] if latest_cycle else "",
+        "lastRunMessage": latest_cycle["message"] if latest_cycle else "",
+        "nextScheduledRunDate": next_run_date.isoformat(),
+    }
+
+
+def run_monthly_invoice_cycle(db, reference_date=None, force=False):
+    previous_month_start, previous_month_end = _month_period_range(reference_date=reference_date)
+    cycle_key = previous_month_start.strftime("%Y-%m")
+    today = reference_date or utc_now().date()
+    existing_cycle = db.execute(
+        "SELECT id FROM audit_logs WHERE event_type = ? AND target_id = ? LIMIT 1",
+        ("invoice.monthly_auto_cycle", cycle_key),
+    ).fetchone()
+    if existing_cycle:
+        return {"period": cycle_key, "created": 0, "sent": 0, "skipped": 0, "failed": 0, "reason": "already_ran"}
+
+    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    config = _get_monthly_invoice_settings_values(settings)
+    if not config["autoEnabled"] and not force:
+        return {"period": cycle_key, "created": 0, "sent": 0, "skipped": 0, "failed": 0, "reason": "disabled"}
+    if not force and today.day != config["runDay"]:
+        return {"period": cycle_key, "created": 0, "sent": 0, "skipped": 0, "failed": 0, "reason": "day_not_due"}
+    platform_label = str(settings["platform_name"] or DEFAULT_PLATFORM_NAME).strip() if settings else DEFAULT_PLATFORM_NAME
+    operator_label = str(settings["operator_name"] or DEFAULT_OPERATOR_NAME).strip() if settings else DEFAULT_OPERATOR_NAME
+    created_by_user_id = _resolve_monthly_invoice_creator_user_id(db)
+    if not created_by_user_id:
+        return {"period": cycle_key, "created": 0, "sent": 0, "skipped": 0, "failed": 0, "reason": "missing_superadmin"}
+
+    period_label = f"{previous_month_start.isoformat()} - {previous_month_end.isoformat()}"
+    invoice_date = today.isoformat()
+    due_date = (today + timedelta(days=config["dueDays"])).isoformat()
+    companies = db.execute(
+        """
+        SELECT *
+        FROM companies
+        WHERE deleted_at IS NULL AND lower(COALESCE(status, 'aktiv')) != 'geloescht'
+        ORDER BY name ASC
+        """
+    ).fetchall()
+
+    result = {"period": cycle_key, "created": 0, "sent": 0, "skipped": 0, "failed": 0, "reason": ""}
+    for company in companies:
+        company_id = str(company["id"] or "").strip()
+        if not company_id:
+            result["skipped"] += 1
+            continue
+        invoice_number = f"RE-{previous_month_start.strftime('%Y%m')}-{slugify_company_alias(company_id).upper()}"
+        existing_invoice = db.execute(
+            "SELECT id FROM invoices WHERE company_id = ? AND invoice_number = ? LIMIT 1",
+            (company_id, invoice_number),
+        ).fetchone()
+        if existing_invoice:
+            result["skipped"] += 1
+            continue
+
+        recipient_email = _resolve_company_invoice_recipient(db, company)
+        if not recipient_email:
+            result["failed"] += 1
+            create_system_alert(
+                db,
+                code=f"monthly_invoice_missing_recipient_{company_id}_{cycle_key}",
+                severity="warning",
+                message=f"Monatsrechnung für {company['name']} konnte nicht erstellt werden, weil keine Rechnungs-E-Mail hinterlegt ist.",
+                details={"companyId": company_id, "period": cycle_key},
+                dedup_minutes=60 * 24 * 31,
+            )
+            continue
+
+        net_amount = calculate_net_amount_by_plan(company["plan"], 0)
+        vat_rate = 19.0
+        vat_amount = round(net_amount * (vat_rate / 100), 2)
+        total_amount = round(net_amount + vat_amount, 2)
+        description = f"Monatsabrechnung {previous_month_start.strftime('%m/%Y')} - {platform_label}"
+        invoice_id = f"inv-{secrets.token_hex(6)}"
+        items_json = json.dumps([
+            {
+                "description": description,
+                "qty": 1,
+                "unit": "Monat",
+                "unitPrice": net_amount,
+                "total": net_amount,
+            }
+        ], ensure_ascii=False)
+        db.execute(
+            """
+            INSERT INTO invoices (
+                id, invoice_number, company_id, recipient_email, invoice_date, invoice_period, description,
+                net_amount, vat_rate, vat_amount, total_amount, status, error_message, sent_at,
+                rendered_html, created_by_user_id, created_at, due_date, reminder_stage, last_reminder_sent_at, last_reminder_error,
+                send_attempt_count, last_send_attempt_at, next_retry_at, items_json, discount_amount
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                invoice_id,
+                invoice_number,
+                company_id,
+                recipient_email,
+                invoice_date,
+                period_label,
+                description,
+                net_amount,
+                vat_rate,
+                vat_amount,
+                total_amount,
+                "draft",
+                "",
+                None,
+                _build_monthly_invoice_html(company["name"], invoice_number, period_label, platform_label, operator_label, total_amount),
+                created_by_user_id,
+                now_iso(),
+                due_date,
+                0,
+                None,
+                "",
+                0,
+                None,
+                None,
+                items_json,
+                0,
+            ),
+        )
+        result["created"] += 1
+        sent_ok, _error_message, _updated_invoice = attempt_invoice_delivery(
+            db,
+            invoice_id,
+            actor=None,
+            audit_event_success="invoice.monthly_auto_sent",
+            audit_event_failed="invoice.monthly_auto_send_failed",
+        )
+        if sent_ok:
+            result["sent"] += 1
+        else:
+            result["failed"] += 1
+
+    db.execute(
+        """
+        INSERT INTO audit_logs (id, event_type, actor_user_id, actor_role, company_id, target_type, target_id, message, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            f"aud-{secrets.token_hex(8)}",
+            "invoice.monthly_auto_cycle",
+            created_by_user_id,
+            "superadmin",
+            None,
+            "invoice_cycle",
+            cycle_key,
+            f"Monatsrechnungslauf {cycle_key}: erstellt={result['created']}, versendet={result['sent']}, uebersprungen={result['skipped']}, fehlgeschlagen={result['failed']}",
+            now_iso(),
+        ),
+    )
+    db.commit()
+    return result
+
+
 def start_background_jobs():
     global _background_started
     with _background_lock:
@@ -3974,7 +4267,9 @@ def start_background_jobs():
     # Expiry-Check beim Start einmal ausführen, danach täglich
     check_doc_expiry_warnings()
     with app.app_context():
-        lock_workers_with_expired_documents(get_db())
+        db = get_db()
+        lock_workers_with_expired_documents(db)
+        run_monthly_invoice_cycle(db)
 
     def daily_job_loop():
         """Läuft einmal täglich: Dokument-Ablauf-Prüfung + Zusammenfassungs-E-Mail + Ablauf-Erinnerungen."""
@@ -3982,7 +4277,18 @@ def start_background_jobs():
             time.sleep(86400)  # 24 Stunden warten
             check_doc_expiry_warnings()
             with app.app_context():
-                lock_workers_with_expired_documents(get_db())
+                db = get_db()
+                lock_workers_with_expired_documents(db)
+                monthly_result = run_monthly_invoice_cycle(db)
+                if monthly_result.get("failed", 0) > 0:
+                    create_system_alert(
+                        db,
+                        code=f"monthly_invoice_cycle_{monthly_result.get('period', '')}",
+                        severity="warning",
+                        message=f"Monatsrechnungslauf {monthly_result.get('period', '')} hatte {monthly_result.get('failed', 0)} Fehler.",
+                        details=monthly_result,
+                        dedup_minutes=60 * 24 * 31,
+                    )
             send_daily_summary_email()
             send_worker_expiry_reminders()
             send_document_expiry_notifications()
@@ -5141,6 +5447,9 @@ def get_settings():
             "invoiceEmailBodyTemplate": row["invoice_email_body_template"] if "invoice_email_body_template" in row.keys() else "",
             "dunningStage1Days": int(row["dunning_stage1_days"] if "dunning_stage1_days" in row.keys() else 7) or 7,
             "dunningStage2Days": int(row["dunning_stage2_days"] if "dunning_stage2_days" in row.keys() else 3) or 3,
+            "monthlyInvoiceAutoEnabled": int(row["monthly_invoice_auto_enabled"] if "monthly_invoice_auto_enabled" in row.keys() else 1) == 1,
+            "monthlyInvoiceRunDay": int(row["monthly_invoice_run_day"] if "monthly_invoice_run_day" in row.keys() else 1) or 1,
+            "monthlyInvoiceDueDays": int(row["monthly_invoice_due_days"] if "monthly_invoice_due_days" in row.keys() else 14) or 14,
             "workerExpiryWarnDays": int(row["worker_expiry_warn_days"] if "worker_expiry_warn_days" in row.keys() else 30) or 30,
             "smtpHost": row["smtp_host"],
             "smtpPort": row["smtp_port"],
@@ -5450,6 +5759,7 @@ def update_settings():
         """
         UPDATE settings
         SET platform_name = ?, operator_name = ?, turnstile_endpoint = ?, rental_model = ?,
+            monthly_invoice_auto_enabled = ?, monthly_invoice_run_day = ?, monthly_invoice_due_days = ?,
             invoice_logo_data = ?, invoice_primary_color = ?, invoice_accent_color = ?,
             invoice_iban = ?, invoice_bic = ?, invoice_bank_name = ?,
             invoice_tax_id = ?, invoice_vat_id = ?,
@@ -5464,10 +5774,13 @@ def update_settings():
         WHERE id = 1
         """,
         (
-            payload.get("platformName", "BauPass Control"),
-            payload.get("operatorName", "Deine Betriebsfirma"),
+            payload.get("platformName", DEFAULT_PLATFORM_NAME),
+            payload.get("operatorName", DEFAULT_OPERATOR_NAME),
             payload.get("turnstileEndpoint", ""),
             payload.get("rentalModel", "tageskarte"),
+            1 if payload.get("monthlyInvoiceAutoEnabled", True) else 0,
+            min(max(int(payload.get("monthlyInvoiceRunDay") or 1), 1), 28),
+            min(max(int(payload.get("monthlyInvoiceDueDays") or 14), 1), 90),
             payload.get("invoiceLogoData", ""),
             payload.get("invoicePrimaryColor", "#0f4c5c"),
             payload.get("invoiceAccentColor", "#e36414"),
@@ -5491,7 +5804,7 @@ def update_settings():
             payload.get("smtpUsername", ""),
             payload_smtp_password if payload_smtp_password.strip() else current_smtp_password,
             payload.get("smtpSenderEmail", ""),
-            payload.get("smtpSenderName", "BauPass Control"),
+            payload.get("smtpSenderName", DEFAULT_PLATFORM_NAME),
             1 if payload.get("smtpUseTls", True) else 0,
             payload.get("adminIpWhitelist", ""),
             1 if payload.get("enforceTenantDomain", False) else 0,
@@ -11110,6 +11423,14 @@ def get_invoice_ops_metrics_endpoint():
     return jsonify(get_invoice_ops_metrics(db))
 
 
+@app.get("/api/invoices/monthly-cycle-status")
+@require_auth
+@require_roles("superadmin")
+def get_monthly_invoice_cycle_status_endpoint():
+    db = get_db()
+    return jsonify(get_monthly_invoice_cycle_status(db))
+
+
 @app.get("/api/invoices/dead-letters")
 @require_auth
 @require_roles("superadmin")
@@ -11957,6 +12278,38 @@ def trigger_dunning_run():
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
         return jsonify({"error": "dunning_failed", "message": str(exc)}), 500
+
+
+@app.post("/api/invoices/trigger-monthly-cycle")
+@require_auth
+@require_roles("superadmin")
+def trigger_monthly_invoice_cycle_endpoint():
+    db = get_db()
+    try:
+        result = run_monthly_invoice_cycle(db, force=True)
+        status = get_monthly_invoice_cycle_status(db)
+        return jsonify({"ok": True, "result": result, "status": status})
+    except Exception as exc:
+        return jsonify({"error": "monthly_invoice_cycle_failed", "message": str(exc)}), 500
+
+
+@app.post("/api/invoices/simulate-monthly-cycle")
+@require_auth
+@require_roles("superadmin")
+def simulate_monthly_invoice_cycle_endpoint():
+    """Run the monthly invoice cycle for the CURRENT month (simulated by using next month as reference)."""
+    db = get_db()
+    try:
+        today = utc_now().date()
+        if today.month == 12:
+            sim_ref = today.replace(year=today.year + 1, month=1, day=1)
+        else:
+            sim_ref = today.replace(month=today.month + 1, day=1)
+        result = run_monthly_invoice_cycle(db, reference_date=sim_ref, force=True)
+        status = get_monthly_invoice_cycle_status(db)
+        return jsonify({"ok": True, "result": result, "status": status})
+    except Exception as exc:
+        return jsonify({"error": "simulate_monthly_cycle_failed", "message": str(exc)}), 500
 
 
 @app.get("/api/invoices/<invoice_id>/reminder-letter.pdf")

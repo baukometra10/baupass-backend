@@ -796,6 +796,8 @@
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed">Fehler</button>
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="">Alle</button>
               <button type="button" class="ghost-button" id="triggerDunningBtn">Mahnungs-Durchlauf starten</button>
+              <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn">Monatsrechnung jetzt starten</button>
+              <button type="button" class="ghost-button" id="simulateCurrentMonthBtn">Aktuellen Monat simulieren</button>
             </div>
 
             <div id="invoiceBulkBar" class="bulk-action-bar hidden">
@@ -805,6 +807,7 @@
             </div>
 
             <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid"></div>
+            <div id="monthlyInvoiceStatusGrid" class="list invoice-kpi-grid"></div>
 
             <div id="invoiceManagementList" class="list"></div>
 
@@ -1219,6 +1222,21 @@
               <label>
                 <span>Mahnungs-Stufe 2 (Tage nach Fälligkeit)</span>
                 <input id="dunningStage2Days" type="number" min="1" max="30" value="3" />
+              </label>
+              <label>
+                <span>Monatsrechnung automatisch senden</span>
+                <select id="monthlyInvoiceAutoEnabled">
+                  <option value="1">Aktiv</option>
+                  <option value="0">Deaktiviert</option>
+                </select>
+              </label>
+              <label>
+                <span>Ausführungstag im Monat</span>
+                <input id="monthlyInvoiceRunDay" type="number" min="1" max="28" value="1" />
+              </label>
+              <label>
+                <span>Zahlungsfrist Monatsrechnung (Tage)</span>
+                <input id="monthlyInvoiceDueDays" type="number" min="1" max="90" value="14" />
               </label>
 
               <!-- ── SMTP ── -->
