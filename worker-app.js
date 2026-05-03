@@ -1556,16 +1556,16 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   }
 
   const siteLocation = cachedPayload?.worker?.siteLocation;
-  if (!siteLocation || typeof siteLocation.latitude !== "number" || typeof siteLocation.longitude !== "number") {
-    showWorkerNotice("Offline-Login nicht moeglich: Baustellen-Standort wurde noch nie synchronisiert.");
-    return true;
+  const hasSiteGeo = siteLocation && typeof siteLocation.latitude === "number" && typeof siteLocation.longitude === "number";
+  let distanceMeters = null;
+  if (hasSiteGeo && locationPayload) {
+    distanceMeters = Math.round(calculateDistanceMeters(siteLocation.latitude, siteLocation.longitude, locationPayload.latitude, locationPayload.longitude));
+    if (distanceMeters > Number(siteLocation.radiusMeters || 100)) {
+      showWorkerNotice(`Offline-Login nur auf der Baustelle moeglich. Aktuell ca. ${distanceMeters} m entfernt.`);
+      return true;
+    }
   }
-
-  const distanceMeters = Math.round(calculateDistanceMeters(siteLocation.latitude, siteLocation.longitude, locationPayload.latitude, locationPayload.longitude));
-  if (distanceMeters > Number(siteLocation.radiusMeters || 100)) {
-    showWorkerNotice(`Offline-Login nur auf der Baustelle moeglich. Aktuell ca. ${distanceMeters} m entfernt.`);
-    return true;
-  }
+  // No GPS available or no site location configured → allow PIN-based offline login
 
   offlineWorkerSessionActive = true;
   workerToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
@@ -1862,7 +1862,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     // ── Schutzlogik: Session-Inaktivitäts-Monitor starten ──
     initializeSessionInactivityProtection();
   } catch (error) {
-    if ((!navigator.onLine || !error.code) && locationPayload) {
+    if (!navigator.onLine || !error.code) {
       const restored = await tryOfflineBadgeLogin(normalizedBadgeId, normalizedBadgePin, locationPayload);
       if (restored) {
         return;
