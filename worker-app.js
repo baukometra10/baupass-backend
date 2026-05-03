@@ -1150,7 +1150,7 @@ async function init() {
   }
 }
 
-function applyDynamicManifestStartUrl(accessToken) {
+function applyDynamicManifestStartUrl(accessToken, platformName) {
   const manifestLink = document.querySelector('link[rel="manifest"]');
   if (!manifestLink || !accessToken) {
     return;
@@ -1168,6 +1168,14 @@ function applyDynamicManifestStartUrl(accessToken) {
       }
 
       manifest.start_url = `/worker.html?${params.toString()}`;
+      // White-label: update manifest names dynamically
+      if (platformName && platformName !== "BauPass") {
+        manifest.name = platformName + " – Mitarbeiter";
+        manifest.short_name = platformName;
+        if (manifest.shortcuts) {
+          manifest.shortcuts.forEach((s) => { s.url = `/worker.html?view=card&${params.toString()}`; });
+        }
+      }
 
       const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
       if (dynamicManifestUrl) {
@@ -1972,6 +1980,17 @@ function renderWorker(payload) {
   if (appTitleEl) appTitleEl.textContent = platformName;
   const splashTitleEl = document.getElementById("workerSplashTitle");
   if (splashTitleEl) splashTitleEl.textContent = platformName;
+  // Brand chip in top panel
+  const brandChipEl = document.getElementById("workerBrandChip");
+  if (brandChipEl) brandChipEl.textContent = platformName;
+  // Update iOS / Android meta tags dynamically
+  const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (metaAppTitle) metaAppTitle.setAttribute("content", platformName);
+  const metaAppName = document.querySelector('meta[name="application-name"]');
+  if (metaAppName) metaAppName.setAttribute("content", platformName + " Mitarbeiter-App");
+  // Update manifest with white-label name
+  const _storedToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
+  if (_storedToken) applyDynamicManifestStartUrl(_storedToken, platformName);
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");
