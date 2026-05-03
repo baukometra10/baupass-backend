@@ -1095,6 +1095,7 @@ async function init() {
   
   const params = new URL(window.location.href).searchParams;
   const urlToken = (params.get("access") || "").trim();
+  const viewParam = (params.get("view") || "").trim().toLowerCase();
   const storedAccessToken = (window.localStorage.getItem(WORKER_ACCESS_TOKEN_KEY) || "").trim();
   const storedBadgeId = (window.localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
   const bootstrapAccessToken = urlToken || storedAccessToken;
@@ -1116,12 +1117,14 @@ async function init() {
     // keepUrlToken: false → URL wird sofort bereinigt, damit ein Seitenrefresh
     // nicht denselben (bereits verbrauchten) Einmalcode nochmals sendet.
     await loginWithAccessToken(urlToken, { keepUrlToken: false, silent: false, locationPayload });
+    if (viewParam === "card" && workerToken) applyWorkerPageView("badgeCard");
     return;
   }
 
   if (workerToken) {
     const loaded = await loadWorkerData();
     if (loaded) {
+      if (viewParam === "card") applyWorkerPageView("badgeCard");
       return;
     }
   }
@@ -1133,6 +1136,7 @@ async function init() {
     const locationPayload = await resolveLoginLocation();
     await loginWithAccessToken(storedAccessToken, { keepUrlToken: false, silent: true, locationPayload });
     if (workerToken) {
+      if (viewParam === "card") applyWorkerPageView("badgeCard");
       return;
     }
   }
@@ -2125,10 +2129,14 @@ function renderWorker(payload) {
     balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
   }
 
-  // Show timesheet and documents cards
+  // Show timesheet only for regular workers (not visitors)
   if (elements.timesheetCard) {
-    elements.timesheetCard.classList.remove("hidden");
+    elements.timesheetCard.classList.toggle("hidden", isVisitor);
   }
+  // Also hide timesheet quick-menu and nav buttons for visitors
+  document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
+    btn.classList.toggle("hidden", isVisitor);
+  });
   if (elements.documentsCard) {
     elements.documentsCard.classList.remove("hidden");
   }
