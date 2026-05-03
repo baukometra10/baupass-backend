@@ -1759,7 +1759,7 @@ def init_db():
                 admin_ip_whitelist, enforce_tenant_domain
             ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0),
+            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
