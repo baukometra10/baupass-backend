@@ -16417,71 +16417,74 @@ function renderInvoiceManagementList() {
   // Preview invoice button listeners
   container.querySelectorAll("[data-invoice-preview-id]").forEach((button) => {
     button.addEventListener("click", (event) => {
-      const invId = String(event.target.dataset.invoicePreviewId || "").trim();
+      const invId = String(event.currentTarget.dataset.invoicePreviewId || "").trim();
       if (!invId) return;
-      const inv = allInvoices.find(i => i.id === invId);
+      const inv = allInvoices.find(i => String(i.id) === invId);
       if (!inv) return;
       
       const modal = document.querySelector("#invoicePdfPreviewModal");
       if (!modal) return;
       
-      const statusMap = {
-        draft: runtimeText("invoicePreviewStatusDraft"),
-        sent: runtimeText("invoicePreviewStatusSent"),
-        overdue: runtimeText("invoicePreviewStatusOverdue"),
-        bezahlt: runtimeText("invoicePreviewStatusPaid"),
-        send_failed: runtimeText("invoicePreviewStatusFailed")
-      };
-      const status = statusMap[inv.status] || inv.status;
-      
-      const previewHtml = `
-        <div style="padding: 24px; font-family: Arial, sans-serif; color: #333;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewNumberLabel"))}</p>
-              <p style="margin: 0; font-size: 16px;">${escapeHtml(inv.invoice_number || "–")}</p>
-            </div>
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewStatusLabel"))}</p>
-              <p style="margin: 0;">${escapeHtml(status)}</p>
-            </div>
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewCompanyLabel"))}</p>
-              <p style="margin: 0;">${escapeHtml(inv.company_name || "–")}</p>
-            </div>
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewAmountLabel"))}</p>
-              <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e36414;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
-            </div>
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDateLabel"))}</p>
-              <p style="margin: 0;">${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "–"}</p>
-            </div>
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDueDateLabel"))}</p>
-              <p style="margin: 0;">${inv.due_date ? formatTimestamp(inv.due_date) : "–"}</p>
-            </div>
-            ${inv.paid_at ? `
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewPaidAtLabel"))}</p>
-              <p style="margin: 0;">${formatTimestamp(inv.paid_at)}</p>
-            </div>
-            ` : ""}
-            <div>
-              <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewPeriodLabel"))}</p>
-              <p style="margin: 0;">${escapeHtml(inv.invoice_period || "–")}</p>
-            </div>
-          </div>
-          <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin-top: 24px;">
-            <p style="margin: 0 0 8px 0; font-weight: bold;">${escapeHtml(runtimeText("invoiceLineItemsTitle"))}</p>
-            <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(inv.line_items_description || runtimeText("invoiceDetailsUnavailable"))}</p>
-          </div>
-        </div>
-      `;
-      
       const frame = document.querySelector("#invoicePdfFrame");
       if (frame) {
-        frame.srcdoc = previewHtml;
+        if (inv.rendered_html) {
+          frame.srcdoc = inv.rendered_html;
+        } else {
+          const statusMap = {
+            draft: runtimeText("invoicePreviewStatusDraft"),
+            sent: runtimeText("invoicePreviewStatusSent"),
+            overdue: runtimeText("invoicePreviewStatusOverdue"),
+            bezahlt: runtimeText("invoicePreviewStatusPaid"),
+            send_failed: runtimeText("invoicePreviewStatusFailed")
+          };
+          const status = statusMap[inv.status] || inv.status;
+          
+          const previewHtml = `
+            <div style="padding: 24px; font-family: Arial, sans-serif; color: #333;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewNumberLabel"))}</p>
+                  <p style="margin: 0; font-size: 16px;">${escapeHtml(inv.invoice_number || "–")}</p>
+                </div>
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewStatusLabel"))}</p>
+                  <p style="margin: 0;">${escapeHtml(status)}</p>
+                </div>
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewCompanyLabel"))}</p>
+                  <p style="margin: 0;">${escapeHtml(inv.company_name || "–")}</p>
+                </div>
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewAmountLabel"))}</p>
+                  <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e36414;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
+                </div>
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDateLabel"))}</p>
+                  <p style="margin: 0;">${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "–"}</p>
+                </div>
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDueDateLabel"))}</p>
+                  <p style="margin: 0;">${inv.due_date ? formatTimestamp(inv.due_date) : "–"}</p>
+                </div>
+                ${inv.paid_at ? `
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewPaidAtLabel"))}</p>
+                  <p style="margin: 0;">${formatTimestamp(inv.paid_at)}</p>
+                </div>
+                ` : ""}
+                <div>
+                  <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewPeriodLabel"))}</p>
+                  <p style="margin: 0;">${escapeHtml(inv.invoice_period || "–")}</p>
+                </div>
+              </div>
+              <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin-top: 24px;">
+                <p style="margin: 0 0 8px 0; font-weight: bold;">${escapeHtml(runtimeText("invoiceLineItemsTitle"))}</p>
+                <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(inv.line_items_description || runtimeText("invoiceDetailsUnavailable"))}</p>
+              </div>
+            </div>
+          `;
+          frame.srcdoc = previewHtml;
+        }
       }
       
       modal.classList.remove("hidden");
