@@ -10334,8 +10334,10 @@ def send_invoice_email(invoice_row, company_row, settings_row):
 
         logo_drawn = False
         # Soft backdrop behind the logo for a cleaner premium look.
-        pdf.setFillColor(rl_colors.HexColor("#f3f7fb"))
-        pdf.roundRect(LOGO_X - 2.2 * mm, LOGO_TOP - LOGO_MAX_H - 2 * mm, LOGO_MAX_W + 4.4 * mm, LOGO_MAX_H + 4 * mm, 3.5 * mm, stroke=0, fill=1)
+        pdf.setFillColor(rl_colors.HexColor("#f8fbff"))
+        pdf.setStrokeColor(rl_colors.HexColor("#e2e8f0"))
+        pdf.setLineWidth(0.5)
+        pdf.roundRect(LOGO_X - 2.2 * mm, LOGO_TOP - LOGO_MAX_H - 2 * mm, LOGO_MAX_W + 4.4 * mm, LOGO_MAX_H + 4 * mm, 3.5 * mm, stroke=1, fill=1)
         try:
             lb = _logo_bytes()
             if lb:
@@ -10427,14 +10429,14 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.drawString(M_L, meta_y, lbl)
             pdf.setFont("Helvetica", 9)
             pdf.setFillColor(c_mid)
-            pdf.drawString(M_L + 42 * mm, meta_y, val)
+            pdf.drawString(M_L + 46 * mm, meta_y, val)
             meta_y -= 5.5 * mm
 
         # Einleitungstext
         INTRO_Y = meta_y - 5 * mm
         pdf.setFont("Helvetica", 9)
         pdf.setFillColor(c_mid)
-        _intro = (f"Wir Senden Ihnen hiermit unsere Rechnung. Bitte leisten Sie die Zahlung innerhalb von 30 Tagen "
+        _intro = (f"Wir senden Ihnen hiermit unsere Rechnung. Bitte leisten Sie die Zahlung innerhalb von 30 Tagen "
                   f"auf unser Bankkonto unter Angabe der Rechnungsnummer {invoice_no}. "
                   f"Sofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.")
         import textwrap as _tw
@@ -10443,7 +10445,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         il_y = INTRO_Y
         for _line in _intro_lines[:4]:
             pdf.drawString(M_L, il_y, _line)
-            il_y -= 4.8 * mm
+            il_y -= 5.0 * mm
 
         # ════════════════════════════════════════════════════════════
         # POSITIONSTABELLE
