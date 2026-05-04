@@ -16094,6 +16094,10 @@ async function handleInvoiceSend() {
       window.alert(uiT("alertInvoiceNumberDuplicate").replace("{number}", invoice.invoiceNumber));
       return;
     }
+    if (String(error.message || "") === "invalid_invoice_number_format") {
+      window.alert("Rechnungsnummer darf nur Ziffern enthalten.");
+      return;
+    }
     window.alert(uiT("alertInvoiceSendFailed").replace("{error}", error.message));
   } finally {
     if (sendBtn) sendBtn.disabled = false;
@@ -16125,12 +16129,18 @@ async function buildInvoiceDraft(options = {}) {
   const invoicePeriod = document.querySelector("#invoicePeriod").value.trim();
   const invoiceDescription = document.querySelector("#invoiceDescription").value.trim();
   const requestedNetAmount = Number(document.querySelector("#invoiceNetAmount").value || "0");
-  const invoiceNumberRaw = document.querySelector("#invoiceNumber").value.trim();
-  const invoiceNumber = invoiceNumberRaw || `RE-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
+  const invoiceNumberField = document.querySelector("#invoiceNumber");
+  const invoiceNumberRaw = invoiceNumberField?.value.trim() || "";
+  const invoiceNumberDigits = invoiceNumberRaw.replace(/\D+/g, "");
+  const invoiceNumber = invoiceNumberDigits || String(Date.now()).slice(-6);
 
-  if (invoiceNumber.length < 3 || invoiceNumber.length > 64) {
+  if (invoiceNumberField && invoiceNumberRaw && invoiceNumberRaw !== invoiceNumberDigits) {
+    invoiceNumberField.value = invoiceNumberDigits;
+  }
+
+  if (invoiceNumber.length < 3 || invoiceNumber.length > 20) {
     if (!silent) {
-      window.alert(uiT("alertInvoiceNumberLength"));
+      window.alert("Rechnungsnummer muss zwischen 3 und 20 Ziffern haben.");
     }
     return null;
   }
@@ -20659,7 +20669,9 @@ const invoiceNumberAutoBtn = document.querySelector("#invoiceNumberAutoBtn");
 if (invoiceNumberAutoBtn) {
   invoiceNumberAutoBtn.addEventListener("click", async () => {
     try {
-      const data = await apiRequest(API_BASE + "/api/invoices/next-number");
+      const companyId = document.querySelector("#invoiceCompanySelect")?.value || "";
+      const query = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
+      const data = await apiRequest(API_BASE + "/api/invoices/next-number" + query);
       const field = document.querySelector("#invoiceNumber");
       if (field) field.value = data.nextNumber || "";
     } catch (e) {

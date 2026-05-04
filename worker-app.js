@@ -806,6 +806,14 @@ function getCurrentLocale() {
   return "de-DE";
 }
 
+function normalizeCompanyBrandingPreset(value) {
+  const preset = String(value || "").trim().toLowerCase();
+  if (preset === "industry" || preset === "premium") {
+    return preset;
+  }
+  return "construction";
+}
+
 function applyTranslations() {
   const lang = currentLang;
   const dir = LANG_META[lang]?.dir || "ltr";
@@ -885,7 +893,8 @@ const elements = {
   workerName: document.querySelector("#workerName"),
   workerRole: document.querySelector("#workerRole"),
   workerPassTitle: document.querySelector("#workerPassTitle"),
-  workerPassSubLabel: document.querySelector("#workerPassSubLabel"),
+  workerPassSubLabels: document.querySelectorAll("[data-pass-sub-label]"),
+  walletCard: document.querySelector(".wallet-card"),
   workerStatus: document.querySelector("#workerStatus"),
   workerPhoto: document.querySelector("#workerPhoto"),
   workerBadgeId: document.querySelector("#workerBadgeId"),
@@ -2025,7 +2034,8 @@ async function loadWorkerData() {
 function renderWorker(payload) {
   const worker = payload.worker || {};
   const company = payload.company || {};
-    const subcompany = payload.subcompany || {};
+  const subcompany = payload.subcompany || {};
+  const companyPreset = normalizeCompanyBrandingPreset(company.brandingPreset || company.branding_preset);
   const normalizedStatus = String(worker.status || "").trim().toLowerCase();
   const workerType = String(worker.workerType || "worker").trim().toLowerCase();
   const isVisitor = workerType === "visitor";
@@ -2061,8 +2071,16 @@ function renderWorker(payload) {
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");
   }
-  if (elements.workerPassSubLabel) {
-    elements.workerPassSubLabel.textContent = isVisitor ? t("visitorPassSubLabel") : t("workerPassSubLabel");
+  if (elements.workerPassSubLabels && elements.workerPassSubLabels.length) {
+    const passSubLabel = isVisitor ? t("visitorPassSubLabel") : t("workerPassSubLabel");
+    elements.workerPassSubLabels.forEach((el) => {
+      el.textContent = passSubLabel;
+    });
+  }
+
+  if (elements.walletCard) {
+    elements.walletCard.classList.remove("preset-construction", "preset-industry", "preset-premium");
+    elements.walletCard.classList.add(`preset-${companyPreset}`);
   }
 
   if (elements.companyName) elements.companyName.textContent = company.name || t("companyFallback");

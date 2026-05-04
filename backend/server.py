@@ -4085,7 +4085,7 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
         if not company_id:
             result["skipped"] += 1
             continue
-        invoice_number = f"RE-{previous_month_start.strftime('%Y%m')}-{slugify_company_alias(company_id).upper()}"
+        invoice_number = get_next_numeric_invoice_number(db, company_id=company_id)
         existing_invoice = db.execute(
             "SELECT id FROM invoices WHERE company_id = ? AND invoice_number = ? LIMIT 1",
             (company_id, invoice_number),
@@ -8312,6 +8312,7 @@ def worker_app_me():
             "worker": serialize_worker_for_app(worker),
             "company": {
                 "name": company["name"] if company else "",
+                "brandingPreset": normalize_branding_preset(company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"),
             },
             "subcompany": {
                 "name": subcompany["name"] if subcompany else "",
@@ -10172,7 +10173,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         company_name = str(company_row["name"]             or "-")
         customer_number = str(company_row["customer_number"] if "customer_number" in company_row.keys() else "").strip()
         if not customer_number:
-            customer_number = get_next_customer_number(db)
+            customer_number = "-"
         description  = str(invoice_row["description"]      or "-")
         net_amount   = float(invoice_row["net_amount"]     or 0)
         vat_rate     = float(invoice_row["vat_rate"]       or 0)
@@ -10395,26 +10396,25 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(c_dark)
         pdf.drawString(M_L, HEADING_Y, "Rechnung")
 
-        # Kundennummer-Badge rechts neben der Hauptüberschrift
+        # Kundennummer-Badge rechts neben der Hauptüberschrift (Label direkt ueber Nummer)
         CUST_BADGE_W = 46 * mm
-        CUST_BADGE_H = 10 * mm
+        CUST_BADGE_H = 13 * mm
         CUST_BADGE_X = page_w - M_R - CUST_BADGE_W
-        CUST_BADGE_Y = HEADING_Y - 2.2 * mm
+        CUST_BADGE_Y = HEADING_Y - 4.5 * mm
         pdf.setFillColor(rl_colors.HexColor("#eef5fb"))
         pdf.setStrokeColor(c_primary)
         pdf.setLineWidth(0.6)
         pdf.roundRect(CUST_BADGE_X, CUST_BADGE_Y, CUST_BADGE_W, CUST_BADGE_H, 2.5 * mm, stroke=1, fill=1)
         pdf.setFont("Helvetica-Bold", 7.5)
         pdf.setFillColor(c_primary)
-        pdf.drawString(CUST_BADGE_X + 3.2 * mm, CUST_BADGE_Y + 6.2 * mm, "KUNDENNUMMER")
+        pdf.drawCentredString(CUST_BADGE_X + (CUST_BADGE_W / 2), CUST_BADGE_Y + 8.2 * mm, "KUNDENNUMMER")
         pdf.setFont("Helvetica-Bold", 10)
         pdf.setFillColor(c_dark)
-        pdf.drawRightString(CUST_BADGE_X + CUST_BADGE_W - 3.2 * mm, CUST_BADGE_Y + 3.0 * mm, customer_number)
+        pdf.drawCentredString(CUST_BADGE_X + (CUST_BADGE_W / 2), CUST_BADGE_Y + 3.2 * mm, customer_number)
 
         # Metadaten 2-spaltig direkt unter Überschrift
         meta_rows = [
             ("Rechnungsnummer:",  invoice_no),
-            ("Kundennummer:",     customer_number),
             ("Rechnungsdatum:",   invoice_date),
             ("Fälligkeitsdatum:", due_date),
         ]
@@ -11836,24 +11836,34 @@ def list_invoice_dead_letters():
     return jsonify(get_invoice_dead_letters(db))
 
 
+def get_next_numeric_invoice_number(db, company_id=None, min_width=6):
+    if company_id:
+        rows = db.execute(
+            "SELECT invoice_number FROM invoices WHERE company_id = ?",
+            (company_id,),
+        ).fetchall()
+    else:
+        rows = db.execute("SELECT invoice_number FROM invoices").fetchall()
+
+    max_seq = 0
+    for row in rows:
+        digits = re.sub(r"\D+", "", str(row["invoice_number"] or ""))
+        if digits:
+            max_seq = max(max_seq, int(digits))
+
+    next_seq = max_seq + 1
+    width = max(min_width, len(str(next_seq)))
+    return str(next_seq).zfill(width)
+
+
 @app.get("/api/invoices/next-number")
 @require_auth
 @require_roles("superadmin")
 def get_next_invoice_number():
-    """Return the next sequential invoice number in RE-YYYY-NNN format."""
+    """Return the next sequential numeric invoice number (digits only)."""
     db = get_db()
-    year = datetime.now().year
-    prefix = f"RE-{year}-"
-    rows = db.execute(
-        "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY invoice_number DESC",
-        (f"{prefix}%",),
-    ).fetchall()
-    max_seq = 0
-    for row in rows:
-        num_part = str(row["invoice_number"] or "")[len(prefix):]
-        if num_part.isdigit():
-            max_seq = max(max_seq, int(num_part))
-    next_num = f"{prefix}{str(max_seq + 1).zfill(4)}"
+    company_id = (request.args.get("companyId") or "").strip()
+    next_num = get_next_numeric_invoice_number(db, company_id=company_id or None)
     return jsonify({"nextNumber": next_num})
 
 
@@ -11875,9 +11885,16 @@ def send_invoice():
     if g.current_user["role"] != "superadmin" and company_id != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_company"}), 403
 
-    invoice_number = (payload.get("invoiceNumber") or "").strip() or f"RE-{datetime.now().year}-{secrets.token_hex(3).upper()}"
-    if len(invoice_number) < 3 or len(invoice_number) > 64:
-        return jsonify({"error": "invalid_invoice_number_length", "message": "Rechnungsnummer muss zwischen 3 und 64 Zeichen haben."}), 400
+    invoice_number_raw = (payload.get("invoiceNumber") or "").strip()
+    if invoice_number_raw:
+        invoice_number = re.sub(r"\D+", "", invoice_number_raw)
+        if not invoice_number:
+            return jsonify({"error": "invalid_invoice_number_format", "message": "Rechnungsnummer darf nur Ziffern enthalten."}), 400
+    else:
+        invoice_number = get_next_numeric_invoice_number(db, company_id=company_id)
+
+    if len(invoice_number) < 3 or len(invoice_number) > 20:
+        return jsonify({"error": "invalid_invoice_number_length", "message": "Rechnungsnummer muss zwischen 3 und 20 Ziffern haben."}), 400
     duplicate_invoice = db.execute(
         "SELECT id FROM invoices WHERE company_id = ? AND invoice_number = ? LIMIT 1",
         (company_id, invoice_number),

@@ -776,6 +776,36 @@ body.worker-loaded .app-shell {
   transform: none;
 }
 
+.wallet-card.preset-construction {
+  background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
+}
+
+.wallet-card.preset-industry {
+  background: linear-gradient(135deg, #1f2a18 0%, #334d22 45%, #172111 100%);
+}
+
+.wallet-card.preset-industry::before {
+  background: linear-gradient(90deg, #8bc34a 0%, #b4e27a 50%, #8bc34a 100%);
+}
+
+.wallet-card.preset-industry .wc-brand-mark {
+  background: linear-gradient(135deg, #7cb342, #4f7a1f);
+  box-shadow: 0 3px 10px rgba(124, 179, 66, .42);
+}
+
+.wallet-card.preset-premium {
+  background: linear-gradient(135deg, #18121f 0%, #2b1e3a 46%, #120d18 100%);
+}
+
+.wallet-card.preset-premium::before {
+  background: linear-gradient(90deg, #d4af37 0%, #f5d77a 50%, #d4af37 100%);
+}
+
+.wallet-card.preset-premium .wc-brand-mark {
+  background: linear-gradient(135deg, #d4af37, #8f6e16);
+  box-shadow: 0 3px 10px rgba(212, 175, 55, .45);
+}
+
 .worker-loaded .wallet-card {
   animation: cardFloat 1s ease;
 }
