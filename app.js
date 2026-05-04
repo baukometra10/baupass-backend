@@ -500,6 +500,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "Tagesabschluss konnte nicht quittiert werden: {error}",
     alertOtpRequired: "Fuer dieses Konto ist 2FA aktiv. Bitte OTP-Code eingeben.",
     alertOtpInvalid: "OTP-Code ist ungueltig oder abgelaufen. Bitte neuen Code eingeben.",
+    alertOtpCooldown: "Code bereits gesendet – bitte 60 Sekunden warten, dann erneut versuchen.",
     alertTooManyAttempts: "Zu viele Fehlversuche. Bitte 10 Minuten warten und erneut versuchen.",
     loginSecurityTitle: "Sicherheitswarnung",
     loginSecurityHint: "Es wurden 3 fehlgeschlagene Login-Versuche erkannt.",
@@ -880,6 +881,7 @@ const UI_TRANSLATIONS = {
     loginOtpBackBtn: "← Zurück",
   },
   en: {
+    alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
     authTitle: "Secure Sign-in to Control Pass",
     authCopy: "Super admin keeps full system control. Company admins only see their own company. Turnstile login gets a fast access mode.",
@@ -1209,6 +1211,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "Day close could not be acknowledged: {error}",
     alertOtpRequired: "2FA is active for this account. Please enter the OTP code.",
     alertOtpInvalid: "OTP code is invalid or expired. Please enter a new code.",
+    alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     alertTooManyAttempts: "Too many failed attempts. Please wait 10 minutes and try again.",
     loginSecurityTitle: "Security Alert",
     loginSecurityHint: "3 failed sign-in attempts were detected.",
@@ -1951,6 +1954,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "Gun sonu onaylanamadi: {error}",
     alertOtpRequired: "Bu hesap icin 2FA aktif. Lutfen OTP kodunu girin.",
     alertOtpInvalid: "OTP kodu gecersiz veya suresi dolmus. Lutfen yeni kod girin.",
+    alertOtpCooldown: "Kod zaten gönderildi – lütfen yeni bir tane istemeden önce 60 saniye bekleyin.",
     alertTooManyAttempts: "Cok fazla basarisiz deneme. Lutfen 10 dakika bekleyin ve tekrar deneyin.",
     alertForbiddenTenantHost: "Bu erisim yalnizca onaylanan sirket domaini uzerinden izinlidir.",
     alertSupportCompanyMismatch: "Bu giris secilen sirketle eslesmiyor. Lutfen isaretlenen sirketin sirket admini kullanin.",
@@ -2405,6 +2409,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "تعذر تأكيد إغلاق اليوم: {error}",
     alertOtpRequired: "المصادقة الثنائية مفعلة لهذا الحساب. يرجى إدخال رمز OTP.",
     alertOtpInvalid: "رمز OTP غير صالح أو منتهي الصلاحية. يرجى إدخال رمز جديد.",
+    alertOtpCooldown: "تم إرسال الرمز بالفعل – يرجى الانتظار 60 ثانية قبل طلب رمز جديد.",
     alertTooManyAttempts: "محاولات فاشلة كثيرة جداً. يرجى الانتظار 10 دقائق والمحاولة مرة أخرى.",
     alertForbiddenTenantHost: "هذا الوصول مسموح فقط عبر نطاق الشركة المعتمد.",
     alertSupportCompanyMismatch: "هذا تسجيل الدخول لا يطابق الشركة المحددة. يرجى استخدام مسؤول الشركة للشركة المحددة.",
@@ -3074,6 +3079,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "La cloture journalière n'a pas pu etre accusée : {error}",
     alertOtpRequired: "La 2FA est active pour ce compte. Veuillez saisir le code OTP.",
     alertOtpInvalid: "Le code OTP est invalide ou expiré. Veuillez saisir un nouveau code.",
+    alertOtpCooldown: "Code déjà envoyé – veuillez attendre 60 secondes avant d'en demander un nouveau.",
     alertTooManyAttempts: "Trop de tentatives échouées. Veuillez attendre 10 minutes et réessayer.",
     alertForbiddenTenantHost: "Cet accès n'est autorisé que via le domaine approuvé de l'entreprise.",
     alertSupportCompanyMismatch: "Cette connexion ne correspond pas à l'entreprise sélectionnée. Veuillez utiliser l'admin de l'entreprise marquée.",
@@ -3743,6 +3749,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "El cierre de dia no pudo confirmarse: {error}",
     alertOtpRequired: "La 2FA esta activa para esta cuenta. Por favor ingrese el codigo OTP.",
     alertOtpInvalid: "El codigo OTP es invalido o ha expirado. Por favor ingrese un nuevo codigo.",
+    alertOtpCooldown: "Código ya enviado – por favor espera 60 segundos antes de solicitar uno nuevo.",
     alertTooManyAttempts: "Demasiados intentos fallidos. Por favor espere 10 minutos e intentelo de nuevo.",
     alertForbiddenTenantHost: "Este acceso solo esta permitido a traves del dominio de empresa aprobado.",
     alertSupportCompanyMismatch: "Este inicio de sesion no coincide con la empresa seleccionada. Por favor use el admin de la empresa marcada.",
@@ -4404,6 +4411,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "La chiusura giornaliera non ha potuto essere confermata: {error}",
     alertOtpRequired: "La 2FA e attiva per questo account. Inserire il codice OTP.",
     alertOtpInvalid: "Il codice OTP non e valido o e scaduto. Inserire un nuovo codice.",
+    alertOtpCooldown: "Codice già inviato – attendi 60 secondi prima di richiederne uno nuovo.",
     alertTooManyAttempts: "Troppi tentativi falliti. Attendere 10 minuti e riprovare.",
     alertForbiddenTenantHost: "Questo accesso e consentito solo tramite il dominio aziendale approvato.",
     alertSupportCompanyMismatch: "Questo accesso non corrisponde all'azienda selezionata. Usare l'admin dell'azienda contrassegnata.",
@@ -5073,6 +5081,7 @@ const UI_TRANSLATIONS = {
     alertDayCloseAckFailed: "Zamkniecie dnia nie moglo zostac potwierdzone: {error}",
     alertOtpRequired: "2FA jest aktywne dla tego konta. Prosze wprowadzic kod OTP.",
     alertOtpInvalid: "Kod OTP jest nieprawidlowy lub wygasl. Prosze wprowadzic nowy kod.",
+    alertOtpCooldown: "Kod został już wysłany – poczekaj 60 sekund przed ponownym żądaniem.",
     alertTooManyAttempts: "Zbyt wiele nieudanych prob. Prosze poczekac 10 minut i sprobowac ponownie.",
     alertForbiddenTenantHost: "Ten dostep jest dozwolony tylko przez zatwierdzony domen firmy.",
     alertSupportCompanyMismatch: "To logowanie nie pasuje do wybranej firmy. Prosze uzyc admina firmy oznaczonej firmy.",
@@ -11153,13 +11162,19 @@ function renderWorkerList() {
           ${sub ? `<p>${escapeHtml(uiT("labelSubcompany"))}: ${escapeHtml(sub)}</p>` : ""}
           ${lockReason ? `<p class="helper-text helper-text-warning"><strong>${escapeHtml(runtimeText("workerStatusReasonLabel"))}:</strong> ${escapeHtml(lockReason)}</p>` : ""}
           ${visitorMeta}
-          <div class="button-row">
-            <button type="button" class="ghost-button" data-worker-edit="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>${uiT("btnEdit")}</button>
-            <button type="button" class="ghost-button" data-worker-delete="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>${uiT("btnDelete")}</button>
-            <button type="button" class="ghost-button" data-worker-restore="${escapeHtml(worker.id)}" ${deleted ? "" : "disabled"}>${uiT("btnRestore")}</button>
-            <button type="button" class="ghost-button" data-worker-app-link="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>${uiT("btnAppLink")}</button>
-            ${!deleted ? `<button type="button" class="ghost-button" data-worker-toggle-lock="${escapeHtml(worker.id)}">${String(worker.status || "").toLowerCase() === "gesperrt" ? "Entsperren" : "Sperren"}</button>` : ""}
-            ${!visitor && !deleted ? `<button type="button" class="ghost-button" data-worker-reset-pin="${escapeHtml(worker.id)}">${uiT("btnResetPin")}</button>` : ""}
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <span style="font-size:0.72em;color:#6b7280;min-width:80px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Profil</span>
+              <button type="button" class="ghost-button small-button" data-worker-edit="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>✏️ ${uiT("btnEdit")}</button>
+              <button type="button" class="ghost-button small-button" data-worker-app-link="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>📲 ${uiT("btnAppLink")}</button>
+              ${!visitor && !deleted ? `<button type="button" class="ghost-button small-button" data-worker-reset-pin="${escapeHtml(worker.id)}">🔑 ${uiT("btnResetPin")}</button>` : ""}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <span style="font-size:0.72em;color:#6b7280;min-width:80px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Aktionen</span>
+              ${!deleted ? `<button type="button" class="ghost-button small-button ${String(worker.status || '').toLowerCase() === 'gesperrt' ? 'btn-success' : 'btn-warning'}" data-worker-toggle-lock="${escapeHtml(worker.id)}">${String(worker.status || "").toLowerCase() === "gesperrt" ? "✅ Entsperren" : "🔴 Sperren"}</button>` : ""}
+              <button type="button" class="ghost-button small-button" data-worker-restore="${escapeHtml(worker.id)}" ${deleted ? "" : "disabled"}>♻️ ${uiT("btnRestore")}</button>
+              <button type="button" class="ghost-button small-button btn-danger" data-worker-delete="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>🗑 ${uiT("btnDelete")}</button>
+            </div>
           </div>
         </article>
       `;
@@ -17393,6 +17408,12 @@ async function handleLoginSubmit(event) {
       return;
     }
     if (error.message === "otp_sent") {
+      if (state.loginOtpPending) {
+        // Already waiting for OTP → cooldown hit, don't re-show OTP field
+        window.alert(uiT("alertOtpCooldown") || "Code bereits gesendet – bitte 60 Sekunden warten.");
+        elements.loginOtpCode?.focus();
+        return;
+      }
       // Credentials verified – OTP was emailed. Show OTP field.
       resetLoginFailureCounter();
       state.loginOtpPending = true;
