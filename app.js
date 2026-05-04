@@ -19818,6 +19818,38 @@ if (elements.dayCloseAcknowledgeForm) {
 const settingsForm = document.querySelector("#settingsForm");
 if (settingsForm) {
   settingsForm.addEventListener("submit", handleSettingsSubmit);
+
+  // Live rot/grün Feedback für wichtige Felder
+  const SETTINGS_REQUIRED_FIELDS = [
+    "#invoiceOperatorStreet",
+    "#invoiceOperatorZipCity",
+    "#invoiceOperatorEmail",
+    "#invoiceOperatorPhone",
+    "#invoiceIban",
+    "#invoiceBic",
+    "#invoiceBankName",
+    "#invoiceTaxId",
+    "#smtpHost",
+    "#smtpSenderEmail",
+    "#smtpSenderName",
+    "#operatorName",
+    "#platformName",
+  ];
+
+  function applySettingsFieldColors() {
+    for (const sel of SETTINGS_REQUIRED_FIELDS) {
+      const el = settingsForm.querySelector(sel);
+      if (!el) continue;
+      const filled = String(el.value || "").trim().length > 0;
+      el.classList.toggle("invoice-field-valid", filled);
+      el.classList.toggle("invoice-field-invalid", !filled);
+    }
+  }
+
+  settingsForm.addEventListener("input", applySettingsFieldColors);
+  settingsForm.addEventListener("change", applySettingsFieldColors);
+  // Sofort beim Laden anwenden (nach kurzem Timeout damit renderAdminSettingsForm die Werte gesetzt hat)
+  setTimeout(applySettingsFieldColors, 200);
 }
 
 const companyForm = document.querySelector("#companyForm");
