@@ -14141,7 +14141,19 @@ function renderWorkerDocuments(docs, workerId, container) {
           `${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents/${encodeURIComponent(docId)}/download`,
           { headers: { Authorization: `Bearer ${token}` }, credentials: "include" }
         );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          let backendError = "";
+          try {
+            const payload = await response.json();
+            backendError = String(payload?.error || "").trim();
+          } catch {
+            backendError = "";
+          }
+          if (response.status === 404) {
+            throw new Error("Dokument nicht gefunden. Es wurde eventuell bereits gelöscht oder ist nicht mehr auf dem Server vorhanden.");
+          }
+          throw new Error(backendError || `HTTP ${response.status}`);
+        }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -14153,6 +14165,14 @@ function renderWorkerDocuments(docs, workerId, container) {
         URL.revokeObjectURL(url);
       } catch (err) {
         window.alert(`Download fehlgeschlagen: ${err.message}`);
+        if (String(err?.message || "").toLowerCase().includes("dokument nicht gefunden")) {
+          try {
+            const updatedDocs = await loadWorkerDocuments(workerId);
+            renderWorkerDocuments(updatedDocs, workerId, container);
+          } catch {
+            // ignore refresh errors and keep current UI state
+          }
+        }
       } finally {
         btn.disabled = false;
       }
