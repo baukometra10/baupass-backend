@@ -2049,21 +2049,30 @@ function renderWorker(payload) {
 
   // ── Dynamic platform branding ──
   const platformName = ((payload.settings?.platformName) || "Control Pass").trim() || "Control Pass";
-  document.title = platformName + " – " + t("pageTitle");
+  
+  // Determine app title based on company branding preset
+  const appTitleMap = {
+    "industry": "KontrolPass",
+    "premium": "KontrolPass",
+    "construction": "BauPass"
+  };
+  const appBrandTitle = appTitleMap[companyPreset] || platformName;
+  
+  document.title = appBrandTitle + " – " + t("pageTitle");
   const brandEl = document.getElementById("workerBrandName");
-  if (brandEl) brandEl.textContent = platformName.toUpperCase();
+  if (brandEl) brandEl.textContent = appBrandTitle.toUpperCase();
   const appTitleEl = document.getElementById("workerAppTitle");
-  if (appTitleEl) appTitleEl.textContent = platformName;
+  if (appTitleEl) appTitleEl.textContent = appBrandTitle;
   const splashTitleEl = document.getElementById("workerSplashTitle");
-  if (splashTitleEl) splashTitleEl.textContent = platformName;
+  if (splashTitleEl) splashTitleEl.textContent = appBrandTitle;
   // Brand chip in top panel
   const brandChipEl = document.getElementById("workerBrandChip");
-  if (brandChipEl) brandChipEl.textContent = platformName;
+  if (brandChipEl) brandChipEl.textContent = appBrandTitle;
   // Update iOS / Android meta tags dynamically
   const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-  if (metaAppTitle) metaAppTitle.setAttribute("content", platformName);
+  if (metaAppTitle) metaAppTitle.setAttribute("content", appBrandTitle);
   const metaAppName = document.querySelector('meta[name="application-name"]');
-  if (metaAppName) metaAppName.setAttribute("content", platformName + " Mitarbeiter-App");
+  if (metaAppName) metaAppName.setAttribute("content", appBrandTitle + " Mitarbeiter-App");
   // Update manifest with white-label name
   const _storedToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
   if (_storedToken) applyDynamicManifestStartUrl(_storedToken, platformName);
