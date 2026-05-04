@@ -2851,10 +2851,23 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
 
 
 def _get_brevo_api_key():
-    """Return Brevo API key from module-level cache (DB) or env var."""
+    """Return Brevo API key from module-level cache, DB, or env var."""
     cached = _normalize_env_value(_resend_key_cache.get("brevo_key") or "")
     if cached:
         return cached
+    # Direct DB fallback in case cache is stale (e.g. after hot-reload)
+    try:
+        with closing(sqlite3.connect(DB_PATH)) as _db:
+            _db.row_factory = sqlite3.Row
+            _row = _db.execute("SELECT brevo_api_key, brevo_from_email FROM settings WHERE id = 1").fetchone()
+            if _row:
+                db_key = _normalize_env_value(_row["brevo_api_key"] or "")
+                if db_key:
+                    _resend_key_cache["brevo_key"] = db_key
+                    _resend_key_cache["brevo_from_email"] = _normalize_env_value(_row["brevo_from_email"] or "")
+                    return db_key
+    except Exception:
+        pass
     return _normalize_env_value(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
 
 
