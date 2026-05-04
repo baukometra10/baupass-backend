@@ -9744,18 +9744,20 @@ function renderDocumentInboxList() {
         ? `<p class="meta-text">Firma: ${escapeHtml(matchedCompany)}</p>`
         : "";
 
+      const isUnread = !entry.is_read;
+      const unreadDot = isUnread ? `<span class="doc-inbox-unread-dot" title="Ungelesen"></span>` : "";
+
       return `
-        <article class="card-item doc-inbox-item">
+        <article class="card-item doc-inbox-item${isUnread ? " doc-inbox-unread" : ""}" data-open-inbox-id="${escapeHtml(String(entry?.id || ""))}" style="cursor:pointer;">
           <div class="doc-inbox-head">
-            <strong>${escapeHtml(String(entry?.subject || "(ohne Betreff)"))}</strong>
+            ${unreadDot}<strong style="${isUnread ? "font-weight:800;" : ""}">${escapeHtml(String(entry?.subject || "(ohne Betreff)"))}</strong>
             <span class="meta-text">${escapeHtml(formatTimestamp(entry?.received_at || ""))}</span>
           </div>
           <p class="helper-text">${escapeHtml(uiT("docInboxEmailFrom"))}: ${escapeHtml(String(entry?.from_addr || "-"))}</p>
           <p class="helper-text">An: ${escapeHtml(String(entry?.to_addr || "-"))}</p>
           ${matchedCompanyMarkup}
-          <p class="meta-text">${escapeHtml(uiT("docInboxAttachments"))}:</p>
-          <ul class="doc-inbox-attachment-list">${attachmentsHtml}</ul>
-          <div class="button-row doc-inbox-row-actions">
+          <p class="meta-text">${escapeHtml(uiT("docInboxAttachments"))}: ${attachments.length || 0}</p>
+          <div class="button-row doc-inbox-row-actions" style="margin-top:6px;">
             <button type="button" class="ghost-button small-button" data-dismiss-email-id="${escapeHtml(String(entry?.id || ""))}">${escapeHtml(uiT("btnDismissEmail"))}</button>
           </div>
         </article>
@@ -9765,8 +9767,20 @@ function renderDocumentInboxList() {
 
   container.innerHTML = html;
 
+  // Click on card → open detail modal
+  container.querySelectorAll("[data-open-inbox-id]").forEach((card) => {
+    card.addEventListener("click", async (event) => {
+      // Don't open if they clicked the dismiss button
+      if (event.target.closest("[data-dismiss-email-id]")) return;
+      const inboxId = String(card.dataset.openInboxId || "").trim();
+      if (!inboxId) return;
+      await openInboxMailDetail(inboxId, card);
+    });
+  });
+
   container.querySelectorAll("[data-dismiss-email-id]").forEach((button) => {
     button.addEventListener("click", async (event) => {
+      event.stopPropagation();
       const inboxId = String(event.currentTarget.dataset.dismissEmailId || "").trim();
       if (!inboxId) {
         return;
@@ -9785,6 +9799,84 @@ function renderDocumentInboxList() {
       }
     });
   });
+}
+
+async function openInboxMailDetail(inboxId, cardEl) {
+  // Mark as read (also returns full entry with body_text)
+  let entry = null;
+  try {
+    entry = await apiRequest(`${API_BASE}/api/documents/inbox/${inboxId}/mark-read`, { method: "POST", body: {} });
+    // Remove unread styling from card
+    if (cardEl) {
+      cardEl.classList.remove("doc-inbox-unread");
+      const dot = cardEl.querySelector(".doc-inbox-unread-dot");
+      if (dot) dot.remove();
+      const subj = cardEl.querySelector("strong");
+      if (subj) subj.style.fontWeight = "";
+    }
+  } catch (err) {
+    // Fallback: use existing entry from state
+    entry = (state.documentInboxEntries || []).find((e) => e.id === inboxId) || null;
+  }
+  if (!entry) return;
+
+  const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
+  const bodyText = String(entry.body_text || "").trim();
+  const attachmentsHtml = attachments.length
+    ? attachments.map((att) => {
+        const sizeKb = att.file_size > 0 ? `${Math.max(1, Math.round(att.file_size / 1024))} KB` : "";
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,0.07);">
+          <span style="font-size:1.3em;">📎</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.88em;word-break:break-all;">${escapeHtml(att.filename || "Anhang")}</div>
+            ${sizeKb ? `<div style="font-size:0.75em;color:#888;">${escapeHtml(sizeKb)}</div>` : ""}
+          </div>
+        </div>`;
+      }).join("")
+    : `<p style="color:#888;font-size:0.85em;">Keine Anhänge</p>`;
+
+  // Build or reuse modal
+  let modal = document.getElementById("docInboxDetailModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "docInboxDetailModal";
+    modal.style.cssText = "position:fixed;inset:0;z-index:8000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);";
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background:var(--surface-strong,#fff);color:var(--text,#1a1a1a);border-radius:16px;box-shadow:0 8px 48px rgba(0,0,0,0.28);max-width:640px;width:95vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:18px 20px 12px;border-bottom:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:1.1em;font-weight:800;word-break:break-word;">${escapeHtml(String(entry.subject || "(ohne Betreff)"))}</div>
+          <div style="font-size:0.8em;color:var(--muted,#666);margin-top:4px;">Von: <strong>${escapeHtml(String(entry.from_addr || "-"))}</strong></div>
+          <div style="font-size:0.8em;color:var(--muted,#666);">An: ${escapeHtml(String(entry.to_addr || "-"))}</div>
+          <div style="font-size:0.78em;color:var(--muted,#888);margin-top:2px;">${escapeHtml(formatTimestamp(entry.received_at || ""))}</div>
+          ${entry.matched_company_name ? `<div style="font-size:0.8em;margin-top:4px;">🏢 <strong>${escapeHtml(entry.matched_company_name)}</strong></div>` : ""}
+        </div>
+        <button id="docInboxDetailClose" style="background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--muted,#888);padding:0;line-height:1;flex-shrink:0;">×</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px;">
+        <div>
+          <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Nachricht</div>
+          <div style="font-size:0.88em;white-space:pre-wrap;word-break:break-word;background:var(--surface,rgba(0,0,0,0.03));border-radius:8px;padding:12px;border:1px solid var(--line,rgba(0,0,0,0.07));">${escapeHtml(bodyText || "—")}</div>
+        </div>
+        ${attachments.length ? `<div>
+          <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Anhänge (${attachments.length})</div>
+          ${attachmentsHtml}
+        </div>` : ""}
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:flex-end;">
+        <button id="docInboxDetailClose2" class="ghost-button small-button">Schließen</button>
+      </div>
+    </div>
+  `;
+
+  modal.style.display = "flex";
+  const close = () => { modal.style.display = "none"; };
+  modal.querySelector("#docInboxDetailClose").onclick = close;
+  modal.querySelector("#docInboxDetailClose2").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); }, { once: true });
 }
 
 async function loadDocumentInbox(options = {}) {

@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sqlite3
 import secrets
 import csv
@@ -2142,6 +2142,11 @@ def init_db():
     if "expiry_date" not in doc_columns:
         cur.execute("ALTER TABLE worker_documents ADD COLUMN expiry_date TEXT")
 
+    # ── Neu: is_read fuer E-Mail-Posteingang ──
+    inbox_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_inbox)").fetchall()]
+    if "is_read" not in inbox_columns:
+        cur.execute("ALTER TABLE email_inbox ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0")
+
     # ── Neu: Passwort-Reset-Token Tabelle ──
     cur.execute(
         """
@@ -3858,7 +3863,7 @@ def check_visitor_card_expiry_notifications(db):
         )
         mail_sent = False
         try:
-            with smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=20) as smtp:
+            with smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=10) as smtp:
                 if int(settings["smtp_use_tls"] or 0) == 1:
                     smtp.starttls()
                 if (settings["smtp_username"] or "").strip():
@@ -10699,7 +10704,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 )
 
     try:
-        with smtplib.SMTP(smtp_host, int(settings_row["smtp_port"] or 587), timeout=20) as smtp:
+        with smtplib.SMTP(smtp_host, int(settings_row["smtp_port"] or 587), timeout=10) as smtp:
             if int(settings_row["smtp_use_tls"] or 0) == 1:
                 smtp.starttls()
             smtp_username = (settings_row["smtp_username"] or "").strip()
@@ -11463,7 +11468,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
     message.set_content(alert_text)
 
     try:
-        with smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=20) as smtp:
+        with smtplib.SMTP(smtp_host, int(settings["smtp_port"] or 587), timeout=10) as smtp:
             if int(settings["smtp_use_tls"] or 0) == 1:
                 smtp.starttls()
             smtp_username = (settings["smtp_username"] or "").strip()
@@ -14320,6 +14325,30 @@ def dismiss_inbox_email(inbox_id):
     return jsonify({"ok": True})
 
 
+@app.post("/api/documents/inbox/<inbox_id>/mark-read")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def mark_inbox_email_read(inbox_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM email_inbox WHERE id = ?", (inbox_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not_found"}), 404
+    db.execute("UPDATE email_inbox SET is_read = 1 WHERE id = ?", (inbox_id,))
+    db.commit()
+    attachments = db.execute(
+        "SELECT id, filename, content_type, file_size, assigned_worker_id, assigned_doc_type FROM email_attachments WHERE inbox_id = ?",
+        (inbox_id,),
+    ).fetchall()
+    entry = dict(row)
+    entry["is_read"] = 1
+    entry["attachments"] = [dict(a) for a in attachments]
+    if row["matched_company_id"]:
+        company = db.execute("SELECT name FROM companies WHERE id = ?", (row["matched_company_id"],)).fetchone()
+        if company:
+            entry["matched_company_name"] = company["name"]
+    return jsonify(entry)
+
+
 @app.post("/api/documents/inbox/<inbox_id>/attachments/<attachment_id>/assign")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
@@ -15499,7 +15528,7 @@ def worker_send_leave_request_email(req_id):
                     maintype="text", subtype="html",
                     filename="Urlaubsantrag.html"
                 )
-                with smtplib.SMTP(smtp_host, int(settings.get("smtp_port") or 587), timeout=20) as smtp:
+                with smtplib.SMTP(smtp_host, int(settings.get("smtp_port") or 587), timeout=10) as smtp:
                     if int(settings.get("smtp_use_tls") or 0) == 1:
                         smtp.starttls()
                     smtp_user = (settings.get("smtp_username") or "").strip()
