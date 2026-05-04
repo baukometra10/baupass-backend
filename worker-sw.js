@@ -58,7 +58,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((c) => c.put(event.request, response.clone())).catch(() => {});
           return response;
         })
-        .catch(() => caches.match("/worker.html"))
+        .catch(async () => (await caches.match("/worker.html")) || new Response("Offline", { status: 503, statusText: "Offline" }))
     );
     return;
   }
@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
           const networkFetch = fetch(event.request).then((response) => {
             cache.put(event.request, response.clone()).catch(() => {});
             return response;
-          }).catch(() => cached);
+          }).catch(() => cached || new Response("", { status: 504, statusText: "Offline" }));
           return cached || networkFetch;
         });
       })
@@ -84,7 +84,12 @@ self.addEventListener("fetch", (event) => {
       if (cached) {
         return cached;
       }
-      return fetch(event.request);
+      return fetch(event.request).catch(() => {
+        if (event.request.mode === "navigate") {
+          return caches.match("/worker.html");
+        }
+        return new Response("", { status: 504, statusText: "Offline" });
+      });
     })
   );
 });
