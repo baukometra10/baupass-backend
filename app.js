@@ -9829,6 +9829,11 @@ async function triggerDocumentInboxSync(button) {
 }
 
 async function rematchDocumentInboxLinks(button) {
+  const isAllowed = getEffectiveUiRole() === "superadmin" && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
+  if (!isAllowed) {
+    window.alert("Neu zuordnen ist nur fuer Superadmin erlaubt.");
+    return;
+  }
   button.disabled = true;
   try {
     const payload = await apiRequest(`${API_BASE}/api/documents/inbox/rematch-company-links`, {
@@ -9839,7 +9844,12 @@ async function rematchDocumentInboxLinks(button) {
     await loadDocumentInbox({ silent: true });
     window.alert(`Neu zugeordnet: ${matched}`);
   } catch (error) {
-    window.alert(uiT("alertGenericError").replace("{error}", error.message));
+    const isForbidden = Number(error?.status || 0) === 403 || String(error?.code || error?.message || "").toLowerCase().includes("forbidden");
+    if (isForbidden) {
+      window.alert("Neu zuordnen ist nur fuer Superadmin erlaubt.");
+    } else {
+      window.alert(uiT("alertGenericError").replace("{error}", error.message));
+    }
   } finally {
     button.disabled = false;
   }
@@ -9866,6 +9876,9 @@ function bindDocumentInboxControls() {
   }
 
   if (rematchButton && !rematchButton.dataset.bound) {
+    const isAllowed = getEffectiveUiRole() === "superadmin" && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
+    rematchButton.disabled = !isAllowed;
+    rematchButton.title = isAllowed ? "" : "Nur Superadmin";
     rematchButton.addEventListener("click", async () => {
       await rematchDocumentInboxLinks(rematchButton);
     });
