@@ -10062,12 +10062,11 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf_buffer = io.BytesIO()
         pdf = rl_canvas.Canvas(pdf_buffer, pagesize=A4)
         page_w, page_h = A4
-        M_L = 25 * mm   # DIN 5008 linker Rand
+        M_L = 20 * mm
         M_R = 20 * mm
-        M_B = 18 * mm   # Bodenrand über Footer
-        CW  = page_w - M_L - M_R  # nutzbare Breite
+        CW  = page_w - M_L - M_R
 
-        brand_primary = sanitize_hex_color(settings_row["invoice_primary_color"], fallback="#0f4c5c")
+        brand_primary = sanitize_hex_color(settings_row["invoice_primary_color"], fallback="#2196F3")
         brand_accent  = sanitize_hex_color(settings_row["invoice_accent_color"],  fallback=brand_primary)
 
         invoice_no   = str(invoice_row["invoice_number"]  or "-")
@@ -10110,41 +10109,15 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         def _money(v):
             return f"{v:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
-        c_primary   = rl_colors.HexColor(brand_primary)
-        c_accent    = rl_colors.HexColor(brand_accent)
-        c_dark      = rl_colors.HexColor("#1a2633")
-        c_mid       = rl_colors.HexColor("#4a5568")
-        c_light     = rl_colors.HexColor("#718096")
-        c_rule      = rl_colors.HexColor("#d1d9e0")
-        c_bg_box    = rl_colors.HexColor("#f4f7fa")
-        c_stripe    = rl_colors.HexColor("#edf2f7")
+        c_primary = rl_colors.HexColor(brand_primary)
+        c_dark    = rl_colors.HexColor("#1a1a2e")
+        c_mid     = rl_colors.HexColor("#555566")
+        c_light   = rl_colors.HexColor("#888899")
+        c_rule    = rl_colors.HexColor("#e0e0ea")
+        c_tbl_hdr_bg = c_primary
+        c_stripe  = rl_colors.HexColor("#f5f7fa")
 
         # ── Logo-Hilfsfunktionen ─────────────────────────────────────
-        def _build_baukometra_wordmark_png():
-            try:
-                from PIL import Image, ImageDraw, ImageFont
-            except Exception:
-                return None
-            w, h = 960, 240
-            img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-            d = ImageDraw.Draw(img)
-            d.rounded_rectangle([0, 20, 210, 220], radius=32, fill=(15, 76, 92, 255))
-            font_b = font_s = None
-            for fn in ["segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf",
-                        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]:
-                try:
-                    font_b = ImageFont.truetype(fn, 108)
-                    font_s = ImageFont.truetype(fn, 58)
-                    break
-                except Exception:
-                    continue
-            font_b = font_b or ImageFont.load_default()
-            font_s = font_s or ImageFont.load_default()
-            d.text((52, 72), "BK",         fill=(255,255,255,255), font=font_s)
-            d.text((248, 44), "BauKometra", fill=(255,255,255,255), font=font_b)
-            d.line([(250, 180), (750, 180)], fill=(227, 100, 20, 255), width=10)
-            buf = io.BytesIO(); img.save(buf, "PNG"); return buf.getvalue()
-
         def _decode_data_url(raw):
             v = str(raw or "").strip()
             if not v.startswith("data:image") or "," not in v:
@@ -10184,447 +10157,365 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 if png: return png
             elif raw:
                 return raw
-            return _build_baukometra_wordmark_png() or b""
-
-        def _draw_logo_text_fallback(x, y):
-            # Draw a built-in fallback mark so a logo is always visible even without PIL/svglib.
-            tile_h = 11 * mm
-            tile_w = 11 * mm
-            pdf.setFillColor(rl_colors.white)
-            pdf.roundRect(x, y, tile_w, tile_h, 1.8 * mm, stroke=0, fill=1)
-            pdf.setFillColor(c_primary)
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.drawString(x + 2.3 * mm, y + 3.6 * mm, "BK")
-            pdf.setFillColor(rl_colors.white)
-            pdf.setFont("Helvetica-Bold", 13)
-            pdf.drawString(x + tile_w + 2.5 * mm, y + 4.2 * mm, "BauKometra")
+            return b""
 
         # ════════════════════════════════════════════════════════════
-        # 1  HEADER-BAND (Höhe 30 mm)
+        # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende
         # ════════════════════════════════════════════════════════════
-        HDR_H = 30 * mm
-        pdf.setFillColor(c_primary)
-        pdf.rect(0, page_h - HDR_H, page_w, HDR_H, stroke=0, fill=1)
+        FOOTER_H = 22 * mm
+        FOOTER_Y = 0
 
-        # ── Logo links im Header ──────────────────────────────────
+        pdf.setStrokeColor(c_rule)
+        pdf.setLineWidth(0.5)
+        pdf.line(M_L, FOOTER_H, page_w - M_R, FOOTER_H)
+
+        col_w = CW / 3
+        # Spalte 1: Adresse
+        fy = FOOTER_H - 5 * mm
+        pdf.setFont("Helvetica-Bold", 7.5)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(M_L, fy, operator_label)
+        fy -= 4 * mm
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(c_mid)
+        for ln in [op_street, op_zip_city]:
+            if ln:
+                pdf.drawString(M_L, fy, ln)
+                fy -= 3.8 * mm
+
+        # Spalte 2: Tel/Email
+        col2_x = M_L + col_w
+        fy2 = FOOTER_H - 5 * mm
+        pdf.setFont("Helvetica-Bold", 7.5)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(col2_x, fy2, "Kontakt")
+        fy2 -= 4 * mm
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(c_mid)
+        for ln in [f"Telefon: {op_phone}" if op_phone else "", f"E-Mail: {op_email}" if op_email else "", op_website]:
+            if ln:
+                pdf.drawString(col2_x, fy2, ln)
+                fy2 -= 3.8 * mm
+
+        # Spalte 3: Steuer/IBAN
+        col3_x = M_L + 2 * col_w
+        fy3 = FOOTER_H - 5 * mm
+        pdf.setFont("Helvetica-Bold", 7.5)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(col3_x, fy3, "Bankverbindung")
+        fy3 -= 4 * mm
+        pdf.setFont("Helvetica", 7)
+        pdf.setFillColor(c_mid)
+        for ln in [f"St.-Nr.: {op_tax_id}" if op_tax_id else "",
+                   f"USt-ID: {op_vat_id}" if op_vat_id else "",
+                   f"IBAN: {op_iban}" if op_iban else "",
+                   f"BIC: {op_bic}" if op_bic else ""]:
+            if ln:
+                pdf.drawString(col3_x, fy3, ln)
+                fy3 -= 3.8 * mm
+
+        # ════════════════════════════════════════════════════════════
+        # HEADER – Logo oben rechts + Firmenname/-slogan
+        # ════════════════════════════════════════════════════════════
+        LOGO_MAX_W = 45 * mm
+        LOGO_MAX_H = 22 * mm
+        LOGO_X = page_w - M_R - LOGO_MAX_W
+        LOGO_TOP = page_h - 12 * mm
+
         logo_drawn = False
         try:
             lb = _logo_bytes()
             if lb:
                 ir = ImageReader(io.BytesIO(lb))
-                pdf.drawImage(ir, M_L, page_h - HDR_H + 5 * mm,
-                              width=50 * mm, height=20 * mm,
-                              preserveAspectRatio=True, mask="auto")
+                pdf.drawImage(ir, LOGO_X, LOGO_TOP - LOGO_MAX_H,
+                              width=LOGO_MAX_W, height=LOGO_MAX_H,
+                              preserveAspectRatio=True, anchor="ne", mask="auto")
                 logo_drawn = True
         except Exception:
             pass
-        if not logo_drawn:
-            _draw_logo_text_fallback(M_L, page_h - HDR_H + 10 * mm)
 
-        # ── RECHNUNG + Plattformname rechts ──────────────────────
-        pdf.setFillColor(rl_colors.white)
-        pdf.setFont("Helvetica-Bold", 22)
-        pdf.drawRightString(page_w - M_R, page_h - HDR_H + 14 * mm, "RECHNUNG")
-        pdf.setFont("Helvetica", 8)
-        pdf.setFillColor(rl_colors.HexColor("#a8c4d4"))
-        pdf.drawRightString(page_w - M_R, page_h - HDR_H + 7 * mm, platform_label)
-
-        # Status-Badge (OFFEN / ÜBERFÄLLIG / BEZAHLT) – rechts unter "RECHNUNG"
-        _inv_status = str(invoice_row["status"] if "status" in invoice_row.keys() else "").lower()
-        if _inv_status == "bezahlt":
-            _badge_bg, _badge_txt = rl_colors.HexColor("#16a34a"), "BEZAHLT"
-        elif _inv_status in ("overdue", "überfällig"):
-            _badge_bg, _badge_txt = rl_colors.HexColor("#dc2626"), "ÜBERFÄLLIG"
-        else:
-            _badge_bg, _badge_txt = rl_colors.HexColor("#d97706"), "OFFEN"
-        _BDG_W, _BDG_H = 24 * mm, 6.5 * mm
-        _BDG_X = page_w - M_R - _BDG_W
-        _BDG_Y = page_h - HDR_H + 0.5 * mm
-        pdf.setFillColor(_badge_bg)
-        pdf.roundRect(_BDG_X, _BDG_Y, _BDG_W, _BDG_H, 1.5, stroke=0, fill=1)
-        pdf.setFont("Helvetica-Bold", 7)
-        pdf.setFillColor(rl_colors.white)
-        pdf.drawCentredString(_BDG_X + _BDG_W / 2, _BDG_Y + 1.8 * mm, _badge_txt)
-
-        # ════════════════════════════════════════════════════════════
-        # 2  ABSENDER + RECHNUNGSDATEN-BOX  (unterhalb Header)
-        # ════════════════════════════════════════════════════════════
-        # Absender links oben, Metabox rechts oben – beide starten 4 mm unterhalb Header
-        SECTION_TOP = page_h - HDR_H - 4 * mm
-
-        # --- Absenderzeile (kleine Rücksendeadresse für DIN-5008-Fenster)
-        ret_addr_parts = [operator_label]
-        if op_street:   ret_addr_parts.append(op_street)
-        if op_zip_city: ret_addr_parts.append(op_zip_city)
-        pdf.setFont("Helvetica", 7)
-        pdf.setFillColor(c_light)
-        pdf.drawString(M_L, SECTION_TOP, "  \u25AA  ".join(ret_addr_parts))
-
-        # --- Metabox rechts (Rechnungsdaten)
-        META_W = 72 * mm
-        META_X = page_w - M_R - META_W
-        META_Y = SECTION_TOP
-        meta_rows = [
-            ("Rechnungsnr.",      invoice_no),
-            ("Datum",             invoice_date),
-            ("Zahlbar bis",       due_date),
-            ("Leistungszeitraum", period),
-        ]
-        META_H = len(meta_rows) * 7 * mm + 10 * mm
-        pdf.setFillColor(c_bg_box)
-        pdf.setStrokeColor(c_rule)
-        pdf.setLineWidth(0.4)
-        pdf.roundRect(META_X, META_Y - META_H, META_W, META_H, 3, stroke=1, fill=1)
-
-        pdf.setFont("Helvetica-Bold", 7.5)
-        pdf.setFillColor(c_light)
-        pdf.drawString(META_X + 4 * mm, META_Y - 6 * mm, "RECHNUNGSDATEN")
-
-        for i, (lbl, val) in enumerate(meta_rows):
-            ry = META_Y - 13 * mm - i * 7 * mm
-            pdf.setFont("Helvetica", 8)
-            pdf.setFillColor(c_mid)
-            pdf.drawString(META_X + 4 * mm, ry, lbl)
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.setFillColor(c_dark)
-            pdf.drawRightString(META_X + META_W - 4 * mm, ry, val)
-
-        # ════════════════════════════════════════════════════════════
-        # 3  EMPFÄNGERADRESSE (DIN 5008-Fenster: 45 mm unterhalb Kopfbereich)
-        # ════════════════════════════════════════════════════════════
-        ADDR_TOP = SECTION_TOP - 8 * mm  # kleiner Abstand nach Absender
-        ADDR_H   = 38 * mm
-        ADDR_W   = META_X - M_L - 8 * mm  # bis zur Metabox
-
-        pdf.setStrokeColor(c_rule)
-        pdf.setLineWidth(0.3)
-        pdf.line(M_L, ADDR_TOP, M_L + ADDR_W, ADDR_TOP)  # obere Fensterlinie
-
+        # Firmenname unter Logo
+        name_y = LOGO_TOP - LOGO_MAX_H - 4 * mm
         pdf.setFont("Helvetica-Bold", 11)
         pdf.setFillColor(c_dark)
-        pdf.drawString(M_L, ADDR_TOP - 10 * mm, company_name[:50])
+        pdf.drawRightString(page_w - M_R, name_y, operator_label)
+        if op_website or op_email:
+            pdf.setFont("Helvetica", 7.5)
+            pdf.setFillColor(c_light)
+            pdf.drawRightString(page_w - M_R, name_y - 4 * mm, op_website or op_email)
+
+        # ════════════════════════════════════════════════════════════
+        # EMPFÄNGERADRESSE (oben links, unterhalb Logobereich)
+        # ════════════════════════════════════════════════════════════
+        ADDR_TOP = page_h - 15 * mm
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColor(c_mid)
+        # Kleine Rücksendeadresse
+        ret_parts = [p for p in [operator_label, op_street, op_zip_city] if p]
+        pdf.drawString(M_L, ADDR_TOP, "  ·  ".join(ret_parts))
+        pdf.setFont("Helvetica-Bold", 10.5)
+        pdf.setFillColor(c_dark)
+        pdf.drawString(M_L, ADDR_TOP - 8 * mm, company_name[:55])
         pdf.setFont("Helvetica", 9)
         pdf.setFillColor(c_mid)
         _company_contact = str(company_row["contact"] or "").strip() if company_row else ""
         _company_billing_email = str(company_row["billing_email"] or "").strip() if company_row else ""
+        caddr_y = ADDR_TOP - 14 * mm
         if _company_contact:
-            pdf.drawString(M_L, ADDR_TOP - 17 * mm, _company_contact[:60])
+            pdf.drawString(M_L, caddr_y, _company_contact[:60])
+            caddr_y -= 5 * mm
         if _company_billing_email:
             pdf.setFont("Helvetica", 8)
             pdf.setFillColor(c_light)
-            pdf.drawString(M_L, ADDR_TOP - 22 * mm, _company_billing_email[:60])
-        if not _company_contact:
-            pdf.drawString(M_L, ADDR_TOP - 17 * mm, "z. Hd. Buchhaltung")
+            pdf.drawString(M_L, caddr_y, _company_billing_email[:60])
 
         # ════════════════════════════════════════════════════════════
-        # 4  BETREFFZEILE
+        # HAUPTÜBERSCHRIFT "Rechnung" + Metadaten-Tabelle
         # ════════════════════════════════════════════════════════════
-        SUBJ_Y = ADDR_TOP - ADDR_H - 8 * mm
+        HEADING_Y = page_h - 68 * mm
 
-        pdf.setFont("Helvetica-Bold", 13)
+        pdf.setFont("Helvetica-Bold", 22)
         pdf.setFillColor(c_dark)
-        pdf.drawString(M_L, SUBJ_Y, f"Rechnung Nr. {invoice_no}")
+        pdf.drawString(M_L, HEADING_Y, "Rechnung")
 
-        pdf.setStrokeColor(c_accent)
-        pdf.setLineWidth(2)
-        pdf.line(M_L, SUBJ_Y - 2.5 * mm, M_L + CW, SUBJ_Y - 2.5 * mm)
-        pdf.setLineWidth(0.5)
+        # Metadaten 2-spaltig direkt unter Überschrift
+        meta_rows = [
+            ("Rechnungsnummer:",  invoice_no),
+            ("Kundennummer:",     str(company_row["id"] if company_row else "-")[:20]),
+            ("Rechnungsdatum:",   invoice_date),
+            ("Fälligkeitsdatum:", due_date),
+        ]
+        meta_y = HEADING_Y - 8 * mm
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.setFillColor(c_dark)
+        for lbl, val in meta_rows:
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.setFillColor(c_dark)
+            pdf.drawString(M_L, meta_y, lbl)
+            pdf.setFont("Helvetica", 9)
+            pdf.setFillColor(c_mid)
+            pdf.drawString(M_L + 42 * mm, meta_y, val)
+            meta_y -= 5.5 * mm
 
-        # Intro-Satz (mit automatischem Zeilenumbruch, damit der Text nicht überläuft)
-        INTRO_Y = SUBJ_Y - 10 * mm
+        # Einleitungstext
+        INTRO_Y = meta_y - 5 * mm
         pdf.setFont("Helvetica", 9)
         pdf.setFillColor(c_mid)
-        _intro_full = f"Sehr geehrte Damen und Herren, hiermit stellen wir Ihnen für den Zeitraum {period} folgende Leistungen in Rechnung:"
-        # Breite pro Zeichen bei Helvetica 9pt ≈ 5pt; CW in Punkten → max ~75 Zeichen pro Zeile
-        _max_chars = max(40, int(CW / 5.0))
+        _intro = (f"Wir Senden Ihnen hiermit unsere Rechnung. Bitte leisten Sie die Zahlung innerhalb von 30 Tagen "
+                  f"auf unser Bankkonto unter Angabe der Rechnungsnummer {invoice_no}. "
+                  f"Sofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.")
         import textwrap as _tw
-        _intro_lines = _tw.wrap(_intro_full, width=_max_chars)
-        _il_y = INTRO_Y
-        for _il in _intro_lines:
-            pdf.drawString(M_L, _il_y, _il)
-            _il_y -= 4.5 * mm
-        INTRO_BOTTOM_Y = _il_y
+        _max_chars = max(50, int(CW / 5.2))
+        _intro_lines = _tw.wrap(_intro, width=_max_chars)
+        il_y = INTRO_Y
+        for _line in _intro_lines[:4]:
+            pdf.drawString(M_L, il_y, _line)
+            il_y -= 4.8 * mm
 
         # ════════════════════════════════════════════════════════════
-        # 5  POSITIONSTABELLE
+        # POSITIONSTABELLE
         # ════════════════════════════════════════════════════════════
-        TBL_TOP = INTRO_BOTTOM_Y - 3 * mm
+        TBL_TOP = il_y - 5 * mm
 
-        C_POS  = 9  * mm
-        C_TOT  = 30 * mm
-        C_NET  = 28 * mm
-        C_UNIT = 14 * mm
-        C_QTY  = 16 * mm
-        C_DESC = CW - C_POS - C_QTY - C_UNIT - C_NET - C_TOT
+        # Spaltenbreiten  (Name/Beschreibung bekommt den Rest)
+        C_NAME = 70 * mm
+        C_QTY  = 20 * mm
+        C_PRICE= 28 * mm
+        C_VAT  = 18 * mm
+        C_TOT  = CW - C_NAME - C_QTY - C_PRICE - C_VAT
 
-        # x-Positionen der Spaltenstarts
-        cx = [M_L]
-        for w in [C_POS, C_DESC, C_QTY, C_UNIT, C_NET]:
-            cx.append(cx[-1] + w)
+        # x-Positionen
+        cx0 = M_L
+        cx1 = cx0 + C_NAME
+        cx2 = cx1 + C_QTY
+        cx3 = cx2 + C_PRICE
+        cx4 = cx3 + C_VAT
 
-        HDR_ROW_H = 7 * mm
-        DATA_ROW_H = 11 * mm
+        HDR_ROW_H  = 8 * mm
+        DATA_ROW_H = 9 * mm
+        FOOTER_RESERVE = FOOTER_H + 58 * mm  # Platz für Summenblock + Footer
 
-        # Tabellenkopf
-        pdf.setFillColor(c_primary)
+        # Tabellenkopf – blauer Balken
+        pdf.setFillColor(c_tbl_hdr_bg)
         pdf.rect(M_L, TBL_TOP - HDR_ROW_H, CW, HDR_ROW_H, stroke=0, fill=1)
-        pdf.setFont("Helvetica-Bold", 8)
+        pdf.setFont("Helvetica-Bold", 8.5)
         pdf.setFillColor(rl_colors.white)
-        hdr_defs = [
-            (0, "Pos",          "L", C_POS),
-            (1, "Beschreibung", "L", C_DESC),
-            (2, "Menge",        "R", C_QTY),
-            (3, "Einheit",      "C", C_UNIT),
-            (4, "Einzelpreis",  "R", C_NET),
-            (5, "Gesamtbetrag", "R", C_TOT),
+        hy = TBL_TOP - HDR_ROW_H + 2.8 * mm
+        hdr_cells = [
+            (cx0 + 2*mm, "Name/ Beschreibung", "L"),
+            (cx1,        "Menge",              "R", C_QTY),
+            (cx2,        "Preis",              "R", C_PRICE),
+            (cx3,        "USt.",               "R", C_VAT),
+            (cx4,        "Gesamtpreis",        "R", C_TOT),
         ]
-        hy = TBL_TOP - HDR_ROW_H + 2.5 * mm
-        for ci, hdr, align, cw in hdr_defs:
-            hx = cx[ci]
-            if align == "R":
-                pdf.drawRightString(hx + cw - 2 * mm, hy, hdr)
-            elif align == "C":
-                pdf.drawCentredString(hx + cw / 2, hy, hdr)
+        for cell in hdr_cells:
+            if cell[2] == "L":
+                pdf.drawString(cell[0], hy, cell[1])
             else:
-                pdf.drawString(hx + 2 * mm, hy, hdr)
+                pdf.drawRightString(cell[0] + cell[3] - 2*mm, hy, cell[1])
 
         # Tabellenzeilen
         row_y = TBL_TOP - HDR_ROW_H
-        INFO_SECTION_H = 52 * mm   # reservierter Block von unten (über Footer)
-        FOOTER_H = 14 * mm
-        table_stop_y = FOOTER_H + INFO_SECTION_H + 40 * mm
         visible_rows = 0
         hidden_rows = 0
         for idx, item in enumerate(pdf_items):
-            if row_y - DATA_ROW_H < table_stop_y:
+            if row_y - DATA_ROW_H < FOOTER_RESERVE:
                 hidden_rows = len(pdf_items) - idx
                 break
             row_y -= DATA_ROW_H
             visible_rows += 1
+
+            # Zebra-Stripes
             pdf.setFillColor(rl_colors.white if idx % 2 == 0 else c_stripe)
             pdf.rect(M_L, row_y, CW, DATA_ROW_H, stroke=0, fill=1)
+            # untere Trennlinie
             pdf.setStrokeColor(c_rule)
-            pdf.setLineWidth(0.3)
+            pdf.setLineWidth(0.25)
             pdf.line(M_L, row_y, M_L + CW, row_y)
 
             i_desc  = str(item.get("description") or "-")
             i_qty   = float(item.get("qty") or 1)
-            i_unit  = str(item.get("unit") or "Pauschal")
+            i_unit  = str(item.get("unit") or "")
             i_price = float(item.get("unitPrice") or 0)
             i_total = float(item.get("total") or 0)
-            qty_str = f"{i_qty:g}" if i_qty != int(i_qty) else str(int(i_qty))
-            text_y  = row_y + DATA_ROW_H / 2 - 1.5 * mm
+            qty_str = (f"{i_qty:g} {i_unit}").strip()
+            ty = row_y + DATA_ROW_H / 2 - 1.5 * mm
 
-            pdf.setFont("Helvetica", 8)
-            pdf.setFillColor(c_mid)
-            pdf.drawString(cx[0] + 2 * mm, text_y, str(idx + 1))
-
-            # Beschreibung – mehrzeilig umbrechen wenn nötig
-            try:
-                from reportlab.lib.utils import simpleSplit as _simpleSplit
-                _desc_lines = _simpleSplit(i_desc, "Helvetica", 8, C_DESC - 4 * mm)[:2]
-            except Exception:
-                _desc_lines = [i_desc[:55]]
-            pdf.setFont("Helvetica", 8)
+            pdf.setFont("Helvetica", 9)
             pdf.setFillColor(c_dark)
-            if len(_desc_lines) > 1:
-                pdf.drawString(cx[1] + 2 * mm, row_y + DATA_ROW_H / 2 + 1 * mm, _desc_lines[0])
+            try:
+                from reportlab.lib.utils import simpleSplit as _ss
+                _dlines = _ss(i_desc, "Helvetica", 9, C_NAME - 4*mm)[:2]
+            except Exception:
+                _dlines = [i_desc[:52]]
+            if len(_dlines) > 1:
+                pdf.drawString(cx0 + 2*mm, row_y + DATA_ROW_H/2 + 1.2*mm, _dlines[0])
                 pdf.setFont("Helvetica", 7.5)
-                pdf.setFillColor(c_mid)
-                pdf.drawString(cx[1] + 2 * mm, row_y + DATA_ROW_H / 2 - 3.5 * mm, _desc_lines[1])
-                pdf.setFont("Helvetica", 8)
-                pdf.setFillColor(c_dark)
+                pdf.setFillColor(c_light)
+                pdf.drawString(cx0 + 2*mm, row_y + DATA_ROW_H/2 - 3*mm, _dlines[1])
             else:
-                pdf.drawString(cx[1] + 2 * mm, text_y, _desc_lines[0] if _desc_lines else i_desc[:55])
+                pdf.drawString(cx0 + 2*mm, ty, _dlines[0] if _dlines else i_desc[:52])
 
-            pdf.drawRightString(cx[2] + C_QTY  - 2 * mm, text_y, qty_str)
-            pdf.drawCentredString(cx[3] + C_UNIT / 2,    text_y, i_unit[:10])
-            pdf.drawRightString(cx[4] + C_NET  - 2 * mm, text_y, _money(i_price))
-            pdf.setFont("Helvetica-Bold", 8)
-            pdf.drawRightString(cx[5] + C_TOT  - 2 * mm, text_y, _money(i_total))
+            pdf.setFont("Helvetica", 9)
+            pdf.setFillColor(c_mid)
+            pdf.drawRightString(cx1 + C_QTY  - 2*mm, ty, qty_str)
+            pdf.drawRightString(cx2 + C_PRICE - 2*mm, ty, _money(i_price))
+            vat_cell = f"{vat_rate:.0f} %" if vat_rate else "-"
+            pdf.drawRightString(cx3 + C_VAT   - 2*mm, ty, vat_cell)
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.setFillColor(c_dark)
+            pdf.drawRightString(cx4 + C_TOT   - 2*mm, ty, _money(i_total))
 
         if hidden_rows > 0:
-            row_y -= 6 * mm
+            row_y -= 5 * mm
             pdf.setFont("Helvetica-Oblique", 7.5)
-            pdf.setFillColor(c_mid)
-            pdf.drawString(M_L, row_y, f"Weitere Positionen im System: {hidden_rows} (aus Platzgruenden nicht angezeigt)")
+            pdf.setFillColor(c_light)
+            pdf.drawString(M_L, row_y, f"… {hidden_rows} weitere Positionen (nicht abgebildet)")
 
-        TABLE_BOTTOM = row_y  # unterkante letzte Zeile
+        TABLE_BOTTOM = row_y
 
         # ════════════════════════════════════════════════════════════
-        # 6  SUMMENBLOCK  (rechts, direkt unter Tabelle)
+        # SUMMENBLOCK – rechtsbündig unter Tabelle
         # ════════════════════════════════════════════════════════════
-        TOT_W = 72 * mm
-        TOT_X = page_w - M_R - TOT_W
-        TOT_GAP = 4 * mm   # Abstand Tabelle → Summenblock
+        SUM_W = 80 * mm
+        SUM_X = page_w - M_R - SUM_W
+        SUM_ROW_H = 7 * mm
+        TOTAL_ROW_H = 9 * mm
 
-        # Zeilenanzahl berechnen
-        tot_rows = [("Nettobetrag", _money(net_amount))]
+        sum_rows = [("Gesamtbetrag exkl. USt.", _money(net_amount))]
         if discount_amount > 0:
-            tot_rows.append(("Abzgl. Rabatt", f"– {_money(discount_amount)}"))
-        tot_rows.append((f"MwSt. {vat_rate:.0f} %", _money(vat_amount)))
-        TOT_INNER_H = len(tot_rows) * 7 * mm + 11 * mm  # Zeilen + Gesamtzeile
-        TOT_TOP = TABLE_BOTTOM - TOT_GAP
+            sum_rows.append(("Rabatt", f"– {_money(discount_amount)}"))
+        sum_rows.append((f"USt. {vat_rate:.0f} %", _money(vat_amount)))
 
-        pdf.setFillColor(c_bg_box)
+        SUM_TOTAL_H = len(sum_rows) * SUM_ROW_H + TOTAL_ROW_H
+        SUM_TOP = TABLE_BOTTOM - 5 * mm
+
+        # Trennlinie über Summenblock
         pdf.setStrokeColor(c_rule)
-        pdf.setLineWidth(0.4)
-        pdf.roundRect(TOT_X, TOT_TOP - TOT_INNER_H, TOT_W, TOT_INNER_H, 3, stroke=1, fill=1)
+        pdf.setLineWidth(0.5)
+        pdf.line(SUM_X, SUM_TOP + 1*mm, page_w - M_R, SUM_TOP + 1*mm)
 
-        tr_y = TOT_TOP - 7 * mm
-        for lbl, val in tot_rows:
-            pdf.setFont("Helvetica", 8.5)
+        sr_y = SUM_TOP - SUM_ROW_H + 2*mm
+        for lbl, val in sum_rows:
+            pdf.setFont("Helvetica", 9)
             pdf.setFillColor(c_mid)
-            pdf.drawString(TOT_X + 4 * mm, tr_y, lbl)
+            pdf.drawString(SUM_X + 2*mm, sr_y, lbl)
+            pdf.setFont("Helvetica", 9)
             pdf.setFillColor(c_dark)
-            pdf.drawRightString(TOT_X + TOT_W - 4 * mm, tr_y, val)
-            tr_y -= 7 * mm
+            pdf.drawRightString(page_w - M_R, sr_y, val)
+            sr_y -= SUM_ROW_H
 
-        pdf.setStrokeColor(c_primary)
-        pdf.setLineWidth(0.8)
-        pdf.line(TOT_X + 3 * mm, tr_y + 4 * mm, TOT_X + TOT_W - 3 * mm, tr_y + 4 * mm)
-        pdf.setLineWidth(0.5)
-
-        # Gesamtbetrag-Balken
+        # Gesamtzeile – blauer Hintergrundbalken
+        TOTAL_Y = sr_y - 2*mm
         pdf.setFillColor(c_primary)
-        pdf.roundRect(TOT_X, TOT_TOP - TOT_INNER_H, TOT_W, 10 * mm, 3, stroke=0, fill=1)
-        pdf.setFont("Helvetica-Bold", 10.5)
+        pdf.rect(SUM_X, TOTAL_Y, SUM_W, TOTAL_ROW_H, stroke=0, fill=1)
+        pdf.setFont("Helvetica-Bold", 10)
         pdf.setFillColor(rl_colors.white)
-        band_center = TOT_TOP - TOT_INNER_H + 5 * mm - 1.5 * mm
-        pdf.drawString(TOT_X + 4 * mm, band_center, "Gesamtbetrag")
-        pdf.drawRightString(TOT_X + TOT_W - 4 * mm, band_center, _money(total_amount))
+        pdf.drawString(SUM_X + 3*mm, TOTAL_Y + 2.5*mm, "Gesamtbetrag inkl. USt")
+        pdf.drawRightString(page_w - M_R - 2*mm, TOTAL_Y + 2.5*mm, _money(total_amount))
 
-        BLOCK_BOTTOM = TOT_TOP - TOT_INNER_H  # unterste Y-Koordinate des Summenblocks
-
-        # ════════════════════════════════════════════════════════════
-        # 8  FOOTER-BAND  (immer am Seitenende, zuerst zeichnen)
-        # ════════════════════════════════════════════════════════════
-        pdf.setFillColor(c_primary)
-        pdf.rect(0, 0, page_w, FOOTER_H, stroke=0, fill=1)
-        fp = [operator_label]
-        if op_street:   fp.append(op_street)
-        if op_zip_city: fp.append(op_zip_city)
-        if op_phone:    fp.append(f"Tel.: {op_phone}")
-        if op_email:    fp.append(op_email)
-        if op_website:  fp.append(op_website)
-        if op_tax_id:   fp.append(f"St.-Nr.: {op_tax_id}")
-        if op_vat_id:   fp.append(f"USt-ID: {op_vat_id}")
-        pdf.setFont("Helvetica", 7)
-        pdf.setFillColor(rl_colors.HexColor("#b0ccd8"))
-        fl1 = "  ·  ".join(fp[:5])
-        fl2 = "  ·  ".join(fp[5:]) if len(fp) > 5 else ""
-        pdf.drawCentredString(page_w / 2, FOOTER_H - 5 * mm, fl1)
-        if fl2:
-            pdf.drawCentredString(page_w / 2, FOOTER_H - 9 * mm, fl2)
-
-        # ════════════════════════════════════════════════════════════
-        # 7  ZAHLUNGSINFORMATIONEN + KONTAKT
-        #    Fest verankert oberhalb des Footers – immer sichtbar
-        # ════════════════════════════════════════════════════════════
-        INFO_TOP = FOOTER_H + INFO_SECTION_H
-        INFO_COL2_X = M_L + CW / 2
-
-        # White panel behind payment/contact so it stays readable regardless of above content.
-        pdf.setFillColor(rl_colors.white)
-        pdf.rect(M_L - 2 * mm, FOOTER_H + 1 * mm, CW + 4 * mm, INFO_SECTION_H - 2 * mm, stroke=0, fill=1)
-
-        # Vielen-Dank-Zeile
-        pdf.setFont("Helvetica-Oblique", 8.5)
-        pdf.setFillColor(c_mid)
-        pdf.drawString(M_L, INFO_TOP + 10 * mm, "Vielen Dank für Ihr Vertrauen. Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer.")
-
-        # Trennlinie
-        pdf.setStrokeColor(c_rule)
-        pdf.setLineWidth(0.4)
-        pdf.line(M_L, INFO_TOP + 2 * mm, M_L + CW, INFO_TOP + 2 * mm)
-
-        # Linke Spalte: Bankdaten
-        pdf.setFont("Helvetica-Bold", 8)
+        # Verwendungszweck
+        vz_y = TOTAL_Y - 8 * mm
+        pdf.setFont("Helvetica", 8)
         pdf.setFillColor(c_light)
-        pdf.drawString(M_L, INFO_TOP - 2 * mm, "BANKVERBINDUNG & ZAHLUNG")
-        iy = INFO_TOP - 9 * mm
-        pdf.setFont("Helvetica", 8.5)
-        pdf.setFillColor(c_dark)
-        bank_lines = []
-        if op_bank:   bank_lines.append(f"Bank: {op_bank}")
-        if op_iban:   bank_lines.append(f"IBAN: {op_iban}")
-        if op_bic:    bank_lines.append(f"BIC:  {op_bic}")
-        if op_tax_id: bank_lines.append(f"St.-Nr.: {op_tax_id}")
-        if op_vat_id: bank_lines.append(f"USt-ID: {op_vat_id}")
-        for ln in bank_lines:
-            if ln.startswith("IBAN:"):
-                # IBAN-Zeile hervorheben
-                pdf.setFillColor(rl_colors.HexColor("#e8f4fc"))
-                pdf.roundRect(M_L - 1.5 * mm, iy - 1.5 * mm, CW / 2 - 2 * mm, 6 * mm, 1.5, stroke=0, fill=1)
-                pdf.setFont("Helvetica-Bold", 8.5)
-                pdf.setFillColor(c_primary)
-                pdf.drawString(M_L, iy, ln)
-            else:
-                pdf.setFont("Helvetica", 8.5)
-                pdf.setFillColor(c_dark)
-                pdf.drawString(M_L, iy, ln)
-            iy -= 5.5 * mm
-
-        # Verwendungszweck als eigene hervorgehobene Box
-        _vzweck_lbl = f"Rg. {invoice_no}  ·  Fällig: {due_date}"
-        _vzweck_box_w = CW / 2 - 2 * mm
-        _vzweck_box_h = 9 * mm
-        iy -= 1 * mm
-        pdf.setFillColor(rl_colors.HexColor("#fff7ed"))
-        pdf.setStrokeColor(rl_colors.HexColor("#f59e0b"))
-        pdf.setLineWidth(0.7)
-        pdf.roundRect(M_L - 1.5 * mm, iy - _vzweck_box_h + 3 * mm, _vzweck_box_w, _vzweck_box_h, 2, stroke=1, fill=1)
-        pdf.setFont("Helvetica-Bold", 7.5)
-        pdf.setFillColor(rl_colors.HexColor("#b45309"))
-        pdf.drawString(M_L, iy + 2 * mm, "Verwendungszweck:")
-        pdf.setFont("Helvetica-Bold", 8.5)
-        pdf.setFillColor(c_dark)
-        pdf.drawString(M_L, iy - 2 * mm, _vzweck_lbl)
-        pdf.setLineWidth(0.4)
-
-        # Vertikaler Trennstrich zwischen Bank- und Kontaktspalte
-        pdf.setStrokeColor(c_rule)
-        pdf.setLineWidth(0.5)
-        pdf.line(INFO_COL2_X - 4 * mm, FOOTER_H + 3 * mm, INFO_COL2_X - 4 * mm, INFO_TOP + 4 * mm)
-        pdf.setLineWidth(0.4)
-
-        # Rechte Spalte: Kontakt
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.setFillColor(c_light)
-        pdf.drawString(INFO_COL2_X, INFO_TOP - 2 * mm, "KONTAKT")
-        cy = INFO_TOP - 9 * mm
-        pdf.setFont("Helvetica", 8.5)
-        pdf.setFillColor(c_dark)
-        contact_lines = []
-        if op_street:   contact_lines.append(op_street)
-        if op_zip_city: contact_lines.append(op_zip_city)
-        if op_phone:    contact_lines.append(f"Tel.: {op_phone}")
-        if op_email:    contact_lines.append(op_email)
-        if op_website:  contact_lines.append(op_website)
-        if contact_lines:
-            for ln in contact_lines[:5]:
-                pdf.drawString(INFO_COL2_X, cy, ln)
-                cy -= 5 * mm
-        else:
-            pdf.setFillColor(c_mid)
-            pdf.drawString(INFO_COL2_X, cy, "Keine Kontaktdaten hinterlegt")
+        pdf.drawString(M_L, vz_y, f"Verwendungszweck: Rg. {invoice_no}  ·  Fällig: {due_date}")
+        if op_iban:
+            pdf.drawString(M_L, vz_y - 4.5*mm, f"IBAN: {op_iban}" + (f"  ·  BIC: {op_bic}" if op_bic else ""))
 
         # ════════════════════════════════════════════════════════════
-        # 9  BEZAHLT-WASSERZEICHEN  (nur wenn Rechnung bezahlt ist)
+        # BEZAHLT-WASSERZEICHEN
         # ════════════════════════════════════════════════════════════
+        _inv_status = str(invoice_row["status"] if "status" in invoice_row.keys() else "").lower()
         if _inv_status == "bezahlt":
             try:
                 from reportlab.lib.colors import Color as _WmColor
                 pdf.saveState()
                 pdf.translate(page_w / 2, page_h / 2)
                 pdf.rotate(35)
-                _wm_col = _WmColor(0.086, 0.639, 0.290, alpha=0.09)
-                pdf.setFillColor(_wm_col)
+                pdf.setFillColor(_WmColor(0.086, 0.639, 0.290, alpha=0.08))
                 pdf.setFont("Helvetica-Bold", 96)
                 pdf.drawCentredString(0, 0, "BEZAHLT")
                 pdf.restoreState()
             except Exception:
                 pass
+        brand_accent  = sanitize_hex_color(settings_row["invoice_accent_color"],  fallback=brand_primary)
+
+        invoice_no   = str(invoice_row["invoice_number"]  or "-")
+        invoice_date = str(invoice_row["invoice_date"]     or "-")
+        due_date     = str(invoice_row["due_date"]         or "-")
+        period       = str(invoice_row["invoice_period"]   or "-")
+        company_name = str(company_row["name"]             or "-")
+        description  = str(invoice_row["description"]      or "-")
+        net_amount   = float(invoice_row["net_amount"]     or 0)
+        vat_rate     = float(invoice_row["vat_rate"]       or 0)
+        vat_amount   = float(invoice_row["vat_amount"]     or 0)
+        total_amount = float(invoice_row["total_amount"]   or 0)
+        discount_amount = float(invoice_row["discount_amount"] if "discount_amount" in invoice_row.keys() else 0)
+
+        try:
+            items_json_raw = str(invoice_row["items_json"] if "items_json" in invoice_row.keys() else "") or ""
+            pdf_items = json.loads(items_json_raw) if items_json_raw.strip().startswith("[") else []
+        except Exception:
+            pdf_items = []
+        if not pdf_items:
+            pdf_items = [{"description": description, "qty": 1, "unit": "Pauschal", "unitPrice": net_amount, "total": net_amount}]
+
+        def _sr(key, fallback=""):
+            try:
+                return str(settings_row[key] or "").strip()
+            except (IndexError, KeyError):
+                return fallback
+
+        op_iban     = _sr("invoice_iban")
+        op_bic      = _sr("invoice_bic")
+        op_bank     = _sr("invoice_bank_name")
+        op_tax_id   = _sr("invoice_tax_id")
+        op_vat_id   = _sr("invoice_vat_id")
+        op_street   = _sr("invoice_operator_street")
+        op_zip_city = _sr("invoice_operator_zip_city")
+        op_phone    = _sr("invoice_operator_phone")
+        op_website  = _sr("invoice_operator_website")
+        op_email    = _sr("invoice_operator_email")
 
         pdf.save()
         pdf_bytes = pdf_buffer.getvalue()
