@@ -15209,6 +15209,45 @@ async function sendOtpTestMail() {
   }
 }
 
+let imapTestInFlight = false;
+async function sendImapTest() {
+  if (imapTestInFlight) return;
+  imapTestInFlight = true;
+  const btn = document.querySelector("#imapTestBtn");
+  const result = document.querySelector("#imapTestResult");
+  if (btn) { btn.disabled = true; }
+  if (result) { result.style.color = ""; result.textContent = `⏳ Teste Verbindung…`; }
+  try {
+    const payload = {
+      imapHost: document.querySelector("#imapHost")?.value?.trim() || "",
+      imapPort: Number(document.querySelector("#imapPort")?.value || 993),
+      imapUsername: document.querySelector("#imapUsername")?.value?.trim() || "",
+      imapPassword: document.querySelector("#imapPassword")?.value || "",
+      imapUseSsl: document.querySelector("#imapUseSsl")?.value === "1",
+      imapFolder: document.querySelector("#imapFolder")?.value?.trim() || "INBOX",
+    };
+    const res = await apiRequest(`${API_BASE}/api/settings/imap/test`, { method: "POST", body: payload });
+    if (result) {
+      if (res?.ok) {
+        result.style.color = "#16a34a";
+        result.textContent = `✅ ${res.message || runtimeText("imapTestOk")}`;
+      } else {
+        result.style.color = "#dc2626";
+        const hint = res?.hint ? ` (${res.hint})` : "";
+        result.textContent = `❌ ${res?.error || runtimeText("imapTestFail")}${hint}`;
+      }
+    }
+  } catch (err) {
+    if (result) {
+      result.style.color = "#dc2626";
+      result.textContent = `❌ ${err?.message || String(err)}`;
+    }
+  } finally {
+    imapTestInFlight = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
 let smtpTestInFlight = false;
 async function sendSmtpTestMail() {
   if (smtpTestInFlight) return;
@@ -20029,6 +20068,11 @@ if (elements.bulkDeleteButton) {
 const passwordForm = document.querySelector("#passwordForm");
 if (passwordForm) {
   passwordForm.addEventListener("submit", handlePasswordChange);
+}
+
+const imapTestBtn = document.querySelector("#imapTestBtn");
+if (imapTestBtn) {
+  imapTestBtn.addEventListener("click", sendImapTest);
 }
 
 const invoiceForm = document.querySelector("#invoiceForm");

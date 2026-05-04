@@ -14688,6 +14688,7 @@ def otp_test_send():
 @require_roles("superadmin")
 def test_imap_connection():
     import imaplib
+    import socket
     payload = request.get_json(silent=True) or {}
     db = get_db()
     stored = get_imap_settings(db) or {}
@@ -14700,21 +14701,61 @@ def test_imap_connection():
     folder = clean_text_input(payload.get("imapFolder", stored.get("imap_folder", "INBOX")), max_len=100) or "INBOX"
 
     if not host or not username or not password:
-        return jsonify({"error": "missing_fields"}), 400
-    try:
-        if use_ssl:
-            conn = imaplib.IMAP4_SSL(host, port)
-        else:
-            conn = imaplib.IMAP4(host, port)
-            conn.starttls()
-        conn.login(username, password)
-        status, _ = conn.select(folder, readonly=True)
-        conn.logout()
-        if status != "OK":
-            return jsonify({"ok": False, "error": f"Ordner '{folder}' nicht gefunden."}), 200
-        return jsonify({"ok": True, "message": f"Verbindung zu {host} erfolgreich."})
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 200
+        return jsonify({"error": "missing_fields", "detail": "Host, Benutzername und Passwort sind erforderlich."}), 400
+
+    _timeout = 15  # Sekunden
+    attempts = [(use_ssl, port)]
+    # Automatischer Fallback: 993/SSL → 143/STARTTLS und umgekehrt
+    if use_ssl and port == 993:
+        attempts.append((False, 143))
+    elif not use_ssl and port == 143:
+        attempts.append((True, 993))
+
+    conn = None
+    last_exc = None
+    tried_info = []
+    for attempt_ssl, attempt_port in attempts:
+        label = f"{'SSL' if attempt_ssl else 'STARTTLS'}/{attempt_port}"
+        tried_info.append(label)
+        try:
+            if attempt_ssl:
+                conn = imaplib.IMAP4_SSL(host, attempt_port, timeout=_timeout)
+            else:
+                conn = imaplib.IMAP4(host, attempt_port, timeout=_timeout)
+                conn.starttls()
+            conn.login(username, password)
+            status, _ = conn.select(folder, readonly=True)
+            conn.logout()
+            if status != "OK":
+                return jsonify({"ok": False, "error": f"Ordner '{folder}' nicht gefunden.", "tried": tried_info}), 200
+            return jsonify({"ok": True, "message": f"Verbindung zu {host}:{attempt_port} ({'SSL' if attempt_ssl else 'STARTTLS'}) erfolgreich. Ordner '{folder}' gefunden.", "tried": tried_info})
+        except (socket.timeout, TimeoutError, ConnectionRefusedError, OSError) as exc:
+            last_exc = exc
+            try:
+                if conn is not None:
+                    conn.logout()
+            except Exception:
+                pass
+            conn = None
+        except Exception as exc:
+            last_exc = exc
+            try:
+                if conn is not None:
+                    conn.logout()
+            except Exception:
+                pass
+            conn = None
+            # Auth-Fehler oder Ordner-Fehler – kein Sinn im Fallback
+            err_str = str(exc).lower()
+            if "auth" in err_str or "login" in err_str or "credent" in err_str or "invalid" in err_str:
+                break
+
+    tried_str = " → ".join(tried_info) if tried_info else "keine"
+    detail = str(last_exc) if last_exc else "Unbekannter Fehler"
+    hint = ""
+    if "timed out" in detail.lower() or isinstance(last_exc, (socket.timeout, TimeoutError)):
+        hint = f" (Port {port} scheint blockiert – prüfe Firewall/Hosting-Einschränkungen)"
+    return jsonify({"ok": False, "error": f"{detail}{hint}", "tried": tried_info, "hint": f"Versucht: {tried_str}"}), 200
 
 
 @app.get("/")
