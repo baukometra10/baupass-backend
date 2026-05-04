@@ -2556,6 +2556,208 @@ def check_and_apply_overdue_suspensions(db):
     return suspended_companies
 
 
+def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, days_until_due):
+    """Generate a branded payment reminder PDF and return as bytes. Returns None on error."""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as rl_canvas
+    except Exception:
+        return None
+
+    stage_labels = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung"}
+    letter_type = stage_labels.get(stage, "Zahlungserinnerung")
+    warning_texts = {
+        2: "Bitte beachten Sie, dass bei Nichtzahlung weitere Mahnschritte folgen.",
+        3: "Wir werden ohne Zahlungseingang innerhalb der gesetzten Frist den Zugang sperren.",
+    }
+    warning_text = warning_texts.get(stage, "")
+    deadline_days = {1: 14, 2: 7, 3: 5}.get(stage, 14)
+    new_due_date = (datetime.now(timezone.utc) + timedelta(days=deadline_days)).strftime("%d.%m.%Y")
+
+    invoice_number = str(invoice_row["invoice_number"] or "-")
+    total_amount = float(invoice_row["total_amount"] or 0)
+    invoice_date_str = str(invoice_row["invoice_date"] or "")[:10]
+    original_due_str = str(invoice_row["due_date"] or "")[:10]
+    invoice_period = str(invoice_row.get("invoice_period") or "")[:22]
+    c_name = str(company_row.get("name") or invoice_row.get("company_name") or "")
+
+    s = settings_row
+    operator_name = str((s["operator_name"] if "operator_name" in s.keys() else None) or (s["platform_name"] if "platform_name" in s.keys() else None) or "").strip()
+    operator_street = str((s["invoice_operator_street"] if "invoice_operator_street" in s.keys() else None) or "").strip()
+    operator_zip_city = str((s["invoice_operator_zip_city"] if "invoice_operator_zip_city" in s.keys() else None) or "").strip()
+    operator_phone = str((s["invoice_operator_phone"] if "invoice_operator_phone" in s.keys() else None) or "").strip()
+    operator_email_addr = str((s["invoice_operator_email"] if "invoice_operator_email" in s.keys() else None) or "").strip()
+    operator_website = str((s["invoice_operator_website"] if "invoice_operator_website" in s.keys() else None) or "").strip()
+    iban = str((s["invoice_iban"] if "invoice_iban" in s.keys() else None) or "").strip()
+    bic = str((s["invoice_bic"] if "invoice_bic" in s.keys() else None) or "").strip()
+    bank_name = str((s["invoice_bank_name"] if "invoice_bank_name" in s.keys() else None) or "").strip()
+    primary_color = str((s["invoice_primary_color"] if "invoice_primary_color" in s.keys() else None) or "#0f4c5c").strip()
+
+    def _hex_rgb(h):
+        h = h.lstrip("#")
+        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    try:
+        pr, pg, pb = _hex_rgb(primary_color)
+    except Exception:
+        pr, pg, pb = 0.059, 0.298, 0.361
+
+    # Logo handling
+    logo_data = str((s["invoice_logo_data"] if "invoice_logo_data" in s.keys() else None) or "").strip()
+    logo_image = None
+    if logo_data.startswith("data:image"):
+        try:
+            import base64 as _b64
+            from reportlab.lib.utils import ImageReader
+            import io as _io
+            _, encoded = logo_data.split(",", 1)
+            raw = _b64.b64decode(encoded)
+            logo_image = ImageReader(_io.BytesIO(raw))
+        except Exception:
+            logo_image = None
+
+    buf = io.BytesIO()
+    page_width, page_height = A4
+    pdf = rl_canvas.Canvas(buf, pagesize=A4)
+
+    # Header band
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.rect(0, page_height - 58, page_width, 58, fill=1, stroke=0)
+    if logo_image:
+        try:
+            pdf.drawImage(logo_image, page_width - 120, page_height - 52, width=80, height=42, preserveAspectRatio=True, mask="auto")
+        except Exception:
+            pass
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont("Helvetica-Bold", 17)
+    pdf.drawString(36, page_height - 32, letter_type.upper())
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(36, page_height - 48, operator_name)
+
+    # Sender address (small)
+    y = page_height - 76
+    pdf.setFillColorRGB(0.5, 0.5, 0.5)
+    pdf.setFont("Helvetica", 7)
+    sender_line = "  |  ".join(filter(None, [operator_name, operator_street, operator_zip_city]))
+    pdf.drawString(36, y, sender_line[:110])
+
+    # Recipient block
+    y -= 20
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(36, y, c_name)
+    contact = str(invoice_row.get("company_contact") or "")
+    billing_email = str(invoice_row.get("company_billing_email") or company_row.get("billing_email") or "")
+    if contact:
+        y -= 14
+        pdf.drawString(36, y, contact)
+    if billing_email:
+        y -= 13
+        pdf.setFont("Helvetica", 9)
+        pdf.setFillColorRGB(0.45, 0.45, 0.45)
+        pdf.drawString(36, y, billing_email)
+
+    # Date / Ref right-aligned
+    ref_y = page_height - 94
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+    pdf.drawRightString(page_width - 36, ref_y, f"Datum: {datetime.now().strftime('%d.%m.%Y')}")
+    ref_y -= 13
+    pdf.drawRightString(page_width - 36, ref_y, f"Rechnungs-Nr.: {invoice_number}")
+    ref_y -= 13
+    pdf.drawRightString(page_width - 36, ref_y, f"Ursprüngliche Fälligkeit: {original_due_str}")
+
+    # Subject line
+    y = page_height - 205
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(36, y, f"{letter_type}: Rechnung {invoice_number}")
+    y -= 20
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+    # Body text
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(36, y, "Sehr geehrte Damen und Herren,")
+    y -= 16
+    pdf.setFont("Helvetica", 9)
+    for line in [
+        f"für nachfolgend aufgeführte Rechnung haben wir bis heute keinen Zahlungseingang verzeichnet.",
+        f"Wir bitten Sie, den ausstehenden Betrag bis zum {new_due_date} zu begleichen.",
+    ]:
+        pdf.drawString(36, y, line)
+        y -= 13
+
+    # Invoice detail box
+    y -= 10
+    box_y = y - 62
+    pdf.setFillColorRGB(0.96, 0.97, 0.98)
+    pdf.rect(36, box_y, page_width - 72, 64, fill=1, stroke=0)
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.setFont("Helvetica-Bold", 9)
+    for header, xpos in [("Rechnungs-Nr.", 44), ("Datum", 160), ("Zeitraum", 240), ("Betrag (brutto)", 380)]:
+        pdf.drawString(xpos, box_y + 46, header)
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    pdf.setFont("Helvetica", 9)
+    amount_str = f"{total_amount:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", ".")
+    pdf.drawString(44, box_y + 28, invoice_number)
+    pdf.drawString(160, box_y + 28, invoice_date_str)
+    pdf.drawString(240, box_y + 28, invoice_period)
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(380, box_y + 28, amount_str)
+    y = box_y - 16
+
+    if warning_text:
+        pdf.setFillColorRGB(0.75, 0.1, 0.1)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(36, y, warning_text[:110])
+        y -= 16
+        pdf.setFillColorRGB(0.1, 0.1, 0.1)
+
+    # Bank / payment reference
+    y -= 6
+    if iban:
+        pdf.setFillColorRGB(0.3, 0.3, 0.3)
+        pdf.setFont("Helvetica", 9)
+        bank_line = f"Bitte überweisen auf IBAN {iban}" + (f"  BIC {bic}" if bic else "") + (f"  ({bank_name})" if bank_name else "")
+        pdf.drawString(36, y, bank_line[:110])
+        y -= 13
+        pdf.drawString(36, y, f"Verwendungszweck: {invoice_number}")
+        y -= 13
+
+    # Closing
+    y -= 10
+    pdf.setFillColorRGB(0.1, 0.1, 0.1)
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(36, y, "Mit freundlichen Grüßen")
+    y -= 14
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(36, y, operator_name)
+    contact_parts = []
+    if operator_phone:
+        contact_parts.append(f"Tel: {operator_phone}")
+    if operator_email_addr:
+        contact_parts.append(f"E-Mail: {operator_email_addr}")
+    if operator_website:
+        contact_parts.append(operator_website)
+    if contact_parts:
+        y -= 12
+        pdf.setFont("Helvetica", 8)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        pdf.drawString(36, y, "  |  ".join(contact_parts)[:110])
+
+    # Footer band
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.rect(0, 0, page_width, 24, fill=1, stroke=0)
+    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont("Helvetica", 7)
+    footer_parts = list(filter(None, [operator_name, operator_street, operator_zip_city]))
+    pdf.drawString(36, 8, "  |  ".join(footer_parts)[:120])
+
+    pdf.save()
+    buf.seek(0)
+    return buf.getvalue()
+
+
 def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due):
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
     sender_name = (settings_row["smtp_sender_name"] or settings_row["operator_name"] or "").strip()
@@ -2565,8 +2767,16 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
 
     platform_name = str(settings_row["platform_name"] or "BauPass").strip()
     primary_color = str(settings_row["invoice_primary_color"] or "#0f4c5c").strip()
-    accent_color = str(settings_row["invoice_accent_color"] or "#e36414").strip() if "invoice_accent_color" in settings_row.keys() else "#e36414"
+    accent_color = str(settings_row["invoice_accent_color"] if "invoice_accent_color" in settings_row.keys() else "#e36414").strip() or "#e36414"
     operator_name = str(settings_row["operator_name"] or platform_name).strip()
+    operator_phone = str((settings_row["invoice_operator_phone"] if "invoice_operator_phone" in settings_row.keys() else None) or "").strip()
+    operator_email_addr = str((settings_row["invoice_operator_email"] if "invoice_operator_email" in settings_row.keys() else None) or "").strip()
+    operator_website = str((settings_row["invoice_operator_website"] if "invoice_operator_website" in settings_row.keys() else None) or "").strip()
+    operator_street = str((settings_row["invoice_operator_street"] if "invoice_operator_street" in settings_row.keys() else None) or "").strip()
+    operator_zip_city = str((settings_row["invoice_operator_zip_city"] if "invoice_operator_zip_city" in settings_row.keys() else None) or "").strip()
+    iban = str((settings_row["invoice_iban"] if "invoice_iban" in settings_row.keys() else None) or "").strip()
+    bic = str((settings_row["invoice_bic"] if "invoice_bic" in settings_row.keys() else None) or "").strip()
+    bank_name = str((settings_row["invoice_bank_name"] if "invoice_bank_name" in settings_row.keys() else None) or "").strip()
 
     stage_label = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung – Sperrung droht"}.get(stage, "Zahlungserinnerung")
     due_label = invoice_row["due_date"] or "-"
@@ -2595,6 +2805,27 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     warning_banner = ""
     if stage == 3:
         warning_banner = '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px 16px;margin-bottom:20px;color:#856404;font-size:14px;">&#9888; <strong>Achtung:</strong> Bei ausbleibender Zahlung wird der Zugang automatisch gesperrt.</div>'
+
+    # Contact info block for email
+    contact_rows = ""
+    for label, value in [
+        ("Adresse", "  ".join(filter(None, [operator_street, operator_zip_city]))),
+        ("Telefon", operator_phone),
+        ("E-Mail", operator_email_addr),
+        ("Website", operator_website),
+        ("IBAN", iban + (f"  BIC {bic}" if bic else "") + (f"  ({bank_name})" if bank_name else "")),
+    ]:
+        if value:
+            contact_rows += f'<tr><td style="padding:5px 14px;font-size:12px;color:#555;width:35%;">{html.escape(label)}</td><td style="padding:5px 14px;font-size:12px;color:#212529;">{html.escape(value)}</td></tr>'
+
+    contact_block = ""
+    if contact_rows:
+        contact_block = f"""
+<div style="margin-top:28px;border-top:1px solid #dee2e6;padding-top:16px;">
+  <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:0.05em;">Kontakt &amp; Zahlungsdetails</p>
+  <table style="width:100%;border-collapse:collapse;">{contact_rows}</table>
+</div>"""
+
     inner_html = f"""
 {warning_banner}
 <p style="margin:0 0 12px;color:#333;font-size:15px;">Guten Tag,</p>
@@ -2618,7 +2849,9 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
   </tr>
 </table>
 <p style="margin:0 0 8px;color:#333;font-size:15px;">Bitte begleichen Sie den Betrag zeitnah, um eine Zugangssperrung zu vermeiden.</p>
+<p style="margin:0 0 8px;color:#6c757d;font-size:13px;">Im Anhang finden Sie das Mahnschreiben als PDF-Dokument.</p>
 <p style="margin:0;color:#6c757d;font-size:13px;">Bei Fragen wenden Sie sich direkt an uns.</p>
+{contact_block}
 """
     html_body = _build_email_html(
         platform_name=platform_name,
@@ -2628,6 +2861,10 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         body_html=inner_html,
         footer_name=operator_name,
     )
+
+    # Generate PDF attachment
+    pdf_bytes = _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, days_until_due)
+    pdf_filename = f"Mahnschreiben_{invoice_number.replace('/', '-')}.pdf"
 
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_port = int(settings_row["smtp_port"] or 587)
@@ -2642,6 +2879,8 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
             msg["To"] = recipient
             msg.set_content(text_body)
             msg.add_alternative(html_body, subtype="html")
+            if pdf_bytes:
+                msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
             with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
                 if smtp_username:
                     smtp.login(smtp_username, smtp_password)
@@ -2650,6 +2889,12 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         except Exception as smtp_exc:
             app.logger.warning(f"[DUNNING] SMTP fehlgeschlagen ({smtp_exc}), versuche API-Fallback")
 
+    # API fallback – attach PDF as base64 if available
+    attachments = []
+    if pdf_bytes:
+        import base64 as _b64
+        attachments = [{"filename": pdf_filename, "content": _b64.b64encode(pdf_bytes).decode("ascii"), "type": "application/pdf"}]
+
     ok, err, _provider = _send_via_any_api(
         subject=subject,
         sender_email=smtp_sender or "noreply@baupass.app",
@@ -2657,6 +2902,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         recipient=recipient,
         text_body=text_body,
         html_body=html_body,
+        attachments=attachments,
     )
     if ok:
         return True, ""
@@ -5042,6 +5288,15 @@ def login():
         if not otp_code:
             # Step 1: credentials correct – send OTP via email
             if user_email:
+                # 60-second cooldown: if a valid OTP was sent less than 60 seconds ago, don't send a new one
+                cooldown_threshold = (datetime.now(timezone.utc) + timedelta(seconds=540)).isoformat()  # expires_at > now+9min → sent within last 60s
+                recent_otp = db.execute(
+                    "SELECT id FROM otp_codes WHERE user_id = ? AND expires_at > ?",
+                    (user["id"], cooldown_threshold)
+                ).fetchone()
+                if recent_otp:
+                    return login_error("otp_sent")
+
                 otp = str(secrets.randbelow(900000) + 100000)
                 otp_id = secrets.token_urlsafe(16)
                 expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
@@ -9851,6 +10106,8 @@ def send_invoice_email(invoice_row, company_row, settings_row):
 
         def _svg_to_png(svg_bytes):
             try:
+                import logging as _logging
+                _logging.getLogger("svglib.svglib").setLevel(_logging.ERROR)
                 from svglib.svglib import svg2rlg
                 from reportlab.graphics import renderPM
                 drw = svg2rlg(io.BytesIO(svg_bytes))

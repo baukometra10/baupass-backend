@@ -11487,16 +11487,25 @@ function renderCompanyList() {
             ${historyMarkup}
           </div>
           ${repairStatus ? `<p class="${repairStatusClass}">${escapeHtml(repairStatus.message || "")}</p>` : ""}
-          <div class="button-row">
-            <button type="button" class="ghost-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Dokument-Mail setzen</button>
-            <button type="button" class="ghost-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Rechnungs-Sprache</button>
-            <button type="button" class="ghost-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-OTP</button>
-            <button type="button" class="ghost-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔑 Passwort-Reset senden</button>
-            <button type="button" class="ghost-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔒 Passwort direkt setzen</button>
-            <button type="button" class="ghost-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Drehkreuz hinzufügen</button>
-            <button type="button" class="ghost-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? "Login wird vorbereitet..." : "Firmen-Login"}</button>
-            <button type="button" class="ghost-button" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? "Speichert..." : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "Sperre aufheben" : "Firma sperren"}</button>
-            <button type="button" class="ghost-button" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Firma löschen</button>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Einstellungen</span>
+              <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>📧 Dokument-Mail</button>
+              <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🌐 Rechnungs-Sprache</button>
+              <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-2FA</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Zugang</span>
+              <button type="button" class="ghost-button small-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔑 Passwort-Mail</button>
+              <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔒 Passwort setzen</button>
+              <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>➕ Drehkreuz</button>
+              <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? "⏳ Vorbereitung…" : "🔓 Firmen-Login"}</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Aktionen</span>
+              <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? "⏳ Speichert…" : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "✅ Sperre aufheben" : "🔴 Firma sperren"}</button>
+              <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🗑 Firma löschen</button>
+            </div>
           </div>
         </article>
       `;
@@ -13407,6 +13416,167 @@ function renderPorterLivePanel() {
       </div>
     </div>
   `;
+}
+
+// ── Mitarbeiter-Dokumente laden + rendern ──────────────────────────────────
+
+async function loadWorkerDocuments(workerId) {
+  try {
+    return await apiRequest(`${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents`);
+  } catch {
+    return [];
+  }
+}
+
+function renderWorkerDocuments(docs, workerId, container) {
+  const role = getCurrentUser()?.role || "";
+  const canDelete = ["superadmin", "company-admin"].includes(role);
+  const canUpload = ["superadmin", "company-admin", "turnstile"].includes(role);
+  const ALL_DOC_TYPES = [
+    "mindestlohnnachweis", "personalausweis", "sozialversicherungsnachweis",
+    "arbeitserlaubnis", "gesundheitszeugnis", "sonstiges"
+  ];
+  const DOC_TYPES_REQUIRE_EXPIRY = new Set(["personalausweis", "arbeitserlaubnis", "gesundheitszeugnis"]);
+
+  const docTypeLabel = (t) => {
+    const key = `docType${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+    return uiT(key) || t;
+  };
+
+  const docsHtml = docs.length === 0
+    ? `<p class="muted" style="font-size:0.88em;">${escapeHtml(uiT("workerDocsEmpty"))}</p>`
+    : docs.map((doc) => {
+      const typeLabel = docTypeLabel(doc.doc_type || "");
+      const date = (doc.created_at || "").slice(0, 10);
+      const expiry = doc.expiry_date ? ` · ${escapeHtml(uiT("docExpiryLabel"))}: ${escapeHtml(doc.expiry_date)}` : "";
+      const notes = doc.notes ? ` · ${escapeHtml(doc.notes)}` : "";
+      const deleteBtn = canDelete
+        ? `<button type="button" class="ghost-button small-button" data-delete-doc="${escapeHtml(doc.id)}" style="color:#e53e3e;font-size:0.8em;">${escapeHtml(uiT("btnDeleteDoc"))}</button>`
+        : "";
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:0.85em;">
+          <div style="min-width:0;flex:1;">
+            <strong>${escapeHtml(typeLabel)}</strong>
+            <span class="muted"> · ${escapeHtml(doc.filename)}${expiry}${notes} · ${escapeHtml(date)}</span>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            <button type="button" class="ghost-button small-button" data-download-doc="${escapeHtml(doc.id)}" data-doc-filename="${escapeHtml(doc.filename)}" style="font-size:0.8em;">${escapeHtml(uiT("btnDownloadDoc"))}</button>
+            ${deleteBtn}
+          </div>
+        </div>`;
+    }).join("");
+
+  const uploadHtml = canUpload ? `
+    <details style="margin-top:8px;">
+      <summary style="cursor:pointer;font-size:0.85em;color:#4a90d9;">${escapeHtml(uiT("btnUploadWorkerDoc"))}</summary>
+      <form class="worker-doc-upload-form" style="display:grid;gap:6px;margin-top:8px;">
+        <select name="docType" required style="padding:5px;border:1px solid #cbd5e0;border-radius:4px;font-size:0.85em;">
+          <option value="">– Typ wählen –</option>
+          ${ALL_DOC_TYPES.map((t) => `<option value="${t}">${escapeHtml(docTypeLabel(t))}</option>`).join("")}
+        </select>
+        <div class="doc-expiry-row" style="display:none;">
+          <label style="font-size:0.85em;">${escapeHtml(uiT("docExpiryLabel"))}
+            <input type="date" name="expiryDate" style="margin-left:6px;padding:4px;border:1px solid #cbd5e0;border-radius:4px;" />
+          </label>
+        </div>
+        <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx" required style="font-size:0.85em;" />
+        <textarea name="notes" placeholder="${escapeAttr("Notizen (optional)")}" rows="2" style="padding:5px;border:1px solid #cbd5e0;border-radius:4px;font-size:0.85em;resize:vertical;"></textarea>
+        <button type="submit" class="primary-button small-button" style="font-size:0.85em;">${escapeHtml(uiT("btnConfirmUpload"))}</button>
+      </form>
+    </details>` : "";
+
+  container.innerHTML = docsHtml + uploadHtml;
+
+  // Download handlers
+  container.querySelectorAll("[data-download-doc]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        const docId = btn.dataset.downloadDoc;
+        const filename = btn.dataset.docFilename || "dokument";
+        const response = await fetch(
+          `${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents/${encodeURIComponent(docId)}/download`,
+          { headers: { Authorization: `Bearer ${token}` }, credentials: "include" }
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        window.alert(`Download fehlgeschlagen: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Delete handlers
+  container.querySelectorAll("[data-delete-doc]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!window.confirm(uiT("confirmDeleteDoc"))) return;
+      btn.disabled = true;
+      try {
+        const docId = btn.dataset.deleteDoc;
+        await apiRequest(
+          `${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents/${encodeURIComponent(docId)}`,
+          { method: "DELETE" }
+        );
+        const updatedDocs = await loadWorkerDocuments(workerId);
+        renderWorkerDocuments(updatedDocs, workerId, container);
+      } catch (err) {
+        window.alert(`Löschen fehlgeschlagen: ${err.message}`);
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Upload form handler
+  const form = container.querySelector(".worker-doc-upload-form");
+  if (form) {
+    const docTypeSelect = form.querySelector("select[name=docType]");
+    const expiryRow = form.querySelector(".doc-expiry-row");
+    const expiryInput = form.querySelector("input[name=expiryDate]");
+
+    docTypeSelect.addEventListener("change", () => {
+      const needsExpiry = DOC_TYPES_REQUIRE_EXPIRY.has(docTypeSelect.value);
+      expiryRow.style.display = needsExpiry ? "block" : "none";
+      expiryInput.required = needsExpiry;
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submitBtn = form.querySelector("button[type=submit]");
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        const formData = new FormData();
+        formData.append("docType", docTypeSelect.value);
+        formData.append("expiryDate", expiryInput.value || "");
+        formData.append("notes", (form.querySelector("textarea[name=notes]").value || "").trim());
+        const fileInput = form.querySelector("input[name=file]");
+        if (fileInput.files[0]) formData.append("file", fileInput.files[0]);
+
+        const response = await fetch(
+          `${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents/upload`,
+          { method: "POST", headers: { Authorization: `Bearer ${token}` }, credentials: "include", body: formData }
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result?.error || `HTTP ${response.status}`);
+
+        window.alert(uiT("docUploadSuccess"));
+        const updatedDocs = await loadWorkerDocuments(workerId);
+        renderWorkerDocuments(updatedDocs, workerId, container);
+      } catch (err) {
+        window.alert(`Upload fehlgeschlagen: ${err.message}`);
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
 }
 
 // Zeige Mitarbeiterdetails direkt im Dashboard-Bereich
@@ -20201,3 +20371,23 @@ function getCurrentLang() {
     return "de";
   }
 }
+
+// ── App-Start: läuft bei jedem Seitenaufruf / Refresh ─────────────────────
+initUiLanguageControl();
+initSystemThemeControl();
+initNativeDesktopShell();
+
+(async () => {
+  try {
+    await loadAllData();
+    if (state.currentUser?.role === "superadmin") {
+      await refreshSystemStatus().catch(() => {});
+    }
+    startHeartbeat();
+    startBackendStatusMonitor();
+  } catch {
+    clearSession();
+  } finally {
+    refreshAll();
+  }
+})();

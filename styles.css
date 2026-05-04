@@ -1754,6 +1754,40 @@ select:focus {
   transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
+.small-button {
+  padding: 6px 12px !important;
+  font-size: 0.8rem !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+
+.btn-danger {
+  color: #b91c1c !important;
+  border-color: #fca5a5 !important;
+  background: rgba(254, 226, 226, 0.7) !important;
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(254, 202, 202, 0.9) !important;
+}
+
+.btn-warning {
+  color: #92400e !important;
+  border-color: #fcd34d !important;
+  background: rgba(254, 243, 199, 0.7) !important;
+}
+.btn-warning:hover:not(:disabled) {
+  background: rgba(253, 230, 138, 0.9) !important;
+}
+
+.btn-success {
+  color: #065f46 !important;
+  border-color: #6ee7b7 !important;
+  background: rgba(209, 250, 229, 0.7) !important;
+}
+.btn-success:hover:not(:disabled) {
+  background: rgba(167, 243, 208, 0.9) !important;
+}
+
 .primary-button {
   color: #fff8f2;
   background: linear-gradient(135deg, var(--accent), var(--accent-dark));
