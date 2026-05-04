@@ -9523,7 +9523,9 @@ function startHeartbeat() {
         body: JSON.stringify({}),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.active === false) {
+      // Do not log users out on transient backend failures (502/503/network blips).
+      // Logout only when backend explicitly confirms inactive/unauthorized session.
+      if (response.status === 401 || payload?.active === false) {
         clearSession();
         refreshAll();
       }

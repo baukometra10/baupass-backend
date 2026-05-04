@@ -13498,6 +13498,21 @@ def get_imap_settings(db):
     return cfg
 
 
+def _normalize_imap_host_port(host_value, port_value):
+    host = str(host_value or "").strip()
+    port = int(port_value or 993)
+    # Common admin input: "imap.example.com:993" in host field.
+    # Split out the port so socket resolution works reliably.
+    if host and host.count(":") == 1 and "]" not in host:
+        maybe_host, maybe_port = host.rsplit(":", 1)
+        if maybe_host and maybe_port.isdigit():
+            host = maybe_host.strip()
+            parsed_port = int(maybe_port)
+            if parsed_port > 0:
+                port = parsed_port
+    return host, port
+
+
 def poll_imap_inbox():
     """Pollt das konfigurierte IMAP-Postfach und speichert neue Mails in email_inbox.
 
@@ -13522,8 +13537,7 @@ def poll_imap_inbox():
                 _result = {"status": "not_configured", "newEmails": 0, "missing": missing}
                 return _result
 
-            host = cfg["imap_host"]
-            port = int(cfg.get("imap_port") or 993)
+            host, port = _normalize_imap_host_port(cfg.get("imap_host"), cfg.get("imap_port") or 993)
             username = cfg["imap_username"]
             password = cfg["imap_password"] or ""
             folder = cfg.get("imap_folder") or "INBOX"
@@ -13531,12 +13545,40 @@ def poll_imap_inbox():
 
             _imap_timeout = 30  # Sekunden – verhindert 502 durch hängenden Socket
             try:
+                attempts = [(use_ssl, port)]
+                # Fallbacks for common misconfigurations (993 SSL vs 143 STARTTLS)
                 if use_ssl:
-                    conn = imaplib.IMAP4_SSL(host, port, timeout=_imap_timeout)
+                    attempts.append((False, 143 if port == 993 else port))
                 else:
-                    conn = imaplib.IMAP4(host, port, timeout=_imap_timeout)
-                    conn.starttls()
-                conn.login(username, password)
+                    attempts.append((True, 993 if port == 143 else port))
+
+                conn = None
+                last_exc = None
+                tried = set()
+                for attempt_ssl, attempt_port in attempts:
+                    key = (bool(attempt_ssl), int(attempt_port))
+                    if key in tried:
+                        continue
+                    tried.add(key)
+                    try:
+                        if attempt_ssl:
+                            conn = imaplib.IMAP4_SSL(host, attempt_port, timeout=_imap_timeout)
+                        else:
+                            conn = imaplib.IMAP4(host, attempt_port, timeout=_imap_timeout)
+                            conn.starttls()
+                        conn.login(username, password)
+                        break
+                    except Exception as inner_exc:
+                        last_exc = inner_exc
+                        try:
+                            if conn is not None:
+                                conn.logout()
+                        except Exception:
+                            pass
+                        conn = None
+
+                if conn is None and last_exc is not None:
+                    raise last_exc
             except Exception as exc:
                 _result = {"status": "connect_error", "newEmails": 0, "error": str(exc)}
                 try:
