@@ -307,7 +307,8 @@ const TRANSLATIONS = {
     accessFailed: "Access failed",
     inactiveReLogin: "Inactive for too long. Please log in again.",
     wrongPinRetry: "Wrong PIN. Try again.",
-    pinLockTooManyAttempts: "Too many attempts – please wait 5 minutes.",    gateReadyScan: "📱 Ready to scan...",
+    pinLockTooManyAttempts: "Too many attempts - please wait 5 minutes.",
+    gateReadyScan: "Ready to scan...",
     lowLightDetected: "Low light detected. High-contrast QR recommended.",
     qrLoadFailedAlt: "QR code could not be loaded",
     installHintStandalone: "App is installed. At the turnstile, show the QR code in fullscreen.",
@@ -327,7 +328,7 @@ const TRANSLATIONS = {
     expiringSoonNotice: "Notice: Your visitor pass expires in less than 5 minutes.",
     scannerAutoOpened: "Scanner opened automatically because less than 2 minutes remain.",
     autoEndedAtMidnight: "Digital visitor pass ended automatically at 00:00. Please log in again.",
-    updateAvailable: "New app version available – reloading in a few seconds …",,
+    updateAvailable: "New app version available – reloading in a few seconds …",
     siteLocationUnavailable: "Site location could not be determined – login still allowed. Please inform admin.",
     gateBtn: "Open Turnstile Mode",
     changePhotoBtn: "Change Photo",
@@ -1096,6 +1097,7 @@ async function init() {
   const params = new URL(window.location.href).searchParams;
   const urlToken = (params.get("access") || "").trim();
   const viewParam = (params.get("view") || "").trim().toLowerCase();
+  const urlBadgeParam = normalizeBadgeIdInput(params.get("badge") || "");
   const storedAccessToken = (window.localStorage.getItem(WORKER_ACCESS_TOKEN_KEY) || "").trim();
   const storedBadgeId = (window.localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
   const bootstrapAccessToken = urlToken || storedAccessToken;
@@ -1147,6 +1149,30 @@ async function init() {
       if (viewParam === "card") applyWorkerPageView("badgeCard");
       return;
     }
+  }
+
+  // ?badge=WRK-001 → permanent QR code that pre-fills badge ID and focuses PIN
+  if (urlBadgeParam) {
+    // If already logged in with a valid session, just go to card
+    if (workerToken) {
+      const loaded = await loadWorkerData();
+      if (loaded) {
+        if (viewParam === "card") applyWorkerPageView("badgeCard");
+        return;
+      }
+    }
+    // Pre-fill badge ID and let worker enter PIN
+    localStorage.setItem(WORKER_BADGE_LOGIN_KEY, urlBadgeParam);
+    if (elements.workerAccessToken) {
+      elements.workerAccessToken.value = urlBadgeParam;
+    }
+    const pinWrapper = document.querySelector("#pinFieldWrapper");
+    if (pinWrapper && !isVisitorBadgeId(urlBadgeParam)) {
+      pinWrapper.classList.remove("hidden");
+      const pinInput = document.querySelector("#workerBadgePin");
+      if (pinInput) setTimeout(() => pinInput.focus(), 120);
+    }
+    return;
   }
 
   if (storedBadgeId) {
@@ -1804,7 +1830,7 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     // ── Schutzlogik: Session-Inaktivitäts-Monitor starten ──
     initializeSessionInactivityProtection();
   } catch (error) {
-    if (["invalid_access_token", "access_token_revoked", "access_token_expired", "access_token_already_used"].includes(error.code)) {
+    if (error.code === "access_token_already_used") {
       localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
       // If the worker already has an active session, just load that instead of showing the login screen
       const existingToken = localStorage.getItem(WORKER_TOKEN_KEY);
@@ -1815,6 +1841,26 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
           return;
         }
       }
+      const fallbackBadgeId = normalizeBadgeIdInput(error?.payload?.badgeId || error?.payload?.badge_id || "");
+      if (fallbackBadgeId) {
+        localStorage.setItem(WORKER_BADGE_LOGIN_KEY, fallbackBadgeId);
+        if (elements.workerAccessToken) {
+          elements.workerAccessToken.value = fallbackBadgeId;
+        }
+        const pinWrapper = document.querySelector("#pinFieldWrapper");
+        if (pinWrapper && !isVisitorBadgeId(fallbackBadgeId)) {
+          pinWrapper.classList.remove("hidden");
+          const pinInput = document.querySelector("#workerBadgePin");
+          if (pinInput) setTimeout(() => pinInput.focus(), 120);
+        }
+        showWorkerNotice("Dieser QR-Link wurde bereits benutzt. Bitte PIN eingeben.");
+        return;
+      }
+      showWorkerNotice("QR-Link ungueltig oder bereits verbraucht. Bitte QR-Code neu scannen.");
+      return;
+    }
+    if (["invalid_access_token", "access_token_revoked", "access_token_expired"].includes(error.code)) {
+      localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
       showWorkerNotice("QR-Link ungueltig oder bereits verbraucht. Bitte QR-Code neu scannen.");
       return;
     }
@@ -2990,8 +3036,9 @@ async function fetchJson(url, options = {}) {
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     let code = "";
+    let payload = null;
     try {
-      const payload = await response.json();
+      payload = await response.json();
       code = payload?.error || "";
       message = payload?.message || payload?.error || message;
     } catch {
@@ -2999,6 +3046,7 @@ async function fetchJson(url, options = {}) {
     }
     const error = new Error(message);
     error.code = code;
+    error.payload = payload;
     throw error;
   }
   return response.json();

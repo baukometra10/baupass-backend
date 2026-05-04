@@ -7719,7 +7719,15 @@ def worker_app_login():
             return jsonify({"error": "invalid_access_token"}), 401
 
         if token_row["revoked_at"]:
-            return jsonify({"error": "access_token_already_used", "message": "Dieser Besucherkarten-Link wurde bereits genutzt."}), 401
+            fallback_badge_row = db.execute(
+                "SELECT badge_id FROM workers WHERE id = ?",
+                (token_row["worker_id"],),
+            ).fetchone()
+            return jsonify({
+                "error": "access_token_already_used",
+                "message": "Dieser Besucherkarten-Link wurde bereits genutzt.",
+                "badgeId": (fallback_badge_row["badge_id"] if fallback_badge_row else ""),
+            }), 401
 
         if token_row["expires_at"] < now_iso():
             return jsonify({"error": "access_token_expired"}), 401
@@ -7744,7 +7752,15 @@ def worker_app_login():
             (consumed_at, access_token),
         )
         if int(consumed.rowcount or 0) == 0:
-            return jsonify({"error": "access_token_already_used", "message": "Dieser Besucherkarten-Link wurde bereits genutzt."}), 401
+            fallback_badge_row = db.execute(
+                "SELECT badge_id FROM workers WHERE id = ?",
+                (token_row["worker_id"],),
+            ).fetchone()
+            return jsonify({
+                "error": "access_token_already_used",
+                "message": "Dieser Besucherkarten-Link wurde bereits genutzt.",
+                "badgeId": (fallback_badge_row["badge_id"] if fallback_badge_row else ""),
+            }), 401
 
         session_data = create_worker_app_session(db, worker)
         log_audit(

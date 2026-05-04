@@ -12987,6 +12987,25 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
   const dialog = document.createElement("div");
   dialog.className = "worker-app-qr-overlay";
 
+  // Permanent badge link (never expires, worker just needs PIN)
+  const permanentQrId = `workerAppQrPerm-${Date.now()}`;
+  let permanentLink = "";
+  if (!isVisitorCard && worker?.badgeId) {
+    try {
+      const base = new URL(absoluteLink);
+      const apiBaseParam = base.searchParams.get("apiBase");
+      base.search = "";
+      if (apiBaseParam) {
+        base.searchParams.set("apiBase", apiBaseParam);
+      }
+      base.searchParams.set("badge", worker.badgeId);
+      permanentLink = base.toString();
+    } catch {
+      permanentLink = "";
+    }
+  }
+  const primaryLink = permanentLink || absoluteLink;
+
   const qrId = `workerAppQr-${Date.now()}`;
   dialog.innerHTML = `
     <div class="worker-app-qr-card">
@@ -13001,11 +13020,21 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
         <button type="button" class="ghost-button" data-worker-app-copy>${escapeHtml(runtimeText("workerAppQrCopyBtn"))}</button>
         <button type="button" class="ghost-button" data-worker-app-close>${escapeHtml(uiT("legalCloseTitle"))}</button>
       </div>
+      ${permanentLink ? `
+      <hr style="margin:14px 0 10px; border:none; border-top:1px solid #e5e7eb;" />
+      <p class="helper-text" style="margin-bottom:6px;">📌 <strong>Dauerhafter QR (Badge-ID + PIN):</strong> Immer gültig – kein Ablaufdatum.</p>
+      <img id="${permanentQrId}" alt="Dauerhafter QR-Code" style="max-width:160px;" />
+      <div class="button-row" style="margin-top:6px;">
+        <button type="button" class="ghost-button small-button" data-worker-app-copy-perm>Dauerhaften Link kopieren</button>
+      </div>` : ""}
     </div>
   `;
 
   document.body.appendChild(dialog);
-  renderRealQr(qrId, absoluteLink);
+  renderRealQr(qrId, primaryLink);
+  if (permanentLink) {
+    renderRealQr(permanentQrId, permanentLink);
+  }
 
   dialog.querySelector("[data-worker-app-close]")?.addEventListener("click", () => {
     closeWorkerAppQrDialog();
@@ -13014,13 +13043,13 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
   dialog.querySelector("[data-worker-app-copy]")?.addEventListener("click", async () => {
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(absoluteLink);
+        await navigator.clipboard.writeText(primaryLink);
         window.alert(uiT("alertAppLinkCopied"));
       } else {
-        window.prompt(uiT("promptAppLink"), absoluteLink);
+        window.prompt(uiT("promptAppLink"), primaryLink);
       }
     } catch {
-      window.prompt(uiT("promptAppLink"), absoluteLink);
+      window.prompt(uiT("promptAppLink"), primaryLink);
     }
   });
 
@@ -13031,6 +13060,20 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
       return;
     }
     printWorkerAppQr(workerName, qrImage.src);
+  });
+
+  dialog.querySelector("[data-worker-app-copy-perm]")?.addEventListener("click", async () => {
+    if (!permanentLink) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(permanentLink);
+        window.alert(uiT("alertAppLinkCopied"));
+      } else {
+        window.prompt(uiT("promptAppLink"), permanentLink);
+      }
+    } catch {
+      window.prompt(uiT("promptAppLink"), permanentLink);
+    }
   });
 
   dialog.addEventListener("click", (event) => {
