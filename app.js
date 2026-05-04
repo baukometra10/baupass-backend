@@ -13139,29 +13139,22 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
       <h3>${escapeHtml(isVisitorCard ? runtimeText("workerAppQrVisitorHeading") : runtimeText("workerAppQrHeading"))}</h3>
       <p>${escapeHtml(runtimeText("workerAppQrForLabel"))}: <strong>${escapeHtml(workerName)}</strong></p>
       <p>${escapeHtml(isVisitorCard ? runtimeText("workerAppQrVisitorHint") : runtimeText("workerAppQrHint"))}</p>
-      <p class="helper-text">${escapeHtml(runtimeTextTemplate("workerAppQrValidUntil", { when: linkExpiresAt }))}</p>
-      ${oneTimeHint ? `<p class="helper-text">${escapeHtml(oneTimeHint)}</p>` : ""}
+      ${permanentLink
+        ? `<p class="helper-text" style="color:#16a34a;">📌 Dauerhafter QR – kein Ablaufdatum, Login per Badge-ID &amp; PIN.</p>`
+        : `<p class="helper-text">${escapeHtml(runtimeTextTemplate("workerAppQrValidUntil", { when: linkExpiresAt }))}</p>
+           ${oneTimeHint ? `<p class="helper-text">${escapeHtml(oneTimeHint)}</p>` : ""}`
+      }
       <img id="${qrId}" alt="${escapeHtml(runtimeText("workerAppQrAlt"))}" />
       <div class="button-row">
         ${isVisitorCard ? "" : `<button type="button" class="primary-button" data-worker-app-print>${escapeHtml(runtimeText("workerAppQrPrintBtn"))}</button>`}
         <button type="button" class="ghost-button" data-worker-app-copy>${escapeHtml(runtimeText("workerAppQrCopyBtn"))}</button>
         <button type="button" class="ghost-button" data-worker-app-close>${escapeHtml(uiT("legalCloseTitle"))}</button>
       </div>
-      ${permanentLink ? `
-      <hr style="margin:14px 0 10px; border:none; border-top:1px solid #e5e7eb;" />
-      <p class="helper-text" style="margin-bottom:6px;">📌 <strong>Dauerhafter QR (Badge-ID + PIN):</strong> Immer gültig – kein Ablaufdatum.</p>
-      <img id="${permanentQrId}" alt="Dauerhafter QR-Code" style="max-width:160px;" />
-      <div class="button-row" style="margin-top:6px;">
-        <button type="button" class="ghost-button small-button" data-worker-app-copy-perm>Dauerhaften Link kopieren</button>
-      </div>` : ""}
     </div>
   `;
 
   document.body.appendChild(dialog);
   renderRealQr(qrId, primaryLink);
-  if (permanentLink) {
-    renderRealQr(permanentQrId, permanentLink);
-  }
 
   dialog.querySelector("[data-worker-app-close]")?.addEventListener("click", () => {
     closeWorkerAppQrDialog();
@@ -13187,20 +13180,6 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
       return;
     }
     printWorkerAppQr(workerName, qrImage.src);
-  });
-
-  dialog.querySelector("[data-worker-app-copy-perm]")?.addEventListener("click", async () => {
-    if (!permanentLink) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(permanentLink);
-        window.alert(uiT("alertAppLinkCopied"));
-      } else {
-        window.prompt(uiT("promptAppLink"), permanentLink);
-      }
-    } catch {
-      window.prompt(uiT("promptAppLink"), permanentLink);
-    }
   });
 
   dialog.addEventListener("click", (event) => {

@@ -7876,6 +7876,13 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
     if normalize_worker_type(worker["worker_type"]) != "worker":
         return None
 
+    # Erst prüfen ob für diesen Mitarbeiter überhaupt Baustellen-Koordinaten existieren.
+    # Wenn nicht, gibt es keine Basis für einen Geofence-Check → Login erlauben.
+    site_coordinates = ensure_worker_site_coordinates(db, worker)
+    if not site_coordinates:
+        return None
+
+    # Baustellen-Koordinaten bekannt → jetzt Location aus dem Request prüfen
     location = payload.get("location") if isinstance(payload, dict) else None
     if not isinstance(location, dict):
         raise ValueError("worker_geolocation_required")
@@ -7884,12 +7891,6 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
     device_longitude = _normalize_float(location.get("longitude"))
     if device_latitude is None or device_longitude is None:
         raise ValueError("worker_geolocation_required")
-
-    site_coordinates = ensure_worker_site_coordinates(db, worker)
-    if not site_coordinates:
-        # Koordinaten nicht ermittelbar – Geofence-Prüfung überspringen, Login erlauben.
-        # Dies passiert wenn der Baustellen-Name keine geocodierbare Adresse ist.
-        return None
 
     distance_meters = _haversine_meters(site_coordinates[0], site_coordinates[1], device_latitude, device_longitude)
     if distance_meters > WORKER_LOGIN_MAX_DISTANCE_METERS:
