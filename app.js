@@ -11196,6 +11196,25 @@ function renderWorkerList() {
   bindWorkerRowActions();
 }
 
+function getCheckedWorkerIds() {
+  return Array.from(elements.workerList.querySelectorAll(".bulk-checkbox:checked")).map((cb) => cb.dataset.bulkId);
+}
+
+function updateBulkActionBar() {
+  const ids = getCheckedWorkerIds();
+  const bar = elements.bulkActionBar;
+  if (!bar) return;
+  if (ids.length > 0) {
+    bar.classList.remove("hidden");
+  } else {
+    bar.classList.add("hidden");
+  }
+  if (elements.bulkSelectionCount) {
+    const tmpl = runtimeText("bulkSelectedCount") || "{count} ausgewählt";
+    elements.bulkSelectionCount.textContent = tmpl.replace("{count}", ids.length);
+  }
+}
+
 function bindWorkerRowActions() {
 
   // Delegate checkbox changes to update bulk bar
@@ -19876,6 +19895,64 @@ if (elements.desktopInstallButton) {
     triggerDesktopInstall().catch(() => {
       window.alert(uiT("alertDesktopInstallFailed"));
     });
+  });
+}
+
+// Bulk-Aktionen für Worker
+if (elements.bulkSelectAll) {
+  elements.bulkSelectAll.addEventListener("change", () => {
+    const checkboxes = elements.workerList.querySelectorAll(".bulk-checkbox");
+    checkboxes.forEach((cb) => { cb.checked = elements.bulkSelectAll.checked; });
+    updateBulkActionBar();
+  });
+}
+
+if (elements.bulkCancelButton) {
+  elements.bulkCancelButton.addEventListener("click", () => {
+    elements.workerList.querySelectorAll(".bulk-checkbox").forEach((cb) => { cb.checked = false; });
+    if (elements.bulkSelectAll) { elements.bulkSelectAll.checked = false; elements.bulkSelectAll.indeterminate = false; }
+    updateBulkActionBar();
+  });
+}
+
+async function executeBulkStatus(status) {
+  const ids = getCheckedWorkerIds();
+  if (!ids.length) return;
+  try {
+    await apiRequest(`${API_BASE}/api/workers/bulk-status`, { method: "PATCH", body: { ids, status } });
+    elements.workerList.querySelectorAll(".bulk-checkbox").forEach((cb) => { cb.checked = false; });
+    if (elements.bulkSelectAll) { elements.bulkSelectAll.checked = false; elements.bulkSelectAll.indeterminate = false; }
+    updateBulkActionBar();
+    await loadAllData();
+    refreshAll();
+  } catch (err) {
+    window.alert(uiT("alertGenericError").replace("{error}", err.message || String(err)));
+  }
+}
+
+if (elements.bulkSetActiveButton) {
+  elements.bulkSetActiveButton.addEventListener("click", () => executeBulkStatus("aktiv"));
+}
+if (elements.bulkSetInactiveButton) {
+  elements.bulkSetInactiveButton.addEventListener("click", () => executeBulkStatus("inaktiv"));
+}
+
+if (elements.bulkDeleteButton) {
+  elements.bulkDeleteButton.addEventListener("click", async () => {
+    const ids = getCheckedWorkerIds();
+    if (!ids.length) return;
+    const msg = (runtimeText("confirmDeleteWorkerBulk") || "{count} Mitarbeiter wirklich löschen?").replace("{count}", ids.length);
+    if (!window.confirm(msg)) return;
+    try {
+      await apiRequest(`${API_BASE}/api/workers/bulk-delete`, { method: "POST", body: { ids } });
+      elements.workerList.querySelectorAll(".bulk-checkbox").forEach((cb) => { cb.checked = false; });
+      if (elements.bulkSelectAll) { elements.bulkSelectAll.checked = false; elements.bulkSelectAll.indeterminate = false; }
+      updateBulkActionBar();
+      await loadAllData();
+      refreshAll();
+    } catch (err) {
+      window.alert(uiT("alertDeleteWorkerFailed").replace("{error}", err.message || String(err)));
+    }
   });
 }
 

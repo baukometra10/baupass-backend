@@ -7590,6 +7590,57 @@ def delete_worker(worker_id):
     return jsonify({"ok": True})
 
 
+@app.patch("/api/workers/bulk-status")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def bulk_update_worker_status():
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("ids", [])
+    status = payload.get("status", "")
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "missing_ids"}), 400
+    if status not in ("aktiv", "inaktiv", "gesperrt"):
+        return jsonify({"error": "invalid_status"}), 400
+    ids = [str(i) for i in ids if isinstance(i, str) and i.strip()][:200]
+    db = get_db()
+    updated = 0
+    for worker_id in ids:
+        worker = db.execute("SELECT id, company_id, deleted_at FROM workers WHERE id = ?", (worker_id,)).fetchone()
+        if not worker or worker["deleted_at"]:
+            continue
+        if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+            continue
+        db.execute("UPDATE workers SET status = ? WHERE id = ?", (status, worker_id))
+        updated += 1
+    db.commit()
+    log_audit("workers.bulk_status", f"{updated} Mitarbeiter Status auf '{status}' gesetzt", actor=g.current_user)
+    return jsonify({"ok": True, "updated": updated})
+
+
+@app.post("/api/workers/bulk-delete")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def bulk_delete_workers():
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("ids", [])
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "missing_ids"}), 400
+    ids = [str(i) for i in ids if isinstance(i, str) and i.strip()][:200]
+    db = get_db()
+    deleted = 0
+    for worker_id in ids:
+        worker = db.execute("SELECT id, company_id, deleted_at FROM workers WHERE id = ?", (worker_id,)).fetchone()
+        if not worker or worker["deleted_at"]:
+            continue
+        if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+            continue
+        db.execute("UPDATE workers SET deleted_at = ? WHERE id = ?", (now_iso(), worker_id))
+        deleted += 1
+    db.commit()
+    log_audit("workers.bulk_deleted", f"{deleted} Mitarbeiter gelöscht", actor=g.current_user)
+    return jsonify({"ok": True, "deleted": deleted})
+
+
 @app.post("/api/workers/<worker_id>/restore")
 @require_auth
 @require_roles("superadmin", "company-admin")
