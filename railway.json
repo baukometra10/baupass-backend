@@ -12,7 +12,7 @@
     }
   },
   "deploy": {
-    "startCommand": ".venv/bin/python backend/run_prod.py",
+    "startCommand": "python backend/run_prod.py",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   },
