@@ -10374,6 +10374,22 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(c_dark)
         pdf.drawString(M_L, HEADING_Y, "Rechnung")
 
+        # Kundennummer-Badge rechts neben der Hauptüberschrift
+        CUST_BADGE_W = 46 * mm
+        CUST_BADGE_H = 10 * mm
+        CUST_BADGE_X = page_w - M_R - CUST_BADGE_W
+        CUST_BADGE_Y = HEADING_Y - 2.2 * mm
+        pdf.setFillColor(rl_colors.HexColor("#eef5fb"))
+        pdf.setStrokeColor(c_primary)
+        pdf.setLineWidth(0.6)
+        pdf.roundRect(CUST_BADGE_X, CUST_BADGE_Y, CUST_BADGE_W, CUST_BADGE_H, 2.5 * mm, stroke=1, fill=1)
+        pdf.setFont("Helvetica-Bold", 7.5)
+        pdf.setFillColor(c_primary)
+        pdf.drawString(CUST_BADGE_X + 3.2 * mm, CUST_BADGE_Y + 6.2 * mm, "KUNDENNUMMER")
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.setFillColor(c_dark)
+        pdf.drawRightString(CUST_BADGE_X + CUST_BADGE_W - 3.2 * mm, CUST_BADGE_Y + 3.0 * mm, customer_number)
+
         # Metadaten 2-spaltig direkt unter Überschrift
         meta_rows = [
             ("Rechnungsnummer:",  invoice_no),
