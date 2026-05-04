@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sqlite3
 import secrets
 import csv
@@ -13722,6 +13722,25 @@ ALLOWED_UPLOAD_MIMETYPES = {
 }
 
 DOCS_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "documents"
+
+# Nutze Railway-Volume /data auch für Uploads, wenn verfügbar
+_railway_data_dir = Path("/data")
+if _railway_data_dir.is_dir() and os.access(_railway_data_dir, os.W_OK):
+    DOCS_UPLOAD_DIR = _railway_data_dir / "uploads" / "documents"
+    # Bestehende Uploads migrieren (einmalig), falls lokales Verzeichnis Dateien hat
+    _old_docs_dir = BASE_DIR / "backend" / "uploads" / "documents"
+    if _old_docs_dir.exists() and not DOCS_UPLOAD_DIR.exists():
+        try:
+            import shutil as _shutil
+            _shutil.copytree(str(_old_docs_dir), str(DOCS_UPLOAD_DIR))
+            print(f"[baupass] Auto-migrated uploads from {_old_docs_dir} to {DOCS_UPLOAD_DIR}", flush=True)
+        except Exception as _upd_err:
+            print(f"[baupass] WARNING: Uploads auto-migration failed: {_upd_err}", flush=True)
+try:
+    DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    DOCS_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "documents"
+    DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _parse_imap_attachment_limit_bytes() -> int:
