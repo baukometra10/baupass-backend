@@ -9874,20 +9874,20 @@ async function openInboxMailDetail(inboxId, cardEl) {
   }
   if (!entry) return;
 
-  const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
-  const bodyText = String(entry.body_text || "").trim();
-  const attachmentsHtml = attachments.length
-    ? attachments.map((att) => {
-        const sizeKb = att.file_size > 0 ? `${Math.max(1, Math.round(att.file_size / 1024))} KB` : "";
-        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,0.07);">
-          <span style="font-size:1.3em;">📎</span>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:0.88em;word-break:break-all;">${escapeHtml(att.filename || "Anhang")}</div>
-            ${sizeKb ? `<div style="font-size:0.75em;color:#888;">${escapeHtml(sizeKb)}</div>` : ""}
-          </div>
-        </div>`;
-      }).join("")
-    : `<p style="color:#888;font-size:0.85em;">Keine Anhänge</p>`;
+  const DOC_TYPE_LABELS = {
+    mindestlohnnachweis: "Mindestlohnnachweis",
+    personalausweis: "Personalausweis",
+    sozialversicherungsnachweis: "Sozialversicherungsnachweis",
+    arbeitserlaubnis: "Arbeitserlaubnis",
+    gesundheitszeugnis: "Gesundheitszeugnis",
+    sonstiges: "Sonstiges",
+  };
+
+  // Filter workers by matched company if available
+  const companyId = entry.matched_company_id || null;
+  const availableWorkers = (state.workers || []).filter((w) =>
+    !companyId || String(w.companyId || w.company_id || "") === String(companyId)
+  );
 
   // Build or reuse modal
   let modal = document.getElementById("docInboxDetailModal");
@@ -9898,40 +9898,123 @@ async function openInboxMailDetail(inboxId, cardEl) {
     document.body.appendChild(modal);
   }
 
-  modal.innerHTML = `
-    <div style="background:var(--surface-strong,#fff);color:var(--text,#1a1a1a);border-radius:16px;box-shadow:0 8px 48px rgba(0,0,0,0.28);max-width:640px;width:95vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
-      <div style="padding:18px 20px 12px;border-bottom:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div style="min-width:0;flex:1;">
-          <div style="font-size:1.1em;font-weight:800;word-break:break-word;">${escapeHtml(String(entry.subject || "(ohne Betreff)"))}</div>
-          <div style="font-size:0.8em;color:var(--muted,#666);margin-top:4px;">Von: <strong>${escapeHtml(String(entry.from_addr || "-"))}</strong></div>
-          <div style="font-size:0.8em;color:var(--muted,#666);">An: ${escapeHtml(String(entry.to_addr || "-"))}</div>
-          <div style="font-size:0.78em;color:var(--muted,#888);margin-top:2px;">${escapeHtml(formatTimestamp(entry.received_at || ""))}</div>
-          ${entry.matched_company_name ? `<div style="font-size:0.8em;margin-top:4px;">🏢 <strong>${escapeHtml(entry.matched_company_name)}</strong></div>` : ""}
-        </div>
-        <button id="docInboxDetailClose" style="background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--muted,#888);padding:0;line-height:1;flex-shrink:0;">×</button>
-      </div>
-      <div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px;">
-        <div>
-          <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Nachricht</div>
-          <div style="font-size:0.88em;white-space:pre-wrap;word-break:break-word;background:var(--surface,rgba(0,0,0,0.03));border-radius:8px;padding:12px;border:1px solid var(--line,rgba(0,0,0,0.07));">${escapeHtml(bodyText || "—")}</div>
-        </div>
-        ${attachments.length ? `<div>
-          <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Anhänge (${attachments.length})</div>
-          ${attachmentsHtml}
-        </div>` : ""}
-      </div>
-      <div style="padding:12px 20px;border-top:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:flex-end;">
-        <button id="docInboxDetailClose2" class="ghost-button small-button">Schließen</button>
-      </div>
-    </div>
-  `;
+  const renderModal = (currentAttachments) => {
+    const attachments = Array.isArray(currentAttachments) ? currentAttachments : [];
+    const bodyText = String(entry.body_text || "").trim();
 
-  modal.style.display = "flex";
-  const close = () => { modal.style.display = "none"; };
-  modal.querySelector("#docInboxDetailClose").onclick = close;
-  modal.querySelector("#docInboxDetailClose2").onclick = close;
-  modal.addEventListener("click", (e) => { if (e.target === modal) close(); }, { once: true });
+    const attachmentsHtml = attachments.length
+      ? attachments.map((att) => {
+          const sizeKb = att.file_size > 0 ? `${Math.max(1, Math.round(att.file_size / 1024))} KB` : "";
+          const isAssigned = !!(att.assigned_worker_id);
+          const assignedWorker = isAssigned
+            ? (state.workers || []).find((w) => w.id === att.assigned_worker_id)
+            : null;
+          const assignedName = assignedWorker
+            ? `${assignedWorker.firstName || ""} ${assignedWorker.lastName || ""}`.trim()
+            : att.assigned_worker_id || "";
+
+          const workerOptions = availableWorkers.map((w) =>
+            `<option value="${escapeHtml(w.id)}">${escapeHtml(`${w.firstName || ""} ${w.lastName || ""}`.trim() || w.id)}</option>`
+          ).join("");
+
+          const docTypeOptions = Object.entries(DOC_TYPE_LABELS).map(([val, label]) =>
+            `<option value="${escapeHtml(val)}">${escapeHtml(label)}</option>`
+          ).join("");
+
+          return `<div class="doc-inbox-att-row" data-att-id="${escapeHtml(String(att.id || ""))}" style="padding:10px 0;border-bottom:1px solid var(--line,rgba(0,0,0,0.08));">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span style="font-size:1.2em;">📎</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:0.88em;word-break:break-all;">${escapeHtml(att.filename || "Anhang")}</div>
+                ${sizeKb ? `<div style="font-size:0.75em;color:var(--muted,#888);">${escapeHtml(sizeKb)}</div>` : ""}
+              </div>
+              ${isAssigned
+                ? `<span style="font-size:0.75em;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 9px;white-space:nowrap;">✓ ${escapeHtml(assignedName)}</span>`
+                : `<span style="font-size:0.75em;background:#fef3c7;color:#92400e;border-radius:20px;padding:2px 9px;white-space:nowrap;">Nicht zugeordnet</span>`}
+            </div>
+            ${isAssigned ? "" : `
+              <div class="doc-att-assign-form" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;">
+                <select class="att-worker-select" style="flex:1;min-width:120px;font-size:0.82em;padding:5px 8px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--text,#1a1a1a);">
+                  <option value="">-- Mitarbeiter wählen --</option>
+                  ${workerOptions}
+                </select>
+                <select class="att-doctype-select" style="flex:1;min-width:140px;font-size:0.82em;padding:5px 8px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--text,#1a1a1a);">
+                  ${docTypeOptions}
+                </select>
+                <button type="button" class="att-assign-btn" style="font-size:0.82em;padding:5px 14px;border-radius:6px;background:var(--accent,#c78652);color:#fff;border:none;cursor:pointer;white-space:nowrap;">Zuordnen</button>
+              </div>
+            `}
+          </div>`;
+        }).join("")
+      : `<p style="color:var(--muted,#888);font-size:0.85em;">Keine Anhänge</p>`;
+
+    modal.innerHTML = `
+      <div style="background:var(--surface-strong,#fff);color:var(--text,#1a1a1a);border-radius:16px;box-shadow:0 8px 48px rgba(0,0,0,0.28);max-width:640px;width:95vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="padding:18px 20px 12px;border-bottom:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:1.1em;font-weight:800;word-break:break-word;">${escapeHtml(String(entry.subject || "(ohne Betreff)"))}</div>
+            <div style="font-size:0.8em;color:var(--muted,#666);margin-top:4px;">Von: <strong>${escapeHtml(String(entry.from_addr || "-"))}</strong></div>
+            <div style="font-size:0.8em;color:var(--muted,#666);">An: ${escapeHtml(String(entry.to_addr || "-"))}</div>
+            <div style="font-size:0.78em;color:var(--muted,#888);margin-top:2px;">${escapeHtml(formatTimestamp(entry.received_at || ""))}</div>
+            ${entry.matched_company_name ? `<div style="font-size:0.8em;margin-top:4px;">🏢 <strong>${escapeHtml(entry.matched_company_name)}</strong></div>` : ""}
+          </div>
+          <button id="docInboxDetailClose" style="background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--muted,#888);padding:0;line-height:1;flex-shrink:0;">×</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Nachricht</div>
+            <div style="font-size:0.88em;white-space:pre-wrap;word-break:break-word;background:var(--surface,rgba(0,0,0,0.03));border-radius:8px;padding:12px;border:1px solid var(--line,rgba(0,0,0,0.07));">${escapeHtml(bodyText || "—")}</div>
+          </div>
+          ${attachments.length ? `<div>
+            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Anhänge (${attachments.length})</div>
+            ${attachmentsHtml}
+          </div>` : ""}
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:flex-end;">
+          <button id="docInboxDetailClose2" class="ghost-button small-button">Schließen</button>
+        </div>
+      </div>
+    `;
+
+    modal.style.display = "flex";
+    const close = () => { modal.style.display = "none"; };
+    modal.querySelector("#docInboxDetailClose").onclick = close;
+    modal.querySelector("#docInboxDetailClose2").onclick = close;
+    modal.addEventListener("click", (e) => { if (e.target === modal) close(); }, { once: true });
+
+    // Wire up assign buttons
+    modal.querySelectorAll(".att-assign-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const row = btn.closest(".doc-inbox-att-row");
+        const attId = String(row?.dataset?.attId || "").trim();
+        const workerId = row?.querySelector(".att-worker-select")?.value || "";
+        const docType = row?.querySelector(".att-doctype-select")?.value || "";
+        if (!workerId) { window.alert("Bitte einen Mitarbeiter auswählen."); return; }
+        if (!docType) { window.alert("Bitte einen Dokumenttyp auswählen."); return; }
+        btn.disabled = true;
+        btn.textContent = "…";
+        try {
+          await apiRequest(
+            `${API_BASE}/api/documents/inbox/${encodeURIComponent(inboxId)}/attachments/${encodeURIComponent(attId)}/assign`,
+            { method: "POST", body: { workerId, docType } }
+          );
+          // Mark locally assigned and re-render
+          const attObj = (Array.isArray(entry.attachments) ? entry.attachments : []).find((a) => a.id === attId);
+          if (attObj) attObj.assigned_worker_id = workerId;
+          renderModal(entry.attachments);
+          await loadDocumentInbox({ silent: true });
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = "Zuordnen";
+          window.alert("Fehler beim Zuordnen: " + (err.message || String(err)));
+        }
+      });
+    });
+  };
+
+  renderModal(entry.attachments);
 }
+
 
 async function loadDocumentInbox(options = {}) {
   const { silent = false } = options;
