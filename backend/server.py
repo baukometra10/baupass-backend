@@ -1894,28 +1894,29 @@ def init_db():
     if "customer_number" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN customer_number TEXT NOT NULL DEFAULT ''")
 
-    # Ensure numeric 8-digit customer numbers exist for all companies.
-    # Also migrate any existing short numbers (< 8 Stellen) to 8-stellig.
-    _CUST_MIN = 10000001
-    _short_number_rows = cur.execute(
-        "SELECT id FROM companies WHERE customer_number GLOB '[0-9]*' AND COALESCE(customer_number,'') != '' AND CAST(customer_number AS INTEGER) < ?",
-        (_CUST_MIN,),
+    # Migrate customer numbers to KU-YY-NNNN format (e.g. KU-26-0105).
+    # Rows that are empty or still in old numeric-only format need a new number.
+    _ku_yy = datetime.now().strftime("%y")
+    _ku_prefix = f"KU-{_ku_yy}-"
+    _rows_to_assign = cur.execute(
+        "SELECT id FROM companies WHERE COALESCE(customer_number,'') = '' "
+        "OR (customer_number GLOB '[0-9]*') ORDER BY name, id"
     ).fetchall()
-    _missing_customer_number_rows = cur.execute(
-        "SELECT id FROM companies WHERE COALESCE(customer_number, '') = '' ORDER BY name, id"
-    ).fetchall()
-    _rows_to_assign = list(_short_number_rows) + list(_missing_customer_number_rows)
     if _rows_to_assign:
-        _max_number_row = cur.execute(
-            "SELECT customer_number FROM companies WHERE customer_number GLOB '[0-9]*' AND COALESCE(customer_number, '') != '' AND CAST(customer_number AS INTEGER) >= ? ORDER BY CAST(customer_number AS INTEGER) DESC LIMIT 1",
-            (_CUST_MIN,),
+        _last_seq_row = cur.execute(
+            "SELECT customer_number FROM companies WHERE customer_number LIKE ? ORDER BY customer_number DESC LIMIT 1",
+            (_ku_prefix + "%",),
         ).fetchone()
-        _next_customer_number = int(_max_number_row[0]) if _max_number_row and str(_max_number_row[0]).isdigit() else _CUST_MIN - 1
+        _next_seq = 0
+        if _last_seq_row:
+            _parts = str(_last_seq_row[0]).split("-")
+            if len(_parts) == 3 and _parts[2].isdigit():
+                _next_seq = int(_parts[2])
         for _row in _rows_to_assign:
-            _next_customer_number += 1
+            _next_seq += 1
             cur.execute(
                 "UPDATE companies SET customer_number = ? WHERE id = ?",
-                (str(_next_customer_number), _row[0]),
+                (f"KU-{_ku_yy}-{_next_seq:04d}", _row[0]),
             )
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_customer_number_unique ON companies(customer_number) WHERE COALESCE(customer_number, '') != ''"
@@ -2301,24 +2302,27 @@ def row_to_dict(row):
     return dict(row) if row is not None else None
 
 
-CUSTOMER_NUMBER_MIN = 10000001  # 8-stellig
-
-
-def sanitize_customer_number(raw_value, max_len=8):
-    digits_only = re.sub(r"\D+", "", str(raw_value or "")).strip()
+def sanitize_customer_number(raw_value, max_len=12):
+    """Lässt alphanumerische Zeichen und Bindestriche durch (Format KU-YY-NNNN)."""
+    cleaned = re.sub(r"[^A-Za-z0-9\-]", "", str(raw_value or "")).strip()
     if max_len > 0:
-        digits_only = digits_only[:max_len]
-    return digits_only
+        cleaned = cleaned[:max_len]
+    return cleaned
 
 
 def get_next_customer_number(db):
+    """Erzeugt die nächste Kundennummer im Format KU-YY-NNNN, z.B. KU-26-0105."""
+    yy = datetime.now().strftime("%y")
+    prefix = f"KU-{yy}-"
     row = db.execute(
-        "SELECT customer_number FROM companies WHERE customer_number GLOB '[0-9]*' AND COALESCE(customer_number, '') != '' ORDER BY CAST(customer_number AS INTEGER) DESC LIMIT 1"
+        "SELECT customer_number FROM companies WHERE customer_number LIKE ? ORDER BY customer_number DESC LIMIT 1",
+        (prefix + "%",),
     ).fetchone()
-    if row and str(row["customer_number"] or "").isdigit():
-        current = int(row["customer_number"])
-        return str(max(current + 1, CUSTOMER_NUMBER_MIN))
-    return str(CUSTOMER_NUMBER_MIN)
+    if row:
+        parts = str(row["customer_number"]).split("-")
+        if len(parts) == 3 and parts[2].isdigit():
+            return f"KU-{yy}-{int(parts[2]) + 1:04d}"
+    return f"KU-{yy}-0001"
 
 
 def create_turnstile_api_key():
@@ -10161,9 +10165,9 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         due_date     = str(invoice_row["due_date"]         or "-")
         period       = str(invoice_row["invoice_period"]   or "-")
         company_name = str(company_row["name"]             or "-")
-        customer_number = sanitize_customer_number(company_row["customer_number"] if "customer_number" in company_row.keys() else "", max_len=12)
+        customer_number = str(company_row["customer_number"] if "customer_number" in company_row.keys() else "").strip()
         if not customer_number:
-            customer_number = sanitize_customer_number(company_row["id"] if "id" in company_row.keys() else "", max_len=12) or "10000"
+            customer_number = get_next_customer_number(db)
         description  = str(invoice_row["description"]      or "-")
         net_amount   = float(invoice_row["net_amount"]     or 0)
         vat_rate     = float(invoice_row["vat_rate"]       or 0)
