@@ -6457,7 +6457,8 @@ const state = {
   invoiceRetrySelectedIds: [],
   invoiceAttemptHistoryById: {},
   invoiceAttemptHistoryLoadingById: {},
-  invoiceHistoryExpandedById: {}
+  invoiceHistoryExpandedById: {},
+  documentInboxEntries: []
 };
 
 const PHOTO_EDITOR_ZOOM_DEFAULT = 1.18;
@@ -9467,6 +9468,10 @@ function setView(viewName) {
   if (targetView === "devices") {
     loadDevices();
   }
+
+  if (targetView === "documents") {
+    loadDocumentInbox({ silent: true });
+  }
 }
 
 function stopInvoiceAutoRefresh() {
@@ -9669,6 +9674,218 @@ async function apiRequest(url, options = {}) {
     throw requestError;
   }
   return payload;
+}
+
+function getDocumentInboxDisplayAddress() {
+  const currentUser = getCurrentUser() || {};
+  const role = String(currentUser.role || "");
+  const currentCompanyId = String(currentUser.company_id || "");
+  const settingsAddr = String(state.settings?.imapUsername || "").trim();
+  if (role !== "company-admin") {
+    return settingsAddr;
+  }
+  const company = (state.companies || []).find((entry) => String(entry?.id || "") === currentCompanyId);
+  return String(company?.document_email || "").trim() || settingsAddr;
+}
+
+function updateDocumentEmailInfoBar() {
+  const bar = document.querySelector("#docEmailInfoBar");
+  const addr = document.querySelector("#docEmailInfoAddr");
+  if (!bar || !addr) {
+    return;
+  }
+  const displayAddress = getDocumentInboxDisplayAddress();
+  if (!displayAddress) {
+    bar.style.display = "none";
+    addr.textContent = "";
+    return;
+  }
+  addr.textContent = displayAddress;
+  bar.style.display = "block";
+}
+
+function isDocumentInboxConfigured() {
+  const host = String(state.settings?.imapHost || "").trim();
+  const username = String(state.settings?.imapUsername || "").trim();
+  const password = String(state.settings?.imapPassword || "").trim();
+  return Boolean(host && username && password);
+}
+
+function renderDocumentInboxList() {
+  const container = document.querySelector("#docInboxList");
+  if (!container) {
+    return;
+  }
+
+  const entries = Array.isArray(state.documentInboxEntries) ? state.documentInboxEntries : [];
+  if (!entries.length) {
+    container.innerHTML = `<div class="empty-state">${escapeHtml(uiT("docInboxEmpty"))}</div>`;
+    return;
+  }
+
+  const html = entries
+    .map((entry) => {
+      const attachments = Array.isArray(entry.attachments) ? entry.attachments : [];
+      const attachmentsHtml = attachments.length
+        ? attachments
+          .map((att) => {
+            const sizeBytes = Number(att?.file_size || 0);
+            const sizeLabel = sizeBytes > 0
+              ? `${Math.max(1, Math.round(sizeBytes / 1024))} KB`
+              : "-";
+            return `<li class="doc-inbox-attachment-item"><span>${escapeHtml(String(att?.filename || "Anhang"))}</span><span class="meta-text">${escapeHtml(sizeLabel)}</span></li>`;
+          })
+          .join("")
+        : `<li class="doc-inbox-attachment-item"><span class="meta-text">-</span></li>`;
+
+      const matchedCompany = String(entry?.matched_company_name || "").trim();
+      const matchedCompanyMarkup = matchedCompany
+        ? `<p class="meta-text">Firma: ${escapeHtml(matchedCompany)}</p>`
+        : "";
+
+      return `
+        <article class="card-item doc-inbox-item">
+          <div class="doc-inbox-head">
+            <strong>${escapeHtml(String(entry?.subject || "(ohne Betreff)"))}</strong>
+            <span class="meta-text">${escapeHtml(formatTimestamp(entry?.received_at || ""))}</span>
+          </div>
+          <p class="helper-text">${escapeHtml(uiT("docInboxEmailFrom"))}: ${escapeHtml(String(entry?.from_addr || "-"))}</p>
+          <p class="helper-text">An: ${escapeHtml(String(entry?.to_addr || "-"))}</p>
+          ${matchedCompanyMarkup}
+          <p class="meta-text">${escapeHtml(uiT("docInboxAttachments"))}:</p>
+          <ul class="doc-inbox-attachment-list">${attachmentsHtml}</ul>
+          <div class="button-row doc-inbox-row-actions">
+            <button type="button" class="ghost-button small-button" data-dismiss-email-id="${escapeHtml(String(entry?.id || ""))}">${escapeHtml(uiT("btnDismissEmail"))}</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = html;
+
+  container.querySelectorAll("[data-dismiss-email-id]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const inboxId = String(event.currentTarget.dataset.dismissEmailId || "").trim();
+      if (!inboxId) {
+        return;
+      }
+      event.currentTarget.disabled = true;
+      try {
+        await apiRequest(`${API_BASE}/api/documents/inbox/${inboxId}/dismiss`, {
+          method: "POST",
+          body: {}
+        });
+        await loadDocumentInbox({ silent: true });
+      } catch (error) {
+        window.alert(uiT("alertGenericError").replace("{error}", error.message));
+      } finally {
+        event.currentTarget.disabled = false;
+      }
+    });
+  });
+}
+
+async function loadDocumentInbox(options = {}) {
+  const { silent = false } = options;
+  const container = document.querySelector("#docInboxList");
+  if (container && !silent) {
+    container.innerHTML = `<div class="empty-state">${escapeHtml(uiT("statusLoading"))}</div>`;
+  }
+  try {
+    const payload = await apiRequest(`${API_BASE}/api/documents/inbox`);
+    state.documentInboxEntries = Array.isArray(payload) ? payload : [];
+    updateDocumentEmailInfoBar();
+    renderDocumentInboxList();
+    applySupportReadOnlyUiState();
+  } catch (error) {
+    state.documentInboxEntries = [];
+    renderDocumentInboxList();
+    if (!silent) {
+      window.alert(uiT("alertGenericError").replace("{error}", error.message));
+    }
+  }
+}
+
+async function triggerDocumentInboxSync(button) {
+  if (!isDocumentInboxConfigured()) {
+    window.alert("IMAP ist noch nicht vollständig konfiguriert (Host, Benutzer, Passwort).");
+    return;
+  }
+  button.disabled = true;
+  try {
+    const payload = await apiRequest(`${API_BASE}/api/documents/imap/trigger`, {
+      method: "POST",
+      body: {}
+    });
+    const newCount = Number(payload?.imap?.newEmails || 0);
+    await loadDocumentInbox({ silent: true });
+    window.alert(`Postfach abgerufen. Neue E-Mails: ${newCount}`);
+  } catch (error) {
+    window.alert(uiT("alertGenericError").replace("{error}", error.message));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function rematchDocumentInboxLinks(button) {
+  button.disabled = true;
+  try {
+    const payload = await apiRequest(`${API_BASE}/api/documents/inbox/rematch-company-links`, {
+      method: "POST",
+      body: {}
+    });
+    const matched = Number(payload?.matchedCount || 0);
+    await loadDocumentInbox({ silent: true });
+    window.alert(`Neu zugeordnet: ${matched}`);
+  } catch (error) {
+    window.alert(uiT("alertGenericError").replace("{error}", error.message));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function bindDocumentInboxControls() {
+  const refreshButton = document.querySelector("#docInboxRefreshBtn");
+  const syncButton = document.querySelector("#docInboxSyncBtn");
+  const rematchButton = document.querySelector("#docInboxRematchBtn");
+  const copyButton = document.querySelector("#docEmailCopyBtn");
+
+  if (refreshButton && !refreshButton.dataset.bound) {
+    refreshButton.addEventListener("click", async () => {
+      await loadDocumentInbox();
+    });
+    refreshButton.dataset.bound = "1";
+  }
+
+  if (syncButton && !syncButton.dataset.bound) {
+    syncButton.addEventListener("click", async () => {
+      await triggerDocumentInboxSync(syncButton);
+    });
+    syncButton.dataset.bound = "1";
+  }
+
+  if (rematchButton && !rematchButton.dataset.bound) {
+    rematchButton.addEventListener("click", async () => {
+      await rematchDocumentInboxLinks(rematchButton);
+    });
+    rematchButton.dataset.bound = "1";
+  }
+
+  if (copyButton && !copyButton.dataset.bound) {
+    copyButton.addEventListener("click", async () => {
+      const value = String(document.querySelector("#docEmailInfoAddr")?.textContent || "").trim();
+      if (!value) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch {
+        window.prompt("E-Mail kopieren:", value);
+      }
+    });
+    copyButton.dataset.bound = "1";
+  }
 }
 
 function normalizeWorkerAppLink(rawLink) {
@@ -9934,6 +10151,8 @@ function refreshAll() {
   renderTwofaPanel();
   renderInvoiceHistory();
   renderInvoiceManagementList();
+  updateDocumentEmailInfoBar();
+  renderDocumentInboxList();
   if (getCurrentViewName() === "invoices") {
     startInvoiceAutoRefresh();
   }
@@ -19566,6 +19785,8 @@ const accessCsvButton = document.querySelector("#accessCsvButton");
 if (accessCsvButton) {
   accessCsvButton.addEventListener("click", exportAccessCsv);
 }
+
+bindDocumentInboxControls();
 
 const invoiceRefreshButton = document.querySelector("#invoiceRefreshButton");
 if (invoiceRefreshButton) {

@@ -2590,6 +2590,77 @@ body[data-branding-preset="premium"] {
   align-items: center;
 }
 
+.invoice-toolbar .ghost-button,
+.invoice-quick-filters .ghost-button,
+.invoice-toolbar-refresh {
+  border-radius: 999px;
+  border: 1px solid rgba(15, 76, 92, 0.26);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(238, 247, 249, 0.94));
+  color: #0f4c5c;
+  font-weight: 700;
+  box-shadow: 0 5px 14px rgba(15, 76, 92, 0.1);
+}
+
+.invoice-toolbar .ghost-button:hover,
+.invoice-quick-filters .ghost-button:hover,
+.invoice-toolbar-refresh:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 76, 92, 0.45);
+  box-shadow: 0 9px 18px rgba(15, 76, 92, 0.16);
+}
+
+.doc-inbox-toolbar {
+  gap: 6px;
+}
+
+.doc-inbox-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(15, 76, 92, 0.26);
+  background: linear-gradient(135deg, #ffffff, #eef6f8);
+  color: #0f4c5c;
+  font-weight: 700;
+}
+
+.doc-inbox-btn:hover {
+  border-color: rgba(15, 76, 92, 0.45);
+  background: linear-gradient(135deg, #ffffff, #e4f1f5);
+}
+
+.doc-inbox-item {
+  border-radius: 14px;
+  border: 1px solid rgba(15, 76, 92, 0.14);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(242, 248, 250, 0.95));
+}
+
+.doc-inbox-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.doc-inbox-attachment-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.doc-inbox-attachment-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  background: rgba(15, 76, 92, 0.05);
+}
+
+.doc-inbox-row-actions {
+  margin-top: 8px;
+}
+
 .invoice-filter-input {
   flex: 1;
   min-width: 240px;
