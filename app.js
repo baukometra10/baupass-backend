@@ -6135,10 +6135,26 @@ function initUiLanguageControl() {
 const SYSTEM_THEME_STORAGE_KEY = "baupass-system-theme";
 const SYSTEM_THEME_WHITE = "white";
 const SYSTEM_THEME_BLACK = "black";
+const SYSTEM_THEME_AUTO  = "system";   // folgt Betriebssystem
 
 function normalizeSystemTheme(value) {
   if (value === SYSTEM_THEME_BLACK) return SYSTEM_THEME_BLACK;
+  if (value === SYSTEM_THEME_AUTO)  return SYSTEM_THEME_AUTO;
   return SYSTEM_THEME_WHITE;
+}
+
+function resolveEffectiveTheme(mode) {
+  // Gibt "black" oder "white" zurück – auch wenn mode="system"
+  if (mode === SYSTEM_THEME_AUTO) {
+    try {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? SYSTEM_THEME_BLACK
+        : SYSTEM_THEME_WHITE;
+    } catch {
+      return SYSTEM_THEME_WHITE;
+    }
+  }
+  return mode === SYSTEM_THEME_BLACK ? SYSTEM_THEME_BLACK : SYSTEM_THEME_WHITE;
 }
 
 function getStoredSystemTheme() {
@@ -6156,57 +6172,73 @@ function getSystemThemeTexts() {
       labelPrefix: "Fensterfarbe",
       white: "Weiss",
       dark: "Dunkel",
-      titleWhenDark: "Aktuell Dunkel. Klicken fuer Weiss.",
-      titleWhenWhite: "Aktuell Weiss. Klicken fuer Dunkel."
+      system: "System",
+      titleWhenDark: "Aktuell Dunkel. Klicken fuer System.",
+      titleWhenWhite: "Aktuell Weiss. Klicken fuer Dunkel.",
+      titleWhenSystem: "Aktuell System. Klicken fuer Weiss."
     },
     en: {
       labelPrefix: "Window color",
       white: "Light",
       dark: "Dark",
-      titleWhenDark: "Currently dark. Click for light.",
-      titleWhenWhite: "Currently light. Click for dark."
+      system: "System",
+      titleWhenDark: "Currently dark. Click for system.",
+      titleWhenWhite: "Currently light. Click for dark.",
+      titleWhenSystem: "Currently system. Click for light."
     },
     tr: {
       labelPrefix: "Pencere rengi",
       white: "Aydinlik",
       dark: "Koyu",
-      titleWhenDark: "Su an koyu. Aydinlik icin tiklayin.",
-      titleWhenWhite: "Su an aydinlik. Koyu icin tiklayin."
+      system: "Sistem",
+      titleWhenDark: "Su an koyu. Sistem icin tiklayin.",
+      titleWhenWhite: "Su an aydinlik. Koyu icin tiklayin.",
+      titleWhenSystem: "Su an sistem. Aydinlik icin tiklayin."
     },
     ar: {
       labelPrefix: "لون النافذة",
       white: "فاتح",
       dark: "داكن",
-      titleWhenDark: "الوضع الحالي داكن. انقر للوضع الفاتح.",
-      titleWhenWhite: "الوضع الحالي فاتح. انقر للوضع الداكن."
+      system: "النظام",
+      titleWhenDark: "الوضع الحالي داكن. انقر للنظام.",
+      titleWhenWhite: "الوضع الحالي فاتح. انقر للوضع الداكن.",
+      titleWhenSystem: "الوضع الحالي النظام. انقر للفاتح."
     },
     fr: {
       labelPrefix: "Couleur de fenetre",
       white: "Clair",
       dark: "Sombre",
-      titleWhenDark: "Mode sombre actif. Cliquer pour clair.",
-      titleWhenWhite: "Mode clair actif. Cliquer pour sombre."
+      system: "Système",
+      titleWhenDark: "Mode sombre actif. Cliquer pour système.",
+      titleWhenWhite: "Mode clair actif. Cliquer pour sombre.",
+      titleWhenSystem: "Mode système actif. Cliquer pour clair."
     },
     es: {
       labelPrefix: "Color de ventana",
       white: "Claro",
       dark: "Oscuro",
-      titleWhenDark: "Modo oscuro activo. Haz clic para claro.",
-      titleWhenWhite: "Modo claro activo. Haz clic para oscuro."
+      system: "Sistema",
+      titleWhenDark: "Modo oscuro activo. Haz clic para sistema.",
+      titleWhenWhite: "Modo claro activo. Haz clic para oscuro.",
+      titleWhenSystem: "Modo sistema activo. Haz clic para claro."
     },
     it: {
       labelPrefix: "Colore finestra",
       white: "Chiaro",
       dark: "Scuro",
-      titleWhenDark: "Modalita scura attiva. Clicca per chiaro.",
-      titleWhenWhite: "Modalita chiara attiva. Clicca per scuro."
+      system: "Sistema",
+      titleWhenDark: "Modalita scura attiva. Clicca per sistema.",
+      titleWhenWhite: "Modalita chiara attiva. Clicca per scuro.",
+      titleWhenSystem: "Modalita sistema attiva. Clicca per chiaro."
     },
     pl: {
       labelPrefix: "Kolor okna",
       white: "Jasny",
       dark: "Ciemny",
-      titleWhenDark: "Aktualnie ciemny. Kliknij, aby ustawic jasny.",
-      titleWhenWhite: "Aktualnie jasny. Kliknij, aby ustawic ciemny."
+      system: "System",
+      titleWhenDark: "Aktualnie ciemny. Kliknij dla systemu.",
+      titleWhenWhite: "Aktualnie jasny. Kliknij, aby ustawic ciemny.",
+      titleWhenSystem: "Aktualnie system. Kliknij dla jasnego."
     }
   };
   return map[lang] || map.de;
@@ -6214,14 +6246,17 @@ function getSystemThemeTexts() {
 
 function getThemeModeLabel(mode) {
   const texts = getSystemThemeTexts();
-  return mode === SYSTEM_THEME_BLACK ? texts.dark : texts.white;
+  if (mode === SYSTEM_THEME_BLACK) return texts.dark;
+  if (mode === SYSTEM_THEME_AUTO)  return texts.system;
+  return texts.white;
 }
 
 function applySystemTheme(mode, { persist = true } = {}) {
   const selectedMode = normalizeSystemTheme(mode);
+  const effective = resolveEffectiveTheme(selectedMode);
   document.body.classList.remove("theme-black", "theme-white");
-  document.body.classList.add(selectedMode === SYSTEM_THEME_BLACK ? "theme-black" : "theme-white");
-  document.body.style.setProperty("--window-color", selectedMode === SYSTEM_THEME_BLACK ? "#000000" : "#ffffff");
+  document.body.classList.add(effective === SYSTEM_THEME_BLACK ? "theme-black" : "theme-white");
+  document.body.style.setProperty("--window-color", effective === SYSTEM_THEME_BLACK ? "#000000" : "#ffffff");
   if (persist) {
     try {
       window.localStorage.setItem(SYSTEM_THEME_STORAGE_KEY, selectedMode);
@@ -6239,19 +6274,38 @@ function applySystemTheme(mode, { persist = true } = {}) {
   if (button) {
     const texts = getSystemThemeTexts();
     button.textContent = `${texts.labelPrefix}: ${getThemeModeLabel(selectedMode)}`;
-    button.title = selectedMode === SYSTEM_THEME_BLACK
-      ? texts.titleWhenDark
-      : texts.titleWhenWhite;
+    if (selectedMode === SYSTEM_THEME_BLACK) button.title = texts.titleWhenDark;
+    else if (selectedMode === SYSTEM_THEME_AUTO) button.title = texts.titleWhenSystem;
+    else button.title = texts.titleWhenWhite;
   }
 }
 
 function toggleSystemTheme() {
   const currentMode = getStoredSystemTheme();
-  applySystemTheme(currentMode === SYSTEM_THEME_BLACK ? SYSTEM_THEME_WHITE : SYSTEM_THEME_BLACK);
+  // Zyklus: white → black → system → white
+  let nextMode;
+  if (currentMode === SYSTEM_THEME_WHITE) nextMode = SYSTEM_THEME_BLACK;
+  else if (currentMode === SYSTEM_THEME_BLACK) nextMode = SYSTEM_THEME_AUTO;
+  else nextMode = SYSTEM_THEME_WHITE;
+  applySystemTheme(nextMode);
 }
 
 function initSystemThemeControl() {
   applySystemTheme(getStoredSystemTheme(), { persist: false });
+
+  // Reagiere auf OS-Themenwechsel wenn "System" ausgewählt ist
+  try {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const osThemeListener = () => {
+      if (getStoredSystemTheme() === SYSTEM_THEME_AUTO) {
+        applySystemTheme(SYSTEM_THEME_AUTO, { persist: false });
+      }
+    };
+    if (mq.addEventListener) mq.addEventListener("change", osThemeListener);
+    else if (mq.addListener) mq.addListener(osThemeListener); // Safari < 14 fallback
+  } catch {
+    // matchMedia nicht verfügbar (z.B. sehr alter Browser)
+  }
 }
 
 let deferredDesktopInstallPrompt = null;
