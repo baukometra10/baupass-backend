@@ -14,4 +14,4 @@ cmds = []
 PIP_BREAK_SYSTEM_PACKAGES = "1"
 
 [start]
-cmd = "python backend/run_prod.py"
+cmd = ".venv/bin/python backend/run_prod.py"

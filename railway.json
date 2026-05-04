@@ -6,13 +6,16 @@
       "providers": ["python"],
       "phases": {
         "build": {
-          "cmds": ["pip install -r backend/requirements.txt"]
+          "cmds": [
+            "python3 -m venv .venv",
+            ".venv/bin/pip install --no-cache-dir -r backend/requirements.txt"
+          ]
         }
       }
     }
   },
   "deploy": {
-    "startCommand": "python backend/run_prod.py",
+    "startCommand": ".venv/bin/python backend/run_prod.py",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   },

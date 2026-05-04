@@ -1,1 +1,1 @@
-web: python backend/run_prod.py
+web: .venv/bin/python backend/run_prod.py
