@@ -1501,6 +1501,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS companies (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
+            customer_number TEXT NOT NULL DEFAULT '',
             contact TEXT NOT NULL,
             billing_email TEXT NOT NULL DEFAULT '',
             document_email TEXT NOT NULL DEFAULT '',
@@ -1890,6 +1891,27 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN work_end_time TEXT NOT NULL DEFAULT ''")
     if "branding_preset" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN branding_preset TEXT NOT NULL DEFAULT 'construction'")
+    if "customer_number" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN customer_number TEXT NOT NULL DEFAULT ''")
+
+    # Ensure numeric customer numbers exist for all active companies.
+    _missing_customer_number_rows = cur.execute(
+        "SELECT id FROM companies WHERE COALESCE(customer_number, '') = '' ORDER BY name, id"
+    ).fetchall()
+    if _missing_customer_number_rows:
+        _max_number_row = cur.execute(
+            "SELECT customer_number FROM companies WHERE customer_number GLOB '[0-9]*' AND COALESCE(customer_number, '') != '' ORDER BY CAST(customer_number AS INTEGER) DESC LIMIT 1"
+        ).fetchone()
+        _next_customer_number = int(_max_number_row[0]) if _max_number_row and str(_max_number_row[0]).isdigit() else 10000
+        for _row in _missing_customer_number_rows:
+            _next_customer_number += 1
+            cur.execute(
+                "UPDATE companies SET customer_number = ? WHERE id = ?",
+                (str(_next_customer_number), _row[0]),
+            )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_customer_number_unique ON companies(customer_number) WHERE COALESCE(customer_number, '') != ''"
+    )
 
     worker_columns = [row[1] for row in cur.execute("PRAGMA table_info(workers)").fetchall()]
     if "deleted_at" not in worker_columns:
@@ -2269,6 +2291,22 @@ except Exception as _init_db_exc:
 
 def row_to_dict(row):
     return dict(row) if row is not None else None
+
+
+def sanitize_customer_number(raw_value, max_len=12):
+    digits_only = re.sub(r"\D+", "", str(raw_value or "")).strip()
+    if max_len > 0:
+        digits_only = digits_only[:max_len]
+    return digits_only
+
+
+def get_next_customer_number(db):
+    row = db.execute(
+        "SELECT customer_number FROM companies WHERE customer_number GLOB '[0-9]*' AND COALESCE(customer_number, '') != '' ORDER BY CAST(customer_number AS INTEGER) DESC LIMIT 1"
+    ).fetchone()
+    if row and str(row["customer_number"] or "").isdigit():
+        return str(int(row["customer_number"]) + 1)
+    return "10001"
 
 
 def create_turnstile_api_key():
@@ -6378,6 +6416,7 @@ def create_company():
     turnstile_endpoint = clean_text_input(payload.get("turnstileEndpoint", ""), max_len=320)
     company_name = clean_text_input(payload.get("name", "Neue Firma"), max_len=120) or "Neue Firma"
     company_contact = clean_text_input(payload.get("contact", ""), max_len=180)
+    company_customer_number = sanitize_customer_number(payload.get("customerNumber", ""), max_len=12)
     billing_email = clean_text_input(payload.get("billingEmail", ""), max_len=160)
     document_email = clean_text_input(payload.get("documentEmail", ""), max_len=160)
     if not document_email:
@@ -6402,6 +6441,20 @@ def create_company():
         return jsonify({"error": "turnstile_password_too_short", "message": "Drehkreuz-Passwort muss mindestens 4 Zeichen haben."}), 400
 
     db = get_db()
+    if not company_customer_number:
+        company_customer_number = get_next_customer_number(db)
+    duplicate_customer_no = db.execute(
+        "SELECT id, name FROM companies WHERE COALESCE(customer_number, '') = ? LIMIT 1",
+        (company_customer_number,),
+    ).fetchone()
+    if duplicate_customer_no:
+        return jsonify({
+            "error": "duplicate_customer_number",
+            "message": "Diese Kundennummer ist bereits vergeben.",
+            "conflictCompanyId": duplicate_customer_no["id"],
+            "conflictCompanyName": duplicate_customer_no["name"],
+        }), 409
+
     if document_email:
         duplicate_company = db.execute(
             "SELECT id, name FROM companies WHERE deleted_at IS NULL AND lower(document_email) = ? LIMIT 1",
@@ -6421,10 +6474,11 @@ def create_company():
     if invoice_email_lang not in ("de", "en", "fr"):
         invoice_email_lang = "de"
     db.execute(
-        "INSERT INTO companies (id, name, contact, billing_email, document_email, access_host, branding_preset, plan, status, invoice_email_lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO companies (id, name, customer_number, contact, billing_email, document_email, access_host, branding_preset, plan, status, invoice_email_lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             company_id,
             company_name,
+            company_customer_number,
             company_contact,
             billing_email,
             document_email,
@@ -8364,6 +8418,14 @@ def update_company(company_id):
         return jsonify({"error": "company_not_found"}), 404
 
     company_name = clean_text_input(payload.get("name", company["name"]), max_len=120)
+    company_customer_number = sanitize_customer_number(
+        payload.get("customerNumber", company["customer_number"] if "customer_number" in company.keys() else ""),
+        max_len=12,
+    )
+    if not company_customer_number:
+        company_customer_number = sanitize_customer_number(company["customer_number"] if "customer_number" in company.keys() else "", max_len=12)
+    if not company_customer_number:
+        company_customer_number = get_next_customer_number(db)
     company_contact = clean_text_input(payload.get("contact", company["contact"]), max_len=180)
     company_billing_email = clean_text_input(payload.get("billingEmail", company["billing_email"]), max_len=160)
     company_document_email = clean_text_input(payload.get("documentEmail", company["document_email"]), max_len=160)
@@ -8378,6 +8440,18 @@ def update_company(company_id):
         company_invoice_email_lang = "de"
 
     current_document_email = normalize_email_address(company["document_email"] or "")
+    duplicate_customer_no = db.execute(
+        "SELECT id, name FROM companies WHERE id != ? AND COALESCE(customer_number, '') = ? LIMIT 1",
+        (company_id, company_customer_number),
+    ).fetchone()
+    if duplicate_customer_no:
+        return jsonify({
+            "error": "duplicate_customer_number",
+            "message": "Diese Kundennummer ist bereits vergeben.",
+            "conflictCompanyId": duplicate_customer_no["id"],
+            "conflictCompanyName": duplicate_customer_no["name"],
+        }), 409
+
     if company_document_email and company_document_email != current_document_email:
         duplicate_company = db.execute(
             "SELECT id, name FROM companies WHERE deleted_at IS NULL AND id != ? AND lower(document_email) = ? LIMIT 1",
@@ -8392,9 +8466,10 @@ def update_company(company_id):
             }), 409
 
     db.execute(
-        "UPDATE companies SET name = ?, contact = ?, billing_email = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",
+        "UPDATE companies SET name = ?, customer_number = ?, contact = ?, billing_email = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",
         (
             company_name,
+            company_customer_number,
             company_contact,
             company_billing_email,
             company_document_email,
@@ -10074,6 +10149,9 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         due_date     = str(invoice_row["due_date"]         or "-")
         period       = str(invoice_row["invoice_period"]   or "-")
         company_name = str(company_row["name"]             or "-")
+        customer_number = sanitize_customer_number(company_row["customer_number"] if "customer_number" in company_row.keys() else "", max_len=12)
+        if not customer_number:
+            customer_number = sanitize_customer_number(company_row["id"] if "id" in company_row.keys() else "", max_len=12) or "10000"
         description  = str(invoice_row["description"]      or "-")
         net_amount   = float(invoice_row["net_amount"]     or 0)
         vat_rate     = float(invoice_row["vat_rate"]       or 0)
@@ -10159,6 +10237,16 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 return raw
             return b""
 
+        def _draw_logo_fallback_mark(x, y):
+            pdf.setFillColor(c_primary)
+            pdf.circle(x + 8 * mm, y + 8 * mm, 7.5 * mm, stroke=0, fill=1)
+            pdf.setFillColor(rl_colors.white)
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.drawCentredString(x + 8 * mm, y + 5.8 * mm, "BK")
+            pdf.setFillColor(c_dark)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(x + 18 * mm, y + 7.2 * mm, "BauKometra")
+
         # ════════════════════════════════════════════════════════════
         # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende
         # ════════════════════════════════════════════════════════════
@@ -10217,12 +10305,15 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         # ════════════════════════════════════════════════════════════
         # HEADER – Logo oben rechts + Firmenname/-slogan
         # ════════════════════════════════════════════════════════════
-        LOGO_MAX_W = 45 * mm
-        LOGO_MAX_H = 22 * mm
+        LOGO_MAX_W = 48 * mm
+        LOGO_MAX_H = 24 * mm
         LOGO_X = page_w - M_R - LOGO_MAX_W
         LOGO_TOP = page_h - 12 * mm
 
         logo_drawn = False
+        # Soft backdrop behind the logo for a cleaner premium look.
+        pdf.setFillColor(rl_colors.HexColor("#f3f7fb"))
+        pdf.roundRect(LOGO_X - 2.2 * mm, LOGO_TOP - LOGO_MAX_H - 2 * mm, LOGO_MAX_W + 4.4 * mm, LOGO_MAX_H + 4 * mm, 3.5 * mm, stroke=0, fill=1)
         try:
             lb = _logo_bytes()
             if lb:
@@ -10233,12 +10324,17 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 logo_drawn = True
         except Exception:
             pass
+        if not logo_drawn:
+            _draw_logo_fallback_mark(LOGO_X, LOGO_TOP - LOGO_MAX_H + 3 * mm)
 
         # Firmenname unter Logo
         name_y = LOGO_TOP - LOGO_MAX_H - 4 * mm
         pdf.setFont("Helvetica-Bold", 11)
         pdf.setFillColor(c_dark)
         pdf.drawRightString(page_w - M_R, name_y, operator_label)
+        pdf.setStrokeColor(c_primary)
+        pdf.setLineWidth(0.8)
+        pdf.line(page_w - M_R - 38 * mm, name_y - 1.6 * mm, page_w - M_R, name_y - 1.6 * mm)
         if op_website or op_email:
             pdf.setFont("Helvetica", 7.5)
             pdf.setFillColor(c_light)
@@ -10281,7 +10377,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         # Metadaten 2-spaltig direkt unter Überschrift
         meta_rows = [
             ("Rechnungsnummer:",  invoice_no),
-            ("Kundennummer:",     str(company_row["id"] if company_row else "-")[:20]),
+            ("Kundennummer:",     customer_number),
             ("Rechnungsdatum:",   invoice_date),
             ("Fälligkeitsdatum:", due_date),
         ]
@@ -10478,45 +10574,6 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                 pdf.restoreState()
             except Exception:
                 pass
-        brand_accent  = sanitize_hex_color(settings_row["invoice_accent_color"],  fallback=brand_primary)
-
-        invoice_no   = str(invoice_row["invoice_number"]  or "-")
-        invoice_date = str(invoice_row["invoice_date"]     or "-")
-        due_date     = str(invoice_row["due_date"]         or "-")
-        period       = str(invoice_row["invoice_period"]   or "-")
-        company_name = str(company_row["name"]             or "-")
-        description  = str(invoice_row["description"]      or "-")
-        net_amount   = float(invoice_row["net_amount"]     or 0)
-        vat_rate     = float(invoice_row["vat_rate"]       or 0)
-        vat_amount   = float(invoice_row["vat_amount"]     or 0)
-        total_amount = float(invoice_row["total_amount"]   or 0)
-        discount_amount = float(invoice_row["discount_amount"] if "discount_amount" in invoice_row.keys() else 0)
-
-        try:
-            items_json_raw = str(invoice_row["items_json"] if "items_json" in invoice_row.keys() else "") or ""
-            pdf_items = json.loads(items_json_raw) if items_json_raw.strip().startswith("[") else []
-        except Exception:
-            pdf_items = []
-        if not pdf_items:
-            pdf_items = [{"description": description, "qty": 1, "unit": "Pauschal", "unitPrice": net_amount, "total": net_amount}]
-
-        def _sr(key, fallback=""):
-            try:
-                return str(settings_row[key] or "").strip()
-            except (IndexError, KeyError):
-                return fallback
-
-        op_iban     = _sr("invoice_iban")
-        op_bic      = _sr("invoice_bic")
-        op_bank     = _sr("invoice_bank_name")
-        op_tax_id   = _sr("invoice_tax_id")
-        op_vat_id   = _sr("invoice_vat_id")
-        op_street   = _sr("invoice_operator_street")
-        op_zip_city = _sr("invoice_operator_zip_city")
-        op_phone    = _sr("invoice_operator_phone")
-        op_website  = _sr("invoice_operator_website")
-        op_email    = _sr("invoice_operator_email")
-
         pdf.save()
         pdf_bytes = pdf_buffer.getvalue()
         if pdf_bytes:

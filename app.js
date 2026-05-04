@@ -6433,6 +6433,7 @@ const state = {
   companyRepairBusy: {},
   companyRepairStatus: {},
   companyLockBusy: {},
+  companyFilterQuery: "",
   companyTurnstiles: {},
   companyAdminSecurity: {},
   complianceOverview: [],
@@ -11753,8 +11754,22 @@ function renderCompanyList() {
   const canRepairOwn = userRole === "company-admin";
   const historyWindowValue = String(state.repairHistoryWindowDays || 0);
   const onlyProblemsChecked = Boolean(state.onlyCompaniesWithRepairs);
+  const companyFilterQuery = String(state.companyFilterQuery || "").trim().toLowerCase();
 
   const companiesToRender = state.companies.filter((company) => {
+    if (companyFilterQuery) {
+      const searchable = [
+        String(company?.name || ""),
+        String(company?.contact || ""),
+        String(getCompanyBillingEmail(company) || ""),
+        String(getCompanyDocumentEmail(company) || ""),
+        String(getCompanyCustomerNumber(company) || ""),
+        String(company?.id || ""),
+      ].join(" ").toLowerCase();
+      if (!searchable.includes(companyFilterQuery)) {
+        return false;
+      }
+    }
     if (!onlyProblemsChecked) {
       return true;
     }
@@ -11781,6 +11796,7 @@ function renderCompanyList() {
           ? "helper-text helper-text-ok"
           : "helper-text helper-text-info";
       const documentEmail = getCompanyDocumentEmail(company);
+      const customerNumber = getCompanyCustomerNumber(company);
       const brandingPreset = getCompanyBrandingPreset(company);
       const turnstiles = Array.isArray(state.companyTurnstiles?.[companyId]) ? state.companyTurnstiles[companyId] : [];
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
@@ -11795,6 +11811,7 @@ function renderCompanyList() {
       return `
         <article class="card-item ${deleted ? "is-deleted" : ""}">
           <strong>${escapeHtml(company.name || runtimeText("invoiceFallbackCompany"))}</strong>
+          <p><strong>Kundennummer:</strong> ${escapeHtml(customerNumber || "-")}</p>
           <span>${escapeHtml(company.plan || "-")}</span>
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
@@ -11838,6 +11855,7 @@ function renderCompanyList() {
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Einstellungen</span>
+              <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔢 Kundennummer</button>
               <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>📧 Dokument-Mail</button>
               <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🌐 Rechnungs-Sprache</button>
               <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-2FA</button>
@@ -11868,6 +11886,7 @@ function renderCompanyList() {
           <p class="helper-text">${runtimeTextTemplate("companyHistoryShownCount", { shown: shownCount, total: totalCount })}</p>
         </div>
         <div class="button-row" style="gap:10px;">
+          <input id="companySearchInput" type="search" value="${escapeAttr(state.companyFilterQuery || "")}" placeholder="Firma oder Kundennummer suchen" style="min-width:240px;" />
           <label>
             ${runtimeText("companyHistoryPeriodLabel")}
             <select id="companyRepairHistoryWindow" style="margin-left:8px;">
@@ -11916,6 +11935,7 @@ function filterRepairHistoryByWindow(entries) {
 function bindCompanyHistoryControls() {
   const filterSelect = document.querySelector("#companyRepairHistoryWindow");
   const onlyProblemsToggle = document.querySelector("#companyOnlyProblems");
+  const companySearchInput = document.querySelector("#companySearchInput");
   const previewSelect = document.querySelector("#superadminCompanyPreviewSelect");
   const previewResetButton = document.querySelector("#superadminCompanyPreviewReset");
   if (!filterSelect) {
@@ -11931,6 +11951,13 @@ function bindCompanyHistoryControls() {
   if (onlyProblemsToggle) {
     onlyProblemsToggle.addEventListener("change", () => {
       state.onlyCompaniesWithRepairs = Boolean(onlyProblemsToggle.checked);
+      renderCompanyList();
+    });
+  }
+
+  if (companySearchInput) {
+    companySearchInput.addEventListener("input", () => {
+      state.companyFilterQuery = String(companySearchInput.value || "");
       renderCompanyList();
     });
   }
@@ -11975,6 +12002,53 @@ function bindCompanyRowActions() {
   });
 
   elements.companyList.addEventListener("click", async (event) => {
+    const customerNumberButton = event.target.closest("[data-company-customer-number]");
+    if (customerNumberButton && !customerNumberButton.disabled && elements.companyList.contains(customerNumberButton)) {
+      const companyId = customerNumberButton.dataset.companyCustomerNumber;
+      const company = state.companies.find((entry) => entry.id === companyId);
+      if (!companyId || !company) {
+        return;
+      }
+
+      const currentCustomerNumber = getCompanyCustomerNumber(company);
+      const entered = window.prompt("Kundennummer (nur Ziffern)", currentCustomerNumber || "");
+      if (entered === null) {
+        return;
+      }
+      const cleanedCustomerNumber = String(entered || "").replace(/\D+/g, "").slice(0, 12);
+      if (!cleanedCustomerNumber) {
+        window.alert("Kundennummer muss aus Ziffern bestehen.");
+        return;
+      }
+
+      try {
+        await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+          method: "PUT",
+          body: {
+            name: company.name,
+            customerNumber: cleanedCustomerNumber,
+            contact: company.contact,
+            billingEmail: getCompanyBillingEmail(company),
+            documentEmail: getCompanyDocumentEmail(company),
+            accessHost: company.accessHost || company.access_host || "",
+            plan: company.plan,
+            status: company.status,
+            invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
+          }
+        });
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        if (error.code === "duplicate_customer_number") {
+          const conflictName = String(error?.payload?.conflictCompanyName || "andere Firma");
+          window.alert(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
+          return;
+        }
+        window.alert(uiT("alertGenericError").replace("{error}", error.message));
+      }
+      return;
+    }
+
     // ── Admin-OTP einrichten ──
     // ── Passwort-Reset für Firmen-Admin ──
     const sendResetButton = event.target.closest("[data-company-send-reset]");
@@ -12577,6 +12651,10 @@ function findCompanyByDocumentEmail(documentEmail, excludedCompanyId = "") {
 
 function getCompanyDocumentEmail(company) {
   return (company?.documentEmail || company?.document_email || "").trim();
+}
+
+function getCompanyCustomerNumber(company) {
+  return String(company?.customerNumber || company?.customer_number || "").replace(/\D+/g, "").trim();
 }
 
 function getCompanyBrandingPreset(company) {
@@ -16186,6 +16264,7 @@ async function handleCompanySubmit(event) {
   const companyTurnstileEndpointInput = document.querySelector("#companyTurnstileEndpoint");
   const companyTurnstileEndpoint = (companyTurnstileEndpointInput?.value || "").trim();
   const rawCompanyName = document.querySelector("#companyName").value.trim();
+  const customerNumberInput = String(document.querySelector("#companyCustomerNumber")?.value || "").replace(/\D+/g, "").slice(0, 12);
   const enteredDocumentEmail = document.querySelector("#companyDocumentEmail").value.trim();
   const resolvedDocumentEmail = normalizeEmailAddress(enteredDocumentEmail || suggestCompanyDocumentEmail(rawCompanyName));
 
@@ -16203,6 +16282,7 @@ async function handleCompanySubmit(event) {
       body: {
         turnstileEndpoint: companyTurnstileEndpoint || undefined,
         name: rawCompanyName,
+        customerNumber: customerNumberInput || undefined,
         contact: document.querySelector("#companyContact").value.trim(),
         billingEmail: document.querySelector("#companyBillingEmail").value.trim(),
         documentEmail: resolvedDocumentEmail,
@@ -16271,6 +16351,11 @@ async function handleCompanySubmit(event) {
       );
     }
   } catch (error) {
+    if (error.code === "duplicate_customer_number") {
+      const conflictName = String(error?.payload?.conflictCompanyName || "andere Firma");
+      window.alert(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
+      return;
+    }
     if (error.code === "duplicate_document_email") {
       const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
       window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
