@@ -5079,6 +5079,102 @@ body.desktop-app .topbar {
   border: 1px solid rgba(197, 61, 47, 0.25);
 }
 
+/* ── Verbesserte Stat-Karten (v2) ─────────────────────────────── */
+.stat-card-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
+}
+
+.stat-card-v2 .stat-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-card-v2 .stat-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.stat-card-v2 .stat-value-v2 {
+  display: block;
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.stat-card-warn {
+  border-left: 3px solid var(--stat-accent, #d97706) !important;
+}
+
+/* ── Mobile Verbesserungen ────────────────────────────────────── */
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat-card-v2 {
+    padding: 12px 14px;
+  }
+
+  .stat-card-v2 .stat-value-v2 {
+    font-size: 1.7rem;
+  }
+
+  .stat-card-v2 .stat-icon {
+    font-size: 1.2rem;
+  }
+
+  /* Card buttons wrapping nicely on mobile */
+  .card-item [style*="flex-direction:column"] {
+    gap: 6px !important;
+  }
+
+  .card-item [style*="flex-wrap:wrap"] {
+    gap: 4px !important;
+  }
+
+  .small-button {
+    padding: 5px 9px !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Worker/Company list cards spacing */
+  .card-item {
+    padding: 14px 16px;
+  }
+
+  /* Form buttons full-width on tiny screens */
+  .button-row {
+    flex-direction: column;
+  }
+
+  .button-row .ghost-button,
+  .button-row .primary-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-card-v2 .stat-value-v2 {
+    font-size: 1.4rem;
+  }
+}
+
 @media (max-width: 520px) {
   .manual-entry-row {
     flex-wrap: wrap;

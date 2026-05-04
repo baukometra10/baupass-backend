@@ -7024,6 +7024,7 @@ function getRuntimeUiTexts() {
     invoiceApprovalInvoiceCount: "{count} invoice(s)",
     invoiceApprovalSingleInvoice: "Invoice {id}",
     statsExpiringCritical: "Expiring documents (critical)",
+    statsLockedWorkers: "Locked workers",
     systemAlertCriticalInvoices: "{count} critical invoice delivery failures (score >= 70) require attention.",
     systemAlertOpenInvoices: "Open invoices ({count})",
     complianceEmpty: "No compliance data loaded.",
@@ -7669,6 +7670,7 @@ function getRuntimeUiTexts() {
       invoiceApprovalInvoiceCount: "{count} Rechnung(en)",
       invoiceApprovalSingleInvoice: "Rechnung {id}",
       statsExpiringCritical: "Ablaufende Dokumente (kritisch)",
+      statsLockedWorkers: "Gesperrte Mitarbeiter",
       systemAlertCriticalInvoices: "{count} kritische Rechnungs-Fehlversaende (Score >= 70) erfordern Aufmerksamkeit.",
       systemAlertOpenInvoices: "Rechnungen oeffnen ({count})",
       complianceEmpty: "Keine Compliance-Daten geladen.",
@@ -10857,20 +10859,30 @@ function renderStats() {
   const accessToday = visibleLatestAccessEntries.filter((log) => log.direction === "check-in").length;
 
   const expiringCritical = Number(state.expiringDocsCriticalCount ?? 0);
+  const lockedWorkers = visibleWorkers.filter((w) => !w.deletedAt && w.status === "gesperrt").length;
 
+  // icon, label, value, accent-color, bg-color
   const cards = [
-    [texts.statsWorkersTotal, totalWorkers],
-    [texts.statsWorkersActive, activeWorkers],
-    [texts.statsVisitorsTotal, totalVisitors],
-    [texts.statsCompanies, totalCompanies],
-    [texts.statsAccessToday, accessToday],
-    [runtimeText("statsExpiringCritical"), expiringCritical]
+    ["👷", texts.statsWorkersTotal,    totalWorkers,     "#0f4c5c", ""],
+    ["✅", texts.statsWorkersActive,   activeWorkers,    "#16a34a", "rgba(220,252,231,0.5)"],
+    ["🚶", texts.statsVisitorsTotal,   totalVisitors,    "#7c3aed", "rgba(237,233,254,0.5)"],
+    ["🏢", texts.statsCompanies,       totalCompanies,   "#0369a1", "rgba(224,242,254,0.5)"],
+    ["🔓", texts.statsAccessToday,     accessToday,      "#0891b2", "rgba(207,250,254,0.5)"],
+    ["🔒", runtimeText("statsLockedWorkers") || "Gesperrt", lockedWorkers, lockedWorkers > 0 ? "#dc2626" : "#6b7280", lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : ""],
+    ["⚠️", runtimeText("statsExpiringCritical"), expiringCritical, expiringCritical > 0 ? "#d97706" : "#6b7280", expiringCritical > 0 ? "rgba(254,243,199,0.5)" : ""],
   ];
 
   elements.statsGrid.innerHTML = cards
-    .map(([label, value]) => {
-      const isCritical = label.includes("Ablaufende") && Number(value) > 0;
-      return `<article class="stat-card${isCritical ? " stat-card-critical" : ""}"><p>${escapeHtml(label)}</p><strong>${escapeHtml(String(value))}</strong></article>`;
+    .map(([icon, label, value, color, bg]) => {
+      const styleStr = [
+        bg ? `background:${bg}` : "",
+        color ? `--stat-accent:${color}` : "",
+      ].filter(Boolean).join(";");
+      return `<article class="stat-card stat-card-v2${Number(value) > 0 && (label.includes("Gesperrt") || label.includes("Ablaufende") || label.includes("critical") || label.includes("expir")) ? " stat-card-warn" : ""}" style="${styleStr}">
+        <span class="stat-icon">${icon}</span>
+        <p class="stat-label">${escapeHtml(label)}</p>
+        <strong class="stat-value-v2" style="color:${color};">${escapeHtml(String(value))}</strong>
+      </article>`;
     })
     .join("");
 }
