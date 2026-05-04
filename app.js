@@ -9408,6 +9408,35 @@ function enforceRoleViewAccess() {
   }
 }
 
+let dashboardPollTimer = null;
+
+function startDashboardPoll() {
+  if (dashboardPollTimer) return;
+  dashboardPollTimer = window.setInterval(async () => {
+    if (getCurrentViewName() !== "dashboard") { stopDashboardPoll(); return; }
+    try {
+      const [latestRes, summaryRes] = await Promise.allSettled([
+        apiRequest(`${API_BASE}/api/access-logs/latest?limit=20`),
+        apiRequest(`${API_BASE}/api/access-logs/summary`),
+      ]);
+      if (latestRes.status === "fulfilled") {
+        const items = Array.isArray(latestRes.value?.items) ? latestRes.value.items : [];
+        setLatestAccessSnapshot(items);
+      }
+      if (summaryRes.status === "fulfilled") {
+        state.accessInsights = summaryRes.value || state.accessInsights;
+      }
+      renderRecentAccess();
+      renderStats();
+      renderDashboardPorterLivePanel();
+    } catch (_) { /* silent */ }
+  }, 60_000);
+}
+
+function stopDashboardPoll() {
+  if (dashboardPollTimer) { window.clearInterval(dashboardPollTimer); dashboardPollTimer = null; }
+}
+
 function setView(viewName) {
   const role = getEffectiveUiRole();
   const allowedViews = getAllowedViewsForRole(role);
@@ -9427,6 +9456,12 @@ function setView(viewName) {
   } else {
     stopInvoiceAutoRefresh();
     stopInvoiceApprovalAutoRefresh();
+  }
+
+  if (targetView === "dashboard") {
+    startDashboardPoll();
+  } else {
+    stopDashboardPoll();
   }
 
   if (targetView === "devices") {
@@ -9714,7 +9749,7 @@ async function loadAllData() {
     apiRequest(`${API_BASE}/api/audit-logs?eventType=company.repair&targetType=company&limit=120`),
     apiRequest(reportUrl),
     apiRequest(`${API_BASE}/api/compliance/overview`),
-    apiRequest(`${API_BASE}/api/audit-logs?limit=50`)
+    apiRequest(`${API_BASE}/api/audit-logs?limit=200`)
   ]);
 
   const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, auditLogs] = requests;
@@ -10570,20 +10605,55 @@ function renderCompliancePanel() {
   }).join("");
 }
 
-function renderAuditLogPanel() {
+function renderAuditLogPanel(filterText) {
   if (!elements.auditLogPanel) return;
-  const logs = Array.isArray(state.auditLogs) ? state.auditLogs : [];
+  const query = (filterText || document.querySelector("#auditLogSearch")?.value || "").toLowerCase().trim();
+  let logs = Array.isArray(state.auditLogs) ? state.auditLogs : [];
+  if (query) {
+    logs = logs.filter((e) =>
+      (e.event_type || "").toLowerCase().includes(query) ||
+      (e.message || "").toLowerCase().includes(query) ||
+      (e.actor_role || "").toLowerCase().includes(query)
+    );
+  }
+  const PAGE = 50;
+  const shown = logs.slice(0, PAGE);
+  const eventColors = {
+    "worker.deleted": "#dc2626", "workers.bulk_deleted": "#dc2626",
+    "worker.created": "#16a34a", "workers.bulk_imported": "#16a34a",
+    "workers.bulk_status": "#d97706",
+    "company.created": "#2563eb", "company.deleted": "#dc2626",
+    "company.locked": "#dc2626", "company.unlocked": "#16a34a",
+    "settings.updated": "#7c3aed",
+    "access.checkin": "#0891b2", "access.checkout": "#0891b2",
+  };
   if (!logs.length) {
-    elements.auditLogPanel.innerHTML = `<div class="card-item"><p class="muted">${escapeHtml(runtimeText("auditLogEmpty"))}</p></div>`;
+    elements.auditLogPanel.innerHTML = `
+      <div style="margin-bottom:10px;">
+        <input id="auditLogSearch" class="form-input" placeholder="🔍 Suche…" style="max-width:320px;" value="${escapeHtml(query)}" oninput="renderAuditLogPanel()" />
+      </div>
+      <div class="card-item"><p class="muted">${escapeHtml(runtimeText("auditLogEmpty"))}</p></div>`;
     return;
   }
   elements.auditLogPanel.innerHTML = `
+    <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input id="auditLogSearch" class="form-input" placeholder="🔍 Suche…" style="max-width:300px;" value="${escapeHtml(query)}" oninput="renderAuditLogPanel()" />
+      <span class="muted" style="font-size:0.84em;">${escapeHtml(logs.length + " Einträge")}</span>
+    </div>
     <article class="card-item">
-      ${logs.slice(0, 20).map((entry) => `<div style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08);">
-        <strong>${escapeHtml(entry.event_type || "event")}</strong>
-        <span class="muted" style="display:block; font-size:0.84em;">${escapeHtml(formatTimestamp(entry.created_at || ""))}</span>
-        <span>${escapeHtml(entry.message || "")}</span>
-      </div>`).join("")}
+      ${shown.map((entry) => {
+        const color = eventColors[entry.event_type] || "#6b7280";
+        return `<div style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.07); display:grid; grid-template-columns:auto 1fr; gap:0 12px;">
+          <span style="width:10px; height:10px; border-radius:50%; background:${color}; margin-top:5px; flex-shrink:0; display:block;"></span>
+          <div>
+            <strong style="font-size:0.88em; color:${color};">${escapeHtml(entry.event_type || "event")}</strong>
+            <span class="muted" style="font-size:0.8em; margin-left:8px;">${escapeHtml(formatTimestamp(entry.created_at || ""))}</span>
+            ${entry.actor_role ? `<span class="muted" style="font-size:0.78em; margin-left:6px; background:rgba(0,0,0,0.06); padding:1px 6px; border-radius:10px;">${escapeHtml(entry.actor_role)}</span>` : ""}
+            <div style="font-size:0.87em; margin-top:2px;">${escapeHtml(entry.message || "")}</div>
+          </div>
+        </div>`;
+      }).join("")}
+      ${logs.length > PAGE ? `<p class="muted" style="margin-top:8px; font-size:0.84em;">… ${logs.length - PAGE} weitere Einträge (Suche verfeinern)</p>` : ""}
     </article>
   `;
 }
