@@ -2557,57 +2557,110 @@ def check_and_apply_overdue_suspensions(db):
 
 
 def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due):
-    smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
-    if not smtp_host or not smtp_sender:
-        return False, "SMTP ist nicht konfiguriert"
+    sender_name = (settings_row["smtp_sender_name"] or settings_row["operator_name"] or "").strip()
+    recipient = (invoice_row["recipient_email"] or "").strip()
+    if not recipient:
+        return False, "Empfänger-E-Mail fehlt"
 
-    stage_label = {1: "Erinnerung", 2: "Letzte Erinnerung", 3: "Überfällig"}.get(stage, "Erinnerung")
+    platform_name = str(settings_row["platform_name"] or "BauPass").strip()
+    primary_color = str(settings_row["invoice_primary_color"] or "#0f4c5c").strip()
+    accent_color = str(settings_row["invoice_accent_color"] or "#e36414").strip() if "invoice_accent_color" in settings_row.keys() else "#e36414"
+    operator_name = str(settings_row["operator_name"] or platform_name).strip()
+
+    stage_label = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung – Sperrung droht"}.get(stage, "Zahlungserinnerung")
     due_label = invoice_row["due_date"] or "-"
+    amount = f"{float(invoice_row['total_amount'] or 0):.2f} EUR"
+    invoice_number = invoice_row["invoice_number"] or "-"
+    company_name = company_row["name"] or "-"
 
     if days_until_due < 0:
         timing_text = f"seit {abs(days_until_due)} Tag(en) überfällig"
     elif days_until_due == 0:
-        timing_text = "heute faellig"
+        timing_text = "heute fällig"
     else:
         timing_text = f"in {days_until_due} Tag(en) fällig"
 
+    subject = f"{stage_label}: Rechnung {invoice_number} ({timing_text})"
+
     text_body = (
         f"Guten Tag,\n\n"
-        f"dies ist eine Zahlungs-{stage_label.lower()} für die Rechnung {invoice_row['invoice_number']} "
-        f"({company_row['name']}).\n"
+        f"dies ist eine {stage_label} für die Rechnung {invoice_number} ({company_name}).\n"
         f"Fälligkeit: {due_label} ({timing_text})\n"
-        f"Offener Betrag: {float(invoice_row['total_amount'] or 0):.2f} EUR\n\n"
-        f"Bitte begleichen Sie den Betrag zeitnah, um eine Sperrung zu vermeiden.\n\n"
-        f"Viele Grüße\n{settings_row['operator_name']}"
+        f"Offener Betrag: {amount}\n\n"
+        f"Bitte begleichen Sie den Betrag zeitnah, um eine Zugangssperrung zu vermeiden.\n\n"
+        f"Mit freundlichen Grüßen\n{operator_name}"
     )
-    message = EmailMessage()
-    message["Subject"] = f"{stage_label}: Rechnung {invoice_row['invoice_number']} ({timing_text})"
-    message["From"] = f"{settings_row['smtp_sender_name']} <{smtp_sender}>"
-    message["To"] = invoice_row["recipient_email"]
-    message.set_content(text_body)
 
-    try:
-        with smtplib.SMTP(smtp_host, int(settings_row["smtp_port"] or 587), timeout=20) as smtp:
-            if int(settings_row["smtp_use_tls"] or 0) == 1:
-                smtp.starttls()
-            smtp_username = (settings_row["smtp_username"] or "").strip()
-            if smtp_username:
-                smtp.login(smtp_username, settings_row["smtp_password"] or "")
-            smtp.send_message(message)
-        return True, ""
-    except Exception as exc:
-        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
-            subject=str(message["Subject"]),
-            sender_email=smtp_sender,
-            sender_name=settings_row["smtp_sender_name"] or "",
-            recipient=invoice_row["recipient_email"],
-            text_body=text_body,
-            html_body="",
-        )
-        if fallback_ok:
+    warning_banner = ""
+    if stage == 3:
+        warning_banner = '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px 16px;margin-bottom:20px;color:#856404;font-size:14px;">&#9888; <strong>Achtung:</strong> Bei ausbleibender Zahlung wird der Zugang automatisch gesperrt.</div>'
+    inner_html = f"""
+{warning_banner}
+<p style="margin:0 0 12px;color:#333;font-size:15px;">Guten Tag,</p>
+<p style="margin:0 0 20px;color:#333;font-size:15px;">dies ist eine <strong>{html.escape(stage_label)}</strong> für folgende offene Rechnung:</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+  <tr style="background:#f8f9fa;">
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;color:#555;width:40%;">Rechnungsnummer</td>
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;font-weight:600;color:#212529;">{html.escape(invoice_number)}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;color:#555;">Firma</td>
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;color:#212529;">{html.escape(company_name)}</td>
+  </tr>
+  <tr style="background:#f8f9fa;">
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;color:#555;">Fälligkeit</td>
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;color:#212529;">{html.escape(due_label)} <span style="color:#dc3545;">({html.escape(timing_text)})</span></td>
+  </tr>
+  <tr>
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:14px;color:#555;">Offener Betrag</td>
+    <td style="padding:10px 14px;border:1px solid #dee2e6;font-size:15px;font-weight:700;color:{html.escape(primary_color)};">{html.escape(amount)}</td>
+  </tr>
+</table>
+<p style="margin:0 0 8px;color:#333;font-size:15px;">Bitte begleichen Sie den Betrag zeitnah, um eine Zugangssperrung zu vermeiden.</p>
+<p style="margin:0;color:#6c757d;font-size:13px;">Bei Fragen wenden Sie sich direkt an uns.</p>
+"""
+    html_body = _build_email_html(
+        platform_name=platform_name,
+        primary_color=primary_color,
+        accent_color=accent_color,
+        title=stage_label,
+        body_html=inner_html,
+        footer_name=operator_name,
+    )
+
+    smtp_host = (settings_row["smtp_host"] or "").strip()
+    smtp_port = int(settings_row["smtp_port"] or 587)
+    smtp_use_tls = int(settings_row["smtp_use_tls"] or 0) == 1
+    smtp_username = (settings_row["smtp_username"] or "").strip()
+    smtp_password = settings_row["smtp_password"] or ""
+    if smtp_host and smtp_sender:
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = f"{sender_name} <{smtp_sender}>" if sender_name else smtp_sender
+            msg["To"] = recipient
+            msg.set_content(text_body)
+            msg.add_alternative(html_body, subtype="html")
+            with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
+                if smtp_username:
+                    smtp.login(smtp_username, smtp_password)
+                smtp.send_message(msg)
             return True, ""
-        return False, f"{exc} | API-Fallback: {fallback_error}"
+        except Exception as smtp_exc:
+            app.logger.warning(f"[DUNNING] SMTP fehlgeschlagen ({smtp_exc}), versuche API-Fallback")
+
+    ok, err, _provider = _send_via_any_api(
+        subject=subject,
+        sender_email=smtp_sender or "noreply@baupass.app",
+        sender_name=sender_name,
+        recipient=recipient,
+        text_body=text_body,
+        html_body=html_body,
+    )
+    if ok:
+        return True, ""
+    return False, f"API-Fallback fehlgeschlagen | {err}"
 
 
 @contextmanager
@@ -3276,7 +3329,19 @@ def run_invoice_dunning_cycle(db):
         if target_stage == 0:
             continue
 
-        should_send = target_stage > current_stage or (target_stage == 3 and last_reminder_day != today.isoformat())
+        # Stage 3: repeat max every 7 days (not every day)
+        stage3_repeat = False
+        if target_stage == 3:
+            if not last_reminder_day:
+                stage3_repeat = True
+            else:
+                try:
+                    import datetime as _dt
+                    days_since_last = (today - _dt.date.fromisoformat(last_reminder_day[:10])).days
+                    stage3_repeat = days_since_last >= 7
+                except Exception:
+                    stage3_repeat = True
+        should_send = target_stage > current_stage or stage3_repeat
         if not should_send:
             continue
 
