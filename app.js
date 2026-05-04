@@ -11480,6 +11480,7 @@ function renderWorkerList() {
           <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.72em;color:#6b7280;min-width:80px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Profil</span>
+              ${!visitor && !deleted ? `<button type="button" class="ghost-button small-button" data-worker-docs="${escapeHtml(worker.id)}">📄 Dokumente</button>` : ""}
               <button type="button" class="ghost-button small-button" data-worker-edit="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>✏️ ${uiT("btnEdit")}</button>
               <button type="button" class="ghost-button small-button" data-worker-app-link="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>📲 ${uiT("btnAppLink")}</button>
               ${!visitor && !deleted ? `<button type="button" class="ghost-button small-button" data-worker-reset-pin="${escapeHtml(worker.id)}">🔑 ${uiT("btnResetPin")}</button>` : ""}
@@ -11559,6 +11560,14 @@ function bindWorkerRowActions() {
       syncWorkerTypeUi();
       syncWorkerEditorUi();
       setView("workers");
+    };
+  });
+
+  elements.workerList.querySelectorAll("[data-worker-docs]").forEach((button) => {
+    button.onclick = () => {
+      const worker = state.workers.find((entry) => entry.id === button.dataset.workerDocs);
+      if (!worker) return;
+      showWorkerDetailOverlay(worker);
     };
   });
 
