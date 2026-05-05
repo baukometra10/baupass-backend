@@ -6725,6 +6725,29 @@ function getRuntimeUiTexts() {
     workerRoleFallback: "Worker",
     workerStatusInactive: "Inactive",
     workerStatusReasonLabel: "Lock reason",
+    backendUnreachableError: "Backend not reachable. Please check server and network.",
+    companyRepairForbidden: "You may only repair your own company.",
+    insurancePlaceholderVisitor: "Optional for visitors",
+    insurancePlaceholder: "12 345678 A 123",
+    badgePinPlaceholderVisitor: "Not required for visitors",
+    badgePinPlaceholder: "4 to 8 digits",
+    docAssignWorkerPlaceholder: "-- Select worker --",
+    docNoAttachments: "No attachments",
+    docInboxSectionMessage: "Message",
+    docInboxSectionAttachments: "Attachments",
+    docInboxCloseButton: "Close",
+    docAssignWorkerRequired: "Please select a worker.",
+    docAssignDocTypeRequired: "Please select a document type.",
+    docAssignButton: "Assign",
+    docAssignError: "Assignment failed: {error}",
+    imapNotConfigured: "IMAP is not fully configured (host, user, password).",
+    adminOnlyTooltip: "Admin roles only",
+    reviewToggleDisableConfirm: 'Disable review link for "{name}"? The link will become invalid.',
+    reviewToggleEnableConfirm: 'Enable review link for "{name}"? The customer will receive a link to leave a review.',
+    docNotFoundError: "Document not found. It may have already been deleted or is no longer on the server.",
+    docDeleteFailed: "Delete failed: {error}",
+    docTypePlaceholder: "– Select type –",
+    notAssignedBadge: "Not assigned",
     photoOverrideNewPhotoAlt: "New photo",
     photoOverrideRequesterHint: "You are the requester - another superadmin must approve.",
     photoOverrideComparisonLabel: "Photo comparison",
@@ -7432,6 +7455,29 @@ function getRuntimeUiTexts() {
       workerRoleFallback: "Mitarbeiter",
       workerStatusInactive: "Inaktiv",
       workerStatusReasonLabel: "Sperrgrund",
+      backendUnreachableError: "Backend nicht erreichbar. Bitte Server und Netzwerk prüfen.",
+      companyRepairForbidden: "Du darfst nur deine eigene Firma reparieren.",
+      insurancePlaceholderVisitor: "Optional für Besucher",
+      insurancePlaceholder: "12 345678 A 123",
+      badgePinPlaceholderVisitor: "Für Besucher nicht nötig",
+      badgePinPlaceholder: "4 bis 8 Ziffern",
+      docAssignWorkerPlaceholder: "-- Mitarbeiter wählen --",
+      docNoAttachments: "Keine Anhänge",
+      docInboxSectionMessage: "Nachricht",
+      docInboxSectionAttachments: "Anhänge",
+      docInboxCloseButton: "Schließen",
+      docAssignWorkerRequired: "Bitte einen Mitarbeiter auswählen.",
+      docAssignDocTypeRequired: "Bitte einen Dokumenttyp auswählen.",
+      docAssignButton: "Zuordnen",
+      docAssignError: "Fehler beim Zuordnen: {error}",
+      imapNotConfigured: "IMAP ist noch nicht vollständig konfiguriert (Host, Benutzer, Passwort).",
+      adminOnlyTooltip: "Nur für Admin-Rollen",
+      reviewToggleDisableConfirm: 'Bewertungslink für "{name}" deaktivieren? Der Link wird ungültig.',
+      reviewToggleEnableConfirm: 'Bewertungslink für "{name}" aktivieren? Der Kunde erhält einen Link um eine Bewertung zu hinterlassen.',
+      docNotFoundError: "Dokument nicht gefunden. Es wurde eventuell bereits gelöscht oder ist nicht mehr auf dem Server vorhanden.",
+      docDeleteFailed: "Löschen fehlgeschlagen: {error}",
+      docTypePlaceholder: "– Typ wählen –",
+      notAssignedBadge: "Nicht zugeordnet",
       photoOverrideNewPhotoAlt: "Neues Foto",
       photoOverrideRequesterHint: "Du bist der Antragsteller - ein anderer Superadmin muss freigeben.",
       photoOverrideComparisonLabel: "Fotovergleich",
@@ -8913,10 +8959,10 @@ function canRepairCompany(company) {
 function mapCompanyRepairError(error) {
   const message = String(error?.message || error || "");
   if (message === "forbidden") {
-    return "Du darfst nur deine eigene Firma reparieren.";
+    return runtimeText("companyRepairForbidden");
   }
   if (message === "backend_unreachable") {
-    return "Backend nicht erreichbar. Bitte Server und Netzwerk prüfen.";
+    return runtimeText("backendUnreachableError");
   }
   if (message === "company_not_found") {
     return runtimeText("companyNotFoundError");
@@ -9136,7 +9182,7 @@ function syncWorkerTypeUi() {
   const badgePinField = document.querySelector("#badgePin");
   if (insuranceField) {
     insuranceField.required = !isVisitor;
-    insuranceField.placeholder = isVisitor ? "Optional für Besucher" : "12 345678 A 123";
+    insuranceField.placeholder = isVisitor ? runtimeText("insurancePlaceholderVisitor") : runtimeText("insurancePlaceholder");
   }
   if (roleField) {
     roleField.required = !isVisitor;
@@ -9147,7 +9193,7 @@ function syncWorkerTypeUi() {
   }
   if (badgePinField) {
     badgePinField.required = !isVisitor;
-    badgePinField.placeholder = isVisitor ? "Für Besucher nicht nötig" : "4 bis 8 Ziffern";
+    badgePinField.placeholder = isVisitor ? runtimeText("badgePinPlaceholderVisitor") : runtimeText("badgePinPlaceholder");
   }
   if (elements.badgePinHint) {
     elements.badgePinHint.textContent = isVisitor
@@ -10083,23 +10129,23 @@ async function openInboxMailDetail(inboxId, cardEl) {
               </div>
               ${isAssigned
                 ? `<span style="font-size:0.75em;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 9px;white-space:nowrap;">✓ ${escapeHtml(assignedName)}</span>`
-                : `<span style="font-size:0.75em;background:#fef3c7;color:#92400e;border-radius:20px;padding:2px 9px;white-space:nowrap;">Nicht zugeordnet</span>`}
+                : `<span style="font-size:0.75em;background:#fef3c7;color:#92400e;border-radius:20px;padding:2px 9px;white-space:nowrap;">${escapeHtml(runtimeText("notAssignedBadge"))}</span>`}
             </div>
             ${isAssigned ? "" : `
               <div class="doc-att-assign-form" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;">
                 <select class="att-worker-select" style="flex:1;min-width:120px;font-size:0.82em;padding:5px 8px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--text,#1a1a1a);">
-                  <option value="">-- Mitarbeiter wählen --</option>
+                  <option value="">${escapeHtml(runtimeText("docAssignWorkerPlaceholder"))}</option>
                   ${workerOptions}
                 </select>
                 <select class="att-doctype-select" style="flex:1;min-width:140px;font-size:0.82em;padding:5px 8px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--text,#1a1a1a);">
                   ${docTypeOptions}
                 </select>
-                <button type="button" class="att-assign-btn" style="font-size:0.82em;padding:5px 14px;border-radius:6px;background:var(--accent,#c78652);color:#fff;border:none;cursor:pointer;white-space:nowrap;">Zuordnen</button>
+                <button type="button" class="att-assign-btn" style="font-size:0.82em;padding:5px 14px;border-radius:6px;background:var(--accent,#c78652);color:#fff;border:none;cursor:pointer;white-space:nowrap;">${escapeHtml(runtimeText("docAssignButton"))}</button>
               </div>
             `}
           </div>`;
         }).join("")
-      : `<p style="color:var(--muted,#888);font-size:0.85em;">Keine Anhänge</p>`;
+      : `<p style="color:var(--muted,#888);font-size:0.85em;">${escapeHtml(runtimeText("docNoAttachments"))}</p>`;
 
     modal.innerHTML = `
       <div style="background:var(--surface-strong,#fff);color:var(--text,#1a1a1a);border-radius:16px;box-shadow:0 8px 48px rgba(0,0,0,0.28);max-width:640px;width:95vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
@@ -10115,16 +10161,16 @@ async function openInboxMailDetail(inboxId, cardEl) {
         </div>
         <div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px;">
           <div>
-            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Nachricht</div>
+            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">${escapeHtml(runtimeText("docInboxSectionMessage"))}</div>
             <div style="font-size:0.88em;white-space:pre-wrap;word-break:break-word;background:var(--surface,rgba(0,0,0,0.03));border-radius:8px;padding:12px;border:1px solid var(--line,rgba(0,0,0,0.07));">${escapeHtml(bodyText || "—")}</div>
           </div>
           ${attachments.length ? `<div>
-            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">Anhänge (${attachments.length})</div>
+            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">${escapeHtml(runtimeText("docInboxSectionAttachments"))} (${attachments.length})</div>
             ${attachmentsHtml}
           </div>` : ""}
         </div>
         <div style="padding:12px 20px;border-top:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:flex-end;">
-          <button id="docInboxDetailClose2" class="ghost-button small-button">Schließen</button>
+          <button id="docInboxDetailClose2" class="ghost-button small-button">${escapeHtml(runtimeText("docInboxCloseButton"))}</button>
         </div>
       </div>
     `;
@@ -10142,8 +10188,8 @@ async function openInboxMailDetail(inboxId, cardEl) {
         const attId = String(row?.dataset?.attId || "").trim();
         const workerId = row?.querySelector(".att-worker-select")?.value || "";
         const docType = row?.querySelector(".att-doctype-select")?.value || "";
-        if (!workerId) { window.alert("Bitte einen Mitarbeiter auswählen."); return; }
-        if (!docType) { window.alert("Bitte einen Dokumenttyp auswählen."); return; }
+        if (!workerId) { window.alert(runtimeText("docAssignWorkerRequired")); return; }
+        if (!docType) { window.alert(runtimeText("docAssignDocTypeRequired")); return; }
         btn.disabled = true;
         btn.textContent = "…";
         try {
@@ -10158,8 +10204,8 @@ async function openInboxMailDetail(inboxId, cardEl) {
           await loadDocumentInbox({ silent: true });
         } catch (err) {
           btn.disabled = false;
-          btn.textContent = "Zuordnen";
-          window.alert("Fehler beim Zuordnen: " + (err.message || String(err)));
+          btn.textContent = runtimeText("docAssignButton");
+          window.alert(runtimeText("docAssignError").replace("{error}", err.message || String(err)));
         }
       });
     });
@@ -10192,7 +10238,7 @@ async function loadDocumentInbox(options = {}) {
 
 async function triggerDocumentInboxSync(button) {
   if (!isDocumentInboxConfigured()) {
-    window.alert("IMAP ist noch nicht vollständig konfiguriert (Host, Benutzer, Passwort).");
+    window.alert(runtimeText("imapNotConfigured"));
     return;
   }
   button.disabled = true;
@@ -11303,21 +11349,21 @@ function updateTopbarActionsState(loggedIn) {
   if (elements.seedDataButton) {
     elements.seedDataButton.style.display = loggedIn ? "inline-flex" : "none";
     elements.seedDataButton.disabled = !canSeed;
-    elements.seedDataButton.title = canSeed ? "" : "Nur für Admin-Rollen";
+    elements.seedDataButton.title = canSeed ? "" : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.exportButton) {
     const canExport = (role === "superadmin" || role === "company-admin") && canWrite;
     elements.exportButton.style.display = loggedIn && canExport ? "inline-flex" : "none";
     elements.exportButton.disabled = !canExport;
-    elements.exportButton.title = canExport ? "" : "Nur für Admin-Rollen";
+    elements.exportButton.title = canExport ? "" : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.importButton) {
     const canImport = (role === "superadmin" || role === "company-admin") && canWrite;
     elements.importButton.style.display = loggedIn && canImport ? "inline-flex" : "none";
     elements.importButton.disabled = !canImport;
-    elements.importButton.title = canImport ? "" : "Nur für Admin-Rollen";
+    elements.importButton.title = canImport ? "" : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.logoutButton) {
@@ -11928,8 +11974,7 @@ function updateBulkActionBar() {
     bar.classList.add("hidden");
   }
   if (elements.bulkSelectionCount) {
-    const tmpl = runtimeText("bulkSelectedCount") || "{count} ausgewählt";
-    elements.bulkSelectionCount.textContent = tmpl.replace("{count}", ids.length);
+    elements.bulkSelectionCount.textContent = runtimeText("bulkSelectedCount").replace("{count}", ids.length);
   }
 }
 
@@ -12982,8 +13027,8 @@ function bindCompanyRowActions() {
       if (!companyId || !company) return;
       const isCurrentlyEnabled = Boolean(company.review_enabled);
       const confirmMsg = isCurrentlyEnabled
-        ? `Bewertungslink für "${company.name}" deaktivieren? Der Link wird ungültig.`
-        : `Bewertungslink für "${company.name}" aktivieren? Der Kunde erhält einen Link um eine Bewertung zu hinterlassen.`;
+        ? runtimeText("reviewToggleDisableConfirm").replace("{name}", company.name)
+        : runtimeText("reviewToggleEnableConfirm").replace("{name}", company.name);
       if (!window.confirm(confirmMsg)) return;
       try {
         const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/review-access`, { method: "PUT" });
@@ -14005,7 +14050,7 @@ function renderBadge() {
         </div>
         <div class="badge-info-row">
           <span class="badge-info-icon">📅</span>
-          <span class="badge-info-label">${uiT("labelValidUntil") || "Gültig bis"}</span>
+          <span class="badge-info-label">${uiT("labelValidUntil")}</span>
           <span class="badge-info-value">${escapeHtml(validUntilLabel || "–")}</span>
         </div>
         ${subcompanyLabel ? `
@@ -14350,7 +14395,7 @@ function renderWorkerDocuments(docs, workerId, container) {
       <summary style="cursor:pointer;font-size:0.85em;color:#4a90d9;">${escapeHtml(uiT("btnUploadWorkerDoc"))}</summary>
       <form class="worker-doc-upload-form" style="display:grid;gap:6px;margin-top:8px;">
         <select name="docType" required style="padding:5px;border:1px solid #cbd5e0;border-radius:4px;font-size:0.85em;">
-          <option value="">– Typ wählen –</option>
+          <option value="">${escapeHtml(runtimeText("docTypePlaceholder"))}</option>
           ${ALL_DOC_TYPES.map((t) => `<option value="${t}">${escapeHtml(docTypeLabel(t))}</option>`).join("")}
         </select>
         <div class="doc-expiry-row" style="display:none;">
@@ -14386,7 +14431,7 @@ function renderWorkerDocuments(docs, workerId, container) {
             backendError = "";
           }
           if (response.status === 404) {
-            throw new Error("Dokument nicht gefunden. Es wurde eventuell bereits gelöscht oder ist nicht mehr auf dem Server vorhanden.");
+            throw new Error(runtimeText("docNotFoundError"));
           }
           throw new Error(backendError || `HTTP ${response.status}`);
         }
@@ -14429,7 +14474,7 @@ function renderWorkerDocuments(docs, workerId, container) {
         const updatedDocs = await loadWorkerDocuments(workerId);
         renderWorkerDocuments(updatedDocs, workerId, container);
       } catch (err) {
-        window.alert(`Löschen fehlgeschlagen: ${err.message}`);
+        window.alert(runtimeText("docDeleteFailed").replace("{error}", err.message));
         btn.disabled = false;
       }
     });
@@ -20890,7 +20935,7 @@ if (elements.bulkDeleteButton) {
   elements.bulkDeleteButton.addEventListener("click", async () => {
     const ids = getCheckedWorkerIds();
     if (!ids.length) return;
-    const msg = (runtimeText("confirmDeleteWorkerBulk") || "{count} Mitarbeiter wirklich löschen?").replace("{count}", ids.length);
+    const msg = runtimeText("confirmDeleteWorkerBulk").replace("{count}", ids.length);
     if (!window.confirm(msg)) return;
     try {
       await apiRequest(`${API_BASE}/api/workers/bulk-delete`, { method: "POST", body: { ids } });
