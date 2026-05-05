@@ -2564,7 +2564,8 @@ def require_worker_session(handler):
             db.commit()
             return jsonify(company_error), 403
 
-        g.worker = row_to_dict(worker)
+        g.worker = row_to_dict(
+            worker)
         g.worker_token = token
         g.worker_session_expires_at = session["expires_at"]
         return handler(*args, **kwargs)
@@ -2659,8 +2660,8 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, 
     total_amount = float(invoice_row["total_amount"] or 0)
     invoice_date_str = str(invoice_row["invoice_date"] or "")[:10]
     original_due_str = str(invoice_row["due_date"] or "")[:10]
-    invoice_period = str(invoice_row.get("invoice_period") or "")[:22]
-    c_name = str(company_row.get("name") or invoice_row.get("company_name") or "")
+    invoice_period = str(invoice_row["invoice_period"] if "invoice_period" in invoice_row.keys() else "")[:22]
+    c_name = str((company_row["name"] if "name" in company_row.keys() else None) or (invoice_row["company_name"] if "company_name" in invoice_row.keys() else None) or "")
 
     s = settings_row
     operator_name = str((s["operator_name"] if "operator_name" in s.keys() else None) or (s["platform_name"] if "platform_name" in s.keys() else None) or "").strip()
@@ -2727,8 +2728,8 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, 
     pdf.setFillColorRGB(0.1, 0.1, 0.1)
     pdf.setFont("Helvetica", 10)
     pdf.drawString(36, y, c_name)
-    contact = str(invoice_row.get("company_contact") or "")
-    billing_email = str(invoice_row.get("company_billing_email") or company_row.get("billing_email") or "")
+    contact = str(invoice_row["company_contact"] if "company_contact" in invoice_row.keys() else "")
+    billing_email = str((invoice_row["company_billing_email"] if "company_billing_email" in invoice_row.keys() else None) or (company_row["billing_email"] if "billing_email" in company_row.keys() else None) or "")
     if contact:
         y -= 14
         pdf.drawString(36, y, contact)
@@ -10440,7 +10441,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         _today_iso = datetime.now().strftime("%Y-%m-%d")
         _due_iso = str(invoice_row["due_date"] or "")[:10]
         _is_overdue = bool(
-            _due_iso and invoice_row.get("status") not in ("bezahlt", "paid")
+            _due_iso and str(invoice_row["status"] if "status" in invoice_row.keys() else "") not in ("bezahlt", "paid")
             and _due_iso < _today_iso
         )
         meta_rows = [
