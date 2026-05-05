@@ -684,27 +684,27 @@ const TRANSLATIONS = {
 };
   TRANSLATIONS.fr = {
   ...TRANSLATIONS.en,
-  pageTitle: "BauPass App Ouvrier",
-  appEyebrow: "App Ouvrier",
+  pageTitle: "Application Employé",
+  appEyebrow: "Application Employé",
   languageLabel: "Langue"
 };
 TRANSLATIONS.es = {
   ...TRANSLATIONS.en,
-  pageTitle: "BauPass App Trabajador",
+  pageTitle: "App Trabajador",
   appEyebrow: "App Trabajador",
   languageLabel: "Idioma"
 };
 TRANSLATIONS.it = {
   ...TRANSLATIONS.en,
-  pageTitle: "BauPass App Lavoratore",
+  pageTitle: "App Lavoratore",
   appEyebrow: "App Lavoratore",
   languageLabel: "Lingua"
 };
 TRANSLATIONS.pl = {
   ...TRANSLATIONS.en,
-  pageTitle: "BauPass Aplikacja Pracownika",
+  pageTitle: "Aplikacja Pracownika",
   appEyebrow: "Aplikacja Pracownika",
-  languageLabel: "Jezyk"
+  languageLabel: "Język"
 };
 
 Object.assign(TRANSLATIONS.de, {
@@ -891,7 +891,9 @@ function applyTranslations() {
   const dir = LANG_META[lang]?.dir || "ltr";
   document.documentElement.lang = lang;
   document.documentElement.dir = dir;
-  document.title = t("pageTitle");
+  // Use company brand title (KontrolPass/BauPass) if already loaded, otherwise fallback to i18n key
+  const brandPrefix = currentAppBrandTitle || "";
+  document.title = brandPrefix ? brandPrefix + " – " + t("pageTitle") : t("pageTitle");
 
   const langSelect = document.querySelector("#workerLanguageSelect");
   if (langSelect && langSelect.value !== lang) {
@@ -901,12 +903,27 @@ function applyTranslations() {
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.dataset.i18n;
     const attr = el.dataset.i18nAttr;
+    // Skip brand title elements – managed dynamically by renderWorker()
+    if (!attr && el.id && ["workerAppTitle", "workerBrandChip", "workerSplashTitle", "workerBrandName"].includes(el.id)) {
+      return;
+    }
     if (attr) {
       el.setAttribute(attr, t(key));
     } else {
       el.textContent = t(key);
     }
   });
+  // Re-apply company brand label after translations (preserves KontrolPass / BauPass)
+  if (currentAppBrandTitle) {
+    const appTitleEl = document.getElementById("workerAppTitle");
+    if (appTitleEl) appTitleEl.textContent = currentAppBrandTitle;
+    const brandChipEl = document.getElementById("workerBrandChip");
+    if (brandChipEl) brandChipEl.textContent = currentAppBrandTitle;
+    const splashTitleEl = document.getElementById("workerSplashTitle");
+    if (splashTitleEl) splashTitleEl.textContent = currentAppBrandTitle;
+    const brandNameEl = document.getElementById("workerBrandName");
+    if (brandNameEl) brandNameEl.textContent = currentAppBrandTitle.toUpperCase();
+  }
 }
 
 function setLang(lang) {
@@ -930,6 +947,7 @@ let lastCameraPhotoDataUrl = null;
 let lastCameraPhotoRotation = 0;
 let wakeLockHandle = null;
 let dynamicManifestUrl = "";
+let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / BauPass)
 let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
 let visitorCountdownInterval = null;
@@ -2129,6 +2147,7 @@ function renderWorker(payload) {
     "construction": "BauPass"
   };
   const appBrandTitle = appTitleMap[companyPreset] || platformName;
+  currentAppBrandTitle = appBrandTitle; // store globally so applyTranslations() can preserve it
   
   document.title = appBrandTitle + " – " + t("pageTitle");
   const brandEl = document.getElementById("workerBrandName");
