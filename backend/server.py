@@ -2087,6 +2087,10 @@ def init_db():
     company_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(companies)").fetchall()]
     if "invoice_email_lang" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN invoice_email_lang TEXT NOT NULL DEFAULT 'de'")
+    if "billing_street" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN billing_street TEXT NOT NULL DEFAULT ''")
+    if "billing_zip_city" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN billing_zip_city TEXT NOT NULL DEFAULT ''")
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
         cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage1_days INTEGER NOT NULL DEFAULT 7")
@@ -8473,6 +8477,8 @@ def update_company(company_id):
         company_customer_number = get_next_customer_number(db)
     company_contact = clean_text_input(payload.get("contact", company["contact"]), max_len=180)
     company_billing_email = clean_text_input(payload.get("billingEmail", company["billing_email"]), max_len=160)
+    company_billing_street = clean_text_input(payload.get("billingStreet", company["billing_street"] if "billing_street" in company.keys() else ""), max_len=200)
+    company_billing_zip_city = clean_text_input(payload.get("billingZipCity", company["billing_zip_city"] if "billing_zip_city" in company.keys() else ""), max_len=120)
     company_document_email = clean_text_input(payload.get("documentEmail", company["document_email"]), max_len=160)
     if not company_document_email:
         company_document_email = suggest_company_document_email(company_name)
@@ -8511,12 +8517,14 @@ def update_company(company_id):
             }), 409
 
     db.execute(
-        "UPDATE companies SET name = ?, customer_number = ?, contact = ?, billing_email = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",
+        "UPDATE companies SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?, billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",
         (
             company_name,
             company_customer_number,
             company_contact,
             company_billing_email,
+            company_billing_street,
+            company_billing_zip_city,
             company_document_email,
             company_access_host,
             company_branding_preset,
@@ -10403,9 +10411,17 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(c_mid)
         _company_contact = str(company_row["contact"] or "").strip() if company_row else ""
         _company_billing_email = str(company_row["billing_email"] or "").strip() if company_row else ""
+        _company_street = str(company_row["billing_street"] if company_row and "billing_street" in company_row.keys() else "").strip()
+        _company_zip_city = str(company_row["billing_zip_city"] if company_row and "billing_zip_city" in company_row.keys() else "").strip()
         caddr_y = ADDR_TOP - 14 * mm
         if _company_contact:
             pdf.drawString(M_L, caddr_y, _company_contact[:60])
+            caddr_y -= 5 * mm
+        if _company_street:
+            pdf.drawString(M_L, caddr_y, _company_street[:60])
+            caddr_y -= 5 * mm
+        if _company_zip_city:
+            pdf.drawString(M_L, caddr_y, _company_zip_city[:60])
             caddr_y -= 5 * mm
         if _company_billing_email:
             pdf.setFont("Helvetica", 8)

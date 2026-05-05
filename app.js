@@ -7634,12 +7634,16 @@ function getRuntimeUiTexts() {
     companyDocEmailAutoBtn: "Set automatically",
     companyDocEmailCopyBtn: "Copy email",
     companyInvoiceMailLanguageLabel: "Invoice mail language",
+    companyBillingAddressLabel: "Billing address",
     companyInvoiceLangGerman: "German",
     companyInvoiceLangEnglish: "English",
     companyInvoiceLangFrench: "French",
     companyInvoiceLangPrompt: "Invoice mail language for \"{company}\":\n\n{choices}\n\nEnter \"de\", \"en\" or \"fr\":",
     companyInvoiceLangInvalid: "Invalid language. Allowed: de, en, fr",
     companyInvoiceLangSaveFailed: "Error while saving: {error}",
+    companyBillingStreetPrompt: "Street and house number (e.g. Main St 12):",
+    companyBillingZipCityPrompt: "Postal code and city (e.g. 10115 Berlin):",
+    companyBillingAddressSaveFailed: "Error saving billing address: {error}",
     companyDocEmailMissingAlert: "No document email is set for this company yet.",
     companyCardDesignLabel: "Design",
     companyDocEmailConflictFallback: "another company",
@@ -8149,6 +8153,7 @@ function getRuntimeUiTexts() {
     companyBtnCustomerNumber: "🔢 Customer no.",
     companyBtnDocEmail: "📧 Doc. email",
     companyBtnInvoiceLang: "🌐 Invoice language",
+    companyBtnBillingAddress: "📍 Billing address",
     companyBtnAdminTfa: "🔐 Admin 2FA",
     companySectionAccess: "Access",
     companyBtnPasswordMail: "🔑 Password email",
@@ -8366,12 +8371,16 @@ function getRuntimeUiTexts() {
       companyDocEmailAutoBtn: "Auto setzen",
       companyDocEmailCopyBtn: "Mail kopieren",
       companyInvoiceMailLanguageLabel: "Rechnungs-Mail Sprache",
+      companyBillingAddressLabel: "Rechnungsadresse",
       companyInvoiceLangGerman: "Deutsch",
       companyInvoiceLangEnglish: "Englisch",
       companyInvoiceLangFrench: "Franzoesisch",
       companyInvoiceLangPrompt: "Rechnungs-E-Mail Sprache fuer \"{company}\":\n\n{choices}\n\nBitte \"de\", \"en\" oder \"fr\" eingeben:",
       companyInvoiceLangInvalid: "Ungueltige Sprache. Erlaubt: de, en, fr",
       companyInvoiceLangSaveFailed: "Fehler beim Speichern: {error}",
+      companyBillingStreetPrompt: "Strasse und Hausnummer (z. B. Hauptstr. 12):",
+      companyBillingZipCityPrompt: "PLZ und Ort (z. B. 10115 Berlin):",
+      companyBillingAddressSaveFailed: "Fehler beim Speichern der Rechnungsadresse: {error}",
       companyDocEmailMissingAlert: "Fuer diese Firma ist noch keine Dokument-Mail gesetzt.",
       companyCardDesignLabel: "Design",
       companyDocEmailConflictFallback: "anderen Firma",
@@ -8881,6 +8890,7 @@ function getRuntimeUiTexts() {
       companyBtnCustomerNumber: "🔢 Kundennummer",
       companyBtnDocEmail: "📧 Dokument-Mail",
       companyBtnInvoiceLang: "🌐 Rechnungs-Sprache",
+      companyBtnBillingAddress: "📍 Rechnungsadresse",
       companyBtnAdminTfa: "🔐 Admin-2FA",
       companySectionAccess: "Zugang",
       companyBtnPasswordMail: "🔑 Passwort-Mail",
@@ -13152,6 +13162,7 @@ function renderCompanyList() {
             <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
           <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
+          <p><strong>${escapeHtml(runtimeText("companyBillingAddressLabel"))}:</strong> ${escapeHtml([company.billingStreet || company.billing_street || "", company.billingZipCity || company.billing_zip_city || ""].filter(Boolean).join(", ") || "-")}</p>
           ${(() => {
             const sec = state.companyAdminSecurity?.[companyId];
             if (!sec) return "";
@@ -13189,6 +13200,7 @@ function renderCompanyList() {
               <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnCustomerNumber"))}</button>
               <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
               <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
               <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
@@ -13634,6 +13646,41 @@ function bindCompanyRowActions() {
         refreshAll();
       } catch (error) {
         window.alert(runtimeTextTemplate("companyInvoiceLangSaveFailed", { error: error.message }));
+      }
+      return;
+    }
+
+    const billingAddressButton = event.target.closest("[data-company-billing-address]");
+    if (billingAddressButton && !billingAddressButton.disabled && elements.companyList.contains(billingAddressButton)) {
+      const companyId = billingAddressButton.dataset.companyBillingAddress;
+      const company = state.companies.find((e) => e.id === companyId);
+      if (!companyId || !company) return;
+      const currentStreet = company.billingStreet || company.billing_street || "";
+      const currentZipCity = company.billingZipCity || company.billing_zip_city || "";
+      const newStreet = window.prompt(runtimeText("companyBillingStreetPrompt"), currentStreet);
+      if (newStreet === null) return;
+      const newZipCity = window.prompt(runtimeText("companyBillingZipCityPrompt"), currentZipCity);
+      if (newZipCity === null) return;
+      try {
+        await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+          method: "PUT",
+          body: {
+            name: company.name,
+            contact: company.contact,
+            billingEmail: company.billingEmail || company.billing_email || "",
+            billingStreet: newStreet.trim(),
+            billingZipCity: newZipCity.trim(),
+            documentEmail: company.documentEmail || company.document_email || "",
+            accessHost: company.accessHost || company.access_host || "",
+            plan: company.plan,
+            status: company.status,
+            invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
+          }
+        });
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        window.alert(runtimeTextTemplate("companyBillingAddressSaveFailed", { error: error.message }));
       }
       return;
     }
