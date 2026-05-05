@@ -6272,7 +6272,7 @@ function getSystemThemeTexts() {
       titleWhenSystem: "Aktualnie system. Kliknij dla jasnego."
     }
   };
-  return map[lang] || map.de;
+  return map[lang] || map.en;
 }
 
 function getThemeModeLabel(mode) {
@@ -7241,6 +7241,21 @@ function getRuntimeUiTexts() {
     workStartTimeLabel: "Work start time (HH:MM)",
     workEndTimeLabel: "Work end time (HH:MM)",
     companyCustomerNumberLabel: "Customer no.:",
+    badgePrintFormatLabel: "Print format",
+    badgePrintFormatValue: "ID-1 card 85.6 × 54 mm",
+    badgeOutputOptionsLabel: "Output options",
+    badgeOutputOptionsText: "Print physical card <strong>or</strong> send app link to smartphone",
+    badgeCardValidUntilLabel: "Valid until",
+    badgePassLabelVisitor: "Visitor pass",
+    badgePassLabelWorker: "Employee pass",
+    reviewsLoadingMsg: "Loading reviews…",
+    reviewsEmptyMsg: "No reviews yet.",
+    accessSummaryUnknownWorker: "Unknown worker",
+    auditLogEntriesCount: "{count} entries",
+    auditLogMoreEntries: "… {count} more entries (refine search)",
+    workerStatusActive: "Active",
+    workerStatusLocked: "Locked",
+    workerStatusInactive: "Inactive",
     companyBrandingOptionConstruction: "Construction",
     companyBrandingOptionIndustry: "Industry",
     companyBrandingOptionPremium: "Premium",
@@ -7933,6 +7948,21 @@ function getRuntimeUiTexts() {
       workStartTimeLabel: "Arbeitsbeginn (HH:MM)",
       workEndTimeLabel: "Arbeitsende (HH:MM)",
       companyCustomerNumberLabel: "Kundennummer:",
+      badgePrintFormatLabel: "Druckformat",
+      badgePrintFormatValue: "ID-1 Karte 85.6 × 54 mm",
+      badgeOutputOptionsLabel: "Ausgabe-Optionen",
+      badgeOutputOptionsText: "Physische Karte drucken <strong>oder</strong> App-Link auf Smartphone senden",
+      badgeCardValidUntilLabel: "Gültig bis",
+      badgePassLabelVisitor: "Besucherkarte",
+      badgePassLabelWorker: "Mitarbeiterausweis",
+      reviewsLoadingMsg: "Lade Bewertungen…",
+      reviewsEmptyMsg: "Noch keine Bewertungen vorhanden.",
+      accessSummaryUnknownWorker: "Unbekannter Mitarbeiter",
+      auditLogEntriesCount: "{count} Einträge",
+      auditLogMoreEntries: "… {count} weitere Einträge (Suche verfeinern)",
+      workerStatusActive: "Aktiv",
+      workerStatusLocked: "Gesperrt",
+      workerStatusInactive: "Inaktiv",
       companyBrandingOptionConstruction: "Bau",
       companyBrandingOptionIndustry: "Industrie",
       companyBrandingOptionPremium: "Premium",
@@ -11058,7 +11088,7 @@ function getWorkerCardRoleLabel(worker) {
 }
 
 function getWorkerCardPassSubLabel(worker) {
-  return isVisitorWorker(worker) ? "Besucherkarte" : "Mitarbeiterausweis";
+  return isVisitorWorker(worker) ? runtimeText("badgePassLabelVisitor") : runtimeText("badgePassLabelWorker");
 }
 
 function buildPrintableWorkerCardMarkup(worker, company) {
@@ -11119,12 +11149,12 @@ function buildPrintableWorkerCardMarkup(worker, company) {
               <span class="wc-field-value">${escapeHtml(worker.badgeId || "-")}</span>
             </div>
             <div class="wc-field">
-              <span class="wc-field-label">Gueltig bis</span>
+              <span class="wc-field-label">${escapeHtml(runtimeText("badgeCardValidUntilLabel"))}</span>
               <span class="wc-field-value">${escapeHtml(validUntilLabel || "-")}</span>
             </div>
           </div>
           <div class="wc-right">
-            <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(worker.status || "aktiv")}</div>
+            <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(worker.status === "gesperrt" ? runtimeText("workerStatusLocked") : worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : runtimeText("workerStatusActive"))}</div>
             <p class="wc-company">${escapeHtml(companyName)}</p>
             ${subcompanyLabel ? `<p class="wc-subcompany">${escapeHtml(subcompanyLabel)}</p>` : ""}
           </div>
@@ -11224,7 +11254,7 @@ function renderAuditLogPanel(filterText) {
   elements.auditLogPanel.innerHTML = `
     <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <input id="auditLogSearch" class="form-input" placeholder="🔍 Suche…" style="max-width:300px;" value="${escapeHtml(query)}" oninput="renderAuditLogPanel()" />
-      <span class="muted" style="font-size:0.84em;">${escapeHtml(logs.length + " Einträge")}</span>
+      <span class="muted" style="font-size:0.84em;">${escapeHtml(runtimeTextTemplate("auditLogEntriesCount", { count: logs.length }))}</span>
     </div>
     <article class="card-item">
       ${shown.map((entry) => {
@@ -11239,7 +11269,7 @@ function renderAuditLogPanel(filterText) {
           </div>
         </div>`;
       }).join("")}
-      ${logs.length > PAGE ? `<p class="muted" style="margin-top:8px; font-size:0.84em;">… ${logs.length - PAGE} weitere Einträge (Suche verfeinern)</p>` : ""}
+      ${logs.length > PAGE ? `<p class="muted" style="margin-top:8px; font-size:0.84em;">${escapeHtml(runtimeTextTemplate("auditLogMoreEntries", { count: logs.length - PAGE }))}</p>` : ""}
     </article>
   `;
 }
@@ -11693,11 +11723,11 @@ async function renderCustomerReviews() {
   const role = String(getEffectiveUiRole() || "").toLowerCase();
   if (role !== "superadmin") { panel.style.display = "none"; return; }
   panel.style.display = "";
-  list.innerHTML = `<p class="helper-text">Lade Bewertungen…</p>`;
+  list.innerHTML = `<p class="helper-text">${escapeHtml(runtimeText("reviewsLoadingMsg"))}</p>`;
   try {
     const reviews = await apiRequest(`${API_BASE}/api/reviews`);
     if (!Array.isArray(reviews) || reviews.length === 0) {
-      list.innerHTML = `<div class="empty-state">Noch keine Bewertungen vorhanden.</div>`;
+      list.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("reviewsEmptyMsg"))}</div>`;
       return;
     }
     list.innerHTML = reviews.map(r => {
@@ -13534,14 +13564,14 @@ function renderAdminSettingsForm() {
     } else if (isValidIban(_n)) {
       markInvoiceFieldValid("#invoiceIban");
     } else {
-      markInvoiceFieldInvalid("#invoiceIban", "IBAN unvollstaendig oder ungueltig");
+      markInvoiceFieldInvalid("#invoiceIban", runtimeText("invoiceValidationIban"));
     }
   }
   const _bicEl = document.querySelector("#invoiceBic");
   if (_bicEl) {
     const _b = String(_bicEl.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!_b || isValidBic(_b)) markInvoiceFieldValid("#invoiceBic");
-    else markInvoiceFieldInvalid("#invoiceBic", "BIC muss 8 oder 11 Zeichen haben");
+    else markInvoiceFieldInvalid("#invoiceBic", runtimeText("invoiceValidationBic"));
   }
 }
 
@@ -14038,12 +14068,12 @@ function renderBadge() {
       <code>${escapeHtml(worker.badgeId)}</code>
     </div>
     <div class="meta-box">
-      <p>Druckformat</p>
-      <code>ID-1 Karte 85.6 × 54 mm</code>
+      <p>${escapeHtml(runtimeText("badgePrintFormatLabel"))}</p>
+      <code>${escapeHtml(runtimeText("badgePrintFormatValue"))}</code>
     </div>
     <div class="meta-box">
-      <p>Ausgabe-Optionen</p>
-      <p>Physische Karte drucken <strong>oder</strong> App-Link auf Smartphone senden</p>
+      <p>${escapeHtml(runtimeText("badgeOutputOptionsLabel"))}</p>
+      <p>${runtimeText("badgeOutputOptionsText")}</p>
     </div>
   `;
 
@@ -14588,7 +14618,7 @@ function renderAccessSummary() {
     };
 
     const worker = state.workers.find((item) => item.id === entry.workerId);
-    const visitorName = worker ? `${worker.firstName} ${worker.lastName}` : `Mitarbeiter ${entry.workerId}`;
+    const visitorName = worker ? `${worker.firstName} ${worker.lastName}` : `${runtimeText("accessSummaryUnknownWorker")} ${entry.workerId}`;
     const visitorMeta = worker && isVisitorWorker(worker)
       ? `${worker.visitorCompany || runtimeText("visitorCompanyFallback")} | ${worker.visitPurpose || runtimeText("visitPurposeFallback")}`
       : "";
