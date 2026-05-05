@@ -749,7 +749,9 @@ Object.assign(TRANSLATIONS.tr, {
   sendToBossSuccess: "✓ Talep amire gönderildi.",
   sendToBossError: "Gönderim başarısız – e-posta ayarlarını kontrol edin.",
   visitorExpiredBadgeLogin: "Bu ziyaretçi kartının süresi doldu ve artık kullanılamaz.",
-  refreshBtn: "↻"
+  refreshBtn: "↻",
+  updateAvailable: "Yeni uygulama sürümü mevcut – birkaç saniye içinde yeniden yükleniyor …",
+  siteLocationUnavailable: "Şantiye konumu belirlenemedi – giriş yine de izin veriliyor. Lütfen yöneticiyi bilgilendirin."
 });
 
 Object.assign(TRANSLATIONS.ar, {
@@ -764,7 +766,77 @@ Object.assign(TRANSLATIONS.ar, {
   sendToBossSuccess: "✓ تم إرسال الطلب إلى المدير.",
   sendToBossError: "فشل الإرسال – تحقق من إعدادات البريد.",
   visitorExpiredBadgeLogin: "انتهت صلاحية هذه البطاقة ولا يمكن استخدامها.",
-  refreshBtn: "↻"
+  refreshBtn: "↻",
+  updateAvailable: "إصدار جديد من التطبيق متاح – إعادة التحميل خلال ثوانٍ …",
+  siteLocationUnavailable: "تعذّر تحديد موقع الشانتيه – تسجيل الدخول مسموح به على أي حال. يرجى إبلاغ المسؤول."
+});
+
+Object.assign(TRANSLATIONS.fr, {
+  visitorCountdownLabel: "La visite se termine dans",
+  visitorCountdownExpired: "Temps de visite expiré – déconnexion",
+  visitEndedLogout: "Votre temps de visite a expiré. Veuillez vous reconnecter.",
+  aiSuggestBtn: "✨ Suggestion IA",
+  bossEmailLabel: "Envoyer au responsable (optionnel)",
+  bossEmailPlaceholder: "responsable@entreprise.fr",
+  sendToBossBtn: "Envoyer",
+  sendToBossKicker: "Transmettre par e-mail",
+  sendToBossSuccess: "✓ Demande envoyée au responsable.",
+  sendToBossError: "Échec de l'envoi – vérifiez les paramètres e-mail.",
+  visitorExpiredBadgeLogin: "Cette carte visiteur a expiré et ne peut plus être utilisée.",
+  refreshBtn: "↻",
+  updateAvailable: "Nouvelle version disponible – rechargement dans quelques secondes …",
+  siteLocationUnavailable: "Localisation du site indisponible – connexion tout de même autorisée. Informez l'administrateur."
+});
+
+Object.assign(TRANSLATIONS.es, {
+  visitorCountdownLabel: "La visita termina en",
+  visitorCountdownExpired: "Tiempo de visita expirado – cerrando sesión",
+  visitEndedLogout: "Su tiempo de visita ha expirado. Por favor, inicie sesión de nuevo.",
+  aiSuggestBtn: "✨ Sugerencia IA",
+  bossEmailLabel: "Enviar al responsable (opcional)",
+  bossEmailPlaceholder: "responsable@empresa.es",
+  sendToBossBtn: "Enviar",
+  sendToBossKicker: "Reenviar por correo",
+  sendToBossSuccess: "✓ Solicitud enviada al responsable.",
+  sendToBossError: "Error al enviar – compruebe la configuración de correo.",
+  visitorExpiredBadgeLogin: "Esta tarjeta de visitante ha expirado y ya no puede usarse.",
+  refreshBtn: "↻",
+  updateAvailable: "Nueva versión disponible – recargando en unos segundos …",
+  siteLocationUnavailable: "No se pudo determinar la ubicación del sitio – inicio de sesión permitido de todos modos. Informe al administrador."
+});
+
+Object.assign(TRANSLATIONS.it, {
+  visitorCountdownLabel: "La visita termina tra",
+  visitorCountdownExpired: "Tempo di visita scaduto – disconnessione",
+  visitEndedLogout: "Il tuo tempo di visita è scaduto. Effettua di nuovo l'accesso.",
+  aiSuggestBtn: "✨ Suggerimento IA",
+  bossEmailLabel: "Invia al responsabile (opzionale)",
+  bossEmailPlaceholder: "responsabile@azienda.it",
+  sendToBossBtn: "Invia",
+  sendToBossKicker: "Inoltra per e-mail",
+  sendToBossSuccess: "✓ Richiesta inviata al responsabile.",
+  sendToBossError: "Invio fallito – verificare le impostazioni e-mail.",
+  visitorExpiredBadgeLogin: "Questo pass visitatore è scaduto e non può più essere utilizzato.",
+  refreshBtn: "↻",
+  updateAvailable: "Nuova versione disponibile – ricaricamento in pochi secondi …",
+  siteLocationUnavailable: "Posizione del cantiere non disponibile – accesso comunque consentito. Informare l'amministratore."
+});
+
+Object.assign(TRANSLATIONS.pl, {
+  visitorCountdownLabel: "Wizyta kończy się za",
+  visitorCountdownExpired: "Czas wizyty minął – wylogowywanie",
+  visitEndedLogout: "Twój czas wizyty minął. Zaloguj się ponownie.",
+  aiSuggestBtn: "✨ Sugestia AI",
+  bossEmailLabel: "Wyślij do przełożonego (opcjonalnie)",
+  bossEmailPlaceholder: "przelozony@firma.pl",
+  sendToBossBtn: "Wyślij",
+  sendToBossKicker: "Przekaż e-mailem",
+  sendToBossSuccess: "✓ Wniosek wysłany do przełożonego.",
+  sendToBossError: "Błąd wysyłania – sprawdź ustawienia e-mail.",
+  visitorExpiredBadgeLogin: "Ta karta odwiedzającego wygasła i nie może być już używana.",
+  refreshBtn: "↻",
+  updateAvailable: "Dostępna nowa wersja aplikacji – przeładowanie za kilka sekund …",
+  siteLocationUnavailable: "Nie można określić lokalizacji budowy – logowanie jest i tak dozwolone. Poinformuj administratora."
 });
 
 const LANG_META = {
@@ -1215,7 +1287,7 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
 
       manifest.start_url = `/worker.html?${params.toString()}`;
       // White-label: update manifest names dynamically
-      if (platformName && platformName !== "BauPass") {
+      if (platformName) {
         manifest.name = platformName + " – Mitarbeiter";
         manifest.short_name = platformName;
         if (manifest.shortcuts) {
@@ -2075,7 +2147,7 @@ function renderWorker(payload) {
   if (metaAppName) metaAppName.setAttribute("content", appBrandTitle + " Mitarbeiter-App");
   // Update manifest with white-label name
   const _storedToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
-  if (_storedToken) applyDynamicManifestStartUrl(_storedToken, platformName);
+  if (_storedToken) applyDynamicManifestStartUrl(_storedToken, appBrandTitle);
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");
