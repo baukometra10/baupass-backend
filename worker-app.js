@@ -225,6 +225,8 @@ const TRANSLATIONS = {
     menuKicker: "Menü",
     menuTitle: "Deine Bereiche",
     pageBackBtn: "← Übersicht",
+    lateCheckInMessage: "Achtung: Du bist heute zu spät eingestempelt!",
+    lateMinutesUnit: "Min.",
   },
   en: {
     pageTitle: "Worker App",
@@ -378,6 +380,8 @@ const TRANSLATIONS = {
     menuKicker: "Menu",
     menuTitle: "Your Sections",
     pageBackBtn: "← Overview",
+    lateCheckInMessage: "Notice: You clocked in late today!",
+    lateMinutesUnit: "min.",
   },
   tr: {
     pageTitle: "Çalışan Uygulaması",
@@ -528,6 +532,8 @@ const TRANSLATIONS = {
     menuKicker: "Menü",
     menuTitle: "Bölümleriniz",
     pageBackBtn: "← Genel Bakış",
+    lateCheckInMessage: "Dikkat: Bugün geç girdiniz!",
+    lateMinutesUnit: "dk.",
     timesheetCardTitle: "Girişler & Saatler",
   },
   ar: {
@@ -680,6 +686,8 @@ const TRANSLATIONS = {
     menuKicker: "القائمة",
     menuTitle: "أقسامك",
     pageBackBtn: "← نظرة عامة",
+    lateCheckInMessage: "تنبيه: لقد تسجّلت اليوم متأخراً!",
+    lateMinutesUnit: "د.",
   },
 };
   TRANSLATIONS.fr = {
@@ -1043,6 +1051,8 @@ Object.assign(TRANSLATIONS.fr, {
   documentsTitle: "Mes documents",
   documentsLoading: "Chargement des documents...",
   pageBackBtn: "← Aperçu",
+  lateCheckInMessage: "Attention : vous vous êtes enregistré en retard aujourd'hui !",
+  lateMinutesUnit: "min.",
   visitorMetaKicker: "Visite",
   visitorMetaTitle: "Détails de visite",
   fieldVisitorCompany: "Entreprise invitée",
@@ -1159,6 +1169,8 @@ Object.assign(TRANSLATIONS.es, {
   documentsTitle: "Mis documentos",
   documentsLoading: "Cargando documentos...",
   pageBackBtn: "← Resumen",
+  lateCheckInMessage: "Aviso: ¡hoy has fichado tarde!",
+  lateMinutesUnit: "min.",
   visitorMetaKicker: "Visita",
   visitorMetaTitle: "Detalles de visita",
   fieldVisitorCompany: "Empresa invitada",
@@ -1275,6 +1287,8 @@ Object.assign(TRANSLATIONS.it, {
   documentsTitle: "I miei documenti",
   documentsLoading: "Caricamento documenti...",
   pageBackBtn: "← Panoramica",
+  lateCheckInMessage: "Avviso: oggi hai timbrato in ritardo!",
+  lateMinutesUnit: "min.",
   visitorMetaKicker: "Visita",
   visitorMetaTitle: "Dettagli visita",
   fieldVisitorCompany: "Azienda ospite",
@@ -1391,6 +1405,8 @@ Object.assign(TRANSLATIONS.pl, {
   documentsTitle: "Moje dokumenty",
   documentsLoading: "Ładowanie dokumentów...",
   pageBackBtn: "← Podgląd",
+  lateCheckInMessage: "Uwaga: dzisiaj zalogowałeś się za późno!",
+  lateMinutesUnit: "min.",
   visitorMetaKicker: "Wizyta",
   visitorMetaTitle: "Szczegóły wizyty",
   fieldVisitorCompany: "Firma gościa",
@@ -2948,6 +2964,10 @@ function renderWorker(payload) {
     balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
   }
 
+  // Late check-in notification banner
+  const lateInfo = payload.lateCheckIn;
+  showLateCheckInBanner(lateInfo, isVisitor);
+
   // Show timesheet only for regular workers (not visitors)
   if (elements.timesheetCard) {
     elements.timesheetCard.classList.toggle("hidden", isVisitor);
@@ -4220,6 +4240,37 @@ async function loadLeaveRequests() {
 // ═════════════════════════════════════════════════════════════════════
 // ── FEATURE: TIMESHEETS (Stundennachweise) ──
 // ═════════════════════════════════════════════════════════════════════
+
+// ── Zu-spät-Banner ────────────────────────────────────────────────────────
+function showLateCheckInBanner(lateInfo, isVisitor) {
+  // Remove any existing banner
+  const existing = document.getElementById("lateCheckInBanner");
+  if (existing) existing.remove();
+  if (isVisitor || !lateInfo || !lateInfo.today) return;
+
+  const minutes = lateInfo.minutes || 0;
+  const minutesText = minutes > 0 ? ` (${minutes} ${t("lateMinutesUnit") || "Min."})` : "";
+  const msg = (t("lateCheckInMessage") || "Du bist heute zu spät eingestempelt").replace("{minutes}", minutesText) + minutesText;
+
+  const banner = document.createElement("div");
+  banner.id = "lateCheckInBanner";
+  banner.className = "late-checkin-banner";
+  banner.setAttribute("role", "alert");
+  banner.innerHTML = `
+    <span class="late-banner-icon">⚠️</span>
+    <span class="late-banner-text">${msg}</span>
+    <button class="late-banner-close" aria-label="Schließen" onclick="this.parentElement.remove()">×</button>
+  `;
+
+  // Insert after the wallet card or at top of main content
+  const walletCard = document.querySelector(".wallet-card");
+  if (walletCard && walletCard.parentElement) {
+    walletCard.parentElement.insertBefore(banner, walletCard.nextSibling);
+  } else {
+    const main = document.querySelector("main") || document.querySelector(".worker-main") || document.body;
+    main.prepend(banner);
+  }
+}
 
 async function loadMyTimesheets() {
   if (!workerToken || !elements.timesheetList) return;

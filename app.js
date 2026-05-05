@@ -13256,6 +13256,7 @@ function renderCompanyList() {
               <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
               <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
               <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-worker-hours="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"}>⏱ ${escapeHtml(runtimeText("companyBtnWorkerHours") || "Arbeitsstunden")}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
@@ -13741,6 +13742,15 @@ function bindCompanyRowActions() {
       return;
     }
 
+    // ── Worker-Stunden-Übersicht ──────────────────────────────────────────
+    const hoursButton = event.target.closest("[data-company-worker-hours]");
+    if (hoursButton && !hoursButton.disabled && elements.companyList.contains(hoursButton)) {
+      const companyId = hoursButton.dataset.companyWorkerHours;
+      if (!companyId) return;
+      await openWorkerHoursModal(companyId);
+      return;
+    }
+
     const deleteButton = event.target.closest("[data-company-delete]");
     if (deleteButton && !deleteButton.disabled && elements.companyList.contains(deleteButton)) {
       const companyId = deleteButton.dataset.companyDelete;
@@ -14162,7 +14172,96 @@ function getCompanyBrandingPresetLabel(preset) {
   return "Bau";
 }
 
-function applyActiveCompanyBrandingPreset() {
+// ── Worker-Stunden-Modal ─────────────────────────────────────────────────
+async function openWorkerHoursModal(companyId) {
+  // Determine current month
+  const now = new Date();
+  const monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  // Remove existing modal if any
+  const existingModal = document.getElementById("workerHoursModal");
+  if (existingModal) existingModal.remove();
+
+  // Create modal
+  const modal = document.createElement("div");
+  modal.id = "workerHoursModal";
+  modal.className = "admin-modal-overlay";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `
+    <div class="admin-modal-card" style="max-width:680px;width:95%;">
+      <h3 class="admin-modal-title">${escapeHtml(uiT("workerHoursModalTitle") || "Arbeitsstunden")}</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <label style="font-size:13px;font-weight:600;">${escapeHtml(uiT("workerHoursMonthLabel") || "Monat:")}</label>
+        <input type="month" id="workerHoursMonthPicker" value="${monthVal}" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,#ccc);font-size:14px;">
+        <button type="button" class="ghost-button small-button" id="workerHoursLoadBtn">${escapeHtml(uiT("workerHoursLoadBtn") || "Laden")}</button>
+      </div>
+      <div id="workerHoursTableWrap" style="overflow-x:auto;">
+        <p class="muted-info">${escapeHtml(uiT("workerHoursLoading") || "Lade Daten…")}</p>
+      </div>
+      <div class="admin-modal-actions" style="margin-top:16px;">
+        <button type="button" class="ghost-button" id="workerHoursCloseBtn">${escapeHtml(uiT("legalCloseTitle") || "Schliessen")}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  async function loadHours(month) {
+    const wrap = document.getElementById("workerHoursTableWrap");
+    if (!wrap) return;
+    wrap.innerHTML = `<p class="muted-info">${escapeHtml(uiT("workerHoursLoading") || "Lade Daten…")}</p>`;
+    try {
+      const data = await apiRequest(`${API_BASE}/api/companies/${companyId}/worker-hours-summary?month=${encodeURIComponent(month)}`);
+      const workers = Array.isArray(data.workers) ? data.workers : [];
+      if (workers.length === 0) {
+        wrap.innerHTML = `<p class="muted-info">${escapeHtml(uiT("workerHoursEmpty") || "Keine Einträge für diesen Monat.")}</p>`;
+        return;
+      }
+      const rows = workers.map((w) => `
+        <tr>
+          <td>${escapeHtml(`${w.firstName} ${w.lastName}`.trim() || "-")}</td>
+          <td>${escapeHtml(w.badgeId || "-")}</td>
+          <td>${escapeHtml(w.role || "-")}</td>
+          <td style="text-align:right;font-weight:700;">${escapeHtml(String(w.totalHours))} h</td>
+          <td style="text-align:right;">${escapeHtml(String(w.daysWorked))}</td>
+        </tr>
+      `).join("");
+      wrap.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border,#e0e0e0);text-align:left;">
+              <th style="padding:6px 8px;">${escapeHtml(uiT("workerHoursColName") || "Name")}</th>
+              <th style="padding:6px 8px;">${escapeHtml(uiT("workerHoursColBadge") || "Badge-ID")}</th>
+              <th style="padding:6px 8px;">${escapeHtml(uiT("workerHoursColRole") || "Funktion")}</th>
+              <th style="padding:6px 8px;text-align:right;">${escapeHtml(uiT("workerHoursColHours") || "Stunden")}</th>
+              <th style="padding:6px 8px;text-align:right;">${escapeHtml(uiT("workerHoursColDays") || "Tage")}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      const wrap2 = document.getElementById("workerHoursTableWrap");
+      if (wrap2) wrap2.innerHTML = `<p style="color:red;">${escapeHtml(uiT("workerHoursError") || "Fehler beim Laden.")}: ${escapeHtml(err.message || "")}</p>`;
+    }
+  }
+
+  // Initial load
+  void loadHours(monthVal);
+
+  document.getElementById("workerHoursLoadBtn")?.addEventListener("click", () => {
+    const picker = document.getElementById("workerHoursMonthPicker");
+    void loadHours(picker?.value || monthVal);
+  });
+
+  function closeModal() {
+    modal.remove();
+  }
+  document.getElementById("workerHoursCloseBtn")?.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  const escHandler = (e) => { if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", escHandler); } };
+  document.addEventListener("keydown", escHandler);
+}
   if (!document.body) {
     return;
   }

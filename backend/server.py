@@ -8336,6 +8336,30 @@ def worker_app_me():
     ).fetchone()
     leave_taken = int(taken_rows["total"] or 0)
     leave_balance = int(worker["leave_balance"]) if (worker["leave_balance"] is not None) else 30
+
+    # Zu-spaet-Benachrichtigung: letzter Check-in heute war zu spaet?
+    today_prefix = _dt.now().strftime("%Y-%m-%d")
+    late_check = db.execute(
+        """
+        SELECT checked_in_late, timestamp FROM access_logs
+        WHERE worker_id = ? AND direction = 'check-in' AND timestamp LIKE ?
+        ORDER BY timestamp DESC LIMIT 1
+        """,
+        (worker["id"], f"{today_prefix}%"),
+    ).fetchone()
+    checked_in_late_today = False
+    late_minutes = 0
+    if late_check and int(late_check["checked_in_late"] or 0) == 1:
+        checked_in_late_today = True
+        try:
+            work_start = get_effective_work_start_time(db, worker["id"])
+            if work_start and ":" in work_start:
+                checkin_time = late_check["timestamp"][11:16]  # "HH:MM"
+                sh, sm = int(work_start.split(":")[0]), int(work_start.split(":")[1])
+                ch, cm = int(checkin_time.split(":")[0]), int(checkin_time.split(":")[1])
+                late_minutes = max(0, (ch * 60 + cm) - (sh * 60 + sm))
+        except Exception:
+            pass
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker),
@@ -8357,6 +8381,10 @@ def worker_app_me():
                 "balance": leave_balance,
                 "taken": leave_taken,
                 "remaining": max(0, leave_balance - leave_taken),
+            },
+            "lateCheckIn": {
+                "today": checked_in_late_today,
+                "minutes": late_minutes,
             },
         }
     )
@@ -15673,6 +15701,94 @@ def worker_app_my_timesheets():
         (worker["id"],),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+# ── Company-Admin: Arbeitsstunden-Uebersicht pro Mitarbeiter/Monat ────────
+
+@app.get("/api/companies/<company_id>/worker-hours-summary")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def company_worker_hours_summary(company_id):
+    """
+    Liefert fuer jeden Mitarbeiter die monatliche Arbeitsstunden-Summe.
+    Query-Parameter: month=YYYY-MM (Standard: aktueller Monat)
+    """
+    from datetime import datetime as _dt
+    db = get_db()
+    user = g.current_user
+    if user["role"] != "superadmin" and user.get("company_id") != company_id:
+        return jsonify({"error": "forbidden"}), 403
+    company = db.execute("SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
+    if not company:
+        return jsonify({"error": "company_not_found"}), 404
+
+    month_param = (request.args.get("month") or "").strip()
+    if month_param and len(month_param) == 7 and "-" in month_param:
+        month_prefix = month_param  # "YYYY-MM"
+    else:
+        month_prefix = _dt.now().strftime("%Y-%m")
+
+    # Alle check-in / check-out des Monats fuer diese Firma
+    rows = db.execute(
+        """
+        SELECT al.worker_id, al.direction, al.timestamp,
+               w.first_name, w.last_name, w.badge_id, w.role AS worker_role
+        FROM access_logs al
+        JOIN workers w ON w.id = al.worker_id
+        WHERE w.company_id = ?
+          AND w.deleted_at IS NULL
+          AND w.worker_type = 'worker'
+          AND al.timestamp LIKE ?
+        ORDER BY al.worker_id, al.timestamp
+        """,
+        (company_id, f"{month_prefix}%"),
+    ).fetchall()
+
+    # Stunden pro Mitarbeiter berechnen: check-in -> naechstes check-out (selber Tag)
+    from collections import defaultdict
+    worker_data = defaultdict(lambda: {"firstName": "", "lastName": "", "badgeId": "", "role": "", "totalMinutes": 0, "daysWorked": set()})
+    by_worker = defaultdict(list)
+    for r in rows:
+        by_worker[r["worker_id"]].append(dict(r))
+        d = worker_data[r["worker_id"]]
+        d["firstName"] = r["first_name"] or ""
+        d["lastName"] = r["last_name"] or ""
+        d["badgeId"] = r["badge_id"] or ""
+        d["role"] = r["worker_role"] or ""
+
+    for wid, events in by_worker.items():
+        pending_checkin = None
+        for ev in events:
+            if ev["direction"] == "check-in":
+                pending_checkin = ev["timestamp"]
+            elif ev["direction"] == "check-out" and pending_checkin:
+                try:
+                    from datetime import datetime as _dt2
+                    t_in  = _dt2.fromisoformat(pending_checkin[:19])
+                    t_out = _dt2.fromisoformat(ev["timestamp"][:19])
+                    diff  = int((t_out - t_in).total_seconds() / 60)
+                    if 0 < diff < 1440:  # max 24h pro Einheit
+                        worker_data[wid]["totalMinutes"] += diff
+                        worker_data[wid]["daysWorked"].add(pending_checkin[:10])
+                except Exception:
+                    pass
+                pending_checkin = None
+
+    result = []
+    for wid, d in worker_data.items():
+        total_h = round(d["totalMinutes"] / 60, 1)
+        result.append({
+            "workerId": wid,
+            "firstName": d["firstName"],
+            "lastName": d["lastName"],
+            "badgeId": d["badgeId"],
+            "role": d["role"],
+            "totalHours": total_h,
+            "daysWorked": len(d["daysWorked"]),
+        })
+
+    result.sort(key=lambda x: (x["lastName"] or "").lower())
+    return jsonify({"month": month_prefix, "workers": result})
 
 
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
