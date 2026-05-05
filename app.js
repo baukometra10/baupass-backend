@@ -7638,8 +7638,13 @@ function getRuntimeUiTexts() {
     companyInvoiceLangGerman: "German",
     companyInvoiceLangEnglish: "English",
     companyInvoiceLangFrench: "French",
-    companyInvoiceLangPrompt: "Invoice mail language for \"{company}\":\n\n{choices}\n\nEnter \"de\", \"en\" or \"fr\":",
-    companyInvoiceLangInvalid: "Invalid language. Allowed: de, en, fr",
+    companyInvoiceLangTurkish: "Turkish",
+    companyInvoiceLangArabic: "Arabic",
+    companyInvoiceLangSpanish: "Spanish",
+    companyInvoiceLangItalian: "Italian",
+    companyInvoiceLangPolish: "Polish",
+    companyInvoiceLangPrompt: "Invoice mail language for \"{company}\":\n\n{choices}\n\nEnter a language code (de/en/fr/tr/ar/es/it/pl):",
+    companyInvoiceLangInvalid: "Invalid language. Allowed: de, en, fr, tr, ar, es, it, pl",
     companyInvoiceLangSaveFailed: "Error while saving: {error}",
     companyBillingStreetPrompt: "Street and house number (e.g. Main St 12):",
     companyBillingZipCityPrompt: "Postal code and city (e.g. 10115 Berlin):",
@@ -8375,8 +8380,13 @@ function getRuntimeUiTexts() {
       companyInvoiceLangGerman: "Deutsch",
       companyInvoiceLangEnglish: "Englisch",
       companyInvoiceLangFrench: "Franzoesisch",
-      companyInvoiceLangPrompt: "Rechnungs-E-Mail Sprache fuer \"{company}\":\n\n{choices}\n\nBitte \"de\", \"en\" oder \"fr\" eingeben:",
-      companyInvoiceLangInvalid: "Ungueltige Sprache. Erlaubt: de, en, fr",
+      companyInvoiceLangTurkish: "Tuerkisch",
+      companyInvoiceLangArabic: "Arabisch",
+      companyInvoiceLangSpanish: "Spanisch",
+      companyInvoiceLangItalian: "Italienisch",
+      companyInvoiceLangPolish: "Polnisch",
+      companyInvoiceLangPrompt: "Rechnungs-E-Mail Sprache fuer \"{company}\":\n\n{choices}\n\nSprachcode eingeben (de/en/fr/tr/ar/es/it/pl):",
+      companyInvoiceLangInvalid: "Ungueltige Sprache. Erlaubt: de, en, fr, tr, ar, es, it, pl",
       companyInvoiceLangSaveFailed: "Fehler beim Speichern: {error}",
       companyBillingStreetPrompt: "Strasse und Hausnummer (z. B. Hauptstr. 12):",
       companyBillingZipCityPrompt: "PLZ und Ort (z. B. 10115 Berlin):",
@@ -13191,7 +13201,7 @@ function renderCompanyList() {
             <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailAutoBtn"))}</button>
             <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
-          <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
+          <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench"), tr: runtimeText("companyInvoiceLangTurkish"), ar: runtimeText("companyInvoiceLangArabic"), es: runtimeText("companyInvoiceLangSpanish"), it: runtimeText("companyInvoiceLangItalian"), pl: runtimeText("companyInvoiceLangPolish") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
           <p><strong>${escapeHtml(runtimeText("companyBillingAddressLabel"))}:</strong> ${escapeHtml([company.billingStreet || company.billing_street || "", company.billingZipCity || company.billing_zip_city || ""].filter(Boolean).join(", ") || "-")}</p>
           ${(() => {
             const sec = state.companyAdminSecurity?.[companyId];
@@ -13649,12 +13659,21 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       const currentLang = company.invoiceEmailLang || company.invoice_email_lang || "de";
-      const options = [["de", runtimeText("companyInvoiceLangGerman")], ["en", runtimeText("companyInvoiceLangEnglish")], ["fr", runtimeText("companyInvoiceLangFrench")]];
+      const options = [
+        ["de", runtimeText("companyInvoiceLangGerman")],
+        ["en", runtimeText("companyInvoiceLangEnglish")],
+        ["fr", runtimeText("companyInvoiceLangFrench")],
+        ["tr", runtimeText("companyInvoiceLangTurkish")],
+        ["ar", runtimeText("companyInvoiceLangArabic")],
+        ["es", runtimeText("companyInvoiceLangSpanish")],
+        ["it", runtimeText("companyInvoiceLangItalian")],
+        ["pl", runtimeText("companyInvoiceLangPolish")],
+      ];
       const choices = options.map(([val, label]) => `${val === currentLang ? "▶ " : ""}${label} (${val})`).join("\n");
       const input = window.prompt(runtimeTextTemplate("companyInvoiceLangPrompt", { company: company.name, choices }), currentLang);
       if (input === null) return;
       const nextLang = input.trim().toLowerCase();
-      if (!["de", "en", "fr"].includes(nextLang)) {
+      if (!["de", "en", "fr", "tr", "ar", "es", "it", "pl"].includes(nextLang)) {
         window.alert(runtimeText("companyInvoiceLangInvalid"));
         return;
       }

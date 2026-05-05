@@ -8487,7 +8487,7 @@ def update_company(company_id):
     company_branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset") or company["branding_preset"])
     company_status = clean_text_input(payload.get("status", company["status"]), max_len=32) or company["status"]
     company_invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", company["invoice_email_lang"] if "invoice_email_lang" in company.keys() else "de") or "de", max_len=8)
-    if company_invoice_email_lang not in ("de", "en", "fr"):
+    if company_invoice_email_lang not in ("de", "en", "fr", "tr", "ar", "es", "it", "pl"):
         company_invoice_email_lang = "de"
 
     current_document_email = normalize_email_address(company["document_email"] or "")
@@ -10143,7 +10143,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         invoice_lang = str(company_row["invoice_email_lang"] if "invoice_email_lang" in company_row.keys() else "de") or "de"
     except Exception:
         invoice_lang = "de"
-    if invoice_lang not in ("de", "en", "fr"):
+    if invoice_lang not in ("de", "en", "fr", "tr", "ar", "es", "it", "pl"):
         invoice_lang = "de"
     _inv_no = str(invoice_row["invoice_number"] or "-")
     _INVOICE_I18N = {
@@ -10176,6 +10176,56 @@ def send_invoice_email(invoice_row, company_row, settings_row):
                            f"<p style='margin:0 0 14px;'>Tous les d\u00e9tails figurent dans le <strong>PDF joint</strong>."),
             "closing": "Cordialement",
             "email_header": f"Facture de {platform_label}",
+        },
+        "tr": {
+            "subject": f"{platform_label} faturan\u0131z \u2013 {_inv_no}",
+            "greeting": "Say\u0131n M\u00fc\u015fteri,",
+            "intro_plain": f"{platform_label} taraf\u0131ndan d\u00fczenlenen {_inv_no} numaral\u0131 faturam\u0131z\u0131 ekte sunuyoruz.\nT\u00fcm ayr\u0131nt\u0131lar ekte yer alan PDF'de bulunmaktad\u0131r.",
+            "intro_html": (f"{html.escape(platform_label)} taraf\u0131ndan d\u00fczenlenen <strong>{html.escape(_inv_no)}</strong> "
+                           f"numaral\u0131 faturam\u0131z\u0131 ekte sunuyoruz.</p>"
+                           f"<p style='margin:0 0 14px;'>T\u00fcm ayr\u0131nt\u0131lar ekte yer alan <strong>PDF</strong>'de bulunmaktad\u0131r."),
+            "closing": "Sayg\u0131lar\u0131m\u0131zla",
+            "email_header": f"{platform_label} Fatura",
+        },
+        "ar": {
+            "subject": f"\u0641\u0627\u062a\u0648\u0631\u0629 \u0645\u0646 {platform_label} \u2013 {_inv_no}",
+            "greeting": "\u0639\u0632\u064a\u0632\u064a \u0627\u0644\u0639\u0645\u064a\u0644,",
+            "intro_plain": f"\u064a\u0633\u0639\u062f\u0646\u0627 \u0625\u0631\u0633\u0627\u0644 \u0641\u0627\u062a\u0648\u0631\u062a\u0643\u0645 \u0631\u0642\u0645\u00a0{_inv_no} \u0645\u0646 {platform_label}.\n\u062c\u0645\u064a\u0639 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0645\u0648\u062c\u0648\u062f\u0629 \u0641\u064a \u0645\u0644\u0641 PDF \u0627\u0644\u0645\u0631\u0641\u0642.",
+            "intro_html": (f"\u064a\u0633\u0639\u062f\u0646\u0627 \u0625\u0631\u0633\u0627\u0644 \u0641\u0627\u062a\u0648\u0631\u062a\u0643\u0645 \u0631\u0642\u0645\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"\u0645\u0646 <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>\u062c\u0645\u064a\u0639 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0641\u064a <strong>PDF</strong> \u0627\u0644\u0645\u0631\u0641\u0642."),
+            "closing": "\u0645\u0639 \u0627\u0644\u062a\u062d\u064a\u0627\u062a",
+            "email_header": f"\u0641\u0627\u062a\u0648\u0631\u0629 \u0645\u0646 {platform_label}",
+        },
+        "es": {
+            "subject": f"Factura de {platform_label} \u2013 {_inv_no}",
+            "greeting": "Estimado/a cliente,",
+            "intro_plain": f"adjunto encontrar\u00e1 su factura n.\u00b0\u00a0{_inv_no} de {platform_label}.\nTodos los detalles se encuentran en el PDF adjunto.",
+            "intro_html": (f"adjunto encontrar\u00e1 su factura n.\u00b0\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"de <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>Todos los detalles se encuentran en el <strong>PDF adjunto</strong>."),
+            "closing": "Atentamente",
+            "email_header": f"Factura de {platform_label}",
+        },
+        "it": {
+            "subject": f"Fattura da {platform_label} \u2013 {_inv_no}",
+            "greeting": "Gentile Cliente,",
+            "intro_plain": f"in allegato trova la sua fattura n.\u00a0{_inv_no} da {platform_label}.\nTutti i dettagli sono nel PDF allegato.",
+            "intro_html": (f"in allegato trova la sua fattura n.\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"da <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>Tutti i dettagli sono nel <strong>PDF allegato</strong>."),
+            "closing": "Cordiali saluti",
+            "email_header": f"Fattura da {platform_label}",
+        },
+        "pl": {
+            "subject": f"Faktura od {platform_label} \u2013 {_inv_no}",
+            "greeting": "Szanowny Kliencie,",
+            "intro_plain": f"w za\u0142\u0105czeniu przesy\u0142amy faktur\u0119 nr\u00a0{_inv_no} od {platform_label}.\nWszystkie szczeg\u00f3\u0142y znajduj\u0105 si\u0119 w za\u0142\u0105czonym pliku PDF.",
+            "intro_html": (f"w za\u0142\u0105czeniu przesy\u0142amy faktur\u0119 nr\u00a0<strong>{html.escape(_inv_no)}</strong> "
+                           f"od <strong>{html.escape(platform_label)}</strong>.</p>"
+                           f"<p style='margin:0 0 14px;'>Wszystkie szczeg\u00f3\u0142y znajduj\u0105 si\u0119 w za\u0142\u0105czonym <strong>pliku PDF</strong>."),
+            "closing": "Z powa\u017caniem",
+            "email_header": f"Faktura od {platform_label}",
         },
     }
     _lang = _INVOICE_I18N[invoice_lang]
