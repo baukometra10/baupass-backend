@@ -780,30 +780,94 @@ body.worker-loaded .app-shell {
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
 }
 
+/* ── INDUSTRY: warmes Dunkel-Orange ─────────────────── */
 .wallet-card.preset-industry {
-  background: linear-gradient(135deg, #1f2a18 0%, #334d22 45%, #172111 100%);
+  background: linear-gradient(135deg, #1c1000 0%, #3a1f00 45%, #251400 100%);
+  box-shadow:
+    0 28px 60px rgba(200, 80, 0, .45),
+    0  4px 20px rgba(0, 0, 0, .35),
+    0  0   0  1px rgba(255, 140, 0, .18),
+    inset 0 1px 0 rgba(255, 180, 60, .12);
 }
 
 .wallet-card.preset-industry::before {
-  background: linear-gradient(90deg, #8bc34a 0%, #b4e27a 50%, #8bc34a 100%);
+  background: linear-gradient(90deg, #e65c00 0%, #ff9a3c 50%, #e65c00 100%);
 }
 
 .wallet-card.preset-industry .wc-brand-mark {
-  background: linear-gradient(135deg, #7cb342, #4f7a1f);
-  box-shadow: 0 3px 10px rgba(124, 179, 66, .42);
+  background: linear-gradient(135deg, #e65c00, #ff7b1a);
+  box-shadow: 0 3px 10px rgba(230, 92, 0, .5);
 }
 
+.wallet-card.preset-industry .wc-shimmer {
+  background: linear-gradient(
+    115deg,
+    transparent 0%, transparent 30%,
+    rgba(255, 140, 0, .12) 38%,
+    rgba(255, 200, 80, .08) 46%,
+    rgba(230, 92, 0, .08) 54%,
+    transparent 62%, transparent 100%
+  );
+  background-size: 220% 220%;
+}
+
+/* Text auf industry-Karte: warmes Weiß/Hellgold */
+.wallet-card.preset-industry .wc-name,
+.wallet-card.preset-industry .wc-role,
+.wallet-card.preset-industry .wc-site,
+.wallet-card.preset-industry .wc-badge-id,
+.wallet-card.preset-industry .wc-company {
+  color: #fff8ee;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .7);
+}
+
+.wallet-card.preset-industry .wc-label {
+  color: rgba(255, 200, 100, .75);
+}
+
+/* ── PREMIUM: tiefes Marineblau / Saphir ────────────── */
 .wallet-card.preset-premium {
-  background: linear-gradient(135deg, #18121f 0%, #2b1e3a 46%, #120d18 100%);
+  background: linear-gradient(135deg, #010d1f 0%, #06245a 46%, #000e22 100%);
+  box-shadow:
+    0 28px 60px rgba(0, 40, 150, .5),
+    0  4px 20px rgba(0, 0, 0, .4),
+    0  0   0  1px rgba(80, 160, 255, .18),
+    inset 0 1px 0 rgba(120, 190, 255, .12);
 }
 
 .wallet-card.preset-premium::before {
-  background: linear-gradient(90deg, #d4af37 0%, #f5d77a 50%, #d4af37 100%);
+  background: linear-gradient(90deg, #1565c0 0%, #42a5f5 50%, #1565c0 100%);
 }
 
 .wallet-card.preset-premium .wc-brand-mark {
-  background: linear-gradient(135deg, #d4af37, #8f6e16);
-  box-shadow: 0 3px 10px rgba(212, 175, 55, .45);
+  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  box-shadow: 0 3px 10px rgba(21, 101, 192, .55);
+}
+
+.wallet-card.preset-premium .wc-shimmer {
+  background: linear-gradient(
+    115deg,
+    transparent 0%, transparent 30%,
+    rgba(66, 165, 245, .12) 38%,
+    rgba(100, 200, 255, .09) 46%,
+    rgba(21, 101, 192, .08) 54%,
+    transparent 62%, transparent 100%
+  );
+  background-size: 220% 220%;
+}
+
+/* Text auf premium-Karte: kühles Eisweiß */
+.wallet-card.preset-premium .wc-name,
+.wallet-card.preset-premium .wc-role,
+.wallet-card.preset-premium .wc-site,
+.wallet-card.preset-premium .wc-badge-id,
+.wallet-card.preset-premium .wc-company {
+  color: #e8f4ff;
+  text-shadow: 0 1px 4px rgba(0, 20, 80, .7);
+}
+
+.wallet-card.preset-premium .wc-label {
+  color: rgba(120, 190, 255, .8);
 }
 
 .worker-loaded .wallet-card {

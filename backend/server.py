@@ -5123,18 +5123,20 @@ def public_branding():
     try:
         db = get_db()
         row = db.execute(
-            "SELECT platform_name, invoice_primary_color, invoice_accent_color, invoice_logo_data FROM settings WHERE id = 1"
+            "SELECT platform_name, invoice_primary_color, invoice_accent_color, invoice_logo_data, impressum_text, datenschutz_text FROM settings WHERE id = 1"
         ).fetchone()
         if not row:
-            return jsonify({"platformName": "BauPass", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": ""})
+            return jsonify({"platformName": "BauPass", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": ""})
         return jsonify({
             "platformName": str(row["platform_name"] or "BauPass"),
             "primaryColor": str(row["invoice_primary_color"] or "#0f4c5c"),
             "accentColor": str(row["invoice_accent_color"] or "#e36414"),
             "logoData": str(row["invoice_logo_data"] or ""),
+            "impressumText": str(row["impressum_text"] or ""),
+            "datenschutzText": str(row["datenschutz_text"] or ""),
         })
     except Exception:
-        return jsonify({"platformName": "BauPass", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": ""})
+        return jsonify({"platformName": "BauPass", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": ""})
 
 
 @app.get("/api/phone-test")

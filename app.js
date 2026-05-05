@@ -10353,6 +10353,13 @@ async function loadPublicBranding() {
     if (data.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.accentColor)) {
       root.style.setProperty("--brand-accent", data.accentColor);
     }
+    // Store legal texts so the modal can use them before login
+    if (data.impressumText !== undefined) {
+      window._publicImpressumText = data.impressumText;
+    }
+    if (data.datenschutzText !== undefined) {
+      window._publicDatenschutzText = data.datenschutzText;
+    }
   } catch {
     // Public branding not critical – ignore errors
   }
@@ -21855,6 +21862,45 @@ if (elements.desktopInstallButton) {
     });
   });
 }
+
+// ── Legal-Modal (Impressum / Datenschutz) ─────────────────────────────────
+(function () {
+  const legalModal    = document.getElementById("legalModal");
+  const legalTitle    = document.getElementById("legalModalTitle");
+  const legalBody     = document.getElementById("legalModalBody");
+  const legalClose    = document.getElementById("legalModalClose");
+  const impressumBtn  = document.getElementById("showImpressumBtn");
+  const datenschutzBtn = document.getElementById("showDatenschutzBtn");
+
+  if (!legalModal) return;
+
+  function openLegalModal(type) {
+    const settings = (typeof state !== "undefined" && state.settings) ? state.settings : {};
+    if (type === "impressum") {
+      legalTitle.textContent = uiT("legalImpressum") || "Impressum";
+      legalBody.textContent  = settings.impressumText || window._publicImpressumText || "";
+    } else {
+      legalTitle.textContent = uiT("legalPrivacy") || "Datenschutz";
+      legalBody.textContent  = settings.datenschutzText || window._publicDatenschutzText || "";
+    }
+    legalModal.classList.remove("hidden");
+    legalModal.setAttribute("aria-hidden", "false");
+    if (legalClose) legalClose.focus();
+  }
+
+  function closeLegalModal() {
+    legalModal.classList.add("hidden");
+    legalModal.setAttribute("aria-hidden", "true");
+  }
+
+  if (impressumBtn)   impressumBtn.addEventListener("click",  () => openLegalModal("impressum"));
+  if (datenschutzBtn) datenschutzBtn.addEventListener("click", () => openLegalModal("datenschutz"));
+  if (legalClose)     legalClose.addEventListener("click", closeLegalModal);
+  legalModal.addEventListener("click", (e) => { if (e.target === legalModal) closeLegalModal(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !legalModal.classList.contains("hidden")) closeLegalModal();
+  });
+})();
 
 // Bulk-Aktionen für Worker
 if (elements.bulkSelectAll) {
