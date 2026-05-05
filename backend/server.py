@@ -2072,6 +2072,8 @@ def init_db():
         cur.execute("ALTER TABLE invoices ADD COLUMN items_json TEXT NOT NULL DEFAULT ''")
     if "discount_amount" not in invoice_columns:
         cur.execute("ALTER TABLE invoices ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0")
+    if "payment_note" not in invoice_columns:
+        cur.execute("ALTER TABLE invoices ADD COLUMN payment_note TEXT NOT NULL DEFAULT ''")
 
     operation_approval_columns = [row[1] for row in cur.execute("PRAGMA table_info(operation_approvals)").fetchall()]
     if "expires_at" not in operation_approval_columns:
@@ -10415,20 +10417,24 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.drawCentredString(CUST_BADGE_X + (CUST_BADGE_W / 2), CUST_BADGE_Y + 3.2 * mm, customer_number)
 
         # Metadaten 2-spaltig direkt unter Überschrift
+        _today_iso = datetime.now().strftime("%Y-%m-%d")
+        _due_iso = str(invoice_row["due_date"] or "")[:10]
+        _is_overdue = bool(
+            _due_iso and invoice_row.get("status") not in ("bezahlt", "paid")
+            and _due_iso < _today_iso
+        )
         meta_rows = [
-            ("Rechnungsnummer:",  invoice_no),
-            ("Rechnungsdatum:",   invoice_date),
-            ("Fälligkeitsdatum:", due_date),
+            ("Rechnungsnummer:",  invoice_no, False),
+            ("Rechnungsdatum:",   invoice_date, False),
+            ("Fälligkeitsdatum:", due_date + (" ⚠ Überfällig" if _is_overdue else ""), _is_overdue),
         ]
         meta_y = HEADING_Y - 8 * mm
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.setFillColor(c_dark)
-        for lbl, val in meta_rows:
+        for lbl, val, is_alert in meta_rows:
             pdf.setFont("Helvetica-Bold", 9)
-            pdf.setFillColor(c_dark)
+            pdf.setFillColor(rl_colors.HexColor("#c0392b") if is_alert else c_dark)
             pdf.drawString(M_L, meta_y, lbl)
             pdf.setFont("Helvetica", 9)
-            pdf.setFillColor(c_mid)
+            pdf.setFillColor(rl_colors.HexColor("#c0392b") if is_alert else c_mid)
             pdf.drawString(M_L + 46 * mm, meta_y, val)
             meta_y -= 5.5 * mm
 
@@ -11784,6 +11790,51 @@ def get_invoice_ops_metrics(db):
     }
 
 
+@app.get("/api/invoices/export.csv")
+@require_auth
+@require_roles("superadmin")
+def export_all_invoices_csv():
+    """Export all invoices as a UTF-8 CSV file (Excel-compatible)."""
+    import csv as _csv
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT invoices.*, companies.name AS company_name
+        FROM invoices
+        JOIN companies ON companies.id = invoices.company_id
+        ORDER BY invoices.created_at DESC
+        """
+    ).fetchall()
+    output = io.StringIO()
+    writer = _csv.writer(output, delimiter=";", quoting=_csv.QUOTE_ALL)
+    writer.writerow(["Rechnungsnummer", "Firma", "Empf\u00e4nger-Email", "Rechnungsdatum",
+                     "F\u00e4lligkeit", "Netto (EUR)", "MwSt %", "MwSt (EUR)", "Gesamt (EUR)",
+                     "Status", "Bezahlt am", "Zahlungsnotiz", "Mahnstufe", "Erstellt am"])
+    for row in rows:
+        writer.writerow([
+            row["invoice_number"] or "",
+            row["company_name"] or "",
+            row["recipient_email"] or "",
+            row["invoice_date"] or "",
+            row["due_date"] or "",
+            str(row["net_amount"] or 0).replace(".", ","),
+            str(row["vat_rate"] or 0).replace(".", ","),
+            str(row["vat_amount"] or 0).replace(".", ","),
+            str(row["total_amount"] or 0).replace(".", ","),
+            row["status"] or "",
+            row["paid_at"] or "",
+            (row["payment_note"] if "payment_note" in row.keys() else "") or "",
+            str(row["reminder_stage"] if "reminder_stage" in row.keys() else 0),
+            row["created_at"] or "",
+        ])
+    filename = f"rechnungen-{datetime.now().strftime('%Y-%m-%d')}.csv"
+    return Response(
+        "\ufeff" + output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/api/invoices")
 @require_auth
 @require_roles("superadmin", "company-admin")
@@ -12616,8 +12667,8 @@ def mark_invoice_paid(invoice_id):
 
     # Mark as paid
     db.execute(
-        "UPDATE invoices SET status = ?, paid_at = ?, last_reminder_error = '' WHERE id = ?",
-        ("bezahlt", payment_date, invoice_id),
+        "UPDATE invoices SET status = ?, paid_at = ?, payment_note = ?, last_reminder_error = '' WHERE id = ?",
+        ("bezahlt", payment_date, notes, invoice_id),
     )
     log_audit(
         "invoice.marked_paid",

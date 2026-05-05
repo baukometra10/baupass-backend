@@ -2863,6 +2863,32 @@ body.theme-black .doc-inbox-unread {
   vertical-align: middle;
 }
 
+.invoice-dunning-badge {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+.dunning-stage-1 {
+  background: rgba(230, 126, 34, 0.14);
+  border: 1px solid rgba(230, 126, 34, 0.35);
+  color: #a04000;
+}
+.dunning-stage-2 {
+  background: rgba(192, 57, 43, 0.14);
+  border: 1px solid rgba(192, 57, 43, 0.35);
+  color: #922b21;
+}
+.dunning-stage-3 {
+  background: rgba(136, 8, 8, 0.18);
+  border: 1px solid rgba(136, 8, 8, 0.4);
+  color: #7b0000;
+}
+
 .invoice-management-side {
   text-align: right;
   min-width: 140px;

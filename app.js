@@ -861,6 +861,11 @@ const UI_TRANSLATIONS = {
     invoiceHistoryCreated: "Erstellt:",
     invoiceHistorySent: "Versendet:",
     invoiceHistoryError: "Fehler:",
+    invoiceHistoryLoadMore: "Mehr laden",
+    invoicePaymentNotePrompt: "Zahlungsnotiz (optional) \u2013 z.B. \u00dcberweisung, SEPA, Bar:",
+    invoiceDunningStageLabel: "Mahnung {stage}",
+    invoiceExportCsvBtn: "Rechnungen als CSV",
+    invoicePaymentNoteLabel: "Zahlung:",
     tfaStatusActive: "2FA ist aktiv",
     tfaStatusInactive: "2FA ist nicht aktiv",
     tfaBtnSetup: "2FA einrichten",
@@ -1528,6 +1533,11 @@ const UI_TRANSLATIONS = {
     invoiceHistoryCreated: "Created:",
     invoiceHistorySent: "Sent:",
     invoiceHistoryError: "Error:",
+    invoiceHistoryLoadMore: "Load more",
+    invoicePaymentNotePrompt: "Payment note (optional) – e.g. Bank transfer, SEPA, Cash:",
+    invoiceDunningStageLabel: "Reminder {stage}",
+    invoiceExportCsvBtn: "Export invoices CSV",
+    invoicePaymentNoteLabel: "Payment:",
     tfaStatusActive: "2FA is active",
     tfaStatusInactive: "2FA is not active",
     tfaBtnSetup: "Set up 2FA",
@@ -16464,8 +16474,11 @@ function renderInvoiceHistory() {
     return;
   }
 
-  elements.invoiceHistoryList.innerHTML = state.invoices
-    .slice(0, 20)
+  const limit = state.invoiceHistoryLimit || 20;
+  const visible = state.invoices.slice(0, limit);
+  const hasMore = state.invoices.length > limit;
+
+  const rows = visible
     .map(
       (invoice) => `
         <article class="list-item">
@@ -16480,11 +16493,28 @@ function renderInvoiceHistory() {
           <span>${escapeHtml(uiT("invoiceHistoryTotal"))} ${formatCurrency(invoice.total_amount)}</span>
           <span>${escapeHtml(uiT("invoiceHistoryCreated"))} ${formatTimestamp(invoice.created_at)}</span>
           ${invoice.sent_at ? `<span>${escapeHtml(uiT("invoiceHistorySent"))} ${formatTimestamp(invoice.sent_at)}</span>` : ""}
+          ${invoice.payment_note ? `<span>${escapeHtml(uiT("invoicePaymentNoteLabel"))} ${escapeHtml(invoice.payment_note)}</span>` : ""}
           ${invoice.error_message ? `<span>${escapeHtml(uiT("invoiceHistoryError"))} ${escapeHtml(invoice.error_message)}</span>` : ""}
         </article>
       `
     )
     .join("");
+
+  const loadMoreBtn = hasMore
+    ? `<div style="text-align:center;margin-top:10px;">
+        <button type="button" class="ghost-button" id="invoiceHistoryLoadMoreBtn">${escapeHtml(uiT("invoiceHistoryLoadMore"))} (${state.invoices.length - limit})</button>
+       </div>`
+    : "";
+
+  elements.invoiceHistoryList.innerHTML = rows + loadMoreBtn;
+
+  const loadMoreEl = elements.invoiceHistoryList.querySelector("#invoiceHistoryLoadMoreBtn");
+  if (loadMoreEl) {
+    loadMoreEl.addEventListener("click", () => {
+      state.invoiceHistoryLimit = (state.invoiceHistoryLimit || 20) + 20;
+      renderInvoiceHistory();
+    });
+  }
 }
 
 function formatCurrency(value) {
@@ -17192,6 +17222,10 @@ function renderInvoiceManagementList() {
       const canDownloadReminder = !isPaid && ["sent", "overdue"].includes(statusKey) && getCurrentUser()?.role === "superadmin";
       const justPaidClass = state.invoiceJustPaidId && state.invoiceJustPaidId === inv.id ? " invoice-status-just-paid" : "";
       const newBadge = state.invoiceNewIds?.[inv.id] ? '<span class="invoice-new-badge">Neu</span>' : "";
+      const dunningStage = Number(inv.reminder_stage || 0);
+      const dunningBadge = dunningStage > 0
+        ? `<span class="invoice-dunning-badge dunning-stage-${dunningStage}">${escapeHtml(uiT("invoiceDunningStageLabel").replace("{stage}", dunningStage))}</span>`
+        : "";
       const maxRetryAttempts = 5;
       const retryAttemptCount = Number(inv.send_attempt_count || 0);
       const retryInfo = canRetrySend
@@ -17208,12 +17242,13 @@ function renderInvoiceManagementList() {
           </label>
           <div class="invoice-management-head">
             <div class="invoice-management-main">
-              <strong>${escapeHtml(inv.invoice_number || "RE-???")} ${newBadge}</strong>
+              <strong>${escapeHtml(inv.invoice_number || "RE-???")} ${newBadge} ${dunningBadge}</strong>
               <p class="helper-text">${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</p>
               <p class="meta-text">
                 ${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "-"} 
                 ${inv.paid_at ? ` • ${escapeHtml(runtimeText("invoicePaidAtLabel"))}: ${formatTimestamp(inv.paid_at)}` : ""}
               </p>
+              ${inv.payment_note ? `<p class="helper-text" style="color:#2d7a2d;">💳 ${escapeHtml(inv.payment_note)}</p>` : ""}
             </div>
             <div class="invoice-management-side">
               <p class="meta-text">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
@@ -17246,11 +17281,12 @@ function renderInvoiceManagementList() {
     button.addEventListener("click", async (e) => {
       const invId = e.target.dataset.invoiceId;
       if (!invId || !window.confirm(uiT("confirmInvoicePaid"))) return;
+      const paymentNote = (window.prompt(uiT("invoicePaymentNotePrompt"), "") ?? "").trim();
       
       try {
         await apiRequest(API_BASE + `/api/invoices/${invId}/pay`, {
           method: "PUT",
-          body: { paymentDate: new Date().toISOString().split("T")[0] }
+          body: { paymentDate: new Date().toISOString().split("T")[0], notes: paymentNote }
         });
         state.invoiceJustPaidId = invId;
         if (invoicePaidHighlightTimer) {
@@ -20163,6 +20199,13 @@ if (invoiceRefreshButton) {
   });
 }
 
+const invoiceExportCsvBtn = document.querySelector("#invoiceExportCsvBtn");
+if (invoiceExportCsvBtn) {
+  invoiceExportCsvBtn.addEventListener("click", () => {
+    window.open(API_BASE + "/api/invoices/export.csv", "_blank");
+  });
+}
+
 const invoiceFilterCompany = document.querySelector("#invoiceFilterCompany");
 if (invoiceFilterCompany) {
   invoiceFilterCompany.addEventListener("input", () => renderInvoiceManagementList());
@@ -20806,10 +20849,16 @@ if (workerCsvImportButton && workerCsvImportInput) {
   });
 }
 
+let _invoicePreviewDebounceTimer = null;
+function debouncedRefreshInvoicePreview() {
+  clearTimeout(_invoicePreviewDebounceTimer);
+  _invoicePreviewDebounceTimer = setTimeout(() => refreshInvoicePreview({ silent: true }), 400);
+}
+
 ["#invoiceNumber", "#invoiceRecipientEmail", "#invoiceDate", "#invoiceDueDate", "#invoicePeriod", "#invoiceDescription", "#invoiceNetAmount", "#invoiceVatRate"].forEach((selector) => {
   const field = document.querySelector(selector);
   if (field) {
-    field.addEventListener("input", () => refreshInvoicePreview({ silent: true }));
+    field.addEventListener("input", debouncedRefreshInvoicePreview);
   }
 });
 
