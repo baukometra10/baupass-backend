@@ -7344,6 +7344,27 @@ const PLAN_NET_PRICE_EUR = {
   enterprise: 199,
 };
 
+const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
+const PLAN_FEATURES = {
+  access_logging: "tageskarte",
+  worker_management: "tageskarte",
+  qr_badges: "tageskarte",
+  worker_app: "starter",
+  nfc_badges: "starter",
+  leave_management: "starter",
+  document_upload: "starter",
+  invoicing: "professional",
+  email_notifications: "professional",
+  worker_hours_report: "professional",
+  late_checkin_alert: "professional",
+  subcompanies: "professional",
+  white_label: "enterprise",
+  api_access: "enterprise",
+  multi_site: "enterprise",
+  premium_support: "enterprise",
+  custom_pricing: "enterprise",
+};
+
 const state = {
   currentUser: null,
   supportLoginContext: loadSupportLoginContext(),
@@ -13893,6 +13914,20 @@ function populateSubcompanySelects() {
   const select = document.querySelector("#subcompanySelect");
   const companyId = document.querySelector("#companySelect")?.value || "";
   if (!select) return;
+  const hasSubcompaniesFeature = hasCompanyFeatureForCompanyId(companyId || getEffectiveUiCompanyId(), "subcompanies");
+  const newSubcompanyInput = document.querySelector("#subcompanyName");
+  const addSubcompanyButton = document.querySelector("#addSubcompanyButton");
+  if (!hasSubcompaniesFeature) {
+    select.innerHTML = `<option value="">${uiT("optNoSubcompany")}</option>`;
+    select.value = "";
+    select.disabled = true;
+    if (newSubcompanyInput) newSubcompanyInput.disabled = true;
+    if (addSubcompanyButton) addSubcompanyButton.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  if (newSubcompanyInput) newSubcompanyInput.disabled = false;
+  if (addSubcompanyButton) addSubcompanyButton.disabled = false;
   const normalizedCompanyId = String(companyId).trim();
 
   const options = state.subcompanies
@@ -14174,6 +14209,27 @@ function getEffectiveUiCompanyId() {
   return String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
 }
 
+function getCompanyPlan(companyId) {
+  const normalizedCompanyId = String(companyId || "").trim();
+  const company = state.companies.find((entry) => String(entry?.id || "").trim() === normalizedCompanyId);
+  const rawPlan = String(company?.plan || "starter").trim().toLowerCase();
+  return rawPlan in PLAN_RANK ? rawPlan : "starter";
+}
+
+function hasCompanyFeatureForCompanyId(companyId, featureKey) {
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (role === "superadmin" && !isSuperadminCompanyPreviewMode()) {
+    return true;
+  }
+  const requiredPlan = PLAN_FEATURES[featureKey] || "enterprise";
+  const companyPlan = getCompanyPlan(companyId || getEffectiveUiCompanyId());
+  return (PLAN_RANK[companyPlan] || 0) >= (PLAN_RANK[requiredPlan] || 3);
+}
+
+function hasCompanyFeature(featureKey) {
+  return hasCompanyFeatureForCompanyId(getEffectiveUiCompanyId(), featureKey);
+}
+
 function getUiVisibleWorkers() {
   const companyId = getEffectiveUiCompanyId();
   if (!companyId) {
@@ -14311,16 +14367,23 @@ function getDefaultViewForRole(role) {
 
 function getAllowedViewsForRole(role) {
   const normalized = String(role || "").toLowerCase();
+  let allowed = ["dashboard"];
   if (normalized === "superadmin") {
-    return ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices"];
+    allowed = ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices"];
   }
   if (normalized === "company-admin") {
-    return ["dashboard", "workers", "badge", "access", "documents"];
+    allowed = ["dashboard", "workers", "badge", "access", "documents"];
   }
   if (normalized === "turnstile") {
-    return ["access", "documents", "dashboard"];
+    allowed = ["access", "documents", "dashboard"];
   }
-  return ["dashboard"];
+  if (!hasCompanyFeature("document_upload")) {
+    allowed = allowed.filter((entry) => entry !== "documents");
+  }
+  if (!hasCompanyFeature("invoicing")) {
+    allowed = allowed.filter((entry) => entry !== "invoices");
+  }
+  return allowed;
 }
 
 function getCurrentViewName() {
@@ -17024,7 +17087,7 @@ function renderCompanyList() {
               <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
               <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
               <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-worker-hours="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"}>⏱ ${escapeHtml(runtimeText("companyBtnWorkerHours") || "Arbeitsstunden")}</button>
+              <button type="button" class="ghost-button small-button" data-company-worker-hours="${escapeHtml(companyId)}" ${(hasCompanyFeatureForCompanyId(companyId, "worker_hours_report") && !deleted) ? "" : "disabled"}>⏱ ${escapeHtml(runtimeText("companyBtnWorkerHours") || "Arbeitsstunden")}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
@@ -17991,6 +18054,10 @@ async function openBillingAddressModal(companyId, company) {
 
 // ── Worker-Stunden-Modal ─────────────────────────────────────────────────
 async function openWorkerHoursModal(companyId) {
+  if (!hasCompanyFeatureForCompanyId(companyId, "worker_hours_report")) {
+    window.alert(runtimeText("accessDenied") || "Feature in diesem Paket nicht verfuegbar.");
+    return;
+  }
   // Determine current month
   const now = new Date();
   const monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
