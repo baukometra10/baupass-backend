@@ -3652,7 +3652,72 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   box-shadow: 0 12px 24px rgba(0, 60, 160, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 20, 80, .44);
 }
 
-.badge-shell .wallet-card .badge-wallet-qr {
+/* ── Klassen-basierte Preset-Regeln (direkt auf der Karte) ──────────────── */
+/* Diese greifen wenn preset-* class direkt auf .wallet-card gesetzt ist    */
+
+.badge-shell .wallet-card.preset-construction {
+  background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
+}
+
+/* INDUSTRY – Dunkelorange */
+.badge-shell .wallet-card.preset-industry {
+  background: linear-gradient(135deg, #1c1000 0%, #3a1f00 42%, #251400 100%);
+  box-shadow:
+    0 28px 60px rgba(200, 80, 0, .45),
+    0 4px 20px rgba(0, 0, 0, .35),
+    0 0 0 1px rgba(255, 140, 0, .18),
+    inset 0 1px 0 rgba(255, 180, 60, .12);
+}
+
+.badge-shell .wallet-card.preset-industry::before {
+  background: linear-gradient(90deg, #e65c00 0%, #ff9a3c 48%, #e65c00 100%);
+}
+
+.badge-shell .wallet-card.preset-industry .wc-shimmer {
+  background: linear-gradient(115deg, transparent 0%, transparent 30%, rgba(255, 140, 0, .12) 38%, rgba(255, 200, 80, .08) 46%, rgba(230, 92, 0, .08) 54%, transparent 62%, transparent 100%);
+}
+
+.badge-shell .wallet-card.preset-industry .wc-brand-mark {
+  background: linear-gradient(135deg, #e65c00, #ff7b1a);
+  box-shadow: 0 3px 10px rgba(230, 92, 0, .5);
+}
+
+.badge-shell .wallet-card.preset-industry .wc-qr-frame {
+  background: linear-gradient(135deg, #7a2e00 0%, #c05200 24%, #ff9a3c 46%, #d06000 66%, #8a3500 100%);
+  border-color: rgba(255, 160, 60, .42);
+  box-shadow: 0 12px 24px rgba(180, 80, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(80, 30, 0, .44);
+}
+
+/* PREMIUM – Marineblau / Saphir */
+.badge-shell .wallet-card.preset-premium {
+  background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%);
+  box-shadow:
+    0 28px 60px rgba(0, 40, 150, .5),
+    0 4px 20px rgba(0, 0, 0, .4),
+    0 0 0 1px rgba(80, 160, 255, .18),
+    inset 0 1px 0 rgba(120, 190, 255, .12);
+}
+
+.badge-shell .wallet-card.preset-premium::before {
+  background: linear-gradient(90deg, #1565c0 0%, #42a5f5 48%, #1565c0 100%);
+}
+
+.badge-shell .wallet-card.preset-premium .wc-shimmer {
+  background: linear-gradient(115deg, transparent 0%, transparent 30%, rgba(66, 165, 245, .12) 38%, rgba(100, 200, 255, .09) 46%, rgba(21, 101, 192, .08) 54%, transparent 62%, transparent 100%);
+}
+
+.badge-shell .wallet-card.preset-premium .wc-brand-mark {
+  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  box-shadow: 0 3px 10px rgba(21, 101, 192, .55);
+}
+
+.badge-shell .wallet-card.preset-premium .wc-qr-frame {
+  background: linear-gradient(135deg, #082060 0%, #1565c0 24%, #42a5f5 46%, #1976d2 66%, #061840 100%);
+  border-color: rgba(66, 165, 245, .42);
+  box-shadow: 0 12px 24px rgba(0, 60, 160, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 20, 80, .44);
+}
+
+
   width: 100%;
   height: 100%;
   position: relative;

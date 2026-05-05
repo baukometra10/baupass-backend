@@ -12065,9 +12065,10 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const passSubLabel = getWorkerCardPassSubLabel(worker);
   const roleLabel = getWorkerCardRoleLabel(worker);
   const companyName = company?.name || uiT("badgeUnknownCompany");
+  const companyPreset = getCompanyBrandingPreset(company);
 
   return `
-    <article class="wallet-card" data-status="${escapeHtml(normalizedStatus)}">
+    <article class="wallet-card preset-${escapeHtml(companyPreset)}" data-status="${escapeHtml(normalizedStatus)}">
       <div class="wc-shimmer"></div>
       <div class="wc-grid"></div>
 
@@ -13712,33 +13713,7 @@ function bindCompanyRowActions() {
       const companyId = billingAddressButton.dataset.companyBillingAddress;
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
-      const currentStreet = company.billingStreet || company.billing_street || "";
-      const currentZipCity = company.billingZipCity || company.billing_zip_city || "";
-      const newStreet = window.prompt(runtimeText("companyBillingStreetPrompt"), currentStreet);
-      if (newStreet === null) return;
-      const newZipCity = window.prompt(runtimeText("companyBillingZipCityPrompt"), currentZipCity);
-      if (newZipCity === null) return;
-      try {
-        await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
-          method: "PUT",
-          body: {
-            name: company.name,
-            contact: company.contact,
-            billingEmail: company.billingEmail || company.billing_email || "",
-            billingStreet: newStreet.trim(),
-            billingZipCity: newZipCity.trim(),
-            documentEmail: company.documentEmail || company.document_email || "",
-            accessHost: company.accessHost || company.access_host || "",
-            plan: company.plan,
-            status: company.status,
-            invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
-          }
-        });
-        await loadAllData();
-        refreshAll();
-      } catch (error) {
-        window.alert(runtimeTextTemplate("companyBillingAddressSaveFailed", { error: error.message }));
-      }
+      await openBillingAddressModal(companyId, company);
       return;
     }
 
@@ -14170,6 +14145,81 @@ function getCompanyBrandingPresetLabel(preset) {
     return "Premium";
   }
   return "Bau";
+}
+
+// ── Rechnungsadresse-Modal ────────────────────────────────────────────────
+async function openBillingAddressModal(companyId, company) {
+  const existing = document.getElementById("billingAddressModal");
+  if (existing) existing.remove();
+
+  const currentStreet = company.billingStreet || company.billing_street || "";
+  const currentZipCity = company.billingZipCity || company.billing_zip_city || "";
+
+  const modal = document.createElement("div");
+  modal.id = "billingAddressModal";
+  modal.className = "admin-modal-overlay";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `
+    <div class="admin-modal-card" style="max-width:460px;width:95%;">
+      <h3 class="admin-modal-title">${escapeHtml(runtimeText("companyBillingAddressLabel") || "Rechnungsadresse")}</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">${escapeHtml(runtimeText("companyBillingStreetPrompt") || "Straße und Hausnummer:")}</label>
+          <input type="text" id="billingStreetInput" value="${escapeHtml(currentStreet)}" placeholder="z. B. Hauptstraße 12" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);font-size:14px;">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">${escapeHtml(runtimeText("companyBillingZipCityPrompt") || "PLZ und Stadt:")}</label>
+          <input type="text" id="billingZipCityInput" value="${escapeHtml(currentZipCity)}" placeholder="z. B. 10115 Berlin" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);font-size:14px;">
+        </div>
+      </div>
+      <div id="billingAddressError" style="color:var(--danger,#c0392b);font-size:13px;margin-bottom:8px;display:none;"></div>
+      <div class="admin-modal-actions">
+        <button type="button" class="primary-button" id="billingAddressSaveBtn">${escapeHtml(runtimeText("companyBrandingSaveBtn") || "Speichern")}</button>
+        <button type="button" class="ghost-button" id="billingAddressCancelBtn">${escapeHtml(runtimeText("legalCloseTitle") || "Schließen")}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  function closeModal() { modal.remove(); }
+  document.getElementById("billingAddressCancelBtn").addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  const escHandler = (e) => { if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", escHandler); } };
+  document.addEventListener("keydown", escHandler);
+
+  document.getElementById("billingAddressSaveBtn").addEventListener("click", async () => {
+    const newStreet = document.getElementById("billingStreetInput").value.trim();
+    const newZipCity = document.getElementById("billingZipCityInput").value.trim();
+    const errEl = document.getElementById("billingAddressError");
+    errEl.style.display = "none";
+    try {
+      document.getElementById("billingAddressSaveBtn").disabled = true;
+      await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+        method: "PUT",
+        body: {
+          name: company.name,
+          contact: company.contact,
+          billingEmail: company.billingEmail || company.billing_email || "",
+          billingStreet: newStreet,
+          billingZipCity: newZipCity,
+          documentEmail: company.documentEmail || company.document_email || "",
+          accessHost: company.accessHost || company.access_host || "",
+          plan: company.plan,
+          status: company.status,
+          invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
+        }
+      });
+      closeModal();
+      await loadAllData();
+      refreshAll();
+    } catch (error) {
+      errEl.textContent = runtimeTextTemplate("companyBillingAddressSaveFailed", { error: error.message });
+      errEl.style.display = "block";
+      document.getElementById("billingAddressSaveBtn").disabled = false;
+    }
+  });
+  document.getElementById("billingStreetInput").focus();
 }
 
 // ── Worker-Stunden-Modal ─────────────────────────────────────────────────
