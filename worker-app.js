@@ -2968,31 +2968,55 @@ function renderWorker(payload) {
   const lateInfo = payload.lateCheckIn;
   showLateCheckInBanner(lateInfo, isVisitor);
 
-  // Show timesheet only for regular workers (not visitors)
-  if (elements.timesheetCard) {
-    elements.timesheetCard.classList.toggle("hidden", isVisitor);
+  // Plan-Feature-Gates
+  const planFeatures = payload.planFeatures || {};
+  const hasTimesheet    = !!planFeatures.worker_app;           // ab starter
+  const hasLeave        = !!planFeatures.leave_management;     // ab starter
+  const hasDocs         = !!planFeatures.document_upload;      // ab starter
+  const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
+
+  // Re-show late banner only if plan allows it
+  if (!hasLateAlert) {
+    const lateBanner = document.getElementById("lateCheckInBanner");
+    if (lateBanner) lateBanner.remove();
   }
-  // Also hide timesheet quick-menu and nav buttons for visitors
+
+  // Show timesheet only for regular workers (not visitors) and if plan allows
+  if (elements.timesheetCard) {
+    elements.timesheetCard.classList.toggle("hidden", isVisitor || !hasTimesheet);
+  }
+  // Also hide timesheet quick-menu and nav buttons for visitors or plan restriction
   document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor);
+    btn.classList.toggle("hidden", isVisitor || !hasTimesheet);
   });
   if (elements.documentsCard) {
-    elements.documentsCard.classList.remove("hidden");
+    elements.documentsCard.classList.toggle("hidden", !hasDocs);
   }
+  // Hide leave section if plan doesn't support it
+  const leaveCard = document.getElementById("leaveCard");
+  if (leaveCard) {
+    leaveCard.classList.toggle("hidden", isVisitor || !hasLeave);
+  }
+  document.querySelectorAll("[data-scroll-target='leaveCard'], [data-worker-page-target='leaveCard']").forEach((btn) => {
+    btn.classList.toggle("hidden", isVisitor || !hasLeave);
+  });
+
   applyWorkerPageView("");
   
   // Load leave requests after render
-  void loadLeaveRequests();
+  if (hasLeave && !isVisitor) void loadLeaveRequests();
   if (leaveRefreshInterval) {
     clearInterval(leaveRefreshInterval);
   }
-  leaveRefreshInterval = setInterval(() => {
-    if (workerToken) {
-      void loadLeaveRequests();
-    }
-  }, 60000);
-  void loadMyTimesheets();
-  void loadMyDocuments();
+  if (hasLeave && !isVisitor) {
+    leaveRefreshInterval = setInterval(() => {
+      if (workerToken) {
+        void loadLeaveRequests();
+      }
+    }, 60000);
+  }
+  if (hasTimesheet && !isVisitor) void loadMyTimesheets();
+  if (hasDocs) void loadMyDocuments();
   void prefillCompanyAdminEmails();
 }
 

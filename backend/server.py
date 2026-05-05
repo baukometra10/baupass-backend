@@ -195,6 +195,46 @@ PLAN_NET_PRICE_EUR = {
     "enterprise": 199.0,
 }
 
+# ── Plan-Feature-Matrix ────────────────────────────────────────────────────
+# Definiert welche Features ab welcher Plan-Stufe verfuegbar sind.
+# Rangfolge: tageskarte < starter < professional < enterprise
+PLAN_RANK = {"tageskarte": 0, "starter": 1, "professional": 2, "enterprise": 3}
+
+PLAN_FEATURES = {
+    # Feature-Key: minimale Plan-Stufe
+    "access_logging":        "tageskarte",   # Basis: Ein-/Auslass-Protokoll
+    "worker_management":     "tageskarte",   # Basis: Mitarbeiterverwaltung
+    "qr_badges":             "tageskarte",   # Basis: QR-Badges
+    "worker_app":            "starter",      # Mitarbeiter-App (Mobile Pass)
+    "nfc_badges":            "starter",      # NFC-Karten
+    "leave_management":      "starter",      # Urlaubs-/Fehlerzeit-Antraege
+    "document_upload":       "starter",      # Dokument-Upload
+    "invoicing":             "professional", # Rechnungsstellung
+    "email_notifications":   "professional", # E-Mail-Benachrichtigungen
+    "worker_hours_report":   "professional", # Arbeitsstunden-Bericht
+    "late_checkin_alert":    "professional", # Zu-spaet-Meldung
+    "subcompanies":          "professional", # Subunternehmen
+    "white_label":           "enterprise",   # White-Label (eigenes Branding)
+    "api_access":            "enterprise",   # API-Zugriff
+    "multi_site":            "enterprise",   # Mehrere Standorte
+    "premium_support":       "enterprise",   # Priority-Support
+    "custom_pricing":        "enterprise",   # Individuelle Preisgestaltung
+}
+
+
+def company_has_feature(plan_value, feature_key):
+    """Gibt True zurueck wenn der Plan-Level das Feature einschliesst."""
+    plan = str(plan_value or "starter").strip().lower()
+    if plan not in PLAN_RANK:
+        plan = "starter"
+    required_plan = PLAN_FEATURES.get(feature_key, "enterprise")
+    return PLAN_RANK.get(plan, 1) >= PLAN_RANK.get(required_plan, 3)
+
+
+def get_plan_features(plan_value):
+    """Gibt alle verfuegbaren Features fuer einen Plan zurueck."""
+    return {k: company_has_feature(plan_value, k) for k in PLAN_FEATURES}
+
 DEFAULT_PLATFORM_NAME = "BauPass"
 DEFAULT_OPERATOR_NAME = "Baukometra"
 
@@ -8386,6 +8426,7 @@ def worker_app_me():
                 "today": checked_in_late_today,
                 "minutes": late_minutes,
             },
+            "planFeatures": get_plan_features(company["plan"] if company else "starter"),
         }
     )
 
@@ -15789,6 +15830,34 @@ def company_worker_hours_summary(company_id):
 
     result.sort(key=lambda x: (x["lastName"] or "").lower())
     return jsonify({"month": month_prefix, "workers": result})
+
+
+# ── Company Plan-Features Endpoint ────────────────────────────────────────
+
+@app.get("/api/companies/<company_id>/plan-features")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def get_company_plan_features(company_id):
+    """Gibt die verfuegbaren Features fuer die Plan-Stufe der Firma zurueck."""
+    db = get_db()
+    user = g.current_user
+    if user["role"] != "superadmin" and user.get("company_id") != company_id:
+        return jsonify({"error": "forbidden"}), 403
+    company = db.execute("SELECT plan FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
+    if not company:
+        return jsonify({"error": "company_not_found"}), 404
+    plan = str(company["plan"] or "starter").strip().lower()
+    return jsonify({
+        "plan": plan,
+        "features": get_plan_features(plan),
+        "planRank": PLAN_RANK.get(plan, 1),
+        "availablePlans": [
+            {"key": "tageskarte", "labelDe": "Tageskarte", "priceEur": 19.0, "rank": 0},
+            {"key": "starter", "labelDe": "Start", "priceEur": 49.0, "workerPriceEur": 1.50, "rank": 1},
+            {"key": "professional", "labelDe": "Professional", "priceEur": 99.0, "workerPriceEur": 2.50, "rank": 2},
+            {"key": "enterprise", "labelDe": "Enterprise", "priceEur": 199.0, "workerPriceEur": 0.0, "rank": 3},
+        ],
+    })
 
 
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
