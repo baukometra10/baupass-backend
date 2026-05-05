@@ -235,6 +235,26 @@ def get_plan_features(plan_value):
     """Gibt alle verfuegbaren Features fuer einen Plan zurueck."""
     return {k: company_has_feature(plan_value, k) for k in PLAN_FEATURES}
 
+
+def get_company_plan(db, company_id):
+    """Liest den normalisierten Plan einer Firma."""
+    if not company_id:
+        return "starter"
+    row = db.execute("SELECT plan FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
+    if not row:
+        return "starter"
+    return normalize_company_plan(row["plan"])
+
+
+def feature_not_available_response(feature_key, plan_value):
+    """Standardisierte Antwort wenn ein Paket-Feature nicht verfuegbar ist."""
+    return jsonify({
+        "error": "feature_not_available",
+        "feature": feature_key,
+        "plan": normalize_company_plan(plan_value),
+        "requiredPlan": PLAN_FEATURES.get(feature_key, "enterprise"),
+    }), 403
+
 DEFAULT_PLATFORM_NAME = "BauPass"
 DEFAULT_OPERATOR_NAME = "Baukometra"
 
@@ -2607,6 +2627,12 @@ def require_worker_session(handler):
             db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
             db.commit()
             return jsonify(company_error), 403
+
+        plan_value = get_company_plan(db, worker["company_id"])
+        if not company_has_feature(plan_value, "worker_app"):
+            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
+            db.commit()
+            return feature_not_available_response("worker_app", plan_value)
 
         g.worker = row_to_dict(
             worker)
@@ -6432,9 +6458,15 @@ def list_subcompanies():
 
     if user["role"] == "superadmin":
         if requested_company_id:
+            plan_value = get_company_plan(get_db(), requested_company_id)
+            if not company_has_feature(plan_value, "subcompanies"):
+                return feature_not_available_response("subcompanies", plan_value)
             conditions.append("company_id = ?")
             params.append(requested_company_id)
     else:
+        plan_value = get_company_plan(get_db(), user.get("company_id"))
+        if not company_has_feature(plan_value, "subcompanies"):
+            return feature_not_available_response("subcompanies", plan_value)
         conditions.append("company_id = ?")
         params.append(user.get("company_id"))
 
@@ -6470,6 +6502,9 @@ def create_subcompany():
     company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
     if not company or company["deleted_at"]:
         return jsonify({"error": "company_not_available"}), 400
+    plan_value = normalize_company_plan(company["plan"])
+    if not company_has_feature(plan_value, "subcompanies"):
+        return feature_not_available_response("subcompanies", plan_value)
 
     existing = db.execute(
         "SELECT * FROM subcompanies WHERE company_id = ? AND lower(name) = lower(?) AND deleted_at IS NULL",
@@ -8178,7 +8213,13 @@ def create_worker_app_session(db, worker):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_app_access(worker_id):
-    payload, error_response = build_worker_app_access_payload(get_db(), worker_id, g.current_user)
+    db = get_db()
+    worker = db.execute("SELECT company_id FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if worker:
+        plan_value = get_company_plan(db, worker["company_id"])
+        if not company_has_feature(plan_value, "worker_app"):
+            return feature_not_available_response("worker_app", plan_value)
+    payload, error_response = build_worker_app_access_payload(db, worker_id, g.current_user)
     if error_response:
         return error_response
     return jsonify(payload)
@@ -8189,6 +8230,11 @@ def get_worker_app_access(worker_id):
 @require_roles("superadmin", "company-admin")
 def create_worker_app_access(worker_id):
     db = get_db()
+    worker_plan_row = db.execute("SELECT company_id FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if worker_plan_row:
+        plan_value = get_company_plan(db, worker_plan_row["company_id"])
+        if not company_has_feature(plan_value, "worker_app"):
+            return feature_not_available_response("worker_app", plan_value)
     payload, error_response = build_worker_app_access_payload(db, worker_id, g.current_user)
     if error_response:
         return error_response
@@ -8271,6 +8317,9 @@ def worker_app_login():
         company_error = get_company_access_error(db, worker["company_id"])
         if company_error:
             return jsonify(company_error), 403
+        plan_value = get_company_plan(db, worker["company_id"])
+        if not company_has_feature(plan_value, "worker_app"):
+            return feature_not_available_response("worker_app", plan_value)
 
         # Einmal-Link (QR) soll unmittelbar funktionieren. Standortpruefung bleibt
         # weiterhin fuer Badge-ID/PIN-Login aktiv (siehe unten im badge_id-Branch).
@@ -8332,6 +8381,9 @@ def worker_app_login():
     company_error = get_company_access_error(db, worker["company_id"])
     if company_error:
         return jsonify(company_error), 403
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "worker_app"):
+        return feature_not_available_response("worker_app", plan_value)
 
     try:
         validate_worker_login_distance_or_raise(db, worker, payload)
@@ -14811,6 +14863,9 @@ def list_worker_documents(worker_id):
         return jsonify({"error": "worker_not_found"}), 404
     if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_worker"}), 403
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
 
     rows = db.execute(
         "SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date FROM worker_documents WHERE worker_id = ? ORDER BY created_at DESC",
@@ -14855,6 +14910,9 @@ def upload_worker_document(worker_id):
         return jsonify({"error": "worker_not_found"}), 404
     if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_worker"}), 403
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
 
     base_upload_root = DOCS_UPLOAD_DIR.resolve()
     worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
@@ -14909,6 +14967,9 @@ def download_worker_document(worker_id, doc_id):
         return jsonify({"error": "worker_not_found"}), 404
     if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_worker"}), 403
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
 
     doc = db.execute(
         "SELECT * FROM worker_documents WHERE id = ? AND worker_id = ?", (doc_id, worker_id)
@@ -14934,6 +14995,9 @@ def delete_worker_document(worker_id, doc_id):
         return jsonify({"error": "worker_not_found"}), 404
     if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_worker"}), 403
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
 
     doc = db.execute(
         "SELECT * FROM worker_documents WHERE id = ? AND worker_id = ?", (doc_id, worker_id)
@@ -15457,6 +15521,9 @@ def trigger_checkout_reminders():
 def worker_get_leave_requests():
     worker = g.worker
     db = get_db()
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "leave_management"):
+        return feature_not_available_response("leave_management", plan_value)
     rows = db.execute(
         "SELECT * FROM leave_requests WHERE worker_id = ? ORDER BY created_at DESC LIMIT 100",
         (worker["id"],)
@@ -15468,6 +15535,10 @@ def worker_get_leave_requests():
 @require_worker_session
 def worker_submit_leave_request():
     worker = g.worker
+    db = get_db()
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "leave_management"):
+        return feature_not_available_response("leave_management", plan_value)
     data = request.get_json(silent=True) or {}
     req_type = str(data.get("type", "")).strip()
     start_date = str(data.get("start_date", "")).strip()
@@ -15483,7 +15554,6 @@ def worker_submit_leave_request():
         return jsonify({"error": "end_before_start"}), 400
     req_id = f"leave-{secrets.token_hex(8)}"
     days_count = _count_working_days(start_date, end_date)
-    db = get_db()
     db.execute(
         "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, days_count, created_at)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?, ?)",
@@ -15737,6 +15807,9 @@ def export_leave_request_pdf(req_id):
 def worker_app_my_timesheets():
     db = get_db()
     worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "worker_hours_report"):
+        return feature_not_available_response("worker_hours_report", plan_value)
     rows = db.execute(
         "SELECT direction, gate, note, timestamp FROM access_logs WHERE worker_id = ? ORDER BY timestamp DESC LIMIT 60",
         (worker["id"],),
@@ -15762,6 +15835,9 @@ def company_worker_hours_summary(company_id):
     company = db.execute("SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
     if not company:
         return jsonify({"error": "company_not_found"}), 404
+    plan_value = get_company_plan(db, company_id)
+    if not company_has_feature(plan_value, "worker_hours_report"):
+        return feature_not_available_response("worker_hours_report", plan_value)
 
     month_param = (request.args.get("month") or "").strip()
     if month_param and len(month_param) == 7 and "-" in month_param:
@@ -15867,6 +15943,9 @@ def get_company_plan_features(company_id):
 def worker_app_my_documents():
     db = get_db()
     worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
     rows = db.execute(
         "SELECT doc_type, filename, file_size, created_at, notes, expiry_date FROM worker_documents WHERE worker_id = ? ORDER BY created_at DESC",
         (worker["id"],),
@@ -15892,6 +15971,9 @@ def worker_get_company_admins():
 def worker_send_leave_request_email(req_id):
     worker = g.worker
     db = get_db()
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "leave_management"):
+        return feature_not_available_response("leave_management", plan_value)
     req_row = db.execute(
         "SELECT * FROM leave_requests WHERE id = ? AND worker_id = ?",
         (req_id, worker["id"])
