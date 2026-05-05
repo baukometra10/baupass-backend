@@ -79,16 +79,16 @@
         <p id="installPlatformHint" class="platform-hint" data-i18n="installHint">Für iPhone und Android optimiert. Installiere die App für schnellen Zugriff am Drehkreuz.</p>
         <div class="top-stats" aria-hidden="true">
           <div class="top-stat-card">
-            <span class="top-stat-label">Pass</span>
-            <strong>Digital</strong>
+            <span class="top-stat-label" data-i18n="topStatPass">Pass</span>
+            <strong data-i18n="topStatDigital">Digital</strong>
           </div>
           <div class="top-stat-card">
-            <span class="top-stat-label">Sync</span>
-            <strong>Sofort</strong>
+            <span class="top-stat-label" data-i18n="topStatSync">Sync</span>
+            <strong data-i18n="topStatInstant">Sofort</strong>
           </div>
         </div>
         <p id="connectionBanner" class="connection-banner online" data-i18n="online">Online</p>
-        <p id="lastSyncInfo" class="platform-hint">Zuletzt synchronisiert: -</p>
+        <p id="lastSyncInfo" class="platform-hint" data-i18n="lastSyncInitial">Zuletzt synchronisiert: -</p>
       </div>
     </header>
 
@@ -100,7 +100,7 @@
       <p class="section-copy" data-i18n="loginCopy">Du kannst den Ausweis per Mitarbeiter-Link oder direkt mit deiner Badge-ID von der Karte aktivieren.</p>
       <div class="lang-option-block">
         <label class="lang-option-label" for="workerLanguageSelect" data-i18n="languageLabel">Sprache</label>
-        <select id="workerLanguageSelect" class="lang-option-select" aria-label="Sprache auswählen">
+        <select id="workerLanguageSelect" class="lang-option-select" aria-label="Sprache auswählen" data-i18n="languageSelectAria" data-i18n-attr="aria-label">
           <option value="de">🇩🇪 Deutsch</option>
           <option value="en">🇬🇧 English</option>
           <option value="tr">🇹🇷 Türkçe</option>
@@ -133,12 +133,12 @@
 
     <section id="badgeCard" class="card worker-pass hidden">
 
-      <nav id="workerQuickMenu" class="worker-quick-menu hidden" aria-label="Schnellnavigation">
-        <button type="button" class="quick-menu-btn" data-scroll-target="badgeCard">Pass</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="actionsPanel">Aktionen</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="leaveRequestCard">Antrag</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="timesheetCard">Stunden</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="documentsCard">Docs</button>
+      <nav id="workerQuickMenu" class="worker-quick-menu hidden" aria-label="Schnellnavigation" data-i18n="quickMenuAria" data-i18n-attr="aria-label">
+        <button type="button" class="quick-menu-btn" data-scroll-target="badgeCard" data-i18n="quickMenuPass">Pass</button>
+        <button type="button" class="quick-menu-btn" data-scroll-target="actionsPanel" data-i18n="quickMenuActions">Aktionen</button>
+        <button type="button" class="quick-menu-btn" data-scroll-target="leaveRequestCard" data-i18n="quickMenuRequest">Antrag</button>
+        <button type="button" class="quick-menu-btn" data-scroll-target="timesheetCard" data-i18n="quickMenuHours">Stunden</button>
+        <button type="button" class="quick-menu-btn" data-scroll-target="documentsCard" data-i18n="quickMenuDocs">Docs</button>
       </nav>
 
       <!-- Pass-Titel + Status-Banner -->
@@ -151,7 +151,7 @@
           <span class="status-banner-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
-          <span id="workerStatusText">Aktiv</span>
+          <span id="workerStatusText" data-i18n="statusActiveShort">Aktiv</span>
         </div>
       </div>
 
@@ -188,9 +188,9 @@
         <div class="wc-middle">
           <div class="wc-qr-holder">
             <div class="wc-qr-frame" aria-hidden="true"></div>
-            <img id="workerQr" alt="QR Code" />
+            <img id="workerQr" alt="QR Code" data-i18n="qrCodeAlt" data-i18n-attr="alt" />
           </div>
-          <img id="workerPhoto" class="wc-photo" alt="Mitarbeiterfoto" />
+          <img id="workerPhoto" class="wc-photo" alt="Mitarbeiterfoto" data-i18n="workerPhotoAlt" data-i18n-attr="alt" />
         </div>
 
         <!-- Unten: Name + Felder -->
@@ -320,8 +320,8 @@
             <button id="qrContrastToggle" class="ghost small-btn" type="button" data-i18n="qrContrastOff">High-Contrast QR: Aus</button>
             <button id="changePhotoButton" class="ghost small-btn" type="button" data-i18n="changePhotoBtn">Foto ändern</button>
             <button id="refreshButton" class="ghost small-btn" type="button" data-i18n="refreshBtn">Aktualisieren</button>
-            <button id="themeToggleBtn" class="theme-toggle-btn ghost small-btn" type="button" title="Theme toggle (light/dark/auto)" data-i18n="themeToggleBtn">🌙</button>
-            <button id="voiceCommandBtn" class="voice-command-btn ghost small-btn" type="button" title="Voice commands" data-i18n="voiceCommandBtn">🎤</button>
+            <button id="themeToggleBtn" class="theme-toggle-btn ghost small-btn" type="button" data-i18n="themeToggleBtn">🌙</button>
+            <button id="voiceCommandBtn" class="voice-command-btn ghost small-btn" type="button" data-i18n="voiceCommandBtn">🎤</button>
             <button id="notificationPermissionBtn" class="ghost small-btn" type="button" data-i18n="notificationPermissionBtn" style="display:none;">Benachrichtigungen</button>
             <button id="logoutButton" class="ghost small-btn logout-btn logout-btn-prominent" type="button" data-i18n="logoutBtn">🚪 Abmelden</button>
           </div>
@@ -334,7 +334,7 @@
             <h3 data-i18n="leaveRequestTitle">Urlaubsantrag</h3>
           </div>
           <div id="leaveBalanceBadge" class="leave-balance-badge hidden">
-            <span id="leaveBalanceRemaining">—</span> <span class="leave-balance-label">Tage verbleibend</span>
+            <span id="leaveBalanceRemaining">—</span> <span class="leave-balance-label" data-i18n="leaveBalanceDaysRemaining">Tage verbleibend</span>
           </div>
           <div id="leaveRequestFormWrapper" class="hidden">
             <form id="leaveRequestForm" class="leave-request-form">
@@ -357,14 +357,14 @@
               <div id="leaveDaysHint" class="leave-days-hint"></div>
               <label>
                 <span data-i18n="leaveRequestNoteLabel">Notiz</span>
-                  <textarea id="leaveRequestNote" rows="3" placeholder="Optional"></textarea>
+                  <textarea id="leaveRequestNote" rows="3" data-i18n="leaveRequestNotePlaceholder" data-i18n-attr="placeholder" placeholder="Optional"></textarea>
               </label>
                 <div class="leave-ai-row">
                   <button type="button" id="leaveRequestAiBtn" class="ai-suggest-btn" data-i18n="aiSuggestBtn">✨ KI Vorschlag</button>
                 </div>
                 <label>
                   <span data-i18n="bossEmailLabel">An Chef senden (optional)</span>
-                  <input id="leaveRequestBossEmail" type="email" placeholder="chef@firma.de" />
+                  <input id="leaveRequestBossEmail" type="email" data-i18n="bossEmailPlaceholder" data-i18n-attr="placeholder" placeholder="chef@firma.de" />
                 </label>
                 <button type="submit" class="primary" data-i18n="leaveRequestSubmitBtn">Antrag einreichen</button>
             </form>
@@ -431,7 +431,7 @@
     </section>
 
     <!-- Quick Gate FAB – immer sichtbar wenn Ausweis geladen (oben rechts) -->
-    <button id="quickGateModeButton" class="quick-gate-fab" type="button" aria-label="Drehkreuz-Modus" title="Drehkreuz-Modus öffnen">
+    <button id="quickGateModeButton" class="quick-gate-fab" type="button" aria-label="Drehkreuz-Modus" data-i18n="gateBtn" data-i18n-attr="aria-label">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2.2"/>
         <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2.2"/>

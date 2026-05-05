@@ -714,6 +714,44 @@ Object.assign(TRANSLATIONS.de, {
   aiSuggestBtn: "✨ KI Vorschlag",
   bossEmailLabel: "An Chef senden (optional)",
   bossEmailPlaceholder: "chef@firma.de",
+  leaveRequestNotePlaceholder: "Optional",
+  quickMenuPass: "Pass",
+  quickMenuActions: "Aktionen",
+  quickMenuRequest: "Antrag",
+  quickMenuHours: "Stunden",
+  quickMenuDocs: "Docs",
+  leaveBalanceDaysRemaining: "Tage verbleibend",
+  topStatPass: "Pass",
+  topStatDigital: "Digital",
+  topStatSync: "Sync",
+  topStatInstant: "Sofort",
+  lastSyncInitial: "Zuletzt synchronisiert: -",
+  statusActiveShort: "Aktiv",
+  qrCodeAlt: "QR-Code",
+  workerPhotoAlt: "Mitarbeiterfoto",
+  workerDefaultRole: "Rolle",
+  companyDefaultName: "Baufirma",
+  workerPageDefault: "Bereich",
+  workerPageOpened: "Geoeffnet: {page}",
+  offlineLoginOnSiteOnly: "Offline-Login nur auf der Baustelle moeglich. Aktuell ca. {meters} m entfernt.",
+  offlineLoginActiveWaitingSync: "Offline-Login aktiv. Wartet auf spaetere Synchronisierung.",
+  browserPushNotSupported: "Push-Benachrichtigungen werden von Ihrem Browser nicht unterstützt.",
+  notificationsAlreadyEnabled: "Benachrichtigungen sind bereits aktiviert.",
+  notificationsEnabled: "Benachrichtigungen aktiviert!",
+  quickMenuAria: "Schnellnavigation",
+  languageSelectAria: "Sprache auswählen",
+  qrLinkUsedEnterPin: "Dieser QR-Link wurde bereits benutzt. Bitte PIN eingeben.",
+  qrLinkInvalidRescan: "QR-Link ungueltig oder bereits verbraucht. Bitte QR-Code neu scannen.",
+  leaveDateRangeInvalid: "Startdatum muss vor dem Enddatum liegen.",
+  leaveRequestSubmitted: "✓ Urlaubsantrag eingereicht",
+  aiSuggestionInserted: "✓ KI-Vorschlag eingefügt",
+  submitRequestFirst: "Bitte zuerst einen Antrag einreichen.",
+  enterValidManagerEmail: "Bitte eine gültige Chef-E-Mail eingeben.",
+  voiceNotSupported: "Sprachsteuerung wird von Ihrem Browser nicht unterstützt.",
+  voiceNeedsSecureContext: "Sprachsteuerung benötigt HTTPS oder localhost.",
+  voiceListening: "🎤 Zuhören...",
+  microphoneAccessBlocked: "Mikrofonzugriff wurde blockiert. Bitte Browser-Berechtigung erlauben.",
+  noSpeechDetected: "Keine Sprache erkannt. Bitte erneut versuchen.",
   sendToBossBtn: "Senden",
   sendToBossKicker: "Per E-Mail weiterleiten",
   sendToBossSuccess: "✓ Antrag wurde an den Chef gesendet.",
@@ -729,6 +767,44 @@ Object.assign(TRANSLATIONS.en, {
   aiSuggestBtn: "✨ AI Suggestion",
   bossEmailLabel: "Send to manager (optional)",
   bossEmailPlaceholder: "manager@company.com",
+  leaveRequestNotePlaceholder: "Optional",
+  quickMenuPass: "Pass",
+  quickMenuActions: "Actions",
+  quickMenuRequest: "Request",
+  quickMenuHours: "Hours",
+  quickMenuDocs: "Docs",
+  leaveBalanceDaysRemaining: "days remaining",
+  topStatPass: "Pass",
+  topStatDigital: "Digital",
+  topStatSync: "Sync",
+  topStatInstant: "Instant",
+  lastSyncInitial: "Last synced: -",
+  statusActiveShort: "Active",
+  qrCodeAlt: "QR code",
+  workerPhotoAlt: "Worker photo",
+  workerDefaultRole: "Role",
+  companyDefaultName: "Company",
+  workerPageDefault: "Section",
+  workerPageOpened: "Opened: {page}",
+  offlineLoginOnSiteOnly: "Offline login is only possible on site. Currently about {meters} m away.",
+  offlineLoginActiveWaitingSync: "Offline login active. Waiting for later synchronization.",
+  browserPushNotSupported: "Push notifications are not supported by your browser.",
+  notificationsAlreadyEnabled: "Notifications are already enabled.",
+  notificationsEnabled: "Notifications enabled!",
+  quickMenuAria: "Quick navigation",
+  languageSelectAria: "Select language",
+  qrLinkUsedEnterPin: "This QR link has already been used. Please enter your PIN.",
+  qrLinkInvalidRescan: "QR link invalid or already used. Please scan the QR code again.",
+  leaveDateRangeInvalid: "Start date must be before end date.",
+  leaveRequestSubmitted: "✓ Leave request submitted",
+  aiSuggestionInserted: "✓ AI suggestion inserted",
+  submitRequestFirst: "Please submit a request first.",
+  enterValidManagerEmail: "Please enter a valid manager email.",
+  voiceNotSupported: "Voice control is not supported by your browser.",
+  voiceNeedsSecureContext: "Voice control requires HTTPS or localhost.",
+  voiceListening: "🎤 Listening...",
+  microphoneAccessBlocked: "Microphone access was blocked. Please allow browser permission.",
+  noSpeechDetected: "No speech detected. Please try again.",
   sendToBossBtn: "Send",
   sendToBossKicker: "Forward by email",
   sendToBossSuccess: "✓ Request sent to manager.",
@@ -744,6 +820,44 @@ Object.assign(TRANSLATIONS.tr, {
   aiSuggestBtn: "✨ Yapay Zeka Önerisi",
   bossEmailLabel: "Amire gönder (isteğe bağlı)",
   bossEmailPlaceholder: "amir@sirket.com",
+  leaveRequestNotePlaceholder: "İsteğe bağlı",
+  quickMenuPass: "Kart",
+  quickMenuActions: "Aksiyonlar",
+  quickMenuRequest: "Talep",
+  quickMenuHours: "Saatler",
+  quickMenuDocs: "Belgeler",
+  leaveBalanceDaysRemaining: "gün kaldı",
+  topStatPass: "Kart",
+  topStatDigital: "Dijital",
+  topStatSync: "Senk",
+  topStatInstant: "Aninda",
+  lastSyncInitial: "Son güncelleme: -",
+  statusActiveShort: "Aktif",
+  qrCodeAlt: "QR kodu",
+  workerPhotoAlt: "Çalışan fotoğrafı",
+  workerDefaultRole: "Rol",
+  companyDefaultName: "Şirket",
+  workerPageDefault: "Bölüm",
+  workerPageOpened: "Açıldı: {page}",
+  offlineLoginOnSiteOnly: "Çevrimdışı giriş yalnızca şantiyede mümkün. Şu anda yaklaşık {meters} m uzaktasınız.",
+  offlineLoginActiveWaitingSync: "Çevrimdışı giriş aktif. Daha sonra senkronizasyon bekleniyor.",
+  browserPushNotSupported: "Push bildirimleri tarayıcınız tarafından desteklenmiyor.",
+  notificationsAlreadyEnabled: "Bildirimler zaten etkin.",
+  notificationsEnabled: "Bildirimler etkinleştirildi!",
+  quickMenuAria: "Hızlı gezinme",
+  languageSelectAria: "Dil seç",
+  qrLinkUsedEnterPin: "Bu QR bağlantısı zaten kullanıldı. Lütfen PIN girin.",
+  qrLinkInvalidRescan: "QR bağlantısı geçersiz veya zaten kullanılmış. Lütfen QR kodunu tekrar tarayın.",
+  leaveDateRangeInvalid: "Başlangıç tarihi bitiş tarihinden önce olmalıdır.",
+  leaveRequestSubmitted: "✓ İzin talebi gönderildi",
+  aiSuggestionInserted: "✓ Yapay zeka önerisi eklendi",
+  submitRequestFirst: "Lütfen önce bir talep gönderin.",
+  enterValidManagerEmail: "Lütfen geçerli bir yönetici e-postası girin.",
+  voiceNotSupported: "Sesli kontrol tarayıcınız tarafından desteklenmiyor.",
+  voiceNeedsSecureContext: "Sesli kontrol için HTTPS veya localhost gerekir.",
+  voiceListening: "🎤 Dinleniyor...",
+  microphoneAccessBlocked: "Mikrofon erişimi engellendi. Lütfen tarayıcı iznini verin.",
+  noSpeechDetected: "Konuşma algılanmadı. Lütfen tekrar deneyin.",
   sendToBossBtn: "Gönder",
   sendToBossKicker: "E-posta ile ilet",
   sendToBossSuccess: "✓ Talep amire gönderildi.",
@@ -761,6 +875,44 @@ Object.assign(TRANSLATIONS.ar, {
   aiSuggestBtn: "✨ اقتراح ذكاء اصطناعي",
   bossEmailLabel: "إرسال إلى المدير (اختياري)",
   bossEmailPlaceholder: "مدير@شركة.com",
+  leaveRequestNotePlaceholder: "اختياري",
+  quickMenuPass: "البطاقة",
+  quickMenuActions: "الإجراءات",
+  quickMenuRequest: "الطلب",
+  quickMenuHours: "الساعات",
+  quickMenuDocs: "المستندات",
+  leaveBalanceDaysRemaining: "أيام متبقية",
+  topStatPass: "البطاقة",
+  topStatDigital: "رقمية",
+  topStatSync: "مزامنة",
+  topStatInstant: "فوري",
+  lastSyncInitial: "آخر مزامنة: -",
+  statusActiveShort: "نشط",
+  qrCodeAlt: "رمز QR",
+  workerPhotoAlt: "صورة العامل",
+  workerDefaultRole: "الدور",
+  companyDefaultName: "الشركة",
+  workerPageDefault: "قسم",
+  workerPageOpened: "مفتوح: {page}",
+  offlineLoginOnSiteOnly: "تسجيل الدخول دون اتصال متاح فقط في موقع العمل. المسافة الحالية حوالي {meters} متر.",
+  offlineLoginActiveWaitingSync: "تسجيل الدخول دون اتصال نشط. بانتظار المزامنة لاحقًا.",
+  browserPushNotSupported: "إشعارات الدفع غير مدعومة في متصفحك.",
+  notificationsAlreadyEnabled: "الإشعارات مفعلة بالفعل.",
+  notificationsEnabled: "تم تفعيل الإشعارات!",
+  quickMenuAria: "تنقل سريع",
+  languageSelectAria: "اختر اللغة",
+  qrLinkUsedEnterPin: "تم استخدام رابط QR هذا بالفعل. يرجى إدخال رمز PIN.",
+  qrLinkInvalidRescan: "رابط QR غير صالح أو تم استخدامه بالفعل. يرجى مسح رمز QR مرة أخرى.",
+  leaveDateRangeInvalid: "يجب أن يكون تاريخ البداية قبل تاريخ النهاية.",
+  leaveRequestSubmitted: "✓ تم إرسال طلب الإجازة",
+  aiSuggestionInserted: "✓ تمت إضافة اقتراح الذكاء الاصطناعي",
+  submitRequestFirst: "يرجى إرسال طلب أولاً.",
+  enterValidManagerEmail: "يرجى إدخال بريد إلكتروني صالح للمدير.",
+  voiceNotSupported: "التحكم الصوتي غير مدعوم في متصفحك.",
+  voiceNeedsSecureContext: "التحكم الصوتي يتطلب HTTPS أو localhost.",
+  voiceListening: "🎤 جارٍ الاستماع...",
+  microphoneAccessBlocked: "تم حظر الوصول إلى الميكروفون. يرجى السماح بإذن المتصفح.",
+  noSpeechDetected: "لم يتم اكتشاف كلام. يرجى المحاولة مرة أخرى.",
   sendToBossBtn: "إرسال",
   sendToBossKicker: "إرسال بالبريد الإلكتروني",
   sendToBossSuccess: "✓ تم إرسال الطلب إلى المدير.",
@@ -837,6 +989,470 @@ Object.assign(TRANSLATIONS.pl, {
   refreshBtn: "↻",
   updateAvailable: "Dostępna nowa wersja aplikacji – przeładowanie za kilka sekund …",
   siteLocationUnavailable: "Nie można określić lokalizacji budowy – logowanie jest i tak dozwolone. Poinformuj administratora."
+});
+
+Object.assign(TRANSLATIONS.fr, {
+  appTitle: "Control Pass Mobile",
+  appLead: "Votre badge, votre trajet et votre accès au chantier en un seul endroit.",
+  installBtn: "Installer l'application",
+  installHint: "Optimisée pour iPhone et Android. Installez l'application pour un accès rapide au tourniquet.",
+  online: "En ligne",
+  offline: "Hors ligne",
+  loginKicker: "Accès direct",
+  loginTitle: "Activer le badge numérique",
+  loginCopy: "Vous pouvez activer le badge via le lien employé ou directement avec votre Badge-ID.",
+  loginTokenLabel: "Code lien ou Badge-ID",
+  loginTokenPlaceholder: "Token du lien ou BP-...",
+  loginPinLabel: "Badge-PIN",
+  loginPinPlaceholder: "PIN de 4 à 8 chiffres",
+  loginBtn: "Charger le badge",
+  tipBadge: "Badge-ID + PIN au lieu du QR",
+  tipHome: "Fonctionne comme app écran d'accueil",
+  tipRoute: "Itinéraire direct vers le chantier",
+  workerPassSubLabel: "Badge employé",
+  workerCardTitle: "Votre badge pour aujourd'hui",
+  fieldBadgeId: "Badge-ID",
+  fieldValidUntil: "Valide jusqu'au",
+  fieldSite: "Chantier",
+  routeTodayTitle: "Site du jour",
+  menuKicker: "Menu",
+  menuTitle: "Vos sections",
+  sessionKicker: "Session",
+  sessionTitle: "Badge du jour",
+  actionsKicker: "Actions",
+  actionsTitle: "Accès rapide",
+  leaveRequestKicker: "Absence",
+  leaveRequestTitle: "Demande de congé",
+  leaveRequestTypeLabel: "Type",
+  leaveTypeVacation: "Congé",
+  leaveTypeSick: "Maladie",
+  leaveTypeOther: "Autre",
+  leaveRequestStartLabel: "Du",
+  leaveRequestEndLabel: "Au",
+  leaveRequestNoteLabel: "Note",
+  leaveRequestNotePlaceholder: "Optionnel",
+  leaveRequestSubmitBtn: "Envoyer la demande",
+  leaveRequestNewBtn: "+ Nouvelle demande",
+  notificationBannerText: "Activer les notifications pour les rappels de sortie ?",
+  notificationEnableBtn: "Activer",
+  timesheetKicker: "Temps de travail",
+  timesheetTitle: "Mes heures",
+  timesheetCardTitle: "Entrées et horaires",
+  timesheetLoading: "Chargement des entrées...",
+  documentsKicker: "Documents",
+  documentsTitle: "Mes documents",
+  documentsLoading: "Chargement des documents...",
+  pageBackBtn: "← Aperçu",
+  visitorMetaKicker: "Visite",
+  visitorMetaTitle: "Détails de visite",
+  fieldVisitorCompany: "Entreprise invitée",
+  fieldVisitPurpose: "Motif de visite",
+  fieldHostName: "Contact sur site",
+  fieldVisitEndAt: "Visite jusqu'à",
+  dayCardValidToday: "Valide aujourd'hui",
+  autoOpenScannerLabel: "Ouvrir automatiquement le scanner à l'expiration",
+  gateBtn: "Mode tourniquet",
+  changePhotoBtn: "Changer la photo",
+  logoutBtn: "Se déconnecter",
+  cameraRotate: "Tourner",
+  cameraDelete: "Supprimer",
+  cameraTakePhoto: "Prendre une photo",
+  cameraConfirm: "Utiliser",
+  cameraRetake: "Reprendre",
+  cameraCancel: "Annuler",
+  gateModeActive: "Mode tourniquet actif - maintenir le QR sous le scanner",
+  gateBrightnessHint: "⚠ Réglez la luminosité au maximum pour un scan rapide.",
+  gateQrAlt: "QR d'accès",
+  qrContrastOff: "QR haute contraste : désactivé",
+  close: "Fermer",
+  pinLockMessage: "Votre badge a été verrouillé. Veuillez saisir votre Badge-PIN pour continuer.",
+  pinLockBtn: "Déverrouiller le badge",
+  pinLockLogout: "Déconnexion",
+  quickMenuPass: "Pass",
+  quickMenuActions: "Actions",
+  quickMenuRequest: "Demande",
+  quickMenuHours: "Heures",
+  quickMenuDocs: "Docs",
+  leaveBalanceDaysRemaining: "jours restants",
+  topStatPass: "Pass",
+  topStatDigital: "Numérique",
+  topStatSync: "Sync",
+  topStatInstant: "Immédiat",
+  lastSyncInitial: "Dernière synchronisation : -",
+  statusActiveShort: "Actif",
+  qrCodeAlt: "Code QR",
+  workerPhotoAlt: "Photo du salarié",
+  workerDefaultRole: "Rôle",
+  companyDefaultName: "Entreprise",
+  workerPageDefault: "Section",
+  workerPageOpened: "Ouvert : {page}",
+  offlineLoginOnSiteOnly: "Connexion hors ligne possible uniquement sur le chantier. Environ {meters} m de distance actuellement.",
+  offlineLoginActiveWaitingSync: "Connexion hors ligne active. En attente de synchronisation ultérieure.",
+  browserPushNotSupported: "Les notifications push ne sont pas prises en charge par votre navigateur.",
+  notificationsAlreadyEnabled: "Les notifications sont déjà activées.",
+  notificationsEnabled: "Notifications activées !",
+  quickMenuAria: "Navigation rapide",
+  languageSelectAria: "Choisir la langue",
+  qrLinkUsedEnterPin: "Ce lien QR a déjà été utilisé. Veuillez saisir votre PIN.",
+  qrLinkInvalidRescan: "Lien QR invalide ou déjà utilisé. Veuillez scanner à nouveau le QR code.",
+  leaveDateRangeInvalid: "La date de début doit être antérieure à la date de fin.",
+  leaveRequestSubmitted: "✓ Demande de congé envoyée",
+  aiSuggestionInserted: "✓ Suggestion IA insérée",
+  submitRequestFirst: "Veuillez d'abord envoyer une demande.",
+  enterValidManagerEmail: "Veuillez saisir une adresse e-mail valide du responsable.",
+  voiceNotSupported: "La commande vocale n'est pas prise en charge par votre navigateur.",
+  voiceNeedsSecureContext: "La commande vocale nécessite HTTPS ou localhost.",
+  voiceListening: "🎤 Écoute...",
+  microphoneAccessBlocked: "L'accès au micro a été bloqué. Veuillez autoriser la permission du navigateur.",
+  noSpeechDetected: "Aucune voix détectée. Veuillez réessayer."
+});
+
+Object.assign(TRANSLATIONS.es, {
+  appTitle: "Control Pass Mobile",
+  appLead: "Tu credencial, tu ruta y tu acceso a obra en un solo lugar.",
+  installBtn: "Instalar aplicación",
+  installHint: "Optimizada para iPhone y Android. Instala la app para acceso rápido al torniquete.",
+  online: "En línea",
+  offline: "Sin conexión",
+  loginKicker: "Acceso directo",
+  loginTitle: "Activar credencial digital",
+  loginCopy: "Puedes activar la credencial con el enlace del trabajador o con tu Badge-ID.",
+  loginTokenLabel: "Código de enlace o Badge-ID",
+  loginTokenPlaceholder: "Token del enlace o BP-...",
+  loginPinLabel: "Badge-PIN",
+  loginPinPlaceholder: "PIN de 4 a 8 dígitos",
+  loginBtn: "Cargar credencial",
+  tipBadge: "Badge-ID + PIN en lugar de QR",
+  tipHome: "Funciona como app de pantalla de inicio",
+  tipRoute: "Ruta directa a la obra",
+  workerPassSubLabel: "Credencial de trabajador",
+  workerCardTitle: "Tu credencial de hoy",
+  fieldBadgeId: "Badge-ID",
+  fieldValidUntil: "Válido hasta",
+  fieldSite: "Obra",
+  routeTodayTitle: "Ubicación de hoy",
+  menuKicker: "Menú",
+  menuTitle: "Tus secciones",
+  sessionKicker: "Sesión",
+  sessionTitle: "Pase diario",
+  actionsKicker: "Acciones",
+  actionsTitle: "Acceso rápido",
+  leaveRequestKicker: "Ausencia",
+  leaveRequestTitle: "Solicitud de vacaciones",
+  leaveRequestTypeLabel: "Tipo",
+  leaveTypeVacation: "Vacaciones",
+  leaveTypeSick: "Baja médica",
+  leaveTypeOther: "Otro",
+  leaveRequestStartLabel: "Desde",
+  leaveRequestEndLabel: "Hasta",
+  leaveRequestNoteLabel: "Nota",
+  leaveRequestNotePlaceholder: "Opcional",
+  leaveRequestSubmitBtn: "Enviar solicitud",
+  leaveRequestNewBtn: "+ Nueva solicitud",
+  notificationBannerText: "¿Activar notificaciones para recordatorios de salida?",
+  notificationEnableBtn: "Activar",
+  timesheetKicker: "Registro horario",
+  timesheetTitle: "Mis horas",
+  timesheetCardTitle: "Entradas y horarios",
+  timesheetLoading: "Cargando registros...",
+  documentsKicker: "Documentos",
+  documentsTitle: "Mis documentos",
+  documentsLoading: "Cargando documentos...",
+  pageBackBtn: "← Resumen",
+  visitorMetaKicker: "Visita",
+  visitorMetaTitle: "Detalles de visita",
+  fieldVisitorCompany: "Empresa invitada",
+  fieldVisitPurpose: "Motivo de visita",
+  fieldHostName: "Contacto en obra",
+  fieldVisitEndAt: "Visita hasta",
+  dayCardValidToday: "Válido hoy",
+  autoOpenScannerLabel: "Abrir escáner automáticamente al expirar",
+  gateBtn: "Modo torniquete",
+  changePhotoBtn: "Cambiar foto",
+  logoutBtn: "Cerrar sesión",
+  cameraRotate: "Girar",
+  cameraDelete: "Eliminar",
+  cameraTakePhoto: "Tomar foto",
+  cameraConfirm: "Usar",
+  cameraRetake: "Repetir",
+  cameraCancel: "Cancelar",
+  gateModeActive: "Modo torniquete activo - mantén el QR bajo el escáner",
+  gateBrightnessHint: "⚠ Ajusta el brillo al máximo para un escaneo rápido.",
+  gateQrAlt: "QR de acceso",
+  qrContrastOff: "QR alto contraste: desactivado",
+  close: "Cerrar",
+  pinLockMessage: "Esta credencial fue bloqueada. Introduce tu Badge-PIN para continuar.",
+  pinLockBtn: "Desbloquear credencial",
+  pinLockLogout: "Cerrar sesión",
+  quickMenuPass: "Pase",
+  quickMenuActions: "Acciones",
+  quickMenuRequest: "Solicitud",
+  quickMenuHours: "Horas",
+  quickMenuDocs: "Docs",
+  leaveBalanceDaysRemaining: "días restantes",
+  topStatPass: "Pase",
+  topStatDigital: "Digital",
+  topStatSync: "Sync",
+  topStatInstant: "Al instante",
+  lastSyncInitial: "Última sincronización: -",
+  statusActiveShort: "Activo",
+  qrCodeAlt: "Código QR",
+  workerPhotoAlt: "Foto del trabajador",
+  workerDefaultRole: "Rol",
+  companyDefaultName: "Empresa",
+  workerPageDefault: "Sección",
+  workerPageOpened: "Abierto: {page}",
+  offlineLoginOnSiteOnly: "El inicio de sesión sin conexión solo es posible en la obra. Actualmente estás a unos {meters} m.",
+  offlineLoginActiveWaitingSync: "Inicio de sesión sin conexión activo. Esperando sincronización posterior.",
+  browserPushNotSupported: "Tu navegador no admite notificaciones push.",
+  notificationsAlreadyEnabled: "Las notificaciones ya están activadas.",
+  notificationsEnabled: "¡Notificaciones activadas!",
+  quickMenuAria: "Navegación rápida",
+  languageSelectAria: "Seleccionar idioma",
+  qrLinkUsedEnterPin: "Este enlace QR ya fue usado. Introduce tu PIN.",
+  qrLinkInvalidRescan: "Enlace QR inválido o ya usado. Escanea de nuevo el código QR.",
+  leaveDateRangeInvalid: "La fecha de inicio debe ser anterior a la fecha de fin.",
+  leaveRequestSubmitted: "✓ Solicitud de vacaciones enviada",
+  aiSuggestionInserted: "✓ Sugerencia IA insertada",
+  submitRequestFirst: "Primero envía una solicitud.",
+  enterValidManagerEmail: "Introduce un correo válido del responsable.",
+  voiceNotSupported: "El control por voz no es compatible con tu navegador.",
+  voiceNeedsSecureContext: "El control por voz requiere HTTPS o localhost.",
+  voiceListening: "🎤 Escuchando...",
+  microphoneAccessBlocked: "El acceso al micrófono fue bloqueado. Permite el permiso del navegador.",
+  noSpeechDetected: "No se detectó voz. Inténtalo de nuevo."
+});
+
+Object.assign(TRANSLATIONS.it, {
+  appTitle: "Control Pass Mobile",
+  appLead: "Il tuo badge, il tuo percorso e l'accesso al cantiere in un unico posto.",
+  installBtn: "Installa app",
+  installHint: "Ottimizzata per iPhone e Android. Installa l'app per accesso rapido al tornello.",
+  online: "Online",
+  offline: "Offline",
+  loginKicker: "Accesso rapido",
+  loginTitle: "Attiva badge digitale",
+  loginCopy: "Puoi attivare il badge con il link lavoratore o con il tuo Badge-ID.",
+  loginTokenLabel: "Codice link o Badge-ID",
+  loginTokenPlaceholder: "Token dal link o BP-...",
+  loginPinLabel: "Badge-PIN",
+  loginPinPlaceholder: "PIN da 4 a 8 cifre",
+  loginBtn: "Carica badge",
+  tipBadge: "Badge-ID + PIN invece del QR",
+  tipHome: "Funziona come app home screen",
+  tipRoute: "Percorso diretto al cantiere",
+  workerPassSubLabel: "Badge lavoratore",
+  workerCardTitle: "Il tuo badge di oggi",
+  fieldBadgeId: "Badge-ID",
+  fieldValidUntil: "Valido fino al",
+  fieldSite: "Cantiere",
+  routeTodayTitle: "Posizione di oggi",
+  menuKicker: "Menu",
+  menuTitle: "Le tue sezioni",
+  sessionKicker: "Sessione",
+  sessionTitle: "Pass giornaliero",
+  actionsKicker: "Azioni",
+  actionsTitle: "Accesso rapido",
+  leaveRequestKicker: "Assenza",
+  leaveRequestTitle: "Richiesta ferie",
+  leaveRequestTypeLabel: "Tipo",
+  leaveTypeVacation: "Ferie",
+  leaveTypeSick: "Malattia",
+  leaveTypeOther: "Altro",
+  leaveRequestStartLabel: "Da",
+  leaveRequestEndLabel: "A",
+  leaveRequestNoteLabel: "Nota",
+  leaveRequestNotePlaceholder: "Facoltativo",
+  leaveRequestSubmitBtn: "Invia richiesta",
+  leaveRequestNewBtn: "+ Nuova richiesta",
+  notificationBannerText: "Attivare notifiche per promemoria checkout?",
+  notificationEnableBtn: "Attiva",
+  timesheetKicker: "Presenze",
+  timesheetTitle: "Le mie ore",
+  timesheetCardTitle: "Ingressi e orari",
+  timesheetLoading: "Caricamento registrazioni...",
+  documentsKicker: "Documenti",
+  documentsTitle: "I miei documenti",
+  documentsLoading: "Caricamento documenti...",
+  pageBackBtn: "← Panoramica",
+  visitorMetaKicker: "Visita",
+  visitorMetaTitle: "Dettagli visita",
+  fieldVisitorCompany: "Azienda ospite",
+  fieldVisitPurpose: "Motivo visita",
+  fieldHostName: "Contatto in cantiere",
+  fieldVisitEndAt: "Visita fino a",
+  dayCardValidToday: "Valido oggi",
+  autoOpenScannerLabel: "Apri scanner automaticamente alla scadenza",
+  gateBtn: "Modalità tornello",
+  changePhotoBtn: "Cambia foto",
+  logoutBtn: "Disconnetti",
+  cameraRotate: "Ruota",
+  cameraDelete: "Elimina",
+  cameraTakePhoto: "Scatta foto",
+  cameraConfirm: "Usa",
+  cameraRetake: "Riscatta",
+  cameraCancel: "Annulla",
+  gateModeActive: "Modalità tornello attiva - tieni il QR sotto lo scanner",
+  gateBrightnessHint: "⚠ Imposta la luminosità al massimo per una scansione rapida.",
+  gateQrAlt: "QR di accesso",
+  qrContrastOff: "QR alto contrasto: disattivato",
+  close: "Chiudi",
+  pinLockMessage: "Questo badge è stato bloccato. Inserisci il tuo Badge-PIN per continuare.",
+  pinLockBtn: "Sblocca badge",
+  pinLockLogout: "Disconnetti",
+  quickMenuPass: "Pass",
+  quickMenuActions: "Azioni",
+  quickMenuRequest: "Richiesta",
+  quickMenuHours: "Ore",
+  quickMenuDocs: "Documenti",
+  leaveBalanceDaysRemaining: "giorni rimanenti",
+  topStatPass: "Pass",
+  topStatDigital: "Digitale",
+  topStatSync: "Sync",
+  topStatInstant: "Immediato",
+  lastSyncInitial: "Ultima sincronizzazione: -",
+  statusActiveShort: "Attivo",
+  qrCodeAlt: "Codice QR",
+  workerPhotoAlt: "Foto lavoratore",
+  workerDefaultRole: "Ruolo",
+  companyDefaultName: "Azienda",
+  workerPageDefault: "Sezione",
+  workerPageOpened: "Aperto: {page}",
+  offlineLoginOnSiteOnly: "Accesso offline possibile solo in cantiere. Attualmente sei a circa {meters} m.",
+  offlineLoginActiveWaitingSync: "Accesso offline attivo. In attesa di sincronizzazione successiva.",
+  browserPushNotSupported: "Le notifiche push non sono supportate dal tuo browser.",
+  notificationsAlreadyEnabled: "Le notifiche sono già attive.",
+  notificationsEnabled: "Notifiche attivate!",
+  quickMenuAria: "Navigazione rapida",
+  languageSelectAria: "Seleziona lingua",
+  qrLinkUsedEnterPin: "Questo link QR è già stato usato. Inserisci il PIN.",
+  qrLinkInvalidRescan: "Link QR non valido o già usato. Scansiona di nuovo il codice QR.",
+  leaveDateRangeInvalid: "La data di inizio deve essere precedente alla data di fine.",
+  leaveRequestSubmitted: "✓ Richiesta ferie inviata",
+  aiSuggestionInserted: "✓ Suggerimento IA inserito",
+  submitRequestFirst: "Invia prima una richiesta.",
+  enterValidManagerEmail: "Inserisci un'e-mail valida del responsabile.",
+  voiceNotSupported: "Il controllo vocale non è supportato dal tuo browser.",
+  voiceNeedsSecureContext: "Il controllo vocale richiede HTTPS o localhost.",
+  voiceListening: "🎤 In ascolto...",
+  microphoneAccessBlocked: "L'accesso al microfono è stato bloccato. Consenti il permesso del browser.",
+  noSpeechDetected: "Nessun parlato rilevato. Riprova."
+});
+
+Object.assign(TRANSLATIONS.pl, {
+  appTitle: "Control Pass Mobile",
+  appLead: "Twoja karta, trasa i dostęp do budowy w jednym miejscu.",
+  installBtn: "Zainstaluj aplikację",
+  installHint: "Zoptymalizowana dla iPhone i Android. Zainstaluj aplikację dla szybkiego dostępu do bramki.",
+  online: "Online",
+  offline: "Offline",
+  loginKicker: "Szybki start",
+  loginTitle: "Aktywuj cyfrową kartę",
+  loginCopy: "Możesz aktywować kartę linkiem pracownika lub bezpośrednio przez Badge-ID.",
+  loginTokenLabel: "Kod linku lub Badge-ID",
+  loginTokenPlaceholder: "Token z linku lub BP-...",
+  loginPinLabel: "Badge-PIN",
+  loginPinPlaceholder: "PIN 4-8 cyfr",
+  loginBtn: "Wczytaj kartę",
+  tipBadge: "Badge-ID + PIN zamiast QR",
+  tipHome: "Działa jako aplikacja ekranu głównego",
+  tipRoute: "Bezpośrednia trasa na budowę",
+  workerPassSubLabel: "Karta pracownika",
+  workerCardTitle: "Twoja karta na dziś",
+  fieldBadgeId: "Badge-ID",
+  fieldValidUntil: "Ważna do",
+  fieldSite: "Budowa",
+  routeTodayTitle: "Lokalizacja dzisiaj",
+  menuKicker: "Menu",
+  menuTitle: "Twoje sekcje",
+  sessionKicker: "Sesja",
+  sessionTitle: "Przepustka dzienna",
+  actionsKicker: "Akcje",
+  actionsTitle: "Szybki dostęp",
+  leaveRequestKicker: "Nieobecność",
+  leaveRequestTitle: "Wniosek urlopowy",
+  leaveRequestTypeLabel: "Typ",
+  leaveTypeVacation: "Urlop",
+  leaveTypeSick: "Chorobowe",
+  leaveTypeOther: "Inne",
+  leaveRequestStartLabel: "Od",
+  leaveRequestEndLabel: "Do",
+  leaveRequestNoteLabel: "Notatka",
+  leaveRequestNotePlaceholder: "Opcjonalnie",
+  leaveRequestSubmitBtn: "Wyślij wniosek",
+  leaveRequestNewBtn: "+ Nowy wniosek",
+  notificationBannerText: "Włączyć powiadomienia o przypomnieniach wyjścia?",
+  notificationEnableBtn: "Włącz",
+  timesheetKicker: "Ewidencja czasu",
+  timesheetTitle: "Moje godziny",
+  timesheetCardTitle: "Wejścia i czasy",
+  timesheetLoading: "Ładowanie wpisów...",
+  documentsKicker: "Dokumenty",
+  documentsTitle: "Moje dokumenty",
+  documentsLoading: "Ładowanie dokumentów...",
+  pageBackBtn: "← Podgląd",
+  visitorMetaKicker: "Wizyta",
+  visitorMetaTitle: "Szczegóły wizyty",
+  fieldVisitorCompany: "Firma gościa",
+  fieldVisitPurpose: "Cel wizyty",
+  fieldHostName: "Kontakt na budowie",
+  fieldVisitEndAt: "Wizyta do",
+  dayCardValidToday: "Ważna dzisiaj",
+  autoOpenScannerLabel: "Automatycznie otwórz skaner przy wygaśnięciu",
+  gateBtn: "Tryb bramki",
+  changePhotoBtn: "Zmień zdjęcie",
+  logoutBtn: "Wyloguj",
+  cameraRotate: "Obróć",
+  cameraDelete: "Usuń",
+  cameraTakePhoto: "Zrób zdjęcie",
+  cameraConfirm: "Użyj",
+  cameraRetake: "Zrób ponownie",
+  cameraCancel: "Anuluj",
+  gateModeActive: "Tryb bramki aktywny - trzymaj QR pod skanerem",
+  gateBrightnessHint: "⚠ Ustaw maksymalną jasność ekranu dla szybkiego skanowania.",
+  gateQrAlt: "QR dostępu",
+  qrContrastOff: "QR wysoki kontrast: wyłączony",
+  close: "Zamknij",
+  pinLockMessage: "Ta karta została zablokowana. Wpisz swój Badge-PIN, aby kontynuować.",
+  pinLockBtn: "Odblokuj kartę",
+  pinLockLogout: "Wyloguj",
+  quickMenuPass: "Karta",
+  quickMenuActions: "Akcje",
+  quickMenuRequest: "Wniosek",
+  quickMenuHours: "Godziny",
+  quickMenuDocs: "Dokumenty",
+  leaveBalanceDaysRemaining: "dni pozostało",
+  topStatPass: "Przepustka",
+  topStatDigital: "Cyfrowa",
+  topStatSync: "Sync",
+  topStatInstant: "Natychmiast",
+  lastSyncInitial: "Ostatnia synchronizacja: -",
+  statusActiveShort: "Aktywny",
+  qrCodeAlt: "Kod QR",
+  workerPhotoAlt: "Zdjęcie pracownika",
+  workerDefaultRole: "Rola",
+  companyDefaultName: "Firma",
+  workerPageDefault: "Sekcja",
+  workerPageOpened: "Otwarte: {page}",
+  offlineLoginOnSiteOnly: "Logowanie offline możliwe tylko na budowie. Obecnie około {meters} m od miejsca.",
+  offlineLoginActiveWaitingSync: "Logowanie offline aktywne. Oczekiwanie na późniejszą synchronizację.",
+  browserPushNotSupported: "Powiadomienia push nie są obsługiwane przez Twoją przeglądarkę.",
+  notificationsAlreadyEnabled: "Powiadomienia są już włączone.",
+  notificationsEnabled: "Powiadomienia włączone!",
+  quickMenuAria: "Szybka nawigacja",
+  languageSelectAria: "Wybierz język",
+  qrLinkUsedEnterPin: "Ten link QR został już użyty. Wpisz PIN.",
+  qrLinkInvalidRescan: "Link QR jest nieprawidłowy lub już użyty. Zeskanuj kod QR ponownie.",
+  leaveDateRangeInvalid: "Data rozpoczęcia musi być wcześniejsza niż data zakończenia.",
+  leaveRequestSubmitted: "✓ Wniosek urlopowy wysłany",
+  aiSuggestionInserted: "✓ Dodano sugestię AI",
+  submitRequestFirst: "Najpierw złóż wniosek.",
+  enterValidManagerEmail: "Wpisz poprawny e-mail przełożonego.",
+  voiceNotSupported: "Sterowanie głosowe nie jest obsługiwane przez Twoją przeglądarkę.",
+  voiceNeedsSecureContext: "Sterowanie głosowe wymaga HTTPS lub localhost.",
+  voiceListening: "🎤 Nasłuchiwanie...",
+  microphoneAccessBlocked: "Dostęp do mikrofonu został zablokowany. Zezwól na uprawnienie w przeglądarce.",
+  noSpeechDetected: "Nie wykryto mowy. Spróbuj ponownie."
 });
 
 const LANG_META = {
@@ -1105,10 +1721,10 @@ function getWorkerPageTitle(targetId) {
   if (targetId === "sessionInfoCard") return t("sessionTitle");
   if (targetId === "actionsPanel") return t("actionsTitle");
   if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
-  if (targetId === "timesheetCard") return "Eintritte & Zeiten";
+  if (targetId === "timesheetCard") return t("timesheetCardTitle");
   if (targetId === "documentsCard") return t("documentsTitle");
   if (targetId === "workerVisitorMeta") return t("visitorMetaTitle");
-  return "Bereich";
+  return t("workerPageDefault");
 }
 
 function getWorkerPageSections() {
@@ -1158,7 +1774,7 @@ function applyWorkerPageView(targetId = "") {
     elements.workerPageNav.classList.remove("hidden");
   }
   if (elements.workerPageLabel) {
-    elements.workerPageLabel.textContent = `Geoeffnet: ${getWorkerPageTitle(targetId)}`;
+    elements.workerPageLabel.textContent = tf("workerPageOpened", { page: getWorkerPageTitle(targetId) });
   }
 }
 
@@ -1709,7 +2325,7 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   if (hasSiteGeo && locationPayload) {
     distanceMeters = Math.round(calculateDistanceMeters(siteLocation.latitude, siteLocation.longitude, locationPayload.latitude, locationPayload.longitude));
     if (distanceMeters > Number(siteLocation.radiusMeters || 100)) {
-      showWorkerNotice(`Offline-Login nur auf der Baustelle moeglich. Aktuell ca. ${distanceMeters} m entfernt.`);
+      showWorkerNotice(tf("offlineLoginOnSiteOnly", { meters: distanceMeters }));
       return true;
     }
   }
@@ -1721,7 +2337,7 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   renderWorker(cachedPayload);
   updateConnectionState();
   if (elements.lastSyncInfo) {
-    elements.lastSyncInfo.textContent = `Offline-Login aktiv. Wartet auf spaetere Synchronisierung.`;
+    elements.lastSyncInfo.textContent = t("offlineLoginActiveWaitingSync");
   }
   queueOfflineEvent({
     type: "offline_login",
@@ -1955,15 +2571,15 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
           const pinInput = document.querySelector("#workerBadgePin");
           if (pinInput) setTimeout(() => pinInput.focus(), 120);
         }
-        showWorkerNotice("Dieser QR-Link wurde bereits benutzt. Bitte PIN eingeben.");
+        showWorkerNotice(t("qrLinkUsedEnterPin"));
         return;
       }
-      showWorkerNotice("QR-Link ungueltig oder bereits verbraucht. Bitte QR-Code neu scannen.");
+      showWorkerNotice(t("qrLinkInvalidRescan"));
       return;
     }
     if (["invalid_access_token", "access_token_revoked", "access_token_expired"].includes(error.code)) {
       localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
-      showWorkerNotice("QR-Link ungueltig oder bereits verbraucht. Bitte QR-Code neu scannen.");
+      showWorkerNotice(t("qrLinkInvalidRescan"));
       return;
     }
     if (error.code === "visitor_visit_expired") {
@@ -3357,19 +3973,19 @@ function applyTheme(theme) {
 
 async function requestNotificationPermission() {
   if (!("Notification" in window)) {
-    showWorkerNotice("Push-Benachrichtigungen werden von Ihrem Browser nicht unterstützt.");
+    showWorkerNotice(t("browserPushNotSupported"));
     return;
   }
   
   if (Notification.permission === "granted") {
-    showWorkerNotice("Benachrichtigungen sind bereits aktiviert.");
+    showWorkerNotice(t("notificationsAlreadyEnabled"));
     await subscribePushNotifications();
     return;
   }
   
   const permission = await Notification.requestPermission();
   if (permission === "granted") {
-    showWorkerNotice("Benachrichtigungen aktiviert!");
+    showWorkerNotice(t("notificationsEnabled"));
     await subscribePushNotifications();
     if (elements.notificationBanner) {
       elements.notificationBanner.classList.add("hidden");
@@ -3455,11 +4071,11 @@ async function submitLeaveRequest() {
     return;
   }
   if (start > end) {
-    showWorkerNotice("Startdatum muss vor dem Enddatum liegen.");
+    showWorkerNotice(t("leaveDateRangeInvalid"));
     return;
   }
   if (start > end) {
-    showWorkerNotice("Startdatum muss vor dem Enddatum liegen.");
+    showWorkerNotice(t("leaveDateRangeInvalid"));
     return;
   }
   
@@ -3474,7 +4090,7 @@ async function submitLeaveRequest() {
     });
     lastSubmittedLeaveRequestId = String(result?.id || "");
     
-    showWorkerNotice("✓ Urlaubsantrag eingereicht");
+    showWorkerNotice(t("leaveRequestSubmitted"));
     if (elements.sendToBossPanel) {
       elements.sendToBossPanel.classList.remove("hidden");
       if (elements.bossEmailInput && elements.leaveRequestBossEmail?.value) {
@@ -3500,19 +4116,19 @@ function applyAiLeaveSuggestion() {
 
   if (elements.leaveRequestNote) {
     elements.leaveRequestNote.value = suggestion;
-    showWorkerNotice("✓ KI-Vorschlag eingefügt");
+    showWorkerNotice(t("aiSuggestionInserted"));
   }
 }
 
 async function sendLastLeaveRequestToBoss() {
   if (!workerToken) return;
   if (!lastSubmittedLeaveRequestId) {
-    showWorkerNotice("Bitte zuerst einen Antrag einreichen.");
+    showWorkerNotice(t("submitRequestFirst"));
     return;
   }
   const recipient = (elements.bossEmailInput?.value || "").trim();
   if (!recipient || !recipient.includes("@")) {
-    showWorkerNotice("Bitte eine gültige Chef-E-Mail eingeben.");
+    showWorkerNotice(t("enterValidManagerEmail"));
     return;
   }
 
@@ -3736,12 +4352,12 @@ let isListening = false;
 function initVoiceCommands() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    showWorkerNotice("Sprachsteuerung wird von Ihrem Browser nicht unterstützt.");
+    showWorkerNotice(t("voiceNotSupported"));
     return;
   }
 
   if (!window.isSecureContext) {
-    showWorkerNotice("Sprachsteuerung benötigt HTTPS oder localhost.");
+    showWorkerNotice(t("voiceNeedsSecureContext"));
     return;
   }
   
@@ -3766,7 +4382,7 @@ function initVoiceCommands() {
       if (elements.voiceCommandBtn) {
         elements.voiceCommandBtn.classList.add("listening");
       }
-      showWorkerNotice("🎤 Zuhören...");
+      showWorkerNotice(t("voiceListening"));
     };
     
     voiceRecognition.onend = () => {
@@ -3779,11 +4395,11 @@ function initVoiceCommands() {
     voiceRecognition.onerror = (event) => {
       const code = String(event.error || "");
       if (code === "not-allowed" || code === "service-not-allowed") {
-        showWorkerNotice("Mikrofonzugriff wurde blockiert. Bitte Browser-Berechtigung erlauben.");
+        showWorkerNotice(t("microphoneAccessBlocked"));
         return;
       }
       if (code === "no-speech") {
-        showWorkerNotice("Keine Sprache erkannt. Bitte erneut versuchen.");
+        showWorkerNotice(t("noSpeechDetected"));
         return;
       }
       showWorkerNotice(`Fehler: ${code || "unknown"}`);

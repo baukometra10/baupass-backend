@@ -501,11 +501,11 @@
             <div class="worker-list-toolbar">
               <input id="workerSearchInput" type="search" placeholder="Suchen: Name, Badge-ID, Standort …" data-ui-i18n="workerSearchPlaceholder" data-ui-i18n-attr="placeholder" autocomplete="off" />
               <select id="workerStatusFilter" style="max-width: 140px;">
-                <option value="">Alle Status</option>
-                <option value="aktiv">Aktiv</option>
-                <option value="inaktiv">Inaktiv</option>
-                <option value="gesperrt">Gesperrt</option>
-                <option value="abgelaufen">Abgelaufen</option>
+                <option value="" data-ui-i18n="optAllStatus">Alle Status</option>
+                <option value="aktiv" data-ui-i18n="optStatusActive">Aktiv</option>
+                <option value="inaktiv" data-ui-i18n="optStatusInactive">Inaktiv</option>
+                <option value="gesperrt" data-ui-i18n="optStatusLocked">Gesperrt</option>
+                <option value="abgelaufen" data-ui-i18n="optStatusExpired">Abgelaufen</option>
               </select>
               <label class="bulk-select-all-label">
                 <input id="bulkSelectAll" type="checkbox" /> <span id="bulkSelectAllText" data-ui-i18n="bulkSelectAll">Alle auswählen</span>
@@ -675,7 +675,7 @@
               </label>
               <label>
                 <span data-ui-i18n="labelAccessGate">Punkt</span>
-                <input id="accessGate" type="text" value="Drehkreuz Nord" required />
+                <input id="accessGate" type="text" placeholder="z. B. Drehkreuz Nord" data-ui-i18n-placeholder="accessGate" required />
               </label>
               <label>
                 <span data-ui-i18n="labelAccessNote">Notiz</span>
@@ -718,7 +718,7 @@
               </label>
               <label>
                 <span data-ui-i18n="labelFilterGate">Drehkreuz</span>
-                <input id="accessFilterGate" type="text" placeholder="z. B. Drehkreuz Nord" />
+                <input id="accessFilterGate" type="text" placeholder="z. B. Drehkreuz Nord" data-ui-i18n-placeholder="accessFilterGate" />
               </label>
               <button type="submit" class="ghost-button" data-ui-i18n="btnApplyFilter">Filter anwenden</button>
               <button id="accessResetButton" type="button" class="ghost-button" data-ui-i18n="btnResetFilter">Filter zurücksetzen</button>
@@ -1141,45 +1141,45 @@
 
               <!-- ── Rechnungs-Absenderadresse ── -->
               <label class="full-width">
-                <span>Straße &amp; Hausnummer</span>
-                <input id="invoiceOperatorStreet" type="text" maxlength="120" placeholder="Musterstraße 12" />
+                <span data-ui-i18n="invoiceOperatorStreetLabel">Straße &amp; Hausnummer</span>
+                <input id="invoiceOperatorStreet" type="text" maxlength="120" placeholder="Musterstraße 12" data-ui-i18n-placeholder="invoiceOperatorStreet" />
               </label>
               <label>
-                <span>PLZ &amp; Ort</span>
-                <input id="invoiceOperatorZipCity" type="text" maxlength="80" placeholder="12345 Musterstadt" />
+                <span data-ui-i18n="invoiceOperatorZipCityLabel">PLZ &amp; Ort</span>
+                <input id="invoiceOperatorZipCity" type="text" maxlength="80" placeholder="12345 Musterstadt" data-ui-i18n-placeholder="invoiceOperatorZipCity" />
               </label>
               <label>
-                <span>Telefon</span>
-                <input id="invoiceOperatorPhone" type="text" maxlength="40" placeholder="+49 123 456789" />
+                <span data-ui-i18n="invoiceOperatorPhoneLabel">Telefon</span>
+                <input id="invoiceOperatorPhone" type="text" maxlength="40" placeholder="+49 123 456789" data-ui-i18n-placeholder="invoiceOperatorPhone" />
               </label>
               <label>
-                <span>Website</span>
-                <input id="invoiceOperatorWebsite" type="text" maxlength="120" placeholder="www.meinefirma.de" />
+                <span data-ui-i18n="invoiceOperatorWebsiteLabel">Website</span>
+                <input id="invoiceOperatorWebsite" type="text" maxlength="120" placeholder="www.meinefirma.de" data-ui-i18n-placeholder="invoiceOperatorWebsite" />
               </label>
               <label>
-                <span>Rechnungs-E-Mail (Kontakt auf PDF)</span>
-                <input id="invoiceOperatorEmail" type="email" maxlength="120" placeholder="rechnung@meinefirma.de" />
+                <span data-ui-i18n="invoiceOperatorEmailPdfLabel">Rechnungs-E-Mail (Kontakt auf PDF)</span>
+                <input id="invoiceOperatorEmail" type="email" maxlength="120" placeholder="rechnung@meinefirma.de" data-ui-i18n-placeholder="invoiceOperatorEmail" />
               </label>
 
               <!-- ── Bankverbindung ── -->
               <div class="form-section" style="margin-top:8px">
                 <div class="form-section-icon">🏦</div>
                 <div class="form-section-label">
-                  <p class="eyebrow">Bankverbindung &amp; Steuer</p>
-                  <h4>Zahlungsinformationen (PDF)</h4>
+                  <p class="eyebrow" data-ui-i18n="invoiceBankTaxEyebrow">Bankverbindung &amp; Steuer</p>
+                  <h4 data-ui-i18n="invoicePaymentInfoH4">Zahlungsinformationen (PDF)</h4>
                 </div>
               </div>
               <label class="full-width">
-                <span>IBAN</span>
-                <input id="invoiceIban" type="text" maxlength="42" placeholder="DE12 3456 7890 1234 5678 90" autocomplete="off" spellcheck="false" inputmode="text" />
+                <span data-ui-i18n="invoiceIbanLabel">IBAN</span>
+                <input id="invoiceIban" type="text" maxlength="42" placeholder="DE12 3456 7890 1234 5678 90" data-ui-i18n-placeholder="invoiceIban" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label>
-                <span>BIC / SWIFT</span>
-                <input id="invoiceBic" type="text" maxlength="11" placeholder="COBADEFFXXX" autocomplete="off" spellcheck="false" inputmode="text" />
+                <span data-ui-i18n="invoiceBicLabel">BIC / SWIFT</span>
+                <input id="invoiceBic" type="text" maxlength="11" placeholder="COBADEFFXXX" data-ui-i18n-placeholder="invoiceBic" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label>
-                <span>🏦 Bankname</span>
-                <input id="invoiceBankName" type="text" maxlength="80" placeholder="Bankname eingeben oder wählen…" list="bankNameList" autocomplete="off" />
+                <span data-ui-i18n="invoiceBankNameLabel">🏦 Bankname</span>
+                <input id="invoiceBankName" type="text" maxlength="80" placeholder="Bankname eingeben oder wählen…" data-ui-i18n-placeholder="invoiceBankName" list="bankNameList" autocomplete="off" />
                 <datalist id="bankNameList">
                   <option value="Sparkasse"></option>
                   <option value="Volksbank"></option>
@@ -1208,46 +1208,46 @@
                 </datalist>
               </label>
               <label>
-                <span>Steuernummer</span>
-                <input id="invoiceTaxId" type="text" maxlength="18" placeholder="123/456/78901" autocomplete="off" spellcheck="false" inputmode="numeric" />
+                <span data-ui-i18n="invoiceTaxNumberLabel">Steuernummer</span>
+                <input id="invoiceTaxId" type="text" maxlength="18" placeholder="123/456/78901" data-ui-i18n-placeholder="invoiceTaxId" autocomplete="off" spellcheck="false" inputmode="numeric" />
               </label>
               <label>
-                <span>USt-IdNr.</span>
-                <input id="invoiceVatId" type="text" maxlength="14" placeholder="DE123456789" autocomplete="off" spellcheck="false" inputmode="text" />
+                <span data-ui-i18n="invoiceVatIdLabel">USt-IdNr.</span>
+                <input id="invoiceVatId" type="text" maxlength="14" placeholder="DE123456789" data-ui-i18n-placeholder="invoiceVatId" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label class="full-width">
-                <span>Rechnungs-E-Mail Betreff <small style="font-weight:400">(leer = Standard: "Rechnung von … Nr. …")</small></span>
-                <input id="invoiceEmailSubject" type="text" placeholder="Ihre Rechnung Nr. {invoiceNumber} von {platformName}" />
+                <span data-ui-i18n-html="invoiceEmailSubjectLabel">Rechnungs-E-Mail Betreff <small style="font-weight:400">(leer = Standard: "Rechnung von … Nr. …")</small></span>
+                <input id="invoiceEmailSubject" type="text" placeholder="Ihre Rechnung Nr. {invoiceNumber} von {platformName}" data-ui-i18n-placeholder="invoiceEmailSubject" />
               </label>
               <label class="full-width">
-                <span>Rechnungs-E-Mail Einleitungstext <small style="font-weight:400">(leer = Standardtext)</small></span>
-                <textarea id="invoiceEmailIntro" rows="3" placeholder="anbei finden Sie Ihre Rechnung…"></textarea>
+                <span data-ui-i18n-html="invoiceEmailIntroLabel">Rechnungs-E-Mail Einleitungstext <small style="font-weight:400">(leer = Standardtext)</small></span>
+                <textarea id="invoiceEmailIntro" rows="3" placeholder="anbei finden Sie Ihre Rechnung…" data-ui-i18n-placeholder="invoiceEmailIntro"></textarea>
               </label>
               <label class="full-width">
-                <span>Rechnungs-E-Mail Vorlage <small style="font-weight:400">(überschreibt Einleitungstext; Platzhalter: {invoiceNumber}, {platformName}, {companyName})</small></span>
-                <textarea id="invoiceEmailBodyTemplate" rows="4" placeholder="anbei erhalten Sie Ihre Rechnung {invoiceNumber}…"></textarea>
+                <span data-ui-i18n-html="invoiceEmailTemplateLabel">Rechnungs-E-Mail Vorlage <small style="font-weight:400">(überschreibt Einleitungstext; Platzhalter: {invoiceNumber}, {platformName}, {companyName})</small></span>
+                <textarea id="invoiceEmailBodyTemplate" rows="4" placeholder="anbei erhalten Sie Ihre Rechnung {invoiceNumber}…" data-ui-i18n-placeholder="invoiceEmailBodyTemplate"></textarea>
               </label>
               <label>
-                <span>Mahnungs-Stufe 1 (Tage nach Fälligkeit)</span>
+                <span data-ui-i18n="dunningStage1Label">Mahnungs-Stufe 1 (Tage nach Fälligkeit)</span>
                 <input id="dunningStage1Days" type="number" min="1" max="60" value="7" />
               </label>
               <label>
-                <span>Mahnungs-Stufe 2 (Tage nach Fälligkeit)</span>
+                <span data-ui-i18n="dunningStage2Label">Mahnungs-Stufe 2 (Tage nach Fälligkeit)</span>
                 <input id="dunningStage2Days" type="number" min="1" max="30" value="3" />
               </label>
               <label>
-                <span>Monatsrechnung automatisch senden</span>
+                <span data-ui-i18n="monthlyInvoiceAutoSendLabel">Monatsrechnung automatisch senden</span>
                 <select id="monthlyInvoiceAutoEnabled">
-                  <option value="1">Aktiv</option>
-                  <option value="0">Deaktiviert</option>
+                  <option value="1" data-ui-i18n="optActive">Aktiv</option>
+                  <option value="0" data-ui-i18n="optDisabled">Deaktiviert</option>
                 </select>
               </label>
               <label>
-                <span>Ausführungstag im Monat</span>
+                <span data-ui-i18n="monthlyInvoiceRunDayLabel">Ausführungstag im Monat</span>
                 <input id="monthlyInvoiceRunDay" type="number" min="1" max="28" value="1" />
               </label>
               <label>
-                <span>Zahlungsfrist Monatsrechnung (Tage)</span>
+                <span data-ui-i18n="monthlyInvoiceDueDaysLabel">Zahlungsfrist Monatsrechnung (Tage)</span>
                 <input id="monthlyInvoiceDueDays" type="number" min="1" max="90" value="14" />
               </label>
 
@@ -1396,8 +1396,8 @@
                 </select>
               </label>
               <label class="full-width">
-                <span>Admin-Notfallnummer fuer Sicherheitsbildschirm</span>
-                <input id="supportPhone" type="text" placeholder="+49 176 31676589" />
+                <span data-ui-i18n="supportPhoneLabel">Admin-Notfallnummer fuer Sicherheitsbildschirm</span>
+                <input id="supportPhone" type="text" placeholder="+49 176 31676589" data-ui-i18n-placeholder="supportPhone" />
               </label>
 
               <!-- ── App-Features ── -->
@@ -1478,8 +1478,8 @@
                 <input id="companyName" type="text" placeholder="Muster Bau GmbH" required />
               </label>
               <label>
-                <span>Kundennummer</span>
-                <input id="companyCustomerNumber" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="z. B. 10023" />
+                <span data-ui-i18n="companyCustomerNumberLabel">Kundennummer</span>
+                <input id="companyCustomerNumber" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="z. B. 10023" data-ui-i18n-placeholder="companyCustomerNumber" />
               </label>
               <label>
                 <span data-ui-i18n="labelCompanyContact">Ansprechpartner</span>
