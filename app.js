@@ -14262,6 +14262,8 @@ async function openWorkerHoursModal(companyId) {
   const escHandler = (e) => { if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", escHandler); } };
   document.addEventListener("keydown", escHandler);
 }
+
+function applyActiveCompanyBrandingPreset() {
   if (!document.body) {
     return;
   }
