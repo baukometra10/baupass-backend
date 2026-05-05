@@ -782,30 +782,31 @@ body.worker-loaded .app-shell {
 
 /* ── INDUSTRY: warmes Dunkel-Orange ─────────────────── */
 .wallet-card.preset-industry {
-  background: linear-gradient(135deg, #1c1000 0%, #3a1f00 45%, #251400 100%);
+  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
   box-shadow:
-    0 28px 60px rgba(200, 80, 0, .45),
+    0 28px 60px rgba(110, 58, 20, .42),
     0  4px 20px rgba(0, 0, 0, .35),
-    0  0   0  1px rgba(255, 140, 0, .18),
-    inset 0 1px 0 rgba(255, 180, 60, .12);
+    0  0   0  1px rgba(210, 140, 70, .2),
+    inset 0 1px 0 rgba(255, 215, 150, .1);
 }
 
 .wallet-card.preset-industry::before {
-  background: linear-gradient(90deg, #e65c00 0%, #ff9a3c 50%, #e65c00 100%);
+  background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%);
+  height: 2px;
 }
 
 .wallet-card.preset-industry .wc-brand-mark {
-  background: linear-gradient(135deg, #e65c00, #ff7b1a);
-  box-shadow: 0 3px 10px rgba(230, 92, 0, .5);
+  background: linear-gradient(135deg, #bc6f2d, #d6964e);
+  box-shadow: 0 3px 10px rgba(146, 90, 40, .45);
 }
 
 .wallet-card.preset-industry .wc-shimmer {
   background: linear-gradient(
     115deg,
     transparent 0%, transparent 30%,
-    rgba(255, 140, 0, .12) 38%,
-    rgba(255, 200, 80, .08) 46%,
-    rgba(230, 92, 0, .08) 54%,
+    rgba(214, 151, 79, .12) 38%,
+    rgba(245, 211, 150, .08) 46%,
+    rgba(188, 116, 45, .07) 54%,
     transparent 62%, transparent 100%
   );
   background-size: 220% 220%;

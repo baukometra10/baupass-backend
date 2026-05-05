@@ -3596,31 +3596,32 @@ body.theme-black .doc-inbox-unread {
 
 /* ── INDUSTRY: warmes Dunkel-Orange ─────────────────────────────── */
 body[data-branding-preset="industry"] .badge-shell .wallet-card {
-  background: linear-gradient(135deg, #1c1000 0%, #3a1f00 42%, #251400 100%);
+  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
   box-shadow:
-    0 28px 60px rgba(200, 80, 0, .45),
+    0 28px 60px rgba(110, 58, 20, .42),
     0 4px 20px rgba(0, 0, 0, .35),
-    0 0 0 1px rgba(255, 140, 0, .18),
-    inset 0 1px 0 rgba(255, 180, 60, .12);
+    0 0 0 1px rgba(210, 140, 70, .2),
+    inset 0 1px 0 rgba(255, 215, 150, .1);
 }
 
 body[data-branding-preset="industry"] .badge-shell .wallet-card::before {
-  background: linear-gradient(90deg, #e65c00 0%, #ff9a3c 48%, #e65c00 100%);
+  background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%);
+  height: 2px;
 }
 
 body[data-branding-preset="industry"] .badge-shell .wallet-card .wc-shimmer {
-  background: linear-gradient(115deg, transparent 0%, transparent 30%, rgba(255, 140, 0, .12) 38%, rgba(255, 200, 80, .08) 46%, rgba(230, 92, 0, .08) 54%, transparent 62%, transparent 100%);
+  background: linear-gradient(115deg, transparent 0%, transparent 30%, rgba(214, 151, 79, .12) 38%, rgba(245, 211, 150, .08) 46%, rgba(188, 116, 45, .07) 54%, transparent 62%, transparent 100%);
 }
 
 body[data-branding-preset="industry"] .badge-shell .wallet-card .wc-brand-mark {
-  background: linear-gradient(135deg, #e65c00, #ff7b1a);
-  box-shadow: 0 3px 10px rgba(230, 92, 0, .5);
+  background: linear-gradient(135deg, #bc6f2d, #d6964e);
+  box-shadow: 0 3px 10px rgba(146, 90, 40, .45);
 }
 
 body[data-branding-preset="industry"] .badge-shell .wallet-card .wc-qr-frame {
-  background: linear-gradient(135deg, #7a2e00 0%, #c05200 24%, #ff9a3c 46%, #d06000 66%, #8a3500 100%);
-  border-color: rgba(255, 160, 60, .42);
-  box-shadow: 0 12px 24px rgba(180, 80, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(80, 30, 0, .44);
+  background: linear-gradient(135deg, #6f411b 0%, #b37333 24%, #e5bb79 46%, #c8833a 66%, #75451f 100%);
+  border-color: rgba(232, 182, 112, .42);
+  box-shadow: 0 12px 24px rgba(122, 76, 33, .35), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(65, 38, 15, .44);
 }
 
 /* ── PREMIUM: tiefes Marineblau / Saphir ────────────────────────── */
@@ -3661,31 +3662,32 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 
 /* INDUSTRY – Dunkelorange */
 .badge-shell .wallet-card.preset-industry {
-  background: linear-gradient(135deg, #1c1000 0%, #3a1f00 42%, #251400 100%);
+  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
   box-shadow:
-    0 28px 60px rgba(200, 80, 0, .45),
+    0 28px 60px rgba(110, 58, 20, .42),
     0 4px 20px rgba(0, 0, 0, .35),
-    0 0 0 1px rgba(255, 140, 0, .18),
-    inset 0 1px 0 rgba(255, 180, 60, .12);
+    0 0 0 1px rgba(210, 140, 70, .2),
+    inset 0 1px 0 rgba(255, 215, 150, .1);
 }
 
 .badge-shell .wallet-card.preset-industry::before {
-  background: linear-gradient(90deg, #e65c00 0%, #ff9a3c 48%, #e65c00 100%);
+  background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%);
+  height: 2px;
 }
 
 .badge-shell .wallet-card.preset-industry .wc-shimmer {
-  background: linear-gradient(115deg, transparent 0%, transparent 30%, rgba(255, 140, 0, .12) 38%, rgba(255, 200, 80, .08) 46%, rgba(230, 92, 0, .08) 54%, transparent 62%, transparent 100%);
+  background: linear-gradient(115deg, transparent 0%, transparent 30%, rgba(214, 151, 79, .12) 38%, rgba(245, 211, 150, .08) 46%, rgba(188, 116, 45, .07) 54%, transparent 62%, transparent 100%);
 }
 
 .badge-shell .wallet-card.preset-industry .wc-brand-mark {
-  background: linear-gradient(135deg, #e65c00, #ff7b1a);
-  box-shadow: 0 3px 10px rgba(230, 92, 0, .5);
+  background: linear-gradient(135deg, #bc6f2d, #d6964e);
+  box-shadow: 0 3px 10px rgba(146, 90, 40, .45);
 }
 
 .badge-shell .wallet-card.preset-industry .wc-qr-frame {
-  background: linear-gradient(135deg, #7a2e00 0%, #c05200 24%, #ff9a3c 46%, #d06000 66%, #8a3500 100%);
-  border-color: rgba(255, 160, 60, .42);
-  box-shadow: 0 12px 24px rgba(180, 80, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(80, 30, 0, .44);
+  background: linear-gradient(135deg, #6f411b 0%, #b37333 24%, #e5bb79 46%, #c8833a 66%, #75451f 100%);
+  border-color: rgba(232, 182, 112, .42);
+  box-shadow: 0 12px 24px rgba(122, 76, 33, .35), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(65, 38, 15, .44);
 }
 
 /* PREMIUM – Marineblau / Saphir */
