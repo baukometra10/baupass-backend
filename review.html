@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kundenbewertung</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0f4f8 0%, #e8ecf0 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+      padding: 40px 36px 32px;
+      max-width: 480px;
+      width: 100%;
+    }
+    .eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #111; margin-bottom: 4px; }
+    .subtitle { color: #6b7280; font-size: 0.92rem; margin-bottom: 28px; }
+    .stars {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      justify-content: center;
+    }
+    .star-btn {
+      font-size: 2.2rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ddd;
+      transition: color 0.15s, transform 0.1s;
+      padding: 0;
+      line-height: 1;
+    }
+    .star-btn.active, .star-btn:hover { color: #f59e0b; }
+    .star-btn:hover { transform: scale(1.15); }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    input[type="text"], textarea {
+      width: 100%;
+      border: 1.5px solid #d1d5db;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 16px;
+    }
+    input:focus, textarea:focus { border-color: #3b82f6; }
+    textarea { min-height: 120px; resize: vertical; }
+    .submit-btn {
+      width: 100%;
+      background: #1d4ed8;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .submit-btn:hover { background: #1e40af; }
+    .submit-btn:disabled { background: #93c5fd; cursor: not-allowed; }
+    .error { color: #dc2626; font-size: 0.85rem; margin-bottom: 12px; background: #fef2f2; padding: 10px 14px; border-radius: 8px; }
+    .success-msg { text-align: center; padding: 24px 0; }
+    .success-msg .big-star { font-size: 3.5rem; margin-bottom: 12px; }
+    .success-msg h2 { font-size: 1.3rem; color: #111; margin-bottom: 8px; }
+    .success-msg p { color: #6b7280; font-size: 0.9rem; }
+    .loading-msg { text-align: center; color: #6b7280; padding: 40px 0; }
+    .star-label { text-align: center; font-size: 0.85rem; color: #6b7280; margin-bottom: 16px; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <div class="card" id="mainCard">
+    <div class="loading-msg" id="loadingMsg">⏳ Wird geladen…</div>
+    <div id="formContainer" style="display:none;">
+      <p class="eyebrow">Ihre Meinung zählt</p>
+      <h1 id="companyTitle">Bewertung</h1>
+      <p class="subtitle" id="formSubtitle">Wie war Ihre Erfahrung mit unserem System?</p>
+      <div id="errorBox" class="error" style="display:none;"></div>
+      <div class="stars" id="starContainer">
+        <button type="button" class="star-btn" data-star="1">★</button>
+        <button type="button" class="star-btn" data-star="2">★</button>
+        <button type="button" class="star-btn" data-star="3">★</button>
+        <button type="button" class="star-btn" data-star="4">★</button>
+        <button type="button" class="star-btn" data-star="5">★</button>
+      </div>
+      <p class="star-label" id="starLabel">Bitte wählen Sie eine Bewertung</p>
+      <label for="reviewerName">Ihr Name (optional)</label>
+      <input type="text" id="reviewerName" placeholder="z.B. Max Mustermann" maxlength="100" />
+      <label for="reviewText">Ihre Bewertung *</label>
+      <textarea id="reviewText" placeholder="Was hat Ihnen gut gefallen? Was könnte besser sein?" maxlength="2000"></textarea>
+      <button type="button" class="submit-btn" id="submitBtn">Bewertung absenden</button>
+    </div>
+    <div id="successMsg" class="success-msg" style="display:none;">
+      <div class="big-star">⭐</div>
+      <h2>Vielen Dank für Ihre Bewertung!</h2>
+      <p>Ihr Feedback hilft uns, unser System stetig zu verbessern.</p>
+    </div>
+    <div id="errorPage" style="display:none; text-align:center; padding:40px 0;">
+      <p style="font-size:2rem;">😕</p>
+      <h2 style="margin:12px 0 8px; color:#111;">Link ungültig</h2>
+      <p style="color:#6b7280; font-size:0.9rem;">Dieser Bewertungslink ist nicht mehr gültig oder wurde deaktiviert.</p>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") || "";
+    let selectedStars = 0;
+    let companyId = "";
+
+    const starLabels = ["", "Schlecht", "Ausreichend", "Gut", "Sehr gut", "Ausgezeichnet"];
+
+    // Auto-detect API base (same origin, relative)
+    const API_BASE = "";
+
+    async function init() {
+      if (!token || token.length < 10) {
+        showError();
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/public/review?token=${encodeURIComponent(token)}`);
+        if (!res.ok) { showError(); return; }
+        const data = await res.json();
+        companyId = data.company_id;
+        document.getElementById("companyTitle").textContent = data.company_name || "Bewertung";
+        document.getElementById("formSubtitle").textContent = `Wie war Ihre Erfahrung mit ${data.company_name || "unserem System"}?`;
+        document.getElementById("loadingMsg").style.display = "none";
+        document.getElementById("formContainer").style.display = "";
+      } catch {
+        showError();
+      }
+    }
+
+    function showError() {
+      document.getElementById("loadingMsg").style.display = "none";
+      document.getElementById("errorPage").style.display = "";
+    }
+
+    // Star rating
+    const starBtns = document.querySelectorAll(".star-btn");
+    starBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedStars = Number(btn.dataset.star);
+        updateStars();
+      });
+      btn.addEventListener("mouseenter", () => {
+        const hoverVal = Number(btn.dataset.star);
+        starBtns.forEach(b => b.classList.toggle("active", Number(b.dataset.star) <= hoverVal));
+      });
+    });
+    document.getElementById("starContainer").addEventListener("mouseleave", updateStars);
+
+    function updateStars() {
+      starBtns.forEach(b => b.classList.toggle("active", Number(b.dataset.star) <= selectedStars));
+      document.getElementById("starLabel").textContent = selectedStars > 0
+        ? `${starLabels[selectedStars]} (${selectedStars}/5)` : "Bitte wählen Sie eine Bewertung";
+    }
+
+    // Submit
+    document.getElementById("submitBtn").addEventListener("click", async () => {
+      const errorBox = document.getElementById("errorBox");
+      errorBox.style.display = "none";
+      const reviewText = document.getElementById("reviewText").value.trim();
+      const reviewerName = document.getElementById("reviewerName").value.trim();
+      if (selectedStars < 1) {
+        errorBox.textContent = "Bitte wählen Sie eine Sternebewertung.";
+        errorBox.style.display = "";
+        return;
+      }
+      if (reviewText.length < 5) {
+        errorBox.textContent = "Bitte geben Sie mindestens 5 Zeichen als Bewertungstext ein.";
+        errorBox.style.display = "";
+        return;
+      }
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true;
+      btn.textContent = "Wird gesendet…";
+      try {
+        const res = await fetch(`${API_BASE}/api/public/review/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, stars: selectedStars, review_text: reviewText, reviewer_name: reviewerName })
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || "Fehler beim Senden");
+        }
+        document.getElementById("formContainer").style.display = "none";
+        document.getElementById("successMsg").style.display = "";
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.style.display = "";
+        btn.disabled = false;
+        btn.textContent = "Bewertung absenden";
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

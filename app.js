@@ -884,6 +884,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "Ein Sicherheitscode wurde an Ihre E-Mail gesendet. Bitte prüfen Sie Ihr Postfach.",
     loginOtpSentNotice: "Code per E-Mail gesendet – Postfach prüfen",
     loginOtpBackBtn: "← Zurück",
+    statsEyebrow: "Statistiken",
+    workerOverviewTitle: "Mitarbeiter-Übersicht",
   },
   en: {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
@@ -1556,6 +1558,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "A security code has been sent to your email. Please check your inbox.",
     loginOtpSentNotice: "Code sent by email – check your inbox",
     loginOtpBackBtn: "← Back",
+    statsEyebrow: "Statistics",
+    workerOverviewTitle: "Worker Overview",
   },
   tr: {
     authEyebrow: "Giriş Sayfası",
@@ -2200,6 +2204,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "Güvenlik kodu e-postasınıza gönderildi. Lütfen gelen kutunuzu kontrol edin.",
     loginOtpSentNotice: "Kod e-posta ile gönderildi – gelen kutunuzu kontrol edin",
     loginOtpBackBtn: "← Geri",
+    statsEyebrow: "İstatistikler",
+    workerOverviewTitle: "Çalışan Özeti",
   },
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
@@ -2870,6 +2876,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "تم إرسال رمز الأمان إلى بريدك الإلكتروني. يرجى التحقق من صندوق الوارد.",
     loginOtpSentNotice: "تم إرسال الرمز عبر البريد – تحقق من صندوق الوارد",
     loginOtpBackBtn: "← رجوع",
+    statsEyebrow: "الإحصائيات",
+    workerOverviewTitle: "نظرة عامة على العمال",
   },
   fr: {
     authEyebrow: "Page de connexion",
@@ -3540,6 +3548,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "Un code de sécurité a été envoyé à votre e-mail. Vérifiez votre boîte de réception.",
     loginOtpSentNotice: "Code envoyé par e-mail – vérifiez votre boîte",
     loginOtpBackBtn: "← Retour",
+    statsEyebrow: "Statistiques",
+    workerOverviewTitle: "Aperçu des employés",
   },
   es: {
     authEyebrow: "Página de acceso",
@@ -4202,6 +4212,8 @@ const UI_TRANSLATIONS = {
     tfaCodeLabel: "C\u00f3digo de la app:",
     tfaCodePlaceholder: "C\u00f3digo de 6 d\u00edgitos",
     tfaEnableHint: "Ingresa el c\u00f3digo de 6 d\u00edgitos de tu app de autenticaci\u00f3n y haz clic en 'Activar'.",
+    statsEyebrow: "Estad\u00edsticas",
+    workerOverviewTitle: "Resumen de empleados",
   },
   it: {
     authEyebrow: "Pagina di accesso",
@@ -4872,6 +4884,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "Un codice di sicurezza è stato inviato alla tua email. Controlla la tua casella di posta.",
     loginOtpSentNotice: "Codice inviato per email – controlla la casella",
     loginOtpBackBtn: "← Indietro",
+    statsEyebrow: "Statistiche",
+    workerOverviewTitle: "Panoramica dipendenti",
   },
   pl: {
     authEyebrow: "Strona logowania",
@@ -5542,6 +5556,8 @@ const UI_TRANSLATIONS = {
     alertOtpSent: "Kod bezpieczeństwa został wysłany na Twój e-mail. Sprawdź swoją skrzynkę odbiorzą.",
     loginOtpSentNotice: "Kod wysłany e-mailem – sprawdź skrzynkę",
     loginOtpBackBtn: "← Powrót",
+    statsEyebrow: "Statystyki",
+    workerOverviewTitle: "Przegląd pracowników",
   },
 };
 
@@ -6102,6 +6118,11 @@ function setUiLang(lang) {
   applyUiTranslations();
   applySystemTheme(getStoredSystemTheme(), { persist: false });
   updateDesktopInstallHint();
+  // Re-render dynamic panels that use runtimeText() so labels update immediately
+  if (typeof renderStats === "function") renderStats();
+  if (typeof renderComplianceKpi === "function") renderComplianceKpi();
+  if (typeof renderWorkerStatsPanel === "function") renderWorkerStatsPanel();
+  if (typeof renderReportingPanels === "function") renderReportingPanels();
 }
 
 function initUiLanguageControl() {
@@ -10378,6 +10399,7 @@ function refreshAll() {
   renderComplianceKpi();
   renderWorkerStatsPanel();
   renderReportingPanels();
+  renderCustomerReviews();
   renderWorkerList();
   renderPhotoOverrideApprovalPanel();
   renderCompanyList();
@@ -11403,24 +11425,24 @@ function renderStats() {
   const expiringCritical = Number(state.expiringDocsCriticalCount ?? 0);
   const lockedWorkers = visibleWorkers.filter((w) => !w.deletedAt && w.status === "gesperrt").length;
 
-  // icon, label, value, accent-color, bg-color
+  // icon, label, value, accent-color, bg-color, isWarn
   const cards = [
-    ["👷", texts.statsWorkersTotal,    totalWorkers,     "#0f4c5c", ""],
-    ["✅", texts.statsWorkersActive,   activeWorkers,    "#16a34a", "rgba(220,252,231,0.5)"],
-    ["🚶", texts.statsVisitorsTotal,   totalVisitors,    "#7c3aed", "rgba(237,233,254,0.5)"],
-    ["🏢", texts.statsCompanies,       totalCompanies,   "#0369a1", "rgba(224,242,254,0.5)"],
-    ["🔓", texts.statsAccessToday,     accessToday,      "#0891b2", "rgba(207,250,254,0.5)"],
-    ["🔒", runtimeText("statsLockedWorkers") || "Gesperrt", lockedWorkers, lockedWorkers > 0 ? "#dc2626" : "#6b7280", lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : ""],
-    ["⚠️", runtimeText("statsExpiringCritical"), expiringCritical, expiringCritical > 0 ? "#d97706" : "#6b7280", expiringCritical > 0 ? "rgba(254,243,199,0.5)" : ""],
+    ["👷", texts.statsWorkersTotal,    totalWorkers,     "#0f4c5c", "",                           false],
+    ["✅", texts.statsWorkersActive,   activeWorkers,    "#16a34a", "rgba(220,252,231,0.5)",       false],
+    ["🚶", texts.statsVisitorsTotal,   totalVisitors,    "#7c3aed", "rgba(237,233,254,0.5)",       false],
+    ["🏢", texts.statsCompanies,       totalCompanies,   "#0369a1", "rgba(224,242,254,0.5)",       false],
+    ["🔓", texts.statsAccessToday,     accessToday,      "#0891b2", "rgba(207,250,254,0.5)",       false],
+    ["🔒", runtimeText("statsLockedWorkers"),  lockedWorkers,   lockedWorkers > 0 ? "#dc2626" : "#6b7280",   lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : "",   lockedWorkers > 0],
+    ["⚠️", runtimeText("statsExpiringCritical"), expiringCritical, expiringCritical > 0 ? "#d97706" : "#6b7280", expiringCritical > 0 ? "rgba(254,243,199,0.5)" : "", expiringCritical > 0],
   ];
 
   elements.statsGrid.innerHTML = cards
-    .map(([icon, label, value, color, bg]) => {
+    .map(([icon, label, value, color, bg, isWarn]) => {
       const styleStr = [
         bg ? `background:${bg}` : "",
         color ? `--stat-accent:${color}` : "",
       ].filter(Boolean).join(";");
-      return `<article class="stat-card stat-card-v2${Number(value) > 0 && (label.includes("Gesperrt") || label.includes("Ablaufende") || label.includes("critical") || label.includes("expir")) ? " stat-card-warn" : ""}" style="${styleStr}">
+      return `<article class="stat-card stat-card-v2${isWarn ? " stat-card-warn" : ""}" style="${styleStr}">
         <span class="stat-icon">${icon}</span>
         <p class="stat-label">${escapeHtml(label)}</p>
         <strong class="stat-value-v2" style="color:${color};">${escapeHtml(String(value))}</strong>
@@ -11570,6 +11592,37 @@ function formatCurrencyEur(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+async function renderCustomerReviews() {
+  const panel = document.querySelector("#customerReviewsPanel");
+  const list = document.querySelector("#customerReviewsList");
+  if (!panel || !list) return;
+  const role = String(getEffectiveUiRole() || "").toLowerCase();
+  if (role !== "superadmin") { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  list.innerHTML = `<p class="helper-text">Lade Bewertungen…</p>`;
+  try {
+    const reviews = await apiRequest(`${API_BASE}/api/reviews`);
+    if (!Array.isArray(reviews) || reviews.length === 0) {
+      list.innerHTML = `<div class="empty-state">Noch keine Bewertungen vorhanden.</div>`;
+      return;
+    }
+    list.innerHTML = reviews.map(r => {
+      const stars = "⭐".repeat(Math.min(5, Math.max(1, Number(r.stars) || 5)));
+      return `<article class="card-item" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:1.1em;">${stars}</span>
+          <strong style="font-size:0.9em;">${escapeHtml(r.reviewer_name || "Anonym")}</strong>
+          <span class="helper-text" style="margin-left:auto;">${escapeHtml(r.company_name_snapshot || "")}</span>
+          <span class="meta-text">${escapeHtml(r.created_at ? r.created_at.slice(0, 10) : "")}</span>
+        </div>
+        <p style="font-size:0.9em;color:#333;">${escapeHtml(r.review_text)}</p>
+      </article>`;
+    }).join("");
+  } catch (err) {
+    list.innerHTML = `<p class="helper-text helper-text-warning">Fehler: ${escapeHtml(err.message)}</p>`;
+  }
 }
 
 function renderReportingPanels() {
@@ -12118,9 +12171,16 @@ function renderCompanyList() {
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Aktionen</span>
               <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? "⏳ Speichert…" : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "✅ Sperre aufheben" : "🔴 Firma sperren"}</button>
+              <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? "⭐ Bewertung deaktivieren" : "⭐ Bewertung aktivieren"}</button>
               <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🗑 Firma löschen</button>
             </div>
           </div>
+          ${company.review_enabled && company.review_token ? `
+          <div class="meta-box" style="background:rgba(253,251,210,0.6);border-color:#d4ac0d;margin-top:8px;">
+            <p>⭐ <strong>Bewertungslink aktiv</strong> – Jetzt an den Kunden senden:</p>
+            <p style="font-size:0.8em;word-break:break-all;color:#555;margin:4px 0;">${window.location.origin}/review.html?token=${escapeHtml(company.review_token)}</p>
+            <button type="button" class="ghost-button small-button" data-company-review-copy="${escapeHtml(companyId)}">📋 Link kopieren</button>
+          </div>` : ""}
         </article>
       `;
     })
@@ -12789,6 +12849,50 @@ function bindCompanyRowActions() {
       } catch (error) {
         window.alert(uiT("alertTurnstileToggleFailed").replace("{error}", error.message));
       }
+      return;
+    }
+
+    // ── Bewertungs-Toggle ──
+    const reviewToggleBtn = event.target.closest("[data-company-review-toggle]");
+    if (reviewToggleBtn && !reviewToggleBtn.disabled && elements.companyList.contains(reviewToggleBtn)) {
+      const companyId = reviewToggleBtn.dataset.companyReviewToggle;
+      const company = state.companies.find((c) => c.id === companyId);
+      if (!companyId || !company) return;
+      const isCurrentlyEnabled = Boolean(company.review_enabled);
+      const confirmMsg = isCurrentlyEnabled
+        ? `Bewertungslink für "${company.name}" deaktivieren? Der Link wird ungültig.`
+        : `Bewertungslink für "${company.name}" aktivieren? Der Kunde erhält einen Link um eine Bewertung zu hinterlassen.`;
+      if (!window.confirm(confirmMsg)) return;
+      try {
+        const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/review-access`, { method: "PUT" });
+        // Update state locally
+        const idx = state.companies.findIndex((c) => c.id === companyId);
+        if (idx >= 0) {
+          state.companies[idx].review_enabled = result.review_enabled;
+          state.companies[idx].review_token = result.review_token || "";
+        }
+        renderCompanyList();
+        if (result.review_enabled) {
+          const reviewUrl = `${window.location.origin}/review.html?token=${result.review_token}`;
+          window.prompt("Bewertungslink aktiviert! Link in Zwischenablage kopieren:", reviewUrl);
+          navigator.clipboard?.writeText(reviewUrl).catch(() => {});
+        }
+      } catch (err) {
+        window.alert("Fehler: " + err.message);
+      }
+      return;
+    }
+
+    // ── Bewertungs-Link kopieren ──
+    const reviewCopyBtn = event.target.closest("[data-company-review-copy]");
+    if (reviewCopyBtn && elements.companyList.contains(reviewCopyBtn)) {
+      const companyId = reviewCopyBtn.dataset.companyReviewCopy;
+      const company = state.companies.find((c) => c.id === companyId);
+      if (!company?.review_token) return;
+      const reviewUrl = `${window.location.origin}/review.html?token=${company.review_token}`;
+      navigator.clipboard?.writeText(reviewUrl).then(() => window.alert("Link kopiert!")).catch(() => {
+        window.prompt("Link manuell kopieren:", reviewUrl);
+      });
       return;
     }
 
@@ -20204,6 +20308,11 @@ if (invoiceExportCsvBtn) {
   invoiceExportCsvBtn.addEventListener("click", () => {
     window.open(API_BASE + "/api/invoices/export.csv", "_blank");
   });
+}
+
+const reviewsRefreshBtn = document.querySelector("#reviewsRefreshBtn");
+if (reviewsRefreshBtn) {
+  reviewsRefreshBtn.addEventListener("click", () => renderCustomerReviews());
 }
 
 const invoiceFilterCompany = document.querySelector("#invoiceFilterCompany");

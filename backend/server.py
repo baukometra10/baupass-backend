@@ -2253,6 +2253,26 @@ def init_db():
     except Exception:
         pass
 
+    # ── Kundenbewertungen ──────────────────────────────────────────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS customer_reviews (
+            id TEXT PRIMARY KEY,
+            company_id TEXT,
+            company_name_snapshot TEXT NOT NULL DEFAULT '',
+            stars INTEGER NOT NULL DEFAULT 5,
+            review_text TEXT NOT NULL DEFAULT '',
+            reviewer_name TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    company_review_cols = [row[1] for row in cur.execute("PRAGMA table_info(companies)").fetchall()]
+    if "review_enabled" not in company_review_cols:
+        cur.execute("ALTER TABLE companies ADD COLUMN review_enabled INTEGER NOT NULL DEFAULT 0")
+    if "review_token" not in company_review_cols:
+        cur.execute("ALTER TABLE companies ADD COLUMN review_token TEXT NOT NULL DEFAULT ''")
+
     db.commit()
     db.close()
 
@@ -11790,11 +11810,92 @@ def get_invoice_ops_metrics(db):
     }
 
 
+# ─── Kundenbewertungen ────────────────────────────────────────────────────────
+
+@app.put("/api/companies/<company_id>/review-access")
+@require_auth
+@require_roles("superadmin")
+def toggle_company_review_access(company_id):
+    """Aktiviert oder deaktiviert die Bewertungsseite für eine Firma."""
+    db = get_db()
+    company = db.execute("SELECT id, name, review_enabled FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not company:
+        return jsonify({"error": "Firma nicht gefunden"}), 404
+    new_state = 0 if int(company["review_enabled"] or 0) else 1
+    token = ""
+    if new_state:
+        import uuid as _uuid
+        token = str(_uuid.uuid4()).replace("-", "")
+    db.execute(
+        "UPDATE companies SET review_enabled = ?, review_token = ? WHERE id = ?",
+        (new_state, token, company_id)
+    )
+    db.commit()
+    return jsonify({"review_enabled": new_state, "review_token": token if new_state else ""})
+
+
+@app.get("/api/public/review")
+def get_review_form_info():
+    """Gibt Firmenname zurück wenn Token gültig und Bewertung aktiviert ist."""
+    token = (request.args.get("token") or "").strip()
+    if len(token) < 10:
+        return jsonify({"error": "Ungültiger Token"}), 400
+    db = get_db()
+    row = db.execute(
+        "SELECT id, name FROM companies WHERE review_token = ? AND review_enabled = 1 AND deleted_at IS NULL",
+        (token,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Bewertungslink ungültig oder bereits deaktiviert"}), 404
+    return jsonify({"company_name": row["name"], "company_id": row["id"]})
+
+
+@app.post("/api/public/review/submit")
+def submit_review():
+    """Nimmt eine Kundenbewertung entgegen."""
+    data = request.get_json(force=True, silent=True) or {}
+    token = (data.get("token") or "").strip()
+    stars = int(data.get("stars") or 5)
+    review_text = (data.get("review_text") or "").strip()[:2000]
+    reviewer_name = (data.get("reviewer_name") or "").strip()[:100]
+    if len(token) < 10 or not (1 <= stars <= 5):
+        return jsonify({"error": "Ungültige Eingabe"}), 400
+    if len(review_text) < 5:
+        return jsonify({"error": "Bitte mindestens 5 Zeichen als Bewertungstext eingeben"}), 400
+    db = get_db()
+    row = db.execute(
+        "SELECT id, name FROM companies WHERE review_token = ? AND review_enabled = 1 AND deleted_at IS NULL",
+        (token,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Bewertungslink ungültig"}), 403
+    import uuid as _uuid
+    review_id = f"rev-{str(_uuid.uuid4())[:8]}"
+    db.execute(
+        """INSERT INTO customer_reviews (id, company_id, company_name_snapshot, stars, review_text, reviewer_name, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (review_id, row["id"], row["name"], stars, review_text, reviewer_name, utc_now().isoformat().replace("+00:00", "Z"))
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.get("/api/reviews")
+@require_auth
+@require_roles("superadmin")
+def list_reviews():
+    """Listet alle Kundenbewertungen auf."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT id, company_name_snapshot, stars, review_text, reviewer_name, created_at FROM customer_reviews ORDER BY created_at DESC"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.get("/api/invoices/export.csv")
 @require_auth
 @require_roles("superadmin")
-def export_all_invoices_csv():
-    """Export all invoices as a UTF-8 CSV file (Excel-compatible)."""
+def export_all_invoices_csv():    """Export all invoices as a UTF-8 CSV file (Excel-compatible)."""
     import csv as _csv
     db = get_db()
     rows = db.execute(
@@ -14865,6 +14966,11 @@ def root():
 @app.get("/worker.html")
 def worker_entry_redirect():
     return send_from_directory(BASE_DIR, "worker.html")
+
+
+@app.get("/review.html")
+def review_page():
+    return send_from_directory(BASE_DIR, "review.html")
 
 
 def _load_invoice_logo_data_url():

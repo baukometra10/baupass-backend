@@ -275,8 +275,8 @@
         <article class="panel" style="margin-top: 24px;">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Compliance</p>
-              <h3>Dokumentenstatus Übersicht</h3>
+              <p class="eyebrow" data-ui-i18n="complianceEyebrow">Compliance</p>
+              <h3 data-ui-i18n="complianceH3">Dokumentenstatus Übersicht</h3>
             </div>
           </div>
           <div id="complianceKpiGrid" class="list"></div>
@@ -304,6 +304,17 @@
             <div id="reportingAccessDaily" class="list"></div>
           </article>
         </div>
+
+        <article class="panel" id="customerReviewsPanel" style="margin-top:24px; display:none;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">⭐ Feedback</p>
+              <h3>Kundenbewertungen</h3>
+            </div>
+            <button type="button" class="ghost-button small-button" id="reviewsRefreshBtn">Aktualisieren</button>
+          </div>
+          <div id="customerReviewsList" class="list" style="padding:16px;"></div>
+        </article>
 
         <div class="panel-grid two-columns">
           <article class="panel">
@@ -513,8 +524,8 @@
             <article class="panel" style="margin-top: 24px;">
               <div class="panel-heading">
                 <div>
-                  <p class="eyebrow">Statistiken</p>
-                  <h3>Mitarbeiter-Übersicht</h3>
+                  <p class="eyebrow" data-ui-i18n="statsEyebrow">Statistiken</p>
+                  <h3 data-ui-i18n="workerOverviewTitle">Mitarbeiter-Übersicht</h3>
                 </div>
               </div>
               <div id="workerStatsPanel" class="list" style="padding: 16px;"></div>
