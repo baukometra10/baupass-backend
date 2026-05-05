@@ -11895,7 +11895,8 @@ def list_reviews():
 @app.get("/api/invoices/export.csv")
 @require_auth
 @require_roles("superadmin")
-def export_all_invoices_csv():    """Export all invoices as a UTF-8 CSV file (Excel-compatible)."""
+def export_all_invoices_csv():
+    """Export all invoices as a UTF-8 CSV file (Excel-compatible)."""
     import csv as _csv
     db = get_db()
     rows = db.execute(
