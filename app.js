@@ -25103,7 +25103,7 @@ if (accessForm) {
   function syncWorkTimePanel() {
     if (!workTimePanel) return;
     const role = String(getCurrentUser()?.role || "").toLowerCase();
-    const canEdit = ["superadmin", "company-admin", "turnstile"].includes(role);
+    const canEdit = ["company-admin", "company_admin"].includes(role);
     if (!canEdit) { workTimePanel.classList.add("hidden"); return; }
 
     const { start, end, companyId } = getEffectiveWorkTimes();

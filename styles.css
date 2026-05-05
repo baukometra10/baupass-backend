@@ -3450,9 +3450,9 @@ body.theme-black .doc-inbox-unread {
   width: 100%;
   max-width: 430px;
   margin: 0 auto;
-  aspect-ratio: 85.6 / 58;
+  aspect-ratio: 85.6 / 54;
   border-radius: 22px;
-  padding: 5.5% 6% 6%;
+  padding: 5.5% 6%;
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
   box-shadow:
     0 28px 60px rgba(0, 0, 0, .55),
@@ -3719,7 +3719,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   box-shadow: 0 12px 24px rgba(0, 60, 160, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 20, 80, .44);
 }
 
-
+.badge-shell .wallet-card .badge-wallet-qr {
   width: 100%;
   height: 100%;
   position: relative;
