@@ -3609,7 +3609,7 @@ function releaseWakeLock() {
   wakeLockHandle = null;
 }
 
-function openCameraOverlay() {
+async function openCameraOverlay() {
   if (!elements.cameraOverlay || !elements.cameraVideo) {
     return;
   }
@@ -3631,20 +3631,61 @@ function openCameraOverlay() {
   lastCameraPhotoDataUrl = null;
   lastCameraPhotoRotation = 0;
 
-  navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-    .then((stream) => {
-      cameraStream = stream;
-      elements.cameraVideo.srcObject = stream;
-    })
-    .catch(() => {
-      showWorkerNotice(
-        window.isSecureContext
-          ? t("cameraStartFailed")
-          : t("cameraHttpsHint")
-      );
-      closeCameraOverlay();
-      elements.photoInput?.click();
-    });
+  const videoConstraintCandidates = [
+    {
+      facingMode: { ideal: "environment" },
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    {
+      facingMode: { ideal: "user" },
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    {},
+    true
+  ];
+
+  try {
+    stopCameraStream();
+    let stream = null;
+
+    for (const videoConstraint of videoConstraintCandidates) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraint,
+          audio: false
+        });
+        if (stream) {
+          break;
+        }
+      } catch {
+        // try next fallback constraint
+      }
+    }
+
+    if (!stream) {
+      throw new Error("camera_unavailable");
+    }
+
+    cameraStream = stream;
+    elements.cameraVideo.srcObject = stream;
+    elements.cameraVideo.muted = true;
+    elements.cameraVideo.setAttribute("playsinline", "true");
+    try {
+      await elements.cameraVideo.play();
+    } catch {
+      // Keep stream active even if playback promise is blocked.
+    }
+  } catch {
+    showWorkerNotice(
+      window.isSecureContext
+        ? t("cameraStartFailed")
+        : t("cameraHttpsHint")
+    );
+    closeCameraOverlay();
+    elements.photoInput?.click();
+  }
 }
 
 function stopCameraStream() {

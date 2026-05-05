@@ -23635,6 +23635,11 @@ async function startCamera() {
       width: { ideal: 1280 },
       height: { ideal: 720 }
     },
+    {
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    {},
     true
   ];
 
@@ -23679,12 +23684,19 @@ async function startCamera() {
     }
 
     elements.cameraPreview.srcObject = cameraStream;
+    elements.cameraPreview.muted = true;
+    elements.cameraPreview.setAttribute("playsinline", "true");
     await new Promise((resolve) => {
       const finalize = () => resolve();
       elements.cameraPreview.onloadedmetadata = finalize;
       window.setTimeout(finalize, 1200);
     });
-    await elements.cameraPreview.play();
+    try {
+      await elements.cameraPreview.play();
+    } catch {
+      // Some browsers block autoplay even with a live camera stream.
+      // Keep stream active and allow manual capture flow to continue.
+    }
     elements.cameraPreview.style.visibility = "visible";
     elements.cameraPlaceholder.hidden = true;
     if (elements.photoDebugText) {
