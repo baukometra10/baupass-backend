@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" translate="no">
 <head>
   <meta charset="UTF-8" />
@@ -146,14 +146,14 @@
         <p style="margin:0 0 14px;font-size:0.92rem;color:#374151;font-weight:600;">Neues Passwort festlegen</p>
         <form id="pwResetForm" class="auth-form">
           <label>
-            <span>Neues Passwort</span>
-            <input id="pwResetNewPassword" type="password" placeholder="Mind. 8 Zeichen" required autocomplete="new-password" minlength="8" />
+            <span data-ui-i18n="pwResetNewPasswordLabel">Neues Passwort</span>
+            <input id="pwResetNewPassword" type="password" placeholder="Mind. 8 Zeichen" data-ui-i18n-placeholder="pwResetNewPwPlaceholder" required autocomplete="new-password" minlength="8" />
           </label>
           <label>
-            <span>Passwort bestätigen</span>
-            <input id="pwResetConfirm" type="password" placeholder="Passwort wiederholen" required autocomplete="new-password" minlength="8" />
+            <span data-ui-i18n="pwResetConfirmLabel">Passwort bestätigen</span>
+            <input id="pwResetConfirm" type="password" placeholder="Passwort wiederholen" data-ui-i18n-placeholder="pwResetConfirmPlaceholder" required autocomplete="new-password" minlength="8" />
           </label>
-          <button type="submit" class="primary-button">Passwort speichern</button>
+          <button type="submit" class="primary-button" data-ui-i18n="pwResetSaveBtn">Passwort speichern</button>
           <p id="pwResetMsg" style="margin:10px 0 0;font-size:0.85rem;min-height:1.2em;"></p>
         </form>
       </div>
@@ -185,12 +185,12 @@
   <!-- Leave Reject Modal -->
   <div id="leaveRejectModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="admin-modal-card">
-      <h3 class="admin-modal-title">Antrag ablehnen</h3>
-      <p class="admin-modal-desc">Optional: Begründung für den Mitarbeiter</p>
+      <h3 class="admin-modal-title" data-ui-i18n="leaveRejectModalTitle">Antrag ablehnen</h3>
+      <p class="admin-modal-desc" data-ui-i18n="leaveRejectModalDesc">Optional: Begründung für den Mitarbeiter</p>
       <textarea id="leaveRejectNote" rows="3" placeholder="z.B. Überschneidung mit Urlaubssperre …" style="width:100%;box-sizing:border-box;padding:10px;border-radius:6px;border:1px solid var(--border,#d0d0d0);font-size:14px;resize:vertical;"></textarea>
       <div class="admin-modal-actions">
-        <button class="ghost-button" id="leaveRejectCancelBtn">Abbrechen</button>
-        <button class="primary-button btn-danger-solid" id="leaveRejectConfirmBtn">✗ Ablehnen</button>
+        <button class="ghost-button" id="leaveRejectCancelBtn" data-ui-i18n="leaveRejectCancelBtn">Abbrechen</button>
+        <button class="primary-button btn-danger-solid" id="leaveRejectConfirmBtn" data-ui-i18n="leaveRejectConfirmBtn">✗ Ablehnen</button>
       </div>
     </div>
   </div>
@@ -208,7 +208,7 @@
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
         <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
-        <button class="nav-link" data-view="leave" id="navLeaveBtn">Urlaubsanträge <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
+        <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
         <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
         <button class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
@@ -308,10 +308,10 @@
         <article class="panel" id="customerReviewsPanel" style="margin-top:24px; display:none;">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">⭐ Feedback</p>
-              <h3>Kundenbewertungen</h3>
+              <p class="eyebrow" data-ui-i18n="customerReviewsEyebrow">⭐ Feedback</p>
+              <h3 data-ui-i18n="customerReviewsH3">Kundenbewertungen</h3>
             </div>
-            <button type="button" class="ghost-button small-button" id="reviewsRefreshBtn">Aktualisieren</button>
+            <button type="button" class="ghost-button small-button" id="reviewsRefreshBtn" data-ui-i18n="btnRefreshReviews">Aktualisieren</button>
           </div>
           <div id="customerReviewsList" class="list" style="padding:16px;"></div>
         </article>
@@ -390,11 +390,11 @@
                 <input id="physicalCardId" type="text" placeholder="UID oder Kartenkennung" />
               </label>
               <label>
-                <span>E-Mail (Benachrichtigungen)</span>
+                <span data-ui-i18n="labelEmailNotifications">E-Mail (Benachrichtigungen)</span>
                 <input id="workerContactEmail" type="email" placeholder="mitarbeiter@firma.de" />
               </label>
               <label>
-                <span>Urlaubsanspruch (Tage/Jahr)</span>
+                <span data-ui-i18n="labelVacationDays">Urlaubsanspruch (Tage/Jahr)</span>
                 <input id="workerLeaveBalance" type="number" min="0" max="365" value="30" placeholder="30" />
               </label>
               <label>
@@ -459,7 +459,7 @@
                   <img id="capturedPhoto" src="" alt="Foto-Vorschau" style="max-width: 220px; max-height: 280px; border-radius: 10px; border: 1px solid #ccc; background: #fff; display: none;" />
                 </div>
                 <div style="text-align:center; margin-bottom: 8px;">
-                  <button type="button" id="validatePhotoBtn" class="ghost-button" style="font-size:0.85rem;">Foto prüfen</button>
+                  <button type="button" id="validatePhotoBtn" class="ghost-button" style="font-size:0.85rem;" data-ui-i18n="btnValidatePhoto">Foto prüfen</button>
                   <div id="photoValidationResult" style="margin-top:8px; font-size:0.82rem;"></div>
                 </div>
                 <div class="photo-adjust-controls">
@@ -492,7 +492,7 @@
                 <p class="eyebrow" data-ui-i18n="workersListEyebrow">Datenbestand</p>
                 <h3 data-ui-i18n="workersListH3">Registrierte Mitarbeiter</h3>
               </div>
-              <button id="workerExportOptionsButton" type="button" class="ghost-button">Erweiterte Export-Optionen</button>
+              <button id="workerExportOptionsButton" type="button" class="ghost-button" data-ui-i18n="btnWorkerExportOptions">Erweiterte Export-Optionen</button>
               <button id="workerCsvButton" type="button" class="ghost-button" data-ui-i18n="btnWorkerCsv">Mitarbeiterliste als PDF herunterladen</button>
               <button id="workerCsvImportButton" type="button" class="ghost-button" title="CSV-Datei mit Mitarbeitern hochladen (Massenimport)">CSV importieren</button>
               <input type="file" id="workerCsvImportInput" accept=".csv" style="display:none;" />
@@ -532,23 +532,23 @@
             </article>
 
             <div id="workerExportModal" class="export-modal hidden" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 24px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 1001; width: 90%; max-width: 400px;">
-              <h3 style="margin: 0 0 16px 0;">Export-Optionen</h3>
+              <h3 style="margin: 0 0 16px 0;" data-ui-i18n="workerExportOptionsTitle">Export-Optionen</h3>
               <div style="display: grid; gap: 12px;">
-                <label><input type="checkbox" id="exportIncludeDeleted" /> Gelöschte Mitarbeiter einbeziehen</label>
-                <label><input type="checkbox" id="exportIncludePhotos" /> Fotos einbeziehen (nur PDF)</label>
+                <label><input type="checkbox" id="exportIncludeDeleted" /> <span data-ui-i18n="exportIncludeDeletedLabel">Gelöschte Mitarbeiter einbeziehen</span></label>
+                <label><input type="checkbox" id="exportIncludePhotos" /> <span data-ui-i18n="exportIncludePhotosLabel">Fotos einbeziehen (nur PDF)</span></label>
                 <label>
-                  Zeitraum (nur PDF):
+                  <span data-ui-i18n="exportPeriodLabel">Zeitraum (nur PDF):</span>
                   <select id="exportPeriod" style="margin-top: 4px; width: 100%;">
-                    <option value="all">Alle Mitarbeiter</option>
-                    <option value="day">Heute</option>
-                    <option value="week">Diese Woche</option>
+                    <option value="all" data-ui-i18n="exportPeriodAll">Alle Mitarbeiter</option>
+                    <option value="day" data-ui-i18n="exportPeriodDay">Heute</option>
+                    <option value="week" data-ui-i18n="exportPeriodWeek">Diese Woche</option>
                   </select>
                 </label>
               </div>
               <div style="display: flex; gap: 8px; margin-top: 20px;">
-                <button id="exportCsvBtn" type="button" class="primary-button" style="flex: 1;">CSV exportieren</button>
-                <button id="exportPdfBtn" type="button" class="primary-button" style="flex: 1;">PDF exportieren</button>
-                <button id="exportCancelBtn" type="button" class="ghost-button" style="flex: 1;">Abbrechen</button>
+                <button id="exportCsvBtn" type="button" class="primary-button" style="flex: 1;" data-ui-i18n="btnExportCsv">CSV exportieren</button>
+                <button id="exportPdfBtn" type="button" class="primary-button" style="flex: 1;" data-ui-i18n="btnExportPdf">PDF exportieren</button>
+                <button id="exportCancelBtn" type="button" class="ghost-button" style="flex: 1;" data-ui-i18n="btnExportCancel">Abbrechen</button>
               </div>
             </div>
             <div id="exportModalBackdrop" class="export-modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1000;"></div>
@@ -722,7 +722,7 @@
               </label>
               <button type="submit" class="ghost-button" data-ui-i18n="btnApplyFilter">Filter anwenden</button>
               <button id="accessResetButton" type="button" class="ghost-button" data-ui-i18n="btnResetFilter">Filter zurücksetzen</button>
-              <button id="accessTodayButton" type="button" class="ghost-button">Heute</button>
+              <button id="accessTodayButton" type="button" class="ghost-button" data-ui-i18n="btnAccessToday">Heute</button>
               <button id="accessCsvButton" type="button" class="primary-button full-width" data-ui-i18n="btnAccessCsv">Zutritts-CSV exportieren</button>
             </form>
 
@@ -803,19 +803,19 @@
             </div>
 
             <div class="button-row invoice-quick-filters">
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOpen" data-status="open">Offen</button>
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue">Überfällig</button>
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed">Fehler</button>
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="">Alle</button>
-              <button type="button" class="ghost-button" id="triggerDunningBtn">Mahnungs-Durchlauf starten</button>
-              <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn">Monatsrechnung jetzt starten</button>
-              <button type="button" class="ghost-button" id="simulateCurrentMonthBtn">Aktuellen Monat simulieren</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOpen" data-status="open" data-ui-i18n="invoiceQuickFilterOpen">Offen</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue" data-ui-i18n="invoiceQuickFilterOverdue">Überfällig</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed" data-ui-i18n="invoiceQuickFilterError">Fehler</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="" data-ui-i18n="invoiceQuickFilterAll">Alle</button>
+              <button type="button" class="ghost-button" id="triggerDunningBtn" data-ui-i18n="btnTriggerDunning">Mahnungs-Durchlauf starten</button>
+              <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn" data-ui-i18n="btnStartMonthlyInvoice">Monatsrechnung jetzt starten</button>
+              <button type="button" class="ghost-button" id="simulateCurrentMonthBtn" data-ui-i18n="btnSimulateCurrentMonth">Aktuellen Monat simulieren</button>
             </div>
 
             <div id="invoiceBulkBar" class="bulk-action-bar hidden">
               <span id="invoiceBulkCount">0 ausgewählt</span>
-              <button type="button" class="primary-button" id="invoiceBulkMarkPaid">Auswahl als bezahlt markieren</button>
-              <button type="button" class="ghost-button" id="invoiceBulkCancel">Abbrechen</button>
+              <button type="button" class="primary-button" id="invoiceBulkMarkPaid" data-ui-i18n="btnBulkMarkPaid">Auswahl als bezahlt markieren</button>
+              <button type="button" class="ghost-button" id="invoiceBulkCancel" data-ui-i18n="btnExportCancel">Abbrechen</button>
             </div>
 
             <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid"></div>
@@ -825,13 +825,13 @@
 
             <div id="invoicePdfPreviewModal" class="pdf-preview-modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1002; display: flex; flex-direction: column;">
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
-                <h3 style="margin: 0;">Rechnungsvorschau</h3>
+                <h3 style="margin: 0;" data-ui-i18n="invoicePdfPreviewTitle">Rechnungsvorschau</h3>
                 <button id="closePdfPreviewBtn" type="button" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
               </div>
               <iframe id="invoicePdfFrame" style="flex: 1; border: none;"></iframe>
               <div style="display: flex; gap: 8px; padding: 12px; background: #f5f5f5; border-top: 1px solid #ddd;">
-                <button id="downloadPdfPreviewBtn" type="button" class="primary-button">Herunterladen</button>
-                <button id="closePdfPreviewBtn2" type="button" class="ghost-button" style="flex: 1;">Schließen</button>
+                <button id="downloadPdfPreviewBtn" type="button" class="primary-button" data-ui-i18n="btnDownloadPdf">Herunterladen</button>
+                <button id="closePdfPreviewBtn2" type="button" class="ghost-button" style="flex: 1;" data-ui-i18n="btnClosePdfPreview">Schließen</button>
               </div>
             </div>
 
@@ -930,8 +930,8 @@
           <article class="panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Personalverwaltung</p>
-                <h3>Urlaubsanträge &amp; Abwesenheiten</h3>
+                <p class="eyebrow" data-ui-i18n="leaveEyebrow">Personalverwaltung</p>
+                <h3 data-ui-i18n="leaveH3">Urlaubsanträge &amp; Abwesenheiten</h3>
               </div>
               <button class="ghost-button" id="leaveExportCsvBtn" title="Als CSV exportieren">⬇ CSV</button>
             </div>
@@ -1030,7 +1030,7 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Compliance</p>
-              <h3>Ablaufende Dokumente</h3>
+              <h3 data-ui-i18n="expiringDocsH3">Ablaufende Dokumente</h3>
             </div>
             <div class="button-row">
               <select id="expiringDocsDaysFilter" style="max-width:160px;">
@@ -1039,7 +1039,7 @@
                 <option value="60">60 Tage</option>
                 <option value="90">90 Tage</option>
               </select>
-              <button id="expiringDocsRefreshBtn" type="button" class="ghost-button">Aktualisieren</button>
+              <button id="expiringDocsRefreshBtn" type="button" class="ghost-button" data-ui-i18n="btnRefreshExpiringDocs">Aktualisieren</button>
             </div>
           </div>
           <div id="expiringDocsList" class="list"></div>
@@ -1057,7 +1057,7 @@
               </div>
             </div>
             <div class="meta-box">
-              <p>Nur <strong>Super-Admin</strong> kann globale Einstellungen ändern. Firmen-Admins sehen ausschließlich ihre erlaubten Daten.</p>
+              <p data-ui-i18n-html="adminSuperAdminHint">Nur <strong>Super-Admin</strong> kann globale Einstellungen ändern. Firmen-Admins sehen ausschließlich ihre erlaubten Daten.</p>
             </div>
 
             <div class="divider"></div>
@@ -1581,15 +1581,15 @@
 
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Sprachausgabe</p>
-                <h3>Verfügbare TTS-Stimmen</h3>
+                <p class="eyebrow" data-ui-i18n="ttsEyebrow">Sprachausgabe</p>
+                <h3 data-ui-i18n="ttsH3">Verfügbare TTS-Stimmen</h3>
               </div>
               <div class="button-row">
-                <button type="button" class="ghost-button" onclick="loadTtsVoiceList()">Stimmen laden</button>
+                <button type="button" class="ghost-button" onclick="loadTtsVoiceList()" data-ui-i18n="btnLoadTtsVoices">Stimmen laden</button>
               </div>
             </div>
             <div id="ttsVoiceListPanel" class="card-item">
-              <p style="color:#888;font-size:0.88rem">Klicke auf „Stimmen laden" um alle verfügbaren Sprachstimmen zu sehen.</p>
+              <p style="color:#888;font-size:0.88rem" data-ui-i18n="ttsHint">Klicke auf „Stimmen laden" um alle verfügbaren Sprachstimmen zu sehen.</p>
             </div>
           </article>
 
@@ -1642,7 +1642,7 @@
                 <span data-ui-i18n="labelInvNumber">Rechnungsnummer</span>
                 <div style="display:flex;gap:6px;align-items:center;">
                   <input id="invoiceNumber" type="text" placeholder="RE-2026-0001" style="flex:1;" />
-                  <button type="button" id="invoiceNumberAutoBtn" class="ghost-button" style="white-space:nowrap;padding:6px 10px;" title="Nächste freie Nummer laden">Auto</button>
+                  <button type="button" id="invoiceNumberAutoBtn" class="ghost-button" style="white-space:nowrap;padding:6px 10px;" title="Nächste freie Nummer laden" data-ui-i18n-attr="title" data-ui-i18n="invoiceNumberAutoTitle">Auto</button>
                 </div>
               </label>
               <label>
@@ -1669,25 +1669,25 @@
               <!-- Mehrere Positionen -->
               <div class="full-width" id="invoicePositionsBlock">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                  <span style="font-weight:600;font-size:13px;">Positionen</span>
-                  <button type="button" id="addInvoicePositionBtn" class="ghost-button" style="padding:4px 10px;font-size:12px;">+ Position hinzufügen</button>
+                  <span style="font-weight:600;font-size:13px;" data-ui-i18n="invoicePositionsHeading">Positionen</span>
+                  <button type="button" id="addInvoicePositionBtn" class="ghost-button" style="padding:4px 10px;font-size:12px;" data-ui-i18n="btnAddInvoicePosition">+ Position hinzufügen</button>
                 </div>
                 <div id="invoicePositionRows">
                   <!-- dynamic rows injected by JS -->
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
                   <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
-                    <input type="checkbox" id="invoiceDiscountToggle" /> Rabatt / Skonto anwenden
+                    <input type="checkbox" id="invoiceDiscountToggle" /> <span data-ui-i18n="discountToggleLabel">Rabatt / Skonto anwenden</span>
                   </label>
                 </div>
                 <div id="invoiceDiscountRow" style="display:none;margin-top:6px;">
                   <label>
-                    <span>Rabattbetrag (EUR netto)</span>
+                    <span data-ui-i18n="discountAmountLabel">Rabattbetrag (EUR netto)</span>
                     <input id="invoiceDiscountAmount" type="number" min="0" step="0.01" value="0" style="max-width:160px;" />
                   </label>
                 </div>
                 <div style="margin-top:8px;font-size:13px;color:#4a5568;">
-                  Nettosumme: <strong id="invoicePositionNetTotal">0,00 EUR</strong>
+                  <span data-ui-i18n="netTotalLabel">Nettosumme:</span> <strong id="invoicePositionNetTotal">0,00 EUR</strong>
                 </div>
               </div>
 
