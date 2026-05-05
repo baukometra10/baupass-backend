@@ -7226,6 +7226,38 @@ function getRuntimeUiTexts() {
     smtpSentToFallback: "Mail sent to {recipient} (fallback via HTTPS API)",
     smtpDirectApiTestOk: "API direct test: OK",
     smtpDirectApiTestResult: "API direct test: {error}{source}",
+    companyCustomerNumberLabel: "Customer no.:",
+    companyBrandingOptionConstruction: "Construction",
+    companyBrandingOptionIndustry: "Industry",
+    companyBrandingOptionPremium: "Premium",
+    companyBrandingSaveBtn: "Save design",
+    companyBrandingResetBtn: "Reset",
+    companySectionSettings: "Settings",
+    companyBtnCustomerNumber: "🔢 Customer no.",
+    companyBtnDocEmail: "📧 Doc. email",
+    companyBtnInvoiceLang: "🌐 Invoice language",
+    companyBtnAdminTfa: "🔐 Admin 2FA",
+    companySectionAccess: "Access",
+    companyBtnPasswordMail: "🔑 Password email",
+    companyBtnSetPassword: "🔒 Set password",
+    companyBtnAddTurnstile: "➕ Turnstile",
+    companyBtnLogin: "🔓 Company login",
+    companyBtnLoginPreparing: "⏳ Preparing…",
+    companySectionActions: "Actions",
+    companyBtnLockSaving: "⏳ Saving…",
+    companyBtnUnlock: "✅ Unlock",
+    companyBtnLock: "🔴 Lock company",
+    companyBtnReviewEnable: "⭐ Enable reviews",
+    companyBtnReviewDisable: "⭐ Disable reviews",
+    companyBtnDelete: "🗑 Delete company",
+    companyReviewLinkActive: "⭐ Review link active – Send to customer:",
+    companyBtnCopyLink: "📋 Copy link",
+    companyRepairFilterTitle: "Filter repair history",
+    companySearchPlaceholder: "Search company or customer no.",
+    companyPromptCustomerNumber: "Customer number (digits only)",
+    companyAlertCustomerNumberInvalid: "Customer number must consist of digits only.",
+    companyAlertLinkCopied: "Link copied!",
+    companyPromptCopyLinkManual: "Copy link manually:",
   };
   const map = {
     de: {
@@ -7872,6 +7904,38 @@ function getRuntimeUiTexts() {
       smtpSentToFallback: "Mail gesendet an {recipient} (Fallback via HTTPS-API)",
       smtpDirectApiTestOk: "API Direkt-Test: OK",
       smtpDirectApiTestResult: "API Direkt-Test: {error}{source}",
+      companyCustomerNumberLabel: "Kundennummer:",
+      companyBrandingOptionConstruction: "Bau",
+      companyBrandingOptionIndustry: "Industrie",
+      companyBrandingOptionPremium: "Premium",
+      companyBrandingSaveBtn: "Design speichern",
+      companyBrandingResetBtn: "Zuruecksetzen",
+      companySectionSettings: "Einstellungen",
+      companyBtnCustomerNumber: "🔢 Kundennummer",
+      companyBtnDocEmail: "📧 Dokument-Mail",
+      companyBtnInvoiceLang: "🌐 Rechnungs-Sprache",
+      companyBtnAdminTfa: "🔐 Admin-2FA",
+      companySectionAccess: "Zugang",
+      companyBtnPasswordMail: "🔑 Passwort-Mail",
+      companyBtnSetPassword: "🔒 Passwort setzen",
+      companyBtnAddTurnstile: "➕ Drehkreuz",
+      companyBtnLogin: "🔓 Firmen-Login",
+      companyBtnLoginPreparing: "⏳ Vorbereitung…",
+      companySectionActions: "Aktionen",
+      companyBtnLockSaving: "⏳ Speichert…",
+      companyBtnUnlock: "✅ Sperre aufheben",
+      companyBtnLock: "🔴 Firma sperren",
+      companyBtnReviewEnable: "⭐ Bewertung aktivieren",
+      companyBtnReviewDisable: "⭐ Bewertung deaktivieren",
+      companyBtnDelete: "🗑 Firma loeschen",
+      companyReviewLinkActive: "⭐ Bewertungslink aktiv – Jetzt an den Kunden senden:",
+      companyBtnCopyLink: "📋 Link kopieren",
+      companyRepairFilterTitle: "Reparatur-Verlauf filtern",
+      companySearchPlaceholder: "Firma oder Kundennummer suchen",
+      companyPromptCustomerNumber: "Kundennummer (nur Ziffern)",
+      companyAlertCustomerNumberInvalid: "Kundennummer muss aus Ziffern bestehen.",
+      companyAlertLinkCopied: "Link kopiert!",
+      companyPromptCopyLinkManual: "Link manuell kopieren:",
     },
     tr: {
       sessionLoggedIn: "Giris yapan",
@@ -8518,7 +8582,7 @@ function getRuntimeUiTexts() {
   };
   return {
     ...base,
-    ...(map[lang] || map.de),
+    ...(map[lang] || {}),
   };
 }
 
@@ -12112,7 +12176,7 @@ function renderCompanyList() {
       return `
         <article class="card-item ${deleted ? "is-deleted" : ""}">
           <strong>${escapeHtml(company.name || runtimeText("invoiceFallbackCompany"))}</strong>
-          <p><strong>Kundennummer:</strong> ${escapeHtml(customerNumber || "-")}</p>
+          <p><strong>${escapeHtml(runtimeText("companyCustomerNumberLabel"))}</strong> ${escapeHtml(customerNumber || "-")}</p>
           <span>${escapeHtml(company.plan || "-")}</span>
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
@@ -12135,12 +12199,12 @@ function renderCompanyList() {
           })()}
           <div class="button-row" style="align-items:center; margin-top:2px;">
             <select data-company-branding-select="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>
-              <option value="construction" ${brandingPreset === "construction" ? "selected" : ""}>Bau</option>
-              <option value="industry" ${brandingPreset === "industry" ? "selected" : ""}>Industrie</option>
-              <option value="premium" ${brandingPreset === "premium" ? "selected" : ""}>Premium</option>
+              <option value="construction" ${brandingPreset === "construction" ? "selected" : ""}>${escapeHtml(runtimeText("companyBrandingOptionConstruction"))}</option>
+              <option value="industry" ${brandingPreset === "industry" ? "selected" : ""}>${escapeHtml(runtimeText("companyBrandingOptionIndustry"))}</option>
+              <option value="premium" ${brandingPreset === "premium" ? "selected" : ""}>${escapeHtml(runtimeText("companyBrandingOptionPremium"))}</option>
             </select>
-            <button type="button" class="ghost-button small-button" data-company-branding-save="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Design speichern</button>
-            <button type="button" class="ghost-button small-button" data-company-branding-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>Zuruecksetzen</button>
+            <button type="button" class="ghost-button small-button" data-company-branding-save="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingSaveBtn"))}</button>
+            <button type="button" class="ghost-button small-button" data-company-branding-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingResetBtn"))}</button>
           </div>
           <div class="button-row" style="align-items:center; margin-top:2px;">
             <span class="company-branding-preview preview-${escapeHtml(brandingPreset)}" data-company-branding-preview="${escapeHtml(companyId)}" aria-hidden="true"></span>
@@ -12155,31 +12219,31 @@ function renderCompanyList() {
           ${repairStatus ? `<p class="${repairStatusClass}">${escapeHtml(repairStatus.message || "")}</p>` : ""}
           <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Einstellungen</span>
-              <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔢 Kundennummer</button>
-              <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>📧 Dokument-Mail</button>
-              <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🌐 Rechnungs-Sprache</button>
-              <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔐 Admin-2FA</button>
+              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionSettings"))}</span>
+              <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnCustomerNumber"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Zugang</span>
-              <button type="button" class="ghost-button small-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔑 Passwort-Mail</button>
-              <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🔒 Passwort setzen</button>
-              <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>➕ Drehkreuz</button>
-              <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? "⏳ Vorbereitung…" : "🔓 Firmen-Login"}</button>
+              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionAccess"))}</span>
+              <button type="button" class="ghost-button small-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnPasswordMail"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
+              <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Aktionen</span>
-              <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? "⏳ Speichert…" : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "✅ Sperre aufheben" : "🔴 Firma sperren"}</button>
-              <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? "⭐ Bewertung deaktivieren" : "⭐ Bewertung aktivieren"}</button>
-              <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>🗑 Firma löschen</button>
+              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
+              <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? escapeHtml(runtimeText("companyBtnLockSaving")) : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? escapeHtml(runtimeText("companyBtnUnlock")) : escapeHtml(runtimeText("companyBtnLock"))}</button>
+              <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? escapeHtml(runtimeText("companyBtnReviewDisable")) : escapeHtml(runtimeText("companyBtnReviewEnable"))}</button>
+              <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDelete"))}</button>
             </div>
           </div>
           ${company.review_enabled && company.review_token ? `
           <div class="meta-box" style="background:rgba(253,251,210,0.6);border-color:#d4ac0d;margin-top:8px;">
-            <p>⭐ <strong>Bewertungslink aktiv</strong> – Jetzt an den Kunden senden:</p>
+            <p>${escapeHtml(runtimeText("companyReviewLinkActive"))}</p>
             <p style="font-size:0.8em;word-break:break-all;color:#555;margin:4px 0;">${window.location.origin}/review.html?token=${escapeHtml(company.review_token)}</p>
-            <button type="button" class="ghost-button small-button" data-company-review-copy="${escapeHtml(companyId)}">📋 Link kopieren</button>
+            <button type="button" class="ghost-button small-button" data-company-review-copy="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnCopyLink"))}</button>
           </div>` : ""}
         </article>
       `;
@@ -12190,11 +12254,11 @@ function renderCompanyList() {
     <article class="card-item">
       <div class="button-row" style="justify-content:space-between; align-items:center;">
         <div>
-          <strong>Reparatur-Verlauf filtern</strong>
+          <strong>${runtimeText("companyRepairFilterTitle")}</strong>
           <p class="helper-text">${runtimeTextTemplate("companyHistoryShownCount", { shown: shownCount, total: totalCount })}</p>
         </div>
         <div class="button-row" style="gap:10px;">
-          <input id="companySearchInput" type="search" value="${escapeAttr(state.companyFilterQuery || "")}" placeholder="Firma oder Kundennummer suchen" style="min-width:240px;" />
+          <input id="companySearchInput" type="search" value="${escapeAttr(state.companyFilterQuery || "")}" placeholder="${escapeAttr(runtimeText("companySearchPlaceholder"))}" style="min-width:240px;" />
           <label>
             ${runtimeText("companyHistoryPeriodLabel")}
             <select id="companyRepairHistoryWindow" style="margin-left:8px;">
@@ -12319,13 +12383,13 @@ function bindCompanyRowActions() {
       }
 
       const currentCustomerNumber = getCompanyCustomerNumber(company);
-      const entered = window.prompt("Kundennummer (nur Ziffern)", currentCustomerNumber || "");
+      const entered = window.prompt(runtimeText("companyPromptCustomerNumber"), currentCustomerNumber || "");
       if (entered === null) {
         return;
       }
       const cleanedCustomerNumber = String(entered || "").replace(/\D+/g, "").slice(0, 12);
       if (!cleanedCustomerNumber) {
-        window.alert("Kundennummer muss aus Ziffern bestehen.");
+        window.alert(runtimeText("companyAlertCustomerNumberInvalid"));
         return;
       }
 
@@ -12890,8 +12954,8 @@ function bindCompanyRowActions() {
       const company = state.companies.find((c) => c.id === companyId);
       if (!company?.review_token) return;
       const reviewUrl = `${window.location.origin}/review.html?token=${company.review_token}`;
-      navigator.clipboard?.writeText(reviewUrl).then(() => window.alert("Link kopiert!")).catch(() => {
-        window.prompt("Link manuell kopieren:", reviewUrl);
+      navigator.clipboard?.writeText(reviewUrl).then(() => window.alert(runtimeText("companyAlertLinkCopied"))).catch(() => {
+        window.prompt(runtimeText("companyPromptCopyLinkManual"), reviewUrl);
       });
       return;
     }
