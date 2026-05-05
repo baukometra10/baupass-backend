@@ -4866,14 +4866,31 @@ body.desktop-app .topbar {
     height: 54mm !important;
     padding: 4mm 4.8mm !important;
     border-radius: 4.2mm !important;
-    background: #0f1923 !important;
+    background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
+    border: 0.2mm solid rgba(255, 255, 255, .08) !important;
     box-shadow: none !important;
     break-inside: avoid;
     page-break-inside: avoid;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .print-badge-root .wallet-card::before { display: none !important; }
+  .print-badge-root .wallet-card.preset-industry {
+    background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%) !important;
+  }
+  .print-badge-root .wallet-card.preset-premium {
+    background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%) !important;
+  }
+  .print-badge-root .wallet-card::before {
+    display: block !important;
+    height: 0.8mm !important;
+    opacity: .95 !important;
+  }
+  .print-badge-root .wallet-card.preset-industry::before {
+    background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%) !important;
+  }
+  .print-badge-root .wallet-card.preset-premium::before {
+    background: linear-gradient(90deg, #1565c0 0%, #42a5f5 48%, #1565c0 100%) !important;
+  }
   .print-badge-root .wallet-card .wc-shimmer { display: none !important; }
   .print-badge-root .wallet-card .wc-grid { display: none !important; }
   .print-badge-root .wallet-card .wc-brand-mark {
