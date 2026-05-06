@@ -4716,6 +4716,10 @@ def start_background_jobs():
                     recipient = data["admin_email"] or data["billing_email"]
                     if not recipient:
                         continue
+                    # Only send doc-expiry emails to companies with email_notifications feature
+                    _cid_plan = get_company_plan(db, cid)
+                    if not company_has_feature(_cid_plan, "email_notifications"):
+                        continue
                     alert_code = f"doc_expiry_notification_{cid}_{today}"
                     if db.execute("SELECT id FROM system_alerts WHERE code = ?", (alert_code,)).fetchone():
                         continue  # Heute bereits gesendet
@@ -7929,6 +7933,10 @@ def reset_worker_pin(worker_id):
         return jsonify({"error": "worker_not_found"}), 404
     if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_worker"}), 403
+    if g.current_user["role"] != "superadmin":
+        _pin_plan = get_company_plan(db, worker["company_id"])
+        if not company_has_feature(_pin_plan, "nfc_badges"):
+            return feature_not_available_response("nfc_badges", _pin_plan)
     if worker["deleted_at"]:
         return jsonify({"error": "worker_deleted"}), 400
     if worker["badge_id"].upper().startswith("VS"):
@@ -9675,6 +9683,10 @@ def invoice_access_line_items():
         return jsonify({"error": "company_not_available"}), 400
     if g.current_user["role"] != "superadmin" and company_id != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_company"}), 403
+    if g.current_user["role"] != "superadmin":
+        plan_value = get_company_plan(db, company_id)
+        if not company_has_feature(plan_value, "invoicing"):
+            return feature_not_available_response("invoicing", plan_value)
 
     from_iso = f"{from_date.isoformat()}T00:00:00Z"
     to_iso = f"{to_date.isoformat()}T23:59:59.999999Z"
@@ -10194,6 +10206,12 @@ def gate_tap():
     turnstile_user = find_turnstile_by_api_key(db, provided_key)
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
+
+    # NFC gate tap requires nfc_badges feature (Starter+)
+    if turnstile_user.get("company_id"):
+        _gate_plan = get_company_plan(db, turnstile_user["company_id"])
+        if not company_has_feature(_gate_plan, "nfc_badges"):
+            return feature_not_available_response("nfc_badges", _gate_plan)
 
     payload = request.get_json(silent=True) or {}
     physical_card_id = normalize_physical_card_id(payload.get("physicalCardId") or payload.get("cardId"))
@@ -12183,6 +12201,10 @@ def export_all_invoices_csv():
 @require_roles("superadmin", "company-admin")
 def list_invoices():
     db = get_db()
+    if g.current_user["role"] != "superadmin":
+        plan_value = get_company_plan(db, g.current_user.get("company_id"))
+        if not company_has_feature(plan_value, "invoicing"):
+            return feature_not_available_response("invoicing", plan_value)
     if g.current_user["role"] == "superadmin":
         rows = db.execute(
             """
