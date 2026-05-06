@@ -4408,13 +4408,49 @@ body.theme-black .topbar {
 body.theme-black .hero-panel,
 body.theme-black .panel,
 body.theme-black .stat-card,
+body.theme-black .quick-panel-card,
 body.theme-black .session-card,
 body.theme-black .badge-meta,
 body.theme-black .list-item,
 body.theme-black .card-item,
 body.theme-black .camera-block {
-  background: rgba(18, 18, 18, 0.88);
+  background: #1a1a1a;
   border-color: rgba(255, 255, 255, 0.1);
+  color: #f0f4f8;
+}
+
+/* Remove the white glass sheen overlay in dark mode — prevents the muddy gray look */
+body.theme-black .topbar::after,
+body.theme-black .hero-panel::after,
+body.theme-black .panel::after,
+body.theme-black .stat-card::after,
+body.theme-black .quick-panel-card::after,
+body.theme-black .porter-live-card::after,
+body.theme-black .worker-app-qr-card::after,
+body.theme-black .access-feedback-card::after {
+  background: none;
+}
+
+/* Fix hardcoded dark-teal text that becomes invisible on dark cards */
+body.theme-black .stat-card .stat-value {
+  color: #f0f4f8;
+}
+
+body.theme-black .panel-heading h3 {
+  color: #f0f4f8;
+}
+
+body.theme-black .panel-heading {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-black .stat-card-critical {
+  background: rgba(197, 61, 47, 0.18);
+  border-color: rgba(197, 61, 47, 0.5);
+}
+
+body.theme-black .stat-card-critical strong {
+  color: #fca5a5;
 }
 
 body.theme-black .ghost-button {
