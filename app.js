@@ -7344,7 +7344,7 @@ const PLAN_NET_PRICE_EUR = {
   tageskarte: 19,
   starter: 149,
   professional: 999,
-  enterprise: 1990,
+  enterprise: 2490,
 };
 
 // Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0 = inklusive)
@@ -7353,6 +7353,14 @@ const PLAN_WORKER_PRICE_EUR = {
   starter: 0,
   professional: 2.5,
   enterprise: 3.0,
+};
+
+// Freikontigent inkludierter Mitarbeiter pro Plan (0 = alle zahlen)
+const PLAN_WORKER_FREE_INCLUDED = {
+  tageskarte: 0,
+  starter: 0,
+  professional: 10,
+  enterprise: 10,
 };
 
 const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
@@ -18083,7 +18091,7 @@ async function openCompanyPlanModal(companyId, company) {
     { key: "tageskarte", label: "Besucherkarte",  price: "19 €/Monat",         perWorker: null,      color: "#6b7280" },
     { key: "starter",    label: "Starter",         price: "149 €/Monat",        perWorker: null,      color: "#0369a1" },
     { key: "professional", label: "Professional",  price: "999 €/Monat",        perWorker: "2,50 €",  color: "#7c3aed" },
-    { key: "enterprise", label: "Enterprise",      price: "1.990 €/Monat",      perWorker: "3,00 €",  color: "#b45309" },
+    { key: "enterprise", label: "Enterprise",      price: "2.490 €/Monat",      perWorker: "3,00 €",  color: "#b45309" },
   ];
 
   // Feature labels (DE) aligned with PLAN_FEATURES keys
@@ -18137,7 +18145,7 @@ async function openCompanyPlanModal(companyId, company) {
   const planCards = PLANS.map((p) => {
     const isCurrent = p.key === currentPlan;
     const perWorkerLine = p.perWorker
-      ? `<div style="font-size:11px;color:#777;margin-top:3px;">+ ${escapeHtml(p.perWorker)} pro Mitarbeiter</div>`
+      ? `<div style="font-size:11px;color:#777;margin-top:3px;">+ ${escapeHtml(p.perWorker)} pro MA (ab 11.)</div>`
       : `<div style="font-size:11px;color:#777;margin-top:3px;">alle Mitarbeiter inklusive</div>`;
     return `
       <label style="cursor:pointer;display:block;border:2px solid ${isCurrent ? p.color : "var(--border,#ccc)"};border-radius:8px;padding:10px 14px;background:${isCurrent ? "rgba(99,102,241,0.05)" : "transparent"};transition:border-color 0.15s;" class="plan-card-label">

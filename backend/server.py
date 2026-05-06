@@ -192,15 +192,23 @@ PLAN_NET_PRICE_EUR = {
     "tageskarte": 19.0,
     "starter": 149.0,
     "professional": 999.0,
-    "enterprise": 1990.0,
+    "enterprise": 2490.0,
 }
 
-# Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0.0 = inkludiert).
+# Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0.0 = alle inkludiert).
 PLAN_WORKER_PRICE_EUR = {
     "tageskarte": 0.0,
     "starter": 0.0,
     "professional": 2.50,
     "enterprise": 3.00,
+}
+
+# Anzahl Mitarbeiter, die im Basispreis enthalten sind (0 = kein Freikontigent).
+PLAN_WORKER_FREE_INCLUDED = {
+    "tageskarte": 0,
+    "starter": 0,
+    "professional": 10,
+    "enterprise": 10,
 }
 
 # ── Plan-Feature-Matrix ────────────────────────────────────────────────────
@@ -1023,7 +1031,9 @@ def calculate_net_amount_by_plan(company_plan, payload_net_amount, worker_count=
         return round(explicit_net, 2)
     normalized_plan = normalize_company_plan(company_plan)
     base = PLAN_NET_PRICE_EUR[normalized_plan]
-    worker_fee = PLAN_WORKER_PRICE_EUR.get(normalized_plan, 0.0) * max(0, int(worker_count or 0))
+    free_included = PLAN_WORKER_FREE_INCLUDED.get(normalized_plan, 0)
+    billable_workers = max(0, int(worker_count or 0) - free_included)
+    worker_fee = PLAN_WORKER_PRICE_EUR.get(normalized_plan, 0.0) * billable_workers
     return round(base + worker_fee, 2)
 
 
@@ -4225,9 +4235,12 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
             "SELECT COUNT(*) FROM workers WHERE company_id = ? AND deleted_at IS NULL",
             (company_id,),
         ).fetchone()[0]
-        worker_price_per_unit = PLAN_WORKER_PRICE_EUR.get(normalize_company_plan(company["plan"]), 0.0)
-        base_price = PLAN_NET_PRICE_EUR[normalize_company_plan(company["plan"])]
-        net_amount = round(base_price + worker_price_per_unit * active_worker_count, 2)
+        normalized_plan = normalize_company_plan(company["plan"])
+        worker_price_per_unit = PLAN_WORKER_PRICE_EUR.get(normalized_plan, 0.0)
+        free_included = PLAN_WORKER_FREE_INCLUDED.get(normalized_plan, 0)
+        billable_workers = max(0, active_worker_count - free_included)
+        base_price = PLAN_NET_PRICE_EUR[normalized_plan]
+        net_amount = round(base_price + worker_price_per_unit * billable_workers, 2)
         vat_rate = 19.0
         vat_amount = round(net_amount * (vat_rate / 100), 2)
         total_amount = round(net_amount + vat_amount, 2)
@@ -4242,11 +4255,12 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
                 "total": base_price,
             }
         ]
-        if worker_price_per_unit > 0 and active_worker_count > 0:
-            worker_fee_total = round(worker_price_per_unit * active_worker_count, 2)
+        if worker_price_per_unit > 0 and billable_workers > 0:
+            worker_fee_total = round(worker_price_per_unit * billable_workers, 2)
+            free_note = f", {free_included} inkl." if free_included > 0 else ""
             line_items.append({
-                "description": f"Mitarbeiter-Karten ({active_worker_count} aktiv)",
-                "qty": active_worker_count,
+                "description": f"Mitarbeiter-Karten ({active_worker_count} aktiv{free_note})",
+                "qty": billable_workers,
                 "unit": "Karte/Monat",
                 "unitPrice": worker_price_per_unit,
                 "total": worker_fee_total,
