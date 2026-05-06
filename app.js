@@ -23666,6 +23666,29 @@ async function startCamera() {
     const message = String(error?.message || "").trim();
     return [name, message].filter(Boolean).join(": ") || "unknown error";
   };
+  const cameraDiagCodeForError = (error) => {
+    const errorName = String(error?.name || "").trim();
+    if (!window.isSecureContext) {
+      return "CAM-HTTPS";
+    }
+    if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+      return "CAM-PERM";
+    }
+    if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+      return "CAM-NODEVICE";
+    }
+    if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+      return "CAM-INUSE";
+    }
+    if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
+      return "CAM-CONSTRAINT";
+    }
+    if (errorName === "" && error?.message === "getUserMedia_not_supported") {
+      return "CAM-API";
+    }
+    return "CAM-START";
+  };
+  const withCameraDiagCode = (message, code) => `${message} [${code}]`;
 
   const buildCameraErrorMessage = (error) => {
     const errorName = String(error?.name || "").trim();
@@ -23693,7 +23716,10 @@ async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia && !legacyGetUserMedia) {
     if (elements.photoDebugText) {
       const secureHint = window.isSecureContext ? "" : runtimeText("cameraHintSecureContext");
-      elements.photoDebugText.textContent = runtimeTextTemplate("cameraUnavailableWithHint", { hint: secureHint });
+      elements.photoDebugText.textContent = withCameraDiagCode(
+        runtimeTextTemplate("cameraUnavailableWithHint", { hint: secureHint }),
+        "CAM-API"
+      );
       elements.photoDebugText.style.color = "#8a5a00";
     }
     return;
@@ -23792,8 +23818,9 @@ async function startCamera() {
     }
   } catch (error) {
     const reason = buildCameraErrorMessage(error);
+    const diagCode = cameraDiagCodeForError(error);
     if (elements.photoDebugText) {
-      elements.photoDebugText.textContent = reason;
+      elements.photoDebugText.textContent = withCameraDiagCode(reason, diagCode);
       elements.photoDebugText.style.color = "#8a5a00";
     }
     if (isMobile) {

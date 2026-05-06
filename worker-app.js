@@ -3631,9 +3631,32 @@ async function openCameraOverlay() {
     const message = String(error?.message || "").trim();
     return [name, message].filter(Boolean).join(": ") || "unknown error";
   };
+  const cameraDiagCodeForError = (error) => {
+    const errorName = String(error?.name || "").trim();
+    if (!window.isSecureContext) {
+      return "CAM-HTTPS";
+    }
+    if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+      return "CAM-PERM";
+    }
+    if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+      return "CAM-NODEVICE";
+    }
+    if (errorName === "NotReadableError" || errorName === "TrackStartError") {
+      return "CAM-INUSE";
+    }
+    if (errorName === "OverconstrainedError" || errorName === "ConstraintNotSatisfiedError") {
+      return "CAM-CONSTRAINT";
+    }
+    if (errorName === "" && error?.message === "getUserMedia_not_supported") {
+      return "CAM-API";
+    }
+    return "CAM-START";
+  };
+  const withCameraDiagCode = (message, code) => `${message} [${code}]`;
 
   if (!navigator.mediaDevices?.getUserMedia && !legacyGetUserMedia) {
-    showWorkerNotice(t("cameraBlocked"));
+    showWorkerNotice(withCameraDiagCode(t("cameraBlocked"), "CAM-API"));
     elements.photoInput?.click();
     return;
   }
@@ -3735,10 +3758,11 @@ async function openCameraOverlay() {
     }
   } catch (error) {
     const reason = describeCameraError(error);
+    const diagCode = cameraDiagCodeForError(error);
     showWorkerNotice(
       window.isSecureContext
-        ? `${t("cameraStartFailed")} (${reason})`
-        : t("cameraHttpsHint")
+        ? withCameraDiagCode(`${t("cameraStartFailed")} (${reason})`, diagCode)
+        : withCameraDiagCode(t("cameraHttpsHint"), "CAM-HTTPS")
     );
     closeCameraOverlay();
     elements.photoInput?.click();

@@ -174,6 +174,26 @@ Beim Anlegen neuer Firmen erzeugt das System automatisch einen Firmen-Admin mit 
 - Direkter Einstieg lokal: `http://127.0.0.1:8000/worker.html`
 - Direkter Einstieg produktiv: `https://deine-domain.tld/worker.html`
 
+## Kamera-/Foto-Regression-Checkliste
+
+Bei Änderungen an der Fotoaufnahme bitte diese Punkte jedes Mal kurz prüfen:
+
+- Buttons und Input in der Admin-Maske sind gebunden: `#startCameraButton`, `#capturePhotoButton`, `#uploadPhotoButton`, `#photoFileInput`.
+- Klick auf "Kamera starten" zeigt Livebild oder einen klaren Fehlertext mit Diagnosecode in eckigen Klammern.
+- Klick auf "Foto aufnehmen" erstellt ein Bild und aktualisiert die Vorschau.
+- Klick auf "Foto hochladen" öffnet den Dateidialog bzw. mobil die Kamera/Galerie.
+- Worker-App-Fotooverlay funktioniert ebenfalls inkl. Fallback auf Dateiauswahl.
+
+Aktuelle Kamera-Diagnosecodes (Support):
+
+- `CAM-HTTPS`: unsicherer Kontext, HTTPS fehlt.
+- `CAM-PERM`: Kamerazugriff wurde verweigert/blockiert.
+- `CAM-NODEVICE`: kein Kameragerät verfügbar.
+- `CAM-INUSE`: Kamera wird bereits von anderer App/Tab verwendet.
+- `CAM-CONSTRAINT`: angeforderte Kamera-Constraints nicht erfüllbar.
+- `CAM-API`: Browser bietet keine nutzbare Camera-API/Fallback.
+- `CAM-START`: allgemeiner Startfehler (siehe Reason-Text).
+
 ## Rollenmodell
 
 - Super-Admin: volle Systemkontrolle, Firmen anlegen, Plattform konfigurieren, alle Daten sehen
