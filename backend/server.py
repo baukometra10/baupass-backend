@@ -2799,10 +2799,20 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, 
     pdf.setFont("Helvetica", 10)
     pdf.drawString(36, y, c_name)
     contact = str(invoice_row["company_contact"] if "company_contact" in invoice_row.keys() else "")
+    billing_street = str((invoice_row["company_billing_street"] if "company_billing_street" in invoice_row.keys() else None) or (company_row["billing_street"] if company_row and "billing_street" in company_row.keys() else "") or "").strip()
+    billing_zip_city = str((invoice_row["company_billing_zip_city"] if "company_billing_zip_city" in invoice_row.keys() else None) or (company_row["billing_zip_city"] if company_row and "billing_zip_city" in company_row.keys() else "") or "").strip()
     billing_email = str((invoice_row["company_billing_email"] if "company_billing_email" in invoice_row.keys() else None) or (company_row["billing_email"] if "billing_email" in company_row.keys() else None) or "")
     if contact:
         y -= 14
         pdf.drawString(36, y, contact)
+    if billing_street:
+        y -= 13
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(36, y, billing_street)
+    if billing_zip_city:
+        y -= 13
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(36, y, billing_zip_city)
     if billing_email:
         y -= 13
         pdf.setFont("Helvetica", 9)
@@ -13079,7 +13089,9 @@ def invoice_reminder_letter_pdf(invoice_id):
     db = get_db()
     invoice = db.execute(
         """SELECT invoices.*, companies.name AS company_name, companies.contact AS company_contact,
-                  companies.billing_email AS company_billing_email
+                  companies.billing_email AS company_billing_email,
+                  companies.billing_street AS company_billing_street,
+                  companies.billing_zip_city AS company_billing_zip_city
            FROM invoices JOIN companies ON companies.id = invoices.company_id
            WHERE invoices.id = ?""",
         (invoice_id,),
@@ -13149,13 +13161,35 @@ def invoice_reminder_letter_pdf(invoice_id):
     pdf.drawString(36, page_height - 30, letter_type.upper())
     pdf.setFont("Helvetica", 9)
     pdf.drawString(36, page_height - 44, operator_name)
+    # Draw logo in header band if available
+    if settings:
+        _logo_raw = str(settings["invoice_logo_data"] or "").strip()
+        if _logo_raw.startswith("data:image") and "," in _logo_raw:
+            try:
+                import base64 as _b64
+                _, _enc = _logo_raw.split(",", 1)
+                _lb = _b64.b64decode(_enc)
+                from reportlab.lib.utils import ImageReader as _IR
+                _ir = _IR(io.BytesIO(_lb))
+                pdf.drawImage(_ir, page_width - 120, page_height - 48, width=80, height=40,
+                              preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
 
     # ── Sender address block (small above recipient) ──
     y = page_height - 80
     pdf.setFillColorRGB(0.5, 0.5, 0.5)
     pdf.setFont("Helvetica", 7)
-    sender_line = f"{operator_name}, {operator_street}, {operator_zip_city}".strip(", ")
-    pdf.drawString(36, y, sender_line)
+    sender_parts = [p for p in [operator_name, operator_street, operator_zip_city] if p]
+    sender_line = "  ·  ".join(sender_parts)
+    pdf.drawString(36, y, sender_line[:120])
+    contact_parts = [p for p in [
+        f"Tel: {operator_phone}" if operator_phone else "",
+        operator_email if operator_email else "",
+    ] if p]
+    if contact_parts:
+        y -= 10
+        pdf.drawString(36, y, "  ·  ".join(contact_parts)[:120])
 
     # ── Recipient address block ──
     y -= 18
@@ -13165,6 +13199,16 @@ def invoice_reminder_letter_pdf(invoice_id):
     if invoice["company_contact"]:
         y -= 14
         pdf.drawString(36, y, str(invoice["company_contact"] or ""))
+    _rec_street = str(invoice["company_billing_street"] or "").strip() if "company_billing_street" in invoice.keys() else ""
+    _rec_zip_city = str(invoice["company_billing_zip_city"] or "").strip() if "company_billing_zip_city" in invoice.keys() else ""
+    if _rec_street:
+        y -= 13
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(36, y, _rec_street)
+    if _rec_zip_city:
+        y -= 13
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(36, y, _rec_zip_city)
     if invoice["company_billing_email"]:
         y -= 14
         pdf.setFont("Helvetica", 9)
@@ -15906,6 +15950,111 @@ def company_worker_hours_summary(company_id):
 
     result.sort(key=lambda x: (x["lastName"] or "").lower())
     return jsonify({"month": month_prefix, "workers": result})
+
+
+# ── Company-Admin: Stundendetails pro Mitarbeiter ─────────────────────────
+
+@app.get("/api/companies/<company_id>/workers/<worker_id>/timeline")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def company_worker_timeline(company_id, worker_id):
+    """
+    Liefert alle Zutrittsereignisse (check-in/check-out) fuer einen einzelnen
+    Mitarbeiter fuer den gewaehlten Monat, als tagesweise gruppierte Timeline.
+    Query-Parameter: month=YYYY-MM (Standard: aktueller Monat)
+    """
+    from datetime import datetime as _dt
+    db = get_db()
+    user = g.current_user
+    if user["role"] != "superadmin" and user.get("company_id") != company_id:
+        return jsonify({"error": "forbidden"}), 403
+
+    plan_value = get_company_plan(db, company_id)
+    if not company_has_feature(plan_value, "worker_hours_report"):
+        return feature_not_available_response("worker_hours_report", plan_value)
+
+    # Verify worker belongs to company
+    worker = db.execute(
+        "SELECT id, first_name, last_name, badge_id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
+        (worker_id, company_id),
+    ).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+
+    month_param = (request.args.get("month") or "").strip()
+    if month_param and len(month_param) == 7 and "-" in month_param:
+        month_prefix = month_param
+    else:
+        month_prefix = _dt.now().strftime("%Y-%m")
+
+    rows = db.execute(
+        """
+        SELECT direction, gate, note, timestamp
+        FROM access_logs
+        WHERE worker_id = ?
+          AND timestamp LIKE ?
+        ORDER BY timestamp ASC
+        """,
+        (worker_id, f"{month_prefix}%"),
+    ).fetchall()
+
+    # Group by day and pair check-in / check-out
+    from collections import defaultdict, OrderedDict
+    by_day = OrderedDict()
+    for r in rows:
+        day = r["timestamp"][:10]
+        if day not in by_day:
+            by_day[day] = []
+        by_day[day].append({"direction": r["direction"], "gate": r["gate"] or "", "note": r["note"] or "", "timestamp": r["timestamp"]})
+
+    days = []
+    for day, events in by_day.items():
+        # Pair sessions
+        sessions = []
+        pending_in = None
+        day_minutes = 0
+        for ev in events:
+            if ev["direction"] == "check-in":
+                pending_in = ev
+            elif ev["direction"] == "check-out":
+                duration = None
+                if pending_in:
+                    try:
+                        t_in  = _dt.fromisoformat(pending_in["timestamp"][:19])
+                        t_out = _dt.fromisoformat(ev["timestamp"][:19])
+                        diff  = int((t_out - t_in).total_seconds() / 60)
+                        if 0 < diff < 1440:
+                            duration = diff
+                            day_minutes += diff
+                    except Exception:
+                        pass
+                sessions.append({
+                    "checkIn":  pending_in["timestamp"] if pending_in else None,
+                    "checkOut": ev["timestamp"],
+                    "gateIn":   pending_in["gate"] if pending_in else "",
+                    "gateOut":  ev["gate"],
+                    "durationMinutes": duration,
+                })
+                pending_in = None
+        # Unclosed check-in (still on-site)
+        if pending_in:
+            sessions.append({
+                "checkIn":  pending_in["timestamp"],
+                "checkOut": None,
+                "gateIn":   pending_in["gate"],
+                "gateOut":  "",
+                "durationMinutes": None,
+            })
+        days.append({"date": day, "sessions": sessions, "dayMinutes": day_minutes})
+
+    return jsonify({
+        "month": month_prefix,
+        "workerId": worker_id,
+        "firstName": worker["first_name"] or "",
+        "lastName": worker["last_name"] or "",
+        "badgeId": worker["badge_id"] or "",
+        "days": days,
+    })
 
 
 # ── Company Plan-Features Endpoint ────────────────────────────────────────

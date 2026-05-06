@@ -18111,6 +18111,14 @@ async function openWorkerHoursModal(companyId) {
           <td>${escapeHtml(w.role || "-")}</td>
           <td style="text-align:right;font-weight:700;">${escapeHtml(String(w.totalHours))} h</td>
           <td style="text-align:right;">${escapeHtml(String(w.daysWorked))}</td>
+          <td style="text-align:center;">
+            <button type="button" class="ghost-button small-button worker-hours-detail-btn"
+              data-worker-id="${escapeHtml(w.workerId)}"
+              data-worker-name="${escapeHtml(`${w.firstName} ${w.lastName}`.trim() || w.workerId)}"
+              style="font-size:11px;padding:2px 6px;">
+              ${escapeHtml(uiT("workerHoursDetailBtn") || "Details")} ▶
+            </button>
+          </td>
         </tr>
       `).join("");
       wrap.innerHTML = `
@@ -18122,11 +18130,22 @@ async function openWorkerHoursModal(companyId) {
               <th style="padding:6px 8px;">${escapeHtml(uiT("workerHoursColRole") || "Funktion")}</th>
               <th style="padding:6px 8px;text-align:right;">${escapeHtml(uiT("workerHoursColHours") || "Stunden")}</th>
               <th style="padding:6px 8px;text-align:right;">${escapeHtml(uiT("workerHoursColDays") || "Tage")}</th>
+              <th style="padding:6px 8px;text-align:center;">${escapeHtml(uiT("workerHoursColTimeline") || "Verlauf")}</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       `;
+      // Wire up detail buttons
+      wrap.querySelectorAll(".worker-hours-detail-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const workerId = btn.dataset.workerId;
+          const workerName = btn.dataset.workerName;
+          const picker = document.getElementById("workerHoursMonthPicker");
+          const currentMonth = picker?.value || month;
+          openWorkerTimelineModal(companyId, workerId, workerName, currentMonth);
+        });
+      });
     } catch (err) {
       const wrap2 = document.getElementById("workerHoursTableWrap");
       if (wrap2) wrap2.innerHTML = `<p style="color:red;">${escapeHtml(uiT("workerHoursError") || "Fehler beim Laden.")}: ${escapeHtml(err.message || "")}</p>`;
@@ -18148,6 +18167,123 @@ async function openWorkerHoursModal(companyId) {
   modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
   const escHandler = (e) => { if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", escHandler); } };
   document.addEventListener("keydown", escHandler);
+}
+
+/**
+ * Per-worker daily timeline modal (check-in/check-out pairs per day)
+ */
+async function openWorkerTimelineModal(companyId, workerId, workerName, month) {
+  const existingModal = document.getElementById("workerTimelineModal");
+  if (existingModal) existingModal.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "workerTimelineModal";
+  modal.className = "admin-modal-overlay";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `
+    <div class="admin-modal-card" style="max-width:720px;width:95%;">
+      <h3 class="admin-modal-title">${escapeHtml(uiT("workerTimelineTitle") || "Stunden-Verlauf")}: ${escapeHtml(workerName)}</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <label style="font-size:13px;font-weight:600;">${escapeHtml(uiT("workerHoursMonthLabel") || "Monat:")}</label>
+        <input type="month" id="workerTimelineMonthPicker" value="${escapeHtml(month)}" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,#ccc);font-size:14px;">
+        <button type="button" class="ghost-button small-button" id="workerTimelineLoadBtn">${escapeHtml(uiT("workerHoursLoadBtn") || "Laden")}</button>
+      </div>
+      <div id="workerTimelineContent" style="max-height:60vh;overflow-y:auto;">
+        <p class="muted-info">${escapeHtml(uiT("workerHoursLoading") || "Lade Daten…")}</p>
+      </div>
+      <div class="admin-modal-actions" style="margin-top:16px;">
+        <button type="button" class="ghost-button" id="workerTimelineCloseBtn">${escapeHtml(uiT("legalCloseTitle") || "Schliessen")}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  function fmtTime(ts) {
+    if (!ts) return "–";
+    // ts = "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+    const t = String(ts).replace("T", " ").substring(11, 16);
+    return t || "–";
+  }
+  function fmtDuration(minutes) {
+    if (minutes == null) return "–";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h > 0 ? `${h}h ${m.toString().padStart(2, "0")}min` : `${m}min`;
+  }
+
+  async function loadTimeline(m) {
+    const content = document.getElementById("workerTimelineContent");
+    if (!content) return;
+    content.innerHTML = `<p class="muted-info">${escapeHtml(uiT("workerHoursLoading") || "Lade Daten…")}</p>`;
+    try {
+      const data = await apiRequest(`${API_BASE}/api/companies/${companyId}/workers/${encodeURIComponent(workerId)}/timeline?month=${encodeURIComponent(m)}`);
+      const days = Array.isArray(data.days) ? data.days : [];
+      if (days.length === 0) {
+        content.innerHTML = `<p class="muted-info">${escapeHtml(uiT("workerHoursEmpty") || "Keine Einträge für diesen Monat.")}</p>`;
+        return;
+      }
+      let totalMonthMinutes = 0;
+      const dayBlocks = days.map((d) => {
+        totalMonthMinutes += d.dayMinutes || 0;
+        const sessionRows = (d.sessions || []).map((s) => `
+          <tr style="border-bottom:1px solid var(--border,#eee);">
+            <td style="padding:4px 8px;color:var(--success-color,#27ae60);">↳ ${escapeHtml(fmtTime(s.checkIn))}</td>
+            <td style="padding:4px 8px;color:var(--danger-color,#c0392b);">⬖ ${escapeHtml(fmtTime(s.checkOut))}</td>
+            <td style="padding:4px 8px;">${escapeHtml(s.gateIn || s.gateOut || "–")}</td>
+            <td style="padding:4px 8px;font-weight:600;">${escapeHtml(fmtDuration(s.durationMinutes))}</td>
+            ${s.checkOut === null ? `<td style="padding:4px 8px;font-size:11px;color:orange;">${escapeHtml(uiT("workerTimelineStillOnSite") || "noch vor Ort")}</td>` : "<td></td>"}
+          </tr>
+        `).join("");
+        const dayTotalH = d.dayMinutes >= 60 ? `${Math.floor(d.dayMinutes / 60)}h ${(d.dayMinutes % 60).toString().padStart(2, "0")}min` : `${d.dayMinutes}min`;
+        return `
+          <div style="margin-bottom:12px;">
+            <div style="padding:5px 8px;background:var(--bg-secondary,#f5f5f5);border-radius:6px 6px 0 0;font-weight:700;font-size:13px;display:flex;justify-content:space-between;">
+              <span>📅 ${escapeHtml(d.date)}</span>
+              <span style="font-weight:400;">∑ ${escapeHtml(dayTotalH)}</span>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead>
+                <tr style="background:var(--bg-secondary,#f5f5f5);text-align:left;">
+                  <th style="padding:3px 8px;">${escapeHtml(uiT("workerTimelineCheckIn") || "Check-in")}</th>
+                  <th style="padding:3px 8px;">${escapeHtml(uiT("workerTimelineCheckOut") || "Check-out")}</th>
+                  <th style="padding:3px 8px;">${escapeHtml(uiT("workerTimelineGate") || "Eingang")}</th>
+                  <th style="padding:3px 8px;">${escapeHtml(uiT("workerTimelineDuration") || "Dauer")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>${sessionRows}</tbody>
+            </table>
+          </div>
+        `;
+      }).join("");
+      const totalH = Math.floor(totalMonthMinutes / 60);
+      const totalM = totalMonthMinutes % 60;
+      content.innerHTML = `
+        <p style="font-size:13px;font-weight:700;margin-bottom:8px;">
+          ${escapeHtml(uiT("workerTimelineMonthTotal") || "Gesamt Monat")}:
+          ${escapeHtml(`${totalH}h ${totalM.toString().padStart(2, "0")}min`)}
+        </p>
+        ${dayBlocks}
+      `;
+    } catch (err) {
+      const c2 = document.getElementById("workerTimelineContent");
+      if (c2) c2.innerHTML = `<p style="color:red;">${escapeHtml(uiT("workerHoursError") || "Fehler beim Laden.")}: ${escapeHtml(err.message || "")}</p>`;
+    }
+  }
+
+  void loadTimeline(month);
+
+  document.getElementById("workerTimelineLoadBtn")?.addEventListener("click", () => {
+    const picker = document.getElementById("workerTimelineMonthPicker");
+    void loadTimeline(picker?.value || month);
+  });
+
+  function closeModal() { modal.remove(); }
+  document.getElementById("workerTimelineCloseBtn")?.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  const escHandler2 = (e) => { if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", escHandler2); } };
+  document.addEventListener("keydown", escHandler2);
 }
 
 function applyActiveCompanyBrandingPreset() {
@@ -25185,6 +25321,80 @@ if (elements.uploadPhotoButton) {
 
 if (elements.photoFileInput) {
   elements.photoFileInput.addEventListener("change", handlePhotoFileSelected);
+}
+
+// ── Foto prüfen (validate photo) ─────────────────────────────────────────────
+const validatePhotoBtnEl = document.querySelector("#validatePhotoBtn");
+const photoValidationResultEl = document.querySelector("#photoValidationResult");
+if (validatePhotoBtnEl) {
+  validatePhotoBtnEl.addEventListener("click", async () => {
+    const photoData = elements.photoData?.value || "";
+    if (!photoData) {
+      if (photoValidationResultEl) photoValidationResultEl.textContent = uiT("photoValidationCaptureFirst") || "Erst Foto aufnehmen oder hochladen.";
+      return;
+    }
+    validatePhotoBtnEl.disabled = true;
+    if (photoValidationResultEl) photoValidationResultEl.textContent = uiT("photoValidationChecking") || "Prüfe Foto...";
+    try {
+      const result = await apiRequest(`${API_BASE}/api/workers/validate-photo`, {
+        method: "POST",
+        body: { photoData }
+      });
+      if (photoValidationResultEl) {
+        const score = result?.score ?? "–";
+        const errors = Array.isArray(result?.errors) ? result.errors : [];
+        const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
+        const meta = result?.meta || {};
+        let html = `<strong>${uiT("photoValidationScore") || "Foto-Score"}: ${score}/100</strong>`;
+        if (meta.width && meta.height) html += ` &nbsp;(${meta.width}×${meta.height} px)`;
+        if (errors.length) {
+          html += `<br><span style="color:#c0392b">⚠ ${errors.join(" · ")}</span>`;
+        } else if (warnings.length) {
+          html += `<br><span style="color:#e67e22">⚡ ${warnings.join(" · ")}</span>`;
+        } else {
+          html += `<br><span style="color:#27ae60">✓ ${uiT("photoValidationLooksGood") || "Foto sieht gut aus."}</span>`;
+        }
+        photoValidationResultEl.innerHTML = html;
+      }
+    } catch (err) {
+      if (photoValidationResultEl) photoValidationResultEl.textContent = uiT("photoValidationUnavailable") || "Validierung nicht verfügbar.";
+    } finally {
+      validatePhotoBtnEl.disabled = false;
+    }
+  });
+}
+
+// ── Subunternehmen anlegen ────────────────────────────────────────────────────
+const addSubcompanyButtonEl = document.querySelector("#addSubcompanyButton");
+const subcompanyNameInputEl = document.querySelector("#subcompanyName");
+if (addSubcompanyButtonEl) {
+  addSubcompanyButtonEl.addEventListener("click", async () => {
+    const name = (subcompanyNameInputEl?.value || "").trim();
+    const companyId = document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId();
+    if (!name || !companyId) {
+      window.alert(uiT("subcompanyNameRequired") || "Bitte zuerst Firma und Subunternehmensname angeben.");
+      return;
+    }
+    addSubcompanyButtonEl.disabled = true;
+    try {
+      const created = await apiRequest(`${API_BASE}/api/subcompanies`, {
+        method: "POST",
+        body: { name, companyId }
+      });
+      // Add to local state and refresh the select
+      if (created?.id) {
+        state.subcompanies = [...state.subcompanies, created];
+        populateSubcompanySelects();
+        const select = document.querySelector("#subcompanySelect");
+        if (select) select.value = created.id;
+        if (subcompanyNameInputEl) subcompanyNameInputEl.value = "";
+      }
+    } catch (err) {
+      window.alert(uiT("alertSubcompanyCreateFailed").replace("{error}", err.message || err));
+    } finally {
+      addSubcompanyButtonEl.disabled = false;
+    }
+  });
 }
 
 if (elements.workerType) {
