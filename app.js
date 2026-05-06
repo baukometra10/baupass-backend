@@ -17083,6 +17083,7 @@ function renderCompanyList() {
               <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
               <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
               <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
+              ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionAccess"))}</span>
@@ -17547,6 +17548,16 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       await openBillingAddressModal(companyId, company);
+      return;
+    }
+
+    // ── Plan / Paket ändern ───────────────────────────────────────────────
+    const changePlanButton = event.target.closest("[data-company-change-plan]");
+    if (changePlanButton && !changePlanButton.disabled && elements.companyList.contains(changePlanButton)) {
+      const companyId = changePlanButton.dataset.companyChangePlan;
+      const company = state.companies.find((e) => e.id === companyId);
+      if (!companyId || !company) return;
+      await openCompanyPlanModal(companyId, company);
       return;
     }
 
@@ -18053,6 +18064,194 @@ async function openBillingAddressModal(companyId, company) {
     }
   });
   document.getElementById("billingStreetInput").focus();
+}
+
+// ── Firma: Plan / Paket ändern ─────────────────────────────────────────────
+async function openCompanyPlanModal(companyId, company) {
+  const existingModal = document.getElementById("companyPlanModal");
+  if (existingModal) existingModal.remove();
+
+  const PLANS = [
+    { key: "tageskarte", label: "Besucherkarte",  price: "19 €/Monat",  color: "#6b7280" },
+    { key: "starter",    label: "Starter",         price: "49 €/Monat",  color: "#0369a1" },
+    { key: "professional", label: "Professional",  price: "99 €/Monat",  color: "#7c3aed" },
+    { key: "enterprise", label: "Enterprise",      price: "199 €/Monat", color: "#b45309" },
+  ];
+
+  // Feature labels (DE) aligned with PLAN_FEATURES keys
+  const FEATURE_LABELS = {
+    access_logging:        "Zutrittsprotokolle",
+    worker_management:     "Mitarbeiterverwaltung",
+    qr_badges:             "QR-Badges",
+    worker_app:            "Mitarbeiter-App",
+    nfc_badges:            "NFC-Badges",
+    leave_management:      "Urlaubsverwaltung",
+    document_upload:       "Dokumente & Uploads",
+    invoicing:             "Rechnungsstellung",
+    email_notifications:   "E-Mail-Benachrichtigungen",
+    worker_hours_report:   "Arbeitsstunden-Bericht",
+    late_checkin_alert:    "Verspätungs-Alarm",
+    subcompanies:          "Subunternehmen",
+    white_label:           "White-Label",
+    api_access:            "API-Zugang",
+    multi_site:            "Mehrere Standorte",
+    premium_support:       "Premium-Support",
+    custom_pricing:        "Individueller Preis",
+  };
+
+  const currentPlan = String(company.plan || "starter");
+
+  // Build feature comparison table
+  const planKeys = PLANS.map((p) => p.key);
+  const featureRows = Object.entries(PLAN_FEATURES).map(([featureKey, minPlan]) => {
+    const minRank = PLAN_RANK[minPlan] ?? 99;
+    const cells = planKeys.map((pk) => {
+      const rank = PLAN_RANK[pk] ?? 0;
+      const included = rank >= minRank;
+      return `<td style="text-align:center;padding:5px 8px;font-size:15px;">${included ? "✅" : "—"}</td>`;
+    }).join("");
+    return `<tr style="border-bottom:1px solid var(--border,#eee);">
+      <td style="padding:5px 8px;font-size:12px;">${escapeHtml(FEATURE_LABELS[featureKey] || featureKey)}</td>
+      ${cells}
+    </tr>`;
+  }).join("");
+
+  const planHeaders = PLANS.map((p) => {
+    const isCurrent = p.key === currentPlan;
+    return `<th style="padding:6px 8px;text-align:center;font-size:12px;color:${p.color};${isCurrent ? "background:rgba(99,102,241,0.08);border-bottom:3px solid " + p.color + ";" : ""}">
+      ${escapeHtml(p.label)}<br><span style="font-weight:400;font-size:11px;color:#888;">${escapeHtml(p.price)}</span>
+      ${isCurrent ? `<br><span style="font-size:10px;background:${p.color};color:#fff;border-radius:4px;padding:1px 5px;">aktuell</span>` : ""}
+    </th>`;
+  }).join("");
+
+  // Plan selector cards
+  const planCards = PLANS.map((p) => {
+    const isCurrent = p.key === currentPlan;
+    return `
+      <label style="cursor:pointer;display:block;border:2px solid ${isCurrent ? p.color : "var(--border,#ccc)"};border-radius:8px;padding:10px 14px;background:${isCurrent ? "rgba(99,102,241,0.05)" : "transparent"};transition:border-color 0.15s;" class="plan-card-label">
+        <input type="radio" name="companyPlanChoice" value="${escapeHtml(p.key)}" ${isCurrent ? "checked" : ""} style="accent-color:${p.color};margin-right:8px;">
+        <strong style="color:${p.color};">${escapeHtml(p.label)}</strong>
+        <span style="float:right;font-weight:700;color:${p.color};">${escapeHtml(p.price)}</span>
+      </label>
+    `;
+  }).join("");
+
+  const modal = document.createElement("div");
+  modal.id = "companyPlanModal";
+  modal.className = "admin-modal-overlay";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `
+    <div class="admin-modal-card" style="max-width:780px;width:96%;">
+      <h3 class="admin-modal-title">📦 Paket / Plan – ${escapeHtml(company.name || companyId)}</h3>
+      <p style="font-size:13px;color:#555;margin-bottom:16px;">
+        Aktuelles Paket: <strong>${escapeHtml(PLAN_LABELS[currentPlan] || currentPlan)}</strong>
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:20px;">
+        ${planCards}
+      </div>
+
+      <details style="margin-bottom:16px;">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary,#0f4c5c);">
+          Feature-Übersicht anzeigen ▼
+        </summary>
+        <div style="overflow-x:auto;margin-top:10px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border,#e0e0e0);text-align:left;">
+                <th style="padding:6px 8px;font-size:12px;">Feature</th>
+                ${planHeaders}
+              </tr>
+            </thead>
+            <tbody>${featureRows}</tbody>
+          </table>
+        </div>
+      </details>
+
+      <div id="companyPlanChangeNote" style="min-height:20px;font-size:12px;color:#555;margin-bottom:12px;"></div>
+
+      <div class="admin-modal-actions">
+        <button type="button" class="primary-button" id="companyPlanSaveBtn">Paket speichern</button>
+        <button type="button" class="ghost-button" id="companyPlanCloseBtn">Abbrechen</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Show a note when the selected plan changes
+  function updatePlanNote() {
+    const selected = modal.querySelector("input[name=companyPlanChoice]:checked")?.value || currentPlan;
+    const note = modal.querySelector("#companyPlanChangeNote");
+    if (!note) return;
+    if (selected === currentPlan) {
+      note.textContent = "";
+      return;
+    }
+    const selRank = PLAN_RANK[selected] ?? 0;
+    const curRank = PLAN_RANK[currentPlan] ?? 0;
+    if (selRank > curRank) {
+      note.innerHTML = `<span style="color:#166534;">⬆ Upgrade auf <strong>${escapeHtml(PLAN_LABELS[selected] || selected)}</strong> – neue Features werden sofort freigeschaltet.</span>`;
+    } else {
+      note.innerHTML = `<span style="color:#991b1b;">⬇ Downgrade auf <strong>${escapeHtml(PLAN_LABELS[selected] || selected)}</strong> – Features oberhalb dieses Pakets werden deaktiviert.</span>`;
+    }
+    // Update border styles on plan cards
+    modal.querySelectorAll("input[name=companyPlanChoice]").forEach((radio) => {
+      const lbl = radio.closest(".plan-card-label") || radio.parentElement;
+      const planObj = PLANS.find((p) => p.key === radio.value);
+      if (lbl && planObj) {
+        const isChosen = radio.value === selected;
+        lbl.style.borderColor = isChosen ? planObj.color : "var(--border,#ccc)";
+        lbl.style.background = isChosen ? "rgba(99,102,241,0.05)" : "transparent";
+      }
+    });
+  }
+  modal.querySelectorAll("input[name=companyPlanChoice]").forEach((radio) => {
+    radio.addEventListener("change", updatePlanNote);
+  });
+
+  // Save
+  modal.querySelector("#companyPlanSaveBtn").addEventListener("click", async () => {
+    const selected = modal.querySelector("input[name=companyPlanChoice]:checked")?.value || currentPlan;
+    if (selected === currentPlan) {
+      modal.remove();
+      return;
+    }
+    const saveBtn = modal.querySelector("#companyPlanSaveBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Speichern…";
+    try {
+      await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+        method: "PUT",
+        body: {
+          name: company.name,
+          contact: company.contact || "",
+          billingEmail: company.billing_email || company.billingEmail || "",
+          billingStreet: company.billing_street || company.billingStreet || "",
+          billingZipCity: company.billing_zip_city || company.billingZipCity || "",
+          documentEmail: company.document_email || company.documentEmail || "",
+          accessHost: company.access_host || company.accessHost || "",
+          brandingPreset: company.branding_preset || company.brandingPreset || "construction",
+          invoiceEmailLang: company.invoice_email_lang || company.invoiceEmailLang || "de",
+          status: company.status || "aktiv",
+          plan: selected,
+        }
+      });
+      modal.remove();
+      await loadAllData();
+      refreshAll();
+    } catch (err) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Paket speichern";
+      window.alert(`Fehler beim Speichern: ${err.message || err}`);
+    }
+  });
+
+  function closeModal() { modal.remove(); }
+  modal.querySelector("#companyPlanCloseBtn").addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  const escH = (e) => { if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", escH); } };
+  document.addEventListener("keydown", escH);
 }
 
 // ── Worker-Stunden-Modal ─────────────────────────────────────────────────
