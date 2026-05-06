@@ -190,9 +190,17 @@ failed_login_attempts = {}
 
 PLAN_NET_PRICE_EUR = {
     "tageskarte": 19.0,
-    "starter": 49.0,
-    "professional": 99.0,
-    "enterprise": 199.0,
+    "starter": 149.0,
+    "professional": 999.0,
+    "enterprise": 1990.0,
+}
+
+# Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0.0 = inkludiert).
+PLAN_WORKER_PRICE_EUR = {
+    "tageskarte": 0.0,
+    "starter": 0.0,
+    "professional": 2.50,
+    "enterprise": 3.00,
 }
 
 # ── Plan-Feature-Matrix ────────────────────────────────────────────────────
@@ -1008,13 +1016,15 @@ def worker_visit_has_expired(worker, reference_dt=None):
     return access_end <= now_dt
 
 
-def calculate_net_amount_by_plan(company_plan, payload_net_amount):
+def calculate_net_amount_by_plan(company_plan, payload_net_amount, worker_count=0):
     # Keep manual values from UI, but provide a predictable fallback for tariff-based billing.
     explicit_net = float(payload_net_amount or 0)
     if explicit_net > 0:
         return round(explicit_net, 2)
     normalized_plan = normalize_company_plan(company_plan)
-    return PLAN_NET_PRICE_EUR[normalized_plan]
+    base = PLAN_NET_PRICE_EUR[normalized_plan]
+    worker_fee = PLAN_WORKER_PRICE_EUR.get(normalized_plan, 0.0) * max(0, int(worker_count or 0))
+    return round(base + worker_fee, 2)
 
 
 @app.after_request
@@ -4210,21 +4220,38 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
             )
             continue
 
-        net_amount = calculate_net_amount_by_plan(company["plan"], 0)
+        # Count active workers for per-worker billing
+        active_worker_count = db.execute(
+            "SELECT COUNT(*) FROM workers WHERE company_id = ? AND deleted_at IS NULL",
+            (company_id,),
+        ).fetchone()[0]
+        worker_price_per_unit = PLAN_WORKER_PRICE_EUR.get(normalize_company_plan(company["plan"]), 0.0)
+        base_price = PLAN_NET_PRICE_EUR[normalize_company_plan(company["plan"])]
+        net_amount = round(base_price + worker_price_per_unit * active_worker_count, 2)
         vat_rate = 19.0
         vat_amount = round(net_amount * (vat_rate / 100), 2)
         total_amount = round(net_amount + vat_amount, 2)
         description = f"Monatsabrechnung {previous_month_start.strftime('%m/%Y')} - {platform_label}"
         invoice_id = f"inv-{secrets.token_hex(6)}"
-        items_json = json.dumps([
+        line_items = [
             {
-                "description": description,
+                "description": f"Basislizenz {previous_month_start.strftime('%m/%Y')} – {platform_label}",
                 "qty": 1,
                 "unit": "Monat",
-                "unitPrice": net_amount,
-                "total": net_amount,
+                "unitPrice": base_price,
+                "total": base_price,
             }
-        ], ensure_ascii=False)
+        ]
+        if worker_price_per_unit > 0 and active_worker_count > 0:
+            worker_fee_total = round(worker_price_per_unit * active_worker_count, 2)
+            line_items.append({
+                "description": f"Mitarbeiter-Karten ({active_worker_count} aktiv)",
+                "qty": active_worker_count,
+                "unit": "Karte/Monat",
+                "unitPrice": worker_price_per_unit,
+                "total": worker_fee_total,
+            })
+        items_json = json.dumps(line_items, ensure_ascii=False)
         db.execute(
             """
             INSERT INTO invoices (
