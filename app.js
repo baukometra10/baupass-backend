@@ -7286,6 +7286,9 @@ const elements = {
   dayCloseAcknowledgeButton: document.querySelector("#dayCloseAcknowledgeButton"),
   cameraPlaceholder: document.querySelector("#cameraPlaceholder"),
   cameraPreview: document.querySelector("#cameraPreview"),
+  startCameraButton: document.querySelector("#startCameraButton"),
+  capturePhotoButton: document.querySelector("#capturePhotoButton"),
+  uploadPhotoButton: document.querySelector("#uploadPhotoButton"),
   capturedPhoto: document.querySelector("#capturedPhoto"),
   companyForm: document.querySelector("#companyForm"),
   invoiceHistoryList: document.querySelector("#invoiceHistoryList"),
@@ -23645,6 +23648,7 @@ async function startCamera() {
 
   const ua = (navigator.userAgent || "").toLowerCase();
   const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua);
+  const isAppleWebKit = /iphone|ipad|ipod|safari/.test(ua);
   const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
   const requestUserMedia = async (constraints) => {
     if (navigator.mediaDevices?.getUserMedia) {
@@ -23656,6 +23660,11 @@ async function startCamera() {
       });
     }
     throw new Error("getUserMedia_not_supported");
+  };
+  const describeCameraError = (error) => {
+    const name = String(error?.name || "").trim();
+    const message = String(error?.message || "").trim();
+    return [name, message].filter(Boolean).join(": ") || "unknown error";
   };
 
   const buildCameraErrorMessage = (error) => {
@@ -23678,7 +23687,7 @@ async function startCamera() {
     if (errorName === "" && error?.message === "getUserMedia_not_supported") {
       return runtimeText("cameraApiMissing");
     }
-    return runtimeTextTemplate("cameraStartFailed", { reason: error?.message || errorName || "unknown error" });
+    return runtimeTextTemplate("cameraStartFailed", { reason: describeCameraError(error) });
   };
 
   if (!navigator.mediaDevices?.getUserMedia && !legacyGetUserMedia) {
@@ -23698,9 +23707,15 @@ async function startCamera() {
       frameRate: { ideal: 24, max: 30 }
     },
     {
+      facingMode: "user"
+    },
+    {
       facingMode: { ideal: "environment" },
       width: { ideal: 1280 },
       height: { ideal: 720 }
+    },
+    {
+      facingMode: "environment"
     },
     {
       width: { ideal: 1280 },
@@ -23752,7 +23767,12 @@ async function startCamera() {
 
     elements.cameraPreview.srcObject = cameraStream;
     elements.cameraPreview.muted = true;
+    elements.cameraPreview.autoplay = true;
     elements.cameraPreview.setAttribute("playsinline", "true");
+    elements.cameraPreview.setAttribute("webkit-playsinline", "true");
+    if (isAppleWebKit) {
+      elements.cameraPreview.playsInline = true;
+    }
     await new Promise((resolve) => {
       const finalize = () => resolve();
       elements.cameraPreview.onloadedmetadata = finalize;
@@ -23775,6 +23795,9 @@ async function startCamera() {
     if (elements.photoDebugText) {
       elements.photoDebugText.textContent = reason;
       elements.photoDebugText.style.color = "#8a5a00";
+    }
+    if (isMobile) {
+      openPhotoFilePicker({ preferCamera: true });
     }
     if (isMobile && (error?.name === "NotAllowedError" || error?.name === "SecurityError")) {
       window.alert(runtimeText("cameraPermissionRetry"));
@@ -23822,8 +23845,12 @@ async function capturePhoto() {
   const video = elements.cameraPreview;
 
   if (!video.videoWidth || !video.videoHeight) {
-    window.alert(runtimeText("cameraStartFirst"));
-    return;
+    await startCamera();
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+    if (!video.videoWidth || !video.videoHeight) {
+      window.alert(runtimeText("cameraStartFirst"));
+      return;
+    }
   }
 
   if (!context) {
@@ -25109,6 +25136,28 @@ if (workerCancelEditButton) {
     clearWorkerEditor();
     stopCamera();
   });
+}
+
+if (elements.startCameraButton) {
+  elements.startCameraButton.addEventListener("click", () => {
+    startCamera();
+  });
+}
+
+if (elements.capturePhotoButton) {
+  elements.capturePhotoButton.addEventListener("click", () => {
+    capturePhoto();
+  });
+}
+
+if (elements.uploadPhotoButton) {
+  elements.uploadPhotoButton.addEventListener("click", () => {
+    openPhotoFilePicker();
+  });
+}
+
+if (elements.photoFileInput) {
+  elements.photoFileInput.addEventListener("change", handlePhotoFileSelected);
 }
 
 if (elements.workerType) {

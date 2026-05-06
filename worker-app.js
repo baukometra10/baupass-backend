@@ -3614,7 +3614,25 @@ async function openCameraOverlay() {
     return;
   }
 
-  if (!navigator.mediaDevices?.getUserMedia) {
+  const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+  const requestUserMedia = async (constraints) => {
+    if (navigator.mediaDevices?.getUserMedia) {
+      return navigator.mediaDevices.getUserMedia(constraints);
+    }
+    if (legacyGetUserMedia) {
+      return new Promise((resolve, reject) => {
+        legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+      });
+    }
+    throw new Error("getUserMedia_not_supported");
+  };
+  const describeCameraError = (error) => {
+    const name = String(error?.name || "").trim();
+    const message = String(error?.message || "").trim();
+    return [name, message].filter(Boolean).join(": ") || "unknown error";
+  };
+
+  if (!navigator.mediaDevices?.getUserMedia && !legacyGetUserMedia) {
     showWorkerNotice(t("cameraBlocked"));
     elements.photoInput?.click();
     return;
@@ -3638,7 +3656,17 @@ async function openCameraOverlay() {
       height: { ideal: 720 }
     },
     {
+      facingMode: "environment"
+    },
+    {
       facingMode: { ideal: "user" },
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    {
+      facingMode: "user"
+    },
+    {
       width: { ideal: 1280 },
       height: { ideal: 720 }
     },
@@ -3649,38 +3677,67 @@ async function openCameraOverlay() {
   try {
     stopCameraStream();
     let stream = null;
+    let lastError = null;
 
     for (const videoConstraint of videoConstraintCandidates) {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await requestUserMedia({
           video: videoConstraint,
           audio: false
         });
         if (stream) {
           break;
         }
-      } catch {
+      } catch (error) {
+        lastError = error;
         // try next fallback constraint
       }
     }
 
+    if (!stream && navigator.mediaDevices?.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const videoInputs = devices.filter((device) => device.kind === "videoinput");
+      for (const device of videoInputs) {
+        try {
+          stream = await requestUserMedia({
+            video: { deviceId: { exact: device.deviceId } },
+            audio: false
+          });
+          if (stream) {
+            break;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+
     if (!stream) {
-      throw new Error("camera_unavailable");
+      throw lastError || new Error("camera_unavailable");
     }
 
     cameraStream = stream;
     elements.cameraVideo.srcObject = stream;
     elements.cameraVideo.muted = true;
+    elements.cameraVideo.autoplay = true;
     elements.cameraVideo.setAttribute("playsinline", "true");
+    elements.cameraVideo.setAttribute("webkit-playsinline", "true");
+    elements.cameraVideo.playsInline = true;
+    await new Promise((resolve) => {
+      const finalize = () => resolve();
+      elements.cameraVideo.onloadedmetadata = finalize;
+      window.setTimeout(finalize, 1200);
+    });
     try {
       await elements.cameraVideo.play();
     } catch {
       // Keep stream active even if playback promise is blocked.
     }
-  } catch {
+  } catch (error) {
+    const reason = describeCameraError(error);
     showWorkerNotice(
       window.isSecureContext
-        ? t("cameraStartFailed")
+        ? `${t("cameraStartFailed")} (${reason})`
         : t("cameraHttpsHint")
     );
     closeCameraOverlay();
