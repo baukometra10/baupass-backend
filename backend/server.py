@@ -19,12 +19,13 @@ from functools import wraps
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import importlib
 from email.message import EmailMessage
 from email.utils import getaddresses
 from urllib.parse import quote, urlsplit, urlunsplit, unquote_to_bytes
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
-from flask import Flask, jsonify, request, send_from_directory, g, Response, redirect, has_request_context
+from flask import Flask, jsonify, request, send_from_directory, send_file, g, Response, redirect, has_request_context
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import pyotp
@@ -295,15 +296,26 @@ INVOICE_SMTP_CIRCUIT_FAIL_THRESHOLD = max(2, int(os.getenv("BAUPASS_INVOICE_SMTP
 INVOICE_SMTP_CIRCUIT_OPEN_SECONDS = max(120, int(os.getenv("BAUPASS_INVOICE_SMTP_CIRCUIT_OPEN_SECONDS", "900")))
 INVOICE_SMTP_STUCK_MINUTES = max(5, int(os.getenv("BAUPASS_INVOICE_SMTP_STUCK_MINUTES", "20")))
 OPERATION_APPROVAL_EXPIRY_MINUTES = max(5, int(os.getenv("BAUPASS_OPERATION_APPROVAL_EXPIRY_MINUTES", "30")))
+_worker_rate_limit_audit_dedup_raw = str(
+    os.getenv("BAUPASS_WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS", "180")
+).strip()
+try:
+    _worker_rate_limit_audit_dedup_value = int(_worker_rate_limit_audit_dedup_raw)
+except ValueError:
+    _worker_rate_limit_audit_dedup_value = 180
+WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS = max(60, _worker_rate_limit_audit_dedup_value)
 
 REQUEST_RATE_LIMITS = {
     "import": {"max": 10, "window_seconds": 60},
     "login": {"max": 30, "window_seconds": 60},
     "worker_login": {"max": 30, "window_seconds": 60},
+    "worker_api": {"max": 180, "window_seconds": 60},
+    "worker_api_auth_fail": {"max": 25, "window_seconds": 60},
     "password_reset": {"max": 5, "window_seconds": 300},
 }
 request_rate_state = {}
 _rate_lock = threading.Lock()
+_worker_rate_limit_audit_state = {}
 
 _background_started = False
 _background_lock = threading.Lock()
@@ -1705,6 +1717,26 @@ def init_db():
             FOREIGN KEY(worker_id) REFERENCES workers(id)
         );
 
+        CREATE TABLE IF NOT EXISTS worker_passes (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            pass_type TEXT NOT NULL DEFAULT 'badge',
+            platform TEXT NOT NULL,
+            pass_object_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'issued',
+            pass_url TEXT NOT NULL DEFAULT '',
+            pass_data_json TEXT NOT NULL DEFAULT '{}',
+            issued_at TEXT NOT NULL,
+            activated_at TEXT,
+            revoked_at TEXT,
+            expired_at TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            last_updated_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        );
+
         CREATE TABLE IF NOT EXISTS day_close_acknowledgements (
             id TEXT PRIMARY KEY,
             date TEXT NOT NULL,
@@ -1824,6 +1856,9 @@ def init_db():
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_worker_timestamp ON access_logs(worker_id, timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_documents_worker_type_created ON worker_documents(worker_id, doc_type, created_at DESC)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_passes_worker_platform_unique ON worker_passes(worker_id, platform)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_passes_object_unique ON worker_passes(pass_object_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_passes_company_status ON worker_passes(company_id, status)")
 
     setting_exists = cur.execute("SELECT id FROM settings WHERE id = 1").fetchone()
     if not setting_exists:
@@ -2620,27 +2655,89 @@ def require_roles(*roles):
 def require_worker_session(handler):
     @wraps(handler)
     def wrapper(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return jsonify({"error": "unauthorized"}), 401
+        def _rate_limited_response(retry_after, scope="worker_api", audit_on_limit=False):
+            retry_seconds = max(1, int(retry_after or 1))
+            if audit_on_limit:
+                try:
+                    client_ip = get_client_ip()
+                    user_agent = str(request.headers.get("User-Agent") or "").strip()
+                    user_agent = re.sub(r"\s+", " ", user_agent).replace("|", "/").strip()
+                    if len(user_agent) > 120:
+                        user_agent = user_agent[:120]
+                    now_ts = time.time()
+                    dedup_bucket = int(now_ts // WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS)
+                    audit_key = f"{scope}|{client_ip}|{dedup_bucket}"
+                    should_log_audit = False
+                    with _rate_lock:
+                        if not _worker_rate_limit_audit_state.get(audit_key):
+                            _worker_rate_limit_audit_state[audit_key] = now_ts
+                            should_log_audit = True
+                        # Keep only recent buckets to avoid unbounded memory growth.
+                        cutoff_ts = now_ts - WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS
+                        stale_keys = [
+                            key for key, ts in _worker_rate_limit_audit_state.items() if not isinstance(ts, (int, float)) or ts < cutoff_ts
+                        ]
+                        for stale_key in stale_keys:
+                            _worker_rate_limit_audit_state.pop(stale_key, None)
+                    if should_log_audit:
+                        log_audit(
+                            "worker.session.rate_limited",
+                            f"Worker session request limited (scope={scope}, ip={client_ip}, method={request.method}, status=429, retry_after={retry_seconds}s, path={request.path}, ua={user_agent})",
+                            target_type="worker-session",
+                        )
+                except Exception:
+                    pass
+            response = jsonify(
+                {
+                    "error": "rate_limited",
+                    "message": "Too many requests. Please retry later.",
+                    "retryAfterSeconds": retry_seconds,
+                }
+            )
+            response.headers["Retry-After"] = str(retry_seconds)
+            return response, 429
 
-        token = auth_header.split(" ", 1)[1]
+        allowed, retry_after = check_rate_limit("worker_api")
+        if not allowed:
+            return _rate_limited_response(retry_after)
+
+        def _worker_auth_fail(error_code, message):
+            fail_allowed, fail_retry_after = check_rate_limit("worker_api_auth_fail")
+            if not fail_allowed:
+                return _rate_limited_response(fail_retry_after, scope="worker_api_auth_fail", audit_on_limit=True)
+            return jsonify({"error": error_code, "message": message}), 401
+
+        auth_header = str(request.headers.get("Authorization", "") or "").strip()
+        if not auth_header:
+            return _worker_auth_fail("unauthorized", "Missing bearer token.")
+
+        parts = auth_header.split(None, 1)
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return _worker_auth_fail("unauthorized", "Authorization scheme must be Bearer.")
+
+        token = parts[1].strip()
+        if not token:
+            return _worker_auth_fail("unauthorized", "Bearer token is empty.")
+        if len(token) > 512:
+            return _worker_auth_fail("unauthorized", "Bearer token is too long.")
+
         db = get_db()
         purged = _throttled_session_purge(db)
         if purged > 0:
             db.commit()
         session = db.execute("SELECT worker_id, expires_at FROM worker_app_sessions WHERE token = ?", (token,)).fetchone()
         if not session:
-            return jsonify({"error": "invalid_worker_session"}), 401
+            return _worker_auth_fail("invalid_worker_session", "Session token not found.")
 
-        if session["expires_at"] < now_iso():
+        now_value = now_iso()
+        if session["expires_at"] < now_value:
             db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
             db.commit()
-            return jsonify({"error": "worker_session_expired"}), 401
+            return _worker_auth_fail("worker_session_expired", "Session has expired.")
 
         worker = db.execute("SELECT * FROM workers WHERE id = ?", (session["worker_id"],)).fetchone()
         if not worker or worker["deleted_at"]:
-            return jsonify({"error": "worker_not_available"}), 401
+            return _worker_auth_fail("worker_not_available", "Worker record no longer available.")
 
         company_error = get_company_access_error(db, worker["company_id"])
         if company_error:
@@ -2654,8 +2751,7 @@ def require_worker_session(handler):
             db.commit()
             return feature_not_available_response("worker_app", plan_value)
 
-        g.worker = row_to_dict(
-            worker)
+        g.worker = row_to_dict(worker)
         g.worker_token = token
         g.worker_session_expires_at = session["expires_at"]
         return handler(*args, **kwargs)
@@ -2676,6 +2772,195 @@ def update_worker_photo():
     db.execute("UPDATE workers SET photo_data = ? WHERE id = ?", (photo_data, g.worker["id"]))
     db.commit()
     return jsonify({"ok": True})
+
+
+@app.get("/api/worker-app/wallet/pass")
+@require_worker_session
+def get_worker_wallet_pass():
+    platform = str(request.args.get("platform") or "").strip().lower()
+    if platform not in {"apple", "google"}:
+        return jsonify({"error": "invalid_platform", "message": "platform must be apple or google"}), 400
+
+    force_regenerate = str(request.args.get("force_regenerate") or "").strip().lower() in {"1", "true", "yes", "on"}
+    db = get_db()
+    worker = g.worker or {}
+    worker_id = str(worker.get("id") or "").strip()
+    company_id = str(worker.get("company_id") or "").strip()
+    badge_id = str(worker.get("badge_id") or "").strip()
+
+    if not worker_id or not company_id:
+        return jsonify({"error": "worker_not_available", "message": "Worker context not available."}), 401
+    if not badge_id:
+        return jsonify({"error": "wallet_badge_id_missing", "message": "Worker badge ID is required for wallet pass generation."}), 422
+
+    existing = db.execute(
+        "SELECT * FROM worker_passes WHERE worker_id = ? AND platform = ? LIMIT 1",
+        (worker_id, platform),
+    ).fetchone()
+
+    if existing and not force_regenerate and str(existing["status"] or "").strip().lower() in {"issued", "active"}:
+        response_payload = {
+            "status": "success",
+            "platform": platform,
+            "pass_id": existing["id"],
+            "object_id": existing["pass_object_id"],
+            "pass_url": existing["pass_url"],
+            "state": existing["status"],
+            "stub": True,
+        }
+        if platform == "google":
+            response_payload["add_to_wallet_url"] = existing["pass_url"]
+        return jsonify(response_payload)
+
+    version = (int(existing["version"] or 0) + 1) if existing else 1
+    now_value = now_iso()
+    pass_id = existing["id"] if existing else f"wpass-{secrets.token_hex(8)}"
+    safe_badge = re.sub(r"[^A-Za-z0-9._:-]", "", badge_id) or worker_id
+    pass_object_id = f"{safe_badge}-{platform}-v{version}"
+
+    base_url = get_public_base_url().rstrip("/")
+    if platform == "apple":
+        pass_url = f"{base_url}/api/worker-app/wallet/pass/file/{pass_object_id}.pkpass"
+    else:
+        pass_url = f"{base_url}/api/worker-app/wallet/pass/google/{pass_object_id}"
+
+    pass_payload = {
+        "workerId": worker_id,
+        "companyId": company_id,
+        "badgeId": badge_id,
+        "platform": platform,
+        "version": version,
+        "expiresAt": g.worker_session_expires_at,
+    }
+    pass_payload_json = json.dumps(pass_payload, ensure_ascii=False)
+
+    if existing:
+        db.execute(
+            """
+            UPDATE worker_passes
+            SET pass_object_id = ?,
+                status = 'issued',
+                pass_url = ?,
+                pass_data_json = ?,
+                issued_at = ?,
+                activated_at = NULL,
+                revoked_at = NULL,
+                expired_at = NULL,
+                version = ?,
+                last_updated_at = ?
+            WHERE id = ?
+            """,
+            (pass_object_id, pass_url, pass_payload_json, now_value, version, now_value, pass_id),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO worker_passes (
+                id, worker_id, company_id, pass_type, platform, pass_object_id,
+                status, pass_url, pass_data_json, issued_at, version, last_updated_at
+            ) VALUES (?, ?, ?, 'badge', ?, ?, 'issued', ?, ?, ?, ?, ?)
+            """,
+            (pass_id, worker_id, company_id, platform, pass_object_id, pass_url, pass_payload_json, now_value, version, now_value),
+        )
+    db.commit()
+
+    response_payload = {
+        "status": "success",
+        "platform": platform,
+        "pass_id": pass_id,
+        "object_id": pass_object_id,
+        "pass_url": pass_url,
+        "state": "issued",
+        "stub": True,
+    }
+    if platform == "google":
+        response_payload["add_to_wallet_url"] = pass_url
+    return jsonify(response_payload)
+
+
+@app.get("/api/worker-app/wallet/pass/file/<pass_object_id>.pkpass")
+@require_worker_session
+def get_worker_wallet_pass_file(pass_object_id):
+    normalized_object_id = clean_id_input(pass_object_id, max_len=128)
+    if not normalized_object_id:
+        return jsonify({"error": "invalid_pass_object_id", "message": "Invalid wallet pass object ID."}), 400
+
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT id, pass_data_json, status
+        FROM worker_passes
+        WHERE worker_id = ?
+          AND platform = 'apple'
+          AND pass_object_id = ?
+        LIMIT 1
+        """,
+        (g.worker["id"], normalized_object_id),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "wallet_pass_not_found", "message": "Wallet pass was not found."}), 404
+    current_status = str(row["status"] or "").strip().lower()
+    if current_status in {"revoked", "expired"}:
+        return jsonify({"error": "wallet_pass_inactive", "message": "Wallet pass is inactive.", "state": row["status"]}), 410
+    if current_status == "issued":
+        now_value = now_iso()
+        db.execute(
+            "UPDATE worker_passes SET status = 'active', activated_at = ?, last_updated_at = ? WHERE id = ?",
+            (now_value, now_value, row["id"]),
+        )
+        db.commit()
+
+    return jsonify(
+        {
+            "status": "not_implemented",
+            "platform": "apple",
+            "message": "Apple Wallet pkpass signing not enabled yet.",
+            "object_id": normalized_object_id,
+        }
+    ), 501
+
+
+@app.get("/api/worker-app/wallet/pass/google/<pass_object_id>")
+@require_worker_session
+def get_worker_wallet_google_redirect(pass_object_id):
+    normalized_object_id = clean_id_input(pass_object_id, max_len=128)
+    if not normalized_object_id:
+        return jsonify({"error": "invalid_pass_object_id", "message": "Invalid wallet pass object ID."}), 400
+
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT id, pass_url, status
+        FROM worker_passes
+        WHERE worker_id = ?
+          AND platform = 'google'
+          AND pass_object_id = ?
+        LIMIT 1
+        """,
+        (g.worker["id"], normalized_object_id),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "wallet_pass_not_found", "message": "Wallet pass was not found."}), 404
+    current_status = str(row["status"] or "").strip().lower()
+    if current_status in {"revoked", "expired"}:
+        return jsonify({"error": "wallet_pass_inactive", "message": "Wallet pass is inactive.", "state": row["status"]}), 410
+    if current_status == "issued":
+        now_value = now_iso()
+        db.execute(
+            "UPDATE worker_passes SET status = 'active', activated_at = ?, last_updated_at = ? WHERE id = ?",
+            (now_value, now_value, row["id"]),
+        )
+        db.commit()
+
+    return jsonify(
+        {
+            "status": "not_implemented",
+            "platform": "google",
+            "message": "Google Wallet JWT signing not enabled yet.",
+            "object_id": normalized_object_id,
+            "pass_url": row["pass_url"],
+        }
+    ), 501
 
 def visible_company_clause(user):
     if user["role"] == "superadmin":
@@ -3427,12 +3712,22 @@ def _count_working_days(start_str: str, end_str: str) -> int:
         return 0
 
 
+def _load_pywebpush_client():
+    """Load pywebpush lazily so deployments without the package still work."""
+    try:
+        import importlib as _importlib
+
+        module = _importlib.import_module("pywebpush")
+    except Exception:
+        return None, None
+    return getattr(module, "webpush", None), getattr(module, "WebPushException", Exception)
+
+
 def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
     """Schickt eine Web-Push-Nachricht an alle Subscriptions eines Mitarbeiters.
     Gibt die Anzahl der erfolgreich gesendeten Nachrichten zurueck."""
-    try:
-        from pywebpush import webpush  # noqa: F401
-    except ImportError:
+    webpush, _webpush_exception = _load_pywebpush_client()
+    if not callable(webpush):
         return 0
     vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
     vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
@@ -10207,16 +10502,12 @@ def gate_tap():
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
 
-    # NFC gate tap requires nfc_badges feature (Starter+)
-    if turnstile_user.get("company_id"):
-        _gate_plan = get_company_plan(db, turnstile_user["company_id"])
-        if not company_has_feature(_gate_plan, "nfc_badges"):
-            return feature_not_available_response("nfc_badges", _gate_plan)
-
     payload = request.get_json(silent=True) or {}
-    physical_card_id = normalize_physical_card_id(payload.get("physicalCardId") or payload.get("cardId"))
-    if not physical_card_id:
-        return jsonify({"error": "missing_physical_card_id"}), 400
+    raw_card_value = payload.get("physicalCardId") or payload.get("cardId") or payload.get("badgeId")
+    physical_card_id = normalize_physical_card_id(raw_card_value)
+    badge_id_lookup = normalize_badge_id(raw_card_value)
+    if not physical_card_id and not badge_id_lookup:
+        return jsonify({"error": "missing_card_identifier"}), 400
 
     requested_direction = (payload.get("direction") or "").strip().lower()
     direction = requested_direction
@@ -10227,22 +10518,50 @@ def gate_tap():
     gate_note = (payload.get("note") or "NFC Tap").strip()
     timestamp_value = (payload.get("timestamp") or now_iso()).strip() or now_iso()
 
-    workers = db.execute(
-        """
-        SELECT *
-        FROM workers
-        WHERE physical_card_id = ? AND deleted_at IS NULL
-        ORDER BY id
-        LIMIT 2
-        """,
-        (physical_card_id,),
-    ).fetchall()
-    if not workers:
-        return jsonify({"error": "card_not_assigned"}), 404
-    if len(workers) > 1:
-        return jsonify({"error": "duplicate_physical_card_id"}), 409
+    worker = None
+    scan_mode = ""
+    if physical_card_id:
+        workers = db.execute(
+            """
+            SELECT *
+            FROM workers
+            WHERE physical_card_id = ? AND deleted_at IS NULL
+            ORDER BY id
+            LIMIT 2
+            """,
+            (physical_card_id,),
+        ).fetchall()
+        if len(workers) > 1:
+            return jsonify({"error": "duplicate_physical_card_id"}), 409
+        if workers:
+            worker = workers[0]
+            scan_mode = "nfc"
 
-    worker = workers[0]
+    if worker is None and badge_id_lookup:
+        badge_matches = db.execute(
+            """
+            SELECT *
+            FROM workers
+            WHERE badge_id_lookup = ? AND deleted_at IS NULL
+            ORDER BY id
+            LIMIT 2
+            """,
+            (badge_id_lookup,),
+        ).fetchall()
+        if len(badge_matches) > 1:
+            return jsonify({"error": "duplicate_badge_id"}), 409
+        if badge_matches:
+            worker = badge_matches[0]
+            scan_mode = "qr"
+
+    if worker is None:
+        return jsonify({"error": "card_not_assigned"}), 404
+
+    if turnstile_user.get("company_id"):
+        _gate_plan = get_company_plan(db, turnstile_user["company_id"])
+        required_feature = "nfc_badges" if scan_mode == "nfc" else "qr_badges"
+        if not company_has_feature(_gate_plan, required_feature):
+            return feature_not_available_response(required_feature, _gate_plan)
 
     if turnstile_user["company_id"] != worker["company_id"]:
         return jsonify({"error": "forbidden_worker_company"}), 403
@@ -10284,7 +10603,7 @@ def gate_tap():
     db.commit()
     log_audit(
         "access.gate_tap",
-        f"NFC Tap {direction} fuer Worker {worker['id']} an {gate_name}",
+        f"{scan_mode.upper() if scan_mode else 'CARD'} Tap {direction} fuer Worker {worker['id']} an {gate_name}",
         target_type="worker",
         target_id=worker["id"],
         company_id=worker["company_id"],
@@ -15560,9 +15879,8 @@ def worker_push_subscribe():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def trigger_checkout_reminders():
-    try:
-        from pywebpush import webpush, WebPushException  # noqa: F401
-    except ImportError:
+    webpush, _webpush_exception = _load_pywebpush_client()
+    if not callable(webpush):
         return jsonify({"error": "push_not_configured", "detail": "pywebpush not installed"}), 503
     vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
     vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
@@ -15602,7 +15920,6 @@ def trigger_checkout_reminders():
         subs = db.execute("SELECT * FROM push_subscriptions WHERE worker_id = ?", (wid,)).fetchall()
         for sub in subs:
             try:
-                from pywebpush import webpush  # noqa: F811
                 webpush(
                     subscription_info={
                         "endpoint": sub["endpoint"],
