@@ -4392,17 +4392,28 @@ body.theme-black {
 
 body.theme-black::before,
 body.theme-black::after {
-  opacity: 0.06;
+  opacity: 0;
 }
 
 body.theme-black .content {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+  background: #0f141b;
+}
+
+body.theme-black .content::before {
+  opacity: 0;
 }
 
 body.theme-black .topbar {
   background: rgba(18, 18, 18, 0.92);
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+body.theme-black .hero-panel,
+body.theme-black .panel,
+body.theme-black .stat-card,
+body.theme-black .quick-panel-card {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
 body.theme-black .hero-panel,
@@ -4417,6 +4428,10 @@ body.theme-black .camera-block {
   background: #1a1a1a;
   border-color: rgba(255, 255, 255, 0.1);
   color: #f0f4f8;
+}
+
+body.theme-black .hero-panel::before {
+  background: none;
 }
 
 /* Remove the white glass sheen overlay in dark mode — prevents the muddy gray look */
@@ -4442,6 +4457,54 @@ body.theme-black .panel-heading h3 {
 
 body.theme-black .panel-heading {
   border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-black .stat-label,
+body.theme-black .stat-detail,
+body.theme-black .muted,
+body.theme-black .helper-text,
+body.theme-black .panel p,
+body.theme-black .panel span,
+body.theme-black .panel label {
+  color: #c2ccd8;
+}
+
+body.theme-black .panel strong,
+body.theme-black .panel h1,
+body.theme-black .panel h2,
+body.theme-black .panel h3,
+body.theme-black .panel h4,
+body.theme-black .panel h5,
+body.theme-black .panel h6,
+body.theme-black .stat-value {
+  color: #f0f4f8;
+}
+
+body.theme-black .eyebrow,
+body.theme-black .panel-heading .eyebrow,
+body.theme-black .stat-card .stat-label {
+  color: var(--accent);
+  text-shadow: none;
+}
+
+body.theme-black .turnstile-tap-live,
+body.theme-black .quick-panel-card,
+body.theme-black .table-shell,
+body.theme-black .badge-card,
+body.theme-black .worker-card,
+body.theme-black .access-log-item,
+body.theme-black .access-entry,
+body.theme-black .meta-box,
+body.theme-black .note-box {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-black .panel:hover,
+body.theme-black .stat-card:hover,
+body.theme-black .quick-panel-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
 }
 
 body.theme-black .stat-card-critical {
