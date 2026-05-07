@@ -7420,6 +7420,7 @@ const state = {
   companyFilterQuery: "",
   companyTurnstiles: {},
   companyAdminSecurity: {},
+  identityTokenByWorker: {},
   complianceOverview: [],
   auditLogs: [],
   repairHistoryWindowDays: 30,
@@ -7636,6 +7637,14 @@ function getRuntimeUiTexts() {
     docNoAttachments: "No attachments",
     docInboxSectionMessage: "Message",
     docInboxSectionAttachments: "Attachments",
+    docInboxReplySection: "Reply",
+    docInboxReplySubjectLabel: "Subject",
+    docInboxReplyBodyLabel: "Message",
+    docInboxReplyBodyPlaceholder: "Type your reply here...",
+    docInboxReplySendButton: "Send reply",
+    docInboxReplyBodyRequired: "Please enter a reply message.",
+    docInboxReplySuccess: "Reply sent.",
+    docInboxReplyError: "Reply failed: {error}",
     docInboxCloseButton: "Close",
     docAssignWorkerRequired: "Please select a worker.",
     docAssignDocTypeRequired: "Please select a document type.",
@@ -8378,6 +8387,14 @@ function getRuntimeUiTexts() {
       docNoAttachments: "Keine Anhänge",
       docInboxSectionMessage: "Nachricht",
       docInboxSectionAttachments: "Anhänge",
+      docInboxReplySection: "Antwort",
+      docInboxReplySubjectLabel: "Betreff",
+      docInboxReplyBodyLabel: "Nachricht",
+      docInboxReplyBodyPlaceholder: "Antwort hier schreiben...",
+      docInboxReplySendButton: "Antwort senden",
+      docInboxReplyBodyRequired: "Bitte eine Antwort eingeben.",
+      docInboxReplySuccess: "Antwort wurde gesendet.",
+      docInboxReplyError: "Antwort fehlgeschlagen: {error}",
       docInboxCloseButton: "Schließen",
       docAssignWorkerRequired: "Bitte einen Mitarbeiter auswählen.",
       docAssignDocTypeRequired: "Bitte einen Dokumenttyp auswählen.",
@@ -13617,7 +13634,7 @@ function applySupportReadOnlyUiState() {
     ".worker-doc-upload-form input, .worker-doc-upload-form select, .worker-doc-upload-form textarea, .worker-doc-upload-form button",
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
-    "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin], [data-worker-toggle-lock]",
+    "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
     "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
@@ -14740,6 +14757,9 @@ function renderDocumentInboxList() {
     return;
   }
 
+  const currentRole = String(state.currentUser?.role || "").toLowerCase();
+  const canReplyFromList = currentRole === "superadmin" || currentRole === "company-admin";
+
   const entries = Array.isArray(state.documentInboxEntries) ? state.documentInboxEntries : [];
   if (!entries.length) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(uiT("docInboxEmpty"))}</div>`;
@@ -14780,6 +14800,7 @@ function renderDocumentInboxList() {
           ${matchedCompanyMarkup}
           <p class="meta-text">${escapeHtml(uiT("docInboxAttachments"))}: ${attachments.length || 0}</p>
           <div class="button-row doc-inbox-row-actions" style="margin-top:6px;">
+            ${canReplyFromList ? `<button type="button" class="ghost-button small-button" data-reply-email-id="${escapeHtml(String(entry?.id || ""))}">${escapeHtml(runtimeText("docInboxReplySection"))}</button>` : ""}
             <button type="button" class="ghost-button small-button" data-dismiss-email-id="${escapeHtml(String(entry?.id || ""))}">${escapeHtml(uiT("btnDismissEmail"))}</button>
           </div>
         </article>
@@ -14792,11 +14813,33 @@ function renderDocumentInboxList() {
   // Click on card → open detail modal
   container.querySelectorAll("[data-open-inbox-id]").forEach((card) => {
     card.addEventListener("click", async (event) => {
-      // Don't open if they clicked the dismiss button
+      // Don't open if they clicked action buttons
       if (event.target.closest("[data-dismiss-email-id]")) return;
+      if (event.target.closest("[data-reply-email-id]")) return;
       const inboxId = String(card.dataset.openInboxId || "").trim();
       if (!inboxId) return;
       await openInboxMailDetail(inboxId, card);
+    });
+  });
+
+  container.querySelectorAll("[data-reply-email-id]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const inboxId = String(event.currentTarget.dataset.replyEmailId || "").trim();
+      if (!inboxId) {
+        return;
+      }
+      event.currentTarget.disabled = true;
+      try {
+        const card = event.currentTarget.closest("[data-open-inbox-id]");
+        await openInboxMailDetail(inboxId, card);
+        const replyBodyField = document.querySelector("#docInboxDetailModal #docInboxReplyBody");
+        if (replyBodyField) {
+          replyBodyField.focus();
+        }
+      } finally {
+        event.currentTarget.disabled = false;
+      }
     });
   });
 
@@ -14869,6 +14912,10 @@ async function openInboxMailDetail(inboxId, cardEl) {
   const renderModal = (currentAttachments) => {
     const attachments = Array.isArray(currentAttachments) ? currentAttachments : [];
     const bodyText = String(entry.body_text || "").trim();
+    const role = String(state.currentUser?.role || "").toLowerCase();
+    const canReply = role === "superadmin" || role === "company-admin";
+    const rawSubject = String(entry.subject || "").trim() || String(runtimeText("docInboxNoSubject") || "(no subject)");
+    const replySubject = /^re:/i.test(rawSubject) ? rawSubject : `Re: ${rawSubject}`;
 
     const attachmentsHtml = attachments.length
       ? attachments.map((att) => {
@@ -14937,6 +14984,16 @@ async function openInboxMailDetail(inboxId, cardEl) {
             <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:6px;">${escapeHtml(runtimeText("docInboxSectionAttachments"))} (${attachments.length})</div>
             ${attachmentsHtml}
           </div>` : ""}
+          ${canReply ? `<div style="border-top:1px solid var(--line,rgba(0,0,0,0.08));padding-top:12px;">
+            <div style="font-size:0.75em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted,#888);margin-bottom:8px;">${escapeHtml(runtimeText("docInboxReplySection"))}</div>
+            <label style="display:block;font-size:0.78em;color:var(--muted,#666);margin-bottom:4px;">${escapeHtml(runtimeText("docInboxReplySubjectLabel"))}</label>
+            <input id="docInboxReplySubject" type="text" maxlength="240" value="${escapeHtml(replySubject)}" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--line,#d1d5db);background:var(--surface,#fff);color:var(--text,#1a1a1a);margin-bottom:10px;" />
+            <label style="display:block;font-size:0.78em;color:var(--muted,#666);margin-bottom:4px;">${escapeHtml(runtimeText("docInboxReplyBodyLabel"))}</label>
+            <textarea id="docInboxReplyBody" rows="5" maxlength="8000" placeholder="${escapeHtml(runtimeText("docInboxReplyBodyPlaceholder"))}" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line,#d1d5db);background:var(--surface,#fff);color:var(--text,#1a1a1a);resize:vertical;"></textarea>
+            <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+              <button type="button" id="docInboxReplySendBtn" class="ghost-button small-button">${escapeHtml(runtimeText("docInboxReplySendButton"))}</button>
+            </div>
+          </div>` : ""}
         </div>
         <div style="padding:12px 20px;border-top:1px solid var(--line,rgba(0,0,0,0.1));display:flex;justify-content:flex-end;">
           <button id="docInboxDetailClose2" class="ghost-button small-button">${escapeHtml(runtimeText("docInboxCloseButton"))}</button>
@@ -14978,6 +15035,38 @@ async function openInboxMailDetail(inboxId, cardEl) {
         }
       });
     });
+
+    const replyButton = modal.querySelector("#docInboxReplySendBtn");
+    if (replyButton) {
+      replyButton.addEventListener("click", async () => {
+        const subjectField = modal.querySelector("#docInboxReplySubject");
+        const bodyField = modal.querySelector("#docInboxReplyBody");
+        const subject = String(subjectField?.value || "").trim();
+        const body = String(bodyField?.value || "").trim();
+        if (!body) {
+          window.alert(runtimeText("docInboxReplyBodyRequired"));
+          bodyField?.focus();
+          return;
+        }
+        replyButton.disabled = true;
+        replyButton.textContent = "...";
+        try {
+          await apiRequest(`${API_BASE}/api/documents/inbox/${encodeURIComponent(inboxId)}/reply`, {
+            method: "POST",
+            body: { subject, body },
+          });
+          if (bodyField) {
+            bodyField.value = "";
+          }
+          window.alert(runtimeText("docInboxReplySuccess"));
+        } catch (err) {
+          window.alert(runtimeText("docInboxReplyError").replace("{error}", err.message || String(err)));
+        } finally {
+          replyButton.disabled = false;
+          replyButton.textContent = runtimeText("docInboxReplySendButton");
+        }
+      });
+    }
   };
 
   renderModal(entry.attachments);
@@ -15112,6 +15201,35 @@ function normalizeWorkerAppLink(rawLink) {
   }
 }
 
+async function loadWorkerIdentityTokenStatuses(workersList) {
+  const role = String(state.currentUser?.role || "").toLowerCase();
+  if (!Array.isArray(workersList) || workersList.length === 0 || !["superadmin", "company-admin"].includes(role)) {
+    state.identityTokenByWorker = {};
+    return;
+  }
+
+  const requests = await Promise.allSettled(
+    workersList.map((worker) => apiRequest(`${API_BASE}/api/workers/${worker.id}/identity-token`))
+  );
+  const nextState = {};
+  workersList.forEach((worker, index) => {
+    const result = requests[index];
+    if (result?.status === "fulfilled") {
+      const payload = result.value || {};
+      nextState[worker.id] = {
+        configured: Boolean(payload.configured),
+        status: String(payload.status || "").toLowerCase(),
+      };
+      return;
+    }
+    nextState[worker.id] = {
+      configured: false,
+      status: "unknown",
+    };
+  });
+  state.identityTokenByWorker = nextState;
+}
+
 async function loadAllData() {
   // Ohne gespeicherten Token gibt es keine Session zum Bootstrappen.
   // So vermeiden wir unnoetige 401-Requests im ausgeloggten Zustand.
@@ -15196,7 +15314,10 @@ async function loadAllData() {
     }
   }
   if (subcompanies.status === "fulfilled") state.subcompanies = subcompanies.value || [];
-  if (workers.status === "fulfilled") state.workers = workers.value || [];
+  if (workers.status === "fulfilled") {
+    state.workers = workers.value || [];
+    await loadWorkerIdentityTokenStatuses(state.workers);
+  }
   if (accessLogs.status === "fulfilled") {
     const normalizedAccessLogs = normalizeAccessLogsResponse(accessLogs.value, accessLogsRequest);
     state.accessLogs = normalizedAccessLogs.items;
@@ -16688,6 +16809,18 @@ function renderWorkerList() {
       const sub = getSubcompanyLabel(worker);
       const visitor = isVisitorWorker(worker);
       const lockReason = String(worker.lockReason || "").trim();
+      const identityTokenInfo = state.identityTokenByWorker?.[worker.id] || null;
+      const normalizedIdentityTokenStatus = String(identityTokenInfo?.status || "").toLowerCase();
+      const identityTokenLabel = !identityTokenInfo
+        ? "unbekannt"
+        : (identityTokenInfo.configured ? (identityTokenInfo.status || "aktiv") : "nicht konfiguriert");
+      const identityTokenPillStyle = !identityTokenInfo || normalizedIdentityTokenStatus === "unknown"
+        ? "background:#e5e7eb;color:#374151;"
+        : (!identityTokenInfo.configured || normalizedIdentityTokenStatus === "nicht konfiguriert"
+            ? "background:#e5e7eb;color:#374151;"
+            : (normalizedIdentityTokenStatus === "active" || normalizedIdentityTokenStatus === "aktiv"
+                ? "background:#dcfce7;color:#166534;"
+                : "background:#fee2e2;color:#991b1b;"));
       const visitorMeta = visitor
         ? `<p>${uiT("labelVisitorCompany")}: <strong>${escapeHtml(worker.visitorCompany || "-")}</strong> | ${uiT("labelVisitPurpose")}: <strong>${escapeHtml(worker.visitPurpose || "-")}</strong></p>
           <p>${uiT("labelHostName")}: <strong>${escapeHtml(worker.hostName || "-")}</strong> | ${uiT("labelVisitEndAt")}: <strong>${escapeHtml(worker.visitEndAt ? formatTimestamp(worker.visitEndAt) : "-")}</strong></p>`
@@ -16704,6 +16837,7 @@ function renderWorkerList() {
           </header>
           <p>${escapeHtml(visitor ? uiT("optVisitor") : (worker.role || "-"))} | ${escapeHtml(worker.site || "-")}</p>
           <p>${uiT("appPinLabel")}: <strong>${visitor ? uiT("pinNotRequired") : (worker.badgePinConfigured ? uiT("pinSet") : uiT("pinMissing"))}</strong> | ${uiT("cardLabel")}: <strong>${escapeHtml(worker.physicalCardId || uiT("cardUnassigned"))}</strong></p>
+          <p>Identity Token: <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:0.82em;font-weight:700;${identityTokenPillStyle}">${escapeHtml(identityTokenLabel)}</span></p>
           ${sub ? `<p>${escapeHtml(uiT("labelSubcompany"))}: ${escapeHtml(sub)}</p>` : ""}
           ${lockReason ? `<p class="helper-text helper-text-warning"><strong>${escapeHtml(runtimeText("workerStatusReasonLabel"))}:</strong> ${escapeHtml(lockReason)}</p>` : ""}
           ${visitorMeta}
@@ -16718,6 +16852,7 @@ function renderWorkerList() {
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.72em;color:#6b7280;min-width:80px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${uiT("workerSectionActions")}</span>
               ${!deleted ? `<button type="button" class="ghost-button small-button ${String(worker.status || '').toLowerCase() === 'gesperrt' ? 'btn-success' : 'btn-warning'}" data-worker-toggle-lock="${escapeHtml(worker.id)}">${String(worker.status || "").toLowerCase() === "gesperrt" ? uiT("btnUnlockWorker") : uiT("btnLockWorker")}</button>` : ""}
+              ${!deleted ? `<button type="button" class="ghost-button small-button" data-worker-toggle-identity-token="${escapeHtml(worker.id)}">🔐 Identity Token</button>` : ""}
               <button type="button" class="ghost-button small-button" data-worker-restore="${escapeHtml(worker.id)}" ${deleted ? "" : "disabled"}>♻️ ${uiT("btnRestore")}</button>
               <button type="button" class="ghost-button small-button btn-danger" data-worker-delete="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>🗑 ${uiT("btnDelete")}</button>
             </div>
@@ -16882,6 +17017,57 @@ function bindWorkerRowActions() {
           return;
         }
         window.alert(`Sperren/Entsperren fehlgeschlagen: ${error.message}`);
+      }
+    };
+  });
+
+  elements.workerList.querySelectorAll("[data-worker-toggle-identity-token]").forEach((button) => {
+    button.onclick = async () => {
+      const workerId = button.dataset.workerToggleIdentityToken;
+      const worker = state.workers.find((w) => w.id === workerId);
+      const name = worker ? `${worker.firstName} ${worker.lastName}` : workerId;
+      try {
+        const tokenInfo = await apiRequest(`${API_BASE}/api/workers/${workerId}/identity-token`);
+        if (!tokenInfo?.configured) {
+          if (!window.confirm(`Fuer ${name} ist noch kein Identity-Token konfiguriert. Jetzt erstellen?`)) {
+            return;
+          }
+          await apiRequest(`${API_BASE}/api/workers/${workerId}/identity-token`, {
+            method: "POST",
+            body: { rotate: false },
+          });
+          state.identityTokenByWorker = {
+            ...(state.identityTokenByWorker || {}),
+            [workerId]: { configured: true, status: "active" },
+          };
+          renderWorkerList();
+          window.alert(`Identity-Token fuer ${name} wurde erstellt und ist aktiv.`);
+          return;
+        }
+
+        const currentStatus = String(tokenInfo?.status || "").toLowerCase();
+        const nextStatus = currentStatus === "revoked" ? "active" : "revoked";
+        const promptText = nextStatus === "revoked"
+          ? `Identity-Token fuer ${name} jetzt sperren?`
+          : `Identity-Token fuer ${name} jetzt aktivieren?`;
+        if (!window.confirm(promptText)) return;
+
+        await apiRequest(`${API_BASE}/api/workers/${workerId}/identity-token/status`, {
+          method: "POST",
+          body: { status: nextStatus },
+        });
+        state.identityTokenByWorker = {
+          ...(state.identityTokenByWorker || {}),
+          [workerId]: { configured: true, status: nextStatus },
+        };
+        renderWorkerList();
+        window.alert(`Identity-Token fuer ${name} ist jetzt ${nextStatus}.`);
+      } catch (error) {
+        if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
+          showSupportReadOnlyAlert();
+          return;
+        }
+        window.alert(`Identity-Token-Aktion fehlgeschlagen: ${error.message}`);
       }
     };
   });
@@ -17107,7 +17293,7 @@ function renderCompanyList() {
               <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
               <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
               <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-worker-hours="${escapeHtml(companyId)}" ${(hasCompanyFeatureForCompanyId(companyId, "worker_hours_report") && !deleted) ? "" : "disabled"}>⏱ ${escapeHtml(runtimeText("companyBtnWorkerHours") || "Arbeitsstunden")}</button>
+              <button type="button" class="ghost-button small-button" data-company-worker-hours="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"}>⏱ ${escapeHtml(runtimeText("companyBtnWorkerHours") || "Arbeitsstunden")}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
@@ -18277,10 +18463,6 @@ async function openCompanyPlanModal(companyId, company) {
 
 // ── Worker-Stunden-Modal ─────────────────────────────────────────────────
 async function openWorkerHoursModal(companyId) {
-  if (!hasCompanyFeatureForCompanyId(companyId, "worker_hours_report")) {
-    window.alert(runtimeText("accessDenied") || "Feature in diesem Paket nicht verfuegbar.");
-    return;
-  }
   // Determine current month
   const now = new Date();
   const monthVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -18367,6 +18549,15 @@ async function openWorkerHoursModal(companyId) {
         });
       });
     } catch (err) {
+      if (err?.code === "feature_not_available") {
+        const requiredPlan = String(err?.payload?.requiredPlan || "professional").trim();
+        const planLabel = PLAN_LABELS[requiredPlan] || requiredPlan;
+        const message = `${runtimeText("accessDenied") || "Feature in diesem Paket nicht verfuegbar."} (${planLabel})`;
+        if (wrap) {
+          wrap.innerHTML = `<p class="muted-info">${escapeHtml(message)}</p>`;
+        }
+        return;
+      }
       const wrap2 = document.getElementById("workerHoursTableWrap");
       if (wrap2) wrap2.innerHTML = `<p style="color:red;">${escapeHtml(uiT("workerHoursError") || "Fehler beim Laden.")}: ${escapeHtml(err.message || "")}</p>`;
     }
@@ -20305,9 +20496,14 @@ function renderTurnstileQuickPanel() {
     if (!normalized) {
       return null;
     }
-    return state.workers.find(
-      (entry) => normalizeCardId(entry.physicalCardId) === normalized && !entry.deletedAt
-    );
+    return state.workers.find((entry) => {
+      if (entry.deletedAt) {
+        return false;
+      }
+      const physicalCardId = normalizeCardId(entry.physicalCardId);
+      const badgeId = normalizeCardId(entry.badgeId);
+      return physicalCardId === normalized || badgeId === normalized;
+    });
   };
 
   const resolveNextDirection = (workerId) => {

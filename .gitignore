@@ -11,6 +11,19 @@ __pycache__/
 # Local runtime database
 backend/baupass.db
 backend/site.db
+backend/*.db-wal
+backend/*.db-shm
+
+# Wallet credentials and local environment files
+backend/wallet/*.p12
+backend/wallet/*.pfx
+backend/wallet/*.cer
+backend/wallet/*.pem
+backend/wallet/*.key
+backend/wallet/*.json
+backend/.env
+backend/.env.local
+backend/.env.*.local
 
 # Generated local docs and temporary scripts
 backend/uploads/documents/

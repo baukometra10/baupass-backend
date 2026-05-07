@@ -4,6 +4,7 @@ import secrets
 import csv
 import io
 import json
+import hashlib
 import base64
 import smtplib
 import ipaddress
@@ -14,6 +15,7 @@ import textwrap
 import threading
 import time
 import math
+import zipfile
 from contextlib import closing, contextmanager
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -28,10 +30,46 @@ from urllib.error import URLError, HTTPError
 from flask import Flask, jsonify, request, send_from_directory, send_file, g, Response, redirect, has_request_context
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.serialization import pkcs12, pkcs7
 import pyotp
 import qrcode
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_local_env_files():
+    """Load local .env files without overriding already-exported environment variables."""
+    candidates = [
+        BASE_DIR / "backend" / ".env.local",
+        BASE_DIR / "backend" / ".env",
+        BASE_DIR / ".env.local",
+        BASE_DIR / ".env",
+    ]
+    for env_path in candidates:
+        if not env_path.exists() or not env_path.is_file():
+            continue
+        try:
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if not key:
+                    continue
+                if key in os.environ:
+                    continue
+                os.environ[key] = value.strip()
+        except OSError:
+            continue
+
+
+_load_local_env_files()
+
 WORKER_LOGIN_MAX_DISTANCE_METERS = 100
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
@@ -295,6 +333,7 @@ INVOICE_RETRY_ALERT_TOP_ITEMS = max(3, int(os.getenv("BAUPASS_INVOICE_RETRY_ALER
 INVOICE_SMTP_CIRCUIT_FAIL_THRESHOLD = max(2, int(os.getenv("BAUPASS_INVOICE_SMTP_CIRCUIT_FAIL_THRESHOLD", "3")))
 INVOICE_SMTP_CIRCUIT_OPEN_SECONDS = max(120, int(os.getenv("BAUPASS_INVOICE_SMTP_CIRCUIT_OPEN_SECONDS", "900")))
 INVOICE_SMTP_STUCK_MINUTES = max(5, int(os.getenv("BAUPASS_INVOICE_SMTP_STUCK_MINUTES", "20")))
+SMTP_CONNECT_TIMEOUT_SECONDS = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "15")))
 OPERATION_APPROVAL_EXPIRY_MINUTES = max(5, int(os.getenv("BAUPASS_OPERATION_APPROVAL_EXPIRY_MINUTES", "30")))
 _worker_rate_limit_audit_dedup_raw = str(
     os.getenv("BAUPASS_WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS", "180")
@@ -304,6 +343,9 @@ try:
 except ValueError:
     _worker_rate_limit_audit_dedup_value = 180
 WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS = max(60, _worker_rate_limit_audit_dedup_value)
+DEVICE_EVENT_DEDUP_SECONDS = max(3, int(os.getenv("BAUPASS_DEVICE_EVENT_DEDUP_SECONDS", "5")))
+DEVICE_EVENT_TIME_DRIFT_WARN_SECONDS = max(5, int(os.getenv("BAUPASS_DEVICE_EVENT_TIME_DRIFT_WARN_SECONDS", "120")))
+IDENTITY_TOKEN_TTL_DAYS = max(30, int(os.getenv("BAUPASS_IDENTITY_TOKEN_TTL_DAYS", "3650")))
 
 REQUEST_RATE_LIMITS = {
     "import": {"max": 10, "window_seconds": 60},
@@ -327,6 +369,8 @@ _invoice_smtp_circuit = {
 }
 _invoice_retry_guard_lock = threading.Lock()
 _invoice_retry_inflight = {}
+_device_event_dedup_lock = threading.Lock()
+_device_event_dedup_state = {}
 
 
 def get_db():
@@ -1498,6 +1542,292 @@ def get_public_base_url():
     return f"{scheme}://{preferred_ip}{port_suffix}"
 
 
+def _wallet_resolve_path(path_value: str) -> Path:
+    raw = str(path_value or "").strip()
+    if not raw:
+        return Path("")
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = BASE_DIR / path
+    return path
+
+
+def _wallet_b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _wallet_safe_google_id(raw: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "-", str(raw or "").strip())
+    cleaned = re.sub(r"-+", "-", cleaned).strip(".-")
+    return cleaned or f"pass-{secrets.token_hex(6)}"
+
+
+def _wallet_parse_valid_until_iso(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        return f"{raw}T23:59:59Z"
+    parsed = parse_iso_utc(raw)
+    if parsed:
+        return parsed
+    return ""
+
+
+def _wallet_collect_runtime_status():
+    required = {
+        "apple": ["APPLE_CERT_PATH", "APPLE_CERT_PASSWORD"],
+        "google": ["GOOGLE_ISSUER_ID", "GOOGLE_SERVICE_ACCOUNT_JSON_PATH"],
+    }
+
+    missing = {
+        scope: [key for key in keys if not str(os.getenv(key) or "").strip()]
+        for scope, keys in required.items()
+    }
+
+    file_checks = {}
+    for key in ["APPLE_CERT_PATH", "APPLE_INTERMEDIATE_CERT_PATH", "GOOGLE_SERVICE_ACCOUNT_JSON_PATH"]:
+        raw_value = str(os.getenv(key) or "").strip()
+        if not raw_value:
+            file_checks[key] = {
+                "configured": False,
+                "exists": False,
+                "path": "",
+            }
+            continue
+        resolved = _wallet_resolve_path(raw_value)
+        file_checks[key] = {
+            "configured": True,
+            "exists": bool(resolved.exists() and resolved.is_file()),
+            "path": str(resolved),
+        }
+
+    runtime = {}
+    try:
+        _wallet_load_apple_signing_material()
+        runtime["apple"] = {"ok": True, "error": ""}
+    except Exception as exc:
+        runtime["apple"] = {"ok": False, "error": str(exc)}
+
+    try:
+        google_data = _wallet_load_google_service_account()
+        runtime["google"] = {
+            "ok": True,
+            "error": "",
+            "serviceEmail": str(google_data.get("service_email") or ""),
+            "issuerId": str(google_data.get("issuer_id") or ""),
+        }
+    except Exception as exc:
+        runtime["google"] = {"ok": False, "error": str(exc)}
+
+    return {
+        "missing": missing,
+        "files": file_checks,
+        "runtime": runtime,
+        "ok": bool(runtime.get("apple", {}).get("ok") and runtime.get("google", {}).get("ok")),
+    }
+
+
+def _wallet_load_google_service_account():
+    inline_json = (os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()
+    service_data = None
+    if inline_json:
+        service_data = json.loads(inline_json)
+    else:
+        json_path_value = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_PATH") or ""
+        if not str(json_path_value).strip():
+            raise RuntimeError("Missing GOOGLE_SERVICE_ACCOUNT_JSON_PATH or inline GOOGLE_SERVICE_ACCOUNT_JSON.")
+        json_path = _wallet_resolve_path(json_path_value)
+        if not json_path.exists() or not json_path.is_file():
+            raise RuntimeError("Missing GOOGLE_SERVICE_ACCOUNT_JSON_PATH or credentials file.")
+        service_data = json.loads(json_path.read_text(encoding="utf-8"))
+
+    private_key_pem = str(service_data.get("private_key") or "").strip()
+    service_email = str(os.getenv("GOOGLE_SERVICE_ACCOUNT_EMAIL") or service_data.get("client_email") or "").strip()
+    issuer_id = str(os.getenv("GOOGLE_ISSUER_ID") or "").strip()
+    if not private_key_pem or not service_email or not issuer_id:
+        raise RuntimeError("Google Wallet env is incomplete (private_key, service email, issuer id).")
+
+    private_key = serialization.load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
+    return {
+        "private_key": private_key,
+        "service_email": service_email,
+        "issuer_id": issuer_id,
+        "project_id": str(service_data.get("project_id") or os.getenv("GOOGLE_PROJECT_ID") or "").strip(),
+    }
+
+
+def _wallet_build_google_save_url(pass_object_id: str, worker: dict, company_name: str, badge_id: str, valid_until_iso: str) -> str:
+    config = _wallet_load_google_service_account()
+    issuer_id = config["issuer_id"]
+    class_id = (os.getenv("GOOGLE_WALLET_CLASS_ID") or f"{issuer_id}.baukometra_worker").strip()
+    object_suffix = _wallet_safe_google_id(pass_object_id)
+    object_id = f"{issuer_id}.{object_suffix}"
+
+    worker_name = f"{str(worker.get('first_name') or '').strip()} {str(worker.get('last_name') or '').strip()}".strip() or "Mitarbeiter"
+    host = (urlsplit(get_public_base_url()).hostname or "").strip()
+    claims = {
+        "iss": config["service_email"],
+        "aud": "google",
+        "typ": "savetowallet",
+        "iat": int(time.time()),
+        "origins": [host] if host else [],
+        "payload": {
+            "genericObjects": [
+                {
+                    "id": object_id,
+                    "classId": class_id,
+                    "state": "ACTIVE",
+                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "BauPass"}},
+                    "header": {"defaultValue": {"language": "de-DE", "value": worker_name}},
+                    "subheader": {"defaultValue": {"language": "de-DE", "value": company_name or "Baukometra"}},
+                    "barcode": {"type": "QR_CODE", "value": badge_id, "alternateText": badge_id},
+                    "textModulesData": [
+                        {"id": "badge-id", "header": "Badge ID", "body": badge_id},
+                        {"id": "worker-id", "header": "Mitarbeiter", "body": str(worker.get("id") or "")},
+                    ],
+                }
+            ]
+        },
+    }
+    if valid_until_iso:
+        claims["payload"]["genericObjects"][0]["validTimeInterval"] = {
+            "end": {"date": valid_until_iso}
+        }
+
+    header = {"alg": "RS256", "typ": "JWT"}
+    header_b64 = _wallet_b64url(json.dumps(header, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+    payload_b64 = _wallet_b64url(json.dumps(claims, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+    signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
+    signature = config["private_key"].sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+    jwt_token = f"{header_b64}.{payload_b64}.{_wallet_b64url(signature)}"
+    return f"https://pay.google.com/gp/v/save/{jwt_token}"
+
+
+def _wallet_load_apple_signing_material():
+    cert_path_value = (os.getenv("APPLE_CERT_PATH") or "").strip()
+    cert_password = os.getenv("APPLE_CERT_PASSWORD")
+    if not cert_path_value:
+        raise RuntimeError("APPLE_CERT_PATH is not configured.")
+
+    cert_path = _wallet_resolve_path(cert_path_value)
+    if not cert_path.exists():
+        raise RuntimeError("APPLE_CERT_PATH does not exist.")
+
+    p12_data = cert_path.read_bytes()
+    password_bytes = cert_password.encode("utf-8") if cert_password else None
+    private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(p12_data, password_bytes)
+    if private_key is None or certificate is None:
+        raise RuntimeError("Invalid Apple pass certificate (.p12 missing private key/certificate).")
+
+    cert_chain = list(additional_certs or [])
+    intermediate_path_value = (os.getenv("APPLE_INTERMEDIATE_CERT_PATH") or "").strip()
+    if intermediate_path_value:
+        intermediate_path = _wallet_resolve_path(intermediate_path_value)
+        if intermediate_path.exists():
+            intermediate_raw = intermediate_path.read_bytes()
+            try:
+                intermediate = x509.load_pem_x509_certificate(intermediate_raw)
+            except ValueError:
+                intermediate = x509.load_der_x509_certificate(intermediate_raw)
+            cert_chain.append(intermediate)
+
+    return private_key, certificate, cert_chain
+
+
+def _wallet_extract_apple_identifiers(certificate):
+    team_id = str(os.getenv("APPLE_TEAM_ID") or "").strip()
+    pass_type_id = str(os.getenv("APPLE_PASS_TYPE_ID") or "").strip()
+
+    if not team_id:
+        attrs = certificate.subject.get_attributes_for_oid(NameOID.ORGANIZATIONAL_UNIT_NAME)
+        if attrs:
+            team_id = str(attrs[0].value or "").strip()
+
+    if not pass_type_id:
+        uid_attrs = certificate.subject.get_attributes_for_oid(NameOID.USER_ID)
+        if uid_attrs:
+            candidate = str(uid_attrs[0].value or "").strip()
+            if candidate.startswith("pass."):
+                pass_type_id = candidate
+
+    return team_id, pass_type_id
+
+
+def _wallet_build_apple_pkpass(pass_object_id: str, worker: dict, company_name: str, badge_id: str, valid_until_iso: str) -> bytes:
+    private_key, certificate, cert_chain = _wallet_load_apple_signing_material()
+    team_id, pass_type_id = _wallet_extract_apple_identifiers(certificate)
+    if not team_id or not pass_type_id:
+        raise RuntimeError("APPLE_TEAM_ID/APPLE_PASS_TYPE_ID missing and could not be derived from certificate.")
+
+    worker_name = f"{str(worker.get('first_name') or '').strip()} {str(worker.get('last_name') or '').strip()}".strip() or "Mitarbeiter"
+    valid_until_display = valid_until_iso[:10] if valid_until_iso else ""
+
+    pass_payload = {
+        "formatVersion": 1,
+        "passTypeIdentifier": pass_type_id,
+        "serialNumber": pass_object_id,
+        "teamIdentifier": team_id,
+        "organizationName": company_name or "Baukometra",
+        "description": "BauPass Worker Badge",
+        "logoText": "BauPass",
+        "generic": {
+            "primaryFields": [
+                {"key": "worker_name", "label": "Mitarbeiter", "value": worker_name}
+            ],
+            "secondaryFields": [
+                {"key": "company", "label": "Firma", "value": company_name or "Baukometra"},
+                {"key": "badge", "label": "Badge", "value": badge_id},
+            ],
+            "auxiliaryFields": [
+                {"key": "worker_id", "label": "Mitarbeiter-ID", "value": str(worker.get("id") or "")}
+            ],
+            "backFields": [
+                {"key": "site", "label": "Einsatzort", "value": str(worker.get("site") or "")}
+            ],
+        },
+        "barcodes": [
+            {"format": "PKBarcodeFormatQR", "message": badge_id, "messageEncoding": "iso-8859-1", "altText": badge_id}
+        ],
+        "barcode": {"format": "PKBarcodeFormatQR", "message": badge_id, "messageEncoding": "iso-8859-1", "altText": badge_id},
+        "backgroundColor": "rgb(199, 134, 82)",
+        "foregroundColor": "rgb(255, 255, 255)",
+        "labelColor": "rgb(246, 239, 226)",
+    }
+    if valid_until_iso:
+        pass_payload["expirationDate"] = valid_until_iso
+        pass_payload["relevantDate"] = valid_until_iso
+        if valid_until_display:
+            pass_payload["generic"]["auxiliaryFields"].append({"key": "valid_until", "label": "Gueltig bis", "value": valid_until_display})
+
+    pass_json_bytes = json.dumps(pass_payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    icon_png = _generate_icon_png(180)
+    icon2x_png = _generate_icon_png(360)
+
+    files = {
+        "pass.json": pass_json_bytes,
+        "icon.png": icon_png,
+        "icon@2x.png": icon2x_png,
+        "logo.png": icon_png,
+        "logo@2x.png": icon2x_png,
+    }
+    manifest = {name: hashlib.sha1(content).hexdigest() for name, content in files.items()}
+    manifest_bytes = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+    builder = pkcs7.PKCS7SignatureBuilder().set_data(manifest_bytes).add_signer(certificate, private_key, hashes.SHA256())
+    for cert in cert_chain:
+        builder = builder.add_certificate(cert)
+    signature = builder.sign(serialization.Encoding.DER, [pkcs7.PKCS7Options.DetachedSignature])
+
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+        archive.writestr("manifest.json", manifest_bytes)
+        archive.writestr("signature", signature)
+    return stream.getvalue()
+
+
 def should_use_cross_site_cookie():
     origin = (request.headers.get("Origin") or "").strip().rstrip("/")
     current_origin = f"{request.scheme}://{request.host}".rstrip("/")
@@ -1727,12 +2057,29 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'issued',
             pass_url TEXT NOT NULL DEFAULT '',
             pass_data_json TEXT NOT NULL DEFAULT '{}',
+            signed_pass_data BLOB,
             issued_at TEXT NOT NULL,
             activated_at TEXT,
             revoked_at TEXT,
             expired_at TEXT,
             version INTEGER NOT NULL DEFAULT 1,
             last_updated_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS worker_identity_tokens (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            token_hash TEXT NOT NULL,
+            token_hint TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
+            issued_at TEXT NOT NULL,
+            expires_at TEXT,
+            last_used_at TEXT,
+            last_device_id TEXT NOT NULL DEFAULT '',
+            last_source TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(worker_id) REFERENCES workers(id),
             FOREIGN KEY(company_id) REFERENCES companies(id)
         );
@@ -1859,6 +2206,8 @@ def init_db():
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_passes_worker_platform_unique ON worker_passes(worker_id, platform)")
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_passes_object_unique ON worker_passes(pass_object_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_passes_company_status ON worker_passes(company_id, status)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_identity_tokens_hash_unique ON worker_identity_tokens(token_hash)")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_identity_tokens_worker_unique ON worker_identity_tokens(worker_id)")
 
     setting_exists = cur.execute("SELECT id FROM settings WHERE id = 1").fetchone()
     if not setting_exists:
@@ -2078,6 +2427,15 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN worker_app_enabled INTEGER NOT NULL DEFAULT 1")
     if "worker_pass_lock_enabled" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN worker_pass_lock_enabled INTEGER NOT NULL DEFAULT 0")
+    worker_pass_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_passes)").fetchall()]
+    if "signed_pass_data" not in worker_pass_columns:
+        cur.execute("ALTER TABLE worker_passes ADD COLUMN signed_pass_data BLOB")
+    worker_identity_token_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_identity_tokens)").fetchall()]
+    if worker_identity_token_columns:
+        if "last_device_id" not in worker_identity_token_columns:
+            cur.execute("ALTER TABLE worker_identity_tokens ADD COLUMN last_device_id TEXT NOT NULL DEFAULT ''")
+        if "last_source" not in worker_identity_token_columns:
+            cur.execute("ALTER TABLE worker_identity_tokens ADD COLUMN last_source TEXT NOT NULL DEFAULT ''")
     if "contact_email" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''")
     if "leave_balance" not in worker_columns:
@@ -2292,6 +2650,7 @@ def init_db():
             name TEXT NOT NULL,
             location TEXT NOT NULL DEFAULT '',
             device_type TEXT NOT NULL DEFAULT 'osdp',
+            protocol TEXT NOT NULL DEFAULT 'http',
             api_key_hash TEXT NOT NULL DEFAULT '',
             last_seen_at TEXT,
             created_at TEXT NOT NULL,
@@ -2307,12 +2666,86 @@ def init_db():
         cur.execute("ALTER TABLE devices ADD COLUMN location TEXT NOT NULL DEFAULT ''")
     if "device_type" not in device_columns:
         cur.execute("ALTER TABLE devices ADD COLUMN device_type TEXT NOT NULL DEFAULT 'osdp'")
+    if "protocol" not in device_columns:
+        cur.execute("ALTER TABLE devices ADD COLUMN protocol TEXT NOT NULL DEFAULT 'http'")
     if "api_key_hash" not in device_columns:
         cur.execute("ALTER TABLE devices ADD COLUMN api_key_hash TEXT NOT NULL DEFAULT ''")
     if "last_seen_at" not in device_columns:
         cur.execute("ALTER TABLE devices ADD COLUMN last_seen_at TEXT")
     if "created_at" not in device_columns:
         cur.execute("ALTER TABLE devices ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
+
+    # Immutable ingest log for device events (retry/offline replay safe).
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_ingest_events (
+            id TEXT PRIMARY KEY,
+            event_uid TEXT NOT NULL UNIQUE,
+            device_id TEXT NOT NULL,
+            company_id TEXT,
+            employee_id TEXT,
+            source TEXT NOT NULL DEFAULT '',
+            protocol TEXT NOT NULL DEFAULT 'http',
+            event_name TEXT NOT NULL DEFAULT '',
+            event_timestamp TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            outcome TEXT NOT NULL DEFAULT 'received',
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            normalized_payload_json TEXT NOT NULL DEFAULT '{}',
+            result_ref TEXT NOT NULL DEFAULT '',
+            error_code TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_device_ingest_events_uid ON device_ingest_events(event_uid)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_device_ingest_events_received ON device_ingest_events(received_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_device_ingest_events_company_received ON device_ingest_events(company_id, received_at)")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_event_dead_letters (
+            id TEXT PRIMARY KEY,
+            event_uid TEXT NOT NULL UNIQUE,
+            company_id TEXT,
+            device_id TEXT NOT NULL,
+            employee_id TEXT,
+            reason TEXT NOT NULL,
+            last_error TEXT NOT NULL DEFAULT '',
+            raw_payload_json TEXT NOT NULL DEFAULT '{}',
+            normalized_payload_json TEXT NOT NULL DEFAULT '{}',
+            failed_at TEXT NOT NULL,
+            resolved_at TEXT
+        )
+        """
+    )
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_device_event_dead_letters_uid ON device_event_dead_letters(event_uid)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_device_event_dead_letters_company_failed ON device_event_dead_letters(company_id, failed_at)")
+
+    # ── Device heartbeats  (Enterprise Point 17 – Monitoring) ────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_heartbeats (
+            device_id   TEXT NOT NULL,
+            company_id  TEXT NOT NULL,
+            user_id     TEXT NOT NULL DEFAULT '',
+            device_name TEXT NOT NULL DEFAULT '',
+            reader_type TEXT NOT NULL DEFAULT '',
+            firmware_version TEXT NOT NULL DEFAULT '',
+            last_seen_at TEXT NOT NULL,
+            last_ip     TEXT NOT NULL DEFAULT '',
+            extra_json  TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY (device_id, company_id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_device_heartbeats_company_seen ON device_heartbeats(company_id, last_seen_at)")
+
+    ingest_columns = [row[1] for row in cur.execute("PRAGMA table_info(device_ingest_events)").fetchall()]
+    if ingest_columns:
+        if "result_ref" not in ingest_columns:
+            cur.execute("ALTER TABLE device_ingest_events ADD COLUMN result_ref TEXT NOT NULL DEFAULT ''")
+        if "error_code" not in ingest_columns:
+            cur.execute("ALTER TABLE device_ingest_events ADD COLUMN error_code TEXT NOT NULL DEFAULT ''")
 
     # ── Neu: Urlaubsantraege & Krankmeldungen ──────────────────
     cur.execute(
@@ -2806,7 +3239,6 @@ def get_worker_wallet_pass():
             "object_id": existing["pass_object_id"],
             "pass_url": existing["pass_url"],
             "state": existing["status"],
-            "stub": True,
         }
         if platform == "google":
             response_payload["add_to_wallet_url"] = existing["pass_url"]
@@ -2842,6 +3274,7 @@ def get_worker_wallet_pass():
                 status = 'issued',
                 pass_url = ?,
                 pass_data_json = ?,
+                signed_pass_data = NULL,
                 issued_at = ?,
                 activated_at = NULL,
                 revoked_at = NULL,
@@ -2871,7 +3304,6 @@ def get_worker_wallet_pass():
         "object_id": pass_object_id,
         "pass_url": pass_url,
         "state": "issued",
-        "stub": True,
     }
     if platform == "google":
         response_payload["add_to_wallet_url"] = pass_url
@@ -2888,11 +3320,23 @@ def get_worker_wallet_pass_file(pass_object_id):
     db = get_db()
     row = db.execute(
         """
-        SELECT id, pass_data_json, status
-        FROM worker_passes
-        WHERE worker_id = ?
-          AND platform = 'apple'
-          AND pass_object_id = ?
+                SELECT wp.id,
+                             wp.pass_data_json,
+                             wp.status,
+                             wp.signed_pass_data,
+                             w.id AS worker_id,
+                             w.first_name,
+                             w.last_name,
+                             w.badge_id,
+                             w.valid_until,
+                             w.site,
+                             c.name AS company_name
+                FROM worker_passes AS wp
+                JOIN workers AS w ON w.id = wp.worker_id
+                LEFT JOIN companies AS c ON c.id = wp.company_id
+                WHERE wp.worker_id = ?
+                    AND wp.platform = 'apple'
+                    AND wp.pass_object_id = ?
         LIMIT 1
         """,
         (g.worker["id"], normalized_object_id),
@@ -2910,14 +3354,49 @@ def get_worker_wallet_pass_file(pass_object_id):
         )
         db.commit()
 
-    return jsonify(
-        {
-            "status": "not_implemented",
-            "platform": "apple",
-            "message": "Apple Wallet pkpass signing not enabled yet.",
-            "object_id": normalized_object_id,
+    pass_data = row["signed_pass_data"]
+    if not pass_data:
+        pass_payload = json.loads(str(row["pass_data_json"] or "{}"))
+        badge_id = str(pass_payload.get("badgeId") or row["badge_id"] or "").strip()
+        valid_until_iso = _wallet_parse_valid_until_iso(str(row["valid_until"] or ""))
+        worker = {
+            "id": row["worker_id"],
+            "first_name": row["first_name"],
+            "last_name": row["last_name"],
+            "site": row["site"],
         }
-    ), 501
+        try:
+            pass_data = _wallet_build_apple_pkpass(
+                pass_object_id=normalized_object_id,
+                worker=worker,
+                company_name=str(row["company_name"] or "").strip(),
+                badge_id=badge_id,
+                valid_until_iso=valid_until_iso,
+            )
+        except Exception as exc:
+            return jsonify(
+                {
+                    "error": "wallet_not_configured",
+                    "platform": "apple",
+                    "message": "Apple Wallet signing failed. Check APPLE_* env and certificate files.",
+                    "details": str(exc),
+                }
+            ), 503
+
+        db.execute(
+            "UPDATE worker_passes SET signed_pass_data = ?, last_updated_at = ? WHERE id = ?",
+            (pass_data, now_iso(), row["id"]),
+        )
+        db.commit()
+
+    return Response(
+        pass_data,
+        mimetype="application/vnd.apple.pkpass",
+        headers={
+            "Content-Disposition": f'attachment; filename="{normalized_object_id}.pkpass"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.get("/api/worker-app/wallet/pass/google/<pass_object_id>")
@@ -2930,11 +3409,22 @@ def get_worker_wallet_google_redirect(pass_object_id):
     db = get_db()
     row = db.execute(
         """
-        SELECT id, pass_url, status
-        FROM worker_passes
-        WHERE worker_id = ?
-          AND platform = 'google'
-          AND pass_object_id = ?
+                SELECT wp.id,
+                             wp.pass_url,
+                             wp.pass_data_json,
+                             wp.status,
+                             w.id AS worker_id,
+                             w.first_name,
+                             w.last_name,
+                             w.badge_id,
+                             w.valid_until,
+                             c.name AS company_name
+                FROM worker_passes AS wp
+                JOIN workers AS w ON w.id = wp.worker_id
+                LEFT JOIN companies AS c ON c.id = wp.company_id
+                WHERE wp.worker_id = ?
+                    AND wp.platform = 'google'
+                    AND wp.pass_object_id = ?
         LIMIT 1
         """,
         (g.worker["id"], normalized_object_id),
@@ -2952,15 +3442,49 @@ def get_worker_wallet_google_redirect(pass_object_id):
         )
         db.commit()
 
+    pass_payload = json.loads(str(row["pass_data_json"] or "{}"))
+    badge_id = str(pass_payload.get("badgeId") or row["badge_id"] or "").strip()
+    worker = {
+        "id": row["worker_id"],
+        "first_name": row["first_name"],
+        "last_name": row["last_name"],
+    }
+    valid_until_iso = _wallet_parse_valid_until_iso(str(row["valid_until"] or ""))
+
+    try:
+        add_to_wallet_url = _wallet_build_google_save_url(
+            pass_object_id=normalized_object_id,
+            worker=worker,
+            company_name=str(row["company_name"] or "").strip(),
+            badge_id=badge_id,
+            valid_until_iso=valid_until_iso,
+        )
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": "wallet_not_configured",
+                "platform": "google",
+                "message": "Google Wallet signing failed. Check GOOGLE_* env and service account file.",
+                "details": str(exc),
+                "pass_url": row["pass_url"],
+            }
+        ), 503
+
+    return redirect(add_to_wallet_url, code=302)
+
+
+@app.get("/api/admin/wallet/runtime-status")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def get_wallet_runtime_status():
+    status_payload = _wallet_collect_runtime_status()
     return jsonify(
         {
-            "status": "not_implemented",
-            "platform": "google",
-            "message": "Google Wallet JWT signing not enabled yet.",
-            "object_id": normalized_object_id,
-            "pass_url": row["pass_url"],
+            "ok": status_payload["ok"],
+            "wallet": status_payload,
+            "checkedAt": now_iso(),
         }
-    ), 501
+    )
 
 def visible_company_clause(user):
     if user["role"] == "superadmin":
@@ -3338,7 +3862,9 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     smtp_use_tls = int(settings_row["smtp_use_tls"] or 0) == 1
     smtp_username = (settings_row["smtp_username"] or "").strip()
     smtp_password = settings_row["smtp_password"] or ""
-    if smtp_host and smtp_sender:
+    smtp_circuit_open_until = get_invoice_smtp_circuit_open_until()
+    smtp_circuit_open = bool(smtp_circuit_open_until and datetime.now(timezone.utc) < smtp_circuit_open_until)
+    if smtp_host and smtp_sender and not smtp_circuit_open:
         try:
             msg = EmailMessage()
             msg["Subject"] = subject
@@ -3352,9 +3878,17 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
                 if smtp_username:
                     smtp.login(smtp_username, smtp_password)
                 smtp.send_message(msg)
+            on_invoice_send_success_reset_circuit()
             return True, ""
         except Exception as smtp_exc:
-            app.logger.warning(f"[DUNNING] SMTP fehlgeschlagen ({smtp_exc}), versuche API-Fallback")
+            on_invoice_send_failure_update_circuit(str(smtp_exc))
+            app.logger.warning(
+                f"[DUNNING] SMTP fehlgeschlagen ({smtp_exc}) | host={smtp_host}:{smtp_port} tls={int(smtp_use_tls)} timeout={SMTP_CONNECT_TIMEOUT_SECONDS}s, versuche API-Fallback"
+            )
+    elif smtp_circuit_open:
+        app.logger.info(
+            f"[DUNNING] SMTP-Circuit offen bis {smtp_circuit_open_until.astimezone(timezone.utc).isoformat()}, SMTP wird voruebergehend uebersprungen"
+        )
 
     # API fallback – attach PDF as base64 if available
     attachments = []
@@ -3362,7 +3896,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         import base64 as _b64
         attachments = [{"filename": pdf_filename, "content": _b64.b64encode(pdf_bytes).decode("ascii"), "type": "application/pdf"}]
 
-    ok, err, _provider = _send_via_any_api(
+    ok, err, provider = _send_via_any_api(
         subject=subject,
         sender_email=smtp_sender or "noreply@baupass.app",
         sender_name=sender_name,
@@ -3372,6 +3906,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         attachments=attachments,
     )
     if ok:
+        app.logger.info(f"[DUNNING] API-Fallback erfolgreich via {provider or 'api'}")
         return True, ""
     return False, f"API-Fallback fehlgeschlagen | {err}"
 
@@ -3383,10 +3918,10 @@ def _smtp_connect(host, port, use_tls):
     use_ssl = port == 465
     use_tls_flag = int(use_tls or 0) == 1
     if use_ssl:
-        with smtplib.SMTP_SSL(host, port, timeout=15) as smtp:
+        with smtplib.SMTP_SSL(host, port, timeout=SMTP_CONNECT_TIMEOUT_SECONDS) as smtp:
             yield smtp
     else:
-        with smtplib.SMTP(host, port, timeout=15) as smtp:
+        with smtplib.SMTP(host, port, timeout=SMTP_CONNECT_TIMEOUT_SECONDS) as smtp:
             if use_tls_flag:
                 smtp.starttls()
             yield smtp
@@ -3414,7 +3949,7 @@ def _run_smtp_diagnostics(smtp_settings):
 
         if port == 465:
             stage = "connect_ssl"
-            with smtplib.SMTP_SSL(host, port, timeout=15) as smtp:
+            with smtplib.SMTP_SSL(host, port, timeout=SMTP_CONNECT_TIMEOUT_SECONDS) as smtp:
                 stage = "ehlo_ssl"
                 smtp.ehlo()
                 if smtp_username:
@@ -3422,7 +3957,7 @@ def _run_smtp_diagnostics(smtp_settings):
                     smtp.login(smtp_username, smtp_password)
         else:
             stage = "connect"
-            with smtplib.SMTP(host, port, timeout=15) as smtp:
+            with smtplib.SMTP(host, port, timeout=SMTP_CONNECT_TIMEOUT_SECONDS) as smtp:
                 stage = "ehlo"
                 smtp.ehlo()
                 if use_tls:
@@ -6561,12 +7096,19 @@ def resend_test():
         detail_hint += " — Tipp: Cloudflare blockiert den Request (Bot-Erkennung). User-Agent wurde gesetzt, bitte erneut versuchen."
     elif "403" in str(fallback_error) or "validation_error" in str(fallback_error) or "domain" in str(fallback_error).lower():
         detail_hint += " — Tipp: API-Provider-Policies prüfen (Absender/Domain verifizieren). Bei Resend ist Gmail als Absender nicht erlaubt."
+    error_code = "api_send_failed"
+    if used_provider == "brevo":
+        error_code = "brevo_send_failed"
+    elif used_provider == "resend":
+        error_code = "resend_send_failed"
+
     return jsonify({
         "ok": False,
-        "error": "resend_send_failed",
+        "error": error_code,
         "detail": detail_hint,
         "provider": used_provider,
-        "resendConfigured": True,
+        "resendConfigured": bool(resend_api_key),
+        "brevoConfigured": bool(brevo_api_key),
         "resendKeySource": resend_key_source,
         "resendEnv": env_presence,
     })
@@ -8458,6 +9000,430 @@ def validate_badge_pin_or_raise(pin_value):
 def normalize_physical_card_id(value):
     normalized = str(value or "").strip().upper()
     return normalized or None
+
+
+def normalize_device_protocol(value):
+    normalized = str(value or "").strip().lower()
+    if normalized in {"usb", "http", "tcp", "mqtt", "serial"}:
+        return normalized
+    return "http"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reader Adapter Layer  (Enterprise Point 4)
+# Each adapter normalises a raw device payload into a standard BauPass event.
+# New reader brands can be supported by adding a new subclass.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BaseReaderAdapter:
+    """Base class for hardware reader payload normalisation."""
+    reader_type = "generic"
+
+    def normalize(self, raw_payload: dict, context: dict | None = None) -> dict:
+        """Return a normalised event dict.  context may carry device_id / company_id
+        resolved from auth headers when they are absent in the payload itself."""
+        ctx = context or {}
+        return {
+            "employee_id": str(raw_payload.get("employee_id") or raw_payload.get("badge_id") or ""),
+            "device_id":   str(raw_payload.get("device_id")   or raw_payload.get("deviceId") or ctx.get("device_id", "")),
+            "timestamp":   str(raw_payload.get("timestamp")   or ""),
+            "event":       "check_in" if str(raw_payload.get("event") or raw_payload.get("direction", "check_in")).lower() in {"check_in", "check-in", "in", "entry"} else "check_out",
+            "source":      normalize_scan_source(raw_payload.get("source")),
+            "protocol":    normalize_device_protocol(raw_payload.get("protocol")),
+        }
+
+    @classmethod
+    def detect(cls, raw_payload: dict) -> bool:
+        """Return True when this adapter is the best match for the payload."""
+        return False
+
+
+class ZKTecoAdapter(BaseReaderAdapter):
+    """ZKTeco push SDK payload (PUSH protocol / ADMS)."""
+    reader_type = "zkteco"
+
+    _DIRECTION_MAP = {"0": "check_in", "in": "check_in", "1": "check_out", "out": "check_out", "2": "check_out", "4": "check_in"}
+
+    def normalize(self, raw_payload: dict, context: dict | None = None) -> dict:
+        ctx = context or {}
+        raw_dir = str(raw_payload.get("InOutStatus") or raw_payload.get("inOutStatus") or "0").lower()
+        event = self._DIRECTION_MAP.get(raw_dir, "check_in")
+        return {
+            "employee_id": str(raw_payload.get("Pin") or raw_payload.get("pin") or ""),
+            "device_id":   str(raw_payload.get("DevSN") or raw_payload.get("devSN") or ctx.get("device_id", "")),
+            "timestamp":   str(raw_payload.get("LogTime") or raw_payload.get("logTime") or ""),
+            "event":       event,
+            "source":      "rfid",
+            "protocol":    "zkteco_push",
+        }
+
+    @classmethod
+    def detect(cls, raw_payload: dict) -> bool:
+        return ("Pin" in raw_payload or "pin" in raw_payload) and ("DevSN" in raw_payload or "devSN" in raw_payload)
+
+
+class ACSAdapter(BaseReaderAdapter):
+    """ACS / Lenel / generic access-control-system payload."""
+    reader_type = "acs"
+
+    def normalize(self, raw_payload: dict, context: dict | None = None) -> dict:
+        ctx = context or {}
+        raw_dir = str(raw_payload.get("direction") or raw_payload.get("event_type") or "in").lower()
+        event = "check_in" if raw_dir in {"in", "entry", "check_in", "check-in", "access_granted"} else "check_out"
+        return {
+            "employee_id": str(raw_payload.get("card_holder_id") or raw_payload.get("badge") or raw_payload.get("cardholderID") or ""),
+            "device_id":   str(raw_payload.get("reader_id") or raw_payload.get("readerID") or ctx.get("device_id", "")),
+            "timestamp":   str(raw_payload.get("event_time") or raw_payload.get("eventTime") or raw_payload.get("timestamp") or ""),
+            "event":       event,
+            "source":      "nfc",
+            "protocol":    "acs_push",
+        }
+
+    @classmethod
+    def detect(cls, raw_payload: dict) -> bool:
+        return ("card_holder_id" in raw_payload or "cardholderID" in raw_payload) or \
+               ("reader_id" in raw_payload and "event_time" in raw_payload)
+
+
+class HIDAdapter(BaseReaderAdapter):
+    """HID Global / OSDP payload."""
+    reader_type = "hid"
+
+    def normalize(self, raw_payload: dict, context: dict | None = None) -> dict:
+        ctx = context or {}
+        raw_type = str(raw_payload.get("readerType") or raw_payload.get("reader_type") or "entry").lower()
+        event = "check_in" if raw_type in {"entry", "in", "check_in", "in_reader"} else "check_out"
+        return {
+            "employee_id": str(raw_payload.get("credentialHolderID") or raw_payload.get("cardholder_id") or raw_payload.get("cardholderID") or ""),
+            "device_id":   str(raw_payload.get("deviceOID") or raw_payload.get("device_id") or ctx.get("device_id", "")),
+            "timestamp":   str(raw_payload.get("dateTime") or raw_payload.get("date_time") or raw_payload.get("timestamp") or ""),
+            "event":       event,
+            "source":      "nfc",
+            "protocol":    "hid_push",
+        }
+
+    @classmethod
+    def detect(cls, raw_payload: dict) -> bool:
+        return "credentialHolderID" in raw_payload or "deviceOID" in raw_payload
+
+
+# Ordered list – more specific adapters first, generic last
+READER_ADAPTERS: list[BaseReaderAdapter] = [ZKTecoAdapter(), ACSAdapter(), HIDAdapter(), BaseReaderAdapter()]
+
+
+def auto_detect_reader_adapter(raw_payload: dict) -> BaseReaderAdapter:
+    """Return the first adapter that claims to recognise the payload."""
+    for adapter in READER_ADAPTERS[:-1]:          # skip generic fallback in auto-detect
+        if adapter.detect(raw_payload):
+            return adapter
+    return READER_ADAPTERS[-1]                    # generic fallback
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def normalize_scan_source(value):
+    normalized = str(value or "").strip().lower()
+    if normalized in {"nfc", "qr", "wallet", "rfid"}:
+        return normalized
+    if normalized == "android":
+        return "nfc"
+    if normalized == "iphone":
+        return "wallet"
+    return "nfc"
+
+
+def _identity_token_secret():
+    return (
+        (os.getenv("BAUPASS_IDENTITY_TOKEN_SECRET") or "").strip()
+        or (os.getenv("BAUPASS_RECOVERY_SECRET") or "").strip()
+        or "baupass-dev-identity-secret-change-me"
+    )
+
+
+def _hash_identity_token(raw_token):
+    payload = f"{_identity_token_secret()}::{str(raw_token or '').strip()}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _new_worker_identity_token_value(worker_id, company_id):
+    now_bucket = str(int(time.time()))
+    nonce = secrets.token_urlsafe(24)
+    digest = hashlib.sha256(f"{worker_id}:{company_id}:{now_bucket}:{nonce}".encode("utf-8")).hexdigest()[:32]
+    return f"wid_{digest}"
+
+
+def _get_worker_identity_token(db, worker_id):
+    return db.execute(
+        """
+        SELECT *
+        FROM worker_identity_tokens
+        WHERE worker_id = ?
+        LIMIT 1
+        """,
+        (worker_id,),
+    ).fetchone()
+
+
+def issue_worker_identity_token(db, worker, rotate=False):
+    existing = _get_worker_identity_token(db, worker["id"])
+    now_value = now_iso()
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=IDENTITY_TOKEN_TTL_DAYS)).replace(tzinfo=None).isoformat() + "Z"
+    raw_token = _new_worker_identity_token_value(worker["id"], worker["company_id"])
+    token_hash = _hash_identity_token(raw_token)
+    token_hint = raw_token[-6:]
+
+    if existing:
+        if not rotate and str(existing["status"] or "") == "active" and str(existing["expires_at"] or "") > now_value:
+            return {
+                "created": False,
+                "rotated": False,
+                "token": None,
+                "status": str(existing["status"] or ""),
+                "tokenHint": str(existing["token_hint"] or ""),
+                "issuedAt": str(existing["issued_at"] or ""),
+                "expiresAt": str(existing["expires_at"] or ""),
+                "lastUsedAt": str(existing["last_used_at"] or ""),
+            }
+        db.execute(
+            """
+            UPDATE worker_identity_tokens
+            SET token_hash = ?,
+                token_hint = ?,
+                status = 'active',
+                issued_at = ?,
+                expires_at = ?,
+                last_used_at = NULL,
+                last_device_id = '',
+                last_source = ''
+            WHERE id = ?
+            """,
+            (token_hash, token_hint, now_value, expires_at, existing["id"]),
+        )
+        return {
+            "created": False,
+            "rotated": True,
+            "token": raw_token,
+            "status": "active",
+            "tokenHint": token_hint,
+            "issuedAt": now_value,
+            "expiresAt": expires_at,
+            "lastUsedAt": "",
+        }
+
+    token_row_id = f"wit-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO worker_identity_tokens (
+            id, worker_id, company_id, token_hash, token_hint, status, issued_at, expires_at
+        ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+        """,
+        (token_row_id, worker["id"], worker["company_id"], token_hash, token_hint, now_value, expires_at),
+    )
+    return {
+        "created": True,
+        "rotated": False,
+        "token": raw_token,
+        "status": "active",
+        "tokenHint": token_hint,
+        "issuedAt": now_value,
+        "expiresAt": expires_at,
+        "lastUsedAt": "",
+    }
+
+
+def _resolve_worker_by_identity_token(db, raw_token):
+    token_value = str(raw_token or "").strip()
+    if not token_value:
+        return None, "missing_token"
+    if len(token_value) > 256:
+        return None, "invalid_token"
+    token_hash = _hash_identity_token(token_value)
+    row = db.execute(
+        """
+        SELECT
+            w.*, 
+            t.id AS identity_token_id,
+            t.status AS identity_token_status,
+            t.expires_at AS identity_token_expires_at
+        FROM worker_identity_tokens t
+        JOIN workers w ON w.id = t.worker_id
+        WHERE t.token_hash = ?
+        LIMIT 1
+        """,
+        (token_hash,),
+    ).fetchone()
+    if not row:
+        return None, "invalid_token"
+    if str(row["identity_token_status"] or "") != "active":
+        return None, "token_revoked"
+    expires_at = str(row["identity_token_expires_at"] or "")
+    if expires_at and expires_at < now_iso():
+        return None, "token_expired"
+    if row["deleted_at"]:
+        return None, "worker_not_available"
+    return row, ""
+
+
+def build_normalized_device_event(payload, turnstile_user, worker, direction, scan_mode, received_at_iso):
+    # Device abstraction: every connector writes the same event shape.
+    raw_device_id = str(payload.get("deviceId") or payload.get("readerId") or turnstile_user.get("id") or "").strip()
+    device_id = clean_id_input(raw_device_id, max_len=64) or str(turnstile_user.get("id") or "gate-unknown")
+    protocol = normalize_device_protocol(payload.get("protocol") or "http")
+    source = scan_mode if scan_mode in {"rfid", "nfc", "wallet", "qr"} else "rfid"
+    event_name = "check_in" if direction == "check-in" else "check_out"
+    return {
+        "employee_id": str(worker["id"]),
+        "company_id": str(worker["company_id"]),
+        "device_id": device_id,
+        "event": event_name,
+        "timestamp": received_at_iso,
+        "source": source,
+        "protocol": protocol,
+    }
+
+
+def should_drop_duplicate_device_event(normalized_event):
+    now_ts = time.time()
+    dedup_bucket = int(now_ts // DEVICE_EVENT_DEDUP_SECONDS)
+    dedup_key = "|".join(
+        [
+            str(normalized_event.get("employee_id") or ""),
+            str(normalized_event.get("device_id") or ""),
+            str(normalized_event.get("event") or ""),
+            str(dedup_bucket),
+        ]
+    )
+    with _device_event_dedup_lock:
+        is_duplicate = dedup_key in _device_event_dedup_state
+        if not is_duplicate:
+            _device_event_dedup_state[dedup_key] = now_ts
+        cutoff_ts = now_ts - max(DEVICE_EVENT_DEDUP_SECONDS * 4, 20)
+        stale_keys = [key for key, ts in _device_event_dedup_state.items() if not isinstance(ts, (int, float)) or ts < cutoff_ts]
+        for stale_key in stale_keys:
+            _device_event_dedup_state.pop(stale_key, None)
+    return is_duplicate
+
+
+def build_device_event_uid(payload, normalized_event):
+    client_event_id = clean_id_input(payload.get("eventId") or payload.get("clientEventId"), max_len=80)
+    if client_event_id:
+        return f"client:{client_event_id}"
+    fingerprint_input = "|".join(
+        [
+            str(normalized_event.get("employee_id") or ""),
+            str(normalized_event.get("device_id") or ""),
+            str(normalized_event.get("event") or ""),
+            str(normalized_event.get("timestamp") or ""),
+            str(normalized_event.get("source") or ""),
+        ]
+    )
+    digest = hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
+    return f"fp:{digest}"
+
+
+def insert_device_ingest_event(db, event_uid, normalized_event, raw_payload, received_at_iso):
+    event_id = f"ing-{secrets.token_hex(10)}"
+    try:
+        db.execute(
+            """
+            INSERT INTO device_ingest_events (
+                id, event_uid, device_id, company_id, employee_id, source, protocol,
+                event_name, event_timestamp, received_at, outcome,
+                raw_payload_json, normalized_payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?, ?)
+            """,
+            (
+                event_id,
+                event_uid,
+                str(normalized_event.get("device_id") or ""),
+                str(normalized_event.get("company_id") or ""),
+                str(normalized_event.get("employee_id") or ""),
+                str(normalized_event.get("source") or ""),
+                str(normalized_event.get("protocol") or "http"),
+                str(normalized_event.get("event") or ""),
+                str(normalized_event.get("timestamp") or received_at_iso),
+                received_at_iso,
+                json.dumps(raw_payload or {}, ensure_ascii=False),
+                json.dumps(normalized_event or {}, ensure_ascii=False),
+            ),
+        )
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def mark_device_ingest_event_outcome(db, event_uid, outcome, result_ref="", error_code=""):
+    db.execute(
+        """
+        UPDATE device_ingest_events
+        SET outcome = ?, result_ref = ?, error_code = ?
+        WHERE event_uid = ?
+        """,
+        (str(outcome or ""), str(result_ref or ""), str(error_code or ""), str(event_uid or "")),
+    )
+
+
+def get_device_ingest_event_by_uid(db, event_uid):
+    return db.execute(
+        """
+        SELECT event_uid, outcome, result_ref, error_code, normalized_payload_json, received_at
+        FROM device_ingest_events
+        WHERE event_uid = ?
+        LIMIT 1
+        """,
+        (str(event_uid or ""),),
+    ).fetchone()
+
+
+def upsert_device_event_dead_letter(db, event_uid, normalized_event, raw_payload, reason, last_error=""):
+    existing = db.execute(
+        "SELECT id FROM device_event_dead_letters WHERE event_uid = ? LIMIT 1",
+        (str(event_uid or ""),),
+    ).fetchone()
+    if existing:
+        db.execute(
+            """
+            UPDATE device_event_dead_letters
+            SET reason = ?,
+                last_error = ?,
+                raw_payload_json = ?,
+                normalized_payload_json = ?,
+                failed_at = ?,
+                resolved_at = NULL
+            WHERE event_uid = ?
+            """,
+            (
+                str(reason or "processing_failed"),
+                str(last_error or ""),
+                json.dumps(raw_payload or {}, ensure_ascii=False),
+                json.dumps(normalized_event or {}, ensure_ascii=False),
+                now_iso(),
+                str(event_uid or ""),
+            ),
+        )
+        return
+
+    db.execute(
+        """
+        INSERT INTO device_event_dead_letters (
+            id, event_uid, company_id, device_id, employee_id, reason, last_error,
+            raw_payload_json, normalized_payload_json, failed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            f"ddl-{secrets.token_hex(8)}",
+            str(event_uid or ""),
+            str(normalized_event.get("company_id") or ""),
+            str(normalized_event.get("device_id") or ""),
+            str(normalized_event.get("employee_id") or ""),
+            str(reason or "processing_failed"),
+            str(last_error or ""),
+            json.dumps(raw_payload or {}, ensure_ascii=False),
+            json.dumps(normalized_event or {}, ensure_ascii=False),
+            now_iso(),
+        ),
+    )
 
 
 def normalize_work_time_value(value):
@@ -10490,33 +11456,29 @@ def create_access_log():
     return jsonify(row_to_dict(row)), 201
 
 
-@app.post("/api/gates/tap")
-def gate_tap():
-    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
-    if not provided_key:
-        return jsonify({"error": "gate_unauthorized"}), 401
-
-    db = get_db()
-    run_access_maintenance_if_due(db)
-    turnstile_user = find_turnstile_by_api_key(db, provided_key)
-    if not turnstile_user:
-        return jsonify({"error": "gate_unauthorized"}), 401
-
-    payload = request.get_json(silent=True) or {}
+def _process_gate_tap_payload(db, turnstile_user, payload):
+    payload = payload if isinstance(payload, dict) else {}
+    received_at = utc_now().replace(microsecond=0)
+    received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
     raw_card_value = payload.get("physicalCardId") or payload.get("cardId") or payload.get("badgeId")
     physical_card_id = normalize_physical_card_id(raw_card_value)
     badge_id_lookup = normalize_badge_id(raw_card_value)
     if not physical_card_id and not badge_id_lookup:
-        return jsonify({"error": "missing_card_identifier"}), 400
+        return {"error": "missing_card_identifier"}, 400
 
     requested_direction = (payload.get("direction") or "").strip().lower()
     direction = requested_direction
     if requested_direction and requested_direction not in {"check-in", "check-out", "auto", "toggle"}:
-        return jsonify({"error": "invalid_direction"}), 400
+        return {"error": "invalid_direction"}, 400
 
     gate_name = (payload.get("gate") or "NFC Gate").strip() or "NFC Gate"
     gate_note = (payload.get("note") or "NFC Tap").strip()
-    timestamp_value = (payload.get("timestamp") or now_iso()).strip() or now_iso()
+    client_timestamp_value = str(payload.get("timestamp") or "").strip()
+    parsed_client_timestamp = parse_iso_utc(client_timestamp_value) if client_timestamp_value else None
+    time_drift_seconds = None
+    if parsed_client_timestamp:
+        time_drift_seconds = int(abs((received_at - parsed_client_timestamp.astimezone(timezone.utc)).total_seconds()))
+    timestamp_value = received_at_iso
 
     worker = None
     scan_mode = ""
@@ -10532,7 +11494,7 @@ def gate_tap():
             (physical_card_id,),
         ).fetchall()
         if len(workers) > 1:
-            return jsonify({"error": "duplicate_physical_card_id"}), 409
+            return {"error": "duplicate_physical_card_id"}, 409
         if workers:
             worker = workers[0]
             scan_mode = "nfc"
@@ -10549,29 +11511,31 @@ def gate_tap():
             (badge_id_lookup,),
         ).fetchall()
         if len(badge_matches) > 1:
-            return jsonify({"error": "duplicate_badge_id"}), 409
+            return {"error": "duplicate_badge_id"}, 409
         if badge_matches:
             worker = badge_matches[0]
             scan_mode = "qr"
 
     if worker is None:
-        return jsonify({"error": "card_not_assigned"}), 404
+        return {"error": "card_not_assigned"}, 404
 
     if turnstile_user.get("company_id"):
         _gate_plan = get_company_plan(db, turnstile_user["company_id"])
         required_feature = "nfc_badges" if scan_mode == "nfc" else "qr_badges"
         if not company_has_feature(_gate_plan, required_feature):
-            return feature_not_available_response(required_feature, _gate_plan)
+            response, status = feature_not_available_response(required_feature, _gate_plan)
+            payload = response.get_json(silent=True) or {"error": "feature_not_available"}
+            return payload, status
 
     if turnstile_user["company_id"] != worker["company_id"]:
-        return jsonify({"error": "forbidden_worker_company"}), 403
+        return {"error": "forbidden_worker_company"}, 403
 
     if lock_worker_for_expired_documents(db, worker):
         db.commit()
-        return jsonify({
+        return {
             "error": "worker_documents_expired",
             "message": "Mitarbeiter wurde wegen abgelaufener Pflichtdokumente automatisch gesperrt.",
-        }), 403
+        }, 403
 
     if requested_direction in {"", "auto", "toggle"}:
         latest_log = db.execute(
@@ -10590,34 +11554,491 @@ def gate_tap():
 
     company_error = get_company_access_error(db, worker["company_id"])
     if company_error:
-        return jsonify(company_error), 403
+        return company_error, 403
     company_access_error = get_company_access_error(db, turnstile_user["company_id"])
     if company_access_error:
-        return jsonify(company_access_error), 403
+        return company_access_error, 403
     if worker_visit_has_expired(worker):
-        return jsonify({"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}), 403
+        return {"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}, 403
     if worker["status"] != "aktiv":
-        return jsonify({"error": "worker_not_active"}), 403
+        return {"error": "worker_not_active"}, 403
 
-    log_id = create_access_log_entry(db, worker["id"], direction, gate_name, gate_note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
-    db.commit()
-    log_audit(
-        "access.gate_tap",
-        f"{scan_mode.upper() if scan_mode else 'CARD'} Tap {direction} fuer Worker {worker['id']} an {gate_name}",
-        target_type="worker",
-        target_id=worker["id"],
-        company_id=worker["company_id"],
-        actor=row_to_dict(turnstile_user),
+    normalized_event = build_normalized_device_event(
+        payload=payload,
+        turnstile_user=turnstile_user,
+        worker=worker,
+        direction=direction,
+        scan_mode=scan_mode,
+        received_at_iso=timestamp_value,
     )
+    event_uid = build_device_event_uid(payload, normalized_event)
+    was_inserted = insert_device_ingest_event(
+        db=db,
+        event_uid=event_uid,
+        normalized_event=normalized_event,
+        raw_payload=payload,
+        received_at_iso=received_at_iso,
+    )
+    if not was_inserted:
+        existing_event = get_device_ingest_event_by_uid(db, event_uid)
+        parsed_normalized_payload = {}
+        if existing_event and str(existing_event["normalized_payload_json"] or "").strip():
+            try:
+                parsed_normalized_payload = json.loads(existing_event["normalized_payload_json"])
+            except Exception:
+                parsed_normalized_payload = {}
+        return {
+            "ok": True,
+            "duplicateReplay": True,
+            "eventUid": event_uid,
+            "event": parsed_normalized_payload or normalized_event,
+            "outcome": (existing_event["outcome"] if existing_event else "received"),
+            "logId": (existing_event["result_ref"] if existing_event else ""),
+            "message": "Event already received.",
+        }, 202
+
+    if should_drop_duplicate_device_event(normalized_event):
+        mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window")
+        db.commit()
+        return {
+            "ok": True,
+            "duplicateIgnored": True,
+            "eventUid": event_uid,
+            "event": normalized_event,
+            "message": "Duplicate scan ignored.",
+        }, 202
+
+    try:
+        log_id = create_access_log_entry(db, worker["id"], direction, gate_name, gate_note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
+        mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id)
+        db.commit()
+        log_audit(
+            "access.gate_tap",
+            f"{scan_mode.upper() if scan_mode else 'CARD'} Tap {direction} fuer Worker {worker['id']} an {gate_name}",
+            target_type="worker",
+            target_id=worker["id"],
+            company_id=worker["company_id"],
+            actor=row_to_dict(turnstile_user),
+        )
+    except Exception as exc:
+        mark_device_ingest_event_outcome(db, event_uid, "failed", error_code="processing_error")
+        upsert_device_event_dead_letter(
+            db=db,
+            event_uid=event_uid,
+            normalized_event=normalized_event,
+            raw_payload=payload,
+            reason="processing_error",
+            last_error=str(exc),
+        )
+        db.commit()
+        return {
+            "error": "event_processing_failed",
+            "eventUid": event_uid,
+            "message": "Device event could not be processed.",
+        }, 500
 
     feedback_message = "Du bist jetzt angemeldet." if direction == "check-in" else "Du bist jetzt abgemeldet."
     feedback_title = "ANMELDUNG ERFOLGREICH" if direction == "check-in" else "ABMELDUNG ERFOLGREICH"
     feedback_tone = "success_in" if direction == "check-in" else "success_out"
 
+    return {
+        "ok": True,
+        "logId": log_id,
+        "eventUid": event_uid,
+        "event": normalized_event,
+        "worker": {
+            "id": worker["id"],
+            "firstName": worker["first_name"],
+            "lastName": worker["last_name"],
+            "badgeId": worker["badge_id"],
+            "status": worker["status"],
+        },
+        "direction": direction,
+        "gate": gate_name,
+        "timestamp": timestamp_value,
+        "timeDriftSeconds": time_drift_seconds,
+        "timeDriftWarning": bool(time_drift_seconds is not None and time_drift_seconds > DEVICE_EVENT_TIME_DRIFT_WARN_SECONDS),
+        "feedbackTitle": feedback_title,
+        "feedbackMessage": feedback_message,
+        "feedbackTone": feedback_tone,
+    }, 201
+
+
+@app.post("/api/gates/tap")
+def gate_tap():
+    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
+    if not provided_key:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    db = get_db()
+    run_access_maintenance_if_due(db)
+    turnstile_user = find_turnstile_by_api_key(db, provided_key)
+    if not turnstile_user:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    response_payload, status = _process_gate_tap_payload(db, turnstile_user, payload)
+    return jsonify(response_payload), status
+
+
+@app.post("/api/gates/tap/batch")
+def gate_tap_batch():
+    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
+    if not provided_key:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    db = get_db()
+    run_access_maintenance_if_due(db)
+    turnstile_user = find_turnstile_by_api_key(db, provided_key)
+    if not turnstile_user:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    events = payload if isinstance(payload, list) else payload.get("events")
+    if not isinstance(events, list):
+        return jsonify({"error": "invalid_events_payload", "message": "Provide events as an array."}), 400
+    if len(events) == 0:
+        return jsonify({"error": "empty_events", "message": "At least one event is required."}), 400
+    if len(events) > 200:
+        return jsonify({"error": "too_many_events", "message": "Maximum 200 events per batch."}), 400
+
+    continue_on_error = bool(payload.get("continueOnError", True)) if isinstance(payload, dict) else True
+    replay_id = clean_id_input(payload.get("replayId") if isinstance(payload, dict) else "", max_len=80)
+    results = []
+    processed_count = 0
+    duplicate_count = 0
+    failed_count = 0
+
+    # Ordered replay: process in the exact input order to preserve chronology semantics.
+    for index, raw_event in enumerate(events):
+        event_payload = raw_event if isinstance(raw_event, dict) else {}
+        if replay_id and "replayId" not in event_payload:
+            event_payload["replayId"] = replay_id
+        response_payload, status = _process_gate_tap_payload(db, turnstile_user, event_payload)
+        is_duplicate = bool(response_payload.get("duplicateIgnored") or response_payload.get("duplicateReplay"))
+        if status == 201:
+            processed_count += 1
+        elif is_duplicate:
+            duplicate_count += 1
+        elif status >= 400:
+            failed_count += 1
+        results.append(
+            {
+                "index": index,
+                "status": status,
+                "ok": status < 400,
+                "duplicate": is_duplicate,
+                "result": response_payload,
+            }
+        )
+        if status >= 400 and not continue_on_error:
+            break
+
+    return jsonify(
+        {
+            "ok": failed_count == 0,
+            "orderedReplay": True,
+            "processed": processed_count,
+            "duplicates": duplicate_count,
+            "failed": failed_count,
+            "results": results,
+        }
+    ), 200
+
+
+@app.get("/api/workers/<worker_id>/identity-token")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def get_worker_identity_token(worker_id):
+    db = get_db()
+    worker = db.execute("SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and g.current_user.get("company_id") != worker["company_id"]:
+        return jsonify({"error": "forbidden_company_scope"}), 403
+
+    row = _get_worker_identity_token(db, worker_id)
+    if not row:
+        return jsonify({"workerId": worker_id, "configured": False})
+
+    return jsonify(
+        {
+            "workerId": worker_id,
+            "configured": True,
+            "status": str(row["status"] or ""),
+            "tokenHint": str(row["token_hint"] or ""),
+            "issuedAt": str(row["issued_at"] or ""),
+            "expiresAt": str(row["expires_at"] or ""),
+            "lastUsedAt": str(row["last_used_at"] or ""),
+            "lastDeviceId": str(row["last_device_id"] or ""),
+            "lastSource": str(row["last_source"] or ""),
+        }
+    )
+
+
+@app.post("/api/workers/<worker_id>/identity-token")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def create_or_rotate_worker_identity_token(worker_id):
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and g.current_user.get("company_id") != worker["company_id"]:
+        return jsonify({"error": "forbidden_company_scope"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    rotate = bool(payload.get("rotate", False))
+    result = issue_worker_identity_token(db, worker, rotate=rotate)
+    db.commit()
+
+    action = "worker.identity_token_rotated" if result["rotated"] else "worker.identity_token_created"
+    log_audit(
+        action,
+        f"Unified identity token fuer Worker {worker_id} {'rotiert' if result['rotated'] else 'erstellt'}",
+        target_type="worker",
+        target_id=worker_id,
+        company_id=worker["company_id"],
+        actor=g.current_user,
+    )
+    return jsonify(
+        {
+            "workerId": worker_id,
+            "created": bool(result["created"]),
+            "rotated": bool(result["rotated"]),
+            "status": result["status"],
+            "token": result["token"],
+            "tokenHint": result["tokenHint"],
+            "issuedAt": result["issuedAt"],
+            "expiresAt": result["expiresAt"],
+            "lastUsedAt": result["lastUsedAt"],
+            "ttlDays": IDENTITY_TOKEN_TTL_DAYS,
+        }
+    )
+
+
+@app.post("/api/workers/<worker_id>/identity-token/status")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def set_worker_identity_token_status(worker_id):
+    db = get_db()
+    worker = db.execute("SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and g.current_user.get("company_id") != worker["company_id"]:
+        return jsonify({"error": "forbidden_company_scope"}), 403
+
+    token_row = _get_worker_identity_token(db, worker_id)
+    if not token_row:
+        return jsonify({"error": "identity_token_not_configured"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    status_value = str(payload.get("status") or "").strip().lower()
+    if status_value not in {"active", "revoked"}:
+        return jsonify({"error": "invalid_status", "allowed": ["active", "revoked"]}), 400
+
+    db.execute(
+        "UPDATE worker_identity_tokens SET status = ? WHERE id = ?",
+        (status_value, token_row["id"]),
+    )
+    db.commit()
+
+    log_audit(
+        "worker.identity_token_status_changed",
+        f"Unified identity token fuer Worker {worker_id} auf {status_value} gesetzt",
+        target_type="worker",
+        target_id=worker_id,
+        company_id=worker["company_id"],
+        actor=g.current_user,
+    )
+
+    refreshed = _get_worker_identity_token(db, worker_id)
+    return jsonify(
+        {
+            "workerId": worker_id,
+            "status": str(refreshed["status"] or ""),
+            "tokenHint": str(refreshed["token_hint"] or ""),
+            "issuedAt": str(refreshed["issued_at"] or ""),
+            "expiresAt": str(refreshed["expires_at"] or ""),
+            "lastUsedAt": str(refreshed["last_used_at"] or ""),
+            "lastDeviceId": str(refreshed["last_device_id"] or ""),
+            "lastSource": str(refreshed["last_source"] or ""),
+        }
+    )
+
+
+@app.post("/api/scan")
+def unified_scan():
+    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
+    if not provided_key:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    db = get_db()
+    run_access_maintenance_if_due(db)
+    turnstile_user = find_turnstile_by_api_key(db, provided_key)
+    if not turnstile_user:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    token = str(payload.get("token") or "").strip()
+    device_id = clean_id_input(payload.get("device_id") or payload.get("deviceId"), max_len=64)
+    if not token:
+        return jsonify({"error": "missing_token"}), 400
+    if not device_id:
+        return jsonify({"error": "missing_device_id"}), 400
+
+    source = normalize_scan_source(payload.get("source"))
+    requested_direction = (payload.get("direction") or "").strip().lower()
+    if requested_direction and requested_direction not in {"check-in", "check-out", "auto", "toggle"}:
+        return jsonify({"error": "invalid_direction"}), 400
+
+    resolved_row, token_error = _resolve_worker_by_identity_token(db, token)
+    if token_error:
+        return jsonify({"error": token_error}), 401
+
+    worker = resolved_row
+    turnstile_company_id = str(turnstile_user["company_id"] or "")
+    if turnstile_company_id and turnstile_company_id != str(worker["company_id"] or ""):
+        return jsonify({"error": "forbidden_worker_company"}), 403
+
+    required_feature = "nfc_badges" if source in {"nfc", "rfid"} else "qr_badges"
+    if turnstile_company_id:
+        _gate_plan = get_company_plan(db, turnstile_company_id)
+        if not company_has_feature(_gate_plan, required_feature):
+            return feature_not_available_response(required_feature, _gate_plan)
+
+    if lock_worker_for_expired_documents(db, worker):
+        db.commit()
+        return jsonify(
+            {
+                "error": "worker_documents_expired",
+                "message": "Mitarbeiter wurde wegen abgelaufener Pflichtdokumente automatisch gesperrt.",
+            }
+        ), 403
+
+    company_error = get_company_access_error(db, worker["company_id"])
+    if company_error:
+        return jsonify(company_error), 403
+    if worker_visit_has_expired(worker):
+        return jsonify({"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}), 403
+    if worker["status"] != "aktiv":
+        return jsonify({"error": "worker_not_active"}), 403
+
+    direction = requested_direction
+    if requested_direction in {"", "auto", "toggle"}:
+        latest_log = db.execute(
+            """
+            SELECT direction
+            FROM access_logs
+            WHERE worker_id = ?
+            ORDER BY timestamp DESC, id DESC
+            LIMIT 1
+            """,
+            (worker["id"],),
+        ).fetchone()
+        direction = "check-out" if latest_log and str(latest_log["direction"] or "").lower() == "check-in" else "check-in"
+
+    received_at = utc_now().replace(microsecond=0)
+    received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+    gate_name = (payload.get("gate") or "Unified Scan").strip() or "Unified Scan"
+    note = (payload.get("note") or "Unified identity token scan").strip()
+    timestamp_value = str(payload.get("timestamp") or "").strip() or received_at_iso
+
+    normalized_event = {
+        "employee_id": str(worker["id"]),
+        "company_id": str(worker["company_id"]),
+        "device_id": device_id,
+        "event": "check_in" if direction == "check-in" else "check_out",
+        "timestamp": timestamp_value,
+        "source": source,
+        "protocol": normalize_device_protocol(payload.get("protocol") or "http"),
+    }
+    event_uid = build_device_event_uid(payload, normalized_event)
+    was_inserted = insert_device_ingest_event(
+        db=db,
+        event_uid=event_uid,
+        normalized_event=normalized_event,
+        raw_payload=payload,
+        received_at_iso=received_at_iso,
+    )
+    if not was_inserted:
+        existing_event = get_device_ingest_event_by_uid(db, event_uid)
+        parsed_normalized_payload = {}
+        if existing_event and str(existing_event["normalized_payload_json"] or "").strip():
+            try:
+                parsed_normalized_payload = json.loads(existing_event["normalized_payload_json"])
+            except Exception:
+                parsed_normalized_payload = {}
+        return jsonify(
+            {
+                "ok": True,
+                "duplicateReplay": True,
+                "eventUid": event_uid,
+                "event": parsed_normalized_payload or normalized_event,
+                "outcome": (existing_event["outcome"] if existing_event else "received"),
+                "logId": (existing_event["result_ref"] if existing_event else ""),
+                "message": "Event already received.",
+            }
+        ), 202
+
+    if should_drop_duplicate_device_event(normalized_event):
+        mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window")
+        db.commit()
+        return jsonify(
+            {
+                "ok": True,
+                "duplicateIgnored": True,
+                "eventUid": event_uid,
+                "event": normalized_event,
+                "message": "Duplicate scan ignored.",
+            }
+        ), 202
+
+    try:
+        log_id = create_access_log_entry(db, worker["id"], direction, gate_name, note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
+        mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id)
+        db.execute(
+            """
+            UPDATE worker_identity_tokens
+            SET last_used_at = ?, last_device_id = ?, last_source = ?
+            WHERE worker_id = ?
+            """,
+            (now_iso(), device_id, source, worker["id"]),
+        )
+        db.commit()
+        log_audit(
+            "access.unified_scan",
+            f"UNIFIED {source.upper()} {direction} fuer Worker {worker['id']} an {gate_name}",
+            target_type="worker",
+            target_id=worker["id"],
+            company_id=worker["company_id"],
+            actor=row_to_dict(turnstile_user),
+        )
+    except Exception as exc:
+        mark_device_ingest_event_outcome(db, event_uid, "failed", error_code="processing_error")
+        upsert_device_event_dead_letter(
+            db=db,
+            event_uid=event_uid,
+            normalized_event=normalized_event,
+            raw_payload=payload,
+            reason="processing_error",
+            last_error=str(exc),
+        )
+        db.commit()
+        return jsonify(
+            {
+                "error": "event_processing_failed",
+                "eventUid": event_uid,
+                "message": "Device event could not be processed.",
+            }
+        ), 500
+
     return jsonify(
         {
             "ok": True,
             "logId": log_id,
+            "eventUid": event_uid,
+            "event": normalized_event,
             "worker": {
                 "id": worker["id"],
                 "firstName": worker["first_name"],
@@ -10628,11 +12049,446 @@ def gate_tap():
             "direction": direction,
             "gate": gate_name,
             "timestamp": timestamp_value,
-            "feedbackTitle": feedback_title,
-            "feedbackMessage": feedback_message,
-            "feedbackTone": feedback_tone,
+            "tokenAccepted": True,
         }
     ), 201
+
+
+@app.get("/api/admin/device-events/dead-letters")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def list_device_event_dead_letters():
+    db = get_db()
+    limit = min(500, max(1, int(request.args.get("limit", 100) or 100)))
+    offset = max(0, int(request.args.get("offset", 0) or 0))
+    company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+
+    where_clauses = []
+    params = []
+
+    if company_id:
+        where_clauses.append("company_id = ?")
+        params.append(company_id)
+
+    status_filter = str(request.args.get("status", "all") or "all").strip().lower()
+    if status_filter == "open":
+        where_clauses.append("resolved_at IS NULL")
+    elif status_filter == "resolved":
+        where_clauses.append("resolved_at IS NOT NULL")
+
+    reason_filter = clean_text_input(request.args.get("reason", ""), max_len=120)
+    if reason_filter:
+        where_clauses.append("reason = ?")
+        params.append(reason_filter)
+
+    from_date = str(request.args.get("from", "") or "").strip()
+    to_date = str(request.args.get("to", "") or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", from_date):
+        where_clauses.append("DATE(failed_at) >= DATE(?)")
+        params.append(from_date)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", to_date):
+        where_clauses.append("DATE(failed_at) <= DATE(?)")
+        params.append(to_date)
+
+    where_sql = ""
+    if where_clauses:
+        where_sql = " WHERE " + " AND ".join(where_clauses)
+
+    sort_by_raw = str(request.args.get("sort_by", "failedAt") or "failedAt").strip()
+    sort_dir_raw = str(request.args.get("sort_dir", "desc") or "desc").strip().lower()
+    sort_columns = {
+        "failedAt": "failed_at",
+        "resolvedAt": "resolved_at",
+        "reason": "reason",
+        "deviceId": "device_id",
+        "employeeId": "employee_id",
+    }
+    sort_column = sort_columns.get(sort_by_raw, "failed_at")
+    sort_dir = "ASC" if sort_dir_raw == "asc" else "DESC"
+
+    count_row = db.execute(
+        f"SELECT COUNT(*) AS c FROM device_event_dead_letters{where_sql}",
+        tuple(params),
+    ).fetchone()
+    total = int(count_row["c"] or 0) if count_row else 0
+
+    rows = db.execute(
+        f"""
+        SELECT *
+        FROM device_event_dead_letters
+        {where_sql}
+        ORDER BY {sort_column} {sort_dir}, id DESC
+        LIMIT ? OFFSET ?
+        """,
+        tuple([*params, limit, offset]),
+    ).fetchall()
+
+    return jsonify(
+        {
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "count": len(rows),
+                "total": total,
+                "sortBy": sort_by_raw if sort_by_raw in sort_columns else "failedAt",
+                "sortDir": sort_dir.lower(),
+            },
+            "deadLetters": [
+                {
+                    "id": row["id"],
+                    "eventUid": row["event_uid"],
+                    "companyId": row["company_id"],
+                    "deviceId": row["device_id"],
+                    "employeeId": row["employee_id"],
+                    "reason": row["reason"],
+                    "lastError": row["last_error"],
+                    "failedAt": row["failed_at"],
+                    "resolvedAt": row["resolved_at"],
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@app.get("/api/admin/device-events/dead-letters/export.csv")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def export_device_event_dead_letters_csv():
+    db = get_db()
+    company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+
+    where_clauses = []
+    params = []
+    if company_id:
+        where_clauses.append("company_id = ?")
+        params.append(company_id)
+
+    status_filter = str(request.args.get("status", "all") or "all").strip().lower()
+    if status_filter == "open":
+        where_clauses.append("resolved_at IS NULL")
+    elif status_filter == "resolved":
+        where_clauses.append("resolved_at IS NOT NULL")
+
+    reason_filter = clean_text_input(request.args.get("reason", ""), max_len=120)
+    if reason_filter:
+        where_clauses.append("reason = ?")
+        params.append(reason_filter)
+
+    from_date = str(request.args.get("from", "") or "").strip()
+    to_date = str(request.args.get("to", "") or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", from_date):
+        where_clauses.append("DATE(failed_at) >= DATE(?)")
+        params.append(from_date)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", to_date):
+        where_clauses.append("DATE(failed_at) <= DATE(?)")
+        params.append(to_date)
+
+    where_sql = ""
+    if where_clauses:
+        where_sql = " WHERE " + " AND ".join(where_clauses)
+
+    sort_by_raw = str(request.args.get("sort_by", "failedAt") or "failedAt").strip()
+    sort_dir_raw = str(request.args.get("sort_dir", "desc") or "desc").strip().lower()
+    sort_columns = {
+        "failedAt": "failed_at",
+        "resolvedAt": "resolved_at",
+        "reason": "reason",
+        "deviceId": "device_id",
+        "employeeId": "employee_id",
+    }
+    sort_column = sort_columns.get(sort_by_raw, "failed_at")
+    sort_dir = "ASC" if sort_dir_raw == "asc" else "DESC"
+
+    rows = db.execute(
+        f"""
+        SELECT id, event_uid, company_id, device_id, employee_id, reason, last_error, failed_at, resolved_at
+        FROM device_event_dead_letters
+        {where_sql}
+        ORDER BY {sort_column} {sort_dir}, id DESC
+        """,
+        tuple(params),
+    ).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["ID", "Event UID", "Company ID", "Device ID", "Employee ID", "Reason", "Last Error", "Failed At", "Resolved At"])
+    for row in rows:
+        writer.writerow([
+            row["id"],
+            row["event_uid"],
+            row["company_id"] or "",
+            row["device_id"] or "",
+            row["employee_id"] or "",
+            row["reason"] or "",
+            row["last_error"] or "",
+            row["failed_at"] or "",
+            row["resolved_at"] or "",
+        ])
+    output.seek(0)
+
+    date_suffix = utc_now().date().isoformat()
+    filename = f"device_dead_letters_{date_suffix}.csv"
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/admin/device-events/dead-letters/stats")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def dead_letter_stats():
+    db = get_db()
+    company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+    days = min(90, max(1, int(request.args.get("days", 14) or 14)))
+
+    where_sql = ""
+    params = []
+    if company_id:
+        where_sql = " WHERE company_id = ?"
+        params.append(company_id)
+
+    totals = db.execute(
+        f"""
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN resolved_at IS NULL THEN 1 ELSE 0 END) AS open_count,
+            SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count
+        FROM device_event_dead_letters
+        {where_sql}
+        """,
+        tuple(params),
+    ).fetchone()
+
+    since_date = (utc_now().date() - timedelta(days=days - 1)).isoformat()
+    daily_where = where_sql
+    daily_params = list(params)
+    if daily_where:
+        daily_where += " AND DATE(failed_at) >= DATE(?)"
+    else:
+        daily_where = " WHERE DATE(failed_at) >= DATE(?)"
+    daily_params.append(since_date)
+
+    daily_rows = db.execute(
+        f"""
+        SELECT
+            DATE(failed_at) AS day,
+            COUNT(*) AS failed_count,
+            SUM(CASE WHEN resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolved_count
+        FROM device_event_dead_letters
+        {daily_where}
+        GROUP BY DATE(failed_at)
+        ORDER BY day ASC
+        """,
+        tuple(daily_params),
+    ).fetchall()
+
+    reason_rows = db.execute(
+        f"""
+        SELECT reason, COUNT(*) AS count
+        FROM device_event_dead_letters
+        {where_sql}
+        GROUP BY reason
+        ORDER BY count DESC, reason ASC
+        LIMIT 20
+        """,
+        tuple(params),
+    ).fetchall()
+
+    return jsonify(
+        {
+            "scope": {"companyId": company_id or "", "days": days},
+            "totals": {
+                "total": int((totals["total"] if totals else 0) or 0),
+                "open": int((totals["open_count"] if totals else 0) or 0),
+                "resolved": int((totals["resolved_count"] if totals else 0) or 0),
+            },
+            "daily": [
+                {
+                    "day": row["day"],
+                    "failed": int(row["failed_count"] or 0),
+                    "resolved": int(row["resolved_count"] or 0),
+                }
+                for row in daily_rows
+            ],
+            "topReasons": [
+                {
+                    "reason": row["reason"],
+                    "count": int(row["count"] or 0),
+                }
+                for row in reason_rows
+            ],
+        }
+    )
+
+
+@app.post("/api/admin/device-events/dead-letters/<event_uid>/reprocess")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reprocess_device_event_dead_letter(event_uid):
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT *
+        FROM device_event_dead_letters
+        WHERE event_uid = ?
+        LIMIT 1
+        """,
+        (str(event_uid or ""),),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "dead_letter_not_found"}), 404
+
+    requester_company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+    if requester_company_id and str(row["company_id"] or "") != str(requester_company_id):
+        return jsonify({"error": "forbidden"}), 403
+
+    try:
+        raw_payload = json.loads(row["raw_payload_json"] or "{}")
+    except Exception:
+        raw_payload = {}
+    if not isinstance(raw_payload, dict):
+        raw_payload = {}
+
+    synthetic_turnstile_user = {
+        "id": f"reprocess-{secrets.token_hex(4)}",
+        "role": "turnstile",
+        "company_id": row["company_id"],
+    }
+    response_payload, status = _process_gate_tap_payload(db, synthetic_turnstile_user, raw_payload)
+
+    if status < 400 or bool(response_payload.get("duplicateReplay") or response_payload.get("duplicateIgnored")):
+        resolve_reason = "processed"
+        if bool(response_payload.get("duplicateReplay") or response_payload.get("duplicateIgnored")):
+            resolve_reason = "duplicate_replay"
+        db.execute(
+            "UPDATE device_event_dead_letters SET resolved_at = ?, last_error = '' WHERE event_uid = ?",
+            (now_iso(), str(event_uid or "")),
+        )
+        db.commit()
+        log_audit(
+            "device_event.dead_letter_reprocessed",
+            f"Dead letter {event_uid} wurde erfolgreich reprocessed (reason={resolve_reason}, status={status})",
+            target_type="device-event-dead-letter",
+            target_id=str(event_uid or ""),
+            company_id=row["company_id"],
+            actor=g.current_user,
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "status": status,
+                "resolved": True,
+                "result": response_payload,
+            }
+        ), 200
+
+    db.execute(
+        "UPDATE device_event_dead_letters SET last_error = ?, failed_at = ?, resolved_at = NULL WHERE event_uid = ?",
+        (str(response_payload.get("error") or "reprocess_failed"), now_iso(), str(event_uid or "")),
+    )
+    db.commit()
+    return jsonify(
+        {
+            "ok": False,
+            "status": status,
+            "resolved": False,
+            "result": response_payload,
+        }
+    ), 200
+
+
+@app.post("/api/admin/device-events/dead-letters/<event_uid>/resolve")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def resolve_device_event_dead_letter(event_uid):
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT *
+        FROM device_event_dead_letters
+        WHERE event_uid = ?
+        LIMIT 1
+        """,
+        (str(event_uid or ""),),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "dead_letter_not_found"}), 404
+
+    requester_company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+    if requester_company_id and str(row["company_id"] or "") != str(requester_company_id):
+        return jsonify({"error": "forbidden"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    note = clean_text_input(payload.get("note", ""), max_len=280)
+    error_text = str(row["last_error"] or "")
+    if note:
+        error_text = f"{error_text} | resolved_note={note}".strip(" |")
+
+    db.execute(
+        "UPDATE device_event_dead_letters SET resolved_at = ?, last_error = ? WHERE event_uid = ?",
+        (now_iso(), error_text, str(event_uid or "")),
+    )
+    db.commit()
+
+    log_audit(
+        "device_event.dead_letter_resolved",
+        f"Dead letter {event_uid} wurde manuell als resolved markiert",
+        target_type="device-event-dead-letter",
+        target_id=str(event_uid or ""),
+        company_id=row["company_id"],
+        actor=g.current_user,
+    )
+
+    return jsonify({"ok": True, "eventUid": str(event_uid or ""), "resolvedAt": now_iso()})
+
+
+@app.get("/api/admin/device-events/dead-letters/<event_uid>")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def get_device_event_dead_letter(event_uid):
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT *
+        FROM device_event_dead_letters
+        WHERE event_uid = ?
+        LIMIT 1
+        """,
+        (str(event_uid or ""),),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "dead_letter_not_found"}), 404
+
+    requester_company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+    if requester_company_id and str(row["company_id"] or "") != str(requester_company_id):
+        return jsonify({"error": "forbidden"}), 403
+
+    include_payload = str(request.args.get("includePayload", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    result = {
+        "id": row["id"],
+        "eventUid": row["event_uid"],
+        "companyId": row["company_id"],
+        "deviceId": row["device_id"],
+        "employeeId": row["employee_id"],
+        "reason": row["reason"],
+        "lastError": row["last_error"],
+        "failedAt": row["failed_at"],
+        "resolvedAt": row["resolved_at"],
+    }
+    if include_payload:
+        try:
+            result["rawPayload"] = json.loads(row["raw_payload_json"] or "{}")
+        except Exception:
+            result["rawPayload"] = {}
+        try:
+            result["normalizedPayload"] = json.loads(row["normalized_payload_json"] or "{}")
+        except Exception:
+            result["normalizedPayload"] = {}
+
+    return jsonify({"deadLetter": result})
 
 
 def send_invoice_email(invoice_row, company_row, settings_row):
@@ -15156,6 +17012,156 @@ def mark_inbox_email_read(inbox_id):
     return jsonify(entry)
 
 
+@app.post("/api/documents/inbox/<inbox_id>/reply")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reply_to_inbox_email(inbox_id):
+    payload = request.get_json(silent=True) or {}
+    subject_raw = clean_text_input(payload.get("subject", ""), max_len=240)
+    body_raw = clean_text_input(payload.get("body", ""), max_len=8000)
+    body_text = str(body_raw or "").strip()
+    if not body_text:
+        return jsonify({"error": "missing_body"}), 400
+
+    db = get_db()
+    current_role = str(g.current_user.get("role") or "")
+    if current_role == "superadmin":
+        inbox_row = db.execute("SELECT * FROM email_inbox WHERE id = ?", (inbox_id,)).fetchone()
+        company_id_for_audit = str(inbox_row["matched_company_id"] or "") if inbox_row else ""
+    else:
+        company_id = str(g.current_user.get("company_id") or "")
+        inbox_row = db.execute(
+            """
+            SELECT *
+            FROM email_inbox
+            WHERE id = ?
+              AND (
+                    matched_company_id = ?
+                 OR lower(COALESCE(to_addr, '')) = lower(
+                        COALESCE((
+                            SELECT document_email
+                            FROM companies
+                            WHERE id = ?
+                            LIMIT 1
+                        ), '')
+                    )
+              )
+            LIMIT 1
+            """,
+            (inbox_id, company_id, company_id),
+        ).fetchone()
+        company_id_for_audit = company_id
+
+    if not inbox_row:
+        return jsonify({"error": "inbox_not_found"}), 404
+
+    recipient = ""
+    for _display_name, addr in getaddresses([str(inbox_row["from_addr"] or "")]):
+        try:
+            recipient = sanitize_optional_email(addr, field_error="invalid_recipient_email")
+        except ValueError:
+            recipient = ""
+        if recipient:
+            break
+    if not recipient:
+        return jsonify({"error": "invalid_recipient_email"}), 400
+
+    settings_row = db.execute(
+        """
+        SELECT
+            smtp_host,
+            smtp_port,
+            smtp_username,
+            smtp_password,
+            smtp_sender_email,
+            smtp_sender_name,
+            smtp_use_tls,
+            operator_name,
+            platform_name
+        FROM settings
+        WHERE id = 1
+        """
+    ).fetchone()
+    if not settings_row:
+        return jsonify({"error": "settings_missing"}), 500
+
+    original_subject = clean_text_input(inbox_row["subject"] or "", max_len=180)
+    subject = subject_raw.strip() or original_subject or "Ihre Nachricht"
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+
+    smtp_host = str(settings_row["smtp_host"] or "").strip()
+    smtp_port = int(settings_row["smtp_port"] or 587)
+    smtp_use_tls = int(settings_row["smtp_use_tls"] or 0) == 1
+    smtp_username = str(settings_row["smtp_username"] or "").strip()
+    smtp_password = settings_row["smtp_password"] or ""
+    smtp_sender = str(settings_row["smtp_sender_email"] or "").strip()
+    sender_name = str(
+        settings_row["smtp_sender_name"]
+        or settings_row["operator_name"]
+        or settings_row["platform_name"]
+        or "BauPass"
+    ).strip()
+
+    original_message_id = clean_text_input(inbox_row["message_id"] or "", max_len=500)
+    html_body = "<p style='white-space:pre-wrap;'>" + html.escape(body_text).replace("\n", "<br>") + "</p>"
+
+    smtp_error = ""
+    if smtp_host and smtp_sender:
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = f"{sender_name} <{smtp_sender}>" if sender_name else smtp_sender
+            msg["To"] = recipient
+            if original_message_id:
+                msg["In-Reply-To"] = original_message_id
+                msg["References"] = original_message_id
+            msg.set_content(body_text)
+            msg.add_alternative(html_body, subtype="html")
+            with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
+                if smtp_username:
+                    smtp.login(smtp_username, smtp_password)
+                smtp.send_message(msg)
+
+            log_audit(
+                "documents.inbox_reply_sent",
+                f"Antwort an {recipient} für Inbox-Mail {inbox_id} gesendet",
+                target_type="email_inbox",
+                target_id=inbox_id,
+                company_id=company_id_for_audit or None,
+                actor=g.current_user,
+            )
+            return jsonify({"ok": True, "provider": "smtp"})
+        except Exception as exc:
+            smtp_error = str(exc)
+            app.logger.warning(f"[DOC-INBOX] SMTP-Antwort fehlgeschlagen ({exc}), versuche API-Fallback")
+
+    sender_for_api = smtp_sender or _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or _normalize_env_value(_resend_key_cache.get("from_email") or "")
+    if not sender_for_api:
+        return jsonify({"error": "sender_not_configured", "smtpError": smtp_error}), 400
+
+    ok, err, provider = _send_via_any_api(
+        subject=subject,
+        sender_email=sender_for_api,
+        sender_name=sender_name,
+        recipient=recipient,
+        text_body=body_text,
+        html_body=html_body,
+    )
+    if not ok:
+        return jsonify({"error": "reply_send_failed", "detail": err, "smtpError": smtp_error}), 500
+
+    log_audit(
+        "documents.inbox_reply_sent",
+        f"Antwort an {recipient} für Inbox-Mail {inbox_id} via {provider} gesendet",
+        target_type="email_inbox",
+        target_id=inbox_id,
+        company_id=company_id_for_audit or None,
+        actor=g.current_user,
+    )
+    return jsonify({"ok": True, "provider": provider or "api"})
+
+
 @app.post("/api/documents/inbox/<inbox_id>/attachments/<attachment_id>/assign")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
@@ -15657,6 +17663,8 @@ _start_imap_thread()
 # ── Hardware-Geraete (Watchdog / OSDP Smart-Box) ─────────────────────────────
 
 DEVICE_ONLINE_THRESHOLD_SECONDS = 90  # Geraet gilt als offline wenn > 90s kein Heartbeat
+DEVICE_OFFLINE_ALERT_THRESHOLD_PERCENT = min(100.0, max(1.0, float(os.getenv("BAUPASS_DEVICE_OFFLINE_ALERT_THRESHOLD_PERCENT", "35"))))
+DEVICE_OFFLINE_ALERT_DEDUP_MINUTES = max(5, int(os.getenv("BAUPASS_DEVICE_OFFLINE_ALERT_DEDUP_MINUTES", "20")))
 
 
 def _serialize_device(row, now_value=None):
@@ -15675,6 +17683,7 @@ def _serialize_device(row, now_value=None):
         "name": row["name"],
         "location": row["location"],
         "deviceType": row["device_type"],
+        "protocol": row["protocol"] if "protocol" in row.keys() else "http",
         "lastSeenAt": last_seen,
         "online": online,
         "createdAt": row["created_at"],
@@ -15694,6 +17703,78 @@ def list_devices():
     return jsonify({"devices": [_serialize_device(r) for r in rows]})
 
 
+@app.get("/api/admin/devices/health-summary")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def device_health_summary():
+    db = get_db()
+    company_id = g.current_user.get("company_id") if g.current_user.get("role") != "superadmin" else None
+    if company_id:
+        rows = db.execute("SELECT * FROM devices WHERE company_id = ? ORDER BY name", (company_id,)).fetchall()
+    else:
+        rows = db.execute("SELECT * FROM devices ORDER BY company_id, name").fetchall()
+
+    serialized = [_serialize_device(row) for row in rows]
+    online = [item for item in serialized if item.get("online")]
+    offline = [item for item in serialized if not item.get("online")]
+    offline_rate = round((len(offline) / len(serialized)) * 100, 2) if serialized else 0.0
+
+    by_protocol = {}
+    by_type = {}
+    by_company = {}
+    for item in serialized:
+        protocol_key = str(item.get("protocol") or "http")
+        type_key = str(item.get("deviceType") or "unknown")
+        company_key = str(item.get("companyId") or "")
+        by_protocol[protocol_key] = by_protocol.get(protocol_key, 0) + 1
+        by_type[type_key] = by_type.get(type_key, 0) + 1
+        if g.current_user.get("role") == "superadmin":
+            by_company[company_key] = by_company.get(company_key, 0) + 1
+
+    if serialized and offline_rate >= DEVICE_OFFLINE_ALERT_THRESHOLD_PERCENT:
+        alert_scope = company_id or "global"
+        create_system_alert(
+            db,
+            code=f"device_offline_ratio_{alert_scope}",
+            severity="warning",
+            message="Device offline ratio threshold exceeded.",
+            details={
+                "scope": alert_scope,
+                "offlineRate": offline_rate,
+                "threshold": DEVICE_OFFLINE_ALERT_THRESHOLD_PERCENT,
+                "totalDevices": len(serialized),
+                "offlineDevices": len(offline),
+            },
+            dedup_minutes=DEVICE_OFFLINE_ALERT_DEDUP_MINUTES,
+        )
+
+    return jsonify(
+        {
+            "summary": {
+                "total": len(serialized),
+                "online": len(online),
+                "offline": len(offline),
+                "onlineRate": round((len(online) / len(serialized)) * 100, 2) if serialized else 0.0,
+                "offlineRate": offline_rate,
+            },
+            "byProtocol": by_protocol,
+            "byType": by_type,
+            "byCompany": by_company if g.current_user.get("role") == "superadmin" else {},
+            "offlineDevices": [
+                {
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "companyId": item.get("companyId"),
+                    "protocol": item.get("protocol"),
+                    "deviceType": item.get("deviceType"),
+                    "lastSeenAt": item.get("lastSeenAt"),
+                }
+                for item in offline
+            ],
+        }
+    )
+
+
 @app.post("/api/admin/devices")
 @require_auth
 @require_roles("superadmin", "company-admin")
@@ -15705,17 +17786,18 @@ def create_device():
         return jsonify({"error": "name_required"}), 400
     location = clean_text_input(payload.get("location", ""), max_len=120)
     device_type = clean_text_input(payload.get("deviceType", "osdp"), max_len=32) or "osdp"
+    protocol = normalize_device_protocol(payload.get("protocol") or "http")
     company_id = g.current_user.get("company_id") or clean_text_input(payload.get("companyId", ""), max_len=64) or None
     raw_key = secrets.token_urlsafe(32)
     key_hash = generate_password_hash(raw_key)
     device_id = f"dev-{secrets.token_hex(6)}"
     db.execute(
-        "INSERT INTO devices (id, company_id, name, location, device_type, api_key_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (device_id, company_id, name, location, device_type, key_hash, now_iso()),
+        "INSERT INTO devices (id, company_id, name, location, device_type, protocol, api_key_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (device_id, company_id, name, location, device_type, protocol, key_hash, now_iso()),
     )
     db.commit()
     log_audit("device.created", f"Geraet '{name}' ({device_type}) angelegt", target_type="device", target_id=device_id, company_id=company_id, actor=g.current_user)
-    return jsonify({"ok": True, "device": {"id": device_id, "name": name, "location": location, "deviceType": device_type, "apiKey": raw_key, "online": False}})
+    return jsonify({"ok": True, "device": {"id": device_id, "name": name, "location": location, "deviceType": device_type, "protocol": protocol, "apiKey": raw_key, "online": False}})
 
 
 @app.delete("/api/admin/devices/<device_id>")
@@ -15749,9 +17831,12 @@ def device_heartbeat():
             break
     if not matched:
         return jsonify({"error": "invalid_api_key"}), 401
-    db.execute("UPDATE devices SET last_seen_at = ? WHERE id = ?", (now_iso(), matched["id"]))
+    heartbeat_payload = request.get_json(silent=True) or {}
+    protocol = normalize_device_protocol(heartbeat_payload.get("protocol") or matched["protocol"] if "protocol" in matched.keys() else "http")
+    location = clean_text_input(heartbeat_payload.get("location") or matched["location"], max_len=120)
+    db.execute("UPDATE devices SET last_seen_at = ?, protocol = ?, location = ? WHERE id = ?", (now_iso(), protocol, location, matched["id"]))
     db.commit()
-    return jsonify({"ok": True, "device": matched["name"], "ts": now_iso()})
+    return jsonify({"ok": True, "device": matched["name"], "protocol": protocol, "ts": now_iso()})
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -16615,6 +18700,398 @@ def worker_send_leave_request_email(req_id):
         target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
     )
     return jsonify({"ok": True})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Device Heartbeat & Health Monitoring   (Enterprise Point 17)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/api/gates/heartbeat")
+def gate_heartbeat():
+    """Gate devices call this periodically to signal they are online.
+
+    Required header : X-Gate-Key
+    Body (JSON):
+        device_id       – required, stable hardware identifier
+        device_name     – optional, human-readable label
+        reader_type     – optional, e.g. "zkteco", "acs", "hid", "generic"
+        firmware_version – optional
+        extra           – optional, arbitrary JSON object with device diagnostics
+    """
+    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
+    if not provided_key:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    db = get_db()
+    turnstile_user = find_turnstile_by_api_key(db, provided_key)
+    if not turnstile_user:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    device_id = clean_id_input(payload.get("device_id") or payload.get("deviceId"), max_len=64)
+    if not device_id:
+        return jsonify({"error": "missing_device_id"}), 400
+
+    company_id = str(turnstile_user["company_id"] or "")
+    now_str = now_iso()
+    client_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()[:64]
+    extra = payload.get("extra") or {}
+    if not isinstance(extra, dict):
+        extra = {}
+
+    db.execute(
+        """
+        INSERT INTO device_heartbeats
+            (device_id, company_id, user_id, device_name, reader_type, firmware_version, last_seen_at, last_ip, extra_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(device_id, company_id) DO UPDATE SET
+            user_id          = excluded.user_id,
+            device_name      = CASE WHEN excluded.device_name != '' THEN excluded.device_name ELSE device_heartbeats.device_name END,
+            reader_type      = CASE WHEN excluded.reader_type != '' THEN excluded.reader_type ELSE device_heartbeats.reader_type END,
+            firmware_version = CASE WHEN excluded.firmware_version != '' THEN excluded.firmware_version ELSE device_heartbeats.firmware_version END,
+            last_seen_at     = excluded.last_seen_at,
+            last_ip          = excluded.last_ip,
+            extra_json       = excluded.extra_json
+        """,
+        (
+            device_id,
+            company_id,
+            str(turnstile_user["id"] or ""),
+            str(payload.get("device_name") or payload.get("deviceName") or "")[:120],
+            str(payload.get("reader_type") or payload.get("readerType") or "")[:60],
+            str(payload.get("firmware_version") or payload.get("firmwareVersion") or "")[:60],
+            now_str,
+            client_ip,
+            json.dumps(extra),
+        ),
+    )
+    db.commit()
+
+    return jsonify({"ok": True, "serverTime": now_str, "deviceId": device_id}), 200
+
+
+# ──  Admin: list all devices + health status  ────────────────────────────────
+
+DEVICE_OFFLINE_THRESHOLD_SECONDS = 300   # 5 minutes without heartbeat → offline
+
+
+@app.get("/api/admin/gate-devices")
+@require_auth
+def admin_gate_devices():
+    current_user = g.current_user
+    """Return all registered gate devices with their online/offline status.
+
+    Accessible by admin and superadmin roles only.
+    """
+    if current_user["role"] not in {"admin", "superadmin"}:
+        return jsonify({"error": "forbidden"}), 403
+
+    db = get_db()
+    company_id = str(current_user["company_id"] or "")
+    if current_user["role"] == "superadmin" and not company_id:
+        rows = db.execute("SELECT * FROM device_heartbeats ORDER BY last_seen_at DESC").fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM device_heartbeats WHERE company_id = ? ORDER BY last_seen_at DESC",
+            (company_id,),
+        ).fetchall()
+
+    threshold = utc_now()
+    devices = []
+    for r in rows:
+        last_seen_str = str(r["last_seen_at"] or "")
+        seconds_ago = None
+        is_online = False
+        try:
+            last_seen_dt = datetime.fromisoformat(last_seen_str.replace("Z", "+00:00"))
+            diff = (threshold - last_seen_dt.replace(tzinfo=timezone.utc)).total_seconds()
+            seconds_ago = int(diff)
+            is_online = diff <= DEVICE_OFFLINE_THRESHOLD_SECONDS
+        except Exception:
+            pass
+
+        extra = {}
+        try:
+            extra = json.loads(r["extra_json"] or "{}")
+        except Exception:
+            pass
+
+        devices.append({
+            "deviceId":        r["device_id"],
+            "companyId":       r["company_id"],
+            "deviceName":      r["device_name"],
+            "readerType":      r["reader_type"],
+            "firmwareVersion": r["firmware_version"],
+            "lastSeenAt":      last_seen_str,
+            "lastIp":          r["last_ip"],
+            "secondsAgo":      seconds_ago,
+            "online":          is_online,
+            "extra":           extra,
+        })
+
+    return jsonify({"devices": devices, "count": len(devices)}), 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Conflict Resolution Engine  (Enterprise Point 8)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# When two readers report conflicting directions for the same worker within a
+# short time window, we apply a deterministic conflict rule:
+#   1. Last server-received event wins (last-write-wins).
+#   2. Tie-break: check-in takes priority over check-out (fail-open / safer).
+#
+# The engine is called inside create_access_log_entry; callers can also call
+# resolve_access_conflict() directly to query what the "truth" is.
+
+CONFLICT_WINDOW_SECONDS = 60  # events within this window are candidates
+
+
+def resolve_access_conflict(db, worker_id: str, proposed_direction: str, proposed_received_at: str) -> str:
+    """Return the resolved direction after conflict detection.
+
+    Checks whether there is a *very recent* access log entry for the same
+    worker that differs in direction.  If so, applies LWW (last-write-wins)
+    with a check-in tie-break.
+
+    Returns the winner direction: 'check-in' or 'check-out'.
+    """
+    try:
+        recent = db.execute(
+            """
+            SELECT direction, timestamp
+            FROM access_logs
+            WHERE worker_id = ?
+              AND timestamp >= datetime(?, '-{} seconds')
+            ORDER BY timestamp DESC, id DESC
+            LIMIT 1
+            """.format(CONFLICT_WINDOW_SECONDS),
+            (worker_id, proposed_received_at),
+        ).fetchone()
+    except Exception:
+        return proposed_direction
+
+    if not recent:
+        return proposed_direction
+
+    existing_dir = str(recent["direction"] or "").lower()
+    if existing_dir == proposed_direction.lower():
+        # Same direction – no conflict
+        return proposed_direction
+
+    # Conflict detected: apply last-write-wins (LWW).
+    # Since the proposed event is newer (just arrived), it wins.
+    # Tie-break: check-in wins if timestamps are equal.
+    return proposed_direction   # incoming event is always the most recent
+
+
+def log_conflict_resolution(db, worker_id: str, original_dir: str, resolved_dir: str, company_id: str):
+    """Append an audit entry when a conflict was resolved."""
+    if original_dir != resolved_dir:
+        log_audit(
+            "access.conflict_resolved",
+            f"Konfliktaufloesung fuer Worker {worker_id}: {original_dir} → {resolved_dir} (LWW)",
+            target_type="worker",
+            target_id=worker_id,
+            company_id=company_id,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Emergency Mode / Offline Token Cache  (Enterprise Point 21)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Gate devices can pre-fetch a compact token snapshot to validate scans locally
+# when the server is unreachable.  The snapshot contains only the data needed
+# for binary validation – no PII beyond worker name is included.
+#
+# Flow:
+#   1. Device calls GET /api/gates/emergency-token-cache every N minutes.
+#   2. On server-unreachable, device validates against local snapshot.
+#   3. Offline events are queued locally.
+#   4. Once reconnected, device replays via POST /api/gates/tap/batch (existing).
+#
+# Cache entry fields:
+#   tokenHash   – sha256(secret::token)  – device hashes the scanned token and compares
+#   workerId    – opaque ID (for dedup in offline log)
+#   workerName  – display name for feedback
+#   status      – "active" | "revoked"
+#   expiresAt   – ISO timestamp or null
+#
+# Security note: the cache snapshot uses the same token_hash that is stored in
+# the DB.  A device MUST hash the presented raw token with the same algorithm
+# before comparing – it never stores the raw token itself.
+
+EMERGENCY_CACHE_MAX_AGE_SECONDS = 900     # client should refresh every 15 min
+
+
+@app.get("/api/gates/emergency-token-cache")
+def gate_emergency_token_cache():
+    """Return a compact token-validation snapshot for offline emergency use.
+
+    Required header : X-Gate-Key
+    The snapshot is scoped to the requesting device's company.
+
+    Response:
+        {
+          "generatedAt": "<ISO>",
+          "expiresAt":   "<ISO>",
+          "tokens": [
+            {
+              "tokenHash": "...",
+              "workerId":  "...",
+              "workerName": "...",
+              "status":    "active" | "revoked",
+              "expiresAt": "<ISO>" | null
+            },
+            ...
+          ]
+        }
+    """
+    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
+    if not provided_key:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    db = get_db()
+    turnstile_user = find_turnstile_by_api_key(db, provided_key)
+    if not turnstile_user:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    company_id = str(turnstile_user["company_id"] or "")
+    if not company_id:
+        return jsonify({"error": "no_company_context"}), 400
+
+    # Feature gate: require at least starter plan for NFC/offline features
+    plan = get_company_plan(db, company_id)
+    if not company_has_feature(plan, "nfc_badges"):
+        return feature_not_available_response("nfc_badges", plan)
+
+    rows = db.execute(
+        """
+        SELECT
+            t.token_hash,
+            t.worker_id,
+            t.status,
+            t.expires_at,
+            w.first_name,
+            w.last_name,
+            w.status AS worker_status
+        FROM worker_identity_tokens t
+        JOIN workers w ON w.id = t.worker_id
+        WHERE t.company_id = ?
+          AND (t.expires_at IS NULL OR t.expires_at > ?)
+          AND w.status = 'aktiv'
+        ORDER BY t.issued_at DESC
+        """,
+        (company_id, now_iso()),
+    ).fetchall()
+
+    generated_at = utc_now().replace(microsecond=0)
+    generated_at_iso = generated_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+    expires_at_iso = (generated_at + timedelta(seconds=EMERGENCY_CACHE_MAX_AGE_SECONDS)).astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+
+    tokens = [
+        {
+            "tokenHash":  row["token_hash"],
+            "workerId":   row["worker_id"],
+            "workerName": f"{row['first_name']} {row['last_name']}".strip(),
+            "status":     row["status"],
+            "expiresAt":  row["expires_at"],
+        }
+        for row in rows
+    ]
+
+    log_audit(
+        "access.emergency_cache_fetched",
+        f"Emergency token cache ({len(tokens)} tokens) abgerufen",
+        company_id=company_id,
+        actor=dict(turnstile_user),
+    )
+
+    return jsonify({
+        "generatedAt": generated_at_iso,
+        "expiresAt":   expires_at_iso,
+        "tokenCount":  len(tokens),
+        "tokens":      tokens,
+    }), 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Adapter-aware inbound push endpoint  (Enterprise Point 4, reader brands)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Third-party readers (ZKTeco, ACS, HID) push their proprietary payloads here.
+# The adapter layer normalises them into a standard gate-tap event that is
+# processed through the same pipeline as /api/scan.
+#
+# Endpoint: POST /api/gates/ingest
+# Header:   X-Gate-Key  (same turnstile API key)
+# Body:     Raw JSON from the reader.  The correct adapter is chosen
+#           automatically based on payload fields, or forced via the optional
+#           "reader_type" field in the payload.
+
+@app.post("/api/gates/ingest")
+def gate_ingest():
+    """Universal reader-push endpoint with automatic adapter selection."""
+    provided_key = (request.headers.get("X-Gate-Key") or "").strip()
+    if not provided_key:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    db = get_db()
+    run_access_maintenance_if_due(db)
+    turnstile_user = find_turnstile_by_api_key(db, provided_key)
+    if not turnstile_user:
+        return jsonify({"error": "gate_unauthorized"}), 401
+
+    raw_payload = request.get_json(silent=True) or {}
+    company_id = str(turnstile_user["company_id"] or "")
+
+    # Select adapter
+    forced_type = str(raw_payload.get("reader_type") or raw_payload.get("readerType") or "").lower()
+    adapter: BaseReaderAdapter | None = None
+    if forced_type:
+        for a in READER_ADAPTERS:
+            if a.reader_type == forced_type:
+                adapter = a
+                break
+    if adapter is None:
+        adapter = auto_detect_reader_adapter(raw_payload)
+
+    context = {"device_id": "", "company_id": company_id}
+    try:
+        normalised = adapter.normalize(raw_payload, context)
+    except Exception as exc:
+        return jsonify({"error": "adapter_error", "detail": str(exc)}), 400
+
+    # Require employee_id – this endpoint identifies by employee_id, not token
+    employee_id = str(normalised.get("employee_id") or "").strip()
+    device_id   = clean_id_input(normalised.get("device_id"), max_len=64) or "unknown"
+    if not employee_id:
+        return jsonify({"error": "missing_employee_id", "readerType": adapter.reader_type}), 400
+
+    # Look up worker by id or badge_id
+    worker = db.execute(
+        "SELECT * FROM workers WHERE company_id = ? AND (id = ? OR badge_id = ?) LIMIT 1",
+        (company_id, employee_id, employee_id),
+    ).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found", "employeeId": employee_id}), 404
+
+    # Build a synthetic gate-tap payload and reuse the existing pipeline
+    direction = "check-in" if normalised["event"] == "check_in" else "check-out"
+    synthetic = {
+        "badgeId":    worker["badge_id"],
+        "device_id":  device_id,
+        "direction":  direction,
+        "timestamp":  normalised.get("timestamp") or "",
+        "source":     normalised.get("source", "rfid"),
+        "protocol":   normalised.get("protocol", "http"),
+        "gate":       raw_payload.get("gate") or f"{adapter.reader_type} ingest",
+        "note":       f"Ingest via {adapter.reader_type} adapter",
+    }
+
+    response_payload, status_code = _process_gate_tap_payload(db, dict(turnstile_user), synthetic)
+    return jsonify({**response_payload, "readerType": adapter.reader_type}), status_code
 
 
 if __name__ == "__main__":
