@@ -4031,8 +4031,8 @@ def _is_valid_brevo_api_key(value):
     tail = token_lower[len("xkeysib-"):]
     if "xkeysib-" in tail or "xsmtpsib-" in tail:
         return False
-    # Brevo keys are opaque; allow broad safe token charset.
-    return bool(re.fullmatch(r"xkeysib-[A-Za-z0-9._:-]{8,}", token))
+    # Brevo keys are opaque; accept any non-whitespace payload after xkeysib-.
+    return bool(re.fullmatch(r"xkeysib-\S{8,}", token))
 
 
 def _get_resend_api_key_and_source():
