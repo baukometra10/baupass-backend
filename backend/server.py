@@ -4008,6 +4008,14 @@ def _normalize_api_token(raw):
     return value
 
 
+def _is_valid_brevo_api_key(value):
+    token = _normalize_api_token(value)
+    if not token:
+        return False
+    # Brevo API v3 keys follow xkeysib-... (single token, no concatenated values).
+    return bool(re.fullmatch(r"xkeysib-[A-Za-z0-9_-]{20,}", token))
+
+
 def _get_resend_api_key_and_source():
     # Check module-level cache first (populated from DB at startup and after settings save).
     cached_key = _normalize_api_token(_resend_key_cache.get("key") or "")
@@ -4200,6 +4208,8 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
     api_key = _get_brevo_api_key()
     if not api_key:
         return False, "brevo_not_configured"
+    if not _is_valid_brevo_api_key(api_key):
+        return False, "brevo_invalid_api_key_format (expected prefix: xkeysib-)"
 
     from_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or sender_email or ""
     from_name = sender_name or ""
@@ -7243,6 +7253,11 @@ def update_settings():
     # Brevo-Konfiguration (kein Cloudflare-Block, erlaubt Gmail als Absender)
     brevo_api_key_payload = _normalize_api_token(payload.get("brevoApiKey") or "")
     brevo_from_email_payload = str(payload.get("brevoFromEmail") or "").strip()
+    if brevo_api_key_payload and not _is_valid_brevo_api_key(brevo_api_key_payload):
+        return jsonify({
+            "error": "invalid_brevo_api_key_format",
+            "message": "Brevo API key must start with xkeysib-",
+        }), 400
     if brevo_api_key_payload:
         db.execute(
             "UPDATE settings SET brevo_api_key = ?, brevo_from_email = ? WHERE id = 1",
