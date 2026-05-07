@@ -42,7 +42,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=20260507a" />
+  <link rel="stylesheet" href="./styles.css?v=20260507b" />
 </head>
 <body class="auth-locked notranslate" translate="no">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -55,7 +55,11 @@
     </div>
   </header>
 
-  <div id="authOverlay" class="auth-overlay" style="display:grid;">
+  <div id="appBootLoader" class="app-boot-loader" aria-hidden="true">
+    <span class="app-boot-spinner"></span>
+  </div>
+
+  <div id="authOverlay" class="auth-overlay">
     <div class="auth-panel">
       <label class="auth-lang-field auth-lang-field-compact">
         <span data-ui-i18n="uiLanguageLabel">Sprache</span>
@@ -1779,7 +1783,7 @@
   </template>
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js" crossorigin="anonymous"></script>
-  <script src="./app.js?v=20260507a"></script>
+  <script src="./app.js?v=20260507b"></script>
   <script src="./desktop/renderer.js?v=20260420a"></script>
   <script>
     (function applyPublicBranding() {

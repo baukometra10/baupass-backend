@@ -15399,7 +15399,7 @@ function refreshAll() {
     if (loggedIn && activeElement && elements.authOverlay.contains(activeElement) && typeof activeElement.blur === "function") {
       activeElement.blur();
     }
-    elements.authOverlay.style.display = loggedIn ? "none" : "grid";
+    elements.authOverlay.classList.toggle("active", !loggedIn);
     elements.authOverlay.setAttribute("aria-hidden", loggedIn ? "true" : "false");
     elements.authOverlay.toggleAttribute("inert", loggedIn);
   }
@@ -27244,7 +27244,9 @@ initSystemThemeControl();
 initNativeDesktopShell();
 
 (async () => {
+  const bootLoader = document.getElementById("appBootLoader");
   try {
+    await loadPublicBranding();
     await loadAllData();
     if (state.currentUser?.role === "superadmin") {
       await refreshSystemStatus().catch(() => {});
@@ -27254,6 +27256,7 @@ initNativeDesktopShell();
   } catch {
     clearSession();
   } finally {
+    if (bootLoader) bootLoader.classList.add("hidden");
     refreshAll();
   }
 })();
