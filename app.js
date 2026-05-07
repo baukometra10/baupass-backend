@@ -14629,6 +14629,26 @@ function handleExpiredControlSession() {
   window.alert(uiT("alertSessionExpired"));
 }
 
+async function restoreSessionFromBootstrap() {
+  const bootstrap = await apiRequest(`${API_BASE}/api/session/bootstrap`, {
+    auth: false,
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (bootstrap?.token) {
+    token = bootstrap.token;
+    persistSessionToken(token);
+  }
+  if (bootstrap?.user) {
+    state.currentUser = bootstrap.user;
+    if (bootstrap.user.role === "superadmin" && bootstrap.user.preview_company_id) {
+      superadminUiPreviewCompanyId = bootstrap.user.preview_company_id;
+      const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
+      companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
+    }
+  }
+  return bootstrap;
+}
+
 function startHeartbeat() {
   if (heartbeatTimer) {
     window.clearInterval(heartbeatTimer);
@@ -14751,7 +14771,7 @@ async function apiRequest(url, options = {}) {
     if (auth && response.status === 401 && retries > 0) {
       console.warn("⚠️  401 erhalten, versuche neue Session zu laden...");
       try {
-        await loadAllData();
+        await restoreSessionFromBootstrap();
         if (token) {
           console.log("✓ Session erneuert, wiederhole Request");
           return apiRequest(url, { ...options, retries: retries - 1 });
@@ -15303,12 +15323,7 @@ async function loadAllData() {
     let bootstrap;
     try {
       console.log("[Bootstrap] Attempting with token:", token ? `${token.slice(0, 20)}...` : "NONE");
-      bootstrap = await apiRequest(`${API_BASE}/api/session/bootstrap`, {
-        auth: false,
-        // Bei Cross-Site-Cookies (z. B. Railway) kann der Cookie fehlen.
-        // Wenn bereits ein Token im Speicher ist, sende es explizit mit.
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
+      bootstrap = await restoreSessionFromBootstrap();
       console.log("[Bootstrap] Success:", { hasUser: !!bootstrap?.user, username: bootstrap?.user?.username });
     } catch (error) {
       const msg = String(error?.message || "");
@@ -15320,19 +15335,6 @@ async function loadAllData() {
         return;
       }
       throw error;
-    }
-    if (bootstrap?.token) {
-      token = bootstrap.token;
-      persistSessionToken(token);
-    }
-    if (bootstrap?.user) {
-      state.currentUser = bootstrap.user;
-      // Serverseitig gespeicherte Vorschau-Session wiederherstellen
-      if (bootstrap.user.role === "superadmin" && bootstrap.user.preview_company_id) {
-        superadminUiPreviewCompanyId = bootstrap.user.preview_company_id;
-        const previewCompany = (state.companies || []).find((c) => c.id === superadminUiPreviewCompanyId);
-        companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
-      }
     }
   }
 
