@@ -40,14 +40,23 @@ def port_is_listening(host, port):
 
 
 if __name__ == "__main__":
-    if port_is_listening(HOST, PORT):
-        print(f"Server already running on http://{HOST}:{PORT}")
-        sys.exit(0)
-
+    run_dunning_on_boot = str(os.getenv("BAUPASS_RUN_DUNNING_ON_BOOT", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     init_db()
     with app.app_context():
         db = get_db()
-        dunning_result = run_invoice_dunning_cycle(db)
+        dunning_result = {
+            "remindersSent": 0,
+            "reminderFailures": 0,
+            "overdueUpdated": 0,
+        }
+        if run_dunning_on_boot:
+            # Optional on-boot dunning; disabled by default to avoid delaying bind/readiness on platforms like Railway.
+            dunning_result = run_invoice_dunning_cycle(db)
         suspended = check_and_apply_overdue_suspensions(db)
     if dunning_result.get("remindersSent") or dunning_result.get("reminderFailures") or dunning_result.get("overdueUpdated"):
         print(
