@@ -21458,9 +21458,11 @@ async function saveAndTestBrevo() {
   if (key || fromEmail) {
     if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoSaving")}`; resultEl.style.color = "#6b7280"; }
     try {
+      const brevoSaveBody = { ...getCurrentSmtpSettingsFromForm(), brevoFromEmail: fromEmail };
+      if (key) brevoSaveBody.brevoApiKey = key;
       await apiRequest(API_BASE + "/api/settings", {
         method: "PUT",
-        body: { ...getCurrentSmtpSettingsFromForm(), brevoApiKey: key, brevoFromEmail: fromEmail }
+        body: brevoSaveBody
       });
       if (state?.settings) {
         state.settings.brevoApiKey = state.settings.brevoApiKey || "stored";
