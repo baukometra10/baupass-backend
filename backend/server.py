@@ -16597,7 +16597,7 @@ def _parse_optional_bool(raw_value, default_value):
 
 def get_imap_settings(db):
     row = db.execute(
-        "SELECT imap_host, imap_port, imap_username, imap_password, imap_folder, imap_use_ssl FROM settings WHERE id = 1"
+        "SELECT imap_host, imap_port, imap_username, imap_password, imap_folder, imap_use_ssl, smtp_host, smtp_username, smtp_password, smtp_sender_email FROM settings WHERE id = 1"
     ).fetchone()
     cfg = dict(row) if row else {}
 
@@ -16617,6 +16617,24 @@ def get_imap_settings(db):
     if env_folder:
         cfg["imap_folder"] = env_folder
 
+    smtp_host = str(cfg.get("smtp_host") or "").strip()
+    smtp_username = str(cfg.get("smtp_username") or "").strip()
+    smtp_password = str(cfg.get("smtp_password") or "").strip()
+    smtp_sender_email = str(cfg.get("smtp_sender_email") or "").strip()
+
+    if not str(cfg.get("imap_username") or "").strip():
+        fallback_username = smtp_username or smtp_sender_email
+        if "@" in fallback_username:
+            cfg["imap_username"] = fallback_username
+
+    if not str(cfg.get("imap_password") or "").strip() and smtp_password:
+        cfg["imap_password"] = smtp_password
+
+    if not str(cfg.get("imap_host") or "").strip():
+        inferred_imap_host = _infer_imap_host(cfg.get("imap_username"), smtp_host)
+        if inferred_imap_host:
+            cfg["imap_host"] = inferred_imap_host
+
     cfg["imap_port"] = _parse_optional_int(env_port, cfg.get("imap_port") or 993)
     cfg["imap_use_ssl"] = 1 if _parse_optional_bool(env_use_ssl, bool(cfg.get("imap_use_ssl", 1))) else 0
 
@@ -16629,6 +16647,20 @@ def get_imap_settings(db):
         cfg["imap_folder"] = "INBOX"
 
     return cfg
+
+
+def _infer_imap_host(username_value, smtp_host_value=""):
+    username = str(username_value or "").strip().lower()
+    smtp_host = str(smtp_host_value or "").strip().lower()
+
+    outlook_markers = ("outlook", "office365", "hotmail", "live", "msn")
+    if any(marker in smtp_host for marker in outlook_markers):
+        return "outlook.office365.com"
+    if username.endswith(("@outlook.com", "@outlook.de", "@hotmail.com", "@live.com", "@msn.com")):
+        return "outlook.office365.com"
+    if "gmail.com" in smtp_host or username.endswith("@gmail.com"):
+        return "imap.gmail.com"
+    return ""
 
 
 def _normalize_imap_host_port(host_value, port_value):
@@ -17626,12 +17658,12 @@ def test_imap_connection():
     db = get_db()
     stored = get_imap_settings(db) or {}
 
-    host = clean_text_input(payload.get("imapHost", stored.get("imap_host", "")), max_len=255)
+    host = clean_text_input((payload.get("imapHost") or stored.get("imap_host", "")), max_len=255)
     port = int(payload.get("imapPort") or stored.get("imap_port") or 993)
-    username = clean_text_input(payload.get("imapUsername", stored.get("imap_username", "")), max_len=255)
+    username = clean_text_input((payload.get("imapUsername") or stored.get("imap_username", "")), max_len=255)
     password = str(payload.get("imapPassword") or stored.get("imap_password") or "")
     use_ssl = bool(payload.get("imapUseSsl", stored.get("imap_use_ssl", 1)))
-    folder = clean_text_input(payload.get("imapFolder", stored.get("imap_folder", "INBOX")), max_len=100) or "INBOX"
+    folder = clean_text_input((payload.get("imapFolder") or stored.get("imap_folder", "INBOX")), max_len=100) or "INBOX"
 
     missing = []
     if not host:
@@ -17700,6 +17732,10 @@ def test_imap_connection():
     hint = ""
     if "timed out" in detail.lower() or isinstance(last_exc, (socket.timeout, TimeoutError)):
         hint = f" (Port {port} scheint blockiert – prüfe Firewall/Hosting-Einschränkungen)"
+    elif "login failed" in detail.lower() or "authentication" in detail.lower():
+        lower_host = str(host or "").lower()
+        if any(marker in lower_host for marker in ["outlook", "office365", "hotmail", "live"]):
+            hint = " (Outlook IMAP lehnt die Anmeldung ab: pruefe Passwort/App-Passwort und ob IMAP fuer das Postfach aktiviert ist)"
     return jsonify({"ok": False, "error": f"{detail}{hint}", "tried": tried_info, "hint": f"Versucht: {tried_str}"}), 200
 
 
