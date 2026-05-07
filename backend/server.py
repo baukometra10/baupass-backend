@@ -3985,9 +3985,19 @@ def _normalize_env_value(raw):
     return value
 
 
+def _normalize_api_token(raw):
+    value = _normalize_env_value(raw)
+    lower_value = value.lower()
+    if lower_value.startswith("bearer "):
+        value = value[7:].strip()
+    elif lower_value.startswith("api-key:"):
+        value = value[8:].strip()
+    return value
+
+
 def _get_resend_api_key_and_source():
     # Check module-level cache first (populated from DB at startup and after settings save).
-    cached_key = _normalize_env_value(_resend_key_cache.get("key") or "")
+    cached_key = _normalize_api_token(_resend_key_cache.get("key") or "")
     if cached_key:
         return cached_key, "db_settings"
 
@@ -3997,7 +4007,7 @@ def _get_resend_api_key_and_source():
             db.row_factory = sqlite3.Row
             row = db.execute("SELECT resend_api_key, resend_from_email FROM settings WHERE id = 1").fetchone()
             if row:
-                db_key = _normalize_env_value(row["resend_api_key"] or "")
+                db_key = _normalize_api_token(row["resend_api_key"] or "")
                 db_from_email = _normalize_env_value(row["resend_from_email"] or "")
                 if db_key:
                     _resend_key_cache["key"] = db_key
@@ -4017,7 +4027,7 @@ def _get_resend_api_key_and_source():
         "RESEND_APIKEY",
         "RESEND_TOKEN",
     ):
-        candidate = _normalize_env_value(os.getenv(key_name))
+        candidate = _normalize_api_token(os.getenv(key_name))
         if candidate:
             return candidate, key_name
 
@@ -4028,7 +4038,7 @@ def _get_resend_api_key_and_source():
             continue
         if not any(token in upper_name for token in ("API_KEY", "APIKEY", "TOKEN", "KEY")):
             continue
-        candidate = _normalize_env_value(env_value)
+        candidate = _normalize_api_token(env_value)
         if candidate:
             return candidate, env_name
 
@@ -4038,7 +4048,7 @@ def _get_resend_api_key_and_source():
         upper_name = str(env_name or "").upper()
         if "RESEND" not in upper_name:
             continue
-        candidate = _normalize_env_value(env_value)
+        candidate = _normalize_api_token(env_value)
         if candidate.startswith("re_"):
             return candidate, env_name
 
@@ -4153,7 +4163,7 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
 
 def _get_brevo_api_key():
     """Return Brevo API key from module-level cache, DB, or env var."""
-    cached = _normalize_env_value(_resend_key_cache.get("brevo_key") or "")
+    cached = _normalize_api_token(_resend_key_cache.get("brevo_key") or "")
     if cached:
         return cached
     # Direct DB fallback in case cache is stale (e.g. after hot-reload)
@@ -4162,14 +4172,14 @@ def _get_brevo_api_key():
             _db.row_factory = sqlite3.Row
             _row = _db.execute("SELECT brevo_api_key, brevo_from_email FROM settings WHERE id = 1").fetchone()
             if _row:
-                db_key = _normalize_env_value(_row["brevo_api_key"] or "")
+                db_key = _normalize_api_token(_row["brevo_api_key"] or "")
                 if db_key:
                     _resend_key_cache["brevo_key"] = db_key
                     _resend_key_cache["brevo_from_email"] = _normalize_env_value(_row["brevo_from_email"] or "")
                     return db_key
     except Exception:
         pass
-    return _normalize_env_value(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
+    return _normalize_api_token(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
 
 
 def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
@@ -7200,7 +7210,7 @@ def update_settings():
     db.execute("UPDATE settings SET impressum_text = ?, datenschutz_text = ? WHERE id = 1", (impressum_text, datenschutz_text))
     # Resend-Konfiguration (API-Key direkt in DB speichern, umgeht Railway-Env-Probleme)
     # Leeres Feld = bestehenden Key behalten (wie SMTP-Passwort-Logik)
-    resend_api_key_payload = str(payload.get("resendApiKey") or "").strip()
+    resend_api_key_payload = _normalize_api_token(payload.get("resendApiKey") or "")
     resend_from_email_payload = str(payload.get("resendFromEmail") or "").strip()
     if resend_api_key_payload:
         db.execute(
@@ -7213,7 +7223,7 @@ def update_settings():
         db.execute("UPDATE settings SET resend_from_email = ? WHERE id = 1", (resend_from_email_payload,))
         _resend_key_cache["from_email"] = resend_from_email_payload
     # Brevo-Konfiguration (kein Cloudflare-Block, erlaubt Gmail als Absender)
-    brevo_api_key_payload = str(payload.get("brevoApiKey") or "").strip()
+    brevo_api_key_payload = _normalize_api_token(payload.get("brevoApiKey") or "")
     brevo_from_email_payload = str(payload.get("brevoFromEmail") or "").strip()
     if brevo_api_key_payload:
         db.execute(
