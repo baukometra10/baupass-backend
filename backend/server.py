@@ -4035,6 +4035,20 @@ def _is_valid_brevo_api_key(value):
     return bool(re.fullmatch(r"xkeysib-\S{8,}", token))
 
 
+def _describe_brevo_api_key_problem(value):
+    token = _normalize_api_token(value)
+    if not token:
+        return "brevo_not_configured"
+    token_lower = token.lower()
+    if token_lower.startswith("xsmtpsib-"):
+        return "brevo_invalid_api_key_format (SMTP-Schluessel erkannt; fuer HTTPS-API wird ein xkeysib- Key benoetigt)"
+    if token_lower.startswith("xkeysibxsmtpsib-") or "xsmtpsib-" in token_lower:
+        return "brevo_invalid_api_key_format (API-Key und SMTP-Key wirken zusammengeklebt; bitte nur einen einzelnen xkeysib- Key einfuegen)"
+    if not token_lower.startswith("xkeysib-"):
+        return "brevo_invalid_api_key_format (expected prefix: xkeysib-)"
+    return "brevo_invalid_api_key_format"
+
+
 def _get_resend_api_key_and_source():
     # Check module-level cache first (populated from DB at startup and after settings save).
     cached_key = _normalize_api_token(_resend_key_cache.get("key") or "")
@@ -4228,7 +4242,7 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
     if not api_key:
         return False, "brevo_not_configured"
     if not _is_valid_brevo_api_key(api_key):
-        return False, "brevo_invalid_api_key_format (expected prefix: xkeysib-)"
+        return False, _describe_brevo_api_key_problem(api_key)
 
     from_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or sender_email or ""
     from_name = sender_name or ""
@@ -17619,8 +17633,20 @@ def test_imap_connection():
     use_ssl = bool(payload.get("imapUseSsl", stored.get("imap_use_ssl", 1)))
     folder = clean_text_input(payload.get("imapFolder", stored.get("imap_folder", "INBOX")), max_len=100) or "INBOX"
 
-    if not host or not username or not password:
-        return jsonify({"error": "missing_fields", "detail": "Host, Benutzername und Passwort sind erforderlich."}), 400
+    missing = []
+    if not host:
+        missing.append("Host")
+    if not username:
+        missing.append("Benutzername")
+    if not password:
+        missing.append("Passwort")
+    if missing:
+        return jsonify({
+            "ok": False,
+            "error": "imap_not_configured",
+            "detail": f"IMAP ist unvollstaendig konfiguriert: {', '.join(missing)} fehlt.",
+            "tried": [],
+        }), 200
 
     _timeout = 15  # Sekunden
     attempts = [(use_ssl, port)]
