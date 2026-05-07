@@ -8,7 +8,6 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://localhost:8443",
 ];
 const REMOTE_API_BASE_FALLBACKS = [
-  DEFAULT_RENDER_API_BASE,
   "https://web-production-c21ed.up.railway.app",
 ];
 
@@ -44,8 +43,20 @@ function sanitizeApiBase(value) {
 function resolveApiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = sanitizeApiBase(params.get("apiBase"));
-  const storedValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
+  const rawStoredValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
   const metaValue = sanitizeApiBase(document.querySelector('meta[name="baupass-api-base"]')?.content);
+  let storedValue = rawStoredValue;
+  if (storedValue && !isLocalHostName(window.location.hostname)) {
+    try {
+      const storedHost = new URL(storedValue).hostname;
+      if (isLocalHostName(storedHost)) {
+        storedValue = "";
+        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      }
+    } catch {
+      storedValue = "";
+    }
+  }
   const configuredValue = queryValue || metaValue || storedValue;
 
   if (configuredValue) {
@@ -138,10 +149,9 @@ function resolveLocalApiFallbackRequests(url) {
     return [];
   }
 
-  const candidateBases = [
-    ...LOCAL_API_BASE_FALLBACKS,
-    ...REMOTE_API_BASE_FALLBACKS,
-  ];
+  const candidateBases = isLocalHostName(window.location.hostname)
+    ? [...LOCAL_API_BASE_FALLBACKS, ...REMOTE_API_BASE_FALLBACKS]
+    : [window.location.origin, ...REMOTE_API_BASE_FALLBACKS];
 
   const fallbackOrder = [...candidateBases].sort((a, b) => {
     const aHttps = a.startsWith("https://") ? 1 : 0;
