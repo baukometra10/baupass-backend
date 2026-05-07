@@ -7273,10 +7273,15 @@ def update_settings():
     brevo_api_key_payload = _normalize_api_token(payload.get("brevoApiKey") or "")
     brevo_from_email_payload = str(payload.get("brevoFromEmail") or "").strip()
     if brevo_api_key_payload and not _is_valid_brevo_api_key(brevo_api_key_payload):
-        return jsonify({
-            "error": "invalid_brevo_api_key_format",
-            "message": "Brevo API key must start with xkeysib-",
-        }), 400
+        # Allow round-trips: if the submitted key equals what is already stored, skip update silently.
+        _stored_brevo_row = db.execute("SELECT brevo_api_key FROM settings WHERE id = 1").fetchone()
+        _stored_brevo_key = _normalize_api_token((_stored_brevo_row["brevo_api_key"] if _stored_brevo_row else "") or "")
+        if brevo_api_key_payload != _stored_brevo_key:
+            return jsonify({
+                "error": "invalid_brevo_api_key_format",
+                "message": "Brevo API key must start with xkeysib-",
+            }), 400
+        brevo_api_key_payload = ""  # same as stored – skip update, no error
     if brevo_api_key_payload:
         db.execute(
             "UPDATE settings SET brevo_api_key = ?, brevo_from_email = ? WHERE id = 1",
