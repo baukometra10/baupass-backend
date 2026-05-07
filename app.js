@@ -113,7 +113,7 @@ function switchApiBaseForSession(nextBase) {
   }
 }
 
-function resolveLocalApiFallbackRequest(url) {
+function resolveLocalApiFallbackRequests(url) {
   const currentBase = sanitizeApiBase(API_BASE);
   let currentHost = "";
   if (currentBase) {
@@ -123,38 +123,39 @@ function resolveLocalApiFallbackRequest(url) {
       currentHost = "";
     }
   }
-  if (currentHost && isLocalHostName(currentHost)) {
-    return null;
-  }
-
   let parsedUrl;
   try {
     parsedUrl = new URL(String(url || ""), window.location.origin);
   } catch {
-    return null;
+    return [];
   }
   const requestPath = `${parsedUrl.pathname}${parsedUrl.search}`;
   if (!requestPath.startsWith("/api/")) {
-    return null;
+    return [];
   }
 
   const fallbackOrder = [...LOCAL_API_BASE_FALLBACKS].sort((a, b) => {
-    const aHttps = a.startsWith("https://") ? 0 : 1;
-    const bHttps = b.startsWith("https://") ? 0 : 1;
-    return window.location.protocol === "https:" ? aHttps - bHttps : bHttps - aHttps;
+    const aHttps = a.startsWith("https://") ? 1 : 0;
+    const bHttps = b.startsWith("https://") ? 1 : 0;
+    // On local hosts, prefer plain HTTP dev servers first (usually :8000).
+    if (isLocalHostName(window.location.hostname)) {
+      return aHttps - bHttps;
+    }
+    return window.location.protocol === "https:" ? bHttps - aHttps : aHttps - bHttps;
   });
 
+  const candidates = [];
   for (const candidateBaseRaw of fallbackOrder) {
     const candidateBase = sanitizeApiBase(candidateBaseRaw);
     if (!candidateBase || candidateBase === currentBase) {
       continue;
     }
-    return {
+    candidates.push({
       base: candidateBase,
       url: `${candidateBase}${requestPath}`,
-    };
+    });
   }
-  return null;
+  return candidates;
 }
 
 function loadSupportLoginContext() {
@@ -14669,19 +14670,27 @@ async function apiRequest(url, options = {}) {
       body: body === undefined ? undefined : JSON.stringify(body)
     });
   } catch {
-    const fallback = resolveLocalApiFallbackRequest(url);
-    if (!fallback) {
+    const fallbacks = resolveLocalApiFallbackRequests(url);
+    if (!fallbacks.length) {
       throw new Error("backend_unreachable");
     }
-    try {
-      response = await fetch(fallback.url, {
-        method,
-        headers,
-        credentials: "include",
-        body: body === undefined ? undefined : JSON.stringify(body)
-      });
-      switchApiBaseForSession(fallback.base);
-    } catch {
+    let fallbackSucceeded = false;
+    for (const fallback of fallbacks) {
+      try {
+        response = await fetch(fallback.url, {
+          method,
+          headers,
+          credentials: "include",
+          body: body === undefined ? undefined : JSON.stringify(body)
+        });
+        switchApiBaseForSession(fallback.base);
+        fallbackSucceeded = true;
+        break;
+      } catch {
+        // try next candidate
+      }
+    }
+    if (!fallbackSucceeded) {
       throw new Error("backend_unreachable");
     }
   }
