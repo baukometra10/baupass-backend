@@ -7,6 +7,10 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://127.0.0.1:8443",
   "https://localhost:8443",
 ];
+const REMOTE_API_BASE_FALLBACKS = [
+  DEFAULT_RENDER_API_BASE,
+  "https://web-production-c21ed.up.railway.app",
+];
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -134,7 +138,12 @@ function resolveLocalApiFallbackRequests(url) {
     return [];
   }
 
-  const fallbackOrder = [...LOCAL_API_BASE_FALLBACKS].sort((a, b) => {
+  const candidateBases = [
+    ...LOCAL_API_BASE_FALLBACKS,
+    ...REMOTE_API_BASE_FALLBACKS,
+  ];
+
+  const fallbackOrder = [...candidateBases].sort((a, b) => {
     const aHttps = a.startsWith("https://") ? 1 : 0;
     const bHttps = b.startsWith("https://") ? 1 : 0;
     // On local hosts, prefer plain HTTP dev servers first (usually :8000).
@@ -145,11 +154,23 @@ function resolveLocalApiFallbackRequests(url) {
   });
 
   const candidates = [];
+  const seenBases = new Set();
   for (const candidateBaseRaw of fallbackOrder) {
     const candidateBase = sanitizeApiBase(candidateBaseRaw);
-    if (!candidateBase || candidateBase === currentBase) {
+    if (!candidateBase || candidateBase === currentBase || seenBases.has(candidateBase)) {
       continue;
     }
+    let parsedCandidate;
+    try {
+      parsedCandidate = new URL(candidateBase);
+    } catch {
+      continue;
+    }
+    // Avoid CSP violations on HTTPS pages by skipping HTTP fallbacks.
+    if (window.location.protocol === "https:" && parsedCandidate.protocol !== "https:") {
+      continue;
+    }
+    seenBases.add(candidateBase);
     candidates.push({
       base: candidateBase,
       url: `${candidateBase}${requestPath}`,
@@ -14170,7 +14191,7 @@ function clearWorkerEditor() {
 
 async function loadPublicBranding() {
   try {
-    const data = await fetch(`${API_BASE}/api/public/branding`).then((r) => r.json()).catch(() => null);
+    const data = await apiRequest(`${API_BASE}/api/public/branding`, { auth: false }).catch(() => null);
     if (!data) return;
     // Logo on auth/login page
     if (data.logoData) {
@@ -14697,6 +14718,25 @@ async function apiRequest(url, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if ([502, 503, 504].includes(Number(response.status))) {
+      const fallbacks = resolveLocalApiFallbackRequests(url);
+      for (const fallback of fallbacks) {
+        try {
+          const fallbackResponse = await fetch(fallback.url, {
+            method,
+            headers,
+            credentials: "include",
+            body: body === undefined ? undefined : JSON.stringify(body)
+          });
+          if (fallbackResponse.ok) {
+            switchApiBaseForSession(fallback.base);
+            return await fallbackResponse.json().catch(() => ({}));
+          }
+        } catch {
+          // try next fallback
+        }
+      }
+    }
     // ── Retry bei 401 mit neuer Session ──
     if (auth && response.status === 401 && retries > 0) {
       console.warn("⚠️  401 erhalten, versuche neue Session zu laden...");
