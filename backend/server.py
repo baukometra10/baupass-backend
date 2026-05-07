@@ -4010,6 +4010,10 @@ def _normalize_api_token(raw):
         value = value[7:].strip()
     elif lower_value.startswith("api-key:"):
         value = value[8:].strip()
+    elif lower_value.startswith("api-key="):
+        value = value[8:].strip()
+    elif lower_value.startswith("api-key "):
+        value = value[8:].strip()
     return value
 
 
@@ -4017,8 +4021,18 @@ def _is_valid_brevo_api_key(value):
     token = _normalize_api_token(value)
     if not token:
         return False
-    # Brevo API v3 keys follow xkeysib-... (single token, no concatenated values).
-    return bool(re.fullmatch(r"xkeysib-[A-Za-z0-9_-]{20,}", token))
+    token_lower = token.lower()
+    if not token_lower.startswith("xkeysib-"):
+        return False
+    # Reject obviously pasted multi-value strings.
+    if any(sep in token for sep in ["\n", "\r", " ", "\t", ",", ";"]):
+        return False
+    # Reject concatenated/mixed prefixes (seen in broken values like xkeysib-xsmtpsib-...).
+    tail = token_lower[len("xkeysib-"):]
+    if "xkeysib-" in tail or "xsmtpsib-" in tail:
+        return False
+    # Brevo keys are opaque; allow broad safe token charset.
+    return bool(re.fullmatch(r"xkeysib-[A-Za-z0-9._:-]{8,}", token))
 
 
 def _get_resend_api_key_and_source():
