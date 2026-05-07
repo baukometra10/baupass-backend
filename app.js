@@ -21247,7 +21247,6 @@ async function handleSettingsSubmit(event) {
       imapUseSsl: document.querySelector("#imapUseSsl")?.value !== "0",
       impressumText: (document.querySelector("#impressumText")?.value || ""),
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
-      brevoApiKey: (document.querySelector("#brevoApiKey")?.value || ""),
       brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
       invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || "").trim(),
       invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || "").trim(),
@@ -21275,6 +21274,10 @@ async function handleSettingsSubmit(event) {
     const imapPasswordValue = document.querySelector("#imapPassword")?.value || "";
     if (imapPasswordValue.trim()) {
       settingsBody.imapPassword = imapPasswordValue;
+    }
+    const brevoApiKeyValue = (document.querySelector("#brevoApiKey")?.value || "").trim();
+    if (brevoApiKeyValue) {
+      settingsBody.brevoApiKey = brevoApiKeyValue;
     }
 
     const updated = await apiRequest(API_BASE + "/api/settings", {
@@ -21313,9 +21316,12 @@ function getCurrentSmtpSettingsFromForm() {
     smtpSenderEmail: document.querySelector("#smtpSenderEmail")?.value.trim() || "",
     smtpSenderName: document.querySelector("#smtpSenderName")?.value.trim() || "",
     smtpUseTls: document.querySelector("#smtpUseTls")?.value === "1",
-    brevoApiKey: document.querySelector("#brevoApiKey")?.value || "",
     brevoFromEmail: document.querySelector("#brevoFromEmail")?.value.trim() || "",
   };
+  const brevoApiKey = (document.querySelector("#brevoApiKey")?.value || "").trim();
+  if (brevoApiKey) {
+    settings.brevoApiKey = brevoApiKey;
+  }
   const smtpPassword = document.querySelector("#smtpPassword")?.value || "";
   if (smtpPassword.trim()) {
     settings.smtpPassword = smtpPassword;
