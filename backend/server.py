@@ -3893,6 +3893,11 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
             return True, ""
         except Exception as smtp_exc:
             on_invoice_send_failure_update_circuit(str(smtp_exc))
+            if is_smtp_auth_disabled_error(str(smtp_exc)):
+                app.logger.warning(
+                    "[DUNNING] SMTP AUTH ist fuer dieses Outlook-Postfach deaktiviert (5.7.139). "
+                    "SMTP wird voruebergehend uebersprungen, API-Fallback wird verwendet."
+                )
             app.logger.warning(
                 f"[DUNNING] SMTP fehlgeschlagen ({smtp_exc}) | host={smtp_host}:{smtp_port} tls={int(smtp_use_tls)} timeout={SMTP_CONNECT_TIMEOUT_SECONDS}s, versuche API-Fallback"
             )
@@ -13277,6 +13282,19 @@ def classify_invoice_send_error(error_message):
     return "other"
 
 
+def is_smtp_auth_disabled_error(error_message):
+    msg = str(error_message or "").strip().lower()
+    if not msg:
+        return False
+    markers = [
+        "5.7.139",
+        "smtpclientauthentication is disabled for the mailbox",
+        "smtp_auth_disabled",
+        "aka.ms/smtp_auth_disabled",
+    ]
+    return any(marker in msg for marker in markers)
+
+
 def get_adaptive_invoice_retry_delay_seconds(attempt_count, error_message):
     base = get_invoice_retry_delay_seconds(attempt_count)
     category = classify_invoice_send_error(error_message)
@@ -13313,8 +13331,22 @@ def on_invoice_send_success_reset_circuit():
         _invoice_smtp_circuit["last_error"] = ""
 
 
+def force_open_invoice_smtp_circuit(reason, open_seconds=None):
+    seconds = max(120, int(open_seconds or INVOICE_SMTP_CIRCUIT_OPEN_SECONDS))
+    with _invoice_smtp_circuit_lock:
+        _invoice_smtp_circuit["consecutive_failures"] = max(
+            int(_invoice_smtp_circuit.get("consecutive_failures") or 0),
+            INVOICE_SMTP_CIRCUIT_FAIL_THRESHOLD,
+        )
+        _invoice_smtp_circuit["last_error"] = str(reason or "")
+        _invoice_smtp_circuit["open_until"] = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+
+
 def on_invoice_send_failure_update_circuit(error_message):
     if not is_smtp_related_error(error_message):
+        return
+    if is_smtp_auth_disabled_error(error_message):
+        force_open_invoice_smtp_circuit(error_message)
         return
     with _invoice_smtp_circuit_lock:
         failures = int(_invoice_smtp_circuit.get("consecutive_failures") or 0) + 1
