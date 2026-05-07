@@ -3749,6 +3749,16 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, 
     return buf.getvalue()
 
 
+def _normalize_smtp_target(host, port, use_tls):
+    normalized_host = str(host or "").strip()
+    normalized_port = int(port or 587)
+    use_tls_flag = int(use_tls or 0) == 1
+    lower_host = normalized_host.lower()
+    if use_tls_flag and normalized_port == 25 and any(token in lower_host for token in ("outlook", "office365", "live.com", "hotmail")):
+        normalized_port = 587
+    return normalized_host, normalized_port
+
+
 def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due):
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
     sender_name = (settings_row["smtp_sender_name"] or settings_row["operator_name"] or "").strip()
@@ -3860,6 +3870,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_port = int(settings_row["smtp_port"] or 587)
     smtp_use_tls = int(settings_row["smtp_use_tls"] or 0) == 1
+    smtp_host, smtp_port = _normalize_smtp_target(smtp_host, smtp_port, smtp_use_tls)
     smtp_username = (settings_row["smtp_username"] or "").strip()
     smtp_password = settings_row["smtp_password"] or ""
     smtp_circuit_open_until = get_invoice_smtp_circuit_open_until()
@@ -3914,6 +3925,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
 @contextmanager
 def _smtp_connect(host, port, use_tls):
     """Context manager: connects to SMTP, auto-selects SSL (port 465) vs STARTTLS."""
+    host, port = _normalize_smtp_target(host, port, use_tls)
     port = int(port or 587)
     use_ssl = port == 465
     use_tls_flag = int(use_tls or 0) == 1
@@ -3931,6 +3943,7 @@ def _run_smtp_diagnostics(smtp_settings):
     host = smtp_settings["smtp_host"]
     port = int(smtp_settings["smtp_port"] or 587)
     use_tls = int(smtp_settings["smtp_use_tls"] or 0) == 1
+    host, port = _normalize_smtp_target(host, port, use_tls)
     smtp_username = smtp_settings["smtp_username"]
     smtp_password = smtp_settings["smtp_password"]
     stage = "init"
@@ -4420,6 +4433,11 @@ def _resolve_smtp_settings(saved_settings, override_payload=None):
         smtp_settings["smtp_sender_name"] = smtp_settings["platform_name"]
     if not smtp_settings["operator_name"]:
         smtp_settings["operator_name"] = smtp_settings["platform_name"]
+    smtp_settings["smtp_host"], smtp_settings["smtp_port"] = _normalize_smtp_target(
+        smtp_settings["smtp_host"],
+        smtp_settings["smtp_port"],
+        smtp_settings["smtp_use_tls"],
+    )
     return smtp_settings
 
 
