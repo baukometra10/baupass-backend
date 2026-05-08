@@ -1600,6 +1600,12 @@ let lastSubmittedLeaveRequestId = "";
 let leaveRefreshInterval = null;
 let quickMenuObserver = null;
 let activeWorkerPageTarget = "";
+// ── Dynamic QR state ─────────────────────────────────────────────────────────
+let dqrInterval = null;          // setInterval handle for auto-refresh
+let dqrCountdownInterval = null; // setInterval for per-second countdown
+let dqrRemainingSeconds = 60;    // seconds until next QR refresh
+let dqrCurrentToken = "";        // last fetched DQR token
+let dqrWorkerBadgeId = "";       // fallback static badge id
 
 const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
@@ -1868,7 +1874,7 @@ async function init() {
   if (workerToken) {
     const loaded = await loadWorkerData();
     if (loaded) {
-      if (viewParam === "card") applyWorkerPageView("badgeCard");
+      applyWorkerPageView("badgeCard");
       return;
     }
   }
@@ -1880,7 +1886,7 @@ async function init() {
     const locationPayload = await resolveLoginLocation();
     await loginWithAccessToken(storedAccessToken, { keepUrlToken: false, silent: true, locationPayload });
     if (workerToken) {
-      if (viewParam === "card") applyWorkerPageView("badgeCard");
+      applyWorkerPageView("badgeCard");
       return;
     }
   }
@@ -2874,6 +2880,7 @@ function renderWorker(payload) {
     }
   }
 
+  dqrWorkerBadgeId = String(worker.badgeId || "").trim();
   const qrPayload = buildQrPayload(worker);
   const isCompactViewport = window.matchMedia("(max-width: 520px)").matches;
   const workerQrSize = isCompactViewport ? 520 : 460;
@@ -2939,6 +2946,9 @@ function renderWorker(payload) {
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
+  haptic([18, 35, 22]);
+  // Start dynamic QR lifecycle as soon as pass is visible.
+  startDynamicQrRefresh();
   if (elements.workerQuickMenu) {
     elements.workerQuickMenu.classList.add("hidden");
   }
@@ -3027,6 +3037,7 @@ function showLogin() {
   sessionExpiringSoonNotified = false;
   gateAutoOpenTriggered = false;
   stopAmbientLightRecommendation();
+    stopDynamicQrRefresh();
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
@@ -3230,6 +3241,7 @@ function showPassLockError(message) {
 }
 
 async function workerLogout() {
+    stopDynamicQrRefresh();
   try {
     if (workerToken) {
       await fetchJson(`${API_BASE}/logout`, {
@@ -3360,13 +3372,94 @@ function stopAmbientLightRecommendation() {
   ambientLightSensorHandle = null;
 }
 
+// ── Dynamic QR System ────────────────────────────────────────────────────────
 function buildQrPayload(worker) {
+  // Returns current DQR token if available, else falls back to static badge id.
+  if (dqrCurrentToken) return dqrCurrentToken;
   const badge = String(worker?.badgeId || "").trim();
-  if (badge) {
-    return badge;
+  return badge || String(worker?.id || "").trim();
+}
+
+/** Vibrate the device (silent fail on unsupported devices) */
+function haptic(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
+}
+
+/** Update the QR countdown ring and text */
+function _updateQrCountdownDisplay() {
+  const el = document.getElementById("dqrCountdownRing");
+  const textEl = document.getElementById("dqrCountdownText");
+  if (!el && !textEl) return;
+  const sec = Math.max(0, dqrRemainingSeconds);
+  if (textEl) textEl.textContent = sec + "s";
+  if (el) {
+    const radius = 10;
+    const circ = 2 * Math.PI * radius;
+    const fraction = sec / 60;
+    el.style.strokeDashoffset = String(circ * (1 - fraction));
   }
-  const fallback = String(worker?.id || "").trim();
-  return fallback;
+}
+
+/** Fetch one dynamic QR token from the backend and update the QR image */
+async function fetchAndDisplayDynamicQr() {
+  if (!workerToken) return;
+  try {
+    const data = await fetchJson(`${API_BASE}/worker-app/dynamic-qr`, {
+      headers: { Authorization: `Bearer ${workerToken}` }
+    });
+    if (data?.qrToken) {
+      dqrCurrentToken = data.qrToken;
+      dqrRemainingSeconds = data.remainingSec ?? 60;
+      // Re-render QR image
+      const isCompact = window.matchMedia("(max-width: 520px)").matches;
+      const sz = isCompact ? 520 : 460;
+      if (elements.workerQr) {
+        elements.workerQr.classList.remove("hidden");
+        void setQrImage(elements.workerQr, dqrCurrentToken, sz);
+        // Animate a quick flash on refresh
+        elements.workerQr.style.opacity = "0.4";
+        requestAnimationFrame(() => {
+          elements.workerQr.style.transition = "opacity 0.35s ease";
+          elements.workerQr.style.opacity = "1";
+        });
+      }
+      // Also update gate QR if open
+      if (elements.gateQr && !elements.gateQr.classList.contains("hidden")) {
+        const gSz = isCompact ? 520 : 420;
+        void setQrImage(elements.gateQr, dqrCurrentToken, gSz);
+      }
+      // Update fallback text
+      if (elements.qrFallbackText) elements.qrFallbackText.textContent = `Code: ${data.badgeId}`;
+      haptic(30); // subtle pulse on QR refresh
+      _updateQrCountdownDisplay();
+    }
+  } catch {
+    // offline or expired session — keep showing last token
+  }
+}
+
+/** Start polling for fresh dynamic QR tokens */
+function startDynamicQrRefresh() {
+  stopDynamicQrRefresh();
+  // Fetch immediately
+  void fetchAndDisplayDynamicQr();
+  // Schedule re-fetch every 55s (5s before window expiry)
+  dqrInterval = setInterval(() => {
+    void fetchAndDisplayDynamicQr();
+  }, 55_000);
+  // Countdown every second
+  dqrCountdownInterval = setInterval(() => {
+    dqrRemainingSeconds = Math.max(0, dqrRemainingSeconds - 1);
+    _updateQrCountdownDisplay();
+  }, 1000);
+}
+
+/** Stop dynamic QR polling (e.g. on logout or when card is hidden) */
+function stopDynamicQrRefresh() {
+  if (dqrInterval) { clearInterval(dqrInterval); dqrInterval = null; }
+  if (dqrCountdownInterval) { clearInterval(dqrCountdownInterval); dqrCountdownInterval = null; }
+  dqrCurrentToken = "";
+  dqrRemainingSeconds = 60;
 }
 
 function normalizeBadgeIdInput(value) {

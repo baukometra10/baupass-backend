@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import hashlib
+import hmac as hmac_mod
 import base64
 import smtplib
 import ipaddress
@@ -9417,6 +9418,22 @@ def _resolve_worker_by_identity_token(db, raw_token):
         return None, "missing_token"
     if len(token_value) > 256:
         return None, "invalid_token"
+    # Dynamic QR token (DQR:badgeId:window:sig) — validate and resolve by badge
+    if token_value.startswith("DQR:"):
+        dqr_badge_id, dqr_err = _dqr_validate(token_value)
+        if dqr_err:
+            return None, dqr_err
+        badge_lookup = normalize_badge_id(dqr_badge_id)
+        row = db.execute(
+            "SELECT * FROM workers WHERE badge_id_lookup = ? AND deleted_at IS NULL LIMIT 1",
+            (badge_lookup,),
+        ).fetchone()
+        if not row:
+            return None, "invalid_token"
+        if row["deleted_at"]:
+            return None, "worker_not_available"
+        return row, ""
+
     token_hash = _hash_identity_token(token_value)
     row = db.execute(
         """
@@ -10021,6 +10038,78 @@ def worker_app_logout():
     db.commit()
     return jsonify({"ok": True})
 
+
+# ── Dynamic QR helpers ────────────────────────────────────────────────────────
+_DQR_WINDOW_SECONDS = 60  # how long each QR token is valid
+_DQR_GRACE_WINDOWS = 1  # accept N extra previous windows (clock skew tolerance)
+
+
+def _dqr_secret():
+    """Per-installation secret used to sign dynamic QR tokens."""
+    return (
+        (os.getenv("BAUPASS_DQR_SECRET") or "").strip()
+        or _identity_token_secret()
+    )
+
+
+def _dqr_window(ts: float | None = None) -> int:
+    return int((ts or time.time()) // _DQR_WINDOW_SECONDS)
+
+
+def _dqr_sign(badge_id: str, window: int) -> str:
+    msg = f"{badge_id}:{window}".encode()
+    return hmac_mod.new(_dqr_secret().encode(), msg, "sha256").hexdigest()[:16]
+
+
+def _dqr_build(badge_id: str, window: int | None = None) -> str:
+    w = window if window is not None else _dqr_window()
+    sig = _dqr_sign(badge_id, w)
+    return f"DQR:{badge_id}:{w}:{sig}"
+
+
+def _dqr_validate(token: str) -> tuple[str | None, str]:
+    """Returns (badge_id, error). error is '' on success."""
+    if not token.startswith("DQR:"):
+        return None, "not_dynamic_qr"
+    parts = token.split(":", 3)
+    if len(parts) != 4:
+        return None, "malformed_dqr"
+    _, badge_id, window_str, sig = parts
+    try:
+        window = int(window_str)
+    except ValueError:
+        return None, "malformed_dqr"
+    current = _dqr_window()
+    # Accept current + previous N windows (grace period for scanning delay)
+    if not (current - _DQR_GRACE_WINDOWS <= window <= current):
+        return None, "dqr_expired"
+    expected = _dqr_sign(badge_id, window)
+    if not hmac_mod.compare_digest(sig, expected):
+        return None, "dqr_invalid_signature"
+    return badge_id, ""
+
+
+@app.get("/api/worker-app/dynamic-qr")
+@require_worker_session
+def worker_app_dynamic_qr():
+    """Return a fresh short-lived signed QR token for the worker's badge."""
+    worker = g.worker
+    badge_id = str(worker["badge_id"] or "").strip()
+    if not badge_id:
+        return jsonify({"error": "badge_id_missing"}), 422
+    now_ts = time.time()
+    window = _dqr_window(now_ts)
+    token = _dqr_build(badge_id, window)
+    elapsed_in_window = int(now_ts % _DQR_WINDOW_SECONDS)
+    remaining_sec = _DQR_WINDOW_SECONDS - elapsed_in_window
+    return jsonify(
+        {
+            "qrToken": token,
+            "windowSec": _DQR_WINDOW_SECONDS,
+            "remainingSec": remaining_sec,
+            "badgeId": badge_id,
+        }
+    )
 
 _pin_fail_counts: dict = {}  # worker_id -> [fail_count, window_start_ts]
 _PIN_MAX_ATTEMPTS = 5
@@ -11639,9 +11728,21 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
     payload = payload if isinstance(payload, dict) else {}
     received_at = utc_now().replace(microsecond=0)
     received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+    # Accept dynamic QR tokens (DQR:...) in the "token" or "badgeId" field
+    raw_token_field = str(payload.get("token") or "").strip()
     raw_card_value = payload.get("physicalCardId") or payload.get("cardId") or payload.get("badgeId")
-    physical_card_id = normalize_physical_card_id(raw_card_value)
-    badge_id_lookup = normalize_badge_id(raw_card_value)
+    dqr_badge_id = None
+    if raw_token_field.startswith("DQR:"):
+        dqr_badge_id, dqr_err = _dqr_validate(raw_token_field)
+        if dqr_err:
+            return {"error": dqr_err}, 401
+    elif raw_card_value and str(raw_card_value).strip().startswith("DQR:"):
+        dqr_badge_id, dqr_err = _dqr_validate(str(raw_card_value).strip())
+        if dqr_err:
+            return {"error": dqr_err}, 401
+        raw_card_value = None  # don't also try raw badge lookup below
+    physical_card_id = normalize_physical_card_id(raw_card_value) if not dqr_badge_id else None
+    badge_id_lookup = normalize_badge_id(raw_card_value) if not dqr_badge_id else normalize_badge_id(dqr_badge_id)
     if not physical_card_id and not badge_id_lookup:
         return {"error": "missing_card_identifier"}, 400
 

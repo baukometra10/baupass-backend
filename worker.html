@@ -189,6 +189,13 @@
           <div class="wc-qr-holder">
             <div class="wc-qr-frame" aria-hidden="true"></div>
             <img id="workerQr" alt="QR Code" data-i18n="qrCodeAlt" data-i18n-attr="alt" />
+            <div class="dqr-countdown" aria-live="polite" aria-label="QR Aktualisierung">
+              <svg class="dqr-ring" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+                <circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2"></circle>
+                <circle id="dqrCountdownRing" cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round" stroke-dasharray="62.83" stroke-dashoffset="0"></circle>
+              </svg>
+              <span id="dqrCountdownText" class="dqr-countdown-text">60s</span>
+            </div>
           </div>
           <img id="workerPhoto" class="wc-photo" alt="Mitarbeiterfoto" data-i18n="workerPhotoAlt" data-i18n-attr="alt" />
         </div>

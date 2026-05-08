@@ -1001,8 +1001,47 @@ body.worker-loaded .app-shell {
   flex-shrink: 0;
 }
 
+.dqr-countdown {
+  position: absolute;
+  right: -8px;
+  top: -8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(9, 15, 22, 0.62);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.dqr-ring {
+  position: absolute;
+  inset: 2px;
+}
+
+#dqrCountdownRing {
+  transition: stroke-dashoffset 1s linear;
+  transform-origin: 50% 50%;
+  transform: rotate(-90deg);
+}
+
+.dqr-countdown-text {
+  position: relative;
+  z-index: 4;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
 .wc-qr-frame {
   position: absolute;
+  -webkit-backdrop-filter: blur(4px);
   inset: -7px;
   border-radius: 16px;
   background: linear-gradient(135deg, #b88628 0%, #efd26b 26%, #fff2a5 45%, #d09b2f 62%, #8d6420 100%);
@@ -1033,6 +1072,7 @@ body.worker-loaded .app-shell {
   background: #fff;
   padding: 4px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .22);
+  transition: opacity .35s ease, transform .35s ease;
 }
 
 /* Mitarbeiterfoto */
