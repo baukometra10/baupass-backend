@@ -19,6 +19,20 @@ class MainActivity : AppCompatActivity() {
         val bootstrapBtn = findViewById<Button>(R.id.bootstrapBtn)
         val statusView = findViewById<TextView>(R.id.statusView)
 
+        // Restore last successful config for fast restart and auto-refresh.
+        baseUrlInput.setText(HceTokenStore.getBaseUrl(this))
+        sessionTokenInput.setText(HceTokenStore.getWorkerToken(this))
+        deviceIdInput.setText(HceTokenStore.getDeviceId(this))
+
+        if (HceTokenStore.hasBootstrapConfig(this)) {
+            HceBootstrapScheduler.schedulePeriodic(this)
+        }
+
+        if (HceTokenStore.hasBootstrapConfig(this) && !HceTokenStore.isTokenValid(this)) {
+            statusView.text = "Status: Token abgelaufen, erneuere im Hintergrund..."
+            HceBootstrapScheduler.triggerNow(this)
+        }
+
         bootstrapBtn.setOnClickListener {
             val baseUrl = baseUrlInput.text?.toString()?.trim().orEmpty()
             val workerToken = sessionTokenInput.text?.toString()?.trim().orEmpty()
@@ -35,6 +49,8 @@ class MainActivity : AppCompatActivity() {
                     val result = apiClient.fetchHceBootstrap(baseUrl, workerToken, deviceId)
                     val expiresAtMs = System.currentTimeMillis() + (result.remainingSec.coerceAtLeast(20) * 1000L)
                     HceTokenStore.save(this, result.payloadToken, expiresAtMs, result.aid)
+                    HceTokenStore.saveBootstrapConfig(this, baseUrl, workerToken, deviceId)
+                    HceBootstrapScheduler.schedulePeriodic(this)
                     runOnUiThread {
                         statusView.text = "Status: Aktiv. AID=${result.aid}, Badge=${result.badgeId}, gueltig ${result.remainingSec}s"
                     }
