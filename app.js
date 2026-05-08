@@ -27516,7 +27516,7 @@ function showAlert(key, vars = {}) {
   for (const [k, v] of Object.entries(vars)) {
     text = text.replace(`{${k}}`, String(v));
   }
-  alert(text);
+  showToast(text, "info", 3600);
 }
 
 function showToast(message, type = "info", timeout = 2600) {
@@ -27540,6 +27540,27 @@ function showToast(message, type = "info", timeout = 2600) {
     el.classList.remove("is-visible");
   }, Math.max(1200, Number(timeout) || 2600));
   el.dataset.timerId = String(timerId);
+}
+
+const _nativeAlert = typeof window !== "undefined" && typeof window.alert === "function"
+  ? window.alert.bind(window)
+  : null;
+
+function installNonBlockingAlertBridge() {
+  if (typeof window === "undefined") return;
+  window.alert = (message) => {
+    const text = String(message || "").trim();
+    if (!text) return;
+    try {
+      if (!document?.body) {
+        _nativeAlert?.(text);
+        return;
+      }
+      showToast(text, "info", 3600);
+    } catch {
+      _nativeAlert?.(text);
+    }
+  };
 }
 
 function showConfirmDialog(message) {
@@ -27582,6 +27603,7 @@ function getCurrentLang() {
 }
 
 // ── App-Start: läuft bei jedem Seitenaufruf / Refresh ─────────────────────
+installNonBlockingAlertBridge();
 initUiLanguageControl();
 initSystemThemeControl();
 initNativeDesktopShell();
