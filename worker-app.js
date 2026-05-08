@@ -227,6 +227,8 @@ const TRANSLATIONS = {
     pageBackBtn: "← Übersicht",
     workerHubShowBtn: "Bereiche anzeigen",
     workerHubHideBtn: "Bereiche ausblenden",
+    compactShowMore: "Mehr anzeigen",
+    compactShowLess: "Weniger anzeigen",
     lateCheckInMessage: "Achtung: Du bist heute zu spät eingestempelt!",
     lateMinutesUnit: "Min.",
   },
@@ -384,6 +386,8 @@ const TRANSLATIONS = {
     pageBackBtn: "← Overview",
     workerHubShowBtn: "Show sections",
     workerHubHideBtn: "Hide sections",
+    compactShowMore: "Show more",
+    compactShowLess: "Show less",
     lateCheckInMessage: "Notice: You clocked in late today!",
     lateMinutesUnit: "min.",
   },
@@ -1607,6 +1611,8 @@ let quickMenuObserver = null;
 let activeWorkerPageTarget = "";
 let iosWalletImmersive = false;
 let workerHubExpanded = false;
+let timesheetCompactExpanded = false;
+let documentsCompactExpanded = false;
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrInterval = null;          // setInterval handle for auto-refresh
 let dqrCountdownInterval = null; // setInterval for per-second countdown
@@ -4599,7 +4605,11 @@ async function loadMyTimesheets() {
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(row);
     }
-    elements.timesheetList.innerHTML = Object.entries(byDate).map(([date, entries]) => {
+    const dayGroups = Object.entries(byDate);
+    const visibleDayGroups = timesheetCompactExpanded ? dayGroups : dayGroups.slice(0, 3);
+    const daysHiddenCount = Math.max(0, dayGroups.length - visibleDayGroups.length);
+
+    const dayMarkup = visibleDayGroups.map(([date, entries]) => {
         // Pair IN/OUT entries to calculate total hours
         const ins = entries.filter(e => (e.direction || "").toLowerCase() === "in").sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
         const outs = entries.filter(e => (e.direction || "").toLowerCase() === "out").sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
@@ -4626,6 +4636,20 @@ async function loadMyTimesheets() {
         }).join("")}
       </div>`;
       }).join("");
+
+    const toggleMarkup = daysHiddenCount > 0 || timesheetCompactExpanded
+      ? `<button id="timesheetCompactToggleBtn" class="ghost small-btn compact-list-toggle" type="button">${timesheetCompactExpanded ? t("compactShowLess") : `${t("compactShowMore")} (+${daysHiddenCount})`}</button>`
+      : "";
+
+    elements.timesheetList.innerHTML = dayMarkup + toggleMarkup;
+
+    const toggleBtn = document.querySelector("#timesheetCompactToggleBtn");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        timesheetCompactExpanded = !timesheetCompactExpanded;
+        void loadMyTimesheets();
+      });
+    }
   } catch (error) {
     elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
     console.warn("Could not load timesheets:", error);
@@ -4662,7 +4686,9 @@ async function loadMyDocuments() {
       warningBanner += `<div class="doc-warning-banner doc-warning-soon">🕐 ${expiringSoon.length} Dokument${expiringSoon.length > 1 ? "e laufen" : " läuft"} bald ab</div>`;
     }
 
-    elements.documentsList.innerHTML = warningBanner + rows.map((doc) => {
+    const visibleRows = documentsCompactExpanded ? rows : rows.slice(0, 3);
+    const docsHiddenCount = Math.max(0, rows.length - visibleRows.length);
+    const docsMarkup = visibleRows.map((doc) => {
       const isExpired = doc.expiry_date && doc.expiry_date < today;
       const statusLabel = doc.expiry_date
         ? (isExpired ? t("documentsStatusExpired") : t("documentsStatusOk"))
@@ -4678,6 +4704,20 @@ async function loadMyDocuments() {
         </div>
       </div>`;
     }).join("");
+
+    const toggleMarkup = docsHiddenCount > 0 || documentsCompactExpanded
+      ? `<button id="documentsCompactToggleBtn" class="ghost small-btn compact-list-toggle" type="button">${documentsCompactExpanded ? t("compactShowLess") : `${t("compactShowMore")} (+${docsHiddenCount})`}</button>`
+      : "";
+
+    elements.documentsList.innerHTML = warningBanner + docsMarkup + toggleMarkup;
+
+    const toggleBtn = document.querySelector("#documentsCompactToggleBtn");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        documentsCompactExpanded = !documentsCompactExpanded;
+        void loadMyDocuments();
+      });
+    }
   } catch (error) {
     elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsEmpty")}</p>`;
     console.warn("Could not load documents:", error);
