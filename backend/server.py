@@ -2085,6 +2085,22 @@ def init_db():
             FOREIGN KEY(company_id) REFERENCES companies(id)
         );
 
+        CREATE TABLE IF NOT EXISTS hce_device_trust (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            platform TEXT NOT NULL DEFAULT 'android',
+            app_version TEXT NOT NULL DEFAULT '',
+            device_secret TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            UNIQUE(worker_id, device_id),
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        );
+
         CREATE TABLE IF NOT EXISTS day_close_acknowledgements (
             id TEXT PRIMARY KEY,
             date TEXT NOT NULL,
@@ -10101,6 +10117,77 @@ def _hce_sign_handshake(worker_id: str, badge_id: str, device_id: str, nonce: st
     return hmac_mod.new(_hce_handshake_secret().encode("utf-8"), msg, "sha256").hexdigest()
 
 
+def _hce_device_payload_to_sign(device_id: str, nonce: str, client_ts: str) -> str:
+    return f"{device_id}|{nonce}|{client_ts}"
+
+
+def _hce_sign_device_payload(device_secret: str, device_id: str, nonce: str, client_ts: str) -> str:
+    payload = _hce_device_payload_to_sign(device_id, nonce, client_ts).encode("utf-8")
+    return hmac_mod.new(device_secret.encode("utf-8"), payload, "sha256").hexdigest()
+
+
+@app.post("/api/worker-app/hce/device/register")
+@require_worker_session
+def worker_app_hce_device_register():
+    worker = g.worker
+    payload = request.get_json(silent=True) or {}
+    device_id = clean_id_input(payload.get("deviceId") or payload.get("device_id"), max_len=80)
+    platform = clean_text_input(payload.get("platform") or "android", max_len=24) or "android"
+    app_version = clean_text_input(payload.get("appVersion") or "", max_len=40)
+    if not device_id:
+        return jsonify({"error": "missing_device_id"}), 400
+
+    db = get_db()
+    now_value = now_iso()
+    device_secret = secrets.token_hex(24)
+    existing = db.execute(
+        """
+        SELECT id
+        FROM hce_device_trust
+        WHERE worker_id = ? AND device_id = ?
+        LIMIT 1
+        """,
+        (worker["id"], device_id),
+    ).fetchone()
+
+    if existing:
+        db.execute(
+            """
+            UPDATE hce_device_trust
+            SET company_id = ?,
+                platform = ?,
+                app_version = ?,
+                device_secret = ?,
+                status = 'active',
+                last_seen_at = ?
+            WHERE id = ?
+            """,
+            (worker["company_id"], platform, app_version, device_secret, now_value, existing["id"]),
+        )
+        record_id = existing["id"]
+    else:
+        record_id = f"hce-dev-{secrets.token_hex(6)}"
+        db.execute(
+            """
+            INSERT INTO hce_device_trust (
+                id, worker_id, company_id, device_id, platform, app_version, device_secret, status, created_at, last_seen_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            """,
+            (record_id, worker["id"], worker["company_id"], device_id, platform, app_version, device_secret, now_value, now_value),
+        )
+    db.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "deviceTrustId": record_id,
+            "deviceId": device_id,
+            "deviceSecret": device_secret,
+            "registeredAt": now_value,
+            "status": "active",
+        }
+    )
+
+
 @app.get("/api/worker-app/dynamic-qr")
 @require_worker_session
 def worker_app_dynamic_qr():
@@ -10142,6 +10229,31 @@ def worker_app_hce_bootstrap():
     if not device_id:
         return jsonify({"error": "missing_device_id"}), 400
 
+    db = get_db()
+    trust_row = db.execute(
+        """
+        SELECT *
+        FROM hce_device_trust
+        WHERE worker_id = ? AND device_id = ?
+        LIMIT 1
+        """,
+        (worker["id"], device_id),
+    ).fetchone()
+    if not trust_row:
+        return jsonify({"error": "device_not_registered"}), 403
+    if str(trust_row["status"] or "") != "active":
+        return jsonify({"error": "device_not_active"}), 403
+
+    client_nonce = clean_id_input(payload.get("nonce"), max_len=120)
+    client_ts = clean_text_input(payload.get("clientTs"), max_len=40)
+    submitted_sig = str(request.headers.get("X-HCE-Device-Signature") or payload.get("deviceSignature") or "").strip().lower()
+    if not client_nonce or not client_ts or not submitted_sig:
+        return jsonify({"error": "missing_device_signature"}), 401
+
+    expected_sig = _hce_sign_device_payload(str(trust_row["device_secret"] or ""), device_id, client_nonce, client_ts)
+    if not hmac_mod.compare_digest(submitted_sig, expected_sig):
+        return jsonify({"error": "invalid_device_signature"}), 401
+
     now_ts = time.time()
     now_iso_value = now_iso()
     window = _dqr_window(now_ts)
@@ -10151,6 +10263,12 @@ def worker_app_hce_bootstrap():
     expires_at = (datetime.now(timezone.utc) + timedelta(seconds=max(remaining_sec, 20))).replace(tzinfo=None).isoformat() + "Z"
     nonce = secrets.token_hex(8)
     signature = _hce_sign_handshake(str(worker["id"]), badge_id, device_id, nonce, now_iso_value, expires_at)
+
+    db.execute(
+        "UPDATE hce_device_trust SET last_seen_at = ? WHERE id = ?",
+        (now_iso_value, trust_row["id"]),
+    )
+    db.commit()
 
     return jsonify(
         {

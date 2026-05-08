@@ -12,6 +12,8 @@ object HceTokenStore {
     private const val KEY_WORKER_TOKEN_CT = "worker_token_ct"
     private const val KEY_WORKER_TOKEN_IV = "worker_token_iv"
     private const val KEY_DEVICE_ID = "device_id"
+    private const val KEY_DEVICE_SECRET_CT = "device_secret_ct"
+    private const val KEY_DEVICE_SECRET_IV = "device_secret_iv"
 
     fun save(context: Context, token: String, expiresAtMs: Long, aid: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -59,7 +61,7 @@ object HceTokenStore {
     fun hasBootstrapConfig(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val baseUrl = prefs.getString(KEY_BASE_URL, "") ?: ""
-        val workerToken = prefs.getString(KEY_WORKER_TOKEN, "") ?: ""
+        val workerToken = getWorkerToken(context)
         val deviceId = prefs.getString(KEY_DEVICE_ID, "") ?: ""
         return baseUrl.isNotBlank() && workerToken.isNotBlank() && deviceId.isNotBlank()
     }
@@ -88,5 +90,26 @@ object HceTokenStore {
     fun getDeviceId(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return prefs.getString(KEY_DEVICE_ID, "") ?: ""
+    }
+
+    fun saveDeviceSecret(context: Context, deviceSecret: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val (ct, iv) = SecurePrefsCrypto.encrypt(deviceSecret.trim())
+        prefs.edit()
+            .putString(KEY_DEVICE_SECRET_CT, ct)
+            .putString(KEY_DEVICE_SECRET_IV, iv)
+            .apply()
+    }
+
+    fun getDeviceSecret(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val ct = prefs.getString(KEY_DEVICE_SECRET_CT, "") ?: ""
+        val iv = prefs.getString(KEY_DEVICE_SECRET_IV, "") ?: ""
+        if (ct.isBlank() || iv.isBlank()) return ""
+        return try {
+            SecurePrefsCrypto.decrypt(ct, iv)
+        } catch (_: Exception) {
+            ""
+        }
     }
 }

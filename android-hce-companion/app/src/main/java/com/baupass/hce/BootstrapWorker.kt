@@ -20,8 +20,16 @@ class BootstrapWorker(
             val baseUrl = HceTokenStore.getBaseUrl(applicationContext)
             val workerToken = HceTokenStore.getWorkerToken(applicationContext)
             val deviceId = HceTokenStore.getDeviceId(applicationContext)
+            val knownSecret = HceTokenStore.getDeviceSecret(applicationContext)
+            val deviceSecret = if (knownSecret.isBlank()) {
+                val registerResult = apiClient.registerHceDevice(baseUrl, workerToken, deviceId)
+                HceTokenStore.saveDeviceSecret(applicationContext, registerResult.deviceSecret)
+                registerResult.deviceSecret
+            } else {
+                knownSecret
+            }
 
-            val result = apiClient.fetchHceBootstrap(baseUrl, workerToken, deviceId)
+            val result = apiClient.fetchHceBootstrap(baseUrl, workerToken, deviceId, deviceSecret)
             val expiresAtMs = System.currentTimeMillis() + (result.remainingSec.coerceAtLeast(20) * 1000L)
             HceTokenStore.save(applicationContext, result.payloadToken, expiresAtMs, result.aid)
             Result.success()
