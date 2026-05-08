@@ -17680,7 +17680,7 @@ function bindCompanyRowActions() {
       const company = state.companies.find((c) => c.id === companyId);
       const sec = state.companyAdminSecurity?.[companyId];
       if (!companyId || !company || !sec?.username) {
-        window.alert(runtimeText("companyAdminMissing"));
+        showToast(runtimeText("companyAdminMissing"), "error");
         return;
       }
       const recipientHint = sec.email || runtimeText("companyAdminResetRecipientFallback");
@@ -17694,14 +17694,14 @@ function bindCompanyRowActions() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok && data.error === "smtp_not_configured") {
-          window.alert(runtimeText("companyAdminResetSmtpSetupMissing"));
+          showToast(runtimeText("companyAdminResetSmtpSetupMissing"), "error", 3600);
         } else if (!resp.ok) {
-          window.alert(runtimeTextTemplate("companyAdminResetSendFailed", { error: data.message || resp.status }));
+          showToast(runtimeTextTemplate("companyAdminResetSendFailed", { error: data.message || resp.status }), "error", 3600);
         } else {
-          window.alert(runtimeTextTemplate("companyAdminResetSent", { username: sec.username }));
+          showToast(runtimeTextTemplate("companyAdminResetSent", { username: sec.username }), "success");
         }
       } catch (_e) {
-        window.alert(runtimeText("genericNetworkRetry"));
+        showToast(runtimeText("genericNetworkRetry"), "error", 3600);
       } finally {
         sendResetButton.disabled = false;
       }
@@ -17715,13 +17715,13 @@ function bindCompanyRowActions() {
       const company = state.companies.find((c) => c.id === companyId);
       const sec = state.companyAdminSecurity?.[companyId];
       if (!companyId || !company || !sec?.username) {
-        window.alert(runtimeText("companyAdminMissing"));
+        showToast(runtimeText("companyAdminMissing"), "error");
         return;
       }
       const newPassword = window.prompt(runtimeTextTemplate("companyAdminPasswordPrompt", { username: sec.username, company: company.name }));
       if (newPassword === null) return;
       if (newPassword.trim().length < 8) {
-        window.alert(runtimeText("companyAdminPasswordMinLength"));
+        showToast(runtimeText("companyAdminPasswordMinLength"), "error");
         return;
       }
       try {
@@ -17730,9 +17730,9 @@ function bindCompanyRowActions() {
           method: "POST",
           body: { newPassword: newPassword.trim() },
         });
-        window.alert(runtimeTextTemplate("companyAdminPasswordSet", { username: sec.username }));
+        showToast(runtimeTextTemplate("companyAdminPasswordSet", { username: sec.username }), "success");
       } catch (err) {
-        window.alert(uiT("alertGenericError").replace("{error}", err.message));
+        showToast(uiT("alertGenericError").replace("{error}", err.message), "error", 3600);
       } finally {
         setPasswordButton.disabled = false;
       }
@@ -17757,12 +17757,12 @@ function bindCompanyRowActions() {
         });
         await loadAllData();
         refreshAll();
-        window.alert(enable
+        showToast(enable
           ? runtimeTextTemplate("companyOtpEnabledMessage", { email: newEmail.trim() })
           : runtimeTextTemplate("companyOtpDisabledMessage", { company: company.name })
-        );
+        , "success", 3600);
       } catch (err) {
-        window.alert(uiT("alertGenericError").replace("{error}", err.message));
+        showToast(uiT("alertGenericError").replace("{error}", err.message), "error", 3600);
       }
       return;
     }
@@ -24225,13 +24225,13 @@ async function handleLoginSubmit(event) {
     }
   } catch (error) {
     if (error.message === "backend_unreachable") {
-      window.alert(runtimeText("backendUnreachableReload"));
+      showToast(runtimeText("backendUnreachableReload"), "error", 3600);
       return;
     }
     if (error.message === "otp_sent") {
       if (state.loginOtpPending) {
         // Already waiting for OTP → cooldown hit, don't re-show OTP field
-        window.alert(uiT("alertOtpCooldown") || "Code bereits gesendet – bitte 60 Sekunden warten.");
+        showToast(uiT("alertOtpCooldown") || "Code bereits gesendet – bitte 60 Sekunden warten.", "info", 3200);
         elements.loginOtpCode?.focus();
         return;
       }
@@ -24241,7 +24241,7 @@ async function handleLoginSubmit(event) {
       updateLoginOtpVisibility();
       await tryAutofillOtpFromClipboard();
       elements.loginOtpCode?.focus();
-      window.alert(uiT("alertOtpSent"));
+      showToast(uiT("alertOtpSent"), "success");
       return;
     }
     if (error.message === "otp_required") {
@@ -24250,14 +24250,14 @@ async function handleLoginSubmit(event) {
       updateLoginOtpVisibility();
       await tryAutofillOtpFromClipboard();
       elements.loginOtpCode?.focus();
-      window.alert(uiT("alertOtpRequired"));
+      showToast(uiT("alertOtpRequired"), "info");
       return;
     }
     if (error.message === "otp_invalid") {
       registerLoginFailure(error.message);
       if (!isLoginBlockedLocally()) {
         elements.loginOtpCode?.focus();
-        window.alert(uiT("alertOtpInvalid"));
+        showToast(uiT("alertOtpInvalid"), "error");
       }
       return;
     }
@@ -24267,7 +24267,7 @@ async function handleLoginSubmit(event) {
       return;
     }
     if (error.message === "forbidden_tenant_host") {
-      window.alert(uiT("alertForbiddenTenantHost"));
+      showToast(uiT("alertForbiddenTenantHost"), "error", 3600);
       return;
     }
     if (error.message === "support_session_read_only") {
@@ -24275,45 +24275,45 @@ async function handleLoginSubmit(event) {
       return;
     }
     if (error.message === "support_company_mismatch") {
-      window.alert(uiT("alertSupportCompanyMismatch"));
+      showToast(uiT("alertSupportCompanyMismatch"), "error", 3600);
       return;
     }
     if (error.message === "company_locked") {
-      window.alert(uiT("alertLoginCompanyLocked"));
+      showToast(uiT("alertLoginCompanyLocked"), "error", 3600);
       return;
     }
     if (error.message === "invalid_credentials") {
       registerLoginFailure(error.message);
       if (!isLoginBlockedLocally()) {
-        window.alert(uiT("alertInvalidCredentials"));
+        showToast(uiT("alertInvalidCredentials"), "error");
       }
       return;
     }
     if (error.message === "admin_ip_not_allowed") {
-      window.alert(uiT("alertAdminIpNotAllowed"));
+      showToast(uiT("alertAdminIpNotAllowed"), "error", 3600);
       return;
     }
     if (error.message === "login_scope_mismatch") {
-      window.alert(uiT("alertLoginScopeMismatch"));
+      showToast(uiT("alertLoginScopeMismatch"), "error", 3600);
       return;
     }
     if (error.message === "http_405") {
       const targetInfo = API_BASE || window.location.origin;
-      window.alert(uiT("alertLoginHttp405").replace("{target}", targetInfo));
+      showToast(uiT("alertLoginHttp405").replace("{target}", targetInfo), "error", 4200);
       return;
     }
     if (error.message === "invalid_login_response") {
-      window.alert(runtimeText("loginResponseIncomplete"));
+      showToast(runtimeText("loginResponseIncomplete"), "error", 3600);
       return;
     }
-    window.alert(uiT("alertLoginFailed").replace("{error}", error.message));
+    showToast(uiT("alertLoginFailed").replace("{error}", error.message), "error", 4200);
   }
 }
 
 async function requestPasswordResetFromLogin() {
   const username = String(elements.loginUsername?.value || "").trim();
   if (!username) {
-    window.alert(uiT("alertPasswordResetEnterUsername"));
+    showToast(uiT("alertPasswordResetEnterUsername"), "error");
     return;
   }
   try {
@@ -24322,9 +24322,9 @@ async function requestPasswordResetFromLogin() {
       method: "POST",
       body: { username }
     });
-    window.alert(uiT("alertPasswordResetSent"));
+    showToast(uiT("alertPasswordResetSent"), "success");
   } catch (error) {
-    window.alert(uiT("alertPasswordResetFailed").replace("{error}", error.message));
+    showToast(uiT("alertPasswordResetFailed").replace("{error}", error.message), "error", 3600);
   }
 }
 
@@ -24350,9 +24350,9 @@ async function maybeHandlePasswordResetToken() {
     });
     url.searchParams.delete("resetToken");
     window.history.replaceState({}, document.title, url.toString());
-    window.alert(uiT("alertPasswordSetSuccess"));
+    showToast(uiT("alertPasswordSetSuccess"), "success");
   } catch (error) {
-    window.alert(uiT("alertPasswordResetLinkFailed").replace("{error}", error.message));
+    showToast(uiT("alertPasswordResetLinkFailed").replace("{error}", error.message), "error", 3600);
   }
 }
 
@@ -24390,10 +24390,10 @@ async function handlePasswordChange(event) {
       method: "POST",
       body: { currentPassword, newPassword }
     });
-    window.alert(uiT("alertPasswordChanged"));
+    showToast(uiT("alertPasswordChanged"), "success");
     await handleLogout();
   } catch (error) {
-    window.alert(uiT("alertPasswordChangeFailed").replace("{error}", error.message));
+    showToast(uiT("alertPasswordChangeFailed").replace("{error}", error.message), "error", 3600);
   }
 }
 
