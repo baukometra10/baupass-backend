@@ -17803,6 +17803,93 @@ def test_imap_connection():
     return jsonify({"ok": False, "error": f"{detail}{hint}", "tried": tried_info, "hint": f"Versucht: {tried_str}"}), 200
 
 
+@app.post("/api/settings/imap/list-folders")
+@require_auth
+@require_roles("superadmin")
+def list_imap_folders():
+    """DEBUG: List all available IMAP folders."""
+    import imaplib
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    stored = get_imap_settings(db) or {}
+
+    host = clean_text_input((payload.get("imapHost") or stored.get("imap_host", "")), max_len=255)
+    port = int(payload.get("imapPort") or stored.get("imap_port") or 993)
+    username = clean_text_input((payload.get("imapUsername") or stored.get("imap_username", "")), max_len=255)
+    password = str(payload.get("imapPassword") or stored.get("imap_password") or "")
+    use_ssl = bool(payload.get("imapUseSsl", stored.get("imap_use_ssl", 1)))
+
+    # If user entered the SMTP host by mistake, silently correct it.
+    _smtp_only_hosts = ("smtp-mail.outlook.com", "smtp.office365.com", "smtp.live.com",
+                        "smtp.gmail.com", "smtp.mail.yahoo.com", "smtp.zoho.com")
+    if host.lower() in _smtp_only_hosts:
+        host = _infer_imap_host(username, host) or host
+
+    missing = []
+    if not host:
+        missing.append("Host")
+    if not username:
+        missing.append("Benutzername")
+    if not password:
+        missing.append("Passwort")
+    if missing:
+        return jsonify({
+            "ok": False,
+            "error": "imap_not_configured",
+            "detail": f"IMAP ist unvollständig konfiguriert: {', '.join(missing)} fehlt.",
+        }), 200
+
+    try:
+        _timeout = 15
+        attempts = [(use_ssl, port)]
+        if use_ssl and port == 993:
+            attempts.append((False, 143))
+        elif not use_ssl and port == 143:
+            attempts.append((True, 993))
+
+        conn = None
+        for attempt_ssl, attempt_port in attempts:
+            try:
+                if attempt_ssl:
+                    conn = imaplib.IMAP4_SSL(host, attempt_port, timeout=_timeout)
+                else:
+                    conn = imaplib.IMAP4(host, attempt_port, timeout=_timeout)
+                    conn.starttls()
+                _imap_login_with_fallback(conn, username, password)
+                break
+            except Exception:
+                try:
+                    if conn:
+                        conn.logout()
+                except Exception:
+                    pass
+                conn = None
+
+        if not conn:
+            return jsonify({"ok": False, "error": "IMAP-Verbindung fehlgeschlagen"}), 200
+
+        # Get all folders
+        status, mailboxes = conn.list()
+        folders = []
+        if status == "OK":
+            for mailbox_info in mailboxes:
+                try:
+                    # mailbox_info = b'(\\Noselect) "/" "Ordnername"' or similar
+                    mailbox_str = mailbox_info.decode("utf-8") if isinstance(mailbox_info, bytes) else mailbox_info
+                    # Extract folder name from the response
+                    parts = mailbox_str.split('" ')
+                    if len(parts) >= 1:
+                        folder_name = parts[-1].strip('"')
+                        folders.append(folder_name)
+                except Exception as e:
+                    print(f"[IMAP DEBUG] Could not parse folder: {mailbox_info}, error: {e}")
+        
+        conn.logout()
+        return jsonify({"ok": True, "folders": folders})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 200
+
+
 @app.get("/")
 def root():
     return send_from_directory(BASE_DIR, "index.html")
