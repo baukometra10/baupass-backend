@@ -10089,6 +10089,18 @@ def _dqr_validate(token: str) -> tuple[str | None, str]:
     return badge_id, ""
 
 
+def _hce_handshake_secret():
+    return (
+        (os.getenv("BAUPASS_HCE_SECRET") or "").strip()
+        or _identity_token_secret()
+    )
+
+
+def _hce_sign_handshake(worker_id: str, badge_id: str, device_id: str, nonce: str, issued_at: str, expires_at: str) -> str:
+    msg = f"{worker_id}|{badge_id}|{device_id}|{nonce}|{issued_at}|{expires_at}".encode("utf-8")
+    return hmac_mod.new(_hce_handshake_secret().encode("utf-8"), msg, "sha256").hexdigest()
+
+
 @app.get("/api/worker-app/dynamic-qr")
 @require_worker_session
 def worker_app_dynamic_qr():
@@ -10108,6 +10120,52 @@ def worker_app_dynamic_qr():
             "windowSec": _DQR_WINDOW_SECONDS,
             "remainingSec": remaining_sec,
             "badgeId": badge_id,
+        }
+    )
+
+
+@app.post("/api/worker-app/hce/bootstrap")
+@require_worker_session
+def worker_app_hce_bootstrap():
+    """Bootstrap endpoint for Android HCE companion app.
+
+    Returns a short-lived payload token plus a signed handshake envelope
+    bound to worker + device_id so native clients can provision HCE state.
+    """
+    worker = g.worker
+    payload = request.get_json(silent=True) or {}
+    badge_id = str(worker["badge_id"] or "").strip()
+    if not badge_id:
+        return jsonify({"error": "badge_id_missing"}), 422
+
+    device_id = clean_id_input(payload.get("deviceId") or payload.get("device_id"), max_len=80)
+    if not device_id:
+        return jsonify({"error": "missing_device_id"}), 400
+
+    now_ts = time.time()
+    now_iso_value = now_iso()
+    window = _dqr_window(now_ts)
+    payload_token = _dqr_build(badge_id, window)
+    elapsed_in_window = int(now_ts % _DQR_WINDOW_SECONDS)
+    remaining_sec = _DQR_WINDOW_SECONDS - elapsed_in_window
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=max(remaining_sec, 20))).replace(tzinfo=None).isoformat() + "Z"
+    nonce = secrets.token_hex(8)
+    signature = _hce_sign_handshake(str(worker["id"]), badge_id, device_id, nonce, now_iso_value, expires_at)
+
+    return jsonify(
+        {
+            "protocol": "baupass-hce-v1",
+            "aid": "F0010203040506",
+            "payloadToken": payload_token,
+            "windowSec": _DQR_WINDOW_SECONDS,
+            "remainingSec": remaining_sec,
+            "workerId": str(worker["id"]),
+            "badgeId": badge_id,
+            "deviceId": device_id,
+            "issuedAt": now_iso_value,
+            "expiresAt": expires_at,
+            "nonce": nonce,
+            "signature": signature,
         }
     )
 

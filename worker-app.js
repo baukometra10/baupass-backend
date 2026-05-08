@@ -1600,6 +1600,7 @@ let lastSubmittedLeaveRequestId = "";
 let leaveRefreshInterval = null;
 let quickMenuObserver = null;
 let activeWorkerPageTarget = "";
+let iosWalletImmersive = false;
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrInterval = null;          // setInterval handle for auto-refresh
 let dqrCountdownInterval = null; // setInterval for per-second countdown
@@ -1732,6 +1733,23 @@ function markUserInteraction() {
   lastUserInteractionAt = Date.now();
 }
 
+function isIosDevice() {
+  const ua = navigator.userAgent || "";
+  return /iPhone|iPad|iPod/i.test(ua);
+}
+
+function isStandaloneDisplay() {
+  return Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches) || Boolean(window.navigator.standalone);
+}
+
+function updateWalletImmersiveMode() {
+  iosWalletImmersive = isIosDevice() && isStandaloneDisplay() && Boolean(workerToken);
+  document.body.classList.toggle("wallet-immersive", iosWalletImmersive);
+  if (iosWalletImmersive) {
+    applyWorkerPageView("badgeCard");
+  }
+}
+
 function setActiveQuickMenuTarget(targetId) {
   if (!elements.quickMenuButtons?.length) return;
   elements.quickMenuButtons.forEach((btn) => {
@@ -1826,6 +1844,7 @@ init().finally(dismissSplash);
 async function init() {
   applyTranslations();
   bindEvents();
+  updateWalletImmersiveMode();
   applyQrContrastState();
   applyAutoOpenScannerState();
   
@@ -1994,6 +2013,7 @@ function bindEvents() {
     }
   });
   window.addEventListener("pageshow", () => {
+    updateWalletImmersiveMode();
     if (workerToken) {
       void requestWakeLock();
       void fetchAndDisplayDynamicQr();
@@ -2961,6 +2981,7 @@ function renderWorker(payload) {
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
+  updateWalletImmersiveMode();
   haptic([18, 35, 22]);
   // Start dynamic QR lifecycle as soon as pass is visible.
   startDynamicQrRefresh();
@@ -3062,6 +3083,7 @@ function showLogin() {
     quickMenuObserver = null;
   }
   document.body.classList.remove("worker-loaded");
+  updateWalletImmersiveMode();
 
   // Prefill stored Badge-ID so the worker only needs to enter the PIN
   const savedBadgeId = (localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();

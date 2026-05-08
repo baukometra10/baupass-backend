@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="BauPass Android HCE"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Backend URL (ohne /api)"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/baseUrlInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="https://baupass-app.up.railway.app"
+            android:inputType="textUri" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Worker Session Token"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/sessionTokenInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Bearer token aus Worker-Login"
+            android:inputType="textNoSuggestions" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Device ID"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/deviceIdInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="android-gate-phone-01"
+            android:inputType="textNoSuggestions" />
+
+        <Button
+            android:id="@+id/bootstrapBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="HCE Bootstrap laden" />
+
+        <TextView
+            android:id="@+id/statusView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="Status: nicht initialisiert"
+            android:textIsSelectable="true" />
+    </LinearLayout>
+</ScrollView>

@@ -47,8 +47,8 @@ body {
   position: relative;
   overflow-x: hidden;
   overscroll-behavior-y: none;
-  text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   background:
     radial-gradient(circle at top left, rgba(217, 93, 57, 0.2), transparent 28%),
     radial-gradient(circle at right 20%, rgba(22, 94, 216, 0.14), transparent 22%),
@@ -153,6 +153,35 @@ body {
   gap: 18px;
   position: relative;
   z-index: 1;
+}
+
+/* iPhone standalone wallet mode: focus only the pass card */
+body.wallet-immersive .top-panel,
+body.wallet-immersive #workerMenuCard,
+body.wallet-immersive #workerPageNav,
+body.wallet-immersive #actionsPanel,
+body.wallet-immersive #sessionInfoCard,
+body.wallet-immersive #leaveRequestCard,
+body.wallet-immersive #timesheetCard,
+body.wallet-immersive #documentsCard,
+body.wallet-immersive #workerVisitorMeta,
+body.wallet-immersive #routeCard,
+body.wallet-immersive #visitorCountdownBanner,
+body.wallet-immersive #workerQuickMenu {
+  display: none !important;
+}
+
+body.wallet-immersive .app-shell {
+  max-width: 100%;
+  padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
+  gap: 8px;
+}
+
+body.wallet-immersive .worker-pass {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
 }
 
 .worker-quick-menu {

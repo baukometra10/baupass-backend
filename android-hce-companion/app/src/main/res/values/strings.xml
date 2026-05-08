@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BauPass HCE</string>
+    <string name="hce_service_description">BauPass Android HCE Zugangskarte</string>
+    <string name="hce_aid_group">BauPass Card Emulation</string>
+</resources>
