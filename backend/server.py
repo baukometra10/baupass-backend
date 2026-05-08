@@ -16761,6 +16761,9 @@ def poll_imap_inbox():
             password = cfg["imap_password"] or ""
             folder = cfg.get("imap_folder") or "INBOX"
             use_ssl = bool(cfg.get("imap_use_ssl", 1))
+            
+            # DEBUG: Logging der IMAP-Parameter
+            print(f"[IMAP DEBUG] Host: {host}:{port}, Username: {username}, Folder: {folder}, SSL: {use_ssl}")
 
             _imap_timeout = 30  # Sekunden – verhindert 502 durch hängenden Socket
             try:
@@ -16817,6 +16820,7 @@ def poll_imap_inbox():
             # Alle Mails im Ordner berücksichtigen. Deduplizierung passiert über
             # message_id bzw. IMAP UID-Fallback in der DB.
             status, data = conn.search(None, "ALL")
+            print(f"[IMAP DEBUG] SEARCH Status: {status}, Data: {data}, Message Count: {len((data[0] or b'').split())}")
             if status != "OK":
                 conn.logout()
                 _result = {"status": "error", "newEmails": 0, "error": "IMAP SEARCH fehlgeschlagen"}
