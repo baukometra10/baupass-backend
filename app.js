@@ -16117,7 +16117,7 @@ function renderDevices() {
 }
 
 async function deleteDevice(id) {
-  if (!confirm(runtimeText("deviceDeleteConfirm"))) return;
+  if (!(await showConfirmDialog(runtimeText("deviceDeleteConfirm")))) return;
   try {
     await apiRequest(`${API_BASE}/api/admin/devices/${encodeURIComponent(id)}`, { method: "DELETE" });
     state.devices = (state.devices || []).filter(d => d.id !== id);
@@ -19589,7 +19589,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
 
   elements.workerList.querySelectorAll("[data-worker-delete]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!window.confirm(uiT("confirmDeleteWorker"))) {
+      if (!(await showConfirmDialog(uiT("confirmDeleteWorker")))) {
         return;
       }
 
@@ -20260,7 +20260,7 @@ function renderWorkerDocuments(docs, workerId, container) {
   // Delete handlers
   container.querySelectorAll("[data-delete-doc]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!window.confirm(uiT("confirmDeleteDoc"))) return;
+      if (!(await showConfirmDialog(uiT("confirmDeleteDoc")))) return;
       btn.disabled = true;
       try {
         const docId = btn.dataset.deleteDoc;
