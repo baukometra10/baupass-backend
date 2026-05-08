@@ -7383,6 +7383,7 @@ const elements = {
   dashboardPorterLivePanel: document.querySelector("#dashboardPorterLivePanel"),
   workerList: document.querySelector("#workerList"),
   workerSearchInput: document.querySelector("#workerSearchInput"),
+  workerHoursMonthInput: document.querySelector("#workerHoursMonthFilter"),
   workerMinHoursInput: document.querySelector("#workerMinHoursFilter"),
   bulkSelectAll: document.querySelector("#bulkSelectAll"),
   bulkActionBar: document.querySelector("#bulkActionBar"),
@@ -14441,6 +14442,16 @@ function getCurrentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function normalizeMonthKey(value) {
+  const raw = String(value || "").trim();
+  return /^\d{4}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function getRequestedWorkerHoursMonth() {
+  const selected = normalizeMonthKey(elements.workerHoursMonthInput?.value);
+  return selected || getCurrentMonthKey();
+}
+
 function formatHoursCompact(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return "0";
@@ -14448,10 +14459,10 @@ function formatHoursCompact(value) {
   return String(normalized).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1").replace(".", ",");
 }
 
-async function loadAccessWorkerHoursMonth() {
+async function loadAccessWorkerHoursMonth(monthOverride = "") {
   const companyId = getEffectiveUiCompanyId();
   const role = getEffectiveUiRole();
-  const monthKey = getCurrentMonthKey();
+  const monthKey = normalizeMonthKey(monthOverride) || getRequestedWorkerHoursMonth();
   const roleCanSee = ["company-admin", "turnstile", "superadmin"].includes(role);
 
   if (!roleCanSee || !companyId || !hasCompanyFeatureForCompanyId(companyId, "worker_hours_report")) {
@@ -26106,6 +26117,15 @@ if (elements.workerSearchInput) {
 }
 if (workerStatusFilter) {
   workerStatusFilter.addEventListener("change", renderWorkerList);
+}
+if (elements.workerHoursMonthInput) {
+  if (!elements.workerHoursMonthInput.value) {
+    elements.workerHoursMonthInput.value = getCurrentMonthKey();
+  }
+  elements.workerHoursMonthInput.addEventListener("change", async () => {
+    await loadAccessWorkerHoursMonth(elements.workerHoursMonthInput?.value || "");
+    renderWorkerList();
+  });
 }
 if (elements.workerMinHoursInput) {
   elements.workerMinHoursInput.addEventListener("input", renderWorkerList);
