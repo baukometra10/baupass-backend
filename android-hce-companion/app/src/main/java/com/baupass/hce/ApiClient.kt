@@ -6,15 +6,13 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.UUID
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 class ApiClient {
     private val client = OkHttpClient()
 
     data class RegisterResult(
         val deviceId: String,
-        val deviceSecret: String
+        val trustVersion: Int
     )
 
     data class BootstrapResult(
@@ -28,10 +26,14 @@ class ApiClient {
     fun registerHceDevice(baseUrl: String, workerSessionToken: String, deviceId: String): RegisterResult {
         val root = baseUrl.trimEnd('/')
         val url = "$root/api/worker-app/hce/device/register"
+        val pubKeyB64 = DeviceKeyManager.getOrCreatePublicKeyDerB64()
         val payload = JSONObject()
             .put("deviceId", deviceId)
             .put("platform", "android")
             .put("appVersion", "1.0.0")
+            .put("trustVersion", 2)
+            .put("signatureAlgo", "SHA256withECDSA")
+            .put("devicePublicKey", pubKeyB64)
             .toString()
         val requestBody = payload.toRequestBody("application/json; charset=utf-8".toMediaType())
 
@@ -48,34 +50,35 @@ class ApiClient {
             }
             val json = JSONObject(body)
             val resultDeviceId = json.optString("deviceId", "")
-            val deviceSecret = json.optString("deviceSecret", "")
-            if (resultDeviceId.isBlank() || deviceSecret.isBlank()) {
+            val trustVersion = json.optInt("trustVersion", 1)
+            if (resultDeviceId.isBlank()) {
                 throw IllegalStateException("Backend returned invalid register payload")
             }
-            return RegisterResult(resultDeviceId, deviceSecret)
+            return RegisterResult(resultDeviceId, trustVersion)
         }
     }
 
-    fun fetchHceBootstrap(baseUrl: String, workerSessionToken: String, deviceId: String, deviceSecret: String): BootstrapResult {
+    fun fetchHceBootstrap(baseUrl: String, workerSessionToken: String, deviceId: String): BootstrapResult {
         val root = baseUrl.trimEnd('/')
         val url = "$root/api/worker-app/hce/bootstrap"
         val nonce = UUID.randomUUID().toString().replace("-", "")
         val clientTs = System.currentTimeMillis().toString()
-        val signature = signDevicePayload(deviceSecret, deviceId, nonce, clientTs)
+        val payloadToSign = "$deviceId|$nonce|$clientTs"
+        val signatureV2 = DeviceKeyManager.signPayloadB64(payloadToSign)
         val payload = JSONObject()
             .put("deviceId", deviceId)
             .put("platform", "android")
             .put("appVersion", "1.0.0")
             .put("nonce", nonce)
             .put("clientTs", clientTs)
-            .put("deviceSignature", signature)
+            .put("deviceSignatureV2", signatureV2)
             .toString()
         val requestBody = payload.toRequestBody("application/json; charset=utf-8".toMediaType())
 
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $workerSessionToken")
-            .addHeader("X-HCE-Device-Signature", signature)
+            .addHeader("X-HCE-Device-Signature-V2", signatureV2)
             .post(requestBody)
             .build()
 
@@ -95,14 +98,5 @@ class ApiClient {
             }
             return BootstrapResult(protocol, aid, token, remainingSec, badgeId)
         }
-    }
-
-    private fun signDevicePayload(deviceSecret: String, deviceId: String, nonce: String, clientTs: String): String {
-        val payload = "$deviceId|$nonce|$clientTs"
-        val mac = Mac.getInstance("HmacSHA256")
-        val keySpec = SecretKeySpec(deviceSecret.toByteArray(Charsets.UTF_8), "HmacSHA256")
-        mac.init(keySpec)
-        val digest = mac.doFinal(payload.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
     }
 }

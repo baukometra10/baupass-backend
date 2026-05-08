@@ -46,16 +46,8 @@ class MainActivity : AppCompatActivity() {
             statusView.text = "Status: Lade HCE Bootstrap..."
             Thread {
                 try {
-                    val existingSecret = HceTokenStore.getDeviceSecret(this)
-                    val deviceSecret = if (existingSecret.isBlank()) {
-                        val registerResult = apiClient.registerHceDevice(baseUrl, workerToken, deviceId)
-                        HceTokenStore.saveDeviceSecret(this, registerResult.deviceSecret)
-                        registerResult.deviceSecret
-                    } else {
-                        existingSecret
-                    }
-
-                    val result = apiClient.fetchHceBootstrap(baseUrl, workerToken, deviceId, deviceSecret)
+                    apiClient.registerHceDevice(baseUrl, workerToken, deviceId)
+                    val result = apiClient.fetchHceBootstrap(baseUrl, workerToken, deviceId)
                     val expiresAtMs = System.currentTimeMillis() + (result.remainingSec.coerceAtLeast(20) * 1000L)
                     HceTokenStore.save(this, result.payloadToken, expiresAtMs, result.aid)
                     HceTokenStore.saveBootstrapConfig(this, baseUrl, workerToken, deviceId)

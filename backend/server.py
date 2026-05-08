@@ -34,7 +34,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, ec
 from cryptography.hazmat.primitives.serialization import pkcs12, pkcs7
 import pyotp
 import qrcode
@@ -2537,6 +2537,12 @@ def init_db():
             cur.execute("ALTER TABLE hce_device_trust ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'")
         if "app_version" not in hce_trust_columns:
             cur.execute("ALTER TABLE hce_device_trust ADD COLUMN app_version TEXT NOT NULL DEFAULT ''")
+        if "device_public_key" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN device_public_key TEXT NOT NULL DEFAULT ''")
+        if "signature_algo" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN signature_algo TEXT NOT NULL DEFAULT ''")
+        if "trust_version" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN trust_version INTEGER NOT NULL DEFAULT 1")
         if "status" not in hce_trust_columns:
             cur.execute("ALTER TABLE hce_device_trust ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
         if "last_seen_at" not in hce_trust_columns:
@@ -10151,6 +10157,20 @@ def _hce_sign_device_payload(device_secret: str, device_id: str, nonce: str, cli
     return hmac_mod.new(device_secret.encode("utf-8"), payload, "sha256").hexdigest()
 
 
+def _hce_verify_device_signature_v2(public_key_b64: str, device_id: str, nonce: str, client_ts: str, signature_b64: str) -> bool:
+    try:
+        key_bytes = base64.b64decode(str(public_key_b64 or ""))
+        signature = base64.b64decode(str(signature_b64 or ""))
+        payload = _hce_device_payload_to_sign(device_id, nonce, client_ts).encode("utf-8")
+        public_key = serialization.load_der_public_key(key_bytes)
+        if isinstance(public_key, ec.EllipticCurvePublicKey):
+            public_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def _hce_validate_client_timestamp(client_ts: str, max_skew_ms: int = 120000) -> bool:
     try:
         ts_int = int(str(client_ts or "").strip())
@@ -10168,6 +10188,13 @@ def worker_app_hce_device_register():
     device_id = clean_id_input(payload.get("deviceId") or payload.get("device_id"), max_len=80)
     platform = clean_text_input(payload.get("platform") or "android", max_len=24) or "android"
     app_version = clean_text_input(payload.get("appVersion") or "", max_len=40)
+    device_public_key = str(payload.get("devicePublicKey") or "").strip()
+    signature_algo = clean_text_input(payload.get("signatureAlgo") or "", max_len=32)
+    try:
+        requested_trust_version = int(payload.get("trustVersion") or 1)
+    except (TypeError, ValueError):
+        requested_trust_version = 1
+    trust_version = 2 if requested_trust_version >= 2 and device_public_key else 1
     if not device_id:
         return jsonify({"error": "missing_device_id"}), 400
 
@@ -10192,11 +10219,14 @@ def worker_app_hce_device_register():
                 platform = ?,
                 app_version = ?,
                 device_secret = ?,
+                device_public_key = ?,
+                signature_algo = ?,
+                trust_version = ?,
                 status = 'active',
                 last_seen_at = ?
             WHERE id = ?
             """,
-            (worker["company_id"], platform, app_version, device_secret, now_value, existing["id"]),
+            (worker["company_id"], platform, app_version, device_secret, device_public_key, signature_algo, trust_version, now_value, existing["id"]),
         )
         record_id = existing["id"]
     else:
@@ -10204,10 +10234,10 @@ def worker_app_hce_device_register():
         db.execute(
             """
             INSERT INTO hce_device_trust (
-                id, worker_id, company_id, device_id, platform, app_version, device_secret, status, created_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                id, worker_id, company_id, device_id, platform, app_version, device_secret, device_public_key, signature_algo, trust_version, status, created_at, last_seen_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
             """,
-            (record_id, worker["id"], worker["company_id"], device_id, platform, app_version, device_secret, now_value, now_value),
+            (record_id, worker["id"], worker["company_id"], device_id, platform, app_version, device_secret, device_public_key, signature_algo, trust_version, now_value, now_value),
         )
     db.commit()
     return jsonify(
@@ -10216,6 +10246,8 @@ def worker_app_hce_device_register():
             "deviceTrustId": record_id,
             "deviceId": device_id,
             "deviceSecret": device_secret,
+            "trustVersion": trust_version,
+            "signatureAlgo": signature_algo,
             "registeredAt": now_value,
             "status": "active",
         }
@@ -10280,15 +10312,32 @@ def worker_app_hce_bootstrap():
 
     client_nonce = clean_id_input(payload.get("nonce"), max_len=120)
     client_ts = clean_text_input(payload.get("clientTs"), max_len=40)
-    submitted_sig = str(request.headers.get("X-HCE-Device-Signature") or payload.get("deviceSignature") or "").strip().lower()
-    if not client_nonce or not client_ts or not submitted_sig:
+    submitted_sig_v1 = str(request.headers.get("X-HCE-Device-Signature") or payload.get("deviceSignature") or "").strip().lower()
+    submitted_sig_v2 = str(request.headers.get("X-HCE-Device-Signature-V2") or payload.get("deviceSignatureV2") or "").strip()
+    trust_version = int(trust_row["trust_version"] or 1)
+    if not client_nonce or not client_ts:
         return jsonify({"error": "missing_device_signature"}), 401
     if not _hce_validate_client_timestamp(client_ts):
         return jsonify({"error": "stale_or_invalid_client_ts"}), 401
 
-    expected_sig = _hce_sign_device_payload(str(trust_row["device_secret"] or ""), device_id, client_nonce, client_ts)
-    if not hmac_mod.compare_digest(submitted_sig, expected_sig):
-        return jsonify({"error": "invalid_device_signature"}), 401
+    if trust_version >= 2 and str(trust_row["device_public_key"] or ""):
+        if not submitted_sig_v2:
+            return jsonify({"error": "missing_device_signature_v2"}), 401
+        ok_v2 = _hce_verify_device_signature_v2(
+            str(trust_row["device_public_key"] or ""),
+            device_id,
+            client_nonce,
+            client_ts,
+            submitted_sig_v2,
+        )
+        if not ok_v2:
+            return jsonify({"error": "invalid_device_signature_v2"}), 401
+    else:
+        if not submitted_sig_v1:
+            return jsonify({"error": "missing_device_signature"}), 401
+        expected_sig = _hce_sign_device_payload(str(trust_row["device_secret"] or ""), device_id, client_nonce, client_ts)
+        if not hmac_mod.compare_digest(submitted_sig_v1, expected_sig):
+            return jsonify({"error": "invalid_device_signature"}), 401
 
     # Replay protection: nonce per device is one-time use within TTL window.
     now_value = now_iso()
