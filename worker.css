@@ -41,10 +41,14 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: "Barlow", sans-serif;
   color: var(--text);
   position: relative;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
   background:
     radial-gradient(circle at top left, rgba(217, 93, 57, 0.2), transparent 28%),
     radial-gradient(circle at right 20%, rgba(22, 94, 216, 0.14), transparent 22%),

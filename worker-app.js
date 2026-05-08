@@ -1985,7 +1985,22 @@ function bindEvents() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       markUserInteraction();
+      if (workerToken) {
+        void requestWakeLock();
+        void fetchAndDisplayDynamicQr();
+      }
+    } else {
+      releaseWakeLock();
     }
+  });
+  window.addEventListener("pageshow", () => {
+    if (workerToken) {
+      void requestWakeLock();
+      void fetchAndDisplayDynamicQr();
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    releaseWakeLock();
   });
 
   if (elements.workerAccessToken) {
@@ -3404,7 +3419,7 @@ function _updateQrCountdownDisplay() {
 async function fetchAndDisplayDynamicQr() {
   if (!workerToken) return;
   try {
-    const data = await fetchJson(`${API_BASE}/worker-app/dynamic-qr`, {
+    const data = await fetchJson(`${API_BASE}/dynamic-qr`, {
       headers: { Authorization: `Bearer ${workerToken}` }
     });
     if (data?.qrToken) {
@@ -4392,7 +4407,7 @@ async function sendLastLeaveRequestToBoss() {
   }
 
   try {
-    await fetchJson(`${API_BASE}/worker-app/leave-requests/${encodeURIComponent(lastSubmittedLeaveRequestId)}/send-email`, {
+    await fetchJson(`${API_BASE}/leave-requests/${encodeURIComponent(lastSubmittedLeaveRequestId)}/send-email`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -1,4 +1,4 @@
-const CACHE_NAME = "baupass-worker-v15";
+const CACHE_NAME = "baupass-worker-v16";
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
 // users always get the latest version without needing to clear the cache.
@@ -109,7 +109,7 @@ self.addEventListener("push", (event) => {
     icon: "/worker-icon-192.png",
     badge: "/worker-icon-192.png",
     vibrate: [200, 100, 200],
-    data: { url: data.url || "/worker.html" },
+    data: { url: data.url || "/worker.html?view=card" },
     actions: data.actions || []
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -117,7 +117,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/worker.html";
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/worker.html?view=card";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
