@@ -6894,6 +6894,7 @@ def update_me_email():
 @require_auth
 def get_settings():
     row = get_db().execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    resolved_imap = get_imap_settings(get_db())
     return jsonify(
         {
             "platformName": row["platform_name"],
@@ -6935,13 +6936,16 @@ def get_settings():
             "workerPassLockEnabled": int(row["worker_pass_lock_enabled"]) == 1 if "worker_pass_lock_enabled" in row.keys() else False,
             "workStartTime": row["work_start_time"] if "work_start_time" in row.keys() else "",
             "workEndTime": row["work_end_time"] if "work_end_time" in row.keys() else "",
-            "imapHost": row["imap_host"],
-            "imapPort": int(row["imap_port"] or 993),
-            "imapUsername": row["imap_username"],
+            # Return resolved IMAP config (DB + env overrides) so frontend checks
+            # match the actual runtime config used by polling.
+            "imapHost": resolved_imap.get("imap_host", ""),
+            "imapPort": int(resolved_imap.get("imap_port") or 993),
+            "imapUsername": resolved_imap.get("imap_username", ""),
+            # Never expose IMAP password when it is sourced from env vars.
             "imapPassword": row["imap_password"],
-            "imapPasswordConfigured": bool(str(row["imap_password"] or "").strip()),
-            "imapFolder": row["imap_folder"] or "INBOX",
-            "imapUseSsl": int(row["imap_use_ssl"]) == 1,
+            "imapPasswordConfigured": bool(str(resolved_imap.get("imap_password") or "").strip()),
+            "imapFolder": resolved_imap.get("imap_folder") or "INBOX",
+            "imapUseSsl": int(resolved_imap.get("imap_use_ssl", 1)) == 1,
             "impressumText": row["impressum_text"] or "",
             "datenschutzText": row["datenschutz_text"] or "",
             "resendApiKey": row["resend_api_key"] if "resend_api_key" in row.keys() else "",
