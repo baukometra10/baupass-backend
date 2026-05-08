@@ -16817,10 +16817,10 @@ def poll_imap_inbox():
                 return _result
 
             conn.select(folder, readonly=False)
-            # Alle Mails im Ordner berücksichtigen. Deduplizierung passiert über
-            # message_id bzw. IMAP UID-Fallback in der DB.
-            status, data = conn.search(None, "ALL")
-            print(f"[IMAP DEBUG] SEARCH Status: {status}, Data: {data}, Message Count: {len((data[0] or b'').split())}")
+            # Pollt nur UNGELESENE Mails, um nur echte neue Mails zu zählen.
+            # Alte Mails, die bereits abgerufen wurden, werden nicht als "neu" gezählt.
+            status, data = conn.search(None, "UNSEEN")
+            print(f"[IMAP DEBUG] SEARCH Status: {status}, Data: {data}, UNSEEN Message Count: {len((data[0] or b'').split())}")
             if status != "OK":
                 conn.logout()
                 _result = {"status": "error", "newEmails": 0, "error": "IMAP SEARCH fehlgeschlagen"}
