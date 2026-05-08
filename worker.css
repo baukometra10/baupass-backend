@@ -23,16 +23,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #17110d;
-    --card: rgba(33, 24, 20, 0.64);
-    --card-strong: rgba(38, 27, 20, 0.84);
-    --text: #fff4ea;
-    --muted: #d0b8a6;
-    --accent: #e47c3a;
-    --accent-dark: #bf5e27;
-    --accent-soft: #f2b188;
-    --blue: #d07a3a;
-    --shadow: 0 28px 70px rgba(14, 8, 6, 0.55);
+    --bg: #0f1419;
+    --card: rgba(30, 40, 50, 0.5);
+    --card-strong: rgba(40, 50, 65, 0.7);
+    --text: #f0f5fa;
+    --muted: #a8b0ba;
+    --accent: #f0844a;
+    --accent-dark: #df623d;
+    --accent-soft: #ffb088;
+    --blue: #3b82f6;
+    --shadow: 0 28px 70px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -59,67 +59,31 @@ body {
 @media (prefers-color-scheme: dark) {
   body {
     background:
-      radial-gradient(circle at 8% 0%, rgba(202, 90, 45, 0.22), transparent 36%),
-      radial-gradient(circle at 100% 12%, rgba(127, 48, 24, 0.24), transparent 34%),
-      linear-gradient(155deg, #17110d 0%, #241912 52%, #1d150f 100%);
+      radial-gradient(circle at top left, rgba(217, 93, 57, 0.08), transparent 28%),
+      radial-gradient(circle at right 20%, rgba(22, 94, 216, 0.06), transparent 22%),
+      linear-gradient(145deg, #0f1419 0%, #1a2530 42%, #0d1117 100%);
   }
 }
 
 /* ── Explizite Theme-Overrides für manuelle Toggle ────────────────────── */
 [data-theme="dark"] {
-  --bg: #17110d;
-  --card: rgba(33, 24, 20, 0.64);
-  --card-strong: rgba(38, 27, 20, 0.84);
-  --text: #fff4ea;
-  --muted: #d0b8a6;
-  --accent: #e47c3a;
-  --accent-dark: #bf5e27;
-  --accent-soft: #f2b188;
-  --blue: #d07a3a;
-  --shadow: 0 28px 70px rgba(14, 8, 6, 0.55);
+  --bg: #0f1419;
+  --card: rgba(30, 40, 50, 0.5);
+  --card-strong: rgba(40, 50, 65, 0.7);
+  --text: #f0f5fa;
+  --muted: #a8b0ba;
+  --accent: #f0844a;
+  --accent-dark: #df623d;
+  --accent-soft: #ffb088;
+  --blue: #3b82f6;
+  --shadow: 0 28px 70px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at 8% 0%, rgba(202, 90, 45, 0.22), transparent 36%),
-    radial-gradient(circle at 100% 12%, rgba(127, 48, 24, 0.24), transparent 34%),
-    linear-gradient(155deg, #17110d 0%, #241912 52%, #1d150f 100%);
-}
-
-@media (prefers-color-scheme: dark) {
-  html:not([data-theme="light"]) .ghost,
-  html:not([data-theme="light"]) .quick-menu-btn,
-  html:not([data-theme="light"]) .worker-menu-btn,
-  html:not([data-theme="light"]) .theme-toggle-btn {
-    color: #fffaf5;
-    background: linear-gradient(135deg, #ca5a2d, #7f3018);
-    border: 1px solid rgba(228, 124, 58, 0.58);
-    box-shadow: 0 10px 22px rgba(24, 14, 10, 0.35);
-  }
-
-  html:not([data-theme="light"]) .ghost:hover,
-  html:not([data-theme="light"]) .quick-menu-btn:hover,
-  html:not([data-theme="light"]) .worker-menu-btn:hover,
-  html:not([data-theme="light"]) .theme-toggle-btn:hover {
-    filter: brightness(1.06);
-  }
-}
-
-[data-theme="dark"] .ghost,
-[data-theme="dark"] .quick-menu-btn,
-[data-theme="dark"] .worker-menu-btn,
-[data-theme="dark"] .theme-toggle-btn {
-  color: #fffaf5;
-  background: linear-gradient(135deg, #ca5a2d, #7f3018);
-  border: 1px solid rgba(228, 124, 58, 0.58);
-  box-shadow: 0 10px 22px rgba(24, 14, 10, 0.35);
-}
-
-[data-theme="dark"] .ghost:hover,
-[data-theme="dark"] .quick-menu-btn:hover,
-[data-theme="dark"] .worker-menu-btn:hover,
-[data-theme="dark"] .theme-toggle-btn:hover {
-  filter: brightness(1.06);
+    radial-gradient(circle at top left, rgba(217, 93, 57, 0.08), transparent 28%),
+    radial-gradient(circle at right 20%, rgba(22, 94, 216, 0.06), transparent 22%),
+    linear-gradient(145deg, #0f1419 0%, #1a2530 42%, #0d1117 100%);
 }
 
 [data-theme="light"] {
