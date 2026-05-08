@@ -17125,7 +17125,7 @@ function bindWorkerRowActions() {
 
   elements.workerList.querySelectorAll("[data-worker-delete]").forEach((button) => {
     button.onclick = async () => {
-      if (!window.confirm(uiT("confirmDeleteWorker"))) return;
+      if (!(await showConfirmDialog(uiT("confirmDeleteWorker")))) return;
       try {
         await apiRequest(`${API_BASE}/api/workers/${button.dataset.workerDelete}`, { method: "DELETE" });
         await loadAllData();
@@ -17191,7 +17191,7 @@ function bindWorkerRowActions() {
       const promptText = nextStatus === "gesperrt"
         ? `Mitarbeiter ${worker.firstName} ${worker.lastName} jetzt sperren?`
         : `Mitarbeiter ${worker.firstName} ${worker.lastName} jetzt entsperren?`;
-      if (!window.confirm(promptText)) return;
+      if (!(await showConfirmDialog(promptText))) return;
       try {
         await apiRequest(`${API_BASE}/api/workers/${workerId}/lock`, {
           method: "POST",
@@ -17217,7 +17217,7 @@ function bindWorkerRowActions() {
       try {
         const tokenInfo = await apiRequest(`${API_BASE}/api/workers/${workerId}/identity-token`);
         if (!tokenInfo?.configured) {
-          if (!window.confirm(`Fuer ${name} ist noch kein Identity-Token konfiguriert. Jetzt erstellen?`)) {
+          if (!(await showConfirmDialog(`Fuer ${name} ist noch kein Identity-Token konfiguriert. Jetzt erstellen?`))) {
             return;
           }
           await apiRequest(`${API_BASE}/api/workers/${workerId}/identity-token`, {
@@ -17238,7 +17238,7 @@ function bindWorkerRowActions() {
         const promptText = nextStatus === "revoked"
           ? `Identity-Token fuer ${name} jetzt sperren?`
           : `Identity-Token fuer ${name} jetzt aktivieren?`;
-        if (!window.confirm(promptText)) return;
+        if (!(await showConfirmDialog(promptText))) return;
 
         await apiRequest(`${API_BASE}/api/workers/${workerId}/identity-token/status`, {
           method: "POST",
@@ -17979,7 +17979,7 @@ function bindCompanyRowActions() {
       }
       const company = state.companies.find((entry) => entry.id === companyId);
       const companyName = company?.name || runtimeText("companyThisFallback");
-      const forceDelete = window.confirm(
+      const forceDelete = await showConfirmDialog(
         uiT("confirmDeleteCompanyText").replace("{name}", companyName)
       );
       if (!forceDelete) {
@@ -18011,7 +18011,7 @@ function bindCompanyRowActions() {
       const promptText = nextStatus === "gesperrt"
         ? uiT("confirmLockCompany").replace("{name}", companyName)
         : uiT("confirmUnlockCompany").replace("{name}", companyName);
-      if (!window.confirm(promptText)) {
+      if (!(await showConfirmDialog(promptText))) {
         return;
       }
 
@@ -20994,7 +20994,7 @@ async function handleWorkerSubmit(event) {
             window.alert(uiT("alertPhotoMatchFailed").replace("{score}", scorePct));
             return;
           }
-          const proceed = window.confirm(
+          const proceed = await showConfirmDialog(
             uiT("confirmPhotoMatchFailed").replace("{score}", scorePct)
           );
           if (!proceed) {
@@ -21994,7 +21994,7 @@ async function refreshSystemStatus() {
 }
 
 async function handleSystemRepair() {
-  if (!window.confirm(uiT("confirmSystemRepair"))) {
+  if (!(await showConfirmDialog(uiT("confirmSystemRepair")))) {
     return;
   }
 
@@ -22899,7 +22899,7 @@ function renderInvoiceApprovalQueue() {
     }
 
     const decisionText = decision === "approve" ? "freigeben" : "ablehnen";
-    if (!window.confirm(uiT("confirmApprovalDecision").replace("{id}", approvalId).replace("{decision}", decisionText))) {
+    if (!(await showConfirmDialog(uiT("confirmApprovalDecision").replace("{id}", approvalId).replace("{decision}", decisionText)))) {
       return;
     }
 
@@ -23361,7 +23361,7 @@ function renderInvoiceManagementList() {
   container.querySelectorAll("[data-invoice-id]").forEach(button => {
     button.addEventListener("click", async (e) => {
       const invId = e.target.dataset.invoiceId;
-      if (!invId || !window.confirm(uiT("confirmInvoicePaid"))) return;
+      if (!invId || !(await showConfirmDialog(uiT("confirmInvoicePaid")))) return;
       const paymentNote = (window.prompt(uiT("invoicePaymentNotePrompt"), "") ?? "").trim();
       
       try {
@@ -24044,7 +24044,7 @@ function renderCollectionsList() {
       }
       const currentStatus = String(company.status || "aktiv").toLowerCase();
       const nextStatus = currentStatus === "gesperrt" ? "aktiv" : "gesperrt";
-      const ok = window.confirm(nextStatus === "gesperrt"
+      const ok = await showConfirmDialog(nextStatus === "gesperrt"
         ? uiT("confirmLockCompany").replace("{name}", company.name)
         : uiT("confirmUnlockCompany").replace("{name}", company.name)
       );
@@ -24467,7 +24467,7 @@ async function activateTwofa() {
 }
 
 async function disableTwofa() {
-  if (!window.confirm(uiT("tfaBtnDisable") + "?")) {
+  if (!(await showConfirmDialog(uiT("tfaBtnDisable") + "?"))) {
     return;
   }
   try {
@@ -25548,10 +25548,10 @@ async function loadDemoData() {
     return;
   }
 
-  const includeInvoices = window.confirm(uiT("confirmDemoInvoices"));
-  const includeAccessLogs = window.confirm(uiT("confirmDemoAccessLogs"));
+  const includeInvoices = await showConfirmDialog(uiT("confirmDemoInvoices"));
+  const includeAccessLogs = await showConfirmDialog(uiT("confirmDemoAccessLogs"));
 
-  const proceed = window.confirm(
+  const proceed = await showConfirmDialog(
     mode === "replace"
       ? uiT("confirmDemoReplace").replace("{name}", companyName)
       : uiT("confirmDemoAppend").replace("{name}", companyName)
@@ -25597,19 +25597,19 @@ async function handleTopbarExport() {
   const exportScopeLabel = exportCompany
     ? runtimeTextTemplate("exportScopeForCompany", { company: exportCompany.name })
     : "";
-  const includeAudit = window.confirm(uiT("confirmExportAudit"));
-  const includeDayClose = window.confirm(uiT("confirmExportDayClose"));
-  const includeDeleted = window.confirm(uiT("confirmExportDeleted"));
+  const includeAudit = await showConfirmDialog(uiT("confirmExportAudit"));
+  const includeDayClose = await showConfirmDialog(uiT("confirmExportDayClose"));
+  const includeDeleted = await showConfirmDialog(uiT("confirmExportDeleted"));
 
   let exportCompanyTarget = "";
   if (state.currentUser?.role === "superadmin") {
-    const exportAll = window.confirm(uiT("confirmExportAll"));
+    const exportAll = await showConfirmDialog(uiT("confirmExportAll"));
     if (!exportAll) {
       exportCompanyTarget = exportCompanyId;
     }
   }
 
-  const proceed = window.confirm(uiT("confirmExportDownload").replace("{scope}", exportScopeLabel));
+  const proceed = await showConfirmDialog(uiT("confirmExportDownload").replace("{scope}", exportScopeLabel));
   if (!proceed) {
     return;
   }
@@ -25622,7 +25622,7 @@ async function handleTopbarExport() {
 }
 
 async function handleTopbarLogout() {
-  const proceed = window.confirm(uiT("confirmLogout"));
+  const proceed = await showConfirmDialog(uiT("confirmLogout"));
   if (!proceed) {
     return;
   }
@@ -25785,7 +25785,7 @@ async function handleTopbarImport() {
       const parsed = JSON.parse(text);
       const payloadData = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
 
-      const importOnlyChanges = window.confirm(uiT("confirmImportChangesOnly"));
+      const importOnlyChanges = await showConfirmDialog(uiT("confirmImportChangesOnly"));
 
       const dryRunResult = await apiRequest(`${API_BASE}/api/import`, {
         method: "POST",
@@ -26607,7 +26607,7 @@ if (invoiceRetryBulkSendBtn) {
       window.alert(uiT("alertSelectInvoiceForRetry"));
       return;
     }
-    if (!window.confirm(uiT("confirmBulkRetrySelected").replace("{count}", selectedIds.length))) {
+    if (!(await showConfirmDialog(uiT("confirmBulkRetrySelected").replace("{count}", selectedIds.length)))) {
       return;
     }
     try {
@@ -26641,7 +26641,7 @@ if (invoiceRetryCriticalSendBtn) {
       return;
     }
 
-    if (!window.confirm(uiT("confirmBulkRetryCritical").replace("{count}", criticalIds.length))) {
+    if (!(await showConfirmDialog(uiT("confirmBulkRetryCritical").replace("{count}", criticalIds.length)))) {
       return;
     }
 
@@ -26670,7 +26670,7 @@ if (invoiceRetryCriticalSendBtn) {
 const triggerDunningBtn = document.querySelector("#triggerDunningBtn");
 if (triggerDunningBtn) {
   triggerDunningBtn.addEventListener("click", async () => {
-    if (!window.confirm(runtimeText("dunningRunConfirm"))) return;
+    if (!(await showConfirmDialog(runtimeText("dunningRunConfirm")))) return;
     triggerDunningBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/trigger-dunning`, { method: "POST", body: {} });
@@ -26688,7 +26688,7 @@ if (triggerDunningBtn) {
 const triggerMonthlyInvoiceBtn = document.querySelector("#triggerMonthlyInvoiceBtn");
 if (triggerMonthlyInvoiceBtn) {
   triggerMonthlyInvoiceBtn.addEventListener("click", async () => {
-    if (!window.confirm(runtimeText("monthlyInvoiceRunConfirm"))) return;
+    if (!(await showConfirmDialog(runtimeText("monthlyInvoiceRunConfirm")))) return;
     triggerMonthlyInvoiceBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/trigger-monthly-cycle`, { method: "POST", body: {} });
@@ -26711,7 +26711,7 @@ if (triggerMonthlyInvoiceBtn) {
 const simulateCurrentMonthBtn = document.querySelector("#simulateCurrentMonthBtn");
 if (simulateCurrentMonthBtn) {
   simulateCurrentMonthBtn.addEventListener("click", async () => {
-    if (!window.confirm(runtimeText("simulateMonthlyRunConfirm"))) return;
+    if (!(await showConfirmDialog(runtimeText("simulateMonthlyRunConfirm")))) return;
     simulateCurrentMonthBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/simulate-monthly-cycle`, { method: "POST", body: {} });
@@ -26944,7 +26944,7 @@ if (elements.bulkDeleteButton) {
     const ids = getCheckedWorkerIds();
     if (!ids.length) return;
     const msg = runtimeText("confirmDeleteWorkerBulk").replace("{count}", ids.length);
-    if (!window.confirm(msg)) return;
+    if (!(await showConfirmDialog(msg))) return;
     try {
       await apiRequest(`${API_BASE}/api/workers/bulk-delete`, { method: "POST", body: { ids } });
       elements.workerList.querySelectorAll(".bulk-checkbox").forEach((cb) => { cb.checked = false; });
@@ -27461,7 +27461,7 @@ async function exportAuditLogs() {
  * Trigger push notifications to checked-in workers
  */
 async function triggerCheckoutReminders() {
-  const confirmed = confirm("Send checkout reminders to all checked-in workers?");
+  const confirmed = await showConfirmDialog("Send checkout reminders to all checked-in workers?");
   if (!confirmed) return;
 
   try {
