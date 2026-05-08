@@ -7326,8 +7326,13 @@ def update_settings():
         _resend_key_cache["brevo_from_email"] = brevo_from_email_payload
     # IMAP-Felder separat aktualisieren (immer optional)
     payload_imap_password = str(payload.get("imapPassword") or "")
+    _raw_imap_host = clean_text_input(payload.get("imapHost", ""), max_len=255)
+    _smtp_only_hosts_set = {"smtp-mail.outlook.com", "smtp.office365.com", "smtp.live.com",
+                            "smtp.gmail.com", "smtp.mail.yahoo.com", "smtp.zoho.com"}
+    if _raw_imap_host.lower() in _smtp_only_hosts_set:
+        _raw_imap_host = _infer_imap_host(payload.get("imapUsername") or payload.get("smtpUsername"), _raw_imap_host) or _raw_imap_host
     imap_fields = {
-        "imap_host": clean_text_input(payload.get("imapHost", ""), max_len=255),
+        "imap_host": _raw_imap_host,
         "imap_port": int(payload.get("imapPort") or 993),
         "imap_username": clean_text_input(payload.get("imapUsername", ""), max_len=255),
         "imap_password": payload_imap_password if payload_imap_password.strip() else current_imap_password,
