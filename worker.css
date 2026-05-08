@@ -171,6 +171,17 @@ body.wallet-immersive #workerQuickMenu {
   display: none !important;
 }
 
+body.wallet-immersive.wallet-immersive-sections-open #sessionInfoCard,
+body.wallet-immersive.wallet-immersive-sections-open #actionsPanel,
+body.wallet-immersive.wallet-immersive-sections-open #leaveRequestCard,
+body.wallet-immersive.wallet-immersive-sections-open #timesheetCard,
+body.wallet-immersive.wallet-immersive-sections-open #documentsCard,
+body.wallet-immersive.wallet-immersive-sections-open #workerVisitorMeta,
+body.wallet-immersive.wallet-immersive-sections-open #routeCard,
+body.wallet-immersive.wallet-immersive-sections-open #visitorCountdownBanner {
+  display: grid !important;
+}
+
 body.wallet-immersive .app-shell {
   max-width: 100%;
   padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));

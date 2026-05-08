@@ -1780,6 +1780,7 @@ function updateWorkerHubToggleLabel() {
 function setWorkerHubExpanded(expanded, options = {}) {
   const shouldExpand = Boolean(expanded);
   workerHubExpanded = shouldExpand;
+  document.body.classList.toggle("wallet-immersive-sections-open", shouldExpand);
   if (elements.workerHubPanel) {
     elements.workerHubPanel.classList.toggle("hidden", !shouldExpand);
   }
