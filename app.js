@@ -17131,7 +17131,7 @@ function bindWorkerRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertDeleteWorkerFailed").replace("{error}", error.message));
+        showToast(uiT("alertDeleteWorkerFailed").replace("{error}", error.message), "error", 3600);
       }
     };
   });
@@ -17143,7 +17143,7 @@ function bindWorkerRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertRestoreWorkerFailed").replace("{error}", error.message));
+        showToast(uiT("alertRestoreWorkerFailed").replace("{error}", error.message), "error", 3600);
       }
     };
   });
@@ -17156,7 +17156,7 @@ function bindWorkerRowActions() {
         const worker = state.workers.find((entry) => entry.id === button.dataset.workerAppLink) || null;
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
-        window.alert(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
+        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", error.message), "error", 3600);
       }
     };
   });
@@ -17169,14 +17169,14 @@ function bindWorkerRowActions() {
       const newPin = window.prompt(uiT("promptResetPinFor").replace("{name}", name));
       if (newPin === null) return; // abgebrochen
       if (!/^\d{4,8}$/.test(newPin.trim())) {
-        window.alert(uiT("alertPinMustDigits"));
+        showToast(uiT("alertPinMustDigits"), "error");
         return;
       }
       try {
         await apiRequest(`${API_BASE}/api/workers/${workerId}/reset-pin`, { method: "POST", body: { newPin: newPin.trim() } });
-        window.alert(uiT("alertPinResetSuccessFor").replace("{name}", name));
+        showToast(uiT("alertPinResetSuccessFor").replace("{name}", name), "success");
       } catch (error) {
-        window.alert(uiT("alertPinResetFailed").replace("{error}", error.message));
+        showToast(uiT("alertPinResetFailed").replace("{error}", error.message), "error", 3600);
       }
     };
   });
@@ -19396,7 +19396,7 @@ function showWorkerDetailOverlay(worker) {
       const newPin = window.prompt(uiT("promptResetPinFor").replace("{name}", name));
       if (newPin === null) return;
       if (!/^\d{4,8}$/.test(String(newPin).trim())) {
-        window.alert(uiT("alertPinMustDigits"));
+        showToast(uiT("alertPinMustDigits"), "error");
         return;
       }
       try {
@@ -19404,11 +19404,11 @@ function showWorkerDetailOverlay(worker) {
           method: "POST",
           body: { newPin: String(newPin).trim() }
         });
-        window.alert(uiT("alertPinResetSuccessFor").replace("{name}", name));
+        showToast(uiT("alertPinResetSuccessFor").replace("{name}", name), "success");
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertPinResetFailed").replace("{error}", error.message));
+        showToast(uiT("alertPinResetFailed").replace("{error}", error.message), "error", 3600);
       }
     };
   }
@@ -19434,7 +19434,7 @@ function showWorkerDetailOverlay(worker) {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
       } catch (error) {
-        window.alert(runtimeTextTemplate("qrCodeLoadFailed", { error: error.message }));
+        showToast(runtimeTextTemplate("qrCodeLoadFailed", { error: error.message }), "error", 3600);
       } finally {
         qrBtn.disabled = false;
       }
@@ -20242,7 +20242,7 @@ function renderWorkerDocuments(docs, workerId, container) {
         a.remove();
         URL.revokeObjectURL(url);
       } catch (err) {
-        window.alert(`Download fehlgeschlagen: ${err.message}`);
+        showToast(`Download fehlgeschlagen: ${err.message}`, "error", 3600);
         if (String(err?.message || "").toLowerCase().includes("dokument nicht gefunden")) {
           try {
             const updatedDocs = await loadWorkerDocuments(workerId);
@@ -20271,7 +20271,7 @@ function renderWorkerDocuments(docs, workerId, container) {
         const updatedDocs = await loadWorkerDocuments(workerId);
         renderWorkerDocuments(updatedDocs, workerId, container);
       } catch (err) {
-        window.alert(runtimeText("docDeleteFailed").replace("{error}", err.message));
+        showToast(runtimeText("docDeleteFailed").replace("{error}", err.message), "error", 3600);
         btn.disabled = false;
       }
     });
@@ -20309,11 +20309,11 @@ function renderWorkerDocuments(docs, workerId, container) {
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result?.error || `HTTP ${response.status}`);
 
-        window.alert(uiT("docUploadSuccess"));
+        showToast(uiT("docUploadSuccess"), "success");
         const updatedDocs = await loadWorkerDocuments(workerId);
         renderWorkerDocuments(updatedDocs, workerId, container);
       } catch (err) {
-        window.alert(`Upload fehlgeschlagen: ${err.message}`);
+        showToast(`Upload fehlgeschlagen: ${err.message}`, "error", 3600);
         if (submitBtn) submitBtn.disabled = false;
       }
     });
@@ -24442,7 +24442,7 @@ async function activateTwofa() {
   const emailInput = document.getElementById("tfaEmailInput");
   const email = (emailInput?.value || "").trim();
   if (!email) {
-    window.alert(uiT("alertTfaEmailRequired"));
+    showToast(uiT("alertTfaEmailRequired"), "error");
     return;
   }
   try {
@@ -24455,13 +24455,13 @@ async function activateTwofa() {
       state.currentUser.twofa_enabled = 1;
       state.currentUser.email = email;
     }
-    window.alert(uiT("alertTfaActivated"));
+    showToast(uiT("alertTfaActivated"), "success");
     refreshAll();
   } catch (error) {
     if (error.message === "email_required") {
-      window.alert(uiT("alertTfaEmailRequired"));
+      showToast(uiT("alertTfaEmailRequired"), "error");
     } else {
-      window.alert(uiT("alert2faSetupFailed").replace("{error}", error.message));
+      showToast(uiT("alert2faSetupFailed").replace("{error}", error.message), "error", 3600);
     }
   }
 }
@@ -24476,9 +24476,10 @@ async function disableTwofa() {
     if (state.currentUser) {
       state.currentUser.twofa_enabled = 0;
     }
+    showToast(uiT("tfaBtnDisable"), "success");
     refreshAll();
   } catch (error) {
-    window.alert(uiT("alert2faDisableFailed").replace("{error}", error.message));
+    showToast(uiT("alert2faDisableFailed").replace("{error}", error.message), "error", 3600);
   }
 }
 
