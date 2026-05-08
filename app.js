@@ -17684,7 +17684,7 @@ function bindCompanyRowActions() {
         return;
       }
       const recipientHint = sec.email || runtimeText("companyAdminResetRecipientFallback");
-      if (!window.confirm(runtimeTextTemplate("companyAdminResetConfirm", { company: company.name, username: sec.username, recipient: recipientHint }))) return;
+      if (!(await showConfirmDialog(runtimeTextTemplate("companyAdminResetConfirm", { company: company.name, username: sec.username, recipient: recipientHint })))) return;
       try {
         sendResetButton.disabled = true;
         const resp = await fetch(`${API_BASE}/api/auth/request-password-reset`, {
@@ -18178,7 +18178,7 @@ function bindCompanyRowActions() {
     if (rotateTurnstileKeyButton && elements.companyList.contains(rotateTurnstileKeyButton)) {
       const companyId = rotateTurnstileKeyButton.dataset.turnstileCompany;
       const userId = rotateTurnstileKeyButton.dataset.turnstileRotateKey;
-      if (!window.confirm(uiT("confirmApiKeyRotate"))) {
+      if (!(await showConfirmDialog(uiT("confirmApiKeyRotate")))) {
         return;
       }
       try {
@@ -18225,7 +18225,7 @@ function bindCompanyRowActions() {
       const confirmMsg = isCurrentlyEnabled
         ? runtimeText("reviewToggleDisableConfirm").replace("{name}", company.name)
         : runtimeText("reviewToggleEnableConfirm").replace("{name}", company.name);
-      if (!window.confirm(confirmMsg)) return;
+      if (!(await showConfirmDialog(confirmMsg))) return;
       try {
         const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/review-access`, { method: "PUT" });
         // Update state locally
@@ -18271,7 +18271,7 @@ function bindCompanyRowActions() {
 
     const company = state.companies.find((entry) => entry.id === companyId);
     const companyName = company?.name || runtimeText("companyThisFallback");
-    if (!window.confirm(`${uiT("supportCompanyLoginConfirmPrefix")} ${companyName} ${uiT("supportCompanyLoginConfirmSuffix")}`)) {
+    if (!(await showConfirmDialog(`${uiT("supportCompanyLoginConfirmPrefix")} ${companyName} ${uiT("supportCompanyLoginConfirmSuffix")}`))) {
       return;
     }
 
