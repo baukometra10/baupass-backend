@@ -3736,13 +3736,60 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, 
         pdf.setFillColorRGB(0.4, 0.4, 0.4)
         pdf.drawString(36, y, "  |  ".join(contact_parts)[:110])
 
-    # Footer band
+    # ── Professioneller 3-spaltiger Footer ──────────────────────────
+    FOOTER_H = 52
+    pdf.setFillColorRGB(0.97, 0.97, 0.98)
+    pdf.rect(0, 0, page_width, FOOTER_H, fill=1, stroke=0)
+    pdf.setStrokeColorRGB(pr, pg, pb)
+    pdf.setLineWidth(1.2)
+    pdf.line(0, FOOTER_H, page_width, FOOTER_H)
+
+    col_w = (page_width - 72) / 3
+    # Spalte 1: Adresse
+    fy = FOOTER_H - 11
     pdf.setFillColorRGB(pr, pg, pb)
-    pdf.rect(0, 0, page_width, 24, fill=1, stroke=0)
-    pdf.setFillColorRGB(1, 1, 1)
+    pdf.setFont("Helvetica-Bold", 7.5)
+    pdf.drawString(36, fy, operator_name)
+    fy -= 9
     pdf.setFont("Helvetica", 7)
-    footer_parts = list(filter(None, [operator_name, operator_street, operator_zip_city]))
-    pdf.drawString(36, 8, "  |  ".join(footer_parts)[:120])
+    pdf.setFillColorRGB(0.3, 0.3, 0.3)
+    for ln in filter(None, [operator_street, operator_zip_city]):
+        pdf.drawString(36, fy, ln)
+        fy -= 8
+
+    # Spalte 2: Kontakt
+    col2_x = 36 + col_w
+    fy2 = FOOTER_H - 11
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.setFont("Helvetica-Bold", 7.5)
+    pdf.drawString(col2_x, fy2, "Kontakt")
+    fy2 -= 9
+    pdf.setFont("Helvetica", 7)
+    pdf.setFillColorRGB(0.3, 0.3, 0.3)
+    for ln in filter(None, [
+        f"Tel.: {operator_phone}" if operator_phone else "",
+        f"E-Mail: {operator_email_addr}" if operator_email_addr else "",
+        operator_website,
+    ]):
+        pdf.drawString(col2_x, fy2, ln[:50])
+        fy2 -= 8
+
+    # Spalte 3: Bankverbindung
+    col3_x = 36 + 2 * col_w
+    fy3 = FOOTER_H - 11
+    pdf.setFillColorRGB(pr, pg, pb)
+    pdf.setFont("Helvetica-Bold", 7.5)
+    pdf.drawString(col3_x, fy3, "Bankverbindung")
+    fy3 -= 9
+    pdf.setFont("Helvetica", 7)
+    pdf.setFillColorRGB(0.3, 0.3, 0.3)
+    for ln in filter(None, [
+        f"IBAN: {iban}" if iban else "",
+        f"BIC: {bic}" if bic else "",
+        f"Bank: {bank_name}" if bank_name else "",
+    ]):
+        pdf.drawString(col3_x, fy3, ln[:50])
+        fy3 -= 8
 
     pdf.save()
     buf.seek(0)
@@ -5016,17 +5063,40 @@ def _build_monthly_invoice_html(company_name, invoice_number, period_label, plat
     period_safe = html.escape(str(period_label or "-"))
     platform_safe = html.escape(str(platform_label or DEFAULT_PLATFORM_NAME))
     operator_safe = html.escape(str(operator_label or DEFAULT_OPERATOR_NAME))
-    amount_safe = html.escape(f"{float(total_amount or 0):.2f} EUR".replace(".", ","))
+    amount_val = float(total_amount or 0)
+    amount_safe = html.escape(f"{amount_val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+    today_safe = html.escape(datetime.now().strftime("%d.%m.%Y"))
     return f"""<!DOCTYPE html>
-<html lang=\"de\">
-<head><meta charset=\"utf-8\"><title>{number_safe}</title></head>
+<html lang="de">
+<head><meta charset="utf-8"><title>Rechnung {number_safe}</title>
+<style>
+  body {{ font-family: Arial, sans-serif; font-size: 13px; color: #1a1a1a; margin: 0; padding: 32px; }}
+  .header {{ border-bottom: 3px solid #0f4c5c; padding-bottom: 12px; margin-bottom: 24px; }}
+  .header h1 {{ margin: 0; font-size: 22px; color: #0f4c5c; }}
+  .header .sub {{ color: #666; font-size: 12px; margin-top: 4px; }}
+  .meta-table {{ width: 100%; border-collapse: collapse; margin-bottom: 24px; }}
+  .meta-table td {{ padding: 8px 12px; border: 1px solid #e0e0e0; }}
+  .meta-table tr:nth-child(odd) {{ background: #f8f9fa; }}
+  .meta-table .label {{ color: #555; font-weight: 600; width: 40%; }}
+  .total-row {{ background: #0f4c5c !important; color: #fff; font-weight: 700; font-size: 14px; }}
+  .total-row td {{ color: #fff !important; }}
+  .footer {{ border-top: 1px solid #e0e0e0; margin-top: 32px; padding-top: 12px; font-size: 11px; color: #888; }}
+</style>
+</head>
 <body>
-  <h1>{platform_safe} Monatsrechnung</h1>
-  <p>Firma: {company_safe}</p>
-  <p>Rechnungsnummer: {number_safe}</p>
-  <p>Leistungszeitraum: {period_safe}</p>
-  <p>Betrag: {amount_safe}</p>
-  <p>Erstellt durch {operator_safe}.</p>
+  <div class="header">
+    <h1>{platform_safe} – Rechnung</h1>
+    <div class="sub">Erstellt von {operator_safe} · {today_safe}</div>
+  </div>
+  <table class="meta-table">
+    <tr><td class="label">Rechnungsnummer</td><td>{number_safe}</td></tr>
+    <tr><td class="label">Firma</td><td>{company_safe}</td></tr>
+    <tr><td class="label">Leistungszeitraum</td><td>{period_safe}</td></tr>
+    <tr><td class="label">Rechnungsdatum</td><td>{today_safe}</td></tr>
+    <tr class="total-row"><td>Gesamtbetrag inkl. USt.</td><td>{amount_safe}</td></tr>
+  </table>
+  <p style="color:#555;font-size:12px;">Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer. Den vollständigen Rechnungsanhang finden Sie im beigefügten PDF.</p>
+  <div class="footer">Erstellt durch {operator_safe} · {platform_safe}</div>
 </body>
 </html>"""
 
