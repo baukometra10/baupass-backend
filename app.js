@@ -445,6 +445,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Status: aktiv",
     btnBulkInactive: "Status: inaktiv",
     btnBulkCancel: "Abbrechen",
+    btnConfirmOk: "OK",
     badgeEyebrow: "Digitaler Ausweis",
     badgeH3: "Badge-Vorschau",
     badgeEmptyState: "Bitte zuerst einen Mitarbeiter anlegen oder aus der Liste ausw\u00e4hlen.",
@@ -1218,6 +1219,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Set active",
     btnBulkInactive: "Set inactive",
     btnBulkCancel: "Cancel",
+    btnConfirmOk: "OK",
     badgeEyebrow: "Digital Badge",
     badgeH3: "Badge Preview",
     badgeEmptyState: "Please create or select a worker first.",
@@ -1907,6 +1909,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Durumu: aktif",
     btnBulkInactive: "Durumu: pasif",
     btnBulkCancel: "\u0130ptal",
+    btnConfirmOk: "Tamam",
     badgeEyebrow: "Dijital Kimlik",
     badgeH3: "Rozet \u00d6nizleme",
     badgeEmptyState: "L\u00fctfen \u00f6nce bir \u00e7al\u0131\u015fan olu\u015fturun veya listeden se\u00e7in.",
@@ -2650,6 +2653,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "نشط",
     btnBulkInactive: "غير نشط",
     btnBulkCancel: "إلغاء",
+    btnConfirmOk: "موافق",
     badgeEyebrow: "بطاقة رقمية",
     badgeH3: "معاينة البطاقة",
     badgeEmptyState: "يرجى إنشاء أو اختيار عامل أولاً.",
@@ -3419,6 +3423,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Statut : actif",
     btnBulkInactive: "Statut : inactif",
     btnBulkCancel: "Annuler",
+    btnConfirmOk: "OK",
     badgeEyebrow: "Identité numérique",
     badgeH3: "Aperçu du badge",
     badgeEmptyState: "Veuillez créer ou sélectionner un travailleur d'abord.",
@@ -4188,6 +4193,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Estado: activo",
     btnBulkInactive: "Estado: inactivo",
     btnBulkCancel: "Cancelar",
+    btnConfirmOk: "Aceptar",
     badgeEyebrow: "Identidad digital",
     badgeH3: "Vista previa de credencial",
     badgeEmptyState: "Por favor crea o selecciona un trabajador primero.",
@@ -4949,6 +4955,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Stato: attivo",
     btnBulkInactive: "Stato: inattivo",
     btnBulkCancel: "Annulla",
+    btnConfirmOk: "OK",
     badgeEyebrow: "Identità digitale",
     badgeH3: "Anteprima badge",
     badgeEmptyState: "Crea o seleziona prima un lavoratore.",
@@ -5718,6 +5725,7 @@ const UI_TRANSLATIONS = {
     btnBulkActive: "Status: aktywny",
     btnBulkInactive: "Status: nieaktywny",
     btnBulkCancel: "Anuluj",
+    btnConfirmOk: "OK",
     badgeEyebrow: "Tożsamość cyfrowa",
     badgeH3: "Podgląd identyfikatora",
     badgeEmptyState: "Najpierw utwórz lub wybierz pracownika.",
@@ -27571,7 +27579,7 @@ function showConfirmDialog(message) {
         <p class="app-confirm-message" id="${messageId}">${escapeHtml(String(message || ""))}</p>
         <div class="button-row">
           <button type="button" class="ghost-button" data-confirm-cancel>${escapeHtml(uiT("btnBulkCancel"))}</button>
-          <button type="button" class="primary-button" data-confirm-accept>OK</button>
+          <button type="button" class="primary-button" data-confirm-accept>${escapeHtml(uiT("btnConfirmOk"))}</button>
         </div>
       </div>
     `;
