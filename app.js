@@ -385,7 +385,7 @@ const UI_TRANSLATIONS = {
     imapSectionEyebrow: "Dokument-Eingang",
     imapSectionH4: "IMAP-Postfach f\u00fcr Nachweise",
     labelImapHint: "Mitarbeiter schicken Nachweise an diese Adresse. Das System ruft das Postfach alle paar Minuten ab.",
-      imapPlusAliasWarning: "Hinweis: Bei GMX/Web.de nutzt Auto eine Adresse ohne '+'. Dafuer muss das Postfach Catch-All oder passende Aliase unterstuetzen.",
+      imapPlusAliasWarning: "Hinweis: Bei GMX/Web.de ist Auto fuer Firmen-Dokument-Mails deaktiviert. Bitte pro Firmenadresse einen echten Alias/ein Postfach anlegen oder eine Catch-All-Domain nutzen.",
     labelImapHost: "IMAP Host",
     labelImapPort: "IMAP Port",
     labelImapUser: "IMAP Benutzername",
@@ -1163,7 +1163,7 @@ const UI_TRANSLATIONS = {
     imapSectionEyebrow: "Document Inbox",
     imapSectionH4: "IMAP mailbox for proof documents",
     labelImapHint: "Workers send their proof documents to this address. The system polls the mailbox every few minutes.",
-      imapPlusAliasWarning: "Note: On GMX/Web.de, Auto uses an address without '+'. Your mailbox must support catch-all or matching aliases.",
+      imapPlusAliasWarning: "Note: On GMX/Web.de, auto company document emails are disabled. Create a real alias/mailbox per company address or use a catch-all domain.",
     labelImapHost: "IMAP Host",
     labelImapPort: "IMAP Port",
     labelImapUser: "IMAP Username",
@@ -8156,6 +8156,7 @@ function getRuntimeUiTexts() {
     companyDocEmailConflict: "This document email is already stored for \"{company}\".",
     companyDocEmailAutoBaseMissing: "No IMAP base address found. Please set the IMAP user in Admin first.",
     companyDocEmailAutoConflict: "Auto email conflicts with \"{company}\". Please set it manually.",
+    companyDocEmailProviderHint: "For one inbox with many company document addresses, use a catch-all/plus-capable domain. GMX/Web.de requires real aliases or mailboxes per company address.",
     invoiceDeadLetterEmpty: "No open dead-letter cases.",
     invoiceFallbackCompany: "Company",
     invoiceAmountLabel: "Amount",
@@ -8911,6 +8912,7 @@ function getRuntimeUiTexts() {
       companyDocEmailConflict: "Diese Dokument-Mail ist bereits bei \"{company}\" hinterlegt.",
       companyDocEmailAutoBaseMissing: "Keine IMAP-Basisadresse gefunden. Bitte zuerst IMAP-Benutzer im Admin setzen.",
       companyDocEmailAutoConflict: "Auto-Mail kollidiert mit \"{company}\". Bitte manuell setzen.",
+      companyDocEmailProviderHint: "Fuer ein Postfach mit vielen Firmen-Dokumentadressen braucht ihr eine Catch-All/Plus-faehige Domain. Bei GMX/Web.de braucht jede Firmenadresse einen echten Alias bzw. ein echtes Postfach.",
       invoiceDeadLetterEmpty: "Keine offenen Dead-Letter-Faelle.",
       invoiceFallbackCompany: "Firma",
       invoiceAmountLabel: "Betrag",
@@ -17673,6 +17675,13 @@ function renderCompanyList() {
   });
   const shownCount = companiesToRender.length;
   const totalCount = state.companies.length;
+  const settingsBaseAddress = String(
+    state.settings?.imapUsername ||
+    state.settings?.smtpUsername ||
+    state.settings?.smtpSenderEmail ||
+    ""
+  ).trim();
+  const showDocEmailProviderHint = hasUnsupportedImapPlusAliasDomain(settingsBaseAddress);
 
   const cardsMarkup = companiesToRender
     .map((company) => {
@@ -17716,12 +17725,13 @@ function renderCompanyList() {
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
+          ${showDocEmailProviderHint ? `<p class="helper-text helper-text-warning">${escapeHtml(runtimeText("companyDocEmailProviderHint"))}</p>` : ""}
           <div class="button-row" style="margin-top:2px;">
             <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailAutoBtn"))}</button>
             <button type="button" class="ghost-button small-button" data-company-doc-email-selftest="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailSelftestBtn"))}</button>
             <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
-          ${docEmailSelftestStatus ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>` : ""}
+          ${docEmailSelftestStatus ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>${docEmailSelftestStatus.testedAt ? `<p class="helper-text">${escapeHtml(runtimeText("companyDocEmailSelftestLastTestedLabel"))}: ${escapeHtml(formatClockTime(docEmailSelftestStatus.testedAt))}</p>` : ""}` : ""}
           <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench"), tr: runtimeText("companyInvoiceLangTurkish"), ar: runtimeText("companyInvoiceLangArabic"), es: runtimeText("companyInvoiceLangSpanish"), it: runtimeText("companyInvoiceLangItalian"), pl: runtimeText("companyInvoiceLangPolish") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
           <p><strong>${escapeHtml(runtimeText("companyBillingAddressLabel"))}:</strong> ${escapeHtml([company.billingStreet || company.billing_street || "", company.billingZipCity || company.billing_zip_city || ""].filter(Boolean).join(", ") || "-")}</p>
           ${(() => {
@@ -18181,10 +18191,12 @@ function bindCompanyRowActions() {
       if (!companyId || !company) {
         return;
       }
+      const testedAt = new Date().toISOString();
 
       state.companyDocEmailSelftestStatus[companyId] = {
         kind: "info",
         message: runtimeText("companyDocEmailSelftestRunning"),
+        testedAt,
       };
       renderCompanyList();
 
@@ -18205,6 +18217,7 @@ function bindCompanyRowActions() {
         state.companyDocEmailSelftestStatus[companyId] = {
           kind: "error",
           message: runtimeText("companyDocEmailAutoBaseMissing"),
+          testedAt,
         };
         renderCompanyList();
         showToast(runtimeText("companyDocEmailAutoBaseMissing"));
@@ -18216,6 +18229,7 @@ function bindCompanyRowActions() {
         state.companyDocEmailSelftestStatus[companyId] = {
           kind: "error",
           message: runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }),
+          testedAt,
         };
         renderCompanyList();
         showToast(runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }));
@@ -18237,6 +18251,7 @@ function bindCompanyRowActions() {
           state.companyDocEmailSelftestStatus[companyId] = {
             kind: "success",
             message: runtimeTextTemplate("companyDocEmailSelftestOk", { email: suggested }),
+            testedAt,
           };
           renderCompanyList();
           showToast(runtimeTextTemplate("companyDocEmailSelftestOk", { email: suggested }));
@@ -18248,6 +18263,7 @@ function bindCompanyRowActions() {
           state.companyDocEmailSelftestStatus[companyId] = {
             kind: "error",
             message: failedMessage,
+            testedAt,
           };
           renderCompanyList();
           showToast(runtimeTextTemplate("companyDocEmailSelftestFailed", {
@@ -18263,6 +18279,7 @@ function bindCompanyRowActions() {
         state.companyDocEmailSelftestStatus[companyId] = {
           kind: "error",
           message: failedMessage,
+          testedAt,
         };
         renderCompanyList();
         showToast(runtimeTextTemplate("companyDocEmailSelftestFailed", {
@@ -19326,7 +19343,7 @@ function suggestCompanyDocumentEmail(companyName) {
   const aliasBase = (localPart.split("+", 1)[0] || "dokumente").trim() || "dokumente";
   const plusUnreliableDomains = new Set(["gmx.de", "gmx.net", "gmx.com", "web.de"]);
   if (plusUnreliableDomains.has(normalizedDomain)) {
-    return `${aliasBase}-${slug}@${domain}`;
+    return "";
   }
   return `${aliasBase}+${slug}@${domain}`;
 }
@@ -26319,6 +26336,17 @@ function formatTimestamp(value) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatClockTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(getUiLocale(), {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
