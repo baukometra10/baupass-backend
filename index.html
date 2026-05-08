@@ -511,6 +511,7 @@
                 <option value="gesperrt" data-ui-i18n="optStatusLocked">Gesperrt</option>
                 <option value="abgelaufen" data-ui-i18n="optStatusExpired">Abgelaufen</option>
               </select>
+              <input id="workerMinHoursFilter" type="text" inputmode="decimal" placeholder="Min. Stunden (Monat)" style="max-width: 180px;" autocomplete="off" />
               <label class="bulk-select-all-label">
                 <input id="bulkSelectAll" type="checkbox" /> <span id="bulkSelectAllText" data-ui-i18n="bulkSelectAll">Alle auswählen</span>
               </label>
@@ -1364,6 +1365,7 @@
               <label>
                 <span data-ui-i18n="labelImapUser">IMAP Benutzername</span>
                 <input id="imapUsername" type="text" placeholder="dokumente@deinefirma.de" />
+                <small id="imapPlusAliasHint" class="helper-text helper-text-warning" style="display:none;"></small>
               </label>
               <label>
                 <span data-ui-i18n="labelImapPass">IMAP Passwort</span>

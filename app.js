@@ -7383,6 +7383,7 @@ const elements = {
   dashboardPorterLivePanel: document.querySelector("#dashboardPorterLivePanel"),
   workerList: document.querySelector("#workerList"),
   workerSearchInput: document.querySelector("#workerSearchInput"),
+  workerMinHoursInput: document.querySelector("#workerMinHoursFilter"),
   bulkSelectAll: document.querySelector("#bulkSelectAll"),
   bulkActionBar: document.querySelector("#bulkActionBar"),
   bulkSelectionCount: document.querySelector("#bulkSelectionCount"),
@@ -17028,18 +17029,16 @@ function renderWorkerList() {
   if (!elements.workerList) return;
   const searchTerm = ((elements.workerSearchInput?.value) || "").trim().toLowerCase();
   const statusFilter = (document.querySelector("#workerStatusFilter")?.value || "").trim().toLowerCase();
+  const minHoursRaw = String(elements.workerMinHoursInput?.value || "").trim();
+  const minHours = minHoursRaw === "" ? null : Number(minHoursRaw.replace(",", "."));
   const workers = getUiVisibleWorkers()
     .filter((w) => {
-      if (!searchTerm) {
-        // If no search term, only filter by status
-        if (statusFilter && w.status?.toLowerCase() !== statusFilter) return false;
-        return true;
-      }
-      // If search term exists, check both search and status
       const hay = [w.firstName, w.lastName, w.badgeId, w.site, w.role, w.status, w.visitorCompany, w.insuranceNumber || ""].join(" ").toLowerCase();
-      const matchesSearch = hay.includes(searchTerm);
+      const matchesSearch = !searchTerm || hay.includes(searchTerm);
       const matchesStatus = !statusFilter || w.status?.toLowerCase() === statusFilter;
-      return matchesSearch && matchesStatus;
+      const workerMonthHours = Number(state.accessHoursByWorker?.[w.id] || 0);
+      const matchesHours = minHours == null || (!Number.isNaN(minHours) && minHours >= 0 && workerMonthHours >= minHours);
+      return matchesSearch && matchesStatus && matchesHours;
     })
     .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
 
@@ -26099,6 +26098,17 @@ if (workerCsvButton) {
 const workerForm = document.querySelector("#workerForm");
 if (workerForm) {
   workerForm.addEventListener("submit", handleWorkerSubmit);
+}
+
+const workerStatusFilter = document.querySelector("#workerStatusFilter");
+if (elements.workerSearchInput) {
+  elements.workerSearchInput.addEventListener("input", renderWorkerList);
+}
+if (workerStatusFilter) {
+  workerStatusFilter.addEventListener("change", renderWorkerList);
+}
+if (elements.workerMinHoursInput) {
+  elements.workerMinHoursInput.addEventListener("input", renderWorkerList);
 }
 
 const workerCancelEditButton = document.querySelector("#workerCancelEditButton");
