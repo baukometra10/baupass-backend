@@ -17057,6 +17057,8 @@ function renderWorkerList() {
       const sub = getSubcompanyLabel(worker);
       const visitor = isVisitorWorker(worker);
       const lockReason = String(worker.lockReason || "").trim();
+      const monthHours = state.accessHoursByWorker?.[worker.id];
+      const monthHoursLabel = monthHours == null ? "" : `⏱ ${formatHoursCompact(monthHours)} h (${state.accessHoursMonth})`;
       const identityTokenInfo = state.identityTokenByWorker?.[worker.id] || null;
       const normalizedIdentityTokenStatus = String(identityTokenInfo?.status || "").toLowerCase();
       const identityTokenLabel = !identityTokenInfo
@@ -17084,6 +17086,7 @@ function renderWorkerList() {
             <span class="status-pill">${escapeHtml(worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : (worker.status || "-"))}</span>
           </header>
           <p>${escapeHtml(visitor ? uiT("optVisitor") : (worker.role || "-"))} | ${escapeHtml(worker.site || "-")}</p>
+          ${monthHoursLabel ? `<p>${escapeHtml(monthHoursLabel)}</p>` : ""}
           <p>${uiT("appPinLabel")}: <strong>${visitor ? uiT("pinNotRequired") : (worker.badgePinConfigured ? uiT("pinSet") : uiT("pinMissing"))}</strong> | ${uiT("cardLabel")}: <strong>${escapeHtml(worker.physicalCardId || uiT("cardUnassigned"))}</strong></p>
           <p>Identity Token: <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:0.82em;font-weight:700;${identityTokenPillStyle}">${escapeHtml(identityTokenLabel)}</span></p>
           ${sub ? `<p>${escapeHtml(uiT("labelSubcompany"))}: ${escapeHtml(sub)}</p>` : ""}
