@@ -7859,6 +7859,7 @@ function getRuntimeUiTexts() {
     companyDocEmailAutoBtn: "Set automatically",
     companyDocEmailSelftestBtn: "Test auto email",
     companyDocEmailSelftestRunning: "Testing auto email...",
+    companyDocEmailSelftestLastTestedLabel: "Last tested",
     companyDocEmailCopyBtn: "Copy email",
     companyDocEmailSelftestOk: "Auto email is ready: {email}",
     companyDocEmailSelftestFailed: "Auto email test failed ({email}): {error}",
@@ -8613,6 +8614,7 @@ function getRuntimeUiTexts() {
       companyDocEmailAutoBtn: "Auto setzen",
       companyDocEmailSelftestBtn: "Auto-Mail testen",
       companyDocEmailSelftestRunning: "Auto-Mail wird getestet...",
+      companyDocEmailSelftestLastTestedLabel: "Zuletzt getestet",
       companyDocEmailCopyBtn: "Mail kopieren",
       companyDocEmailSelftestOk: "Auto-Mail ist bereit: {email}",
       companyDocEmailSelftestFailed: "Auto-Mail-Test fehlgeschlagen ({email}): {error}",
@@ -17195,30 +17197,64 @@ function getWorkerWorkTimeWindow(worker) {
 function renderWorkerInsightsPanelHtml(result) {
   if (!elements.workerInsightsPanel) return;
   const { workerName, monthKey, totalMinutes, lateDays, earlyLeaveDays, startLabel, endLabel, note } = result;
-  const lateList = lateDays.length
-    ? `<ul style="margin:6px 0 0 16px;">${lateDays.map((entry) => `<li>${escapeHtml(entry.date)} (${escapeHtml(String(entry.minutes))} min)</li>`).join("")}</ul>`
-    : `<p class="helper-text" style="margin:6px 0 0;">Keine Tage.</p>`;
-  const earlyList = earlyLeaveDays.length
-    ? `<ul style="margin:6px 0 0 16px;">${earlyLeaveDays.map((entry) => `<li>${escapeHtml(entry.date)} (${escapeHtml(String(entry.minutes))} min)</li>`).join("")}</ul>`
-    : `<p class="helper-text" style="margin:6px 0 0;">Keine Tage.</p>`;
+  const lateTable = lateDays.length
+    ? `
+      <table class="worker-insights-table">
+        <thead>
+          <tr><th>Datum</th><th>Minuten</th></tr>
+        </thead>
+        <tbody>
+          ${lateDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    `
+    : `<p class="helper-text worker-insights-empty">Keine Tage.</p>`;
+  const earlyTable = earlyLeaveDays.length
+    ? `
+      <table class="worker-insights-table">
+        <thead>
+          <tr><th>Datum</th><th>Minuten</th></tr>
+        </thead>
+        <tbody>
+          ${earlyLeaveDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    `
+    : `<p class="helper-text worker-insights-empty">Keine Tage.</p>`;
 
   elements.workerInsightsPanel.style.display = "block";
   elements.workerInsightsPanel.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
-      <strong>Auswertung: ${escapeHtml(workerName)} (${escapeHtml(monthKey)})</strong>
-      <span>Gesamtstunden: <strong>${escapeHtml(formatMinutesToHm(totalMinutes))}</strong></span>
+    <div class="worker-insights-header">
+      <div class="worker-insights-title-wrap">
+        <p class="eyebrow">Monatsauswertung</p>
+        <h4>Auswertung: ${escapeHtml(workerName)} <span class="worker-insights-month">(${escapeHtml(monthKey)})</span></h4>
+      </div>
+      <div class="worker-insights-kpis">
+        <div class="worker-insights-kpi">
+          <span>Gesamtstunden</span>
+          <strong>${escapeHtml(formatMinutesToHm(totalMinutes))}</strong>
+        </div>
+        <div class="worker-insights-kpi worker-insights-kpi-late">
+          <span>Zu spät</span>
+          <strong>${escapeHtml(String(lateDays.length))} Tage</strong>
+        </div>
+        <div class="worker-insights-kpi worker-insights-kpi-early">
+          <span>Früh gegangen</span>
+          <strong>${escapeHtml(String(earlyLeaveDays.length))} Tage</strong>
+        </div>
+      </div>
     </div>
-    <p class="helper-text" style="margin:6px 0 0;">Sollzeit-Fenster: ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</p>
-    ${note ? `<p class="helper-text" style="margin:4px 0 0;">${escapeHtml(note)}</p>` : ""}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px;">
-      <div>
-        <strong>Zu spät gekommen (${escapeHtml(String(lateDays.length))} Tage)</strong>
-        ${lateList}
-      </div>
-      <div>
-        <strong>Früh gegangen (${escapeHtml(String(earlyLeaveDays.length))} Tage)</strong>
-        ${earlyList}
-      </div>
+    <p class="helper-text worker-insights-window">Sollzeit-Fenster: ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</p>
+    ${note ? `<p class="helper-text worker-insights-note">${escapeHtml(note)}</p>` : ""}
+    <div class="worker-insights-grid">
+      <section class="worker-insights-card">
+        <h5>Zu spät gekommen</h5>
+        ${lateTable}
+      </section>
+      <section class="worker-insights-card">
+        <h5>Früh gegangen</h5>
+        ${earlyTable}
+      </section>
     </div>
   `;
 }
