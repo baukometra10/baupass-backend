@@ -2101,6 +2101,17 @@ def init_db():
             FOREIGN KEY(company_id) REFERENCES companies(id)
         );
 
+        CREATE TABLE IF NOT EXISTS hce_device_nonces (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            nonce TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            UNIQUE(device_id, nonce),
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        );
+
         CREATE TABLE IF NOT EXISTS day_close_acknowledgements (
             id TEXT PRIMARY KEY,
             date TEXT NOT NULL,
@@ -2518,6 +2529,20 @@ def init_db():
         cur.execute("ALTER TABLE email_attachments ADD COLUMN file_data BLOB")
     if "assigned_worker_id" not in attachment_columns:
         cur.execute("ALTER TABLE email_attachments ADD COLUMN assigned_worker_id TEXT")
+
+    # HCE Device-Trust migrations
+    hce_trust_columns = [row[1] for row in cur.execute("PRAGMA table_info(hce_device_trust)").fetchall()]
+    if hce_trust_columns:
+        if "platform" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN platform TEXT NOT NULL DEFAULT 'android'")
+        if "app_version" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN app_version TEXT NOT NULL DEFAULT ''")
+        if "status" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+        if "last_seen_at" not in hce_trust_columns:
+            cur.execute("ALTER TABLE hce_device_trust ADD COLUMN last_seen_at TEXT NOT NULL DEFAULT ''")
+
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_hce_device_nonce_unique ON hce_device_nonces(device_id, nonce)")
     if "assigned_doc_type" not in attachment_columns:
         cur.execute("ALTER TABLE email_attachments ADD COLUMN assigned_doc_type TEXT")
     if "saved_path" not in attachment_columns:
@@ -10126,6 +10151,15 @@ def _hce_sign_device_payload(device_secret: str, device_id: str, nonce: str, cli
     return hmac_mod.new(device_secret.encode("utf-8"), payload, "sha256").hexdigest()
 
 
+def _hce_validate_client_timestamp(client_ts: str, max_skew_ms: int = 120000) -> bool:
+    try:
+        ts_int = int(str(client_ts or "").strip())
+    except (TypeError, ValueError):
+        return False
+    now_ms = int(time.time() * 1000)
+    return abs(now_ms - ts_int) <= max_skew_ms
+
+
 @app.post("/api/worker-app/hce/device/register")
 @require_worker_session
 def worker_app_hce_device_register():
@@ -10249,13 +10283,31 @@ def worker_app_hce_bootstrap():
     submitted_sig = str(request.headers.get("X-HCE-Device-Signature") or payload.get("deviceSignature") or "").strip().lower()
     if not client_nonce or not client_ts or not submitted_sig:
         return jsonify({"error": "missing_device_signature"}), 401
+    if not _hce_validate_client_timestamp(client_ts):
+        return jsonify({"error": "stale_or_invalid_client_ts"}), 401
 
     expected_sig = _hce_sign_device_payload(str(trust_row["device_secret"] or ""), device_id, client_nonce, client_ts)
     if not hmac_mod.compare_digest(submitted_sig, expected_sig):
         return jsonify({"error": "invalid_device_signature"}), 401
 
+    # Replay protection: nonce per device is one-time use within TTL window.
+    now_value = now_iso()
+    db.execute("DELETE FROM hce_device_nonces WHERE expires_at < ?", (now_value,))
+    nonce_row_id = f"hce-nonce-{secrets.token_hex(6)}"
+    nonce_expiry = (datetime.now(timezone.utc) + timedelta(minutes=5)).replace(tzinfo=None).isoformat() + "Z"
+    try:
+        db.execute(
+            """
+            INSERT INTO hce_device_nonces (id, worker_id, device_id, nonce, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (nonce_row_id, worker["id"], device_id, client_nonce, now_value, nonce_expiry),
+        )
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "replayed_nonce"}), 401
+
     now_ts = time.time()
-    now_iso_value = now_iso()
+    now_iso_value = now_value
     window = _dqr_window(now_ts)
     payload_token = _dqr_build(badge_id, window)
     elapsed_in_window = int(now_ts % _DQR_WINDOW_SECONDS)
