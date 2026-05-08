@@ -6939,6 +6939,7 @@ def get_settings():
             "imapPort": int(row["imap_port"] or 993),
             "imapUsername": row["imap_username"],
             "imapPassword": row["imap_password"],
+            "imapPasswordConfigured": bool(str(row["imap_password"] or "").strip()),
             "imapFolder": row["imap_folder"] or "INBOX",
             "imapUseSsl": int(row["imap_use_ssl"]) == 1,
             "impressumText": row["impressum_text"] or "",

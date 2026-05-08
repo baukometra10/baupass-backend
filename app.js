@@ -14827,7 +14827,8 @@ function isDocumentInboxConfigured() {
   const host = String(state.settings?.imapHost || "").trim();
   const username = String(state.settings?.imapUsername || "").trim();
   const password = String(state.settings?.imapPassword || "").trim();
-  return Boolean(host && username && password);
+  const passwordConfigured = Boolean(state.settings?.imapPasswordConfigured) || Boolean(password);
+  return Boolean(host && username && passwordConfigured);
 }
 
 function renderDocumentInboxList() {
