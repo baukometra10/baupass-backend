@@ -16817,16 +16817,16 @@ def poll_imap_inbox():
                 return _result
 
             conn.select(folder, readonly=False)
-            # Pollt nur UNGELESENE Mails, um nur echte neue Mails zu zählen.
-            # Alte Mails, die bereits abgerufen wurden, werden nicht als "neu" gezählt.
-            status, data = conn.search(None, "UNSEEN")
-            print(f"[IMAP DEBUG] SEARCH Status: {status}, Data: {data}, UNSEEN Message Count: {len((data[0] or b'').split())}")
+            # Alle Mails im Ordner berücksichtigen. Nur neu hinzugefügte Mails
+            # werden als "newEmails" gezählt (via Deduplizierung durch message_id).
+            status, data = conn.search(None, "ALL")
+            msg_ids = (data[0] or b"").split()
+            print(f"[IMAP DEBUG] SEARCH Status: {status}, Total messages in folder: {len(msg_ids)}")
             if status != "OK":
                 conn.logout()
                 _result = {"status": "error", "newEmails": 0, "error": "IMAP SEARCH fehlgeschlagen"}
                 return _result
 
-            msg_ids = (data[0] or b"").split()
             new_email_count = 0
             for num in msg_ids:
                 status, msg_data = conn.fetch(num, "(RFC822)")
@@ -16887,6 +16887,8 @@ def poll_imap_inbox():
                         (message_id,),
                     ).fetchone()
                     if existing:
+                        print(f"[IMAP DEBUG] Mail mit Message-ID {message_id[:30]}... existiert bereits in DB (ID: {existing['id'][:8]}...), wird übersprungen.")
+                        # Update matched company if needed, then skip this message
                         if matched_company_id and not existing["matched_company_id"]:
                             db.execute(
                                 "UPDATE email_inbox SET matched_company_id = ?, to_addr = ? WHERE id = ?",
@@ -17013,6 +17015,7 @@ def poll_imap_inbox():
                     "INSERT INTO email_inbox (id, message_id, from_addr, to_addr, subject, body_text, matched_company_id, received_at) VALUES (?,?,?,?,?,?,?,?)",
                     (inbox_id, message_id, from_addr, to_addr, subject, body_text[:2000], matched_company_id, received_at),
                 )
+                print(f"[IMAP DEBUG] NEUE Mail gespeichert: Message-ID {message_id[:30] if message_id else '(no ID)'}... | From: {from_addr} | Subject: {subject[:40]}...")
                 new_email_count += 1
 
                 for att in attachments_data:
@@ -17037,6 +17040,7 @@ def poll_imap_inbox():
             db.commit()
             conn.logout()
             _result = {"status": "ok", "newEmails": new_email_count}
+            print(f"[IMAP DEBUG] Poll beendet: {new_email_count} NEUE Mails hinzugefügt (Status: {_result['status']})")
     except Exception as exc:
         _result = {"status": "error", "newEmails": 0, "error": str(exc)}
         try:
