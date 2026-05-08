@@ -6288,3 +6288,80 @@ body.theme-black .compliance-kpi-card .compliance-kpi-meta {
 
 /* ── one-column panel grid ───────────────────────────────────────── */
 .panel-grid.one-column { grid-template-columns: 1fr; }
+
+/* ── Dark consistency patch: access/zutritt + gray remnants ───────────── */
+body.theme-black .turnstile-tap-live,
+body.theme-black .access-log-item,
+body.theme-black .access-entry,
+body.theme-black .meta-box,
+body.theme-black .note-box {
+  background: #211812;
+  border-color: rgba(255, 203, 170, 0.14);
+}
+
+body.theme-black .stat-label,
+body.theme-black .stat-detail,
+body.theme-black .muted,
+body.theme-black .helper-text,
+body.theme-black .panel p,
+body.theme-black .panel span,
+body.theme-black .panel label {
+  color: #d7c3b3;
+}
+
+body.theme-black .worker-detail-overlay .worker-detail-card,
+body.theme-black .worker-detail-card {
+  background: #241a14;
+  color: #fff4ea;
+  border: 1px solid rgba(255, 203, 170, 0.2);
+}
+
+body.theme-black .worker-detail-card h3,
+body.theme-black .worker-detail-card h4,
+body.theme-black .worker-detail-card p,
+body.theme-black .worker-detail-card strong,
+body.theme-black .worker-detail-card label {
+  color: #fff4ea;
+}
+
+body.theme-black .worker-detail-card .muted {
+  color: #d0b8a6;
+}
+
+body.theme-black .worker-detail-card select,
+body.theme-black .worker-detail-card textarea {
+  background: #1e1510;
+  color: #fff4ea;
+  border-color: rgba(255, 203, 170, 0.22);
+}
+
+body.theme-black .worker-detail-card details summary {
+  color: #f0b07f;
+}
+
+body.theme-black .access-feedback-card {
+  background: rgba(36, 26, 20, 0.96);
+  border-color: rgba(255, 203, 170, 0.26);
+  color: #fff4ea;
+}
+
+body.theme-black .access-feedback-card p {
+  color: #e7d5c7;
+}
+
+body.theme-black #recentAccessList.list {
+  background: linear-gradient(165deg, #211812 0%, #2a1f18 100%);
+  border: 1px solid rgba(255, 203, 170, 0.16);
+  box-shadow: 0 6px 20px rgba(24, 14, 10, 0.34);
+}
+
+body.theme-black #recentAccessList .access-entry-featured {
+  background: linear-gradient(150deg, rgba(54, 35, 25, 0.94), rgba(42, 28, 20, 0.9));
+  border-color: rgba(228, 124, 58, 0.42);
+  box-shadow: 0 10px 24px rgba(24, 14, 10, 0.36);
+}
+
+body.theme-black #recentAccessList .access-entry-copy span,
+body.theme-black #recentAccessList .access-entry-copy strong {
+  color: #f3e7de;
+}
