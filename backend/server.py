@@ -333,7 +333,7 @@ INVOICE_RETRY_ALERT_TOP_ITEMS = max(3, int(os.getenv("BAUPASS_INVOICE_RETRY_ALER
 INVOICE_SMTP_CIRCUIT_FAIL_THRESHOLD = max(2, int(os.getenv("BAUPASS_INVOICE_SMTP_CIRCUIT_FAIL_THRESHOLD", "3")))
 INVOICE_SMTP_CIRCUIT_OPEN_SECONDS = max(120, int(os.getenv("BAUPASS_INVOICE_SMTP_CIRCUIT_OPEN_SECONDS", "900")))
 INVOICE_SMTP_STUCK_MINUTES = max(5, int(os.getenv("BAUPASS_INVOICE_SMTP_STUCK_MINUTES", "20")))
-SMTP_CONNECT_TIMEOUT_SECONDS = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "15")))
+SMTP_CONNECT_TIMEOUT_SECONDS = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "8")))
 OPERATION_APPROVAL_EXPIRY_MINUTES = max(5, int(os.getenv("BAUPASS_OPERATION_APPROVAL_EXPIRY_MINUTES", "30")))
 _worker_rate_limit_audit_dedup_raw = str(
     os.getenv("BAUPASS_WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS", "180")
@@ -3759,7 +3759,7 @@ def _normalize_smtp_target(host, port, use_tls):
     return normalized_host, normalized_port
 
 
-def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due):
+def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due, _shared_smtp=None):
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
     sender_name = (settings_row["smtp_sender_name"] or settings_row["operator_name"] or "").strip()
     recipient = (invoice_row["recipient_email"] or "").strip()
@@ -3885,10 +3885,21 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
             msg.add_alternative(html_body, subtype="html")
             if pdf_bytes:
                 msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
-            with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
-                if smtp_username:
-                    smtp.login(smtp_username, smtp_password)
-                smtp.send_message(msg)
+            if _shared_smtp is not None:
+                try:
+                    _shared_smtp.noop()  # keep-alive / verify connection still open
+                    _shared_smtp.send_message(msg)
+                except Exception:
+                    # Shared connection dropped – fall back to a fresh one
+                    with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
+                        if smtp_username:
+                            smtp.login(smtp_username, smtp_password)
+                        smtp.send_message(msg)
+            else:
+                with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
+                    if smtp_username:
+                        smtp.login(smtp_username, smtp_password)
+                    smtp.send_message(msg)
             on_invoice_send_success_reset_circuit()
             return True, ""
         except Exception as smtp_exc:
@@ -4581,6 +4592,21 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
         app.logger.error(f"[OTP-MAIL] API-Fallback fehlgeschlagen: {fallback_error}")
         return False
 
+    # OTP codes are time-critical – prefer fast API (Brevo/Resend) over slow SMTP if available.
+    if resend_api_key or brevo_api_key:
+        api_ok, api_err, _p = _send_via_any_api(
+            subject=msg["Subject"],
+            sender_email=smtp_sender,
+            sender_name=smtp_sender_name,
+            recipient=email,
+            text_body=text_content,
+            html_body=html_content,
+        )
+        if api_ok:
+            app.logger.info(f"[OTP-MAIL] OTP über API versendet an {email} (Benutzer: {username})")
+            return True
+        app.logger.warning(f"[OTP-MAIL] API fehlgeschlagen ({api_err}), Fallback zu SMTP")
+
     try:
         with _smtp_connect(smtp_host, smtp_settings["smtp_port"], smtp_settings["smtp_use_tls"]) as smtp:
             smtp_username = smtp_settings["smtp_username"]
@@ -4591,18 +4617,19 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
         return True
     except Exception as exc:
         app.logger.error(f"[OTP-MAIL] SMTP-Fehler beim Senden an {email}: {exc}")
-        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
-            subject=msg["Subject"],
-            sender_email=smtp_sender,
-            sender_name=smtp_sender_name,
-            recipient=email,
-            text_body=text_content,
-            html_body=html_content,
-        )
-        if fallback_ok:
-            app.logger.warning(f"[OTP-MAIL] SMTP ausgefallen, OTP über API-Fallback versendet an {email}")
-            return True
-        app.logger.error(f"[OTP-MAIL] API-Fallback fehlgeschlagen: {fallback_error}")
+        if not (resend_api_key or brevo_api_key):
+            fallback_ok, fallback_error, _provider_used = _send_via_any_api(
+                subject=msg["Subject"],
+                sender_email=smtp_sender,
+                sender_name=smtp_sender_name,
+                recipient=email,
+                text_body=text_content,
+                html_body=html_content,
+            )
+            if fallback_ok:
+                app.logger.warning(f"[OTP-MAIL] SMTP ausgefallen, OTP über API-Fallback versendet an {email}")
+                return True
+            app.logger.error(f"[OTP-MAIL] API-Fallback fehlgeschlagen: {fallback_error}")
         return False
 
 
@@ -4628,83 +4655,130 @@ def run_invoice_dunning_cycle(db):
         "overdueUpdated": 0,
     }
 
-    for row in rows:
-        if row["company_deleted_at"]:
-            continue
+    # Pre-open a single SMTP connection for the whole batch to avoid a
+    # separate TLS handshake + AUTH per invoice (which is the main source of slowness).
+    _batch_smtp = None
+    _batch_smtp_circuit_open = bool(
+        get_invoice_smtp_circuit_open_until() and
+        datetime.now(timezone.utc) < get_invoice_smtp_circuit_open_until()
+    ) if settings else True
+    if settings and not _batch_smtp_circuit_open:
+        _smtp_host = str(settings["smtp_host"] or "").strip()
+        _smtp_port = int(settings["smtp_port"] or 587)
+        _smtp_use_tls = int(settings["smtp_use_tls"] or 0) == 1
+        _smtp_host, _smtp_port = _normalize_smtp_target(_smtp_host, _smtp_port, _smtp_use_tls)
+        _smtp_username = str(settings["smtp_username"] or "").strip()
+        _smtp_password = settings["smtp_password"] or ""
+        _smtp_sender = str(settings["smtp_sender_email"] or "").strip()
+        if _smtp_host and _smtp_sender:
+            try:
+                _smtp_port_int = int(_smtp_port or 587)
+                if _smtp_port_int == 465:
+                    _batch_smtp = smtplib.SMTP_SSL(_smtp_host, _smtp_port_int, timeout=SMTP_CONNECT_TIMEOUT_SECONDS)
+                else:
+                    _batch_smtp = smtplib.SMTP(_smtp_host, _smtp_port_int, timeout=SMTP_CONNECT_TIMEOUT_SECONDS)
+                    _batch_smtp.ehlo()
+                    if _smtp_use_tls:
+                        _batch_smtp.starttls()
+                        _batch_smtp.ehlo()
+                if _smtp_username:
+                    _batch_smtp.login(_smtp_username, _smtp_password)
+                app.logger.info(f"[DUNNING] Shared SMTP-Verbindung zu {_smtp_host}:{_smtp_port_int} aufgebaut")
+            except Exception as _smtp_init_exc:
+                app.logger.warning(f"[DUNNING] Shared SMTP-Verbindung fehlgeschlagen ({_smtp_init_exc}), jede Mail öffnet eigene Verbindung")
+                if _batch_smtp:
+                    try:
+                        _batch_smtp.quit()
+                    except Exception:
+                        pass
+                _batch_smtp = None
 
-        due_date = parse_iso_date(row["due_date"])
-        if not due_date:
-            continue
+    try:
+        for row in rows:
+            if row["company_deleted_at"]:
+                continue
 
-        days_until_due = (due_date - today).days
-        invoice_id = row["id"]
-        current_stage = int(row["reminder_stage"] or 0)
-        last_reminder_day = str(row["last_reminder_sent_at"] or "")[:10]
+            due_date = parse_iso_date(row["due_date"])
+            if not due_date:
+                continue
 
-        if days_until_due < 0 and row["status"] != "overdue":
-            db.execute("UPDATE invoices SET status = 'overdue' WHERE id = ?", (invoice_id,))
-            result["overdueUpdated"] += 1
+            days_until_due = (due_date - today).days
+            invoice_id = row["id"]
+            current_stage = int(row["reminder_stage"] or 0)
+            last_reminder_day = str(row["last_reminder_sent_at"] or "")[:10]
 
-        target_stage = 0
-        stage1_days = int((settings["dunning_stage1_days"] if settings and "dunning_stage1_days" in settings.keys() else None) or 7)
-        stage2_days = int((settings["dunning_stage2_days"] if settings and "dunning_stage2_days" in settings.keys() else None) or 3)
-        if days_until_due <= stage1_days and days_until_due > stage2_days:
-            target_stage = 1
-        elif days_until_due <= stage2_days and days_until_due >= 0:
-            target_stage = 2
-        elif days_until_due < 0:
-            target_stage = 3
+            if days_until_due < 0 and row["status"] != "overdue":
+                db.execute("UPDATE invoices SET status = 'overdue' WHERE id = ?", (invoice_id,))
+                result["overdueUpdated"] += 1
 
-        if target_stage == 0:
-            continue
+            target_stage = 0
+            stage1_days = int((settings["dunning_stage1_days"] if settings and "dunning_stage1_days" in settings.keys() else None) or 7)
+            stage2_days = int((settings["dunning_stage2_days"] if settings and "dunning_stage2_days" in settings.keys() else None) or 3)
+            if days_until_due <= stage1_days and days_until_due > stage2_days:
+                target_stage = 1
+            elif days_until_due <= stage2_days and days_until_due >= 0:
+                target_stage = 2
+            elif days_until_due < 0:
+                target_stage = 3
 
-        # Stage 3: repeat max every 7 days (not every day)
-        stage3_repeat = False
-        if target_stage == 3:
-            if not last_reminder_day:
-                stage3_repeat = True
-            else:
-                try:
-                    import datetime as _dt
-                    days_since_last = (today - _dt.date.fromisoformat(last_reminder_day[:10])).days
-                    stage3_repeat = days_since_last >= 7
-                except Exception:
+            if target_stage == 0:
+                continue
+
+            # Stage 3: repeat max every 7 days (not every day)
+            stage3_repeat = False
+            if target_stage == 3:
+                if not last_reminder_day:
                     stage3_repeat = True
-        should_send = target_stage > current_stage or stage3_repeat
-        if not should_send:
-            continue
+                else:
+                    try:
+                        import datetime as _dt
+                        days_since_last = (today - _dt.date.fromisoformat(last_reminder_day[:10])).days
+                        stage3_repeat = days_since_last >= 7
+                    except Exception:
+                        stage3_repeat = True
+            should_send = target_stage > current_stage or stage3_repeat
+            if not should_send:
+                continue
 
-        company_row = {"name": row["company_name"]}
-        sent_ok, error_message = send_payment_reminder_email(row, company_row, settings, target_stage, days_until_due)
+            company_row = {"name": row["company_name"]}
+            sent_ok, error_message = send_payment_reminder_email(
+                row, company_row, settings, target_stage, days_until_due, _shared_smtp=_batch_smtp
+            )
 
-        if sent_ok:
-            db.execute(
-                "UPDATE invoices SET reminder_stage = ?, last_reminder_sent_at = ?, last_reminder_error = '' WHERE id = ?",
-                (target_stage, now_iso(), invoice_id),
-            )
-            log_audit(
-                "invoice.reminder_sent",
-                f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} versendet",
-                target_type="invoice",
-                target_id=invoice_id,
-                company_id=row["company_id"],
-                actor=None,
-            )
-            result["remindersSent"] += 1
-        else:
-            db.execute(
-                "UPDATE invoices SET last_reminder_error = ? WHERE id = ?",
-                (error_message, invoice_id),
-            )
-            log_audit(
-                "invoice.reminder_failed",
-                f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} fehlgeschlagen: {error_message}",
-                target_type="invoice",
-                target_id=invoice_id,
-                company_id=row["company_id"],
-                actor=None,
-            )
-            result["reminderFailures"] += 1
+            if sent_ok:
+                db.execute(
+                    "UPDATE invoices SET reminder_stage = ?, last_reminder_sent_at = ?, last_reminder_error = '' WHERE id = ?",
+                    (target_stage, now_iso(), invoice_id),
+                )
+                log_audit(
+                    "invoice.reminder_sent",
+                    f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} versendet",
+                    target_type="invoice",
+                    target_id=invoice_id,
+                    company_id=row["company_id"],
+                    actor=None,
+                )
+                result["remindersSent"] += 1
+            else:
+                db.execute(
+                    "UPDATE invoices SET last_reminder_error = ? WHERE id = ?",
+                    (error_message, invoice_id),
+                )
+                log_audit(
+                    "invoice.reminder_failed",
+                    f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} fehlgeschlagen: {error_message}",
+                    target_type="invoice",
+                    target_id=invoice_id,
+                    company_id=row["company_id"],
+                    actor=None,
+                )
+                result["reminderFailures"] += 1
+    finally:
+        if _batch_smtp is not None:
+            try:
+                _batch_smtp.quit()
+            except Exception:
+                pass
 
     db.commit()
     return result
