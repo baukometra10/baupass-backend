@@ -27511,12 +27511,18 @@ function downloadBlob(blob, filename) {
  * Show alert message (existing function wrapper)
  */
 function showAlert(key, vars = {}) {
+  const normalizedKey = String(key || "").toLowerCase();
   const msg = UI_TRANSLATIONS[getCurrentLang()]?.[key] || key;
   let text = msg;
   for (const [k, v] of Object.entries(vars)) {
     text = text.replace(`{${k}}`, String(v));
   }
-  showToast(text, "info", 3600);
+
+  const isErrorLike = /failed|error|invalid|forbidden|missing|required|denied|locked|expired|conflict|unavailable/.test(normalizedKey);
+  const isSuccessLike = /success|saved|sent|done|enabled|disabled|updated|copied|confirmed|activated|created|loaded/.test(normalizedKey);
+  const type = isErrorLike ? "error" : (isSuccessLike ? "success" : "info");
+  const duration = type === "error" ? 4200 : (type === "success" ? 2800 : 3200);
+  showToast(text, type, duration);
 }
 
 let activeConfirmCloser = null;
