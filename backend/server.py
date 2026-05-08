@@ -3871,7 +3871,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     attachments = []
     if pdf_bytes:
         import base64 as _b64
-        attachments = [{"filename": pdf_filename, "content": _b64.b64encode(pdf_bytes).decode("ascii"), "type": "application/pdf"}]
+        attachments = [{"filename": pdf_filename, "content_b64": _b64.b64encode(pdf_bytes).decode("ascii"), "mime_type": "application/pdf"}]
 
     # API-first: try Brevo/Resend before SMTP (faster, cheaper, no Microsoft auth issues)
     resend_key, _resend_key_source = _get_resend_api_key_and_source()
@@ -4265,15 +4265,17 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         "htmlContent": html_body,
     }
     if attachments:
-        payload["attachment"] = [
+        _brevo_atts = [
             {
                 "name": str(item.get("filename") or "attachment.bin"),
-                "content": str(item.get("content_b64") or ""),
-                "contentType": str(item.get("mime_type") or "application/octet-stream"),
+                "content": str(item.get("content_b64") or item.get("content") or ""),
+                "contentType": str(item.get("mime_type") or item.get("type") or "application/octet-stream"),
             }
             for item in attachments
-            if item and item.get("content_b64")
+            if item and (item.get("content_b64") or item.get("content"))
         ]
+        if _brevo_atts:
+            payload["attachment"] = _brevo_atts
     req = Request(
         "https://api.brevo.com/v3/smtp/email",
         data=json.dumps(payload).encode("utf-8"),
