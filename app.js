@@ -385,6 +385,7 @@ const UI_TRANSLATIONS = {
     imapSectionEyebrow: "Dokument-Eingang",
     imapSectionH4: "IMAP-Postfach f\u00fcr Nachweise",
     labelImapHint: "Mitarbeiter schicken Nachweise an diese Adresse. Das System ruft das Postfach alle paar Minuten ab.",
+      imapPlusAliasWarning: "Hinweis: Bei GMX/Web.de sind +Alias-Adressen oft nicht zustellbar. Bitte fuer Dokument-E-Mails eine echte, separat angelegte Adresse verwenden.",
     labelImapHost: "IMAP Host",
     labelImapPort: "IMAP Port",
     labelImapUser: "IMAP Benutzername",
@@ -1159,6 +1160,7 @@ const UI_TRANSLATIONS = {
     imapSectionEyebrow: "Document Inbox",
     imapSectionH4: "IMAP mailbox for proof documents",
     labelImapHint: "Workers send their proof documents to this address. The system polls the mailbox every few minutes.",
+      imapPlusAliasWarning: "Note: +alias addresses are often not reliably deliverable on GMX/Web.de. Use a real dedicated document email address instead.",
     labelImapHost: "IMAP Host",
     labelImapPort: "IMAP Port",
     labelImapUser: "IMAP Username",
@@ -7545,6 +7547,9 @@ const state = {
   latestAccessByWorker: {},
   invoiceAccessLineItemsCache: {},
   accessInsights: { hourly: [], openEntries: [] },
+  accessHoursMonth: "",
+  accessHoursCompanyId: "",
+  accessHoursByWorker: {},
   reporting: { kpis: {}, accessDaily: [], topOverdueCompanies: [] },
   invoices: [],
   devices: [],
@@ -14430,6 +14435,52 @@ function getUiVisibleLatestAccessEntries() {
   return state.latestAccessEntries.filter((entry) => allowedWorkerIds.has(entry.workerId));
 }
 
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatHoursCompact(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  const normalized = Math.round(n * 100) / 100;
+  return String(normalized).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1").replace(".", ",");
+}
+
+async function loadAccessWorkerHoursMonth() {
+  const companyId = getEffectiveUiCompanyId();
+  const role = getEffectiveUiRole();
+  const monthKey = getCurrentMonthKey();
+  const roleCanSee = ["company-admin", "turnstile", "superadmin"].includes(role);
+
+  if (!roleCanSee || !companyId || !hasCompanyFeatureForCompanyId(companyId, "worker_hours_report")) {
+    state.accessHoursMonth = "";
+    state.accessHoursCompanyId = "";
+    state.accessHoursByWorker = {};
+    return;
+  }
+
+  if (state.accessHoursMonth === monthKey && state.accessHoursCompanyId === companyId && Object.keys(state.accessHoursByWorker || {}).length > 0) {
+    return;
+  }
+
+  try {
+    const payload = await apiRequest(`${API_BASE}/api/companies/${companyId}/worker-hours-summary?month=${encodeURIComponent(monthKey)}`);
+    const workers = Array.isArray(payload?.workers) ? payload.workers : [];
+    const nextMap = {};
+    workers.forEach((entry) => {
+      const workerId = String(entry?.workerId || "").trim();
+      if (!workerId) return;
+      nextMap[workerId] = Number(entry?.totalHours || 0);
+    });
+    state.accessHoursMonth = monthKey;
+    state.accessHoursCompanyId = companyId;
+    state.accessHoursByWorker = nextMap;
+  } catch {
+    state.accessHoursByWorker = {};
+  }
+}
+
 function setLatestAccessSnapshot(entries) {
   const normalizedEntries = (entries || []).map(normalizeLog)
     .filter((entry) => entry.workerId)
@@ -15514,6 +15565,7 @@ async function loadAllData() {
     state.workers = workers.value || [];
     await loadWorkerIdentityTokenStatuses(state.workers);
   }
+  await loadAccessWorkerHoursMonth();
   if (accessLogs.status === "fulfilled") {
     const normalizedAccessLogs = normalizeAccessLogsResponse(accessLogs.value, accessLogsRequest);
     state.accessLogs = normalizedAccessLogs.items;
@@ -18941,8 +18993,33 @@ function suggestCompanyDocumentEmail(companyName) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "firma";
   const [localPart, domain] = baseAddress.split("@", 2);
+  const normalizedDomain = String(domain || "").trim().toLowerCase();
+  const unsupportedPlusDomains = new Set(["gmx.de", "gmx.net", "gmx.com", "web.de"]);
+  if (unsupportedPlusDomains.has(normalizedDomain)) {
+    return "";
+  }
   const aliasBase = (localPart.split("+", 1)[0] || "dokumente").trim() || "dokumente";
   return `${aliasBase}+${slug}@${domain}`;
+}
+
+function hasUnsupportedImapPlusAliasDomain(rawEmail) {
+  const normalized = String(rawEmail || "").trim().toLowerCase();
+  if (!normalized.includes("@")) {
+    return false;
+  }
+  const domain = normalized.split("@").pop() || "";
+  return new Set(["gmx.de", "gmx.net", "gmx.com", "web.de"]).has(domain);
+}
+
+function renderImapPlusAliasWarning() {
+  const warningEl = document.querySelector("#imapPlusAliasHint");
+  if (!warningEl) {
+    return;
+  }
+  const imapUsername = document.querySelector("#imapUsername")?.value || state.settings?.imapUsername || "";
+  const shouldShow = hasUnsupportedImapPlusAliasDomain(imapUsername);
+  warningEl.textContent = shouldShow ? uiT("imapPlusAliasWarning") : "";
+  warningEl.style.display = shouldShow ? "block" : "none";
 }
 
 function syncInvoiceRecipientFromCompany() {
@@ -19287,6 +19364,7 @@ function renderAdminSettingsForm() {
   if (imapPassword) imapPassword.value = "";
   if (imapFolder) imapFolder.value = state.settings.imapFolder || "INBOX";
   if (imapUseSsl) imapUseSsl.value = state.settings.imapUseSsl === false ? "0" : "1";
+  renderImapPlusAliasWarning();
   const impressumText = document.querySelector("#impressumText");
   const datenschutzText = document.querySelector("#datenschutzText");
   if (impressumText) impressumText.value = state.settings.impressumText || "";
@@ -20697,6 +20775,8 @@ function formatDurationMinutes(minutes) {
 function renderAccessItem(log, options = {}) {
   const { featured = false } = options;
   const worker = state.workers.find((entry) => entry.id === log.workerId);
+  const monthHours = worker ? state.accessHoursByWorker?.[worker.id] : null;
+  const monthHoursLabel = monthHours == null ? "" : `⏱ ${formatHoursCompact(monthHours)} h (${state.accessHoursMonth})`;
   const subcompanyLabel = getSubcompanyLabel(worker);
   const photoSrc = worker
     ? sanitizeImageSrc(worker.photoData, createAvatar(worker))
@@ -20717,6 +20797,7 @@ function renderAccessItem(log, options = {}) {
             ${log.checked_in_late == 1 ? `<span class="status-pill status-late" title="${uiT("checkedInLate")}">${uiT("checkedInLate")}</span>` : ""}
           </header>
           <span>${formatTimestamp(log.timestamp)}</span>
+          ${monthHoursLabel ? `<span>${escapeHtml(monthHoursLabel)}</span>` : ""}
           <span>${escapeHtml(log.note || "Keine Notiz")}</span>
         </div>
       </div>
@@ -26839,6 +26920,12 @@ if (settingsForm) {
 
   settingsForm.addEventListener("input", applySettingsFieldColors);
   settingsForm.addEventListener("change", applySettingsFieldColors);
+  settingsForm.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target instanceof Element && target.id === "imapUsername") {
+      renderImapPlusAliasWarning();
+    }
+  });
   // Sofort beim Laden anwenden (nach kurzem Timeout damit renderAdminSettingsForm die Werte gesetzt hat)
   setTimeout(applySettingsFieldColors, 200);
 }
