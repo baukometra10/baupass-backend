@@ -16704,7 +16704,15 @@ def get_imap_settings(db):
     if not str(cfg.get("imap_password") or "").strip() and smtp_password:
         cfg["imap_password"] = smtp_password
 
-    if not str(cfg.get("imap_host") or "").strip():
+    raw_imap_host = str(cfg.get("imap_host") or "").strip()
+    # Correct a common mistake: user typed the SMTP host into the IMAP host field.
+    # smtp-mail.outlook.com / smtp.office365.com are SMTP-only — silently fix to the real IMAP host.
+    _smtp_only_hosts = ("smtp-mail.outlook.com", "smtp.office365.com", "smtp.live.com",
+                        "smtp.gmail.com", "smtp.mail.yahoo.com", "smtp.zoho.com")
+    if raw_imap_host.lower() in _smtp_only_hosts:
+        raw_imap_host = ""
+        cfg["imap_host"] = ""
+    if not raw_imap_host:
         inferred_imap_host = _infer_imap_host(cfg.get("imap_username"), smtp_host)
         if inferred_imap_host:
             cfg["imap_host"] = inferred_imap_host
@@ -17738,6 +17746,12 @@ def test_imap_connection():
     password = str(payload.get("imapPassword") or stored.get("imap_password") or "")
     use_ssl = bool(payload.get("imapUseSsl", stored.get("imap_use_ssl", 1)))
     folder = clean_text_input((payload.get("imapFolder") or stored.get("imap_folder", "INBOX")), max_len=100) or "INBOX"
+
+    # If user entered the SMTP host by mistake, silently correct it.
+    _smtp_only_hosts = ("smtp-mail.outlook.com", "smtp.office365.com", "smtp.live.com",
+                        "smtp.gmail.com", "smtp.mail.yahoo.com", "smtp.zoho.com")
+    if host.lower() in _smtp_only_hosts:
+        host = _infer_imap_host(username, host) or host
 
     missing = []
     if not host:
