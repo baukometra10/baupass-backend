@@ -15205,6 +15205,7 @@ async function apiRequest(url, options = {}) {
     throw new Error("support_session_read_only");
   }
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  const requestToken = auth ? String(token || "") : "";
   if (auth && token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -15266,17 +15267,28 @@ async function apiRequest(url, options = {}) {
     }
     // ── Retry bei 401 mit neuer Session ──
     if (auth && response.status === 401 && retries > 0) {
-      console.warn("⚠️  401 erhalten, versuche neue Session zu laden...");
-      try {
-        await restoreSessionFromBootstrap();
-        if (token) {
-          console.log("✓ Session erneuert, wiederhole Request");
-          return apiRequest(url, { ...options, retries: retries - 1 });
+      const currentToken = String(token || "");
+
+      // Wenn sich das Token waehrend des Requests geaendert hat (z. B. Login in parallelem Tab),
+      // direkt mit dem aktuellen Token erneut versuchen statt Bootstrap-Kaskade.
+      if (requestToken && currentToken && requestToken !== currentToken) {
+        return apiRequest(url, { ...options, retries: retries - 1 });
+      }
+
+      // Vermeidet Rekursion, falls der fehlgeschlagene Request bereits bootstrap selbst ist.
+      if (!String(url || "").includes("/api/session/bootstrap")) {
+        console.warn("⚠️  401 erhalten, versuche neue Session zu laden...");
+        try {
+          await restoreSessionFromBootstrap();
+          if (token) {
+            console.log("✓ Session erneuert, wiederhole Request");
+            return apiRequest(url, { ...options, retries: retries - 1 });
+          }
+        } catch {
+          // Fallback zu Session-Ablauf
+          handleExpiredControlSession();
+          throw new Error("session_expired");
         }
-      } catch {
-        // Fallback zu Session-Ablauf
-        handleExpiredControlSession();
-        throw new Error("session_expired");
       }
     }
     if (auth && ["invalid_session", "unauthorized"].includes(String(payload?.error || ""))) {
