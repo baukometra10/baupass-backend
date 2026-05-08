@@ -4599,29 +4599,32 @@ body.theme-white::after {
 }
 
 body.theme-black {
-  --bg: #000000;
-  --surface: rgba(20, 20, 20, 0.9);
-  --surface-strong: #141414;
-  --text: #f5f5f5;
-  --muted: #bfc4c9;
-  --line: rgba(255, 255, 255, 0.16);
-  --button-bg: #000000;
-  --button-text: #ffffff;
-  --button-border: rgba(255, 255, 255, 0.32);
+  --bg: #17110d;
+  --surface: rgba(33, 24, 20, 0.92);
+  --surface-strong: #261b14;
+  --text: #fff4ea;
+  --muted: #d0b8a6;
+  --line: rgba(255, 208, 179, 0.2);
+  --button-bg: linear-gradient(135deg, #ca5a2d, #7f3018);
+  --button-text: #fffaf5;
+  --button-border: rgba(228, 124, 58, 0.58);
   --accent: #e47c3a;
-  --accent-soft: rgba(228, 124, 58, 0.18);
+  --accent-soft: rgba(228, 124, 58, 0.22);
   --accent-dark: #bf5e27;
-  --shadow: 0 26px 64px rgba(0, 0, 0, 0.55);
-  background: var(--window-color, #000000);
+  --shadow: 0 26px 64px rgba(14, 8, 6, 0.6);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(202, 90, 45, 0.22), transparent 36%),
+    radial-gradient(circle at 100% 12%, rgba(127, 48, 24, 0.24), transparent 34%),
+    linear-gradient(155deg, #17110d 0%, #241912 52%, #1d150f 100%);
 }
 
 body.theme-black::before,
 body.theme-black::after {
-  opacity: 0;
+  opacity: 0.28;
 }
 
 body.theme-black .content {
-  background: #0f141b;
+  background: linear-gradient(180deg, rgba(23, 17, 13, 0.94), rgba(30, 22, 16, 0.9));
 }
 
 body.theme-black .content::before {
@@ -4629,9 +4632,9 @@ body.theme-black .content::before {
 }
 
 body.theme-black .topbar {
-  background: rgba(18, 18, 18, 0.92);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+  background: rgba(32, 22, 16, 0.92);
+  border-color: rgba(255, 205, 173, 0.2);
+  box-shadow: 0 14px 30px rgba(24, 14, 10, 0.5);
 }
 
 body.theme-black .hero-panel,
@@ -4650,9 +4653,9 @@ body.theme-black .badge-meta,
 body.theme-black .list-item,
 body.theme-black .card-item,
 body.theme-black .camera-block {
-  background: #1a1a1a;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #f0f4f8;
+  background: #211812;
+  border-color: rgba(255, 203, 170, 0.14);
+  color: #fff4ea;
 }
 
 body.theme-black .hero-panel::before {
