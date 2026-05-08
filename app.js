@@ -19509,7 +19509,8 @@ function renderWorkerHceDevices(devices, workerId, container, reloadFn) {
       const confirmText = action === "revoke"
         ? uiT("workerHceConfirmRevoke").replace("{deviceId}", deviceId)
         : uiT("workerHceConfirmActivate").replace("{deviceId}", deviceId);
-      if (!window.confirm(confirmText)) {
+      const confirmed = await showConfirmDialog(confirmText);
+      if (!confirmed) {
         return;
       }
       btn.disabled = true;
@@ -19518,8 +19519,9 @@ function renderWorkerHceDevices(devices, workerId, container, reloadFn) {
           method: "POST",
         });
         await reloadFn();
+        showToast(action === "revoke" ? uiT("workerHceStatusRevoked") : uiT("workerHceStatusActive"), "success");
       } catch (error) {
-        window.alert(uiT("workerHceUpdateFailed").replace("{error}", error?.message || "unknown"));
+        showToast(uiT("workerHceUpdateFailed").replace("{error}", error?.message || "unknown"), "error", 3600);
       } finally {
         btn.disabled = false;
       }
@@ -27514,6 +27516,57 @@ function showAlert(key, vars = {}) {
     text = text.replace(`{${k}}`, String(v));
   }
   alert(text);
+}
+
+function showToast(message, type = "info", timeout = 2600) {
+  const text = String(message || "").trim();
+  if (!text) return;
+  let el = document.getElementById("appToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "appToast";
+    el.className = "app-toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.className = `app-toast app-toast-${type}`;
+  el.classList.add("is-visible");
+  const existingTimer = Number(el.dataset.timerId || 0);
+  if (existingTimer) {
+    window.clearTimeout(existingTimer);
+  }
+  const timerId = window.setTimeout(() => {
+    el.classList.remove("is-visible");
+  }, Math.max(1200, Number(timeout) || 2600));
+  el.dataset.timerId = String(timerId);
+}
+
+function showConfirmDialog(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "worker-app-qr-overlay app-confirm-overlay";
+    overlay.innerHTML = `
+      <div class="worker-app-qr-card app-confirm-card">
+        <p class="app-confirm-message">${escapeHtml(String(message || ""))}</p>
+        <div class="button-row">
+          <button type="button" class="ghost-button" data-confirm-cancel>${escapeHtml(uiT("btnBulkCancel"))}</button>
+          <button type="button" class="primary-button" data-confirm-accept>OK</button>
+        </div>
+      </div>
+    `;
+
+    const close = (result) => {
+      overlay.remove();
+      resolve(Boolean(result));
+    };
+
+    overlay.querySelector("[data-confirm-cancel]")?.addEventListener("click", () => close(false), { once: true });
+    overlay.querySelector("[data-confirm-accept]")?.addEventListener("click", () => close(true), { once: true });
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) close(false);
+    });
+    document.body.appendChild(overlay);
+  });
 }
 
 /**
