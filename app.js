@@ -14840,9 +14840,23 @@ function renderDocumentInboxList() {
   const currentRole = String(state.currentUser?.role || "").toLowerCase();
   const canReplyFromList = currentRole === "superadmin" || currentRole === "company-admin";
 
-  const entries = Array.isArray(state.documentInboxEntries) ? state.documentInboxEntries : [];
-  if (!entries.length) {
+  const searchInput = document.querySelector("#docInboxSearchInput");
+  const searchTerm = String(searchInput?.value || "").trim().toLowerCase();
+
+  const allEntries = Array.isArray(state.documentInboxEntries) ? state.documentInboxEntries : [];
+  const entries = searchTerm
+    ? allEntries.filter((e) => {
+        const hay = [e.from_addr || "", e.subject || "", e.matched_company_name || "", e.to_addr || ""].join(" ").toLowerCase();
+        return hay.includes(searchTerm);
+      })
+    : allEntries;
+
+  if (!allEntries.length) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(uiT("docInboxEmpty"))}</div>`;
+    return;
+  }
+  if (!entries.length) {
+    container.innerHTML = `<div class="empty-state">Keine Ergebnisse f\u00fcr \u201e${escapeHtml(searchTerm)}\u201c</div>`;
     return;
   }
 
@@ -15227,6 +15241,14 @@ function bindDocumentInboxControls() {
   const syncButton = document.querySelector("#docInboxSyncBtn");
   const rematchButton = document.querySelector("#docInboxRematchBtn");
   const copyButton = document.querySelector("#docEmailCopyBtn");
+  const searchInput = document.querySelector("#docInboxSearchInput");
+
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.addEventListener("input", () => {
+      renderDocumentInboxList();
+    });
+    searchInput.dataset.bound = "1";
+  }
 
   if (refreshButton && !refreshButton.dataset.bound) {
     refreshButton.addEventListener("click", async () => {
