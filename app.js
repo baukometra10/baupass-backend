@@ -22001,9 +22001,9 @@ async function handleSystemRepair() {
   try {
     await apiRequest(`${API_BASE}/api/system/repair`, { method: "POST", body: {} });
     await refreshSystemStatus();
-    window.alert(uiT("alertSystemRepairDone"));
+    showToast(uiT("alertSystemRepairDone"), "success");
   } catch (error) {
-    window.alert(uiT("alertSystemRepairFailed").replace("{error}", error.message));
+    showToast(uiT("alertSystemRepairFailed").replace("{error}", error.message), "error", 3600);
   }
 }
 
@@ -22907,7 +22907,7 @@ function renderInvoiceApprovalQueue() {
     if (decision === "reject") {
       note = String(window.prompt(uiT("promptRejectionReason"), "") || "").trim();
       if (!note) {
-        window.alert(uiT("alertApprovalRejectReasonRequired"));
+        showToast(uiT("alertApprovalRejectReasonRequired"), "error");
         return;
       }
     }
@@ -22918,18 +22918,18 @@ function renderInvoiceApprovalQueue() {
         body: { decision, note },
       });
       if (payload?.status === "approved") {
-        window.alert(uiT("alertApprovalConfirmed"));
+        showToast(uiT("alertApprovalConfirmed"), "success");
       } else if (payload?.status === "rejected") {
-        window.alert(uiT("alertApprovalRejected"));
+        showToast(uiT("alertApprovalRejected"), "info");
       } else {
-        window.alert(uiT("alertApprovalUpdated"));
+        showToast(uiT("alertApprovalUpdated"), "info");
       }
       state.invoiceRetrySelectedIds = [];
       await loadAndRenderInvoices();
       await loadAllData();
       refreshAll();
     } catch (error) {
-      window.alert(uiT("alertApprovalActionFailed").replace("{error}", error.message));
+      showToast(uiT("alertApprovalActionFailed").replace("{error}", error.message), "error", 3600);
     }
   };
 }
@@ -22979,15 +22979,15 @@ function renderInvoiceDeadLetters() {
           body: {}
         });
         if (payload?.sent) {
-          window.alert(uiT("alertInvoiceRetrySentDeadLetter"));
+          showToast(uiT("alertInvoiceRetrySentDeadLetter"), "success");
         } else {
-          window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
+          showToast(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")), "error", 3600);
         }
         await loadAndRenderInvoices();
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", error.message));
+        showToast(uiT("alertInvoiceRetryFailed").replace("{error}", error.message), "error", 3600);
       }
       return;
     }
@@ -23004,12 +23004,12 @@ function renderInvoiceDeadLetters() {
           body: {}
         });
         if (payload?.approvalRequested) {
-          window.alert(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId));
+          showToast(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId), "info", 3600);
         }
         await loadAndRenderInvoices();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertDeadLetterResolveFailed").replace("{error}", error.message));
+        showToast(uiT("alertDeadLetterResolveFailed").replace("{error}", error.message), "error", 3600);
       }
     }
   };
@@ -23377,12 +23377,12 @@ function renderInvoiceManagementList() {
           state.invoiceJustPaidId = "";
           renderInvoiceManagementList();
         }, 2200);
-        window.alert(runtimeText("invoiceMarkedPaid"));
+        showToast(runtimeText("invoiceMarkedPaid"), "success");
         await loadAndRenderInvoices();
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", error.message), "error", 3600);
       }
     });
   });
@@ -23399,15 +23399,15 @@ function renderInvoiceManagementList() {
           body: {}
         });
         if (payload?.sent) {
-          window.alert(uiT("alertInvoiceRetrySent"));
+          showToast(uiT("alertInvoiceRetrySent"), "success");
         } else {
-          window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
+          showToast(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")), "error", 3600);
         }
         await loadAndRenderInvoices();
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", error.message));
+        showToast(uiT("alertInvoiceRetryFailed").replace("{error}", error.message), "error", 3600);
       }
     });
   });
@@ -23431,7 +23431,7 @@ function renderInvoiceManagementList() {
       try {
         await loadInvoiceAttemptHistory(invoiceId, { force: true });
       } catch (error) {
-        window.alert(uiT("alertInvoiceHistoryLoadFailed").replace("{error}", error.message));
+        showToast(uiT("alertInvoiceHistoryLoadFailed").replace("{error}", error.message), "error", 3600);
       }
       renderInvoiceManagementList();
     });
@@ -23458,7 +23458,7 @@ function renderInvoiceManagementList() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
       } catch (error) {
-        window.alert(runtimeTextTemplate("invoiceReminderLoadFailed", { error: error.message }));
+        showToast(runtimeTextTemplate("invoiceReminderLoadFailed", { error: error.message }), "error", 3600);
       } finally {
         event.target.disabled = false;
       }
@@ -23591,12 +23591,12 @@ function renderInvoiceManagementList() {
         });
         state.invoiceSelectedIds = [];
         updateInvoiceBulkBar();
-        window.alert(runtimeTextTemplate("invoiceBulkMarkPaidDone", { count: result.updated || 0 }));
+        showToast(runtimeTextTemplate("invoiceBulkMarkPaidDone", { count: result.updated || 0 }), "success");
         await loadAndRenderInvoices();
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
+        showToast(runtimeTextTemplate("genericErrorPrefix", { message: error.message }), "error", 3600);
       } finally {
         bulkMarkPaidBtn.disabled = false;
       }
@@ -24060,7 +24060,7 @@ function renderCollectionsList() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertCollectionsStatusChangeFailed").replace("{error}", error.message));
+        showToast(uiT("alertCollectionsStatusChangeFailed").replace("{error}", error.message), "error", 3600);
       }
     }
   };
@@ -26616,17 +26616,17 @@ if (invoiceRetryBulkSendBtn) {
         body: { invoiceIds: selectedIds }
       });
       if (payload?.approvalRequested) {
-        window.alert(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId));
+        showToast(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId), "info", 3600);
       } else {
         const summary = payload?.summary || {};
-        window.alert(uiT("alertBulkRetryDone").replace("{sent}", summary.sent || 0).replace("{failed}", summary.failed || 0).replace("{skipped}", summary.skipped || 0));
+        showToast(uiT("alertBulkRetryDone").replace("{sent}", summary.sent || 0).replace("{failed}", summary.failed || 0).replace("{skipped}", summary.skipped || 0), "success", 3600);
       }
       state.invoiceRetrySelectedIds = [];
       await loadAndRenderInvoices();
       await loadAllData();
       refreshAll();
     } catch (error) {
-      window.alert(uiT("alertBulkRetryFailed").replace("{error}", error.message));
+      showToast(uiT("alertBulkRetryFailed").replace("{error}", error.message), "error", 3600);
     }
   });
 }
@@ -26651,17 +26651,17 @@ if (invoiceRetryCriticalSendBtn) {
         body: { invoiceIds: criticalIds }
       });
       if (payload?.approvalRequested) {
-        window.alert(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId));
+        showToast(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId), "info", 3600);
       } else {
         const summary = payload?.summary || {};
-        window.alert(uiT("alertCriticalBulkRetryDone").replace("{sent}", summary.sent || 0).replace("{failed}", summary.failed || 0).replace("{skipped}", summary.skipped || 0));
+        showToast(uiT("alertCriticalBulkRetryDone").replace("{sent}", summary.sent || 0).replace("{failed}", summary.failed || 0).replace("{skipped}", summary.skipped || 0), "success", 3600);
       }
       state.invoiceRetrySelectedIds = [];
       await loadAndRenderInvoices();
       await loadAllData();
       refreshAll();
     } catch (error) {
-      window.alert(uiT("alertCriticalBulkRetryFailed").replace("{error}", error.message));
+      showToast(uiT("alertCriticalBulkRetryFailed").replace("{error}", error.message), "error", 3600);
     }
   });
 }
@@ -26674,11 +26674,11 @@ if (triggerDunningBtn) {
     triggerDunningBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/trigger-dunning`, { method: "POST", body: {} });
-      window.alert(runtimeTextTemplate("dunningRunResult", { count: result.result?.remindersSent || 0 }));
+      showToast(runtimeTextTemplate("dunningRunResult", { count: result.result?.remindersSent || 0 }), "success");
       await loadAndRenderInvoices();
       refreshAll();
     } catch (error) {
-      window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
+      showToast(runtimeTextTemplate("genericErrorPrefix", { message: error.message }), "error", 3600);
     } finally {
       triggerDunningBtn.disabled = false;
     }
@@ -26692,16 +26692,16 @@ if (triggerMonthlyInvoiceBtn) {
     triggerMonthlyInvoiceBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/trigger-monthly-cycle`, { method: "POST", body: {} });
-      window.alert(runtimeTextTemplate("monthlyInvoiceRunResult", {
+      showToast(runtimeTextTemplate("monthlyInvoiceRunResult", {
         created: String(result.result?.created || 0),
         sent: String(result.result?.sent || 0),
         skipped: String(result.result?.skipped || 0),
         failed: String(result.result?.failed || 0),
-      }));
+      }), "success", 3800);
       await loadAndRenderInvoices();
       refreshAll();
     } catch (error) {
-      window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
+      showToast(runtimeTextTemplate("genericErrorPrefix", { message: error.message }), "error", 3600);
     } finally {
       triggerMonthlyInvoiceBtn.disabled = false;
     }
@@ -26715,16 +26715,16 @@ if (simulateCurrentMonthBtn) {
     simulateCurrentMonthBtn.disabled = true;
     try {
       const result = await apiRequest(`${API_BASE}/api/invoices/simulate-monthly-cycle`, { method: "POST", body: {} });
-      window.alert(runtimeTextTemplate("simulateMonthlyRunResult", {
+      showToast(runtimeTextTemplate("simulateMonthlyRunResult", {
         created: String(result.result?.created || 0),
         sent: String(result.result?.sent || 0),
         skipped: String(result.result?.skipped || 0),
         failed: String(result.result?.failed || 0),
-      }));
+      }), "success", 3800);
       await loadAndRenderInvoices();
       refreshAll();
     } catch (error) {
-      window.alert(runtimeTextTemplate("genericErrorPrefix", { message: error.message }));
+      showToast(runtimeTextTemplate("genericErrorPrefix", { message: error.message }), "error", 3600);
     } finally {
       simulateCurrentMonthBtn.disabled = false;
     }
