@@ -2375,6 +2375,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "Mobil rozet uygulaması (dijital rozet + QR)",
     workerPassLockLabel: "Rozeti PIN kilidiyle güvenli hale getir",
     workerSearchPlaceholder: "Ara: İsim, Badge-ID, Şantiye …",
+    workerHoursMonthHint: "Çalışan listesindeki saat gösterimi için ay",
+    workerMinHoursPlaceholder: "Min. saat (ay)",
     confirmDeleteCompanyText: "{name} firmasını ve tüm ilişkili kayıtları sil?\n\nTamam = tam silme (çalışanlar, alt yükleniciler ve loglar dahil)\nİptal = silme",
     confirmLockCompany: "{name} firmasını şimdi kilitle? Bu firmanın firma yöneticisi, turnike ve çalışan uygulaması engellenir.",
     confirmUnlockCompany: "{name} için kilidi kaldır? Firma daha sonra tekrar giriş yapabilir.",
@@ -3145,6 +3147,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "تطبيق البطاقة المحمولة (بطاقة رقمية + QR)",
     workerPassLockLabel: "تأمين البطاقة بقفل PIN",
     workerSearchPlaceholder: "بحث: الاسم، Badge-ID، الموقع …",
+    workerHoursMonthHint: "الشهر المستخدم لعرض الساعات في قائمة العمال",
+    workerMinHoursPlaceholder: "الحد الأدنى للساعات (شهرياً)",
     confirmDeleteCompanyText: "حذف الشركة {name} وجميع السجلات المرتبطة؟\n\nموافق = حذف كامل (بما في ذلك الموظفون والمقاولون الفرعيون والسجلات)\nإلغاء = لا تحذف",
     confirmLockCompany: "قفل الشركة {name} الآن؟ سيتم حظر مسؤول الشركة والدوار وتطبيق الموظف.",
     confirmUnlockCompany: "رفع قفل {name} الآن؟ يمكن للشركة تسجيل الدخول مجدداً بعد ذلك.",
@@ -3915,6 +3919,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "Application badge mobile (badge numérique + QR)",
     workerPassLockLabel: "Sécuriser le badge avec un verrou PIN",
     workerSearchPlaceholder: "Rechercher : Nom, Badge-ID, Chantier …",
+    workerHoursMonthHint: "Mois utilisé pour l'affichage des heures dans la liste des travailleurs",
+    workerMinHoursPlaceholder: "Heures min. (mois)",
     confirmDeleteCompanyText: "Supprimer la société {name} et tous les enregistrements associés ?\n\nOK = suppression complète (incl. employés, sous-traitants et journaux)\nAnnuler = ne pas supprimer",
     confirmLockCompany: "Bloquer la société {name} maintenant ? L'admin, le tourniquet et l'app employé de cette société seront bloqués.",
     confirmUnlockCompany: "Lever le blocage de {name} maintenant ? La société pourra ensuite se reconnecter.",
@@ -4685,6 +4691,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "App de badge móvil (badge digital + QR)",
     workerPassLockLabel: "Proteger el credencial con bloqueo PIN",
     workerSearchPlaceholder: "Buscar: Nombre, Badge-ID, Obra …",
+    workerHoursMonthHint: "Mes usado para mostrar horas en la lista de trabajadores",
+    workerMinHoursPlaceholder: "Horas mín. (mes)",
     confirmDeleteCompanyText: "\u00bfEliminar la empresa {name} y todos los registros asociados?\n\nAceptar = eliminaci\u00f3n completa (incl. empleados, subcontratistas y registros)\nCancelar = no eliminar",
     confirmLockCompany: "\u00bfBloquear la empresa {name} ahora? El administrador, el torniquete y la app de empleados de esta empresa ser\u00e1n bloqueados.",
     confirmUnlockCompany: "\u00bfLevantar el bloqueo de {name} ahora? La empresa podr\u00e1 volver a iniciar sesi\u00f3n.",
@@ -5447,6 +5455,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "App badge mobile (badge digitale + QR)",
     workerPassLockLabel: "Proteggere il badge con blocco PIN",
     workerSearchPlaceholder: "Cerca: Nome, Badge-ID, Cantiere …",
+    workerHoursMonthHint: "Mese usato per la visualizzazione ore nell'elenco lavoratori",
+    workerMinHoursPlaceholder: "Ore min. (mese)",
     confirmDeleteCompanyText: "Eliminare la societ\u00e0 {name} e tutti i record associati?\n\nOK = eliminazione completa (incl. dipendenti, subappaltatori e log)\nAnnulla = non eliminare",
     confirmLockCompany: "Bloccare la societ\u00e0 {name} ora? L'admin, il tornello e l'app dipendenti di questa societ\u00e0 verranno bloccati.",
     confirmUnlockCompany: "Rimuovere il blocco di {name} ora? La societ\u00e0 potr\u00e0 accedere di nuovo.",
@@ -6217,6 +6227,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "Mobilna aplikacja badge (cyfrowy identyfikator + QR)",
     workerPassLockLabel: "Zabezpiecz identyfikator blokadą PIN",
     workerSearchPlaceholder: "Szukaj: Imię, Badge-ID, Budowa …",
+    workerHoursMonthHint: "Miesiąc używany do wyświetlania godzin na liście pracowników",
+    workerMinHoursPlaceholder: "Min. godzin (miesiąc)",
     confirmDeleteCompanyText: "Usunąć firmę {name} i wszystkie powiązane rekordy?\n\nOK = pełne usunięcie (w tym pracownicy, podwykonawcy i logi)\nAnuluj = nie usuwaj",
     confirmLockCompany: "Zablokować firmę {name} teraz? Administrator firmy, kołowrót i aplikacja pracownika zostaną zablokowane.",
     confirmUnlockCompany: "Zdjąć blokadę z {name} teraz? Firma będzie mogła się ponownie zalogować.",
@@ -19022,11 +19034,6 @@ function suggestCompanyDocumentEmail(companyName) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "firma";
   const [localPart, domain] = baseAddress.split("@", 2);
-  const normalizedDomain = String(domain || "").trim().toLowerCase();
-  const unsupportedPlusDomains = new Set(["gmx.de", "gmx.net", "gmx.com", "web.de"]);
-  if (unsupportedPlusDomains.has(normalizedDomain)) {
-    return "";
-  }
   const aliasBase = (localPart.split("+", 1)[0] || "dokumente").trim() || "dokumente";
   return `${aliasBase}+${slug}@${domain}`;
 }
