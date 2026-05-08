@@ -1,4 +1,4 @@
-﻿// ALLE ELEMENTE OBEN DEFINIEREN!
+// ALLE ELEMENTE OBEN DEFINIEREN!
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
@@ -13635,7 +13635,7 @@ function isSupportReadOnlyMode() {
 }
 
 function showSupportReadOnlyAlert() {
-  window.alert(uiT("supportReadOnlyAlert"));
+  showToast(uiT("supportReadOnlyAlert"));
 }
 
 function renderSupportReadOnlyTopbarBadge(loggedIn) {
@@ -13944,7 +13944,7 @@ async function triggerDesktopInstall() {
     return;
   }
   if (!deferredDesktopInstallPrompt) {
-    window.alert(uiT("alertInstallUnavailable"));
+    showToast(uiT("alertInstallUnavailable"));
     return;
   }
   deferredDesktopInstallPrompt.prompt();
@@ -14730,7 +14730,7 @@ function handleExpiredControlSession() {
   }
   sessionExpiryNoticeShown = true;
   sessionExpiryNoticeAt = now;
-  window.alert(uiT("alertSessionExpired"));
+  showToast(uiT("alertSessionExpired"));
 }
 
 async function restoreSessionFromBootstrap() {
@@ -15056,7 +15056,7 @@ function renderDocumentInboxList() {
         });
         await loadDocumentInbox({ silent: true });
       } catch (error) {
-        window.alert(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", error.message));
       } finally {
         event.currentTarget.disabled = false;
       }
@@ -15212,8 +15212,8 @@ async function openInboxMailDetail(inboxId, cardEl) {
         const attId = String(row?.dataset?.attId || "").trim();
         const workerId = row?.querySelector(".att-worker-select")?.value || "";
         const docType = row?.querySelector(".att-doctype-select")?.value || "";
-        if (!workerId) { window.alert(runtimeText("docAssignWorkerRequired")); return; }
-        if (!docType) { window.alert(runtimeText("docAssignDocTypeRequired")); return; }
+        if (!workerId) { showToast(runtimeText("docAssignWorkerRequired")); return; }
+        if (!docType) { showToast(runtimeText("docAssignDocTypeRequired")); return; }
         btn.disabled = true;
         btn.textContent = "…";
         try {
@@ -15229,7 +15229,7 @@ async function openInboxMailDetail(inboxId, cardEl) {
         } catch (err) {
           btn.disabled = false;
           btn.textContent = runtimeText("docAssignButton");
-          window.alert(runtimeText("docAssignError").replace("{error}", err.message || String(err)));
+          showToast(runtimeText("docAssignError").replace("{error}", err.message || String(err)));
         }
       });
     });
@@ -15242,7 +15242,7 @@ async function openInboxMailDetail(inboxId, cardEl) {
         const subject = String(subjectField?.value || "").trim();
         const body = String(bodyField?.value || "").trim();
         if (!body) {
-          window.alert(runtimeText("docInboxReplyBodyRequired"));
+          showToast(runtimeText("docInboxReplyBodyRequired"));
           bodyField?.focus();
           return;
         }
@@ -15256,9 +15256,9 @@ async function openInboxMailDetail(inboxId, cardEl) {
           if (bodyField) {
             bodyField.value = "";
           }
-          window.alert(runtimeText("docInboxReplySuccess"));
+          showToast(runtimeText("docInboxReplySuccess"));
         } catch (err) {
-          window.alert(runtimeText("docInboxReplyError").replace("{error}", err.message || String(err)));
+          showToast(runtimeText("docInboxReplyError").replace("{error}", err.message || String(err)));
         } finally {
           replyButton.disabled = false;
           replyButton.textContent = runtimeText("docInboxReplySendButton");
@@ -15287,14 +15287,14 @@ async function loadDocumentInbox(options = {}) {
     state.documentInboxEntries = [];
     renderDocumentInboxList();
     if (!silent) {
-      window.alert(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
     }
   }
 }
 
 async function triggerDocumentInboxSync(button) {
   if (!isDocumentInboxConfigured()) {
-    window.alert(runtimeText("imapNotConfigured"));
+    showToast(runtimeText("imapNotConfigured"));
     return;
   }
   button.disabled = true;
@@ -15305,9 +15305,9 @@ async function triggerDocumentInboxSync(button) {
     });
     const newCount = Number(payload?.imap?.newEmails || 0);
     await loadDocumentInbox({ silent: true });
-    window.alert(`Postfach abgerufen. Neue E-Mails: ${newCount}`);
+    showToast(`Postfach abgerufen. Neue E-Mails: ${newCount}`);
   } catch (error) {
-    window.alert(uiT("alertGenericError").replace("{error}", error.message));
+    showToast(uiT("alertGenericError").replace("{error}", error.message));
   } finally {
     button.disabled = false;
   }
@@ -15316,7 +15316,7 @@ async function triggerDocumentInboxSync(button) {
 async function rematchDocumentInboxLinks(button) {
   const isAllowed = getEffectiveUiRole() === "superadmin" && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
   if (!isAllowed) {
-    window.alert("Neu zuordnen ist nur fuer Superadmin erlaubt.");
+    showToast("Neu zuordnen ist nur fuer Superadmin erlaubt.");
     return;
   }
   button.disabled = true;
@@ -15327,13 +15327,13 @@ async function rematchDocumentInboxLinks(button) {
     });
     const matched = Number(payload?.matchedCount || 0);
     await loadDocumentInbox({ silent: true });
-    window.alert(`Neu zugeordnet: ${matched}`);
+    showToast(`Neu zugeordnet: ${matched}`);
   } catch (error) {
     const isForbidden = Number(error?.status || 0) === 403 || String(error?.code || error?.message || "").toLowerCase().includes("forbidden");
     if (isForbidden) {
-      window.alert("Neu zuordnen ist nur fuer Superadmin erlaubt.");
+      showToast("Neu zuordnen ist nur fuer Superadmin erlaubt.");
     } else {
-      window.alert(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
     }
   } finally {
     button.disabled = false;
@@ -16123,7 +16123,7 @@ async function deleteDevice(id) {
     state.devices = (state.devices || []).filter(d => d.id !== id);
     renderDevices();
   } catch (e) {
-    alert(uiT("alertDeviceDeleteFailed").replace("{error}", e.message || e));
+    showToast(uiT("alertDeviceDeleteFailed").replace("{error}", e.message || e), "error", 3600);
   }
 }
 
@@ -16152,7 +16152,7 @@ async function deleteDevice(id) {
       form.reset();
       await loadDevices();
     } catch (err) {
-      alert(uiT("alertGenericError").replace("{error}", err.message || err));
+      showToast(uiT("alertGenericError").replace("{error}", err.message || err), "error", 3600);
     }
   });
 })();
@@ -17204,7 +17204,7 @@ function bindWorkerRowActions() {
           showSupportReadOnlyAlert();
           return;
         }
-        window.alert(`Sperren/Entsperren fehlgeschlagen: ${error.message}`);
+        showToast(`Sperren/Entsperren fehlgeschlagen: ${error.message}`);
       }
     };
   });
@@ -17229,7 +17229,7 @@ function bindWorkerRowActions() {
             [workerId]: { configured: true, status: "active" },
           };
           renderWorkerList();
-          window.alert(`Identity-Token fuer ${name} wurde erstellt und ist aktiv.`);
+          showToast(`Identity-Token fuer ${name} wurde erstellt und ist aktiv.`);
           return;
         }
 
@@ -17249,13 +17249,13 @@ function bindWorkerRowActions() {
           [workerId]: { configured: true, status: nextStatus },
         };
         renderWorkerList();
-        window.alert(`Identity-Token fuer ${name} ist jetzt ${nextStatus}.`);
+        showToast(`Identity-Token fuer ${name} ist jetzt ${nextStatus}.`);
       } catch (error) {
         if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
           showSupportReadOnlyAlert();
           return;
         }
-        window.alert(`Identity-Token-Aktion fehlgeschlagen: ${error.message}`);
+        showToast(`Identity-Token-Aktion fehlgeschlagen: ${error.message}`);
       }
     };
   });
@@ -17319,9 +17319,9 @@ async function renderPhotoOverrideApprovalPanel() {
         await loadAllData();
         await renderPhotoOverrideApprovalPanel();
         refreshAll();
-        window.alert(uiT("alertPhotoOverrideApproved"));
+        showToast(uiT("alertPhotoOverrideApproved"));
       } catch (error) {
-        window.alert(uiT("alertPhotoOverrideApproveFailed").replace("{error}", error.message));
+        showToast(uiT("alertPhotoOverrideApproveFailed").replace("{error}", error.message));
       }
     };
   });
@@ -17330,7 +17330,7 @@ async function renderPhotoOverrideApprovalPanel() {
     btn.onclick = async () => {
       const reason = window.prompt(uiT("promptRejectApproval")) || "";
       if (!reason.trim()) {
-        window.alert(uiT("alertPhotoOverrideRejectReasonRequired"));
+        showToast(uiT("alertPhotoOverrideRejectReasonRequired"));
         return;
       }
       try {
@@ -17339,9 +17339,9 @@ async function renderPhotoOverrideApprovalPanel() {
           body: { decision: "reject", note: reason.trim() },
         });
         await renderPhotoOverrideApprovalPanel();
-        window.alert(uiT("alertPhotoOverrideRejected"));
+        showToast(uiT("alertPhotoOverrideRejected"));
       } catch (error) {
-        window.alert(uiT("alertPhotoOverrideRejectFailed").replace("{error}", error.message));
+        showToast(uiT("alertPhotoOverrideRejectFailed").replace("{error}", error.message));
       }
     };
   });
@@ -17640,7 +17640,7 @@ function bindCompanyRowActions() {
       }
       const cleanedCustomerNumber = String(entered || "").replace(/\D+/g, "").slice(0, 12);
       if (!cleanedCustomerNumber) {
-        window.alert(runtimeText("companyAlertCustomerNumberInvalid"));
+        showToast(runtimeText("companyAlertCustomerNumberInvalid"));
         return;
       }
 
@@ -17664,10 +17664,10 @@ function bindCompanyRowActions() {
       } catch (error) {
         if (error.code === "duplicate_customer_number") {
           const conflictName = String(error?.payload?.conflictCompanyName || "andere Firma");
-          window.alert(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
+          showToast(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
           return;
         }
-        window.alert(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", error.message));
       }
       return;
     }
@@ -17785,7 +17785,7 @@ function bindCompanyRowActions() {
       if (normalizedNextDocEmail) {
         const conflict = findCompanyByDocumentEmail(normalizedNextDocEmail, companyId);
         if (conflict) {
-          window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflict.name }));
+          showToast(runtimeTextTemplate("companyDocEmailConflict", { company: conflict.name }));
           return;
         }
       }
@@ -17809,10 +17809,10 @@ function bindCompanyRowActions() {
       } catch (error) {
         if (error.code === "duplicate_document_email") {
           const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
-          window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
+          showToast(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
           return;
         }
-        window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
+        showToast(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -17838,13 +17838,13 @@ function bindCompanyRowActions() {
         suggested = suggestCompanyDocumentEmail(company.name);
       }
       if (!suggested) {
-        window.alert(runtimeText("companyDocEmailAutoBaseMissing"));
+        showToast(runtimeText("companyDocEmailAutoBaseMissing"));
         return;
       }
 
       const conflict = findCompanyByDocumentEmail(suggested, companyId);
       if (conflict) {
-        window.alert(runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }));
+        showToast(runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }));
         return;
       }
 
@@ -17867,10 +17867,10 @@ function bindCompanyRowActions() {
       } catch (error) {
         if (error.code === "duplicate_document_email") {
           const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
-          window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
+          showToast(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
           return;
         }
-        window.alert(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
+        showToast(uiT("alertDocEmailSaveFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -17881,13 +17881,13 @@ function bindCompanyRowActions() {
       const company = state.companies.find((entry) => entry.id === companyId);
       const documentEmail = getCompanyDocumentEmail(company);
       if (!documentEmail) {
-        window.alert(runtimeText("companyDocEmailMissingAlert"));
+        showToast(runtimeText("companyDocEmailMissingAlert"));
         return;
       }
       try {
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(documentEmail);
-          window.alert(uiT("alertDataCopied"));
+          showToast(uiT("alertDataCopied"));
         } else {
           window.prompt(uiT("promptCopyData"), documentEmail);
         }
@@ -17918,7 +17918,7 @@ function bindCompanyRowActions() {
       if (input === null) return;
       const nextLang = input.trim().toLowerCase();
       if (!["de", "en", "fr", "tr", "ar", "es", "it", "pl"].includes(nextLang)) {
-        window.alert(runtimeText("companyInvoiceLangInvalid"));
+        showToast(runtimeText("companyInvoiceLangInvalid"));
         return;
       }
       try {
@@ -17938,7 +17938,7 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(runtimeTextTemplate("companyInvoiceLangSaveFailed", { error: error.message }));
+        showToast(runtimeTextTemplate("companyInvoiceLangSaveFailed", { error: error.message }));
       }
       return;
     }
@@ -17990,10 +17990,10 @@ function bindCompanyRowActions() {
         await apiRequest(`${API_BASE}/api/companies/${companyId}?force=1`, { method: "DELETE" });
         await loadAllData();
         refreshAll();
-        window.alert(uiT("alertCompanyDeleted").replace("{name}", companyName));
+        showToast(uiT("alertCompanyDeleted").replace("{name}", companyName));
       } catch (error) {
         const repairMessage = mapCompanyRepairError(error);
-        window.alert(uiT("alertCompanyDeleteFailed").replace("{name}", companyName).replace("{error}", repairMessage));
+        showToast(uiT("alertCompanyDeleteFailed").replace("{name}", companyName).replace("{error}", repairMessage));
       }
       return;
     }
@@ -18030,7 +18030,7 @@ function bindCompanyRowActions() {
         };
         await loadAllData();
         refreshAll();
-        window.alert(nextStatus === "gesperrt"
+        showToast(nextStatus === "gesperrt"
           ? uiT("alertCompanyLocked").replace("{name}", companyName)
           : uiT("alertCompanyUnlocked").replace("{name}", companyName));
       } catch (error) {
@@ -18040,7 +18040,7 @@ function bindCompanyRowActions() {
           message: repairMessage
         };
         renderCompanyList();
-        window.alert(uiT("alertCompanyStatusChangeFailed").replace("{name}", companyName).replace("{error}", repairMessage));
+        showToast(uiT("alertCompanyStatusChangeFailed").replace("{name}", companyName).replace("{error}", repairMessage));
       } finally {
         delete state.companyLockBusy[companyId];
         renderCompanyList();
@@ -18109,7 +18109,7 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertBrandingPresetSaveFailed").replace("{error}", error.message));
+        showToast(uiT("alertBrandingPresetSaveFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -18123,7 +18123,7 @@ function bindCompanyRowActions() {
       const password = window.prompt(uiT("promptTurnstilePassword").replace("{name}", company.name), "");
       if (password === null) return;
       if (password.trim().length < 4) {
-        window.alert(uiT("alertPasswordMinLength"));
+        showToast(uiT("alertPasswordMinLength"));
         return;
       }
 
@@ -18147,7 +18147,7 @@ function bindCompanyRowActions() {
           }
         );
       } catch (error) {
-        window.alert(uiT("alertTurnstileCreateFailed").replace("{error}", error.message));
+        showToast(uiT("alertTurnstileCreateFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -18159,7 +18159,7 @@ function bindCompanyRowActions() {
       const password = window.prompt(uiT("promptTurnstilePasswordNew"), "");
       if (password === null) return;
       if (password.trim().length < 4) {
-        window.alert(uiT("alertPasswordMinLength"));
+        showToast(uiT("alertPasswordMinLength"));
         return;
       }
       try {
@@ -18167,9 +18167,9 @@ function bindCompanyRowActions() {
           method: "POST",
           body: { password: password.trim() }
         });
-        window.alert(uiT("alertTurnstilePasswordUpdated"));
+        showToast(uiT("alertTurnstilePasswordUpdated"));
       } catch (error) {
-        window.alert(uiT("alertTurnstilePasswordResetFailed").replace("{error}", error.message));
+        showToast(uiT("alertTurnstilePasswordResetFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -18196,7 +18196,7 @@ function bindCompanyRowActions() {
           }
         );
       } catch (error) {
-        window.alert(uiT("alertApiKeyRotationFailed").replace("{error}", error.message));
+        showToast(uiT("alertApiKeyRotationFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -18210,7 +18210,7 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertTurnstileToggleFailed").replace("{error}", error.message));
+        showToast(uiT("alertTurnstileToggleFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -18241,7 +18241,7 @@ function bindCompanyRowActions() {
           navigator.clipboard?.writeText(reviewUrl).catch(() => {});
         }
       } catch (err) {
-        window.alert("Fehler: " + err.message);
+        showToast("Fehler: " + err.message);
       }
       return;
     }
@@ -18253,7 +18253,7 @@ function bindCompanyRowActions() {
       const company = state.companies.find((c) => c.id === companyId);
       if (!company?.review_token) return;
       const reviewUrl = `${window.location.origin}/review.html?token=${company.review_token}`;
-      navigator.clipboard?.writeText(reviewUrl).then(() => window.alert(runtimeText("companyAlertLinkCopied"))).catch(() => {
+      navigator.clipboard?.writeText(reviewUrl).then(() => showToast(runtimeText("companyAlertLinkCopied"))).catch(() => {
         window.prompt(runtimeText("companyPromptCopyLinkManual"), reviewUrl);
       });
       return;
@@ -18300,7 +18300,7 @@ function bindCompanyRowActions() {
     await handleLogout({ preserveSupportContext: true });
     syncSupportLoginUi();
     window.scrollTo({ top: 0, behavior: "smooth" });
-    // Use a short delay instead of window.alert() to avoid Electron losing
+    // Use a short delay instead of showToast() to avoid Electron losing
     // keyboard focus after a native dialog dismissal.
     window.setTimeout(() => {
       focusLoginInput({ force: true });
@@ -18649,7 +18649,7 @@ async function openCompanyPlanModal(companyId, company) {
     } catch (err) {
       saveBtn.disabled = false;
       saveBtn.textContent = "Paket speichern";
-      window.alert(`Fehler beim Speichern: ${err.message || err}`);
+      showToast(`Fehler beim Speichern: ${err.message || err}`);
     }
   });
 
@@ -19564,7 +19564,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
         return;
       }
       if (worker.deletedAt) {
-        window.alert(uiT("alertWorkerDeletedCannotEdit"));
+        showToast(uiT("alertWorkerDeletedCannotEdit"));
         return;
       }
 
@@ -19601,7 +19601,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertDeleteWorkerFailed").replace("{error}", error.message));
+        showToast(uiT("alertDeleteWorkerFailed").replace("{error}", error.message));
       }
     });
   });
@@ -19613,7 +19613,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertRestoreWorkerFailed").replace("{error}", error.message));
+        showToast(uiT("alertRestoreWorkerFailed").replace("{error}", error.message));
       }
     });
   });
@@ -19626,7 +19626,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
         const worker = state.workers.find((entry) => entry.id === button.dataset.workerAppLink) || null;
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
-        window.alert(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
+        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
       }
     });
   });
@@ -19675,7 +19675,7 @@ function showSecretDialog(title, lines, options = {}) {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(copyValue);
-        window.alert(uiT("alertDataCopied"));
+        showToast(uiT("alertDataCopied"));
       } else {
         window.prompt(uiT("promptCopyData"), copyValue);
       }
@@ -19694,7 +19694,7 @@ function showSecretDialog(title, lines, options = {}) {
 function printWorkerAppQr(workerName, qrSrc) {
   const w = window.open("", "_blank", "width=720,height=840");
   if (!w) {
-    window.alert(uiT("alertPrintWindowFailed"));
+    showToast(uiT("alertPrintWindowFailed"));
     return;
   }
 
@@ -19790,7 +19790,7 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(primaryLink);
-        window.alert(uiT("alertAppLinkCopied"));
+        showToast(uiT("alertAppLinkCopied"));
       } else {
         window.prompt(uiT("promptAppLink"), primaryLink);
       }
@@ -19802,7 +19802,7 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
   dialog.querySelector("[data-worker-app-print]")?.addEventListener("click", () => {
     const qrImage = dialog.querySelector(`#${qrId}`);
     if (!qrImage?.src) {
-      window.alert(uiT("alertQrNotReadyYet"));
+      showToast(uiT("alertQrNotReadyYet"));
       return;
     }
     printWorkerAppQr(workerName, qrImage.src);
@@ -19935,7 +19935,7 @@ function renderBadge() {
         const absoluteLink = normalizeWorkerAppLink(payload.link);
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
-        window.alert(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
+        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
       } finally {
         elements.appLinkBadgeButton.disabled = false;
         elements.appLinkBadgeButton.textContent = runtimeText("appLinkPhoneButton");
@@ -20434,7 +20434,7 @@ function renderAccessLog() {
         }
       } catch (error) {
         loadMoreButton.disabled = false;
-        window.alert(uiT("alertAccessBookingFailed").replace("{error}", error.message));
+        showToast(uiT("alertAccessBookingFailed").replace("{error}", error.message));
       }
     });
   }
@@ -20613,14 +20613,14 @@ function triggerAutoDayCloseAlert() {
   }
 
   localStorage.setItem(key, "1");
-  window.alert(runtimeTextTemplate("dayCloseAlertAt18", { count }));
+  showToast(runtimeTextTemplate("dayCloseAlertAt18", { count }));
 }
 
 async function handleDayCloseAcknowledge(event) {
   event.preventDefault();
   const comment = elements.dayCloseComment.value.trim();
   if (comment.length < 4) {
-    window.alert(runtimeText("dayCloseCommentMin"));
+    showToast(runtimeText("dayCloseCommentMin"));
     return;
   }
 
@@ -20636,9 +20636,9 @@ async function handleDayCloseAcknowledge(event) {
     elements.dayCloseComment.value = "";
     await loadAllData();
     refreshAll();
-    window.alert(runtimeText("dayCloseAckSuccess"));
+    showToast(runtimeText("dayCloseAckSuccess"));
   } catch (error) {
-    window.alert(uiT("alertDayCloseAckFailed").replace("{error}", error.message));
+    showToast(uiT("alertDayCloseAckFailed").replace("{error}", error.message));
   } finally {
     elements.dayCloseAcknowledgeButton.disabled = false;
   }
@@ -20929,7 +20929,7 @@ function renderTurnstileQuickPanel() {
     button.addEventListener("click", () => {
       const workerId = elements.accessWorkerSelect.value;
       if (!workerId) {
-        window.alert(runtimeText("turnstileSelectWorkerFirst"));
+        showToast(runtimeText("turnstileSelectWorkerFirst"));
         return;
       }
       bookAccess(workerId, button.dataset.quickDirection, runtimeText("turnstileQuickModeLabel"), runtimeText("turnstileTerminalBookingLabel"));
@@ -20948,7 +20948,7 @@ async function handleWorkerSubmit(event) {
 
   const photoDataValue = document.querySelector("#photoData").value;
   if (!photoDataValue) {
-    window.alert(runtimeText("workerPhotoRequired"));
+    showToast(runtimeText("workerPhotoRequired"));
     setView("workers");
     const cameraBlock = document.querySelector(".camera-block");
     if (cameraBlock) {
@@ -20991,7 +20991,7 @@ async function handleWorkerSubmit(event) {
           const role = String(getCurrentUser()?.role || "").toLowerCase();
           const canOverride = role === "superadmin";
           if (!canOverride) {
-            window.alert(uiT("alertPhotoMatchFailed").replace("{score}", scorePct));
+            showToast(uiT("alertPhotoMatchFailed").replace("{score}", scorePct));
             return;
           }
           const proceed = await showConfirmDialog(
@@ -21002,7 +21002,7 @@ async function handleWorkerSubmit(event) {
           }
           const overrideReason = window.prompt(uiT("promptPhotoOverrideReason"), "") || "";
           if (overrideReason.trim().length < 8) {
-            window.alert(uiT("alertOverrideReasonTooShort"));
+            showToast(uiT("alertOverrideReasonTooShort"));
             return;
           }
           payload.photoMatchOverride = true;
@@ -21015,7 +21015,7 @@ async function handleWorkerSubmit(event) {
     if (state.editingWorkerId) {
       const result = await apiRequest(API_BASE + `/api/workers/${state.editingWorkerId}`, { method: "PUT", body: payload });
       if (result?.approvalRequested) {
-        window.alert(uiT("alertPhotoOverrideRequested").replace("{id}", result.approvalId || "?"));
+        showToast(uiT("alertPhotoOverrideRequested").replace("{id}", result.approvalId || "?"));
         clearWorkerEditor();
         stopCamera();
         await loadAllData();
@@ -21037,42 +21037,42 @@ async function handleWorkerSubmit(event) {
     setView("badge");
   } catch (error) {
     if (error.message === "invalid_badge_pin") {
-      window.alert(uiT("alertBadgePinInvalid"));
+      showToast(uiT("alertBadgePinInvalid"));
       return;
     }
     if (error.message === "badge_pin_required") {
-      window.alert(runtimeText("workerBadgePinMissing"));
+      showToast(runtimeText("workerBadgePinMissing"));
       return;
     }
     if (error.message === "duplicate_physical_card_id") {
-      window.alert(uiT("alertDuplicatePhysicalCardId"));
+      showToast(uiT("alertDuplicatePhysicalCardId"));
       return;
     }
     if (error.message === "photo_override_forbidden") {
-      window.alert(uiT("alertPhotoOverrideSuperadminOnly"));
+      showToast(uiT("alertPhotoOverrideSuperadminOnly"));
       return;
     }
     if (error.message === "photo_override_reason_required") {
-      window.alert(uiT("alertPhotoOverrideReasonRequired"));
+      showToast(uiT("alertPhotoOverrideReasonRequired"));
       return;
     }
     if (error.message === "visit_purpose_required") {
-      window.alert(runtimeText("visitorPurposeMissing"));
+      showToast(runtimeText("visitorPurposeMissing"));
       return;
     }
     if (error.message === "visitor_company_required") {
-      window.alert(runtimeText("visitorCompanyMissing"));
+      showToast(runtimeText("visitorCompanyMissing"));
       return;
     }
     if (error.message === "host_name_required") {
-      window.alert(runtimeText("visitorHostMissing"));
+      showToast(runtimeText("visitorHostMissing"));
       return;
     }
     if (error.message === "visit_end_required") {
-      window.alert(runtimeText("visitorEndMissing"));
+      showToast(runtimeText("visitorEndMissing"));
       return;
     }
-    window.alert(uiT("alertWorkerSaveFailed").replace("{error}", error.message));
+    showToast(uiT("alertWorkerSaveFailed").replace("{error}", error.message));
   }
 }
 
@@ -21186,7 +21186,7 @@ async function bookAccess(workerId, direction, gate, note, options = {}) {
       });
       return { ok: false, reason: denyMessage, message: denyMessage };
     }
-    window.alert(uiT("alertAccessBookingFailed").replace("{error}", denyMessage));
+    showToast(uiT("alertAccessBookingFailed").replace("{error}", denyMessage));
     return { ok: false, reason: denyMessage, message: denyMessage };
   }
 }
@@ -21316,7 +21316,7 @@ async function exportAccessCsv() {
     link.click();
     URL.revokeObjectURL(url);
   } catch (error) {
-    window.alert(uiT("alertAccessExportFailed").replace("{error}", error.message));
+    showToast(uiT("alertAccessExportFailed").replace("{error}", error.message));
   }
 }
 
@@ -21393,7 +21393,7 @@ function exportWorkersPdf() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      window.alert(uiT("alertWorkerExportFailed").replace("{error}", error.message));
+      showToast(uiT("alertWorkerExportFailed").replace("{error}", error.message));
     }
   });
 }
@@ -21448,7 +21448,7 @@ function printDailyReport() {
 
   const reportWindow = window.open("", "_blank", "width=960,height=800");
   if (!reportWindow) {
-    window.alert(runtimeText("popupBlockedAllow"));
+    showToast(runtimeText("popupBlockedAllow"));
     return;
   }
   reportWindow.document.open();
@@ -21493,7 +21493,7 @@ function printVisitorWeeklyReport() {
   const lang = getStoredUiLang();
   const reportWindow = window.open("", "_blank", "width=1100,height=800");
   if (!reportWindow) {
-    window.alert(runtimeText("popupBlockedAllow"));
+    showToast(runtimeText("popupBlockedAllow"));
     return;
   }
   reportWindow.document.open();
@@ -21591,7 +21591,7 @@ async function handleSettingsSubmit(event) {
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
     refreshAll();
   } catch (error) {
-    window.alert(uiT("alertSettingsSaveFailed").replace("{error}", error.message));
+    showToast(uiT("alertSettingsSaveFailed").replace("{error}", error.message));
   }
 }
 
@@ -22014,7 +22014,7 @@ async function handleInvoiceLogoUpload(event) {
   }
 
   if (!file.type.startsWith("image/")) {
-    window.alert(runtimeText("logoImageFileRequired"));
+    showToast(runtimeText("logoImageFileRequired"));
     return;
   }
 
@@ -22049,9 +22049,9 @@ async function loadCustomBrandingPreset() {
     elements.invoiceLogoPreview.classList.remove("hidden");
     applyWebsiteLogo(logoDataUrl);
 
-    window.alert(uiT("alertBrandingLoaded"));
+    showToast(uiT("alertBrandingLoaded"));
   } catch (error) {
-    window.alert(uiT("alertBrandingLoadFailed").replace("{error}", error.message));
+    showToast(uiT("alertBrandingLoadFailed").replace("{error}", error.message));
   }
 }
 
@@ -22075,9 +22075,9 @@ async function loadCustomBrandingPresetAlt() {
     elements.invoiceLogoPreview.classList.remove("hidden");
     applyWebsiteLogo(logoDataUrl);
 
-    window.alert(uiT("alertBrandingAltLoaded"));
+    showToast(uiT("alertBrandingAltLoaded"));
   } catch (error) {
-    window.alert(uiT("alertBrandingAltLoadFailed").replace("{error}", error.message));
+    showToast(uiT("alertBrandingAltLoadFailed").replace("{error}", error.message));
   }
 }
 
@@ -22090,14 +22090,14 @@ async function handleInvoicePrint(event) {
       return;
     }
   } catch (error) {
-    window.alert(error.message || runtimeText("genericUnknownError"));
+    showToast(error.message || runtimeText("genericUnknownError"));
     return;
   }
   const html = renderInvoiceHtml(invoice);
 
   const invoiceWindow = window.open("", "_blank", "width=980,height=860");
   if (!invoiceWindow) {
-    window.alert(runtimeText("popupBlockedAllow"));
+    showToast(runtimeText("popupBlockedAllow"));
     return;
   }
   invoiceWindow.document.open();
@@ -22122,7 +22122,7 @@ async function handleInvoiceSend() {
       return;
     }
   } catch (error) {
-    window.alert(error.message || runtimeText("genericUnknownError"));
+    showToast(error.message || runtimeText("genericUnknownError"));
     return;
   }
 
@@ -22171,25 +22171,25 @@ async function handleInvoiceSend() {
     await loadAllData();
     refreshAll();
     if (payload.sent) {
-      window.alert(runtimeText("invoiceSentEmail"));
+      showToast(runtimeText("invoiceSentEmail"));
     } else {
       const errorText = String(payload.error || "");
       if (errorText.toLowerCase().includes("smtp ist nicht konfiguriert")) {
-        window.alert(runtimeText("invoiceSavedEmailNotConfigured"));
+        showToast(runtimeText("invoiceSavedEmailNotConfigured"));
       } else {
-        window.alert(uiT("alertInvoiceSavedSendFailed").replace("{error}", payload.error));
+        showToast(uiT("alertInvoiceSavedSendFailed").replace("{error}", payload.error));
       }
     }
   } catch (error) {
     if (String(error.message || "") === "duplicate_invoice_number") {
-      window.alert(uiT("alertInvoiceNumberDuplicate").replace("{number}", invoice.invoiceNumber));
+      showToast(uiT("alertInvoiceNumberDuplicate").replace("{number}", invoice.invoiceNumber));
       return;
     }
     if (String(error.message || "") === "invalid_invoice_number_format") {
-      window.alert("Rechnungsnummer darf nur Ziffern enthalten.");
+      showToast("Rechnungsnummer darf nur Ziffern enthalten.");
       return;
     }
-    window.alert(uiT("alertInvoiceSendFailed").replace("{error}", error.message));
+    showToast(uiT("alertInvoiceSendFailed").replace("{error}", error.message));
   } finally {
     if (sendBtn) sendBtn.disabled = false;
   }
@@ -22201,7 +22201,7 @@ async function buildInvoiceDraft(options = {}) {
   const company = state.companies.find((entry) => entry.id === companyId);
   if (!company) {
     if (!silent) {
-      window.alert(runtimeText("invoiceSelectCompany"));
+      showToast(runtimeText("invoiceSelectCompany"));
     }
     return null;
   }
@@ -22210,7 +22210,7 @@ async function buildInvoiceDraft(options = {}) {
   const isValidRecipientEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail);
   if (!isValidRecipientEmail) {
     if (!silent) {
-      window.alert(runtimeText("invoiceRecipientInvalid"));
+      showToast(runtimeText("invoiceRecipientInvalid"));
     }
     return null;
   }
@@ -22231,7 +22231,7 @@ async function buildInvoiceDraft(options = {}) {
 
   if (invoiceNumber.length < 3 || invoiceNumber.length > 20) {
     if (!silent) {
-      window.alert("Rechnungsnummer muss zwischen 3 und 20 Ziffern haben.");
+      showToast("Rechnungsnummer muss zwischen 3 und 20 Ziffern haben.");
     }
     return null;
   }
@@ -22243,14 +22243,14 @@ async function buildInvoiceDraft(options = {}) {
   });
   if (duplicateInvoice) {
     if (!silent) {
-      window.alert(uiT("alertInvoiceNumberDuplicate").replace("{number}", invoiceNumber));
+      showToast(uiT("alertInvoiceNumberDuplicate").replace("{number}", invoiceNumber));
     }
     return null;
   }
 
   if (!invoiceDate || !invoiceDueDate || !invoicePeriod || !invoiceDescription) {
     if (!silent) {
-      window.alert(runtimeText("invoiceFormRequiredFields"));
+      showToast(runtimeText("invoiceFormRequiredFields"));
     }
     return null;
   }
@@ -22259,14 +22259,14 @@ async function buildInvoiceDraft(options = {}) {
   const dueDateObj = new Date(`${invoiceDueDate}T00:00:00`);
   if (Number.isNaN(invoiceDateObj.getTime()) || Number.isNaN(dueDateObj.getTime())) {
     if (!silent) {
-      window.alert(uiT("alertInvoiceDateInvalid"));
+      showToast(uiT("alertInvoiceDateInvalid"));
     }
     return null;
   }
 
   if (dueDateObj < invoiceDateObj) {
     if (!silent) {
-      window.alert(uiT("alertInvoiceDueDateBeforeIssue"));
+      showToast(uiT("alertInvoiceDueDateBeforeIssue"));
     }
     return null;
   }
@@ -22296,7 +22296,7 @@ async function buildInvoiceDraft(options = {}) {
   const vatRate = Number(document.querySelector("#invoiceVatRate").value || "0");
   if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
     if (!silent) {
-      window.alert(uiT("alertInvoiceVatRange"));
+      showToast(uiT("alertInvoiceVatRange"));
     }
     return null;
   }
@@ -22650,7 +22650,7 @@ async function handleCompanySubmit(event) {
   if (resolvedDocumentEmail) {
     const conflict = findCompanyByDocumentEmail(resolvedDocumentEmail);
     if (conflict) {
-      window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflict.name }));
+      showToast(runtimeTextTemplate("companyDocEmailConflict", { company: conflict.name }));
       return;
     }
   }
@@ -22732,15 +22732,15 @@ async function handleCompanySubmit(event) {
   } catch (error) {
     if (error.code === "duplicate_customer_number") {
       const conflictName = String(error?.payload?.conflictCompanyName || "andere Firma");
-      window.alert(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
+      showToast(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
       return;
     }
     if (error.code === "duplicate_document_email") {
       const conflictName = String(error?.payload?.conflictCompanyName || runtimeText("companyDocEmailConflictFallback"));
-      window.alert(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
+      showToast(runtimeTextTemplate("companyDocEmailConflict", { company: conflictName }));
       return;
     }
-    window.alert(uiT("alertCompanyCreateFailed").replace("{error}", error.message));
+    showToast(uiT("alertCompanyCreateFailed").replace("{error}", error.message));
   }
 }
 
@@ -23800,15 +23800,15 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
         body: {}
       });
       if (payload?.sent) {
-        window.alert(uiT("alertInvoiceRetrySent"));
+        showToast(uiT("alertInvoiceRetrySent"));
       } else {
-        window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
+        showToast(uiT("alertInvoiceRetryFailed").replace("{error}", payload?.error || runtimeText("genericUnknownError")));
       }
       await loadAndRenderInvoices();
       await loadAllData();
       refreshAll();
     } catch (error) {
-      window.alert(uiT("alertInvoiceRetryFailed").replace("{error}", error.message));
+      showToast(uiT("alertInvoiceRetryFailed").replace("{error}", error.message));
     }
   };
 }
@@ -24030,7 +24030,7 @@ function renderCollectionsList() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        window.alert(uiT("alertActionFailed").replace("{error}", error.message));
+        showToast(uiT("alertActionFailed").replace("{error}", error.message));
       }
       return;
     }
@@ -24679,7 +24679,7 @@ async function startCamera() {
       openPhotoFilePicker({ preferCamera: true });
     }
     if (isMobile && (error?.name === "NotAllowedError" || error?.name === "SecurityError")) {
-      window.alert(runtimeText("cameraPermissionRetry"));
+      showToast(runtimeText("cameraPermissionRetry"));
       return;
     }
   }
@@ -24707,14 +24707,14 @@ function handlePhotoFileSelected(event) {
   reader.onload = async (loadEvent) => {
     const dataUrl = typeof loadEvent.target?.result === "string" ? loadEvent.target.result : "";
     if (!dataUrl) {
-      window.alert(runtimeText("photoReadFailed"));
+      showToast(runtimeText("photoReadFailed"));
       return;
     }
     const cleaned = await processStillImageBackground(dataUrl);
     setPhotoEditorSource(cleaned || dataUrl, { resetOffset: true });
   };
   reader.onerror = () => {
-    window.alert(runtimeText("photoLoadFailed"));
+    showToast(runtimeText("photoLoadFailed"));
   };
   reader.readAsDataURL(file);
 }
@@ -24727,13 +24727,13 @@ async function capturePhoto() {
     await startCamera();
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     if (!video.videoWidth || !video.videoHeight) {
-      window.alert(runtimeText("cameraStartFirst"));
+      showToast(runtimeText("cameraStartFirst"));
       return;
     }
   }
 
   if (!context) {
-    window.alert(runtimeText("photoProcessingUnavailable"));
+    showToast(runtimeText("photoProcessingUnavailable"));
     return;
   }
 
@@ -25279,7 +25279,7 @@ function applyPhotoEditorTransform() {
     renderPhotoEditorImage(image);
   };
   image.onerror = () => {
-    window.alert(runtimeText("photoLoadFailed"));
+    showToast(runtimeText("photoLoadFailed"));
     resetPhotoEditor();
   };
   image.src = photoEditorSourceData;
@@ -25512,13 +25512,13 @@ async function exportState(options = {}) {
       elements.photoDebugText.style.color = "#0b7a3b";
     }
   } catch (error) {
-    window.alert(uiT("alertExportFailed").replace("{error}", error.message));
+    showToast(uiT("alertExportFailed").replace("{error}", error.message));
   }
 }
 
 async function loadDemoData() {
   if (!userCanManageWorkers()) {
-    window.alert(runtimeText("demoAdminOnly"));
+    showToast(runtimeText("demoAdminOnly"));
     return;
   }
 
@@ -25530,7 +25530,7 @@ async function loadDemoData() {
   }
 
   if (!companyId) {
-    window.alert(uiT("alertNoDemoCompany"));
+    showToast(uiT("alertNoDemoCompany"));
     return;
   }
 
@@ -25545,7 +25545,7 @@ async function loadDemoData() {
   }
   const mode = String(modeRaw || "replace").trim().toLowerCase();
   if (!["replace", "append"].includes(mode)) {
-    window.alert(uiT("alertDemoModeInvalid"));
+    showToast(uiT("alertDemoModeInvalid"));
     return;
   }
 
@@ -25574,7 +25574,7 @@ async function loadDemoData() {
     });
     await loadAllData();
     refreshAll();
-    window.alert(
+    showToast(
       runtimeTextTemplate("demoDataLoadedMessage", {
         company: companyName,
         mode: result.mode,
@@ -25584,13 +25584,13 @@ async function loadDemoData() {
       })
     );
   } catch (error) {
-    window.alert(uiT("alertDemoLoadFailed").replace("{error}", error.message));
+    showToast(uiT("alertDemoLoadFailed").replace("{error}", error.message));
   }
 }
 
 async function handleTopbarExport() {
   if (!token || !state.currentUser) {
-    window.alert(runtimeText("loginFirst"));
+    showToast(runtimeText("loginFirst"));
     return;
   }
   const exportCompanyId = state.currentUser?.company_id || state.currentUser?.companyId || "";
@@ -25767,7 +25767,7 @@ function showImportDryRunDialog(summary) {
 
 async function handleTopbarImport() {
   if (!token || !state.currentUser) {
-    window.alert(runtimeText("loginFirst"));
+    showToast(runtimeText("loginFirst"));
     return;
   }
 
@@ -25815,9 +25815,9 @@ async function handleTopbarImport() {
 
       await loadAllData();
       refreshAll();
-      window.alert(uiT("alertImportSuccess"));
+      showToast(uiT("alertImportSuccess"));
     } catch (error) {
-      window.alert(uiT("alertImportFailed").replace("{error}", error.message));
+      showToast(uiT("alertImportFailed").replace("{error}", error.message));
     }
   };
 
@@ -26088,7 +26088,7 @@ if (addSubcompanyButtonEl) {
     const name = (subcompanyNameInputEl?.value || "").trim();
     const companyId = document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId();
     if (!name || !companyId) {
-      window.alert(uiT("subcompanyNameRequired") || "Bitte zuerst Firma und Subunternehmensname angeben.");
+      showToast(uiT("subcompanyNameRequired") || "Bitte zuerst Firma und Subunternehmensname angeben.");
       return;
     }
     addSubcompanyButtonEl.disabled = true;
@@ -26106,7 +26106,7 @@ if (addSubcompanyButtonEl) {
         if (subcompanyNameInputEl) subcompanyNameInputEl.value = "";
       }
     } catch (err) {
-      window.alert(uiT("alertSubcompanyCreateFailed").replace("{error}", err.message || err));
+      showToast(uiT("alertSubcompanyCreateFailed").replace("{error}", err.message || err));
     } finally {
       addSubcompanyButtonEl.disabled = false;
     }
@@ -26577,7 +26577,7 @@ if (invoiceRetryExportBtn) {
         `invoice-retry-queue-${new Date().toISOString().slice(0, 10)}.pdf`
       );
     } catch (error) {
-      window.alert(uiT("alertCsvExportFailed").replace("{error}", error.message));
+      showToast(uiT("alertCsvExportFailed").replace("{error}", error.message));
     }
   });
 }
@@ -26595,7 +26595,7 @@ if (invoiceIncidentExportBtn) {
         `invoice-incidents-${new Date().toISOString().slice(0, 10)}.pdf`
       );
     } catch (error) {
-      window.alert(uiT("alertIncidentExportFailed").replace("{error}", error.message));
+      showToast(uiT("alertIncidentExportFailed").replace("{error}", error.message));
     }
   });
 }
@@ -26605,7 +26605,7 @@ if (invoiceRetryBulkSendBtn) {
   invoiceRetryBulkSendBtn.addEventListener("click", async () => {
     const selectedIds = Array.isArray(state.invoiceRetrySelectedIds) ? state.invoiceRetrySelectedIds : [];
     if (!selectedIds.length) {
-      window.alert(uiT("alertSelectInvoiceForRetry"));
+      showToast(uiT("alertSelectInvoiceForRetry"));
       return;
     }
     if (!(await showConfirmDialog(uiT("confirmBulkRetrySelected").replace("{count}", selectedIds.length)))) {
@@ -26638,7 +26638,7 @@ if (invoiceRetryCriticalSendBtn) {
     const criticalIds = getCriticalRetryInvoiceIds(state.invoices, 50);
 
     if (!criticalIds.length) {
-      window.alert(uiT("alertNoCriticalCases"));
+      showToast(uiT("alertNoCriticalCases"));
       return;
     }
 
@@ -26764,7 +26764,7 @@ if (exportCompanyDocEmailsBtn) {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      window.alert(uiT("alertExportFailed").replace("{error}", error.message));
+      showToast(uiT("alertExportFailed").replace("{error}", error.message));
     }
   });
 }
@@ -26857,7 +26857,7 @@ if (companyForm) {
 if (elements.desktopInstallButton) {
   elements.desktopInstallButton.addEventListener("click", () => {
     triggerDesktopInstall().catch(() => {
-      window.alert(uiT("alertDesktopInstallFailed"));
+      showToast(uiT("alertDesktopInstallFailed"));
     });
   });
 }
@@ -26929,7 +26929,7 @@ async function executeBulkStatus(status) {
     await loadAllData();
     refreshAll();
   } catch (err) {
-    window.alert(uiT("alertGenericError").replace("{error}", err.message || String(err)));
+    showToast(uiT("alertGenericError").replace("{error}", err.message || String(err)));
   }
 }
 
@@ -26954,7 +26954,7 @@ if (elements.bulkDeleteButton) {
       await loadAllData();
       refreshAll();
     } catch (err) {
-      window.alert(uiT("alertDeleteWorkerFailed").replace("{error}", err.message || String(err)));
+      showToast(uiT("alertDeleteWorkerFailed").replace("{error}", err.message || String(err)));
     }
   });
 }
@@ -27003,7 +27003,7 @@ if (invoiceNumberAutoBtn) {
       const field = document.querySelector("#invoiceNumber");
       if (field) field.value = data.nextNumber || "";
     } catch (e) {
-      window.alert(runtimeTextTemplate("invoiceNumberAutoFailed", { error: e.message }));
+      showToast(runtimeTextTemplate("invoiceNumberAutoFailed", { error: e.message }));
     }
   });
 }
@@ -27625,3 +27625,4 @@ initNativeDesktopShell();
     refreshAll();
   }
 })();
+
