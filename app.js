@@ -385,7 +385,7 @@ const UI_TRANSLATIONS = {
     imapSectionEyebrow: "Dokument-Eingang",
     imapSectionH4: "IMAP-Postfach f\u00fcr Nachweise",
     labelImapHint: "Mitarbeiter schicken Nachweise an diese Adresse. Das System ruft das Postfach alle paar Minuten ab.",
-      imapPlusAliasWarning: "Hinweis: Bei GMX/Web.de sind +Alias-Adressen oft nicht zustellbar. Bitte fuer Dokument-E-Mails eine echte, separat angelegte Adresse verwenden.",
+      imapPlusAliasWarning: "Hinweis: Bei GMX/Web.de nutzt Auto eine Adresse ohne '+'. Dafuer muss das Postfach Catch-All oder passende Aliase unterstuetzen.",
     labelImapHost: "IMAP Host",
     labelImapPort: "IMAP Port",
     labelImapUser: "IMAP Benutzername",
@@ -875,6 +875,7 @@ const UI_TRANSLATIONS = {
     workerSearchPlaceholder: "Suchen: Name, Badge-ID, Standort …",
     workerHoursMonthHint: "Monat fuer die Stundenanzeige in der Mitarbeiterliste",
     workerMinHoursPlaceholder: "Min. Stunden (Monat)",
+    btnWorkerFiltersReset: "Filter zuruecksetzen",
     confirmDeleteCompanyText: "Firma {name} und alle zugeh\u00f6rigen Datens\u00e4tze l\u00f6schen?\n\nOK = komplette L\u00f6schung (inkl. Mitarbeiter, Subunternehmen und Logs)\nAbbrechen = nicht l\u00f6schen",
     confirmLockCompany: "Firma {name} jetzt sperren? Firmen-Admin, Drehkreuz und Mitarbeiter-App dieser Firma werden blockiert.",
     confirmUnlockCompany: "Sperre f\u00fcr {name} jetzt aufheben? Die Firma kann sich danach wieder anmelden.",
@@ -1162,7 +1163,7 @@ const UI_TRANSLATIONS = {
     imapSectionEyebrow: "Document Inbox",
     imapSectionH4: "IMAP mailbox for proof documents",
     labelImapHint: "Workers send their proof documents to this address. The system polls the mailbox every few minutes.",
-      imapPlusAliasWarning: "Note: +alias addresses are often not reliably deliverable on GMX/Web.de. Use a real dedicated document email address instead.",
+      imapPlusAliasWarning: "Note: On GMX/Web.de, Auto uses an address without '+'. Your mailbox must support catch-all or matching aliases.",
     labelImapHost: "IMAP Host",
     labelImapPort: "IMAP Port",
     labelImapUser: "IMAP Username",
@@ -1651,6 +1652,7 @@ const UI_TRANSLATIONS = {
     workerSearchPlaceholder: "Search: Name, Badge-ID, Site …",
     workerHoursMonthHint: "Month used for the hours display in the workers list",
     workerMinHoursPlaceholder: "Min. hours (month)",
+    btnWorkerFiltersReset: "Reset filters",
     confirmDeleteCompanyText: "Delete company {name} and all associated records?\n\nOK = complete deletion (incl. employees, subcontractors and logs)\nCancel = do not delete",
     confirmLockCompany: "Lock company {name} now? The company admin, turnstile and employee app of this company will be blocked.",
     confirmUnlockCompany: "Lift lock for {name} now? The company can log in again afterwards.",
@@ -7403,6 +7405,7 @@ const elements = {
   workerSearchInput: document.querySelector("#workerSearchInput"),
   workerHoursMonthInput: document.querySelector("#workerHoursMonthFilter"),
   workerMinHoursInput: document.querySelector("#workerMinHoursFilter"),
+  workerFiltersResetButton: document.querySelector("#workerFiltersResetButton"),
   bulkSelectAll: document.querySelector("#bulkSelectAll"),
   bulkActionBar: document.querySelector("#bulkActionBar"),
   bulkSelectionCount: document.querySelector("#bulkSelectionCount"),
@@ -19034,7 +19037,12 @@ function suggestCompanyDocumentEmail(companyName) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "firma";
   const [localPart, domain] = baseAddress.split("@", 2);
+  const normalizedDomain = String(domain || "").trim().toLowerCase();
   const aliasBase = (localPart.split("+", 1)[0] || "dokumente").trim() || "dokumente";
+  const plusUnreliableDomains = new Set(["gmx.de", "gmx.net", "gmx.com", "web.de"]);
+  if (plusUnreliableDomains.has(normalizedDomain)) {
+    return `${aliasBase}-${slug}@${domain}`;
+  }
   return `${aliasBase}+${slug}@${domain}`;
 }
 
@@ -26152,6 +26160,24 @@ if (elements.workerHoursMonthInput) {
 }
 if (elements.workerMinHoursInput) {
   elements.workerMinHoursInput.addEventListener("input", renderWorkerList);
+}
+if (elements.workerFiltersResetButton) {
+  elements.workerFiltersResetButton.addEventListener("click", async () => {
+    if (elements.workerSearchInput) {
+      elements.workerSearchInput.value = "";
+    }
+    if (workerStatusFilter) {
+      workerStatusFilter.value = "";
+    }
+    if (elements.workerMinHoursInput) {
+      elements.workerMinHoursInput.value = "";
+    }
+    if (elements.workerHoursMonthInput) {
+      elements.workerHoursMonthInput.value = getCurrentMonthKey();
+    }
+    await loadAccessWorkerHoursMonth(elements.workerHoursMonthInput?.value || "");
+    renderWorkerList();
+  });
 }
 
 const workerCancelEditButton = document.querySelector("#workerCancelEditButton");
