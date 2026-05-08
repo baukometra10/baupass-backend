@@ -877,20 +877,17 @@ def suggest_company_document_email(company_name, settings_row=None):
     local_part, domain = imap_username.split("@", 1)
     domain = domain.strip().lower()
 
-    # Einige Freemail-Provider (z. B. GMX/Web.de) akzeptieren '+'-Subadressierung
-    # nicht zuverlässig. In dem Fall lieber keine Auto-Alias-Adresse vorschlagen,
-    # statt eine Adresse zu erzeugen, die später unzustellbar ist.
-    unsupported_plus_domains = {
-        "gmx.de",
-        "gmx.net",
-        "gmx.com",
-        "web.de",
-    }
-    if domain in unsupported_plus_domains:
+    alias_base = (local_part.split("+", 1)[0] or "dokumente").strip() or "dokumente"
+    company_slug = slugify_company_alias(company_name)
+
+    # Plus-Subaddressing ist nicht bei allen Providern zuverlässig.
+    # Dort keine Auto-Alias-Adresse vorschlagen, damit keine unzustellbaren
+    # Adressen (550 mailbox unavailable) erzeugt werden.
+    plus_unreliable_domains = {"gmx.de", "gmx.net", "gmx.com", "web.de"}
+    if domain in plus_unreliable_domains:
         return ""
 
-    alias_base = (local_part.split("+", 1)[0] or "dokumente").strip() or "dokumente"
-    return f"{alias_base}+{slugify_company_alias(company_name)}@{domain}"
+    return f"{alias_base}+{company_slug}@{domain}"
 
 
 def extract_message_recipient_addresses(msg):
