@@ -363,6 +363,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Gespeicherte Dokumente",
     workerDocsEmpty: "Keine Dokumente hinterlegt.",
     workerAkteLabel: "Mitarbeiter-Akte",
+    workerHceHeading: "HCE-Geraete",
+    workerHceRefreshBtn: "Aktualisieren",
+    workerHceLoading: "Lade Geraete...",
+    workerHceLoadError: "Fehler: {error}",
+    workerHceNone: "Keine HCE-Geraete registriert.",
+    workerHceStatusActive: "Aktiv",
+    workerHceStatusRevoked: "Gesperrt",
+    workerHceActionRevoke: "Sperren",
+    workerHceActionActivate: "Reaktivieren",
+    workerHceLastSeen: "Zuletzt gesehen",
+    workerHceConfirmRevoke: "HCE-Geraet {deviceId} wirklich sperren?",
+    workerHceConfirmActivate: "HCE-Geraet {deviceId} wirklich reaktivieren?",
+    workerHceUpdateFailed: "HCE-Geraet konnte nicht aktualisiert werden: {error}",
     btnUploadWorkerDoc: "Dokument hochladen",
     btnConfirmUpload: "Hochladen",
     docUploadSuccess: "Dokument erfolgreich hochgeladen.",
@@ -1123,6 +1136,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Stored Documents",
     workerDocsEmpty: "No documents on file.",
     workerAkteLabel: "Worker File",
+    workerHceHeading: "HCE Devices",
+    workerHceRefreshBtn: "Refresh",
+    workerHceLoading: "Loading devices...",
+    workerHceLoadError: "Error: {error}",
+    workerHceNone: "No HCE devices registered.",
+    workerHceStatusActive: "Active",
+    workerHceStatusRevoked: "Revoked",
+    workerHceActionRevoke: "Revoke",
+    workerHceActionActivate: "Activate",
+    workerHceLastSeen: "Last seen",
+    workerHceConfirmRevoke: "Revoke HCE device {deviceId}?",
+    workerHceConfirmActivate: "Activate HCE device {deviceId}?",
+    workerHceUpdateFailed: "Could not update HCE device: {error}",
     btnUploadWorkerDoc: "Upload document",
     btnConfirmUpload: "Upload",
     docUploadSuccess: "Document uploaded successfully.",
@@ -2064,6 +2090,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Kayıtlı Belgeler",
     workerDocsEmpty: "Belge kayıtlı değil.",
     workerAkteLabel: "Çalışan Dosyası",
+    workerHceHeading: "HCE Cihazları",
+    workerHceRefreshBtn: "Yenile",
+    workerHceLoading: "Cihazlar yükleniyor...",
+    workerHceLoadError: "Hata: {error}",
+    workerHceNone: "Kayıtlı HCE cihazı yok.",
+    workerHceStatusActive: "Aktif",
+    workerHceStatusRevoked: "Engellendi",
+    workerHceActionRevoke: "Engelle",
+    workerHceActionActivate: "Yeniden etkinleştir",
+    workerHceLastSeen: "Son görülme",
+    workerHceConfirmRevoke: "{deviceId} HCE cihazı engellensin mi?",
+    workerHceConfirmActivate: "{deviceId} HCE cihazı yeniden etkinleştirilsin mi?",
+    workerHceUpdateFailed: "HCE cihazı güncellenemedi: {error}",
     btnUploadWorkerDoc: "Belge yükle",
     btnConfirmUpload: "Yükle",
     docUploadSuccess: "Belge başarıyla yüklendi.",
@@ -2916,6 +2955,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "المستندات المحفوظة",
     workerDocsEmpty: "لا توجد مستندات.",
     workerAkteLabel: "ملف العامل",
+    workerHceHeading: "أجهزة HCE",
+    workerHceRefreshBtn: "تحديث",
+    workerHceLoading: "جار تحميل الأجهزة...",
+    workerHceLoadError: "خطأ: {error}",
+    workerHceNone: "لا توجد أجهزة HCE مسجلة.",
+    workerHceStatusActive: "نشط",
+    workerHceStatusRevoked: "محظور",
+    workerHceActionRevoke: "حظر",
+    workerHceActionActivate: "إعادة التفعيل",
+    workerHceLastSeen: "آخر ظهور",
+    workerHceConfirmRevoke: "هل تريد حظر جهاز HCE {deviceId}؟",
+    workerHceConfirmActivate: "هل تريد إعادة تفعيل جهاز HCE {deviceId}؟",
+    workerHceUpdateFailed: "تعذر تحديث جهاز HCE: {error}",
     btnUploadWorkerDoc: "رفع مستند",
     btnConfirmUpload: "رفع",
     docUploadSuccess: "تم رفع المستند بنجاح.",
@@ -3672,6 +3724,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Documents enregistrés",
     workerDocsEmpty: "Aucun document enregistré.",
     workerAkteLabel: "Dossier travailleur",
+    workerHceHeading: "Appareils HCE",
+    workerHceRefreshBtn: "Actualiser",
+    workerHceLoading: "Chargement des appareils...",
+    workerHceLoadError: "Erreur : {error}",
+    workerHceNone: "Aucun appareil HCE enregistré.",
+    workerHceStatusActive: "Actif",
+    workerHceStatusRevoked: "Révoqué",
+    workerHceActionRevoke: "Révoquer",
+    workerHceActionActivate: "Activer",
+    workerHceLastSeen: "Dernière activité",
+    workerHceConfirmRevoke: "Révoquer l'appareil HCE {deviceId} ?",
+    workerHceConfirmActivate: "Activer l'appareil HCE {deviceId} ?",
+    workerHceUpdateFailed: "Impossible de mettre à jour l'appareil HCE : {error}",
     btnUploadWorkerDoc: "Téléverser document",
     btnConfirmUpload: "Téléverser",
     docUploadSuccess: "Document téléversé avec succès.",
@@ -4428,6 +4493,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Documentos guardados",
     workerDocsEmpty: "No hay documentos registrados.",
     workerAkteLabel: "Expediente del trabajador",
+    workerHceHeading: "Dispositivos HCE",
+    workerHceRefreshBtn: "Actualizar",
+    workerHceLoading: "Cargando dispositivos...",
+    workerHceLoadError: "Error: {error}",
+    workerHceNone: "No hay dispositivos HCE registrados.",
+    workerHceStatusActive: "Activo",
+    workerHceStatusRevoked: "Revocado",
+    workerHceActionRevoke: "Revocar",
+    workerHceActionActivate: "Activar",
+    workerHceLastSeen: "Última actividad",
+    workerHceConfirmRevoke: "¿Revocar el dispositivo HCE {deviceId}?",
+    workerHceConfirmActivate: "¿Activar el dispositivo HCE {deviceId}?",
+    workerHceUpdateFailed: "No se pudo actualizar el dispositivo HCE: {error}",
     btnUploadWorkerDoc: "Subir documento",
     btnConfirmUpload: "Subir",
     docUploadSuccess: "Documento subido correctamente.",
@@ -5176,6 +5254,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Documenti salvati",
     workerDocsEmpty: "Nessun documento registrato.",
     workerAkteLabel: "Fascicolo lavoratore",
+    workerHceHeading: "Dispositivi HCE",
+    workerHceRefreshBtn: "Aggiorna",
+    workerHceLoading: "Caricamento dispositivi...",
+    workerHceLoadError: "Errore: {error}",
+    workerHceNone: "Nessun dispositivo HCE registrato.",
+    workerHceStatusActive: "Attivo",
+    workerHceStatusRevoked: "Revocato",
+    workerHceActionRevoke: "Revoca",
+    workerHceActionActivate: "Attiva",
+    workerHceLastSeen: "Ultima attività",
+    workerHceConfirmRevoke: "Revocare il dispositivo HCE {deviceId}?",
+    workerHceConfirmActivate: "Attivare il dispositivo HCE {deviceId}?",
+    workerHceUpdateFailed: "Impossibile aggiornare il dispositivo HCE: {error}",
     btnUploadWorkerDoc: "Carica documento",
     btnConfirmUpload: "Carica",
     docUploadSuccess: "Documento caricato con successo.",
@@ -5932,6 +6023,19 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Zapisane dokumenty",
     workerDocsEmpty: "Brak zarejestrowanych dokumentów.",
     workerAkteLabel: "Teczka pracownika",
+    workerHceHeading: "Urządzenia HCE",
+    workerHceRefreshBtn: "Odśwież",
+    workerHceLoading: "Ładowanie urządzeń...",
+    workerHceLoadError: "Błąd: {error}",
+    workerHceNone: "Brak zarejestrowanych urządzeń HCE.",
+    workerHceStatusActive: "Aktywne",
+    workerHceStatusRevoked: "Zablokowane",
+    workerHceActionRevoke: "Zablokuj",
+    workerHceActionActivate: "Aktywuj",
+    workerHceLastSeen: "Ostatnio widziane",
+    workerHceConfirmRevoke: "Zablokować urządzenie HCE {deviceId}?",
+    workerHceConfirmActivate: "Aktywować urządzenie HCE {deviceId}?",
+    workerHceUpdateFailed: "Nie udało się zaktualizować urządzenia HCE: {error}",
     btnUploadWorkerDoc: "Prześlij dokument",
     btnConfirmUpload: "Prześlij",
     docUploadSuccess: "Dokument przesłany pomyślnie.",
@@ -19229,6 +19333,7 @@ function showWorkerDetailOverlay(worker) {
   const role = String(getCurrentUser()?.role || "").toLowerCase();
   const readOnly = isSupportReadOnlyMode();
   const canResetPin = !readOnly && !isVisitorWorker(worker) && ["superadmin", "company-admin", "turnstile"].includes(role);
+  const canManageHceDevices = !readOnly && !isVisitorWorker(worker) && ["superadmin", "company-admin"].includes(role);
   const safePhoto = sanitizeImageSrc(worker.photoData, createAvatar(worker));
   overlay.innerHTML = `
     <div class="worker-detail-card">
@@ -19260,6 +19365,15 @@ function showWorkerDetailOverlay(worker) {
           <span class="muted" style="font-size:0.82em;">${escapeHtml(uiT("workerAkteLabel"))}</span>
         </div>
         <div id="workerDocsList"><p class="muted">…</p></div>
+      </div>` : ""}
+      ${canManageHceDevices ? `
+      <hr style="margin:16px 0; border:none; border-top:1px solid #e5e7eb;" />
+      <div class="worker-hce-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+          <h4 style="margin:0;">${escapeHtml(uiT("workerHceHeading"))}</h4>
+          <button type="button" class="ghost-button" id="workerHceRefreshBtn">${escapeHtml(uiT("workerHceRefreshBtn"))}</button>
+        </div>
+        <div id="workerHceDevicesList"><p class="muted">${escapeHtml(uiT("workerHceLoading"))}</p></div>
       </div>` : ""}
     </div>
   `;
@@ -19336,6 +19450,81 @@ function showWorkerDetailOverlay(worker) {
       });
     }
   }
+
+  if (canManageHceDevices) {
+    const refreshBtn = overlay.querySelector("#workerHceRefreshBtn");
+    const hceContainer = overlay.querySelector("#workerHceDevicesList");
+    const loadDevices = async () => {
+      if (!hceContainer) return;
+      hceContainer.innerHTML = `<p class="muted">${escapeHtml(uiT("workerHceLoading"))}</p>`;
+      try {
+        const payload = await apiRequest(`${API_BASE}/api/workers/${worker.id}/hce-devices`);
+        renderWorkerHceDevices(payload?.devices || [], worker.id, hceContainer, loadDevices);
+      } catch (error) {
+        const errorText = uiT("workerHceLoadError").replace("{error}", String(error?.message || "unknown"));
+        hceContainer.innerHTML = `<p class="muted" style="color:#b91c1c;">${escapeHtml(errorText)}</p>`;
+      }
+    };
+    if (refreshBtn) refreshBtn.onclick = loadDevices;
+    void loadDevices();
+  }
+}
+
+function renderWorkerHceDevices(devices, workerId, container, reloadFn) {
+  if (!container) return;
+  if (!Array.isArray(devices) || devices.length === 0) {
+    container.innerHTML = `<p class="muted">${escapeHtml(uiT("workerHceNone"))}</p>`;
+    return;
+  }
+
+  const rows = devices.map((device) => {
+    const status = String(device?.status || "").toLowerCase();
+    const isRevoked = status === "revoked";
+    const statusLabel = isRevoked ? uiT("workerHceStatusRevoked") : uiT("workerHceStatusActive");
+    const actionLabel = isRevoked ? uiT("workerHceActionActivate") : uiT("workerHceActionRevoke");
+    const actionKind = isRevoked ? "activate" : "revoke";
+    const version = Number(device?.trustVersion || 1);
+    const algo = String(device?.signatureAlgo || "-");
+    return `
+      <div class="worker-hce-device-row">
+        <div class="worker-hce-device-meta">
+          <div><strong>${escapeHtml(device?.deviceId || "-")}</strong></div>
+          <div class="muted" style="font-size:.85em;">${escapeHtml(device?.platform || "android")} · v${version} · ${escapeHtml(algo)}</div>
+          <div class="muted" style="font-size:.8em;">${escapeHtml(uiT("workerHceLastSeen"))}: ${escapeHtml(device?.lastSeenAt ? formatTimestamp(device.lastSeenAt) : "-")}</div>
+        </div>
+        <div class="worker-hce-device-actions">
+          <span class="worker-hce-status ${isRevoked ? "is-revoked" : "is-active"}">${statusLabel}</span>
+          <button type="button" class="ghost-button" data-hce-device-action="${actionKind}" data-hce-device-id="${escapeHtml(device?.deviceId || "")}">${actionLabel}</button>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = rows.join("");
+  container.querySelectorAll("[data-hce-device-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const deviceId = btn.getAttribute("data-hce-device-id") || "";
+      const action = btn.getAttribute("data-hce-device-action") || "";
+      if (!deviceId || !action) return;
+      const confirmText = action === "revoke"
+        ? uiT("workerHceConfirmRevoke").replace("{deviceId}", deviceId)
+        : uiT("workerHceConfirmActivate").replace("{deviceId}", deviceId);
+      if (!window.confirm(confirmText)) {
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await apiRequest(`${API_BASE}/api/workers/${workerId}/hce-devices/${encodeURIComponent(deviceId)}/${action}`, {
+          method: "POST",
+        });
+        await reloadFn();
+      } catch (error) {
+        window.alert(uiT("workerHceUpdateFailed").replace("{error}", error?.message || "unknown"));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 async function triggerWorkerAccess(worker, direction, options = {}) {
