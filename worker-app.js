@@ -1613,6 +1613,7 @@ let iosWalletImmersive = false;
 let workerHubExpanded = false;
 let timesheetCompactExpanded = false;
 let documentsCompactExpanded = false;
+let leaveCompactExpanded = false;
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrInterval = null;          // setInterval handle for auto-refresh
 let dqrCountdownInterval = null; // setInterval for per-second countdown
@@ -4531,7 +4532,16 @@ async function loadLeaveRequests() {
     if (requests.length === 0) {
       elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests") || "Keine Anträge vorhanden."}</p>`;
     } else {
-      elements.leaveRequestList.innerHTML = requests.map((req) => {
+      const sortedRequests = [...requests].sort((a, b) => {
+        const aDate = String(a.start_date || a.created_at || "");
+        const bDate = String(b.start_date || b.created_at || "");
+        if (aDate === bDate) return 0;
+        return aDate < bDate ? 1 : -1;
+      });
+      const visibleRequests = leaveCompactExpanded ? sortedRequests : sortedRequests.slice(0, 1);
+      const hiddenCount = Math.max(0, sortedRequests.length - visibleRequests.length);
+
+      const requestMarkup = visibleRequests.map((req) => {
         const typeMap = { urlaub: "Urlaub", krank: "Krank", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" };
         const typeLabel = typeMap[req.type] || req.type || "–";
         const statusCls = req.status === "genehmigt" ? "leave-status-ok" : req.status === "abgelehnt" ? "leave-status-no" : "leave-status-pending";
@@ -4546,6 +4556,20 @@ async function loadLeaveRequests() {
           ${req.review_note ? `<div class="leave-req-review">📋 ${req.review_note}</div>` : ""}
         </div>`;
       }).join("");
+
+      const toggleMarkup = hiddenCount > 0 || leaveCompactExpanded
+        ? `<button id="leaveRequestsCompactToggleBtn" class="ghost small-btn compact-list-toggle" type="button">${leaveCompactExpanded ? t("compactShowLess") : `${t("compactShowMore")} (+${hiddenCount})`}</button>`
+        : "";
+
+      elements.leaveRequestList.innerHTML = requestMarkup + toggleMarkup;
+
+      const toggleBtn = document.querySelector("#leaveRequestsCompactToggleBtn");
+      if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+          leaveCompactExpanded = !leaveCompactExpanded;
+          void loadLeaveRequests();
+        });
+      }
     }
   } catch (error) {
     console.warn("Could not load leave requests:", error);
@@ -4605,8 +4629,11 @@ async function loadMyTimesheets() {
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(row);
     }
-    const dayGroups = Object.entries(byDate);
-    const visibleDayGroups = timesheetCompactExpanded ? dayGroups : dayGroups.slice(0, 3);
+    const dayGroups = Object.entries(byDate).sort(([aDate], [bDate]) => {
+      if (aDate === bDate) return 0;
+      return aDate < bDate ? 1 : -1;
+    });
+    const visibleDayGroups = timesheetCompactExpanded ? dayGroups : dayGroups.slice(0, 2);
     const daysHiddenCount = Math.max(0, dayGroups.length - visibleDayGroups.length);
 
     const dayMarkup = visibleDayGroups.map(([date, entries]) => {
@@ -4686,7 +4713,28 @@ async function loadMyDocuments() {
       warningBanner += `<div class="doc-warning-banner doc-warning-soon">🕐 ${expiringSoon.length} Dokument${expiringSoon.length > 1 ? "e laufen" : " läuft"} bald ab</div>`;
     }
 
-    const visibleRows = documentsCompactExpanded ? rows : rows.slice(0, 3);
+    const sortedRows = [...rows].sort((a, b) => {
+      const aExpiry = String(a.expiry_date || "");
+      const bExpiry = String(b.expiry_date || "");
+      const aExpired = Boolean(aExpiry && aExpiry <= today);
+      const bExpired = Boolean(bExpiry && bExpiry <= today);
+      const aSoon = Boolean(aExpiry && aExpiry > today && aExpiry <= soonStr);
+      const bSoon = Boolean(bExpiry && bExpiry > today && bExpiry <= soonStr);
+
+      const aPriority = aExpired ? 0 : aSoon ? 1 : 2;
+      const bPriority = bExpired ? 0 : bSoon ? 1 : 2;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+
+      if (aExpiry && bExpiry && aExpiry !== bExpiry) {
+        return aExpiry < bExpiry ? -1 : 1;
+      }
+      const aType = String(a.doc_type || "").toLowerCase();
+      const bType = String(b.doc_type || "").toLowerCase();
+      if (aType === bType) return 0;
+      return aType < bType ? -1 : 1;
+    });
+
+    const visibleRows = documentsCompactExpanded ? sortedRows : sortedRows.slice(0, 2);
     const docsHiddenCount = Math.max(0, rows.length - visibleRows.length);
     const docsMarkup = visibleRows.map((doc) => {
       const isExpired = doc.expiry_date && doc.expiry_date < today;
