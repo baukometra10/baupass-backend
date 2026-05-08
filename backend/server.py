@@ -16712,6 +16712,25 @@ def _normalize_imap_host_port(host_value, port_value):
     return host, port
 
 
+def _imap_login_with_fallback(conn, username, password):
+    """Try IMAP LOGIN first, then AUTHENTICATE PLAIN for stricter servers."""
+    try:
+        conn.login(username, password)
+        return "LOGIN"
+    except Exception as login_exc:
+        err = str(login_exc or "").lower()
+        auth_like = ("auth" in err or "login" in err or "credent" in err or "invalid" in err)
+        if not auth_like:
+            raise
+
+        auth_bytes = f"\0{username}\0{password}".encode("utf-8", errors="ignore")
+        try:
+            conn.authenticate("PLAIN", lambda _challenge: auth_bytes)
+            return "AUTHENTICATE_PLAIN"
+        except Exception as plain_exc:
+            raise Exception(f"{login_exc} (LOGIN) | {plain_exc} (AUTH PLAIN)")
+
+
 def poll_imap_inbox():
     """Pollt das konfigurierte IMAP-Postfach und speichert neue Mails in email_inbox.
 
@@ -16765,7 +16784,7 @@ def poll_imap_inbox():
                         else:
                             conn = imaplib.IMAP4(host, attempt_port, timeout=_imap_timeout)
                             conn.starttls()
-                        conn.login(username, password)
+                        _imap_login_with_fallback(conn, username, password)
                         break
                     except Exception as inner_exc:
                         last_exc = inner_exc
@@ -17740,12 +17759,12 @@ def test_imap_connection():
             else:
                 conn = imaplib.IMAP4(host, attempt_port, timeout=_timeout)
                 conn.starttls()
-            conn.login(username, password)
+            auth_method = _imap_login_with_fallback(conn, username, password)
             status, _ = conn.select(folder, readonly=True)
             conn.logout()
             if status != "OK":
                 return jsonify({"ok": False, "error": f"Ordner '{folder}' nicht gefunden.", "tried": tried_info}), 200
-            return jsonify({"ok": True, "message": f"Verbindung zu {host}:{attempt_port} ({'SSL' if attempt_ssl else 'STARTTLS'}) erfolgreich. Ordner '{folder}' gefunden.", "tried": tried_info})
+            return jsonify({"ok": True, "message": f"Verbindung zu {host}:{attempt_port} ({'SSL' if attempt_ssl else 'STARTTLS'}) erfolgreich. Auth: {auth_method}. Ordner '{folder}' gefunden.", "tried": tried_info})
         except (socket.timeout, TimeoutError, ConnectionRefusedError, OSError) as exc:
             last_exc = exc
             try:
