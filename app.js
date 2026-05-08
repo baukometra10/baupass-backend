@@ -27519,6 +27519,8 @@ function showAlert(key, vars = {}) {
   showToast(text, "info", 3600);
 }
 
+let activeConfirmCloser = null;
+
 function showToast(message, type = "info", timeout = 2600) {
   const text = String(message || "").trim();
   if (!text) return;
@@ -27550,17 +27552,17 @@ function showToast(message, type = "info", timeout = 2600) {
 
 function showConfirmDialog(message) {
   return new Promise((resolve) => {
-    const existing = document.querySelector(".app-confirm-overlay");
-    if (existing) {
-      existing.remove();
+    if (typeof activeConfirmCloser === "function") {
+      activeConfirmCloser(false);
     }
 
     const previouslyFocused = document.activeElement;
+    const messageId = `app-confirm-message-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     const overlay = document.createElement("div");
     overlay.className = "worker-app-qr-overlay app-confirm-overlay";
     overlay.innerHTML = `
       <div class="worker-app-qr-card app-confirm-card">
-        <p class="app-confirm-message">${escapeHtml(String(message || ""))}</p>
+        <p class="app-confirm-message" id="${messageId}">${escapeHtml(String(message || ""))}</p>
         <div class="button-row">
           <button type="button" class="ghost-button" data-confirm-cancel>${escapeHtml(uiT("btnBulkCancel"))}</button>
           <button type="button" class="primary-button" data-confirm-accept>OK</button>
@@ -27575,15 +27577,20 @@ function showConfirmDialog(message) {
     if (panel) {
       panel.setAttribute("role", "dialog");
       panel.setAttribute("aria-modal", "true");
+      panel.setAttribute("aria-labelledby", messageId);
+      panel.setAttribute("tabindex", "-1");
     }
 
     let closed = false;
     const close = (result) => {
       if (closed) return;
       closed = true;
+      if (activeConfirmCloser === close) {
+        activeConfirmCloser = null;
+      }
       document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
-      if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+      if (previouslyFocused && document.contains(previouslyFocused) && typeof previouslyFocused.focus === "function") {
         try { previouslyFocused.focus(); } catch { /* ignore focus failures */ }
       }
       resolve(Boolean(result));
@@ -27620,10 +27627,13 @@ function showConfirmDialog(message) {
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) close(false);
     });
+    activeConfirmCloser = close;
     document.body.appendChild(overlay);
     document.addEventListener("keydown", onKeyDown);
     if (acceptButton && typeof acceptButton.focus === "function") {
       acceptButton.focus();
+    } else if (panel && typeof panel.focus === "function") {
+      panel.focus();
     }
   });
 }

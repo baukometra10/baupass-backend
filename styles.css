@@ -4720,6 +4720,10 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
   background: #166534;
 }
 
+.app-toast.app-toast-info {
+  background: #1f2937;
+}
+
 .app-toast.app-toast-error {
   background: #991b1b;
 }
@@ -4752,8 +4756,18 @@ body.theme-black .app-toast {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.44);
 }
 
+body.theme-black .app-toast.app-toast-info {
+  background: #111827;
+}
+
 body.theme-black .app-confirm-message {
   color: #e5e7eb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast {
+    transition: none;
+  }
 }
 
 /* Details-Zusammenfassung (summary) global */
