@@ -3759,7 +3759,7 @@ def _normalize_smtp_target(host, port, use_tls):
     return normalized_host, normalized_port
 
 
-def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due, _shared_smtp=None):
+def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due):
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
     sender_name = (settings_row["smtp_sender_name"] or settings_row["operator_name"] or "").strip()
     recipient = (invoice_row["recipient_email"] or "").strip()
@@ -3867,75 +3867,72 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     pdf_bytes = _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, days_until_due)
     pdf_filename = f"Mahnschreiben_{invoice_number.replace('/', '-')}.pdf"
 
+    # Prepare attachments for API (and possibly SMTP)
+    attachments = []
+    if pdf_bytes:
+        import base64 as _b64
+        attachments = [{"filename": pdf_filename, "content": _b64.b64encode(pdf_bytes).decode("ascii"), "type": "application/pdf"}]
+
+    # API-first: try Brevo/Resend before SMTP (faster, cheaper, no Microsoft auth issues)
+    resend_key, _resend_key_source = _get_resend_api_key_and_source()
+    brevo_key = _get_brevo_api_key()
+    if resend_key or brevo_key:
+        ok, err, provider = _send_via_any_api(
+            subject=subject,
+            sender_email=smtp_sender or "noreply@baupass.app",
+            sender_name=sender_name,
+            recipient=recipient,
+            text_body=text_body,
+            html_body=html_body,
+            attachments=attachments,
+        )
+        if ok:
+            app.logger.info(f"[DUNNING] Mahnung via {provider or 'API'} erfolgreich versendet")
+            return True, ""
+        app.logger.warning(f"[DUNNING] API-Versand ({provider}) fehlgeschlagen ({err}), Fallback zu SMTP")
+
+    # SMTP fallback
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_port = int(settings_row["smtp_port"] or 587)
     smtp_use_tls = int(settings_row["smtp_use_tls"] or 0) == 1
     smtp_host, smtp_port = _normalize_smtp_target(smtp_host, smtp_port, smtp_use_tls)
     smtp_username = (settings_row["smtp_username"] or "").strip()
     smtp_password = settings_row["smtp_password"] or ""
+    
+    if not smtp_host or not smtp_sender:
+        return False, f"Weder API noch SMTP konfiguriert"
+
     smtp_circuit_open_until = get_invoice_smtp_circuit_open_until()
     smtp_circuit_open = bool(smtp_circuit_open_until and datetime.now(timezone.utc) < smtp_circuit_open_until)
-    if smtp_host and smtp_sender and not smtp_circuit_open:
-        try:
-            msg = EmailMessage()
-            msg["Subject"] = subject
-            msg["From"] = f"{sender_name} <{smtp_sender}>" if sender_name else smtp_sender
-            msg["To"] = recipient
-            msg.set_content(text_body)
-            msg.add_alternative(html_body, subtype="html")
-            if pdf_bytes:
-                msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
-            if _shared_smtp is not None:
-                try:
-                    _shared_smtp.noop()  # keep-alive / verify connection still open
-                    _shared_smtp.send_message(msg)
-                except Exception:
-                    # Shared connection dropped – fall back to a fresh one
-                    with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
-                        if smtp_username:
-                            smtp.login(smtp_username, smtp_password)
-                        smtp.send_message(msg)
-            else:
-                with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
-                    if smtp_username:
-                        smtp.login(smtp_username, smtp_password)
-                    smtp.send_message(msg)
-            on_invoice_send_success_reset_circuit()
-            return True, ""
-        except Exception as smtp_exc:
-            on_invoice_send_failure_update_circuit(str(smtp_exc))
-            if is_smtp_auth_disabled_error(str(smtp_exc)):
-                app.logger.warning(
-                    "[DUNNING] SMTP AUTH ist fuer dieses Outlook-Postfach deaktiviert (5.7.139). "
-                    "SMTP wird voruebergehend uebersprungen, API-Fallback wird verwendet."
-                )
-            app.logger.warning(
-                f"[DUNNING] SMTP fehlgeschlagen ({smtp_exc}) | host={smtp_host}:{smtp_port} tls={int(smtp_use_tls)} timeout={SMTP_CONNECT_TIMEOUT_SECONDS}s, versuche API-Fallback"
-            )
-    elif smtp_circuit_open:
+    if smtp_circuit_open:
         app.logger.info(
-            f"[DUNNING] SMTP-Circuit offen bis {smtp_circuit_open_until.astimezone(timezone.utc).isoformat()}, SMTP wird voruebergehend uebersprungen"
+            f"[DUNNING] SMTP-Circuit offen bis {smtp_circuit_open_until.astimezone(timezone.utc).isoformat()}, SMTP wird übersprungen"
         )
+        return False, "SMTP-Circuit offen"
 
-    # API fallback – attach PDF as base64 if available
-    attachments = []
-    if pdf_bytes:
-        import base64 as _b64
-        attachments = [{"filename": pdf_filename, "content": _b64.b64encode(pdf_bytes).decode("ascii"), "type": "application/pdf"}]
-
-    ok, err, provider = _send_via_any_api(
-        subject=subject,
-        sender_email=smtp_sender or "noreply@baupass.app",
-        sender_name=sender_name,
-        recipient=recipient,
-        text_body=text_body,
-        html_body=html_body,
-        attachments=attachments,
-    )
-    if ok:
-        app.logger.info(f"[DUNNING] API-Fallback erfolgreich via {provider or 'api'}")
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = f"{sender_name} <{smtp_sender}>" if sender_name else smtp_sender
+        msg["To"] = recipient
+        msg.set_content(text_body)
+        msg.add_alternative(html_body, subtype="html")
+        if pdf_bytes:
+            msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf", filename=pdf_filename)
+        with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
+            if smtp_username:
+                smtp.login(smtp_username, smtp_password)
+            smtp.send_message(msg)
+        on_invoice_send_success_reset_circuit()
         return True, ""
-    return False, f"API-Fallback fehlgeschlagen | {err}"
+    except Exception as smtp_exc:
+        on_invoice_send_failure_update_circuit(str(smtp_exc))
+        if is_smtp_auth_disabled_error(str(smtp_exc)):
+            app.logger.warning(
+                "[DUNNING] SMTP AUTH ist fuer dieses Outlook-Postfach deaktiviert (5.7.139). "
+                "API-Versand wird empfohlen."
+            )
+        return False, f"SMTP Fehler: {smtp_exc}"
 
 
 @contextmanager
@@ -4655,46 +4652,7 @@ def run_invoice_dunning_cycle(db):
         "overdueUpdated": 0,
     }
 
-    # Pre-open a single SMTP connection for the whole batch to avoid a
-    # separate TLS handshake + AUTH per invoice (which is the main source of slowness).
-    _batch_smtp = None
-    _batch_smtp_circuit_open = bool(
-        get_invoice_smtp_circuit_open_until() and
-        datetime.now(timezone.utc) < get_invoice_smtp_circuit_open_until()
-    ) if settings else True
-    if settings and not _batch_smtp_circuit_open:
-        _smtp_host = str(settings["smtp_host"] or "").strip()
-        _smtp_port = int(settings["smtp_port"] or 587)
-        _smtp_use_tls = int(settings["smtp_use_tls"] or 0) == 1
-        _smtp_host, _smtp_port = _normalize_smtp_target(_smtp_host, _smtp_port, _smtp_use_tls)
-        _smtp_username = str(settings["smtp_username"] or "").strip()
-        _smtp_password = settings["smtp_password"] or ""
-        _smtp_sender = str(settings["smtp_sender_email"] or "").strip()
-        if _smtp_host and _smtp_sender:
-            try:
-                _smtp_port_int = int(_smtp_port or 587)
-                if _smtp_port_int == 465:
-                    _batch_smtp = smtplib.SMTP_SSL(_smtp_host, _smtp_port_int, timeout=SMTP_CONNECT_TIMEOUT_SECONDS)
-                else:
-                    _batch_smtp = smtplib.SMTP(_smtp_host, _smtp_port_int, timeout=SMTP_CONNECT_TIMEOUT_SECONDS)
-                    _batch_smtp.ehlo()
-                    if _smtp_use_tls:
-                        _batch_smtp.starttls()
-                        _batch_smtp.ehlo()
-                if _smtp_username:
-                    _batch_smtp.login(_smtp_username, _smtp_password)
-                app.logger.info(f"[DUNNING] Shared SMTP-Verbindung zu {_smtp_host}:{_smtp_port_int} aufgebaut")
-            except Exception as _smtp_init_exc:
-                app.logger.warning(f"[DUNNING] Shared SMTP-Verbindung fehlgeschlagen ({_smtp_init_exc}), jede Mail öffnet eigene Verbindung")
-                if _batch_smtp:
-                    try:
-                        _batch_smtp.quit()
-                    except Exception:
-                        pass
-                _batch_smtp = None
-
-    try:
-        for row in rows:
+    for row in rows:
             if row["company_deleted_at"]:
                 continue
 
@@ -4742,7 +4700,7 @@ def run_invoice_dunning_cycle(db):
 
             company_row = {"name": row["company_name"]}
             sent_ok, error_message = send_payment_reminder_email(
-                row, company_row, settings, target_stage, days_until_due, _shared_smtp=_batch_smtp
+                row, company_row, settings, target_stage, days_until_due
             )
 
             if sent_ok:
@@ -4773,12 +4731,6 @@ def run_invoice_dunning_cycle(db):
                     actor=None,
                 )
                 result["reminderFailures"] += 1
-    finally:
-        if _batch_smtp is not None:
-            try:
-                _batch_smtp.quit()
-            except Exception:
-                pass
 
     db.commit()
     return result
@@ -13262,29 +13214,33 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     )
     email_header_label = _lang["email_header"]
 
+    # API-first: try Brevo/Resend before SMTP (faster, cheaper, no Microsoft auth issues)
+    resend_key, _resend_key_source = _get_resend_api_key_and_source()
+    brevo_key = _get_brevo_api_key()
+    if resend_key or brevo_key:
+        ok, err, _provider_used = _send_via_any_api(
+            subject=mail_subject,
+            sender_email=smtp_sender or "noreply@example.com",
+            sender_name=settings_row["smtp_sender_name"] or "",
+            recipient=invoice_row["recipient_email"],
+            text_body=text_body,
+            html_body=_build_email_html(
+                platform_label,
+                str(settings_row["invoice_primary_color"] or "#0f4c5c"),
+                str(settings_row["invoice_accent_color"] or "#e36414"),
+                email_header_label,
+                body_html,
+                operator_label,
+            ),
+            attachments=attachment_payload,
+        )
+        if ok:
+            return True, ""
+        app.logger.warning(f"[INVOICE-MAIL] API-Versand via {_provider_used} fehlgeschlagen ({err}), Fallback zu SMTP")
+
     if not smtp_host or not smtp_sender:
-        # Try API fallback path if SMTP is not configured but an API key is available
-        resend_key, _resend_key_source = _get_resend_api_key_and_source()
-        brevo_key = _get_brevo_api_key()
-        if resend_key or brevo_key:
-            ok, err, _provider_used = _send_via_any_api(
-                subject=mail_subject,
-                sender_email=smtp_sender or "noreply@example.com",
-                sender_name=settings_row["smtp_sender_name"] or "",
-                recipient=invoice_row["recipient_email"],
-                text_body=text_body,
-                html_body=_build_email_html(
-                    platform_label,
-                    str(settings_row["invoice_primary_color"] or "#0f4c5c"),
-                    str(settings_row["invoice_accent_color"] or "#e36414"),
-                    email_header_label,
-                    body_html,
-                    operator_label,
-                ),
-                attachments=attachment_payload,
-            )
-            return ok, err if not ok else ""
-        return False, "SMTP ist nicht konfiguriert"
+        return False, "Weder API noch SMTP konfiguriert"
+    
     html_body = _build_email_html(
         platform_label,
         str(settings_row["invoice_primary_color"] or "#0f4c5c"),
@@ -13320,18 +13276,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             smtp.send_message(message)
         return True, ""
     except Exception as exc:
-        fallback_ok, fallback_error, _provider_used = _send_via_any_api(
-            subject=str(message["Subject"]),
-            sender_email=smtp_sender,
-            sender_name=settings_row["smtp_sender_name"] or "",
-            recipient=invoice_row["recipient_email"],
-            text_body=text_body,
-            html_body=html_body,
-            attachments=attachment_payload,
-        )
-        if fallback_ok:
-            return True, ""
-        return False, f"{exc} | API-Fallback: {fallback_error}"
+        return False, f"SMTP Fehler: {exc}"
 
 
 def get_invoice_retry_delay_seconds(attempt_count):
