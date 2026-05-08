@@ -17,6 +17,8 @@ import threading
 import time
 import math
 import zipfile
+import logging
+import uuid
 from contextlib import closing, contextmanager
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -201,6 +203,73 @@ _resend_key_cache: dict = {
 
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+REQUEST_ID_HEADER = "X-Request-Id"
+_structured_logs_enabled = str(os.getenv("BAUPASS_STRUCTURED_LOGS", "1")).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+_request_log_max_path = max(64, int(os.getenv("BAUPASS_LOG_PATH_MAX_LEN", "180") or 180))
+logger = logging.getLogger("baupass.api")
+
+
+def _init_structured_logging():
+    if not _structured_logs_enabled:
+        return
+    if logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
+def _coerce_log_value(value):
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _sanitize_path_for_log(path_value):
+    path_text = (path_value or "")
+    if len(path_text) <= _request_log_max_path:
+        return path_text
+    return f"{path_text[:_request_log_max_path]}..."
+
+
+def _safe_email_domain(value):
+    email_value = str(value or "").strip().lower()
+    if "@" not in email_value:
+        return ""
+    return email_value.rsplit("@", 1)[-1][:80]
+
+
+def emit_structured_log(event, level=logging.INFO, **fields):
+    if not _structured_logs_enabled:
+        return
+    payload = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "event": event,
+    }
+    if has_request_context():
+        payload["requestId"] = getattr(g, "request_id", "")
+        payload["method"] = request.method
+        payload["path"] = _sanitize_path_for_log(request.path)
+    for key, value in fields.items():
+        payload[key] = _coerce_log_value(value)
+    try:
+        logger.log(level, json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    except Exception:
+        # Logging must never break request handling.
+        pass
+
+
+_init_structured_logging()
 
 
 def get_cors_origins():
@@ -1107,6 +1176,10 @@ def calculate_net_amount_by_plan(company_plan, payload_net_amount, worker_count=
 
 @app.after_request
 def apply_security_headers(response):
+    request_id = getattr(g, "request_id", "")
+    if request_id:
+        response.headers[REQUEST_ID_HEADER] = request_id
+
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
@@ -1156,7 +1229,45 @@ def apply_security_headers(response):
         if "no-transform" not in existing_cache_control.lower():
             response.headers["Cache-Control"] = (existing_cache_control + ", no-transform").strip(", ")
 
+    started_at = getattr(g, "request_started_monotonic", None)
+    duration_ms = ""
+    if isinstance(started_at, (int, float)):
+        duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
+    emit_structured_log(
+        "http_request_completed",
+        status=response.status_code,
+        durationMs=duration_ms,
+        remoteAddr=(request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",", 1)[0].strip(),
+        userAgent=(request.headers.get("User-Agent") or "")[:180],
+    )
+
     return response
+
+
+@app.before_request
+def setup_request_context():
+    incoming_request_id = (
+        request.headers.get(REQUEST_ID_HEADER)
+        or request.headers.get("X-Correlation-Id")
+        or ""
+    ).strip()
+    if incoming_request_id:
+        g.request_id = incoming_request_id[:80]
+    else:
+        g.request_id = f"req-{uuid.uuid4().hex[:16]}"
+    g.request_started_monotonic = time.perf_counter()
+
+
+@app.teardown_request
+def log_request_exception(error):
+    if error is None:
+        return
+    emit_structured_log(
+        "http_request_exception",
+        level=logging.ERROR,
+        errorType=type(error).__name__,
+        errorMessage=str(error),
+    )
 
 
 def build_login_throttle_key():
@@ -2752,7 +2863,8 @@ def init_db():
             raw_payload_json TEXT NOT NULL DEFAULT '{}',
             normalized_payload_json TEXT NOT NULL DEFAULT '{}',
             result_ref TEXT NOT NULL DEFAULT '',
-            error_code TEXT NOT NULL DEFAULT ''
+            error_code TEXT NOT NULL DEFAULT '',
+            processing_ms INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -2780,6 +2892,25 @@ def init_db():
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_device_event_dead_letters_uid ON device_event_dead_letters(event_uid)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_device_event_dead_letters_company_failed ON device_event_dead_letters(company_id, failed_at)")
 
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS worker_gate_feedback_events (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            direction TEXT NOT NULL DEFAULT '',
+            gate TEXT NOT NULL DEFAULT '',
+            message TEXT NOT NULL DEFAULT '',
+            reason_code TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'gate_tap',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_gate_feedback_worker_created ON worker_gate_feedback_events(worker_id, created_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_gate_feedback_company_created ON worker_gate_feedback_events(company_id, created_at)")
+
     # ── Device heartbeats  (Enterprise Point 17 – Monitoring) ────
     cur.execute(
         """
@@ -2805,6 +2936,8 @@ def init_db():
             cur.execute("ALTER TABLE device_ingest_events ADD COLUMN result_ref TEXT NOT NULL DEFAULT ''")
         if "error_code" not in ingest_columns:
             cur.execute("ALTER TABLE device_ingest_events ADD COLUMN error_code TEXT NOT NULL DEFAULT ''")
+        if "processing_ms" not in ingest_columns:
+            cur.execute("ALTER TABLE device_ingest_events ADD COLUMN processing_ms INTEGER NOT NULL DEFAULT 0")
 
     # ── Neu: Urlaubsantraege & Krankmeldungen ──────────────────
     cur.execute(
@@ -9720,14 +9853,20 @@ def insert_device_ingest_event(db, event_uid, normalized_event, raw_payload, rec
         return False
 
 
-def mark_device_ingest_event_outcome(db, event_uid, outcome, result_ref="", error_code=""):
+def mark_device_ingest_event_outcome(db, event_uid, outcome, result_ref="", error_code="", processing_ms=0):
     db.execute(
         """
         UPDATE device_ingest_events
-        SET outcome = ?, result_ref = ?, error_code = ?
+        SET outcome = ?, result_ref = ?, error_code = ?, processing_ms = ?
         WHERE event_uid = ?
         """,
-        (str(outcome or ""), str(result_ref or ""), str(error_code or ""), str(event_uid or "")),
+        (
+            str(outcome or ""),
+            str(result_ref or ""),
+            str(error_code or ""),
+            max(0, int(processing_ms or 0)),
+            str(event_uid or ""),
+        ),
     )
 
 
@@ -9740,6 +9879,53 @@ def get_device_ingest_event_by_uid(db, event_uid):
         LIMIT 1
         """,
         (str(event_uid or ""),),
+    ).fetchone()
+
+
+def insert_worker_gate_feedback_event(
+    db,
+    worker_id,
+    company_id,
+    status,
+    direction="",
+    gate="",
+    message="",
+    reason_code="",
+    source="gate_tap",
+):
+    feedback_id = f"gfb-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO worker_gate_feedback_events (
+            id, worker_id, company_id, status, direction, gate, message, reason_code, source, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            feedback_id,
+            str(worker_id or ""),
+            str(company_id or ""),
+            str(status or ""),
+            str(direction or ""),
+            str(gate or ""),
+            str(message or ""),
+            str(reason_code or ""),
+            str(source or "gate_tap"),
+            now_iso(),
+        ),
+    )
+    return feedback_id
+
+
+def get_latest_worker_gate_feedback(db, worker_id):
+    return db.execute(
+        """
+        SELECT id, status, direction, gate, message, reason_code, source, created_at
+        FROM worker_gate_feedback_events
+        WHERE worker_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (str(worker_id or ""),),
     ).fetchone()
 
 
@@ -10515,6 +10701,65 @@ def worker_app_hce_bootstrap():
             "expiresAt": expires_at,
             "nonce": nonce,
             "signature": signature,
+        }
+    )
+
+
+@app.get("/api/worker-app/access-last")
+@require_worker_session
+def worker_app_access_last():
+    worker = g.worker
+    db = get_db()
+    feedback = get_latest_worker_gate_feedback(db, worker["id"])
+    row = db.execute(
+        """
+        SELECT id, direction, gate, note, timestamp
+        FROM access_logs
+        WHERE worker_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 1
+        """,
+        (worker["id"],),
+    ).fetchone()
+    if not row:
+        return jsonify(
+            {
+                "hasEvent": False,
+                "event": None,
+                "hasGateFeedback": bool(feedback),
+                "gateFeedback": {
+                    "id": str(feedback["id"]),
+                    "status": str(feedback["status"] or ""),
+                    "direction": str(feedback["direction"] or ""),
+                    "gate": str(feedback["gate"] or ""),
+                    "message": str(feedback["message"] or ""),
+                    "reasonCode": str(feedback["reason_code"] or ""),
+                    "source": str(feedback["source"] or ""),
+                    "timestamp": str(feedback["created_at"] or ""),
+                } if feedback else None,
+            }
+        )
+    return jsonify(
+        {
+            "hasEvent": True,
+            "event": {
+                "id": str(row["id"]),
+                "direction": str(row["direction"] or ""),
+                "gate": str(row["gate"] or ""),
+                "note": str(row["note"] or ""),
+                "timestamp": str(row["timestamp"] or ""),
+            },
+            "hasGateFeedback": bool(feedback),
+            "gateFeedback": {
+                "id": str(feedback["id"]),
+                "status": str(feedback["status"] or ""),
+                "direction": str(feedback["direction"] or ""),
+                "gate": str(feedback["gate"] or ""),
+                "message": str(feedback["message"] or ""),
+                "reasonCode": str(feedback["reason_code"] or ""),
+                "source": str(feedback["source"] or ""),
+                "timestamp": str(feedback["created_at"] or ""),
+            } if feedback else None,
         }
     )
 
@@ -12133,6 +12378,7 @@ def create_access_log():
 
 def _process_gate_tap_payload(db, turnstile_user, payload):
     payload = payload if isinstance(payload, dict) else {}
+    process_started = time.perf_counter()
     received_at = utc_now().replace(microsecond=0)
     received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
     # Accept dynamic QR tokens (DQR:...) in the "token" or "badgeId" field
@@ -12215,9 +12461,30 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             return payload, status
 
     if turnstile_user["company_id"] != worker["company_id"]:
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message="Zugriff fuer diese Firma nicht erlaubt.",
+            reason_code="forbidden_worker_company",
+        )
+        db.commit()
         return {"error": "forbidden_worker_company"}, 403
 
     if lock_worker_for_expired_documents(db, worker):
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message="Pflichtdokumente abgelaufen.",
+            reason_code="worker_documents_expired",
+        )
         db.commit()
         return {
             "error": "worker_documents_expired",
@@ -12241,13 +12508,57 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
 
     company_error = get_company_access_error(db, worker["company_id"])
     if company_error:
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message=str(company_error.get("message") or "Firmenzugang gesperrt."),
+            reason_code=str(company_error.get("error") or "company_access_denied"),
+        )
+        db.commit()
         return company_error, 403
     company_access_error = get_company_access_error(db, turnstile_user["company_id"])
     if company_access_error:
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message=str(company_access_error.get("message") or "Drehkreuz-Firma gesperrt."),
+            reason_code=str(company_access_error.get("error") or "turnstile_company_access_denied"),
+        )
+        db.commit()
         return company_access_error, 403
     if worker_visit_has_expired(worker):
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message="Besucherkarte abgelaufen.",
+            reason_code="visitor_visit_expired",
+        )
+        db.commit()
         return {"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}, 403
     if worker["status"] != "aktiv":
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message="Zugang entzogen oder Ausweis nicht aktiv.",
+            reason_code="worker_not_active",
+        )
+        db.commit()
         return {"error": "worker_not_active"}, 403
 
     normalized_event = build_normalized_device_event(
@@ -12285,19 +12596,22 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         }, 202
 
     if should_drop_duplicate_device_event(normalized_event):
-        mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window")
+        processing_ms = max(0, int((time.perf_counter() - process_started) * 1000))
+        mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window", processing_ms=processing_ms)
         db.commit()
         return {
             "ok": True,
             "duplicateIgnored": True,
             "eventUid": event_uid,
             "event": normalized_event,
+            "processingMs": processing_ms,
             "message": "Duplicate scan ignored.",
         }, 202
 
     try:
         log_id = create_access_log_entry(db, worker["id"], direction, gate_name, gate_note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
-        mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id)
+        processing_ms = max(0, int((time.perf_counter() - process_started) * 1000))
+        mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id, processing_ms=processing_ms)
         db.commit()
         log_audit(
             "access.gate_tap",
@@ -12308,7 +12622,18 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             actor=row_to_dict(turnstile_user),
         )
     except Exception as exc:
-        mark_device_ingest_event_outcome(db, event_uid, "failed", error_code="processing_error")
+        processing_ms = max(0, int((time.perf_counter() - process_started) * 1000))
+        mark_device_ingest_event_outcome(db, event_uid, "failed", error_code="processing_error", processing_ms=processing_ms)
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction,
+            gate=gate_name,
+            message="Device event could not be processed.",
+            reason_code="event_processing_failed",
+        )
         upsert_device_event_dead_letter(
             db=db,
             event_uid=event_uid,
@@ -12321,12 +12646,25 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         return {
             "error": "event_processing_failed",
             "eventUid": event_uid,
+            "processingMs": processing_ms,
             "message": "Device event could not be processed.",
         }, 500
 
     feedback_message = "Du bist jetzt angemeldet." if direction == "check-in" else "Du bist jetzt abgemeldet."
     feedback_title = "ANMELDUNG ERFOLGREICH" if direction == "check-in" else "ABMELDUNG ERFOLGREICH"
     feedback_tone = "success_in" if direction == "check-in" else "success_out"
+
+    insert_worker_gate_feedback_event(
+        db,
+        worker_id=worker["id"],
+        company_id=worker["company_id"],
+        status="allow",
+        direction=direction,
+        gate=gate_name,
+        message=feedback_message,
+        reason_code="ok",
+    )
+    db.commit()
 
     return {
         "ok": True,
@@ -12345,10 +12683,166 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         "timestamp": timestamp_value,
         "timeDriftSeconds": time_drift_seconds,
         "timeDriftWarning": bool(time_drift_seconds is not None and time_drift_seconds > DEVICE_EVENT_TIME_DRIFT_WARN_SECONDS),
+        "processingMs": processing_ms,
         "feedbackTitle": feedback_title,
         "feedbackMessage": feedback_message,
         "feedbackTone": feedback_tone,
     }, 201
+
+
+def _percentile_ms(values, percentile):
+    samples = sorted([max(0, int(v)) for v in values if v is not None])
+    if not samples:
+        return 0
+    rank = max(0, min(len(samples) - 1, math.ceil((float(percentile) / 100.0) * len(samples)) - 1))
+    return int(samples[rank])
+
+
+@app.get("/api/gates/ops-metrics")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def gate_ops_metrics():
+    db = get_db()
+    try:
+        requested_window = int(str(request.args.get("windowMinutes") or "60").strip())
+    except Exception:
+        requested_window = 60
+    window_minutes = max(5, min(24 * 60, requested_window))
+    since_dt = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    since_iso = since_dt.replace(tzinfo=None).isoformat() + "Z"
+
+    user = g.current_user
+    role = str(user.get("role") or "")
+    company_scope = str(user.get("company_id") or "")
+
+    where_parts = ["received_at >= ?"]
+    params = [since_iso]
+    if role != "superadmin":
+        where_parts.append("company_id = ?")
+        params.append(company_scope)
+    where_sql = " AND ".join(where_parts)
+
+    feedback_where_parts = ["created_at >= ?"]
+    feedback_params = [since_iso]
+    if role != "superadmin":
+        feedback_where_parts.append("company_id = ?")
+        feedback_params.append(company_scope)
+    feedback_where_sql = " AND ".join(feedback_where_parts)
+
+    rows = db.execute(
+        f"""
+        SELECT processing_ms, outcome, source, device_id, event_uid, received_at
+        FROM device_ingest_events
+        WHERE {where_sql}
+        ORDER BY received_at DESC
+        LIMIT 500
+        """,
+        tuple(params),
+    ).fetchall()
+
+    values = [max(0, int(row["processing_ms"] or 0)) for row in rows if int(row["processing_ms"] or 0) > 0]
+    avg_ms = int(round(sum(values) / len(values))) if values else 0
+
+    outcome_counts = {
+        "processed": 0,
+        "duplicate_ignored": 0,
+        "duplicate_replay": 0,
+        "failed": 0,
+        "received": 0,
+        "other": 0,
+    }
+    for row in rows:
+        outcome = str(row["outcome"] or "").strip().lower()
+        if outcome in outcome_counts:
+            outcome_counts[outcome] += 1
+        elif outcome == "duplicate":
+            outcome_counts["duplicate_replay"] += 1
+        else:
+            outcome_counts["other"] += 1
+
+    slowest = []
+    for row in sorted(rows, key=lambda item: int(item["processing_ms"] or 0), reverse=True)[:5]:
+        slowest.append(
+            {
+                "eventUid": str(row["event_uid"] or ""),
+                "processingMs": max(0, int(row["processing_ms"] or 0)),
+                "receivedAt": str(row["received_at"] or ""),
+                "outcome": str(row["outcome"] or ""),
+                "source": str(row["source"] or ""),
+                "deviceId": str(row["device_id"] or ""),
+            }
+        )
+
+    deny_count_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS value
+        FROM worker_gate_feedback_events
+        WHERE {feedback_where_sql}
+          AND status = 'deny'
+        """,
+        tuple(feedback_params),
+    ).fetchone()
+
+    reason_rows = db.execute(
+        f"""
+        SELECT reason_code, COUNT(*) AS count
+        FROM worker_gate_feedback_events
+        WHERE {feedback_where_sql}
+          AND status = 'deny'
+        GROUP BY reason_code
+        ORDER BY count DESC, reason_code ASC
+        LIMIT 3
+        """,
+        tuple(feedback_params),
+    ).fetchall()
+
+    recent_deny_rows = db.execute(
+        f"""
+        SELECT id, direction, gate, message, reason_code, created_at
+        FROM worker_gate_feedback_events
+        WHERE {feedback_where_sql}
+          AND status = 'deny'
+        ORDER BY created_at DESC, id DESC
+        LIMIT 5
+        """,
+        tuple(feedback_params),
+    ).fetchall()
+
+    top_deny_reasons = [
+        {
+            "reason": str(row["reason_code"] or "unknown"),
+            "count": int(row["count"] or 0),
+        }
+        for row in reason_rows
+    ]
+    recent_denies = [
+        {
+            "id": str(row["id"] or ""),
+            "direction": str(row["direction"] or ""),
+            "gate": str(row["gate"] or ""),
+            "message": str(row["message"] or ""),
+            "reason": str(row["reason_code"] or ""),
+            "timestamp": str(row["created_at"] or ""),
+        }
+        for row in recent_deny_rows
+    ]
+
+    return jsonify(
+        {
+            "windowMinutes": window_minutes,
+            "sampleSize": len(values),
+            "avgMs": avg_ms,
+            "p50Ms": _percentile_ms(values, 50),
+            "p95Ms": _percentile_ms(values, 95),
+            "p99Ms": _percentile_ms(values, 99),
+            "outcomes": outcome_counts,
+            "slowest": slowest,
+            "denyCount": int(deny_count_row["value"] or 0) if deny_count_row else 0,
+            "topDenyReasons": top_deny_reasons,
+            "recentDenies": recent_denies,
+            "since": since_iso,
+        }
+    )
 
 
 @app.post("/api/gates/tap")
@@ -12364,8 +12858,22 @@ def gate_tap():
         return jsonify({"error": "gate_unauthorized"}), 401
 
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+    request_started = time.perf_counter()
+    trace_id = clean_id_input(
+        request.headers.get("X-Gate-Trace-Id") or payload.get("traceId"),
+        max_len=80,
+    ) or f"gate-{secrets.token_hex(6)}"
+    payload.setdefault("traceId", trace_id)
     response_payload, status = _process_gate_tap_payload(db, turnstile_user, payload)
-    return jsonify(response_payload), status
+    processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
+    if isinstance(response_payload, dict):
+        response_payload["traceId"] = trace_id
+        response_payload["processingMs"] = processing_ms
+    response = jsonify(response_payload)
+    response.headers["X-Gate-Trace-Id"] = trace_id
+    return response, status
 
 
 @app.post("/api/gates/tap/batch")
@@ -12381,6 +12889,13 @@ def gate_tap_batch():
         return jsonify({"error": "gate_unauthorized"}), 401
 
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+    batch_started = time.perf_counter()
+    batch_trace_id = clean_id_input(
+        request.headers.get("X-Gate-Trace-Id") or payload.get("traceId") or payload.get("replayId"),
+        max_len=80,
+    ) or f"batch-{secrets.token_hex(6)}"
     events = payload if isinstance(payload, list) else payload.get("events")
     if not isinstance(events, list):
         return jsonify({"error": "invalid_events_payload", "message": "Provide events as an array."}), 400
@@ -12399,9 +12914,16 @@ def gate_tap_batch():
     # Ordered replay: process in the exact input order to preserve chronology semantics.
     for index, raw_event in enumerate(events):
         event_payload = raw_event if isinstance(raw_event, dict) else {}
+        event_started = time.perf_counter()
+        event_trace_id = clean_id_input(event_payload.get("traceId"), max_len=80) or f"{batch_trace_id}-{index + 1}"
+        event_payload["traceId"] = event_trace_id
         if replay_id and "replayId" not in event_payload:
             event_payload["replayId"] = replay_id
         response_payload, status = _process_gate_tap_payload(db, turnstile_user, event_payload)
+        event_processing_ms = max(0, int((time.perf_counter() - event_started) * 1000))
+        if isinstance(response_payload, dict):
+            response_payload["traceId"] = event_trace_id
+            response_payload["processingMs"] = event_processing_ms
         is_duplicate = bool(response_payload.get("duplicateIgnored") or response_payload.get("duplicateReplay"))
         if status == 201:
             processed_count += 1
@@ -12412,25 +12934,32 @@ def gate_tap_batch():
         results.append(
             {
                 "index": index,
+                "traceId": event_trace_id,
                 "status": status,
                 "ok": status < 400,
                 "duplicate": is_duplicate,
+                "processingMs": event_processing_ms,
                 "result": response_payload,
             }
         )
         if status >= 400 and not continue_on_error:
             break
 
-    return jsonify(
+    batch_processing_ms = max(0, int((time.perf_counter() - batch_started) * 1000))
+    response = jsonify(
         {
             "ok": failed_count == 0,
             "orderedReplay": True,
+            "batchTraceId": batch_trace_id,
+            "batchProcessingMs": batch_processing_ms,
             "processed": processed_count,
             "duplicates": duplicate_count,
             "failed": failed_count,
             "results": results,
         }
-    ), 200
+    )
+    response.headers["X-Gate-Trace-Id"] = batch_trace_id
+    return response, 200
 
 
 @app.get("/api/workers/<worker_id>/identity-token")
@@ -12566,7 +13095,14 @@ def unified_scan():
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
 
+    request_started = time.perf_counter()
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+    scan_trace_id = clean_id_input(
+        request.headers.get("X-Gate-Trace-Id") or payload.get("traceId"),
+        max_len=80,
+    ) or f"scan-{secrets.token_hex(6)}"
     token = str(payload.get("token") or "").strip()
     device_id = clean_id_input(payload.get("device_id") or payload.get("deviceId"), max_len=64)
     if not token:
@@ -12651,39 +13187,62 @@ def unified_scan():
     if not was_inserted:
         existing_event = get_device_ingest_event_by_uid(db, event_uid)
         parsed_normalized_payload = {}
+        processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
         if existing_event and str(existing_event["normalized_payload_json"] or "").strip():
             try:
                 parsed_normalized_payload = json.loads(existing_event["normalized_payload_json"])
             except Exception:
                 parsed_normalized_payload = {}
+        emit_structured_log(
+            "unified_scan_duplicate_replay",
+            traceId=scan_trace_id,
+            eventUid=event_uid,
+            source=source,
+            direction=direction,
+            processingMs=processing_ms,
+        )
         return jsonify(
             {
                 "ok": True,
                 "duplicateReplay": True,
+                "traceId": scan_trace_id,
                 "eventUid": event_uid,
                 "event": parsed_normalized_payload or normalized_event,
                 "outcome": (existing_event["outcome"] if existing_event else "received"),
                 "logId": (existing_event["result_ref"] if existing_event else ""),
+                "processingMs": processing_ms,
                 "message": "Event already received.",
             }
         ), 202
 
     if should_drop_duplicate_device_event(normalized_event):
-        mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window")
+        processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
+        mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window", processing_ms=processing_ms)
         db.commit()
+        emit_structured_log(
+            "unified_scan_duplicate_ignored",
+            traceId=scan_trace_id,
+            eventUid=event_uid,
+            source=source,
+            direction=direction,
+            processingMs=processing_ms,
+        )
         return jsonify(
             {
                 "ok": True,
                 "duplicateIgnored": True,
+                "traceId": scan_trace_id,
                 "eventUid": event_uid,
                 "event": normalized_event,
+                "processingMs": processing_ms,
                 "message": "Duplicate scan ignored.",
             }
         ), 202
 
     try:
         log_id = create_access_log_entry(db, worker["id"], direction, gate_name, note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
-        mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id)
+        processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
+        mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id, processing_ms=processing_ms)
         db.execute(
             """
             UPDATE worker_identity_tokens
@@ -12701,8 +13260,20 @@ def unified_scan():
             company_id=worker["company_id"],
             actor=row_to_dict(turnstile_user),
         )
+        emit_structured_log(
+            "unified_scan_processed",
+            traceId=scan_trace_id,
+            eventUid=event_uid,
+            source=source,
+            direction=direction,
+            gate=gate_name,
+            workerId=worker["id"],
+            processingMs=processing_ms,
+            logId=log_id,
+        )
     except Exception as exc:
-        mark_device_ingest_event_outcome(db, event_uid, "failed", error_code="processing_error")
+        processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
+        mark_device_ingest_event_outcome(db, event_uid, "failed", error_code="processing_error", processing_ms=processing_ms)
         upsert_device_event_dead_letter(
             db=db,
             event_uid=event_uid,
@@ -12712,17 +13283,33 @@ def unified_scan():
             last_error=str(exc),
         )
         db.commit()
+        emit_structured_log(
+            "unified_scan_failed",
+            level=logging.ERROR,
+            traceId=scan_trace_id,
+            eventUid=event_uid,
+            source=source,
+            direction=direction,
+            workerId=worker["id"],
+            processingMs=processing_ms,
+            errorType=type(exc).__name__,
+            error=str(exc),
+        )
         return jsonify(
             {
                 "error": "event_processing_failed",
+                "traceId": scan_trace_id,
                 "eventUid": event_uid,
+                "processingMs": processing_ms,
                 "message": "Device event could not be processed.",
             }
         ), 500
 
+    processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
     return jsonify(
         {
             "ok": True,
+            "traceId": scan_trace_id,
             "logId": log_id,
             "eventUid": event_uid,
             "event": normalized_event,
@@ -12736,6 +13323,7 @@ def unified_scan():
             "direction": direction,
             "gate": gate_name,
             "timestamp": timestamp_value,
+            "processingMs": processing_ms,
             "tokenAccepted": True,
         }
     ), 201
@@ -17324,6 +17912,8 @@ def poll_imap_inbox():
     import email.policy as _email_policy
 
     _result = {"status": "ok", "newEmails": 0}
+    poll_id = f"imap-{secrets.token_hex(5)}"
+    total_messages = 0
 
     try:
         with app.app_context():
@@ -17343,9 +17933,16 @@ def poll_imap_inbox():
             password = cfg["imap_password"] or ""
             folder = cfg.get("imap_folder") or "INBOX"
             use_ssl = bool(cfg.get("imap_use_ssl", 1))
-            
-            # DEBUG: Logging der IMAP-Parameter
-            print(f"[IMAP DEBUG] Host: {host}:{port}, Username: {username}, Folder: {folder}, SSL: {use_ssl}")
+
+            emit_structured_log(
+                "imap_poll_started",
+                pollId=poll_id,
+                host=host,
+                port=port,
+                folder=folder,
+                ssl=use_ssl,
+                usernameDomain=_safe_email_domain(username),
+            )
 
             _imap_timeout = 30  # Sekunden – verhindert 502 durch hängenden Socket
             try:
@@ -17384,6 +17981,15 @@ def poll_imap_inbox():
                 if conn is None and last_exc is not None:
                     raise last_exc
             except Exception as exc:
+                emit_structured_log(
+                    "imap_poll_connect_error",
+                    level=logging.WARNING,
+                    pollId=poll_id,
+                    host=host,
+                    port=port,
+                    ssl=use_ssl,
+                    error=str(exc),
+                )
                 _result = {"status": "connect_error", "newEmails": 0, "error": str(exc)}
                 try:
                     create_system_alert(
@@ -17403,7 +18009,13 @@ def poll_imap_inbox():
             # werden als "newEmails" gezählt (via Deduplizierung durch message_id).
             status, data = conn.search(None, "ALL")
             msg_ids = (data[0] or b"").split()
-            print(f"[IMAP DEBUG] SEARCH Status: {status}, Total messages in folder: {len(msg_ids)}")
+            total_messages = len(msg_ids)
+            emit_structured_log(
+                "imap_poll_search_result",
+                pollId=poll_id,
+                status=status,
+                totalMessages=total_messages,
+            )
             if status != "OK":
                 conn.logout()
                 _result = {"status": "error", "newEmails": 0, "error": "IMAP SEARCH fehlgeschlagen"}
@@ -17469,7 +18081,6 @@ def poll_imap_inbox():
                         (message_id,),
                     ).fetchone()
                     if existing:
-                        print(f"[IMAP DEBUG] Mail mit Message-ID {message_id[:30]}... existiert bereits in DB (ID: {existing['id'][:8]}...), wird übersprungen.")
                         # Update matched company if needed, then skip this message
                         if matched_company_id and not existing["matched_company_id"]:
                             db.execute(
@@ -17597,7 +18208,6 @@ def poll_imap_inbox():
                     "INSERT INTO email_inbox (id, message_id, from_addr, to_addr, subject, body_text, matched_company_id, received_at) VALUES (?,?,?,?,?,?,?,?)",
                     (inbox_id, message_id, from_addr, to_addr, subject, body_text[:2000], matched_company_id, received_at),
                 )
-                print(f"[IMAP DEBUG] NEUE Mail gespeichert: Message-ID {message_id[:30] if message_id else '(no ID)'}... | From: {from_addr} | Subject: {subject[:40]}...")
                 new_email_count += 1
 
                 for att in attachments_data:
@@ -17622,8 +18232,22 @@ def poll_imap_inbox():
             db.commit()
             conn.logout()
             _result = {"status": "ok", "newEmails": new_email_count}
-            print(f"[IMAP DEBUG] Poll beendet: {new_email_count} NEUE Mails hinzugefügt (Status: {_result['status']})")
+            emit_structured_log(
+                "imap_poll_completed",
+                pollId=poll_id,
+                status=_result.get("status"),
+                newEmails=new_email_count,
+                totalMessages=total_messages,
+            )
     except Exception as exc:
+        emit_structured_log(
+            "imap_poll_failed",
+            level=logging.ERROR,
+            pollId=poll_id,
+            errorType=type(exc).__name__,
+            error=str(exc),
+            totalMessages=total_messages,
+        )
         _result = {"status": "error", "newEmails": 0, "error": str(exc)}
         try:
             with app.app_context():

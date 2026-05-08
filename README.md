@@ -194,6 +194,59 @@ Aktuelle Kamera-Diagnosecodes (Support):
 - `CAM-API`: Browser bietet keine nutzbare Camera-API/Fallback.
 - `CAM-START`: allgemeiner Startfehler (siehe Reason-Text).
 
+## Enterprise Backup und Restore-Check
+
+Fuer produktive Abnahme ist jetzt ein technisch pruefbarer Backup/Restore-Flow enthalten:
+
+- Backup-Tool: backend/ops/db_backup.py
+- Backup-Wrapper: scripts/run_backup.ps1
+- Restore-Verify-Wrapper: scripts/verify_backup_restore.ps1
+
+Manueller Backup-Lauf:
+
+```powershell
+python backend/ops/db_backup.py backup
+```
+
+Manueller Restore-Verifikationstest:
+
+```powershell
+python backend/ops/db_backup.py verify-restore
+```
+
+Standard-Ablage:
+
+- Datenbank-Backups: backend/backups/sqlite
+- Restore-Checks: backend/backups/sqlite/restore-check
+
+Retention (Standard 30 Tage) ueber ENV steuerbar:
+
+```powershell
+$env:BAUPASS_DB_BACKUP_RETENTION_DAYS = "30"
+```
+
+Vollstaendige Betriebsanleitung und Task-Scheduler-Beispiele:
+
+- docs/enterprise-backup-restore-runbook.md
+
+## Enterprise Structured Logging und Correlation IDs
+
+Das Backend schreibt jetzt strukturierte JSON-Logs pro Request und pro unhandled Exception.
+
+Wichtige Felder:
+
+- `event` (z. B. `http_request_completed`, `http_request_exception`)
+- `requestId` (aus `X-Request-Id`/`X-Correlation-Id` oder automatisch erzeugt)
+- `method`, `path`, `status`, `durationMs`, `remoteAddr`, `userAgent`
+
+Jede Response enthaelt den Header `X-Request-Id`, damit API-Clients, Reverse-Proxy und Support-Tickets denselben Request eindeutig verfolgen koennen.
+
+Ein-/Ausschalten ueber ENV (Standard aktiviert):
+
+```powershell
+$env:BAUPASS_STRUCTURED_LOGS = "1"
+```
+
 ## Rollenmodell
 
 - Super-Admin: volle Systemkontrolle, Firmen anlegen, Plattform konfigurieren, alle Daten sehen

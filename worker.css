@@ -1644,6 +1644,37 @@ body.qr-high-contrast #gateQr {
   box-shadow: 0 32px 72px rgba(0, 0, 0, .65);
   display: grid;
   gap: 4px;
+  transition: box-shadow .22s ease, border-color .22s ease;
+}
+
+.gate-overlay.is-ready .gate-panel {
+  border-color: rgba(87, 200, 140, .35);
+  box-shadow: 0 32px 72px rgba(0, 0, 0, .65), 0 0 0 2px rgba(87, 200, 140, .14);
+}
+
+.gate-overlay.is-refresh .gate-panel {
+  border-color: rgba(86, 180, 255, .4);
+  box-shadow: 0 32px 72px rgba(0, 0, 0, .65), 0 0 0 2px rgba(86, 180, 255, .16);
+  animation: gateFeedbackPulse .45s ease;
+}
+
+.gate-overlay.is-error .gate-panel {
+  border-color: rgba(255, 106, 106, .45);
+  box-shadow: 0 32px 72px rgba(0, 0, 0, .65), 0 0 0 2px rgba(255, 106, 106, .18);
+}
+
+#gateStatusFeedback {
+  transition: color .2s ease, transform .2s ease, opacity .2s ease;
+}
+
+.gate-overlay.is-refresh #gateStatusFeedback {
+  transform: translateY(-1px);
+}
+
+@keyframes gateFeedbackPulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.008); }
+  100% { transform: scale(1); }
 }
 
 .gate-panel h2 {

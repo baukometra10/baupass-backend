@@ -125,7 +125,7 @@ const TRANSLATIONS = {
     cameraConfirm: "Übernehmen",
     cameraRetake: "Neu aufnehmen",
     cameraCancel: "Abbrechen",
-    gateEyebrow: "Wallet Pass",
+    gateEyebrow: "Digitale Firmenkarte",
     gateModeActive: "Drehkreuz-Modus aktiv - QR unter Scanner halten",
     gateBrightnessHint: "⚠ Bitte Display-Helligkeit auf Maximum stellen für schnellen Scan.",
     gateQrAlt: "Einlass QR",
@@ -145,7 +145,7 @@ const TRANSLATIONS = {
     statusActive: "✓ Aktiv und berechtigt",
     installAlreadyInstalled: "App ist bereits installiert.",
     installIosHowto: "iPhone: In Safari auf Teilen tippen und dann 'Zum Home-Bildschirm' wählen.",
-    installAndroidChromeOnly: "Bitte in Google Chrome öffnen. Nur dort funktioniert die direkte Installation ohne Play Store.",
+    installAndroidChromeOnly: "Bitte in einem modernen Browser öffnen. Die Installation funktioniert über das Browser-Menü.",
     installAndroidHowto: "Android: Im Browser-Menü auf 'App installieren' oder 'Zum Startbildschirm' tippen.",
     installManual: "Installation manuell: Browser-Menü öffnen und 'Zum Startbildschirm' bzw. 'App installieren' wählen.",
     enterAccessCode: "Bitte Zugangscode eingeben.",
@@ -157,12 +157,18 @@ const TRANSLATIONS = {
     wrongPinRetry: "Falsche PIN. Versuche erneut.",
     pinLockTooManyAttempts: "Zu viele Versuche – bitte warte 5 Minuten.",
     gateReadyScan: "📱 Bereit zum Scannen...",
+    gateQrRefreshed: "QR aktualisiert. Bereit zum Scan.",
+    gateScanSyncDelayed: "Verbindung langsam. Letzter QR bleibt aktiv.",
+    gateScanAccessGrantedIn: "Zugang erkannt: Check-in bestaetigt.",
+    gateScanAccessGrantedOut: "Zugang erkannt: Check-out bestaetigt.",
+    gateScanAccessGrantedGeneric: "Zugang erkannt und gespeichert.",
+    gateScanAccessDenied: "Zugang abgelehnt. Bitte beim Vorarbeiter melden.",
     lowLightDetected: "Dunkle Umgebung erkannt. High-Contrast QR empfohlen.",
     qrLoadFailedAlt: "QR-Code konnte nicht geladen werden",
     installHintStandalone: "App ist installiert. Am Drehkreuz einfach den QR-Code im Vollbild zeigen.",
-    installHintIos: "iPhone: Safari > Teilen > Zum Home-Bildschirm. Danach laeuft die App wie Wallet.",
-    installHintAndroidChrome: "Android (Chrome): Menü > App installieren. Danach wie eine normale Handy-App nutzbar.",
-    installHintAndroidOther: "Android: Bitte in Google Chrome öffnen, dann Menü > App installieren.",
+    installHintIos: "iPhone: Safari > Teilen > Zum Home-Bildschirm. Danach startet die Firmenkarte direkt als App.",
+    installHintAndroidChrome: "Android: Menü > App installieren. Danach wie eine normale Handy-App nutzbar.",
+    installHintAndroidOther: "Android: Browser-Menü > App installieren oder Zum Startbildschirm hinzufügen.",
     cameraBlocked: "Safari blockiert hier die Browser-Kamera. Bitte Foto direkt aus Kamera oder Mediathek wählen.",
     cameraStartFailed: "Kamera konnte nicht gestartet werden.",
     cameraHttpsHint: "Safari erlaubt die Browser-Kamera meist nur über HTTPS. Bitte Foto direkt aus Kamera oder Mediathek wählen.",
@@ -284,7 +290,7 @@ const TRANSLATIONS = {
     cameraConfirm: "Use Photo",
     cameraRetake: "Retake",
     cameraCancel: "Cancel",
-    gateEyebrow: "Wallet Pass",
+    gateEyebrow: "Digital Company Card",
     gateModeActive: "Turnstile mode active - hold QR under scanner",
     gateBrightnessHint: "⚠ Set display brightness to maximum for fast scanning.",
     gateQrAlt: "Entry QR",
@@ -304,7 +310,7 @@ const TRANSLATIONS = {
     statusActive: "✓ Active and authorized",
     installAlreadyInstalled: "App is already installed.",
     installIosHowto: "iPhone: In Safari tap Share and choose 'Add to Home Screen'.",
-    installAndroidChromeOnly: "Please open in Google Chrome. Direct install works only there.",
+    installAndroidChromeOnly: "Please open in a modern browser. Installation is available via the browser menu.",
     installAndroidHowto: "Android: Open browser menu and tap 'Install app' or 'Add to Home screen'.",
     installManual: "Manual install: Open browser menu and choose 'Add to Home screen' or 'Install app'.",
     enterAccessCode: "Please enter access code.",
@@ -316,12 +322,18 @@ const TRANSLATIONS = {
     wrongPinRetry: "Wrong PIN. Try again.",
     pinLockTooManyAttempts: "Too many attempts - please wait 5 minutes.",
     gateReadyScan: "Ready to scan...",
+    gateQrRefreshed: "QR refreshed. Ready to scan.",
+    gateScanSyncDelayed: "Connection is slow. Last QR remains active.",
+    gateScanAccessGrantedIn: "Access detected: check-in confirmed.",
+    gateScanAccessGrantedOut: "Access detected: check-out confirmed.",
+    gateScanAccessGrantedGeneric: "Access detected and saved.",
+    gateScanAccessDenied: "Access denied. Please contact your supervisor.",
     lowLightDetected: "Low light detected. High-contrast QR recommended.",
     qrLoadFailedAlt: "QR code could not be loaded",
     installHintStandalone: "App is installed. At the turnstile, show the QR code in fullscreen.",
-    installHintIos: "iPhone: Safari > Share > Add to Home Screen. Then the app works like Wallet.",
-    installHintAndroidChrome: "Android (Chrome): Menu > Install app. Then use it like a normal mobile app.",
-    installHintAndroidOther: "Android: Please open in Google Chrome, then Menu > Install app.",
+    installHintIos: "iPhone: Safari > Share > Add to Home Screen. Then your company card opens directly like an app.",
+    installHintAndroidChrome: "Android: Menu > Install app. Then use it like a normal mobile app.",
+    installHintAndroidOther: "Android: Browser menu > Install app or Add to Home screen.",
     cameraBlocked: "Safari blocks browser camera here. Please choose a photo from Camera or Library.",
     cameraStartFailed: "Camera could not be started.",
     cameraHttpsHint: "Safari usually allows browser camera only over HTTPS. Please choose a photo from Camera or Library.",
@@ -463,7 +475,7 @@ const TRANSLATIONS = {
     statusActive: "✓ Aktif ve yetkili",
     installAlreadyInstalled: "Uygulama zaten kurulu.",
     installIosHowto: "iPhone: Safari\'de Paylaş\'a dokun ve 'Ana Ekrana Ekle' seç.",
-    installAndroidChromeOnly: "Lütfen Google Chrome\'da açın. Doğrudan kurulum sadece orada çalışır.",
+    installAndroidChromeOnly: "Lütfen modern bir tarayıcıda açın. Kurulum tarayıcı menüsünden yapılır.",
     installAndroidHowto: "Android: Tarayıcı menüsünden 'Uygulamayı yükle' veya 'Ana ekrana ekle' seç.",
     installManual: "Manuel kurulum: Tarayıcı menüsünü açıp 'Ana ekrana ekle' veya 'Uygulamayı yükle' seç.",
     enterAccessCode: "Lütfen erişim kodunu girin.",
@@ -475,12 +487,18 @@ const TRANSLATIONS = {
     wrongPinRetry: "PIN yanlış. Tekrar deneyin.",
     pinLockTooManyAttempts: "Çok fazla deneme – lütfen 5 dakika bekleyin.",
     gateReadyScan: "📱 Taramaya hazır...",
+    gateQrRefreshed: "QR yenilendi. Tarama için hazır.",
+    gateScanSyncDelayed: "Bağlantı yavaş. Son QR aktif kalıyor.",
+    gateScanAccessGrantedIn: "Erisim algilandi: giris onaylandi.",
+    gateScanAccessGrantedOut: "Erisim algilandi: cikis onaylandi.",
+    gateScanAccessGrantedGeneric: "Erisim algilandi ve kaydedildi.",
+    gateScanAccessDenied: "Erisim reddedildi. Lutfen sorumluya basvurun.",
     lowLightDetected: "Karanlık ortam algılandı. Yüksek kontrast QR önerilir.",
     qrLoadFailedAlt: "QR kodu yüklenemedi",
     installHintStandalone: "Uygulama kurulu. Turnikede QR kodunu tam ekranda göster.",
-    installHintIos: "iPhone: Safari > Paylaş > Ana Ekrana Ekle. Sonra uygulama cüzdan gibi çalışır.",
-    installHintAndroidChrome: "Android (Chrome): Menü > Uygulamayı yükle. Sonra normal mobil uygulama gibi kullan.",
-    installHintAndroidOther: "Android: Lütfen Google Chrome\'da açın, sonra Menü > Uygulamayı yükle.",
+    installHintIos: "iPhone: Safari > Paylaş > Ana Ekrana Ekle. Sonra şirket kartı doğrudan uygulama gibi açılır.",
+    installHintAndroidChrome: "Android: Menü > Uygulamayı yükle. Sonra normal mobil uygulama gibi kullan.",
+    installHintAndroidOther: "Android: Tarayıcı menüsü > Uygulamayı yükle veya Ana ekrana ekle.",
     cameraBlocked: "Safari burada tarayıcı kamerasını engelliyor. Lütfen Kamera veya Galeri\'den fotoğraf seçin.",
     cameraStartFailed: "Kamera başlatılamadı.",
     cameraHttpsHint: "Safari genelde tarayıcı kamerasına sadece HTTPS üzerinde izin verir. Lütfen Kamera veya Galeri\'den fotoğraf seçin.",
@@ -616,7 +634,7 @@ const TRANSLATIONS = {
     statusActive: "✓ نشط ومصرح",
     installAlreadyInstalled: "التطبيق مثبت بالفعل.",
     installIosHowto: "iPhone: في Safari اضغط مشاركة ثم اختر 'إضافة إلى الشاشة الرئيسية'.",
-    installAndroidChromeOnly: "يرجى الفتح في Google Chrome. التثبيت المباشر يعمل هناك فقط.",
+    installAndroidChromeOnly: "يرجى الفتح في متصفح حديث. التثبيت متاح من قائمة المتصفح.",
     installAndroidHowto: "Android: افتح قائمة المتصفح واضغط 'تثبيت التطبيق' أو 'إضافة إلى الشاشة الرئيسية'.",
     installManual: "تثبيت يدوي: افتح قائمة المتصفح واختر 'إضافة إلى الشاشة الرئيسية' أو 'تثبيت التطبيق'.",
     enterAccessCode: "يرجى إدخال رمز الوصول.",
@@ -628,12 +646,18 @@ const TRANSLATIONS = {
     wrongPinRetry: "رمز PIN غير صحيح. حاول مرة أخرى.",
     pinLockTooManyAttempts: "محاولات كثيرة جداً – الرجاء الانتظار 5 دقائق.",
     gateReadyScan: "📱 جاهز للمسح...",
+    gateQrRefreshed: "تم تحديث رمز QR. جاهز للمسح.",
+    gateScanSyncDelayed: "الاتصال بطيء. آخر رمز QR لا يزال فعالاً.",
+    gateScanAccessGrantedIn: "تم رصد العبور: تم تاكيد الدخول.",
+    gateScanAccessGrantedOut: "تم رصد العبور: تم تاكيد الخروج.",
+    gateScanAccessGrantedGeneric: "تم رصد العبور وحفظه.",
+    gateScanAccessDenied: "تم رفض الوصول. يرجى التواصل مع المشرف.",
     lowLightDetected: "تم اكتشاف إضاءة منخفضة. يوصى برمز QR عالي التباين.",
     qrLoadFailedAlt: "تعذر تحميل رمز QR",
     installHintStandalone: "التطبيق مثبت. عند البوابة اعرض رمز QR بملء الشاشة.",
-    installHintIos: "iPhone: Safari > مشاركة > إضافة إلى الشاشة الرئيسية. بعدها يعمل التطبيق مثل Wallet.",
-    installHintAndroidChrome: "Android (Chrome): القائمة > تثبيت التطبيق. ثم استخدمه كتطبيق جوال عادي.",
-    installHintAndroidOther: "Android: يرجى الفتح في Google Chrome ثم القائمة > تثبيت التطبيق.",
+    installHintIos: "iPhone: Safari > مشاركة > إضافة إلى الشاشة الرئيسية. بعدها تفتح بطاقة الشركة مباشرة كتطبيق.",
+    installHintAndroidChrome: "Android: القائمة > تثبيت التطبيق. ثم استخدمه كتطبيق جوال عادي.",
+    installHintAndroidOther: "Android: قائمة المتصفح > تثبيت التطبيق أو إضافة إلى الشاشة الرئيسية.",
     cameraBlocked: "Safari يمنع كاميرا المتصفح هنا. يرجى اختيار صورة من الكاميرا أو المعرض.",
     cameraStartFailed: "تعذر تشغيل الكاميرا.",
     cameraHttpsHint: "Safari يسمح عادةً بكاميرا المتصفح عبر HTTPS فقط. يرجى اختيار صورة من الكاميرا أو المعرض.",
@@ -1620,6 +1644,12 @@ let dqrCountdownInterval = null; // setInterval for per-second countdown
 let dqrRemainingSeconds = 60;    // seconds until next QR refresh
 let dqrCurrentToken = "";        // last fetched DQR token
 let dqrWorkerBadgeId = "";       // fallback static badge id
+let dqrWindowSeconds = 60;        // full token lifetime window from backend
+let dqrRefreshTimeout = null;     // adaptive refresh timer
+let gateFeedbackResetTimeout = null;
+let gateEventPollTimeout = null;
+let gateEventPollInFlight = false;
+let gateLastSeenEventId = "";
 
 const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
@@ -2579,10 +2609,6 @@ async function triggerInstall() {
   }
 
   if (isAndroidDevice()) {
-      if (!isAndroidChrome()) {
-        showWorkerNotice(t("installAndroidChromeOnly"));
-        return;
-      }
     showWorkerNotice(t("installAndroidHowto"));
     return;
   }
@@ -3020,6 +3046,7 @@ function renderWorker(payload) {
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
+  window.scrollTo(0, 0);
   updateWalletImmersiveMode();
   setWorkerHubExpanded(false);
   haptic([18, 35, 22]);
@@ -3358,12 +3385,9 @@ async function openGateMode() {
     return;
   }
   elements.gateScannerOverlay.classList.remove("hidden");
-  
-  // Show feedback
-  if (elements.gateStatusFeedback) {
-    elements.gateStatusFeedback.textContent = t("gateReadyScan");
-    elements.gateStatusFeedback.style.color = "rgba(255, 255, 255, 0.7)";
-  }
+  setGateScannerFeedbackState("ready");
+  haptic([14, 24, 14]);
+  startGateEventFeedbackPolling();
   
   showBrightnessHintTemporarily();
   await requestWakeLock();
@@ -3372,12 +3396,18 @@ async function openGateMode() {
 }
 
 function closeGateMode() {
+  if (gateFeedbackResetTimeout) {
+    clearTimeout(gateFeedbackResetTimeout);
+    gateFeedbackResetTimeout = null;
+  }
   if (elements.gateScannerOverlay) {
+    elements.gateScannerOverlay.classList.remove("is-ready", "is-refresh", "is-error");
     elements.gateScannerOverlay.classList.add("hidden");
   }
   if (elements.gateStatusFeedback) {
     elements.gateStatusFeedback.textContent = "";
   }
+  stopGateEventFeedbackPolling();
   void exitGateFullscreen();
   stopAmbientLightRecommendation();
   releaseWakeLock();
@@ -3412,6 +3442,122 @@ function showGateFeedback(message, color = "rgba(255, 255, 255, 0.78)") {
   }
   elements.gateStatusFeedback.textContent = message;
   elements.gateStatusFeedback.style.color = color;
+}
+
+function setGateScannerFeedbackState(state, message = "") {
+  if (!elements.gateScannerOverlay) {
+    return;
+  }
+  elements.gateScannerOverlay.classList.remove("is-ready", "is-refresh", "is-error");
+  if (state === "refresh") {
+    elements.gateScannerOverlay.classList.add("is-refresh");
+    showGateFeedback(message || t("gateQrRefreshed"), "#e8f6ff");
+    return;
+  }
+  if (state === "error") {
+    elements.gateScannerOverlay.classList.add("is-error");
+    showGateFeedback(message || t("gateScanSyncDelayed"), "#ffd3d3");
+    return;
+  }
+  elements.gateScannerOverlay.classList.add("is-ready");
+  showGateFeedback(message || t("gateReadyScan"), "rgba(255, 255, 255, 0.7)");
+}
+
+function queueGateScannerReadyState(delayMs = 900) {
+  if (gateFeedbackResetTimeout) {
+    clearTimeout(gateFeedbackResetTimeout);
+    gateFeedbackResetTimeout = null;
+  }
+  gateFeedbackResetTimeout = setTimeout(() => {
+    setGateScannerFeedbackState("ready");
+  }, Math.max(120, delayMs));
+}
+
+function stopGateEventFeedbackPolling() {
+  if (gateEventPollTimeout) {
+    clearTimeout(gateEventPollTimeout);
+    gateEventPollTimeout = null;
+  }
+  gateEventPollInFlight = false;
+  gateLastSeenEventId = "";
+}
+
+function scheduleGateEventFeedbackPolling(delayMs = 1200) {
+  if (gateEventPollTimeout) {
+    clearTimeout(gateEventPollTimeout);
+    gateEventPollTimeout = null;
+  }
+  gateEventPollTimeout = setTimeout(() => {
+    void pollLatestGateEvent();
+  }, Math.max(500, delayMs));
+}
+
+function getGateEventFeedbackMessage(direction) {
+  const normalized = String(direction || "").toLowerCase();
+  if (normalized === "in") {
+    return t("gateScanAccessGrantedIn");
+  }
+  if (normalized === "out") {
+    return t("gateScanAccessGrantedOut");
+  }
+  return t("gateScanAccessGrantedGeneric");
+}
+
+function getGateDeniedFeedbackMessage(feedback) {
+  const explicit = String(feedback?.message || "").trim();
+  if (explicit) {
+    return explicit;
+  }
+  return t("gateScanAccessDenied");
+}
+
+async function pollLatestGateEvent() {
+  if (!workerToken || !elements.gateScannerOverlay || elements.gateScannerOverlay.classList.contains("hidden")) {
+    stopGateEventFeedbackPolling();
+    return;
+  }
+  if (gateEventPollInFlight) {
+    scheduleGateEventFeedbackPolling(900);
+    return;
+  }
+
+  gateEventPollInFlight = true;
+  try {
+    const payload = await fetchJson(`${API_BASE}/access-last`, {
+      headers: { Authorization: `Bearer ${workerToken}` }
+    });
+    const feedback = payload?.gateFeedback || null;
+    const feedbackId = String(feedback?.id || "").trim();
+    const feedbackStatus = String(feedback?.status || "").trim().toLowerCase();
+    const fallbackEventId = String(payload?.event?.id || "").trim();
+    const currentId = feedbackId || fallbackEventId;
+    if (currentId && gateLastSeenEventId && currentId !== gateLastSeenEventId) {
+      if (feedbackStatus === "deny") {
+        setGateScannerFeedbackState("error", getGateDeniedFeedbackMessage(feedback));
+        queueGateScannerReadyState(2400);
+        haptic([30, 40, 30]);
+      } else {
+        setGateScannerFeedbackState("refresh", getGateEventFeedbackMessage(feedback?.direction || payload?.event?.direction));
+        queueGateScannerReadyState(1700);
+        haptic([20, 28, 20]);
+      }
+    }
+    if (currentId) {
+      gateLastSeenEventId = currentId;
+    }
+  } catch {
+    // Keep scanner usable even if backend ack polling is temporarily unavailable.
+  } finally {
+    gateEventPollInFlight = false;
+    if (elements.gateScannerOverlay && !elements.gateScannerOverlay.classList.contains("hidden")) {
+      scheduleGateEventFeedbackPolling(1200);
+    }
+  }
+}
+
+function startGateEventFeedbackPolling() {
+  stopGateEventFeedbackPolling();
+  void pollLatestGateEvent();
 }
 
 function startAmbientLightRecommendation() {
@@ -3473,9 +3619,22 @@ function _updateQrCountdownDisplay() {
   if (el) {
     const radius = 10;
     const circ = 2 * Math.PI * radius;
-    const fraction = sec / 60;
+    const total = Math.max(20, Number(dqrWindowSeconds) || 60);
+    const fraction = Math.min(1, Math.max(0, sec / total));
     el.style.strokeDashoffset = String(circ * (1 - fraction));
   }
+}
+
+function scheduleNextDynamicQrRefresh() {
+  if (dqrRefreshTimeout) {
+    clearTimeout(dqrRefreshTimeout);
+    dqrRefreshTimeout = null;
+  }
+  const remaining = Math.max(8, Number(dqrRemainingSeconds) || 60);
+  const nextInMs = Math.max(8_000, (remaining - 3) * 1000);
+  dqrRefreshTimeout = setTimeout(() => {
+    void fetchAndDisplayDynamicQr();
+  }, nextInMs);
 }
 
 /** Fetch one dynamic QR token from the backend and update the QR image */
@@ -3488,6 +3647,7 @@ async function fetchAndDisplayDynamicQr() {
     if (data?.qrToken) {
       dqrCurrentToken = data.qrToken;
       dqrRemainingSeconds = data.remainingSec ?? 60;
+      dqrWindowSeconds = data.windowSec ?? Math.max(20, dqrRemainingSeconds || 60);
       // Re-render QR image
       const isCompact = window.matchMedia("(max-width: 520px)").matches;
       const sz = isCompact ? 520 : 460;
@@ -3505,14 +3665,23 @@ async function fetchAndDisplayDynamicQr() {
       if (elements.gateQr && !elements.gateQr.classList.contains("hidden")) {
         const gSz = isCompact ? 520 : 420;
         void setQrImage(elements.gateQr, dqrCurrentToken, gSz);
+        setGateScannerFeedbackState("refresh", t("gateQrRefreshed"));
+        queueGateScannerReadyState(1000);
       }
       // Update fallback text
       if (elements.qrFallbackText) elements.qrFallbackText.textContent = `Code: ${data.badgeId}`;
       haptic(30); // subtle pulse on QR refresh
       _updateQrCountdownDisplay();
+      scheduleNextDynamicQrRefresh();
     }
   } catch {
     // offline or expired session — keep showing last token
+    if (elements.gateScannerOverlay && !elements.gateScannerOverlay.classList.contains("hidden")) {
+      setGateScannerFeedbackState("error", t("gateScanSyncDelayed"));
+      queueGateScannerReadyState(2200);
+      haptic([16, 34, 16]);
+    }
+    scheduleNextDynamicQrRefresh();
   }
 }
 
@@ -3521,10 +3690,6 @@ function startDynamicQrRefresh() {
   stopDynamicQrRefresh();
   // Fetch immediately
   void fetchAndDisplayDynamicQr();
-  // Schedule re-fetch every 55s (5s before window expiry)
-  dqrInterval = setInterval(() => {
-    void fetchAndDisplayDynamicQr();
-  }, 55_000);
   // Countdown every second
   dqrCountdownInterval = setInterval(() => {
     dqrRemainingSeconds = Math.max(0, dqrRemainingSeconds - 1);
@@ -3535,9 +3700,11 @@ function startDynamicQrRefresh() {
 /** Stop dynamic QR polling (e.g. on logout or when card is hidden) */
 function stopDynamicQrRefresh() {
   if (dqrInterval) { clearInterval(dqrInterval); dqrInterval = null; }
+  if (dqrRefreshTimeout) { clearTimeout(dqrRefreshTimeout); dqrRefreshTimeout = null; }
   if (dqrCountdownInterval) { clearInterval(dqrCountdownInterval); dqrCountdownInterval = null; }
   dqrCurrentToken = "";
   dqrRemainingSeconds = 60;
+  dqrWindowSeconds = 60;
 }
 
 function normalizeBadgeIdInput(value) {

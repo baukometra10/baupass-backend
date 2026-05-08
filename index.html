@@ -309,6 +309,25 @@
           </article>
         </div>
 
+        <article class="panel" style="margin-top:24px;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" id="gateOpsEyebrow">Gate Operations</p>
+              <h3 id="gateOpsTitle">Latenz und Reader-Qualitaet</h3>
+            </div>
+            <div class="button-row gate-ops-controls">
+              <select id="gateOpsWindowSelect" class="gate-ops-window-select">
+                <option value="15">15 Min</option>
+                <option value="60" selected>60 Min</option>
+                <option value="240">240 Min</option>
+              </select>
+              <button type="button" class="ghost-button small-button" id="gateOpsRefreshBtn">Neu laden</button>
+            </div>
+          </div>
+          <div id="gateOpsKpiGrid" class="list invoice-kpi-grid"></div>
+          <div id="gateOpsDetailsList" class="list invoice-ops-trend-list"></div>
+        </article>
+
         <article class="panel" id="customerReviewsPanel" style="margin-top:24px; display:none;">
           <div class="panel-heading">
             <div>

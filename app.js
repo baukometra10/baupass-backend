@@ -7148,6 +7148,7 @@ function setUiLang(lang) {
   if (typeof renderComplianceKpi === "function") renderComplianceKpi();
   if (typeof renderWorkerStatsPanel === "function") renderWorkerStatsPanel();
   if (typeof renderReportingPanels === "function") renderReportingPanels();
+  if (typeof renderGateOpsMetrics === "function") renderGateOpsMetrics();
 }
 
 function initUiLanguageControl() {
@@ -7585,6 +7586,17 @@ const state = {
     retryVolume7d: [],
     topErrorReasons: [],
   },
+  gateOpsMetrics: {
+    windowMinutes: 60,
+    sampleSize: 0,
+    avgMs: 0,
+    p50Ms: 0,
+    p95Ms: 0,
+    p99Ms: 0,
+    outcomes: {},
+    slowest: [],
+  },
+  gateOpsWindowMinutes: 60,
   monthlyInvoiceStatus: null,
   invoiceDeadLetters: [],
   invoiceApprovalRequests: [],
@@ -8265,6 +8277,43 @@ function getRuntimeUiTexts() {
     invoiceOpsOccurrences: "{count} occurrences",
     invoiceOpsRetriesCount: "{count} retry(s)",
     invoiceOpsNoDominantErrors: "No dominant error reasons yet.",
+    gateOpsLegendLabel: "Legend:",
+    gateOpsLegendCritical: "Critical (documents/status expired)",
+    gateOpsLegendWarn: "Warn (company/permission lock)",
+    gateOpsLegendTech: "Tech (processing error)",
+    gateOpsLegendNeutral: "Neutral (other reasons)",
+    gateOpsKpiP50: "Gate latency p50",
+    gateOpsKpiP95: "Gate latency p95",
+    gateOpsKpiP99: "Gate latency p99",
+    gateOpsKpiAverage: "Average",
+    gateOpsKpiMedianWindow: "Median for {count} min.",
+    gateOpsKpiTargetMeta: "Target value for operations stability",
+    gateOpsKpiOutlierMeta: "Peak load and outliers",
+    gateOpsKpiSamples: "Samples: {count}",
+    gateOpsOutcomesLabel: "Outcomes",
+    gateOpsDenyReasonsLabel: "Deny reasons",
+    gateOpsNoDenyReasons: "No deny reasons in this window.",
+    gateOpsNoRecentDenies: "No recent deny events.",
+    gateOpsNoLatencyValues: "No gate latency values available yet.",
+    gateOpsDenyTag: "DENY",
+    gateOpsDirectionIn: "IN",
+    gateOpsDirectionOut: "OUT",
+    gateOpsOutcomeProcessed: "processed",
+    gateOpsOutcomeDuplicate: "duplicate",
+    gateOpsOutcomeFailed: "failed",
+    gateOpsOutcomeDenies: "denies",
+    gateOpsPanelEyebrow: "Gate Operations",
+    gateOpsPanelTitle: "Latency and reader quality",
+    gateOpsRefreshBtn: "Refresh",
+    gateOpsWindowMinutes: "{count} min",
+    gateOpsReasonWorkerDocumentsExpired: "Worker documents expired",
+    gateOpsReasonVisitorVisitExpired: "Visitor pass expired",
+    gateOpsReasonWorkerNotActive: "Worker not active",
+    gateOpsReasonCompanyAccessDenied: "Company access denied",
+    gateOpsReasonTurnstileCompanyAccessDenied: "Turnstile company access denied",
+    gateOpsReasonForbiddenWorkerCompany: "Worker is not assigned to this company",
+    gateOpsReasonEventProcessingFailed: "Processing failed",
+    gateOpsReasonUnknown: "Unknown reason",
     severityCritical: "Critical",
     severityWarning: "Warning",
     severityOk: "OK",
@@ -9021,6 +9070,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} Vorkommen",
       invoiceOpsRetriesCount: "{count} Retry(s)",
       invoiceOpsNoDominantErrors: "Noch keine dominanten Fehlergruende.",
+      gateOpsLegendLabel: "Legende:",
+      gateOpsLegendCritical: "Kritisch (Dokumente/Status abgelaufen)",
+      gateOpsLegendWarn: "Warnung (Firmen-/Berechtigungssperre)",
+      gateOpsLegendTech: "Technik (Verarbeitungsfehler)",
+      gateOpsLegendNeutral: "Neutral (sonstige Gruende)",
+      gateOpsKpiP50: "Drehkreuz-Latenz p50",
+      gateOpsKpiP95: "Drehkreuz-Latenz p95",
+      gateOpsKpiP99: "Drehkreuz-Latenz p99",
+      gateOpsKpiAverage: "Mittelwert",
+      gateOpsKpiMedianWindow: "Median fuer {count} Min.",
+      gateOpsKpiTargetMeta: "Zielwert fuer Betriebsstabilitaet",
+      gateOpsKpiOutlierMeta: "Spitzenlast und Ausreisser",
+      gateOpsKpiSamples: "Stichproben: {count}",
+      gateOpsOutcomesLabel: "Ergebnisse",
+      gateOpsDenyReasonsLabel: "Ablehnungsgruende",
+      gateOpsNoDenyReasons: "Keine Ablehnungsgruende im Fenster.",
+      gateOpsNoRecentDenies: "Keine aktuellen Ablehnungsereignisse.",
+      gateOpsNoLatencyValues: "Noch keine Drehkreuz-Latenzwerte vorhanden.",
+      gateOpsDenyTag: "ABLEHNUNG",
+      gateOpsDirectionIn: "EIN",
+      gateOpsDirectionOut: "AUS",
+      gateOpsOutcomeProcessed: "verarbeitet",
+      gateOpsOutcomeDuplicate: "duplikat",
+      gateOpsOutcomeFailed: "fehlgeschlagen",
+      gateOpsOutcomeDenies: "ablehnungen",
+      gateOpsPanelEyebrow: "Drehkreuz-Betrieb",
+      gateOpsPanelTitle: "Latenz und Leserqualitaet",
+      gateOpsRefreshBtn: "Neu laden",
+      gateOpsWindowMinutes: "{count} Min",
+      gateOpsReasonWorkerDocumentsExpired: "Mitarbeiter-Dokumente abgelaufen",
+      gateOpsReasonVisitorVisitExpired: "Besucherkarte abgelaufen",
+      gateOpsReasonWorkerNotActive: "Mitarbeiter nicht aktiv",
+      gateOpsReasonCompanyAccessDenied: "Firmenzugang gesperrt",
+      gateOpsReasonTurnstileCompanyAccessDenied: "Firmenzugang am Drehkreuz gesperrt",
+      gateOpsReasonForbiddenWorkerCompany: "Mitarbeiter ist dieser Firma nicht zugeordnet",
+      gateOpsReasonEventProcessingFailed: "Verarbeitung fehlgeschlagen",
+      gateOpsReasonUnknown: "Unbekannter Grund",
       severityCritical: "Kritisch",
       severityWarning: "Warnung",
       severityOk: "OK",
@@ -9761,6 +9847,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} olay",
       invoiceOpsRetriesCount: "{count} yeniden deneme",
       invoiceOpsNoDominantErrors: "Henüz baskın bir hata nedeni yok.",
+      gateOpsLegendLabel: "Aciklama:",
+      gateOpsLegendCritical: "Kritik (belge/durum suresi dolmus)",
+      gateOpsLegendWarn: "Uyari (sirket/yetki kilidi)",
+      gateOpsLegendTech: "Teknik (isleme hatasi)",
+      gateOpsLegendNeutral: "Notr (diger nedenler)",
+      gateOpsKpiP50: "Turnike gecikmesi p50",
+      gateOpsKpiP95: "Turnike gecikmesi p95",
+      gateOpsKpiP99: "Turnike gecikmesi p99",
+      gateOpsKpiAverage: "Ortalama",
+      gateOpsKpiMedianWindow: "{count} dk icin medyan.",
+      gateOpsKpiTargetMeta: "Operasyon kararliligi icin hedef deger",
+      gateOpsKpiOutlierMeta: "Tepe yuk ve aykiri degerler",
+      gateOpsKpiSamples: "Ornekler: {count}",
+      gateOpsOutcomesLabel: "Sonuclar",
+      gateOpsDenyReasonsLabel: "Reddetme nedenleri",
+      gateOpsNoDenyReasons: "Bu pencerede reddetme nedeni yok.",
+      gateOpsNoRecentDenies: "Guncel reddetme olayi yok.",
+      gateOpsNoLatencyValues: "Henuz turnike gecikme degeri yok.",
+      gateOpsDenyTag: "RET",
+      gateOpsDirectionIn: "GIRIS",
+      gateOpsDirectionOut: "CIKIS",
+      gateOpsOutcomeProcessed: "islendi",
+      gateOpsOutcomeDuplicate: "yinelenen",
+      gateOpsOutcomeFailed: "basarisiz",
+      gateOpsOutcomeDenies: "ret",
+      gateOpsPanelEyebrow: "Turnike operasyonlari",
+      gateOpsPanelTitle: "Gecikme ve okuyucu kalitesi",
+      gateOpsRefreshBtn: "Yenile",
+      gateOpsWindowMinutes: "{count} dk",
+      gateOpsReasonWorkerDocumentsExpired: "Calisan belgeleri suresi dolmus",
+      gateOpsReasonVisitorVisitExpired: "Ziyaretci kartinin suresi dolmus",
+      gateOpsReasonWorkerNotActive: "Calisan aktif degil",
+      gateOpsReasonCompanyAccessDenied: "Sirket erisimi reddedildi",
+      gateOpsReasonTurnstileCompanyAccessDenied: "Turnike sirket erisimi reddedildi",
+      gateOpsReasonForbiddenWorkerCompany: "Calisan bu sirkete atanmamis",
+      gateOpsReasonEventProcessingFailed: "Isleme basarisiz",
+      gateOpsReasonUnknown: "Bilinmeyen neden",
       severityCritical: "Kritik",
       severityWarning: "Uyarı",
       severityOk: "OK",
@@ -10501,6 +10624,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} من الحالات",
       invoiceOpsRetriesCount: "{count} محاولة إعادة",
       invoiceOpsNoDominantErrors: "لا توجد أسباب خطأ مهيمنة حتى الآن.",
+      gateOpsLegendLabel: "المفتاح:",
+      gateOpsLegendCritical: "حرج (انتهاء الوثائق/الحالة)",
+      gateOpsLegendWarn: "تحذير (قفل الشركة/الصلاحية)",
+      gateOpsLegendTech: "تقني (خطأ معالجة)",
+      gateOpsLegendNeutral: "محايد (أسباب أخرى)",
+      gateOpsKpiP50: "زمن الاستجابة p50",
+      gateOpsKpiP95: "زمن الاستجابة p95",
+      gateOpsKpiP99: "زمن الاستجابة p99",
+      gateOpsKpiAverage: "المتوسط",
+      gateOpsKpiMedianWindow: "الوسيط خلال {count} دقيقة.",
+      gateOpsKpiTargetMeta: "القيمة المستهدفة لاستقرار التشغيل",
+      gateOpsKpiOutlierMeta: "ذروة الحمل والقيم الشاذة",
+      gateOpsKpiSamples: "العينات: {count}",
+      gateOpsOutcomesLabel: "النتائج",
+      gateOpsDenyReasonsLabel: "أسباب الرفض",
+      gateOpsNoDenyReasons: "لا توجد أسباب رفض ضمن هذه الفترة.",
+      gateOpsNoRecentDenies: "لا توجد أحداث رفض حديثة.",
+      gateOpsNoLatencyValues: "لا توجد قيم زمن استجابة حتى الآن.",
+      gateOpsDenyTag: "رفض",
+      gateOpsDirectionIn: "دخول",
+      gateOpsDirectionOut: "خروج",
+      gateOpsOutcomeProcessed: "تمت المعالجة",
+      gateOpsOutcomeDuplicate: "مكرر",
+      gateOpsOutcomeFailed: "فشل",
+      gateOpsOutcomeDenies: "الرفض",
+      gateOpsPanelEyebrow: "عمليات البوابة",
+      gateOpsPanelTitle: "زمن الاستجابة وجودة القارئ",
+      gateOpsRefreshBtn: "تحديث",
+      gateOpsWindowMinutes: "{count} دقيقة",
+      gateOpsReasonWorkerDocumentsExpired: "وثائق العامل منتهية",
+      gateOpsReasonVisitorVisitExpired: "بطاقة الزائر منتهية",
+      gateOpsReasonWorkerNotActive: "العامل غير نشط",
+      gateOpsReasonCompanyAccessDenied: "تم رفض وصول الشركة",
+      gateOpsReasonTurnstileCompanyAccessDenied: "تم رفض وصول الشركة عند البوابة",
+      gateOpsReasonForbiddenWorkerCompany: "العامل غير مخصص لهذه الشركة",
+      gateOpsReasonEventProcessingFailed: "فشل المعالجة",
+      gateOpsReasonUnknown: "سبب غير معروف",
       severityCritical: "حرج",
       severityWarning: "تحذير",
       severityOk: "OK",
@@ -11241,6 +11401,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} occurrences",
       invoiceOpsRetriesCount: "{count} nouvelle(s) tentative(s)",
       invoiceOpsNoDominantErrors: "Aucune raison d'erreur dominante pour le moment.",
+      gateOpsLegendLabel: "Légende :",
+      gateOpsLegendCritical: "Critique (documents/statut expirés)",
+      gateOpsLegendWarn: "Avertissement (verrouillage entreprise/autorisations)",
+      gateOpsLegendTech: "Technique (erreur de traitement)",
+      gateOpsLegendNeutral: "Neutre (autres raisons)",
+      gateOpsKpiP50: "Latence portique p50",
+      gateOpsKpiP95: "Latence portique p95",
+      gateOpsKpiP99: "Latence portique p99",
+      gateOpsKpiAverage: "Moyenne",
+      gateOpsKpiMedianWindow: "Médiane sur {count} min.",
+      gateOpsKpiTargetMeta: "Valeur cible pour la stabilité opérationnelle",
+      gateOpsKpiOutlierMeta: "Charge de pointe et valeurs aberrantes",
+      gateOpsKpiSamples: "Échantillons : {count}",
+      gateOpsOutcomesLabel: "Résultats",
+      gateOpsDenyReasonsLabel: "Motifs de refus",
+      gateOpsNoDenyReasons: "Aucun motif de refus dans cette fenêtre.",
+      gateOpsNoRecentDenies: "Aucun événement de refus récent.",
+      gateOpsNoLatencyValues: "Aucune valeur de latence portique disponible pour l'instant.",
+      gateOpsDenyTag: "REFUS",
+      gateOpsDirectionIn: "ENTRÉE",
+      gateOpsDirectionOut: "SORTIE",
+      gateOpsOutcomeProcessed: "traité",
+      gateOpsOutcomeDuplicate: "doublon",
+      gateOpsOutcomeFailed: "échec",
+      gateOpsOutcomeDenies: "refus",
+      gateOpsPanelEyebrow: "Opérations portique",
+      gateOpsPanelTitle: "Latence et qualité du lecteur",
+      gateOpsRefreshBtn: "Actualiser",
+      gateOpsWindowMinutes: "{count} min",
+      gateOpsReasonWorkerDocumentsExpired: "Documents du travailleur expirés",
+      gateOpsReasonVisitorVisitExpired: "Badge visiteur expiré",
+      gateOpsReasonWorkerNotActive: "Travailleur inactif",
+      gateOpsReasonCompanyAccessDenied: "Accès entreprise refusé",
+      gateOpsReasonTurnstileCompanyAccessDenied: "Accès entreprise refusé au tourniquet",
+      gateOpsReasonForbiddenWorkerCompany: "Le travailleur n'est pas affecté à cette entreprise",
+      gateOpsReasonEventProcessingFailed: "Échec du traitement",
+      gateOpsReasonUnknown: "Raison inconnue",
       severityCritical: "Critique",
       severityWarning: "Avertissement",
       severityOk: "OK",
@@ -11981,6 +12178,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} ocurrencias",
       invoiceOpsRetriesCount: "{count} reintento(s)",
       invoiceOpsNoDominantErrors: "Aún no hay motivos de error dominantes.",
+      gateOpsLegendLabel: "Leyenda:",
+      gateOpsLegendCritical: "Crítico (documentos/estado vencidos)",
+      gateOpsLegendWarn: "Aviso (bloqueo de empresa/permisos)",
+      gateOpsLegendTech: "Técnico (error de procesamiento)",
+      gateOpsLegendNeutral: "Neutral (otros motivos)",
+      gateOpsKpiP50: "Latencia torniquete p50",
+      gateOpsKpiP95: "Latencia torniquete p95",
+      gateOpsKpiP99: "Latencia torniquete p99",
+      gateOpsKpiAverage: "Promedio",
+      gateOpsKpiMedianWindow: "Mediana de {count} min.",
+      gateOpsKpiTargetMeta: "Valor objetivo para estabilidad operativa",
+      gateOpsKpiOutlierMeta: "Carga máxima y valores atípicos",
+      gateOpsKpiSamples: "Muestras: {count}",
+      gateOpsOutcomesLabel: "Resultados",
+      gateOpsDenyReasonsLabel: "Motivos de denegación",
+      gateOpsNoDenyReasons: "No hay motivos de denegación en esta ventana.",
+      gateOpsNoRecentDenies: "No hay eventos recientes de denegación.",
+      gateOpsNoLatencyValues: "Aún no hay valores de latencia de torniquete.",
+      gateOpsDenyTag: "DENEGADO",
+      gateOpsDirectionIn: "ENTRADA",
+      gateOpsDirectionOut: "SALIDA",
+      gateOpsOutcomeProcessed: "procesado",
+      gateOpsOutcomeDuplicate: "duplicado",
+      gateOpsOutcomeFailed: "fallido",
+      gateOpsOutcomeDenies: "denegaciones",
+      gateOpsPanelEyebrow: "Operaciones de torniquete",
+      gateOpsPanelTitle: "Latencia y calidad del lector",
+      gateOpsRefreshBtn: "Actualizar",
+      gateOpsWindowMinutes: "{count} min",
+      gateOpsReasonWorkerDocumentsExpired: "Documentos del trabajador vencidos",
+      gateOpsReasonVisitorVisitExpired: "Pase de visitante vencido",
+      gateOpsReasonWorkerNotActive: "Trabajador no activo",
+      gateOpsReasonCompanyAccessDenied: "Acceso de empresa denegado",
+      gateOpsReasonTurnstileCompanyAccessDenied: "Acceso de empresa denegado en torniquete",
+      gateOpsReasonForbiddenWorkerCompany: "El trabajador no está asignado a esta empresa",
+      gateOpsReasonEventProcessingFailed: "Error de procesamiento",
+      gateOpsReasonUnknown: "Motivo desconocido",
       severityCritical: "Crítico",
       severityWarning: "Advertencia",
       severityOk: "OK",
@@ -12721,6 +12955,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} occorrenze",
       invoiceOpsRetriesCount: "{count} tentativo/i",
       invoiceOpsNoDominantErrors: "Nessun motivo di errore dominante al momento.",
+      gateOpsLegendLabel: "Legenda:",
+      gateOpsLegendCritical: "Critico (documenti/stato scaduti)",
+      gateOpsLegendWarn: "Avviso (blocco azienda/permessi)",
+      gateOpsLegendTech: "Tecnico (errore di elaborazione)",
+      gateOpsLegendNeutral: "Neutrale (altri motivi)",
+      gateOpsKpiP50: "Latenza tornello p50",
+      gateOpsKpiP95: "Latenza tornello p95",
+      gateOpsKpiP99: "Latenza tornello p99",
+      gateOpsKpiAverage: "Media",
+      gateOpsKpiMedianWindow: "Mediana su {count} min.",
+      gateOpsKpiTargetMeta: "Valore obiettivo per la stabilità operativa",
+      gateOpsKpiOutlierMeta: "Carico di picco e valori anomali",
+      gateOpsKpiSamples: "Campioni: {count}",
+      gateOpsOutcomesLabel: "Risultati",
+      gateOpsDenyReasonsLabel: "Motivi di rifiuto",
+      gateOpsNoDenyReasons: "Nessun motivo di rifiuto in questa finestra.",
+      gateOpsNoRecentDenies: "Nessun evento di rifiuto recente.",
+      gateOpsNoLatencyValues: "Nessun valore di latenza tornello disponibile al momento.",
+      gateOpsDenyTag: "NEGATO",
+      gateOpsDirectionIn: "INGRESSO",
+      gateOpsDirectionOut: "USCITA",
+      gateOpsOutcomeProcessed: "elaborato",
+      gateOpsOutcomeDuplicate: "duplicato",
+      gateOpsOutcomeFailed: "fallito",
+      gateOpsOutcomeDenies: "rifiuti",
+      gateOpsPanelEyebrow: "Operazioni tornello",
+      gateOpsPanelTitle: "Latenza e qualità del lettore",
+      gateOpsRefreshBtn: "Aggiorna",
+      gateOpsWindowMinutes: "{count} min",
+      gateOpsReasonWorkerDocumentsExpired: "Documenti lavoratore scaduti",
+      gateOpsReasonVisitorVisitExpired: "Pass visitatore scaduto",
+      gateOpsReasonWorkerNotActive: "Lavoratore non attivo",
+      gateOpsReasonCompanyAccessDenied: "Accesso azienda negato",
+      gateOpsReasonTurnstileCompanyAccessDenied: "Accesso azienda negato al tornello",
+      gateOpsReasonForbiddenWorkerCompany: "Il lavoratore non è assegnato a questa azienda",
+      gateOpsReasonEventProcessingFailed: "Elaborazione non riuscita",
+      gateOpsReasonUnknown: "Motivo sconosciuto",
       severityCritical: "Critico",
       severityWarning: "Avviso",
       severityOk: "OK",
@@ -13461,6 +13732,43 @@ function getRuntimeUiTexts() {
       invoiceOpsOccurrences: "{count} wystąpień",
       invoiceOpsRetriesCount: "{count} ponowna próba(y)",
       invoiceOpsNoDominantErrors: "Brak dominujących przyczyn błędów.",
+      gateOpsLegendLabel: "Legenda:",
+      gateOpsLegendCritical: "Krytyczne (dokumenty/status wygasły)",
+      gateOpsLegendWarn: "Ostrzeżenie (blokada firmy/uprawnień)",
+      gateOpsLegendTech: "Techniczne (błąd przetwarzania)",
+      gateOpsLegendNeutral: "Neutralne (inne powody)",
+      gateOpsKpiP50: "Opóźnienie bramki p50",
+      gateOpsKpiP95: "Opóźnienie bramki p95",
+      gateOpsKpiP99: "Opóźnienie bramki p99",
+      gateOpsKpiAverage: "Średnia",
+      gateOpsKpiMedianWindow: "Mediana dla {count} min.",
+      gateOpsKpiTargetMeta: "Wartość docelowa dla stabilności operacji",
+      gateOpsKpiOutlierMeta: "Szczytowe obciążenie i wartości odstające",
+      gateOpsKpiSamples: "Próbki: {count}",
+      gateOpsOutcomesLabel: "Wyniki",
+      gateOpsDenyReasonsLabel: "Powody odmowy",
+      gateOpsNoDenyReasons: "Brak powodów odmowy w tym oknie.",
+      gateOpsNoRecentDenies: "Brak ostatnich zdarzeń odmowy.",
+      gateOpsNoLatencyValues: "Brak wartości opóźnienia bramki.",
+      gateOpsDenyTag: "ODMOWA",
+      gateOpsDirectionIn: "WEJŚCIE",
+      gateOpsDirectionOut: "WYJŚCIE",
+      gateOpsOutcomeProcessed: "przetworzone",
+      gateOpsOutcomeDuplicate: "duplikat",
+      gateOpsOutcomeFailed: "niepowodzenie",
+      gateOpsOutcomeDenies: "odmowy",
+      gateOpsPanelEyebrow: "Operacje bramki",
+      gateOpsPanelTitle: "Opóźnienie i jakość czytnika",
+      gateOpsRefreshBtn: "Odśwież",
+      gateOpsWindowMinutes: "{count} min",
+      gateOpsReasonWorkerDocumentsExpired: "Dokumenty pracownika wygasły",
+      gateOpsReasonVisitorVisitExpired: "Przepustka gościa wygasła",
+      gateOpsReasonWorkerNotActive: "Pracownik nieaktywny",
+      gateOpsReasonCompanyAccessDenied: "Dostęp firmy odrzucony",
+      gateOpsReasonTurnstileCompanyAccessDenied: "Dostęp firmy odrzucony na bramce",
+      gateOpsReasonForbiddenWorkerCompany: "Pracownik nie jest przypisany do tej firmy",
+      gateOpsReasonEventProcessingFailed: "Przetwarzanie nie powiodło się",
+      gateOpsReasonUnknown: "Nieznany powód",
       severityCritical: "Krytyczny",
       severityWarning: "Ostrzeżenie",
       severityOk: "OK",
@@ -13639,6 +13947,10 @@ function applyRuntimeUiTexts() {
   const photoAdjustStatus = document.querySelector("#photoAdjustStatus");
   const badgePinHint = document.querySelector("#badgePinHint");
   const bulkSelectAllText = document.querySelector("#bulkSelectAllText");
+  const gateOpsEyebrow = document.querySelector("#gateOpsEyebrow");
+  const gateOpsTitle = document.querySelector("#gateOpsTitle");
+  const gateOpsRefreshBtn = document.querySelector("#gateOpsRefreshBtn");
+  const gateOpsWindowSelect = document.querySelector("#gateOpsWindowSelect");
 
   if (cameraPlaceholder && !cameraPlaceholder.hidden) {
     cameraPlaceholder.textContent = runtimeText("cameraNotStarted");
@@ -13671,6 +13983,17 @@ function applyRuntimeUiTexts() {
       : runtimeText("badgePinHintWorker");
   }
   if (bulkSelectAllText) bulkSelectAllText.textContent = runtimeText("bulkSelectAllLabel");
+  if (gateOpsEyebrow) gateOpsEyebrow.textContent = runtimeText("gateOpsPanelEyebrow");
+  if (gateOpsTitle) gateOpsTitle.textContent = runtimeText("gateOpsPanelTitle");
+  if (gateOpsRefreshBtn) gateOpsRefreshBtn.textContent = runtimeText("gateOpsRefreshBtn");
+  if (gateOpsWindowSelect) {
+    gateOpsWindowSelect.querySelectorAll("option").forEach((option) => {
+      const minutes = Number(option.value || 0);
+      if (minutes > 0) {
+        option.textContent = runtimeTextTemplate("gateOpsWindowMinutes", { count: minutes });
+      }
+    });
+  }
 }
 
 function getRoleLabel(role) {
@@ -15574,6 +15897,7 @@ async function loadAllData() {
   }
 
   sessionExpiryNoticeShown = false;
+  const gateOpsWindowMinutes = Math.max(5, Math.min(24 * 60, Number(state.gateOpsWindowMinutes || 60)));
   const accessLogsRequest = buildAccessLogsRequestConfig();
   const latestAccessUrl = `${API_BASE}/api/access-logs/latest`;
 
@@ -15591,10 +15915,11 @@ async function loadAllData() {
     apiRequest(`${API_BASE}/api/audit-logs?eventType=company.repair&targetType=company&limit=120`),
     apiRequest(reportUrl),
     apiRequest(`${API_BASE}/api/compliance/overview`),
-    apiRequest(`${API_BASE}/api/audit-logs?limit=200`)
+    apiRequest(`${API_BASE}/api/audit-logs?limit=200`),
+    apiRequest(`${API_BASE}/api/gates/ops-metrics?windowMinutes=${gateOpsWindowMinutes}`)
   ]);
 
-  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, auditLogs] = requests;
+  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, auditLogs, gateOpsMetrics] = requests;
   if (settings.status === "fulfilled") {
     state.settings = settings.value || state.settings;
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
@@ -15659,6 +15984,21 @@ async function loadAllData() {
     state.auditLogs = Array.isArray(auditLogs.value?.logs) ? auditLogs.value.logs : [];
   } else {
     state.auditLogs = [];
+  }
+
+  if (gateOpsMetrics.status === "fulfilled") {
+    state.gateOpsMetrics = gateOpsMetrics.value || state.gateOpsMetrics;
+  } else {
+    state.gateOpsMetrics = {
+      windowMinutes: 60,
+      sampleSize: 0,
+      avgMs: 0,
+      p50Ms: 0,
+      p95Ms: 0,
+      p99Ms: 0,
+      outcomes: {},
+      slowest: [],
+    };
   }
 
   state.companyTurnstiles = {};
@@ -15754,6 +16094,7 @@ function refreshAll() {
   renderComplianceKpi();
   renderWorkerStatsPanel();
   renderReportingPanels();
+  renderGateOpsMetrics();
   renderCustomerReviews();
   renderWorkerList();
   renderPhotoOverrideApprovalPanel();
@@ -23507,6 +23848,143 @@ function renderInvoiceOpsMetrics() {
   `;
 }
 
+function renderGateOpsMetrics() {
+  const windowSelect = document.querySelector("#gateOpsWindowSelect");
+  const kpiContainer = document.querySelector("#gateOpsKpiGrid");
+  const detailsContainer = document.querySelector("#gateOpsDetailsList");
+  if (!kpiContainer || !detailsContainer) {
+    return;
+  }
+
+  const metrics = state.gateOpsMetrics || {};
+  const sampleSize = Number(metrics.sampleSize || 0);
+  const windowMinutes = Number(metrics.windowMinutes || 60);
+  const avgMs = Number(metrics.avgMs || 0);
+  const p50Ms = Number(metrics.p50Ms || 0);
+  const p95Ms = Number(metrics.p95Ms || 0);
+  const p99Ms = Number(metrics.p99Ms || 0);
+  const outcomes = metrics.outcomes || {};
+  const slowest = Array.isArray(metrics.slowest) ? metrics.slowest : [];
+  const denyCount = Number(metrics.denyCount || 0);
+  const topDenyReasons = Array.isArray(metrics.topDenyReasons) ? metrics.topDenyReasons : [];
+  const recentDenies = Array.isArray(metrics.recentDenies) ? metrics.recentDenies : [];
+
+  const getDenyReasonClass = (reasonCode) => {
+    const normalized = String(reasonCode || "").trim().toLowerCase();
+    if (["worker_documents_expired", "visitor_visit_expired", "worker_not_active"].includes(normalized)) {
+      return "gate-deny-critical";
+    }
+    if (["company_access_denied", "turnstile_company_access_denied", "forbidden_worker_company"].includes(normalized)) {
+      return "gate-deny-warn";
+    }
+    if (["event_processing_failed"].includes(normalized)) {
+      return "gate-deny-tech";
+    }
+    return "gate-deny-neutral";
+  };
+
+  const getDenyReasonText = (reasonCode) => {
+    const normalized = String(reasonCode || "").trim().toLowerCase();
+    if (normalized === "worker_documents_expired") return runtimeText("gateOpsReasonWorkerDocumentsExpired");
+    if (normalized === "visitor_visit_expired") return runtimeText("gateOpsReasonVisitorVisitExpired");
+    if (normalized === "worker_not_active") return runtimeText("gateOpsReasonWorkerNotActive");
+    if (normalized === "company_access_denied") return runtimeText("gateOpsReasonCompanyAccessDenied");
+    if (normalized === "turnstile_company_access_denied") return runtimeText("gateOpsReasonTurnstileCompanyAccessDenied");
+    if (normalized === "forbidden_worker_company") return runtimeText("gateOpsReasonForbiddenWorkerCompany");
+    if (normalized === "event_processing_failed") return runtimeText("gateOpsReasonEventProcessingFailed");
+    if (!normalized) return runtimeText("gateOpsReasonUnknown");
+    return normalized;
+  };
+
+  const getIngestOutcomeText = (outcomeCode) => {
+    const normalized = String(outcomeCode || "").trim().toLowerCase();
+    if (normalized === "processed") return runtimeText("gateOpsOutcomeProcessed");
+    if (normalized === "failed") return runtimeText("gateOpsOutcomeFailed");
+    if (["duplicate_ignored", "duplicate_replay"].includes(normalized)) {
+      return runtimeText("gateOpsOutcomeDuplicate");
+    }
+    return normalized || "-";
+  };
+
+  if (windowSelect) {
+    windowSelect.value = String(windowMinutes || 60);
+  }
+
+  kpiContainer.innerHTML = `
+    <article class="summary-block invoice-kpi-card invoice-kpi-open">
+      <p class="eyebrow">${escapeHtml(runtimeText("gateOpsKpiP50"))}</p>
+      <strong>${sampleSize ? `${p50Ms} ms` : "-"}</strong>
+      <p class="meta-text">${escapeHtml(runtimeTextTemplate("gateOpsKpiMedianWindow", { count: windowMinutes }))}</p>
+    </article>
+    <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
+      <p class="eyebrow">${escapeHtml(runtimeText("gateOpsKpiP95"))}</p>
+      <strong>${sampleSize ? `${p95Ms} ms` : "-"}</strong>
+      <p class="meta-text">${escapeHtml(runtimeText("gateOpsKpiTargetMeta"))}</p>
+    </article>
+    <article class="summary-block invoice-kpi-card invoice-kpi-failed">
+      <p class="eyebrow">${escapeHtml(runtimeText("gateOpsKpiP99"))}</p>
+      <strong>${sampleSize ? `${p99Ms} ms` : "-"}</strong>
+      <p class="meta-text">${escapeHtml(runtimeText("gateOpsKpiOutlierMeta"))}</p>
+    </article>
+    <article class="summary-block invoice-kpi-card invoice-kpi-paid">
+      <p class="eyebrow">${escapeHtml(runtimeText("gateOpsKpiAverage"))}</p>
+      <strong>${sampleSize ? `${avgMs} ms` : "-"}</strong>
+      <p class="meta-text">${escapeHtml(runtimeTextTemplate("gateOpsKpiSamples", { count: sampleSize }))}</p>
+    </article>
+  `;
+
+  const outcomeText = [
+    `${runtimeText("gateOpsOutcomeProcessed")}: ${Number(outcomes.processed || 0)}`,
+    `${runtimeText("gateOpsOutcomeDuplicate")}: ${Number(outcomes.duplicate_ignored || 0) + Number(outcomes.duplicate_replay || 0)}`,
+    `${runtimeText("gateOpsOutcomeFailed")}: ${Number(outcomes.failed || 0)}`,
+    `${runtimeText("gateOpsOutcomeDenies")}: ${denyCount}`,
+  ].join(" | ");
+
+  const denyReasonChips = topDenyReasons.length
+    ? topDenyReasons.map((entry) => {
+        const reason = String(entry.reason || "unknown");
+        const count = Number(entry.count || 0);
+        return `<span class="invoice-ops-error-chip gate-deny-chip ${getDenyReasonClass(reason)}">${escapeHtml(getDenyReasonText(reason))}: ${count}</span>`;
+      }).join("")
+    : `<span class="helper-text">${escapeHtml(runtimeText("gateOpsNoDenyReasons"))}</span>`;
+
+  const denyRows = recentDenies.length
+    ? recentDenies.map((entry) => {
+        const ts = formatTimestamp(entry.timestamp || "");
+        const direction = String(entry.direction || "").toLowerCase() === "check-out"
+          ? runtimeText("gateOpsDirectionOut")
+          : runtimeText("gateOpsDirectionIn");
+        const gate = String(entry.gate || "-");
+        const reason = String(entry.reason || "unknown");
+        const reasonText = getDenyReasonText(reason);
+        const msg = String(entry.message || "-");
+        return `<span class="invoice-ops-error-chip gate-deny-chip ${getDenyReasonClass(reason)}">${escapeHtml(runtimeText("gateOpsDenyTag"))} ${escapeHtml(direction)} • ${escapeHtml(gate)} • ${escapeHtml(reasonText)} • ${escapeHtml(ts)} • ${escapeHtml(msg)}</span>`;
+      }).join("")
+    : `<span class="helper-text">${escapeHtml(runtimeText("gateOpsNoRecentDenies"))}</span>`;
+
+  const slowRows = slowest.length
+    ? slowest.map((entry) => {
+        const received = formatTimestamp(entry.receivedAt || "");
+        const uid = String(entry.eventUid || "").slice(0, 12);
+        return `<span class="invoice-ops-error-chip">${Number(entry.processingMs || 0)} ms • ${escapeHtml(getIngestOutcomeText(entry.outcome))} • ${escapeHtml(uid || "-")} • ${escapeHtml(received)}</span>`;
+      }).join("")
+    : `<span class="helper-text">${escapeHtml(runtimeText("gateOpsNoLatencyValues"))}</span>`;
+
+  detailsContainer.innerHTML = `
+    <div class="invoice-ops-error-row gate-deny-legend-row">
+      <span class="invoice-ops-error-chip">${escapeHtml(runtimeText("gateOpsLegendLabel"))}</span>
+      <span class="invoice-ops-error-chip gate-deny-chip gate-deny-critical">${escapeHtml(runtimeText("gateOpsLegendCritical"))}</span>
+      <span class="invoice-ops-error-chip gate-deny-chip gate-deny-warn">${escapeHtml(runtimeText("gateOpsLegendWarn"))}</span>
+      <span class="invoice-ops-error-chip gate-deny-chip gate-deny-tech">${escapeHtml(runtimeText("gateOpsLegendTech"))}</span>
+      <span class="invoice-ops-error-chip gate-deny-chip gate-deny-neutral">${escapeHtml(runtimeText("gateOpsLegendNeutral"))}</span>
+    </div>
+    <div class="invoice-ops-error-row"><span class="invoice-ops-error-chip">${escapeHtml(runtimeText("gateOpsOutcomesLabel"))}: ${escapeHtml(outcomeText)}</span></div>
+    <div class="invoice-ops-error-row"><span class="invoice-ops-error-chip">${escapeHtml(runtimeText("gateOpsDenyReasonsLabel"))}:</span>${denyReasonChips}</div>
+    <div class="invoice-ops-error-row">${denyRows}</div>
+    <div class="invoice-ops-error-row">${slowRows}</div>
+  `;
+}
+
 function renderMonthlyInvoiceStatus() {
   const container = document.querySelector("#monthlyInvoiceStatusGrid");
   if (!container) {
@@ -26951,6 +27429,24 @@ if (invoiceExportCsvBtn) {
 const reviewsRefreshBtn = document.querySelector("#reviewsRefreshBtn");
 if (reviewsRefreshBtn) {
   reviewsRefreshBtn.addEventListener("click", () => renderCustomerReviews());
+}
+
+const gateOpsWindowSelect = document.querySelector("#gateOpsWindowSelect");
+if (gateOpsWindowSelect) {
+  gateOpsWindowSelect.addEventListener("change", async () => {
+    const nextValue = Number(gateOpsWindowSelect.value || 60);
+    state.gateOpsWindowMinutes = Number.isFinite(nextValue) ? nextValue : 60;
+    await loadAllData();
+    refreshAll();
+  });
+}
+
+const gateOpsRefreshBtn = document.querySelector("#gateOpsRefreshBtn");
+if (gateOpsRefreshBtn) {
+  gateOpsRefreshBtn.addEventListener("click", async () => {
+    await loadAllData();
+    refreshAll();
+  });
 }
 
 const invoiceFilterCompany = document.querySelector("#invoiceFilterCompany");
