@@ -17699,7 +17699,18 @@ function bindCompanyRowActions() {
         return;
       }
 
-      const suggested = suggestCompanyDocumentEmail(company.name);
+      let suggested = suggestCompanyDocumentEmail(company.name);
+      if (!suggested) {
+        try {
+          const latestSettings = await apiRequest(`${API_BASE}/api/settings`);
+          if (latestSettings && typeof latestSettings === "object") {
+            state.settings = latestSettings;
+          }
+        } catch {
+          // keep current state and fall through to existing warning
+        }
+        suggested = suggestCompanyDocumentEmail(company.name);
+      }
       if (!suggested) {
         window.alert(runtimeText("companyDocEmailAutoBaseMissing"));
         return;
@@ -18780,8 +18791,13 @@ function applyActiveCompanyBrandingPreset() {
 }
 
 function suggestCompanyDocumentEmail(companyName) {
-  const imapUsername = String(state.settings?.imapUsername || "").trim().toLowerCase();
-  if (!companyName || !imapUsername.includes("@")) {
+  const baseAddress = String(
+    state.settings?.imapUsername ||
+    state.settings?.smtpUsername ||
+    state.settings?.smtpSenderEmail ||
+    ""
+  ).trim().toLowerCase();
+  if (!companyName || !baseAddress.includes("@")) {
     return "";
   }
   const slug = String(companyName)
@@ -18790,7 +18806,7 @@ function suggestCompanyDocumentEmail(companyName) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "firma";
-  const [localPart, domain] = imapUsername.split("@", 2);
+  const [localPart, domain] = baseAddress.split("@", 2);
   const aliasBase = (localPart.split("+", 1)[0] || "dokumente").trim() || "dokumente";
   return `${aliasBase}+${slug}@${domain}`;
 }
