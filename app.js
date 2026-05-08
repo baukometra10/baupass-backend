@@ -27522,6 +27522,9 @@ function showAlert(key, vars = {}) {
 function showToast(message, type = "info", timeout = 2600) {
   const text = String(message || "").trim();
   if (!text) return;
+  const normalizedType = ["info", "success", "error"].includes(String(type || "").toLowerCase())
+    ? String(type).toLowerCase()
+    : "info";
   let el = document.getElementById("appToast");
   if (!el) {
     el = document.createElement("div");
@@ -27529,8 +27532,11 @@ function showToast(message, type = "info", timeout = 2600) {
     el.className = "app-toast";
     document.body.appendChild(el);
   }
+  el.setAttribute("role", normalizedType === "error" ? "alert" : "status");
+  el.setAttribute("aria-live", normalizedType === "error" ? "assertive" : "polite");
+  el.setAttribute("aria-atomic", "true");
   el.textContent = text;
-  el.className = `app-toast app-toast-${type}`;
+  el.className = `app-toast app-toast-${normalizedType}`;
   el.classList.add("is-visible");
   const existingTimer = Number(el.dataset.timerId || 0);
   if (existingTimer) {
@@ -27544,6 +27550,12 @@ function showToast(message, type = "info", timeout = 2600) {
 
 function showConfirmDialog(message) {
   return new Promise((resolve) => {
+    const existing = document.querySelector(".app-confirm-overlay");
+    if (existing) {
+      existing.remove();
+    }
+
+    const previouslyFocused = document.activeElement;
     const overlay = document.createElement("div");
     overlay.className = "worker-app-qr-overlay app-confirm-overlay";
     overlay.innerHTML = `
@@ -27556,17 +27568,63 @@ function showConfirmDialog(message) {
       </div>
     `;
 
+    const cancelButton = overlay.querySelector("[data-confirm-cancel]");
+    const acceptButton = overlay.querySelector("[data-confirm-accept]");
+    const focusables = [cancelButton, acceptButton].filter(Boolean);
+    const panel = overlay.querySelector(".app-confirm-card");
+    if (panel) {
+      panel.setAttribute("role", "dialog");
+      panel.setAttribute("aria-modal", "true");
+    }
+
+    let closed = false;
     const close = (result) => {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener("keydown", onKeyDown);
       overlay.remove();
+      if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+        try { previouslyFocused.focus(); } catch { /* ignore focus failures */ }
+      }
       resolve(Boolean(result));
     };
 
-    overlay.querySelector("[data-confirm-cancel]")?.addEventListener("click", () => close(false), { once: true });
-    overlay.querySelector("[data-confirm-accept]")?.addEventListener("click", () => close(true), { once: true });
+    const onKeyDown = (event) => {
+      if (closed) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close(false);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        close(true);
+        return;
+      }
+      if (event.key === "Tab" && focusables.length) {
+        const currentIndex = focusables.indexOf(document.activeElement);
+        if (event.shiftKey) {
+          event.preventDefault();
+          const prevIndex = currentIndex <= 0 ? focusables.length - 1 : currentIndex - 1;
+          focusables[prevIndex].focus();
+        } else {
+          event.preventDefault();
+          const nextIndex = currentIndex === -1 || currentIndex >= focusables.length - 1 ? 0 : currentIndex + 1;
+          focusables[nextIndex].focus();
+        }
+      }
+    };
+
+    cancelButton?.addEventListener("click", () => close(false), { once: true });
+    acceptButton?.addEventListener("click", () => close(true), { once: true });
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) close(false);
     });
     document.body.appendChild(overlay);
+    document.addEventListener("keydown", onKeyDown);
+    if (acceptButton && typeof acceptButton.focus === "function") {
+      acceptButton.focus();
+    }
   });
 }
 
