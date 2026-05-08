@@ -873,6 +873,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "Mobile-Ausweis-App (digitaler Ausweis + QR)",
     workerPassLockLabel: "Ausweis mit PIN-Sperre sichern (nach 2min Inaktivität)",
     workerSearchPlaceholder: "Suchen: Name, Badge-ID, Standort …",
+    workerHoursMonthHint: "Monat fuer die Stundenanzeige in der Mitarbeiterliste",
+    workerMinHoursPlaceholder: "Min. Stunden (Monat)",
     confirmDeleteCompanyText: "Firma {name} und alle zugeh\u00f6rigen Datens\u00e4tze l\u00f6schen?\n\nOK = komplette L\u00f6schung (inkl. Mitarbeiter, Subunternehmen und Logs)\nAbbrechen = nicht l\u00f6schen",
     confirmLockCompany: "Firma {name} jetzt sperren? Firmen-Admin, Drehkreuz und Mitarbeiter-App dieser Firma werden blockiert.",
     confirmUnlockCompany: "Sperre f\u00fcr {name} jetzt aufheben? Die Firma kann sich danach wieder anmelden.",
@@ -1647,6 +1649,8 @@ const UI_TRANSLATIONS = {
     workerAppEnabledLabel: "Mobile badge app (digital badge + QR)",
     workerPassLockLabel: "Secure badge with PIN lock",
     workerSearchPlaceholder: "Search: Name, Badge-ID, Site …",
+    workerHoursMonthHint: "Month used for the hours display in the workers list",
+    workerMinHoursPlaceholder: "Min. hours (month)",
     confirmDeleteCompanyText: "Delete company {name} and all associated records?\n\nOK = complete deletion (incl. employees, subcontractors and logs)\nCancel = do not delete",
     confirmLockCompany: "Lock company {name} now? The company admin, turnstile and employee app of this company will be blocked.",
     confirmUnlockCompany: "Lift lock for {name} now? The company can log in again afterwards.",
@@ -7084,7 +7088,9 @@ function applyUiTranslations() {
     if (!key) return;
     const value = uiT(key);
     if (attr) {
-      el.setAttribute(attr, value);
+      attr.split(",").map((name) => name.trim()).filter(Boolean).forEach((name) => {
+        el.setAttribute(name, value);
+      });
     } else {
       el.textContent = value;
     }
@@ -17911,7 +17917,17 @@ function bindCompanyRowActions() {
         suggested = suggestCompanyDocumentEmail(company.name);
       }
       if (!suggested) {
-        showToast(runtimeText("companyDocEmailAutoBaseMissing"));
+        const settingsBaseAddress = String(
+          state.settings?.imapUsername ||
+          state.settings?.smtpUsername ||
+          state.settings?.smtpSenderEmail ||
+          ""
+        ).trim();
+        if (hasUnsupportedImapPlusAliasDomain(settingsBaseAddress)) {
+          showToast(uiT("imapPlusAliasWarning"));
+        } else {
+          showToast(runtimeText("companyDocEmailAutoBaseMissing"));
+        }
         return;
       }
 
