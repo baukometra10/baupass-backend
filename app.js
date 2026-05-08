@@ -7853,7 +7853,10 @@ function getRuntimeUiTexts() {
     turnstileAccountsEmpty: "No turnstile accounts available.",
     companyDocEmailNotSet: "Not set",
     companyDocEmailAutoBtn: "Set automatically",
+    companyDocEmailSelftestBtn: "Test auto email",
     companyDocEmailCopyBtn: "Copy email",
+    companyDocEmailSelftestOk: "Auto email is ready: {email}",
+    companyDocEmailSelftestFailed: "Auto email test failed ({email}): {error}",
     companyInvoiceMailLanguageLabel: "Invoice mail language",
     companyBillingAddressLabel: "Billing address",
     companyInvoiceLangGerman: "German",
@@ -8603,7 +8606,10 @@ function getRuntimeUiTexts() {
       turnstileAccountsEmpty: "Keine Drehkreuz-Accounts vorhanden.",
       companyDocEmailNotSet: "Nicht gesetzt",
       companyDocEmailAutoBtn: "Auto setzen",
+      companyDocEmailSelftestBtn: "Auto-Mail testen",
       companyDocEmailCopyBtn: "Mail kopieren",
+      companyDocEmailSelftestOk: "Auto-Mail ist bereit: {email}",
+      companyDocEmailSelftestFailed: "Auto-Mail-Test fehlgeschlagen ({email}): {error}",
       companyInvoiceMailLanguageLabel: "Rechnungs-Mail Sprache",
       companyBillingAddressLabel: "Rechnungsadresse",
       companyInvoiceLangGerman: "Deutsch",
@@ -13807,7 +13813,7 @@ function applySupportReadOnlyUiState() {
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
     "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
-    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
+    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
 
@@ -17524,6 +17530,7 @@ function renderCompanyList() {
           <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
           <div class="button-row" style="margin-top:2px;">
             <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailAutoBtn"))}</button>
+            <button type="button" class="ghost-button small-button" data-company-doc-email-selftest="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailSelftestBtn"))}</button>
             <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
           <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench"), tr: runtimeText("companyInvoiceLangTurkish"), ar: runtimeText("companyInvoiceLangArabic"), es: runtimeText("companyInvoiceLangSpanish"), it: runtimeText("companyInvoiceLangItalian"), pl: runtimeText("companyInvoiceLangPolish") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
@@ -17575,7 +17582,6 @@ function renderCompanyList() {
               <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
               <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
               <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-worker-hours="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"}>⏱ ${escapeHtml(runtimeText("companyBtnWorkerHours") || "Arbeitsstunden")}</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
               <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
@@ -17979,6 +17985,66 @@ function bindCompanyRowActions() {
       return;
     }
 
+    const autoDocEmailSelftestButton = event.target.closest("[data-company-doc-email-selftest]");
+    if (autoDocEmailSelftestButton && !autoDocEmailSelftestButton.disabled && elements.companyList.contains(autoDocEmailSelftestButton)) {
+      const companyId = autoDocEmailSelftestButton.dataset.companyDocEmailSelftest;
+      const company = state.companies.find((entry) => entry.id === companyId);
+      if (!companyId || !company) {
+        return;
+      }
+
+      let suggested = suggestCompanyDocumentEmail(company.name);
+      if (!suggested) {
+        try {
+          const latestSettings = await apiRequest(`${API_BASE}/api/settings`);
+          if (latestSettings && typeof latestSettings === "object") {
+            state.settings = latestSettings;
+          }
+        } catch {
+          // keep current state and fall through to existing warning
+        }
+        suggested = suggestCompanyDocumentEmail(company.name);
+      }
+
+      if (!suggested) {
+        showToast(runtimeText("companyDocEmailAutoBaseMissing"));
+        return;
+      }
+
+      const conflict = findCompanyByDocumentEmail(suggested, companyId);
+      if (conflict) {
+        showToast(runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }));
+        return;
+      }
+
+      try {
+        const imapResult = await apiRequest(`${API_BASE}/api/settings/imap/test`, {
+          method: "POST",
+          body: {
+            imapHost: state.settings?.imapHost || "",
+            imapPort: Number(state.settings?.imapPort || 993),
+            imapUsername: state.settings?.imapUsername || "",
+            imapUseSsl: state.settings?.imapUseSsl !== false,
+            imapFolder: state.settings?.imapFolder || "INBOX",
+          }
+        });
+        if (imapResult?.ok) {
+          showToast(runtimeTextTemplate("companyDocEmailSelftestOk", { email: suggested }));
+        } else {
+          showToast(runtimeTextTemplate("companyDocEmailSelftestFailed", {
+            email: suggested,
+            error: imapResult?.detail || imapResult?.error || runtimeText("genericUnknownError"),
+          }));
+        }
+      } catch (error) {
+        showToast(runtimeTextTemplate("companyDocEmailSelftestFailed", {
+          email: suggested,
+          error: error?.message || runtimeText("genericUnknownError"),
+        }));
+      }
+      return;
+    }
+
     const copyDocEmailButton = event.target.closest("[data-company-doc-email-copy]");
     if (copyDocEmailButton && !copyDocEmailButton.disabled && elements.companyList.contains(copyDocEmailButton)) {
       const companyId = copyDocEmailButton.dataset.companyDocEmailCopy;
@@ -18063,15 +18129,6 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       await openCompanyPlanModal(companyId, company);
-      return;
-    }
-
-    // ── Worker-Stunden-Übersicht ──────────────────────────────────────────
-    const hoursButton = event.target.closest("[data-company-worker-hours]");
-    if (hoursButton && !hoursButton.disabled && elements.companyList.contains(hoursButton)) {
-      const companyId = hoursButton.dataset.companyWorkerHours;
-      if (!companyId) return;
-      await openWorkerHoursModal(companyId);
       return;
     }
 
