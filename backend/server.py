@@ -9025,6 +9025,119 @@ def reset_worker_pin(worker_id):
     return jsonify({"ok": True})
 
 
+@app.get("/api/workers/<worker_id>/hce-devices")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def list_worker_hce_devices(worker_id):
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+
+    rows = db.execute(
+        """
+        SELECT id, device_id, platform, app_version, status, trust_version, signature_algo, created_at, last_seen_at, device_public_key
+        FROM hce_device_trust
+        WHERE worker_id = ?
+        ORDER BY created_at DESC
+        """,
+        (worker_id,),
+    ).fetchall()
+
+    devices = []
+    for row in rows:
+        devices.append(
+            {
+                "id": row["id"],
+                "deviceId": row["device_id"],
+                "platform": row["platform"],
+                "appVersion": row["app_version"],
+                "status": row["status"],
+                "trustVersion": int(row["trust_version"] or 1),
+                "signatureAlgo": row["signature_algo"] or "",
+                "hasPublicKey": bool(row["device_public_key"]),
+                "createdAt": row["created_at"],
+                "lastSeenAt": row["last_seen_at"],
+            }
+        )
+    return jsonify({"workerId": worker_id, "devices": devices})
+
+
+@app.post("/api/workers/<worker_id>/hce-devices/<device_id>/revoke")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def revoke_worker_hce_device(worker_id, device_id):
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+
+    try:
+        normalized_device_id = clean_id_input(device_id, max_len=80)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    row = db.execute(
+        "SELECT * FROM hce_device_trust WHERE worker_id = ? AND device_id = ? LIMIT 1",
+        (worker_id, normalized_device_id),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "hce_device_not_found"}), 404
+
+    db.execute("UPDATE hce_device_trust SET status = 'revoked' WHERE id = ?", (row["id"],))
+    db.execute("DELETE FROM hce_device_nonces WHERE device_id = ?", (normalized_device_id,))
+    db.commit()
+    log_audit(
+        "hce.device_revoked",
+        f"HCE-Geraet {normalized_device_id} fuer Worker {worker_id} gesperrt",
+        target_type="worker",
+        target_id=worker_id,
+        company_id=worker["company_id"],
+        actor=g.current_user,
+    )
+    return jsonify({"ok": True, "status": "revoked", "deviceId": normalized_device_id})
+
+
+@app.post("/api/workers/<worker_id>/hce-devices/<device_id>/activate")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def activate_worker_hce_device(worker_id, device_id):
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+
+    try:
+        normalized_device_id = clean_id_input(device_id, max_len=80)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    row = db.execute(
+        "SELECT * FROM hce_device_trust WHERE worker_id = ? AND device_id = ? LIMIT 1",
+        (worker_id, normalized_device_id),
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "hce_device_not_found"}), 404
+
+    db.execute("UPDATE hce_device_trust SET status = 'active', last_seen_at = ? WHERE id = ?", (now_iso(), row["id"]))
+    db.commit()
+    log_audit(
+        "hce.device_activated",
+        f"HCE-Geraet {normalized_device_id} fuer Worker {worker_id} reaktiviert",
+        target_type="worker",
+        target_id=worker_id,
+        company_id=worker["company_id"],
+        actor=g.current_user,
+    )
+    return jsonify({"ok": True, "status": "active", "deviceId": normalized_device_id})
+
+
 def build_worker_app_access_payload(db, worker_id, actor_user):
     worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
     if not worker:
@@ -10212,6 +10325,12 @@ def worker_app_hce_device_register():
     ).fetchone()
 
     if existing:
+        existing_row = db.execute(
+            "SELECT status FROM hce_device_trust WHERE id = ? LIMIT 1",
+            (existing["id"],),
+        ).fetchone()
+        if existing_row and str(existing_row["status"] or "") == "revoked":
+            return jsonify({"error": "device_revoked_contact_admin"}), 403
         db.execute(
             """
             UPDATE hce_device_trust
