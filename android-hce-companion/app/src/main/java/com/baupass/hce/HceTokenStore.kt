@@ -9,6 +9,8 @@ object HceTokenStore {
     private const val KEY_AID = "aid"
     private const val KEY_BASE_URL = "base_url"
     private const val KEY_WORKER_TOKEN = "worker_token"
+    private const val KEY_WORKER_TOKEN_CT = "worker_token_ct"
+    private const val KEY_WORKER_TOKEN_IV = "worker_token_iv"
     private const val KEY_DEVICE_ID = "device_id"
 
     fun save(context: Context, token: String, expiresAtMs: Long, aid: String) {
@@ -44,9 +46,12 @@ object HceTokenStore {
 
     fun saveBootstrapConfig(context: Context, baseUrl: String, workerToken: String, deviceId: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val (tokenCt, tokenIv) = SecurePrefsCrypto.encrypt(workerToken.trim())
         prefs.edit()
             .putString(KEY_BASE_URL, baseUrl.trim())
-            .putString(KEY_WORKER_TOKEN, workerToken.trim())
+            .putString(KEY_WORKER_TOKEN_CT, tokenCt)
+            .putString(KEY_WORKER_TOKEN_IV, tokenIv)
+            .remove(KEY_WORKER_TOKEN)
             .putString(KEY_DEVICE_ID, deviceId.trim())
             .apply()
     }
@@ -66,6 +71,17 @@ object HceTokenStore {
 
     fun getWorkerToken(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val tokenCt = prefs.getString(KEY_WORKER_TOKEN_CT, "") ?: ""
+        val tokenIv = prefs.getString(KEY_WORKER_TOKEN_IV, "") ?: ""
+        if (tokenCt.isNotBlank() && tokenIv.isNotBlank()) {
+            return try {
+                SecurePrefsCrypto.decrypt(tokenCt, tokenIv)
+            } catch (_: Exception) {
+                ""
+            }
+        }
+
+        // Backward-compat for previously unencrypted storage.
         return prefs.getString(KEY_WORKER_TOKEN, "") ?: ""
     }
 
