@@ -2698,3 +2698,234 @@ body {
   color: rgba(220, 190, 158, 0.68) !important;
 }
 
+/* ── Interior polish: Worker app inside layout ───────────────────── */
+.worker-loaded {
+  letter-spacing: 0.002em;
+}
+
+.worker-loaded .below-card {
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.34)),
+    var(--card-strong);
+  box-shadow: 0 14px 34px rgba(52, 30, 17, 0.11);
+}
+
+[data-theme="dark"] .worker-loaded .below-card {
+  border-color: rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+    var(--card-strong);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.36);
+}
+
+.worker-loaded .section-head {
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(140, 105, 74, 0.28);
+}
+
+.worker-loaded .section-kicker {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+}
+
+[data-theme="dark"] .worker-loaded .section-head {
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+.worker-loaded .compact-head h3 {
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.worker-loaded .day-card-validity,
+.worker-loaded .section-copy,
+.worker-loaded .muted-info {
+  line-height: 1.5;
+}
+
+.worker-loaded .info-label {
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+}
+
+.worker-loaded .info-value {
+  font-size: 1.02rem;
+  font-weight: 750;
+}
+
+.worker-loaded .small-btn,
+.worker-loaded .quick-menu-btn,
+.worker-loaded .worker-menu-btn {
+  font-weight: 720;
+}
+
+.worker-loaded .actions-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.worker-loaded .small-btn {
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.worker-loaded .primary,
+.worker-loaded .ghost {
+  box-shadow: 0 10px 22px rgba(37, 22, 13, 0.13);
+}
+
+[data-theme="dark"] .worker-loaded .primary,
+[data-theme="dark"] .worker-loaded .ghost {
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.34);
+}
+
+.worker-loaded .actions-gate-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.worker-loaded .actions-gate-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+  transform: translateX(-130%);
+  transition: transform 320ms ease;
+}
+
+.worker-loaded .actions-gate-btn:hover::after {
+  transform: translateX(130%);
+}
+
+@media (max-width: 420px) {
+  .worker-loaded {
+    letter-spacing: 0;
+  }
+
+  .worker-loaded .compact-head h3 {
+    font-size: 1.04rem;
+  }
+
+  .worker-loaded .day-card-validity,
+  .worker-loaded .section-copy,
+  .worker-loaded .muted-info {
+    font-size: 0.9rem;
+  }
+
+  .worker-loaded .below-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .worker-loaded .actions-secondary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Icon and badge polish ────────────────────────────────────────── */
+.worker-loaded .connection-banner,
+.worker-loaded .pass-stage-chip,
+.worker-loaded .scanner-chip,
+.worker-loaded .doc-status-badge,
+.worker-loaded .leave-request-status {
+  border-radius: 999px;
+  letter-spacing: 0.07em;
+  font-weight: 780;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.worker-loaded .status-banner {
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(36, 22, 13, 0.11);
+}
+
+[data-theme="dark"] .worker-loaded .status-banner {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.worker-loaded .status-banner-icon,
+.worker-loaded .info-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(110, 79, 53, 0.2);
+  color: #6d4328;
+  box-shadow: 0 3px 8px rgba(44, 25, 12, 0.14);
+}
+
+[data-theme="dark"] .worker-loaded .status-banner-icon,
+[data-theme="dark"] .worker-loaded .info-icon {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffd6ba;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+.worker-loaded .wc-status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.11);
+  border: 1px solid rgba(74, 222, 128, 0.28);
+}
+
+.worker-loaded .wc-status[data-status="gesperrt"],
+.worker-loaded .wc-status[data-status="inaktiv"] {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+@media (max-width: 420px) {
+  .worker-loaded .status-banner {
+    border-radius: 12px;
+  }
+
+  .worker-loaded .status-banner-icon,
+  .worker-loaded .info-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* ── Motion polish: subtle card reveal ────────────────────────────── */
+.worker-loaded .worker-panel-grid > .below-card,
+.worker-loaded .worker-hub-panel {
+  animation: workerCardReveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.worker-loaded .worker-panel-grid > .below-card:nth-of-type(2) {
+  animation-delay: 40ms;
+}
+
+.worker-loaded .worker-panel-grid > .below-card:nth-of-type(3) {
+  animation-delay: 80ms;
+}
+
+.worker-loaded .worker-panel-grid > .below-card:nth-of-type(4) {
+  animation-delay: 120ms;
+}
+
+@keyframes workerCardReveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .worker-loaded .worker-panel-grid > .below-card,
+  .worker-loaded .worker-hub-panel {
+    animation: none !important;
+  }
+}
+
