@@ -17894,6 +17894,25 @@ def list_imap_folders():
         return jsonify({"ok": False, "error": str(exc)}), 200
 
 
+@app.get("/api/debug/imap-settings")
+@require_auth
+@require_roles("superadmin")
+def debug_imap_settings():
+    """DEBUG: Show what IMAP settings Railway has (without passwords)."""
+    db = get_db()
+    cfg = get_imap_settings(db) or {}
+    
+    return jsonify({
+        "imap_host": cfg.get("imap_host", "(empty)"),
+        "imap_port": cfg.get("imap_port", "(empty)"),
+        "imap_username": cfg.get("imap_username", "(empty)"),
+        "imap_password": "***" if cfg.get("imap_password") else "(empty)",
+        "imap_folder": cfg.get("imap_folder", "INBOX"),
+        "imap_use_ssl": cfg.get("imap_use_ssl", 1),
+        "note": "If values are empty, check Railway environment variables: BAUPASS_IMAP_HOST, BAUPASS_IMAP_USERNAME, BAUPASS_IMAP_PASSWORD"
+    })
+
+
 @app.get("/")
 def root():
     return send_from_directory(BASE_DIR, "index.html")
