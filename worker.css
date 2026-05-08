@@ -719,6 +719,48 @@ button:hover,
   gap: 14px;
 }
 
+.worker-hub-toggle-row {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.worker-hub-toggle {
+  min-height: 42px;
+  min-width: 190px;
+  font-weight: 800;
+}
+
+.worker-hub-panel {
+  padding: 16px;
+  background: var(--card-strong);
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 20px;
+  box-shadow: 0 16px 35px rgba(68, 41, 25, .09);
+  gap: 0;
+}
+
+.worker-hub-panel .below-card {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.worker-hub-panel .below-card + .below-card,
+.worker-hub-panel .notification-permission-banner {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(22, 28, 33, .1);
+}
+
+.worker-hub-panel #workerMenuCard,
+.worker-hub-panel #workerPageNav,
+.worker-hub-panel #workerQuickMenu {
+  display: none !important;
+}
+
 .worker-menu-card {
   display: grid;
   gap: 10px;
@@ -1310,7 +1352,7 @@ body.worker-loaded .app-shell {
 
 .actions-secondary {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1705,6 +1747,16 @@ body.qr-high-contrast #gateQr {
   }
   button {
     min-height: 48px;
+  }
+}
+
+@media (max-width: 420px) {
+  .actions-secondary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .worker-hub-panel {
+    padding: 14px;
   }
 }
 

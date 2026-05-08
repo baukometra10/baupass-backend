@@ -225,6 +225,8 @@ const TRANSLATIONS = {
     menuKicker: "Menü",
     menuTitle: "Deine Bereiche",
     pageBackBtn: "← Übersicht",
+    workerHubShowBtn: "Bereiche anzeigen",
+    workerHubHideBtn: "Bereiche ausblenden",
     lateCheckInMessage: "Achtung: Du bist heute zu spät eingestempelt!",
     lateMinutesUnit: "Min.",
   },
@@ -380,6 +382,8 @@ const TRANSLATIONS = {
     menuKicker: "Menu",
     menuTitle: "Your Sections",
     pageBackBtn: "← Overview",
+    workerHubShowBtn: "Show sections",
+    workerHubHideBtn: "Hide sections",
     lateCheckInMessage: "Notice: You clocked in late today!",
     lateMinutesUnit: "min.",
   },
@@ -1556,6 +1560,7 @@ function applyTranslations() {
     const brandNameEl = document.getElementById("workerBrandName");
     if (brandNameEl) brandNameEl.textContent = currentAppBrandTitle.toUpperCase();
   }
+  updateWorkerHubToggleLabel();
 }
 
 function setLang(lang) {
@@ -1601,6 +1606,7 @@ let leaveRefreshInterval = null;
 let quickMenuObserver = null;
 let activeWorkerPageTarget = "";
 let iosWalletImmersive = false;
+let workerHubExpanded = false;
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrInterval = null;          // setInterval handle for auto-refresh
 let dqrCountdownInterval = null; // setInterval for per-second countdown
@@ -1694,6 +1700,8 @@ const elements = {
   leaveRequestNote: document.querySelector("#leaveRequestNote"),
   leaveRequestAiBtn: document.querySelector("#leaveRequestAiBtn"),
   leaveRequestBossEmail: document.querySelector("#leaveRequestBossEmail"),
+  workerHubToggle: document.querySelector("#workerHubToggle"),
+  workerHubPanel: document.querySelector("#workerHubPanel"),
   workerQuickMenu: document.querySelector("#workerQuickMenu"),
   quickMenuButtons: document.querySelectorAll(".quick-menu-btn"),
   workerMenuButtons: document.querySelectorAll("[data-worker-page-target]"),
@@ -1755,6 +1763,23 @@ function setActiveQuickMenuTarget(targetId) {
   elements.quickMenuButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-scroll-target") === targetId);
   });
+}
+
+function updateWorkerHubToggleLabel() {
+  if (!elements.workerHubToggle) return;
+  elements.workerHubToggle.textContent = workerHubExpanded ? t("workerHubHideBtn") : t("workerHubShowBtn");
+}
+
+function setWorkerHubExpanded(expanded, options = {}) {
+  const shouldExpand = Boolean(expanded);
+  workerHubExpanded = shouldExpand;
+  if (elements.workerHubPanel) {
+    elements.workerHubPanel.classList.toggle("hidden", !shouldExpand);
+  }
+  updateWorkerHubToggleLabel();
+  if (options.scrollToPanel && shouldExpand && elements.workerHubPanel) {
+    elements.workerHubPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function getWorkerPageTitle(targetId) {
@@ -2173,6 +2198,12 @@ function bindEvents() {
     elements.leaveRequestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       await submitLeaveRequest();
+    });
+  }
+
+  if (elements.workerHubToggle) {
+    elements.workerHubToggle.addEventListener("click", () => {
+      setWorkerHubExpanded(!workerHubExpanded, { scrollToPanel: true });
     });
   }
 
@@ -2982,6 +3013,7 @@ function renderWorker(payload) {
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
   updateWalletImmersiveMode();
+  setWorkerHubExpanded(false);
   haptic([18, 35, 22]);
   // Start dynamic QR lifecycle as soon as pass is visible.
   startDynamicQrRefresh();
@@ -3076,6 +3108,7 @@ function showLogin() {
     stopDynamicQrRefresh();
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
+  setWorkerHubExpanded(false);
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
   applyWorkerPageView("");
   if (quickMenuObserver) {
