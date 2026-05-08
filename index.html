@@ -518,6 +518,11 @@
                 <input id="bulkSelectAll" type="checkbox" /> <span id="bulkSelectAllText" data-ui-i18n="bulkSelectAll">Alle auswählen</span>
               </label>
             </div>
+            <div class="worker-list-toolbar" style="margin-top:8px;">
+              <input id="workerInsightsNameInput" type="search" placeholder="Name für Auswertung (z. B. Ahmed)" autocomplete="off" style="max-width: 320px;" />
+              <button id="workerInsightsRunButton" type="button" class="ghost-button small-button">Auswertung anzeigen</button>
+            </div>
+            <div id="workerInsightsPanel" class="meta-box" style="display:none;margin:8px 0 12px;"></div>
               <div id="bulkActionBar" class="bulk-action-bar hidden">
               <span id="bulkSelectionCount">0 ausgewählt</span>
               <button id="bulkDeleteButton" type="button" class="danger-button" data-ui-i18n="btnBulkDelete">Ausgewählte löschen</button>

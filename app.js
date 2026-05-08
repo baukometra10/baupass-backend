@@ -7406,6 +7406,9 @@ const elements = {
   workerHoursMonthInput: document.querySelector("#workerHoursMonthFilter"),
   workerMinHoursInput: document.querySelector("#workerMinHoursFilter"),
   workerFiltersResetButton: document.querySelector("#workerFiltersResetButton"),
+  workerInsightsNameInput: document.querySelector("#workerInsightsNameInput"),
+  workerInsightsRunButton: document.querySelector("#workerInsightsRunButton"),
+  workerInsightsPanel: document.querySelector("#workerInsightsPanel"),
   bulkSelectAll: document.querySelector("#bulkSelectAll"),
   bulkActionBar: document.querySelector("#bulkActionBar"),
   bulkSelectionCount: document.querySelector("#bulkSelectionCount"),
@@ -7588,6 +7591,7 @@ const state = {
   companyRepairHistory: {},
   companyRepairBusy: {},
   companyRepairStatus: {},
+  companyDocEmailSelftestStatus: {},
   companyLockBusy: {},
   companyFilterQuery: "",
   companyTurnstiles: {},
@@ -7854,6 +7858,7 @@ function getRuntimeUiTexts() {
     companyDocEmailNotSet: "Not set",
     companyDocEmailAutoBtn: "Set automatically",
     companyDocEmailSelftestBtn: "Test auto email",
+    companyDocEmailSelftestRunning: "Testing auto email...",
     companyDocEmailCopyBtn: "Copy email",
     companyDocEmailSelftestOk: "Auto email is ready: {email}",
     companyDocEmailSelftestFailed: "Auto email test failed ({email}): {error}",
@@ -8607,6 +8612,7 @@ function getRuntimeUiTexts() {
       companyDocEmailNotSet: "Nicht gesetzt",
       companyDocEmailAutoBtn: "Auto setzen",
       companyDocEmailSelftestBtn: "Auto-Mail testen",
+      companyDocEmailSelftestRunning: "Auto-Mail wird getestet...",
       companyDocEmailCopyBtn: "Mail kopieren",
       companyDocEmailSelftestOk: "Auto-Mail ist bereit: {email}",
       companyDocEmailSelftestFailed: "Auto-Mail-Test fehlgeschlagen ({email}): {error}",
@@ -17153,6 +17159,146 @@ function renderWorkerList() {
   bindWorkerRowActions();
 }
 
+function parseHmToMinutes(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function getTimestampMinutes(timestampValue) {
+  const text = String(timestampValue || "");
+  const hm = text.substring(11, 16);
+  return parseHmToMinutes(hm);
+}
+
+function formatMinutesToHm(totalMinutes) {
+  const safe = Math.max(Number(totalMinutes) || 0, 0);
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${h}h ${String(m).padStart(2, "0")}min`;
+}
+
+function getWorkerWorkTimeWindow(worker) {
+  const company = state.companies.find((entry) => String(entry?.id || "") === String(worker?.companyId || worker?.company_id || "")) || null;
+  const startRaw = String(company?.workStartTime || company?.work_start_time || state.settings?.workStartTime || "").trim();
+  const endRaw = String(company?.workEndTime || company?.work_end_time || state.settings?.workEndTime || "").trim();
+  return {
+    start: parseHmToMinutes(startRaw),
+    end: parseHmToMinutes(endRaw),
+  };
+}
+
+function renderWorkerInsightsPanelHtml(result) {
+  if (!elements.workerInsightsPanel) return;
+  const { workerName, monthKey, totalMinutes, lateDays, earlyLeaveDays, startLabel, endLabel, note } = result;
+  const lateList = lateDays.length
+    ? `<ul style="margin:6px 0 0 16px;">${lateDays.map((entry) => `<li>${escapeHtml(entry.date)} (${escapeHtml(String(entry.minutes))} min)</li>`).join("")}</ul>`
+    : `<p class="helper-text" style="margin:6px 0 0;">Keine Tage.</p>`;
+  const earlyList = earlyLeaveDays.length
+    ? `<ul style="margin:6px 0 0 16px;">${earlyLeaveDays.map((entry) => `<li>${escapeHtml(entry.date)} (${escapeHtml(String(entry.minutes))} min)</li>`).join("")}</ul>`
+    : `<p class="helper-text" style="margin:6px 0 0;">Keine Tage.</p>`;
+
+  elements.workerInsightsPanel.style.display = "block";
+  elements.workerInsightsPanel.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+      <strong>Auswertung: ${escapeHtml(workerName)} (${escapeHtml(monthKey)})</strong>
+      <span>Gesamtstunden: <strong>${escapeHtml(formatMinutesToHm(totalMinutes))}</strong></span>
+    </div>
+    <p class="helper-text" style="margin:6px 0 0;">Sollzeit-Fenster: ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</p>
+    ${note ? `<p class="helper-text" style="margin:4px 0 0;">${escapeHtml(note)}</p>` : ""}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px;">
+      <div>
+        <strong>Zu spät gekommen (${escapeHtml(String(lateDays.length))} Tage)</strong>
+        ${lateList}
+      </div>
+      <div>
+        <strong>Früh gegangen (${escapeHtml(String(earlyLeaveDays.length))} Tage)</strong>
+        ${earlyList}
+      </div>
+    </div>
+  `;
+}
+
+async function runWorkerInsightsByName() {
+  const panel = elements.workerInsightsPanel;
+  const nameQuery = String(elements.workerInsightsNameInput?.value || "").trim().toLowerCase();
+  if (!panel) return;
+  if (!nameQuery) {
+    panel.style.display = "block";
+    panel.innerHTML = `<p class="helper-text" style="margin:0;">Bitte Namen eingeben.</p>`;
+    return;
+  }
+
+  const candidates = getUiVisibleWorkers()
+    .filter((worker) => !worker.deletedAt && !isVisitorWorker(worker))
+    .filter((worker) => `${worker.firstName || ""} ${worker.lastName || ""}`.trim().toLowerCase().includes(nameQuery));
+
+  if (!candidates.length) {
+    panel.style.display = "block";
+    panel.innerHTML = `<p class="helper-text" style="margin:0;">Kein Mitarbeiter mit diesem Namen gefunden.</p>`;
+    return;
+  }
+
+  const exact = candidates.find((worker) => `${worker.firstName || ""} ${worker.lastName || ""}`.trim().toLowerCase() === nameQuery);
+  const target = exact || candidates[0];
+  const workerName = `${target.firstName || ""} ${target.lastName || ""}`.trim() || target.id;
+  const monthKey = normalizeMonthKey(elements.workerHoursMonthInput?.value) || getCurrentMonthKey();
+  const companyId = String(target.companyId || target.company_id || "").trim();
+
+  panel.style.display = "block";
+  panel.innerHTML = `<p class="helper-text" style="margin:0;">Lade Auswertung für ${escapeHtml(workerName)}…</p>`;
+
+  try {
+    const payload = await apiRequest(`${API_BASE}/api/companies/${companyId}/workers/${encodeURIComponent(target.id)}/timeline?month=${encodeURIComponent(monthKey)}`);
+    const days = Array.isArray(payload?.days) ? payload.days : [];
+    const windowCfg = getWorkerWorkTimeWindow(target);
+    const lateDays = [];
+    const earlyLeaveDays = [];
+    let totalMinutes = 0;
+
+    days.forEach((dayEntry) => {
+      const day = String(dayEntry?.date || "");
+      const sessions = Array.isArray(dayEntry?.sessions) ? dayEntry.sessions : [];
+      totalMinutes += Number(dayEntry?.dayMinutes || 0);
+      const checkIns = sessions.map((session) => session?.checkIn).filter(Boolean);
+      const checkOuts = sessions.map((session) => session?.checkOut).filter(Boolean);
+      const firstIn = checkIns.length ? checkIns.sort()[0] : null;
+      const lastOut = checkOuts.length ? checkOuts.sort().slice(-1)[0] : null;
+
+      const firstInMin = getTimestampMinutes(firstIn);
+      const lastOutMin = getTimestampMinutes(lastOut);
+
+      if (windowCfg.start != null && firstInMin != null && firstInMin > windowCfg.start) {
+        lateDays.push({ date: day, minutes: firstInMin - windowCfg.start });
+      }
+      if (windowCfg.end != null && lastOutMin != null && lastOutMin < windowCfg.end) {
+        earlyLeaveDays.push({ date: day, minutes: windowCfg.end - lastOutMin });
+      }
+    });
+
+    const note = candidates.length > 1 && !exact
+      ? `Mehrere Treffer gefunden. Gezeigt wird: ${workerName}.`
+      : "";
+    renderWorkerInsightsPanelHtml({
+      workerName,
+      monthKey,
+      totalMinutes,
+      lateDays,
+      earlyLeaveDays,
+      startLabel: windowCfg.start == null ? "nicht gesetzt" : String((target.workStartTime || target.work_start_time || state.settings?.workStartTime || "")).trim(),
+      endLabel: windowCfg.end == null ? "nicht gesetzt" : String((target.workEndTime || target.work_end_time || state.settings?.workEndTime || "")).trim(),
+      note,
+    });
+  } catch (error) {
+    panel.style.display = "block";
+    panel.innerHTML = `<p class="helper-text helper-text-warning" style="margin:0;">Auswertung fehlgeschlagen: ${escapeHtml(error.message || "Unbekannter Fehler")}</p>`;
+  }
+}
+
 function getCheckedWorkerIds() {
   return Array.from(elements.workerList.querySelectorAll(".bulk-checkbox:checked")).map((cb) => cb.dataset.bulkId);
 }
@@ -17502,9 +17648,15 @@ function renderCompanyList() {
       const isRepairing = Boolean(state.companyRepairBusy?.[companyId]);
       const isLockBusy = Boolean(state.companyLockBusy?.[companyId]);
       const repairStatus = state.companyRepairStatus?.[companyId] || null;
+      const docEmailSelftestStatus = state.companyDocEmailSelftestStatus?.[companyId] || null;
       const repairStatusClass = repairStatus?.kind === "error"
         ? "helper-text helper-text-warning"
         : repairStatus?.kind === "success"
+          ? "helper-text helper-text-ok"
+          : "helper-text helper-text-info";
+      const docEmailSelftestStatusClass = docEmailSelftestStatus?.kind === "error"
+        ? "helper-text helper-text-warning"
+        : docEmailSelftestStatus?.kind === "success"
           ? "helper-text helper-text-ok"
           : "helper-text helper-text-info";
       const documentEmail = getCompanyDocumentEmail(company);
@@ -17533,6 +17685,7 @@ function renderCompanyList() {
             <button type="button" class="ghost-button small-button" data-company-doc-email-selftest="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailSelftestBtn"))}</button>
             <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
+          ${docEmailSelftestStatus ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>` : ""}
           <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench"), tr: runtimeText("companyInvoiceLangTurkish"), ar: runtimeText("companyInvoiceLangArabic"), es: runtimeText("companyInvoiceLangSpanish"), it: runtimeText("companyInvoiceLangItalian"), pl: runtimeText("companyInvoiceLangPolish") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
           <p><strong>${escapeHtml(runtimeText("companyBillingAddressLabel"))}:</strong> ${escapeHtml([company.billingStreet || company.billing_street || "", company.billingZipCity || company.billing_zip_city || ""].filter(Boolean).join(", ") || "-")}</p>
           ${(() => {
@@ -17993,6 +18146,12 @@ function bindCompanyRowActions() {
         return;
       }
 
+      state.companyDocEmailSelftestStatus[companyId] = {
+        kind: "info",
+        message: runtimeText("companyDocEmailSelftestRunning"),
+      };
+      renderCompanyList();
+
       let suggested = suggestCompanyDocumentEmail(company.name);
       if (!suggested) {
         try {
@@ -18007,12 +18166,22 @@ function bindCompanyRowActions() {
       }
 
       if (!suggested) {
+        state.companyDocEmailSelftestStatus[companyId] = {
+          kind: "error",
+          message: runtimeText("companyDocEmailAutoBaseMissing"),
+        };
+        renderCompanyList();
         showToast(runtimeText("companyDocEmailAutoBaseMissing"));
         return;
       }
 
       const conflict = findCompanyByDocumentEmail(suggested, companyId);
       if (conflict) {
+        state.companyDocEmailSelftestStatus[companyId] = {
+          kind: "error",
+          message: runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }),
+        };
+        renderCompanyList();
         showToast(runtimeTextTemplate("companyDocEmailAutoConflict", { company: conflict.name }));
         return;
       }
@@ -18029,14 +18198,37 @@ function bindCompanyRowActions() {
           }
         });
         if (imapResult?.ok) {
+          state.companyDocEmailSelftestStatus[companyId] = {
+            kind: "success",
+            message: runtimeTextTemplate("companyDocEmailSelftestOk", { email: suggested }),
+          };
+          renderCompanyList();
           showToast(runtimeTextTemplate("companyDocEmailSelftestOk", { email: suggested }));
         } else {
+          const failedMessage = runtimeTextTemplate("companyDocEmailSelftestFailed", {
+            email: suggested,
+            error: imapResult?.detail || imapResult?.error || runtimeText("genericUnknownError"),
+          });
+          state.companyDocEmailSelftestStatus[companyId] = {
+            kind: "error",
+            message: failedMessage,
+          };
+          renderCompanyList();
           showToast(runtimeTextTemplate("companyDocEmailSelftestFailed", {
             email: suggested,
             error: imapResult?.detail || imapResult?.error || runtimeText("genericUnknownError"),
           }));
         }
       } catch (error) {
+        const failedMessage = runtimeTextTemplate("companyDocEmailSelftestFailed", {
+          email: suggested,
+          error: error?.message || runtimeText("genericUnknownError"),
+        });
+        state.companyDocEmailSelftestStatus[companyId] = {
+          kind: "error",
+          message: failedMessage,
+        };
+        renderCompanyList();
         showToast(runtimeTextTemplate("companyDocEmailSelftestFailed", {
           email: suggested,
           error: error?.message || runtimeText("genericUnknownError"),
@@ -26218,6 +26410,19 @@ if (elements.workerHoursMonthInput) {
 if (elements.workerMinHoursInput) {
   elements.workerMinHoursInput.addEventListener("input", renderWorkerList);
 }
+if (elements.workerInsightsRunButton) {
+  elements.workerInsightsRunButton.addEventListener("click", () => {
+    void runWorkerInsightsByName();
+  });
+}
+if (elements.workerInsightsNameInput) {
+  elements.workerInsightsNameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void runWorkerInsightsByName();
+    }
+  });
+}
 if (elements.workerFiltersResetButton) {
   elements.workerFiltersResetButton.addEventListener("click", async () => {
     if (elements.workerSearchInput) {
@@ -26234,6 +26439,10 @@ if (elements.workerFiltersResetButton) {
     }
     await loadAccessWorkerHoursMonth(elements.workerHoursMonthInput?.value || "");
     renderWorkerList();
+    if (elements.workerInsightsPanel) {
+      elements.workerInsightsPanel.style.display = "none";
+      elements.workerInsightsPanel.innerHTML = "";
+    }
   });
 }
 
