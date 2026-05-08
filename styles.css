@@ -5924,6 +5924,53 @@ body.desktop-app .topbar {
   border-left: 3px solid var(--stat-accent, #d97706) !important;
 }
 
+.compliance-kpi-card {
+  border: 1px solid rgba(18, 21, 24, 0.12);
+}
+
+.compliance-kpi-card.is-critical {
+  border-color: rgba(220, 38, 38, 0.6);
+}
+
+.compliance-kpi-card.is-warning {
+  border-color: rgba(234, 155, 24, 0.6);
+}
+
+.compliance-kpi-card.is-ok {
+  border-color: rgba(22, 163, 74, 0.6);
+}
+
+.compliance-kpi-card .compliance-kpi-label {
+  margin: 0;
+}
+
+.compliance-kpi-card .compliance-kpi-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #666;
+}
+
+body.theme-black .compliance-kpi-card {
+  background: #12161d;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+body.theme-black .compliance-kpi-card.is-critical {
+  border-color: rgba(220, 38, 38, 0.9);
+}
+
+body.theme-black .compliance-kpi-card.is-warning {
+  border-color: rgba(234, 155, 24, 0.9);
+}
+
+body.theme-black .compliance-kpi-card.is-ok {
+  border-color: rgba(22, 163, 74, 0.9);
+}
+
+body.theme-black .compliance-kpi-card .compliance-kpi-meta {
+  color: #98a2b3;
+}
+
 /* ── Mobile Verbesserungen ────────────────────────────────────── */
 @media (max-width: 600px) {
   .stats-grid {

@@ -17083,6 +17083,7 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
 function renderStats() {
   if (!elements.statsGrid) return;
   const texts = getRuntimeUiTexts();
+  const isDarkTheme = document.body.classList.contains("theme-black");
   const visibleWorkers = getUiVisibleWorkers();
   const visibleLatestAccessEntries = getUiVisibleLatestAccessEntries();
   const scopedCompanyId = getEffectiveUiCompanyId();
@@ -17098,19 +17099,20 @@ function renderStats() {
 
   // icon, label, value, accent-color, bg-color, isWarn
   const cards = [
-    ["👷", texts.statsWorkersTotal,    totalWorkers,     "#0f4c5c", "",                           false],
-    ["✅", texts.statsWorkersActive,   activeWorkers,    "#16a34a", "rgba(220,252,231,0.5)",       false],
-    ["🚶", texts.statsVisitorsTotal,   totalVisitors,    "#7c3aed", "rgba(237,233,254,0.5)",       false],
-    ["🏢", texts.statsCompanies,       totalCompanies,   "#0369a1", "rgba(224,242,254,0.5)",       false],
-    ["🔓", texts.statsAccessToday,     accessToday,      "#0891b2", "rgba(207,250,254,0.5)",       false],
-    ["🔒", runtimeText("statsLockedWorkers"),  lockedWorkers,   lockedWorkers > 0 ? "#dc2626" : "#6b7280",   lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : "",   lockedWorkers > 0],
-    ["⚠️", runtimeText("statsExpiringCritical"), expiringCritical, expiringCritical > 0 ? "#d97706" : "#6b7280", expiringCritical > 0 ? "rgba(254,243,199,0.5)" : "", expiringCritical > 0],
+    ["👷", texts.statsWorkersTotal, totalWorkers, "#0f4c5c", "", false],
+    ["✅", texts.statsWorkersActive, activeWorkers, "#16a34a", isDarkTheme ? "" : "rgba(220,252,231,0.5)", false],
+    ["🚶", texts.statsVisitorsTotal, totalVisitors, "#7c3aed", isDarkTheme ? "" : "rgba(237,233,254,0.5)", false],
+    ["🏢", texts.statsCompanies, totalCompanies, "#0369a1", isDarkTheme ? "" : "rgba(224,242,254,0.5)", false],
+    ["🔓", texts.statsAccessToday, accessToday, "#0891b2", isDarkTheme ? "" : "rgba(207,250,254,0.5)", false],
+    ["🔒", runtimeText("statsLockedWorkers"), lockedWorkers, lockedWorkers > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : ""), lockedWorkers > 0],
+    ["⚠️", runtimeText("statsExpiringCritical"), expiringCritical, expiringCritical > 0 ? "#d97706" : "#6b7280", isDarkTheme ? "" : (expiringCritical > 0 ? "rgba(254,243,199,0.5)" : ""), expiringCritical > 0],
   ];
 
   elements.statsGrid.innerHTML = cards
     .map(([icon, label, value, color, bg, isWarn]) => {
       const styleStr = [
         bg ? `background:${bg}` : "",
+        isDarkTheme && color ? `border-color:${color}33` : "",
         color ? `--stat-accent:${color}` : "",
       ].filter(Boolean).join(";");
       return `<article class="stat-card stat-card-v2${isWarn ? " stat-card-warn" : ""}" style="${styleStr}">
@@ -17125,6 +17127,7 @@ function renderStats() {
 async function renderComplianceKpi() {
   const container = document.querySelector("#complianceKpiGrid");
   if (!container) return;
+  const isDarkTheme = document.body.classList.contains("theme-black");
   
   try {
     const data = await apiRequest(`${API_BASE}/api/compliance/overview`);
@@ -17153,25 +17156,25 @@ async function renderComplianceKpi() {
     
     container.innerHTML = `
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;">
-        <article class="stat-card">
+        <article class="stat-card compliance-kpi-card${isDarkTheme ? " is-dark" : ""}">
           <p>${escapeHtml(runtimeText("complianceKpiCompaniesWithIssues"))}</p>
           <strong>${summary.companiesWithIssues}/${summary.totalCompanies}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">${issuePercentage}%</p>
+          <p class="compliance-kpi-meta">${issuePercentage}%</p>
         </article>
-        <article class="stat-card" style="border-color: #dc2626;">
-          <p style="color: #dc2626;">${escapeHtml(runtimeText("complianceKpiCritical"))}</p>
+        <article class="stat-card compliance-kpi-card is-critical${isDarkTheme ? " is-dark" : ""}">
+          <p class="compliance-kpi-label">${escapeHtml(runtimeText("complianceKpiCritical"))}</p>
           <strong style="color: #dc2626;">${summary.totalRed}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
+          <p class="compliance-kpi-meta">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
         </article>
-        <article class="stat-card" style="border-color: #ea9b18;">
-          <p style="color: #ea9b18;">${escapeHtml(runtimeText("complianceKpiWarning"))}</p>
+        <article class="stat-card compliance-kpi-card is-warning${isDarkTheme ? " is-dark" : ""}">
+          <p class="compliance-kpi-label">${escapeHtml(runtimeText("complianceKpiWarning"))}</p>
           <strong style="color: #ea9b18;">${summary.totalYellow}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
+          <p class="compliance-kpi-meta">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
         </article>
-        <article class="stat-card" style="border-color: #16a34a;">
-          <p style="color: #16a34a;">${escapeHtml(runtimeText("complianceKpiOk"))}</p>
+        <article class="stat-card compliance-kpi-card is-ok${isDarkTheme ? " is-dark" : ""}">
+          <p class="compliance-kpi-label">${escapeHtml(runtimeText("complianceKpiOk"))}</p>
           <strong style="color: #16a34a;">${summary.totalGreen}</strong>
-          <p style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
+          <p class="compliance-kpi-meta">${escapeHtml(runtimeText("complianceKpiWorkers"))}</p>
         </article>
       </div>
     `;
