@@ -22970,7 +22970,7 @@ function renderInvoiceDeadLetters() {
     const retryButton = event.target.closest("[data-dead-letter-retry-id]");
     if (retryButton && container.contains(retryButton)) {
       const invoiceId = String(retryButton.dataset.deadLetterRetryId || "").trim();
-      if (!invoiceId || !window.confirm(uiT("confirmDeadLetterRetry"))) {
+      if (!invoiceId || !(await showConfirmDialog(uiT("confirmDeadLetterRetry")))) {
         return;
       }
       try {
@@ -22995,7 +22995,7 @@ function renderInvoiceDeadLetters() {
     const resolveButton = event.target.closest("[data-dead-letter-resolve-id]");
     if (resolveButton && container.contains(resolveButton)) {
       const invoiceId = String(resolveButton.dataset.deadLetterResolveId || "").trim();
-      if (!invoiceId || !window.confirm(uiT("confirmDeadLetterResolve"))) {
+      if (!invoiceId || !(await showConfirmDialog(uiT("confirmDeadLetterResolve")))) {
         return;
       }
       try {
@@ -23391,7 +23391,7 @@ function renderInvoiceManagementList() {
     button.addEventListener("click", async (event) => {
       const retryId = event.target.dataset.invoiceRetryId;
       if (!retryId) return;
-      if (!window.confirm(uiT("confirmInvoiceRetry"))) return;
+      if (!(await showConfirmDialog(uiT("confirmInvoiceRetry")))) return;
 
       try {
         const payload = await apiRequest(API_BASE + `/api/invoices/${retryId}/retry-send`, {
@@ -23582,7 +23582,7 @@ function renderInvoiceManagementList() {
     bulkMarkPaidBtn.onclick = async () => {
       const ids = state.invoiceSelectedIds || [];
       if (!ids.length) return;
-      if (!window.confirm(runtimeTextTemplate("invoiceBulkMarkPaidConfirm", { count: ids.length }))) return;
+      if (!(await showConfirmDialog(runtimeTextTemplate("invoiceBulkMarkPaidConfirm", { count: ids.length })))) return;
       bulkMarkPaidBtn.disabled = true;
       try {
         const result = await apiRequest(`${API_BASE}/api/invoices/bulk-mark-paid`, {
@@ -23792,7 +23792,7 @@ function renderInvoiceRetryQueue(container, sourceInvoices) {
     if (!retryButton || !container.contains(retryButton)) return;
     const retryId = retryButton.dataset.retryQueueSend;
     if (!retryId) return;
-    if (!window.confirm(uiT("confirmInvoiceRetry"))) return;
+    if (!(await showConfirmDialog(uiT("confirmInvoiceRetry")))) return;
 
     try {
       const payload = await apiRequest(API_BASE + `/api/invoices/${retryId}/retry-send`, {
@@ -24019,7 +24019,7 @@ function renderCollectionsList() {
     const paidButton = event.target.closest("[data-collections-mark-paid]");
     if (paidButton && container.contains(paidButton)) {
       const invoiceId = paidButton.dataset.collectionsMarkPaid;
-      if (!invoiceId || !window.confirm(uiT("confirmInvoicePaidSimple"))) {
+      if (!invoiceId || !(await showConfirmDialog(uiT("confirmInvoicePaidSimple")))) {
         return;
       }
       try {
