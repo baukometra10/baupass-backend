@@ -881,6 +881,7 @@ body.worker-loaded .app-shell {
   max-width: 430px;
   margin: 0 auto;
   aspect-ratio: 85.6 / 56;
+  min-height: 272px;
   border-radius: 22px;
   padding: 4.8% 5.4%;
   background: linear-gradient(
@@ -1265,6 +1266,7 @@ body.worker-loaded .app-shell {
   text-transform: uppercase;
   letter-spacing: .12em;
   line-height: 1.05;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
 }
 
 .wc-field-value {
@@ -1275,6 +1277,7 @@ body.worker-loaded .app-shell {
   letter-spacing: .04em;
   line-height: 1.1;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
 }
 
 .wc-field.wc-field-badge .wc-field-value {
@@ -1372,6 +1375,59 @@ body.worker-loaded .app-shell {
 .wallet-card.preset-industry .wc-field.wc-field-badge .wc-field-value,
 .wallet-card.preset-premium .wc-field.wc-field-badge .wc-field-value {
   color: #fff2c4;
+}
+
+/* Keep wallet card footer legible regardless of OS/theme auto darkening. */
+@media (prefers-color-scheme: dark) {
+  .wallet-card .wc-field-label {
+    color: rgba(235, 243, 255, .84) !important;
+  }
+
+  .wallet-card .wc-field-value {
+    color: rgba(250, 252, 255, .99) !important;
+  }
+
+  .wallet-card .wc-field.wc-field-badge .wc-field-value {
+    color: #ffe9a8 !important;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .wallet-card .wc-field-label {
+    color: rgba(225, 235, 250, .78) !important;
+  }
+
+  .wallet-card .wc-field-value {
+    color: rgba(247, 251, 255, .99) !important;
+  }
+
+  .wallet-card .wc-field.wc-field-badge .wc-field-value {
+    color: #ffe6a0 !important;
+  }
+}
+
+[data-theme="dark"] .wallet-card .wc-field-label {
+  color: rgba(235, 243, 255, .84) !important;
+}
+
+[data-theme="dark"] .wallet-card .wc-field-value {
+  color: rgba(250, 252, 255, .99) !important;
+}
+
+[data-theme="dark"] .wallet-card .wc-field.wc-field-badge .wc-field-value {
+  color: #ffe9a8 !important;
+}
+
+[data-theme="light"] .wallet-card .wc-field-label {
+  color: rgba(225, 235, 250, .78) !important;
+}
+
+[data-theme="light"] .wallet-card .wc-field-value {
+  color: rgba(247, 251, 255, .99) !important;
+}
+
+[data-theme="light"] .wallet-card .wc-field.wc-field-badge .wc-field-value {
+  color: #ffe6a0 !important;
 }
 
 /* ═══════════════════════════════════════════════
@@ -1828,6 +1884,7 @@ body.qr-high-contrast #gateQr {
   .wallet-card {
     max-width: 100%;
     aspect-ratio: 85.6 / 57;
+    min-height: 264px;
   }
 
   .worker-pass {
@@ -1861,6 +1918,7 @@ body.qr-high-contrast #gateQr {
   }
   .wallet-card {
     aspect-ratio: 85.6 / 58;
+    min-height: 248px;
   }
   .wc-field.wc-field-badge .wc-field-value {
     font-size: .66rem;
