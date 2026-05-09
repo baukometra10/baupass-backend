@@ -16,12 +16,12 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png?v=20260503cp" />
   <link rel="icon" type="image/svg+xml" href="/worker-icon-192.svg?v=20260503cp" />
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png?v=20260503cp" />
-  <link rel="manifest" href="./worker-manifest.json?v=20260509g" />
+  <link rel="manifest" href="./worker-manifest.json?v=20260509h" />
   <title>BauPass – Mitarbeiter-App</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker.css?v=20260509g" />
+  <link rel="stylesheet" href="./worker.css?v=20260509h" />
 </head>
 <body class="notranslate" translate="no">
   <!-- Splash screen – dismissed by JS after init; auto-hides via CSS after 9s if JS fails -->
@@ -258,27 +258,72 @@
           </div>
           <div class="worker-menu-grid">
             <button type="button" class="worker-menu-btn" data-worker-page-target="sessionInfoCard">
-              <span class="worker-menu-icon" aria-hidden="true">🪪</span>
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <rect x="10" y="8" width="26" height="32" rx="2" stroke="currentColor" stroke-width="2.6"/>
+                  <rect x="30" y="10" width="4" height="6" fill="#f4c400"/>
+                  <rect x="30" y="18" width="4" height="6" fill="#f4c400"/>
+                  <rect x="30" y="26" width="4" height="6" fill="#f4c400"/>
+                  <circle cx="21" cy="22" r="4.2" stroke="currentColor" stroke-width="2"/>
+                  <path d="M15 33c1.6-3 4.3-4.5 6-4.5s4.4 1.5 6 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </span>
               <span class="worker-menu-label" data-i18n="sessionTitle">Tagesausweis</span>
             </button>
             <button type="button" class="worker-menu-btn" data-worker-page-target="routeCard">
-              <span class="worker-menu-icon" aria-hidden="true">📍</span>
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" stroke-width="2.6"/>
+                  <path d="M8 18h32M16 10v28M24 10v28M32 10v28" stroke="#f4c400" stroke-width="2"/>
+                  <circle cx="24" cy="24" r="4.8" stroke="currentColor" stroke-width="2.4"/>
+                  <path d="M24 20v8M20 24h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </span>
               <span class="worker-menu-label" data-i18n="routeTodayTitle">Standort heute</span>
             </button>
             <button type="button" class="worker-menu-btn" data-worker-page-target="actionsPanel">
-              <span class="worker-menu-icon" aria-hidden="true">⚙️</span>
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <path d="M9 15h30M9 24h30M9 33h30" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+                  <rect x="17" y="12" width="6" height="6" fill="#f4c400"/>
+                  <rect x="25" y="21" width="6" height="6" fill="#f4c400"/>
+                  <rect x="13" y="30" width="6" height="6" fill="#f4c400"/>
+                </svg>
+              </span>
               <span class="worker-menu-label" data-i18n="actionsTitle">Schnellzugriff</span>
             </button>
             <button type="button" class="worker-menu-btn" data-worker-page-target="leaveRequestCard">
-              <span class="worker-menu-icon" aria-hidden="true">📝</span>
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <path d="M12 8h20l6 6v26H12z" stroke="currentColor" stroke-width="2.6"/>
+                  <path d="M32 8v6h6" stroke="currentColor" stroke-width="2.6"/>
+                  <path d="M17 21h16M17 26h16M17 31h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M18 36c3-3 6-4 9-1" stroke="#f4c400" stroke-width="2.4" stroke-linecap="round"/>
+                </svg>
+              </span>
               <span class="worker-menu-label" data-i18n="leaveRequestTitle">Urlaubsantrag</span>
             </button>
             <button type="button" class="worker-menu-btn" data-worker-page-target="timesheetCard">
-              <span class="worker-menu-icon" aria-hidden="true">📆</span>
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <rect x="8" y="10" width="32" height="30" rx="2" stroke="currentColor" stroke-width="2.6"/>
+                  <path d="M8 18h32M16 6v8M32 6v8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+                  <rect x="14" y="22" width="6" height="6" fill="#f4c400"/>
+                  <rect x="22" y="22" width="6" height="6" fill="#f4c400"/>
+                  <rect x="30" y="22" width="6" height="6" fill="#f4c400"/>
+                </svg>
+              </span>
               <span class="worker-menu-label" data-i18n="timesheetCardTitle">Eintritte & Zeiten</span>
             </button>
             <button type="button" class="worker-menu-btn" data-worker-page-target="documentsCard">
-              <span class="worker-menu-icon" aria-hidden="true">📁</span>
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <path d="M12 12h10l4 4h10v20H12z" stroke="currentColor" stroke-width="2.6"/>
+                  <path d="M12 18h24" stroke="currentColor" stroke-width="2"/>
+                  <circle cx="30" cy="30" r="6" stroke="#f4c400" stroke-width="2.4"/>
+                  <path d="M34.5 34.5l4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+              </span>
               <span class="worker-menu-label" data-i18n="documentsTitle">Meine Unterlagen</span>
             </button>
           </div>
@@ -510,6 +555,6 @@
     </div>
   </div>
 
-  <script src="./worker-app.js?v=20260509g"></script>
+  <script src="./worker-app.js?v=20260509h"></script>
 </body>
 </html>
