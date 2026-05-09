@@ -5442,6 +5442,7 @@ body.desktop-app .topbar {
     width: 85.6mm !important;
     max-width: 85.6mm !important;
     height: 54mm !important;
+    aspect-ratio: auto !important;
     padding: 4mm 4.8mm !important;
     border-radius: 4.2mm !important;
     background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
@@ -5485,14 +5486,18 @@ body.desktop-app .topbar {
   .print-badge-root .wallet-card .wc-photo      { display: block !important; width: 16mm !important; height: 16mm !important; border-radius: 2.5mm !important; min-width: 16mm !important; flex-shrink: 0 !important; }
   .print-badge-root .wallet-card .wc-name       { font-size: 10pt !important; margin: 0 0 1px !important; }
   .print-badge-root .wallet-card .wc-role-text  { font-size: 6.5pt !important; margin: 0 0 1.5mm !important; }
+  .print-badge-root .wallet-card .wc-bottom     { margin-top: 1.2mm !important; }
   .print-badge-root .wallet-card .wc-footer     { display: flex !important; justify-content: space-between !important; align-items: flex-end !important; gap: 1.5mm !important; }
-  .print-badge-root .wallet-card .wc-fields     { display: flex !important; gap: 2.5mm !important; }
-  .print-badge-root .wallet-card .wc-field-label{ font-size: 3.5pt !important; }
-  .print-badge-root .wallet-card .wc-field-value{ font-size: 5pt !important; }
+  .print-badge-root .wallet-card .wc-fields     { display: flex !important; flex-direction: column !important; gap: 1.2mm !important; }
+  .print-badge-root .wallet-card .wc-field      { display: flex !important; flex-direction: column !important; gap: .3mm !important; }
+  .print-badge-root .wallet-card .wc-field-label{ font-size: 4.1pt !important; line-height: 1.05 !important; }
+  .print-badge-root .wallet-card .wc-field-value{ font-size: 5.7pt !important; line-height: 1.08 !important; }
+  .print-badge-root .wallet-card .wc-field.wc-field-badge .wc-field-value { font-size: 7.6pt !important; }
   .print-badge-root .wallet-card .wc-status     { font-size: 4.5pt !important; gap: 2px !important; padding: 1px 4px !important; border-radius: 2px !important; }
   .print-badge-root .wallet-card .wc-status::before { width: 3px !important; height: 3px !important; }
-  .print-badge-root .wallet-card .wc-company    { font-size: 4.5pt !important; }
-  .print-badge-root .wallet-card .wc-subcompany { font-size: 4pt !important; padding: 1px 3px !important; }
+  .print-badge-root .wallet-card .wc-company    { font-size: 4.9pt !important; }
+  .print-badge-root .wallet-card .wc-subcompany { font-size: 4.3pt !important; padding: 1px 3px !important; }
+  .print-badge-root .wallet-card .wc-right      { max-width: 32mm !important; gap: .6mm !important; }
   .print-badge-root .wallet-card .wc-company,
   .print-badge-root .wallet-card .wc-subcompany,
   .print-badge-root .wallet-card .wc-field-value {
@@ -5500,6 +5505,15 @@ body.desktop-app .topbar {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
+  }
+  .print-badge-root .wallet-card .wc-field-label,
+  .print-badge-root .wallet-card .wc-field-value,
+  .print-badge-root .wallet-card .wc-company,
+  .print-badge-root .wallet-card .wc-subcompany,
+  .print-badge-root .wallet-card .wc-status {
+    opacity: 1 !important;
+    filter: none !important;
+    text-shadow: none !important;
   }
   .print-badge-root .badge-card-note {
     display: none !important;
