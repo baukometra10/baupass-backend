@@ -38,6 +38,7 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, ec
 from cryptography.hazmat.primitives.serialization import pkcs12, pkcs7
+from cryptography.fernet import Fernet
 import pyotp
 import qrcode
 
@@ -443,6 +444,53 @@ _device_event_dedup_lock = threading.Lock()
 _device_event_dedup_state = {}
 
 
+# ──────────────────────────────────────────────
+# Mail Credentials Encryption/Decryption
+# ──────────────────────────────────────────────
+_mail_cipher_cache = {}
+
+
+def _get_mail_cipher_key(company_id: str) -> str:
+    """
+    Generate a deterministic encryption key based on company_id.
+    Uses the application secret and company_id to create a unique key per company.
+    """
+    if not company_id:
+        company_id = "default"
+    app_secret = os.getenv("BAUPASS_MAIL_SECRET", "baupass-default-secret-2024").encode()
+    key_material = hashlib.sha256(f"{company_id}".encode() + app_secret).digest()
+    key_material_b64 = base64.urlsafe_b64encode(key_material)
+    return key_material_b64.decode()
+
+
+def encrypt_mail_credential(value: str, company_id: str) -> str:
+    """Encrypt mail credential (password, API key) for a company."""
+    if not value:
+        return ""
+    try:
+        key = _get_mail_cipher_key(company_id)
+        cipher = Fernet(key)
+        encrypted = cipher.encrypt(value.encode())
+        return encrypted.decode()
+    except Exception as e:
+        app.logger.error(f"[MAIL] Encryption failed for company {company_id}: {e}")
+        return ""
+
+
+def decrypt_mail_credential(encrypted_value: str, company_id: str) -> str:
+    """Decrypt mail credential for a company."""
+    if not encrypted_value:
+        return ""
+    try:
+        key = _get_mail_cipher_key(company_id)
+        cipher = Fernet(key)
+        decrypted = cipher.decrypt(encrypted_value.encode())
+        return decrypted.decode()
+    except Exception as e:
+        app.logger.warning(f"[MAIL] Decryption failed for company {company_id}: {e}")
+        return ""
+
+
 def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH, timeout=60)
@@ -564,6 +612,85 @@ def sanitize_photo_data(value, required=False):
     if not _PHOTO_DATA_URL_RE.fullmatch(raw):
         raise ValueError("invalid_photo_data")
     return raw.replace("\n", "").replace("\r", "")
+
+
+def get_company_mail_settings(db, company_id: str) -> dict:
+    """
+    Get mail settings for a company.
+    If not configured, return defaults for Gmail.
+    Decrypt sensitive fields (passwords, API keys).
+    """
+    if not company_id:
+        return _get_default_mail_settings()
+    
+    row = db.execute(
+        "SELECT * FROM company_mail_settings WHERE company_id = ?",
+        (company_id,)
+    ).fetchone()
+    
+    if not row:
+        # Return Gmail defaults
+        return _get_default_mail_settings(company_id)
+    
+    settings = dict(row)
+    
+    # Decrypt sensitive fields
+    if settings.get("imap_password"):
+        settings["imap_password"] = decrypt_mail_credential(settings["imap_password"], company_id)
+    if settings.get("smtp_password"):
+        settings["smtp_password"] = decrypt_mail_credential(settings["smtp_password"], company_id)
+    if settings.get("brevo_api_key"):
+        settings["brevo_api_key"] = decrypt_mail_credential(settings["brevo_api_key"], company_id)
+    
+    return settings
+
+
+def _get_default_mail_settings(company_id: str = None) -> dict:
+    """Return default Gmail settings for a company."""
+    return {
+        "company_id": company_id or "",
+        "mail_provider": "gmail",
+        "imap_host": "imap.gmail.com",
+        "imap_port": 993,
+        "imap_username": "",
+        "imap_password": "",
+        "imap_use_tls": 1,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_username": "",
+        "smtp_password": "",
+        "smtp_use_tls": 1,
+        "brevo_api_key": "",
+        "sender_email": "",
+        "sender_name": "",
+        "test_inbound_status": "pending",
+        "test_outbound_status": "pending",
+    }
+
+
+def _get_default_provider_settings(provider: str) -> dict:
+    """Return default host/port settings for a mail provider."""
+    providers = {
+        "gmail": {
+            "imap_host": "imap.gmail.com",
+            "imap_port": 993,
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+        },
+        "gmx": {
+            "imap_host": "imap.gmx.com",
+            "imap_port": 993,
+            "smtp_host": "mail.gmx.net",
+            "smtp_port": 587,
+        },
+        "outlook": {
+            "imap_host": "outlook.office365.com",
+            "imap_port": 993,
+            "smtp_host": "smtp.office365.com",
+            "smtp_port": 587,
+        },
+    }
+    return providers.get(provider.lower(), {})
 
 
 def _required_worker_doc_types():
@@ -2057,6 +2184,32 @@ def init_db():
             plan TEXT NOT NULL,
             status TEXT NOT NULL,
             deleted_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS company_mail_settings (
+            id INTEGER PRIMARY KEY,
+            company_id TEXT UNIQUE NOT NULL,
+            mail_provider TEXT DEFAULT 'gmail',
+            imap_host TEXT DEFAULT '',
+            imap_port INTEGER DEFAULT 993,
+            imap_username TEXT DEFAULT '',
+            imap_password TEXT DEFAULT '',
+            imap_use_tls INTEGER DEFAULT 1,
+            smtp_host TEXT DEFAULT '',
+            smtp_port INTEGER DEFAULT 587,
+            smtp_username TEXT DEFAULT '',
+            smtp_password TEXT DEFAULT '',
+            smtp_use_tls INTEGER DEFAULT 1,
+            brevo_api_key TEXT DEFAULT '',
+            sender_email TEXT DEFAULT '',
+            sender_name TEXT DEFAULT '',
+            last_test_inbound DATETIME,
+            last_test_outbound DATETIME,
+            test_inbound_status TEXT DEFAULT 'pending',
+            test_outbound_status TEXT DEFAULT 'pending',
+            created_at DATETIME,
+            updated_at DATETIME,
+            FOREIGN KEY(company_id) REFERENCES companies(id)
         );
 
         CREATE TABLE IF NOT EXISTS users (
@@ -3729,7 +3882,7 @@ def check_and_apply_overdue_suspensions(db):
     return suspended_companies
 
 
-def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, days_until_due):
+def _generate_reminder_pdf_bytes(invoice_row, company_row, global_settings, stage, days_until_due):
     """Generate a branded payment reminder PDF and return as bytes. Returns None on error."""
     try:
         from reportlab.lib.pagesizes import A4
@@ -3754,7 +3907,7 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, 
     invoice_period = str(invoice_row["invoice_period"] if "invoice_period" in invoice_row.keys() else "")[:22]
     c_name = str((company_row["name"] if "name" in company_row.keys() else None) or (invoice_row["company_name"] if "company_name" in invoice_row.keys() else None) or "")
 
-    s = settings_row
+    s = global_settings
     operator_name = str((s["operator_name"] if "operator_name" in s.keys() else None) or (s["platform_name"] if "platform_name" in s.keys() else None) or "").strip()
     operator_street = str((s["invoice_operator_street"] if "invoice_operator_street" in s.keys() else None) or "").strip()
     operator_zip_city = str((s["invoice_operator_zip_city"] if "invoice_operator_zip_city" in s.keys() else None) or "").strip()
@@ -3998,25 +4151,36 @@ def _normalize_smtp_target(host, port, use_tls):
     return normalized_host, normalized_port
 
 
-def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, days_until_due):
-    smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
-    sender_name = (settings_row["smtp_sender_name"] or settings_row["operator_name"] or "").strip()
+def send_payment_reminder_email(invoice_row, company_row, company_id, stage, days_until_due, db):
+    """Send payment reminder email using company-specific mail settings."""
+    
+    # Get company-specific mail settings
+    company_mail_settings = get_company_mail_settings(db, company_id)
+    
+    # Get global settings for branding/footer
+    global_settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    if not global_settings:
+        return False, "Global settings nicht konfiguriert"
+    
+    # Use company mail settings, or fall back to global SMTP settings
+    smtp_sender = (company_mail_settings.get("sender_email") or global_settings.get("smtp_sender_email") or "").strip()
+    sender_name = (company_mail_settings.get("sender_name") or global_settings.get("smtp_sender_name") or "").strip()
     recipient = (invoice_row["recipient_email"] or "").strip()
     if not recipient:
         return False, "Empfänger-E-Mail fehlt"
 
-    platform_name = str(settings_row["platform_name"] or "BauPass").strip()
-    primary_color = str(settings_row["invoice_primary_color"] or "#0f4c5c").strip()
-    accent_color = str(settings_row["invoice_accent_color"] if "invoice_accent_color" in settings_row.keys() else "#e36414").strip() or "#e36414"
-    operator_name = str(settings_row["operator_name"] or platform_name).strip()
-    operator_phone = str((settings_row["invoice_operator_phone"] if "invoice_operator_phone" in settings_row.keys() else None) or "").strip()
-    operator_email_addr = str((settings_row["invoice_operator_email"] if "invoice_operator_email" in settings_row.keys() else None) or "").strip()
-    operator_website = str((settings_row["invoice_operator_website"] if "invoice_operator_website" in settings_row.keys() else None) or "").strip()
-    operator_street = str((settings_row["invoice_operator_street"] if "invoice_operator_street" in settings_row.keys() else None) or "").strip()
-    operator_zip_city = str((settings_row["invoice_operator_zip_city"] if "invoice_operator_zip_city" in settings_row.keys() else None) or "").strip()
-    iban = str((settings_row["invoice_iban"] if "invoice_iban" in settings_row.keys() else None) or "").strip()
-    bic = str((settings_row["invoice_bic"] if "invoice_bic" in settings_row.keys() else None) or "").strip()
-    bank_name = str((settings_row["invoice_bank_name"] if "invoice_bank_name" in settings_row.keys() else None) or "").strip()
+    platform_name = str(global_settings["platform_name"] or "BauPass").strip()
+    primary_color = str(global_settings["invoice_primary_color"] or "#0f4c5c").strip()
+    accent_color = str(global_settings["invoice_accent_color"] if "invoice_accent_color" in global_settings.keys() else "#e36414").strip() or "#e36414"
+    operator_name = str(global_settings["operator_name"] or platform_name).strip()
+    operator_phone = str((global_settings["invoice_operator_phone"] if "invoice_operator_phone" in global_settings.keys() else None) or "").strip()
+    operator_email_addr = str((global_settings["invoice_operator_email"] if "invoice_operator_email" in global_settings.keys() else None) or "").strip()
+    operator_website = str((global_settings["invoice_operator_website"] if "invoice_operator_website" in global_settings.keys() else None) or "").strip()
+    operator_street = str((global_settings["invoice_operator_street"] if "invoice_operator_street" in global_settings.keys() else None) or "").strip()
+    operator_zip_city = str((global_settings["invoice_operator_zip_city"] if "invoice_operator_zip_city" in global_settings.keys() else None) or "").strip()
+    iban = str((global_settings["invoice_iban"] if "invoice_iban" in global_settings.keys() else None) or "").strip()
+    bic = str((global_settings["invoice_bic"] if "invoice_bic" in global_settings.keys() else None) or "").strip()
+    bank_name = str((global_settings["invoice_bank_name"] if "invoice_bank_name" in global_settings.keys() else None) or "").strip()
 
     stage_label = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung – Sperrung droht"}.get(stage, "Zahlungserinnerung")
     due_label = invoice_row["due_date"] or "-"
@@ -4103,7 +4267,7 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     )
 
     # Generate PDF attachment
-    pdf_bytes = _generate_reminder_pdf_bytes(invoice_row, company_row, settings_row, stage, days_until_due)
+    pdf_bytes = _generate_reminder_pdf_bytes(invoice_row, company_row, global_settings, stage, days_until_due)
     pdf_filename = f"Mahnschreiben_{invoice_number.replace('/', '-')}.pdf"
 
     # Prepare attachments for API (and possibly SMTP)
@@ -4112,10 +4276,11 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         import base64 as _b64
         attachments = [{"filename": pdf_filename, "content_b64": _b64.b64encode(pdf_bytes).decode("ascii"), "mime_type": "application/pdf"}]
 
-    # API-first: try Brevo/Resend before SMTP (faster, cheaper, no Microsoft auth issues)
+    # Try company Brevo/Resend first, fall back to global settings
+    company_brevo_key = company_mail_settings.get("brevo_api_key") or _get_brevo_api_key()
     resend_key, _resend_key_source = _get_resend_api_key_and_source()
-    brevo_key = _get_brevo_api_key()
-    if resend_key or brevo_key:
+    
+    if resend_key or company_brevo_key:
         ok, err, provider = _send_via_any_api(
             subject=subject,
             sender_email=smtp_sender or "noreply@baupass.app",
@@ -4149,13 +4314,13 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         else:
             app.logger.info(f"[DUNNING] API-Versand fehlgeschlagen ({provider}); SMTP-Fallback wird fuer weitere Faelle weiterverwendet")
 
-    # SMTP fallback
-    smtp_host = (settings_row["smtp_host"] or "").strip()
-    smtp_port = int(settings_row["smtp_port"] or 587)
-    smtp_use_tls = int(settings_row["smtp_use_tls"] or 0) == 1
+    # SMTP fallback - use company-specific or global settings
+    smtp_host = (company_mail_settings.get("smtp_host") or global_settings.get("smtp_host") or "").strip()
+    smtp_port = int(company_mail_settings.get("smtp_port") or global_settings.get("smtp_port") or 587)
+    smtp_use_tls = int(company_mail_settings.get("smtp_use_tls") or global_settings.get("smtp_use_tls") or 0) == 1
     smtp_host, smtp_port = _normalize_smtp_target(smtp_host, smtp_port, smtp_use_tls)
-    smtp_username = (settings_row["smtp_username"] or "").strip()
-    smtp_password = settings_row["smtp_password"] or ""
+    smtp_username = (company_mail_settings.get("smtp_username") or global_settings.get("smtp_username") or "").strip()
+    smtp_password = company_mail_settings.get("smtp_password") or global_settings.get("smtp_password") or ""
     
     if not smtp_host or not smtp_sender:
         return False, f"Weder API noch SMTP konfiguriert"
@@ -4963,8 +5128,9 @@ def run_invoice_dunning_cycle(db):
                 continue
 
             company_row = {"name": row["company_name"]}
+            company_id = row["company_id"]
             sent_ok, error_message = send_payment_reminder_email(
-                row, company_row, settings, target_stage, days_until_due
+                row, company_row, company_id, target_stage, days_until_due, db
             )
 
             if sent_ok:
