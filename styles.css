@@ -3952,6 +3952,39 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: none;
 }
 
+/* Keep badge preview visually identical in light and dark system modes. */
+.badge-shell .wallet-card {
+  color-scheme: light;
+  forced-color-adjust: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .badge-shell .wallet-card {
+    background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
+    box-shadow:
+      0 28px 60px rgba(0, 0, 0, .55),
+      0 4px 20px rgba(0, 0, 0, .35),
+      0 0 0 1px rgba(255, 255, 255, .07),
+      inset 0 1px 0 rgba(255, 255, 255, .1) !important;
+  }
+
+  .badge-shell .wallet-card .wc-name,
+  .badge-shell .wallet-card .wc-role-text,
+  .badge-shell .wallet-card .wc-company,
+  .badge-shell .wallet-card .wc-subcompany,
+  .badge-shell .wallet-card .wc-field-label,
+  .badge-shell .wallet-card .wc-field-value,
+  .badge-shell .wallet-card .wc-status {
+    filter: none !important;
+    opacity: 1 !important;
+  }
+}
+
+body.theme-black .badge-shell .wallet-card,
+[data-theme="dark"] .badge-shell .wallet-card {
+  background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
+}
+
 /* Badge action row (print / app-link buttons) */
 .badge-action-row {
   display: flex;
