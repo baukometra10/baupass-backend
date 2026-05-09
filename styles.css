@@ -6421,15 +6421,15 @@ body.theme-black .dashboard-worker-detail .close-btn {
 body.theme-black .dashboard-worker-detail .button-row .primary-button,
 body.theme-black .dashboard-worker-detail .button-row .ghost-button {
   color: #fffaf5;
-  background: linear-gradient(90deg, #c77a4b 0%, #c77a4b 48%, #4d739d 52%, #4d739d 100%);
+  background: linear-gradient(90deg, #d0834f 0%, #c67645 46%, #5d7faa 54%, #4f719b 100%);
   border: 1px solid rgba(255, 233, 219, 0.14);
-  box-shadow: 0 8px 20px rgba(18, 12, 9, 0.24);
+  box-shadow: 0 10px 22px rgba(18, 12, 9, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 body.theme-black .dashboard-worker-detail .button-row .primary-button:hover,
 body.theme-black .dashboard-worker-detail .button-row .ghost-button:hover {
-  box-shadow: 0 10px 24px rgba(18, 12, 9, 0.3);
-  filter: brightness(1.04);
+  box-shadow: 0 12px 26px rgba(18, 12, 9, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  filter: brightness(1.05) saturate(1.04);
 }
 
 body.theme-black #recentAccessList.list {
@@ -6464,4 +6464,125 @@ body.theme-black .access-entry-copy span {
 body.theme-black #recentAccessList .access-entry-copy header > span,
 body.theme-black .access-entry-copy header > span {
   color: #e0b79d;
+}
+
+body.theme-black .invoice-preview-frame {
+  background: linear-gradient(165deg, #26211f 0%, #312b28 100%);
+  border-color: rgba(255, 233, 219, 0.14);
+}
+
+body.theme-black .invoice-toolbar .ghost-button,
+body.theme-black .invoice-quick-filters .ghost-button,
+body.theme-black .invoice-toolbar-refresh {
+  background: linear-gradient(145deg, rgba(49, 40, 36, 0.96), rgba(40, 34, 31, 0.94));
+  border-color: rgba(201, 131, 87, 0.22);
+  color: #f3e8df;
+  box-shadow: 0 6px 16px rgba(18, 12, 9, 0.2);
+}
+
+body.theme-black .invoice-toolbar .ghost-button:hover,
+body.theme-black .invoice-quick-filters .ghost-button:hover,
+body.theme-black .invoice-toolbar-refresh:hover {
+  border-color: rgba(201, 131, 87, 0.34);
+  box-shadow: 0 8px 20px rgba(18, 12, 9, 0.26);
+}
+
+body.theme-black .invoice-filter-input,
+body.theme-black .invoice-filter-select,
+body.theme-black .invoice-filter-select-wide,
+body.theme-black .invoice-retry-select,
+body.theme-black .invoice-top-issues-toggle {
+  background: rgba(43, 37, 34, 0.94);
+  border-color: rgba(255, 233, 219, 0.14);
+  color: #f3e8df;
+}
+
+body.theme-black .invoice-management-item,
+body.theme-black .invoice-attempt-timeline,
+body.theme-black .invoice-attempt-item,
+body.theme-black .invoice-kpi-card,
+body.theme-black .retry-queue-item,
+body.theme-black .invoice-dead-letter-item,
+body.theme-black .invoice-approval-item,
+body.theme-black .invoice-approval-item-warn,
+body.theme-black .invoice-approval-item-alert {
+  background: linear-gradient(155deg, rgba(48, 41, 37, 0.96), rgba(39, 34, 31, 0.92));
+  border-color: rgba(255, 233, 219, 0.14);
+  color: #f5ece5;
+  box-shadow: 0 8px 20px rgba(18, 12, 9, 0.18);
+}
+
+body.theme-black .invoice-status-overdue {
+  background: linear-gradient(145deg, rgba(88, 46, 41, 0.92), rgba(64, 37, 34, 0.88));
+}
+
+body.theme-black .invoice-status-bezahlt {
+  background: linear-gradient(145deg, rgba(42, 74, 60, 0.92), rgba(34, 54, 46, 0.88));
+}
+
+body.theme-black .invoice-status-send_failed {
+  background: linear-gradient(145deg, rgba(93, 57, 39, 0.92), rgba(68, 43, 31, 0.88));
+}
+
+body.theme-black .invoice-management-item,
+body.theme-black .invoice-management-item strong,
+body.theme-black .invoice-management-item span,
+body.theme-black .invoice-management-item p,
+body.theme-black .invoice-retry-meta,
+body.theme-black .invoice-attempt-item,
+body.theme-black .invoice-attempt-item strong,
+body.theme-black .invoice-attempt-item span,
+body.theme-black .invoice-kpi-card,
+body.theme-black .invoice-kpi-card strong,
+body.theme-black .invoice-dead-letter-item,
+body.theme-black .invoice-approval-item,
+body.theme-black .invoice-approval-item p {
+  color: #f5ece5;
+}
+
+body.theme-black .invoice-retry-meta,
+body.theme-black .invoice-management-side,
+body.theme-black .invoice-attempt-row time,
+body.theme-black .invoice-top-issues-toggle,
+body.theme-black .invoice-retry-select {
+  color: #dbcac0;
+}
+
+body.theme-black .invoice-kpi-open,
+body.theme-black .invoice-kpi-overdue,
+body.theme-black .invoice-kpi-paid,
+body.theme-black .invoice-kpi-failed {
+  background: linear-gradient(155deg, rgba(54, 46, 42, 0.96), rgba(42, 36, 33, 0.92));
+}
+
+body.theme-black .invoice-status-badge-draft {
+  color: #d7dce4;
+  background: rgba(116, 130, 145, 0.16);
+  border-color: rgba(116, 130, 145, 0.26);
+}
+
+body.theme-black .invoice-status-badge-sent {
+  color: #cfe0f5;
+  background: rgba(93, 127, 170, 0.18);
+  border-color: rgba(93, 127, 170, 0.3);
+}
+
+body.theme-black .invoice-status-badge-overdue,
+body.theme-black .invoice-attempt-status-failed {
+  color: #ffd5cf;
+  background: rgba(160, 76, 67, 0.2);
+  border-color: rgba(160, 76, 67, 0.34);
+}
+
+body.theme-black .invoice-status-badge-bezahlt,
+body.theme-black .invoice-attempt-status-sent {
+  color: #d0f0df;
+  background: rgba(56, 111, 84, 0.2);
+  border-color: rgba(56, 111, 84, 0.32);
+}
+
+body.theme-black .invoice-status-badge-send_failed {
+  color: #ffd9c6;
+  background: rgba(146, 94, 61, 0.22);
+  border-color: rgba(146, 94, 61, 0.34);
 }
