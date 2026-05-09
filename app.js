@@ -8221,6 +8221,7 @@ function getRuntimeUiTexts() {
     complianceExpiringStatusExpired: "Expired",
     complianceExpiringStatusToday: "Today",
     complianceExpiringStatusDays: "{count} days",
+    complianceExpiringCollapsibleTitle: "Expiring documents (click to expand)",
     workerInsightsNoDays: "No days.",
     labelDaysCount: "{count} days",
     workerInsightsMonthlyTitle: "Monthly evaluation",
@@ -9034,6 +9035,7 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Abgelaufen",
       complianceExpiringStatusToday: "Heute",
       complianceExpiringStatusDays: "{count} Tage",
+      complianceExpiringCollapsibleTitle: "Ablaufende Dokumente (zum Erweitern klicken)",
       workerInsightsNoDays: "Keine Tage.",
       labelDaysCount: "{count} Tage",
       workerInsightsMonthlyTitle: "Monatsauswertung",
@@ -16915,6 +16917,36 @@ function renderSystemAlertBanner(loggedIn) {
   }
 }
 
+// ── Collapsible Section Toggle ────────────────────────────────────────────
+function toggleSection(sectionId) {
+  const contentEl = document.getElementById(sectionId);
+  const toggleEl = document.getElementById(`${sectionId}-toggle`);
+  if (!contentEl) return;
+
+  const isCollapsed = contentEl.classList.contains("collapsed");
+  if (isCollapsed) {
+    contentEl.classList.remove("collapsed");
+    if (toggleEl) toggleEl.classList.remove("collapsed");
+    localStorage.setItem(`section_${sectionId}_collapsed`, "0");
+  } else {
+    contentEl.classList.add("collapsed");
+    if (toggleEl) toggleEl.classList.add("collapsed");
+    localStorage.setItem(`section_${sectionId}_collapsed`, "1");
+  }
+}
+
+function initCollapsibleSections(sectionIds = []) {
+  sectionIds.forEach((sectionId) => {
+    const isCollapsed = localStorage.getItem(`section_${sectionId}_collapsed`) === "1";
+    const contentEl = document.getElementById(sectionId);
+    const toggleEl = document.getElementById(`${sectionId}-toggle`);
+    if (isCollapsed) {
+      if (contentEl) contentEl.classList.add("collapsed");
+      if (toggleEl) toggleEl.classList.add("collapsed");
+    }
+  });
+}
+
 function renderCompliancePanel() {
   if (!elements.compliancePanel) return;
   const items = Array.isArray(state.complianceOverview) ? state.complianceOverview : [];
@@ -16959,6 +16991,7 @@ function renderCompliancePanel() {
   if (!items.length) {
     const emptyMarkup = `<div class="card-item"><p class="muted">${escapeHtml(runtimeText("complianceEmpty"))}</p></div>`;
     elements.compliancePanel.innerHTML = `${emptyMarkup}${expiringDocsMarkup}`;
+    initCollapsibleSections(['complianceExpiringContent']);
     return;
   }
   elements.compliancePanel.innerHTML = items.map((company) => {
@@ -16974,7 +17007,16 @@ function renderCompliancePanel() {
         ${criticalWorkers.length ? `<div class="meta-box">${criticalWorkers.map((worker) => `<span>• ${escapeHtml(worker.name || runtimeText("complianceWorkerFallback"))}: ${Object.entries(worker.docs || {}).filter(([, value]) => value !== "ok").map(([key, value]) => `${escapeHtml(key)}=${escapeHtml(value)}`).join(", ")}</span>`).join("")}</div>` : `<p class="helper-text helper-text-ok">${escapeHtml(runtimeText("complianceNoCriticalGaps"))}</p>`}
       </article>
     `;
-  }).join("") + expiringDocsMarkup;
+  }).join("") + (expiringDocsMarkup ? `
+    <div class="collapsible-section-header" onclick="toggleSection('complianceExpiringContent')">
+      <div style="flex: 1;">📅 ${escapeHtml(runtimeText("complianceExpiringCollapsibleTitle"))}</div>
+      <span id="complianceExpiringContent-toggle" class="collapsible-toggle-icon">▶</span>
+    </div>
+    <div id="complianceExpiringContent" class="collapsible-section-content">
+      ${expiringDocsMarkup}
+    </div>
+  ` : "");
+  initCollapsibleSections(['complianceExpiringContent']);
 }
 
 function renderAuditLogPanel(filterText) {
@@ -17001,15 +17043,24 @@ function renderAuditLogPanel(filterText) {
   };
   if (!logs.length) {
     elements.auditLogPanel.innerHTML = `
-      <div style="margin-bottom:10px;">
+      <div class="collapsible-section-header" onclick="toggleSection('auditLogContent')">
+        <div style="flex: 1;">Suche</div>
+        <span id="auditLogContent-toggle" class="collapsible-toggle-icon">▶</span>
+      </div>
+      <div id="auditLogContent" class="collapsible-section-content" style="margin-bottom:10px;">
         <input id="auditLogSearch" class="form-input" placeholder="🔍 Suche…" style="max-width:320px;" value="${escapeHtml(query)}" oninput="renderAuditLogPanel()" />
       </div>
       <div class="card-item"><p class="muted">${escapeHtml(runtimeText("auditLogEmpty"))}</p></div>`;
+    initCollapsibleSections(['auditLogContent']);
     return;
   }
   elements.auditLogPanel.innerHTML = `
-    <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <input id="auditLogSearch" class="form-input" placeholder="🔍 Suche…" style="max-width:300px;" value="${escapeHtml(query)}" oninput="renderAuditLogPanel()" />
+    <div class="collapsible-section-header" onclick="toggleSection('auditLogContent')">
+      <div style="flex: 1;">🔍 Suche & Filter</div>
+      <span id="auditLogContent-toggle" class="collapsible-toggle-icon">▶</span>
+    </div>
+    <div id="auditLogContent" class="collapsible-section-content" style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input id="auditLogSearch" class="form-input" placeholder="Suche nach Ereignis, Rolle…" style="flex: 1; min-width:200px;" value="${escapeHtml(query)}" oninput="renderAuditLogPanel()" />
       <span class="muted" style="font-size:0.84em;">${escapeHtml(runtimeTextTemplate("auditLogEntriesCount", { count: logs.length }))}</span>
     </div>
     <article class="card-item">

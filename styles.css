@@ -4217,6 +4217,54 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   margin: 6px 0 0;
 }
 
+/* ── Collapsible Sections ────────────────────────────────────────── */
+.collapsible-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.collapsible-section-header:hover {
+  opacity: 0.8;
+}
+
+.collapsible-toggle-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.collapsible-toggle-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+.collapsible-section-content {
+  max-height: 10000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.collapsible-section-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+}
+
+body.theme-black .collapsible-toggle-icon {
+  color: #e2e8f0;
+}
+
 @media (max-width: 600px) {
   .worker-insights-toolbar {
     gap: 8px;
