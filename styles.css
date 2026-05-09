@@ -6847,3 +6847,80 @@ body.theme-black .gate-deny-neutral {
   border-color: rgba(159, 174, 195, 0.42) !important;
   background: rgba(68, 79, 96, 0.3) !important;
 }
+
+body.theme-black .invoice-ops-trend-item {
+  background: linear-gradient(160deg, rgba(26, 33, 45, 0.96), rgba(19, 25, 34, 0.94)) !important;
+  border-color: rgba(129, 173, 240, 0.2) !important;
+  color: #eef3ff !important;
+  box-shadow: 0 10px 24px rgba(3, 6, 12, 0.34) !important;
+}
+
+body.theme-black .invoice-ops-trend-head,
+body.theme-black .invoice-ops-trend-item strong,
+body.theme-black .invoice-ops-trend-item span,
+body.theme-black .invoice-ops-trend-item p {
+  color: #eef3ff !important;
+}
+
+body.theme-black .invoice-ops-trend-head {
+  font-size: 0.98rem !important;
+  line-height: 1.35 !important;
+}
+
+body.theme-black .hourly-grid {
+  gap: 8px !important;
+}
+
+body.theme-black .hour-row {
+  background: linear-gradient(160deg, rgba(28, 36, 49, 0.98), rgba(22, 30, 41, 0.96)) !important;
+  border-color: rgba(129, 173, 240, 0.16) !important;
+  color: #eef3ff !important;
+}
+
+body.theme-black .hour-row span,
+body.theme-black .hour-row strong,
+body.theme-black .hour-row div {
+  color: #eef3ff !important;
+  font-size: 0.95rem !important;
+  line-height: 1.45 !important;
+}
+
+body.theme-black .hour-row .summary-visitor-pill {
+  background: rgba(129, 173, 240, 0.16) !important;
+  color: #f4f7ff !important;
+}
+
+body.theme-black .warning-item {
+  background: linear-gradient(160deg, rgba(26, 33, 45, 0.96), rgba(19, 25, 34, 0.94)) !important;
+  border-color: rgba(129, 173, 240, 0.16) !important;
+  color: #eef3ff !important;
+}
+
+body.theme-black .warning-item.severity-green {
+  border-left-color: rgba(110, 231, 183, 0.9) !important;
+}
+
+body.theme-black .warning-item.severity-yellow {
+  border-left-color: rgba(252, 211, 77, 0.95) !important;
+}
+
+body.theme-black .warning-item.severity-red {
+  border-left-color: rgba(248, 113, 113, 0.95) !important;
+  background: linear-gradient(160deg, rgba(46, 24, 28, 0.98), rgba(28, 18, 22, 0.96)) !important;
+}
+
+body.theme-black .warning-item,
+body.theme-black .warning-item strong,
+body.theme-black .warning-item span,
+body.theme-black .warning-item p {
+  color: #eef3ff !important;
+  font-size: 0.95rem !important;
+  line-height: 1.5 !important;
+}
+
+body.theme-black .warning-item .summary-visitor-pill,
+body.theme-black .warning-item .invoice-ops-error-chip {
+  background: rgba(129, 173, 240, 0.14) !important;
+  color: #f4f7ff !important;
+  border-color: rgba(129, 173, 240, 0.24) !important;
+}
