@@ -6567,6 +6567,35 @@ body.theme-black .invoice-status-badge-sent {
   border-color: rgba(93, 127, 170, 0.3);
 }
 
+/* Ultra pass: stronger glow only on dark interactive buttons */
+body.theme-black .primary-button,
+body.theme-black .ghost-button,
+body.theme-black .dashboard-worker-detail .button-row .primary-button,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button,
+body.theme-black .invoice-toolbar .ghost-button,
+body.theme-black .invoice-quick-filters .ghost-button,
+body.theme-black .invoice-toolbar-refresh {
+  box-shadow:
+    0 10px 24px rgba(6, 10, 18, 0.44),
+    0 0 0 1px rgba(129, 173, 240, 0.2),
+    0 0 22px rgba(243, 146, 86, 0.18),
+    0 0 16px rgba(93, 135, 232, 0.16);
+}
+
+body.theme-black .primary-button:hover,
+body.theme-black .ghost-button:hover,
+body.theme-black .dashboard-worker-detail .button-row .primary-button:hover,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:hover,
+body.theme-black .invoice-toolbar .ghost-button:hover,
+body.theme-black .invoice-quick-filters .ghost-button:hover,
+body.theme-black .invoice-toolbar-refresh:hover {
+  box-shadow:
+    0 14px 30px rgba(6, 10, 18, 0.54),
+    0 0 0 1px rgba(129, 173, 240, 0.34),
+    0 0 30px rgba(243, 146, 86, 0.28),
+    0 0 24px rgba(93, 135, 232, 0.24);
+}
+
 body.theme-black .invoice-status-badge-overdue,
 body.theme-black .invoice-attempt-status-failed {
   color: #ffd5cf;

@@ -2988,3 +2988,50 @@ body {
   box-shadow: 0 12px 26px rgba(8, 14, 29, 0.44);
 }
 
+/* Ultra pass: stronger glow only on dark interactive buttons */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .primary,
+  html:not([data-theme="light"]) .quick-menu-btn,
+  html:not([data-theme="light"]) .worker-menu-btn,
+  html:not([data-theme="light"]) .site-map-link {
+    box-shadow:
+      0 12px 28px rgba(6, 10, 18, 0.48),
+      0 0 0 1px rgba(129, 173, 240, 0.2),
+      0 0 22px rgba(243, 146, 86, 0.18),
+      0 0 16px rgba(93, 135, 232, 0.16);
+  }
+
+  html:not([data-theme="light"]) .primary:hover,
+  html:not([data-theme="light"]) .quick-menu-btn:hover,
+  html:not([data-theme="light"]) .worker-menu-btn:hover,
+  html:not([data-theme="light"]) .site-map-link:hover {
+    box-shadow:
+      0 16px 34px rgba(6, 10, 18, 0.56),
+      0 0 0 1px rgba(129, 173, 240, 0.34),
+      0 0 30px rgba(243, 146, 86, 0.28),
+      0 0 24px rgba(93, 135, 232, 0.24);
+  }
+}
+
+[data-theme="dark"] .primary,
+[data-theme="dark"] .quick-menu-btn,
+[data-theme="dark"] .worker-menu-btn,
+[data-theme="dark"] .site-map-link {
+  box-shadow:
+    0 12px 28px rgba(6, 10, 18, 0.48),
+    0 0 0 1px rgba(129, 173, 240, 0.2),
+    0 0 22px rgba(243, 146, 86, 0.18),
+    0 0 16px rgba(93, 135, 232, 0.16);
+}
+
+[data-theme="dark"] .primary:hover,
+[data-theme="dark"] .quick-menu-btn:hover,
+[data-theme="dark"] .worker-menu-btn:hover,
+[data-theme="dark"] .site-map-link:hover {
+  box-shadow:
+    0 16px 34px rgba(6, 10, 18, 0.56),
+    0 0 0 1px rgba(129, 173, 240, 0.34),
+    0 0 30px rgba(243, 146, 86, 0.28),
+    0 0 24px rgba(93, 135, 232, 0.24);
+}
+
