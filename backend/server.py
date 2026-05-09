@@ -4287,9 +4287,10 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     company_mail_settings = get_company_mail_settings(db, company_id)
     
     # Get global settings for branding/footer
-    global_settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
-    if not global_settings:
+    global_settings_row = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    if not global_settings_row:
         return False, "Global settings nicht konfiguriert"
+    global_settings = dict(global_settings_row)
     
     # Use company mail settings, or fall back to global SMTP settings
     smtp_sender = (company_mail_settings.get("sender_email") or global_settings.get("smtp_sender_email") or "").strip()
@@ -4300,16 +4301,16 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
 
     platform_name = str(global_settings["platform_name"] or "BauPass").strip()
     primary_color = str(global_settings["invoice_primary_color"] or "#0f4c5c").strip()
-    accent_color = str(global_settings["invoice_accent_color"] if "invoice_accent_color" in global_settings.keys() else "#e36414").strip() or "#e36414"
+    accent_color = str(global_settings.get("invoice_accent_color") or "#e36414").strip() or "#e36414"
     operator_name = str(global_settings["operator_name"] or platform_name).strip()
-    operator_phone = str((global_settings["invoice_operator_phone"] if "invoice_operator_phone" in global_settings.keys() else None) or "").strip()
-    operator_email_addr = str((global_settings["invoice_operator_email"] if "invoice_operator_email" in global_settings.keys() else None) or "").strip()
-    operator_website = str((global_settings["invoice_operator_website"] if "invoice_operator_website" in global_settings.keys() else None) or "").strip()
-    operator_street = str((global_settings["invoice_operator_street"] if "invoice_operator_street" in global_settings.keys() else None) or "").strip()
-    operator_zip_city = str((global_settings["invoice_operator_zip_city"] if "invoice_operator_zip_city" in global_settings.keys() else None) or "").strip()
-    iban = str((global_settings["invoice_iban"] if "invoice_iban" in global_settings.keys() else None) or "").strip()
-    bic = str((global_settings["invoice_bic"] if "invoice_bic" in global_settings.keys() else None) or "").strip()
-    bank_name = str((global_settings["invoice_bank_name"] if "invoice_bank_name" in global_settings.keys() else None) or "").strip()
+    operator_phone = str(global_settings.get("invoice_operator_phone") or "").strip()
+    operator_email_addr = str(global_settings.get("invoice_operator_email") or "").strip()
+    operator_website = str(global_settings.get("invoice_operator_website") or "").strip()
+    operator_street = str(global_settings.get("invoice_operator_street") or "").strip()
+    operator_zip_city = str(global_settings.get("invoice_operator_zip_city") or "").strip()
+    iban = str(global_settings.get("invoice_iban") or "").strip()
+    bic = str(global_settings.get("invoice_bic") or "").strip()
+    bank_name = str(global_settings.get("invoice_bank_name") or "").strip()
 
     stage_label = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung – Sperrung droht"}.get(stage, "Zahlungserinnerung")
     due_label = invoice_row["due_date"] or "-"
@@ -5298,24 +5299,35 @@ def run_invoice_dunning_cycle(db):
 def create_system_alert(db, code, severity, message, details="", dedup_minutes=ALERT_DEDUP_MINUTES):
     details_text = details if isinstance(details, str) else json.dumps(details, ensure_ascii=False)
     threshold = utc_iso(utc_now() - timedelta(minutes=dedup_minutes))
-    recent = db.execute(
-        """
-        SELECT id
-        FROM system_alerts
-        WHERE code = ? AND severity = ? AND message = ? AND created_at >= ?
-        ORDER BY created_at DESC
-        LIMIT 1
-        """,
-        (code, severity, message, threshold),
-    ).fetchone()
+    try:
+        recent = db.execute(
+            """
+            SELECT id
+            FROM system_alerts
+            WHERE code = ? AND severity = ? AND message = ? AND created_at >= ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (code, severity, message, threshold),
+        ).fetchone()
+    except sqlite3.OperationalError as exc:
+        # During very early startup a background task can run before schema bootstrap.
+        if "no such table: system_alerts" in str(exc).lower():
+            return None
+        raise
     if recent:
         return None
 
     alert_id = f"alert-{secrets.token_hex(6)}"
-    db.execute(
-        "INSERT INTO system_alerts (id, code, severity, message, details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (alert_id, code, severity, message, details_text, now_iso()),
-    )
+    try:
+        db.execute(
+            "INSERT INTO system_alerts (id, code, severity, message, details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (alert_id, code, severity, message, details_text, now_iso()),
+        )
+    except sqlite3.OperationalError as exc:
+        if "no such table: system_alerts" in str(exc).lower():
+            return None
+        raise
     db.commit()
     return alert_id
 
