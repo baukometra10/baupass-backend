@@ -4128,7 +4128,26 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
         if ok:
             app.logger.info(f"[DUNNING] Mahnung via {provider or 'API'} erfolgreich versendet")
             return True, ""
-        app.logger.warning(f"[DUNNING] API-Versand ({provider}) fehlgeschlagen ({err}), Fallback zu SMTP")
+        api_error_text = str(err or "")
+        # Avoid noisy SMTP fallback loops if Brevo is present but clearly misconfigured.
+        if (
+            provider == "brevo"
+            and not resend_key
+            and (
+                "brevo_invalid_api_key_format" in api_error_text
+                or "brevo_missing_from_email" in api_error_text
+            )
+        ):
+            app.logger.warning(
+                f"[DUNNING] API-Versand ({provider}) fehlgeschlagen ({api_error_text}); "
+                "SMTP-Fallback wird bei diesem Konfigurationsfehler uebersprungen"
+            )
+            return False, f"API Konfigurationsfehler: {api_error_text}"
+        if not api_fallback_warning_logged:
+            app.logger.warning(f"[DUNNING] API-Versand ({provider}) fehlgeschlagen ({err}), Fallback zu SMTP")
+            api_fallback_warning_logged = True
+        else:
+            app.logger.info(f"[DUNNING] API-Versand fehlgeschlagen ({provider}); SMTP-Fallback wird fuer weitere Faelle weiterverwendet")
 
     # SMTP fallback
     smtp_host = (settings_row["smtp_host"] or "").strip()
@@ -4167,10 +4186,12 @@ def send_payment_reminder_email(invoice_row, company_row, settings_row, stage, d
     except Exception as smtp_exc:
         on_invoice_send_failure_update_circuit(str(smtp_exc))
         if is_smtp_auth_disabled_error(str(smtp_exc)):
-            app.logger.warning(
-                "[DUNNING] SMTP AUTH ist fuer dieses Outlook-Postfach deaktiviert (5.7.139). "
-                "API-Versand wird empfohlen."
-            )
+            if not smtp_auth_warning_logged:
+                app.logger.warning(
+                    "[DUNNING] SMTP AUTH ist fuer dieses Outlook-Postfach deaktiviert (5.7.139). "
+                    "API-Versand wird empfohlen."
+                )
+                smtp_auth_warning_logged = True
         return False, f"SMTP Fehler: {smtp_exc}"
 
 
@@ -4892,6 +4913,8 @@ def run_invoice_dunning_cycle(db):
         "reminderFailures": 0,
         "overdueUpdated": 0,
     }
+    api_fallback_warning_logged = False
+    smtp_auth_warning_logged = False
 
     for row in rows:
             if row["company_deleted_at"]:
@@ -18049,6 +18072,16 @@ def _imap_login_with_fallback(conn, username, password):
             raise Exception(f"{login_exc} (LOGIN) | {plain_exc} (AUTH PLAIN)")
 
 
+def _imap_auth_hint(host, error_text):
+    lower_host = str(host or "").lower()
+    lower_error = str(error_text or "").lower()
+    if not any(marker in lower_host for marker in ["outlook", "office365", "hotmail", "live"]):
+        return ""
+    if "login failed" in lower_error or "authentication" in lower_error or "auth plain" in lower_error:
+        return " (Outlook IMAP lehnt die Anmeldung ab: pruefe Passwort/App-Passwort und ob IMAP fuer das Postfach aktiviert ist)"
+    return ""
+
+
 def poll_imap_inbox():
     """Pollt das konfigurierte IMAP-Postfach und speichert neue Mails in email_inbox.
 
@@ -18128,6 +18161,8 @@ def poll_imap_inbox():
                 if conn is None and last_exc is not None:
                     raise last_exc
             except Exception as exc:
+                error_text = str(exc)
+                hint = _imap_auth_hint(host, error_text)
                 emit_structured_log(
                     "imap_poll_connect_error",
                     level=logging.WARNING,
@@ -18135,16 +18170,16 @@ def poll_imap_inbox():
                     host=host,
                     port=port,
                     ssl=use_ssl,
-                    error=str(exc),
+                    error=f"{error_text}{hint}",
                 )
-                _result = {"status": "connect_error", "newEmails": 0, "error": str(exc)}
+                _result = {"status": "connect_error", "newEmails": 0, "error": f"{error_text}{hint}"}
                 try:
                     create_system_alert(
                         db,
                         code="imap_connect_failed",
                         severity="warning",
-                        message="IMAP-Verbindung fehlgeschlagen.",
-                        details={"error": str(exc)},
+                        message="IMAP-Verbindung fehlgeschlagen." + hint,
+                        details={"error": error_text, "hint": hint.strip(), "host": host, "port": port},
                     )
                     db.commit()
                 except Exception:

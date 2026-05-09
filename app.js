@@ -16122,6 +16122,7 @@ async function loadAllData() {
     state.complianceExpiringDocs = Array.isArray(complianceExpiringDocs.value?.items) ? complianceExpiringDocs.value.items : [];
   } else {
     state.complianceExpiringDocs = [];
+  }
   state.auditLogPageSize = 50;
 
   if (auditLogs.status === "fulfilled") {
@@ -18299,6 +18300,9 @@ function renderCompanyList() {
       const brandingPreset = getCompanyBrandingPreset(company);
       const turnstiles = Array.isArray(state.companyTurnstiles?.[companyId]) ? state.companyTurnstiles[companyId] : [];
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
+      const docEmailSelftestStatusMarkup = docEmailSelftestStatus
+        ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>${docEmailSelftestStatus.testedAt ? `<p class="helper-text">${escapeHtml(runtimeText("companyDocEmailSelftestLastTestedLabel"))}: ${escapeHtml(formatClockTime(docEmailSelftestStatus.testedAt))}</p>` : ""}`
+        : "";
       const historyMarkup = repairHistory.length
         ? repairHistory
             .map((entry) => `<span>• ${escapeHtml(formatTimestamp(entry.created_at))}: ${escapeHtml(entry.message || runtimeText("repairExecutedFallback"))}</span>`)
@@ -18321,7 +18325,7 @@ function renderCompanyList() {
             <button type="button" class="ghost-button small-button" data-company-doc-email-selftest="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailSelftestBtn"))}</button>
             <button type="button" class="ghost-button small-button" data-company-doc-email-copy="${escapeHtml(companyId)}" ${documentEmail ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailCopyBtn"))}</button>
           </div>
-          ${docEmailSelftestStatus ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>${docEmailSelftestStatus.testedAt ? `<p class="helper-text">${escapeHtml(runtimeText("companyDocEmailSelftestLastTestedLabel"))}: ${escapeHtml(formatClockTime(docEmailSelftestStatus.testedAt))}</p>` : ""}` : ""}
+          ${docEmailSelftestStatusMarkup}
           <p><strong>${escapeHtml(runtimeText("companyInvoiceMailLanguageLabel"))}:</strong> ${escapeHtml(({ de: runtimeText("companyInvoiceLangGerman"), en: runtimeText("companyInvoiceLangEnglish"), fr: runtimeText("companyInvoiceLangFrench"), tr: runtimeText("companyInvoiceLangTurkish"), ar: runtimeText("companyInvoiceLangArabic"), es: runtimeText("companyInvoiceLangSpanish"), it: runtimeText("companyInvoiceLangItalian"), pl: runtimeText("companyInvoiceLangPolish") }[company.invoiceEmailLang || company.invoice_email_lang] || runtimeText("companyInvoiceLangGerman")))}</p>
           <p><strong>${escapeHtml(runtimeText("companyBillingAddressLabel"))}:</strong> ${escapeHtml([company.billingStreet || company.billing_street || "", company.billingZipCity || company.billing_zip_city || ""].filter(Boolean).join(", ") || "-")}</p>
           ${(() => {
