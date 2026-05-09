@@ -14653,6 +14653,10 @@ function getSubcompanyLabel(worker) {
   return sub?.name || "";
 }
 
+function getWorkerCompanyId(worker) {
+  return String(worker?.companyId || worker?.company_id || "").trim();
+}
+
 function isVisitorWorker(worker) {
   return String(worker?.workerType || worker?.worker_type || "worker").toLowerCase() === "visitor";
 }
@@ -20758,7 +20762,8 @@ function renderAdminSettingsForm() {
 function showWorkerDetailOverlay(worker) {
   const overlay = document.getElementById("workerDetailOverlay");
   if (!overlay) return;
-  const company = state.companies.find((entry) => entry.id === worker.companyId);
+  const workerCompanyId = getWorkerCompanyId(worker);
+  const company = state.companies.find((entry) => entry.id === workerCompanyId);
   const subcompanyLabel = getSubcompanyLabel(worker);
   const role = String(getCurrentUser()?.role || "").toLowerCase();
   const readOnly = isSupportReadOnlyMode();
@@ -21258,7 +21263,8 @@ function renderBadge() {
   }
 
   state.selectedWorkerId = worker.id;
-  const company = state.companies.find((entry) => entry.id === worker.companyId);
+  const workerCompanyId = getWorkerCompanyId(worker);
+  const company = state.companies.find((entry) => entry.id === workerCompanyId);
   const subcompanyLabel = getSubcompanyLabel(worker);
   const qrId = `badge-card-qr-${worker.id}`;
   const visitor = isVisitorWorker(worker);
@@ -21353,7 +21359,7 @@ function renderBadge() {
   if (elements.badgeActionRow) elements.badgeActionRow.style.display = "";
 
   if (elements.printBadgeButton) {
-    elements.printBadgeButton.onclick = () => printBadge(worker, state.companies.find(c => c.id === worker.companyId));
+    elements.printBadgeButton.onclick = () => printBadge(worker, state.companies.find(c => c.id === getWorkerCompanyId(worker)));
   }
 
   if (elements.appLinkBadgeButton) {
@@ -21504,7 +21510,7 @@ function renderDashboardPorterLivePanel() {
   }
 
   const worker = state.workers.find((entry) => entry.id === latest.workerId) || null;
-  const company = worker ? state.companies.find((entry) => entry.id === worker.companyId) : null;
+  const company = worker ? state.companies.find((entry) => entry.id === getWorkerCompanyId(worker)) : null;
   const subcompanyLabel = getSubcompanyLabel(worker);
   const directionLabel = latest.direction === "check-in"
     ? runtimeText("dashboardDirectionCheckin")
@@ -21757,7 +21763,8 @@ function renderDashboardWorkerDetail(worker, options = {}) {
   const detail = document.getElementById("dashboardWorkerDetail");
   if (!overlay || !detail) return;
   const sourceView = options.sourceView || getCurrentViewName();
-  const company = state.companies.find((entry) => entry.id === worker.companyId);
+  const workerCompanyId = getWorkerCompanyId(worker);
+  const company = state.companies.find((entry) => entry.id === workerCompanyId);
   const subcompanyLabel = getSubcompanyLabel(worker);
   const safePhoto = sanitizeImageSrc(worker.photoData, createAvatar(worker));
   const latestAccess = getLatestAccessForWorker(worker.id)
@@ -22626,7 +22633,7 @@ async function bookAccess(workerId, direction, gate, note, options = {}) {
 
 function showAccessFeedback(workerId, direction, gate, timestamp, options = {}) {
   const worker = state.workers.find((entry) => entry.id === workerId);
-  const company = worker ? state.companies.find((entry) => entry.id === worker.companyId) : null;
+  const company = worker ? state.companies.find((entry) => entry.id === getWorkerCompanyId(worker)) : null;
   const subcompanyLabel = getSubcompanyLabel(worker);
   const isError = Boolean(options.isError);
   const title = options.title || (direction === "check-in" ? runtimeText("accessFeedbackCheckinTitle") : runtimeText("accessFeedbackCheckoutTitle"));
