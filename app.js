@@ -748,9 +748,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Bau",
     optBrandingIndustry: "Industrie",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     navDevices: "Geräte",
     devicesEyebrow: "Hardware",
     devicesH3: "Smart-Boxen und OSDP-Geräte",
@@ -1569,9 +1569,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construction",
     optBrandingIndustry: "Industry",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Access granted",
     badgePinHint: "Badge login in the worker app only works with Badge-ID and this PIN. When editing you can set a new PIN here.",
     badgePinPlaceholder: "4 to 8 digits",
@@ -2317,9 +2317,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Insaat",
     optBrandingIndustry: "Sanayi",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Giriş onaylandı",
     badgePinHint: "Mitarbeiter uygulamasında rozet girişi yalnızca Badge-ID ve bu PIN ile çalışır. Düzenlerken buradan yeni bir PIN ayarlayabilirsiniz.",
     badgePinPlaceholder: "4 ila 8 rakam",
@@ -3089,9 +3089,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "إنشاءات",
     optBrandingIndustry: "صناعة",
     optBrandingPremium: "مميز",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "تم تسجيل الدخول",
     badgePinHint: "تسجيل الدخول بالبطاقة في تطبيق العمال يعمل فقط بـ Badge-ID وهذا الرمز السري. عند التعديل يمكنك تعيين رمز سري جديد هنا.",
     badgePinPlaceholder: "4 إلى 8 أرقام",
@@ -3861,9 +3861,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construction",
     optBrandingIndustry: "Industrie",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Accès accordé",
     badgePinHint: "La connexion par badge dans l'application travailleur ne fonctionne qu'avec le Badge-ID et ce code PIN. En modifiant, vous pouvez définir un nouveau code PIN ici.",
     badgePinPlaceholder: "4 à 8 chiffres",
@@ -4633,9 +4633,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construcción",
     optBrandingIndustry: "Industria",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Acceso registrado",
     badgePinHint: "El inicio de sesión por badge en la app del trabajador solo funciona con el Badge-ID y este PIN. Al editar puedes establecer un nuevo PIN aquí.",
     badgePinPlaceholder: "4 a 8 dígitos",
@@ -5397,9 +5397,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Costruzioni",
     optBrandingIndustry: "Industria",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Accesso registrato",
     badgePinHint: "Il login con badge nell'app lavoratori funziona solo con Badge-ID e questo PIN. In modifica puoi impostare un nuovo PIN qui.",
     badgePinPlaceholder: "da 4 a 8 cifre",
@@ -6169,9 +6169,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Budownictwo",
     optBrandingIndustry: "Przemysl",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (49 EUR)",
-    optPlanProfessional: "Professional (99 EUR)",
-    optPlanEnterprise: "Enterprise (199 EUR)",
+    optPlanStarter: "Starter (149 EUR/Monat)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Wejście zarejestrowane",
     badgePinHint: "Logowanie przez badge w aplikacji pracowników działa tylko z Badge-ID i tym kodem PIN. Podczas edycji możesz tu ustawić nowy PIN.",
     badgePinPlaceholder: "4 do 8 cyfr",
@@ -7570,6 +7570,8 @@ const state = {
   companyFilterQuery: "",
   companyTurnstiles: {},
   companyAdminSecurity: {},
+  companyMailSettings: {},
+  companyMailTestStatus: {},
   identityTokenByWorker: {},
   complianceOverview: [],
   complianceExpiringDocs: [],
@@ -14272,6 +14274,7 @@ function applySupportReadOnlyUiState() {
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
     "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
     "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
+    "[data-company-mail-provider], [data-company-mail-sender-email], [data-company-mail-sender-name], [data-company-mail-imap-host], [data-company-mail-imap-port], [data-company-mail-imap-username], [data-company-mail-imap-password], [data-company-mail-imap-tls], [data-company-mail-smtp-host], [data-company-mail-smtp-port], [data-company-mail-smtp-username], [data-company-mail-smtp-password], [data-company-mail-smtp-tls], [data-company-mail-brevo-key], [data-company-mail-save], [data-company-mail-test-inbound], [data-company-mail-test-outbound]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
 
@@ -14347,6 +14350,84 @@ function mapCompanyRepairError(error) {
     return runtimeText("companyHasWorkersError");
   }
   return message || "unbekannter_fehler";
+}
+
+const COMPANY_MAIL_PROVIDER_DEFAULTS = {
+  gmail: { imapHost: "imap.gmail.com", imapPort: 993, smtpHost: "smtp.gmail.com", smtpPort: 587 },
+  gmx: { imapHost: "imap.gmx.com", imapPort: 993, smtpHost: "mail.gmx.net", smtpPort: 587 },
+  outlook: { imapHost: "outlook.office365.com", imapPort: 993, smtpHost: "smtp.office365.com", smtpPort: 587 },
+  custom: { imapHost: "", imapPort: 993, smtpHost: "", smtpPort: 587 },
+};
+
+function normalizeCompanyMailProvider(provider) {
+  const normalized = String(provider || "gmail").trim().toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(COMPANY_MAIL_PROVIDER_DEFAULTS, normalized)) {
+    return normalized;
+  }
+  return "custom";
+}
+
+function getCompanyMailProviderDefaults(provider) {
+  return COMPANY_MAIL_PROVIDER_DEFAULTS[normalizeCompanyMailProvider(provider)] || COMPANY_MAIL_PROVIDER_DEFAULTS.custom;
+}
+
+function getCompanyMailSettingsForRender(companyId) {
+  const stored = state.companyMailSettings?.[companyId] || {};
+  const provider = normalizeCompanyMailProvider(stored.mailProvider || "gmail");
+  const defaults = getCompanyMailProviderDefaults(provider);
+  return {
+    companyId,
+    mailProvider: provider,
+    senderEmail: String(stored.senderEmail || ""),
+    senderName: String(stored.senderName || ""),
+    imapHost: String(stored.imapHost || defaults.imapHost || ""),
+    imapPort: Number(stored.imapPort || defaults.imapPort || 993),
+    imapUsername: String(stored.imapUsername || ""),
+    imapUseTls: Boolean(stored.imapUseTls !== false),
+    smtpHost: String(stored.smtpHost || defaults.smtpHost || ""),
+    smtpPort: Number(stored.smtpPort || defaults.smtpPort || 587),
+    smtpUsername: String(stored.smtpUsername || ""),
+    smtpUseTls: Boolean(stored.smtpUseTls !== false),
+    imapPasswordConfigured: Boolean(stored.imapPasswordConfigured),
+    smtpPasswordConfigured: Boolean(stored.smtpPasswordConfigured),
+    brevoApiKeyConfigured: Boolean(stored.brevoApiKeyConfigured),
+    testInboundStatus: String(stored.testInboundStatus || "pending"),
+    testOutboundStatus: String(stored.testOutboundStatus || "pending"),
+    lastTestInbound: String(stored.lastTestInbound || ""),
+    lastTestOutbound: String(stored.lastTestOutbound || ""),
+  };
+}
+
+function applyCompanyMailProviderToCardInputs(companyId, provider) {
+  const defaults = getCompanyMailProviderDefaults(provider);
+  const hostImap = document.querySelector(`[data-company-mail-imap-host="${companyId}"]`);
+  const portImap = document.querySelector(`[data-company-mail-imap-port="${companyId}"]`);
+  const hostSmtp = document.querySelector(`[data-company-mail-smtp-host="${companyId}"]`);
+  const portSmtp = document.querySelector(`[data-company-mail-smtp-port="${companyId}"]`);
+  if (hostImap && defaults.imapHost) hostImap.value = defaults.imapHost;
+  if (portImap && defaults.imapPort) portImap.value = String(defaults.imapPort);
+  if (hostSmtp && defaults.smtpHost) hostSmtp.value = defaults.smtpHost;
+  if (portSmtp && defaults.smtpPort) portSmtp.value = String(defaults.smtpPort);
+}
+
+function readCompanyMailSettingsFromCard(companyId) {
+  const pick = (name) => document.querySelector(`[data-company-mail-${name}="${companyId}"]`);
+  return {
+    mailProvider: normalizeCompanyMailProvider(pick("provider")?.value || "gmail"),
+    senderEmail: String(pick("sender-email")?.value || "").trim(),
+    senderName: String(pick("sender-name")?.value || "").trim(),
+    imapHost: String(pick("imap-host")?.value || "").trim(),
+    imapPort: Number(pick("imap-port")?.value || 993),
+    imapUsername: String(pick("imap-username")?.value || "").trim(),
+    imapPassword: String(pick("imap-password")?.value || ""),
+    imapUseTls: Boolean(pick("imap-tls")?.checked),
+    smtpHost: String(pick("smtp-host")?.value || "").trim(),
+    smtpPort: Number(pick("smtp-port")?.value || 587),
+    smtpUsername: String(pick("smtp-username")?.value || "").trim(),
+    smtpPassword: String(pick("smtp-password")?.value || ""),
+    smtpUseTls: Boolean(pick("smtp-tls")?.checked),
+    brevoApiKey: String(pick("brevo-key")?.value || "").trim(),
+  };
 }
 
 function getCompanyStatusMeta(status) {
@@ -16152,9 +16233,10 @@ async function loadAllData() {
 
   state.companyTurnstiles = {};
   state.companyAdminSecurity = {};
+  state.companyMailSettings = {};
   if (companies.status === "fulfilled" && ["superadmin", "company-admin"].includes(String(state.currentUser?.role || ""))) {
     const visibleCompanies = (companies.value || []).filter((company) => !company.deleted_at);
-    const [turnstileRequests, securityRequests] = await Promise.all([
+    const [turnstileRequests, securityRequests, companyMailRequests] = await Promise.all([
       Promise.allSettled(
         visibleCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/turnstiles`))
       ),
@@ -16163,12 +16245,41 @@ async function loadAllData() {
             visibleCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/admin-security`))
           )
         : Promise.resolve(visibleCompanies.map(() => ({ status: "skipped" }))),
+      Promise.allSettled(
+        visibleCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/mail-settings`))
+      ),
     ]);
     visibleCompanies.forEach((company, index) => {
       const result = turnstileRequests[index];
       state.companyTurnstiles[company.id] = result?.status === "fulfilled" && Array.isArray(result.value)
         ? result.value
         : [];
+
+      const mailResult = companyMailRequests[index];
+      state.companyMailSettings[company.id] = mailResult?.status === "fulfilled" && mailResult.value
+        ? mailResult.value
+        : {
+            companyId: company.id,
+            mailProvider: "gmail",
+            imapHost: "imap.gmail.com",
+            imapPort: 993,
+            imapUsername: "",
+            imapUseTls: true,
+            smtpHost: "smtp.gmail.com",
+            smtpPort: 587,
+            smtpUsername: "",
+            smtpUseTls: true,
+            senderEmail: "",
+            senderName: "",
+            imapPasswordConfigured: false,
+            smtpPasswordConfigured: false,
+            brevoApiKeyConfigured: false,
+            testInboundStatus: "pending",
+            testOutboundStatus: "pending",
+            lastTestInbound: "",
+            lastTestOutbound: "",
+          };
+
       if (state.currentUser?.role === "superadmin") {
         const sec = securityRequests[index];
         state.companyAdminSecurity[company.id] = sec?.status === "fulfilled" ? sec.value : null;
@@ -18304,6 +18415,14 @@ function renderCompanyList() {
       const customerNumber = getCompanyCustomerNumber(company);
       const brandingPreset = getCompanyBrandingPreset(company);
       const turnstiles = Array.isArray(state.companyTurnstiles?.[companyId]) ? state.companyTurnstiles[companyId] : [];
+      const companyMail = getCompanyMailSettingsForRender(companyId);
+      const canManageMail = canRepair && !deleted;
+      const companyMailStatus = state.companyMailTestStatus?.[companyId] || null;
+      const companyMailStatusClass = companyMailStatus?.kind === "error"
+        ? "helper-text helper-text-warning"
+        : companyMailStatus?.kind === "success"
+          ? "helper-text helper-text-ok"
+          : "helper-text helper-text-info";
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
       const docEmailSelftestStatusMarkup = docEmailSelftestStatus
         ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>${docEmailSelftestStatus.testedAt ? `<p class="helper-text">${escapeHtml(runtimeText("companyDocEmailSelftestLastTestedLabel"))}: ${escapeHtml(formatClockTime(docEmailSelftestStatus.testedAt))}</p>` : ""}`
@@ -18324,6 +18443,51 @@ function renderCompanyList() {
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
+          <div class="meta-box" style="margin-top:8px;">
+            <p><strong>Mail Settings</strong></p>
+            <div class="button-row" style="gap:6px;align-items:center;">
+              <label style="min-width:120px;">Provider</label>
+              <select data-company-mail-provider="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>
+                <option value="gmail" ${companyMail.mailProvider === "gmail" ? "selected" : ""}>Gmail</option>
+                <option value="gmx" ${companyMail.mailProvider === "gmx" ? "selected" : ""}>GMX</option>
+                <option value="outlook" ${companyMail.mailProvider === "outlook" ? "selected" : ""}>Outlook</option>
+                <option value="custom" ${companyMail.mailProvider === "custom" ? "selected" : ""}>Custom</option>
+              </select>
+            </div>
+            <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
+              <label style="min-width:120px;">Sender</label>
+              <input data-company-mail-sender-email="${escapeHtml(companyId)}" type="email" placeholder="sender@company.tld" value="${escapeAttr(companyMail.senderEmail)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="BauPass" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
+            </div>
+            <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
+              <label style="min-width:120px;">IMAP</label>
+              <input data-company-mail-imap-host="${escapeHtml(companyId)}" type="text" placeholder="imap.host" value="${escapeAttr(companyMail.imapHost)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-imap-port="${escapeHtml(companyId)}" type="number" min="1" max="65535" value="${escapeAttr(companyMail.imapPort)}" style="max-width:90px;" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-imap-username="${escapeHtml(companyId)}" type="text" placeholder="imap user" value="${escapeAttr(companyMail.imapUsername)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-imap-password="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.imapPasswordConfigured ? "Passwort gespeichert" : "Neues IMAP Passwort"}" ${canManageMail ? "" : "disabled"} />
+              <label><input data-company-mail-imap-tls="${escapeHtml(companyId)}" type="checkbox" ${companyMail.imapUseTls ? "checked" : ""} ${canManageMail ? "" : "disabled"} /> TLS</label>
+            </div>
+            <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
+              <label style="min-width:120px;">SMTP</label>
+              <input data-company-mail-smtp-host="${escapeHtml(companyId)}" type="text" placeholder="smtp.host" value="${escapeAttr(companyMail.smtpHost)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-smtp-port="${escapeHtml(companyId)}" type="number" min="1" max="65535" value="${escapeAttr(companyMail.smtpPort)}" style="max-width:90px;" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-smtp-username="${escapeHtml(companyId)}" type="text" placeholder="smtp user" value="${escapeAttr(companyMail.smtpUsername)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-smtp-password="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.smtpPasswordConfigured ? "Passwort gespeichert" : "Neues SMTP Passwort"}" ${canManageMail ? "" : "disabled"} />
+              <label><input data-company-mail-smtp-tls="${escapeHtml(companyId)}" type="checkbox" ${companyMail.smtpUseTls ? "checked" : ""} ${canManageMail ? "" : "disabled"} /> TLS</label>
+            </div>
+            <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
+              <label style="min-width:120px;">Brevo API</label>
+              <input data-company-mail-brevo-key="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.brevoApiKeyConfigured ? "API Key gespeichert" : "xkeysib-..."}" ${canManageMail ? "" : "disabled"} />
+            </div>
+            <div class="button-row" style="gap:6px;margin-top:8px;">
+              <button type="button" class="ghost-button small-button" data-company-mail-save="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>Speichern</button>
+              <button type="button" class="ghost-button small-button" data-company-mail-test-inbound="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>Test Inbound</button>
+              <button type="button" class="ghost-button small-button" data-company-mail-test-outbound="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>Test Outbound</button>
+            </div>
+            <p class="helper-text">Inbound: ${escapeHtml(companyMail.testInboundStatus)} ${companyMail.lastTestInbound ? `(${escapeHtml(formatClockTime(companyMail.lastTestInbound))})` : ""}</p>
+            <p class="helper-text">Outbound: ${escapeHtml(companyMail.testOutboundStatus)} ${companyMail.lastTestOutbound ? `(${escapeHtml(formatClockTime(companyMail.lastTestOutbound))})` : ""}</p>
+            ${companyMailStatus ? `<p class="${companyMailStatusClass}">${escapeHtml(companyMailStatus.message || "")}</p>` : ""}
+          </div>
           ${showDocEmailProviderHint ? `<p class="helper-text helper-text-warning">${escapeHtml(runtimeText("companyDocEmailProviderHint"))}</p>` : ""}
           <div class="button-row" style="margin-top:2px;">
             <button type="button" class="ghost-button small-button" data-company-doc-email-auto="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyDocEmailAutoBtn"))}</button>
@@ -18364,30 +18528,37 @@ function renderCompanyList() {
             ${historyMarkup}
           </div>
           ${repairStatus ? `<p class="${repairStatusClass}">${escapeHtml(repairStatus.message || "")}</p>` : ""}
-          <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionSettings"))}</span>
-              <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnCustomerNumber"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
-              ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
+          <details class="company-actions-details" style="margin-top:12px;">
+            <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8em;color:#374151;font-weight:600;padding:6px 8px;border-radius:6px;background:var(--surface,#f9fafb);border:1px solid var(--border,#e5e7eb);list-style:none;user-select:none;">
+              <span style="font-size:1.1em;">⚙️</span>
+              <span>${escapeHtml(runtimeText("companySectionSettings"))}</span>
+              <span class="details-arrow" style="margin-left:auto;font-size:0.9em;transition:transform 0.2s;">▼</span>
+            </summary>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:8px;border-radius:6px;background:var(--surface,#f9fafb);border:1px solid var(--border,#e5e7eb);">
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionSettings"))}</span>
+                <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnCustomerNumber"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
+                ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionAccess"))}</span>
+                <button type="button" class="ghost-button small-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnPasswordMail"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
+                <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
+                <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? escapeHtml(runtimeText("companyBtnLockSaving")) : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? escapeHtml(runtimeText("companyBtnUnlock")) : escapeHtml(runtimeText("companyBtnLock"))}</button>
+                <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? escapeHtml(runtimeText("companyBtnReviewDisable")) : escapeHtml(runtimeText("companyBtnReviewEnable"))}</button>
+                <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDelete"))}</button>
+              </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionAccess"))}</span>
-              <button type="button" class="ghost-button small-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnPasswordMail"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
-              <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
-              <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-              <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
-              <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? escapeHtml(runtimeText("companyBtnLockSaving")) : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? escapeHtml(runtimeText("companyBtnUnlock")) : escapeHtml(runtimeText("companyBtnLock"))}</button>
-              <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? escapeHtml(runtimeText("companyBtnReviewDisable")) : escapeHtml(runtimeText("companyBtnReviewEnable"))}</button>
-              <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDelete"))}</button>
-            </div>
-          </div>
+          </details>
           ${company.review_enabled && company.review_token ? `
           <div class="meta-box" style="background:rgba(253,251,210,0.6);border-color:#d4ac0d;margin-top:8px;">
             <p>${escapeHtml(runtimeText("companyReviewLinkActive"))}</p>
@@ -18499,6 +18670,13 @@ function bindCompanyRowActions() {
 
   elements.companyList.dataset.repairBound = "1";
   elements.companyList.addEventListener("change", (event) => {
+    const providerSelect = event.target.closest("[data-company-mail-provider]");
+    if (providerSelect && elements.companyList.contains(providerSelect)) {
+      const companyId = String(providerSelect.dataset.companyMailProvider || "").trim();
+      applyCompanyMailProviderToCardInputs(companyId, providerSelect.value);
+      return;
+    }
+
     const presetSelect = event.target.closest("[data-company-branding-select]");
     if (!presetSelect || !elements.companyList.contains(presetSelect)) {
       return;
@@ -18523,6 +18701,91 @@ function bindCompanyRowActions() {
   });
 
   elements.companyList.addEventListener("click", async (event) => {
+    const mailSaveButton = event.target.closest("[data-company-mail-save]");
+    if (mailSaveButton && !mailSaveButton.disabled && elements.companyList.contains(mailSaveButton)) {
+      const companyId = String(mailSaveButton.dataset.companyMailSave || "").trim();
+      if (!companyId) {
+        return;
+      }
+
+      const payload = readCompanyMailSettingsFromCard(companyId);
+      mailSaveButton.disabled = true;
+      state.companyMailTestStatus[companyId] = { kind: "info", message: "Mail-Einstellungen werden gespeichert..." };
+      renderCompanyList();
+      try {
+        const saved = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings`, {
+          method: "PUT",
+          body: payload,
+        });
+        state.companyMailSettings[companyId] = saved || state.companyMailSettings[companyId];
+        state.companyMailTestStatus[companyId] = { kind: "success", message: "Mail-Einstellungen gespeichert." };
+      } catch (error) {
+        state.companyMailTestStatus[companyId] = { kind: "error", message: `Speichern fehlgeschlagen: ${error.message}` };
+      }
+      renderCompanyList();
+      return;
+    }
+
+    const mailInboundButton = event.target.closest("[data-company-mail-test-inbound]");
+    if (mailInboundButton && !mailInboundButton.disabled && elements.companyList.contains(mailInboundButton)) {
+      const companyId = String(mailInboundButton.dataset.companyMailTestInbound || "").trim();
+      if (!companyId) {
+        return;
+      }
+
+      mailInboundButton.disabled = true;
+      state.companyMailTestStatus[companyId] = { kind: "info", message: "Inbound-Test laeuft..." };
+      renderCompanyList();
+      try {
+        const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings/test-inbound`, {
+          method: "POST",
+          body: {},
+        });
+        state.companyMailTestStatus[companyId] = result?.ok
+          ? { kind: "success", message: result.message || "Inbound-Test erfolgreich." }
+          : { kind: "error", message: result?.error || "Inbound-Test fehlgeschlagen." };
+        try {
+          state.companyMailSettings[companyId] = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings`);
+        } catch {
+          // keep current values on refresh error
+        }
+      } catch (error) {
+        state.companyMailTestStatus[companyId] = { kind: "error", message: `Inbound-Test fehlgeschlagen: ${error.message}` };
+      }
+      renderCompanyList();
+      return;
+    }
+
+    const mailOutboundButton = event.target.closest("[data-company-mail-test-outbound]");
+    if (mailOutboundButton && !mailOutboundButton.disabled && elements.companyList.contains(mailOutboundButton)) {
+      const companyId = String(mailOutboundButton.dataset.companyMailTestOutbound || "").trim();
+      if (!companyId) {
+        return;
+      }
+
+      mailOutboundButton.disabled = true;
+      state.companyMailTestStatus[companyId] = { kind: "info", message: "Outbound-Test laeuft..." };
+      renderCompanyList();
+      try {
+        const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings/test-outbound`, {
+          method: "POST",
+          body: {},
+        });
+        state.companyMailTestStatus[companyId] = result?.ok
+          ? { kind: "success", message: "Outbound-Test erfolgreich." }
+          : { kind: "error", message: result?.error || "Outbound-Test fehlgeschlagen." };
+        try {
+          state.companyMailSettings[companyId] = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings`);
+        } catch {
+          // keep current values on refresh error
+        }
+      } catch (error) {
+        state.companyMailTestStatus[companyId] = { kind: "error", message: `Outbound-Test fehlgeschlagen: ${error.message}` };
+      }
+      renderCompanyList();
+      return;
+    }
+
     const customerNumberButton = event.target.closest("[data-company-customer-number]");
     if (customerNumberButton && !customerNumberButton.disabled && elements.companyList.contains(customerNumberButton)) {
       const companyId = customerNumberButton.dataset.companyCustomerNumber;
