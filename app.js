@@ -16991,6 +16991,10 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const roleLabel = getWorkerCardRoleLabel(worker);
   const companyName = company?.name || uiT("badgeUnknownCompany");
   const companyPreset = getCompanyBrandingPreset(company);
+  const cardBrandName = (companyPreset === "industry" || companyPreset === "premium")
+    ? "KONTROLLPASS"
+    : String((state.settings?.platformName || "BAUPASS")).toUpperCase();
+  const subcompanyLine = subcompanyLabel ? `Subunternehmen: ${subcompanyLabel}` : "";
 
   return `
     <article class="wallet-card preset-${escapeHtml(companyPreset)}" data-status="${escapeHtml(normalizedStatus)}">
@@ -17008,7 +17012,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
             </svg>
           </div>
           <div class="wc-brand-text">
-            <span class="wc-brand-name">${escapeHtml((state.settings?.platformName || "CONTROL PASS").toUpperCase())}</span>
+            <span class="wc-brand-name">${escapeHtml(cardBrandName)}</span>
             <span class="wc-brand-sub">${escapeHtml(passSubLabel)}</span>
           </div>
         </div>
@@ -17046,9 +17050,9 @@ function buildPrintableWorkerCardMarkup(worker, company) {
             </div>
           </div>
           <div class="wc-right">
-            <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(worker.status === "gesperrt" ? runtimeText("workerStatusLocked") : worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : runtimeText("workerStatusActive"))}</div>
             <p class="wc-company">${escapeHtml(companyName)}</p>
-            <p class="wc-subcompany">${escapeHtml(subcompanyLabel || "-")}</p>
+            <p class="wc-subcompany${subcompanyLine ? "" : " hidden"}">${escapeHtml(subcompanyLine)}</p>
+            <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(worker.status === "gesperrt" ? runtimeText("workerStatusLocked") : worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : runtimeText("workerStatusActive"))}</div>
           </div>
         </div>
       </div>

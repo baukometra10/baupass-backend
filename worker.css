@@ -1202,12 +1202,13 @@ body.worker-loaded .app-shell {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
 }
 
 .wc-fields {
   display: flex;
-  gap: clamp(10px, 4%, 20px);
+  flex-direction: column;
+  gap: 6px;
 }
 
 .wc-field {
@@ -1228,16 +1229,16 @@ body.worker-loaded .app-shell {
   font-family: "Space Grotesk", monospace;
   font-size: clamp(.52rem, 1.9vw, .72rem);
   font-weight: 600;
-  color: rgba(255, 255, 255, .9);
+  color: rgba(255, 255, 255, .92);
   letter-spacing: .04em;
   line-height: 1;
 }
 
 .wc-field.wc-field-badge .wc-field-value {
-  font-size: clamp(.62rem, 2.2vw, .88rem);
-  font-weight: 700;
-  color: #fff7d6;
-  letter-spacing: .06em;
+  font-size: clamp(.72rem, 2.5vw, .96rem);
+  font-weight: 800;
+  color: #fff2bf;
+  letter-spacing: .07em;
 }
 
 .wc-right {
@@ -1245,33 +1246,7 @@ body.worker-loaded .app-shell {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
-}
-.wc-badge-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(255, 247, 214, .22);
-  border: 1px solid rgba(255, 247, 214, .5);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, .18);
-}
-.wc-badge-chip-label {
-  font-size: clamp(.38rem, 1.35vw, .5rem);
-  color: rgba(255, 255, 255, .58);
-  text-transform: uppercase;
-  letter-spacing: .12em;
-  line-height: 1;
-}
-.wc-badge-chip-value {
-  font-family: "Space Grotesk", monospace;
-  font-size: clamp(.78rem, 3.2vw, 1.08rem);
-  font-weight: 800;
-  color: #fff7d6;
-  letter-spacing: .08em;
-  line-height: 1;
+  gap: 4px;
 }
 
 .wc-status {
@@ -1309,29 +1284,33 @@ body.worker-loaded .app-shell {
 
 .wc-company {
   margin: 0;
-  font-size: clamp(.4rem, 1.45vw, .58rem);
-  color: rgba(255, 255, 255, .42);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  line-height: 1;
-}
-
-.wc-subcompany {
-  margin: 5px 0 0;
   max-width: 24ch;
-  padding: 6px 11px;
-  border-radius: 999px;
-  font-size: clamp(.48rem, 1.7vw, .7rem);
-  font-weight: 800;
-  color: #fff8dd;
-  background: linear-gradient(135deg, rgba(212, 168, 67, .32), rgba(212, 168, 67, .18));
-  border: 1px solid rgba(212, 168, 67, .62);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, .12);
-  letter-spacing: .04em;
-  line-height: 1;
+  font-size: clamp(.48rem, 1.8vw, .7rem);
+  color: rgba(255, 255, 255, .93);
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.12;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.wc-subcompany {
+  margin: 0;
+  max-width: 24ch;
+  font-size: clamp(.42rem, 1.55vw, .62rem);
+  color: rgba(255, 255, 255, .72);
+  font-weight: 600;
+  letter-spacing: .03em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wc-subcompany.hidden {
+  display: none;
 }
 
 /* ═══════════════════════════════════════════════

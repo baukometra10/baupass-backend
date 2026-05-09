@@ -3837,12 +3837,13 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
 }
 
 .badge-shell .wallet-card .wc-fields {
   display: flex;
-  gap: clamp(10px, 4%, 20px);
+  flex-direction: column;
+  gap: 6px;
 }
 
 .badge-shell .wallet-card .wc-field {
@@ -3863,16 +3864,16 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   font-family: "Space Grotesk", monospace;
   font-size: clamp(.52rem, 1.9vw, .72rem);
   font-weight: 600;
-  color: rgba(255, 255, 255, .9);
+  color: rgba(255, 255, 255, .92);
   letter-spacing: .04em;
   line-height: 1;
 }
 
 .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
-  font-size: clamp(.62rem, 2.2vw, .88rem);
-  font-weight: 700;
-  color: #fff7d6;
-  letter-spacing: .06em;
+  font-size: clamp(.72rem, 2.5vw, .96rem);
+  font-weight: 800;
+  color: #fff2bf;
+  letter-spacing: .07em;
 }
 
 .badge-shell .wallet-card .wc-right {
@@ -3880,7 +3881,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: 4px;
 }
 
 .badge-shell .wallet-card .wc-status {
@@ -3918,28 +3919,33 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 
 .badge-shell .wallet-card .wc-company {
   margin: 0;
-  font-size: clamp(.38rem, 1.4vw, .55rem);
-  color: rgba(255, 255, 255, .3);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  line-height: 1;
-}
-
-.badge-shell .wallet-card .wc-subcompany {
-  margin: 2px 0 0;
   max-width: 24ch;
-  padding: 4px 9px;
-  border-radius: 999px;
-  font-size: clamp(.42rem, 1.55vw, .62rem);
+  font-size: clamp(.48rem, 1.8vw, .7rem);
+  color: rgba(255, 255, 255, .93);
   font-weight: 700;
-  color: #fff6d0;
-  background: rgba(212, 168, 67, .24);
-  border: 1px solid rgba(212, 168, 67, .45);
-  letter-spacing: .03em;
-  line-height: 1;
+  letter-spacing: .05em;
+  line-height: 1.12;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.badge-shell .wallet-card .wc-subcompany {
+  margin: 0;
+  max-width: 24ch;
+  font-size: clamp(.42rem, 1.55vw, .62rem);
+  color: rgba(255, 255, 255, .72);
+  font-weight: 600;
+  letter-spacing: .03em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-shell .wallet-card .wc-subcompany.hidden {
+  display: none;
 }
 
 /* Badge action row (print / app-link buttons) */

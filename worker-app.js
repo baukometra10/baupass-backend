@@ -2881,8 +2881,8 @@ function renderWorker(payload) {
   
   // Determine app title based on company branding preset
   const appTitleMap = {
-    "industry": "KontrolPass",
-    "premium": "KontrolPass",
+    "industry": "Kontrollpass",
+    "premium": "Kontrollpass",
     "construction": "BauPass"
   };
   const appBrandTitle = appTitleMap[companyPreset] || platformName;
@@ -2925,10 +2925,15 @@ function renderWorker(payload) {
   if (elements.companyName) elements.companyName.textContent = company.name || t("companyFallback");
   if (elements.workerSubcompany) {
     const subcompanyName = String(subcompany.name || "").trim();
-    const displayName = subcompanyName || "-";
-    elements.workerSubcompany.textContent = tf("subcompanyPrefix", { name: displayName });
-    elements.workerSubcompany.title = tf("subcompanyTitle", { name: displayName });
-    elements.workerSubcompany.classList.remove("hidden");
+    if (subcompanyName) {
+      elements.workerSubcompany.textContent = `Subunternehmen: ${subcompanyName}`;
+      elements.workerSubcompany.title = `Subunternehmen: ${subcompanyName}`;
+      elements.workerSubcompany.classList.remove("hidden");
+    } else {
+      elements.workerSubcompany.textContent = "";
+      elements.workerSubcompany.title = "";
+      elements.workerSubcompany.classList.add("hidden");
+    }
   }
   if (elements.workerName) elements.workerName.textContent = `${worker.firstName || ""} ${worker.lastName || ""}`.trim();
   if (elements.workerRole) elements.workerRole.textContent = isVisitor ? t("visitorRole") : (worker.role || "-");

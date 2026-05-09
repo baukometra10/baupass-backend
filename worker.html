@@ -173,10 +173,6 @@
             <div class="wc-brand-text">
               <span class="wc-brand-name" id="workerBrandName">BAUPASS</span>
               <span class="wc-brand-sub" data-pass-sub-label data-i18n="workerPassSubLabel">Mitarbeiterausweis</span>
-              <div class="wc-badge-chip" aria-label="Badge-ID">
-                <span class="wc-badge-chip-label" data-i18n="fieldBadgeId">Badge-ID</span>
-                <span id="workerBadgeId" class="wc-badge-chip-value">–</span>
-              </div>
             </div>
           </div>
           <!-- NFC-Symbol -->
@@ -210,15 +206,19 @@
           <p id="workerRole" class="wc-role-text">Rolle</p>
           <div class="wc-footer">
             <div class="wc-fields">
+              <div class="wc-field wc-field-badge">
+                <span class="wc-field-label" data-i18n="fieldBadgeId">Badge-ID</span>
+                <span id="workerBadgeId" class="wc-field-value">–</span>
+              </div>
               <div class="wc-field">
                 <span class="wc-field-label" data-i18n="fieldValidUntil">Gültig bis</span>
                 <span id="workerValidUntil" class="wc-field-value">–</span>
               </div>
             </div>
             <div class="wc-right">
-              <div id="workerStatus" class="wc-status">Aktiv</div>
               <p id="companyName" class="wc-company">Baufirma</p>
-              <p id="workerSubcompany" class="wc-subcompany hidden">✓ Sub</p>
+              <p id="workerSubcompany" class="wc-subcompany hidden">Subunternehmen</p>
+              <div id="workerStatus" class="wc-status">Aktiv</div>
             </div>
           </div>
         </div>
