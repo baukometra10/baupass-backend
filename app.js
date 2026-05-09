@@ -8221,6 +8221,8 @@ function getRuntimeUiTexts() {
     complianceExpiringStatusExpired: "Expired",
     complianceExpiringStatusToday: "Today",
     complianceExpiringStatusDays: "{count} days",
+    workerInsightsNoDays: "No days.",
+    labelDaysCount: "{count} days",
     complianceWorkerFallback: "Worker",
     auditLogEmpty: "No audit entries available.",
     complianceKpiCompaniesWithIssues: "Companies with issues",
@@ -9018,6 +9020,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Abgelaufen",
       complianceExpiringStatusToday: "Heute",
       complianceExpiringStatusDays: "{count} Tage",
+      workerInsightsNoDays: "Keine Tage.",
+      labelDaysCount: "{count} Tage",
       complianceWorkerFallback: "Mitarbeiter",
       auditLogEmpty: "Keine Audit-Eintraege vorhanden.",
       complianceKpiCompaniesWithIssues: "Unternehmen mit Problemen",
@@ -9799,6 +9803,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Süresi doldu",
       complianceExpiringStatusToday: "Bugün",
       complianceExpiringStatusDays: "{count} gün",
+      workerInsightsNoDays: "Gün yok.",
+      labelDaysCount: "{count} gün",
       complianceWorkerFallback: "Çalışan",
       auditLogEmpty: "Denetim kaydı yok.",
       complianceKpiCompaniesWithIssues: "Sorunlu şirketler",
@@ -10580,6 +10586,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "منتهي",
       complianceExpiringStatusToday: "اليوم",
       complianceExpiringStatusDays: "{count} يوم",
+      workerInsightsNoDays: "لا أيام.",
+      labelDaysCount: "{count} يوم",
       complianceWorkerFallback: "عامل",
       auditLogEmpty: "لا توجد سجلات تدقيق متاحة.",
       complianceKpiCompaniesWithIssues: "الشركات التي لديها مشكلات",
@@ -11361,6 +11369,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Expiré",
       complianceExpiringStatusToday: "Aujourd'hui",
       complianceExpiringStatusDays: "{count} jours",
+      workerInsightsNoDays: "Aucun jour.",
+      labelDaysCount: "{count} jours",
       complianceWorkerFallback: "Travailleur",
       auditLogEmpty: "Aucune entrée d'audit disponible.",
       complianceKpiCompaniesWithIssues: "Entreprises avec problèmes",
@@ -12142,6 +12152,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Vencido",
       complianceExpiringStatusToday: "Hoy",
       complianceExpiringStatusDays: "{count} días",
+      workerInsightsNoDays: "Ningún día.",
+      labelDaysCount: "{count} días",
       complianceWorkerFallback: "Trabajador",
       auditLogEmpty: "No hay entradas de auditoría disponibles.",
       complianceKpiCompaniesWithIssues: "Empresas con incidencias",
@@ -12923,6 +12935,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Scaduto",
       complianceExpiringStatusToday: "Oggi",
       complianceExpiringStatusDays: "{count} giorni",
+      workerInsightsNoDays: "Nessun giorno.",
+      labelDaysCount: "{count} giorni",
       complianceWorkerFallback: "Lavoratore",
       auditLogEmpty: "Nessuna voce di audit disponibile.",
       complianceKpiCompaniesWithIssues: "Aziende con problemi",
@@ -13704,6 +13718,8 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusExpired: "Wygasło",
       complianceExpiringStatusToday: "Dzisiaj",
       complianceExpiringStatusDays: "{count} dni",
+      workerInsightsNoDays: "Brak dni.",
+      labelDaysCount: "{count} dni",
       complianceWorkerFallback: "Pracownik",
       auditLogEmpty: "Brak wpisów audytu.",
       complianceKpiCompaniesWithIssues: "Firmy z problemami",
@@ -17607,7 +17623,7 @@ function renderWorkerInsightsPanelHtml(result) {
         </tbody>
       </table>
     `
-    : `<p class="helper-text worker-insights-empty">Keine Tage.</p>`;
+    : `<p class="helper-text worker-insights-empty">${escapeHtml(runtimeText("workerInsightsNoDays"))}</p>`;
   const earlyTable = earlyLeaveDays.length
     ? `
       <table class="worker-insights-table">
@@ -17619,7 +17635,7 @@ function renderWorkerInsightsPanelHtml(result) {
         </tbody>
       </table>
     `
-    : `<p class="helper-text worker-insights-empty">Keine Tage.</p>`;
+    : `<p class="helper-text worker-insights-empty">${escapeHtml(runtimeText("workerInsightsNoDays"))}</p>`;
 
   elements.workerInsightsPanel.style.display = "block";
   elements.workerInsightsPanel.innerHTML = `
@@ -17635,11 +17651,11 @@ function renderWorkerInsightsPanelHtml(result) {
         </div>
         <div class="worker-insights-kpi worker-insights-kpi-late">
           <span>Zu spät</span>
-          <strong>${escapeHtml(String(lateDays.length))} Tage</strong>
+          <strong>${escapeHtml(runtimeTextTemplate("labelDaysCount", { count: Number(lateDays.length || 0) }))}</strong>
         </div>
         <div class="worker-insights-kpi worker-insights-kpi-early">
           <span>Früh gegangen</span>
-          <strong>${escapeHtml(String(earlyLeaveDays.length))} Tage</strong>
+          <strong>${escapeHtml(runtimeTextTemplate("labelDaysCount", { count: Number(earlyLeaveDays.length || 0) }))}</strong>
         </div>
       </div>
     </div>
@@ -28283,7 +28299,9 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
         const requestId = String(req.id || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         const statusClass = `leave-status-${String(req.status || "").toLowerCase()}`;
         const cardClass = `leave-card leave-card-${String(req.status || "").toLowerCase()}`;
-        const daysText = Number(req.days_count || 0) > 0 ? `${Number(req.days_count)} Tage` : "-";
+        const daysText = Number(req.days_count || 0) > 0
+          ? runtimeTextTemplate("labelDaysCount", { count: Number(req.days_count || 0) })
+          : "-";
         const actions = req.status === "ausstehend"
           ? `
             <div class="leave-card-actions">
