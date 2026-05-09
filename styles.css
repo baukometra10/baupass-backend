@@ -6719,6 +6719,18 @@ body.theme-black .dashboard-worker-detail .worker-detail-card * {
   opacity: 1 !important;
 }
 
+body.theme-black .dashboard-worker-detail h2 {
+  font-size: 1.35rem !important;
+  line-height: 1.2 !important;
+}
+
+body.theme-black .dashboard-worker-detail p,
+body.theme-black .dashboard-worker-detail li,
+body.theme-black .dashboard-worker-detail label {
+  font-size: 1.01rem !important;
+  line-height: 1.55 !important;
+}
+
 body.theme-black .dashboard-worker-detail .muted,
 body.theme-black .dashboard-worker-detail .worker-detail-card .muted {
   color: #c2cde3 !important;
@@ -6747,6 +6759,19 @@ body.theme-black .porter-company-summary span {
   color: #eef3ff !important;
 }
 
+body.theme-black .access-feedback-card h3 {
+  font-size: 1.05rem !important;
+  line-height: 1.25 !important;
+}
+
+body.theme-black .access-feedback-card p,
+body.theme-black .porter-company-total,
+body.theme-black .porter-company-summary,
+body.theme-black .porter-company-summary span {
+  font-size: 0.98rem !important;
+  line-height: 1.55 !important;
+}
+
 body.theme-black #recentAccessList.list {
   background: linear-gradient(165deg, #1a2130 0%, #20293a 100%) !important;
   border: 1px solid rgba(129, 173, 240, 0.2) !important;
@@ -6764,26 +6789,37 @@ body.theme-black #recentAccessList .access-entry-featured {
 body.theme-black #recentAccessList .access-entry-copy strong,
 body.theme-black .access-entry-copy strong {
   color: #f4f7ff !important;
+  font-size: 1.05rem !important;
+  line-height: 1.25 !important;
 }
 
 body.theme-black #recentAccessList .access-entry-copy span,
 body.theme-black .access-entry-copy span {
   color: #d4def2 !important;
+  font-size: 0.95rem !important;
+  line-height: 1.42 !important;
 }
 
 body.theme-black #recentAccessList .access-entry-copy header > span,
 body.theme-black .access-entry-copy header > span {
   color: #ffbf93 !important;
+  font-size: 0.88rem !important;
 }
 
 body.theme-black .gate-deny-legend-row,
 body.theme-black .invoice-ops-error-row {
   color: #e7efff !important;
+  font-size: 0.95rem !important;
+  line-height: 1.5 !important;
 }
 
 body.theme-black .gate-deny-chip {
   border-width: 1px;
   font-weight: 700;
+  font-size: 0.9rem !important;
+  line-height: 1.2 !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
 }
 
 body.theme-black .gate-deny-critical {
