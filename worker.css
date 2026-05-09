@@ -23,16 +23,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #191411;
-    --card: rgba(37, 29, 24, 0.62);
-    --card-strong: rgba(44, 34, 28, 0.82);
-    --text: #fff4ea;
-    --muted: #d1c1b6;
-    --accent: #d87b49;
-    --accent-dark: #a65934;
-    --accent-soft: #ebb08b;
-    --blue: #c98559;
-    --shadow: 0 28px 64px rgba(14, 10, 8, 0.42);
+    --bg: #181514;
+    --card: rgba(35, 30, 28, 0.62);
+    --card-strong: rgba(42, 36, 34, 0.8);
+    --text: #f7f0ea;
+    --muted: #c9beb6;
+    --accent: #c98357;
+    --accent-dark: #98583a;
+    --accent-soft: #e2b192;
+    --blue: #b88a6f;
+    --shadow: 0 28px 60px rgba(12, 10, 9, 0.4);
   }
 }
 
@@ -59,31 +59,31 @@ body {
 @media (prefers-color-scheme: dark) {
   body {
     background:
-      radial-gradient(circle at top left, rgba(184, 103, 61, 0.14), transparent 30%),
-      radial-gradient(circle at right 20%, rgba(120, 71, 48, 0.1), transparent 24%),
-      linear-gradient(145deg, #191411 0%, #241d18 42%, #1d1713 100%);
+      radial-gradient(circle at top left, rgba(170, 108, 78, 0.12), transparent 30%),
+      radial-gradient(circle at right 20%, rgba(111, 82, 68, 0.08), transparent 24%),
+      linear-gradient(145deg, #181514 0%, #221d1b 42%, #1c1817 100%);
   }
 }
 
 /* ── Explizite Theme-Overrides für manuelle Toggle ────────────────────── */
 [data-theme="dark"] {
-  --bg: #191411;
-  --card: rgba(37, 29, 24, 0.62);
-  --card-strong: rgba(44, 34, 28, 0.82);
-  --text: #fff4ea;
-  --muted: #d1c1b6;
-  --accent: #d87b49;
-  --accent-dark: #a65934;
-  --accent-soft: #ebb08b;
-  --blue: #c98559;
-  --shadow: 0 28px 64px rgba(14, 10, 8, 0.42);
+  --bg: #181514;
+  --card: rgba(35, 30, 28, 0.62);
+  --card-strong: rgba(42, 36, 34, 0.8);
+  --text: #f7f0ea;
+  --muted: #c9beb6;
+  --accent: #c98357;
+  --accent-dark: #98583a;
+  --accent-soft: #e2b192;
+  --blue: #b88a6f;
+  --shadow: 0 28px 60px rgba(12, 10, 9, 0.4);
 }
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at top left, rgba(184, 103, 61, 0.14), transparent 30%),
-    radial-gradient(circle at right 20%, rgba(120, 71, 48, 0.1), transparent 24%),
-    linear-gradient(145deg, #191411 0%, #241d18 42%, #1d1713 100%);
+    radial-gradient(circle at top left, rgba(170, 108, 78, 0.12), transparent 30%),
+    radial-gradient(circle at right 20%, rgba(111, 82, 68, 0.08), transparent 24%),
+    linear-gradient(145deg, #181514 0%, #221d1b 42%, #1c1817 100%);
 }
 
 [data-theme="light"] {
@@ -2932,26 +2932,26 @@ body {
 /* ── Dark consistency patch: remove gray leftovers ───────────────────── */
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) .worker-quick-menu {
-    background: rgba(45, 35, 29, 0.86);
-    border-color: rgba(255, 220, 198, 0.18);
+    background: rgba(42, 36, 34, 0.86);
+    border-color: rgba(255, 233, 219, 0.14);
   }
 
   html:not([data-theme="light"]) .quick-menu-btn,
   html:not([data-theme="light"]) .worker-menu-btn {
-    background: rgba(56, 43, 35, 0.94);
-    color: #fff4ea;
-    border-color: rgba(255, 220, 198, 0.18);
+    background: rgba(50, 42, 38, 0.94);
+    color: #f7f0ea;
+    border-color: rgba(255, 233, 219, 0.14);
   }
 
   html:not([data-theme="light"]) .scanner-card {
-    background: linear-gradient(180deg, rgba(60, 46, 38, 0.9), rgba(49, 38, 31, 0.92));
-    border-color: rgba(255, 220, 198, 0.18);
-    box-shadow: 0 14px 28px rgba(14, 10, 8, 0.22);
+    background: linear-gradient(180deg, rgba(52, 44, 40, 0.9), rgba(43, 37, 34, 0.92));
+    border-color: rgba(255, 233, 219, 0.14);
+    box-shadow: 0 14px 28px rgba(12, 10, 9, 0.2);
   }
 
   html:not([data-theme="light"]) .gate-panel {
-    background: rgba(49, 38, 31, 0.95);
-    border-color: rgba(255, 220, 198, 0.2);
+    background: rgba(43, 37, 34, 0.95);
+    border-color: rgba(255, 233, 219, 0.16);
   }
 
   html:not([data-theme="light"]) .site-map-link {
@@ -2961,26 +2961,26 @@ body {
 }
 
 [data-theme="dark"] .worker-quick-menu {
-  background: rgba(45, 35, 29, 0.86);
-  border-color: rgba(255, 220, 198, 0.18);
+  background: rgba(42, 36, 34, 0.86);
+  border-color: rgba(255, 233, 219, 0.14);
 }
 
 [data-theme="dark"] .quick-menu-btn,
 [data-theme="dark"] .worker-menu-btn {
-  background: rgba(56, 43, 35, 0.94);
-  color: #fff4ea;
-  border-color: rgba(255, 220, 198, 0.18);
+  background: rgba(50, 42, 38, 0.94);
+  color: #f7f0ea;
+  border-color: rgba(255, 233, 219, 0.14);
 }
 
 [data-theme="dark"] .scanner-card {
-  background: linear-gradient(180deg, rgba(60, 46, 38, 0.9), rgba(49, 38, 31, 0.92));
-  border-color: rgba(255, 220, 198, 0.18);
-  box-shadow: 0 14px 28px rgba(14, 10, 8, 0.22);
+  background: linear-gradient(180deg, rgba(52, 44, 40, 0.9), rgba(43, 37, 34, 0.92));
+  border-color: rgba(255, 233, 219, 0.14);
+  box-shadow: 0 14px 28px rgba(12, 10, 9, 0.2);
 }
 
 [data-theme="dark"] .gate-panel {
-  background: rgba(49, 38, 31, 0.95);
-  border-color: rgba(255, 220, 198, 0.2);
+  background: rgba(43, 37, 34, 0.95);
+  border-color: rgba(255, 233, 219, 0.16);
 }
 
 [data-theme="dark"] .site-map-link {
