@@ -6636,9 +6636,49 @@ body.theme-black .invoice-toolbar-refresh:hover::before {
   animation: darkButtonSweep 760ms cubic-bezier(0.22, 0.78, 0.18, 1) 1;
 }
 
+body.theme-black .primary-button:focus-visible,
+body.theme-black .ghost-button:focus-visible,
+body.theme-black .dashboard-worker-detail .button-row .primary-button:focus-visible,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:focus-visible,
+body.theme-black .invoice-toolbar .ghost-button:focus-visible,
+body.theme-black .invoice-quick-filters .ghost-button:focus-visible,
+body.theme-black .invoice-toolbar-refresh:focus-visible {
+  outline: none;
+  animation: darkButtonPulse 520ms ease-out 1;
+  box-shadow:
+    0 0 0 2px rgba(129, 173, 240, 0.44),
+    0 0 0 5px rgba(243, 146, 86, 0.28),
+    0 0 34px rgba(93, 135, 232, 0.28);
+}
+
+body.theme-black .primary-button:active,
+body.theme-black .ghost-button:active,
+body.theme-black .dashboard-worker-detail .button-row .primary-button:active,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:active,
+body.theme-black .invoice-toolbar .ghost-button:active,
+body.theme-black .invoice-quick-filters .ghost-button:active,
+body.theme-black .invoice-toolbar-refresh:active {
+  transform: translateY(0) scale(0.99);
+  filter: saturate(1.14) brightness(1.05);
+  animation: darkButtonPulse 420ms ease-out 1;
+}
+
 @keyframes darkButtonSweep {
   from { transform: translateX(-140%); }
   to { transform: translateX(140%); }
+}
+
+@keyframes darkButtonPulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(243, 146, 86, 0.38),
+      0 0 0 0 rgba(93, 135, 232, 0.34);
+  }
+  100% {
+    box-shadow:
+      0 0 0 10px rgba(243, 146, 86, 0),
+      0 0 0 14px rgba(93, 135, 232, 0);
+  }
 }
 
 body.theme-black .invoice-status-badge-overdue,
