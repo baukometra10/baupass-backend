@@ -14382,6 +14382,7 @@ function canRepairCompany(company) {
 
 function mapCompanyRepairError(error) {
   const message = String(error?.message || error || "");
+  const backendMessage = String(error?.payload?.message || "").trim();
   if (message === "forbidden") {
     return runtimeText("companyRepairForbidden");
   }
@@ -14394,10 +14395,13 @@ function mapCompanyRepairError(error) {
   if (message === "company_locked") {
     return runtimeText("companyLockedError");
   }
+  if (message === "company_paused" || message === "company_trial_expired") {
+    return backendMessage || message;
+  }
   if (message === "company_has_workers") {
     return runtimeText("companyHasWorkersError");
   }
-  return message || "unbekannter_fehler";
+  return backendMessage || message || "unbekannter_fehler";
 }
 
 const COMPANY_MAIL_PROVIDER_DEFAULTS = {
@@ -15590,6 +15594,10 @@ async function apiRequest(url, options = {}) {
     if (auth && ["invalid_session", "unauthorized"].includes(String(payload?.error || ""))) {
       handleExpiredControlSession();
       throw new Error("session_expired");
+    }
+    if (auth && ["company_locked", "company_paused", "company_trial_expired", "company_deleted", "company_not_found"].includes(String(payload?.error || ""))) {
+      clearSession();
+      refreshAll();
     }
     const requestError = new Error(payload?.error || `http_${response.status}`);
     requestError.code = payload?.error || `http_${response.status}`;
@@ -18601,6 +18609,7 @@ function renderCompanyList() {
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
                 <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
+                <button type="button" class="ghost-button small-button" data-company-change-status="${escapeHtml(companyId)}" ${canToggleLock && !deleted ? "" : "disabled"}>🧭 ${escapeHtml(runtimeText("labelCompanyStatus"))}</button>
                 <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? escapeHtml(runtimeText("companyBtnLockSaving")) : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? escapeHtml(runtimeText("companyBtnUnlock")) : escapeHtml(runtimeText("companyBtnLock"))}</button>
                 <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? escapeHtml(runtimeText("companyBtnReviewDisable")) : escapeHtml(runtimeText("companyBtnReviewEnable"))}</button>
                 <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDelete"))}</button>
@@ -19324,6 +19333,72 @@ function bindCompanyRowActions() {
     }
 
     const lockButton = event.target.closest("[data-company-toggle-lock]");
+    const changeStatusButton = event.target.closest("[data-company-change-status]");
+    if (changeStatusButton && !changeStatusButton.disabled && elements.companyList.contains(changeStatusButton)) {
+      const companyId = changeStatusButton.dataset.companyChangeStatus;
+      if (!companyId) {
+        return;
+      }
+      const company = state.companies.find((entry) => entry.id === companyId);
+      if (!company) {
+        return;
+      }
+
+      const companyName = String(company.name || runtimeText("companySelectedFallback"));
+      const currentStatus = String(company.status || "aktiv").toLowerCase();
+      const nextStatusInput = window.prompt(
+        `Status fuer "${companyName}" festlegen: aktiv | test | pausiert | gesperrt`,
+        currentStatus
+      );
+      if (nextStatusInput === null) {
+        return;
+      }
+
+      const nextStatus = String(nextStatusInput || "").trim().toLowerCase();
+      if (!["aktiv", "test", "pausiert", "gesperrt"].includes(nextStatus)) {
+        showToast("Ungueltiger Status. Erlaubt: aktiv, test, pausiert, gesperrt");
+        return;
+      }
+
+      let trialEndsAt = "";
+      if (nextStatus === "test") {
+        const existingTrialEnd = String(company.trialEndsAt || company.trial_ends_at || "").trim().slice(0, 10);
+        const trialInput = window.prompt(`Testphase endet am (YYYY-MM-DD) fuer "${companyName}"`, existingTrialEnd);
+        if (trialInput === null) {
+          return;
+        }
+        trialEndsAt = String(trialInput || "").trim();
+        if (trialEndsAt && !/^\d{4}-\d{2}-\d{2}$/.test(trialEndsAt)) {
+          showToast("Ungueltiges Datumsformat. Bitte YYYY-MM-DD verwenden.");
+          return;
+        }
+      }
+
+      try {
+        await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+          method: "PUT",
+          body: {
+            name: company.name,
+            contact: company.contact,
+            billingEmail: getCompanyBillingEmail(company),
+            documentEmail: getCompanyDocumentEmail(company),
+            accessHost: company.accessHost || company.access_host || "",
+            brandingPreset: getCompanyBrandingPreset(company),
+            plan: company.plan,
+            status: nextStatus,
+            trialEndsAt: nextStatus === "test" ? (trialEndsAt || undefined) : "",
+            invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
+          }
+        });
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        const repairMessage = mapCompanyRepairError(error);
+        showToast(uiT("alertCompanyStatusChangeFailed").replace("{name}", companyName).replace("{error}", repairMessage));
+      }
+      return;
+    }
+
     if (lockButton && !lockButton.disabled && elements.companyList.contains(lockButton)) {
       const companyId = lockButton.dataset.companyToggleLock;
       if (!companyId) {
@@ -23996,6 +24071,13 @@ async function handleCompanySubmit(event) {
 
   const companyTurnstileEndpointInput = document.querySelector("#companyTurnstileEndpoint");
   const companyTurnstileEndpoint = (companyTurnstileEndpointInput?.value || "").trim();
+  const companyStatusValue = document.querySelector("#companyStatus")?.value || "aktiv";
+  const companyTrialEndsAtRaw = String(document.querySelector("#companyTrialEndsAt")?.value || "").trim();
+  const companyTrialEndsAt = companyStatusValue === "test" ? companyTrialEndsAtRaw : "";
+  if (companyTrialEndsAt && !/^\d{4}-\d{2}-\d{2}$/.test(companyTrialEndsAt)) {
+    showToast("Ungueltiges Datumsformat. Bitte YYYY-MM-DD verwenden.");
+    return;
+  }
   const rawCompanyName = document.querySelector("#companyName").value.trim();
   const customerNumberInput = String(document.querySelector("#companyCustomerNumber")?.value || "").replace(/\D+/g, "").slice(0, 12);
   const enteredDocumentEmail = document.querySelector("#companyDocumentEmail").value.trim();
@@ -24022,7 +24104,8 @@ async function handleCompanySubmit(event) {
         accessHost: document.querySelector("#companyAccessHost").value.trim().toLowerCase(),
         brandingPreset: (document.querySelector("#companyBrandingPreset")?.value || "construction").trim(),
         plan: document.querySelector("#companyPlan").value,
-        status: document.querySelector("#companyStatus").value,
+        status: companyStatusValue,
+        trialEndsAt: companyTrialEndsAt || undefined,
         adminPassword: document.querySelector("#companyAdminPassword").value.trim() || undefined,
         turnstilePassword: (document.querySelector("#companyTurnstilePassword")?.value || "").trim() || undefined,
         turnstileCount: Number(document.querySelector("#companyTurnstileCount")?.value || 1),
@@ -24037,6 +24120,10 @@ async function handleCompanySubmit(event) {
     }
     document.querySelector("#companyPlan").value = "tageskarte";
     document.querySelector("#companyStatus").value = "aktiv";
+    const trialEndsAtInput = document.querySelector("#companyTrialEndsAt");
+    if (trialEndsAtInput) {
+      trialEndsAtInput.value = "";
+    }
     const turnstileCountInput = document.querySelector("#companyTurnstileCount");
     if (turnstileCountInput) {
       turnstileCountInput.value = "1";
@@ -24095,6 +24182,23 @@ async function handleCompanySubmit(event) {
       return;
     }
     showToast(uiT("alertCompanyCreateFailed").replace("{error}", error.message));
+  }
+}
+
+function updateCompanyTrialEndsAtVisibility() {
+  const statusSelect = document.querySelector("#companyStatus");
+  const trialInput = document.querySelector("#companyTrialEndsAt");
+  const trialField = document.querySelector("#companyTrialEndsAtField");
+  if (!statusSelect || !trialInput || !trialField) {
+    return;
+  }
+
+  const isTest = String(statusSelect.value || "").toLowerCase() === "test";
+  trialField.hidden = !isTest;
+  trialInput.disabled = !isTest;
+  trialInput.required = isTest;
+  if (!isTest) {
+    trialInput.value = "";
   }
 }
 
@@ -25771,6 +25875,11 @@ async function handleLoginSubmit(event) {
     }
     if (error.message === "company_locked") {
       showToast(uiT("alertLoginCompanyLocked"), "error", 3600);
+      return;
+    }
+    if (error.message === "company_paused" || error.message === "company_trial_expired") {
+      const backendMessage = String(error?.payload?.message || "").trim();
+      showToast(backendMessage || uiT("alertLoginFailed").replace("{error}", error.message), "error", 4200);
       return;
     }
     if (error.message === "invalid_credentials") {
@@ -28419,6 +28528,12 @@ if (settingsForm) {
 const companyForm = document.querySelector("#companyForm");
 if (companyForm) {
   companyForm.addEventListener("submit", handleCompanySubmit);
+
+  const companyStatusSelect = document.querySelector("#companyStatus");
+  if (companyStatusSelect) {
+    companyStatusSelect.addEventListener("change", updateCompanyTrialEndsAtVisibility);
+    updateCompanyTrialEndsAtVisibility();
+  }
 
   const companyNameInput = document.querySelector("#companyName");
   const companyDocumentEmailInput = document.querySelector("#companyDocumentEmail");
