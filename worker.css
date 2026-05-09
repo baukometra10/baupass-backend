@@ -798,7 +798,7 @@ button:hover,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 8px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
   transition: transform .14s ease, background-color .14s ease, box-shadow .14s ease;
 }
@@ -813,11 +813,12 @@ button:hover,
   align-items: center;
   justify-content: center;
   color: #14171d;
+  margin-bottom: 1px;
 }
 
 .worker-menu-svg {
-  width: 58px;
-  height: 58px;
+  width: 56px;
+  height: 56px;
   display: block;
 }
 
@@ -825,6 +826,12 @@ button:hover,
   line-height: 1.18;
   font-weight: 700;
   color: #14171d;
+  max-width: 12ch;
+  min-height: 2.35em;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: center;
 }
 
 .worker-menu-btn:hover {
@@ -1852,7 +1859,8 @@ body.qr-high-contrast #gateQr {
   }
 
   .worker-menu-label {
-    font-size: .92rem;
+    font-size: .9rem;
+    min-height: 2.3em;
   }
 }
 
