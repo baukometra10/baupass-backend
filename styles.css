@@ -6385,3 +6385,83 @@ body.theme-black #workerSearchInput {
   border-color: rgba(201, 131, 87, 0.18);
   color: #f7f0ea;
 }
+
+body.theme-black .dashboard-worker-detail {
+  background: linear-gradient(155deg, #241f1d 0%, #2b2522 100%);
+  border-color: rgba(255, 233, 219, 0.14);
+  box-shadow: 0 12px 32px rgba(12, 10, 9, 0.34);
+}
+
+body.theme-black .dashboard-worker-detail .worker-detail-card {
+  background: transparent;
+}
+
+body.theme-black .dashboard-worker-detail img {
+  border-color: rgba(255, 233, 219, 0.16);
+  box-shadow: 0 6px 18px rgba(12, 10, 9, 0.28);
+}
+
+body.theme-black .dashboard-worker-detail h2 {
+  color: #f3e9e1;
+}
+
+body.theme-black .dashboard-worker-detail p {
+  color: #ddd0c7;
+}
+
+body.theme-black .dashboard-worker-detail p strong {
+  color: #f7f0ea;
+}
+
+body.theme-black .dashboard-worker-detail .close-btn {
+  background: rgba(255, 233, 219, 0.08);
+  color: #d79a72;
+}
+
+body.theme-black .dashboard-worker-detail .button-row .primary-button,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button {
+  color: #fffaf5;
+  background: linear-gradient(90deg, #c77a4b 0%, #c77a4b 48%, #4d739d 52%, #4d739d 100%);
+  border: 1px solid rgba(255, 233, 219, 0.14);
+  box-shadow: 0 8px 20px rgba(18, 12, 9, 0.24);
+}
+
+body.theme-black .dashboard-worker-detail .button-row .primary-button:hover,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:hover {
+  box-shadow: 0 10px 24px rgba(18, 12, 9, 0.3);
+  filter: brightness(1.04);
+}
+
+body.theme-black #recentAccessList.list {
+  background: linear-gradient(165deg, #2d2724 0%, #38312d 100%);
+}
+
+body.theme-black #recentAccessList .recent-access-item {
+  border-bottom: 1px solid rgba(255, 233, 219, 0.08);
+}
+
+body.theme-black #recentAccessList .access-entry-featured {
+  background: linear-gradient(150deg, rgba(76, 66, 60, 0.96), rgba(58, 49, 45, 0.92));
+  border-color: rgba(255, 233, 219, 0.18);
+}
+
+body.theme-black #recentAccessList .access-entry-photo,
+body.theme-black .access-entry-photo {
+  border-color: rgba(255, 233, 219, 0.18);
+  background: rgba(255, 233, 219, 0.08);
+}
+
+body.theme-black #recentAccessList .access-entry-copy strong,
+body.theme-black .access-entry-copy strong {
+  color: #fff7f1;
+}
+
+body.theme-black #recentAccessList .access-entry-copy span,
+body.theme-black .access-entry-copy span {
+  color: #eadfd7;
+}
+
+body.theme-black #recentAccessList .access-entry-copy header > span,
+body.theme-black .access-entry-copy header > span {
+  color: #e0b79d;
+}
