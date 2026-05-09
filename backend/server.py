@@ -693,6 +693,120 @@ def _get_default_provider_settings(provider: str) -> dict:
     return providers.get(provider.lower(), {})
 
 
+def _sanitize_company_mail_settings_for_response(settings: dict) -> dict:
+    safe = {
+        "companyId": str(settings.get("company_id") or ""),
+        "mailProvider": str(settings.get("mail_provider") or "gmail"),
+        "imapHost": str(settings.get("imap_host") or ""),
+        "imapPort": int(settings.get("imap_port") or 993),
+        "imapUsername": str(settings.get("imap_username") or ""),
+        "imapUseTls": int(settings.get("imap_use_tls") or 0) == 1,
+        "smtpHost": str(settings.get("smtp_host") or ""),
+        "smtpPort": int(settings.get("smtp_port") or 587),
+        "smtpUsername": str(settings.get("smtp_username") or ""),
+        "smtpUseTls": int(settings.get("smtp_use_tls") or 0) == 1,
+        "senderEmail": str(settings.get("sender_email") or ""),
+        "senderName": str(settings.get("sender_name") or ""),
+        "testInboundStatus": str(settings.get("test_inbound_status") or "pending"),
+        "testOutboundStatus": str(settings.get("test_outbound_status") or "pending"),
+        "lastTestInbound": str(settings.get("last_test_inbound") or ""),
+        "lastTestOutbound": str(settings.get("last_test_outbound") or ""),
+        "imapPasswordConfigured": bool(str(settings.get("imap_password") or "").strip()),
+        "smtpPasswordConfigured": bool(str(settings.get("smtp_password") or "").strip()),
+        "brevoApiKeyConfigured": bool(str(settings.get("brevo_api_key") or "").strip()),
+    }
+    provider_defaults = _get_default_provider_settings(safe["mailProvider"])
+    safe["providerDefaults"] = {
+        "imapHost": provider_defaults.get("imap_host", ""),
+        "imapPort": int(provider_defaults.get("imap_port") or 993),
+        "smtpHost": provider_defaults.get("smtp_host", ""),
+        "smtpPort": int(provider_defaults.get("smtp_port") or 587),
+    }
+    return safe
+
+
+def _company_mail_payload_to_db_values(payload: dict, company_id: str, current: dict = None) -> dict:
+    current = current or {}
+    provider_raw = str(payload.get("mailProvider") or payload.get("mail_provider") or current.get("mail_provider") or "gmail").strip().lower()
+    if provider_raw not in {"gmail", "gmx", "outlook", "custom"}:
+        provider_raw = "custom"
+    provider_defaults = _get_default_provider_settings(provider_raw)
+
+    def _read_str(*keys, fallback=""):
+        for key in keys:
+            if key in payload and payload.get(key) is not None:
+                return str(payload.get(key) or "").strip()
+        return str(fallback or "").strip()
+
+    def _read_int(*keys, fallback=0):
+        for key in keys:
+            if key in payload and payload.get(key) is not None and str(payload.get(key)).strip() != "":
+                return int(payload.get(key))
+        return int(fallback)
+
+    def _read_bool_int(*keys, fallback=0):
+        for key in keys:
+            if key in payload:
+                return 1 if payload.get(key) else 0
+        return int(fallback)
+
+    imap_host = _read_str(
+        "imapHost",
+        "imap_host",
+        fallback=current.get("imap_host") or provider_defaults.get("imap_host") or "",
+    )
+    smtp_host = _read_str(
+        "smtpHost",
+        "smtp_host",
+        fallback=current.get("smtp_host") or provider_defaults.get("smtp_host") or "",
+    )
+
+    values = {
+        "company_id": company_id,
+        "mail_provider": provider_raw,
+        "imap_host": imap_host,
+        "imap_port": _read_int("imapPort", "imap_port", fallback=current.get("imap_port") or provider_defaults.get("imap_port") or 993),
+        "imap_username": _read_str("imapUsername", "imap_username", fallback=current.get("imap_username") or ""),
+        "imap_use_tls": _read_bool_int("imapUseTls", "imap_use_tls", fallback=current.get("imap_use_tls") or 1),
+        "smtp_host": smtp_host,
+        "smtp_port": _read_int("smtpPort", "smtp_port", fallback=current.get("smtp_port") or provider_defaults.get("smtp_port") or 587),
+        "smtp_username": _read_str("smtpUsername", "smtp_username", fallback=current.get("smtp_username") or ""),
+        "smtp_use_tls": _read_bool_int("smtpUseTls", "smtp_use_tls", fallback=current.get("smtp_use_tls") or 1),
+        "sender_email": _read_str("senderEmail", "sender_email", fallback=current.get("sender_email") or ""),
+        "sender_name": _read_str("senderName", "sender_name", fallback=current.get("sender_name") or ""),
+        "test_inbound_status": str(current.get("test_inbound_status") or "pending"),
+        "test_outbound_status": str(current.get("test_outbound_status") or "pending"),
+        "last_test_inbound": current.get("last_test_inbound"),
+        "last_test_outbound": current.get("last_test_outbound"),
+    }
+
+    raw_imap_password = _read_str("imapPassword", "imap_password")
+    raw_smtp_password = _read_str("smtpPassword", "smtp_password")
+    raw_brevo_key = _normalize_api_token(_read_str("brevoApiKey", "brevo_api_key"))
+
+    existing_imap_password = str(current.get("imap_password") or "")
+    existing_smtp_password = str(current.get("smtp_password") or "")
+    existing_brevo_key = str(current.get("brevo_api_key") or "")
+
+    values["imap_password"] = encrypt_mail_credential(raw_imap_password, company_id) if raw_imap_password else existing_imap_password
+    values["smtp_password"] = encrypt_mail_credential(raw_smtp_password, company_id) if raw_smtp_password else existing_smtp_password
+    values["brevo_api_key"] = encrypt_mail_credential(raw_brevo_key, company_id) if raw_brevo_key else existing_brevo_key
+
+    values["imap_port"] = max(1, min(int(values["imap_port"]), 65535))
+    values["smtp_port"] = max(1, min(int(values["smtp_port"]), 65535))
+    return values
+
+
+def _assert_company_mail_access(db, company_id: str):
+    company = db.execute("SELECT id, name, deleted_at FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not company or company["deleted_at"]:
+        return None, (jsonify({"error": "company_not_found"}), 404)
+    user = g.current_user
+    if user["role"] != "superadmin" and str(user.get("company_id") or "") != str(company_id):
+        return None, (jsonify({"error": "forbidden_company"}), 403)
+    return company, None
+
+
 def _required_worker_doc_types():
     return ["mindestlohnnachweis", "personalausweis"]
 
@@ -11138,6 +11252,311 @@ def update_company(company_id):
     db.commit()
     log_audit("company.updated", f"Firma {company_id} aktualisiert", target_type="company", target_id=company_id, company_id=company_id, actor=g.current_user)
     return jsonify({"ok": True})
+
+
+@app.get("/api/companies/<company_id>/mail-settings")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def get_company_mail_settings_endpoint(company_id):
+    db = get_db()
+    _, error_response = _assert_company_mail_access(db, company_id)
+    if error_response:
+        return error_response
+    settings = get_company_mail_settings(db, company_id)
+    return jsonify(_sanitize_company_mail_settings_for_response(settings))
+
+
+@app.post("/api/companies/<company_id>/mail-settings")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def create_company_mail_settings_endpoint(company_id):
+    db = get_db()
+    _, error_response = _assert_company_mail_access(db, company_id)
+    if error_response:
+        return error_response
+
+    existing = db.execute("SELECT * FROM company_mail_settings WHERE company_id = ?", (company_id,)).fetchone()
+    if existing:
+        return jsonify({"error": "mail_settings_already_exists"}), 409
+
+    payload = request.get_json(silent=True) or {}
+    values = _company_mail_payload_to_db_values(payload, company_id)
+    now_value = now_iso()
+    db.execute(
+        """
+        INSERT INTO company_mail_settings (
+            company_id, mail_provider,
+            imap_host, imap_port, imap_username, imap_password, imap_use_tls,
+            smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
+            brevo_api_key, sender_email, sender_name,
+            last_test_inbound, last_test_outbound, test_inbound_status, test_outbound_status,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            values["company_id"], values["mail_provider"],
+            values["imap_host"], values["imap_port"], values["imap_username"], values["imap_password"], values["imap_use_tls"],
+            values["smtp_host"], values["smtp_port"], values["smtp_username"], values["smtp_password"], values["smtp_use_tls"],
+            values["brevo_api_key"], values["sender_email"], values["sender_name"],
+            values["last_test_inbound"], values["last_test_outbound"], values["test_inbound_status"], values["test_outbound_status"],
+            now_value, now_value,
+        ),
+    )
+    db.commit()
+    log_audit(
+        "company.mail_settings.created",
+        f"Mail-Einstellungen fuer Firma {company_id} wurden erstellt",
+        target_type="company",
+        target_id=company_id,
+        company_id=company_id,
+        actor=g.current_user,
+    )
+
+    created = get_company_mail_settings(db, company_id)
+    return jsonify(_sanitize_company_mail_settings_for_response(created)), 201
+
+
+@app.put("/api/companies/<company_id>/mail-settings")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def update_company_mail_settings_endpoint(company_id):
+    db = get_db()
+    _, error_response = _assert_company_mail_access(db, company_id)
+    if error_response:
+        return error_response
+
+    payload = request.get_json(silent=True) or {}
+    existing = db.execute("SELECT * FROM company_mail_settings WHERE company_id = ?", (company_id,)).fetchone()
+    existing_values = dict(existing) if existing else _get_default_mail_settings(company_id)
+    if existing and existing_values.get("imap_password"):
+        existing_values["imap_password"] = decrypt_mail_credential(existing_values["imap_password"], company_id)
+    if existing and existing_values.get("smtp_password"):
+        existing_values["smtp_password"] = decrypt_mail_credential(existing_values["smtp_password"], company_id)
+    if existing and existing_values.get("brevo_api_key"):
+        existing_values["brevo_api_key"] = decrypt_mail_credential(existing_values["brevo_api_key"], company_id)
+
+    values = _company_mail_payload_to_db_values(payload, company_id, current=existing_values)
+    now_value = now_iso()
+
+    if existing:
+        db.execute(
+            """
+            UPDATE company_mail_settings
+            SET mail_provider = ?,
+                imap_host = ?, imap_port = ?, imap_username = ?, imap_password = ?, imap_use_tls = ?,
+                smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?, smtp_use_tls = ?,
+                brevo_api_key = ?, sender_email = ?, sender_name = ?,
+                updated_at = ?
+            WHERE company_id = ?
+            """,
+            (
+                values["mail_provider"],
+                values["imap_host"], values["imap_port"], values["imap_username"], values["imap_password"], values["imap_use_tls"],
+                values["smtp_host"], values["smtp_port"], values["smtp_username"], values["smtp_password"], values["smtp_use_tls"],
+                values["brevo_api_key"], values["sender_email"], values["sender_name"],
+                now_value,
+                company_id,
+            ),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO company_mail_settings (
+                company_id, mail_provider,
+                imap_host, imap_port, imap_username, imap_password, imap_use_tls,
+                smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
+                brevo_api_key, sender_email, sender_name,
+                last_test_inbound, last_test_outbound, test_inbound_status, test_outbound_status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                values["company_id"], values["mail_provider"],
+                values["imap_host"], values["imap_port"], values["imap_username"], values["imap_password"], values["imap_use_tls"],
+                values["smtp_host"], values["smtp_port"], values["smtp_username"], values["smtp_password"], values["smtp_use_tls"],
+                values["brevo_api_key"], values["sender_email"], values["sender_name"],
+                values["last_test_inbound"], values["last_test_outbound"], values["test_inbound_status"], values["test_outbound_status"],
+                now_value, now_value,
+            ),
+        )
+
+    db.commit()
+    log_audit(
+        "company.mail_settings.updated",
+        f"Mail-Einstellungen fuer Firma {company_id} wurden aktualisiert",
+        target_type="company",
+        target_id=company_id,
+        company_id=company_id,
+        actor=g.current_user,
+    )
+
+    updated = get_company_mail_settings(db, company_id)
+    return jsonify(_sanitize_company_mail_settings_for_response(updated))
+
+
+@app.post("/api/companies/<company_id>/mail-settings/test-inbound")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def test_company_mail_inbound_endpoint(company_id):
+    import imaplib
+    import socket
+
+    db = get_db()
+    _, error_response = _assert_company_mail_access(db, company_id)
+    if error_response:
+        return error_response
+
+    settings = get_company_mail_settings(db, company_id)
+    host = str(settings.get("imap_host") or "").strip()
+    port = int(settings.get("imap_port") or 993)
+    username = str(settings.get("imap_username") or "").strip()
+    password = str(settings.get("imap_password") or "")
+    use_tls = int(settings.get("imap_use_tls") or 0) == 1
+
+    missing = []
+    if not host:
+        missing.append("imapHost")
+    if not username:
+        missing.append("imapUsername")
+    if not password:
+        missing.append("imapPassword")
+    if missing:
+        return jsonify({"ok": False, "error": "imap_not_configured", "missingFields": missing}), 400
+
+    attempts = [(use_tls, port)]
+    if use_tls and port == 993:
+        attempts.append((False, 143))
+    elif not use_tls and port == 143:
+        attempts.append((True, 993))
+
+    tried = []
+    conn = None
+    last_exc = None
+    for attempt_tls, attempt_port in attempts:
+        tried.append(f"{'SSL' if attempt_tls else 'STARTTLS'}/{attempt_port}")
+        try:
+            if attempt_tls:
+                conn = imaplib.IMAP4_SSL(host, attempt_port, timeout=15)
+            else:
+                conn = imaplib.IMAP4(host, attempt_port, timeout=15)
+                conn.starttls()
+            auth_method = _imap_login_with_fallback(conn, username, password)
+            conn.logout()
+            db.execute(
+                "UPDATE company_mail_settings SET test_inbound_status = ?, last_test_inbound = ?, updated_at = ? WHERE company_id = ?",
+                ("ok", now_iso(), now_iso(), company_id),
+            )
+            db.commit()
+            return jsonify({
+                "ok": True,
+                "message": f"IMAP Verbindung erfolgreich ({'SSL' if attempt_tls else 'STARTTLS'}:{attempt_port}, Auth: {auth_method})",
+                "tried": tried,
+            })
+        except (socket.timeout, TimeoutError, ConnectionRefusedError, OSError) as exc:
+            last_exc = exc
+            try:
+                if conn is not None:
+                    conn.logout()
+            except Exception:
+                pass
+            conn = None
+        except Exception as exc:
+            last_exc = exc
+            try:
+                if conn is not None:
+                    conn.logout()
+            except Exception:
+                pass
+            conn = None
+            break
+
+    error_text = str(last_exc or "IMAP test failed")
+    hint = _imap_auth_hint(host, error_text)
+    db.execute(
+        "UPDATE company_mail_settings SET test_inbound_status = ?, last_test_inbound = ?, updated_at = ? WHERE company_id = ?",
+        ("failed", now_iso(), now_iso(), company_id),
+    )
+    db.commit()
+    return jsonify({"ok": False, "error": f"{error_text}{hint}", "tried": tried}), 200
+
+
+@app.post("/api/companies/<company_id>/mail-settings/test-outbound")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def test_company_mail_outbound_endpoint(company_id):
+    db = get_db()
+    _, error_response = _assert_company_mail_access(db, company_id)
+    if error_response:
+        return error_response
+
+    settings = get_company_mail_settings(db, company_id)
+    smtp_sender_email = str(settings.get("sender_email") or "").strip()
+    smtp_sender_name = str(settings.get("sender_name") or "BauPass").strip() or "BauPass"
+    smtp_host = str(settings.get("smtp_host") or "").strip()
+    smtp_port = int(settings.get("smtp_port") or 587)
+    smtp_use_tls = int(settings.get("smtp_use_tls") or 0)
+    smtp_username = str(settings.get("smtp_username") or "").strip()
+    smtp_password = str(settings.get("smtp_password") or "")
+    brevo_api_key = _normalize_api_token(settings.get("brevo_api_key") or "")
+
+    if brevo_api_key:
+        recipient = (str((request.get_json(silent=True) or {}).get("recipient") or "").strip() or
+                     str(g.current_user.get("email") or "").strip() or
+                     smtp_sender_email)
+        if not recipient:
+            return jsonify({"ok": False, "error": "missing_recipient"}), 400
+        if not _is_valid_brevo_api_key(brevo_api_key):
+            db.execute(
+                "UPDATE company_mail_settings SET test_outbound_status = ?, last_test_outbound = ?, updated_at = ? WHERE company_id = ?",
+                ("failed", now_iso(), now_iso(), company_id),
+            )
+            db.commit()
+            return jsonify({"ok": False, "error": "brevo_invalid_api_key_format"}), 200
+
+        ok, err = _send_via_brevo(
+            subject="BauPass Company Mail Test",
+            sender_email=smtp_sender_email,
+            sender_name=smtp_sender_name,
+            recipient=recipient,
+            text_body="Company outbound mail test via Brevo successful.",
+            html_body="<p>Company outbound mail test via <strong>Brevo</strong> successful.</p>",
+            api_key=brevo_api_key,
+        )
+        db.execute(
+            "UPDATE company_mail_settings SET test_outbound_status = ?, last_test_outbound = ?, updated_at = ? WHERE company_id = ?",
+            ("ok" if ok else "failed", now_iso(), now_iso(), company_id),
+        )
+        db.commit()
+        if ok:
+            return jsonify({"ok": True, "delivery": "brevo", "recipient": recipient})
+        return jsonify({"ok": False, "error": str(err or "brevo_send_failed"), "delivery": "brevo"}), 200
+
+    smtp_settings = {
+        "smtp_host": smtp_host,
+        "smtp_port": smtp_port,
+        "smtp_use_tls": smtp_use_tls,
+        "smtp_username": smtp_username,
+        "smtp_password": smtp_password,
+        "smtp_sender_email": smtp_sender_email,
+    }
+    missing = []
+    if not smtp_host:
+        missing.append("smtpHost")
+    if not smtp_sender_email:
+        missing.append("senderEmail")
+    if missing:
+        return jsonify({"ok": False, "error": "smtp_not_configured", "missingFields": missing}), 400
+
+    diag_result = _run_smtp_diagnostics(smtp_settings)
+    db.execute(
+        "UPDATE company_mail_settings SET test_outbound_status = ?, last_test_outbound = ?, updated_at = ? WHERE company_id = ?",
+        ("ok" if diag_result.get("ok") else "failed", now_iso(), now_iso(), company_id),
+    )
+    db.commit()
+
+    if diag_result.get("ok"):
+        return jsonify({"ok": True, "delivery": "smtp", "diagnostics": diag_result})
+    return jsonify({"ok": False, "error": "smtp_diagnostic_failed", "diagnostics": diag_result}), 200
 
 
 @app.put("/api/companies/<company_id>/work-times")
