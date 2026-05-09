@@ -6974,3 +6974,37 @@ body.theme-black .status-pill.status-check-in {
   color: #eef3ff !important;
   border-color: rgba(129, 173, 240, 0.34) !important;
 }
+
+body.theme-black .porter-live-card {
+  background: linear-gradient(160deg, rgba(20, 27, 38, 0.98), rgba(14, 21, 31, 0.96)) !important;
+  border-color: rgba(129, 173, 240, 0.2) !important;
+  box-shadow: 0 12px 30px rgba(3, 6, 12, 0.44) !important;
+  color: #eef3ff !important;
+}
+
+body.theme-black .porter-live-topline,
+body.theme-black .porter-live-topline strong,
+body.theme-black .porter-live-topline span,
+body.theme-black .porter-head strong,
+body.theme-black .porter-head span {
+  color: #edf3ff !important;
+}
+
+body.theme-black .porter-event {
+  background: rgba(41, 96, 75, 0.34) !important;
+  border: 1px solid rgba(110, 231, 183, 0.28) !important;
+  color: #dcfff0 !important;
+}
+
+body.theme-black .porter-event.muted {
+  background: rgba(61, 82, 108, 0.34) !important;
+  border: 1px solid rgba(129, 173, 240, 0.24) !important;
+  color: #e3edff !important;
+}
+
+body.theme-black .invoice-ops-error-chip {
+  background: linear-gradient(160deg, rgba(28, 36, 49, 0.96), rgba(20, 27, 38, 0.94)) !important;
+  color: #eef3ff !important;
+  border-color: rgba(129, 173, 240, 0.26) !important;
+  font-size: 0.92rem !important;
+}
