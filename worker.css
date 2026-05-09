@@ -880,9 +880,9 @@ body.worker-loaded .app-shell {
   width: 100%;
   max-width: 430px;
   margin: 0 auto;
-  aspect-ratio: 85.6 / 54;
+  aspect-ratio: 85.6 / 56;
   border-radius: 22px;
-  padding: 5.5% 6%;
+  padding: 4.8% 5.4%;
   background: linear-gradient(
     135deg,
     #0f1923 0%,
@@ -1118,14 +1118,14 @@ body.worker-loaded .app-shell {
   align-items: center;
   position: relative;
   z-index: 1;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 /* QR-Chip */
 .wc-qr-holder {
   position: relative;
-  width: clamp(90px, 35%, 150px);
-  height: clamp(90px, 35%, 150px);
+  width: clamp(82px, 32%, 132px);
+  height: clamp(82px, 32%, 132px);
   flex-shrink: 0;
 }
 
@@ -1205,8 +1205,8 @@ body.worker-loaded .app-shell {
 
 /* Mitarbeiterfoto */
 .wc-photo {
-  width: clamp(78px, 24%, 110px);
-  height: clamp(78px, 24%, 110px);
+  width: clamp(68px, 21%, 96px);
+  height: clamp(68px, 21%, 96px);
   border-radius: 14px;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, .22);
@@ -1218,7 +1218,7 @@ body.worker-loaded .app-shell {
 .wc-bottom {
   position: relative;
   z-index: 1;
-  margin-top: clamp(4px, 1.4vw, 8px);
+  margin-top: clamp(2px, 1vw, 6px);
 }
 
 .wc-name {
@@ -1233,7 +1233,7 @@ body.worker-loaded .app-shell {
 }
 
 .wc-role-text {
-  margin: 0 0 5px;
+  margin: 0 0 3px;
   font-size: clamp(.5rem, 1.9vw, .68rem);
   color: rgba(255, 255, 255, .55);
   text-transform: uppercase;
@@ -1250,7 +1250,7 @@ body.worker-loaded .app-shell {
 .wc-fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .wc-field {
@@ -1261,25 +1261,26 @@ body.worker-loaded .app-shell {
 
 .wc-field-label {
   font-size: clamp(.38rem, 1.4vw, .52rem);
-  color: rgba(255, 255, 255, .38);
+  color: rgba(255, 255, 255, .6);
   text-transform: uppercase;
   letter-spacing: .12em;
-  line-height: 1;
+  line-height: 1.05;
 }
 
 .wc-field-value {
   font-family: "Space Grotesk", monospace;
   font-size: clamp(.52rem, 1.9vw, .72rem);
   font-weight: 600;
-  color: rgba(255, 255, 255, .92);
+  color: rgba(255, 255, 255, .98);
   letter-spacing: .04em;
-  line-height: 1;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .wc-field.wc-field-badge .wc-field-value {
-  font-size: clamp(.72rem, 2.5vw, .96rem);
+  font-size: clamp(.66rem, 2.3vw, .9rem);
   font-weight: 800;
-  color: #fff2bf;
+  color: #ffe9a6;
   letter-spacing: .07em;
 }
 
@@ -1326,7 +1327,7 @@ body.worker-loaded .app-shell {
 
 .wc-company {
   margin: 0;
-  max-width: 24ch;
+  max-width: 20ch;
   font-size: clamp(.48rem, 1.8vw, .7rem);
   color: rgba(255, 255, 255, .93);
   font-weight: 700;
@@ -1340,7 +1341,7 @@ body.worker-loaded .app-shell {
 
 .wc-subcompany {
   margin: 0;
-  max-width: 24ch;
+  max-width: 18ch;
   font-size: clamp(.42rem, 1.55vw, .62rem);
   color: rgba(255, 255, 255, .72);
   font-weight: 600;
@@ -1355,6 +1356,24 @@ body.worker-loaded .app-shell {
   display: none;
 }
 
+.wallet-card.preset-construction .wc-field-label,
+.wallet-card.preset-industry .wc-field-label,
+.wallet-card.preset-premium .wc-field-label {
+  color: rgba(230, 238, 255, .72);
+}
+
+.wallet-card.preset-construction .wc-field-value,
+.wallet-card.preset-industry .wc-field-value,
+.wallet-card.preset-premium .wc-field-value {
+  color: rgba(245, 249, 255, .98);
+}
+
+.wallet-card.preset-construction .wc-field.wc-field-badge .wc-field-value,
+.wallet-card.preset-industry .wc-field.wc-field-badge .wc-field-value,
+.wallet-card.preset-premium .wc-field.wc-field-badge .wc-field-value {
+  color: #fff2c4;
+}
+
 /* ═══════════════════════════════════════════════
    Below-Card Info
    ═══════════════════════════════════════════════ */
@@ -1362,9 +1381,9 @@ body.worker-loaded .app-shell {
 .below-card {
   padding: 16px;
   background: var(--card-strong);
-  border: 1px solid rgba(255, 255, 255, .55);
+  border: 1px solid rgba(255, 255, 255, .68);
   border-radius: 20px;
-  box-shadow: 0 16px 35px rgba(68, 41, 25, .09);
+  box-shadow: 0 16px 35px rgba(68, 41, 25, .1), inset 0 1px 0 rgba(255, 255, 255, .65);
 }
 
 /* ── Pass-Header (Titel + Status-Banner) ── */
@@ -1419,7 +1438,7 @@ body.worker-loaded .app-shell {
 .actions-secondary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .logout-btn {
@@ -1808,6 +1827,7 @@ body.qr-high-contrast #gateQr {
 
   .wallet-card {
     max-width: 100%;
+    aspect-ratio: 85.6 / 57;
   }
 
   .worker-pass {
@@ -1839,6 +1859,15 @@ body.qr-high-contrast #gateQr {
   .wc-brand-name {
     font-size: .5rem;
   }
+  .wallet-card {
+    aspect-ratio: 85.6 / 58;
+  }
+  .wc-field.wc-field-badge .wc-field-value {
+    font-size: .66rem;
+  }
+  .wc-field-value {
+    font-size: .52rem;
+  }
   .app-shell {
     padding: 10px 8px 20px;
   }
@@ -1867,6 +1896,7 @@ body.qr-high-contrast #gateQr {
 @media (max-width: 420px) {
   .actions-secondary {
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .worker-hub-panel {
