@@ -1143,6 +1143,18 @@ def normalize_company_plan(plan_value):
     return plan if plan in PLAN_NET_PRICE_EUR else "tageskarte"
 
 
+def normalize_company_trial_end(raw_value):
+    candidate = clean_text_input(raw_value, max_len=32)
+    if not candidate:
+        return ""
+    parsed = parse_iso_date(candidate)
+    return parsed.isoformat() if parsed else ""
+
+
+def default_company_trial_end_iso():
+    return (utc_now().date() + timedelta(days=14)).isoformat()
+
+
 def normalize_branding_preset(value):
     preset = str(value or "").strip().lower()
     return preset if preset in {"construction", "industry", "premium"} else "construction"
@@ -2297,6 +2309,7 @@ def init_db():
             branding_preset TEXT NOT NULL DEFAULT 'construction',
             plan TEXT NOT NULL,
             status TEXT NOT NULL,
+            trial_ends_at TEXT NOT NULL DEFAULT '',
             deleted_at TEXT
         );
 
@@ -2774,6 +2787,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN branding_preset TEXT NOT NULL DEFAULT 'construction'")
     if "customer_number" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN customer_number TEXT NOT NULL DEFAULT ''")
+    if "trial_ends_at" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN trial_ends_at TEXT NOT NULL DEFAULT ''")
 
     # Migrate customer numbers to KU-YY-NNNN format (e.g. KU-26-0105).
     # Rows that are empty or still in old numeric-only format need a new number.
@@ -6433,7 +6448,7 @@ def get_company_access_error(db, company_id):
     if not company_id:
         return None
 
-    company = db.execute("SELECT id, name, status, deleted_at FROM companies WHERE id = ?", (company_id,)).fetchone()
+    company = db.execute("SELECT id, name, status, trial_ends_at, deleted_at FROM companies WHERE id = ?", (company_id,)).fetchone()
     if not company:
         return {"error": "company_not_found", "companyStatus": "unbekannt", "companyName": "Unbekannte Firma"}
     if company["deleted_at"]:
@@ -6447,6 +6462,22 @@ def get_company_access_error(db, company_id):
             "companyName": company["name"],
             "message": f"Firma {company['name']} ist wegen offener Zahlung gesperrt.",
         }
+    if status == "pausiert":
+        return {
+            "error": "company_paused",
+            "companyStatus": status,
+            "companyName": company["name"],
+            "message": f"Firma {company['name']} ist aktuell pausiert und kann das System nicht nutzen.",
+        }
+    if status == "test":
+        trial_end = parse_iso_date(company["trial_ends_at"] or "")
+        if trial_end and trial_end < utc_now().date():
+            return {
+                "error": "company_trial_expired",
+                "companyStatus": status,
+                "companyName": company["name"],
+                "message": f"Die Testphase von {company['name']} ist abgelaufen. Bitte kontaktiere den Betreiber zur Freischaltung.",
+            }
     return None
 
 
@@ -8164,6 +8195,11 @@ def create_company():
     access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or "").strip().lower(), max_len=180)
     branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset"))
     company_status = clean_text_input(payload.get("status", "aktiv"), max_len=32) or "aktiv"
+    trial_ends_at = normalize_company_trial_end(payload.get("trialEndsAt") or payload.get("trial_ends_at"))
+    if company_status == "test" and not trial_ends_at:
+        trial_ends_at = default_company_trial_end_iso()
+    if company_status != "test":
+        trial_ends_at = ""
     admin_password = (payload.get("adminPassword") or "").strip() or "1234"
     turnstile_password = (payload.get("turnstilePassword") or "").strip() or admin_password
     try:
@@ -8213,7 +8249,7 @@ def create_company():
     if invoice_email_lang not in ("de", "en", "fr"):
         invoice_email_lang = "de"
     db.execute(
-        "INSERT INTO companies (id, name, customer_number, contact, billing_email, document_email, access_host, branding_preset, plan, status, invoice_email_lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO companies (id, name, customer_number, contact, billing_email, document_email, access_host, branding_preset, plan, status, trial_ends_at, invoice_email_lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             company_id,
             company_name,
@@ -8225,6 +8261,7 @@ def create_company():
             branding_preset,
             normalize_company_plan(payload.get("plan", "tageskarte")),
             company_status,
+            trial_ends_at,
             invoice_email_lang,
         ),
     )
@@ -11200,6 +11237,13 @@ def update_company(company_id):
     company_access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or company["access_host"]), max_len=180)
     company_branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset") or company["branding_preset"])
     company_status = clean_text_input(payload.get("status", company["status"]), max_len=32) or company["status"]
+    company_trial_ends_at = normalize_company_trial_end(
+        payload.get("trialEndsAt", payload.get("trial_ends_at", company["trial_ends_at"] if "trial_ends_at" in company.keys() else ""))
+    )
+    if company_status == "test" and not company_trial_ends_at:
+        company_trial_ends_at = normalize_company_trial_end(company["trial_ends_at"] if "trial_ends_at" in company.keys() else "") or default_company_trial_end_iso()
+    if company_status != "test":
+        company_trial_ends_at = ""
     company_invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", company["invoice_email_lang"] if "invoice_email_lang" in company.keys() else "de") or "de", max_len=8)
     if company_invoice_email_lang not in ("de", "en", "fr", "tr", "ar", "es", "it", "pl"):
         company_invoice_email_lang = "de"
@@ -11231,7 +11275,7 @@ def update_company(company_id):
             }), 409
 
     db.execute(
-        "UPDATE companies SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?, billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, invoice_email_lang = ? WHERE id = ?",
+        "UPDATE companies SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?, billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, trial_ends_at = ?, invoice_email_lang = ? WHERE id = ?",
         (
             company_name,
             company_customer_number,
@@ -11244,6 +11288,7 @@ def update_company(company_id):
             company_branding_preset,
             payload.get("plan", company["plan"]),
             company_status,
+            company_trial_ends_at,
             company_invoice_email_lang,
             company_id,
         ),

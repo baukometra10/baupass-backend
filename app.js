@@ -7833,6 +7833,30 @@ function getRuntimeUiTexts() {
     turnstileActivateBtn: "Activate",
     turnstileAccountsEmpty: "No turnstile accounts available.",
     companyDocEmailNotSet: "Not set",
+    companyMailSettingsTitle: "Mail settings",
+    companyMailProviderLabel: "Provider",
+    companyMailSenderLabel: "Sender",
+    companyMailImapLabel: "IMAP",
+    companyMailSmtpLabel: "SMTP",
+    companyMailBrevoLabel: "Brevo API",
+    companyMailPasswordStoredPlaceholder: "Password stored",
+    companyMailImapPasswordNewPlaceholder: "New IMAP password",
+    companyMailSmtpPasswordNewPlaceholder: "New SMTP password",
+    companyMailBrevoStoredPlaceholder: "API key stored",
+    companyMailSaveBtn: "Save",
+    companyMailTestInboundBtn: "Test inbound",
+    companyMailTestOutboundBtn: "Test outbound",
+    companyMailInboundStatusLabel: "Inbound",
+    companyMailOutboundStatusLabel: "Outbound",
+    companyMailSaveRunning: "Saving mail settings...",
+    companyMailSaveOk: "Mail settings saved.",
+    companyMailSaveFailed: "Saving failed: {error}",
+    companyMailInboundRunning: "Inbound test running...",
+    companyMailInboundOk: "Inbound test successful.",
+    companyMailInboundFailed: "Inbound test failed.",
+    companyMailOutboundRunning: "Outbound test running...",
+    companyMailOutboundOk: "Outbound test successful.",
+    companyMailOutboundFailed: "Outbound test failed.",
     companyDocEmailAutoBtn: "Set automatically",
     companyDocEmailSelftestBtn: "Test auto email",
     companyDocEmailSelftestRunning: "Testing auto email...",
@@ -8647,6 +8671,30 @@ function getRuntimeUiTexts() {
       turnstileActivateBtn: "Aktivieren",
       turnstileAccountsEmpty: "Keine Drehkreuz-Accounts vorhanden.",
       companyDocEmailNotSet: "Nicht gesetzt",
+      companyMailSettingsTitle: "Mail-Einstellungen",
+      companyMailProviderLabel: "Provider",
+      companyMailSenderLabel: "Absender",
+      companyMailImapLabel: "IMAP",
+      companyMailSmtpLabel: "SMTP",
+      companyMailBrevoLabel: "Brevo API",
+      companyMailPasswordStoredPlaceholder: "Passwort gespeichert",
+      companyMailImapPasswordNewPlaceholder: "Neues IMAP Passwort",
+      companyMailSmtpPasswordNewPlaceholder: "Neues SMTP Passwort",
+      companyMailBrevoStoredPlaceholder: "API Key gespeichert",
+      companyMailSaveBtn: "Speichern",
+      companyMailTestInboundBtn: "Test Inbound",
+      companyMailTestOutboundBtn: "Test Outbound",
+      companyMailInboundStatusLabel: "Inbound",
+      companyMailOutboundStatusLabel: "Outbound",
+      companyMailSaveRunning: "Mail-Einstellungen werden gespeichert...",
+      companyMailSaveOk: "Mail-Einstellungen gespeichert.",
+      companyMailSaveFailed: "Speichern fehlgeschlagen: {error}",
+      companyMailInboundRunning: "Inbound-Test laeuft...",
+      companyMailInboundOk: "Inbound-Test erfolgreich.",
+      companyMailInboundFailed: "Inbound-Test fehlgeschlagen.",
+      companyMailOutboundRunning: "Outbound-Test laeuft...",
+      companyMailOutboundOk: "Outbound-Test erfolgreich.",
+      companyMailOutboundFailed: "Outbound-Test fehlgeschlagen.",
       companyDocEmailAutoBtn: "Auto setzen",
       companyDocEmailSelftestBtn: "Auto-Mail testen",
       companyDocEmailSelftestRunning: "Auto-Mail wird getestet...",
@@ -18444,9 +18492,9 @@ function renderCompanyList() {
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
           <div class="meta-box" style="margin-top:8px;">
-            <p><strong>Mail Settings</strong></p>
+            <p><strong>${escapeHtml(runtimeText("companyMailSettingsTitle"))}</strong></p>
             <div class="button-row" style="gap:6px;align-items:center;">
-              <label style="min-width:120px;">Provider</label>
+              <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailProviderLabel"))}</label>
               <select data-company-mail-provider="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>
                 <option value="gmail" ${companyMail.mailProvider === "gmail" ? "selected" : ""}>Gmail</option>
                 <option value="gmx" ${companyMail.mailProvider === "gmx" ? "selected" : ""}>GMX</option>
@@ -18455,37 +18503,37 @@ function renderCompanyList() {
               </select>
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
-              <label style="min-width:120px;">Sender</label>
+              <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailSenderLabel"))}</label>
               <input data-company-mail-sender-email="${escapeHtml(companyId)}" type="email" placeholder="sender@company.tld" value="${escapeAttr(companyMail.senderEmail)}" ${canManageMail ? "" : "disabled"} />
               <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="BauPass" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
-              <label style="min-width:120px;">IMAP</label>
+              <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailImapLabel"))}</label>
               <input data-company-mail-imap-host="${escapeHtml(companyId)}" type="text" placeholder="imap.host" value="${escapeAttr(companyMail.imapHost)}" ${canManageMail ? "" : "disabled"} />
               <input data-company-mail-imap-port="${escapeHtml(companyId)}" type="number" min="1" max="65535" value="${escapeAttr(companyMail.imapPort)}" style="max-width:90px;" ${canManageMail ? "" : "disabled"} />
               <input data-company-mail-imap-username="${escapeHtml(companyId)}" type="text" placeholder="imap user" value="${escapeAttr(companyMail.imapUsername)}" ${canManageMail ? "" : "disabled"} />
-              <input data-company-mail-imap-password="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.imapPasswordConfigured ? "Passwort gespeichert" : "Neues IMAP Passwort"}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-imap-password="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.imapPasswordConfigured ? runtimeText("companyMailPasswordStoredPlaceholder") : runtimeText("companyMailImapPasswordNewPlaceholder")}" ${canManageMail ? "" : "disabled"} />
               <label><input data-company-mail-imap-tls="${escapeHtml(companyId)}" type="checkbox" ${companyMail.imapUseTls ? "checked" : ""} ${canManageMail ? "" : "disabled"} /> TLS</label>
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
-              <label style="min-width:120px;">SMTP</label>
+              <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailSmtpLabel"))}</label>
               <input data-company-mail-smtp-host="${escapeHtml(companyId)}" type="text" placeholder="smtp.host" value="${escapeAttr(companyMail.smtpHost)}" ${canManageMail ? "" : "disabled"} />
               <input data-company-mail-smtp-port="${escapeHtml(companyId)}" type="number" min="1" max="65535" value="${escapeAttr(companyMail.smtpPort)}" style="max-width:90px;" ${canManageMail ? "" : "disabled"} />
               <input data-company-mail-smtp-username="${escapeHtml(companyId)}" type="text" placeholder="smtp user" value="${escapeAttr(companyMail.smtpUsername)}" ${canManageMail ? "" : "disabled"} />
-              <input data-company-mail-smtp-password="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.smtpPasswordConfigured ? "Passwort gespeichert" : "Neues SMTP Passwort"}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-smtp-password="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.smtpPasswordConfigured ? runtimeText("companyMailPasswordStoredPlaceholder") : runtimeText("companyMailSmtpPasswordNewPlaceholder")}" ${canManageMail ? "" : "disabled"} />
               <label><input data-company-mail-smtp-tls="${escapeHtml(companyId)}" type="checkbox" ${companyMail.smtpUseTls ? "checked" : ""} ${canManageMail ? "" : "disabled"} /> TLS</label>
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
-              <label style="min-width:120px;">Brevo API</label>
-              <input data-company-mail-brevo-key="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.brevoApiKeyConfigured ? "API Key gespeichert" : "xkeysib-..."}" ${canManageMail ? "" : "disabled"} />
+              <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailBrevoLabel"))}</label>
+              <input data-company-mail-brevo-key="${escapeHtml(companyId)}" type="password" placeholder="${companyMail.brevoApiKeyConfigured ? runtimeText("companyMailBrevoStoredPlaceholder") : "xkeysib-..."}" ${canManageMail ? "" : "disabled"} />
             </div>
             <div class="button-row" style="gap:6px;margin-top:8px;">
-              <button type="button" class="ghost-button small-button" data-company-mail-save="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>Speichern</button>
-              <button type="button" class="ghost-button small-button" data-company-mail-test-inbound="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>Test Inbound</button>
-              <button type="button" class="ghost-button small-button" data-company-mail-test-outbound="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>Test Outbound</button>
+              <button type="button" class="ghost-button small-button" data-company-mail-save="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>${escapeHtml(runtimeText("companyMailSaveBtn"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-mail-test-inbound="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>${escapeHtml(runtimeText("companyMailTestInboundBtn"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-mail-test-outbound="${escapeHtml(companyId)}" ${canManageMail ? "" : "disabled"}>${escapeHtml(runtimeText("companyMailTestOutboundBtn"))}</button>
             </div>
-            <p class="helper-text">Inbound: ${escapeHtml(companyMail.testInboundStatus)} ${companyMail.lastTestInbound ? `(${escapeHtml(formatClockTime(companyMail.lastTestInbound))})` : ""}</p>
-            <p class="helper-text">Outbound: ${escapeHtml(companyMail.testOutboundStatus)} ${companyMail.lastTestOutbound ? `(${escapeHtml(formatClockTime(companyMail.lastTestOutbound))})` : ""}</p>
+            <p class="helper-text">${escapeHtml(runtimeText("companyMailInboundStatusLabel"))}: ${escapeHtml(companyMail.testInboundStatus)} ${companyMail.lastTestInbound ? `(${escapeHtml(formatClockTime(companyMail.lastTestInbound))})` : ""}</p>
+            <p class="helper-text">${escapeHtml(runtimeText("companyMailOutboundStatusLabel"))}: ${escapeHtml(companyMail.testOutboundStatus)} ${companyMail.lastTestOutbound ? `(${escapeHtml(formatClockTime(companyMail.lastTestOutbound))})` : ""}</p>
             ${companyMailStatus ? `<p class="${companyMailStatusClass}">${escapeHtml(companyMailStatus.message || "")}</p>` : ""}
           </div>
           ${showDocEmailProviderHint ? `<p class="helper-text helper-text-warning">${escapeHtml(runtimeText("companyDocEmailProviderHint"))}</p>` : ""}
@@ -18710,7 +18758,7 @@ function bindCompanyRowActions() {
 
       const payload = readCompanyMailSettingsFromCard(companyId);
       mailSaveButton.disabled = true;
-      state.companyMailTestStatus[companyId] = { kind: "info", message: "Mail-Einstellungen werden gespeichert..." };
+      state.companyMailTestStatus[companyId] = { kind: "info", message: runtimeText("companyMailSaveRunning") };
       renderCompanyList();
       try {
         const saved = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings`, {
@@ -18718,9 +18766,12 @@ function bindCompanyRowActions() {
           body: payload,
         });
         state.companyMailSettings[companyId] = saved || state.companyMailSettings[companyId];
-        state.companyMailTestStatus[companyId] = { kind: "success", message: "Mail-Einstellungen gespeichert." };
+        state.companyMailTestStatus[companyId] = { kind: "success", message: runtimeText("companyMailSaveOk") };
       } catch (error) {
-        state.companyMailTestStatus[companyId] = { kind: "error", message: `Speichern fehlgeschlagen: ${error.message}` };
+        state.companyMailTestStatus[companyId] = {
+          kind: "error",
+          message: runtimeTextTemplate("companyMailSaveFailed", { error: error.message || runtimeText("genericUnknownError") }),
+        };
       }
       renderCompanyList();
       return;
@@ -18734,7 +18785,7 @@ function bindCompanyRowActions() {
       }
 
       mailInboundButton.disabled = true;
-      state.companyMailTestStatus[companyId] = { kind: "info", message: "Inbound-Test laeuft..." };
+      state.companyMailTestStatus[companyId] = { kind: "info", message: runtimeText("companyMailInboundRunning") };
       renderCompanyList();
       try {
         const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings/test-inbound`, {
@@ -18742,15 +18793,18 @@ function bindCompanyRowActions() {
           body: {},
         });
         state.companyMailTestStatus[companyId] = result?.ok
-          ? { kind: "success", message: result.message || "Inbound-Test erfolgreich." }
-          : { kind: "error", message: result?.error || "Inbound-Test fehlgeschlagen." };
+          ? { kind: "success", message: result.message || runtimeText("companyMailInboundOk") }
+          : { kind: "error", message: result?.error || runtimeText("companyMailInboundFailed") };
         try {
           state.companyMailSettings[companyId] = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings`);
         } catch {
           // keep current values on refresh error
         }
       } catch (error) {
-        state.companyMailTestStatus[companyId] = { kind: "error", message: `Inbound-Test fehlgeschlagen: ${error.message}` };
+        state.companyMailTestStatus[companyId] = {
+          kind: "error",
+          message: `${runtimeText("companyMailInboundFailed")}: ${error.message}`,
+        };
       }
       renderCompanyList();
       return;
@@ -18764,7 +18818,7 @@ function bindCompanyRowActions() {
       }
 
       mailOutboundButton.disabled = true;
-      state.companyMailTestStatus[companyId] = { kind: "info", message: "Outbound-Test laeuft..." };
+      state.companyMailTestStatus[companyId] = { kind: "info", message: runtimeText("companyMailOutboundRunning") };
       renderCompanyList();
       try {
         const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings/test-outbound`, {
@@ -18772,15 +18826,18 @@ function bindCompanyRowActions() {
           body: {},
         });
         state.companyMailTestStatus[companyId] = result?.ok
-          ? { kind: "success", message: "Outbound-Test erfolgreich." }
-          : { kind: "error", message: result?.error || "Outbound-Test fehlgeschlagen." };
+          ? { kind: "success", message: runtimeText("companyMailOutboundOk") }
+          : { kind: "error", message: result?.error || runtimeText("companyMailOutboundFailed") };
         try {
           state.companyMailSettings[companyId] = await apiRequest(`${API_BASE}/api/companies/${companyId}/mail-settings`);
         } catch {
           // keep current values on refresh error
         }
       } catch (error) {
-        state.companyMailTestStatus[companyId] = { kind: "error", message: `Outbound-Test fehlgeschlagen: ${error.message}` };
+        state.companyMailTestStatus[companyId] = {
+          kind: "error",
+          message: `${runtimeText("companyMailOutboundFailed")}: ${error.message}`,
+        };
       }
       renderCompanyList();
       return;
