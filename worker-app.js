@@ -2531,7 +2531,7 @@ function registerWorkerSw() {
     return;
   }
   const swTimestamp = Math.floor(Date.now() / 1000);
-  navigator.serviceWorker.register(`./worker-sw.js?v=20260509j&t=${swTimestamp}`).then((registration) => {
+  navigator.serviceWorker.register(`./worker-sw.js?v=20260510a&t=${swTimestamp}`).then((registration) => {
     registration.update().catch(() => {});
 
     // When a new SW takes control, reload once to serve fresh assets.
@@ -2807,14 +2807,17 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
 
 async function loadWorkerData() {
   if (!workerToken) {
+    console.warn("[loadWorkerData] No worker token – showing login");
     showLogin();
     return false;
   }
 
+  console.log("[loadWorkerData] Starting fetch for /me...");
   try {
     const payload = await fetchJson(`${API_BASE}/me`, {
       headers: { Authorization: `Bearer ${workerToken}` }
     });
+    console.log("[loadWorkerData] Success:", payload);
     localStorage.setItem(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
     offlineWorkerSessionActive = false;
     renderWorker(payload);
@@ -2837,20 +2840,24 @@ async function loadWorkerData() {
       return false;
     }
     // Network error — show cached data if available
+    console.warn("[loadWorkerData] Network error:", error.message);
     const cachedRaw = localStorage.getItem(WORKER_CACHED_PAYLOAD_KEY);
     if (cachedRaw) {
       try {
         const cachedPayload = JSON.parse(cachedRaw);
+        console.log("[loadWorkerData] Rendering cached payload:", cachedPayload);
         offlineWorkerSessionActive = true;
         renderWorker(cachedPayload);
         if (elements.lastSyncInfo) {
           elements.lastSyncInfo.textContent = t("offlineBanner");
         }
         return true;
-      } catch {
+      } catch (cacheErr) {
+        console.error("[loadWorkerData] Cache parse error:", cacheErr);
         // corrupt cache — fall through to logout
       }
     }
+    console.warn("[loadWorkerData] No cache available – showing login");
     localStorage.removeItem(WORKER_TOKEN_KEY);
     workerToken = "";
     clearWorkerSessionExpiryTimer();
@@ -5109,4 +5116,33 @@ if ("Notification" in window && Notification.permission === "default" && element
 // Load leave requests on login
 if (workerToken) {
   void loadLeaveRequests();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// STARTUP: Force immediate card render if worker data exists
+// ─────────────────────────────────────────────────────────────────────
+
+console.log("[worker-app init] workerToken:", workerToken ? "present" : "missing");
+
+if (workerToken) {
+  const cachedPayloadRaw = localStorage.getItem(WORKER_CACHED_PAYLOAD_KEY);
+  if (cachedPayloadRaw) {
+    try {
+      const cachedPayload = JSON.parse(cachedPayloadRaw);
+      console.log("[worker-app init] Found cached payload, rendering immediately...");
+      // Render cached data immediately without waiting for network
+      renderWorker(cachedPayload);
+      // Then refresh from network in background
+      void loadWorkerData();
+    } catch (err) {
+      console.error("[worker-app init] Cache parse failed:", err);
+      void loadWorkerData();
+    }
+  } else {
+    console.log("[worker-app init] No cached payload, fetching fresh...");
+    void loadWorkerData();
+  }
+} else {
+  console.log("[worker-app init] No token, showing login");
+  showLogin();
 }
