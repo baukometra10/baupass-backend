@@ -16122,7 +16122,7 @@ async function loadAllData() {
     state.complianceExpiringDocs = Array.isArray(complianceExpiringDocs.value?.items) ? complianceExpiringDocs.value.items : [];
   } else {
     state.complianceExpiringDocs = [];
-  }
+  state.auditLogPageSize = 50;
 
   if (auditLogs.status === "fulfilled") {
     state.auditLogs = Array.isArray(auditLogs.value?.logs) ? auditLogs.value.logs : [];
@@ -17030,7 +17030,7 @@ function renderAuditLogPanel(filterText) {
       (e.actor_role || "").toLowerCase().includes(query)
     );
   }
-  const PAGE = 50;
+  const PAGE = state.auditLogPageSize || 50;
   const shown = logs.slice(0, PAGE);
   const eventColors = {
     "worker.deleted": "#dc2626", "workers.bulk_deleted": "#dc2626",
@@ -17076,9 +17076,23 @@ function renderAuditLogPanel(filterText) {
           </div>
         </div>`;
       }).join("")}
-      ${logs.length > PAGE ? `<p class="muted" style="margin-top:8px; font-size:0.84em;">${escapeHtml(runtimeTextTemplate("auditLogMoreEntries", { count: logs.length - PAGE }))}</p>` : ""}
+      ${logs.length > PAGE ? `
+      <div class="button-row" style="justify-content:center; margin-top:12px;">
+        <button type="button" class="ghost-button small-button" data-audit-load-more>${escapeHtml(runtimeText("accessLoadMoreButton") || "Mehr laden")}</button>
+      </div>
+      ` : ""}
     </article>
   `;
+  
+  const loadMoreButton = elements.auditLogPanel.querySelector("[data-audit-load-more]");
+  if (loadMoreButton) {
+    loadMoreButton.addEventListener("click", () => {
+      state.auditLogPageSize = (state.auditLogPageSize || 50) + 50;
+      renderAuditLogPanel();
+    });
+  }
+  
+  initCollapsibleSections(['auditLogContent']);
 }
 
 function ensureInvoiceDefaults() {
