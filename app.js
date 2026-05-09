@@ -7572,6 +7572,7 @@ const state = {
   companyAdminSecurity: {},
   identityTokenByWorker: {},
   complianceOverview: [],
+  complianceExpiringDocs: [],
   auditLogs: [],
   repairHistoryWindowDays: 30,
   onlyCompaniesWithRepairs: false,
@@ -8216,6 +8217,10 @@ function getRuntimeUiTexts() {
     complianceFallbackCompany: "Company",
     complianceSummaryCounts: "Green {green} | Yellow {yellow} | Red {red}",
     complianceNoCriticalGaps: "No critical document gaps.",
+    complianceExpiringDocsTitle: "Documents expiring in {days} days",
+    complianceExpiringStatusExpired: "Expired",
+    complianceExpiringStatusToday: "Today",
+    complianceExpiringStatusDays: "{count} days",
     complianceWorkerFallback: "Worker",
     auditLogEmpty: "No audit entries available.",
     complianceKpiCompaniesWithIssues: "Companies with issues",
@@ -9009,6 +9014,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "Firma",
       complianceSummaryCounts: "Gruen {green} | Gelb {yellow} | Rot {red}",
       complianceNoCriticalGaps: "Keine kritischen Dokumentluecken.",
+      complianceExpiringDocsTitle: "Dokumente laufen in {days} Tagen ab",
+      complianceExpiringStatusExpired: "Abgelaufen",
+      complianceExpiringStatusToday: "Heute",
+      complianceExpiringStatusDays: "{count} Tage",
       complianceWorkerFallback: "Mitarbeiter",
       auditLogEmpty: "Keine Audit-Eintraege vorhanden.",
       complianceKpiCompaniesWithIssues: "Unternehmen mit Problemen",
@@ -9786,6 +9795,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "Şirket",
       complianceSummaryCounts: "Yeşil {green} | Sarı {yellow} | Kırmızı {red}",
       complianceNoCriticalGaps: "Kritik belge eksikliği yok.",
+      complianceExpiringDocsTitle: "{days} gün içinde süresi dolacak belgeler",
+      complianceExpiringStatusExpired: "Süresi doldu",
+      complianceExpiringStatusToday: "Bugün",
+      complianceExpiringStatusDays: "{count} gün",
       complianceWorkerFallback: "Çalışan",
       auditLogEmpty: "Denetim kaydı yok.",
       complianceKpiCompaniesWithIssues: "Sorunlu şirketler",
@@ -10563,6 +10576,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "الشركة",
       complianceSummaryCounts: "أخضر {green} | أصفر {yellow} | أحمر {red}",
       complianceNoCriticalGaps: "لا توجد فجوات حرجة في المستندات.",
+      complianceExpiringDocsTitle: "مستندات تنتهي خلال {days} يومًا",
+      complianceExpiringStatusExpired: "منتهي",
+      complianceExpiringStatusToday: "اليوم",
+      complianceExpiringStatusDays: "{count} يوم",
       complianceWorkerFallback: "عامل",
       auditLogEmpty: "لا توجد سجلات تدقيق متاحة.",
       complianceKpiCompaniesWithIssues: "الشركات التي لديها مشكلات",
@@ -11340,6 +11357,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "Entreprise",
       complianceSummaryCounts: "Vert {green} | Jaune {yellow} | Rouge {red}",
       complianceNoCriticalGaps: "Aucune lacune critique de documents.",
+      complianceExpiringDocsTitle: "Documents expirant dans {days} jours",
+      complianceExpiringStatusExpired: "Expiré",
+      complianceExpiringStatusToday: "Aujourd'hui",
+      complianceExpiringStatusDays: "{count} jours",
       complianceWorkerFallback: "Travailleur",
       auditLogEmpty: "Aucune entrée d'audit disponible.",
       complianceKpiCompaniesWithIssues: "Entreprises avec problèmes",
@@ -12117,6 +12138,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "Empresa",
       complianceSummaryCounts: "Verde {green} | Amarillo {yellow} | Rojo {red}",
       complianceNoCriticalGaps: "No hay brechas críticas de documentos.",
+      complianceExpiringDocsTitle: "Documentos que vencen en {days} días",
+      complianceExpiringStatusExpired: "Vencido",
+      complianceExpiringStatusToday: "Hoy",
+      complianceExpiringStatusDays: "{count} días",
       complianceWorkerFallback: "Trabajador",
       auditLogEmpty: "No hay entradas de auditoría disponibles.",
       complianceKpiCompaniesWithIssues: "Empresas con incidencias",
@@ -12894,6 +12919,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "Azienda",
       complianceSummaryCounts: "Verde {green} | Giallo {yellow} | Rosso {red}",
       complianceNoCriticalGaps: "Nessuna lacuna critica nei documenti.",
+      complianceExpiringDocsTitle: "Documenti in scadenza entro {days} giorni",
+      complianceExpiringStatusExpired: "Scaduto",
+      complianceExpiringStatusToday: "Oggi",
+      complianceExpiringStatusDays: "{count} giorni",
       complianceWorkerFallback: "Lavoratore",
       auditLogEmpty: "Nessuna voce di audit disponibile.",
       complianceKpiCompaniesWithIssues: "Aziende con problemi",
@@ -13671,6 +13700,10 @@ function getRuntimeUiTexts() {
       complianceFallbackCompany: "Firma",
       complianceSummaryCounts: "Zielony {green} | Żółty {yellow} | Czerwony {red}",
       complianceNoCriticalGaps: "Brak krytycznych braków dokumentów.",
+      complianceExpiringDocsTitle: "Dokumenty wygasające w ciągu {days} dni",
+      complianceExpiringStatusExpired: "Wygasło",
+      complianceExpiringStatusToday: "Dzisiaj",
+      complianceExpiringStatusDays: "{count} dni",
       complianceWorkerFallback: "Pracownik",
       auditLogEmpty: "Brak wpisów audytu.",
       complianceKpiCompaniesWithIssues: "Firmy z problemami",
@@ -15889,11 +15922,12 @@ async function loadAllData() {
     apiRequest(`${API_BASE}/api/audit-logs?eventType=company.repair&targetType=company&limit=120`),
     apiRequest(reportUrl),
     apiRequest(`${API_BASE}/api/compliance/overview`),
+    apiRequest(`${API_BASE}/api/compliance/expiring-docs?days=30&limit=150`),
     apiRequest(`${API_BASE}/api/audit-logs?limit=200`),
     apiRequest(`${API_BASE}/api/gates/ops-metrics?windowMinutes=${gateOpsWindowMinutes}`)
   ]);
 
-  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, auditLogs, gateOpsMetrics] = requests;
+  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, complianceExpiringDocs, auditLogs, gateOpsMetrics] = requests;
   if (settings.status === "fulfilled") {
     state.settings = settings.value || state.settings;
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
@@ -15952,6 +15986,12 @@ async function loadAllData() {
     state.complianceOverview = Array.isArray(complianceOverview.value) ? complianceOverview.value : [];
   } else {
     state.complianceOverview = [];
+  }
+
+  if (complianceExpiringDocs.status === "fulfilled") {
+    state.complianceExpiringDocs = Array.isArray(complianceExpiringDocs.value?.items) ? complianceExpiringDocs.value.items : [];
+  } else {
+    state.complianceExpiringDocs = [];
   }
 
   if (auditLogs.status === "fulfilled") {
@@ -16750,8 +16790,47 @@ function renderSystemAlertBanner(loggedIn) {
 function renderCompliancePanel() {
   if (!elements.compliancePanel) return;
   const items = Array.isArray(state.complianceOverview) ? state.complianceOverview : [];
+  const expiringDocs = Array.isArray(state.complianceExpiringDocs) ? state.complianceExpiringDocs : [];
+  const expiryWindowDays = 30;
+  const expiringDocsMarkup = expiringDocs.length
+    ? `
+      <article class="card-item compliance-expiry-card">
+        <div class="compliance-expiry-header">
+          <strong>${escapeHtml(runtimeTextTemplate("complianceExpiringDocsTitle", { days: expiryWindowDays }))}</strong>
+          <span class="helper-text">${escapeHtml(String(expiringDocs.length))}</span>
+        </div>
+        <div class="compliance-expiry-list">
+          ${expiringDocs.slice(0, 20).map((entry) => {
+            const status = String(entry.status || "upcoming");
+            const rawDocType = String(entry.docType || "");
+            const docTypeKey = `docType${rawDocType.charAt(0).toUpperCase()}${rawDocType.slice(1)}`;
+            const docTypeLabel = uiT(docTypeKey) || rawDocType || "-";
+            const statusLabel = status === "expired"
+              ? runtimeText("complianceExpiringStatusExpired")
+              : status === "today"
+                ? runtimeText("complianceExpiringStatusToday")
+                : runtimeTextTemplate("complianceExpiringStatusDays", { count: Math.max(Number(entry.daysLeft) || 0, 0) });
+            return `
+              <div class="compliance-expiry-item">
+                <div>
+                  <strong>${escapeHtml(entry.workerName || "-")}</strong>
+                  <span>${escapeHtml(entry.companyName || "-")} • ${escapeHtml(docTypeLabel)}</span>
+                </div>
+                <div class="compliance-expiry-meta">
+                  <span>${escapeHtml(formatDate(entry.expiryDate || ""))}</span>
+                  <span class="status-pill ${status === "expired" ? "status-critical" : "status-check-in"}">${escapeHtml(statusLabel)}</span>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </article>
+    `
+    : "";
+
   if (!items.length) {
-    elements.compliancePanel.innerHTML = `<div class="card-item"><p class="muted">${escapeHtml(runtimeText("complianceEmpty"))}</p></div>`;
+    const emptyMarkup = `<div class="card-item"><p class="muted">${escapeHtml(runtimeText("complianceEmpty"))}</p></div>`;
+    elements.compliancePanel.innerHTML = `${emptyMarkup}${expiringDocsMarkup}`;
     return;
   }
   elements.compliancePanel.innerHTML = items.map((company) => {
@@ -16767,7 +16846,7 @@ function renderCompliancePanel() {
         ${criticalWorkers.length ? `<div class="meta-box">${criticalWorkers.map((worker) => `<span>• ${escapeHtml(worker.name || runtimeText("complianceWorkerFallback"))}: ${Object.entries(worker.docs || {}).filter(([, value]) => value !== "ok").map(([key, value]) => `${escapeHtml(key)}=${escapeHtml(value)}`).join(", ")}</span>`).join("")}</div>` : `<p class="helper-text helper-text-ok">${escapeHtml(runtimeText("complianceNoCriticalGaps"))}</p>`}
       </article>
     `;
-  }).join("");
+  }).join("") + expiringDocsMarkup;
 }
 
 function renderAuditLogPanel(filterText) {
@@ -17309,7 +17388,7 @@ function renderReportingPanels() {
   }
 
   const role = String(getEffectiveUiRole() || "").toLowerCase();
-  if (role !== "superadmin") {
+  if (role !== "superadmin" && role !== "company-admin") {
     if (reportingPanels) {
       reportingPanels.style.display = "none";
     }

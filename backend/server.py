@@ -6286,6 +6286,54 @@ def build_open_entries_from_rows(rows, now_dt):
     return open_entries
 
 
+def send_day_close_push_notifications(db, open_entries, date_value, company_id=None):
+    """Send push reminders for open check-ins after day-close and avoid duplicates per day/worker."""
+    if not open_entries:
+        return 0
+
+    sent_count = 0
+    company_scope = company_id or "system"
+    day_start = f"{date_value}T00:00:00"
+
+    for entry in open_entries:
+        worker_id = str(entry.get("workerId") or "").strip()
+        open_minutes = int(entry.get("openMinutes") or 0)
+        if not worker_id or open_minutes < 120:
+            continue
+
+        event_type = f"access.day_close_push_sent.{company_scope}.{date_value}.{worker_id}"
+        already_sent = db.execute(
+            "SELECT id FROM audit_logs WHERE event_type = ? AND created_at >= ? LIMIT 1",
+            (event_type, day_start),
+        ).fetchone()
+        if already_sent:
+            continue
+
+        worker_name = str(entry.get("name") or "Mitarbeiter").strip() or "Mitarbeiter"
+        body = (
+            f"{worker_name}: Noch offen seit {open_minutes} Min. "
+            f"Bitte am Ausgang auschecken oder Tagesabschluss quittieren."
+        )
+        sent = _send_push_to_worker(
+            db,
+            worker_id,
+            "Tagesabschluss offen",
+            body,
+            tag=f"day-close-{date_value}",
+        )
+        if sent > 0:
+            sent_count += sent
+            log_audit(
+                event_type,
+                f"Day-close Push fuer {worker_name} ({open_minutes} Min offen) versendet.",
+                target_type="access",
+                target_id=f"{date_value}:{worker_id}",
+                company_id=company_id,
+            )
+
+    return sent_count
+
+
 def auto_close_expired_visitor_entries(db, reference_dt=None):
     now_dt = reference_dt or datetime.now(timezone.utc)
     rows = db.execute(
@@ -11343,6 +11391,100 @@ def compliance_overview():
     return jsonify(result)
 
 
+@app.get("/api/compliance/expiring-docs")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def compliance_expiring_docs():
+    user = g.current_user
+    db = get_db()
+
+    raw_days = request.args.get("days", "30")
+    raw_limit = request.args.get("limit", "120")
+    try:
+        days = max(1, min(int(raw_days), 180))
+    except ValueError:
+        days = 30
+    try:
+        limit = max(1, min(int(raw_limit), 500))
+    except ValueError:
+        limit = 120
+
+    company_clause = ""
+    params = [f"+{days} day"]
+    if user["role"] != "superadmin":
+        company_clause = " AND workers.company_id = ?"
+        params.append(user.get("company_id"))
+    params.append(limit)
+
+    rows = db.execute(
+        f"""
+        SELECT
+            wd.worker_id,
+            wd.doc_type,
+            wd.expiry_date,
+            workers.first_name,
+            workers.last_name,
+            workers.badge_id,
+            workers.company_id,
+            companies.name AS company_name
+        FROM worker_documents wd
+        JOIN (
+            SELECT worker_id, doc_type, MAX(created_at) AS latest_created_at
+            FROM worker_documents
+            GROUP BY worker_id, doc_type
+        ) latest
+          ON latest.worker_id = wd.worker_id
+         AND latest.doc_type = wd.doc_type
+         AND latest.latest_created_at = wd.created_at
+        JOIN workers ON workers.id = wd.worker_id
+        JOIN companies ON companies.id = workers.company_id
+        WHERE workers.deleted_at IS NULL
+          AND workers.worker_type = 'worker'
+          AND wd.doc_type IN ({','.join(['?'] * len(REQUIRED_DOC_TYPES))})
+          AND wd.expiry_date IS NOT NULL
+          AND TRIM(wd.expiry_date) != ''
+          AND DATE(wd.expiry_date) <= DATE('now', ?)
+          {company_clause}
+        ORDER BY DATE(wd.expiry_date) ASC, workers.last_name ASC, workers.first_name ASC
+        LIMIT ?
+        """,
+        REQUIRED_DOC_TYPES + params,
+    ).fetchall()
+
+    today = utc_now().date()
+    items = []
+    for row in rows:
+        expiry_raw = (row["expiry_date"] or "").strip()
+        try:
+            expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+
+        days_left = (expiry_date - today).days
+        if days_left < 0:
+            status = "expired"
+        elif days_left == 0:
+            status = "today"
+        else:
+            status = "upcoming"
+
+        items.append(
+            {
+                "workerId": row["worker_id"],
+                "workerName": f"{row['first_name']} {row['last_name']}".strip(),
+                "badgeId": row["badge_id"],
+                "companyId": row["company_id"],
+                "companyName": row["company_name"],
+                "docType": row["doc_type"],
+                "expiryDate": expiry_raw,
+                "daysLeft": days_left,
+                "status": status,
+            }
+        )
+
+    return jsonify({"days": days, "count": len(items), "items": items})
+
+
 # ── Worker-Statistiken ────────────────────────────────────────────────────────
 
 @app.get("/api/workers/stats")
@@ -12218,6 +12360,11 @@ def access_day_close_check():
 
     now_dt = datetime.now(timezone.utc)
     open_entries = build_open_entries_from_rows(rows, now_dt)
+    is_due = datetime.now().hour >= 18
+
+    company_id = None if g.current_user["role"] == "superadmin" else g.current_user.get("company_id")
+    if is_due and open_entries:
+        send_day_close_push_notifications(db=get_db(), open_entries=open_entries, date_value=date_value, company_id=company_id)
 
     db = get_db()
     ack_scope_condition = "company_id IS NULL"
@@ -12255,7 +12402,7 @@ def access_day_close_check():
     return jsonify(
         {
             "date": date_value,
-            "due": datetime.now().hour >= 18,
+            "due": is_due,
             "openCount": len(open_entries),
             "openEntries": open_entries[:150],
             "autoClosedCount": len(auto_closed),

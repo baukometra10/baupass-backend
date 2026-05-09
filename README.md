@@ -46,6 +46,17 @@ Serverbasierter MVP fuer digitale Baustellen-Ausweise mit Fotoaufnahme, Mitarbei
 5. Im Browser `http://127.0.0.1:8000` oeffnen.
 6. Mit einem Demo-Zugang anmelden und optional auf "Demo-Daten laden" klicken.
 
+## API-Notizen (neu)
+
+- `GET /api/compliance/expiring-docs?days=30&limit=150`
+	- Rollen: `superadmin`, `company-admin`
+	- Liefert bald ablaufende Pflichtdokumente mit Feldern wie `workerName`, `companyName`, `docType`, `expiryDate`, `daysLeft`, `status` (`expired`, `today`, `upcoming`).
+	- `days` ist serverseitig auf `1..180` begrenzt, `limit` auf `1..500`.
+
+- `GET /api/access-logs/day-close-check`
+	- Fuehrt weiterhin die Tagesabschluss-Pruefung aus.
+	- Wenn nach 18:00 offene Eintritte vorhanden sind, werden Push-Erinnerungen dedupliziert pro Worker/Tag versendet.
+
 ## Produktivbetrieb (Windows + Reverse Proxy)
 
 1. Abhaengigkeiten installieren: `pip install -r backend/requirements.txt`
