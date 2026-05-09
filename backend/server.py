@@ -20006,8 +20006,24 @@ def static_proxy(path):
     return jsonify({"error": "not_found"}), 404
 
 
-start_background_jobs()
-_start_imap_thread()
+_background_jobs_enabled = str(os.getenv("BAUPASS_ENABLE_BACKGROUND_JOBS", "1")).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+_imap_poller_enabled = str(os.getenv("BAUPASS_ENABLE_IMAP_POLLER", "1")).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+if _background_jobs_enabled:
+    start_background_jobs()
+
+if _imap_poller_enabled:
+    _start_imap_thread()
 
 
 # ── Hardware-Geraete (Watchdog / OSDP Smart-Box) ─────────────────────────────
