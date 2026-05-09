@@ -4599,23 +4599,23 @@ body.theme-white::after {
 }
 
 body.theme-black {
-  --bg: #181514;
-  --surface: rgba(36, 32, 30, 0.9);
-  --surface-strong: #2b2624;
-  --text: #f7f0ea;
-  --muted: #c9beb6;
-  --line: rgba(255, 233, 219, 0.14);
-  --button-bg: linear-gradient(135deg, #bf7246, #93553a);
-  --button-text: #fffaf5;
-  --button-border: rgba(191, 114, 70, 0.34);
-  --accent: #c98357;
-  --accent-soft: rgba(201, 131, 87, 0.14);
-  --accent-dark: #98583a;
-  --shadow: 0 24px 48px rgba(12, 10, 9, 0.42);
+  --bg: #0f1116;
+  --surface: rgba(22, 27, 36, 0.9);
+  --surface-strong: #171d27;
+  --text: #f4f7ff;
+  --muted: #b7c1d6;
+  --line: rgba(123, 182, 255, 0.24);
+  --button-bg: linear-gradient(135deg, #ff8a3d 0%, #ff6f2a 46%, #4d82ff 54%, #3f6fe0 100%);
+  --button-text: #fdfdff;
+  --button-border: rgba(123, 182, 255, 0.4);
+  --accent: #ff9248;
+  --accent-soft: rgba(255, 146, 72, 0.2);
+  --accent-dark: #d96b2b;
+  --shadow: 0 26px 58px rgba(3, 6, 12, 0.58);
   background:
-    radial-gradient(circle at 8% 0%, rgba(170, 108, 78, 0.12), transparent 38%),
-    radial-gradient(circle at 100% 12%, rgba(111, 82, 68, 0.1), transparent 36%),
-    linear-gradient(155deg, #181514 0%, #221d1b 52%, #1c1817 100%);
+    radial-gradient(circle at 8% 0%, rgba(255, 138, 61, 0.24), transparent 36%),
+    radial-gradient(circle at 100% 12%, rgba(77, 130, 255, 0.2), transparent 34%),
+    linear-gradient(155deg, #0f1116 0%, #141a24 52%, #10151f 100%);
 }
 
 body.theme-black::before,
@@ -4624,7 +4624,7 @@ body.theme-black::after {
 }
 
 body.theme-black .content {
-  background: linear-gradient(180deg, rgba(27, 23, 21, 0.92), rgba(35, 30, 28, 0.88));
+  background: linear-gradient(180deg, rgba(16, 20, 28, 0.94), rgba(20, 25, 34, 0.9));
 }
 
 body.theme-black .content::before {
@@ -4632,9 +4632,9 @@ body.theme-black .content::before {
 }
 
 body.theme-black .topbar {
-  background: rgba(37, 32, 29, 0.9);
-  border-color: rgba(255, 233, 219, 0.14);
-  box-shadow: 0 12px 24px rgba(18, 12, 9, 0.34);
+  background: rgba(18, 24, 34, 0.92);
+  border-color: rgba(123, 182, 255, 0.26);
+  box-shadow: 0 14px 30px rgba(4, 7, 12, 0.5);
 }
 
 body.theme-black .hero-panel,
@@ -4653,9 +4653,9 @@ body.theme-black .badge-meta,
 body.theme-black .list-item,
 body.theme-black .card-item,
 body.theme-black .camera-block {
-  background: #24201e;
-  border-color: rgba(255, 233, 219, 0.12);
-  color: #f7f0ea;
+  background: #19202b;
+  border-color: rgba(123, 182, 255, 0.18);
+  color: #f4f7ff;
 }
 
 body.theme-black .hero-panel::before {
