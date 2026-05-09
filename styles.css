@@ -6467,8 +6467,10 @@ body.theme-black .access-entry-copy header > span {
 }
 
 body.theme-black .invoice-preview-frame {
-  background: linear-gradient(165deg, #26211f 0%, #312b28 100%);
-  border-color: rgba(255, 233, 219, 0.14);
+  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #161312;
+  box-shadow: 0 10px 26px rgba(6, 10, 18, 0.26);
 }
 
 body.theme-black .invoice-toolbar .ghost-button,
