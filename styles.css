@@ -6924,3 +6924,53 @@ body.theme-black .warning-item .invoice-ops-error-chip {
   color: #f4f7ff !important;
   border-color: rgba(129, 173, 240, 0.24) !important;
 }
+
+body.theme-black .summary-block {
+  background: linear-gradient(160deg, rgba(20, 27, 38, 0.98), rgba(14, 21, 31, 0.96)) !important;
+  border-color: rgba(129, 173, 240, 0.18) !important;
+  box-shadow: 0 12px 28px rgba(3, 6, 12, 0.42) !important;
+}
+
+body.theme-black .summary-block .eyebrow,
+body.theme-black .summary-block h3 {
+  color: #f1f5ff !important;
+}
+
+body.theme-black .summary-card {
+  background: linear-gradient(160deg, rgba(24, 33, 47, 0.99), rgba(17, 25, 37, 0.97)) !important;
+  border-color: rgba(129, 173, 240, 0.16) !important;
+  color: #eef3ff !important;
+}
+
+body.theme-black .summary-card strong {
+  color: #f4f7ff !important;
+  font-size: 1.06rem !important;
+  line-height: 1.25 !important;
+}
+
+body.theme-black .summary-card span {
+  color: #d6e0f5 !important;
+  font-size: 0.97rem !important;
+  line-height: 1.5 !important;
+}
+
+body.theme-black .summary-visitor-block {
+  border-top-color: rgba(129, 173, 240, 0.2) !important;
+}
+
+body.theme-black .summary-visitor-title {
+  color: #f0f4ff !important;
+}
+
+body.theme-black .summary-visitor-pill {
+  background: rgba(129, 173, 240, 0.14) !important;
+  color: #f4f7ff !important;
+  border: 1px solid rgba(129, 173, 240, 0.22) !important;
+  font-size: 0.9rem !important;
+}
+
+body.theme-black .status-pill.status-check-in {
+  background: rgba(129, 173, 240, 0.22) !important;
+  color: #eef3ff !important;
+  border-color: rgba(129, 173, 240, 0.34) !important;
+}
