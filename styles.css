@@ -7008,3 +7008,92 @@ body.theme-black .invoice-ops-error-chip {
   border-color: rgba(129, 173, 240, 0.26) !important;
   font-size: 0.92rem !important;
 }
+
+/* Final dark system pass: contrast autopilot + typography hierarchy + primary-only glow */
+body.theme-black {
+  --ui-title-size: 1.16rem;
+  --ui-value-size: 1.04rem;
+  --ui-meta-size: 0.94rem;
+  --ui-line-height: 1.52;
+}
+
+body.theme-black .panel h3,
+body.theme-black .summary-card strong,
+body.theme-black .porter-head strong,
+body.theme-black .hour-row strong,
+body.theme-black .warning-item strong,
+body.theme-black .invoice-ops-trend-head {
+  font-size: var(--ui-title-size) !important;
+  line-height: 1.28 !important;
+  color: #f4f7ff !important;
+}
+
+body.theme-black .panel p,
+body.theme-black .panel span,
+body.theme-black .summary-card span,
+body.theme-black .porter-head span,
+body.theme-black .hour-row span,
+body.theme-black .warning-item span,
+body.theme-black .invoice-ops-error-chip,
+body.theme-black .gate-deny-chip {
+  font-size: var(--ui-meta-size) !important;
+  line-height: var(--ui-line-height) !important;
+  color: #d9e3f8 !important;
+}
+
+body.theme-black .summary-card,
+body.theme-black .hour-row,
+body.theme-black .warning-item,
+body.theme-black .porter-live-card,
+body.theme-black .invoice-ops-trend-item,
+body.theme-black .access-feedback-card,
+body.theme-black .porter-company-summary,
+body.theme-black .summary-block {
+  color: #eef3ff !important;
+  border-color: rgba(129, 173, 240, 0.2) !important;
+}
+
+body.theme-black .ghost-button,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button,
+body.theme-black .invoice-toolbar .ghost-button,
+body.theme-black .invoice-quick-filters .ghost-button,
+body.theme-black .invoice-toolbar-refresh {
+  box-shadow: 0 6px 14px rgba(6, 10, 18, 0.28), 0 0 0 1px rgba(129, 173, 240, 0.16) !important;
+  filter: none !important;
+}
+
+body.theme-black .ghost-button:hover,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:hover,
+body.theme-black .invoice-toolbar .ghost-button:hover,
+body.theme-black .invoice-quick-filters .ghost-button:hover,
+body.theme-black .invoice-toolbar-refresh:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 9px 18px rgba(6, 10, 18, 0.34), 0 0 0 1px rgba(129, 173, 240, 0.22) !important;
+  filter: none !important;
+}
+
+body.theme-black .ghost-button::before,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button::before,
+body.theme-black .invoice-toolbar .ghost-button::before,
+body.theme-black .invoice-quick-filters .ghost-button::before,
+body.theme-black .invoice-toolbar-refresh::before {
+  display: none !important;
+}
+
+body.theme-black .ghost-button:focus-visible,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:focus-visible,
+body.theme-black .invoice-toolbar .ghost-button:focus-visible,
+body.theme-black .invoice-quick-filters .ghost-button:focus-visible,
+body.theme-black .invoice-toolbar-refresh:focus-visible {
+  animation: none !important;
+  box-shadow: 0 0 0 2px rgba(129, 173, 240, 0.34), 0 8px 16px rgba(6, 10, 18, 0.3) !important;
+}
+
+body.theme-black .ghost-button:active,
+body.theme-black .dashboard-worker-detail .button-row .ghost-button:active,
+body.theme-black .invoice-toolbar .ghost-button:active,
+body.theme-black .invoice-quick-filters .ghost-button:active,
+body.theme-black .invoice-toolbar-refresh:active {
+  animation: none !important;
+  transform: translateY(0) scale(0.99) !important;
+}
