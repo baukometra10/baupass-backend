@@ -3868,6 +3868,13 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   line-height: 1;
 }
 
+.badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
+  font-size: clamp(.62rem, 2.2vw, .88rem);
+  font-weight: 700;
+  color: #fff7d6;
+  letter-spacing: .06em;
+}
+
 .badge-shell .wallet-card .wc-right {
   text-align: right;
   display: flex;
@@ -3920,14 +3927,14 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 
 .badge-shell .wallet-card .wc-subcompany {
   margin: 2px 0 0;
-  max-width: 16ch;
-  padding: 3px 7px;
+  max-width: 24ch;
+  padding: 4px 9px;
   border-radius: 999px;
-  font-size: clamp(.36rem, 1.35vw, .54rem);
+  font-size: clamp(.42rem, 1.55vw, .62rem);
   font-weight: 700;
-  color: #fff1be;
-  background: rgba(212, 168, 67, .16);
-  border: 1px solid rgba(212, 168, 67, .3);
+  color: #fff6d0;
+  background: rgba(212, 168, 67, .24);
+  border: 1px solid rgba(212, 168, 67, .45);
   letter-spacing: .03em;
   line-height: 1;
   white-space: nowrap;

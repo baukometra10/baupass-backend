@@ -16869,7 +16869,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
         <p class="wc-role-text">${escapeHtml(roleLabel)}</p>
         <div class="wc-footer">
           <div class="wc-fields">
-            <div class="wc-field">
+            <div class="wc-field wc-field-badge">
               <span class="wc-field-label">Badge-ID</span>
               <span class="wc-field-value">${escapeHtml(badgeIdLabel)}</span>
             </div>
