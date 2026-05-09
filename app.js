@@ -8223,6 +8223,20 @@ function getRuntimeUiTexts() {
     complianceExpiringStatusDays: "{count} days",
     workerInsightsNoDays: "No days.",
     labelDaysCount: "{count} days",
+    workerInsightsMonthlyTitle: "Monthly evaluation",
+    workerInsightsReportTitle: "Evaluation: {name}",
+    workerInsightsTotalHours: "Total hours",
+    workerInsightsLateDays: "Late",
+    workerInsightsEarlyLeave: "Left early",
+    workerInsightsTimeWindow: "Scheduled time window",
+    workerInsightsLateSection: "Arrived late",
+    workerInsightsEarlySection: "Left early",
+    workerInsightsEnterName: "Please enter a name.",
+    workerInsightsNotFound: "No worker found with that name.",
+    workerInsightsLoading: "Loading evaluation for {name}…",
+    workerInsightsMultipleMatches: "Multiple matches found. Shown: {name}.",
+    workerInsightsNotSet: "not set",
+    workerInsightsFailed: "Evaluation failed: {error}",
     complianceWorkerFallback: "Worker",
     auditLogEmpty: "No audit entries available.",
     complianceKpiCompaniesWithIssues: "Companies with issues",
@@ -9022,6 +9036,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} Tage",
       workerInsightsNoDays: "Keine Tage.",
       labelDaysCount: "{count} Tage",
+      workerInsightsMonthlyTitle: "Monatsauswertung",
+      workerInsightsReportTitle: "Auswertung: {name}",
+      workerInsightsTotalHours: "Gesamtstunden",
+      workerInsightsLateDays: "Zu spät",
+      workerInsightsEarlyLeave: "Früh gegangen",
+      workerInsightsTimeWindow: "Sollzeit-Fenster",
+      workerInsightsLateSection: "Zu spät gekommen",
+      workerInsightsEarlySection: "Früh gegangen",
+      workerInsightsEnterName: "Bitte Namen eingeben.",
+      workerInsightsNotFound: "Kein Mitarbeiter mit diesem Namen gefunden.",
+      workerInsightsLoading: "Lade Auswertung fuer {name}...",
+      workerInsightsMultipleMatches: "Mehrere Treffer gefunden. Gezeigt wird: {name}.",
+      workerInsightsNotSet: "nicht gesetzt",
+      workerInsightsFailed: "Auswertung fehlgeschlagen: {error}",
       complianceWorkerFallback: "Mitarbeiter",
       auditLogEmpty: "Keine Audit-Eintraege vorhanden.",
       complianceKpiCompaniesWithIssues: "Unternehmen mit Problemen",
@@ -9805,6 +9833,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} gün",
       workerInsightsNoDays: "Gün yok.",
       labelDaysCount: "{count} gün",
+      workerInsightsMonthlyTitle: "Aylık değerlendirme",
+      workerInsightsReportTitle: "Değerlendirme: {name}",
+      workerInsightsTotalHours: "Toplam saat",
+      workerInsightsLateDays: "Geç",
+      workerInsightsEarlyLeave: "Erken ayrıldı",
+      workerInsightsTimeWindow: "Planlanan çalışma saati penceresi",
+      workerInsightsLateSection: "Geç geldi",
+      workerInsightsEarlySection: "Erken ayrıldı",
+      workerInsightsEnterName: "Lütfen bir ad girin.",
+      workerInsightsNotFound: "Bu adla çalışan bulunamadı.",
+      workerInsightsLoading: "{name} için değerlendirme yükleniyor…",
+      workerInsightsMultipleMatches: "Birden fazla eşleşme bulundu. Gösterilen: {name}.",
+      workerInsightsNotSet: "ayarlanmamış",
+      workerInsightsFailed: "Değerlendirme başarısız: {error}",
       complianceWorkerFallback: "Çalışan",
       auditLogEmpty: "Denetim kaydı yok.",
       complianceKpiCompaniesWithIssues: "Sorunlu şirketler",
@@ -10588,6 +10630,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} يوم",
       workerInsightsNoDays: "لا أيام.",
       labelDaysCount: "{count} يوم",
+      workerInsightsMonthlyTitle: "التقييم الشهري",
+      workerInsightsReportTitle: "التقييم: {name}",
+      workerInsightsTotalHours: "إجمالي الساعات",
+      workerInsightsLateDays: "متأخر",
+      workerInsightsEarlyLeave: "غادر مبكراً",
+      workerInsightsTimeWindow: "نافذة الوقت المجدولة",
+      workerInsightsLateSection: "وصل متأخراً",
+      workerInsightsEarlySection: "غادر مبكراً",
+      workerInsightsEnterName: "يرجى إدخال اسم.",
+      workerInsightsNotFound: "لم يتم العثور على عامل بهذا الاسم.",
+      workerInsightsLoading: "جاري تحميل التقييم لـ {name}…",
+      workerInsightsMultipleMatches: "تم العثور على عدة تطابقات. المعروض: {name}.",
+      workerInsightsNotSet: "لم يتم التعيين",
+      workerInsightsFailed: "فشل التقييم: {error}",
       complianceWorkerFallback: "عامل",
       auditLogEmpty: "لا توجد سجلات تدقيق متاحة.",
       complianceKpiCompaniesWithIssues: "الشركات التي لديها مشكلات",
@@ -11371,6 +11427,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} jours",
       workerInsightsNoDays: "Aucun jour.",
       labelDaysCount: "{count} jours",
+      workerInsightsMonthlyTitle: "Évaluation mensuelle",
+      workerInsightsReportTitle: "Évaluation: {name}",
+      workerInsightsTotalHours: "Heures totales",
+      workerInsightsLateDays: "En retard",
+      workerInsightsEarlyLeave: "Parti tôt",
+      workerInsightsTimeWindow: "Fenêtre horaire programmée",
+      workerInsightsLateSection: "Arrivé en retard",
+      workerInsightsEarlySection: "Parti tôt",
+      workerInsightsEnterName: "Veuillez entrer un nom.",
+      workerInsightsNotFound: "Aucun travailleur trouvé avec ce nom.",
+      workerInsightsLoading: "Chargement de l'évaluation pour {name}…",
+      workerInsightsMultipleMatches: "Plusieurs correspondances trouvées. Affichage: {name}.",
+      workerInsightsNotSet: "non défini",
+      workerInsightsFailed: "Évaluation échouée: {error}",
       complianceWorkerFallback: "Travailleur",
       auditLogEmpty: "Aucune entrée d'audit disponible.",
       complianceKpiCompaniesWithIssues: "Entreprises avec problèmes",
@@ -12154,6 +12224,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} días",
       workerInsightsNoDays: "Ningún día.",
       labelDaysCount: "{count} días",
+      workerInsightsMonthlyTitle: "Evaluación mensual",
+      workerInsightsReportTitle: "Evaluación: {name}",
+      workerInsightsTotalHours: "Horas totales",
+      workerInsightsLateDays: "Retrasado",
+      workerInsightsEarlyLeave: "Se fue temprano",
+      workerInsightsTimeWindow: "Ventana de tiempo programada",
+      workerInsightsLateSection: "Llegó tarde",
+      workerInsightsEarlySection: "Se fue temprano",
+      workerInsightsEnterName: "Por favor, ingrese un nombre.",
+      workerInsightsNotFound: "No se encontró trabajador con ese nombre.",
+      workerInsightsLoading: "Cargando evaluación para {name}…",
+      workerInsightsMultipleMatches: "Se encontraron múltiples coincidencias. Se muestra: {name}.",
+      workerInsightsNotSet: "no configurado",
+      workerInsightsFailed: "Evaluación fallida: {error}",
       complianceWorkerFallback: "Trabajador",
       auditLogEmpty: "No hay entradas de auditoría disponibles.",
       complianceKpiCompaniesWithIssues: "Empresas con incidencias",
@@ -12937,6 +13021,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} giorni",
       workerInsightsNoDays: "Nessun giorno.",
       labelDaysCount: "{count} giorni",
+      workerInsightsMonthlyTitle: "Valutazione mensile",
+      workerInsightsReportTitle: "Valutazione: {name}",
+      workerInsightsTotalHours: "Ore totali",
+      workerInsightsLateDays: "In ritardo",
+      workerInsightsEarlyLeave: "Partito presto",
+      workerInsightsTimeWindow: "Finestra oraria programmata",
+      workerInsightsLateSection: "Arrivato in ritardo",
+      workerInsightsEarlySection: "Partito presto",
+      workerInsightsEnterName: "Si prega di inserire un nome.",
+      workerInsightsNotFound: "Nessun lavoratore trovato con quel nome.",
+      workerInsightsLoading: "Caricamento della valutazione per {name}…",
+      workerInsightsMultipleMatches: "Trovate più corrispondenze. Visualizzazione: {name}.",
+      workerInsightsNotSet: "non impostato",
+      workerInsightsFailed: "Valutazione non riuscita: {error}",
       complianceWorkerFallback: "Lavoratore",
       auditLogEmpty: "Nessuna voce di audit disponibile.",
       complianceKpiCompaniesWithIssues: "Aziende con problemi",
@@ -13720,6 +13818,20 @@ function getRuntimeUiTexts() {
       complianceExpiringStatusDays: "{count} dni",
       workerInsightsNoDays: "Brak dni.",
       labelDaysCount: "{count} dni",
+      workerInsightsMonthlyTitle: "Ocena miesięczna",
+      workerInsightsReportTitle: "Ocena: {name}",
+      workerInsightsTotalHours: "Całkowita liczba godzin",
+      workerInsightsLateDays: "Spóźniony",
+      workerInsightsEarlyLeave: "Wyszedł wcześnie",
+      workerInsightsTimeWindow: "Zaplanowane okno czasowe",
+      workerInsightsLateSection: "Przyszedł spóźniony",
+      workerInsightsEarlySection: "Wyszedł wcześnie",
+      workerInsightsEnterName: "Proszę wpisać nazwę.",
+      workerInsightsNotFound: "Nie znaleziono pracownika o tej nazwie.",
+      workerInsightsLoading: "Ładowanie oceny dla {name}…",
+      workerInsightsMultipleMatches: "Znaleziono wiele dopasowań. Wyświetlanie: {name}.",
+      workerInsightsNotSet: "nie ustawiono",
+      workerInsightsFailed: "Ocena nie powiodła się: {error}",
       complianceWorkerFallback: "Pracownik",
       auditLogEmpty: "Brak wpisów audytu.",
       complianceKpiCompaniesWithIssues: "Firmy z problemami",
@@ -17641,33 +17753,33 @@ function renderWorkerInsightsPanelHtml(result) {
   elements.workerInsightsPanel.innerHTML = `
     <div class="worker-insights-header">
       <div class="worker-insights-title-wrap">
-        <p class="eyebrow">Monatsauswertung</p>
-        <h4>Auswertung: ${escapeHtml(workerName)} <span class="worker-insights-month">(${escapeHtml(monthKey)})</span></h4>
+        <p class="eyebrow">${escapeHtml(runtimeText("workerInsightsMonthlyTitle"))}</p>
+        <h4>${escapeHtml(runtimeTextTemplate("workerInsightsReportTitle", { name: workerName }))} <span class="worker-insights-month">(${escapeHtml(monthKey)})</span></h4>
       </div>
       <div class="worker-insights-kpis">
         <div class="worker-insights-kpi">
-          <span>Gesamtstunden</span>
+          <span>${escapeHtml(runtimeText("workerInsightsTotalHours"))}</span>
           <strong>${escapeHtml(formatMinutesToHm(totalMinutes))}</strong>
         </div>
         <div class="worker-insights-kpi worker-insights-kpi-late">
-          <span>Zu spät</span>
+          <span>${escapeHtml(runtimeText("workerInsightsLateDays"))}</span>
           <strong>${escapeHtml(runtimeTextTemplate("labelDaysCount", { count: Number(lateDays.length || 0) }))}</strong>
         </div>
         <div class="worker-insights-kpi worker-insights-kpi-early">
-          <span>Früh gegangen</span>
+          <span>${escapeHtml(runtimeText("workerInsightsEarlyLeave"))}</span>
           <strong>${escapeHtml(runtimeTextTemplate("labelDaysCount", { count: Number(earlyLeaveDays.length || 0) }))}</strong>
         </div>
       </div>
     </div>
-    <p class="helper-text worker-insights-window">Sollzeit-Fenster: ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</p>
+    <p class="helper-text worker-insights-window">${escapeHtml(runtimeText("workerInsightsTimeWindow"))}: ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</p>
     ${note ? `<p class="helper-text worker-insights-note">${escapeHtml(note)}</p>` : ""}
     <div class="worker-insights-grid">
       <section class="worker-insights-card">
-        <h5>Zu spät gekommen</h5>
+        <h5>${escapeHtml(runtimeText("workerInsightsLateSection"))}</h5>
         ${lateTable}
       </section>
       <section class="worker-insights-card">
-        <h5>Früh gegangen</h5>
+        <h5>${escapeHtml(runtimeText("workerInsightsEarlySection"))}</h5>
         ${earlyTable}
       </section>
     </div>
@@ -17680,7 +17792,7 @@ async function runWorkerInsightsByName() {
   if (!panel) return;
   if (!nameQuery) {
     panel.style.display = "block";
-    panel.innerHTML = `<p class="helper-text" style="margin:0;">Bitte Namen eingeben.</p>`;
+    panel.innerHTML = `<p class="helper-text" style="margin:0;">${escapeHtml(runtimeText("workerInsightsEnterName"))}</p>`;
     return;
   }
 
@@ -17690,7 +17802,7 @@ async function runWorkerInsightsByName() {
 
   if (!candidates.length) {
     panel.style.display = "block";
-    panel.innerHTML = `<p class="helper-text" style="margin:0;">Kein Mitarbeiter mit diesem Namen gefunden.</p>`;
+    panel.innerHTML = `<p class="helper-text" style="margin:0;">${escapeHtml(runtimeText("workerInsightsNotFound"))}</p>`;
     return;
   }
 
@@ -17701,7 +17813,7 @@ async function runWorkerInsightsByName() {
   const companyId = String(target.companyId || target.company_id || "").trim();
 
   panel.style.display = "block";
-  panel.innerHTML = `<p class="helper-text" style="margin:0;">Lade Auswertung für ${escapeHtml(workerName)}…</p>`;
+  panel.innerHTML = `<p class="helper-text" style="margin:0;">${escapeHtml(runtimeTextTemplate("workerInsightsLoading", { name: workerName }))}</p>`;
 
   try {
     const payload = await apiRequest(`${API_BASE}/api/companies/${companyId}/workers/${encodeURIComponent(target.id)}/timeline?month=${encodeURIComponent(monthKey)}`);
@@ -17732,7 +17844,7 @@ async function runWorkerInsightsByName() {
     });
 
     const note = candidates.length > 1 && !exact
-      ? `Mehrere Treffer gefunden. Gezeigt wird: ${workerName}.`
+      ? runtimeTextTemplate("workerInsightsMultipleMatches", { name: workerName })
       : "";
     renderWorkerInsightsPanelHtml({
       workerName,
@@ -17740,13 +17852,13 @@ async function runWorkerInsightsByName() {
       totalMinutes,
       lateDays,
       earlyLeaveDays,
-      startLabel: windowCfg.start == null ? "nicht gesetzt" : String((target.workStartTime || target.work_start_time || state.settings?.workStartTime || "")).trim(),
-      endLabel: windowCfg.end == null ? "nicht gesetzt" : String((target.workEndTime || target.work_end_time || state.settings?.workEndTime || "")).trim(),
+      startLabel: windowCfg.start == null ? runtimeText("workerInsightsNotSet") : String((target.workStartTime || target.work_start_time || state.settings?.workStartTime || "")).trim(),
+      endLabel: windowCfg.end == null ? runtimeText("workerInsightsNotSet") : String((target.workEndTime || target.work_end_time || state.settings?.workEndTime || "")).trim(),
       note,
     });
   } catch (error) {
     panel.style.display = "block";
-    panel.innerHTML = `<p class="helper-text helper-text-warning" style="margin:0;">Auswertung fehlgeschlagen: ${escapeHtml(error.message || "Unbekannter Fehler")}</p>`;
+    panel.innerHTML = `<p class="helper-text helper-text-warning" style="margin:0;">${escapeHtml(runtimeTextTemplate("workerInsightsFailed", { error: error.message || "Unknown error" }))}</p>`;
   }
 }
 
