@@ -2530,7 +2530,7 @@ function registerWorkerSw() {
   if (!("serviceWorker" in navigator)) {
     return;
   }
-  navigator.serviceWorker.register("./worker-sw.js").then((registration) => {
+  navigator.serviceWorker.register("./worker-sw.js?v=20260509b").then((registration) => {
     registration.update().catch(() => {});
 
     // When a new SW takes control, reload once to serve fresh assets.
@@ -2863,6 +2863,7 @@ function renderWorker(payload) {
   const worker = payload.worker || {};
   const company = payload.company || {};
   const subcompany = payload.subcompany || {};
+  const workerBadgeId = String(worker.badgeId || worker.badge_id || "").trim();
   const companyPreset = normalizeCompanyBrandingPreset(company.brandingPreset || company.branding_preset);
   const normalizedStatus = String(worker.status || "").trim().toLowerCase();
   const workerType = String(worker.workerType || "worker").trim().toLowerCase();
@@ -2924,15 +2925,10 @@ function renderWorker(payload) {
   if (elements.companyName) elements.companyName.textContent = company.name || t("companyFallback");
   if (elements.workerSubcompany) {
     const subcompanyName = String(subcompany.name || "").trim();
-    if (subcompanyName) {
-      elements.workerSubcompany.textContent = tf("subcompanyPrefix", { name: subcompanyName });
-      elements.workerSubcompany.title = tf("subcompanyTitle", { name: subcompanyName });
-      elements.workerSubcompany.classList.remove("hidden");
-    } else {
-      elements.workerSubcompany.textContent = "";
-      elements.workerSubcompany.removeAttribute("title");
-      elements.workerSubcompany.classList.add("hidden");
-    }
+    const displayName = subcompanyName || "-";
+    elements.workerSubcompany.textContent = tf("subcompanyPrefix", { name: displayName });
+    elements.workerSubcompany.title = tf("subcompanyTitle", { name: displayName });
+    elements.workerSubcompany.classList.remove("hidden");
   }
   if (elements.workerName) elements.workerName.textContent = `${worker.firstName || ""} ${worker.lastName || ""}`.trim();
   if (elements.workerRole) elements.workerRole.textContent = isVisitor ? t("visitorRole") : (worker.role || "-");
@@ -2940,7 +2936,7 @@ function renderWorker(payload) {
     elements.workerStatus.textContent = worker.status || "-";
     elements.workerStatus.dataset.status = normalizedStatus;
   }
-  if (elements.workerBadgeId) elements.workerBadgeId.textContent = worker.badgeId || "-";
+  if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";
   if (elements.workerSite) elements.workerSite.textContent = worker.site || "-";
   updateSiteMapLink(worker.site || "");
   if (elements.workerValidUntil) elements.workerValidUntil.textContent = formatDate(worker.validUntil);
@@ -2980,7 +2976,7 @@ function renderWorker(payload) {
     }
   }
 
-  dqrWorkerBadgeId = String(worker.badgeId || "").trim();
+  dqrWorkerBadgeId = workerBadgeId;
   const qrPayload = buildQrPayload(worker);
   const isCompactViewport = window.matchMedia("(max-width: 520px)").matches;
   const workerQrSize = isCompactViewport ? 520 : 460;
@@ -3600,7 +3596,7 @@ function stopAmbientLightRecommendation() {
 function buildQrPayload(worker) {
   // Returns current DQR token if available, else falls back to static badge id.
   if (dqrCurrentToken) return dqrCurrentToken;
-  const badge = String(worker?.badgeId || "").trim();
+  const badge = String(worker?.badgeId || worker?.badge_id || "").trim();
   return badge || String(worker?.id || "").trim();
 }
 

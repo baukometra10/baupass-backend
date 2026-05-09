@@ -14511,8 +14511,12 @@ function initNativeDesktopShell() {
 }
 
 function getSubcompanyLabel(worker) {
-  if (!worker?.subcompanyId) return "";
-  const sub = state.subcompanies.find((entry) => entry.id === worker.subcompanyId);
+  if (!worker) return "";
+  const directLabel = String(worker.subcompanyName || worker.subcompany_name || "").trim();
+  if (directLabel) return directLabel;
+  const subcompanyId = worker.subcompanyId || worker.subcompany_id;
+  if (!subcompanyId) return "";
+  const sub = state.subcompanies.find((entry) => entry.id === subcompanyId);
   return sub?.name || "";
 }
 
@@ -16814,6 +16818,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const safeBadgePhoto = sanitizeImageSrc(worker.photoData, createAvatar(worker));
   const normalizedStatus = normalizeWorkerCardStatus(worker.status);
   const subcompanyLabel = getSubcompanyLabel(worker);
+  const badgeIdLabel = String(worker.badgeId || worker.badge_id || "").trim() || "-";
   const validUntilLabel = formatDate(worker.validUntil);
   const passSubLabel = getWorkerCardPassSubLabel(worker);
   const roleLabel = getWorkerCardRoleLabel(worker);
@@ -16866,7 +16871,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
           <div class="wc-fields">
             <div class="wc-field">
               <span class="wc-field-label">Badge-ID</span>
-              <span class="wc-field-value">${escapeHtml(worker.badgeId || "-")}</span>
+              <span class="wc-field-value">${escapeHtml(badgeIdLabel)}</span>
             </div>
             <div class="wc-field">
               <span class="wc-field-label">${escapeHtml(runtimeText("badgeCardValidUntilLabel"))}</span>
@@ -16876,7 +16881,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
           <div class="wc-right">
             <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(worker.status === "gesperrt" ? runtimeText("workerStatusLocked") : worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : runtimeText("workerStatusActive"))}</div>
             <p class="wc-company">${escapeHtml(companyName)}</p>
-            ${subcompanyLabel ? `<p class="wc-subcompany">${escapeHtml(subcompanyLabel)}</p>` : ""}
+            <p class="wc-subcompany">${escapeHtml(subcompanyLabel || "-")}</p>
           </div>
         </div>
       </div>
