@@ -4604,17 +4604,17 @@ body.theme-black {
   --surface-strong: #171d27;
   --text: #f4f7ff;
   --muted: #b7c1d6;
-  --line: rgba(123, 182, 255, 0.24);
-  --button-bg: linear-gradient(135deg, #ff8a3d 0%, #ff6f2a 46%, #4d82ff 54%, #3f6fe0 100%);
+  --line: rgba(129, 173, 240, 0.2);
+  --button-bg: linear-gradient(135deg, #f58a46 0%, #ea6f2f 46%, #5d87e8 54%, #4f76d1 100%);
   --button-text: #fdfdff;
-  --button-border: rgba(123, 182, 255, 0.4);
-  --accent: #ff9248;
-  --accent-soft: rgba(255, 146, 72, 0.2);
-  --accent-dark: #d96b2b;
+  --button-border: rgba(129, 173, 240, 0.34);
+  --accent: #f39256;
+  --accent-soft: rgba(243, 146, 86, 0.17);
+  --accent-dark: #cb6d36;
   --shadow: 0 26px 58px rgba(3, 6, 12, 0.58);
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 138, 61, 0.24), transparent 36%),
-    radial-gradient(circle at 100% 12%, rgba(77, 130, 255, 0.2), transparent 34%),
+    radial-gradient(circle at 8% 0%, rgba(245, 138, 70, 0.2), transparent 36%),
+    radial-gradient(circle at 100% 12%, rgba(93, 135, 232, 0.16), transparent 34%),
     linear-gradient(155deg, #0f1116 0%, #141a24 52%, #10151f 100%);
 }
 
@@ -4633,7 +4633,7 @@ body.theme-black .content::before {
 
 body.theme-black .topbar {
   background: rgba(18, 24, 34, 0.92);
-  border-color: rgba(123, 182, 255, 0.26);
+  border-color: rgba(129, 173, 240, 0.22);
   box-shadow: 0 14px 30px rgba(4, 7, 12, 0.5);
 }
 
@@ -4654,7 +4654,7 @@ body.theme-black .list-item,
 body.theme-black .card-item,
 body.theme-black .camera-block {
   background: #19202b;
-  border-color: rgba(123, 182, 255, 0.18);
+  border-color: rgba(129, 173, 240, 0.16);
   color: #f4f7ff;
 }
 

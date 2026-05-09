@@ -28,10 +28,10 @@
     --card-strong: rgba(26, 34, 46, 0.86);
     --text: #f4f7ff;
     --muted: #b7c1d6;
-    --accent: #ff9248;
-    --accent-dark: #d96b2b;
-    --accent-soft: #ffbe95;
-    --blue: #4d82ff;
+    --accent: #f39256;
+    --accent-dark: #cb6d36;
+    --accent-soft: #f8c3a0;
+    --blue: #5d87e8;
     --shadow: 0 30px 62px rgba(3, 6, 12, 0.52);
   }
 }
@@ -59,8 +59,8 @@ body {
 @media (prefers-color-scheme: dark) {
   body {
     background:
-      radial-gradient(circle at top left, rgba(255, 138, 61, 0.24), transparent 32%),
-      radial-gradient(circle at right 20%, rgba(77, 130, 255, 0.2), transparent 26%),
+      radial-gradient(circle at top left, rgba(245, 138, 70, 0.2), transparent 32%),
+      radial-gradient(circle at right 20%, rgba(93, 135, 232, 0.16), transparent 26%),
       linear-gradient(145deg, #0f1116 0%, #141a24 42%, #10151f 100%);
   }
 }
@@ -72,17 +72,17 @@ body {
   --card-strong: rgba(26, 34, 46, 0.86);
   --text: #f4f7ff;
   --muted: #b7c1d6;
-  --accent: #ff9248;
-  --accent-dark: #d96b2b;
-  --accent-soft: #ffbe95;
-  --blue: #4d82ff;
+  --accent: #f39256;
+  --accent-dark: #cb6d36;
+  --accent-soft: #f8c3a0;
+  --blue: #5d87e8;
   --shadow: 0 30px 62px rgba(3, 6, 12, 0.52);
 }
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at top left, rgba(255, 138, 61, 0.24), transparent 32%),
-    radial-gradient(circle at right 20%, rgba(77, 130, 255, 0.2), transparent 26%),
+    radial-gradient(circle at top left, rgba(245, 138, 70, 0.2), transparent 32%),
+    radial-gradient(circle at right 20%, rgba(93, 135, 232, 0.16), transparent 26%),
     linear-gradient(145deg, #0f1116 0%, #141a24 42%, #10151f 100%);
 }
 
@@ -2933,58 +2933,58 @@ body {
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) .worker-quick-menu {
     background: rgba(24, 32, 45, 0.9);
-    border-color: rgba(123, 182, 255, 0.22);
+    border-color: rgba(129, 173, 240, 0.2);
   }
 
   html:not([data-theme="light"]) .quick-menu-btn,
   html:not([data-theme="light"]) .worker-menu-btn {
     background: rgba(29, 38, 53, 0.94);
     color: #f4f7ff;
-    border-color: rgba(123, 182, 255, 0.22);
+    border-color: rgba(129, 173, 240, 0.2);
   }
 
   html:not([data-theme="light"]) .scanner-card {
     background: linear-gradient(180deg, rgba(28, 36, 49, 0.92), rgba(22, 30, 41, 0.94));
-    border-color: rgba(123, 182, 255, 0.2);
+    border-color: rgba(129, 173, 240, 0.18);
     box-shadow: 0 16px 30px rgba(4, 7, 12, 0.34);
   }
 
   html:not([data-theme="light"]) .gate-panel {
     background: rgba(24, 32, 44, 0.96);
-    border-color: rgba(123, 182, 255, 0.24);
+    border-color: rgba(129, 173, 240, 0.22);
   }
 
   html:not([data-theme="light"]) .site-map-link {
-    background: linear-gradient(135deg, #ff8a3d 0%, #ff6f2a 48%, #4d82ff 52%, #3f6fe0 100%);
+    background: linear-gradient(135deg, #f58a46 0%, #ea6f2f 48%, #5d87e8 52%, #4f76d1 100%);
     box-shadow: 0 12px 26px rgba(8, 14, 29, 0.44);
   }
 }
 
 [data-theme="dark"] .worker-quick-menu {
   background: rgba(24, 32, 45, 0.9);
-  border-color: rgba(123, 182, 255, 0.22);
+  border-color: rgba(129, 173, 240, 0.2);
 }
 
 [data-theme="dark"] .quick-menu-btn,
 [data-theme="dark"] .worker-menu-btn {
   background: rgba(29, 38, 53, 0.94);
   color: #f4f7ff;
-  border-color: rgba(123, 182, 255, 0.22);
+  border-color: rgba(129, 173, 240, 0.2);
 }
 
 [data-theme="dark"] .scanner-card {
   background: linear-gradient(180deg, rgba(28, 36, 49, 0.92), rgba(22, 30, 41, 0.94));
-  border-color: rgba(123, 182, 255, 0.2);
+  border-color: rgba(129, 173, 240, 0.18);
   box-shadow: 0 16px 30px rgba(4, 7, 12, 0.34);
 }
 
 [data-theme="dark"] .gate-panel {
   background: rgba(24, 32, 44, 0.96);
-  border-color: rgba(123, 182, 255, 0.24);
+  border-color: rgba(129, 173, 240, 0.22);
 }
 
 [data-theme="dark"] .site-map-link {
-  background: linear-gradient(135deg, #ff8a3d 0%, #ff6f2a 48%, #4d82ff 52%, #3f6fe0 100%);
+  background: linear-gradient(135deg, #f58a46 0%, #ea6f2f 48%, #5d87e8 52%, #4f76d1 100%);
   box-shadow: 0 12px 26px rgba(8, 14, 29, 0.44);
 }
 
