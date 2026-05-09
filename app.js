@@ -23580,7 +23580,7 @@ function renderInvoiceHistory() {
     return;
   }
 
-  const limit = state.invoiceHistoryLimit || 20;
+  const limit = state.invoiceHistoryLimit || 1;
   const visible = state.invoices.slice(0, limit);
   const hasMore = state.invoices.length > limit;
 
@@ -23617,7 +23617,7 @@ function renderInvoiceHistory() {
   const loadMoreEl = elements.invoiceHistoryList.querySelector("#invoiceHistoryLoadMoreBtn");
   if (loadMoreEl) {
     loadMoreEl.addEventListener("click", () => {
-      state.invoiceHistoryLimit = (state.invoiceHistoryLimit || 20) + 20;
+      state.invoiceHistoryLimit = (state.invoiceHistoryLimit || 1) + 20;
       renderInvoiceHistory();
     });
   }
