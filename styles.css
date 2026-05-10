@@ -3990,6 +3990,71 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: none;
 }
 
+/* Light mode only: slightly larger, more prominent typography and a lower info block. */
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card {
+  max-width: 442px;
+  min-height: 280px;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-brand-mark {
+  width: clamp(28px, 7.6%, 34px);
+  height: clamp(28px, 7.6%, 34px);
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-brand-name {
+  font-size: clamp(.6rem, 2.6cqw, .8rem);
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-brand-sub {
+  font-size: clamp(.42rem, 1.75cqw, .54rem);
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-qr-holder {
+  width: 90px;
+  height: 90px;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-photo {
+  width: 80px;
+  height: 80px;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-bottom {
+  margin-top: 8px;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-name {
+  font-size: .66rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-role-text {
+  font-size: .45rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-field-label {
+  font-size: .34rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-field-value {
+  font-size: .44rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
+  font-size: .57rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-company {
+  font-size: .41rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-subcompany {
+  font-size: .36rem;
+}
+
+body:not(.theme-black):not([data-theme="dark"]) .badge-shell .wallet-card .wc-status {
+  font-size: .43rem;
+}
+
 /* Keep badge preview visually identical in light and dark system modes. */
 .badge-shell .wallet-card {
   color-scheme: light;
