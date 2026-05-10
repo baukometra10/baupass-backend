@@ -16990,15 +16990,22 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const normalizedStatus = normalizeWorkerCardStatus(worker.status);
   const subcompanyLabel = getSubcompanyLabel(worker);
   const badgeIdLabel = String(worker.badgeId || worker.badge_id || "").trim() || "-";
-  const validUntilLabel = formatDate(worker.validUntil);
+  const validUntilRaw = worker.validUntil || worker.valid_until || "";
+  const validUntilLabel = formatDate(validUntilRaw);
   const passSubLabel = getWorkerCardPassSubLabel(worker);
-  const roleLabel = getWorkerCardRoleLabel(worker);
+  const roleLabelRaw = getWorkerCardRoleLabel(worker);
+  const roleLabel = roleLabelRaw ? `ZUM: ${roleLabelRaw}` : "ZUM: -";
   const companyName = company?.name || uiT("badgeUnknownCompany");
   const companyPreset = getCompanyBrandingPreset(company);
   const cardBrandName = (companyPreset === "industry" || companyPreset === "premium")
     ? "KONTROLLPASS"
     : String((state.settings?.platformName || "BAUPASS")).toUpperCase();
-  const subcompanyLine = subcompanyLabel ? `Subunternehmen: ${subcompanyLabel}` : "";
+  const subcompanyLine = subcompanyLabel ? `Sub: ${subcompanyLabel}` : "";
+  const statusText = normalizedStatus === "gesperrt"
+    ? runtimeText("workerStatusLocked")
+    : normalizedStatus === "inaktiv"
+      ? runtimeText("workerStatusInactive")
+      : runtimeText("workerStatusActive");
 
   return `
     <article class="wallet-card preset-${escapeHtml(companyPreset)}" data-status="${escapeHtml(normalizedStatus)}">
@@ -17056,7 +17063,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
           <div class="wc-right">
             <p class="wc-company">${escapeHtml(companyName)}</p>
             <p class="wc-subcompany${subcompanyLine ? "" : " hidden"}">${escapeHtml(subcompanyLine)}</p>
-            <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(worker.status === "gesperrt" ? runtimeText("workerStatusLocked") : worker.status === "inaktiv" ? runtimeText("workerStatusInactive") : runtimeText("workerStatusActive"))}</div>
+            <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(statusText)}</div>
           </div>
         </div>
       </div>
