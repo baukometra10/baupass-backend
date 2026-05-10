@@ -3890,7 +3890,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 }
 
 .badge-shell .wallet-card .wc-field-label {
-  font-size: clamp(.34rem, 1.2vw, .45rem);
+  font-size: clamp(.29rem, 0.85vw, .36rem);
   color: rgba(235, 243, 255, .84);
   text-transform: uppercase;
   letter-spacing: .12em;
@@ -3900,7 +3900,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 
 .badge-shell .wallet-card .wc-field-value {
   font-family: "Space Grotesk", monospace;
-  font-size: clamp(.46rem, 1.65vw, .62rem);
+  font-size: clamp(.36rem, 1.1vw, .45rem);
   font-weight: 600;
   color: rgba(250, 252, 255, .99);
   letter-spacing: .04em;
@@ -3910,7 +3910,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 }
 
 .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
-  font-size: clamp(.58rem, 2.0vw, .78rem);
+  font-size: clamp(.44rem, 1.3vw, .56rem);
   font-weight: 800;
   color: #ffe9a8;
   letter-spacing: .07em;
@@ -3928,7 +3928,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: clamp(.42rem, 1.6vw, .6rem);
+  font-size: clamp(.32rem, 1.0vw, .44rem);
   font-weight: 700;
   color: #4ade80;
   text-transform: uppercase;
@@ -3960,7 +3960,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 .badge-shell .wallet-card .wc-company {
   margin: 0;
   max-width: 20ch;
-  font-size: clamp(.44rem, 1.55vw, .62rem);
+  font-size: clamp(.34rem, 1.0vw, .44rem);
   color: rgba(255, 255, 255, .93);
   font-weight: 700;
   letter-spacing: .05em;
@@ -3974,7 +3974,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 .badge-shell .wallet-card .wc-subcompany {
   margin: 0;
   max-width: 18ch;
-  font-size: clamp(.39rem, 1.35vw, .53rem);
+  font-size: clamp(.30rem, 0.85vw, .38rem);
   color: rgba(255, 255, 255, .72);
   font-weight: 600;
   letter-spacing: .03em;
