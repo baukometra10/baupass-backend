@@ -3132,8 +3132,6 @@ function renderWorker(payload) {
   document.querySelectorAll("[data-scroll-target='leaveRequestCard'], [data-worker-page-target='leaveRequestCard']").forEach((btn) => {
     btn.classList.toggle("hidden", isVisitor || !hasLeave);
   });
-
-  applyWorkerPageView("");
   
   // Load leave requests after render
   if (hasLeave && !isVisitor) void loadLeaveRequests();
