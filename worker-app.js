@@ -1821,6 +1821,7 @@ function setWorkerHubExpanded(expanded, options = {}) {
 }
 
 function getWorkerPageTitle(targetId) {
+  if (targetId === "routeCard") return t("routeTodayTitle");
   if (targetId === "sessionInfoCard") return t("sessionTitle");
   if (targetId === "actionsPanel") return t("actionsTitle");
   if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
@@ -1832,6 +1833,7 @@ function getWorkerPageTitle(targetId) {
 
 function getWorkerPageSections() {
   return [
+    document.querySelector("#routeCard"),
     elements.workerVisitorMeta,
     document.querySelector("#sessionInfoCard"),
     document.querySelector("#actionsPanel"),
@@ -1844,11 +1846,18 @@ function getWorkerPageSections() {
 function applyWorkerPageView(targetId = "") {
   const sections = getWorkerPageSections();
   const useFocusMode = Boolean(targetId);
+  const useTileOverview = document.body.classList.contains("worker-loaded");
   activeWorkerPageTarget = useFocusMode ? targetId : "";
 
   if (!useFocusMode) {
+    if (useTileOverview) {
+      document.body.classList.add("worker-tile-overview");
+    }
     sections.forEach((section) => {
-      if (section.dataset.pageWasVisible !== undefined) {
+      if (useTileOverview) {
+        section.classList.add("hidden");
+        delete section.dataset.pageWasVisible;
+      } else if (section.dataset.pageWasVisible !== undefined) {
         section.classList.toggle("hidden", section.dataset.pageWasVisible !== "1");
         delete section.dataset.pageWasVisible;
       }
@@ -1876,6 +1885,7 @@ function applyWorkerPageView(targetId = "") {
   if (elements.workerPageNav) {
     elements.workerPageNav.classList.remove("hidden");
   }
+  document.body.classList.remove("worker-tile-overview");
   if (elements.workerPageLabel) {
     elements.workerPageLabel.textContent = tf("workerPageOpened", { page: getWorkerPageTitle(targetId) });
   }
@@ -3115,11 +3125,11 @@ function renderWorker(payload) {
     elements.documentsCard.classList.toggle("hidden", !hasDocs);
   }
   // Hide leave section if plan doesn't support it
-  const leaveCard = document.getElementById("leaveCard");
+  const leaveCard = document.getElementById("leaveRequestCard");
   if (leaveCard) {
     leaveCard.classList.toggle("hidden", isVisitor || !hasLeave);
   }
-  document.querySelectorAll("[data-scroll-target='leaveCard'], [data-worker-page-target='leaveCard']").forEach((btn) => {
+  document.querySelectorAll("[data-scroll-target='leaveRequestCard'], [data-worker-page-target='leaveRequestCard']").forEach((btn) => {
     btn.classList.toggle("hidden", isVisitor || !hasLeave);
   });
 
