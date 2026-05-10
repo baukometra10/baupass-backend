@@ -3849,7 +3849,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 .badge-shell .wallet-card .wc-bottom {
   position: relative;
   z-index: 1;
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .badge-shell .wallet-card .wc-name {
@@ -3864,7 +3864,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 }
 
 .badge-shell .wallet-card .wc-role-text {
-  margin: 0 0 1px;
+  margin: 0;
   font-size: clamp(.38rem, 1.75cqw, .5rem);
   color: rgba(255, 255, 255, .55);
   text-transform: uppercase;
@@ -3880,8 +3880,9 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 
 .badge-shell .wallet-card .wc-fields {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-direction: row;
+  gap: 5px;
+  align-items: flex-end;
 }
 
 .badge-shell .wallet-card .wc-field {
@@ -5595,7 +5596,7 @@ body.desktop-app .topbar {
   .print-badge-root .wallet-card .wc-role-text  { font-size: 6.5pt !important; margin: 0 0 1.5mm !important; }
   .print-badge-root .wallet-card .wc-bottom     { margin-top: 1.2mm !important; }
   .print-badge-root .wallet-card .wc-footer     { display: flex !important; justify-content: space-between !important; align-items: flex-end !important; gap: 1.5mm !important; }
-  .print-badge-root .wallet-card .wc-fields     { display: flex !important; flex-direction: column !important; gap: 1.2mm !important; }
+  .print-badge-root .wallet-card .wc-fields     { display: flex !important; flex-direction: row !important; gap: 3mm !important; align-items: flex-end !important; }
   .print-badge-root .wallet-card .wc-field      { display: flex !important; flex-direction: column !important; gap: .3mm !important; }
   .print-badge-root .wallet-card .wc-field-label{ font-size: 4.1pt !important; line-height: 1.05 !important; }
   .print-badge-root .wallet-card .wc-field-value{ font-size: 5.7pt !important; line-height: 1.08 !important; }
