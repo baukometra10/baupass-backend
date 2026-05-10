@@ -2541,7 +2541,7 @@ function registerWorkerSw() {
     return;
   }
   const swTimestamp = Math.floor(Date.now() / 1000);
-  navigator.serviceWorker.register(`./worker-sw.js?v=20260510i&t=${swTimestamp}`).then((registration) => {
+  navigator.serviceWorker.register(`./worker-sw.js?v=20260510j&t=${swTimestamp}`).then((registration) => {
     registration.update().catch(() => {});
 
     // When a new SW takes control, reload once to serve fresh assets.
@@ -2549,35 +2549,23 @@ function registerWorkerSw() {
       window.location.reload();
     });
 
-    // Show update banner and force-activate waiting SW.
-    function showUpdateAndActivate(sw) {
+    // Force-activate waiting SW immediately without delay.
+    function activateWaiting(sw) {
       if (!sw) return;
-      const banner = document.querySelector("#updateBanner");
-      const bannerText = document.querySelector("#updateBannerText");
-      if (banner) {
-        if (bannerText) bannerText.textContent = t("updateAvailable");
-        banner.classList.remove("hidden");
-      }
-      sw.addEventListener("statechange", (e) => {
-        if (e.target.state === "activated") {
-          window.location.reload();
-        }
-      });
-      // Delay slightly so the banner is visible, then force skip-waiting.
-      setTimeout(() => {
-        sw.postMessage({ type: "SKIP_WAITING" });
-      }, 1800);
+      sw.postMessage({ type: "SKIP_WAITING" });
     }
 
     if (registration.waiting) {
-      showUpdateAndActivate(registration.waiting);
+      // There's already a waiting SW — activate it now.
+      activateWaiting(registration.waiting);
     }
     registration.addEventListener("updatefound", () => {
       const newSw = registration.installing;
       if (!newSw) return;
       newSw.addEventListener("statechange", () => {
-        if (newSw.state === "installed" && navigator.serviceWorker.controller) {
-          showUpdateAndActivate(newSw);
+        if (newSw.state === "installed") {
+          // Activate immediately — no user confirmation needed.
+          activateWaiting(newSw);
         }
       });
     });
