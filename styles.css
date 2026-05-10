@@ -3996,35 +3996,10 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 }
 
 @media (prefers-color-scheme: dark) {
+  /* Keep card rendering identical to light mode even if OS is dark. */
   .badge-shell .wallet-card {
-    background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
-    box-shadow:
-      0 28px 60px rgba(0, 0, 0, .55),
-      0 4px 20px rgba(0, 0, 0, .35),
-      0 0 0 1px rgba(255, 255, 255, .07),
-      inset 0 1px 0 rgba(255, 255, 255, .1) !important;
-  }
-
-  .badge-shell .wallet-card .wc-name,
-  .badge-shell .wallet-card .wc-role-text,
-  .badge-shell .wallet-card .wc-company,
-  .badge-shell .wallet-card .wc-subcompany,
-  .badge-shell .wallet-card .wc-field-label,
-  .badge-shell .wallet-card .wc-field-value,
-  .badge-shell .wallet-card .wc-status {
-    color: rgba(250, 252, 255, .99) !important;
-    filter: none !important;
-    opacity: 1 !important;
-  }
-
-  .badge-shell .wallet-card .wc-role-text,
-  .badge-shell .wallet-card .wc-subcompany,
-  .badge-shell .wallet-card .wc-field-label {
-    color: rgba(229, 238, 255, .86) !important;
-  }
-
-  .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
-    color: #ffebb0 !important;
+    color-scheme: light;
+    forced-color-adjust: none;
   }
 }
 
@@ -4063,13 +4038,17 @@ body.theme-black .badge-shell .wallet-card .wc-brand-name,
 [data-theme="dark"] .badge-shell .wallet-card .wc-brand-name {
   color: #fff !important;
 }
+body.theme-black .badge-shell .wallet-card .wc-brand-sub,
+[data-theme="dark"] .badge-shell .wallet-card .wc-brand-sub {
+  color: rgba(255, 255, 255, .45) !important;
+}
 body.theme-black .badge-shell .wallet-card .wc-role-text,
 [data-theme="dark"] .badge-shell .wallet-card .wc-role-text {
-  color: rgba(255, 255, 255, .58) !important;
+  color: rgba(255, 255, 255, .62) !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-field-label,
 [data-theme="dark"] .badge-shell .wallet-card .wc-field-label {
-  color: rgba(220, 232, 255, .82) !important;
+  color: rgba(220, 232, 255, .86) !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-field-value,
 [data-theme="dark"] .badge-shell .wallet-card .wc-field-value {
@@ -4085,11 +4064,16 @@ body.theme-black .badge-shell .wallet-card .wc-company,
 }
 body.theme-black .badge-shell .wallet-card .wc-subcompany,
 [data-theme="dark"] .badge-shell .wallet-card .wc-subcompany {
-  color: rgba(220, 236, 255, .78) !important;
+  color: rgba(220, 236, 255, .84) !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-status,
 [data-theme="dark"] .badge-shell .wallet-card .wc-status {
   color: #4ade80 !important;
+}
+body.theme-black .badge-shell .wallet-card .wc-status::before,
+[data-theme="dark"] .badge-shell .wallet-card .wc-status::before {
+  background: #4ade80 !important;
+  box-shadow: 0 0 7px rgba(74, 222, 128, .7) !important;
 }
 
 body.theme-black .badge-shell .badge-card-note,
@@ -5646,8 +5630,17 @@ body.desktop-app .topbar {
   .print-badge-root .wallet-card .wc-field-label { color: rgba(231, 240, 255, .9) !important; }
   .print-badge-root .wallet-card .wc-field-value { color: rgba(250, 252, 255, .99) !important; }
   .print-badge-root .wallet-card .wc-field.wc-field-badge .wc-field-value { color: #ffe9b4 !important; }
+  .print-badge-root .wallet-card .wc-name,
+  .print-badge-root .wallet-card .wc-brand-name { color: #fff !important; }
+  .print-badge-root .wallet-card .wc-brand-sub { color: rgba(255, 255, 255, .45) !important; }
+  .print-badge-root .wallet-card .wc-role-text { color: rgba(255, 255, 255, .62) !important; }
   .print-badge-root .wallet-card .wc-company { color: rgba(250, 252, 255, .98) !important; }
   .print-badge-root .wallet-card .wc-subcompany { color: rgba(236, 244, 255, .88) !important; }
+  .print-badge-root .wallet-card .wc-status { color: #4ade80 !important; }
+  .print-badge-root .wallet-card .wc-status::before {
+    background: #4ade80 !important;
+    box-shadow: 0 0 5px rgba(74, 222, 128, .65) !important;
+  }
   .print-badge-root .badge-card-note {
     display: none !important;
   }
