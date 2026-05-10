@@ -16998,8 +16998,8 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const companyPreset = getCompanyBrandingPreset(company);
   const cardBrandName = (companyPreset === "industry" || companyPreset === "premium")
     ? "KONTROLLPASS"
-    : String((state.settings?.platformName || "BAUPASS")).toUpperCase();
-  const subcompanyLine = subcompanyLabel ? `Subunternehmen: ${subcompanyLabel}` : "";
+    : String((state.settings?.platformName || "BAUPASS")).toUpperCase());
+  const subcompanyLine = subcompanyLabel ? `Sub: ${subcompanyLabel}` : "";
   const statusText = normalizedStatus === "gesperrt"
     ? runtimeText("workerStatusLocked")
     : normalizedStatus === "inaktiv"
