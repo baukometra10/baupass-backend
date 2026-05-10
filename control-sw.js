@@ -1,13 +1,13 @@
-const SHELL_CACHE = "baupass-control-shell-v61";
-const RUNTIME_CACHE = "baupass-control-runtime-v61";
+const SHELL_CACHE = "baupass-control-shell-v62";
+const RUNTIME_CACHE = "baupass-control-runtime-v62";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/index.html?v=20260510r",
+  "/index.html?v=20260510s",
   "/app.js",
-  "/app.js?v=20260510r",
+  "/app.js?v=20260510s",
   "/styles.css",
-  "/styles.css?v=20260510r",
+  "/styles.css?v=20260510s",
   "/control-manifest.json",
   "/branding/baukometra-logo.svg",
   "/branding/baukometra-alt-logo.svg",
@@ -94,7 +94,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       networkFirst(request).catch(async () => (
         (await caches.match(request)) ||
-        (await caches.match("/index.html?v=20260510r")) ||
+        (await caches.match("/index.html?v=20260510s")) ||
         (await caches.match("/index.html"))
       ))
     );
