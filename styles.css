@@ -3527,7 +3527,7 @@ body.theme-black .doc-inbox-unread {
   aspect-ratio: 85.6 / 56;
   min-height: 272px;
   border-radius: 22px;
-  padding: 4.4% 5.1% 4.1%;
+  padding: 3.8% 4.5% 3.2%;
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
   box-shadow:
     0 28px 60px rgba(0, 0, 0, .55),
@@ -3852,19 +3852,19 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 }
 
 .badge-shell .wallet-card .wc-name {
-  margin: 0 0 1px;
+  margin: 0 0 0;
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(.64rem, 2.45vw, .9rem);
+  font-size: clamp(.56rem, 2.0vw, .76rem);
   font-weight: 700;
   letter-spacing: .07em;
   text-transform: uppercase;
   color: #fff;
-  line-height: 1.1;
+  line-height: 1.08;
 }
 
 .badge-shell .wallet-card .wc-role-text {
-  margin: 0 0 2px;
-  font-size: clamp(.45rem, 1.7vw, .6rem);
+  margin: 0 0 1px;
+  font-size: clamp(.38rem, 1.3vw, .5rem);
   color: rgba(255, 255, 255, .55);
   text-transform: uppercase;
   letter-spacing: .1em;
@@ -3874,13 +3874,13 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 10px;
+  gap: 7px;
 }
 
 .badge-shell .wallet-card .wc-fields {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .badge-shell .wallet-card .wc-field {
