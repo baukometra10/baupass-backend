@@ -3067,7 +3067,7 @@ function renderWorker(payload) {
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
   updateWalletImmersiveMode();
-  setWorkerHubExpanded(false);
+  setWorkerHubExpanded(true);
   haptic([18, 35, 22]);
   // Start dynamic QR lifecycle as soon as pass is visible.
   startDynamicQrRefresh();
