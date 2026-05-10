@@ -16993,14 +16993,13 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const validUntilRaw = worker.validUntil || worker.valid_until || "";
   const validUntilLabel = formatDate(validUntilRaw);
   const passSubLabel = getWorkerCardPassSubLabel(worker);
-  const roleLabelRaw = getWorkerCardRoleLabel(worker);
-  const roleLabel = roleLabelRaw ? `ZUM: ${roleLabelRaw}` : "ZUM: -";
+  const roleLabel = getWorkerCardRoleLabel(worker);
   const companyName = company?.name || uiT("badgeUnknownCompany");
   const companyPreset = getCompanyBrandingPreset(company);
   const cardBrandName = (companyPreset === "industry" || companyPreset === "premium")
     ? "KONTROLLPASS"
     : String((state.settings?.platformName || "BAUPASS")).toUpperCase();
-  const subcompanyLine = subcompanyLabel ? `Sub: ${subcompanyLabel}` : "";
+  const subcompanyLine = subcompanyLabel ? `Subunternehmen: ${subcompanyLabel}` : "";
   const statusText = normalizedStatus === "gesperrt"
     ? runtimeText("workerStatusLocked")
     : normalizedStatus === "inaktiv"
