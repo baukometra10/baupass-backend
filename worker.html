@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png?v=20260503cp" />
   <link rel="icon" type="image/svg+xml" href="/worker-icon-192.svg?v=20260503cp" />
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png?v=20260503cp" />
-  <link rel="manifest" href="./worker-manifest.json?v=20260510g" />
+  <link rel="manifest" href="./worker-manifest.json?v=20260510h" />
   <title>BauPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker.css?v=20260510g" />
+  <link rel="stylesheet" href="./worker.css?v=20260510h" />
 </head>
 <body class="notranslate" translate="no">
   <!-- Splash screen – dismissed by JS after init; auto-hides via CSS after 9s if JS fails -->
@@ -232,7 +232,7 @@
         <button id="workerHubToggle" class="ghost small-btn worker-hub-toggle" type="button">Bereiche anzeigen</button>
       </div>
 
-      <div id="workerHubPanel" class="worker-panel-grid worker-hub-panel hidden">
+      <div id="workerHubPanel" class="worker-panel-grid worker-hub-panel">
           <!-- Besucher-Countdown (nur für Besucher, zeigt Zeit bis Besuchsende) -->
           <div id="visitorCountdownBanner" class="visitor-countdown-banner hidden">
             <span class="vcd-icon">⏱</span>
@@ -255,80 +255,82 @@
         </div>
 
         <div id="workerMenuCard" class="below-card worker-menu-card">
-          <div class="section-head compact-head">
-            <p class="section-kicker" data-i18n="menuKicker">Menü</p>
-            <h3 data-i18n="menuTitle">Deine Bereiche</h3>
-          </div>
           <div class="worker-menu-grid">
+            <!-- Notizen / Notes -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="sessionInfoCard">
               <span class="worker-menu-icon" aria-hidden="true">
                 <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
-                  <rect x="9" y="7" width="22" height="34" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M31 10h6v30" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-                  <rect x="28" y="7" width="3" height="34" fill="#f4c400"/>
-                  <path d="M35 15v16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                  <rect x="10" y="6" width="20" height="34" stroke="currentColor" stroke-width="2"/>
+                  <rect x="30" y="8" width="4" height="30" fill="#f4c400"/>
                 </svg>
               </span>
-              <span class="worker-menu-label" data-i18n="sessionTitle">Tagesausweis</span>
+              <span class="worker-menu-label">Notizen</span>
             </button>
+
+            <!-- Zulagen / Allowances -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="routeCard">
               <span class="worker-menu-icon" aria-hidden="true">
                 <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
-                  <rect x="8" y="10" width="32" height="28" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M8 18h32" stroke="currentColor" stroke-width="2.2"/>
-                  <path d="M16 10v28M24 10v28M32 10v28" stroke="#f4c400" stroke-width="2"/>
-                  <rect x="20" y="22" width="8" height="8" fill="#f4c400"/>
-                  <path d="M22 26h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="22" cy="16" r="10" stroke="currentColor" stroke-width="2"/>
+                  <path d="M32 20v12M36 20v12M32 20h4v12h-4z" stroke="currentColor" stroke-width="2"/>
+                  <rect x="33" y="24" width="2" height="4" fill="#f4c400"/>
+                  <rect x="35" y="22" width="2" height="6" fill="#f4c400"/>
                 </svg>
               </span>
-              <span class="worker-menu-label" data-i18n="routeTodayTitle">Standort heute</span>
+              <span class="worker-menu-label">Zulagen</span>
             </button>
+
+            <!-- Abwesenheiten / Absences -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="actionsPanel">
               <span class="worker-menu-icon" aria-hidden="true">
                 <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
-                  <path d="M8 15h32M8 24h32M8 33h32" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-                  <rect x="13" y="12" width="6" height="6" fill="#f4c400"/>
-                  <rect x="25" y="21" width="6" height="6" fill="#f4c400"/>
-                  <rect x="19" y="30" width="6" height="6" fill="#f4c400"/>
+                  <circle cx="16" cy="14" r="6" stroke="currentColor" stroke-width="2"/>
+                  <path d="M10 20c0-3.3 2-6 6-6s6 2.7 6 6v4H10z" stroke="currentColor" stroke-width="2"/>
+                  <rect x="24" y="12" width="14" height="16" rx="2" fill="#f4c400"/>
+                  <path d="M28 18l6 6m0-6l-6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
                 </svg>
               </span>
-              <span class="worker-menu-label" data-i18n="actionsTitle">Schnellzugriff</span>
+              <span class="worker-menu-label">Abwesenheiten</span>
             </button>
+
+            <!-- Anträge / Applications -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="leaveRequestCard">
               <span class="worker-menu-icon" aria-hidden="true">
                 <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
-                  <path d="M12 8h20l6 6v26H12z" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M32 8v6h6" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M17 21h16M17 26h16M17 31h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M17 36c2-2 4-3 6-3s4 1 6 3" stroke="#f4c400" stroke-width="2.4" stroke-linecap="round"/>
+                  <path d="M12 8h18l6 6v24H12V8z" stroke="currentColor" stroke-width="2"/>
+                  <path d="M30 8v6h6" stroke="currentColor" stroke-width="2"/>
+                  <path d="M16 20h14M16 26h14M16 32h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M28 36c2-2 4-3 6-3s4 1 6 3" stroke="#f4c400" stroke-width="2.5" stroke-linecap="round"/>
                 </svg>
               </span>
-              <span class="worker-menu-label" data-i18n="leaveRequestTitle">Urlaubsantrag</span>
+              <span class="worker-menu-label">Anträge</span>
             </button>
+
+            <!-- Planung / Planning -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="timesheetCard">
               <span class="worker-menu-icon" aria-hidden="true">
                 <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
-                  <rect x="8" y="10" width="32" height="30" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M8 18h32M16 7v8M32 7v8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-                  <rect x="14" y="22" width="6" height="6" fill="#f4c400"/>
-                  <rect x="22" y="22" width="6" height="6" fill="#f4c400"/>
-                  <rect x="30" y="22" width="6" height="6" fill="#f4c400"/>
-                  <path d="M14 31h22" stroke="currentColor" stroke-width="2"/>
+                  <rect x="8" y="10" width="28" height="26" stroke="currentColor" stroke-width="2"/>
+                  <path d="M14 7v6M28 7v6M8 16h28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <rect x="14" y="20" width="6" height="6" fill="#f4c400"/>
+                  <rect x="22" y="20" width="6" height="6" fill="#f4c400"/>
+                  <path d="M18 24l4 4m0-4l-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
               </span>
-              <span class="worker-menu-label" data-i18n="timesheetCardTitle">Eintritte & Zeiten</span>
+              <span class="worker-menu-label">Planung</span>
             </button>
+
+            <!-- Tagesübersicht / Daily -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="documentsCard">
               <span class="worker-menu-icon" aria-hidden="true">
                 <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
-                  <path d="M12 8h20l6 6v26H12z" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M32 8v6h6" stroke="currentColor" stroke-width="2.4"/>
-                  <path d="M17 22h14M17 27h14M17 32h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <circle cx="31" cy="31" r="6" stroke="#f4c400" stroke-width="2.4"/>
-                  <path d="M35.5 35.5l3.5 3.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                  <path d="M10 8h22l6 6v26H10V8z" stroke="currentColor" stroke-width="2"/>
+                  <path d="M32 8v6h6" stroke="currentColor" stroke-width="2"/>
+                  <circle cx="32" cy="28" r="8" stroke="#f4c400" stroke-width="2"/>
+                  <path d="M32 24v8M28 28h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
               </span>
-              <span class="worker-menu-label" data-i18n="documentsTitle">Meine Unterlagen</span>
+              <span class="worker-menu-label">Tagesübersicht</span>
             </button>
           </div>
         </div>
