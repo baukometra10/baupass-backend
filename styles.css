@@ -4054,17 +4054,42 @@ body.theme-black .badge-shell .wallet-card.preset-premium,
     inset 0 1px 0 rgba(120, 190, 255, .12) !important;
 }
 
-body.theme-black .badge-shell .wallet-card .wc-brand-name,
+/* Lock ALL card text to hardcoded card colors regardless of admin or OS dark theme. */
 body.theme-black .badge-shell .wallet-card .wc-name,
+[data-theme="dark"] .badge-shell .wallet-card .wc-name {
+  color: #fff !important;
+}
+body.theme-black .badge-shell .wallet-card .wc-brand-name,
+[data-theme="dark"] .badge-shell .wallet-card .wc-brand-name {
+  color: #fff !important;
+}
+body.theme-black .badge-shell .wallet-card .wc-role-text,
+[data-theme="dark"] .badge-shell .wallet-card .wc-role-text {
+  color: rgba(255, 255, 255, .58) !important;
+}
+body.theme-black .badge-shell .wallet-card .wc-field-label,
+[data-theme="dark"] .badge-shell .wallet-card .wc-field-label {
+  color: rgba(220, 232, 255, .82) !important;
+}
 body.theme-black .badge-shell .wallet-card .wc-field-value,
+[data-theme="dark"] .badge-shell .wallet-card .wc-field-value {
+  color: rgba(250, 252, 255, .99) !important;
+}
+body.theme-black .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value,
+[data-theme="dark"] .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
+  color: #ffe9a8 !important;
+}
 body.theme-black .badge-shell .wallet-card .wc-company,
+[data-theme="dark"] .badge-shell .wallet-card .wc-company {
+  color: rgba(255, 255, 255, .93) !important;
+}
+body.theme-black .badge-shell .wallet-card .wc-subcompany,
+[data-theme="dark"] .badge-shell .wallet-card .wc-subcompany {
+  color: rgba(220, 236, 255, .78) !important;
+}
 body.theme-black .badge-shell .wallet-card .wc-status,
-[data-theme="dark"] .badge-shell .wallet-card .wc-brand-name,
-[data-theme="dark"] .badge-shell .wallet-card .wc-name,
-[data-theme="dark"] .badge-shell .wallet-card .wc-field-value,
-[data-theme="dark"] .badge-shell .wallet-card .wc-company,
 [data-theme="dark"] .badge-shell .wallet-card .wc-status {
-  color: inherit;
+  color: #4ade80 !important;
 }
 
 body.theme-black .badge-shell .badge-card-note,
