@@ -777,16 +777,19 @@ button:hover,
 .worker-menu-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  background: #e8e8e8;
-  padding: 1px;
+  gap: 0;
+  background: linear-gradient(135deg, #f5f5f5, #f0f0f0);
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .05);
 }
 
 .worker-menu-btn {
   min-height: 160px;
   border: none;
   border-radius: 0;
-  background: #fafafa;
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
   color: #1a1a1a;
   font-weight: 500;
   font-size: 0.95rem;
@@ -798,12 +801,36 @@ button:hover,
   justify-content: flex-start;
   gap: 8px;
   box-shadow: none;
-  transition: background-color 0.15s ease;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.worker-menu-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .6) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.worker-menu-btn:hover {
+  background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+  transform: translateY(-2px);
+}
+
+.worker-menu-btn:hover::before {
+  opacity: 1;
 }
 
 .worker-menu-btn:active {
-  background: #f0f0f0;
+  background: linear-gradient(135deg, #ebebeb 0%, #e5e5e5 100%);
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .1);
 }
 
 .worker-menu-icon {
@@ -826,6 +853,16 @@ button:hover,
   stroke-width: 2;
   stroke: #1a1a1a;
   fill: none;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.worker-menu-btn:hover .worker-menu-svg {
+  transform: scale(1.1) rotate(2deg);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .1));
+}
+
+.worker-menu-btn:active .worker-menu-svg {
+  transform: scale(0.95);
 }
 
 .worker-menu-label {
@@ -839,14 +876,12 @@ button:hover,
   align-items: center;
   justify-content: center;
   text-align: center;
+  transition: all 0.25s ease;
 }
 
-.worker-menu-btn:hover {
-  background: #f5f5f5;
-}
-
-.worker-menu-btn:active {
-  background: #ebebeb;
+.worker-menu-btn:hover .worker-menu-label {
+  color: #0a0a0a;
+  font-weight: 500;
 }
 
 .worker-menu-btn:focus-visible {
@@ -892,7 +927,7 @@ body.worker-loaded .app-shell {
   margin: 0 auto;
   aspect-ratio: 85.6 / 56;
   min-height: 272px;
-  border-radius: 22px;
+  border-radius: 24px;
   padding: 4.8% 5.4%;
   background: linear-gradient(
     135deg,
@@ -901,10 +936,10 @@ body.worker-loaded .app-shell {
     #0d1520 100%
   );
   box-shadow:
-    0 28px 60px rgba(0, 0, 0, .55),
-    0  4px 20px rgba(0, 0, 0, .35),
-    0  0   0  1px rgba(255, 255, 255, .07),
-    inset 0 1px 0 rgba(255, 255, 255, .1);
+    0 40px 80px rgba(0, 0, 0, .6),
+    0 8px 32px rgba(0, 0, 0, .4),
+    0 0 0 1px rgba(255, 255, 255, .1),
+    inset 0 1px 0 rgba(255, 255, 255, .15);
   color: #fff;
   overflow: hidden;
   display: flex;
@@ -912,106 +947,17 @@ body.worker-loaded .app-shell {
   justify-content: space-between;
   -webkit-user-select: none;
   user-select: none;
-  transform: none;
-}
-
-.wallet-card.preset-construction {
-  background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
-}
-
-/* ── INDUSTRY: warmes Dunkel-Orange ─────────────────── */
-.wallet-card.preset-industry {
-  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
-  box-shadow:
-    0 28px 60px rgba(110, 58, 20, .42),
-    0  4px 20px rgba(0, 0, 0, .35),
-    0  0   0  1px rgba(210, 140, 70, .2),
-    inset 0 1px 0 rgba(255, 215, 150, .1);
-}
-
-.wallet-card.preset-industry::before {
-  background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%);
-  height: 2px;
-}
-
-.wallet-card.preset-industry .wc-brand-mark {
-  background: linear-gradient(135deg, #bc6f2d, #d6964e);
-  box-shadow: 0 3px 10px rgba(146, 90, 40, .45);
-}
-
-.wallet-card.preset-industry .wc-shimmer {
-  background: linear-gradient(
-    115deg,
-    transparent 0%, transparent 30%,
-    rgba(214, 151, 79, .12) 38%,
-    rgba(245, 211, 150, .08) 46%,
-    rgba(188, 116, 45, .07) 54%,
-    transparent 62%, transparent 100%
-  );
-  background-size: 220% 220%;
-}
-
-/* Text auf industry-Karte: warmes Weiß/Hellgold */
-.wallet-card.preset-industry .wc-name,
-.wallet-card.preset-industry .wc-role,
-.wallet-card.preset-industry .wc-site,
-.wallet-card.preset-industry .wc-badge-id,
-.wallet-card.preset-industry .wc-company {
-  color: #fff8ee;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, .7);
-}
-
-.wallet-card.preset-industry .wc-label {
-  color: rgba(255, 200, 100, .75);
-}
-
-/* ── PREMIUM: tiefes Marineblau / Saphir ────────────── */
-.wallet-card.preset-premium {
-  background: linear-gradient(135deg, #010d1f 0%, #06245a 46%, #000e22 100%);
-  box-shadow:
-    0 28px 60px rgba(0, 40, 150, .5),
-    0  4px 20px rgba(0, 0, 0, .4),
-    0  0   0  1px rgba(80, 160, 255, .18),
-    inset 0 1px 0 rgba(120, 190, 255, .12);
-}
-
-.wallet-card.preset-premium::before {
-  background: linear-gradient(90deg, #1565c0 0%, #42a5f5 50%, #1565c0 100%);
-}
-
-.wallet-card.preset-premium .wc-brand-mark {
-  background: linear-gradient(135deg, #1565c0, #1e88e5);
-  box-shadow: 0 3px 10px rgba(21, 101, 192, .55);
-}
-
-.wallet-card.preset-premium .wc-shimmer {
-  background: linear-gradient(
-    115deg,
-    transparent 0%, transparent 30%,
-    rgba(66, 165, 245, .12) 38%,
-    rgba(100, 200, 255, .09) 46%,
-    rgba(21, 101, 192, .08) 54%,
-    transparent 62%, transparent 100%
-  );
-  background-size: 220% 220%;
-}
-
-/* Text auf premium-Karte: kühles Eisweiß */
-.wallet-card.preset-premium .wc-name,
-.wallet-card.preset-premium .wc-role,
-.wallet-card.preset-premium .wc-site,
-.wallet-card.preset-premium .wc-badge-id,
-.wallet-card.preset-premium .wc-company {
-  color: #e8f4ff;
-  text-shadow: 0 1px 4px rgba(0, 20, 80, .7);
-}
-
-.wallet-card.preset-premium .wc-label {
-  color: rgba(120, 190, 255, .8);
+  transform: translateZ(0);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease;
 }
 
 .worker-loaded .wallet-card {
-  animation: cardFloat 1s ease;
+  animation: cardFloat 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.wallet-card:active {
+  transform: scale(0.98);
 }
 
 /* Farbstreifen oben */
@@ -1873,9 +1819,40 @@ body.qr-high-contrast #gateQr {
 }
 
 @keyframes cardFloat {
-  0% { opacity: 0; transform: translateY(24px) scale(.97); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% { 
+    opacity: 0; 
+    transform: translateY(30px) scale(0.95);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0) scale(1);
+  }
 }
+
+@keyframes menuButtonReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.worker-menu-btn {
+  animation: menuButtonReveal 0.5s ease forwards;
+}
+
+.worker-menu-btn:nth-child(1) { animation-delay: 0s; }
+.worker-menu-btn:nth-child(2) { animation-delay: 0.05s; }
+.worker-menu-btn:nth-child(3) { animation-delay: 0.1s; }
+.worker-menu-btn:nth-child(4) { animation-delay: 0.15s; }
+.worker-menu-btn:nth-child(5) { animation-delay: 0.2s; }
+.worker-menu-btn:nth-child(6) { animation-delay: 0.25s; }
 
 @media (max-width: 520px) {
   .app-shell {

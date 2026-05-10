@@ -1,11 +1,11 @@
-const CACHE_NAME = "baupass-worker-v57";
+const CACHE_NAME = "baupass-worker-v58";
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
 // users always get the latest version without needing to clear the cache.
 const STATIC_FILES = [
-  "/worker.css?v=20260510h",
-  "/worker-app.js?v=20260510h",
-  "/worker-manifest.json?v=20260510h",
+  "/worker.css?v=20260510i",
+  "/worker-app.js?v=20260510i",
+  "/worker-manifest.json?v=20260510i",
   "/worker-icon-192.png",
   "/worker-icon-512.png",
   "/worker-icon-192.svg",
