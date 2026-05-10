@@ -1,4 +1,4 @@
-const CACHE_NAME = "baupass-worker-v54";
+const CACHE_NAME = "baupass-worker-v55";
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
 // users always get the latest version without needing to clear the cache.
@@ -84,9 +84,13 @@ self.addEventListener("fetch", (event) => {
       if (cached) {
         return cached;
       }
-      return fetch(event.request).catch(() => {
+      return fetch(event.request).catch(async () => {
         if (event.request.mode === "navigate") {
-          return caches.match("/worker.html");
+          return (
+            (await caches.match("/worker.html")) ||
+            (await caches.match("/index.html")) ||
+            new Response("Offline", { status: 503, statusText: "Offline" })
+          );
         }
         return new Response("", { status: 504, statusText: "Offline" });
       });

@@ -2531,7 +2531,7 @@ function registerWorkerSw() {
     return;
   }
   const swTimestamp = Math.floor(Date.now() / 1000);
-  navigator.serviceWorker.register(`./worker-sw.js?v=20260510d&t=${swTimestamp}`).then((registration) => {
+  navigator.serviceWorker.register(`./worker-sw.js?v=20260510e&t=${swTimestamp}`).then((registration) => {
     registration.update().catch(() => {});
 
     // When a new SW takes control, reload once to serve fresh assets.
