@@ -3645,8 +3645,8 @@ body.theme-black .doc-inbox-unread {
 
 .badge-shell .wallet-card .wc-qr-holder {
   position: relative;
-  width: 86px;
-  height: 86px;
+  width: 87px;
+  height: 87px;
   flex-shrink: 0;
 }
 
@@ -3849,7 +3849,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 .badge-shell .wallet-card .wc-bottom {
   position: relative;
   z-index: 1;
-  margin-top: 5px;
+  margin-top: 6px;
 }
 
 .badge-shell .wallet-card .wc-name {
@@ -5586,7 +5586,7 @@ body.desktop-app .topbar {
   .print-badge-root .wallet-card .wc-brand-name { font-size: 6.5pt !important; letter-spacing: .08em !important; }
   .print-badge-root .wallet-card .wc-brand-sub  { font-size: 4pt !important; }
   .print-badge-root .wallet-card .wc-nfc        { width: 5.5mm !important; height: 5.5mm !important; }
-  .print-badge-root .wallet-card .wc-qr-holder  { width: 22.5mm !important; height: 22.5mm !important; min-width: 22.5mm !important; flex-shrink: 0 !important; }
+  .print-badge-root .wallet-card .wc-qr-holder  { width: 22.8mm !important; height: 22.8mm !important; min-width: 22.8mm !important; flex-shrink: 0 !important; }
   .print-badge-root .wallet-card .wc-middle { display: flex !important; justify-content: space-between !important; align-items: center !important; gap: 2mm !important; }
   .print-badge-root .wallet-card .wc-qr-frame   { inset: -1.5mm !important; border-radius: 3mm !important; }
   .print-badge-root .wallet-card .wc-qr-frame::before { display: none !important; }
@@ -5594,7 +5594,7 @@ body.desktop-app .topbar {
   .print-badge-root .wallet-card .wc-photo      { display: block !important; width: 20.5mm !important; height: 20.5mm !important; border-radius: 2.5mm !important; min-width: 20.5mm !important; flex-shrink: 0 !important; }
   .print-badge-root .wallet-card .wc-name       { font-size: 9pt !important; margin: 0 0 1px !important; }
   .print-badge-root .wallet-card .wc-role-text  { font-size: 6.1pt !important; margin: 0 0 1.5mm !important; }
-  .print-badge-root .wallet-card .wc-bottom     { margin-top: 1.5mm !important; }
+  .print-badge-root .wallet-card .wc-bottom     { margin-top: 1.7mm !important; }
   .print-badge-root .wallet-card .wc-footer     { display: flex !important; justify-content: space-between !important; align-items: flex-end !important; gap: 1mm !important; }
   .print-badge-root .wallet-card .wc-fields     { display: flex !important; flex-direction: row !important; gap: 2mm !important; align-items: flex-end !important; }
   .print-badge-root .wallet-card .wc-field      { display: flex !important; flex-direction: column !important; gap: .3mm !important; }
