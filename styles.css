@@ -3438,6 +3438,11 @@ body.theme-black .doc-inbox-unread {
   min-height: 420px;
   display: grid;
   place-items: center;
+  /* Freeze preview palette so system theme does not alter badge appearance. */
+  --badge-preview-accent: #d95d39;
+  --badge-preview-accent-dark: #b94a2a;
+  --badge-preview-text: #161312;
+  --badge-preview-muted: #665f5a;
 }
 
 .badge-card-stage {
@@ -3513,6 +3518,8 @@ body.theme-black .doc-inbox-unread {
    BADGE PREVIEW CARD - 1:1 wie Mitarbeiter-App
    ═══════════════════════════════════════════ */
 .badge-shell .wallet-card {
+  --accent: var(--badge-preview-accent);
+  --accent-dark: var(--badge-preview-accent-dark);
   position: relative;
   width: 100%;
   max-width: 430px;
@@ -3644,6 +3651,7 @@ body.theme-black .doc-inbox-unread {
 
 .badge-shell .wallet-card .wc-qr-frame {
   position: absolute;
+  -webkit-backdrop-filter: blur(4px);
   inset: -7px;
   border-radius: 16px;
   background: linear-gradient(135deg, #b88628 0%, #efd26b 26%, #fff2a5 45%, #d09b2f 62%, #8d6420 100%);
@@ -3758,6 +3766,20 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   box-shadow: 0 12px 24px rgba(122, 76, 33, .35), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(65, 38, 15, .44);
 }
 
+.badge-shell .wallet-card.preset-industry .wc-name,
+.badge-shell .wallet-card.preset-industry .wc-role-text,
+.badge-shell .wallet-card.preset-industry .wc-company,
+.badge-shell .wallet-card.preset-industry .wc-subcompany,
+.badge-shell .wallet-card.preset-industry .wc-field-value,
+.badge-shell .wallet-card.preset-industry .wc-status {
+  color: #fff8ee;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .7);
+}
+
+.badge-shell .wallet-card.preset-industry .wc-field-label {
+  color: rgba(255, 200, 100, .75);
+}
+
 /* PREMIUM – Marineblau / Saphir */
 .badge-shell .wallet-card.preset-premium {
   background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%);
@@ -3785,6 +3807,20 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   background: linear-gradient(135deg, #082060 0%, #1565c0 24%, #42a5f5 46%, #1976d2 66%, #061840 100%);
   border-color: rgba(66, 165, 245, .42);
   box-shadow: 0 12px 24px rgba(0, 60, 160, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 20, 80, .44);
+}
+
+.badge-shell .wallet-card.preset-premium .wc-name,
+.badge-shell .wallet-card.preset-premium .wc-role-text,
+.badge-shell .wallet-card.preset-premium .wc-company,
+.badge-shell .wallet-card.preset-premium .wc-subcompany,
+.badge-shell .wallet-card.preset-premium .wc-field-value,
+.badge-shell .wallet-card.preset-premium .wc-status {
+  color: #e8f4ff;
+  text-shadow: 0 1px 4px rgba(0, 20, 80, .7);
+}
+
+.badge-shell .wallet-card.preset-premium .wc-field-label {
+  color: rgba(120, 190, 255, .8);
 }
 
 .badge-shell .wallet-card .badge-wallet-qr {
@@ -3980,9 +4016,59 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   }
 }
 
-body.theme-black .badge-shell .wallet-card,
-[data-theme="dark"] .badge-shell .wallet-card {
+body.theme-black .badge-shell .wallet-card.preset-construction,
+[data-theme="dark"] .badge-shell .wallet-card.preset-construction {
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
+}
+
+/* Keep preset visuals stable in dark admin theme (same look as light mode). */
+body.theme-black .badge-shell .wallet-card.preset-industry,
+[data-theme="dark"] .badge-shell .wallet-card.preset-industry {
+  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%) !important;
+  box-shadow:
+    0 28px 60px rgba(110, 58, 20, .42),
+    0 4px 20px rgba(0, 0, 0, .35),
+    0 0 0 1px rgba(210, 140, 70, .2),
+    inset 0 1px 0 rgba(255, 215, 150, .1) !important;
+}
+
+body.theme-black .badge-shell .wallet-card.preset-premium,
+[data-theme="dark"] .badge-shell .wallet-card.preset-premium {
+  background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%) !important;
+  box-shadow:
+    0 28px 60px rgba(0, 40, 150, .5),
+    0 4px 20px rgba(0, 0, 0, .4),
+    0 0 0 1px rgba(80, 160, 255, .18),
+    inset 0 1px 0 rgba(120, 190, 255, .12) !important;
+}
+
+body.theme-black .badge-shell .wallet-card .wc-brand-name,
+body.theme-black .badge-shell .wallet-card .wc-name,
+body.theme-black .badge-shell .wallet-card .wc-field-value,
+body.theme-black .badge-shell .wallet-card .wc-company,
+body.theme-black .badge-shell .wallet-card .wc-status,
+[data-theme="dark"] .badge-shell .wallet-card .wc-brand-name,
+[data-theme="dark"] .badge-shell .wallet-card .wc-name,
+[data-theme="dark"] .badge-shell .wallet-card .wc-field-value,
+[data-theme="dark"] .badge-shell .wallet-card .wc-company,
+[data-theme="dark"] .badge-shell .wallet-card .wc-status {
+  color: inherit;
+}
+
+body.theme-black .badge-shell .badge-card-note,
+[data-theme="dark"] .badge-shell .badge-card-note {
+  background: linear-gradient(180deg, rgba(255, 248, 241, .94), rgba(247, 238, 228, .92)) !important;
+  border: 1px solid rgba(176, 125, 0, .16) !important;
+}
+
+body.theme-black .badge-shell .badge-info-label,
+[data-theme="dark"] .badge-shell .badge-info-label {
+  color: var(--badge-preview-muted) !important;
+}
+
+body.theme-black .badge-shell .badge-info-value,
+[data-theme="dark"] .badge-shell .badge-info-value {
+  color: var(--badge-preview-text) !important;
 }
 
 /* Badge action row (print / app-link buttons) */
