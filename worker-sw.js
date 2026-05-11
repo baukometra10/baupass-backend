@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260511f";
+const WORKER_BUILD = "20260511g";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -110,6 +110,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(event.request).catch(async () => {
         if (event.request.mode === "navigate") {
           return (
+            (await caches.match("/emp-app.html", { ignoreSearch: true })) ||
             (await caches.match("/worker.html", { ignoreSearch: true })) ||
             (await caches.match("/index.html")) ||
             new Response("Offline", { status: 503, statusText: "Offline" })
@@ -133,10 +134,10 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "",
     tag: data.tag || "baupass-notification",
-    icon: "/worker-icon-192.png",
-    badge: "/worker-icon-192.png",
+    icon: "/worker-icon-192-20260511f.png",
+    badge: "/worker-icon-192-20260511f.png",
     vibrate: [200, 100, 200],
-    data: { url: data.url || "/worker.html?view=card" },
+    data: { url: data.url || "/emp-app.html?view=card&v=20260511g" },
     actions: data.actions || []
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -144,11 +145,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/worker.html?view=card";
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/emp-app.html?view=card&v=20260511g";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if (client.url.includes("/worker") && "focus" in client) {
+        if ((client.url.includes("/emp-app") || client.url.includes("/worker")) && "focus" in client) {
           return client.focus();
         }
       }
@@ -184,10 +185,10 @@ self.addEventListener("message", (event) => {
       self.registration.showNotification("Vergessen auszustempeln?", {
         body: `${workerName || "Hallo"} – deine Schicht endet gleich. Bitte auschecken!`,
         tag: "checkout-reminder",
-        icon: "/worker-icon-192.png",
-        badge: "/worker-icon-192.png",
+        icon: "/worker-icon-192-20260511f.png",
+        badge: "/worker-icon-192-20260511f.png",
         vibrate: [300, 150, 300],
-        data: { url: "/worker.html" }
+        data: { url: "/emp-app.html?view=card&v=20260511g" }
       });
     }, delayMs);
   }

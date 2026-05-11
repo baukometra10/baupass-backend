@@ -13,10 +13,25 @@
   <meta name="apple-mobile-web-app-title" content="BauPass" />
   <meta name="application-name" content="BauPass Mitarbeiter-App" />
   <meta name="format-detection" content="telephone=no" />
+  <script>
+    (function redirectLegacyWorkerPath() {
+      try {
+        const url = new URL(window.location.href);
+        const target = new URL("/emp-app.html", window.location.origin);
+        url.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+        target.searchParams.set("v", "20260511g");
+        if (url.pathname !== "/emp-app.html") {
+          window.location.replace(target.toString());
+        }
+      } catch {
+        // ignore redirect failures
+      }
+    })();
+  </script>
   <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192-20260511f.png" />
   <link rel="icon" type="image/svg+xml" href="/worker-icon-192-20260511f.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192-20260511f.png" />
-  <link rel="manifest" href="./worker-manifest.json?v=20260511f" />
+  <link rel="manifest" href="./worker-manifest.json?v=20260511g" />
   <title>BauPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -24,7 +39,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker.css?v=20260511f" />
+  <link rel="stylesheet" href="./worker.css?v=20260511g" />
 </head>
 <body class="notranslate" translate="no">
   <!-- Splash screen – dismissed by JS after init; auto-hides via CSS after 9s if JS fails -->
@@ -569,6 +584,6 @@
     </div>
   </div>
 
-  <script src="./worker-app.js?v=20260511f"></script>
+  <script src="./worker-app.js?v=20260511g"></script>
 </body>
 </html>

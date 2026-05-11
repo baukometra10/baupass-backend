@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260511f";
+const WORKER_BUILD_TAG = "20260511g";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -2024,7 +2024,7 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
     return;
   }
 
-  fetch(`./worker-manifest.json?v=${WORKER_BUILD_TAG}`, { cache: "no-store" })
+  fetch(`./emp-app-manifest.json?v=${WORKER_BUILD_TAG}`, { cache: "no-store" })
     .then((response) => response.json())
     .then((manifest) => {
       const params = new URLSearchParams();
@@ -2035,13 +2035,13 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
         params.set("apiBase", apiBaseParam);
       }
 
-      manifest.start_url = `/worker.html?${params.toString()}`;
+      manifest.start_url = `/emp-app.html?${params.toString()}`;
       // White-label: update manifest names dynamically
       if (platformName) {
         manifest.name = platformName + " – Mitarbeiter";
         manifest.short_name = platformName;
         if (manifest.shortcuts) {
-          manifest.shortcuts.forEach((s) => { s.url = `/worker.html?view=card&${params.toString()}`; });
+          manifest.shortcuts.forEach((s) => { s.url = `/emp-app.html?view=card&${params.toString()}`; });
         }
       }
 

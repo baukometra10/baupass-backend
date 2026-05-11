@@ -1,9 +1,9 @@
 {
-  "id": "/worker.html?v=20260511f",
+  "id": "/emp-app.html?v=20260511g",
   "name": "BauPass – Mitarbeiter",
   "short_name": "BauPass",
   "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
-  "start_url": "/worker.html?view=card&v=20260511f",
+  "start_url": "/emp-app.html?view=card&v=20260511g",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#f6f1e8",
@@ -16,7 +16,7 @@
       "name": "Meine Karte anzeigen",
       "short_name": "Karte",
       "description": "BauPass direkt öffnen",
-      "url": "/worker.html?view=card&v=20260511f",
+      "url": "/emp-app.html?view=card&v=20260511g",
       "icons": [
         { "src": "/worker-icon-192-20260511f.png", "sizes": "192x192", "type": "image/png" }
       ]
