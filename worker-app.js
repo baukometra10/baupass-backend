@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260511b";
+const WORKER_BUILD_TAG = "20260511c";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -1921,6 +1921,7 @@ async function init() {
   updateWalletImmersiveMode();
   applyQrContrastState();
   applyAutoOpenScannerState();
+  enforceWorkerBuildFreshness();
   
   // Enable Dark Mode support
   if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -2571,6 +2572,36 @@ function registerWorkerSw() {
       });
     });
   }).catch(() => {});
+}
+
+function enforceWorkerBuildFreshness() {
+  const buildTag = WORKER_BUILD_TAG;
+
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("v") !== buildTag) {
+      url.searchParams.set("v", buildTag);
+      window.history.replaceState({}, "", url.toString());
+    }
+  } catch {
+    // ignore URL rewrite failures
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => Promise.all(regs.map((reg) => reg.update().catch(() => {}))))
+      .catch(() => {});
+  }
+
+  if ("caches" in window) {
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith("baupass-worker-") && !key.includes(buildTag))
+          .map((key) => caches.delete(key))
+      ))
+      .catch(() => {});
+  }
 }
 
 function wireInstallPrompt() {

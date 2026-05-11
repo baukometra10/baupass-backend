@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260511b";
+const WORKER_BUILD = "20260511c";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS

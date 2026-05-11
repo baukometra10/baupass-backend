@@ -3539,8 +3539,8 @@ body.theme-black .doc-inbox-unread {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: clamp(3px, 1.8%, 8px);
+  justify-content: space-between;
+  gap: clamp(2px, 1.2%, 6px);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -3875,7 +3875,7 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 .badge-shell .wallet-card .wc-footer {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 8px;
 }
 
@@ -3883,14 +3883,17 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   display: flex;
   flex-direction: row;
   gap: 5px;
-  align-items: flex-start;
+  align-items: flex-end;
   flex-wrap: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .badge-shell .wallet-card .wc-field {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
 }
 
 .badge-shell .wallet-card .wc-field-label {
@@ -3920,13 +3923,26 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
   letter-spacing: .07em;
 }
 
+.badge-shell .wallet-card .wc-field.wc-field-badge {
+  max-width: 12ch;
+}
+
+.badge-shell .wallet-card .wc-field.wc-field-valid {
+  max-width: 9.5ch;
+}
+
+.badge-shell .wallet-card .wc-field.wc-field-valid .wc-field-value {
+  letter-spacing: .02em;
+}
+
 .badge-shell .wallet-card .wc-right {
   text-align: right;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
-  max-width: 48%;
+  max-width: 46%;
+  min-width: 0;
 }
 
 .badge-shell .wallet-card .wc-status {

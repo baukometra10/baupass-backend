@@ -17117,7 +17117,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
               <span class="wc-field-label">Badge-ID</span>
               <span class="wc-field-value">${escapeHtml(badgeIdLabel)}</span>
             </div>
-            <div class="wc-field">
+            <div class="wc-field wc-field-valid">
               <span class="wc-field-label">${escapeHtml(runtimeText("badgeCardValidUntilLabel"))}</span>
               <span class="wc-field-value">${escapeHtml(validUntilLabel || "-")}</span>
             </div>

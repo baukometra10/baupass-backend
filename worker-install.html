@@ -6,6 +6,9 @@
   <meta http-equiv="Content-Language" content="de" />
   <meta name="google" content="notranslate" />
   <meta name="theme-color" content="#d4b597" />
+  <link rel="manifest" href="./worker-manifest.json?v=20260511c" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png?v=20260511c" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png?v=20260511c" />
   <title>BauPass App installieren</title>
   <style>
     body {
@@ -87,7 +90,7 @@
         // ignore storage failures
       }
     }
-    const targetUrl = `./worker.html${accessToken ? `?access=${encodeURIComponent(accessToken)}` : ""}`;
+    const targetUrl = `./worker.html?view=card&v=20260511c${accessToken ? `&access=${encodeURIComponent(accessToken)}` : ""}`;
 
     let deferredInstallPrompt = null;
     const installBtn = document.querySelector("#installBtn");
