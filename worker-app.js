@@ -1944,6 +1944,10 @@ async function init() {
   applyQrContrastState();
   applyAutoOpenScannerState();
   enforceWorkerBuildFreshness();
+  if ("scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+  window.scrollTo(0, 0);
   
   // Enable Dark Mode support
   if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -3210,6 +3214,8 @@ function renderWorker(payload) {
   if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   updateWalletImmersiveMode();
   setWorkerHubExpanded(true);
   haptic([18, 35, 22]);
