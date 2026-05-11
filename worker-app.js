@@ -3136,6 +3136,13 @@ function renderWorker(payload) {
   updateWalletImmersiveMode();
   setWorkerHubExpanded(true);
   haptic([18, 35, 22]);
+  
+  // ══════════════════════════════════════════════════════════════
+  // ── PROFESSIONAL CARD ENTRANCE ANIMATION ──
+  // البطاقة تظهر مباشرة عند الدخول، ثم بعد 15 ثانية تنتقل للأعلى
+  // ══════════════════════════════════════════════════════════════
+  initializeCardEntranceAnimation();
+  
   // Start dynamic QR lifecycle as soon as pass is visible.
   startDynamicQrRefresh();
   if (elements.workerQuickMenu) {
@@ -3225,6 +3232,7 @@ function showLogin() {
   gateAutoOpenTriggered = false;
   stopAmbientLightRecommendation();
     stopDynamicQrRefresh();
+  clearCardEntranceAnimation();  // Clear card animation when showing login
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
   setWorkerHubExpanded(false);
@@ -4826,6 +4834,71 @@ async function loadLeaveRequests() {
   } catch (error) {
     console.warn("Could not load leave requests:", error);
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE: PROFESSIONAL CARD ENTRANCE ANIMATION ──
+// العملية: البطاقة تظهر مباشرة → بعد 15 ثانية تنتقل للأعلى → تظهر المميزات
+// ═════════════════════════════════════════════════════════════════════
+
+let cardEntranceTimer = null;
+
+function initializeCardEntranceAnimation() {
+  // Clear any previous timer
+  if (cardEntranceTimer) clearTimeout(cardEntranceTimer);
+  
+  if (!elements.badgeCard) return;
+  
+  // Step 1: Card appears with entrance animation (already visible from renderWorker)
+  elements.badgeCard.classList.add("card-entrance-active");
+  document.body.classList.add("card-animating");
+  
+  // Step 2: After 15 seconds (15000ms), smooth transition to top
+  cardEntranceTimer = setTimeout(() => {
+    if (!elements.badgeCard) return;
+    
+    // Remove entrance state and add transition-to-top state
+    elements.badgeCard.classList.remove("card-entrance-active");
+    elements.badgeCard.classList.add("card-transition-top");
+    document.body.classList.remove("card-animating");
+    document.body.classList.add("card-transitioned");
+    
+    // Scroll to show the card at top
+    setTimeout(() => {
+      if (elements.badgeCard) {
+        elements.badgeCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      // Show feature sections with staggered fade-in
+      showFeatureSectionsWithAnimation();
+    }, 300);
+  }, 15000); // 15 seconds delay
+}
+
+function showFeatureSectionsWithAnimation() {
+  // Animate in feature sections below the card
+  const sections = getWorkerPageSections();
+  sections.forEach((section, index) => {
+    if (section && !section.classList.contains("hidden")) {
+      // Reset animation
+      section.classList.remove("feature-fade-in");
+      // Trigger reflow to restart animation
+      void section.offsetWidth;
+      // Apply animation with stagger
+      section.style.animationDelay = `${index * 150}ms`;
+      section.classList.add("feature-fade-in");
+    }
+  });
+}
+
+function clearCardEntranceAnimation() {
+  if (cardEntranceTimer) {
+    clearTimeout(cardEntranceTimer);
+    cardEntranceTimer = null;
+  }
+  if (elements.badgeCard) {
+    elements.badgeCard.classList.remove("card-entrance-active", "card-transition-top");
+  }
+  document.body.classList.remove("card-animating", "card-transitioned");
 }
 
 // ═════════════════════════════════════════════════════════════════════

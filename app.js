@@ -17185,12 +17185,13 @@ async function printBadge(worker, company) {
         .print-badge-root .wallet-card .wc-top,
         .print-badge-root .wallet-card .wc-middle,
         .print-badge-root .wallet-card .wc-footer { display: flex !important; justify-content: space-between !important; align-items: center !important; }
-        .print-badge-root .wallet-card .wc-brand { display: flex !important; align-items: center !important; gap: 1.6mm !important; }
+        .print-badge-root .wallet-card .wc-brand { display: flex !important; align-items: center !important; gap: 1.6mm !important; transform: translateY(-0.38mm) !important; }
         .print-badge-root .wallet-card .wc-brand-mark { width: 6.5mm !important; height: 6.5mm !important; border-radius: 1.5mm !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #d95d39, #b94a2a); }
         .print-badge-root .wallet-card .wc-brand-text { display: flex !important; flex-direction: column !important; gap: .2mm !important; }
         .print-badge-root .wallet-card .wc-brand-name { font-size: 6.5pt !important; font-weight: 700 !important; letter-spacing: .08em !important; line-height: 1.08 !important; color: #fff !important; }
         .print-badge-root .wallet-card .wc-brand-sub { font-size: 4pt !important; line-height: 1.08 !important; color: rgba(255, 255, 255, .45) !important; text-transform: uppercase !important; }
         .print-badge-root .wallet-card .wc-nfc { width: 5.5mm !important; height: 5.5mm !important; opacity: .8 !important; }
+        .print-badge-root .wallet-card .wc-top { margin-bottom: .25mm !important; }
         .print-badge-root .wallet-card .wc-middle { align-items: center !important; gap: 2mm !important; }
         .print-badge-root .wallet-card .wc-qr-holder { width: 22.8mm !important; height: 22.8mm !important; min-width: 22.8mm !important; flex-shrink: 0 !important; position: relative !important; }
         .print-badge-root .wallet-card .wc-qr-frame { position: absolute !important; inset: -1.5mm !important; border-radius: 3mm !important; background: linear-gradient(135deg, #b88628 0%, #efd26b 26%, #fff2a5 45%, #d09b2f 62%, #8d6420 100%) !important; border: .2mm solid rgba(255, 220, 140, .42) !important; }
