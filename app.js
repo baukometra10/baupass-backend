@@ -17186,7 +17186,7 @@ async function printBadge(worker, company) {
         .print-badge-root .wallet-card .wc-middle,
         .print-badge-root .wallet-card .wc-footer { display: flex !important; justify-content: space-between !important; align-items: center !important; }
         .print-badge-root .wallet-card .wc-brand { display: flex !important; align-items: center !important; gap: 1.6mm !important; transform: translateY(-0.38mm) !important; }
-        .print-badge-root .wallet-card .wc-brand-mark { width: 6.5mm !important; height: 6.5mm !important; border-radius: 1.5mm !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #d95d39, #b94a2a) !important; }
+        .print-badge-root .wallet-card .wc-brand-mark { width: 5mm !important; height: 5mm !important; border-radius: 1.2mm !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #d95d39, #b94a2a) !important; }
         .print-badge-root .wallet-card.preset-industry .wc-brand-mark { background: linear-gradient(135deg, #bc6f2d, #d6964e) !important; }
         .print-badge-root .wallet-card.preset-premium .wc-brand-mark { background: linear-gradient(135deg, #1565c0, #1e88e5) !important; }
         .print-badge-root .wallet-card .wc-brand-text { display: flex !important; flex-direction: column !important; gap: .2mm !important; }
