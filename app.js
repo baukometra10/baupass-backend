@@ -17010,296 +17010,6 @@ setInterval(() => {
 }, 30000);
 
 // ── Print Badge ──────────────────────────────────────────────────────────────
-function clampPrintSetting(value, min, max, fallback) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.min(max, Math.max(min, numeric));
-}
-
-function getCardPrinterCalibration() {
-  const offsetXMm = clampPrintSetting(state.settings?.cardPrintOffsetXMm, -8, 8, 0);
-  const offsetYMm = clampPrintSetting(state.settings?.cardPrintOffsetYMm, -8, 8, 0);
-  const scalePct = clampPrintSetting(state.settings?.cardPrintScalePct, 90, 110, 100);
-  const rotationDeg = clampPrintSetting(state.settings?.cardPrintRotationDeg, -5, 5, 0);
-  return {
-    offsetXMm,
-    offsetYMm,
-    scalePct,
-    scale: scalePct / 100,
-    rotationDeg,
-  };
-}
-
-function printCardCalibrationSheet() {
-  const printWindow = window.open("", "_blank", "width=920,height=760");
-  if (!printWindow) {
-    showToast(uiT("alertPrintWindowFailed") || "Druckfenster konnte nicht geoeffnet werden.", "error", 3200);
-    return;
-  }
-
-  const calibration = getCardPrinterCalibration();
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Kartendrucker-Kalibrierung</title>
-      <style>
-        @page { size: 85.6mm 54mm; margin: 0; }
-        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
-        body { background: #fff; overflow: hidden; }
-        .calibration-root {
-          width: 85.6mm;
-          height: 54mm;
-          margin: 0;
-          padding: 0;
-          transform-origin: center center;
-          transform: translate(${calibration.offsetXMm}mm, ${calibration.offsetYMm}mm) scale(${calibration.scale}) rotate(${calibration.rotationDeg}deg);
-          position: relative;
-          border: 0.2mm solid #111;
-          box-sizing: border-box;
-          font-family: Arial, sans-serif;
-          color: #111;
-        }
-        .cross {
-          position: absolute;
-          width: 5mm;
-          height: 5mm;
-          transform: translate(-50%, -50%);
-        }
-        .cross::before,
-        .cross::after {
-          content: "";
-          position: absolute;
-          background: #111;
-        }
-        .cross::before {
-          left: 50%;
-          top: 0;
-          width: 0.25mm;
-          height: 5mm;
-          transform: translateX(-50%);
-        }
-        .cross::after {
-          top: 50%;
-          left: 0;
-          width: 5mm;
-          height: 0.25mm;
-          transform: translateY(-50%);
-        }
-        .corner-label {
-          position: absolute;
-          font-size: 2.8mm;
-          font-weight: 700;
-        }
-        .center-box {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          width: 36mm;
-          height: 14mm;
-          transform: translate(-50%, -50%);
-          border: 0.2mm dashed #111;
-          display: grid;
-          place-items: center;
-          text-align: center;
-          font-size: 2.6mm;
-          line-height: 1.2;
-          padding: 1.2mm;
-          box-sizing: border-box;
-        }
-        .meta {
-          position: absolute;
-          left: 2mm;
-          right: 2mm;
-          bottom: 1.8mm;
-          font-size: 2.1mm;
-          text-align: center;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="calibration-root">
-        <div class="cross" style="left: 2mm; top: 2mm;"></div>
-        <div class="cross" style="left: calc(100% - 2mm); top: 2mm;"></div>
-        <div class="cross" style="left: 2mm; top: calc(100% - 2mm);"></div>
-        <div class="cross" style="left: calc(100% - 2mm); top: calc(100% - 2mm);"></div>
-        <div class="cross" style="left: 50%; top: 50%;"></div>
-
-        <div class="corner-label" style="left: 3.8mm; top: 3.6mm;">TL</div>
-        <div class="corner-label" style="right: 3.8mm; top: 3.6mm;">TR</div>
-        <div class="corner-label" style="left: 3.8mm; bottom: 3.8mm;">BL</div>
-        <div class="corner-label" style="right: 3.8mm; bottom: 3.8mm;">BR</div>
-
-        <div class="center-box">
-          Kartendrucker-Test
-          <br />
-          85.6 x 54 mm (CR80)
-        </div>
-
-        <div class="meta">
-          X: ${calibration.offsetXMm.toFixed(1)}mm | Y: ${calibration.offsetYMm.toFixed(1)}mm | Scale: ${calibration.scalePct.toFixed(1)}% | Rot: ${calibration.rotationDeg.toFixed(1)}deg
-        </div>
-      </div>
-      <script>
-        window.addEventListener("load", () => {
-          requestAnimationFrame(() => {
-            window.focus();
-            window.print();
-            setTimeout(() => window.close(), 500);
-          });
-        });
-      </script>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-}
-
-function printCardDuplexCalibrationSheet() {
-  const printWindow = window.open("", "_blank", "width=920,height=760");
-  if (!printWindow) {
-    showToast(uiT("alertPrintWindowFailed") || "Druckfenster konnte nicht geoeffnet werden.", "error", 3200);
-    return;
-  }
-
-  const calibration = getCardPrinterCalibration();
-  const meta = `X: ${calibration.offsetXMm.toFixed(1)}mm | Y: ${calibration.offsetYMm.toFixed(1)}mm | Scale: ${calibration.scalePct.toFixed(1)}% | Rot: ${calibration.rotationDeg.toFixed(1)}deg`;
-
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Duplex-Kalibrierung</title>
-      <style>
-        @page { size: 85.6mm 54mm; margin: 0; }
-        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
-        body { background: #fff; overflow: hidden; }
-        .sheet { width: 85.6mm; height: 54mm; page-break-after: always; break-after: page; }
-        .sheet:last-of-type { page-break-after: auto; break-after: auto; }
-        .cal-root {
-          width: 85.6mm;
-          height: 54mm;
-          box-sizing: border-box;
-          border: 0.2mm solid #111;
-          position: relative;
-          font-family: Arial, sans-serif;
-          color: #111;
-          transform-origin: center center;
-          transform: translate(${calibration.offsetXMm}mm, ${calibration.offsetYMm}mm) scale(${calibration.scale}) rotate(${calibration.rotationDeg}deg);
-        }
-        .cross {
-          position: absolute;
-          width: 5mm;
-          height: 5mm;
-          transform: translate(-50%, -50%);
-        }
-        .cross::before,
-        .cross::after {
-          content: "";
-          position: absolute;
-          background: #111;
-        }
-        .cross::before { left: 50%; top: 0; width: 0.25mm; height: 5mm; transform: translateX(-50%); }
-        .cross::after { top: 50%; left: 0; width: 5mm; height: 0.25mm; transform: translateY(-50%); }
-        .edge {
-          position: absolute;
-          border: 0.2mm dashed #666;
-          box-sizing: border-box;
-          left: 2mm;
-          right: 2mm;
-          top: 2mm;
-          bottom: 2mm;
-        }
-        .title {
-          position: absolute;
-          left: 50%;
-          top: 8mm;
-          transform: translateX(-50%);
-          font-size: 4mm;
-          font-weight: 700;
-          letter-spacing: .08em;
-        }
-        .arrow {
-          position: absolute;
-          left: 50%;
-          top: 13.8mm;
-          transform: translateX(-50%);
-          font-size: 2.4mm;
-          font-weight: 700;
-        }
-        .meta {
-          position: absolute;
-          left: 2mm;
-          right: 2mm;
-          bottom: 1.8mm;
-          text-align: center;
-          font-size: 2.1mm;
-        }
-        .pair-id {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          width: 40mm;
-          height: 16mm;
-          border: 0.2mm solid #111;
-          display: grid;
-          place-items: center;
-          font-size: 3mm;
-          font-weight: 700;
-        }
-      </style>
-    </head>
-    <body>
-      <section class="sheet">
-        <div class="cal-root">
-          <div class="edge"></div>
-          <div class="cross" style="left: 2mm; top: 2mm;"></div>
-          <div class="cross" style="left: calc(100% - 2mm); top: 2mm;"></div>
-          <div class="cross" style="left: 2mm; top: calc(100% - 2mm);"></div>
-          <div class="cross" style="left: calc(100% - 2mm); top: calc(100% - 2mm);"></div>
-          <div class="cross" style="left: 50%; top: 50%;"></div>
-          <div class="title">VORDERSEITE</div>
-          <div class="arrow">▲ OBEN</div>
-          <div class="pair-id">PAIR A</div>
-          <div class="meta">${meta}</div>
-        </div>
-      </section>
-      <section class="sheet">
-        <div class="cal-root">
-          <div class="edge"></div>
-          <div class="cross" style="left: 2mm; top: 2mm;"></div>
-          <div class="cross" style="left: calc(100% - 2mm); top: 2mm;"></div>
-          <div class="cross" style="left: 2mm; top: calc(100% - 2mm);"></div>
-          <div class="cross" style="left: calc(100% - 2mm); top: calc(100% - 2mm);"></div>
-          <div class="cross" style="left: 50%; top: 50%;"></div>
-          <div class="title">RUECKSEITE</div>
-          <div class="arrow">▲ OBEN</div>
-          <div class="pair-id">PAIR A</div>
-          <div class="meta">${meta}</div>
-        </div>
-      </section>
-      <script>
-        window.addEventListener("load", () => {
-          requestAnimationFrame(() => {
-            window.focus();
-            window.print();
-            setTimeout(() => window.close(), 500);
-          });
-        });
-      </script>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-}
-
 function printBadge(worker, company) {
   const preview = document.getElementById("badgePreview");
   if (!preview) return;
@@ -17315,7 +17025,6 @@ function printBadge(worker, company) {
 
   const printableMarkup = printableCard.outerHTML;
   const printableBackMarkup = buildPrintableWorkerCardBackMarkup(worker, company);
-  const calibration = getCardPrinterCalibration();
   printWindow.document.write(`
     <!DOCTYPE html>
     <html lang="de">
@@ -17335,8 +17044,6 @@ function printBadge(worker, company) {
           height: 54mm;
           margin: 0;
           padding: 0;
-          transform-origin: center center;
-          transform: translate(${calibration.offsetXMm}mm, ${calibration.offsetYMm}mm) scale(${calibration.scale}) rotate(${calibration.rotationDeg}deg);
         }
         .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
         .print-badge-root .wallet-card {
@@ -21347,10 +21054,6 @@ function renderAdminSettingsForm() {
   const workerAppEnabled = document.querySelector("#workerAppEnabled");
   const workerPassLockEnabled = document.querySelector("#workerPassLockEnabled");
   const workerExpiryWarnDays = document.querySelector("#workerExpiryWarnDays");
-  const cardPrintOffsetX = document.querySelector("#cardPrintOffsetX");
-  const cardPrintOffsetY = document.querySelector("#cardPrintOffsetY");
-  const cardPrintScalePct = document.querySelector("#cardPrintScalePct");
-  const cardPrintRotationDeg = document.querySelector("#cardPrintRotationDeg");
 
   if (platformName) platformName.value = state.settings.platformName || getUiPlaceholderText("platformName");
   if (operatorName) operatorName.value = state.settings.operatorName || getUiPlaceholderText("operatorName");
@@ -21371,10 +21074,6 @@ function renderAdminSettingsForm() {
   if (workerAppEnabled) workerAppEnabled.value = state.settings.workerAppEnabled === false ? "0" : "1";
   if (workerPassLockEnabled) workerPassLockEnabled.value = state.settings.workerPassLockEnabled ? "1" : "0";
   if (workerExpiryWarnDays) workerExpiryWarnDays.value = String(state.settings.workerExpiryWarnDays ?? 7);
-  if (cardPrintOffsetX) cardPrintOffsetX.value = String(Number(state.settings.cardPrintOffsetXMm ?? 0));
-  if (cardPrintOffsetY) cardPrintOffsetY.value = String(Number(state.settings.cardPrintOffsetYMm ?? 0));
-  if (cardPrintScalePct) cardPrintScalePct.value = String(Number(state.settings.cardPrintScalePct ?? 100));
-  if (cardPrintRotationDeg) cardPrintRotationDeg.value = String(Number(state.settings.cardPrintRotationDeg ?? 0));
   const workStartTime = document.querySelector("#workStartTime");
   const workEndTime = document.querySelector("#workEndTime");
   if (workStartTime) workStartTime.value = state.settings.workStartTime || "";
@@ -23672,10 +23371,6 @@ async function handleSettingsSubmit(event) {
       workerAppEnabled: document.querySelector("#workerAppEnabled").value !== "0",
       workerPassLockEnabled: document.querySelector("#workerPassLockEnabled")?.value === "1",
       workerExpiryWarnDays: Math.max(0, parseInt(document.querySelector("#workerExpiryWarnDays")?.value || "7", 10) || 0),
-      cardPrintOffsetXMm: clampPrintSetting(document.querySelector("#cardPrintOffsetX")?.value || 0, -8, 8, 0),
-      cardPrintOffsetYMm: clampPrintSetting(document.querySelector("#cardPrintOffsetY")?.value || 0, -8, 8, 0),
-      cardPrintScalePct: clampPrintSetting(document.querySelector("#cardPrintScalePct")?.value || 100, 90, 110, 100),
-      cardPrintRotationDeg: clampPrintSetting(document.querySelector("#cardPrintRotationDeg")?.value || 0, -5, 5, 0),
       workStartTime: (document.querySelector("#workStartTime")?.value || "").trim(),
       workEndTime: (document.querySelector("#workEndTime")?.value || "").trim(),
       imapHost: (document.querySelector("#imapHost")?.value || "").trim(),
