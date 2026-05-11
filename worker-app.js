@@ -1795,6 +1795,29 @@ function updateWorkerBuildBadge() {
   elements.workerBuildBadge.textContent = `Build ${WORKER_BUILD_TAG} | ${modeLabel} | ${swLabel}`;
 }
 
+function focusWorkerPassOnLoad() {
+  const target = elements.badgeCard;
+  if (!target) {
+    return;
+  }
+
+  const scrollToPass = () => {
+    try {
+      target.scrollIntoView({ behavior: "auto", block: "start" });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  };
+
+  window.scrollTo(0, 0);
+  if ("requestAnimationFrame" in window) {
+    window.requestAnimationFrame(scrollToPass);
+    window.requestAnimationFrame(scrollToPass);
+  } else {
+    scrollToPass();
+  }
+}
+
 // ── Globale User-Interaktions-Tracking-Funktion ──
 function markUserInteraction() {
   lastUserInteractionAt = Date.now();
@@ -3216,6 +3239,7 @@ function renderWorker(payload) {
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
+  focusWorkerPassOnLoad();
   updateWalletImmersiveMode();
   setWorkerHubExpanded(true);
   haptic([18, 35, 22]);
@@ -5363,6 +5387,7 @@ if (workerToken) {
       console.log("[worker-app init] Found cached payload, rendering immediately...");
       // Render cached data immediately without waiting for network
       renderWorker(cachedPayload);
+      focusWorkerPassOnLoad();
       // Then refresh from network in background
       void loadWorkerData();
     } catch (err) {
