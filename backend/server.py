@@ -1454,10 +1454,14 @@ def apply_security_headers(response):
     is_pwa_asset = (
         path in {
             "/worker.html",
+            "/emp-app.html",
+            "/worker-install.html",
             "/worker.css",
             "/worker-app.js",
+            "/emp-app-manifest.json",
             "/worker-manifest.json",
             "/worker-sw.js",
+            "/worker-build.json",
             "/worker-icon-192.png",
             "/worker-icon-512.png",
             "/worker-icon-192.svg",
@@ -9822,7 +9826,7 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     )
     db.commit()
 
-    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v=20260511h"
+    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v=20260511i"
     return {
         "accessToken": access_token,
         "link": link,
