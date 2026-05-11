@@ -1715,6 +1715,7 @@ const elements = {
   gateContrastToggle: document.querySelector("#gateContrastToggle"),
   connectionBanner: document.querySelector("#connectionBanner"),
   lastSyncInfo: document.querySelector("#lastSyncInfo"),
+  workerBuildBadge: document.querySelector("#workerBuildBadge"),
   pinLockOverlay: document.querySelector("#pinLockOverlay"),
   pinLockForm: document.querySelector("#pinLockForm"),
   pinLockInput: document.querySelector("#pinLockInput"),
@@ -1772,6 +1773,17 @@ function dismissSplash() {
     el.addEventListener("transitionend", () => el.remove(), { once: true });
     setTimeout(() => { if (el.parentNode) el.remove(); }, 800);
   }, delay);
+}
+
+function updateWorkerBuildBadge() {
+  if (!elements.workerBuildBadge) {
+    return;
+  }
+
+  const modeLabel = isStandaloneDisplay() ? "Home" : "Web";
+  const swActive = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
+  const swLabel = swActive ? "SW On" : "SW Off";
+  elements.workerBuildBadge.textContent = `Build ${WORKER_BUILD_TAG} | ${modeLabel} | ${swLabel}`;
 }
 
 // ── Globale User-Interaktions-Tracking-Funktion ──
@@ -1917,6 +1929,7 @@ init().finally(dismissSplash);
 
 async function init() {
   applyTranslations();
+  updateWorkerBuildBadge();
   bindEvents();
   updateWalletImmersiveMode();
   applyQrContrastState();
@@ -1944,6 +1957,7 @@ async function init() {
   registerWorkerSw();
   wireInstallPrompt();
   updateConnectionState();
+  updateWorkerBuildBadge();
 
   if (urlToken) {
     if (elements.workerAccessToken) {
@@ -2565,6 +2579,7 @@ function registerWorkerSw() {
 
     let swActivatedOnce = false;
     const handleControllerChange = () => {
+      updateWorkerBuildBadge();
       if (!swActivatedOnce) {
         swActivatedOnce = true;
         setTimeout(() => {

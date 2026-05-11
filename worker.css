@@ -433,6 +433,20 @@ html[dir="rtl"] .wc-brand {
   line-height: 1.4;
 }
 
+.build-badge {
+  margin: 0;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .24);
+  background: rgba(9, 18, 30, .26);
+  color: rgba(255, 249, 242, .92);
+  font-size: .73rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
 .connection-banner {
   margin: 0;
   padding: 8px 12px;
