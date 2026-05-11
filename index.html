@@ -820,6 +820,8 @@
             <div class="divider"></div>
             
             <div class="button-row invoice-toolbar">
+              <input id="invoiceFilterNumber" class="invoice-filter-input" type="text" placeholder="Nach Rechnungsnummer suchen..." data-ui-i18n="invoiceFilterNumberPlaceholder" data-ui-i18n-attr="placeholder" />
+              <button type="button" class="ghost-button" id="invoiceSearchButton" data-ui-i18n="invoiceSearchBtn">Suchen</button>
               <input id="invoiceFilterCompany" class="invoice-filter-input" type="text" placeholder="Nach Firma filtern..." data-ui-i18n="filterByCompanyPlaceholder" data-ui-i18n-attr="placeholder" />
               <select id="invoiceFilterStatus" class="invoice-filter-select">
                 <option value="" data-ui-i18n="optAllStatus">Alle Status</option>
@@ -830,7 +832,16 @@
                 <option value="send_failed" data-ui-i18n="optFailed">Fehler</option>
               </select>
               <button type="button" class="ghost-button invoice-toolbar-refresh" id="invoiceRefreshButton" data-ui-i18n="btnRefreshList">Aktualisieren</button>
+              <button type="button" class="ghost-button" id="invoiceClearFiltersButton" data-ui-i18n="invoiceClearFiltersBtn">Filter zurücksetzen</button>
+              <button type="button" class="ghost-button" id="invoiceExportFilteredCsvBtn" data-ui-i18n="invoiceExportFilteredCsvBtn">Gefilterte CSV</button>
               <button type="button" class="ghost-button" id="invoiceExportCsvBtn" data-ui-i18n="invoiceExportCsvBtn" title="Alle Rechnungen als CSV herunterladen">⬇ CSV</button>
+            </div>
+
+            <div class="button-row invoice-toolbar">
+              <input id="invoiceFilterDueFrom" class="invoice-filter-input" type="date" title="Fällig ab" aria-label="Fällig ab" data-ui-i18n="invoiceFilterDueFromPlaceholder" data-ui-i18n-attr="title,aria-label" />
+              <input id="invoiceFilterDueTo" class="invoice-filter-input" type="date" title="Fällig bis" aria-label="Fällig bis" data-ui-i18n="invoiceFilterDueToPlaceholder" data-ui-i18n-attr="title,aria-label" />
+              <input id="invoiceFilterAmountMin" class="invoice-filter-input" type="text" inputmode="decimal" placeholder="Mindestbetrag" data-ui-i18n="invoiceFilterAmountMinPlaceholder" data-ui-i18n-attr="placeholder" />
+              <input id="invoiceFilterAmountMax" class="invoice-filter-input" type="text" inputmode="decimal" placeholder="Höchstbetrag" data-ui-i18n="invoiceFilterAmountMaxPlaceholder" data-ui-i18n-attr="placeholder" />
             </div>
 
             <div class="button-row invoice-quick-filters">

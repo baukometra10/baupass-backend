@@ -2572,6 +2572,16 @@ def init_db():
             FOREIGN KEY(invoice_id) REFERENCES invoices(id)
         );
 
+        CREATE TABLE IF NOT EXISTS invoice_reminder_dispatches (
+            id TEXT PRIMARY KEY,
+            invoice_id TEXT NOT NULL,
+            stage INTEGER NOT NULL,
+            dispatch_key TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(invoice_id, stage, dispatch_key),
+            FOREIGN KEY(invoice_id) REFERENCES invoices(id)
+        );
+
         CREATE TABLE IF NOT EXISTS operation_approvals (
             id TEXT PRIMARY KEY,
             action_type TEXT NOT NULL,
@@ -4051,6 +4061,8 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, global_settings, stag
     iban = str((s["invoice_iban"] if "invoice_iban" in s.keys() else None) or "").strip()
     bic = str((s["invoice_bic"] if "invoice_bic" in s.keys() else None) or "").strip()
     bank_name = str((s["invoice_bank_name"] if "invoice_bank_name" in s.keys() else None) or "").strip()
+    tax_id = str((s["invoice_tax_id"] if "invoice_tax_id" in s.keys() else None) or "").strip()
+    vat_id = str((s["invoice_vat_id"] if "invoice_vat_id" in s.keys() else None) or "").strip()
     primary_color = str((s["invoice_primary_color"] if "invoice_primary_color" in s.keys() else None) or "#0f4c5c").strip()
 
     def _hex_rgb(h):
@@ -4270,6 +4282,16 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, global_settings, stag
         pdf.drawString(col3_x, fy3, ln[:50])
         fy3 -= 8
 
+    legal_parts = []
+    if tax_id:
+        legal_parts.append(f"Steuernr.: {tax_id}")
+    if vat_id:
+        legal_parts.append(f"USt-IdNr.: {vat_id}")
+    if legal_parts:
+        pdf.setFillColorRGB(0.36, 0.36, 0.36)
+        pdf.setFont("Helvetica", 6.8)
+        pdf.drawRightString(page_width - 36, 6, "  |  ".join(legal_parts)[:110])
+
     pdf.save()
     buf.seek(0)
     return buf.getvalue()
@@ -4316,6 +4338,8 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     iban = str(global_settings.get("invoice_iban") or "").strip()
     bic = str(global_settings.get("invoice_bic") or "").strip()
     bank_name = str(global_settings.get("invoice_bank_name") or "").strip()
+    tax_id = str(global_settings.get("invoice_tax_id") or "").strip()
+    vat_id = str(global_settings.get("invoice_vat_id") or "").strip()
 
     stage_label = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung – Sperrung droht"}.get(stage, "Zahlungserinnerung")
     due_label = invoice_row["due_date"] or "-"
@@ -4353,6 +4377,8 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
         ("E-Mail", operator_email_addr),
         ("Website", operator_website),
         ("IBAN", iban + (f"  BIC {bic}" if bic else "") + (f"  ({bank_name})" if bank_name else "")),
+        ("Steuernummer", tax_id),
+        ("USt-IdNr.", vat_id),
     ]:
         if value:
             contact_rows += f'<tr><td style="padding:5px 14px;font-size:12px;color:#555;width:35%;">{html.escape(label)}</td><td style="padding:5px 14px;font-size:12px;color:#212529;">{html.escape(value)}</td></tr>'
@@ -5196,9 +5222,24 @@ def run_invoice_dunning_cycle(db):
     """Update overdue status and send staged reminders before automatic suspension."""
     today = utc_now().date()
     settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    try:
+        db.execute(
+            "DELETE FROM invoice_reminder_dispatches WHERE created_at < ?",
+            (utc_iso(utc_now() - timedelta(days=120)),),
+        )
+    except Exception:
+        pass
+
     rows = db.execute(
         """
-        SELECT invoices.*, companies.name AS company_name, companies.deleted_at AS company_deleted_at
+        SELECT
+            invoices.*,
+            companies.name AS company_name,
+            companies.contact AS company_contact,
+            companies.billing_street AS company_billing_street,
+            companies.billing_zip_city AS company_billing_zip_city,
+            companies.billing_email AS company_billing_email,
+            companies.deleted_at AS company_deleted_at
         FROM invoices
         JOIN companies ON companies.id = invoices.company_id
         WHERE invoices.paid_at IS NULL
@@ -5216,86 +5257,109 @@ def run_invoice_dunning_cycle(db):
     api_fallback_warning_logged = False
     smtp_auth_warning_logged = False
 
-    for row in rows:
-            if row["company_deleted_at"]:
-                continue
-
-            due_date = parse_iso_date(row["due_date"])
-            if not due_date:
-                continue
-
-            days_until_due = (due_date - today).days
-            invoice_id = row["id"]
-            current_stage = int(row["reminder_stage"] or 0)
-            last_reminder_day = str(row["last_reminder_sent_at"] or "")[:10]
-
-            if days_until_due < 0 and row["status"] != "overdue":
-                db.execute("UPDATE invoices SET status = 'overdue' WHERE id = ?", (invoice_id,))
-                result["overdueUpdated"] += 1
-
-            target_stage = 0
-            stage1_days = int((settings["dunning_stage1_days"] if settings and "dunning_stage1_days" in settings.keys() else None) or 7)
-            stage2_days = int((settings["dunning_stage2_days"] if settings and "dunning_stage2_days" in settings.keys() else None) or 3)
-            if days_until_due <= stage1_days and days_until_due > stage2_days:
-                target_stage = 1
-            elif days_until_due <= stage2_days and days_until_due >= 0:
-                target_stage = 2
-            elif days_until_due < 0:
-                target_stage = 3
-
-            if target_stage == 0:
-                continue
-
-            # Stage 3: repeat max every 7 days (not every day)
-            stage3_repeat = False
-            if target_stage == 3:
-                if not last_reminder_day:
-                    stage3_repeat = True
-                else:
-                    try:
-                        import datetime as _dt
-                        days_since_last = (today - _dt.date.fromisoformat(last_reminder_day[:10])).days
-                        stage3_repeat = days_since_last >= 7
-                    except Exception:
-                        stage3_repeat = True
-            should_send = target_stage > current_stage or stage3_repeat
-            if not should_send:
-                continue
-
-            company_row = {"name": row["company_name"]}
-            company_id = row["company_id"]
-            sent_ok, error_message = send_payment_reminder_email(
-                row, company_row, company_id, target_stage, days_until_due, db
+    def _claim_reminder_send_slot(invoice_id, stage, day_key):
+        try:
+            db.execute(
+                """
+                INSERT INTO invoice_reminder_dispatches (id, invoice_id, stage, dispatch_key, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (f"ird-{secrets.token_hex(8)}", invoice_id, int(stage), str(day_key), now_iso()),
             )
+            return True
+        except sqlite3.IntegrityError:
+            return False
 
-            if sent_ok:
-                db.execute(
-                    "UPDATE invoices SET reminder_stage = ?, last_reminder_sent_at = ?, last_reminder_error = '' WHERE id = ?",
-                    (target_stage, now_iso(), invoice_id),
-                )
-                log_audit(
-                    "invoice.reminder_sent",
-                    f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} versendet",
-                    target_type="invoice",
-                    target_id=invoice_id,
-                    company_id=row["company_id"],
-                    actor=None,
-                )
-                result["remindersSent"] += 1
+    for row in rows:
+        if row["company_deleted_at"]:
+            continue
+
+        due_date = parse_iso_date(row["due_date"])
+        if not due_date:
+            continue
+
+        days_until_due = (due_date - today).days
+        invoice_id = row["id"]
+        current_stage = int(row["reminder_stage"] or 0)
+        last_reminder_day = str(row["last_reminder_sent_at"] or "")[:10]
+
+        if days_until_due < 0 and row["status"] != "overdue":
+            db.execute("UPDATE invoices SET status = 'overdue' WHERE id = ?", (invoice_id,))
+            result["overdueUpdated"] += 1
+
+        target_stage = 0
+        stage1_days = int((settings["dunning_stage1_days"] if settings and "dunning_stage1_days" in settings.keys() else None) or 7)
+        stage2_days = int((settings["dunning_stage2_days"] if settings and "dunning_stage2_days" in settings.keys() else None) or 3)
+        if days_until_due <= stage1_days and days_until_due > stage2_days:
+            target_stage = 1
+        elif days_until_due <= stage2_days and days_until_due >= 0:
+            target_stage = 2
+        elif days_until_due < 0:
+            target_stage = 3
+
+        if target_stage == 0:
+            continue
+
+        # Stage 3: repeat max every 7 days (not every day)
+        stage3_repeat = False
+        if target_stage == 3:
+            if not last_reminder_day:
+                stage3_repeat = True
             else:
-                db.execute(
-                    "UPDATE invoices SET last_reminder_error = ? WHERE id = ?",
-                    (error_message, invoice_id),
-                )
-                log_audit(
-                    "invoice.reminder_failed",
-                    f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} fehlgeschlagen: {error_message}",
-                    target_type="invoice",
-                    target_id=invoice_id,
-                    company_id=row["company_id"],
-                    actor=None,
-                )
-                result["reminderFailures"] += 1
+                try:
+                    import datetime as _dt
+                    days_since_last = (today - _dt.date.fromisoformat(last_reminder_day[:10])).days
+                    stage3_repeat = days_since_last >= 7
+                except Exception:
+                    stage3_repeat = True
+        should_send = target_stage > current_stage or stage3_repeat
+        if not should_send:
+            continue
+
+        # Hard dedup: never send same invoice+stage more than once per UTC day.
+        if not _claim_reminder_send_slot(invoice_id, target_stage, today.isoformat()):
+            continue
+
+        company_row = {
+            "name": row["company_name"],
+            "contact": row["company_contact"],
+            "billing_street": row["company_billing_street"],
+            "billing_zip_city": row["company_billing_zip_city"],
+            "billing_email": row["company_billing_email"],
+        }
+        company_id = row["company_id"]
+        sent_ok, error_message = send_payment_reminder_email(
+            row, company_row, company_id, target_stage, days_until_due, db
+        )
+
+        if sent_ok:
+            db.execute(
+                "UPDATE invoices SET reminder_stage = ?, last_reminder_sent_at = ?, last_reminder_error = '' WHERE id = ?",
+                (target_stage, now_iso(), invoice_id),
+            )
+            log_audit(
+                "invoice.reminder_sent",
+                f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} versendet",
+                target_type="invoice",
+                target_id=invoice_id,
+                company_id=row["company_id"],
+                actor=None,
+            )
+            result["remindersSent"] += 1
+        else:
+            db.execute(
+                "UPDATE invoices SET last_reminder_error = ? WHERE id = ?",
+                (error_message, invoice_id),
+            )
+            log_audit(
+                "invoice.reminder_failed",
+                f"Mahnstufe {target_stage} für Rechnung {row['invoice_number']} fehlgeschlagen: {error_message}",
+                target_type="invoice",
+                target_id=invoice_id,
+                company_id=row["company_id"],
+                actor=None,
+            )
+            result["reminderFailures"] += 1
 
     db.commit()
     return result
@@ -16581,32 +16645,71 @@ def export_all_invoices_csv():
 @require_roles("superadmin", "company-admin")
 def list_invoices():
     db = get_db()
+    query_text = clean_text_input(request.args.get("q", ""), max_len=120).strip()
+    query_like = f"%{query_text.lower()}%" if query_text else ""
     if g.current_user["role"] != "superadmin":
         plan_value = get_company_plan(db, g.current_user.get("company_id"))
         if not company_has_feature(plan_value, "invoicing"):
             return feature_not_available_response("invoicing", plan_value)
     if g.current_user["role"] == "superadmin":
-        rows = db.execute(
-            """
-            SELECT invoices.*, companies.name AS company_name
-            FROM invoices
-            JOIN companies ON companies.id = invoices.company_id
-            ORDER BY invoices.created_at DESC
-            LIMIT 300
-            """
-        ).fetchall()
+        if query_text:
+            rows = db.execute(
+                """
+                SELECT invoices.*, companies.name AS company_name
+                FROM invoices
+                JOIN companies ON companies.id = invoices.company_id
+                WHERE lower(invoices.invoice_number) LIKE ?
+                   OR lower(companies.name) LIKE ?
+                   OR lower(invoices.recipient_email) LIKE ?
+                ORDER BY
+                    CASE WHEN lower(invoices.invoice_number) = ? THEN 0 ELSE 1 END,
+                    invoices.created_at DESC
+                LIMIT 1000
+                """,
+                (query_like, query_like, query_like, query_text.lower()),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """
+                SELECT invoices.*, companies.name AS company_name
+                FROM invoices
+                JOIN companies ON companies.id = invoices.company_id
+                ORDER BY invoices.created_at DESC
+                LIMIT 300
+                """
+            ).fetchall()
     else:
-        rows = db.execute(
-            """
-            SELECT invoices.*, companies.name AS company_name
-            FROM invoices
-            JOIN companies ON companies.id = invoices.company_id
-            WHERE invoices.company_id = ?
-            ORDER BY invoices.created_at DESC
-            LIMIT 300
-            """,
-            (g.current_user["company_id"],),
-        ).fetchall()
+        if query_text:
+            rows = db.execute(
+                """
+                SELECT invoices.*, companies.name AS company_name
+                FROM invoices
+                JOIN companies ON companies.id = invoices.company_id
+                WHERE invoices.company_id = ?
+                  AND (
+                    lower(invoices.invoice_number) LIKE ?
+                    OR lower(companies.name) LIKE ?
+                    OR lower(invoices.recipient_email) LIKE ?
+                  )
+                ORDER BY
+                    CASE WHEN lower(invoices.invoice_number) = ? THEN 0 ELSE 1 END,
+                    invoices.created_at DESC
+                LIMIT 1000
+                """,
+                (g.current_user["company_id"], query_like, query_like, query_like, query_text.lower()),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """
+                SELECT invoices.*, companies.name AS company_name
+                FROM invoices
+                JOIN companies ON companies.id = invoices.company_id
+                WHERE invoices.company_id = ?
+                ORDER BY invoices.created_at DESC
+                LIMIT 300
+                """,
+                (g.current_user["company_id"],),
+            ).fetchall()
     return jsonify([row_to_dict(row) for row in rows])
 
 

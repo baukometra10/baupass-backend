@@ -84,6 +84,7 @@ const SESSION_TOKEN_STORAGE_KEY = "baupass-control-token";
 const SUPPORT_LOGIN_CONTEXT_KEY = "baupass-support-login-context";
 const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
+const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
 
 function loadStoredSessionToken() {
@@ -636,6 +637,8 @@ const UI_TRANSLATIONS = {
     optPaid: "Bezahlt",
     optFailed: "Fehler",
     btnRefreshList: "Aktualisieren",
+    invoiceSearchBtn: "Suchen",
+    invoiceClearFiltersBtn: "Filter zur\u00fccksetzen",
     inkassoEyebrow: "Inkasso",
     inkassoH3: "\u00dcberf\u00e4llig, vor Sperre, gesperrt",
     optAllPositions: "Alle offenen Positionen",
@@ -811,6 +814,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Manuell zu klärende Rechnungen",
     filterByCompanyPlaceholder: "Nach Firma filtern…",
+      invoiceFilterNumberPlaceholder: "Nach Rechnungsnummer suchen...",
+      invoiceFilterDueFromPlaceholder: "Fällig ab",
+      invoiceFilterDueToPlaceholder: "Fällig bis",
+      invoiceFilterAmountMinPlaceholder: "Mindestbetrag",
+      invoiceFilterAmountMaxPlaceholder: "Höchstbetrag",
     filterQueueByCompanyPlaceholder: "Firma in Warteschlange filtern…",
     formSectionAppFeaturesEyebrow: "App-Features",
     formSectionBrandingEyebrow: "Rechnungsdesign",
@@ -941,6 +949,7 @@ const UI_TRANSLATIONS = {
     invoicePaymentNotePrompt: "Zahlungsnotiz (optional) \u2013 z.B. \u00dcberweisung, SEPA, Bar:",
     invoiceDunningStageLabel: "Mahnung {stage}",
     invoiceExportCsvBtn: "Rechnungen als CSV",
+    invoiceExportFilteredCsvBtn: "Gefilterte CSV",
     invoicePaymentNoteLabel: "Zahlung:",
     tfaStatusActive: "2FA ist aktiv",
     tfaStatusInactive: "2FA ist nicht aktiv",
@@ -1457,6 +1466,8 @@ const UI_TRANSLATIONS = {
     optPaid: "Paid",
     optFailed: "Error",
     btnRefreshList: "Refresh",
+    invoiceSearchBtn: "Search",
+    invoiceClearFiltersBtn: "Clear filters",
     inkassoEyebrow: "Collections",
     inkassoH3: "Overdue, pre-block, blocked",
     optAllPositions: "All open items",
@@ -1588,6 +1599,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Invoices requiring manual resolution",
     filterByCompanyPlaceholder: "Filter by company…",
+      invoiceFilterNumberPlaceholder: "Search by invoice number...",
+      invoiceFilterDueFromPlaceholder: "Due from",
+      invoiceFilterDueToPlaceholder: "Due to",
+      invoiceFilterAmountMinPlaceholder: "Minimum amount",
+      invoiceFilterAmountMaxPlaceholder: "Maximum amount",
     filterQueueByCompanyPlaceholder: "Filter queue by company…",
     formSectionAppFeaturesEyebrow: "App Features",
     formSectionBrandingEyebrow: "Invoice design",
@@ -1718,6 +1734,7 @@ const UI_TRANSLATIONS = {
     invoicePaymentNotePrompt: "Payment note (optional) – e.g. Bank transfer, SEPA, Cash:",
     invoiceDunningStageLabel: "Reminder {stage}",
     invoiceExportCsvBtn: "Export invoices CSV",
+    invoiceExportFilteredCsvBtn: "Filtered CSV",
     invoicePaymentNoteLabel: "Payment:",
     tfaStatusActive: "2FA is active",
     tfaStatusInactive: "2FA is not active",
@@ -1961,6 +1978,8 @@ const UI_TRANSLATIONS = {
     optPaid: "\u00d6dendi",
     optFailed: "Hata",
     btnRefreshList: "Yenile",
+    invoiceSearchBtn: "Ara",
+    invoiceClearFiltersBtn: "Filtreleri temizle",
     inkassoEyebrow: "Tahsilat",
     inkassoH3: "Vadesi ge\u00e7mi\u015f, \u00f6n engel, engellendi",
     optAllPositions: "T\u00fcm a\u00e7\u0131k kalemler",
@@ -2336,6 +2355,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Manuel çözüm gerektiren faturalar",
     filterByCompanyPlaceholder: "Firmaya göre filtrele…",
+      invoiceFilterNumberPlaceholder: "Fatura numarasına göre ara...",
+      invoiceFilterDueFromPlaceholder: "Vade başlangıç",
+      invoiceFilterDueToPlaceholder: "Vade bitiş",
+      invoiceFilterAmountMinPlaceholder: "Minimum tutar",
+      invoiceFilterAmountMaxPlaceholder: "Maksimum tutar",
     filterQueueByCompanyPlaceholder: "Kuyruğu firmaya göre filtrele…",
     formSectionAppFeaturesEyebrow: "Uygulama Özellikleri",
     formSectionBrandingEyebrow: "Fatura Tasarımı",
@@ -2847,6 +2871,8 @@ const UI_TRANSLATIONS = {
     optPaid: "مدفوعة",
     optFailed: "خطأ",
     btnRefreshList: "تحديث",
+    invoiceSearchBtn: "بحث",
+    invoiceClearFiltersBtn: "مسح الفلاتر",
     inkassoEyebrow: "التحصيل",
     inkassoH3: "متأخرة، مسبق الحظر، محظورة",
     optAllPositions: "جميع العناصر المفتوحة",
@@ -3108,6 +3134,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "فواتير تحتاج حلًا يدويًا",
     filterByCompanyPlaceholder: "تصفية حسب الشركة…",
+      invoiceFilterNumberPlaceholder: "ابحث برقم الفاتورة...",
+      invoiceFilterDueFromPlaceholder: "الاستحقاق من",
+      invoiceFilterDueToPlaceholder: "الاستحقاق إلى",
+      invoiceFilterAmountMinPlaceholder: "الحد الأدنى للمبلغ",
+      invoiceFilterAmountMaxPlaceholder: "الحد الأقصى للمبلغ",
     filterQueueByCompanyPlaceholder: "تصفية قائمة الانتظار حسب الشركة…",
     formSectionAppFeaturesEyebrow: "ميزات التطبيق",
     formSectionBrandingEyebrow: "تصميم الفاتورة",
@@ -3619,6 +3650,8 @@ const UI_TRANSLATIONS = {
     optPaid: "Payée",
     optFailed: "Erreur",
     btnRefreshList: "Actualiser",
+    invoiceSearchBtn: "Rechercher",
+    invoiceClearFiltersBtn: "Effacer les filtres",
     inkassoEyebrow: "Recouvrement",
     inkassoH3: "En retard, pré-blocage, bloqué",
     optAllPositions: "Tous les postes ouverts",
@@ -3880,6 +3913,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Factures à résoudre manuellement",
     filterByCompanyPlaceholder: "Filtrer par entreprise…",
+      invoiceFilterNumberPlaceholder: "Rechercher par numéro de facture...",
+      invoiceFilterDueFromPlaceholder: "Échéance à partir de",
+      invoiceFilterDueToPlaceholder: "Échéance jusqu'à",
+      invoiceFilterAmountMinPlaceholder: "Montant minimum",
+      invoiceFilterAmountMaxPlaceholder: "Montant maximum",
     filterQueueByCompanyPlaceholder: "Filtrer la file par entreprise…",
     formSectionAppFeaturesEyebrow: "Fonctionnalités app",
     formSectionBrandingEyebrow: "Design de facture",
@@ -4391,6 +4429,8 @@ const UI_TRANSLATIONS = {
     optPaid: "Pagada",
     optFailed: "Error",
     btnRefreshList: "Actualizar",
+    invoiceSearchBtn: "Buscar",
+    invoiceClearFiltersBtn: "Limpiar filtros",
     inkassoEyebrow: "Cobro",
     inkassoH3: "Vencida, pre-bloqueo, bloqueada",
     optAllPositions: "Todas las posiciones abiertas",
@@ -4652,6 +4692,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Facturas que requieren resolución manual",
     filterByCompanyPlaceholder: "Filtrar por empresa…",
+      invoiceFilterNumberPlaceholder: "Buscar por número de factura...",
+      invoiceFilterDueFromPlaceholder: "Vence desde",
+      invoiceFilterDueToPlaceholder: "Vence hasta",
+      invoiceFilterAmountMinPlaceholder: "Importe mínimo",
+      invoiceFilterAmountMaxPlaceholder: "Importe máximo",
     filterQueueByCompanyPlaceholder: "Filtrar cola por empresa…",
     formSectionAppFeaturesEyebrow: "Funciones de la app",
     formSectionBrandingEyebrow: "Diseño de factura",
@@ -5155,6 +5200,8 @@ const UI_TRANSLATIONS = {
     optPaid: "Pagata",
     optFailed: "Errore",
     btnRefreshList: "Aggiorna",
+    invoiceSearchBtn: "Cerca",
+    invoiceClearFiltersBtn: "Cancella filtri",
     inkassoEyebrow: "Recupero crediti",
     inkassoH3: "Scaduta, pre-blocco, bloccata",
     optAllPositions: "Tutte le posizioni aperte",
@@ -5416,6 +5463,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Fatture da risolvere manualmente",
     filterByCompanyPlaceholder: "Filtra per azienda…",
+      invoiceFilterNumberPlaceholder: "Cerca per numero fattura...",
+      invoiceFilterDueFromPlaceholder: "Scadenza da",
+      invoiceFilterDueToPlaceholder: "Scadenza a",
+      invoiceFilterAmountMinPlaceholder: "Importo minimo",
+      invoiceFilterAmountMaxPlaceholder: "Importo massimo",
     filterQueueByCompanyPlaceholder: "Filtra coda per azienda…",
     formSectionAppFeaturesEyebrow: "Funzionalità app",
     formSectionBrandingEyebrow: "Design fattura",
@@ -5927,6 +5979,8 @@ const UI_TRANSLATIONS = {
     optPaid: "Opłacona",
     optFailed: "Błąd",
     btnRefreshList: "Odśwież",
+    invoiceSearchBtn: "Szukaj",
+    invoiceClearFiltersBtn: "Wyczyść filtry",
     inkassoEyebrow: "Windykacja",
     inkassoH3: "Zaległa, pre-blokada, zablokowana",
     optAllPositions: "Wszystkie otwarte pozycje",
@@ -6188,6 +6242,11 @@ const UI_TRANSLATIONS = {
     deadLetterEyebrow: "Dead-Letter",
     deadLetterH3: "Faktury wymagające ręcznego rozwiązania",
     filterByCompanyPlaceholder: "Filtruj według firmy…",
+      invoiceFilterNumberPlaceholder: "Szukaj po numerze faktury...",
+      invoiceFilterDueFromPlaceholder: "Termin od",
+      invoiceFilterDueToPlaceholder: "Termin do",
+      invoiceFilterAmountMinPlaceholder: "Kwota minimalna",
+      invoiceFilterAmountMaxPlaceholder: "Kwota maksymalna",
     filterQueueByCompanyPlaceholder: "Filtruj kolejkę według firmy…",
     formSectionAppFeaturesEyebrow: "Funkcje aplikacji",
     formSectionBrandingEyebrow: "Design faktury",
@@ -15372,6 +15431,10 @@ function markCurrentInvoicesAsSeen() {
   state.invoiceNewIds = {};
 }
 
+function getActiveInvoiceSearchQuery() {
+  return String(document.querySelector("#invoiceFilterNumber")?.value || "").trim();
+}
+
 function startInvoiceAutoRefresh() {
   if (invoiceAutoRefreshTimer || getCurrentViewName() !== "invoices") {
     return;
@@ -15381,7 +15444,7 @@ function startInvoiceAutoRefresh() {
       stopInvoiceAutoRefresh();
       return;
     }
-    await loadAndRenderInvoices({ silent: true });
+    await loadAndRenderInvoices({ silent: true, q: getActiveInvoiceSearchQuery() });
   }, 25000);
 }
 
@@ -24220,12 +24283,16 @@ function updateCompanyTrialEndsAtVisibility() {
 }
 
 async function loadAndRenderInvoices(options = {}) {
-  const { silent = false } = options;
+  const { silent = false, q } = options;
   try {
     const hadSeenInvoices = Object.keys(state.invoiceSeenIds || {}).length > 0;
     const previousSeen = { ...(state.invoiceSeenIds || {}) };
+    const query = String(q ?? getActiveInvoiceSearchQuery()).trim();
+    const invoiceListUrl = query
+      ? `${API_BASE}/api/invoices?q=${encodeURIComponent(query)}`
+      : `${API_BASE}/api/invoices`;
     const [invoiceResponse, opsResponse, deadLetterResponse, approvalResponse, monthlyStatusResponse] = await Promise.all([
-      apiRequest(API_BASE + "/api/invoices"),
+      apiRequest(invoiceListUrl),
       apiRequest(API_BASE + "/api/invoices/ops-metrics"),
       apiRequest(API_BASE + "/api/invoices/dead-letters"),
       apiRequest(API_BASE + "/api/invoices/approvals/pending"),
@@ -24796,11 +24863,10 @@ function renderInvoiceManagementList() {
   renderInvoiceOpsMetrics();
   renderMonthlyInvoiceStatus();
 
-  const filterCompany = (document.querySelector("#invoiceFilterCompany")?.value || "").toLowerCase();
-  const filterStatus = (document.querySelector("#invoiceFilterStatus")?.value || "");
+  const filters = getCurrentInvoiceFilterValues();
 
   const allInvoices = state.invoices || [];
-  let invoices = [...allInvoices];
+  let invoices = filterInvoicesForManagement(allInvoices, filters);
 
   if (kpiContainer) {
     const totals = {
@@ -24860,18 +24926,6 @@ function renderInvoiceManagementList() {
     `;
   }
   
-  // Apply filters
-  if (filterCompany) {
-    invoices = invoices.filter(inv => {
-      const companyName = (inv.company_name || "").toLowerCase();
-      return companyName.includes(filterCompany);
-    });
-  }
-  
-  if (filterStatus) {
-    invoices = invoices.filter(inv => inv.status === filterStatus);
-  }
-
   if (!invoices.length) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("invoiceListEmpty"))}</div>`;
     renderInvoiceRetryQueue(retryQueueContainer, allInvoices);
@@ -28117,16 +28171,76 @@ bindDocumentInboxControls();
 const invoiceRefreshButton = document.querySelector("#invoiceRefreshButton");
 if (invoiceRefreshButton) {
   invoiceRefreshButton.addEventListener("click", async () => {
-    await loadAndRenderInvoices();
+    await loadAndRenderInvoices({ q: getActiveInvoiceSearchQuery() });
     markCurrentInvoicesAsSeen();
     renderInvoiceManagementList();
   });
 }
 
 const invoiceExportCsvBtn = document.querySelector("#invoiceExportCsvBtn");
+const invoiceExportFilteredCsvBtn = document.querySelector("#invoiceExportFilteredCsvBtn");
 if (invoiceExportCsvBtn) {
   invoiceExportCsvBtn.addEventListener("click", () => {
     window.open(API_BASE + "/api/invoices/export.csv", "_blank");
+  });
+}
+
+function toCsvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildFilteredInvoicesCsv(invoices) {
+  const header = [
+    "Rechnungsnummer",
+    "Firma",
+    "Empfänger-Email",
+    "Rechnungsdatum",
+    "Fälligkeit",
+    "Gesamt (EUR)",
+    "Status",
+    "Bezahlt am",
+    "Mahnstufe",
+    "Erstellt am"
+  ];
+  const rows = invoices.map((inv) => [
+    inv?.invoice_number || "",
+    inv?.company_name || "",
+    inv?.recipient_email || "",
+    inv?.invoice_date || "",
+    inv?.due_date || "",
+    Number(inv?.total_amount || 0).toFixed(2),
+    inv?.status || "",
+    inv?.paid_at || "",
+    inv?.reminder_stage || 0,
+    inv?.created_at || "",
+  ]);
+  return [header, ...rows].map((line) => line.map(toCsvCell).join(";")).join("\n");
+}
+
+function downloadTextAsFile(content, fileName, mimeType = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+if (invoiceExportFilteredCsvBtn) {
+  invoiceExportFilteredCsvBtn.addEventListener("click", () => {
+    const filtered = filterInvoicesForManagement(state.invoices || [], getCurrentInvoiceFilterValues());
+    if (!filtered.length) {
+      showToast(runtimeText("invoiceListEmpty"), "error", 2600);
+      return;
+    }
+    const csv = buildFilteredInvoicesCsv(filtered);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadTextAsFile(`\ufeff${csv}`, `rechnungen-gefiltert-${stamp}.csv`, "text/csv;charset=utf-8");
   });
 }
 
@@ -28155,12 +28269,104 @@ if (gateOpsRefreshBtn) {
 
 const invoiceFilterCompany = document.querySelector("#invoiceFilterCompany");
 if (invoiceFilterCompany) {
-  invoiceFilterCompany.addEventListener("input", () => renderInvoiceManagementList());
+  invoiceFilterCompany.addEventListener("input", () => {
+    persistInvoiceFiltersFromUi();
+    renderInvoiceManagementList();
+  });
 }
+
+const invoiceFilterNumber = document.querySelector("#invoiceFilterNumber");
+const invoiceSearchButton = document.querySelector("#invoiceSearchButton");
+const invoiceClearFiltersButton = document.querySelector("#invoiceClearFiltersButton");
+
+async function runInvoiceSearch() {
+  const query = String(invoiceFilterNumber?.value || "").trim();
+  persistInvoiceFiltersFromUi();
+  await loadAndRenderInvoices({ silent: true, q: query });
+  renderInvoiceManagementList();
+}
+
+async function clearInvoiceFiltersAndReload() {
+  const resetSelectors = [
+    "#invoiceFilterNumber",
+    "#invoiceFilterCompany",
+    "#invoiceFilterDueFrom",
+    "#invoiceFilterDueTo",
+    "#invoiceFilterAmountMin",
+    "#invoiceFilterAmountMax",
+  ];
+  resetSelectors.forEach((selector) => {
+    const input = document.querySelector(selector);
+    if (input) {
+      input.value = "";
+    }
+  });
+  if (invoiceFilterStatus) {
+    invoiceFilterStatus.value = "";
+  }
+  document.querySelectorAll(".quick-filter-btn").forEach((btn) => {
+    btn.classList.remove("active");
+    if ((btn.dataset.status || "") === "") {
+      btn.classList.add("active");
+    }
+  });
+  persistInvoiceFiltersFromUi();
+  await loadAndRenderInvoices({ silent: true, q: "" });
+  renderInvoiceManagementList();
+}
+
+if (invoiceFilterNumber) {
+  invoiceFilterNumber.addEventListener("input", () => {
+    persistInvoiceFiltersFromUi();
+  });
+
+  invoiceFilterNumber.addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    await runInvoiceSearch();
+  });
+
+  invoiceFilterNumber.addEventListener("blur", async () => {
+    if (!String(invoiceFilterNumber.value || "").trim()) {
+      await runInvoiceSearch();
+    }
+  });
+}
+
+if (invoiceSearchButton) {
+  invoiceSearchButton.addEventListener("click", async () => {
+    await runInvoiceSearch();
+  });
+}
+
+if (invoiceClearFiltersButton) {
+  invoiceClearFiltersButton.addEventListener("click", async () => {
+    await clearInvoiceFiltersAndReload();
+  });
+}
+
+[
+  "#invoiceFilterDueFrom",
+  "#invoiceFilterDueTo",
+  "#invoiceFilterAmountMin",
+  "#invoiceFilterAmountMax",
+].forEach((selector) => {
+  const input = document.querySelector(selector);
+  if (!input) return;
+  input.addEventListener("input", () => {
+    persistInvoiceFiltersFromUi();
+    renderInvoiceManagementList();
+  });
+});
 
 const invoiceFilterStatus = document.querySelector("#invoiceFilterStatus");
 if (invoiceFilterStatus) {
-  invoiceFilterStatus.addEventListener("change", () => renderInvoiceManagementList());
+  invoiceFilterStatus.addEventListener("change", () => {
+    persistInvoiceFiltersFromUi();
+    renderInvoiceManagementList();
+  });
 }
 
 // Quick filter buttons
@@ -28174,9 +28380,110 @@ document.querySelectorAll(".quick-filter-btn").forEach(btn => {
     // Update active state
     document.querySelectorAll(".quick-filter-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+    persistInvoiceFiltersFromUi();
     renderInvoiceManagementList();
   });
 });
+
+function normalizeInvoiceAmountInput(rawValue) {
+  const text = String(rawValue || "").trim();
+  if (!text) return NaN;
+  const normalized = text.replace(/\s+/g, "").replace(/,/g, ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function getCurrentInvoiceFilterValues() {
+  return {
+    company: String(document.querySelector("#invoiceFilterCompany")?.value || "").trim(),
+    invoiceNumber: String(document.querySelector("#invoiceFilterNumber")?.value || "").trim(),
+    status: String(document.querySelector("#invoiceFilterStatus")?.value || "").trim(),
+    dueFrom: String(document.querySelector("#invoiceFilterDueFrom")?.value || "").trim(),
+    dueTo: String(document.querySelector("#invoiceFilterDueTo")?.value || "").trim(),
+    amountMinRaw: String(document.querySelector("#invoiceFilterAmountMin")?.value || "").trim(),
+    amountMaxRaw: String(document.querySelector("#invoiceFilterAmountMax")?.value || "").trim(),
+  };
+}
+
+function filterInvoicesForManagement(sourceInvoices, filters) {
+  const all = Array.isArray(sourceInvoices) ? sourceInvoices : [];
+  const f = filters || {};
+  const companyNeedle = String(f.company || "").toLowerCase();
+  const invoiceNeedle = String(f.invoiceNumber || "").toLowerCase();
+  const amountMin = normalizeInvoiceAmountInput(f.amountMinRaw);
+  const amountMax = normalizeInvoiceAmountInput(f.amountMaxRaw);
+  let invoices = [...all];
+
+  if (companyNeedle) {
+    invoices = invoices.filter((inv) => String(inv?.company_name || "").toLowerCase().includes(companyNeedle));
+  }
+  if (invoiceNeedle) {
+    invoices = invoices.filter((inv) => String(inv?.invoice_number || "").toLowerCase().includes(invoiceNeedle));
+  }
+  if (f.dueFrom) {
+    invoices = invoices.filter((inv) => {
+      const dueRaw = String(inv?.due_date || "").slice(0, 10);
+      return Boolean(dueRaw) && dueRaw >= f.dueFrom;
+    });
+  }
+  if (f.dueTo) {
+    invoices = invoices.filter((inv) => {
+      const dueRaw = String(inv?.due_date || "").slice(0, 10);
+      return Boolean(dueRaw) && dueRaw <= f.dueTo;
+    });
+  }
+  if (Number.isFinite(amountMin)) {
+    invoices = invoices.filter((inv) => Number(inv?.total_amount || 0) >= amountMin);
+  }
+  if (Number.isFinite(amountMax)) {
+    invoices = invoices.filter((inv) => Number(inv?.total_amount || 0) <= amountMax);
+  }
+  if (f.status) {
+    invoices = invoices.filter((inv) => String(inv?.status || "") === f.status);
+  }
+  return invoices;
+}
+
+function persistInvoiceFiltersFromUi() {
+  try {
+    const filters = getCurrentInvoiceFilterValues();
+    window.localStorage.setItem(INVOICE_FILTERS_STORAGE_KEY, JSON.stringify({
+      company: filters.company,
+      invoiceNumber: filters.invoiceNumber,
+      status: filters.status,
+      dueFrom: filters.dueFrom,
+      dueTo: filters.dueTo,
+      amountMinRaw: filters.amountMinRaw,
+      amountMaxRaw: filters.amountMaxRaw,
+    }));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function restoreInvoiceFiltersFromStorage() {
+  try {
+    const raw = String(window.localStorage.getItem(INVOICE_FILTERS_STORAGE_KEY) || "").trim();
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    const setValue = (selector, value) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      el.value = String(value || "");
+    };
+    setValue("#invoiceFilterCompany", parsed.company);
+    setValue("#invoiceFilterNumber", parsed.invoiceNumber);
+    setValue("#invoiceFilterStatus", parsed.status);
+    setValue("#invoiceFilterDueFrom", parsed.dueFrom);
+    setValue("#invoiceFilterDueTo", parsed.dueTo);
+    setValue("#invoiceFilterAmountMin", parsed.amountMinRaw);
+    setValue("#invoiceFilterAmountMax", parsed.amountMaxRaw);
+  } catch {
+    // ignore parse/storage errors
+  }
+}
+
+restoreInvoiceFiltersFromStorage();
 
 // Invoice PDF Preview Modal
 const closePdfPreviewBtn = document.querySelector("#closePdfPreviewBtn");
