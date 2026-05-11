@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260511c";
+const WORKER_BUILD = "20260511d";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -7,10 +7,10 @@ const STATIC_ASSETS = [
   { path: "/worker.css", rev: WORKER_BUILD },
   { path: "/worker-app.js", rev: WORKER_BUILD },
   { path: "/worker-manifest.json", rev: WORKER_BUILD },
-  { path: "/worker-icon-192.png" },
-  { path: "/worker-icon-512.png" },
-  { path: "/worker-icon-192.svg" },
-  { path: "/worker-icon-512.svg" }
+  { path: "/worker-icon-192-20260511d.png" },
+  { path: "/worker-icon-512-20260511d.png" },
+  { path: "/worker-icon-192-20260511d.svg" },
+  { path: "/worker-icon-512-20260511d.svg" }
 ];
 const STATIC_PATHS = new Set(STATIC_ASSETS.map((asset) => asset.path));
 const STATIC_FILES = STATIC_ASSETS.map((asset) => (asset.rev ? `${asset.path}?v=${asset.rev}` : asset.path));
