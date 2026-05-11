@@ -17032,6 +17032,133 @@ function getCardPrinterCalibration() {
   };
 }
 
+function printCardCalibrationSheet() {
+  const printWindow = window.open("", "_blank", "width=920,height=760");
+  if (!printWindow) {
+    showToast(uiT("alertPrintWindowFailed") || "Druckfenster konnte nicht geoeffnet werden.", "error", 3200);
+    return;
+  }
+
+  const calibration = getCardPrinterCalibration();
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Kartendrucker-Kalibrierung</title>
+      <style>
+        @page { size: 85.6mm 54mm; margin: 0; }
+        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        body { background: #fff; overflow: hidden; }
+        .calibration-root {
+          width: 85.6mm;
+          height: 54mm;
+          margin: 0;
+          padding: 0;
+          transform-origin: center center;
+          transform: translate(${calibration.offsetXMm}mm, ${calibration.offsetYMm}mm) scale(${calibration.scale}) rotate(${calibration.rotationDeg}deg);
+          position: relative;
+          border: 0.2mm solid #111;
+          box-sizing: border-box;
+          font-family: Arial, sans-serif;
+          color: #111;
+        }
+        .cross {
+          position: absolute;
+          width: 5mm;
+          height: 5mm;
+          transform: translate(-50%, -50%);
+        }
+        .cross::before,
+        .cross::after {
+          content: "";
+          position: absolute;
+          background: #111;
+        }
+        .cross::before {
+          left: 50%;
+          top: 0;
+          width: 0.25mm;
+          height: 5mm;
+          transform: translateX(-50%);
+        }
+        .cross::after {
+          top: 50%;
+          left: 0;
+          width: 5mm;
+          height: 0.25mm;
+          transform: translateY(-50%);
+        }
+        .corner-label {
+          position: absolute;
+          font-size: 2.8mm;
+          font-weight: 700;
+        }
+        .center-box {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 36mm;
+          height: 14mm;
+          transform: translate(-50%, -50%);
+          border: 0.2mm dashed #111;
+          display: grid;
+          place-items: center;
+          text-align: center;
+          font-size: 2.6mm;
+          line-height: 1.2;
+          padding: 1.2mm;
+          box-sizing: border-box;
+        }
+        .meta {
+          position: absolute;
+          left: 2mm;
+          right: 2mm;
+          bottom: 1.8mm;
+          font-size: 2.1mm;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="calibration-root">
+        <div class="cross" style="left: 2mm; top: 2mm;"></div>
+        <div class="cross" style="left: calc(100% - 2mm); top: 2mm;"></div>
+        <div class="cross" style="left: 2mm; top: calc(100% - 2mm);"></div>
+        <div class="cross" style="left: calc(100% - 2mm); top: calc(100% - 2mm);"></div>
+        <div class="cross" style="left: 50%; top: 50%;"></div>
+
+        <div class="corner-label" style="left: 3.8mm; top: 3.6mm;">TL</div>
+        <div class="corner-label" style="right: 3.8mm; top: 3.6mm;">TR</div>
+        <div class="corner-label" style="left: 3.8mm; bottom: 3.8mm;">BL</div>
+        <div class="corner-label" style="right: 3.8mm; bottom: 3.8mm;">BR</div>
+
+        <div class="center-box">
+          Kartendrucker-Test
+          <br />
+          85.6 x 54 mm (CR80)
+        </div>
+
+        <div class="meta">
+          X: ${calibration.offsetXMm.toFixed(1)}mm | Y: ${calibration.offsetYMm.toFixed(1)}mm | Scale: ${calibration.scalePct.toFixed(1)}% | Rot: ${calibration.rotationDeg.toFixed(1)}deg
+        </div>
+      </div>
+      <script>
+        window.addEventListener("load", () => {
+          requestAnimationFrame(() => {
+            window.focus();
+            window.print();
+            setTimeout(() => window.close(), 500);
+          });
+        });
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 function printBadge(worker, company) {
   const preview = document.getElementById("badgePreview");
   if (!preview) return;
