@@ -167,11 +167,10 @@ body.wallet-immersive #workerPageNav,
 body.wallet-immersive #actionsPanel,
 body.wallet-immersive #sessionInfoCard,
 body.wallet-immersive #leaveRequestCard,
+body.wallet-immersive #leaveRequestCard,
 body.wallet-immersive #timesheetCard,
 body.wallet-immersive #documentsCard,
-body.wallet-immersive #workerVisitorMeta,
 body.wallet-immersive #routeCard,
-body.wallet-immersive #visitorCountdownBanner,
 body.wallet-immersive #workerQuickMenu {
   display: none !important;
 }
@@ -182,15 +181,12 @@ body.wallet-immersive.wallet-immersive-sections-open #leaveRequestCard,
 body.wallet-immersive.wallet-immersive-sections-open #timesheetCard,
 body.wallet-immersive.wallet-immersive-sections-open #documentsCard,
 body.wallet-immersive.wallet-immersive-sections-open #workerMenuCard,
-body.wallet-immersive.wallet-immersive-sections-open #workerVisitorMeta,
-body.wallet-immersive.wallet-immersive-sections-open #routeCard,
-body.wallet-immersive.wallet-immersive-sections-open #visitorCountdownBanner {
+body.wallet-immersive.wallet-immersive-sections-open #routeCard {
   display: grid !important;
 }
 
 /* Respect runtime hidden state even in immersive expanded mode. */
 body.wallet-immersive.wallet-immersive-sections-open .below-card.hidden,
-body.wallet-immersive.wallet-immersive-sections-open #visitorCountdownBanner.hidden,
 body.wallet-immersive.wallet-immersive-sections-open #workerMenuCard.hidden {
   display: none !important;
 }
@@ -550,24 +546,6 @@ body.worker-loaded .worker-pass {
   color: var(--muted);
   font-size: .88rem;
   line-height: 1.4;
-}
-
-.worker-visitor-meta {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px dashed rgba(22, 94, 216, .35);
-  background: rgba(22, 94, 216, .06);
-}
-
-.worker-visitor-meta p {
-  margin: 0 0 6px;
-  color: var(--text);
-  font-size: .84rem;
-}
-
-.worker-visitor-meta p:last-child {
-  margin-bottom: 0;
 }
 
 .pass-stage-chip,
@@ -1626,12 +1604,6 @@ body.worker-loaded .wallet-card {
   letter-spacing: -.02em;
 }
 
-/* ── Visitor Meta Card ── */
-.visitor-meta-card {
-  display: grid;
-  gap: 10px;
-}
-
 /* ── Session Info Card ── */
 .session-info-card {
   display: grid;
@@ -2659,38 +2631,6 @@ body {
 
 .send-boss-btn {
   min-width: 110px;
-}
-
-.visitor-countdown-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(217, 93, 57, 0.35);
-  background: linear-gradient(135deg, rgba(217, 93, 57, 0.18), rgba(217, 93, 57, 0.07));
-  color: var(--text);
-  margin-bottom: 10px;
-}
-
-.vcd-icon {
-  font-size: 1.2rem;
-}
-
-.vcd-text {
-  display: grid;
-  line-height: 1.05;
-}
-
-.vcd-label {
-  font-size: 0.78rem;
-  opacity: 0.8;
-}
-
-.vcd-time {
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
 }
 
 .leave-request-list {
@@ -3874,7 +3814,6 @@ body {
 .worker-loaded .timesheet-card,
 .worker-loaded .documents-card,
 .worker-loaded .session-info-card,
-.worker-loaded .visitor-meta-card,
 .worker-loaded .route-card,
 .worker-loaded .actions-panel {
   background: transparent;

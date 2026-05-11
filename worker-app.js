@@ -183,12 +183,6 @@ const TRANSLATIONS = {
     sessionTitle: "Tagesausweis",
     actionsKicker: "Aktionen",
     actionsTitle: "Schnellzugriff",
-    visitorMetaKicker: "Besuch",
-    visitorMetaTitle: "Besuchsdetails",
-    fieldVisitorCompany: "Gastfirma",
-    fieldVisitPurpose: "Besuchsgrund",
-    fieldHostName: "Ansprechpartner",
-    fieldVisitEndAt: "Besuch bis",
     themeToggleBtn: "🌙 Theme",
     voiceCommandBtn: "🎤 Voice",
     notificationPermissionBtn: "Benachrichtigungen",
@@ -339,12 +333,6 @@ const TRANSLATIONS = {
     sessionTitle: "Day Pass",
     actionsKicker: "Actions",
     actionsTitle: "Quick Access",
-    visitorMetaKicker: "Visit",
-    visitorMetaTitle: "Visit Details",
-    fieldVisitorCompany: "Visitor Company",
-    fieldVisitPurpose: "Visit Purpose",
-    fieldHostName: "Contact Person",
-    fieldVisitEndAt: "Visit Until",
     themeToggleBtn: "🌙 Theme",
     voiceCommandBtn: "🎤 Voice",
     notificationPermissionBtn: "Notifications",
@@ -493,12 +481,6 @@ const TRANSLATIONS = {
     sessionTitle: "Günlük Kart",
     actionsKicker: "İşlemler",
     actionsTitle: "Hızlı Erişim",
-    visitorMetaKicker: "Ziyaret",
-    visitorMetaTitle: "Ziyaret Detayları",
-    fieldVisitorCompany: "Ziyaretçi Firması",
-    fieldVisitPurpose: "Ziyaret Amacı",
-    fieldHostName: "İlgili Kişi",
-    fieldVisitEndAt: "Ziyaret Bitiş",
     themeToggleBtn: "🌙 Tema",
     voiceCommandBtn: "🎤 Ses",
     notificationPermissionBtn: "Bildirimler",
@@ -643,12 +625,6 @@ const TRANSLATIONS = {
     sessionTitle: "بطاقة اليوم",
     actionsKicker: "الإجراءات",
     actionsTitle: "وصول سريع",
-    visitorMetaKicker: "الزيارة",
-    visitorMetaTitle: "تفاصيل الزيارة",
-    fieldVisitorCompany: "شركة الزائر",
-    fieldVisitPurpose: "هدف الزيارة",
-    fieldHostName: "جهة الاتصال",
-    fieldVisitEndAt: "الزيارة حتى",
     themeToggleBtn: "🌙 المظهر",
     voiceCommandBtn: "🎤 صوت",
     notificationPermissionBtn: "إشعارات",
@@ -711,8 +687,7 @@ TRANSLATIONS.pl = {
 };
 
 Object.assign(TRANSLATIONS.de, {
-  visitorCountdownLabel: "Besuch endet in",
-  visitorCountdownExpired: "Besuchszeit abgelaufen – Abmeldung",
+
   visitEndedLogout: "Ihre Besuchszeit ist abgelaufen. Bitte neu anmelden.",
   aiSuggestBtn: "✨ KI Vorschlag",
   bossEmailLabel: "An Chef senden (optional)",
@@ -764,8 +739,7 @@ Object.assign(TRANSLATIONS.de, {
 });
 
 Object.assign(TRANSLATIONS.en, {
-  visitorCountdownLabel: "Visit ends in",
-  visitorCountdownExpired: "Visit time expired – logging out",
+
   visitEndedLogout: "Your visit time has expired. Please log in again.",
   aiSuggestBtn: "✨ AI Suggestion",
   bossEmailLabel: "Send to manager (optional)",
@@ -817,8 +791,7 @@ Object.assign(TRANSLATIONS.en, {
 });
 
 Object.assign(TRANSLATIONS.tr, {
-  visitorCountdownLabel: "Ziyaret bitiyor",
-  visitorCountdownExpired: "Ziyaret süresi doldu – çıkış yapılıyor",
+
   visitEndedLogout: "Ziyaret süreniz doldu. Lütfen yeniden giriş yapın.",
   aiSuggestBtn: "✨ Yapay Zeka Önerisi",
   bossEmailLabel: "Amire gönder (isteğe bağlı)",
@@ -872,8 +845,7 @@ Object.assign(TRANSLATIONS.tr, {
 });
 
 Object.assign(TRANSLATIONS.ar, {
-  visitorCountdownLabel: "الزيارة تنتهي خلال",
-  visitorCountdownExpired: "انتهت مدة الزيارة – جارٍ تسجيل الخروج",
+
   visitEndedLogout: "انتهت مدة زيارتك. يرجى تسجيل الدخول مرة أخرى.",
   aiSuggestBtn: "✨ اقتراح ذكاء اصطناعي",
   bossEmailLabel: "إرسال إلى المدير (اختياري)",
@@ -927,8 +899,7 @@ Object.assign(TRANSLATIONS.ar, {
 });
 
 Object.assign(TRANSLATIONS.fr, {
-  visitorCountdownLabel: "La visite se termine dans",
-  visitorCountdownExpired: "Temps de visite expiré – déconnexion",
+
   visitEndedLogout: "Votre temps de visite a expiré. Veuillez vous reconnecter.",
   aiSuggestBtn: "✨ Suggestion IA",
   bossEmailLabel: "Envoyer au responsable (optionnel)",
@@ -944,8 +915,7 @@ Object.assign(TRANSLATIONS.fr, {
 });
 
 Object.assign(TRANSLATIONS.es, {
-  visitorCountdownLabel: "La visita termina en",
-  visitorCountdownExpired: "Tiempo de visita expirado – cerrando sesión",
+
   visitEndedLogout: "Su tiempo de visita ha expirado. Por favor, inicie sesión de nuevo.",
   aiSuggestBtn: "✨ Sugerencia IA",
   bossEmailLabel: "Enviar al responsable (opcional)",
@@ -961,8 +931,7 @@ Object.assign(TRANSLATIONS.es, {
 });
 
 Object.assign(TRANSLATIONS.it, {
-  visitorCountdownLabel: "La visita termina tra",
-  visitorCountdownExpired: "Tempo di visita scaduto – disconnessione",
+
   visitEndedLogout: "Il tuo tempo di visita è scaduto. Effettua di nuovo l'accesso.",
   aiSuggestBtn: "✨ Suggerimento IA",
   bossEmailLabel: "Invia al responsabile (opzionale)",
@@ -978,8 +947,7 @@ Object.assign(TRANSLATIONS.it, {
 });
 
 Object.assign(TRANSLATIONS.pl, {
-  visitorCountdownLabel: "Wizyta kończy się za",
-  visitorCountdownExpired: "Czas wizyty minął – wylogowywanie",
+
   visitEndedLogout: "Twój czas wizyty minął. Zaloguj się ponownie.",
   aiSuggestBtn: "✨ Sugestia AI",
   bossEmailLabel: "Wyślij do przełożonego (opcjonalnie)",
@@ -1047,12 +1015,6 @@ Object.assign(TRANSLATIONS.fr, {
   pageBackBtn: "← Aperçu",
   lateCheckInMessage: "Attention : vous vous êtes enregistré en retard aujourd'hui !",
   lateMinutesUnit: "min.",
-  visitorMetaKicker: "Visite",
-  visitorMetaTitle: "Détails de visite",
-  fieldVisitorCompany: "Entreprise invitée",
-  fieldVisitPurpose: "Motif de visite",
-  fieldHostName: "Contact sur site",
-  fieldVisitEndAt: "Visite jusqu'à",
   dayCardValidToday: "Valide aujourd'hui",
   autoOpenScannerLabel: "Ouvrir automatiquement le scanner à l'expiration",
   gateBtn: "Mode tourniquet",
@@ -1164,12 +1126,6 @@ Object.assign(TRANSLATIONS.es, {
   pageBackBtn: "← Resumen",
   lateCheckInMessage: "Aviso: ¡hoy has fichado tarde!",
   lateMinutesUnit: "min.",
-  visitorMetaKicker: "Visita",
-  visitorMetaTitle: "Detalles de visita",
-  fieldVisitorCompany: "Empresa invitada",
-  fieldVisitPurpose: "Motivo de visita",
-  fieldHostName: "Contacto en obra",
-  fieldVisitEndAt: "Visita hasta",
   dayCardValidToday: "Válido hoy",
   autoOpenScannerLabel: "Abrir escáner automáticamente al expirar",
   gateBtn: "Modo torniquete",
@@ -1574,7 +1530,7 @@ let dynamicManifestUrl = "";
 let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / BauPass)
 let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
-let visitorCountdownInterval = null;
+
 let inactivityCheckInterval = null;
 let qrHighContrastEnabled = localStorage.getItem(QR_HIGH_CONTRAST_KEY) === "1";
 let sessionExpiringSoonNotified = false;
@@ -1704,8 +1660,6 @@ const elements = {
   workerPageNav: document.querySelector("#workerPageNav"),
   workerPageBackButton: document.querySelector("#workerPageBackButton"),
   workerPageLabel: document.querySelector("#workerPageLabel"),
-  visitorCountdownBanner: document.querySelector("#visitorCountdownBanner"),
-  visitorCountdownTime: document.querySelector("#visitorCountdownTime"),
   sendToBossPanel: document.querySelector("#sendToBossPanel"),
   bossEmailInput: document.querySelector("#bossEmailInput"),
   sendToBossBtn: document.querySelector("#sendToBossBtn"),
@@ -1820,14 +1774,12 @@ function getWorkerPageTitle(targetId) {
   if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
   if (targetId === "timesheetCard") return t("timesheetCardTitle");
   if (targetId === "documentsCard") return t("documentsTitle");
-  if (targetId === "workerVisitorMeta") return t("visitorMetaTitle");
   return t("workerPageDefault");
 }
 
 function getWorkerPageSections() {
   return [
     document.querySelector("#routeCard"),
-    elements.workerVisitorMeta,
     document.querySelector("#sessionInfoCard"),
     document.querySelector("#actionsPanel"),
     elements.leaveRequestCard,
@@ -3079,12 +3031,6 @@ function renderWorker(payload) {
     elements.workerVisitEndAt.textContent = worker.visitEndAt ? formatDateTime(worker.visitEndAt) : "-";
   }
 
-  if (isVisitor) {
-    startVisitorCountdown(payload);
-  } else {
-    stopVisitorCountdown();
-  }
-
   if (elements.workerPhoto) {
     if (worker.photoData && String(worker.photoData).startsWith("data:image")) {
       elements.workerPhoto.src = worker.photoData;
@@ -3261,7 +3207,6 @@ function renderWorker(payload) {
 function showLogin() {
   clearWorkerSessionExpiryTimer();
   clearWorkerSessionCountdown();
-  stopVisitorCountdown();
   sessionExpiringSoonNotified = false;
   gateAutoOpenTriggered = false;
   stopAmbientLightRecommendation();
@@ -4484,54 +4429,6 @@ function clearWorkerSessionExpiryTimer() {
     window.clearTimeout(workerSessionExpiryTimeout);
     workerSessionExpiryTimeout = null;
   }
-}
-
-function stopVisitorCountdown() {
-  if (visitorCountdownInterval !== null) {
-    window.clearInterval(visitorCountdownInterval);
-    visitorCountdownInterval = null;
-  }
-  if (elements.visitorCountdownBanner) {
-    elements.visitorCountdownBanner.classList.add("hidden");
-  }
-}
-
-function startVisitorCountdown(payload) {
-  stopVisitorCountdown();
-  if (!elements.visitorCountdownBanner || !elements.visitorCountdownTime) {
-    return;
-  }
-
-  const worker = payload?.worker || {};
-  const targetIso = String(worker.visitEndAt || payload?.sessionExpiresAt || "").trim();
-  if (!targetIso) {
-    return;
-  }
-  const targetMs = new Date(targetIso).getTime();
-  if (!Number.isFinite(targetMs)) {
-    return;
-  }
-
-  elements.visitorCountdownBanner.classList.remove("hidden");
-
-  const update = () => {
-    const remaining = targetMs - Date.now();
-    if (remaining <= 0) {
-      elements.visitorCountdownTime.textContent = "00:00:00";
-      stopVisitorCountdown();
-      showWorkerNotice(t("visitorCountdownExpired"));
-      void workerLogout();
-      return;
-    }
-    const totalSeconds = Math.floor(remaining / 1000);
-    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
-    const s = String(totalSeconds % 60).padStart(2, "0");
-    elements.visitorCountdownTime.textContent = `${h}:${m}:${s}`;
-  };
-
-  update();
-  visitorCountdownInterval = window.setInterval(update, 1000);
 }
 
 function expireDailyCardInClient() {
