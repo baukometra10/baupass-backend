@@ -143,6 +143,23 @@
     inset 0 -1px 0 rgba(0, 0, 60, .48);
 }
 
+/* Visitor card: remove metallic/gold QR-chip look, keep a cleaner glass frame */
+#visitorWalletCard .wc-qr-frame {
+  background: linear-gradient(150deg, rgba(255, 255, 255, .18) 0%, rgba(255, 255, 255, .08) 50%, rgba(255, 255, 255, .12) 100%);
+  border-color: rgba(235, 242, 255, .45);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, .34),
+    inset 0 1px 0 rgba(255, 255, 255, .38),
+    inset 0 -1px 0 rgba(10, 16, 24, .36);
+}
+
+#visitorWalletCard .wc-qr-frame::before {
+  border-color: rgba(208, 222, 245, .36);
+  background-image:
+    linear-gradient(rgba(208, 222, 245, .12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(208, 222, 245, .12) 1px, transparent 1px);
+}
+
 /* ─────────────────────────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════
    BauPass Mitarbeiter-App – Wallet-Card Redesign
@@ -3928,32 +3945,37 @@ body {
 }
 
 .worker-loaded .actions-gate-btn {
-  min-height: 52px;
-  border-radius: 3px;
+  min-height: 54px;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(126, 62, 33, .25);
 }
 
 .worker-loaded .actions-secondary {
-  gap: 8px;
+  gap: 10px;
 }
 
 .worker-loaded .actions-secondary .small-btn,
 .worker-loaded .theme-toggle-btn,
 .worker-loaded .voice-command-btn,
 .worker-loaded .notification-permission-banner button {
-  min-height: 44px;
-  border-radius: 3px;
-  border: 1px solid #d3d3d3;
-  background: #ededed;
-  color: #1a1a1a;
-  box-shadow: none;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(196, 178, 158, .56);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .97) 0%, rgba(244, 238, 230, .96) 100%);
+  color: #2b211b;
+  box-shadow: 0 4px 12px rgba(75, 48, 31, .10), inset 0 1px 0 rgba(255, 255, 255, .92);
+  font-weight: 700;
+  letter-spacing: .01em;
 }
 
 .worker-loaded .actions-secondary .small-btn:hover,
 .worker-loaded .theme-toggle-btn:hover,
 .worker-loaded .voice-command-btn:hover,
 .worker-loaded .notification-permission-banner button:hover {
-  background: #e7e7e7;
-  border-color: #c8c8c8;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(240, 232, 221, .98) 100%);
+  border-color: rgba(186, 160, 130, .7);
+  box-shadow: 0 8px 18px rgba(75, 48, 31, .14), inset 0 1px 0 rgba(255, 255, 255, .95);
+  transform: translateY(-1px);
 }
 
 .worker-loaded .leave-request-card,
@@ -3962,10 +3984,22 @@ body {
 .worker-loaded .session-info-card,
 .worker-loaded .route-card,
 .worker-loaded .actions-panel {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(248, 244, 239, .96));
+  border: 1px solid rgba(255, 255, 255, .60);
+  box-shadow: 0 12px 28px rgba(68, 41, 25, .08), inset 0 1px 0 rgba(255, 255, 255, .78);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.worker-loaded #logoutButton.logout-btn-prominent {
+  color: #9f1239 !important;
+  border-color: rgba(190, 24, 93, .28) !important;
+  background: linear-gradient(180deg, rgba(255, 245, 248, .98) 0%, rgba(255, 237, 242, .98) 100%) !important;
+}
+
+.worker-loaded #logoutButton.logout-btn-prominent:hover {
+  border-color: rgba(190, 24, 93, .42) !important;
+  background: linear-gradient(180deg, rgba(255, 241, 245, 1) 0%, rgba(255, 228, 236, .98) 100%) !important;
 }
 
 .worker-loaded .leave-request-form input,
