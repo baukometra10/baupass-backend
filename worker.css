@@ -3,16 +3,16 @@
    ═══════════════════════════════════════════════════════ */
 
 :root {
-  --bg: #f6f1e8;
-  --card: rgba(255, 250, 244, 0.7);
-  --card-strong: rgba(255, 251, 247, 0.88);
-  --text: #161312;
-  --muted: #665f5a;
+  --bg: #f5efe6;
+  --card: rgba(255, 250, 245, 0.74);
+  --card-strong: rgba(255, 252, 248, 0.9);
+  --text: #151210;
+  --muted: #645d57;
   --accent: #d95d39;
   --accent-dark: #b94a2a;
   --accent-soft: #f3b088;
   --blue: #165ed8;
-  --shadow: 0 28px 70px rgba(68, 41, 25, 0.16);
+  --shadow: 0 30px 80px rgba(68, 41, 25, 0.18);
   --status-active: #16a34a;
   --status-warning: #ea8c00;
   --status-error: #dc2626;
@@ -23,16 +23,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1116;
-    --card: rgba(22, 27, 36, 0.66);
-    --card-strong: rgba(26, 34, 46, 0.86);
+    --bg: #0d1016;
+    --card: rgba(20, 26, 36, 0.7);
+    --card-strong: rgba(24, 32, 44, 0.9);
     --text: #f4f7ff;
     --muted: #b7c1d6;
     --accent: #f39256;
     --accent-dark: #cb6d36;
     --accent-soft: #f8c3a0;
     --blue: #5d87e8;
-    --shadow: 0 30px 62px rgba(3, 6, 12, 0.52);
+    --shadow: 0 34px 72px rgba(3, 6, 12, 0.56);
   }
 }
 
@@ -50,18 +50,20 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   background:
-    radial-gradient(circle at top left, rgba(217, 93, 57, 0.2), transparent 28%),
-    radial-gradient(circle at right 20%, rgba(22, 94, 216, 0.14), transparent 22%),
-    linear-gradient(145deg, #f9f4ea 0%, #f0e4d5 42%, #e7ddd2 100%);
+    radial-gradient(circle at top left, rgba(217, 93, 57, 0.16), transparent 30%),
+    radial-gradient(circle at 80% 20%, rgba(22, 94, 216, 0.12), transparent 24%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.4), transparent 32%),
+    linear-gradient(145deg, #faf4eb 0%, #f1e4d5 44%, #e6ddd2 100%);
   transition: background var(--transition-base), color var(--transition-base);
 }
 
 @media (prefers-color-scheme: dark) {
   body {
     background:
-      radial-gradient(circle at top left, rgba(245, 138, 70, 0.2), transparent 32%),
-      radial-gradient(circle at right 20%, rgba(93, 135, 232, 0.16), transparent 26%),
-      linear-gradient(145deg, #0f1116 0%, #141a24 42%, #10151f 100%);
+      radial-gradient(circle at top left, rgba(245, 138, 70, 0.18), transparent 34%),
+      radial-gradient(circle at 80% 20%, rgba(93, 135, 232, 0.15), transparent 28%),
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08), transparent 36%),
+      linear-gradient(145deg, #0d1016 0%, #131a24 42%, #0f141e 100%);
   }
 }
 
@@ -81,9 +83,10 @@ body {
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at top left, rgba(245, 138, 70, 0.2), transparent 32%),
-    radial-gradient(circle at right 20%, rgba(93, 135, 232, 0.16), transparent 26%),
-    linear-gradient(145deg, #0f1116 0%, #141a24 42%, #10151f 100%);
+    radial-gradient(circle at top left, rgba(245, 138, 70, 0.18), transparent 34%),
+    radial-gradient(circle at 80% 20%, rgba(93, 135, 232, 0.15), transparent 28%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08), transparent 36%),
+    linear-gradient(145deg, #0d1016 0%, #131a24 42%, #0f141e 100%);
 }
 
 [data-theme="light"] {
@@ -101,9 +104,10 @@ body {
 
 [data-theme="light"] body {
   background:
-    radial-gradient(circle at top left, rgba(217, 93, 57, 0.2), transparent 28%),
-    radial-gradient(circle at right 20%, rgba(22, 94, 216, 0.14), transparent 22%),
-    linear-gradient(145deg, #f9f4ea 0%, #f0e4d5 42%, #e7ddd2 100%);
+    radial-gradient(circle at top left, rgba(217, 93, 57, 0.16), transparent 30%),
+    radial-gradient(circle at 80% 20%, rgba(22, 94, 216, 0.12), transparent 24%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.4), transparent 32%),
+    linear-gradient(145deg, #faf4eb 0%, #f1e4d5 44%, #e6ddd2 100%);
 }
 
 .app-backdrop {
@@ -149,7 +153,7 @@ body {
 .app-shell {
   max-width: 520px;
   margin: 0 auto;
-  padding: 22px 16px 30px;
+  padding: 24px 16px 34px;
   display: grid;
   gap: 18px;
   position: relative;
@@ -193,8 +197,8 @@ body.wallet-immersive.wallet-immersive-sections-open #workerMenuCard.hidden {
 
 body.wallet-immersive .app-shell {
   max-width: 100%;
-  padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
-  gap: 8px;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+  gap: 10px;
 }
 
 body.wallet-immersive .worker-pass {
@@ -264,13 +268,15 @@ html {
 
 .top-panel {
   display: grid;
-  gap: 16px;
-  padding: 22px 18px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, rgba(20, 21, 27, .92), rgba(40, 27, 22, .82));
+  gap: 18px;
+  padding: 24px 20px;
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(18, 20, 28, .94), rgba(34, 24, 19, .84)),
+    radial-gradient(circle at top right, rgba(255, 255, 255, .06), transparent 35%);
   color: #fff7f1;
-  box-shadow: var(--shadow);
-  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 22px 48px rgba(10, 12, 16, .24), var(--shadow);
+  border: 1px solid rgba(255, 255, 255, .1);
 }
 
 .top-copy {
@@ -318,7 +324,7 @@ html {
 
 .top-lead {
   margin: 0;
-  max-width: 28ch;
+  max-width: 32ch;
   color: rgba(255, 247, 241, .78);
   font-size: .98rem;
   line-height: 1.45;
@@ -326,7 +332,7 @@ html {
 
 .top-actions {
   display: grid;
-  gap: 12px;
+  gap: 13px;
 }
 
 .top-stats {
@@ -338,9 +344,9 @@ html {
 .top-stat-card {
   padding: 12px 14px;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
-  border: 1px solid rgba(255,255,255,.1);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.07));
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 8px 20px rgba(0,0,0,.08);
 }
 
 .top-stat-card strong {
@@ -502,7 +508,7 @@ html[dir="rtl"] .wc-brand {
 }
 
 body.worker-loaded .worker-pass {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .section-head {
@@ -974,19 +980,19 @@ body.worker-loaded .app-shell {
   margin: 0 auto;
   aspect-ratio: 85.6 / 56;
   min-height: 272px;
-  border-radius: 24px;
-  padding: 4.8% 5.4%;
+  border-radius: 28px;
+  padding: 5.1% 5.8%;
   background: linear-gradient(
     135deg,
-    #0f1923 0%,
-    #1a2d3d 45%,
-    #0d1520 100%
+    #0c1621 0%,
+    #173042 46%,
+    #09111a 100%
   );
   box-shadow:
-    0 40px 80px rgba(0, 0, 0, .6),
-    0 8px 32px rgba(0, 0, 0, .4),
-    0 0 0 1px rgba(255, 255, 255, .1),
-    inset 0 1px 0 rgba(255, 255, 255, .15);
+    0 42px 88px rgba(0, 0, 0, .58),
+    0 10px 34px rgba(0, 0, 0, .36),
+    0 0 0 1px rgba(255, 255, 255, .12),
+    inset 0 1px 0 rgba(255, 255, 255, .16);
   color: #fff;
   overflow: hidden;
   display: flex;
@@ -997,6 +1003,10 @@ body.worker-loaded .app-shell {
   transform: translateZ(0);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
               box-shadow 0.3s ease;
+}
+
+body.worker-loaded .wallet-card {
+  margin-top: 4px;
 }
 
 /* ─── CARD ENTRANCE ANIMATION ─── */
@@ -1102,12 +1112,13 @@ body.worker-loaded .app-shell {
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    var(--accent) 0%,
-    #f0844a 50%,
-    var(--accent) 100%
+    rgba(255, 170, 112, .98) 0%,
+    #f0844a 48%,
+    rgba(255, 198, 144, .96) 100%
   );
-  height: 3px;
+  height: 4px;
   bottom: auto;
+  box-shadow: 0 0 18px rgba(240, 132, 74, .42);
 }
 
 .wallet-card.preset-construction {
@@ -1591,7 +1602,7 @@ body.worker-loaded .app-shell {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 2px;
+  padding-top: 6px;
 }
 
 .pass-title {
