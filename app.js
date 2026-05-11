@@ -86,6 +86,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
+const WORKER_PWA_BUILD_TAG = "20260511e";
 
 function loadStoredSessionToken() {
   try {
@@ -16177,7 +16178,18 @@ function normalizeWorkerAppLink(rawLink) {
   }
 
   try {
-    return new URL(candidate, window.location.origin).toString();
+    const normalized = new URL(candidate, window.location.origin);
+    if (normalized.pathname.endsWith("/worker.html")) {
+      // Access links should land on the install handoff page to avoid stale homescreen installs.
+      if (normalized.searchParams.get("access")) {
+        normalized.pathname = "/worker-install.html";
+      }
+      normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
+    }
+    if (normalized.pathname.endsWith("/worker-install.html")) {
+      normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
+    }
+    return normalized.toString();
   } catch {
     return candidate;
   }
@@ -16999,34 +17011,60 @@ setInterval(() => {
 
 // ── Print Badge ──────────────────────────────────────────────────────────────
 function printBadge(worker, company) {
-  // Vorherige Druck-Container entfernen
-  document.querySelectorAll(".print-badge-root").forEach((el) => el.remove());
-
   const preview = document.getElementById("badgePreview");
   if (!preview) return;
 
-  // Badge-Inhalt in Druck-Overlay klonen (nutzt dieselben Styles wie die App)
-  const root = document.createElement("div");
-  root.className = "print-badge-root";
-  root.innerHTML = `<div class="badge-shell">${preview.innerHTML}</div>`;
-  document.body.appendChild(root);
+  const printableCard = preview.querySelector(".wallet-card");
+  if (!printableCard) return;
 
-  // Auf alle Bilder (insbesondere QR-Code) warten bevor gedruckt wird
-  const images = Array.from(root.querySelectorAll("img"));
-  const loadPromises = images.map((img) => {
-    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-    return new Promise((resolve) => {
-      img.onload = resolve;
-      img.onerror = resolve;
-      setTimeout(resolve, 5000); // Fallback nach 5s
-    });
-  });
+  const printWindow = window.open("", "_blank", "width=920,height=760");
+  if (!printWindow) {
+    showToast(uiT("alertPrintWindowFailed") || "Druckfenster konnte nicht geoeffnet werden.", "error", 3200);
+    return;
+  }
 
-  Promise.all(loadPromises).then(() => {
-    window.print();
-    // Nach dem Drucken (oder Abbrechen) aufräumen
-    setTimeout(() => root.remove(), 2500);
-  });
+  const printableMarkup = printableCard.outerHTML;
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>${escapeHtml(runtimeText("badgePrintFormatLabel") || "Ausweis drucken")}</title>
+      <link rel="stylesheet" href="./styles.css?v=${WORKER_PWA_BUILD_TAG}" />
+      <style>
+        @page { size: 85.6mm 54mm; margin: 0; }
+        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        body { background: #fff; overflow: hidden; }
+        .print-badge-root { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        .print-badge-root .badge-card-stage { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+      </style>
+    </head>
+    <body>
+      <div class="print-badge-root">
+        <div class="badge-shell">
+          <div class="badge-card-stage">
+            ${printableMarkup}
+          </div>
+        </div>
+      </div>
+      <script>
+        const imgs = Array.from(document.images || []);
+        Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+          setTimeout(resolve, 4000);
+        }))).then(() => {
+          window.focus();
+          window.print();
+          setTimeout(() => window.close(), 500);
+        });
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
 
 function normalizeWorkerCardStatus(status) {
@@ -21252,9 +21290,12 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
       const base = new URL(absoluteLink);
       const apiBaseParam = base.searchParams.get("apiBase");
       base.search = "";
+      base.pathname = "/worker.html";
       if (apiBaseParam) {
         base.searchParams.set("apiBase", apiBaseParam);
       }
+      base.searchParams.set("view", "card");
+      base.searchParams.set("v", WORKER_PWA_BUILD_TAG);
       base.searchParams.set("badge", worker.badgeId);
       permanentLink = base.toString();
     } catch {
@@ -21464,7 +21505,7 @@ async function renderWorkerBadgeAppQr(workerId, qrId, fallbackBadgeId) {
     }
     renderRealQr(qrId, appLink);
   } catch {
-    const installFallback = normalizeWorkerAppLink(`${window.location.origin}/worker.html`);
+    const installFallback = normalizeWorkerAppLink(`${window.location.origin}/worker-install.html`);
     renderRealQr(qrId, installFallback || fallbackBadgeId);
   }
 }
