@@ -81,6 +81,7 @@ const TRANSLATIONS = {
     appLead: "Dein Ausweis, dein Arbeitsweg und dein Einlass an einem Ort. Schnell, sauber und direkt auf dem Homescreen.",
     languageLabel: "Sprache",
     installBtn: "App installieren",
+    forceRefreshBtn: "Jetzt aktualisieren",
     installHint: "Für iPhone und Android optimiert. Installiere die App für schnellen Zugriff am Drehkreuz.",
     online: "Online",
     offline: "Offline",
@@ -246,6 +247,7 @@ const TRANSLATIONS = {
     appLead: "Your ID, your route, and your site access in one place. Fast, clean, and right on your home screen.",
     languageLabel: "Language",
     installBtn: "Install App",
+    forceRefreshBtn: "Refresh now",
     installHint: "Optimized for iPhone and Android. Install the app for quick access at the turnstile.",
     online: "Online",
     offline: "Offline",
@@ -411,6 +413,7 @@ const TRANSLATIONS = {
     appLead: "Kimliğin, rotanın ve şantiye girişin tek bir yerde. Hızlı, temiz ve ana ekranında.",
     languageLabel: "Dil",
     installBtn: "Uygulamayı Kur",
+    forceRefreshBtn: "Şimdi güncelle",
     installHint: "iPhone ve Android için optimize edildi. Turnikede hızlı erişim için uygulamayı kur.",
     online: "Çevrimiçi",
     offline: "Çevrimdışı",
@@ -570,6 +573,7 @@ const TRANSLATIONS = {
     appLead: "هويتك وطريقك ودخولك إلى الموقع في مكان واحد. سريع وسهل على الشاشة الرئيسية.",
     languageLabel: "اللغة",
     installBtn: "تثبيت التطبيق",
+    forceRefreshBtn: "تحديث الآن",
     installHint: "محسّن لـ iPhone وAndroid. ثبّت التطبيق للوصول السريع عند البوابة الدوارة.",
     online: "متصل",
     offline: "غير متصل",
@@ -1036,6 +1040,7 @@ Object.assign(TRANSLATIONS.fr, {
   appTitle: "Control Pass Mobile",
   appLead: "Votre badge, votre trajet et votre accès au chantier en un seul endroit.",
   installBtn: "Installer l'application",
+  forceRefreshBtn: "Actualiser maintenant",
   installHint: "Optimisée pour iPhone et Android. Installez l'application pour un accès rapide au tourniquet.",
   online: "En ligne",
   offline: "Hors ligne",
@@ -1154,6 +1159,7 @@ Object.assign(TRANSLATIONS.es, {
   appTitle: "Control Pass Mobile",
   appLead: "Tu credencial, tu ruta y tu acceso a obra en un solo lugar.",
   installBtn: "Instalar aplicación",
+  forceRefreshBtn: "Actualizar ahora",
   installHint: "Optimizada para iPhone y Android. Instala la app para acceso rápido al torniquete.",
   online: "En línea",
   offline: "Sin conexión",
@@ -1272,6 +1278,7 @@ Object.assign(TRANSLATIONS.it, {
   appTitle: "Control Pass Mobile",
   appLead: "Il tuo badge, il tuo percorso e l'accesso al cantiere in un unico posto.",
   installBtn: "Installa app",
+  forceRefreshBtn: "Aggiorna ora",
   installHint: "Ottimizzata per iPhone e Android. Installa l'app per accesso rapido al tornello.",
   online: "Online",
   offline: "Offline",
@@ -1390,6 +1397,7 @@ Object.assign(TRANSLATIONS.pl, {
   appTitle: "Control Pass Mobile",
   appLead: "Twoja karta, trasa i dostęp do budowy w jednym miejscu.",
   installBtn: "Zainstaluj aplikację",
+  forceRefreshBtn: "Odśwież teraz",
   installHint: "Zoptymalizowana dla iPhone i Android. Zainstaluj aplikację dla szybkiego dostępu do bramki.",
   online: "Online",
   offline: "Offline",
@@ -1688,6 +1696,7 @@ const elements = {
   refreshButton: document.querySelector("#refreshButton"),
   logoutButton: document.querySelector("#logoutButton"),
   installButton: document.querySelector("#installButton"),
+  forceRefreshButton: document.querySelector("#forceRefreshButton"),
   installPlatformHint: document.querySelector("#installPlatformHint"),
   gateModeButton: document.querySelector("#gateModeButton"),
   quickGateModeButton: document.querySelector("#quickGateModeButton"),
@@ -2166,6 +2175,12 @@ function bindEvents() {
 
   if (elements.installButton) {
     elements.installButton.addEventListener("click", triggerInstall);
+  }
+
+  if (elements.forceRefreshButton) {
+    elements.forceRefreshButton.addEventListener("click", () => {
+      void forceRefreshApp();
+    });
   }
 
   if (elements.gateModeButton) {
@@ -2707,6 +2722,46 @@ async function triggerInstall() {
   }
 
   showWorkerNotice(t("installManual"));
+}
+
+async function forceRefreshApp() {
+  showWorkerNotice("Aktualisiere App-Version ...");
+
+  if ("serviceWorker" in navigator) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(async (reg) => {
+        try {
+          await reg.update();
+        } catch {
+          // ignore update failures
+        }
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+      }));
+    } catch {
+      // ignore registration failures
+    }
+  }
+
+  if ("caches" in window) {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith("baupass-worker-"))
+          .map((key) => caches.delete(key))
+      );
+    } catch {
+      // ignore cache failures
+    }
+  }
+
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set("v", WORKER_BUILD_TAG);
+  nextUrl.searchParams.set("refresh", String(Date.now()));
+  window.location.replace(nextUrl.toString());
 }
 
 async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent = false, locationPayload = null } = {}) {

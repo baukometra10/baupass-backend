@@ -426,6 +426,11 @@ html[dir="rtl"] .wc-brand {
   backdrop-filter: blur(16px);
 }
 
+.force-refresh-cta {
+  border-color: rgba(243, 146, 86, .55);
+  background: linear-gradient(135deg, rgba(243, 146, 86, .34), rgba(217, 93, 57, .26));
+}
+
 .platform-hint {
   margin: 0;
   color: rgba(255, 247, 241, .72);
