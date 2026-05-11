@@ -3935,7 +3935,7 @@ body {
 
 .worker-loaded .actions-panel .actions-secondary {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3943,21 +3943,22 @@ body {
 .worker-loaded .actions-panel .theme-toggle-btn,
 .worker-loaded .actions-panel .voice-command-btn,
 .worker-loaded .notification-permission-banner button {
-  min-height: 46px;
-  border-radius: 12px;
+  min-height: 44px;
+  border-radius: 10px;
   border: 1px solid rgba(196, 178, 158, .56);
   background: linear-gradient(180deg, rgba(255, 255, 255, .97) 0%, rgba(244, 238, 230, .96) 100%);
   color: #2b211b;
   box-shadow: 0 4px 12px rgba(75, 48, 31, .10), inset 0 1px 0 rgba(255, 255, 255, .92);
-  font-weight: 700;
-  letter-spacing: .01em;
+  font-weight: 650;
+  font-size: 0.82rem;
+  letter-spacing: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
+  justify-content: center;
+  gap: 6px;
   width: 100%;
-  padding: 0 12px;
-  text-align: left;
+  padding: 0 10px;
+  text-align: center;
 }
 
 .worker-loaded .actions-panel .actions-secondary .small-btn:hover,
@@ -3974,32 +3975,19 @@ body {
 .worker-loaded .actions-panel .voice-command-btn {
   width: 100%;
   height: auto;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
-.worker-loaded .actions-panel .actions-secondary button::before {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 800;
-  line-height: 1;
-  color: #5a4331;
-  background: rgba(198, 166, 135, .20);
-  border: 1px solid rgba(183, 145, 111, .26);
-  flex-shrink: 0;
+.worker-loaded .actions-panel #qrContrastToggle,
+.worker-loaded .actions-panel #refreshButton {
+  border-color: rgba(148, 163, 184, .55);
 }
 
-.worker-loaded .actions-panel #qrContrastToggle::before { content: "Q"; }
-.worker-loaded .actions-panel #changePhotoButton::before { content: "P"; }
-.worker-loaded .actions-panel #refreshButton::before { content: "R"; }
-.worker-loaded .actions-panel #themeToggleBtn::before { content: "T"; }
-.worker-loaded .actions-panel #voiceCommandBtn::before { content: "V"; }
-.worker-loaded .actions-panel #notificationPermissionBtn::before { content: "N"; }
-.worker-loaded .actions-panel #logoutButton::before { content: "L"; }
+.worker-loaded .actions-panel #changePhotoButton,
+.worker-loaded .actions-panel #themeToggleBtn,
+.worker-loaded .actions-panel #voiceCommandBtn {
+  border-color: rgba(196, 178, 158, .7);
+}
 
 .worker-loaded .leave-request-card,
 .worker-loaded .timesheet-card,
@@ -4018,11 +4006,18 @@ body {
   color: #9f1239 !important;
   border-color: rgba(190, 24, 93, .28) !important;
   background: linear-gradient(180deg, rgba(255, 245, 248, .98) 0%, rgba(255, 237, 242, .98) 100%) !important;
+  grid-column: 1 / -1;
 }
 
 .worker-loaded #logoutButton.logout-btn-prominent:hover {
   border-color: rgba(190, 24, 93, .42) !important;
   background: linear-gradient(180deg, rgba(255, 241, 245, 1) 0%, rgba(255, 228, 236, .98) 100%) !important;
+}
+
+@media (max-width: 420px) {
+  .worker-loaded .actions-panel .actions-secondary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .worker-loaded .leave-request-form input,
