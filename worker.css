@@ -1414,7 +1414,7 @@ body.worker-loaded .wallet-card {
 /* Visitor card: keep QR/photo a bit higher so bottom data remains visible */
 #visitorCardContainer .wc-middle {
   align-items: flex-start;
-  margin-top: 2px;
+  margin-top: 12px;
   margin-bottom: 14px;
 }
 
@@ -1551,6 +1551,10 @@ body.worker-loaded .wallet-card {
   position: relative;
   z-index: 1;
   margin-top: clamp(2px, 1vw, 6px);
+}
+
+#visitorCardContainer .wc-bottom {
+  margin-top: clamp(14px, 2.6vw, 22px);
 }
 
 .wc-name {
