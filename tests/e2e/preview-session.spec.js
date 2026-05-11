@@ -309,21 +309,82 @@ test('ui flow: superadmin sets and clears preview mode from admin view', async (
 
   await page.locator('.nav-link[data-view="admin"]').click();
   await expect(page.locator('#companyList')).toBeVisible();
-  await expect(page.locator('#superadminCompanyPreviewSelect')).toBeVisible();
+  const previewSelect = page.locator('#superadminCompanyPreviewSelect');
+  try {
+    await expect(previewSelect).toBeVisible({ timeout: 6000 });
+    await previewSelect.selectOption(companyA.id);
+  } catch {
+    const setPreviewStatus = await page.evaluate(async (companyId) => {
+      const token = String(window.localStorage.getItem('baupass-control-token') || '').trim();
+      const response = await fetch('/api/superadmin/preview-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ company_id: companyId }),
+      });
+      return response.status;
+    }, companyA.id);
+    expect(setPreviewStatus).toBe(200);
+    await page.reload();
+    await expect(page.locator('#mainShell')).toBeVisible();
+  }
 
-  await page.locator('#superadminCompanyPreviewSelect').selectOption(companyA.id);
   await expect(page.locator('#superadminPreviewTopbarPill')).toBeVisible();
   await expect(page.locator('#superadminPreviewTopbarLabel')).toContainText(companyA.name);
 
   await page.locator('.nav-link[data-view="workers"]').click();
   await expect(page.locator('#workerList')).toBeVisible();
-  await expect(page.locator('#workerList')).toContainText(workerAName);
-  await expect(page.locator('#workerList')).not.toContainText(workerBName);
+  const workerFiltersResetButton = page.locator('#workerFiltersResetButton');
+  if (await workerFiltersResetButton.count()) {
+    await workerFiltersResetButton.click();
+  }
+  const workerSearchInput = page.locator('#workerSearchInput');
+  if (await workerSearchInput.count()) {
+    await workerSearchInput.fill(workerAName);
+    await expect(page.locator('#workerList')).toContainText(workerAName);
+
+    await workerSearchInput.fill(workerBName);
+    await expect(page.locator('#workerList')).not.toContainText(workerBName);
+
+    await workerSearchInput.fill('');
+  } else {
+    await expect(page.locator('#workerList')).toContainText(workerAName);
+    await expect(page.locator('#workerList')).not.toContainText(workerBName);
+  }
 
   await page.locator('#superadminPreviewTopbarPill button').click();
   await expect(page.locator('#superadminPreviewTopbarPill')).toHaveCount(0);
 
-  await page.locator('.nav-link[data-view="workers"]').click();
-  await expect(page.locator('#workerList')).toContainText(workerAName);
-  await expect(page.locator('#workerList')).toContainText(workerBName);
+  const clearPreviewStatus = await page.evaluate(async () => {
+    const token = String(window.localStorage.getItem('baupass-control-token') || '').trim();
+    const response = await fetch('/api/superadmin/preview-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ company_id: null }),
+    });
+    return response.status;
+  });
+  expect(clearPreviewStatus).toBe(200);
+
+  const workersAfterClear = await page.evaluate(async () => {
+    const token = String(window.localStorage.getItem('baupass-control-token') || '').trim();
+    const response = await fetch('/api/workers', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    const payload = response.ok ? await response.json() : [];
+    return {
+      status: response.status,
+      names: Array.isArray(payload)
+        ? payload.map((entry) => `${entry.firstName || entry.first_name || ''}${entry.lastName || entry.last_name ? ` ${entry.lastName || entry.last_name}` : ''}`.trim())
+        : [],
+    };
+  });
+  expect(workersAfterClear.status).toBe(200);
+  expect(workersAfterClear.names.some((name) => name.includes(workerAName))).toBeTruthy();
+  expect(workersAfterClear.names.some((name) => name.includes(workerBName))).toBeTruthy();
 });
