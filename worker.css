@@ -1712,6 +1712,12 @@ body.worker-loaded .wallet-card {
 
 body.worker-loaded .quick-gate-fab {
   display: flex;
+  background: linear-gradient(135deg, #b95c40, #7f3120);
+  box-shadow: 0 10px 26px rgba(127, 49, 32, 0.36), 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.worker-loaded .quick-gate-fab:hover {
+  box-shadow: 0 14px 34px rgba(127, 49, 32, 0.44), 0 4px 12px rgba(0, 0, 0, 0.22);
 }
 
 .route-card {
@@ -3122,9 +3128,9 @@ body {
 
 /* ── Top-Panel Verbesserungen ──────────────────────────────────────── */
 .top-panel .install-cta {
-  background: linear-gradient(135deg, rgba(35, 75, 116, 0.18), rgba(35, 75, 116, 0.08));
-  border: 1px solid rgba(35, 75, 116, 0.34);
-  color: #eef6ff;
+  background: linear-gradient(135deg, rgba(26, 58, 98, 0.22), rgba(35, 75, 116, 0.1));
+  border: 1px solid rgba(67, 118, 181, 0.34);
+  color: #f2f8ff;
   font-weight: 800;
   letter-spacing: .01em;
   font-size: .95rem;
@@ -3133,14 +3139,14 @@ body {
 }
 
 .top-panel .install-cta:hover {
-  background: linear-gradient(135deg, rgba(35, 75, 116, 0.28), rgba(35, 75, 116, 0.16));
-  box-shadow: 0 8px 24px rgba(19, 49, 79, 0.24);
+  background: linear-gradient(135deg, rgba(26, 58, 98, 0.3), rgba(35, 75, 116, 0.18));
+  box-shadow: 0 10px 26px rgba(19, 49, 79, 0.26);
 }
 
 /* Stat-Karten im Top-Panel – warm coffee palette */
 .top-stat-card {
-  background: rgba(22, 34, 48, 0.16) !important;
-  border: 1px solid rgba(88, 102, 120, 0.22) !important;
+  background: rgba(18, 31, 45, 0.18) !important;
+  border: 1px solid rgba(96, 116, 136, 0.22) !important;
 }
 
 .top-stat-card strong {
@@ -3158,11 +3164,11 @@ body {
 
 .worker-loaded .below-card {
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.34);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.26)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.24)),
     var(--card-strong);
-  box-shadow: 0 16px 34px rgba(52, 30, 17, 0.09);
+  box-shadow: 0 16px 32px rgba(52, 30, 17, 0.08);
 }
 
 [data-theme="dark"] .worker-loaded .below-card {
@@ -3218,8 +3224,8 @@ body {
 
 .worker-loaded .leave-request-item {
   border-radius: 14px;
-  border: 1px solid rgba(88, 102, 120, 0.18);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(246, 249, 252, 0.96));
+  border: 1px solid rgba(88, 102, 120, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 249, 252, 0.97));
 }
 
 .worker-loaded .leave-req-dates,
@@ -3263,7 +3269,7 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transform: translateX(-130%);
   transition: transform 320ms ease;
 }
