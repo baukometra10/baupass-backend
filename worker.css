@@ -1411,12 +1411,23 @@ body.worker-loaded .wallet-card {
   margin-top: 1px;
 }
 
+/* Visitor card: keep QR/photo a bit higher so bottom data remains visible */
+#visitorCardContainer .wc-middle {
+  align-items: flex-start;
+  margin-top: -16px;
+  margin-bottom: 14px;
+}
+
 /* QR-Chip */
 .wc-qr-holder {
   position: relative;
   width: clamp(82px, 32%, 132px);
   height: clamp(82px, 32%, 132px);
   flex-shrink: 0;
+}
+
+#visitorCardContainer .wc-qr-holder {
+  transform: translateY(-12px);
 }
 
 .dqr-countdown {
@@ -1502,6 +1513,30 @@ body.worker-loaded .wallet-card {
   border: 2px solid rgba(255, 255, 255, .22);
   box-shadow: 0 16px 30px rgba(0, 0, 0, .34);
   flex-shrink: 0;
+}
+
+#visitorCardContainer .wc-photo {
+  transform: translateY(-10px);
+}
+
+/* Visitor QR should always use a premium gold frame (independent of card preset). */
+#visitorCardContainer .wc-qr-frame {
+  background: linear-gradient(135deg, #b88628 0%, #efd26b 26%, #fff2a5 45%, #d09b2f 62%, #8d6420 100%);
+  border-color: rgba(255, 220, 140, .42);
+  box-shadow: 0 12px 24px rgba(212, 168, 67, .4), inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -1px 0 rgba(96, 61, 12, .48);
+}
+
+#visitorCardContainer .wc-qr-frame::before {
+  border-color: rgba(129, 86, 10, .38);
+  background-image:
+    linear-gradient(rgba(129, 86, 10, .14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(129, 86, 10, .14) 1px, transparent 1px);
+}
+
+/* Safety: never show dynamic countdown chip on visitor QR area. */
+#visitorCardContainer .dqr-countdown,
+#visitorCardContainer .vc-timer-chip {
+  display: none !important;
 }
 
 /* ── Bottom Row ─────────────────────────────────── */
