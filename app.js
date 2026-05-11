@@ -17010,12 +17010,103 @@ setInterval(() => {
 }, 30000);
 
 // ── Print Badge ──────────────────────────────────────────────────────────────
-function printBadge(worker, company) {
+const qrPrefetchPromises = new Map();
+
+function buildQrImageUrl(payload, size = 280) {
+  return `${API_BASE}/api/qr.png?size=${size}&data=${encodeURIComponent(payload)}`;
+}
+
+function prefetchQrImage(qrUrl) {
+  if (!qrUrl) {
+    return Promise.resolve(false);
+  }
+
+  if (qrPrefetchPromises.has(qrUrl)) {
+    return qrPrefetchPromises.get(qrUrl);
+  }
+
+  const prefetchPromise = new Promise((resolve) => {
+    const img = new Image();
+    const settle = (ok) => resolve(ok);
+    img.onload = () => settle(true);
+    img.onerror = () => settle(false);
+    img.src = qrUrl;
+  }).finally(() => {
+    qrPrefetchPromises.delete(qrUrl);
+  });
+
+  qrPrefetchPromises.set(qrUrl, prefetchPromise);
+  return prefetchPromise;
+}
+
+function isQrImageReady(img) {
+  return Boolean(img && img.src && img.complete && Number(img.naturalWidth || 0) > 0);
+}
+
+function waitForQrImage(img, timeoutMs = 2200) {
+  if (!img) {
+    return Promise.resolve(false);
+  }
+  if (isQrImageReady(img)) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    let done = false;
+    const settle = (ok) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      img.removeEventListener("load", onLoad);
+      img.removeEventListener("error", onError);
+      resolve(ok || isQrImageReady(img));
+    };
+    const onLoad = () => settle(true);
+    const onError = () => settle(false);
+    const timer = setTimeout(() => settle(false), timeoutMs);
+    img.addEventListener("load", onLoad, { once: true });
+    img.addEventListener("error", onError, { once: true });
+  });
+}
+
+async function ensureBadgeQrReadyForPrint(worker) {
+  const payload = worker?.badgeId || worker?.id;
+  if (!payload) {
+    return false;
+  }
+
+  const qrId = `badge-card-qr-${worker.id}`;
+  const qrImage = document.getElementById(qrId);
+  if (!qrImage) {
+    return false;
+  }
+
+  const qrUrl = buildQrImageUrl(payload);
+  if (!qrImage.src || qrImage.src !== qrUrl) {
+    qrImage.src = qrUrl;
+  }
+
+  if (await waitForQrImage(qrImage, 1800)) {
+    return true;
+  }
+
+  await prefetchQrImage(qrUrl);
+  qrImage.src = qrUrl;
+  return waitForQrImage(qrImage, 2400);
+}
+
+async function printBadge(worker, company) {
   const preview = document.getElementById("badgePreview");
   if (!preview) return;
 
   const printableCard = preview.querySelector(".wallet-card");
   if (!printableCard) return;
+
+  const qrReady = await ensureBadgeQrReadyForPrint(worker);
+  if (!qrReady) {
+    showToast(uiT("alertQrNotReadyYet") || "QR-Code ist noch nicht bereit. Bitte erneut versuchen.", "error", 3200);
+    return;
+  }
 
   const printWindow = window.open("", "_blank", "width=920,height=760");
   if (!printWindow) {
@@ -21761,7 +21852,17 @@ function renderBadge() {
   if (elements.badgeActionRow) elements.badgeActionRow.style.display = "";
 
   if (elements.printBadgeButton) {
-    elements.printBadgeButton.onclick = () => printBadge(worker, state.companies.find(c => c.id === getWorkerCompanyId(worker)));
+    elements.printBadgeButton.onclick = async () => {
+      if (elements.printBadgeButton.disabled) {
+        return;
+      }
+      elements.printBadgeButton.disabled = true;
+      try {
+        await printBadge(worker, state.companies.find(c => c.id === getWorkerCompanyId(worker)));
+      } finally {
+        elements.printBadgeButton.disabled = false;
+      }
+    };
   }
 
   if (elements.appLinkBadgeButton) {
@@ -21814,8 +21915,9 @@ async function renderRealQr(elementId, payload) {
 
   await ensureQrLibrary();
   try {
-    const qrUrl = `${API_BASE}/api/qr.png?size=280&data=${encodeURIComponent(payload)}`;
+    const qrUrl = buildQrImageUrl(payload);
     target.src = qrUrl;
+    prefetchQrImage(qrUrl);
     target.alt = "QR Code";
   } catch {
     target.alt = "QR Code konnte nicht erzeugt werden";

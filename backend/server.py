@@ -7755,10 +7755,6 @@ def get_settings():
             "workerPassLockEnabled": int(row["worker_pass_lock_enabled"]) == 1 if "worker_pass_lock_enabled" in row.keys() else False,
             "workStartTime": row["work_start_time"] if "work_start_time" in row.keys() else "",
             "workEndTime": row["work_end_time"] if "work_end_time" in row.keys() else "",
-            "cardPrintOffsetXMm": float(row["card_print_offset_x_mm"] if "card_print_offset_x_mm" in row.keys() else 0),
-            "cardPrintOffsetYMm": float(row["card_print_offset_y_mm"] if "card_print_offset_y_mm" in row.keys() else 0),
-            "cardPrintScalePct": float(row["card_print_scale_pct"] if "card_print_scale_pct" in row.keys() else 100),
-            "cardPrintRotationDeg": float(row["card_print_rotation_deg"] if "card_print_rotation_deg" in row.keys() else 0),
             # Return resolved IMAP config (DB + env overrides) so frontend checks
             # match the actual runtime config used by polling.
             "imapHost": resolved_imap.get("imap_host", ""),
@@ -8048,13 +8044,6 @@ def update_settings():
     payload = request.get_json(silent=True) or {}
     db = get_db()
 
-    def _clamp_float(value, min_value, max_value, default):
-        try:
-            numeric = float(value)
-        except (TypeError, ValueError):
-            return default
-        return max(min_value, min(max_value, numeric))
-
     current_row = db.execute(
         "SELECT smtp_password, imap_password FROM settings WHERE id = 1"
     ).fetchone()
@@ -8083,8 +8072,7 @@ def update_settings():
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
             admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?,
-            work_start_time = ?, work_end_time = ?,
-            card_print_offset_x_mm = ?, card_print_offset_y_mm = ?, card_print_scale_pct = ?, card_print_rotation_deg = ?
+            work_start_time = ?, work_end_time = ?
         WHERE id = 1
         """,
         (
@@ -8127,10 +8115,6 @@ def update_settings():
             max(0, int(payload.get("workerExpiryWarnDays") or 7)),
             str(payload.get("workStartTime") or "")[:5],
             str(payload.get("workEndTime") or "")[:5],
-            _clamp_float(payload.get("cardPrintOffsetXMm"), -8.0, 8.0, 0.0),
-            _clamp_float(payload.get("cardPrintOffsetYMm"), -8.0, 8.0, 0.0),
-            _clamp_float(payload.get("cardPrintScalePct"), 90.0, 110.0, 100.0),
-            _clamp_float(payload.get("cardPrintRotationDeg"), -5.0, 5.0, 0.0),
         ),
     )
     # Impressum / Datenschutz
