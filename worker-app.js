@@ -3161,17 +3161,17 @@ function renderWorker(payload) {
       // Start visitor countdown timer
       startVisitorCountdownTimer(worker.visitEndAt);
       
-      // Hide worker card, show visitor card
-      if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
+      // Keep the badge card container visible, but hide the worker wallet content
+      if (elements.walletCard) elements.walletCard.classList.add("hidden");
     } else {
       // Stop visitor timer if switching to worker
       stopVisitorCountdownTimer();
-      if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
+      if (elements.walletCard) elements.walletCard.classList.remove("hidden");
     }
   }
 
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
-  if (!isVisitor && elements.badgeCard) elements.badgeCard.classList.remove("hidden");
+  if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -3277,6 +3277,7 @@ function showLogin() {
     stopDynamicQrRefresh();
   clearCardEntranceAnimation();  // Clear card animation when showing login
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
+  if (elements.walletCard) elements.walletCard.classList.remove("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
   setWorkerHubExpanded(false);
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
