@@ -3163,6 +3163,13 @@ function renderWorker(payload) {
       
       // Keep the badge card container visible, but hide the worker wallet content
       if (elements.walletCard) elements.walletCard.classList.add("hidden");
+
+        // Apply the same card preset to the visitor badge card
+        const visitorWalletCard = document.getElementById("visitorWalletCard");
+        if (visitorWalletCard) {
+          visitorWalletCard.classList.remove("preset-construction", "preset-industry", "preset-premium", "preset-visitor");
+          visitorWalletCard.classList.add(`preset-${companyPreset}`);
+        }
     } else {
       // Stop visitor timer if switching to worker
       stopVisitorCountdownTimer();
@@ -5338,7 +5345,7 @@ function startVisitorCountdownTimer(visitEndAt) {
   
   if (!timerRing || !timeDisplay) return;
   
-  const MAX_DASH_OFFSET = 345.6; // Circumference of 55px radius circle
+    const MAX_DASH_OFFSET = 81.68; // Circumference of r=13 chip ring (2π×13)
   const updateTimer = () => {
     const now = new Date();
     const endTime = new Date(visitEndAt);
@@ -5374,14 +5381,16 @@ function startVisitorCountdownTimer(visitEndAt) {
     timerRing.style.strokeDashoffset = Math.max(0, dashOffset);
     
     // Warning colors as time runs out
-    const timerSection = document.querySelector(".vc-timer-section");
-    if (timerSection) {
+    const timerChip = document.getElementById("visitorTimerChip");
+    if (timerChip) {
       if (diffMs < 5 * 60 * 1000) { // Less than 5 minutes
-        timerSection.classList.add("timer-critical");
+        timerChip.classList.remove("timer-warning");
+        timerChip.classList.add("timer-critical");
       } else if (diffMs < 15 * 60 * 1000) { // Less than 15 minutes
-        timerSection.classList.add("timer-warning");
+        timerChip.classList.remove("timer-critical");
+        timerChip.classList.add("timer-warning");
       } else {
-        timerSection.classList.remove("timer-warning", "timer-critical");
+        timerChip.classList.remove("timer-warning", "timer-critical");
       }
     }
   };
@@ -5396,8 +5405,8 @@ function stopVisitorCountdownTimer() {
     visitorCountdownInterval = null;
   }
   
-  const timerSection = document.querySelector(".vc-timer-section");
-  if (timerSection) {
-    timerSection.classList.remove("timer-warning", "timer-critical");
+    const timerChip = document.getElementById("visitorTimerChip");
+    if (timerChip) {
+      timerChip.classList.remove("timer-warning", "timer-critical");
   }
 }

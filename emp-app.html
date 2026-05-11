@@ -230,84 +230,76 @@
       </div>
       </div>
 
-      <!-- Visitor Card: Premium Experience for Guests -->
+      <!-- Visitor Card: Same Design Language as Worker Badge -->
       <div id="visitorCardContainer" class="visitor-card-container hidden">
-        <div class="visitor-card">
-          <!-- Timer Section -->
-          <div class="vc-timer-section">
-            <div class="vc-timer-display">
-              <svg class="vc-timer-ring" width="120" height="120" viewBox="0 0 120 120">
-                <defs>
-                  <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
-                  </linearGradient>
-                </defs>
-                <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
-                <circle id="visitorTimerRing" cx="60" cy="60" r="55" fill="none" stroke="url(#timerGradient)" stroke-width="3" stroke-linecap="round" stroke-dasharray="345.6" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+        <div class="pass-stage">
+        <div class="wallet-card" id="visitorWalletCard">
+          <div class="wc-shimmer"></div>
+          <div class="wc-grid"></div>
+
+          <!-- Top: Brand + Countdown Timer Chip -->
+          <div class="wc-top">
+            <div class="wc-brand">
+              <div class="wc-brand-mark">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 17L12 4l9 13H3z" fill="#fff" fill-opacity=".9"/>
+                  <rect x="7" y="17" width="10" height="4" rx="1" fill="#fff" fill-opacity=".7"/>
+                  <rect x="10" y="13" width="4" height="4" fill="#fff" fill-opacity=".5"/>
+                </svg>
+              </div>
+              <div class="wc-brand-text">
+                <span class="wc-brand-name" id="visitorBrandName">BAUPASS</span>
+                <span class="wc-brand-sub" data-i18n="visitorPassSubLabel">Besucherkarte</span>
+              </div>
+            </div>
+            <!-- Timer Chip: replaces NFC icon for visitors -->
+            <div class="vc-timer-chip" id="visitorTimerChip" aria-live="polite" aria-label="Verbleibende Besuchszeit">
+              <svg class="vc-chip-ring-svg" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+                <circle cx="17" cy="17" r="13" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2.5"/>
+                <circle id="visitorTimerRing" cx="17" cy="17" r="13" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="81.68" stroke-dashoffset="0" transform="rotate(-90 17 17)"/>
               </svg>
-              <div class="vc-timer-text">
-                <span id="visitorTimeRemaining" class="vc-time-value">00:00</span>
-                <span class="vc-time-label" data-i18n="visitorTimeRemaining">Verbleibend</span>
+              <div class="vc-chip-text">
+                <span id="visitorTimeRemaining" class="vc-chip-time">–</span>
+                <span class="vc-chip-label" data-i18n="visitorTimeRemaining">Verbl.</span>
               </div>
             </div>
           </div>
 
-          <!-- Info Section -->
-          <div class="vc-info-section">
-            <div class="vc-header">
-              <h2 id="visitorName" class="vc-name">Gast</h2>
-              <span class="vc-badge" data-i18n="visitorBadge">Besucherkarte</span>
+          <!-- Middle: QR Code + Photo -->
+          <div class="wc-middle">
+            <div class="wc-qr-holder">
+              <div class="wc-qr-frame" aria-hidden="true"></div>
+              <img id="visitorQr" alt="QR Code" data-i18n="qrCodeAlt" data-i18n-attr="alt" />
             </div>
-
-            <div class="vc-details">
-              <div class="vc-detail-row">
-                <span class="vc-detail-icon">🏢</span>
-                <div class="vc-detail-content">
-                  <span class="vc-detail-label" data-i18n="fieldVisitorCompany">Besucherfirma</span>
-                  <span id="visitorCompany" class="vc-detail-value">–</span>
-                </div>
-              </div>
-
-              <div class="vc-detail-row">
-                <span class="vc-detail-icon">🎯</span>
-                <div class="vc-detail-content">
-                  <span class="vc-detail-label" data-i18n="fieldVisitPurpose">Besuchszweck</span>
-                  <span id="visitorPurpose" class="vc-detail-value">–</span>
-                </div>
-              </div>
-
-              <div class="vc-detail-row">
-                <span class="vc-detail-icon">👤</span>
-                <div class="vc-detail-content">
-                  <span class="vc-detail-label" data-i18n="fieldHostName">Ansprechpartner</span>
-                  <span id="visitorHost" class="vc-detail-value">–</span>
-                </div>
-              </div>
-
-              <div class="vc-detail-row">
-                <span class="vc-detail-icon">⏰</span>
-                <div class="vc-detail-content">
-                  <span class="vc-detail-label" data-i18n="fieldVisitEndAt">Gültig bis</span>
-                  <span id="visitorEndTime" class="vc-detail-value">–</span>
-                </div>
-              </div>
-            </div>
-
-            <img id="visitorPhoto" class="vc-photo" alt="Besucherfoto" data-i18n="workerPhotoAlt" data-i18n-attr="alt" />
+            <img id="visitorPhoto" class="wc-photo" alt="Besucherfoto" data-i18n="workerPhotoAlt" data-i18n-attr="alt" />
           </div>
 
-          <!-- QR Code Section -->
-          <div class="vc-qr-section">
-            <img id="visitorQr" class="vc-qr-image" alt="QR Code" data-i18n="qrCodeAlt" data-i18n-attr="alt" />
-          </div>
-
-          <!-- Badge ID -->
-          <div class="vc-badge-id">
-            <span class="vc-badge-label" data-i18n="fieldBadgeId">Badge-ID</span>
-            <span id="visitorBadgeId" class="vc-badge-value">–</span>
+          <!-- Bottom: Name + Fields -->
+          <div class="wc-bottom">
+            <p id="visitorName" class="wc-name">Gast</p>
+            <p class="wc-role-text" data-i18n="visitorBadge">Besucher</p>
+            <div class="wc-footer">
+              <div class="wc-fields">
+                <div class="wc-field wc-field-badge">
+                  <span class="wc-field-label" data-i18n="fieldBadgeId">Badge-ID</span>
+                  <span id="visitorBadgeId" class="wc-field-value">–</span>
+                </div>
+                <div class="wc-field">
+                  <span class="wc-field-label" data-i18n="fieldVisitEndAt">Gültig bis</span>
+                  <span id="visitorEndTime" class="wc-field-value">–</span>
+                </div>
+              </div>
+              <div class="wc-right">
+                <p id="visitorCompany" class="wc-company">–</p>
+                <p id="visitorPurpose" class="wc-subcompany">–</p>
+                <div class="wc-status" id="visitorStatusBadge" data-status="aktiv">Aktiv</div>
+              </div>
+            </div>
           </div>
         </div>
+        </div>
+        <!-- Hidden fields populated by JS, not shown on card face -->
+        <span id="visitorHost" hidden>–</span>
       </div>
 
       <div class="worker-hub-toggle-row">
