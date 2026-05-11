@@ -989,23 +989,32 @@ def lock_worker_for_expired_documents(db, worker_row, today_value=None):
 
 def lock_workers_with_expired_documents(db, today_value=None):
     today = str(today_value or now_iso()[:10])
-    rows = db.execute(
-        """
-        SELECT id, company_id, first_name, last_name, badge_id, worker_type, status, deleted_at
-        FROM workers
-        WHERE deleted_at IS NULL
-          AND worker_type = 'worker'
-          AND status != 'gesperrt'
-        """
-    ).fetchall()
+    try:
+        rows = db.execute(
+            """
+            SELECT id, company_id, first_name, last_name, badge_id, worker_type, status, deleted_at
+            FROM workers
+            WHERE deleted_at IS NULL
+              AND worker_type = 'worker'
+              AND status != 'gesperrt'
+            """
+        ).fetchall()
+    except Exception:
+        return 0
 
     changed = 0
     for row in rows:
-        if lock_worker_for_expired_documents(db, row, today_value=today):
-            changed += 1
+        try:
+            if lock_worker_for_expired_documents(db, row, today_value=today):
+                changed += 1
+        except Exception:
+            pass
 
-    if changed > 0:
-        db.commit()
+    try:
+        if changed > 0:
+            db.commit()
+    except Exception:
+        pass
     return changed
 
 
@@ -8246,33 +8255,36 @@ def export_company_document_emails_csv():
 @app.get("/api/subcompanies")
 @require_auth
 def list_subcompanies():
-    include_deleted = request.args.get("includeDeleted", "0") == "1"
-    requested_company_id = (request.args.get("companyId") or "").strip()
-    user = g.current_user
+    try:
+        include_deleted = request.args.get("includeDeleted", "0") == "1"
+        requested_company_id = (request.args.get("companyId") or "").strip()
+        user = g.current_user
 
-    conditions = []
-    params = []
+        conditions = []
+        params = []
 
-    if user["role"] == "superadmin":
-        if requested_company_id:
-            plan_value = get_company_plan(get_db(), requested_company_id)
+        if user["role"] == "superadmin":
+            if requested_company_id:
+                plan_value = get_company_plan(get_db(), requested_company_id)
+                if not company_has_feature(plan_value, "subcompanies"):
+                    return feature_not_available_response("subcompanies", plan_value)
+                conditions.append("company_id = ?")
+                params.append(requested_company_id)
+        else:
+            plan_value = get_company_plan(get_db(), user.get("company_id"))
             if not company_has_feature(plan_value, "subcompanies"):
                 return feature_not_available_response("subcompanies", plan_value)
             conditions.append("company_id = ?")
-            params.append(requested_company_id)
-    else:
-        plan_value = get_company_plan(get_db(), user.get("company_id"))
-        if not company_has_feature(plan_value, "subcompanies"):
-            return feature_not_available_response("subcompanies", plan_value)
-        conditions.append("company_id = ?")
-        params.append(user.get("company_id"))
+            params.append(user.get("company_id"))
 
-    if not include_deleted:
-        conditions.append("deleted_at IS NULL")
+        if not include_deleted:
+            conditions.append("deleted_at IS NULL")
 
-    where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-    rows = get_db().execute(f"SELECT * FROM subcompanies{where_clause} ORDER BY name", params).fetchall()
-    return jsonify([row_to_dict(row) for row in rows])
+        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        rows = get_db().execute(f"SELECT * FROM subcompanies{where_clause} ORDER BY name", params).fetchall()
+        return jsonify([row_to_dict(row) for row in rows])
+    except Exception as e:
+        return {"error": "Fehler beim Laden von Subcompanies", "details": str(e)}, 400
 
 
 @app.post("/api/subcompanies")
@@ -8715,19 +8727,25 @@ def demo_seed():
 @app.get("/api/workers")
 @require_auth
 def list_workers():
-    db = get_db()
-    include_deleted = request.args.get("includeDeleted", "0") == "1"
-    lock_workers_with_expired_documents(db)
-    clause, params = visible_worker_clause(g.current_user)
-    where = clause if include_deleted else f"{clause}{' AND' if clause else ' WHERE'} deleted_at IS NULL"
-    rows = db.execute(f"SELECT * FROM workers{where} ORDER BY last_name, first_name", params).fetchall()
+    try:
+        db = get_db()
+        include_deleted = request.args.get("includeDeleted", "0") == "1"
+        try:
+            lock_workers_with_expired_documents(db)
+        except Exception:
+            pass
+        clause, params = visible_worker_clause(g.current_user)
+        where = clause if include_deleted else f"{clause}{' AND' if clause else ' WHERE'} deleted_at IS NULL"
+        rows = db.execute(f"SELECT * FROM workers{where} ORDER BY last_name, first_name", params).fetchall()
 
-    serialized = []
-    for row in rows:
-        item = serialize_worker_record(row)
-        item.update(get_worker_lock_metadata(db, row))
-        serialized.append(item)
-    return jsonify(serialized)
+        serialized = []
+        for row in rows:
+            item = serialize_worker_record(row)
+            item.update(get_worker_lock_metadata(db, row))
+            serialized.append(item)
+        return jsonify(serialized)
+    except Exception as e:
+        return {"error": "Fehler beim Laden von Mitarbeitern", "details": str(e)}, 400
 
 
 @app.get("/api/workers/current-visitors")
