@@ -1,5 +1,5 @@
 {
-  "$schema": "https://railway.app/railway.schema.json",
+  "c:\Users\u4363\Desktop\baustelle\nixpacks.tomlschema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
     "nixpacksPlan": {
@@ -8,7 +8,7 @@
         "install": {
           "cmds": [
             "python3 -m venv .venv",
-            "PIP_BREAK_SYSTEM_PACKAGES=1 .venv/bin/pip install --no-cache-dir -r backend/requirements.txt"
+            ".venv/bin/pip install --break-system-packages --no-cache-dir -r backend/requirements.txt"
           ]
         }
       }
