@@ -17159,6 +17159,147 @@ function printCardCalibrationSheet() {
   printWindow.document.close();
 }
 
+function printCardDuplexCalibrationSheet() {
+  const printWindow = window.open("", "_blank", "width=920,height=760");
+  if (!printWindow) {
+    showToast(uiT("alertPrintWindowFailed") || "Druckfenster konnte nicht geoeffnet werden.", "error", 3200);
+    return;
+  }
+
+  const calibration = getCardPrinterCalibration();
+  const meta = `X: ${calibration.offsetXMm.toFixed(1)}mm | Y: ${calibration.offsetYMm.toFixed(1)}mm | Scale: ${calibration.scalePct.toFixed(1)}% | Rot: ${calibration.rotationDeg.toFixed(1)}deg`;
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Duplex-Kalibrierung</title>
+      <style>
+        @page { size: 85.6mm 54mm; margin: 0; }
+        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        body { background: #fff; overflow: hidden; }
+        .sheet { width: 85.6mm; height: 54mm; page-break-after: always; break-after: page; }
+        .sheet:last-of-type { page-break-after: auto; break-after: auto; }
+        .cal-root {
+          width: 85.6mm;
+          height: 54mm;
+          box-sizing: border-box;
+          border: 0.2mm solid #111;
+          position: relative;
+          font-family: Arial, sans-serif;
+          color: #111;
+          transform-origin: center center;
+          transform: translate(${calibration.offsetXMm}mm, ${calibration.offsetYMm}mm) scale(${calibration.scale}) rotate(${calibration.rotationDeg}deg);
+        }
+        .cross {
+          position: absolute;
+          width: 5mm;
+          height: 5mm;
+          transform: translate(-50%, -50%);
+        }
+        .cross::before,
+        .cross::after {
+          content: "";
+          position: absolute;
+          background: #111;
+        }
+        .cross::before { left: 50%; top: 0; width: 0.25mm; height: 5mm; transform: translateX(-50%); }
+        .cross::after { top: 50%; left: 0; width: 5mm; height: 0.25mm; transform: translateY(-50%); }
+        .edge {
+          position: absolute;
+          border: 0.2mm dashed #666;
+          box-sizing: border-box;
+          left: 2mm;
+          right: 2mm;
+          top: 2mm;
+          bottom: 2mm;
+        }
+        .title {
+          position: absolute;
+          left: 50%;
+          top: 8mm;
+          transform: translateX(-50%);
+          font-size: 4mm;
+          font-weight: 700;
+          letter-spacing: .08em;
+        }
+        .arrow {
+          position: absolute;
+          left: 50%;
+          top: 13.8mm;
+          transform: translateX(-50%);
+          font-size: 2.4mm;
+          font-weight: 700;
+        }
+        .meta {
+          position: absolute;
+          left: 2mm;
+          right: 2mm;
+          bottom: 1.8mm;
+          text-align: center;
+          font-size: 2.1mm;
+        }
+        .pair-id {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 40mm;
+          height: 16mm;
+          border: 0.2mm solid #111;
+          display: grid;
+          place-items: center;
+          font-size: 3mm;
+          font-weight: 700;
+        }
+      </style>
+    </head>
+    <body>
+      <section class="sheet">
+        <div class="cal-root">
+          <div class="edge"></div>
+          <div class="cross" style="left: 2mm; top: 2mm;"></div>
+          <div class="cross" style="left: calc(100% - 2mm); top: 2mm;"></div>
+          <div class="cross" style="left: 2mm; top: calc(100% - 2mm);"></div>
+          <div class="cross" style="left: calc(100% - 2mm); top: calc(100% - 2mm);"></div>
+          <div class="cross" style="left: 50%; top: 50%;"></div>
+          <div class="title">VORDERSEITE</div>
+          <div class="arrow">▲ OBEN</div>
+          <div class="pair-id">PAIR A</div>
+          <div class="meta">${meta}</div>
+        </div>
+      </section>
+      <section class="sheet">
+        <div class="cal-root">
+          <div class="edge"></div>
+          <div class="cross" style="left: 2mm; top: 2mm;"></div>
+          <div class="cross" style="left: calc(100% - 2mm); top: 2mm;"></div>
+          <div class="cross" style="left: 2mm; top: calc(100% - 2mm);"></div>
+          <div class="cross" style="left: calc(100% - 2mm); top: calc(100% - 2mm);"></div>
+          <div class="cross" style="left: 50%; top: 50%;"></div>
+          <div class="title">RUECKSEITE</div>
+          <div class="arrow">▲ OBEN</div>
+          <div class="pair-id">PAIR A</div>
+          <div class="meta">${meta}</div>
+        </div>
+      </section>
+      <script>
+        window.addEventListener("load", () => {
+          requestAnimationFrame(() => {
+            window.focus();
+            window.print();
+            setTimeout(() => window.close(), 500);
+          });
+        });
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
 function printBadge(worker, company) {
   const preview = document.getElementById("badgePreview");
   if (!preview) return;
