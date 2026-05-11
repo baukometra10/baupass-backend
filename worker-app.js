@@ -194,6 +194,9 @@ const TRANSLATIONS = {
     actionsTitle: "Schnellzugriff",
     themeToggleBtn: "🌙 Theme",
     voiceCommandBtn: "🎤 Voice",
+    voiceFallbackHint: "Sprache nicht direkt verfügbar – Fallback per Eingabe aktiv",
+    voiceFallbackPrompt: "Sprachmodus-Fallback: Befehl eingeben (z. B. \"checkout\", \"antrag\", \"theme\")",
+    voiceFallbackCancelled: "Sprachmodus abgebrochen.",
     notificationPermissionBtn: "Benachrichtigungen",
     leaveRequestKicker: "Abwesenheit",
     leaveRequestTitle: "Urlaubsantrag",
@@ -344,6 +347,9 @@ const TRANSLATIONS = {
     actionsTitle: "Quick Access",
     themeToggleBtn: "🌙 Theme",
     voiceCommandBtn: "🎤 Voice",
+    voiceFallbackHint: "Voice unavailable directly - fallback input mode active",
+    voiceFallbackPrompt: "Voice fallback: type a command (e.g. \"checkout\", \"request\", \"theme\")",
+    voiceFallbackCancelled: "Voice mode cancelled.",
     notificationPermissionBtn: "Notifications",
     leaveRequestKicker: "Absence",
     leaveRequestTitle: "Leave Request",
@@ -3234,21 +3240,19 @@ function renderWorker(payload) {
   const hasDocs         = !!planFeatures.document_upload;      // ab starter
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
-  // Show voice control only when it is actually usable.
+  // Show voice control for workers. If API is unavailable, fallback input is used.
   if (elements.voiceCommandBtn) {
     const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
     const voiceSupported = Boolean(SpeechRecognitionApi);
     const secureContextOk = Boolean(window.isSecureContext);
-    const canUseVoice = !isVisitor && voiceSupported && secureContextOk;
+    const canUseVoice = !isVisitor;
 
     elements.voiceCommandBtn.classList.toggle("hidden", !canUseVoice);
     elements.voiceCommandBtn.disabled = !canUseVoice;
     elements.voiceCommandBtn.classList.remove("listening");
 
-    if (!voiceSupported) {
-      elements.voiceCommandBtn.title = t("voiceNotSupported");
-    } else if (!secureContextOk) {
-      elements.voiceCommandBtn.title = t("voiceNeedsSecureContext");
+    if (!voiceSupported || !secureContextOk) {
+      elements.voiceCommandBtn.title = t("voiceFallbackHint");
     } else {
       elements.voiceCommandBtn.title = "";
     }
@@ -5177,13 +5181,13 @@ let isListening = false;
 
 function initVoiceCommands() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    showWorkerNotice(t("voiceNotSupported"));
-    return;
-  }
-
-  if (!window.isSecureContext) {
-    showWorkerNotice(t("voiceNeedsSecureContext"));
+  if (!SpeechRecognition || !window.isSecureContext) {
+    const fallbackInput = window.prompt(t("voiceFallbackPrompt"), "");
+    if (!fallbackInput) {
+      showWorkerNotice(t("voiceFallbackCancelled"));
+      return;
+    }
+    processVoiceCommand(fallbackInput);
     return;
   }
   
