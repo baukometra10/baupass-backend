@@ -153,7 +153,7 @@ body {
 .app-shell {
   max-width: 520px;
   margin: 0 auto;
-  padding: 24px 16px 34px;
+  padding: 26px 16px 38px;
   display: grid;
   gap: 18px;
   position: relative;
@@ -197,8 +197,8 @@ body.wallet-immersive.wallet-immersive-sections-open #workerMenuCard.hidden {
 
 body.wallet-immersive .app-shell {
   max-width: 100%;
-  padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
-  gap: 10px;
+  padding: max(12px, env(safe-area-inset-top)) 10px max(14px, env(safe-area-inset-bottom));
+  gap: 12px;
 }
 
 body.wallet-immersive .worker-pass {
@@ -268,15 +268,15 @@ html {
 
 .top-panel {
   display: grid;
-  gap: 18px;
-  padding: 24px 20px;
-  border-radius: 28px;
+  gap: 20px;
+  padding: 26px 22px;
+  border-radius: 30px;
   background:
-    linear-gradient(135deg, rgba(18, 20, 28, .94), rgba(34, 24, 19, .84)),
-    radial-gradient(circle at top right, rgba(255, 255, 255, .06), transparent 35%);
+    radial-gradient(circle at 15% 18%, rgba(255, 255, 255, .1), transparent 22%),
+    linear-gradient(135deg, rgba(16, 18, 25, .95), rgba(35, 24, 19, .86));
   color: #fff7f1;
-  box-shadow: 0 22px 48px rgba(10, 12, 16, .24), var(--shadow);
-  border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow: 0 26px 56px rgba(10, 12, 16, .24), var(--shadow);
+  border: 1px solid rgba(255, 255, 255, .12);
 }
 
 .top-copy {
@@ -344,9 +344,9 @@ html {
 .top-stat-card {
   padding: 12px 14px;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.07));
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 8px 20px rgba(0,0,0,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.08));
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 10px 22px rgba(0,0,0,.09);
 }
 
 .top-stat-card strong {
@@ -504,11 +504,11 @@ html[dir="rtl"] .wc-brand {
 .login-card,
 .worker-pass {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 body.worker-loaded .worker-pass {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .section-head {
@@ -980,17 +980,17 @@ body.worker-loaded .app-shell {
   margin: 0 auto;
   aspect-ratio: 85.6 / 56;
   min-height: 272px;
-  border-radius: 28px;
-  padding: 5.1% 5.8%;
+  border-radius: 30px;
+  padding: 5.4% 6%;
   background: linear-gradient(
     135deg,
-    #0c1621 0%,
-    #173042 46%,
-    #09111a 100%
+    #0b1520 0%,
+    #183243 44%,
+    #081018 100%
   );
   box-shadow:
-    0 42px 88px rgba(0, 0, 0, .58),
-    0 10px 34px rgba(0, 0, 0, .36),
+    0 48px 100px rgba(0, 0, 0, .58),
+    0 12px 36px rgba(0, 0, 0, .34),
     0 0 0 1px rgba(255, 255, 255, .12),
     inset 0 1px 0 rgba(255, 255, 255, .16);
   color: #fff;
@@ -1006,7 +1006,7 @@ body.worker-loaded .app-shell {
 }
 
 body.worker-loaded .wallet-card {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 /* ─── CARD ENTRANCE ANIMATION ─── */
@@ -1112,26 +1112,38 @@ body.worker-loaded .wallet-card {
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    rgba(255, 170, 112, .98) 0%,
-    #f0844a 48%,
-    rgba(255, 198, 144, .96) 100%
+    rgba(255, 184, 126, .98) 0%,
+    #f0844a 46%,
+    rgba(255, 206, 156, .96) 100%
   );
   height: 4px;
   bottom: auto;
   box-shadow: 0 0 18px rgba(240, 132, 74, .42);
 }
 
+.wallet-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, .15), transparent 18%),
+    radial-gradient(circle at 82% 24%, rgba(113, 177, 255, .08), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 18%, transparent 82%, rgba(0, 0, 0, .12));
+  pointer-events: none;
+}
+
 .wallet-card.preset-construction {
-  background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
+  background: linear-gradient(135deg, #0b1520 0%, #183243 44%, #081018 100%);
 }
 
 .wallet-card.preset-industry {
-  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
+  background: linear-gradient(135deg, #251306 0%, #623815 44%, #271407 100%);
   box-shadow:
-    0 40px 80px rgba(110, 58, 20, .44),
-    0 8px 32px rgba(0, 0, 0, .4),
-    0 0 0 1px rgba(210, 140, 70, .22),
-    inset 0 1px 0 rgba(255, 215, 150, .12);
+    0 44px 88px rgba(110, 58, 20, .42),
+    0 10px 34px rgba(0, 0, 0, .38),
+    0 0 0 1px rgba(210, 140, 70, .24),
+    inset 0 1px 0 rgba(255, 215, 150, .14);
 }
 
 .wallet-card.preset-industry::before {
@@ -1150,10 +1162,10 @@ body.worker-loaded .wallet-card {
 }
 
 .wallet-card.preset-premium {
-  background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%);
+  background: linear-gradient(135deg, #010d1f 0%, #07306d 42%, #000b1a 100%);
   box-shadow:
-    0 40px 80px rgba(0, 40, 150, .5),
-    0 8px 32px rgba(0, 0, 0, .42),
+    0 44px 88px rgba(0, 40, 150, .5),
+    0 10px 34px rgba(0, 0, 0, .4),
     0 0 0 1px rgba(80, 160, 255, .18),
     inset 0 1px 0 rgba(120, 190, 255, .12);
 }
@@ -1602,7 +1614,7 @@ body.worker-loaded .wallet-card {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 6px;
+  padding-top: 8px;
 }
 
 .pass-title {
