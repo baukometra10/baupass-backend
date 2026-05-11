@@ -17010,6 +17010,28 @@ setInterval(() => {
 }, 30000);
 
 // ── Print Badge ──────────────────────────────────────────────────────────────
+function clampPrintSetting(value, min, max, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function getCardPrinterCalibration() {
+  const offsetXMm = clampPrintSetting(state.settings?.cardPrintOffsetXMm, -8, 8, 0);
+  const offsetYMm = clampPrintSetting(state.settings?.cardPrintOffsetYMm, -8, 8, 0);
+  const scalePct = clampPrintSetting(state.settings?.cardPrintScalePct, 90, 110, 100);
+  const rotationDeg = clampPrintSetting(state.settings?.cardPrintRotationDeg, -5, 5, 0);
+  return {
+    offsetXMm,
+    offsetYMm,
+    scalePct,
+    scale: scalePct / 100,
+    rotationDeg,
+  };
+}
+
 function printBadge(worker, company) {
   const preview = document.getElementById("badgePreview");
   if (!preview) return;
@@ -17025,6 +17047,7 @@ function printBadge(worker, company) {
 
   const printableMarkup = printableCard.outerHTML;
   const printableBackMarkup = buildPrintableWorkerCardBackMarkup(worker, company);
+  const calibration = getCardPrinterCalibration();
   printWindow.document.write(`
     <!DOCTYPE html>
     <html lang="de">
@@ -17039,7 +17062,14 @@ function printBadge(worker, company) {
         body::before, body::after { content: none !important; display: none !important; }
         .print-page { width: 85.6mm; height: 54mm; overflow: hidden; page-break-after: always; break-after: page; }
         .print-page:last-of-type { page-break-after: auto; break-after: auto; }
-        .print-badge-root { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        .print-badge-root {
+          width: 85.6mm;
+          height: 54mm;
+          margin: 0;
+          padding: 0;
+          transform-origin: center center;
+          transform: translate(${calibration.offsetXMm}mm, ${calibration.offsetYMm}mm) scale(${calibration.scale}) rotate(${calibration.rotationDeg}deg);
+        }
         .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
         .print-badge-root .wallet-card {
           position: relative;
@@ -21049,6 +21079,10 @@ function renderAdminSettingsForm() {
   const workerAppEnabled = document.querySelector("#workerAppEnabled");
   const workerPassLockEnabled = document.querySelector("#workerPassLockEnabled");
   const workerExpiryWarnDays = document.querySelector("#workerExpiryWarnDays");
+  const cardPrintOffsetX = document.querySelector("#cardPrintOffsetX");
+  const cardPrintOffsetY = document.querySelector("#cardPrintOffsetY");
+  const cardPrintScalePct = document.querySelector("#cardPrintScalePct");
+  const cardPrintRotationDeg = document.querySelector("#cardPrintRotationDeg");
 
   if (platformName) platformName.value = state.settings.platformName || getUiPlaceholderText("platformName");
   if (operatorName) operatorName.value = state.settings.operatorName || getUiPlaceholderText("operatorName");
@@ -21069,6 +21103,10 @@ function renderAdminSettingsForm() {
   if (workerAppEnabled) workerAppEnabled.value = state.settings.workerAppEnabled === false ? "0" : "1";
   if (workerPassLockEnabled) workerPassLockEnabled.value = state.settings.workerPassLockEnabled ? "1" : "0";
   if (workerExpiryWarnDays) workerExpiryWarnDays.value = String(state.settings.workerExpiryWarnDays ?? 7);
+  if (cardPrintOffsetX) cardPrintOffsetX.value = String(Number(state.settings.cardPrintOffsetXMm ?? 0));
+  if (cardPrintOffsetY) cardPrintOffsetY.value = String(Number(state.settings.cardPrintOffsetYMm ?? 0));
+  if (cardPrintScalePct) cardPrintScalePct.value = String(Number(state.settings.cardPrintScalePct ?? 100));
+  if (cardPrintRotationDeg) cardPrintRotationDeg.value = String(Number(state.settings.cardPrintRotationDeg ?? 0));
   const workStartTime = document.querySelector("#workStartTime");
   const workEndTime = document.querySelector("#workEndTime");
   if (workStartTime) workStartTime.value = state.settings.workStartTime || "";
@@ -23366,6 +23404,10 @@ async function handleSettingsSubmit(event) {
       workerAppEnabled: document.querySelector("#workerAppEnabled").value !== "0",
       workerPassLockEnabled: document.querySelector("#workerPassLockEnabled")?.value === "1",
       workerExpiryWarnDays: Math.max(0, parseInt(document.querySelector("#workerExpiryWarnDays")?.value || "7", 10) || 0),
+      cardPrintOffsetXMm: clampPrintSetting(document.querySelector("#cardPrintOffsetX")?.value || 0, -8, 8, 0),
+      cardPrintOffsetYMm: clampPrintSetting(document.querySelector("#cardPrintOffsetY")?.value || 0, -8, 8, 0),
+      cardPrintScalePct: clampPrintSetting(document.querySelector("#cardPrintScalePct")?.value || 100, 90, 110, 100),
+      cardPrintRotationDeg: clampPrintSetting(document.querySelector("#cardPrintRotationDeg")?.value || 0, -5, 5, 0),
       workStartTime: (document.querySelector("#workStartTime")?.value || "").trim(),
       workEndTime: (document.querySelector("#workEndTime")?.value || "").trim(),
       imapHost: (document.querySelector("#imapHost")?.value || "").trim(),

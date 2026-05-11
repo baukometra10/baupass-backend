@@ -1475,6 +1475,30 @@
                 <input type="number" id="workerExpiryWarnDays" min="0" max="365" step="1" placeholder="7" />
               </label>
               <p class="helper-text full-width" data-ui-i18n="workerExpiryWarnDaysHint">E-Mail-Erinnerung wird N Tage vor dem Ablaufdatum des Ausweises gesendet. 0 = deaktiviert.</p>
+              <div class="form-section" style="margin-top:8px">
+                <div class="form-section-icon">🖨️</div>
+                <div class="form-section-label">
+                  <p class="eyebrow">Kartendrucker-Kalibrierung</p>
+                  <h4>Professioneller Kartendruck</h4>
+                </div>
+              </div>
+              <label>
+                <span>Offset X (mm)</span>
+                <input type="number" id="cardPrintOffsetX" min="-8" max="8" step="0.1" placeholder="0" />
+              </label>
+              <label>
+                <span>Offset Y (mm)</span>
+                <input type="number" id="cardPrintOffsetY" min="-8" max="8" step="0.1" placeholder="0" />
+              </label>
+              <label>
+                <span>Skalierung (%)</span>
+                <input type="number" id="cardPrintScalePct" min="90" max="110" step="0.1" placeholder="100" />
+              </label>
+              <label>
+                <span>Rotation (Grad)</span>
+                <input type="number" id="cardPrintRotationDeg" min="-5" max="5" step="0.1" placeholder="0" />
+              </label>
+              <p class="helper-text full-width">Diese Werte sind für Kartendrucker gedacht (z. B. Zebra/Evolis), um den Druck exakt auf die Karte auszurichten.</p>
               <label>
                 <span data-ui-i18n="workStartTimeLabel">Arbeitsbeginn (HH:MM)</span>
                 <input type="time" id="workStartTime" placeholder="08:00" />

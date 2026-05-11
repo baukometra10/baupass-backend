@@ -2295,7 +2295,11 @@ def init_db():
             brevo_api_key TEXT NOT NULL DEFAULT '',
             brevo_from_email TEXT NOT NULL DEFAULT '',
             admin_ip_whitelist TEXT NOT NULL DEFAULT '',
-            enforce_tenant_domain INTEGER NOT NULL DEFAULT 0
+            enforce_tenant_domain INTEGER NOT NULL DEFAULT 0,
+            card_print_offset_x_mm REAL NOT NULL DEFAULT 0,
+            card_print_offset_y_mm REAL NOT NULL DEFAULT 0,
+            card_print_scale_pct REAL NOT NULL DEFAULT 100,
+            card_print_rotation_deg REAL NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS companies (
@@ -2663,10 +2667,11 @@ def init_db():
                 invoice_operator_street, invoice_operator_zip_city, invoice_operator_phone, invoice_operator_website,
                 smtp_host, smtp_port, smtp_username, smtp_password, smtp_sender_email, smtp_sender_name, smtp_use_tls,
                 resend_api_key, resend_from_email, brevo_api_key, brevo_from_email,
-                admin_ip_whitelist, enforce_tenant_domain
-            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                admin_ip_whitelist, enforce_tenant_domain,
+                card_print_offset_x_mm, card_print_offset_y_mm, card_print_scale_pct, card_print_rotation_deg
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0),
+            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0, 0, 0, 100, 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
@@ -2724,6 +2729,14 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN admin_ip_whitelist TEXT NOT NULL DEFAULT ''")
     if "enforce_tenant_domain" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN enforce_tenant_domain INTEGER NOT NULL DEFAULT 0")
+    if "card_print_offset_x_mm" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN card_print_offset_x_mm REAL NOT NULL DEFAULT 0")
+    if "card_print_offset_y_mm" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN card_print_offset_y_mm REAL NOT NULL DEFAULT 0")
+    if "card_print_scale_pct" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN card_print_scale_pct REAL NOT NULL DEFAULT 100")
+    if "card_print_rotation_deg" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN card_print_rotation_deg REAL NOT NULL DEFAULT 0")
     cur.execute(
         "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass Control', 'Control Pass')",
         (DEFAULT_PLATFORM_NAME,),
@@ -7742,6 +7755,10 @@ def get_settings():
             "workerPassLockEnabled": int(row["worker_pass_lock_enabled"]) == 1 if "worker_pass_lock_enabled" in row.keys() else False,
             "workStartTime": row["work_start_time"] if "work_start_time" in row.keys() else "",
             "workEndTime": row["work_end_time"] if "work_end_time" in row.keys() else "",
+            "cardPrintOffsetXMm": float(row["card_print_offset_x_mm"] if "card_print_offset_x_mm" in row.keys() else 0),
+            "cardPrintOffsetYMm": float(row["card_print_offset_y_mm"] if "card_print_offset_y_mm" in row.keys() else 0),
+            "cardPrintScalePct": float(row["card_print_scale_pct"] if "card_print_scale_pct" in row.keys() else 100),
+            "cardPrintRotationDeg": float(row["card_print_rotation_deg"] if "card_print_rotation_deg" in row.keys() else 0),
             # Return resolved IMAP config (DB + env overrides) so frontend checks
             # match the actual runtime config used by polling.
             "imapHost": resolved_imap.get("imap_host", ""),
@@ -8031,6 +8048,13 @@ def update_settings():
     payload = request.get_json(silent=True) or {}
     db = get_db()
 
+    def _clamp_float(value, min_value, max_value, default):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return default
+        return max(min_value, min(max_value, numeric))
+
     current_row = db.execute(
         "SELECT smtp_password, imap_password FROM settings WHERE id = 1"
     ).fetchone()
@@ -8059,7 +8083,8 @@ def update_settings():
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
             admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?,
-            work_start_time = ?, work_end_time = ?
+            work_start_time = ?, work_end_time = ?,
+            card_print_offset_x_mm = ?, card_print_offset_y_mm = ?, card_print_scale_pct = ?, card_print_rotation_deg = ?
         WHERE id = 1
         """,
         (
@@ -8102,6 +8127,10 @@ def update_settings():
             max(0, int(payload.get("workerExpiryWarnDays") or 7)),
             str(payload.get("workStartTime") or "")[:5],
             str(payload.get("workEndTime") or "")[:5],
+            _clamp_float(payload.get("cardPrintOffsetXMm"), -8.0, 8.0, 0.0),
+            _clamp_float(payload.get("cardPrintOffsetYMm"), -8.0, 8.0, 0.0),
+            _clamp_float(payload.get("cardPrintScalePct"), 90.0, 110.0, 100.0),
+            _clamp_float(payload.get("cardPrintRotationDeg"), -5.0, 5.0, 0.0),
         ),
     )
     # Impressum / Datenschutz
