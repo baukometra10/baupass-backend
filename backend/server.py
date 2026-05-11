@@ -7101,6 +7101,30 @@ def get_runtime_diagnostics():
     return diagnostics
 
 
+def _get_worker_build_info():
+    info = {
+        "build": "unknown",
+        "entry": "/emp-app.html",
+        "manifest": "/emp-app-manifest.json",
+    }
+    try:
+        payload = json.loads((BASE_DIR / "worker-build.json").read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            build_value = str(payload.get("build") or "").strip()
+            entry_value = str(payload.get("entry") or "").strip()
+            manifest_value = str(payload.get("manifest") or "").strip()
+            if build_value:
+                info["build"] = build_value
+            if entry_value:
+                info["entry"] = entry_value
+            if manifest_value:
+                info["manifest"] = manifest_value
+    except Exception:
+        # Keep default values if file is missing or malformed.
+        pass
+    return info
+
+
 @app.get("/api/qr.png")
 def qr_png():
     data = (request.args.get("data") or "").strip()
@@ -18524,6 +18548,7 @@ def api_health():
 
     uptime_seconds = int((utc_now() - APP_STARTED_AT).total_seconds())
     diagnostics = get_runtime_diagnostics()
+    worker_build_info = _get_worker_build_info()
     status = "ok" if db_ok else "degraded"
 
     alerts = []
@@ -18550,6 +18575,11 @@ def api_health():
             },
             "warnings": diagnostics.get("warnings", []),
             "alerts": alerts,
+            "workerPwa": worker_build_info,
+            "deploy": {
+                "renderGitCommit": (os.getenv("RENDER_GIT_COMMIT") or "").strip(),
+                "railwayGitCommit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip(),
+            },
         }
     ), (200 if db_ok else 503)
 
