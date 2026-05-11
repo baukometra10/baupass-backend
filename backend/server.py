@@ -20127,7 +20127,11 @@ def root():
 
 @app.get("/worker.html")
 def worker_entry_redirect():
-    return send_from_directory(BASE_DIR, "worker.html")
+    query = request.query_string.decode("utf-8", errors="ignore")
+    target = "/emp-app.html"
+    if query:
+        target = f"{target}?{query}"
+    return redirect(target, code=302)
 
 
 @app.get("/review.html")
