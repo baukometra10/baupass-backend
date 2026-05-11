@@ -17034,20 +17034,11 @@ function printBadge(worker, company) {
       <title>${escapeHtml(runtimeText("badgePrintFormatLabel") || "Ausweis drucken")}</title>
       <link rel="stylesheet" href="./styles.css?v=${WORKER_PWA_BUILD_TAG}" />
       <style>
-        @page { size: A4 portrait; margin: 10mm; }
-        html, body { margin: 0; padding: 0; }
-        body { background: #fff; }
-        .print-sheet {
-          min-height: calc(297mm - 20mm);
-          display: grid;
-          place-items: center;
-          page-break-after: always;
-          break-after: page;
-        }
-        .print-sheet:last-of-type {
-          page-break-after: auto;
-          break-after: auto;
-        }
+        @page { size: 85.6mm 54mm; margin: 0; }
+        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        body { background: #fff; overflow: hidden; }
+        .print-page { width: 85.6mm; height: 54mm; overflow: hidden; page-break-after: always; break-after: page; }
+        .print-page:last-of-type { page-break-after: auto; break-after: auto; }
         .print-badge-root { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
         .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
         .print-badge-root .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; margin: 0 !important; aspect-ratio: auto !important; }
@@ -17169,29 +17160,29 @@ function printBadge(worker, company) {
           color: rgba(238,243,252,.9);
         }
         .print-badge-root * { break-inside: avoid !important; page-break-inside: avoid !important; }
-              @media print {
+        @media print {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          html { margin: 0 !important; padding: 0 !important; }
-          body { margin: 0 !important; padding: 0 !important; }
-          .print-sheet, .print-badge-root { page-break-before: avoid !important; }
-          .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+          html, body { margin: 0 !important; padding: 0 !important; width: 85.6mm; height: 54mm; }
+          .print-page { page-break-after: always !important; break-after: page !important; }
+          .print-page:last-of-type { page-break-after: auto !important; break-after: auto !important; }
+          .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; page-break-inside: avoid !important; break-inside: avoid !important; overflow: hidden !important; }
           .wallet-card *, .wallet-card-back, .wallet-card-back * { page-break-inside: avoid !important; break-inside: avoid !important; }
-              }
+        }
       </style>
     </head>
     <body>
-      <section class="print-sheet">
+      <div class="print-page">
         <div class="print-badge-root">
           <div class="badge-shell">
             ${printableMarkup}
           </div>
         </div>
-      </section>
-      <section class="print-sheet">
+      </div>
+      <div class="print-page">
         <div class="print-badge-root">
           ${printableBackMarkup}
         </div>
-      </section>
+      </div>
       <script>
         const imgs = Array.from(document.images || []);
         Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {

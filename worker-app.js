@@ -2035,13 +2035,15 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
         params.set("apiBase", apiBaseParam);
       }
 
-      manifest.start_url = `/worker-install.html?launch=1&${params.toString()}`;
+      params.set("view", "card");
+      params.set("v", WORKER_BUILD_TAG);
+      manifest.start_url = `/emp-app.html?${params.toString()}`;
       // White-label: update manifest names dynamically
       if (platformName) {
         manifest.name = platformName + " – Mitarbeiter";
         manifest.short_name = platformName;
         if (manifest.shortcuts) {
-          manifest.shortcuts.forEach((s) => { s.url = `/worker-install.html?launch=1&${params.toString()}`; });
+          manifest.shortcuts.forEach((s) => { s.url = `/emp-app.html?${params.toString()}`; });
         }
       }
 
