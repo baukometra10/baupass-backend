@@ -17038,14 +17038,19 @@ function printBadge(worker, company) {
         body { background: #fff; overflow: hidden; }
         .print-badge-root { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
         .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
-        .print-badge-root .wallet-card { width: 85.6mm !important; height: 54mm !important; margin: 0 !important; }
+        .print-badge-root .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; margin: 0 !important; aspect-ratio: auto !important; }
+        .print-badge-root .wallet-card, .print-badge-root .wallet-card * { box-sizing: border-box !important; }
+        .print-badge-root .wallet-card .wc-top,
+        .print-badge-root .wallet-card .wc-middle,
+        .print-badge-root .wallet-card .wc-bottom,
+        .print-badge-root .wallet-card .wc-footer { break-inside: avoid !important; page-break-inside: avoid !important; }
         .print-badge-root * { break-inside: avoid !important; page-break-inside: avoid !important; }
               @media print {
                 * { margin: 0 !important; padding: 0 !important; }
                 html { margin: 0 !important; padding: 0 !important; }
                 body { margin: 0 !important; padding: 0 !important; width: 85.6mm; height: 54mm; }
                 .print-badge-root { page-break-after: avoid !important; page-break-before: avoid !important; break-after: avoid !important; break-before: avoid !important; }
-                .wallet-card { page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+          .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
                 .wallet-card * { page-break-inside: avoid !important; break-inside: avoid !important; }
               }
       </style>
@@ -29728,6 +29733,7 @@ function getCurrentLang() {
 // ── App-Start: läuft bei jedem Seitenaufruf / Refresh ─────────────────────
 initUiLanguageControl();
 initSystemThemeControl();
+registerControlServiceWorker();
 initNativeDesktopShell();
 
 (async () => {
