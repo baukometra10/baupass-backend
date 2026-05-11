@@ -6959,33 +6959,6 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
     return auto_closed
 
 
-@app.get("/api/health")
-def health():
-    diagnostics = get_runtime_diagnostics()
-    db_path_str = str(DB_PATH)
-    data_dir_exists = Path("/data").is_dir()
-    data_dir_writable = data_dir_exists and os.access(Path("/data"), os.W_OK)
-    db_file_exists = DB_PATH.exists()
-    return jsonify(
-        {
-            "status": "ok",
-            "time": now_iso(),
-            "warnings": len(diagnostics["warnings"]),
-            "recoveryEnabled": diagnostics["recoveryEnabled"],
-            "gateApiConfigured": diagnostics["gateApiConfigured"],
-            "db": {
-                "path": db_path_str,
-                "persistent": db_path_str.startswith("/data/"),
-                "exists": db_file_exists,
-                "sizeBytes": DB_PATH.stat().st_size if db_file_exists else 0,
-                "dataDirExists": data_dir_exists,
-                "dataDirWritable": data_dir_writable,
-                "envVar": os.getenv("BAUPASS_DB_PATH", ""),
-            },
-        }
-    )
-
-
 @app.get("/api/public/branding")
 def public_branding():
     """Oeffentlicher Endpunkt fuer Branding-Informationen (kein Login noetig)."""
@@ -7120,30 +7093,6 @@ def get_runtime_diagnostics():
                 ),
             }
         )
-
-    db = None
-    try:
-        db = sqlite3.connect(DB_PATH)
-        db.row_factory = sqlite3.Row
-        admin_rows = db.execute("SELECT username, role, password_hash FROM users WHERE role IN ('superadmin', 'company-admin', 'turnstile')").fetchall()
-        weak_users = [row["username"] for row in admin_rows if check_password_hash(row["password_hash"], "1234")]
-        if weak_users:
-            diagnostics["warnings"].append(
-                {
-                    "code": "default_passwords_present",
-                    "message": f"Standardpasswort 1234 noch aktiv fuer: {', '.join(weak_users[:10])}",
-                }
-            )
-    except Exception as exc:
-        diagnostics["warnings"].append(
-            {
-                "code": "runtime_diagnostics_failed",
-                "message": f"Runtime-Diagnose konnte nicht vollstaendig gelesen werden: {exc}",
-            }
-        )
-    finally:
-        if db is not None:
-            db.close()
 
     return diagnostics
 
@@ -18563,7 +18512,7 @@ def api_health():
     db_ok = True
     db_error = ""
     try:
-        with closing(sqlite3.connect(DB_PATH)) as db:
+        with closing(sqlite3.connect(DB_PATH, timeout=3)) as db:
             db.execute("SELECT 1").fetchone()
     except Exception as exc:
         db_ok = False
@@ -18575,7 +18524,7 @@ def api_health():
 
     alerts = []
     try:
-        with closing(sqlite3.connect(DB_PATH)) as alerts_db:
+        with closing(sqlite3.connect(DB_PATH, timeout=3)) as alerts_db:
             alerts_db.row_factory = sqlite3.Row
             alert_rows = alerts_db.execute(
                 "SELECT * FROM system_alerts ORDER BY created_at DESC LIMIT 20"
@@ -18583,26 +18532,6 @@ def api_health():
             alerts = [row_to_dict(row) for row in alert_rows]
     except Exception:
         alerts = []
-
-    if not db_ok:
-        try:
-            db = get_db()
-            create_system_alert(db, "health_db_down", "critical", "Health-Check: Datenbank nicht erreichbar.", {"error": db_error})
-        except Exception:
-            pass
-    elif diagnostics.get("warnings"):
-        try:
-            db = get_db()
-            create_system_alert(
-                db,
-                "health_runtime_warnings",
-                "warning",
-                f"Health-Check meldet {len(diagnostics.get('warnings', []))} Warnungen.",
-                diagnostics.get("warnings", []),
-                dedup_minutes=60,
-            )
-        except Exception:
-            pass
 
     return jsonify(
         {
