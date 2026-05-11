@@ -17145,7 +17145,7 @@ async function printBadge(worker, company) {
           max-height: 54mm !important;
           margin: 0 !important;
           aspect-ratio: auto !important;
-          padding: 4mm 4.8mm !important;
+          padding: 2.5mm 4.8mm 4mm !important;
           border-radius: 4.2mm !important;
           background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%) !important;
           border: 0.2mm solid rgba(255, 255, 255, .08) !important;
@@ -17186,7 +17186,9 @@ async function printBadge(worker, company) {
         .print-badge-root .wallet-card .wc-middle,
         .print-badge-root .wallet-card .wc-footer { display: flex !important; justify-content: space-between !important; align-items: center !important; }
         .print-badge-root .wallet-card .wc-brand { display: flex !important; align-items: center !important; gap: 1.6mm !important; transform: translateY(-0.38mm) !important; }
-        .print-badge-root .wallet-card .wc-brand-mark { width: 6.5mm !important; height: 6.5mm !important; border-radius: 1.5mm !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #d95d39, #b94a2a); }
+        .print-badge-root .wallet-card .wc-brand-mark { width: 6.5mm !important; height: 6.5mm !important; border-radius: 1.5mm !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; background: linear-gradient(135deg, #d95d39, #b94a2a) !important; }
+        .print-badge-root .wallet-card.preset-industry .wc-brand-mark { background: linear-gradient(135deg, #bc6f2d, #d6964e) !important; }
+        .print-badge-root .wallet-card.preset-premium .wc-brand-mark { background: linear-gradient(135deg, #1565c0, #1e88e5) !important; }
         .print-badge-root .wallet-card .wc-brand-text { display: flex !important; flex-direction: column !important; gap: .2mm !important; }
         .print-badge-root .wallet-card .wc-brand-name { font-size: 6.5pt !important; font-weight: 700 !important; letter-spacing: .08em !important; line-height: 1.08 !important; color: #fff !important; }
         .print-badge-root .wallet-card .wc-brand-sub { font-size: 4pt !important; line-height: 1.08 !important; color: rgba(255, 255, 255, .45) !important; text-transform: uppercase !important; }
@@ -17198,7 +17200,7 @@ async function printBadge(worker, company) {
         .print-badge-root .wallet-card .wc-qr-frame::before { content: none !important; }
         .print-badge-root .wallet-card .badge-wallet-qr { width: 100% !important; height: 100% !important; display: block !important; position: relative !important; z-index: 1 !important; border-radius: 1.5mm !important; padding: .5mm !important; background: #fff !important; }
         .print-badge-root .wallet-card .wc-photo { display: block !important; width: 20.5mm !important; height: 20.5mm !important; border-radius: 2.5mm !important; min-width: 20.5mm !important; border: .2mm solid rgba(255, 255, 255, .22) !important; object-fit: cover !important; }
-        .print-badge-root .wallet-card .wc-bottom { margin-top: 0 !important; align-self: end !important; }
+        .print-badge-root .wallet-card .wc-bottom { margin-top: 2mm !important; align-self: end !important; }
         .print-badge-root .wallet-card .wc-name { margin: 0 0 1px !important; font-size: 8.4pt !important; font-weight: 700 !important; line-height: 1.16 !important; color: #fff !important; text-transform: uppercase !important; }
         .print-badge-root .wallet-card .wc-role-text { margin: 0 0 1.6mm !important; font-size: 5.6pt !important; line-height: 1.1 !important; color: rgba(255, 255, 255, .62) !important; text-transform: uppercase !important; }
         .print-badge-root .wallet-card .wc-footer { align-items: flex-end !important; gap: 1mm !important; }
