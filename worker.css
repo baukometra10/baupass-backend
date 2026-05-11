@@ -184,6 +184,13 @@ body.wallet-immersive.wallet-immersive-sections-open #visitorCountdownBanner {
   display: grid !important;
 }
 
+/* Respect runtime hidden state even in immersive expanded mode. */
+body.wallet-immersive.wallet-immersive-sections-open .below-card.hidden,
+body.wallet-immersive.wallet-immersive-sections-open #visitorCountdownBanner.hidden,
+body.wallet-immersive.wallet-immersive-sections-open #workerMenuCard.hidden {
+  display: none !important;
+}
+
 body.wallet-immersive .app-shell {
   max-width: 100%;
   padding: max(8px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
