@@ -17163,6 +17163,9 @@ function printBadge(worker, company) {
         @media print {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           html, body { margin: 0 !important; padding: 0 !important; width: 85.6mm; height: 54mm; }
+          body > * { display: block !important; }
+          body > *:not(.print-page):not(.print-badge-root) { display: none !important; }
+          .print-page, .print-badge-root { display: block !important; }
           .print-page { page-break-after: always !important; break-after: page !important; }
           .print-page:last-of-type { page-break-after: auto !important; break-after: auto !important; }
           .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; page-break-inside: avoid !important; break-inside: avoid !important; overflow: hidden !important; }
