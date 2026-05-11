@@ -1414,7 +1414,7 @@ body.worker-loaded .wallet-card {
 /* Visitor card: keep QR/photo a bit higher so bottom data remains visible */
 #visitorCardContainer .wc-middle {
   align-items: flex-start;
-  margin-top: -10px;
+  margin-top: -7px;
   margin-bottom: 14px;
 }
 
@@ -1427,7 +1427,7 @@ body.worker-loaded .wallet-card {
 }
 
 #visitorCardContainer .wc-qr-holder {
-  transform: translateY(-6px);
+  transform: translateY(-3px);
 }
 
 .dqr-countdown {
@@ -1517,7 +1517,7 @@ body.worker-loaded .wallet-card {
 }
 
 #visitorCardContainer .wc-photo {
-  transform: translateY(-4px);
+  transform: translateY(-1px);
 }
 
 /* Visitor QR should always use a premium gold frame (independent of card preset). */
