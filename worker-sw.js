@@ -1,16 +1,19 @@
-const CACHE_NAME = "baupass-worker-v59";
+const WORKER_BUILD = "20260511a";
+const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
 // users always get the latest version without needing to clear the cache.
-const STATIC_FILES = [
-  "/worker.css?v=20260510j",
-  "/worker-app.js?v=20260510j",
-  "/worker-manifest.json?v=20260510j",
-  "/worker-icon-192.png",
-  "/worker-icon-512.png",
-  "/worker-icon-192.svg",
-  "/worker-icon-512.svg"
+const STATIC_ASSETS = [
+  { path: "/worker.css", rev: WORKER_BUILD },
+  { path: "/worker-app.js", rev: WORKER_BUILD },
+  { path: "/worker-manifest.json", rev: WORKER_BUILD },
+  { path: "/worker-icon-192.png" },
+  { path: "/worker-icon-512.png" },
+  { path: "/worker-icon-192.svg" },
+  { path: "/worker-icon-512.svg" }
 ];
+const STATIC_PATHS = new Set(STATIC_ASSETS.map((asset) => asset.path));
+const STATIC_FILES = STATIC_ASSETS.map((asset) => (asset.rev ? `${asset.path}?v=${asset.rev}` : asset.path));
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -58,15 +61,35 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((c) => c.put(event.request, response.clone())).catch(() => {});
           return response;
         })
-        .catch(async () => (await caches.match("/worker.html")) || new Response("Offline", { status: 503, statusText: "Offline" }))
+        .catch(async () => {
+          const cachedPage = await caches.match("/worker.html", { ignoreSearch: true });
+          return cachedPage || new Response("Offline", { status: 503, statusText: "Offline" });
+        })
     );
     return;
   }
+
+  // Keep app shell code current in installed iOS/Android app.
+  if (requestUrl.pathname === "/worker-app.js" || requestUrl.pathname === "/worker.css" || requestUrl.pathname === "/worker-manifest.json") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone())).catch(() => {});
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(event.request, { ignoreSearch: true });
+          return cached || new Response("", { status: 504, statusText: "Offline" });
+        })
+    );
+    return;
+  }
+
   // Statische Kern-Dateien: Stale-while-revalidate – Cache sofort, Update im Hintergrund.
-  if (STATIC_FILES.includes(requestUrl.pathname)) {
+  if (STATIC_PATHS.has(requestUrl.pathname)) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) => {
-        return cache.match(event.request).then((cached) => {
+        return cache.match(event.request, { ignoreSearch: true }).then((cached) => {
           const networkFetch = fetch(event.request).then((response) => {
             cache.put(event.request, response.clone()).catch(() => {});
             return response;
@@ -87,7 +110,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(event.request).catch(async () => {
         if (event.request.mode === "navigate") {
           return (
-            (await caches.match("/worker.html")) ||
+            (await caches.match("/worker.html", { ignoreSearch: true })) ||
             (await caches.match("/index.html")) ||
             new Response("Offline", { status: 503, statusText: "Offline" })
           );

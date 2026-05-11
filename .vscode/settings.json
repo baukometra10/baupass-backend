@@ -1,0 +1,36 @@
+{
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/backend/uploads/**": true,
+    "**/backend/backups/**": true,
+    "**/backend/e2e-doc-uploads/**": true,
+    "**/backend/e2e-doc-uploads-hardened/**": true,
+    "**/test-results/**": true,
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/backend/uploads": true,
+    "**/backend/backups": true,
+    "**/backend/e2e-doc-uploads": true,
+    "**/backend/e2e-doc-uploads-hardened": true,
+    "**/test-results": true,
+    "**/dist": true
+  },
+  "files.exclude": {
+    "**/.pytest_cache": true
+  },
+  "python.analysis.exclude": [
+    "**/.venv/**",
+    "**/backend/uploads/**",
+    "**/backend/backups/**",
+    "**/backend/e2e-doc-uploads/**",
+    "**/backend/e2e-doc-uploads-hardened/**",
+    "**/test-results/**",
+    "**/dist/**"
+  ]
+}

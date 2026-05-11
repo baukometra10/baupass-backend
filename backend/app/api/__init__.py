@@ -1,0 +1,44 @@
+"""
+BauPass – API Blueprints Registry
+===================================
+كل blueprint يمثل domain منفصل.
+يُضاف blueprint جديد هنا عند نقله من server.py.
+
+الانتقال التدريجي:
+  server.py الحالي يستمر في العمل.
+  يُنقل route تلو route إلى هنا تدريجياً.
+  عند اكتمال النقل، يُحذف server.py.
+"""
+from flask import Blueprint
+
+# ── Blueprint Definitions ────────────────────────────────────────────────────
+auth_bp        = Blueprint("auth",        __name__)
+workers_bp     = Blueprint("workers",     __name__)
+companies_bp   = Blueprint("companies",   __name__)
+attendance_bp  = Blueprint("attendance",  __name__)
+admin_bp       = Blueprint("admin",       __name__)
+public_bp      = Blueprint("public",      __name__)
+health_bp      = Blueprint("health",      __name__)
+
+# ── Route Registrations ───────────────────────────────────────────────────────
+# يُستورد هنا لتفعيل تسجيل الـ routes
+from . import (  # noqa: F401, E402
+    auth,
+    health_routes,
+)
+
+# TODO: أضف هنا عند نقل كل module من server.py:
+# from . import workers_routes
+# from . import companies_routes
+# from . import attendance_routes
+# from . import admin_routes
+
+__all__ = [
+    "auth_bp",
+    "workers_bp",
+    "companies_bp",
+    "attendance_bp",
+    "admin_bp",
+    "public_bp",
+    "health_bp",
+]

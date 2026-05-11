@@ -107,7 +107,9 @@ def _generate_icon_png(size: int) -> bytes:
     denom = max(1, 2 * (size - 1))
 
     try:
-        import numpy as np
+        import importlib
+
+        np = importlib.import_module("numpy")
         yi, xi = np.mgrid[0:size, 0:size]
         t = (xi + yi) / denom
         arr = np.zeros((size, size, 4), dtype=np.uint8)
@@ -2724,13 +2726,16 @@ def init_db():
         "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass Control', 'Control Pass', 'BauPass')",
         (DEFAULT_OPERATOR_NAME,),
     )
+    cur.execute(
+        "UPDATE companies SET plan = 'professional' WHERE id = 'cmp-default' AND COALESCE(TRIM(plan), '') IN ('', 'tageskarte', 'starter')",
+    )
 
     company_exists = cur.execute("SELECT id FROM companies LIMIT 1").fetchone()
     if not company_exists:
         company_id = "cmp-default"
         cur.execute(
             "INSERT INTO companies (id, name, contact, plan, status) VALUES (?, ?, ?, ?, ?)",
-            (company_id, "Muster Bau GmbH", "Sabine Keller", "tageskarte", "test"),
+            (company_id, "Muster Bau GmbH", "Sabine Keller", "professional", "test"),
         )
 
         users = [
@@ -5859,6 +5864,154 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
     return result
 
 
+def run_invoice_retry_cycle_once():
+    """Runs one invoice retry cycle with alerts and returns a summary dict."""
+    try:
+        with app.app_context():
+            db = get_db()
+            result = retry_failed_invoice_deliveries(db)
+            if int(result.get("failed", 0)) > 0:
+                create_system_alert(
+                    db,
+                    code="invoice_retry_failures",
+                    severity="warning",
+                    message=f"Automatische Rechnungs-Retries hatten {int(result.get('failed', 0))} Fehlschläge.",
+                    details=result,
+                    dedup_minutes=15,
+                )
+
+            summary = get_critical_invoice_retry_summary(
+                db,
+                min_score=70,
+                top_items=INVOICE_RETRY_ALERT_TOP_ITEMS,
+            )
+            critical_count = int(summary.get("criticalCount", 0))
+            if critical_count >= INVOICE_RETRY_CRITICAL_WARN_THRESHOLD:
+                severity = "critical" if critical_count >= INVOICE_RETRY_CRITICAL_ALERT_THRESHOLD else "warning"
+                create_system_alert(
+                    db,
+                    code=f"invoice_retry_backlog_{severity}",
+                    severity=severity,
+                    message=(
+                        f"Rechnungs-Retry-Queue hat {critical_count} kritische Faelle "
+                        f"(Score >= 70)."
+                    ),
+                    details=summary,
+                    dedup_minutes=20,
+                )
+
+                mail_sent, reason = send_invoice_retry_backlog_alert_email(db, summary, severity)
+                if (not mail_sent) and reason not in {"cooldown", "smtp_not_configured", "no_recipients", "settings_missing"}:
+                    create_system_alert(
+                        db,
+                        code="invoice_retry_backlog_email_failed",
+                        severity="warning",
+                        message="E-Mail-Alarm fuer kritische Retry-Faelle konnte nicht gesendet werden.",
+                        details={"error": reason, "severity": severity, "criticalCount": critical_count},
+                        dedup_minutes=30,
+                    )
+
+            smtp_stuck_threshold = utc_iso(
+                utc_now() - timedelta(minutes=INVOICE_SMTP_STUCK_MINUTES)
+            )
+            smtp_stuck_count = db.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM invoices
+                WHERE status = 'send_failed'
+                  AND paid_at IS NULL
+                  AND COALESCE(error_message, '') <> ''
+                  AND (
+                      LOWER(error_message) LIKE '%smtp%'
+                      OR LOWER(error_message) LIKE '%timeout%'
+                      OR LOWER(error_message) LIKE '%connection refused%'
+                      OR LOWER(error_message) LIKE '%network is unreachable%'
+                      OR LOWER(error_message) LIKE '%getaddrinfo%'
+                      OR LOWER(error_message) LIKE '%name or service%'
+                      OR LOWER(error_message) LIKE '%authentication%'
+                      OR LOWER(error_message) LIKE '%535%'
+                  )
+                  AND COALESCE(last_send_attempt_at, created_at) <= ?
+                """,
+                (smtp_stuck_threshold,),
+            ).fetchone()["c"]
+            if int(smtp_stuck_count or 0) > 0:
+                create_system_alert(
+                    db,
+                    code="invoice_smtp_stuck_failures",
+                    severity="critical",
+                    message=(
+                        f"SMTP-Fehler dauern bereits laenger als {INVOICE_SMTP_STUCK_MINUTES} Minuten an "
+                        f"({int(smtp_stuck_count)} Rechnung(en))."
+                    ),
+                    details={
+                        "thresholdMinutes": INVOICE_SMTP_STUCK_MINUTES,
+                        "affectedInvoices": int(smtp_stuck_count),
+                    },
+                    dedup_minutes=15,
+                )
+            return {"ok": True, "result": result}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def run_worker_session_cleanup_cycle_once():
+    """Runs one worker-session cleanup cycle and returns summary."""
+    try:
+        with app.app_context():
+            db = get_db()
+            auto_closed = auto_close_expired_visitor_entries(db)
+            deleted = purge_expired_worker_app_sessions(db)
+            if deleted > 0:
+                db.commit()
+            return {
+                "ok": True,
+                "autoClosedVisitors": len(auto_closed or []),
+                "deletedSessions": int(deleted or 0),
+            }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+# Late-bound helper callables assigned during start_background_jobs initialization.
+check_doc_expiry_warnings = None
+send_daily_summary_email = None
+send_worker_expiry_reminders = None
+send_document_expiry_notifications = None
+
+
+def run_daily_jobs_cycle_once():
+    """Runs one daily jobs cycle and returns summary."""
+    try:
+        if callable(check_doc_expiry_warnings):
+            check_doc_expiry_warnings()
+        monthly_result = {}
+        with app.app_context():
+            db = get_db()
+            lock_workers_with_expired_documents(db)
+            monthly_result = run_monthly_invoice_cycle(db)
+            if monthly_result.get("failed", 0) > 0:
+                create_system_alert(
+                    db,
+                    code=f"monthly_invoice_cycle_{monthly_result.get('period', '')}",
+                    severity="warning",
+                    message=f"Monatsrechnungslauf {monthly_result.get('period', '')} hatte {monthly_result.get('failed', 0)} Fehler.",
+                    details=monthly_result,
+                    dedup_minutes=60 * 24 * 31,
+                )
+        if callable(send_daily_summary_email):
+            send_daily_summary_email()
+
+        if callable(send_worker_expiry_reminders):
+            send_worker_expiry_reminders()
+
+        if callable(send_document_expiry_notifications):
+            send_document_expiry_notifications()
+        return {"ok": True, "monthly": monthly_result}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def start_background_jobs():
     global _background_started
     with _background_lock:
@@ -5869,6 +6022,10 @@ def start_background_jobs():
     interval_hours = max(1, int(os.getenv("BAUPASS_DUNNING_INTERVAL_HOURS", "24")))
     session_cleanup_seconds = max(60, int(os.getenv("BAUPASS_WORKER_SESSION_CLEANUP_SECONDS", "300")))
     invoice_retry_seconds = max(60, int(os.getenv("BAUPASS_INVOICE_RETRY_SECONDS", "180")))
+    invoice_retry_mode = str(os.getenv("BAUPASS_INVOICE_RETRY_MODE", "thread")).strip().lower()
+    session_cleanup_mode = str(os.getenv("BAUPASS_WORKER_SESSION_CLEANUP_MODE", "thread")).strip().lower()
+    daily_jobs_mode = str(os.getenv("BAUPASS_DAILY_JOBS_MODE", "thread")).strip().lower()
+    rq_strict_mode = str(os.getenv("BAUPASS_RQ_STRICT_MODE", "0")).strip().lower() in {"1", "true", "yes", "on"}
 
     def scheduler_loop():
         while True:
@@ -6316,6 +6473,12 @@ def start_background_jobs():
         except Exception:
             pass
 
+    # Expose nested helpers for RQ bridge path.
+    globals()["check_doc_expiry_warnings"] = check_doc_expiry_warnings
+    globals()["send_daily_summary_email"] = send_daily_summary_email
+    globals()["send_worker_expiry_reminders"] = send_worker_expiry_reminders
+    globals()["send_document_expiry_notifications"] = send_document_expiry_notifications
+
     # Expiry-Check beim Start einmal ausführen, danach täglich
     check_doc_expiry_warnings()
     with app.app_context():
@@ -6327,133 +6490,56 @@ def start_background_jobs():
         """Läuft einmal täglich: Dokument-Ablauf-Prüfung + Zusammenfassungs-E-Mail + Ablauf-Erinnerungen."""
         while True:
             time.sleep(86400)  # 24 Stunden warten
-            check_doc_expiry_warnings()
-            with app.app_context():
-                db = get_db()
-                lock_workers_with_expired_documents(db)
-                monthly_result = run_monthly_invoice_cycle(db)
-                if monthly_result.get("failed", 0) > 0:
-                    create_system_alert(
-                        db,
-                        code=f"monthly_invoice_cycle_{monthly_result.get('period', '')}",
-                        severity="warning",
-                        message=f"Monatsrechnungslauf {monthly_result.get('period', '')} hatte {monthly_result.get('failed', 0)} Fehler.",
-                        details=monthly_result,
-                        dedup_minutes=60 * 24 * 31,
-                    )
-            send_daily_summary_email()
-            send_worker_expiry_reminders()
-            send_document_expiry_notifications()
+            run_daily_jobs_cycle_once()
 
-    threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()
+    if daily_jobs_mode == "rq":
+        try:
+            from backend.app.tasks.legacy_runtime import bootstrap_legacy_daily_jobs_scheduler
+            boot_ok = bool(bootstrap_legacy_daily_jobs_scheduler())
+            if rq_strict_mode and not boot_ok:
+                raise RuntimeError("Daily jobs RQ bootstrap failed in strict mode")
+        except Exception:
+            if rq_strict_mode:
+                raise
+            threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()  # baupass:allow-inline-thread
+    else:
+        threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()  # baupass:allow-inline-thread
 
     def worker_session_cleanup_loop():
         while True:
-            try:
-                with app.app_context():
-                    db = get_db()
-                    auto_close_expired_visitor_entries(db)
-                    deleted = purge_expired_worker_app_sessions(db)
-                    if deleted > 0:
-                        db.commit()
-            except Exception:
-                # Ignore cleanup loop failures; auth still enforces token expiry.
-                pass
+            run_worker_session_cleanup_cycle_once()
             time.sleep(session_cleanup_seconds)
 
     def invoice_retry_loop():
         while True:
-            try:
-                with app.app_context():
-                    db = get_db()
-                    result = retry_failed_invoice_deliveries(db)
-                    if int(result.get("failed", 0)) > 0:
-                        create_system_alert(
-                            db,
-                            code="invoice_retry_failures",
-                            severity="warning",
-                            message=f"Automatische Rechnungs-Retries hatten {int(result.get('failed', 0))} Fehlschläge.",
-                            details=result,
-                            dedup_minutes=15,
-                        )
-
-                    summary = get_critical_invoice_retry_summary(
-                        db,
-                        min_score=70,
-                        top_items=INVOICE_RETRY_ALERT_TOP_ITEMS,
-                    )
-                    critical_count = int(summary.get("criticalCount", 0))
-                    if critical_count >= INVOICE_RETRY_CRITICAL_WARN_THRESHOLD:
-                        severity = "critical" if critical_count >= INVOICE_RETRY_CRITICAL_ALERT_THRESHOLD else "warning"
-                        create_system_alert(
-                            db,
-                            code=f"invoice_retry_backlog_{severity}",
-                            severity=severity,
-                            message=(
-                                f"Rechnungs-Retry-Queue hat {critical_count} kritische Faelle "
-                                f"(Score >= 70)."
-                            ),
-                            details=summary,
-                            dedup_minutes=20,
-                        )
-
-                        mail_sent, reason = send_invoice_retry_backlog_alert_email(db, summary, severity)
-                        if (not mail_sent) and reason not in {"cooldown", "smtp_not_configured", "no_recipients", "settings_missing"}:
-                            create_system_alert(
-                                db,
-                                code="invoice_retry_backlog_email_failed",
-                                severity="warning",
-                                message="E-Mail-Alarm fuer kritische Retry-Faelle konnte nicht gesendet werden.",
-                                details={"error": reason, "severity": severity, "criticalCount": critical_count},
-                                dedup_minutes=30,
-                            )
-
-                    smtp_stuck_threshold = utc_iso(
-                        utc_now() - timedelta(minutes=INVOICE_SMTP_STUCK_MINUTES)
-                    )
-                    smtp_stuck_count = db.execute(
-                        """
-                        SELECT COUNT(*) AS c
-                        FROM invoices
-                        WHERE status = 'send_failed'
-                          AND paid_at IS NULL
-                          AND COALESCE(error_message, '') <> ''
-                          AND (
-                              LOWER(error_message) LIKE '%smtp%'
-                              OR LOWER(error_message) LIKE '%timeout%'
-                              OR LOWER(error_message) LIKE '%connection refused%'
-                              OR LOWER(error_message) LIKE '%network is unreachable%'
-                              OR LOWER(error_message) LIKE '%getaddrinfo%'
-                              OR LOWER(error_message) LIKE '%name or service%'
-                              OR LOWER(error_message) LIKE '%authentication%'
-                              OR LOWER(error_message) LIKE '%535%'
-                          )
-                          AND COALESCE(last_send_attempt_at, created_at) <= ?
-                        """,
-                        (smtp_stuck_threshold,),
-                    ).fetchone()["c"]
-                    if int(smtp_stuck_count or 0) > 0:
-                        create_system_alert(
-                            db,
-                            code="invoice_smtp_stuck_failures",
-                            severity="critical",
-                            message=(
-                                f"SMTP-Fehler dauern bereits laenger als {INVOICE_SMTP_STUCK_MINUTES} Minuten an "
-                                f"({int(smtp_stuck_count)} Rechnung(en))."
-                            ),
-                            details={
-                                "thresholdMinutes": INVOICE_SMTP_STUCK_MINUTES,
-                                "affectedInvoices": int(smtp_stuck_count),
-                            },
-                            dedup_minutes=15,
-                        )
-            except Exception:
-                pass
+            run_invoice_retry_cycle_once()
             time.sleep(invoice_retry_seconds)
 
     threading.Thread(target=scheduler_loop, name="baupass-dunning-scheduler", daemon=True).start()
-    threading.Thread(target=worker_session_cleanup_loop, name="baupass-worker-session-cleanup", daemon=True).start()
-    threading.Thread(target=invoice_retry_loop, name="baupass-invoice-retry", daemon=True).start()
+    if session_cleanup_mode == "rq":
+        try:
+            from backend.app.tasks.legacy_runtime import bootstrap_legacy_worker_session_cleanup_scheduler
+            boot_ok = bool(bootstrap_legacy_worker_session_cleanup_scheduler())
+            if rq_strict_mode and not boot_ok:
+                raise RuntimeError("Session cleanup RQ bootstrap failed in strict mode")
+        except Exception:
+            if rq_strict_mode:
+                raise
+            threading.Thread(target=worker_session_cleanup_loop, name="baupass-worker-session-cleanup", daemon=True).start()
+    else:
+        threading.Thread(target=worker_session_cleanup_loop, name="baupass-worker-session-cleanup", daemon=True).start()
+    if invoice_retry_mode == "rq":
+        try:
+            from backend.app.tasks.legacy_runtime import bootstrap_legacy_invoice_retry_scheduler
+            boot_ok = bool(bootstrap_legacy_invoice_retry_scheduler())
+            if rq_strict_mode and not boot_ok:
+                raise RuntimeError("Invoice retry RQ bootstrap failed in strict mode")
+        except Exception:
+            if rq_strict_mode:
+                raise
+            threading.Thread(target=invoice_retry_loop, name="baupass-invoice-retry", daemon=True).start()
+    else:
+        threading.Thread(target=invoice_retry_loop, name="baupass-invoice-retry", daemon=True).start()
 
 
 def get_company_access_error(db, company_id):
@@ -8271,7 +8357,7 @@ def create_company():
             document_email,
             access_host,
             branding_preset,
-            normalize_company_plan(payload.get("plan", "tageskarte")),
+            normalize_company_plan(payload.get("plan", "starter")),
             company_status,
             trial_ends_at,
             invoice_email_lang,
@@ -10167,8 +10253,14 @@ def _resolve_worker_by_identity_token(db, raw_token):
 
 def build_normalized_device_event(payload, turnstile_user, worker, direction, scan_mode, received_at_iso):
     # Device abstraction: every connector writes the same event shape.
-    raw_device_id = str(payload.get("deviceId") or payload.get("readerId") or turnstile_user.get("id") or "").strip()
-    device_id = clean_id_input(raw_device_id, max_len=64) or str(turnstile_user.get("id") or "gate-unknown")
+    turnstile_id = ""
+    if isinstance(turnstile_user, sqlite3.Row):
+        turnstile_id = str(turnstile_user["id"] or "")
+    elif isinstance(turnstile_user, dict):
+        turnstile_id = str(turnstile_user.get("id") or "")
+
+    raw_device_id = str(payload.get("deviceId") or payload.get("readerId") or turnstile_id).strip()
+    device_id = clean_id_input(raw_device_id, max_len=64) or (turnstile_id or "gate-unknown")
     protocol = normalize_device_protocol(payload.get("protocol") or "http")
     source = scan_mode if scan_mode in {"rfid", "nfc", "wallet", "qr"} else "rfid"
     event_name = "check_in" if direction == "check-in" else "check_out"
@@ -13264,8 +13356,14 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
     if worker is None:
         return {"error": "card_not_assigned"}, 404
 
-    if turnstile_user.get("company_id"):
-        _gate_plan = get_company_plan(db, turnstile_user["company_id"])
+    turnstile_company_id = ""
+    if isinstance(turnstile_user, sqlite3.Row):
+        turnstile_company_id = str(turnstile_user["company_id"] or "")
+    elif isinstance(turnstile_user, dict):
+        turnstile_company_id = str(turnstile_user.get("company_id") or "")
+
+    if turnstile_company_id:
+        _gate_plan = get_company_plan(db, turnstile_company_id)
         required_feature = "nfc_badges" if scan_mode == "nfc" else "qr_badges"
         if not company_has_feature(_gate_plan, required_feature):
             response, status = feature_not_available_response(required_feature, _gate_plan)
@@ -21345,6 +21443,7 @@ def gate_emergency_token_cache():
         FROM worker_identity_tokens t
         JOIN workers w ON w.id = t.worker_id
         WHERE t.company_id = ?
+                    AND t.status = 'active'
           AND (t.expires_at IS NULL OR t.expires_at > ?)
           AND w.status = 'aktiv'
         ORDER BY t.issued_at DESC

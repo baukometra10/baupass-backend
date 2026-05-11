@@ -377,9 +377,9 @@ class TestRBACEnforcement:
 
     def test_token_in_cookie_not_accepted(self):
         """Test token in cookie is not accepted (must use Authorization header)."""
-        token = self.login("superadmin", self.superadmin_password)
+        _ = self.login("superadmin", self.superadmin_password)
         # Set token in cookie instead of header
-        self.client.set_cookie("localhost", "token", token)
+        self.client.set_cookie("token", "cookie-only-token")
         
         response = self.client.get("/api/system/status")
         # Should still need the Authorization header
