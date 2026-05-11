@@ -4950,6 +4950,20 @@ async function loadLeaveRequests() {
 
 let cardEntranceTimer = null;
 
+function setWorkerFeaturePanelVisibility(visible) {
+  if (!elements.workerHubPanel) {
+    return;
+  }
+
+  if (visible) {
+    elements.workerHubPanel.style.removeProperty("display");
+    elements.workerHubPanel.classList.remove("hidden");
+    return;
+  }
+
+  elements.workerHubPanel.style.setProperty("display", "none", "important");
+}
+
 function initializeCardEntranceAnimation() {
   // Clear any previous timer
   if (cardEntranceTimer) clearTimeout(cardEntranceTimer);
@@ -4957,6 +4971,7 @@ function initializeCardEntranceAnimation() {
   if (!elements.badgeCard) return;
   
   // Step 1: Card appears with entrance animation (already visible from renderWorker)
+  setWorkerFeaturePanelVisibility(false);
   elements.badgeCard.classList.add("card-entrance-active");
   document.body.classList.add("card-animating");
   
@@ -4982,6 +4997,8 @@ function initializeCardEntranceAnimation() {
 }
 
 function showFeatureSectionsWithAnimation() {
+  setWorkerFeaturePanelVisibility(true);
+
   // Animate in feature sections below the card
   const sections = getWorkerPageSections();
   sections.forEach((section, index) => {
@@ -5005,6 +5022,7 @@ function clearCardEntranceAnimation() {
   if (elements.badgeCard) {
     elements.badgeCard.classList.remove("card-entrance-active", "card-transition-top");
   }
+  setWorkerFeaturePanelVisibility(true);
   document.body.classList.remove("card-animating", "card-transitioned");
 }
 
