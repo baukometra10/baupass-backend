@@ -27,7 +27,7 @@ from pathlib import Path
 import importlib
 from email.message import EmailMessage
 from email.utils import getaddresses
-from urllib.parse import quote, urlsplit, urlunsplit, unquote_to_bytes
+from urllib.parse import quote, urlsplit, unquote_to_bytes
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from flask import Flask, jsonify, request, send_from_directory, send_file, g, Response, redirect, has_request_context

@@ -1598,7 +1598,6 @@ let timesheetCompactExpanded = false;
 let documentsCompactExpanded = false;
 let leaveCompactExpanded = false;
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
-let dqrInterval = null;          // setInterval handle for auto-refresh
 let dqrCountdownInterval = null; // setInterval for per-second countdown
 let dqrRemainingSeconds = 60;    // seconds until next QR refresh
 let dqrCurrentToken = "";        // last fetched DQR token
@@ -1609,8 +1608,6 @@ let gateFeedbackResetTimeout = null;
 let gateEventPollTimeout = null;
 let gateEventPollInFlight = false;
 let gateLastSeenEventId = "";
-
-const AUTO_OPEN_ACTIVITY_WINDOW_MS = 30 * 1000;
 
 const elements = {
   loginCard: document.querySelector("#loginCard"),
@@ -1885,27 +1882,6 @@ function applyWorkerPageView(targetId = "") {
   if (elements.workerPageLabel) {
     elements.workerPageLabel.textContent = tf("workerPageOpened", { page: getWorkerPageTitle(targetId) });
   }
-}
-
-function initQuickMenuObserver() {
-  if (!elements.quickMenuButtons?.length || typeof IntersectionObserver === "undefined") return;
-  if (quickMenuObserver) {
-    quickMenuObserver.disconnect();
-  }
-  const targets = ["badgeCard", "actionsPanel", "leaveRequestCard", "timesheetCard", "documentsCard"];
-  quickMenuObserver = new IntersectionObserver((entries) => {
-    const visible = entries
-      .filter((entry) => entry.isIntersecting)
-      .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-    if (visible.length > 0) {
-      setActiveQuickMenuTarget(visible[0].target.id);
-    }
-  }, { threshold: [0.25, 0.5, 0.75], rootMargin: "-20% 0px -45% 0px" });
-
-  targets.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) quickMenuObserver.observe(el);
-  });
 }
 
 init().finally(dismissSplash);
@@ -3849,7 +3825,6 @@ function startDynamicQrRefresh() {
 
 /** Stop dynamic QR polling (e.g. on logout or when card is hidden) */
 function stopDynamicQrRefresh() {
-  if (dqrInterval) { clearInterval(dqrInterval); dqrInterval = null; }
   if (dqrRefreshTimeout) { clearTimeout(dqrRefreshTimeout); dqrRefreshTimeout = null; }
   if (dqrCountdownInterval) { clearInterval(dqrCountdownInterval); dqrCountdownInterval = null; }
   dqrCurrentToken = "";
