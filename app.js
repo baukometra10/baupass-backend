@@ -86,7 +86,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260511g";
+const WORKER_PWA_BUILD_TAG = "20260511h";
 
 function loadStoredSessionToken() {
   try {
@@ -17024,6 +17024,7 @@ function printBadge(worker, company) {
   }
 
   const printableMarkup = printableCard.outerHTML;
+  const printableBackMarkup = buildPrintableWorkerCardBackMarkup(worker, company);
   printWindow.document.write(`
     <!DOCTYPE html>
     <html lang="de">
@@ -17033,9 +17034,20 @@ function printBadge(worker, company) {
       <title>${escapeHtml(runtimeText("badgePrintFormatLabel") || "Ausweis drucken")}</title>
       <link rel="stylesheet" href="./styles.css?v=${WORKER_PWA_BUILD_TAG}" />
       <style>
-        @page { size: 85.6mm 54mm; margin: 0; }
-        html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
-        body { background: #fff; overflow: hidden; }
+        @page { size: A4 portrait; margin: 10mm; }
+        html, body { margin: 0; padding: 0; }
+        body { background: #fff; }
+        .print-sheet {
+          min-height: calc(297mm - 20mm);
+          display: grid;
+          place-items: center;
+          page-break-after: always;
+          break-after: page;
+        }
+        .print-sheet:last-of-type {
+          page-break-after: auto;
+          break-after: auto;
+        }
         .print-badge-root { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
         .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
         .print-badge-root .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; margin: 0 !important; aspect-ratio: auto !important; }
@@ -17044,23 +17056,142 @@ function printBadge(worker, company) {
         .print-badge-root .wallet-card .wc-middle,
         .print-badge-root .wallet-card .wc-bottom,
         .print-badge-root .wallet-card .wc-footer { break-inside: avoid !important; page-break-inside: avoid !important; }
+        .wallet-card-back {
+          position: relative;
+          width: 85.6mm;
+          height: 54mm;
+          min-height: 54mm;
+          max-height: 54mm;
+          overflow: hidden;
+          border-radius: 4.2mm;
+          color: #fff;
+          background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
+          box-shadow: none;
+          border: 0.2mm solid rgba(255, 255, 255, .08);
+        }
+        .wallet-card-back.preset-industry {
+          background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
+        }
+        .wallet-card-back.preset-premium {
+          background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%);
+        }
+        .wallet-card-back__bar {
+          position: absolute;
+          inset: 0 auto auto 0;
+          width: 100%;
+          height: 1.2mm;
+          background: linear-gradient(90deg, #d95d39 0%, #f0844a 50%, #d95d39 100%);
+        }
+        .wallet-card-back.preset-industry .wallet-card-back__bar {
+          background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%);
+        }
+        .wallet-card-back.preset-premium .wallet-card-back__bar {
+          background: linear-gradient(90deg, #1565c0 0%, #42a5f5 48%, #1565c0 100%);
+        }
+        .wallet-card-back__content {
+          position: relative;
+          z-index: 1;
+          height: 100%;
+          padding: 4.6mm 4.8mm 4.2mm;
+          display: grid;
+          grid-template-rows: auto auto 1fr auto;
+          gap: 1.2mm;
+          background-image: radial-gradient(rgba(255,255,255,.03) 1px, transparent 1px);
+          background-size: 4.5mm 4.5mm;
+        }
+        .wallet-card-back__eyebrow {
+          margin: 0;
+          font-size: 4.2pt;
+          line-height: 1.1;
+          text-transform: uppercase;
+          letter-spacing: .16em;
+          color: rgba(255,255,255,.58);
+        }
+        .wallet-card-back__title {
+          margin: 0;
+          font-size: 9pt;
+          line-height: 1.12;
+          color: #fff;
+        }
+        .wallet-card-back__grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1.6mm 2mm;
+          align-content: start;
+        }
+        .wallet-card-back__item {
+          display: grid;
+          grid-template-columns: 5mm 1fr;
+          gap: 1.2mm;
+          align-items: center;
+          padding: 1.4mm 1.6mm;
+          border-radius: 2.2mm;
+          background: rgba(255,255,255,.06);
+          border: 0.18mm solid rgba(255,255,255,.08);
+        }
+        .wallet-card-back__icon {
+          display: inline-grid;
+          place-items: center;
+          width: 4mm;
+          height: 4mm;
+          font-size: 8pt;
+        }
+        .wallet-card-back__label {
+          font-size: 5.3pt;
+          line-height: 1.18;
+          color: rgba(250,252,255,.96);
+        }
+        .wallet-card-back__footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: end;
+          gap: 2mm;
+        }
+        .wallet-card-back__company,
+        .wallet-card-back__worker,
+        .wallet-card-back__note {
+          margin: 0;
+        }
+        .wallet-card-back__company {
+          font-size: 6pt;
+          font-weight: 700;
+          color: #fff;
+        }
+        .wallet-card-back__worker {
+          font-size: 4.7pt;
+          color: rgba(255,255,255,.62);
+        }
+        .wallet-card-back__note {
+          max-width: 30mm;
+          font-size: 4.5pt;
+          line-height: 1.2;
+          text-align: right;
+          color: rgba(238,243,252,.9);
+        }
         .print-badge-root * { break-inside: avoid !important; page-break-inside: avoid !important; }
               @media print {
-                * { margin: 0 !important; padding: 0 !important; }
-                html { margin: 0 !important; padding: 0 !important; }
-                body { margin: 0 !important; padding: 0 !important; width: 85.6mm; height: 54mm; }
-                .print-badge-root { page-break-after: avoid !important; page-break-before: avoid !important; break-after: avoid !important; break-before: avoid !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          html { margin: 0 !important; padding: 0 !important; }
+          body { margin: 0 !important; padding: 0 !important; }
+          .print-sheet, .print-badge-root { page-break-before: avoid !important; }
           .wallet-card { width: 85.6mm !important; height: 54mm !important; min-height: 54mm !important; max-height: 54mm !important; page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
-                .wallet-card * { page-break-inside: avoid !important; break-inside: avoid !important; }
+          .wallet-card *, .wallet-card-back, .wallet-card-back * { page-break-inside: avoid !important; break-inside: avoid !important; }
               }
       </style>
     </head>
     <body>
-      <div class="print-badge-root">
-        <div class="badge-shell">
-          ${printableMarkup}
+      <section class="print-sheet">
+        <div class="print-badge-root">
+          <div class="badge-shell">
+            ${printableMarkup}
+          </div>
         </div>
-      </div>
+      </section>
+      <section class="print-sheet">
+        <div class="print-badge-root">
+          ${printableBackMarkup}
+        </div>
+      </section>
       <script>
         const imgs = Array.from(document.images || []);
         Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {
@@ -17177,6 +17308,75 @@ function buildPrintableWorkerCardMarkup(worker, company) {
             <p class="wc-subcompany${subcompanyLine ? "" : " hidden"}">${escapeHtml(subcompanyLine)}</p>
             <div class="wc-status" data-status="${escapeHtml(normalizedStatus)}">${escapeHtml(statusText)}</div>
           </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function buildPrintableWorkerCardBackMarkup(worker, company) {
+  const companyPreset = getCompanyBrandingPreset(company);
+  const companyName = company?.name || uiT("badgeUnknownCompany");
+  const customerNumber = getCompanyCustomerNumber(company) || "-";
+  const workerName = `${worker.firstName || ""} ${worker.lastName || ""}`.trim() || runtimeText("workerRoleFallback");
+
+  const presetContent = {
+    construction: {
+      eyebrow: "Baustellen-Sicherheit",
+      title: "Pflicht vor Betreten der Baustelle",
+      items: [
+        { icon: "⛑", label: "Schutzhelm tragen" },
+        { icon: "🦺", label: "Warnweste anlegen" },
+        { icon: "🥾", label: "Sicherheitsschuhe nutzen" },
+        { icon: "🧤", label: "Handschutz je nach Bereich" },
+      ],
+      note: "Nur freigegebene Wege nutzen und Anweisungen der Bauleitung befolgen."
+    },
+    industry: {
+      eyebrow: "Produktionsbereich",
+      title: "Sicherheit im Industrieeinsatz",
+      items: [
+        { icon: "👓", label: "Schutzbrille tragen" },
+        { icon: "🎧", label: "Gehoerschutz beachten" },
+        { icon: "🥾", label: "Sicherheitsschuhe tragen" },
+        { icon: "⚙", label: "Lose Kleidung vermeiden" },
+      ],
+      note: "Nur eingewiesene Bereiche betreten. Maschinenzonen und Sperrbereiche beachten."
+    },
+    premium: {
+      eyebrow: "Premium Access",
+      title: "Authorized Access Card",
+      items: [
+        { icon: "✓", label: "Ausweis sichtbar tragen" },
+        { icon: "✓", label: "Zutritt nur in freigegebene Zonen" },
+        { icon: "✓", label: "Sicherheits- und Empfangshinweise beachten" },
+        { icon: "#", label: `Kundennummer ${customerNumber}` },
+      ],
+      note: "Security. Quality. Service. Bitte Ausweis bei Verlust sofort melden."
+    }
+  };
+
+  const content = presetContent[companyPreset] || presetContent.construction;
+  return `
+    <article class="wallet-card-back preset-${escapeHtml(companyPreset)}">
+      <div class="wallet-card-back__bar"></div>
+      <div class="wallet-card-back__content">
+        <p class="wallet-card-back__eyebrow">${escapeHtml(content.eyebrow)}</p>
+        <h3 class="wallet-card-back__title">${escapeHtml(content.title)}</h3>
+        <div class="wallet-card-back__grid">
+          ${content.items.map((item) => `
+            <div class="wallet-card-back__item">
+              <span class="wallet-card-back__icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
+              <span class="wallet-card-back__label">${escapeHtml(item.label)}</span>
+            </div>
+          `).join("")}
+        </div>
+        <div class="wallet-card-back__footer">
+          <div>
+            <p class="wallet-card-back__company">${escapeHtml(companyName)}</p>
+            <p class="wallet-card-back__worker">${escapeHtml(workerName)}</p>
+          </div>
+          <p class="wallet-card-back__note">${escapeHtml(content.note)}</p>
         </div>
       </div>
     </article>

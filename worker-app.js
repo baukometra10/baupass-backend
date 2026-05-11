@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260511g";
+const WORKER_BUILD_TAG = "20260511h";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -2035,13 +2035,13 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
         params.set("apiBase", apiBaseParam);
       }
 
-      manifest.start_url = `/emp-app.html?${params.toString()}`;
+      manifest.start_url = `/worker-install.html?launch=1&${params.toString()}`;
       // White-label: update manifest names dynamically
       if (platformName) {
         manifest.name = platformName + " – Mitarbeiter";
         manifest.short_name = platformName;
         if (manifest.shortcuts) {
-          manifest.shortcuts.forEach((s) => { s.url = `/emp-app.html?view=card&${params.toString()}`; });
+          manifest.shortcuts.forEach((s) => { s.url = `/worker-install.html?launch=1&${params.toString()}`; });
         }
       }
 

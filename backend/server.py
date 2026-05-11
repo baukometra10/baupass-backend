@@ -9860,7 +9860,7 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     )
     db.commit()
 
-    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v=20260511g"
+    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v=20260511h"
     return {
         "accessToken": access_token,
         "link": link,

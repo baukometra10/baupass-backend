@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260511g";
+const WORKER_BUILD = "20260511h";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -53,8 +53,8 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
-  // emp-app.html: Network-first so every load gets the latest version.
-  if (requestUrl.pathname === "/emp-app.html" || requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
+  // Launcher + app shell: always prefer network so installed apps pull the latest build.
+  if (requestUrl.pathname === "/worker-install.html" || requestUrl.pathname === "/worker-build.json" || requestUrl.pathname === "/emp-app.html" || requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -62,7 +62,7 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(async () => {
-          const cachedPage = await caches.match("/emp-app.html", { ignoreSearch: true });
+          const cachedPage = await caches.match("/worker-install.html", { ignoreSearch: true }) || await caches.match("/emp-app.html", { ignoreSearch: true });
           return cachedPage || new Response("Offline", { status: 503, statusText: "Offline" });
         })
     );
@@ -137,7 +137,7 @@ self.addEventListener("push", (event) => {
     icon: "/worker-icon-192-20260511f.png",
     badge: "/worker-icon-192-20260511f.png",
     vibrate: [200, 100, 200],
-    data: { url: data.url || "/emp-app.html?view=card&v=20260511g" },
+    data: { url: data.url || "/worker-install.html?launch=1" },
     actions: data.actions || []
   };
   event.waitUntil(self.registration.showNotification(title, options));
@@ -145,7 +145,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/emp-app.html?view=card&v=20260511g";
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/worker-install.html?launch=1";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
@@ -188,7 +188,7 @@ self.addEventListener("message", (event) => {
         icon: "/worker-icon-192-20260511f.png",
         badge: "/worker-icon-192-20260511f.png",
         vibrate: [300, 150, 300],
-        data: { url: "/emp-app.html?view=card&v=20260511g" }
+        data: { url: "/worker-install.html?launch=1" }
       });
     }, delayMs);
   }

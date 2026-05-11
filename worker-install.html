@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Language" content="de" />
   <meta name="google" content="notranslate" />
   <meta name="theme-color" content="#d4b597" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260511g" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260511h" />
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192-20260511f.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192-20260511f.png" />
   <title>BauPass App installieren</title>
@@ -83,6 +83,8 @@
   <script>
     const params = new URL(window.location.href).searchParams;
     const accessToken = params.get("access") || "";
+    const apiBase = params.get("apiBase") || "";
+    const shouldAutoLaunch = params.get("launch") === "1" || window.matchMedia?.("(display-mode: standalone)")?.matches || Boolean(window.navigator.standalone);
     if (accessToken) {
       try {
         localStorage.setItem("baupass-worker-access-token", accessToken);
@@ -90,7 +92,37 @@
         // ignore storage failures
       }
     }
-    const targetUrl = `./emp-app.html?view=card&v=20260511g${accessToken ? `&access=${encodeURIComponent(accessToken)}` : ""}`;
+
+    if (apiBase) {
+      try {
+        localStorage.setItem("baupass-api-base", apiBase);
+      } catch {
+        // ignore storage failures
+      }
+    }
+
+    async function resolveLatestTargetUrl() {
+      let buildInfo = { build: "20260511h", entry: "/emp-app.html" };
+      try {
+        const response = await fetch(`./worker-build.json?t=${Date.now()}`, { cache: "no-store" });
+        if (response.ok) {
+          buildInfo = { ...buildInfo, ...(await response.json()) };
+        }
+      } catch {
+        // keep fallback build info
+      }
+
+      const target = new URL(buildInfo.entry || "/emp-app.html", window.location.origin);
+      target.searchParams.set("view", "card");
+      target.searchParams.set("v", buildInfo.build || "20260511h");
+      if (accessToken) {
+        target.searchParams.set("access", accessToken);
+      }
+      if (apiBase) {
+        target.searchParams.set("apiBase", apiBase);
+      }
+      return target.toString();
+    }
 
     let deferredInstallPrompt = null;
     const installBtn = document.querySelector("#installBtn");
@@ -112,9 +144,19 @@
       deferredInstallPrompt = null;
     });
 
-    openAppBtn.addEventListener("click", () => {
-      window.location.href = targetUrl;
+    openAppBtn.addEventListener("click", async () => {
+      window.location.href = await resolveLatestTargetUrl();
     });
+
+    if (shouldAutoLaunch) {
+      hint.textContent = "App wird aktualisiert und geoeffnet...";
+      Promise.resolve()
+        .then(resolveLatestTargetUrl)
+        .then((targetUrl) => {
+          window.location.replace(targetUrl);
+        })
+        .catch(() => {});
+    }
   </script>
 </body>
 </html>
