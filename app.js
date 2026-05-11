@@ -17032,7 +17032,7 @@ function printBadge(worker, company) {
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>${escapeHtml(runtimeText("badgePrintFormatLabel") || "Ausweis drucken")}</title>
-      <link rel="stylesheet" href="./styles.css?v=${WORKER_PWA_BUILD_TAG}" />
+      <link rel="stylesheet" href="${window.location.origin}/styles.css?v=${WORKER_PWA_BUILD_TAG}" />
       <style>
         @page { size: 85.6mm 54mm; margin: 0; }
         html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
@@ -17184,15 +17184,22 @@ function printBadge(worker, company) {
         </div>
       </div>
       <script>
-        const imgs = Array.from(document.images || []);
-        Promise.all(imgs.map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {
+        const waitForImages = () => Promise.all(Array.from(document.images || []).map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {
           img.onload = resolve;
           img.onerror = resolve;
           setTimeout(resolve, 4000);
-        }))).then(() => {
-          window.focus();
-          window.print();
-          setTimeout(() => window.close(), 500);
+        })));
+
+        const waitForFonts = () => (document.fonts && document.fonts.ready) ? document.fonts.ready.catch(() => {}) : Promise.resolve();
+
+        window.addEventListener("load", () => {
+          Promise.all([waitForImages(), waitForFonts()]).then(() => {
+            requestAnimationFrame(() => {
+              window.focus();
+              window.print();
+              setTimeout(() => window.close(), 500);
+            });
+          });
         });
       </script>
     </body>
