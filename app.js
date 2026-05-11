@@ -17040,6 +17040,14 @@ function printBadge(worker, company) {
         .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
         .print-badge-root .wallet-card { width: 85.6mm !important; height: 54mm !important; margin: 0 !important; }
         .print-badge-root * { break-inside: avoid !important; page-break-inside: avoid !important; }
+              @media print {
+                * { margin: 0 !important; padding: 0 !important; }
+                html { margin: 0 !important; padding: 0 !important; }
+                body { margin: 0 !important; padding: 0 !important; width: 85.6mm; height: 54mm; }
+                .print-badge-root { page-break-after: avoid !important; page-break-before: avoid !important; break-after: avoid !important; break-before: avoid !important; }
+                .wallet-card { page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; overflow: hidden !important; }
+                .wallet-card * { page-break-inside: avoid !important; break-inside: avoid !important; }
+              }
       </style>
     </head>
     <body>

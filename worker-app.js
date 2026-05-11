@@ -2561,10 +2561,16 @@ function registerWorkerSw() {
   navigator.serviceWorker.register(`./worker-sw.js?v=${WORKER_BUILD_TAG}&t=${swTimestamp}`).then((registration) => {
     registration.update().catch(() => {});
 
-    // When a new SW takes control, reload once to serve fresh assets.
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.location.reload();
-    });
+    let swActivatedOnce = false;
+    const handleControllerChange = () => {
+      if (!swActivatedOnce) {
+        swActivatedOnce = true;
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
     // Force-activate waiting SW immediately without delay.
     function activateWaiting(sw) {
