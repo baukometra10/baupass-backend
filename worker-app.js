@@ -2649,6 +2649,13 @@ function enforceWorkerBuildFreshness() {
         // ignore IndexedDB failures
       }
     }
+
+    try {
+      localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
+      localStorage.removeItem(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+    } catch {
+      // ignore localStorage failures
+    }
   }
   
   // Always record current version
