@@ -1750,6 +1750,7 @@ const elements = {
   leaveRequestBossEmail: document.querySelector("#leaveRequestBossEmail"),
   workerHubToggle: document.querySelector("#workerHubToggle"),
   workerHubPanel: document.querySelector("#workerHubPanel"),
+  workerMenuCard: document.querySelector("#workerMenuCard"),
   workerQuickMenu: document.querySelector("#workerQuickMenu"),
   quickMenuButtons: document.querySelectorAll(".quick-menu-btn"),
   workerMenuButtons: document.querySelectorAll("[data-worker-page-target]"),
@@ -4951,17 +4952,28 @@ async function loadLeaveRequests() {
 let cardEntranceTimer = null;
 
 function setWorkerFeaturePanelVisibility(visible) {
-  if (!elements.workerHubPanel) {
+  if (!elements.workerHubPanel && !elements.workerMenuCard) {
     return;
   }
 
   if (visible) {
-    elements.workerHubPanel.style.removeProperty("display");
-    elements.workerHubPanel.classList.remove("hidden");
+    if (elements.workerHubPanel) {
+      elements.workerHubPanel.style.removeProperty("display");
+      elements.workerHubPanel.classList.remove("hidden");
+    }
+    if (elements.workerMenuCard) {
+      elements.workerMenuCard.style.removeProperty("display");
+      elements.workerMenuCard.classList.remove("hidden");
+    }
     return;
   }
 
-  elements.workerHubPanel.style.setProperty("display", "none", "important");
+  if (elements.workerHubPanel) {
+    elements.workerHubPanel.style.setProperty("display", "none", "important");
+  }
+  if (elements.workerMenuCard) {
+    elements.workerMenuCard.style.setProperty("display", "none", "important");
+  }
 }
 
 function initializeCardEntranceAnimation() {
