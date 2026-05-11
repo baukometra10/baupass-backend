@@ -3234,6 +3234,11 @@ function renderWorker(payload) {
   const hasDocs         = !!planFeatures.document_upload;      // ab starter
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
+  // Voice commands are useful for workers, but should stay hidden in visitor mode.
+  if (elements.voiceCommandBtn) {
+    elements.voiceCommandBtn.classList.toggle("hidden", isVisitor);
+  }
+
   // Re-show late banner only if plan allows it
   if (!hasLateAlert) {
     const lateBanner = document.getElementById("lateCheckInBanner");
