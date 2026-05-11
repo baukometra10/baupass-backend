@@ -976,6 +976,58 @@ body.worker-loaded .app-shell {
   bottom: auto;
 }
 
+.wallet-card.preset-construction {
+  background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
+}
+
+.wallet-card.preset-industry {
+  background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%);
+  box-shadow:
+    0 40px 80px rgba(110, 58, 20, .44),
+    0 8px 32px rgba(0, 0, 0, .4),
+    0 0 0 1px rgba(210, 140, 70, .22),
+    inset 0 1px 0 rgba(255, 215, 150, .12);
+}
+
+.wallet-card.preset-industry::before {
+  background: linear-gradient(90deg, #c06e22 0%, #e2ad62 50%, #c06e22 100%);
+}
+
+.wallet-card.preset-industry .wc-brand-mark {
+  background: linear-gradient(135deg, #bc6f2d, #d6964e);
+  box-shadow: 0 3px 10px rgba(146, 90, 40, .45);
+}
+
+.wallet-card.preset-industry .wc-qr-frame {
+  background: linear-gradient(135deg, #6f411b 0%, #b37333 24%, #e5bb79 46%, #c8833a 66%, #75451f 100%);
+  border-color: rgba(232, 182, 112, .42);
+  box-shadow: 0 12px 24px rgba(122, 76, 33, .35), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(65, 38, 15, .44);
+}
+
+.wallet-card.preset-premium {
+  background: linear-gradient(135deg, #010d1f 0%, #06245a 42%, #000e22 100%);
+  box-shadow:
+    0 40px 80px rgba(0, 40, 150, .5),
+    0 8px 32px rgba(0, 0, 0, .42),
+    0 0 0 1px rgba(80, 160, 255, .18),
+    inset 0 1px 0 rgba(120, 190, 255, .12);
+}
+
+.wallet-card.preset-premium::before {
+  background: linear-gradient(90deg, #1565c0 0%, #42a5f5 48%, #1565c0 100%);
+}
+
+.wallet-card.preset-premium .wc-brand-mark {
+  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  box-shadow: 0 3px 10px rgba(21, 101, 192, .55);
+}
+
+.wallet-card.preset-premium .wc-qr-frame {
+  background: linear-gradient(135deg, #082060 0%, #1565c0 24%, #42a5f5 46%, #1976d2 66%, #061840 100%);
+  border-color: rgba(66, 165, 245, .42);
+  box-shadow: 0 12px 24px rgba(0, 60, 160, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 20, 80, .44);
+}
+
 /* Holographischer Shimmer */
 .wc-shimmer {
   position: absolute;

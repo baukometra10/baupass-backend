@@ -4053,42 +4053,53 @@ body.theme-black .badge-shell .wallet-card.preset-premium,
 body.theme-black .badge-shell .wallet-card .wc-name,
 [data-theme="dark"] .badge-shell .wallet-card .wc-name {
   color: #fff !important;
+  font-size: .69rem !important;
+  line-height: 1.12 !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-brand-name,
 [data-theme="dark"] .badge-shell .wallet-card .wc-brand-name {
   color: #fff !important;
+  font-size: .68rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-brand-sub,
 [data-theme="dark"] .badge-shell .wallet-card .wc-brand-sub {
   color: rgba(255, 255, 255, .45) !important;
+  font-size: .44rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-role-text,
 [data-theme="dark"] .badge-shell .wallet-card .wc-role-text {
   color: rgba(255, 255, 255, .62) !important;
+  font-size: .46rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-field-label,
 [data-theme="dark"] .badge-shell .wallet-card .wc-field-label {
   color: rgba(220, 232, 255, .86) !important;
+  font-size: .36rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-field-value,
 [data-theme="dark"] .badge-shell .wallet-card .wc-field-value {
   color: rgba(250, 252, 255, .99) !important;
+  font-size: .47rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value,
 [data-theme="dark"] .badge-shell .wallet-card .wc-field.wc-field-badge .wc-field-value {
   color: #ffe9a8 !important;
+  font-size: .6rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-company,
 [data-theme="dark"] .badge-shell .wallet-card .wc-company {
   color: rgba(255, 255, 255, .93) !important;
+  font-size: .45rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-subcompany,
 [data-theme="dark"] .badge-shell .wallet-card .wc-subcompany {
   color: rgba(220, 236, 255, .84) !important;
+  font-size: .39rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-status,
 [data-theme="dark"] .badge-shell .wallet-card .wc-status {
   color: #4ade80 !important;
+  font-size: .38rem !important;
 }
 body.theme-black .badge-shell .wallet-card .wc-status::before,
 [data-theme="dark"] .badge-shell .wallet-card .wc-status::before {
@@ -5543,11 +5554,6 @@ body.desktop-app .topbar {
 
 /* ── Ausweis drucken ──────────────────────────────────────────── */
 @media print {
-  @page {
-    size: 85.6mm 54mm;
-    margin: 0;
-  }
-
   body { background: #fff !important; color: #000 !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   body > *:not(.print-badge-root) { display: none !important; }
@@ -5557,6 +5563,7 @@ body.desktop-app .topbar {
     inset: auto !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 85.6mm !important;
     background: #fff !important;
   }
   .print-badge-root .badge-shell {
@@ -5564,12 +5571,14 @@ body.desktop-app .topbar {
     min-height: 0 !important;
     padding: 0 !important;
     background: transparent !important;
+    width: 85.6mm !important;
     transform: none !important;
     zoom: 1 !important;
   }
   .print-badge-root .badge-card-stage {
     display: block !important;
     width: 85.6mm !important;
+    height: 54mm !important;
     justify-items: start !important;
   }
   .print-badge-root .wallet-card {
@@ -5587,6 +5596,10 @@ body.desktop-app .topbar {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     transform: none !important;
+    display: grid !important;
+    grid-template-rows: auto auto 1fr !important;
+    gap: 1.15mm !important;
+    overflow: hidden !important;
   }
   .print-badge-root .wallet-card.preset-industry {
     background: linear-gradient(135deg, #241406 0%, #5a3313 44%, #2a1708 100%) !important;
@@ -5615,13 +5628,16 @@ body.desktop-app .topbar {
   .print-badge-root .wallet-card .wc-nfc        { width: 5.5mm !important; height: 5.5mm !important; }
   .print-badge-root .wallet-card .wc-qr-holder  { width: 22.8mm !important; height: 22.8mm !important; min-width: 22.8mm !important; flex-shrink: 0 !important; }
   .print-badge-root .wallet-card .wc-middle { display: flex !important; justify-content: space-between !important; align-items: center !important; gap: 2mm !important; }
+  .print-badge-root .wallet-card .wc-top,
+  .print-badge-root .wallet-card .wc-middle,
+  .print-badge-root .wallet-card .wc-bottom { margin: 0 !important; }
   .print-badge-root .wallet-card .wc-qr-frame   { inset: -1.5mm !important; border-radius: 3mm !important; }
   .print-badge-root .wallet-card .wc-qr-frame::before { display: none !important; }
   .print-badge-root .wallet-card .badge-wallet-qr { border-radius: 1.5mm !important; padding: 0.5mm !important; }
   .print-badge-root .wallet-card .wc-photo      { display: block !important; width: 20.5mm !important; height: 20.5mm !important; border-radius: 2.5mm !important; min-width: 20.5mm !important; flex-shrink: 0 !important; }
   .print-badge-root .wallet-card .wc-name       { font-size: 8.4pt !important; line-height: 1.16 !important; margin: 0 0 1px !important; }
   .print-badge-root .wallet-card .wc-role-text  { font-size: 5.6pt !important; line-height: 1.1 !important; margin: 0 0 1.6mm !important; }
-  .print-badge-root .wallet-card .wc-bottom     { margin-top: 2.3mm !important; }
+  .print-badge-root .wallet-card .wc-bottom     { margin-top: .7mm !important; }
   .print-badge-root .wallet-card .wc-footer     { display: flex !important; justify-content: space-between !important; align-items: flex-end !important; gap: 1mm !important; }
   .print-badge-root .wallet-card .wc-fields     { display: flex !important; flex-direction: row !important; gap: 2.5mm !important; align-items: flex-end !important; }
   .print-badge-root .wallet-card .wc-field      { display: flex !important; flex-direction: column !important; gap: .3mm !important; }
