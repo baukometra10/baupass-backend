@@ -2542,6 +2542,21 @@ function registerWorkerSw() {
   if (!("serviceWorker" in navigator)) {
     return;
   }
+  
+  // CRITICAL: Clear old SW registrations from worker.html path before registering new emp-app.js SW
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => {
+        regs.forEach((reg) => {
+          // Unregister old worker.html SWs to prevent conflicts
+          if (reg.scope.includes("worker.html")) {
+            reg.unregister().catch(() => {});
+          }
+        });
+      })
+      .catch(() => {});
+  }
+  
   const swTimestamp = Math.floor(Date.now() / 1000);
   navigator.serviceWorker.register(`./worker-sw.js?v=${WORKER_BUILD_TAG}&t=${swTimestamp}`).then((registration) => {
     registration.update().catch(() => {});
@@ -2576,6 +2591,30 @@ function registerWorkerSw() {
 
 function enforceWorkerBuildFreshness() {
   const buildTag = WORKER_BUILD_TAG;
+  const LAST_BUILD_VERSION_KEY = "baupass-worker-last-build-tag";
+  const lastBuildTag = window.localStorage.getItem(LAST_BUILD_VERSION_KEY);
+  
+  // Detect version change and clear old caches
+  const versionChanged = lastBuildTag && lastBuildTag !== buildTag;
+  if (versionChanged) {
+    // Version changed - clear IndexedDB and old caches
+    if ("indexedDB" in window) {
+      try {
+        indexedDB.databases().then((dbs) => {
+          dbs.forEach((db) => {
+            if (db.name && (db.name.includes("baupass") || db.name.includes("worker"))) {
+              indexedDB.deleteDatabase(db.name).catch(() => {});
+            }
+          });
+        }).catch(() => {});
+      } catch {
+        // ignore IndexedDB failures
+      }
+    }
+  }
+  
+  // Always record current version
+  window.localStorage.setItem(LAST_BUILD_VERSION_KEY, buildTag);
 
   try {
     const url = new URL(window.location.href);

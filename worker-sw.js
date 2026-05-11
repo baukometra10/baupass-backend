@@ -6,7 +6,7 @@ const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const STATIC_ASSETS = [
   { path: "/worker.css", rev: WORKER_BUILD },
   { path: "/worker-app.js", rev: WORKER_BUILD },
-  { path: "/worker-manifest.json", rev: WORKER_BUILD },
+  { path: "/emp-app-manifest.json", rev: WORKER_BUILD },
   { path: "/worker-icon-192-20260511f.png" },
   { path: "/worker-icon-512-20260511f.png" },
   { path: "/worker-icon-192-20260511f.svg" },
@@ -53,8 +53,8 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
-  // worker.html: Network-first so every load gets the latest version.
-  if (requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
+  // emp-app.html: Network-first so every load gets the latest version.
+  if (requestUrl.pathname === "/emp-app.html" || requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -62,7 +62,7 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(async () => {
-          const cachedPage = await caches.match("/worker.html", { ignoreSearch: true });
+          const cachedPage = await caches.match("/emp-app.html", { ignoreSearch: true });
           return cachedPage || new Response("Offline", { status: 503, statusText: "Offline" });
         })
     );
@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Keep app shell code current in installed iOS/Android app.
-  if (requestUrl.pathname === "/worker-app.js" || requestUrl.pathname === "/worker.css" || requestUrl.pathname === "/worker-manifest.json") {
+  if (requestUrl.pathname === "/worker-app.js" || requestUrl.pathname === "/worker.css" || requestUrl.pathname === "/emp-app-manifest.json" || requestUrl.pathname === "/worker-manifest.json") {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
