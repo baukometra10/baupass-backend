@@ -1601,10 +1601,10 @@ body.worker-loaded .wallet-card {
 
 .below-card {
   padding: 16px;
-  background: var(--card-strong);
-  border: 1px solid rgba(255, 255, 255, .68);
-  border-radius: 20px;
-  box-shadow: 0 16px 35px rgba(68, 41, 25, .1), inset 0 1px 0 rgba(255, 255, 255, .65);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(248, 244, 239, .96));
+  border: 1px solid rgba(255, 255, 255, .52);
+  border-radius: 22px;
+  box-shadow: 0 18px 38px rgba(68, 41, 25, .09), inset 0 1px 0 rgba(255, 255, 255, .72);
 }
 
 /* ── Pass-Header (Titel + Status-Banner) ── */
@@ -1651,7 +1651,7 @@ body.worker-loaded .wallet-card {
   gap: 10px;
   width: 100%;
   min-height: 58px;
-  border-radius: 18px;
+  border-radius: 20px;
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: .01em;
@@ -1689,13 +1689,13 @@ body.worker-loaded .wallet-card {
   width: 58px;
   height: 58px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #df623d, #a63b22);
+  background: linear-gradient(135deg, #c85b3e, #86351f);
   color: #fff;
   border: none;
   display: none; /* hidden until worker-loaded */
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(166, 59, 34, .40), 0 2px 8px rgba(0,0,0,.18);
+  box-shadow: 0 10px 26px rgba(134, 53, 31, .38), 0 2px 8px rgba(0,0,0,.18);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   padding: 0;
@@ -1703,7 +1703,7 @@ body.worker-loaded .wallet-card {
 
 .quick-gate-fab:hover {
   transform: scale(1.08) translateY(-2px);
-  box-shadow: 0 12px 32px rgba(166, 59, 34, .5), 0 4px 12px rgba(0,0,0,.22);
+  box-shadow: 0 14px 34px rgba(134, 53, 31, .46), 0 4px 12px rgba(0,0,0,.22);
 }
 
 .quick-gate-fab:active {
@@ -1746,7 +1746,7 @@ body.worker-loaded .quick-gate-fab {
 
 .site-inline-link {
   text-decoration: none;
-  color: #1147a6;
+  color: #0f4a8a;
 }
 
 .site-inline-link:hover,
@@ -3050,19 +3050,20 @@ body {
 
 /* ── Worker: Leave request list ────────────────────────────────────── */
 .leave-request-item { border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); }
+.leave-request-item { border-radius: 14px; border-color: rgba(140, 105, 74, .18); background: linear-gradient(180deg, rgba(255,255,255,.78), rgba(248,243,236,.96)); }
 .leave-req-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .leave-req-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; }
 .leave-status-ok .leave-req-badge { background: #2e7d32; color: #fff; }
 .leave-status-no .leave-req-badge { background: #c62828; color: #fff; }
 .leave-status-pending .leave-req-badge { background: #e65100; color: #fff; }
 .leave-req-dates { font-size: 13px; opacity: .8; display: flex; align-items: center; gap: 8px; }
-.leave-req-days { font-size: 11px; background: rgba(255,255,255,.18); border-radius: 10px; padding: 1px 7px; font-weight: 700; }
+.leave-req-days { font-size: 11px; background: rgba(17, 74, 138, .10); border-radius: 999px; padding: 1px 8px; font-weight: 700; }
 .leave-req-note { font-size: 12px; opacity: .7; font-style: italic; margin-top: 6px; }
-.leave-req-review { font-size: 12px; margin-top: 6px; background: rgba(255,255,255,.1); border-radius: 4px; padding: 4px 8px; }
+.leave-req-review { font-size: 12px; margin-top: 6px; background: rgba(17, 74, 138, .08); border-radius: 10px; padding: 4px 10px; }
 
 /* ── Worker: Timesheet total ───────────────────────────────────────── */
 .timesheet-date-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.timesheet-total { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.15); border-radius: 12px; padding: 2px 10px; }
+.timesheet-total { font-size: 13px; font-weight: 700; background: rgba(17, 74, 138, .08); border-radius: 999px; padding: 2px 10px; }
 
 /* ── Logout button prominent ────────────────────────────────────── */
 .logout-btn-prominent {
@@ -3121,33 +3122,33 @@ body {
 
 /* ── Top-Panel Verbesserungen ──────────────────────────────────────── */
 .top-panel .install-cta {
-  background: linear-gradient(135deg, rgba(199, 134, 82, 0.22), rgba(199, 134, 82, 0.10));
-  border: 1px solid rgba(199, 134, 82, 0.45);
-  color: #f5e8d5;
+  background: linear-gradient(135deg, rgba(35, 75, 116, 0.18), rgba(35, 75, 116, 0.08));
+  border: 1px solid rgba(35, 75, 116, 0.34);
+  color: #eef6ff;
   font-weight: 800;
   letter-spacing: .01em;
   font-size: .95rem;
-  box-shadow: 0 4px 16px rgba(100, 60, 20, 0.18);
+  box-shadow: 0 4px 16px rgba(19, 49, 79, 0.16);
   transition: background .2s ease, box-shadow .2s ease, transform .15s ease;
 }
 
 .top-panel .install-cta:hover {
-  background: linear-gradient(135deg, rgba(199, 134, 82, 0.35), rgba(199, 134, 82, 0.18));
-  box-shadow: 0 8px 24px rgba(100, 60, 20, 0.28);
+  background: linear-gradient(135deg, rgba(35, 75, 116, 0.28), rgba(35, 75, 116, 0.16));
+  box-shadow: 0 8px 24px rgba(19, 49, 79, 0.24);
 }
 
 /* Stat-Karten im Top-Panel – warm coffee palette */
 .top-stat-card {
-  background: rgba(88, 52, 26, 0.18) !important;
-  border: 1px solid rgba(116, 80, 52, 0.28) !important;
+  background: rgba(22, 34, 48, 0.16) !important;
+  border: 1px solid rgba(88, 102, 120, 0.22) !important;
 }
 
 .top-stat-card strong {
-  color: #f5e8d5 !important;
+  color: #f3f7fb !important;
 }
 
 .top-stat-label {
-  color: rgba(220, 190, 158, 0.68) !important;
+  color: rgba(219, 230, 242, 0.72) !important;
 }
 
 /* ── Interior polish: Worker app inside layout ───────────────────── */
@@ -3157,11 +3158,11 @@ body {
 
 .worker-loaded .below-card {
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.38);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.34)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.26)),
     var(--card-strong);
-  box-shadow: 0 14px 34px rgba(52, 30, 17, 0.11);
+  box-shadow: 0 16px 34px rgba(52, 30, 17, 0.09);
 }
 
 [data-theme="dark"] .worker-loaded .below-card {
@@ -3175,7 +3176,7 @@ body {
 .worker-loaded .section-head {
   gap: 6px;
   padding-bottom: 10px;
-  border-bottom: 1px dashed rgba(140, 105, 74, 0.28);
+  border-bottom: 1px dashed rgba(88, 102, 120, 0.22);
 }
 
 .worker-loaded .section-kicker {
@@ -3213,6 +3214,22 @@ body {
 .worker-loaded .quick-menu-btn,
 .worker-loaded .worker-menu-btn {
   font-weight: 720;
+}
+
+.worker-loaded .leave-request-item {
+  border-radius: 14px;
+  border: 1px solid rgba(88, 102, 120, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(246, 249, 252, 0.96));
+}
+
+.worker-loaded .leave-req-dates,
+.worker-loaded .leave-req-note,
+.worker-loaded .leave-req-review {
+  color: rgba(49, 62, 77, 0.84);
+}
+
+.worker-loaded .timesheet-total {
+  background: rgba(17, 74, 138, 0.1);
 }
 
 .worker-loaded .actions-secondary {
