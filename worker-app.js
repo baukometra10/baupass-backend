@@ -173,6 +173,15 @@ const TRANSLATIONS = {
     photoOfflineQueued: "Kein Internet: Foto wird spaeter synchronisiert.",
     dayCardValidToday: "Digitale Besucherkarte: gueltig bis heute 00:00 Uhr.",
     dayCardValidUntil: "Digitale Besucherkarte: gueltig bis {time} Uhr.",
+    visitorCardTitle: "Besucherkarte",
+    visitorPassSubLabel: "Gast",
+    visitorRole: "Gast",
+    visitorBadge: "BESUCHERKARTE",
+    visitorTimeRemaining: "Verbleibend",
+    fieldVisitorCompany: "Besucherfirma",
+    fieldVisitPurpose: "Besuchszweck",
+    fieldHostName: "Ansprechpartner",
+    fieldVisitEndAt: "Gültig bis",
     autoEndedAtMidnight: "Digitale Besucherkarte wurde um 00:00 automatisch beendet. Bitte neu anmelden.",
     updateAvailable: "Neue App-Version verfügbar – wird in wenigen Sekunden neu geladen …",
     siteLocationUnavailable: "Standort konnte nicht ermittelt werden – Login trotzdem erlaubt. Bitte Admin informieren.",
@@ -3106,8 +3115,63 @@ function renderWorker(payload) {
     }
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // PREMIUM VISITOR CARD RENDERING
+  // ════════════════════════════════════════════════════════════════
+  const visitorCardContainer = document.getElementById("visitorCardContainer");
+  if (visitorCardContainer) {
+    visitorCardContainer.classList.toggle("hidden", !isVisitor);
+    
+    if (isVisitor) {
+      // Update visitor card with premium styling
+      const visitorName = document.getElementById("visitorName");
+      const visitorCompany = document.getElementById("visitorCompany");
+      const visitorPurpose = document.getElementById("visitorPurpose");
+      const visitorHost = document.getElementById("visitorHost");
+      const visitorEndTime = document.getElementById("visitorEndTime");
+      const visitorBadgeId = document.getElementById("visitorBadgeId");
+      const visitorPhoto = document.getElementById("visitorPhoto");
+      const visitorQr = document.getElementById("visitorQr");
+      
+      // Set visitor information
+      if (visitorName) visitorName.textContent = `${worker.firstName || ""} ${worker.lastName || ""}`.trim() || t("workerDefaultName");
+      if (visitorCompany) visitorCompany.textContent = worker.visitorCompany || "-";
+      if (visitorPurpose) visitorPurpose.textContent = worker.visitPurpose || "-";
+      if (visitorHost) visitorHost.textContent = worker.hostName || "-";
+      if (visitorEndTime) visitorEndTime.textContent = worker.visitEndAt ? formatDateTime(worker.visitEndAt) : "-";
+      if (visitorBadgeId) visitorBadgeId.textContent = workerBadgeId || "-";
+      
+      // Set visitor photo
+      if (visitorPhoto) {
+        if (worker.photoData && String(worker.photoData).startsWith("data:image")) {
+          visitorPhoto.src = worker.photoData;
+        } else {
+          const localPhoto = localStorage.getItem(LOCAL_LAST_PHOTO_KEY);
+          visitorPhoto.src = localPhoto && localPhoto.startsWith("data:image")
+            ? localPhoto
+            : createAvatar(worker.firstName, worker.lastName);
+        }
+      }
+      
+      // Set visitor QR code
+      if (visitorQr && qrPayload) {
+        void setQrImage(visitorQr, qrPayload, 160);
+      }
+      
+      // Start visitor countdown timer
+      startVisitorCountdownTimer(worker.visitEndAt);
+      
+      // Hide worker card, show visitor card
+      if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
+    } else {
+      // Stop visitor timer if switching to worker
+      stopVisitorCountdownTimer();
+      if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
+    }
+  }
+
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
-  if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
+  if (!isVisitor && elements.badgeCard) elements.badgeCard.classList.remove("hidden");
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -5253,4 +5317,86 @@ if (workerToken) {
 } else {
   console.log("[worker-app init] No token, showing login");
   showLogin();
+}
+
+// ════════════════════════════════════════════════════════════════
+// VISITOR COUNTDOWN TIMER – Premium Timer Management
+// ════════════════════════════════════════════════════════════════
+
+let visitorCountdownInterval = null;
+let visitorTimerRing = null;
+let visitorTimeRemaining = null;
+
+function startVisitorCountdownTimer(visitEndAt) {
+  stopVisitorCountdownTimer(); // Clear any existing timer
+  
+  if (!visitEndAt) return;
+  
+  const timerRing = document.getElementById("visitorTimerRing");
+  const timeDisplay = document.getElementById("visitorTimeRemaining");
+  
+  if (!timerRing || !timeDisplay) return;
+  
+  const MAX_DASH_OFFSET = 345.6; // Circumference of 55px radius circle
+  const updateTimer = () => {
+    const now = new Date();
+    const endTime = new Date(visitEndAt);
+    const diffMs = endTime - now;
+    
+    if (diffMs <= 0) {
+      // Timer expired
+      timeDisplay.textContent = "00:00";
+      timerRing.style.strokeDashoffset = MAX_DASH_OFFSET;
+      stopVisitorCountdownTimer();
+      showWorkerNotice("Besuchszeit abgelaufen");
+      return;
+    }
+    
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    // Format time display
+    if (hours > 0) {
+      timeDisplay.textContent = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    } else {
+      timeDisplay.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+    
+    // Calculate total duration (initial endTime - now when started)
+    const startMs = visitEndAt - (Math.floor((endTime - now) / 1000) * 1000); // Rough estimate
+    const totalDurationMs = endTime - startMs;
+    const progressRatio = diffMs / totalDurationMs;
+    const dashOffset = MAX_DASH_OFFSET * progressRatio;
+    
+    timerRing.style.strokeDashoffset = Math.max(0, dashOffset);
+    
+    // Warning colors as time runs out
+    const timerSection = document.querySelector(".vc-timer-section");
+    if (timerSection) {
+      if (diffMs < 5 * 60 * 1000) { // Less than 5 minutes
+        timerSection.classList.add("timer-critical");
+      } else if (diffMs < 15 * 60 * 1000) { // Less than 15 minutes
+        timerSection.classList.add("timer-warning");
+      } else {
+        timerSection.classList.remove("timer-warning", "timer-critical");
+      }
+    }
+  };
+  
+  updateTimer(); // Initial update
+  visitorCountdownInterval = window.setInterval(updateTimer, 1000);
+}
+
+function stopVisitorCountdownTimer() {
+  if (visitorCountdownInterval) {
+    window.clearInterval(visitorCountdownInterval);
+    visitorCountdownInterval = null;
+  }
+  
+  const timerSection = document.querySelector(".vc-timer-section");
+  if (timerSection) {
+    timerSection.classList.remove("timer-warning", "timer-critical");
+  }
 }

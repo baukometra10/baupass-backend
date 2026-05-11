@@ -230,6 +230,86 @@
       </div>
       </div>
 
+      <!-- Visitor Card: Premium Experience for Guests -->
+      <div id="visitorCardContainer" class="visitor-card-container hidden">
+        <div class="visitor-card">
+          <!-- Timer Section -->
+          <div class="vc-timer-section">
+            <div class="vc-timer-display">
+              <svg class="vc-timer-ring" width="120" height="120" viewBox="0 0 120 120">
+                <defs>
+                  <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+                  </linearGradient>
+                </defs>
+                <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
+                <circle id="visitorTimerRing" cx="60" cy="60" r="55" fill="none" stroke="url(#timerGradient)" stroke-width="3" stroke-linecap="round" stroke-dasharray="345.6" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+              </svg>
+              <div class="vc-timer-text">
+                <span id="visitorTimeRemaining" class="vc-time-value">00:00</span>
+                <span class="vc-time-label" data-i18n="visitorTimeRemaining">Verbleibend</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Info Section -->
+          <div class="vc-info-section">
+            <div class="vc-header">
+              <h2 id="visitorName" class="vc-name">Gast</h2>
+              <span class="vc-badge" data-i18n="visitorBadge">Besucherkarte</span>
+            </div>
+
+            <div class="vc-details">
+              <div class="vc-detail-row">
+                <span class="vc-detail-icon">🏢</span>
+                <div class="vc-detail-content">
+                  <span class="vc-detail-label" data-i18n="fieldVisitorCompany">Besucherfirma</span>
+                  <span id="visitorCompany" class="vc-detail-value">–</span>
+                </div>
+              </div>
+
+              <div class="vc-detail-row">
+                <span class="vc-detail-icon">🎯</span>
+                <div class="vc-detail-content">
+                  <span class="vc-detail-label" data-i18n="fieldVisitPurpose">Besuchszweck</span>
+                  <span id="visitorPurpose" class="vc-detail-value">–</span>
+                </div>
+              </div>
+
+              <div class="vc-detail-row">
+                <span class="vc-detail-icon">👤</span>
+                <div class="vc-detail-content">
+                  <span class="vc-detail-label" data-i18n="fieldHostName">Ansprechpartner</span>
+                  <span id="visitorHost" class="vc-detail-value">–</span>
+                </div>
+              </div>
+
+              <div class="vc-detail-row">
+                <span class="vc-detail-icon">⏰</span>
+                <div class="vc-detail-content">
+                  <span class="vc-detail-label" data-i18n="fieldVisitEndAt">Gültig bis</span>
+                  <span id="visitorEndTime" class="vc-detail-value">–</span>
+                </div>
+              </div>
+            </div>
+
+            <img id="visitorPhoto" class="vc-photo" alt="Besucherfoto" data-i18n="workerPhotoAlt" data-i18n-attr="alt" />
+          </div>
+
+          <!-- QR Code Section -->
+          <div class="vc-qr-section">
+            <img id="visitorQr" class="vc-qr-image" alt="QR Code" data-i18n="qrCodeAlt" data-i18n-attr="alt" />
+          </div>
+
+          <!-- Badge ID -->
+          <div class="vc-badge-id">
+            <span class="vc-badge-label" data-i18n="fieldBadgeId">Badge-ID</span>
+            <span id="visitorBadgeId" class="vc-badge-value">–</span>
+          </div>
+        </div>
+      </div>
+
       <div class="worker-hub-toggle-row">
         <button id="workerHubToggle" class="ghost small-btn worker-hub-toggle" type="button">Bereiche anzeigen</button>
       </div>
