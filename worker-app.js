@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260511e";
+const WORKER_BUILD_TAG = "20260511f";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");

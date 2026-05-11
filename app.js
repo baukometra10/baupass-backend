@@ -86,7 +86,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260511e";
+const WORKER_PWA_BUILD_TAG = "20260511f";
 
 function loadStoredSessionToken() {
   try {
@@ -17037,16 +17037,15 @@ function printBadge(worker, company) {
         html, body { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
         body { background: #fff; overflow: hidden; }
         .print-badge-root { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
-        .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
-        .print-badge-root .badge-card-stage { width: 85.6mm; height: 54mm; margin: 0; padding: 0; }
+        .print-badge-root .badge-shell { width: 85.6mm; height: 54mm; margin: 0; padding: 0; min-height: 0 !important; display: block !important; background: transparent !important; }
+        .print-badge-root .wallet-card { width: 85.6mm !important; height: 54mm !important; margin: 0 !important; }
+        .print-badge-root * { break-inside: avoid !important; page-break-inside: avoid !important; }
       </style>
     </head>
     <body>
       <div class="print-badge-root">
         <div class="badge-shell">
-          <div class="badge-card-stage">
-            ${printableMarkup}
-          </div>
+          ${printableMarkup}
         </div>
       </div>
       <script>
