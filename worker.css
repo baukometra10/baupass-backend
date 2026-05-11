@@ -980,19 +980,19 @@ body.worker-loaded .app-shell {
   margin: 0 auto;
   aspect-ratio: 85.6 / 56;
   min-height: 272px;
-  border-radius: 30px;
-  padding: 5.4% 6%;
+  border-radius: 32px;
+  padding: 5.6% 6.2%;
   background: linear-gradient(
     135deg,
-    #0b1520 0%,
-    #183243 44%,
-    #081018 100%
+    #0a1218 0%,
+    #1a3844 42%,
+    #070f18 100%
   );
   box-shadow:
-    0 48px 100px rgba(0, 0, 0, .58),
-    0 12px 36px rgba(0, 0, 0, .34),
-    0 0 0 1px rgba(255, 255, 255, .12),
-    inset 0 1px 0 rgba(255, 255, 255, .16);
+    0 56px 112px rgba(0, 0, 0, .62),
+    0 16px 42px rgba(0, 0, 0, .38),
+    0 0 0 1px rgba(255, 255, 255, .14),
+    inset 0 1px 0 rgba(255, 255, 255, .18);
   color: #fff;
   overflow: hidden;
   display: flex;
@@ -1112,13 +1112,13 @@ body.worker-loaded .wallet-card {
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    rgba(255, 184, 126, .98) 0%,
-    #f0844a 46%,
-    rgba(255, 206, 156, .96) 100%
+    rgba(255, 188, 132, .99) 0%,
+    #f08a50 44%,
+    rgba(255, 210, 162, .98) 100%
   );
-  height: 4px;
+  height: 5px;
   bottom: auto;
-  box-shadow: 0 0 18px rgba(240, 132, 74, .42);
+  box-shadow: 0 0 22px rgba(240, 138, 80, .52), 0 2px 8px rgba(240, 138, 80, .3);
 }
 
 .wallet-card::after {
@@ -1127,9 +1127,9 @@ body.worker-loaded .wallet-card {
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, .15), transparent 18%),
-    radial-gradient(circle at 82% 24%, rgba(113, 177, 255, .08), transparent 20%),
-    linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 18%, transparent 82%, rgba(0, 0, 0, .12));
+    radial-gradient(circle at 16% 16%, rgba(255, 255, 255, .18), transparent 20%),
+    radial-gradient(circle at 84% 22%, rgba(120, 185, 255, .10), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, .06), transparent 16%, transparent 84%, rgba(0, 0, 0, .14));
   pointer-events: none;
 }
 
@@ -1138,12 +1138,12 @@ body.worker-loaded .wallet-card {
 }
 
 .wallet-card.preset-industry {
-  background: linear-gradient(135deg, #251306 0%, #623815 44%, #271407 100%);
+  background: linear-gradient(135deg, #241005 0%, #663c15 42%, #261206 100%);
   box-shadow:
-    0 44px 88px rgba(110, 58, 20, .42),
-    0 10px 34px rgba(0, 0, 0, .38),
-    0 0 0 1px rgba(210, 140, 70, .24),
-    inset 0 1px 0 rgba(255, 215, 150, .14);
+    0 56px 104px rgba(110, 58, 20, .44),
+    0 14px 38px rgba(0, 0, 0, .4),
+    0 0 0 1px rgba(220, 150, 80, .26),
+    inset 0 1px 0 rgba(255, 220, 160, .16);
 }
 
 .wallet-card.preset-industry::before {
@@ -1156,18 +1156,18 @@ body.worker-loaded .wallet-card {
 }
 
 .wallet-card.preset-industry .wc-qr-frame {
-  background: linear-gradient(135deg, #6f411b 0%, #b37333 24%, #e5bb79 46%, #c8833a 66%, #75451f 100%);
-  border-color: rgba(232, 182, 112, .42);
-  box-shadow: 0 12px 24px rgba(122, 76, 33, .35), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(65, 38, 15, .44);
+  background: linear-gradient(135deg, #6a3d18 0%, #c07c35 24%, #e8c886 44%, #d49344 64%, #774519 100%);
+  border-color: rgba(240, 190, 120, .46);
+  box-shadow: 0 14px 28px rgba(122, 76, 33, .38), inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 -1px 0 rgba(65, 38, 15, .48);
 }
 
 .wallet-card.preset-premium {
-  background: linear-gradient(135deg, #010d1f 0%, #07306d 42%, #000b1a 100%);
+  background: linear-gradient(135deg, #000a18 0%, #083878 42%, #000812 100%);
   box-shadow:
-    0 44px 88px rgba(0, 40, 150, .5),
-    0 10px 34px rgba(0, 0, 0, .4),
-    0 0 0 1px rgba(80, 160, 255, .18),
-    inset 0 1px 0 rgba(120, 190, 255, .12);
+    0 56px 104px rgba(0, 40, 160, .54),
+    0 14px 38px rgba(0, 0, 0, .42),
+    0 0 0 1px rgba(100, 170, 255, .20),
+    inset 0 1px 0 rgba(140, 200, 255, .14);
 }
 
 .wallet-card.preset-premium::before {
@@ -1180,9 +1180,9 @@ body.worker-loaded .wallet-card {
 }
 
 .wallet-card.preset-premium .wc-qr-frame {
-  background: linear-gradient(135deg, #082060 0%, #1565c0 24%, #42a5f5 46%, #1976d2 66%, #061840 100%);
-  border-color: rgba(66, 165, 245, .42);
-  box-shadow: 0 12px 24px rgba(0, 60, 160, .38), inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 20, 80, .44);
+  background: linear-gradient(135deg, #081e58 0%, #1565d0 24%, #52aeff 44%, #1a80e0 64%, #061840 100%);
+  border-color: rgba(82, 174, 255, .48);
+  box-shadow: 0 14px 28px rgba(0, 60, 170, .40), inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 -1px 0 rgba(0, 20, 80, .48);
 }
 
 /* Holographischer Shimmer */
@@ -1241,11 +1241,11 @@ body.worker-loaded .wallet-card {
   width: clamp(26px, 7%, 32px);
   height: clamp(26px, 7%, 32px);
   background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-  border-radius: 7px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 10px rgba(217, 93, 57, .45);
+  box-shadow: 0 4px 12px rgba(217, 93, 57, .52), 0 0 16px rgba(217, 93, 57, .2);
   flex-shrink: 0;
 }
 
