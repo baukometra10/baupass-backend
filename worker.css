@@ -3950,13 +3950,15 @@ body {
   box-shadow: 0 8px 20px rgba(126, 62, 33, .25);
 }
 
-.worker-loaded .actions-secondary {
+.worker-loaded .actions-panel .actions-secondary {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
-.worker-loaded .actions-secondary .small-btn,
-.worker-loaded .theme-toggle-btn,
-.worker-loaded .voice-command-btn,
+.worker-loaded .actions-panel .actions-secondary .small-btn,
+.worker-loaded .actions-panel .theme-toggle-btn,
+.worker-loaded .actions-panel .voice-command-btn,
 .worker-loaded .notification-permission-banner button {
   min-height: 46px;
   border-radius: 12px;
@@ -3966,17 +3968,55 @@ body {
   box-shadow: 0 4px 12px rgba(75, 48, 31, .10), inset 0 1px 0 rgba(255, 255, 255, .92);
   font-weight: 700;
   letter-spacing: .01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 0 12px;
+  text-align: left;
 }
 
-.worker-loaded .actions-secondary .small-btn:hover,
-.worker-loaded .theme-toggle-btn:hover,
-.worker-loaded .voice-command-btn:hover,
+.worker-loaded .actions-panel .actions-secondary .small-btn:hover,
+.worker-loaded .actions-panel .theme-toggle-btn:hover,
+.worker-loaded .actions-panel .voice-command-btn:hover,
 .worker-loaded .notification-permission-banner button:hover {
   background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(240, 232, 221, .98) 100%);
   border-color: rgba(186, 160, 130, .7);
   box-shadow: 0 8px 18px rgba(75, 48, 31, .14), inset 0 1px 0 rgba(255, 255, 255, .95);
   transform: translateY(-1px);
 }
+
+.worker-loaded .actions-panel .theme-toggle-btn,
+.worker-loaded .actions-panel .voice-command-btn {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+
+.worker-loaded .actions-panel .actions-secondary button::before {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #5a4331;
+  background: rgba(198, 166, 135, .20);
+  border: 1px solid rgba(183, 145, 111, .26);
+  flex-shrink: 0;
+}
+
+.worker-loaded .actions-panel #qrContrastToggle::before { content: "Q"; }
+.worker-loaded .actions-panel #changePhotoButton::before { content: "P"; }
+.worker-loaded .actions-panel #refreshButton::before { content: "R"; }
+.worker-loaded .actions-panel #themeToggleBtn::before { content: "T"; }
+.worker-loaded .actions-panel #voiceCommandBtn::before { content: "V"; }
+.worker-loaded .actions-panel #notificationPermissionBtn::before { content: "N"; }
+.worker-loaded .actions-panel #logoutButton::before { content: "L"; }
 
 .worker-loaded .leave-request-card,
 .worker-loaded .timesheet-card,
