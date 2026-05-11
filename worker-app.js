@@ -3234,9 +3234,24 @@ function renderWorker(payload) {
   const hasDocs         = !!planFeatures.document_upload;      // ab starter
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
-  // Voice commands are useful for workers, but should stay hidden in visitor mode.
+  // Show voice control only when it is actually usable.
   if (elements.voiceCommandBtn) {
-    elements.voiceCommandBtn.classList.toggle("hidden", isVisitor);
+    const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const voiceSupported = Boolean(SpeechRecognitionApi);
+    const secureContextOk = Boolean(window.isSecureContext);
+    const canUseVoice = !isVisitor && voiceSupported && secureContextOk;
+
+    elements.voiceCommandBtn.classList.toggle("hidden", !canUseVoice);
+    elements.voiceCommandBtn.disabled = !canUseVoice;
+    elements.voiceCommandBtn.classList.remove("listening");
+
+    if (!voiceSupported) {
+      elements.voiceCommandBtn.title = t("voiceNotSupported");
+    } else if (!secureContextOk) {
+      elements.voiceCommandBtn.title = t("voiceNeedsSecureContext");
+    } else {
+      elements.voiceCommandBtn.title = "";
+    }
   }
 
   // Re-show late banner only if plan allows it
