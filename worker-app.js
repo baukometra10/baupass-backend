@@ -174,7 +174,7 @@ const TRANSLATIONS = {
     dayCardValidToday: "Digitale Besucherkarte: gueltig bis heute 00:00 Uhr.",
     dayCardValidUntil: "Digitale Besucherkarte: gueltig bis {time} Uhr.",
     visitorCardTitle: "Besucherkarte",
-    visitorPassSubLabel: "Gast",
+    visitorPassSubLabel: "Besucherkarte",
     visitorRole: "Gast",
     visitorBadge: "BESUCHERKARTE",
     visitorTimeRemaining: "Verbleibend",
@@ -2968,6 +2968,8 @@ function renderWorker(payload) {
   document.title = appBrandTitle + " – " + t("pageTitle");
   const brandEl = document.getElementById("workerBrandName");
   if (brandEl) brandEl.textContent = appBrandTitle.toUpperCase();
+  const visitorBrandEl = document.getElementById("visitorBrandName");
+  if (visitorBrandEl) visitorBrandEl.textContent = appBrandTitle.toUpperCase();
   const appTitleEl = document.getElementById("workerAppTitle");
   if (appTitleEl) appTitleEl.textContent = appBrandTitle;
   const splashTitleEl = document.getElementById("workerSplashTitle");
@@ -5331,9 +5333,9 @@ if (workerToken) {
 // VISITOR COUNTDOWN TIMER – Premium Timer Management
 // ════════════════════════════════════════════════════════════════
 
-let visitorCountdownInterval = null;
-let visitorTimerRing = null;
-let visitorTimeRemaining = null;
+var visitorCountdownInterval = null;
+var visitorTimerRing = null;
+var visitorTimeRemaining = null;
 
 function startVisitorCountdownTimer(visitEndAt) {
   stopVisitorCountdownTimer(); // Clear any existing timer

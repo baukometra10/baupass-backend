@@ -143,23 +143,6 @@
     inset 0 -1px 0 rgba(0, 0, 60, .48);
 }
 
-/* Visitor card: remove metallic/gold QR-chip look, keep a cleaner glass frame */
-#visitorWalletCard .wc-qr-frame {
-  background: linear-gradient(150deg, rgba(255, 255, 255, .18) 0%, rgba(255, 255, 255, .08) 50%, rgba(255, 255, 255, .12) 100%);
-  border-color: rgba(235, 242, 255, .45);
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, .34),
-    inset 0 1px 0 rgba(255, 255, 255, .38),
-    inset 0 -1px 0 rgba(10, 16, 24, .36);
-}
-
-#visitorWalletCard .wc-qr-frame::before {
-  border-color: rgba(208, 222, 245, .36);
-  background-image:
-    linear-gradient(rgba(208, 222, 245, .12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(208, 222, 245, .12) 1px, transparent 1px);
-}
-
 /* ─────────────────────────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════
    BauPass Mitarbeiter-App – Wallet-Card Redesign
