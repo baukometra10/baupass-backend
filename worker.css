@@ -501,6 +501,10 @@ html[dir="rtl"] .wc-brand {
   gap: 18px;
 }
 
+body.worker-loaded .worker-pass {
+  margin-top: 6px;
+}
+
 .section-head {
   display: grid;
   gap: 4px;
@@ -956,7 +960,7 @@ body.worker-loaded .top-panel {
 
 body.worker-loaded .app-shell {
   max-width: 470px;
-  padding-top: 18px;
+  padding-top: 28px;
 }
 
 /* ═══════════════════════════════════════════════
@@ -1587,6 +1591,7 @@ body.worker-loaded .app-shell {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  padding-top: 2px;
 }
 
 .pass-title {
