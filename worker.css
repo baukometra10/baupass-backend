@@ -1946,6 +1946,184 @@ body.worker-loaded .quick-gate-fab {
   box-shadow: 0 10px 24px rgba(17, 71, 166, .22);
 }
 
+.force-hidden {
+  display: none !important;
+}
+
+.hidden-control {
+  display: none;
+}
+
+.daily-insights-card {
+  display: grid;
+  gap: 12px;
+}
+
+.daily-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.daily-insight-item {
+  border-radius: 14px;
+  border: 1px solid rgba(196, 178, 158, .56);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .97), rgba(244, 238, 230, .96));
+  box-shadow: 0 4px 12px rgba(75, 48, 31, .1), inset 0 1px 0 rgba(255, 255, 255, .92);
+  padding: 10px 12px;
+}
+
+.daily-insight-label {
+  margin: 0;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.daily-insight-item strong {
+  display: block;
+  margin-top: 4px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.company-mode-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(196, 178, 158, .56);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .97), rgba(244, 238, 230, .96));
+}
+
+.company-mode-lead {
+  margin: 0;
+  font-size: .92rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.company-mode-feature-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.company-mode-feature-list li {
+  position: relative;
+  padding-left: 20px;
+  font-size: .86rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.company-mode-feature-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: .45em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c78652;
+  box-shadow: 0 0 0 3px rgba(199, 134, 82, .18);
+}
+
+[data-company-mode="construction"] .company-mode-card {
+  border-color: rgba(199, 134, 82, .5);
+}
+
+[data-company-mode="industry"] .company-mode-card {
+  border-color: rgba(192, 124, 53, .55);
+  background: linear-gradient(180deg, rgba(255, 250, 238, .97), rgba(248, 236, 212, .95));
+}
+
+[data-company-mode="industry"] .company-mode-feature-list li::before {
+  background: #d49344;
+  box-shadow: 0 0 0 3px rgba(212, 147, 68, .22);
+}
+
+[data-company-mode="premium"] .company-mode-card {
+  border-color: rgba(82, 174, 255, .48);
+  background: linear-gradient(180deg, rgba(244, 250, 255, .97), rgba(231, 242, 255, .96));
+}
+
+[data-company-mode="premium"] .company-mode-feature-list li::before {
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .2);
+}
+
+.camera-overlay {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.95);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.camera-video {
+  max-width: 90vw;
+  max-height: 40vh;
+  border-radius: 12px;
+  background: #222;
+}
+
+.camera-preview-wrap {
+  margin-top: 16px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+
+.camera-canvas {
+  max-width: 90vw;
+  max-height: 30vh;
+  border: 2px solid #fff;
+  border-radius: 8px;
+}
+
+.camera-preview-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+}
+
+.camera-main-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+}
+
+.gate-qr-stage {
+  position: relative;
+  display: inline-block;
+  margin: 16px 0;
+}
+
+.gate-qr-frame-glow {
+  position: absolute;
+  inset: -12px;
+  border: 2px dashed rgba(240, 132, 74, 0.4);
+  border-radius: 20px;
+  animation: scannerGlow 2s ease-in-out infinite;
+}
+
+.gate-status-feedback {
+  margin: 8px 0 0;
+  font-size: .85rem;
+  color: rgba(255, 255, 255, .6);
+  height: 20px;
+}
+
 /* ═══════════════════════════════════════════════
    QR-Code
    ═══════════════════════════════════════════════ */
@@ -4082,6 +4260,104 @@ body {
   border-color: #d2b24a;
   background: #f4e7b0;
   color: #1a1a1a;
+}
+
+.worker-pulse-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pulse-item {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 12px 22px rgba(0, 0, 0, 0.18);
+  transition: transform var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.pulse-item:active {
+  transform: scale(0.985);
+}
+
+.pulse-label {
+  margin: 0;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 246, 236, 0.62);
+}
+
+.pulse-item strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  line-height: 1.1;
+  color: #fffaf5;
+}
+
+.pulse-item span {
+  font-size: 0.74rem;
+  color: rgba(255, 246, 236, 0.72);
+}
+
+.pulse-item-network.is-offline {
+  border-color: rgba(254, 202, 202, 0.42);
+  background: linear-gradient(160deg, rgba(127, 29, 29, 0.35), rgba(88, 28, 28, 0.2));
+}
+
+.pulse-item-sync.is-fresh {
+  border-color: rgba(134, 239, 172, 0.34);
+}
+
+.pulse-item-sync.is-stale {
+  border-color: rgba(253, 186, 116, 0.44);
+}
+
+.pulse-item-power.is-low {
+  border-color: rgba(254, 202, 202, 0.42);
+  background: linear-gradient(160deg, rgba(127, 29, 29, 0.35), rgba(88, 28, 28, 0.2));
+}
+
+.pulse-item-flow.is-active {
+  border-color: rgba(147, 197, 253, 0.45);
+}
+
+body.worker-loaded .worker-pulse-panel {
+  margin-top: 2px;
+}
+
+@media (max-width: 420px) {
+  .worker-pulse-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-theme="light"] .pulse-item {
+  border-color: rgba(0, 0, 0, 0.09);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 247, 238, 0.76));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 9px 18px rgba(75, 48, 31, 0.12);
+}
+
+[data-theme="light"] .pulse-label {
+  color: rgba(29, 24, 20, 0.6);
+}
+
+[data-theme="light"] .pulse-item strong {
+  color: #1f1712;
+}
+
+[data-theme="light"] .pulse-item span {
+  color: rgba(46, 37, 31, 0.74);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-item {
+    transition: none;
+  }
 }
 
 .worker-loaded .notification-permission-banner {

@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260511i";
+const WORKER_BUILD_TAG = "20260512a";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -750,7 +750,48 @@ Object.assign(TRANSLATIONS.de, {
   sendToBossSuccess: "✓ Antrag wurde an den Chef gesendet.",
   sendToBossError: "Fehler beim Senden – E-Mail-Einstellungen prüfen.",
   visitorExpiredBadgeLogin: "Diese Besucherkarte ist abgelaufen und kann nicht mehr genutzt werden.",
-  refreshBtn: "↻"
+  refreshBtn: "↻",
+  pulseLabelSystem: "System",
+  pulseLabelSync: "Sync",
+  pulseLabelPower: "Akku",
+  pulseLabelFlow: "Modus",
+  pulseNetworkLive: "Echtzeit",
+  pulseNetworkCache: "Cache-Modus",
+  pulseSyncPending: "Ausstehend",
+  pulseSyncFresh: "Aktuell",
+  pulseSyncNeedsRefresh: "Aktualisieren",
+  pulseSyncStable: "Stabil",
+  pulseSyncNow: "Jetzt",
+  pulsePowerUnknown: "Unbekannt",
+  pulsePowerCharging: "Laedt",
+  pulsePowerLow: "Niedriger Akku",
+  pulsePowerOk: "Akku ok",
+  pulseFlowLogin: "Login",
+  pulseFlowDashboard: "Dashboard",
+  pulseFlowAppMode: "App-Modus",
+  pulseFlowWebMode: "Web-Modus",
+  dailyInsightsKicker: "Heute",
+  dailyInsightsTitle: "Tagesübersicht",
+  dailyCheckinLabel: "Check-in",
+  dailyCheckoutLabel: "Check-out",
+  dailyHoursLabel: "Stunden",
+  dailyBalanceLabel: "Status",
+  dailyBalanceOpen: "Offen",
+  dailyBalanceClosed: "Abgeschlossen",
+  companyModeKicker: "Firmenprofil",
+  companyModeTitle: "Firmenmodus",
+  companyModeConstructionLead: "Baustellenfokus mit schneller Zutrittsabwicklung.",
+  companyModeConstructionItem1: "Schneller Zugang fuer Baustellen-Check-in",
+  companyModeConstructionItem2: "Tagesstatus und Zutrittskontrolle im Vordergrund",
+  companyModeConstructionItem3: "Klare Oberflaeche fuer Schichtstart und Schichtende",
+  companyModeIndustryLead: "Produktionsfokus mit stabilen, planbaren Schichtablaeufen.",
+  companyModeIndustryItem1: "Strukturierte Schichtwechsel und klare Zeitfenster",
+  companyModeIndustryItem2: "Sichere Freigabe fuer sensible Produktionszonen",
+  companyModeIndustryItem3: "Praezise Nachverfolgung fuer Compliance und Audit",
+  companyModePremiumLead: "Premium-Workflow mit maximaler Kontrolle und Transparenz.",
+  companyModePremiumItem1: "Priorisierte Prozesse fuer schnelle Entscheidungen",
+  companyModePremiumItem2: "Erweiterte Sicherheit fuer hochwertige Bereiche",
+  companyModePremiumItem3: "Fein abgestimmte Nutzerfuehrung fuer Top-Performance"
 });
 
 Object.assign(TRANSLATIONS.en, {
@@ -802,7 +843,48 @@ Object.assign(TRANSLATIONS.en, {
   sendToBossSuccess: "✓ Request sent to manager.",
   sendToBossError: "Failed to send – check email settings.",
   visitorExpiredBadgeLogin: "This visitor card has expired and can no longer be used.",
-  refreshBtn: "↻"
+  refreshBtn: "↻",
+  pulseLabelSystem: "System",
+  pulseLabelSync: "Sync",
+  pulseLabelPower: "Power",
+  pulseLabelFlow: "Flow",
+  pulseNetworkLive: "Realtime",
+  pulseNetworkCache: "Cache mode",
+  pulseSyncPending: "Pending",
+  pulseSyncFresh: "Fresh",
+  pulseSyncNeedsRefresh: "Needs refresh",
+  pulseSyncStable: "Stable",
+  pulseSyncNow: "Now",
+  pulsePowerUnknown: "Unknown",
+  pulsePowerCharging: "Charging",
+  pulsePowerLow: "Low battery",
+  pulsePowerOk: "Battery ok",
+  pulseFlowLogin: "Login",
+  pulseFlowDashboard: "Dashboard",
+  pulseFlowAppMode: "App mode",
+  pulseFlowWebMode: "Web mode",
+  dailyInsightsKicker: "Today",
+  dailyInsightsTitle: "Daily overview",
+  dailyCheckinLabel: "Check-in",
+  dailyCheckoutLabel: "Check-out",
+  dailyHoursLabel: "Hours",
+  dailyBalanceLabel: "Status",
+  dailyBalanceOpen: "Open",
+  dailyBalanceClosed: "Closed",
+  companyModeKicker: "Company profile",
+  companyModeTitle: "Company mode",
+  companyModeConstructionLead: "Construction-first workflow with fast site access.",
+  companyModeConstructionItem1: "Fast entry optimized for construction check-ins",
+  companyModeConstructionItem2: "Daily status and access control stay in focus",
+  companyModeConstructionItem3: "Clear flow for shift start and shift end",
+  companyModeIndustryLead: "Production-first workflow with stable shift operations.",
+  companyModeIndustryItem1: "Structured shift transitions and clear time windows",
+  companyModeIndustryItem2: "Secure clearance for sensitive production zones",
+  companyModeIndustryItem3: "Precise traceability for compliance and audits",
+  companyModePremiumLead: "Premium workflow with maximum control and visibility.",
+  companyModePremiumItem1: "Prioritized actions for faster decisions",
+  companyModePremiumItem2: "Enhanced security for high-value areas",
+  companyModePremiumItem3: "Refined app guidance for top performance"
 });
 
 Object.assign(TRANSLATIONS.tr, {
@@ -856,7 +938,48 @@ Object.assign(TRANSLATIONS.tr, {
   visitorExpiredBadgeLogin: "Bu ziyaretçi kartının süresi doldu ve artık kullanılamaz.",
   refreshBtn: "↻",
   updateAvailable: "Yeni uygulama sürümü mevcut – birkaç saniye içinde yeniden yükleniyor …",
-  siteLocationUnavailable: "Şantiye konumu belirlenemedi – giriş yine de izin veriliyor. Lütfen yöneticiyi bilgilendirin."
+  siteLocationUnavailable: "Şantiye konumu belirlenemedi – giriş yine de izin veriliyor. Lütfen yöneticiyi bilgilendirin.",
+  pulseLabelSystem: "Sistem",
+  pulseLabelSync: "Senk",
+  pulseLabelPower: "Pil",
+  pulseLabelFlow: "Akış",
+  pulseNetworkLive: "Canlı",
+  pulseNetworkCache: "Onbellek modu",
+  pulseSyncPending: "Beklemede",
+  pulseSyncFresh: "Güncel",
+  pulseSyncNeedsRefresh: "Yenile gerekli",
+  pulseSyncStable: "Stabil",
+  pulseSyncNow: "Şimdi",
+  pulsePowerUnknown: "Bilinmiyor",
+  pulsePowerCharging: "Şarj oluyor",
+  pulsePowerLow: "Düşük pil",
+  pulsePowerOk: "Pil iyi",
+  pulseFlowLogin: "Giriş",
+  pulseFlowDashboard: "Panel",
+  pulseFlowAppMode: "Uygulama modu",
+  pulseFlowWebMode: "Web modu",
+  dailyInsightsKicker: "Bugün",
+  dailyInsightsTitle: "Günlük özet",
+  dailyCheckinLabel: "Giriş",
+  dailyCheckoutLabel: "Çıkış",
+  dailyHoursLabel: "Saat",
+  dailyBalanceLabel: "Durum",
+  dailyBalanceOpen: "Açık",
+  dailyBalanceClosed: "Tamamlandı",
+  companyModeKicker: "Şirket profili",
+  companyModeTitle: "Şirket modu",
+  companyModeConstructionLead: "Şantiye odaklı, hızlı giriş akışı.",
+  companyModeConstructionItem1: "Şantiye check-in için hızlı erişim",
+  companyModeConstructionItem2: "Günlük durum ve erişim kontrolü ön planda",
+  companyModeConstructionItem3: "Vardiya başlangıç/bitiş için net arayüz",
+  companyModeIndustryLead: "Üretim odaklı, stabil vardiya akışı.",
+  companyModeIndustryItem1: "Yapılandırılmış vardiya geçişleri",
+  companyModeIndustryItem2: "Hassas üretim alanlarına güvenli erişim",
+  companyModeIndustryItem3: "Uyumluluk için detaylı izlenebilirlik",
+  companyModePremiumLead: "Maksimum kontrol için premium iş akışı.",
+  companyModePremiumItem1: "Hızlı kararlar için öncelikli adımlar",
+  companyModePremiumItem2: "Kritik alanlar için gelişmiş güvenlik",
+  companyModePremiumItem3: "Üst düzey performans için rafine deneyim"
 });
 
 Object.assign(TRANSLATIONS.ar, {
@@ -910,7 +1033,48 @@ Object.assign(TRANSLATIONS.ar, {
   visitorExpiredBadgeLogin: "انتهت صلاحية هذه البطاقة ولا يمكن استخدامها.",
   refreshBtn: "↻",
   updateAvailable: "إصدار جديد من التطبيق متاح – إعادة التحميل خلال ثوانٍ …",
-  siteLocationUnavailable: "تعذّر تحديد موقع الشانتيه – تسجيل الدخول مسموح به على أي حال. يرجى إبلاغ المسؤول."
+  siteLocationUnavailable: "تعذّر تحديد موقع الشانتيه – تسجيل الدخول مسموح به على أي حال. يرجى إبلاغ المسؤول.",
+  pulseLabelSystem: "النظام",
+  pulseLabelSync: "المزامنة",
+  pulseLabelPower: "البطارية",
+  pulseLabelFlow: "التدفق",
+  pulseNetworkLive: "مباشر",
+  pulseNetworkCache: "وضع التخزين",
+  pulseSyncPending: "قيد الانتظار",
+  pulseSyncFresh: "حديث",
+  pulseSyncNeedsRefresh: "يحتاج تحديث",
+  pulseSyncStable: "مستقر",
+  pulseSyncNow: "الآن",
+  pulsePowerUnknown: "غير معروف",
+  pulsePowerCharging: "قيد الشحن",
+  pulsePowerLow: "بطارية منخفضة",
+  pulsePowerOk: "البطارية جيدة",
+  pulseFlowLogin: "تسجيل",
+  pulseFlowDashboard: "الواجهة",
+  pulseFlowAppMode: "وضع التطبيق",
+  pulseFlowWebMode: "وضع الويب",
+  dailyInsightsKicker: "اليوم",
+  dailyInsightsTitle: "ملخص يومي",
+  dailyCheckinLabel: "دخول",
+  dailyCheckoutLabel: "خروج",
+  dailyHoursLabel: "ساعات",
+  dailyBalanceLabel: "الحالة",
+  dailyBalanceOpen: "مفتوح",
+  dailyBalanceClosed: "مغلق",
+  companyModeKicker: "ملف الشركة",
+  companyModeTitle: "وضع الشركة",
+  companyModeConstructionLead: "تدفق عمل مخصص للبناء مع دخول سريع.",
+  companyModeConstructionItem1: "وصول سريع لتسجيل الدخول في موقع البناء",
+  companyModeConstructionItem2: "تركيز واضح على الحالة اليومية والتحكم بالدخول",
+  companyModeConstructionItem3: "واجهة بسيطة لبداية ونهاية الوردية",
+  companyModeIndustryLead: "تدفق عمل صناعي بثبات أعلى للورديات.",
+  companyModeIndustryItem1: "تنظيم أدق لتبديل الورديات",
+  companyModeIndustryItem2: "إتاحة آمنة لمناطق الإنتاج الحساسة",
+  companyModeIndustryItem3: "تتبع دقيق للامتثال والتدقيق",
+  companyModePremiumLead: "تدفق Premium مع تحكم كامل وشفافية أعلى.",
+  companyModePremiumItem1: "أولويات ذكية لاتخاذ قرار أسرع",
+  companyModePremiumItem2: "أمان متقدم للمناطق عالية القيمة",
+  companyModePremiumItem3: "تجربة مصقولة لأداء احترافي"
 });
 
 Object.assign(TRANSLATIONS.fr, {
@@ -926,7 +1090,26 @@ Object.assign(TRANSLATIONS.fr, {
   visitorExpiredBadgeLogin: "Cette carte visiteur a expiré et ne peut plus être utilisée.",
   refreshBtn: "↻",
   updateAvailable: "Nouvelle version disponible – rechargement dans quelques secondes …",
-  siteLocationUnavailable: "Localisation du site indisponible – connexion tout de même autorisée. Informez l'administrateur."
+  siteLocationUnavailable: "Localisation du site indisponible – connexion tout de même autorisée. Informez l'administrateur.",
+  pulseLabelSystem: "Système",
+  pulseLabelSync: "Sync",
+  pulseLabelPower: "Batterie",
+  pulseLabelFlow: "Flux",
+  pulseNetworkLive: "Temps réel",
+  pulseNetworkCache: "Mode cache",
+  pulseSyncPending: "En attente",
+  pulseSyncFresh: "Récent",
+  pulseSyncNeedsRefresh: "À actualiser",
+  pulseSyncStable: "Stable",
+  pulseSyncNow: "Maintenant",
+  pulsePowerUnknown: "Inconnu",
+  pulsePowerCharging: "En charge",
+  pulsePowerLow: "Batterie faible",
+  pulsePowerOk: "Batterie OK",
+  pulseFlowLogin: "Connexion",
+  pulseFlowDashboard: "Tableau",
+  pulseFlowAppMode: "Mode app",
+  pulseFlowWebMode: "Mode web"
 });
 
 Object.assign(TRANSLATIONS.es, {
@@ -942,7 +1125,26 @@ Object.assign(TRANSLATIONS.es, {
   visitorExpiredBadgeLogin: "Esta tarjeta de visitante ha expirado y ya no puede usarse.",
   refreshBtn: "↻",
   updateAvailable: "Nueva versión disponible – recargando en unos segundos …",
-  siteLocationUnavailable: "No se pudo determinar la ubicación del sitio – inicio de sesión permitido de todos modos. Informe al administrador."
+  siteLocationUnavailable: "No se pudo determinar la ubicación del sitio – inicio de sesión permitido de todos modos. Informe al administrador.",
+  pulseLabelSystem: "Sistema",
+  pulseLabelSync: "Sync",
+  pulseLabelPower: "Batería",
+  pulseLabelFlow: "Flujo",
+  pulseNetworkLive: "Tiempo real",
+  pulseNetworkCache: "Modo caché",
+  pulseSyncPending: "Pendiente",
+  pulseSyncFresh: "Reciente",
+  pulseSyncNeedsRefresh: "Actualizar",
+  pulseSyncStable: "Estable",
+  pulseSyncNow: "Ahora",
+  pulsePowerUnknown: "Desconocido",
+  pulsePowerCharging: "Cargando",
+  pulsePowerLow: "Batería baja",
+  pulsePowerOk: "Batería OK",
+  pulseFlowLogin: "Inicio",
+  pulseFlowDashboard: "Panel",
+  pulseFlowAppMode: "Modo app",
+  pulseFlowWebMode: "Modo web"
 });
 
 Object.assign(TRANSLATIONS.it, {
@@ -958,7 +1160,26 @@ Object.assign(TRANSLATIONS.it, {
   visitorExpiredBadgeLogin: "Questo pass visitatore è scaduto e non può più essere utilizzato.",
   refreshBtn: "↻",
   updateAvailable: "Nuova versione disponibile – ricaricamento in pochi secondi …",
-  siteLocationUnavailable: "Posizione del cantiere non disponibile – accesso comunque consentito. Informare l'amministratore."
+  siteLocationUnavailable: "Posizione del cantiere non disponibile – accesso comunque consentito. Informare l'amministratore.",
+  pulseLabelSystem: "Sistema",
+  pulseLabelSync: "Sync",
+  pulseLabelPower: "Batteria",
+  pulseLabelFlow: "Flusso",
+  pulseNetworkLive: "Tempo reale",
+  pulseNetworkCache: "Modalità cache",
+  pulseSyncPending: "In attesa",
+  pulseSyncFresh: "Aggiornato",
+  pulseSyncNeedsRefresh: "Da aggiornare",
+  pulseSyncStable: "Stabile",
+  pulseSyncNow: "Ora",
+  pulsePowerUnknown: "Sconosciuto",
+  pulsePowerCharging: "In carica",
+  pulsePowerLow: "Batteria bassa",
+  pulsePowerOk: "Batteria OK",
+  pulseFlowLogin: "Accesso",
+  pulseFlowDashboard: "Dashboard",
+  pulseFlowAppMode: "Modalità app",
+  pulseFlowWebMode: "Modalità web"
 });
 
 Object.assign(TRANSLATIONS.pl, {
@@ -974,7 +1195,26 @@ Object.assign(TRANSLATIONS.pl, {
   visitorExpiredBadgeLogin: "Ta karta odwiedzającego wygasła i nie może być już używana.",
   refreshBtn: "↻",
   updateAvailable: "Dostępna nowa wersja aplikacji – przeładowanie za kilka sekund …",
-  siteLocationUnavailable: "Nie można określić lokalizacji budowy – logowanie jest i tak dozwolone. Poinformuj administratora."
+  siteLocationUnavailable: "Nie można określić lokalizacji budowy – logowanie jest i tak dozwolone. Poinformuj administratora.",
+  pulseLabelSystem: "System",
+  pulseLabelSync: "Sync",
+  pulseLabelPower: "Bateria",
+  pulseLabelFlow: "Przepływ",
+  pulseNetworkLive: "Na żywo",
+  pulseNetworkCache: "Tryb cache",
+  pulseSyncPending: "Oczekiwanie",
+  pulseSyncFresh: "Świeże",
+  pulseSyncNeedsRefresh: "Wymaga odświeżenia",
+  pulseSyncStable: "Stabilne",
+  pulseSyncNow: "Teraz",
+  pulsePowerUnknown: "Nieznane",
+  pulsePowerCharging: "Ładowanie",
+  pulsePowerLow: "Niski poziom baterii",
+  pulsePowerOk: "Bateria OK",
+  pulseFlowLogin: "Logowanie",
+  pulseFlowDashboard: "Panel",
+  pulseFlowAppMode: "Tryb app",
+  pulseFlowWebMode: "Tryb web"
 });
 
 Object.assign(TRANSLATIONS.fr, {
@@ -1085,7 +1325,15 @@ Object.assign(TRANSLATIONS.fr, {
   voiceNeedsSecureContext: "La commande vocale nécessite HTTPS ou localhost.",
   voiceListening: "🎤 Écoute...",
   microphoneAccessBlocked: "L'accès au micro a été bloqué. Veuillez autoriser la permission du navigateur.",
-  noSpeechDetected: "Aucune voix détectée. Veuillez réessayer."
+  noSpeechDetected: "Aucune voix détectée. Veuillez réessayer.",
+  dailyInsightsKicker: "Aujourd'hui",
+  dailyInsightsTitle: "Aperçu du jour",
+  dailyCheckinLabel: "Entrée",
+  dailyCheckoutLabel: "Sortie",
+  dailyHoursLabel: "Heures",
+  dailyBalanceLabel: "Statut",
+  dailyBalanceOpen: "Ouvert",
+  dailyBalanceClosed: "Clos"
 });
 
 Object.assign(TRANSLATIONS.es, {
@@ -1196,7 +1444,15 @@ Object.assign(TRANSLATIONS.es, {
   voiceNeedsSecureContext: "El control por voz requiere HTTPS o localhost.",
   voiceListening: "🎤 Escuchando...",
   microphoneAccessBlocked: "El acceso al micrófono fue bloqueado. Permite el permiso del navegador.",
-  noSpeechDetected: "No se detectó voz. Inténtalo de nuevo."
+  noSpeechDetected: "No se detectó voz. Inténtalo de nuevo.",
+  dailyInsightsKicker: "Hoy",
+  dailyInsightsTitle: "Resumen diario",
+  dailyCheckinLabel: "Entrada",
+  dailyCheckoutLabel: "Salida",
+  dailyHoursLabel: "Horas",
+  dailyBalanceLabel: "Estado",
+  dailyBalanceOpen: "Abierto",
+  dailyBalanceClosed: "Cerrado"
 });
 
 Object.assign(TRANSLATIONS.it, {
@@ -1313,7 +1569,15 @@ Object.assign(TRANSLATIONS.it, {
   voiceNeedsSecureContext: "Il controllo vocale richiede HTTPS o localhost.",
   voiceListening: "🎤 In ascolto...",
   microphoneAccessBlocked: "L'accesso al microfono è stato bloccato. Consenti il permesso del browser.",
-  noSpeechDetected: "Nessun parlato rilevato. Riprova."
+  noSpeechDetected: "Nessun parlato rilevato. Riprova.",
+  dailyInsightsKicker: "Oggi",
+  dailyInsightsTitle: "Riepilogo giornaliero",
+  dailyCheckinLabel: "Ingresso",
+  dailyCheckoutLabel: "Uscita",
+  dailyHoursLabel: "Ore",
+  dailyBalanceLabel: "Stato",
+  dailyBalanceOpen: "Aperto",
+  dailyBalanceClosed: "Chiuso"
 });
 
 Object.assign(TRANSLATIONS.pl, {
@@ -1430,7 +1694,15 @@ Object.assign(TRANSLATIONS.pl, {
   voiceNeedsSecureContext: "Sterowanie głosowe wymaga HTTPS lub localhost.",
   voiceListening: "🎤 Nasłuchiwanie...",
   microphoneAccessBlocked: "Dostęp do mikrofonu został zablokowany. Zezwól na uprawnienie w przeglądarce.",
-  noSpeechDetected: "Nie wykryto mowy. Spróbuj ponownie."
+  noSpeechDetected: "Nie wykryto mowy. Spróbuj ponownie.",
+  dailyInsightsKicker: "Dziś",
+  dailyInsightsTitle: "Podsumowanie dnia",
+  dailyCheckinLabel: "Wejście",
+  dailyCheckoutLabel: "Wyjście",
+  dailyHoursLabel: "Godziny",
+  dailyBalanceLabel: "Status",
+  dailyBalanceOpen: "Otwarte",
+  dailyBalanceClosed: "Zamknięte"
 });
 
 const LANG_META = {
@@ -1526,6 +1798,7 @@ function setLang(lang) {
   currentLang = lang;
   localStorage.setItem(WORKER_LANG_KEY, lang);
   applyTranslations();
+  updateLastSyncDisplay();
   updateConnectionState();
   updatePlatformInstallHint();
   applyQrContrastState();
@@ -1568,6 +1841,9 @@ let workerHubExpanded = false;
 let timesheetCompactExpanded = false;
 let documentsCompactExpanded = false;
 let leaveCompactExpanded = false;
+let workerLastSyncAt = null;
+let batteryLevelPct = null;
+let batteryCharging = null;
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrCountdownInterval = null; // setInterval for per-second countdown
 let dqrRemainingSeconds = 60;    // seconds until next QR refresh
@@ -1643,6 +1919,15 @@ const elements = {
   connectionBanner: document.querySelector("#connectionBanner"),
   lastSyncInfo: document.querySelector("#lastSyncInfo"),
   workerBuildBadge: document.querySelector("#workerBuildBadge"),
+  workerPulsePanel: document.querySelector("#workerPulsePanel"),
+  pulseNetworkValue: document.querySelector("#pulseNetworkValue"),
+  pulseNetworkMeta: document.querySelector("#pulseNetworkMeta"),
+  pulseSyncValue: document.querySelector("#pulseSyncValue"),
+  pulseSyncMeta: document.querySelector("#pulseSyncMeta"),
+  pulsePowerValue: document.querySelector("#pulsePowerValue"),
+  pulsePowerMeta: document.querySelector("#pulsePowerMeta"),
+  pulseFlowValue: document.querySelector("#pulseFlowValue"),
+  pulseFlowMeta: document.querySelector("#pulseFlowMeta"),
   pinLockOverlay: document.querySelector("#pinLockOverlay"),
   pinLockForm: document.querySelector("#pinLockForm"),
   pinLockInput: document.querySelector("#pinLockInput"),
@@ -1681,6 +1966,15 @@ const elements = {
   timesheetCard: document.querySelector("#timesheetCard"),
   timesheetList: document.querySelector("#timesheetList"),
   timesheetRefreshBtn: document.querySelector("#timesheetRefreshBtn"),
+  dailyInsightsCard: document.querySelector("#dailyInsightsCard"),
+  dailyCheckinsValue: document.querySelector("#dailyCheckinsValue"),
+  dailyCheckoutsValue: document.querySelector("#dailyCheckoutsValue"),
+  dailyHoursValue: document.querySelector("#dailyHoursValue"),
+  dailyBalanceValue: document.querySelector("#dailyBalanceValue"),
+  companyModeCard: document.querySelector("#companyModeCard"),
+  companyModeTitle: document.querySelector("#companyModeTitle"),
+  companyModeLead: document.querySelector("#companyModeLead"),
+  companyModeFeatureList: document.querySelector("#companyModeFeatureList"),
   documentsCard: document.querySelector("#documentsCard"),
   documentsList: document.querySelector("#documentsList")
 };
@@ -1710,6 +2004,128 @@ function updateWorkerBuildBadge() {
   const swActive = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
   const swLabel = swActive ? "SW On" : "SW Off";
   elements.workerBuildBadge.textContent = `Build ${WORKER_BUILD_TAG} | ${modeLabel} | ${swLabel}`;
+}
+
+function updateLastSyncDisplay() {
+  if (!elements.lastSyncInfo) {
+    return;
+  }
+  if (!workerLastSyncAt) {
+    elements.lastSyncInfo.textContent = t("lastSyncInitial");
+    return;
+  }
+  const formatted = new Intl.DateTimeFormat(getCurrentLocale(), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(workerLastSyncAt);
+  elements.lastSyncInfo.textContent = `${t("lastSync")}: ${formatted}`;
+}
+
+function markWorkerSyncedNow() {
+  workerLastSyncAt = new Date();
+  updateLastSyncDisplay();
+}
+
+function getFlowStateLabel() {
+  if (!workerToken) {
+    return t("pulseFlowLogin");
+  }
+  if (activeWorkerPageTarget) {
+    const pageName = getWorkerPageTitle(activeWorkerPageTarget);
+    return pageName.length > 14 ? `${pageName.slice(0, 14)}...` : pageName;
+  }
+  return t("pulseFlowDashboard");
+}
+
+function updateWorkerPulsePanel() {
+  if (!elements.workerPulsePanel) {
+    return;
+  }
+
+  const networkOnline = navigator.onLine;
+  const minutesSinceSync = workerLastSyncAt ? Math.max(0, Math.floor((Date.now() - workerLastSyncAt.getTime()) / 60000)) : null;
+  const syncFresh = minutesSinceSync !== null && minutesSinceSync <= 5;
+  const syncStale = minutesSinceSync !== null && minutesSinceSync > 30;
+  const powerLow = typeof batteryLevelPct === "number" && batteryLevelPct <= 20 && batteryCharging === false;
+  const flowLabel = getFlowStateLabel();
+
+  if (elements.pulseNetworkValue) {
+    elements.pulseNetworkValue.textContent = networkOnline ? t("online") : t("offline");
+  }
+  if (elements.pulseNetworkMeta) {
+    elements.pulseNetworkMeta.textContent = networkOnline ? t("pulseNetworkLive") : t("pulseNetworkCache");
+  }
+  if (elements.pulseSyncValue) {
+    if (minutesSinceSync === null) {
+      elements.pulseSyncValue.textContent = "-";
+    } else if (minutesSinceSync === 0) {
+      elements.pulseSyncValue.textContent = t("pulseSyncNow");
+    } else {
+      elements.pulseSyncValue.textContent = `${minutesSinceSync}m`;
+    }
+  }
+  if (elements.pulseSyncMeta) {
+    if (minutesSinceSync === null) {
+      elements.pulseSyncMeta.textContent = t("pulseSyncPending");
+    } else if (syncFresh) {
+      elements.pulseSyncMeta.textContent = t("pulseSyncFresh");
+    } else if (syncStale) {
+      elements.pulseSyncMeta.textContent = t("pulseSyncNeedsRefresh");
+    } else {
+      elements.pulseSyncMeta.textContent = t("pulseSyncStable");
+    }
+  }
+  if (elements.pulsePowerValue) {
+    elements.pulsePowerValue.textContent = typeof batteryLevelPct === "number" ? `${batteryLevelPct}%` : "--%";
+  }
+  if (elements.pulsePowerMeta) {
+    if (batteryCharging === true) {
+      elements.pulsePowerMeta.textContent = t("pulsePowerCharging");
+    } else if (batteryCharging === false) {
+      elements.pulsePowerMeta.textContent = powerLow ? t("pulsePowerLow") : t("pulsePowerOk");
+    } else {
+      elements.pulsePowerMeta.textContent = t("pulsePowerUnknown");
+    }
+  }
+  if (elements.pulseFlowValue) {
+    elements.pulseFlowValue.textContent = flowLabel;
+  }
+  if (elements.pulseFlowMeta) {
+    elements.pulseFlowMeta.textContent = isStandaloneDisplay() ? t("pulseFlowAppMode") : t("pulseFlowWebMode");
+  }
+
+  const networkItem = elements.workerPulsePanel.querySelector(".pulse-item-network");
+  const syncItem = elements.workerPulsePanel.querySelector(".pulse-item-sync");
+  const powerItem = elements.workerPulsePanel.querySelector(".pulse-item-power");
+  const flowItem = elements.workerPulsePanel.querySelector(".pulse-item-flow");
+
+  networkItem?.classList.toggle("is-offline", !networkOnline);
+  syncItem?.classList.toggle("is-fresh", syncFresh);
+  syncItem?.classList.toggle("is-stale", syncStale);
+  powerItem?.classList.toggle("is-low", powerLow);
+  flowItem?.classList.toggle("is-active", Boolean(workerToken));
+}
+
+function initBatteryTelemetry() {
+  if (!navigator.getBattery) {
+    updateWorkerPulsePanel();
+    return;
+  }
+  navigator.getBattery().then((battery) => {
+    const applyBatteryState = () => {
+      batteryLevelPct = Math.round((battery.level || 0) * 100);
+      batteryCharging = Boolean(battery.charging);
+      updateWorkerPulsePanel();
+    };
+    applyBatteryState();
+    battery.addEventListener("levelchange", applyBatteryState);
+    battery.addEventListener("chargingchange", applyBatteryState);
+  }).catch(() => {
+    updateWorkerPulsePanel();
+  });
 }
 
 function focusWorkerPassOnLoad() {
@@ -1785,6 +2201,8 @@ function setWorkerHubExpanded(expanded, options = {}) {
 function getWorkerPageTitle(targetId) {
   if (targetId === "routeCard") return t("routeTodayTitle");
   if (targetId === "sessionInfoCard") return t("sessionTitle");
+  if (targetId === "companyModeCard") return t("companyModeTitle");
+  if (targetId === "dailyInsightsCard") return t("dailyInsightsTitle");
   if (targetId === "actionsPanel") return t("actionsTitle");
   if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
   if (targetId === "timesheetCard") return t("timesheetCardTitle");
@@ -1796,6 +2214,8 @@ function getWorkerPageSections() {
   return [
     document.querySelector("#routeCard"),
     document.querySelector("#sessionInfoCard"),
+    document.querySelector("#companyModeCard"),
+    document.querySelector("#dailyInsightsCard"),
     document.querySelector("#actionsPanel"),
     elements.leaveRequestCard,
     elements.timesheetCard,
@@ -1888,6 +2308,8 @@ async function init() {
   wireInstallPrompt();
   updateConnectionState();
   updateWorkerBuildBadge();
+  initBatteryTelemetry();
+  updateWorkerPulsePanel();
 
   if (urlToken) {
     if (elements.workerAccessToken) {
@@ -2025,6 +2447,7 @@ function bindEvents() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
       markUserInteraction();
+      updateWorkerPulsePanel();
       if (workerToken) {
         void requestWakeLock();
         void fetchAndDisplayDynamicQr();
@@ -2035,6 +2458,7 @@ function bindEvents() {
   });
   window.addEventListener("pageshow", () => {
     updateWalletImmersiveMode();
+    updateWorkerPulsePanel();
     if (workerToken) {
       void requestWakeLock();
       void fetchAndDisplayDynamicQr();
@@ -2896,9 +3320,7 @@ async function loadWorkerData() {
     localStorage.setItem(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
     offlineWorkerSessionActive = false;
     renderWorker(payload);
-    if (elements.lastSyncInfo) {
-      elements.lastSyncInfo.textContent = `${t("lastSync")}: ${new Intl.DateTimeFormat(getCurrentLocale(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date())}`;
-    }
+    markWorkerSyncedNow();
     updateConnectionState();
     await syncOfflinePhotoQueue();
     await syncOfflineEventQueue();
@@ -2926,6 +3348,7 @@ async function loadWorkerData() {
         if (elements.lastSyncInfo) {
           elements.lastSyncInfo.textContent = t("offlineBanner");
         }
+        updateWorkerPulsePanel();
         return true;
       } catch (cacheErr) {
         console.error("[loadWorkerData] Cache parse error:", cacheErr);
@@ -3268,9 +3691,21 @@ function renderWorker(payload) {
   if (elements.timesheetCard) {
     elements.timesheetCard.classList.toggle("hidden", isVisitor || !hasTimesheet);
   }
+  if (elements.dailyInsightsCard) {
+    elements.dailyInsightsCard.classList.toggle("hidden", isVisitor || !hasTimesheet);
+  }
+  if (elements.companyModeCard) {
+    elements.companyModeCard.classList.toggle("hidden", isVisitor);
+  }
   // Also hide timesheet quick-menu and nav buttons for visitors or plan restriction
   document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
     btn.classList.toggle("hidden", isVisitor || !hasTimesheet);
+  });
+  document.querySelectorAll("[data-worker-page-target='dailyInsightsCard']").forEach((btn) => {
+    btn.classList.toggle("hidden", isVisitor || !hasTimesheet);
+  });
+  document.querySelectorAll("[data-worker-page-target='companyModeCard']").forEach((btn) => {
+    btn.classList.toggle("hidden", isVisitor);
   });
   if (elements.documentsCard) {
     elements.documentsCard.classList.toggle("hidden", !hasDocs);
@@ -3298,7 +3733,9 @@ function renderWorker(payload) {
   }
   if (hasTimesheet && !isVisitor) void loadMyTimesheets();
   if (hasDocs) void loadMyDocuments();
+  renderCompanyModeExperience(companyPreset, isVisitor);
   void prefillCompanyAdminEmails();
+  updateWorkerPulsePanel();
 }
 
 function showLogin() {
@@ -3312,6 +3749,8 @@ function showLogin() {
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   if (elements.walletCard) elements.walletCard.classList.remove("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
+  document.body.removeAttribute("data-company-mode");
+  resetDailyInsights();
   setWorkerHubExpanded(false);
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
   applyWorkerPageView("");
@@ -3321,6 +3760,7 @@ function showLogin() {
   }
   document.body.classList.remove("worker-loaded");
   updateWalletImmersiveMode();
+  updateWorkerPulsePanel();
 
   // Prefill stored Badge-ID so the worker only needs to enter the PIN
   const savedBadgeId = (localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
@@ -3347,6 +3787,7 @@ function updateConnectionState() {
     elements.connectionBanner.textContent = t("offline");
     elements.connectionBanner.className = "connection-banner offline";
   }
+  updateWorkerPulsePanel();
 }
 
 function showWorkerNotice(message) {
@@ -4993,6 +5434,89 @@ function showLateCheckInBanner(lateInfo, isVisitor) {
   }
 }
 
+function resetDailyInsights() {
+  if (elements.dailyCheckinsValue) elements.dailyCheckinsValue.textContent = "0";
+  if (elements.dailyCheckoutsValue) elements.dailyCheckoutsValue.textContent = "0";
+  if (elements.dailyHoursValue) elements.dailyHoursValue.textContent = "0:00";
+  if (elements.dailyBalanceValue) elements.dailyBalanceValue.textContent = t("dailyBalanceOpen");
+}
+
+function renderCompanyModeExperience(companyPreset, isVisitor) {
+  if (!elements.companyModeCard) {
+    return;
+  }
+
+  elements.companyModeCard.classList.toggle("hidden", isVisitor);
+  if (isVisitor) {
+    return;
+  }
+
+  const mode = normalizeCompanyBrandingPreset(companyPreset);
+  const isIndustry = mode === "industry";
+  const isPremium = mode === "premium";
+  const leadKey = isIndustry
+    ? "companyModeIndustryLead"
+    : isPremium
+      ? "companyModePremiumLead"
+      : "companyModeConstructionLead";
+  const itemKeys = isIndustry
+    ? ["companyModeIndustryItem1", "companyModeIndustryItem2", "companyModeIndustryItem3"]
+    : isPremium
+      ? ["companyModePremiumItem1", "companyModePremiumItem2", "companyModePremiumItem3"]
+      : ["companyModeConstructionItem1", "companyModeConstructionItem2", "companyModeConstructionItem3"];
+
+  document.body.setAttribute("data-company-mode", mode);
+  elements.companyModeCard.dataset.mode = mode;
+  if (elements.companyModeTitle) {
+    elements.companyModeTitle.textContent = t("companyModeTitle");
+  }
+  if (elements.companyModeLead) {
+    elements.companyModeLead.textContent = t(leadKey);
+  }
+  if (elements.companyModeFeatureList) {
+    elements.companyModeFeatureList.innerHTML = itemKeys.map((key) => `<li>${escapeHtmlBasic(t(key))}</li>`).join("");
+  }
+}
+
+function updateDailyInsightsFromTimesheets(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    resetDailyInsights();
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRows = rows
+    .filter((row) => String(row.timestamp || "").slice(0, 10) === today)
+    .sort((a, b) => String(a.timestamp || "") > String(b.timestamp || "") ? 1 : -1);
+
+  if (todayRows.length === 0) {
+    resetDailyInsights();
+    return;
+  }
+
+  const checkins = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "in");
+  const checkouts = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "out");
+
+  let totalMin = 0;
+  const pairCount = Math.min(checkins.length, checkouts.length);
+  for (let i = 0; i < pairCount; i++) {
+    const inTime = new Date(checkins[i].timestamp);
+    const outTime = new Date(checkouts[i].timestamp);
+    if (outTime > inTime) {
+      totalMin += Math.round((outTime - inTime) / 60000);
+    }
+  }
+
+  const hours = Math.floor(totalMin / 60);
+  const minutes = totalMin % 60;
+  const isOpen = checkins.length > checkouts.length;
+
+  if (elements.dailyCheckinsValue) elements.dailyCheckinsValue.textContent = String(checkins.length);
+  if (elements.dailyCheckoutsValue) elements.dailyCheckoutsValue.textContent = String(checkouts.length);
+  if (elements.dailyHoursValue) elements.dailyHoursValue.textContent = `${hours}:${String(minutes).padStart(2, "0")}`;
+  if (elements.dailyBalanceValue) elements.dailyBalanceValue.textContent = isOpen ? t("dailyBalanceOpen") : t("dailyBalanceClosed");
+}
+
 async function loadMyTimesheets() {
   if (!workerToken || !elements.timesheetList) return;
   elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetLoading")}</p>`;
@@ -5002,8 +5526,10 @@ async function loadMyTimesheets() {
     });
     if (!Array.isArray(rows) || rows.length === 0) {
       elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
+      resetDailyInsights();
       return;
     }
+    updateDailyInsightsFromTimesheets(rows);
     // Group by date
     const byDate = {};
     for (const row of rows) {
@@ -5061,6 +5587,7 @@ async function loadMyTimesheets() {
     }
   } catch (error) {
     elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
+    resetDailyInsights();
     console.warn("Could not load timesheets:", error);
   }
 }
