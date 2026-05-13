@@ -6790,8 +6790,8 @@ function switchToTab(tabName) {
     const docsCard = document.getElementById("documentsCard");
     if (docsCard) docsCard.classList.remove("hidden");
   }
-}
 
+  // Update hash for browser history
   const hashByTab = {
     home: "home",
     vacation: "urlaub",
