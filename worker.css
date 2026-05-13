@@ -5887,6 +5887,116 @@ textarea:focus-visible {
     color: #e8f1ff;
   }
 }
+
+/* ── Clean Interior Pages: Vacation / Timesheet / Documents ─────────────── */
+.worker-loaded #leaveRequestCard,
+.worker-loaded #timesheetCard,
+.worker-loaded #documentsCard {
+  border-radius: 18px;
+  padding: 16px;
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-border);
+  box-shadow: 0 6px 14px rgba(19, 40, 69, 0.06);
+}
+
+.worker-loaded #leaveRequestCard .section-head.compact-head,
+.worker-loaded #timesheetCard .section-head.compact-head,
+.worker-loaded #documentsCard .section-head.compact-head {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--corp-border);
+}
+
+.worker-loaded #leaveRequestCard .section-head.compact-head h3,
+.worker-loaded #timesheetCard .section-head.compact-head h3,
+.worker-loaded #documentsCard .section-head.compact-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--corp-text);
+}
+
+.worker-loaded #leaveRequestCard .section-kicker,
+.worker-loaded #timesheetCard .section-kicker,
+.worker-loaded #documentsCard .section-kicker {
+  font-size: 0.76rem;
+  letter-spacing: 0.07em;
+  color: var(--corp-muted);
+}
+
+.worker-loaded #leaveRequestCard .leave-request-item,
+.worker-loaded #timesheetCard .timesheet-day,
+.worker-loaded #documentsCard .document-item,
+.worker-loaded #timesheetCard .timesheet-entry {
+  background: color-mix(in srgb, var(--corp-surface) 88%, var(--corp-bg) 12%);
+  border: 1px solid var(--corp-border);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.worker-loaded #leaveRequestCard .ghost,
+.worker-loaded #leaveRequestCard .small-btn,
+.worker-loaded #timesheetCard .ghost,
+.worker-loaded #timesheetCard .small-btn,
+.worker-loaded #documentsCard .ghost,
+.worker-loaded #documentsCard .small-btn,
+.worker-loaded #leaveRequestCard input,
+.worker-loaded #leaveRequestCard select,
+.worker-loaded #leaveRequestCard textarea {
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-border);
+  color: var(--corp-text);
+  border-radius: 12px;
+}
+
+.worker-loaded #leaveRequestCard .primary,
+.worker-loaded #timesheetCard .primary,
+.worker-loaded #documentsCard .primary {
+  border-radius: 12px;
+  background: var(--corp-primary);
+  border-color: rgba(8, 71, 158, 0.45);
+  color: #fff;
+}
+
+.worker-loaded #leaveRequestCard .muted-info,
+.worker-loaded #timesheetCard .muted-info,
+.worker-loaded #documentsCard .muted-info,
+.worker-loaded #timesheetCard .entry-gate,
+.worker-loaded #documentsCard .doc-meta {
+  color: var(--corp-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard,
+  html:not([data-theme="light"]) .worker-loaded #timesheetCard,
+  html:not([data-theme="light"]) .worker-loaded #documentsCard {
+    background: #0f1e34;
+    border-color: #263e61;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+  }
+
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard .leave-request-item,
+  html:not([data-theme="light"]) .worker-loaded #timesheetCard .timesheet-day,
+  html:not([data-theme="light"]) .worker-loaded #documentsCard .document-item,
+  html:not([data-theme="light"]) .worker-loaded #timesheetCard .timesheet-entry {
+    background: #122640;
+    border-color: #2a446c;
+  }
+
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard .ghost,
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard .small-btn,
+  html:not([data-theme="light"]) .worker-loaded #timesheetCard .ghost,
+  html:not([data-theme="light"]) .worker-loaded #timesheetCard .small-btn,
+  html:not([data-theme="light"]) .worker-loaded #documentsCard .ghost,
+  html:not([data-theme="light"]) .worker-loaded #documentsCard .small-btn,
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard input,
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard select,
+  html:not([data-theme="light"]) .worker-loaded #leaveRequestCard textarea {
+    background: #11223a;
+    border-color: #2b476f;
+    color: #e8f1ff;
+  }
+}
   .worker-menu-btn {
     min-height: 126px;
   }
