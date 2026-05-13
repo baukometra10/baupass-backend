@@ -1,0 +1,510 @@
+/* Final visual polish layer for corporate UI consistency */
+
+:root {
+  --ui-light-bg: #eef3f9;
+  --ui-light-surface: #ffffff;
+  --ui-light-surface-soft: #f6f9fd;
+  --ui-light-border: #cfdae8;
+  --ui-light-text: #142a44;
+  --ui-light-muted: #607995;
+  --ui-light-primary: #0a57c0;
+  --ui-light-primary-strong: #08479e;
+  --ui-light-shadow-sm: 0 6px 16px rgba(18, 41, 70, 0.08);
+  --ui-light-shadow-md: 0 14px 34px rgba(18, 41, 70, 0.12);
+
+  --ui-dark-bg: #091321;
+  --ui-dark-surface: #0f1e34;
+  --ui-dark-surface-soft: #122540;
+  --ui-dark-border: #29466c;
+  --ui-dark-text: #e8f1ff;
+  --ui-dark-muted: #9db3d0;
+  --ui-dark-primary: #2b79ea;
+  --ui-dark-primary-strong: #1d66d1;
+  --ui-dark-shadow-sm: 0 8px 18px rgba(0, 0, 0, 0.34);
+  --ui-dark-shadow-md: 0 16px 36px rgba(0, 0, 0, 0.42);
+
+  --ui-radius-sm: 10px;
+  --ui-radius-md: 14px;
+  --ui-radius-lg: 18px;
+
+  --ui-surface: var(--ui-light-surface);
+  --ui-surface-soft: var(--ui-light-surface-soft);
+  --ui-shadow-sm: var(--ui-light-shadow-sm);
+  --ui-shadow-md: var(--ui-light-shadow-md);
+}
+
+:root,
+html[data-theme="light"] {
+  --corp-bg: var(--ui-light-bg);
+  --corp-surface: var(--ui-light-surface);
+  --corp-border: var(--ui-light-border);
+  --corp-text: var(--ui-light-text);
+  --corp-muted: var(--ui-light-muted);
+  --corp-primary: var(--ui-light-primary);
+  --corp-primary-strong: var(--ui-light-primary-strong);
+  --ui-surface: var(--ui-light-surface);
+  --ui-surface-soft: var(--ui-light-surface-soft);
+  --ui-shadow-sm: var(--ui-light-shadow-sm);
+  --ui-shadow-md: var(--ui-light-shadow-md);
+}
+
+html[data-theme="dark"] {
+  --corp-bg: var(--ui-dark-bg);
+  --corp-surface: var(--ui-dark-surface);
+  --corp-border: var(--ui-dark-border);
+  --corp-text: var(--ui-dark-text);
+  --corp-muted: var(--ui-dark-muted);
+  --corp-primary: var(--ui-dark-primary);
+  --corp-primary-strong: var(--ui-dark-primary-strong);
+  --ui-surface: var(--ui-dark-surface);
+  --ui-surface-soft: var(--ui-dark-surface-soft);
+  --ui-shadow-sm: var(--ui-dark-shadow-sm);
+  --ui-shadow-md: var(--ui-dark-shadow-md);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) {
+    --corp-bg: var(--ui-dark-bg);
+    --corp-surface: var(--ui-dark-surface);
+    --corp-border: var(--ui-dark-border);
+    --corp-text: var(--ui-dark-text);
+    --corp-muted: var(--ui-dark-muted);
+    --corp-primary: var(--ui-dark-primary);
+    --corp-primary-strong: var(--ui-dark-primary-strong);
+    --ui-surface: var(--ui-dark-surface);
+    --ui-surface-soft: var(--ui-dark-surface-soft);
+    --ui-shadow-sm: var(--ui-dark-shadow-sm);
+    --ui-shadow-md: var(--ui-dark-shadow-md);
+  }
+}
+
+body {
+  background:
+    radial-gradient(1200px 400px at 10% -10%, rgba(10, 87, 192, 0.08), transparent 60%),
+    radial-gradient(900px 300px at 100% -20%, rgba(9, 71, 156, 0.05), transparent 55%),
+    var(--corp-bg);
+  color: var(--corp-text);
+}
+
+html[data-theme="light"] body,
+html[data-theme="dark"] body,
+html:not([data-theme]) body {
+  color: var(--corp-text);
+}
+
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(1200px 400px at 10% -10%, rgba(43, 121, 234, 0.22), transparent 62%),
+    radial-gradient(900px 300px at 100% -20%, rgba(29, 102, 209, 0.16), transparent 58%),
+    linear-gradient(180deg, #0b1424 0%, #0a1322 56%, #0d182b 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) body {
+    background:
+      radial-gradient(1200px 400px at 10% -10%, rgba(43, 121, 234, 0.22), transparent 62%),
+      radial-gradient(900px 300px at 100% -20%, rgba(29, 102, 209, 0.16), transparent 58%),
+      linear-gradient(180deg, #0b1424 0%, #0a1322 56%, #0d182b 100%);
+  }
+}
+
+.app-shell {
+  max-width: 560px;
+  padding: 14px 14px 26px;
+  gap: 14px;
+}
+
+.sparkasse-top-bar {
+  border-bottom: 1px solid var(--corp-border);
+  box-shadow: 0 1px 0 rgba(20, 42, 68, 0.04);
+  background: var(--corp-surface);
+}
+
+.stb-inner {
+  max-width: 560px;
+  height: 56px;
+}
+
+.stb-brand-name {
+  font-size: 16px;
+  letter-spacing: -0.15px;
+}
+
+.login-sparkasse {
+  background: transparent;
+  min-height: calc(100vh - 56px);
+}
+
+body:not(.worker-loaded) .login-content-sparkasse {
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-md);
+  padding: 30px 22px;
+}
+
+.login-title-sparkasse {
+  font-size: clamp(1.5rem, 4vw, 1.9rem);
+  letter-spacing: -0.01em;
+}
+
+.login-copy-sparkasse {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.form-input-sparkasse,
+input,
+select,
+textarea {
+  border-radius: var(--ui-radius-sm);
+  border-color: var(--corp-border);
+  background: var(--ui-surface-soft);
+}
+
+.form-input-sparkasse:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--corp-primary);
+  box-shadow: 0 0 0 3px rgba(10, 87, 192, 0.12);
+  background: var(--corp-surface);
+}
+
+.primary,
+.actions-gate-btn,
+.quick-menu-btn.active {
+  background: linear-gradient(180deg, var(--corp-primary), var(--corp-primary-strong));
+  border: 1px solid rgba(8, 71, 158, 0.45);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(10, 87, 192, 0.24);
+}
+
+.primary:hover,
+.actions-gate-btn:hover,
+.quick-menu-btn.active:hover {
+  filter: brightness(1.02);
+  transform: translateY(-1px);
+}
+
+.ghost,
+.small-btn,
+.theme-toggle-btn,
+.voice-command-btn,
+.quick-menu-btn,
+.worker-menu-btn {
+  background: var(--corp-surface);
+  color: var(--corp-text);
+  border: 1px solid var(--corp-border);
+  border-radius: var(--ui-radius-sm);
+}
+
+.ghost:hover,
+.small-btn:hover,
+.quick-menu-btn:hover,
+.worker-menu-btn:hover {
+  border-color: rgba(10, 87, 192, 0.4);
+  background: rgba(10, 87, 192, 0.06);
+}
+
+.worker-dashboard {
+  gap: 14px;
+}
+
+.home-compact-info {
+  gap: 10px;
+}
+
+.home-info-item {
+  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--corp-border);
+  background: linear-gradient(180deg, #173a63, #112d4f);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+html[data-theme="dark"] .home-info-item {
+  border-color: #3a5d8a;
+  background: linear-gradient(180deg, #1a3f69, #123352);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .home-info-item {
+    border-color: #3a5d8a;
+    background: linear-gradient(180deg, #1a3f69, #123352);
+  }
+}
+
+.home-info-label {
+  color: #98b2d3;
+}
+
+.home-info-value {
+  color: #ecf4ff;
+}
+
+.card,
+.below-card,
+#workerMenuCard,
+.worker-hub-panel,
+.actions-panel,
+.timesheet-card,
+.documents-card,
+.leave-request-card {
+  border-radius: var(--ui-radius-md);
+  border: 1px solid var(--corp-border);
+  background: var(--corp-surface);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.timesheet-entry,
+.document-item,
+.leave-request-item,
+.smart-hub-item,
+.smart-hub-meta-item,
+.smart-hub-recommendation,
+.smart-hub-planner,
+.smart-hub-doc-checklist {
+  border-radius: var(--ui-radius-sm);
+}
+
+.worker-bottom-nav {
+  width: min(560px, 100%);
+  border-top: 1px solid var(--corp-border);
+  box-shadow: 0 -4px 18px rgba(19, 40, 69, 0.1);
+}
+
+html[data-theme="dark"] .worker-bottom-nav {
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.34);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .worker-bottom-nav {
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.34);
+  }
+}
+
+.nav-tab {
+  color: var(--corp-muted);
+}
+
+.nav-tab.active {
+  color: var(--corp-text);
+}
+
+.worker-quick-menu {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--corp-border);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+html[data-theme="dark"] .worker-quick-menu {
+  background: rgba(15, 30, 52, 0.82);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .worker-quick-menu {
+    background: rgba(15, 30, 52, 0.82);
+  }
+}
+
+.quick-menu-btn {
+  border-color: var(--corp-border);
+  color: var(--corp-text);
+  background: var(--corp-surface);
+}
+
+.quick-menu-btn:not(.active):hover {
+  border-color: rgba(10, 87, 192, 0.45);
+  background: rgba(10, 87, 192, 0.08);
+}
+
+.worker-page-nav {
+  border: 1px solid var(--corp-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--corp-surface);
+  padding: 10px 12px;
+}
+
+.worker-page-label {
+  color: var(--corp-muted);
+}
+
+.worker-menu-btn {
+  background: linear-gradient(180deg, var(--corp-surface), var(--ui-surface-soft));
+  border-color: var(--corp-border);
+  color: var(--corp-text);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.worker-menu-btn:hover {
+  border-color: rgba(10, 87, 192, 0.38);
+  background: linear-gradient(180deg, var(--corp-surface), rgba(10, 87, 192, 0.08));
+}
+
+.worker-menu-label {
+  color: var(--corp-text);
+}
+
+.worker-menu-btn:hover .worker-menu-label {
+  color: var(--corp-primary);
+}
+
+.worker-menu-icon {
+  border-color: rgba(10, 87, 192, 0.24);
+  background: linear-gradient(135deg, rgba(10, 87, 192, 0.16), rgba(10, 87, 192, 0.06));
+  color: var(--corp-primary);
+}
+
+html[data-theme="dark"] .form-input-sparkasse,
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: var(--ui-surface-soft);
+  border-color: var(--corp-border);
+  color: var(--corp-text);
+}
+
+html[data-theme="dark"] .worker-page-nav,
+html[data-theme="dark"] .worker-menu-btn,
+html[data-theme="dark"] .worker-quick-menu,
+html[data-theme="dark"] .timesheet-entry,
+html[data-theme="dark"] .document-item,
+html[data-theme="dark"] .leave-request-item,
+html[data-theme="dark"] .smart-hub-item,
+html[data-theme="dark"] .smart-hub-meta-item,
+html[data-theme="dark"] .smart-hub-recommendation,
+html[data-theme="dark"] .smart-hub-planner,
+html[data-theme="dark"] .smart-hub-doc-checklist {
+  background: var(--ui-surface-soft);
+  border-color: var(--corp-border);
+  color: var(--corp-text);
+}
+
+html[data-theme="dark"] .worker-menu-btn {
+  background-image: linear-gradient(180deg, #152a45, #10223a);
+}
+
+html[data-theme="dark"] .worker-menu-btn:hover {
+  background-image: linear-gradient(180deg, #193255, #142947);
+}
+
+html[data-theme="dark"] .worker-menu-icon {
+  border-color: rgba(43, 121, 234, 0.4);
+  background: linear-gradient(135deg, rgba(43, 121, 234, 0.28), rgba(43, 121, 234, 0.12));
+  color: #d3e6ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .form-input-sparkasse,
+  html:not([data-theme]) input,
+  html:not([data-theme]) select,
+  html:not([data-theme]) textarea {
+    background: var(--ui-surface-soft);
+    border-color: var(--corp-border);
+    color: var(--corp-text);
+  }
+
+  html:not([data-theme]) .worker-page-nav,
+  html:not([data-theme]) .worker-menu-btn,
+  html:not([data-theme]) .worker-quick-menu,
+  html:not([data-theme]) .timesheet-entry,
+  html:not([data-theme]) .document-item,
+  html:not([data-theme]) .leave-request-item,
+  html:not([data-theme]) .smart-hub-item,
+  html:not([data-theme]) .smart-hub-meta-item,
+  html:not([data-theme]) .smart-hub-recommendation,
+  html:not([data-theme]) .smart-hub-planner,
+  html:not([data-theme]) .smart-hub-doc-checklist {
+    background: var(--ui-surface-soft);
+    border-color: var(--corp-border);
+    color: var(--corp-text);
+  }
+
+  html:not([data-theme]) .worker-menu-btn {
+    background-image: linear-gradient(180deg, #152a45, #10223a);
+  }
+
+  html:not([data-theme]) .worker-menu-btn:hover {
+    background-image: linear-gradient(180deg, #193255, #142947);
+  }
+
+  html:not([data-theme]) .worker-menu-icon {
+    border-color: rgba(43, 121, 234, 0.4);
+    background: linear-gradient(135deg, rgba(43, 121, 234, 0.28), rgba(43, 121, 234, 0.12));
+    color: #d3e6ff;
+  }
+}
+
+.timesheet-list,
+.leave-request-list,
+.documents-list,
+.documents-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.timesheet-entry,
+.document-item,
+.leave-request-item,
+.smart-hub-item,
+.smart-hub-meta-item,
+.smart-hub-recommendation,
+.smart-hub-planner,
+.smart-hub-doc-checklist {
+  border: 1px solid var(--corp-border);
+  background: var(--ui-surface-soft);
+  color: var(--corp-text);
+  box-shadow: 0 2px 10px rgba(19, 40, 69, 0.05);
+}
+
+.timesheet-entry .muted,
+.document-item .muted,
+.leave-request-item .muted,
+.leave-days-hint,
+.leave-balance-label {
+  color: var(--corp-muted);
+}
+
+.section-head .section-copy,
+.section-copy,
+.meta,
+.subtle,
+.help-text {
+  color: var(--corp-muted);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.nav-tab:focus-visible {
+  outline: 2px solid rgba(10, 87, 192, 0.46);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .app-shell {
+    padding: 10px 10px 18px;
+    gap: 10px;
+  }
+
+  body:not(.worker-loaded) .login-content-sparkasse {
+    border-radius: 14px;
+    padding: 22px 16px;
+  }
+
+  .home-compact-info {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .home-info-item:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .worker-bottom-nav {
+    border-radius: 0;
+    left: 0;
+    transform: none;
+  }
+}
