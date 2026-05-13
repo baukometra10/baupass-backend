@@ -6262,6 +6262,15 @@ body:not(.worker-loaded) #topPanel {
   width: 23px;
   height: 23px;
   stroke-width: 1.8;
+  display: block;
+}
+
+.nav-tab svg path,
+.nav-tab svg line,
+.nav-tab svg rect,
+.nav-tab svg circle {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .nav-label {
@@ -6274,6 +6283,10 @@ body:not(.worker-loaded) #topPanel {
 .nav-tab.active {
   color: #0f1724;
   background-color: transparent;
+}
+
+.nav-tab.active svg {
+  transform: translateY(-0.5px);
 }
 
 .nav-tab.active::after {
