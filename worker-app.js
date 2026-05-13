@@ -4529,9 +4529,31 @@ function switchToTab(tabName) {
   if (tabName === "pass") tabName = "home";
   if (tabName === "request") tabName = "vacation";
 
+  // Safety: stale showcase mode can keep all interior panels hidden.
+  const appShell = document.querySelector(".app-shell");
+  if (appShell) {
+    appShell.classList.remove("showcase-mode");
+  }
+
   currentActiveTab = tabName;
 
   // Never allow tab navigation to reveal interior panels before login completes.
+  if (!document.body.classList.contains("worker-loaded")) {
+    const loginCard = document.getElementById("loginCard");
+    const bottomNav = document.getElementById("workerBottomNav");
+    const loginHidden = Boolean(loginCard && loginCard.classList.contains("hidden"));
+    const navVisible = Boolean(bottomNav && !bottomNav.classList.contains("hidden"));
+
+    // Recovery path: if the app UI is already visible, restore loaded state
+    // so bottom tabs remain functional.
+    if (loginHidden || navVisible) {
+      document.body.classList.add("worker-loaded");
+    } else {
+      enforceUiVisibilityGuard();
+      return;
+    }
+  }
+
   if (!document.body.classList.contains("worker-loaded")) {
     enforceUiVisibilityGuard();
     return;
@@ -4627,6 +4649,12 @@ function initBottomTabNavigation() {
   navButtons.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
+      if (!document.body.classList.contains("worker-loaded")) {
+        const loginCard = document.getElementById("loginCard");
+        if (loginCard && loginCard.classList.contains("hidden")) {
+          document.body.classList.add("worker-loaded");
+        }
+      }
       const tabName = btn.dataset.tab;
       if (tabName) {
         switchToTab(tabName);
@@ -4642,6 +4670,12 @@ function initBottomTabNavigation() {
       const clicked = e.target instanceof Element ? e.target.closest(".nav-tab") : null;
       if (!clicked) return;
       e.preventDefault();
+      if (!document.body.classList.contains("worker-loaded")) {
+        const loginCard = document.getElementById("loginCard");
+        if (loginCard && loginCard.classList.contains("hidden")) {
+          document.body.classList.add("worker-loaded");
+        }
+      }
       const tabName = clicked.getAttribute("data-tab") || "";
       if (tabName) {
         switchToTab(tabName);
