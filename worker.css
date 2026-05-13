@@ -6388,6 +6388,10 @@ body.worker-loaded #badgeCard {
   transition: color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
   border-radius: 0;
   padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .nav-tab svg {
@@ -6641,10 +6645,13 @@ body.worker-loaded .app-shell {
 .dashboard-featured-card {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  /* Credit-card aspect ratio — matches the wallet-card inside exactly */
+  aspect-ratio: 85.6 / 54;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 .dashboard-featured-card .wallet-card {
@@ -6654,6 +6661,9 @@ body.worker-loaded .app-shell {
   padding: 0;
   border: none;
   border-radius: 20px;
+  /* Ensure wallet-card fills the container without being squashed */
+  aspect-ratio: unset;
+  min-height: unset;
 }
 
 .dashboard-quick-actions {
@@ -6723,7 +6733,7 @@ body.worker-loaded .app-shell {
   }
 
   .dashboard-featured-card {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 85.6 / 54;
     border-radius: 16px;
   }
 }

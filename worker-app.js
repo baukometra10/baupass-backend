@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513d";
+const WORKER_BUILD_TAG = "20260513e";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -4786,9 +4786,6 @@ function renderWorker(payload) {
     topBar.classList.remove("hidden");
   }
 
-  // Initialize tab navigation to Home tab
-  switchToTab("home");
-  
   // Disable legacy entrance flow in the tab-first UI.
   clearCardEntranceAnimation();
   
@@ -4909,6 +4906,10 @@ function renderWorker(payload) {
   renderCompanyModeExperience(companyPreset, isVisitor);
   void prefillCompanyAdminEmails();
   updateWorkerPulsePanel();
+
+  // Navigate to Home tab LAST — after all feature-gate visibility toggles,
+  // so switchToTab() is the final word on what panels are shown.
+  switchToTab("home");
 }
 
 function showLogin() {
