@@ -3790,7 +3790,15 @@ function bindEvents() {
   if (elements.leaveRequestStart) elements.leaveRequestStart.addEventListener("change", calcDays);
   if (elements.leaveRequestEnd) elements.leaveRequestEnd.addEventListener("change", calcDays);
 
-  if (elements.sendToBossBtn) {
+    // ── Tab Navigation Click Handlers ──
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.getAttribute('data-tab');
+      if (tabName) switchToTab(tabName);
+    });
+  });
+
+    if (elements.sendToBossBtn) {
     elements.sendToBossBtn.addEventListener("click", async () => {
       await sendLastLeaveRequestToBoss();
     });
@@ -4765,6 +4773,18 @@ function renderWorker(payload) {
   }
   
   // Keep the UX stable after login: no forced fullscreen showcase.
+  
+  // Show bottom nav immediately after login
+  const bottomNav = document.getElementById("workerBottomNav");
+  if (bottomNav) {
+    bottomNav.classList.remove("hidden");
+  }
+  
+  // Show top bar
+  const topBar = document.getElementById("topPanel");
+  if (topBar) {
+    topBar.classList.remove("hidden");
+  }
   
   // Disable legacy entrance flow in the tab-first UI.
   clearCardEntranceAnimation();
@@ -6737,7 +6757,9 @@ function switchToTab(tabName) {
     "actionsPanel",
     "leaveRequestCard",
     "timesheetCard",
-    "documentsCard"
+    "documentsCard",
+    "workerDashboard",
+    "homeCompactInfo"
   ];
   managedPanels.forEach((panelId) => {
     const panel = document.getElementById(panelId);
@@ -6752,52 +6774,23 @@ function switchToTab(tabName) {
     tab.setAttribute("aria-selected", isActive);
   });
 
-  // Home tab: show featured card + compact info only
+  // Show the correct panel based on tab
   if (tabName === "home") {
     const dashboard = document.getElementById("workerDashboard");
     const homeInfo = document.getElementById("homeCompactInfo");
-    const quickActions = document.querySelector(".dashboard-quick-actions");
-    if (dashboard) {
-      dashboard.classList.remove("hidden");
-    }
-    if (homeInfo) {
-      homeInfo.classList.remove("hidden");
-    }
-    if (quickActions) {
-      quickActions.classList.add("hidden");
-    }
-  } else {
-    // Hide dashboard, show specific content panel
-    const dashboard = document.getElementById("workerDashboard");
-    if (dashboard) {
-      dashboard.classList.add("hidden");
-    }
-
-    const homeInfo = document.getElementById("homeCompactInfo");
-    const quickActions = document.querySelector(".dashboard-quick-actions");
-    if (homeInfo) {
-      homeInfo.classList.add("hidden");
-    }
-    if (quickActions) {
-      quickActions.classList.add("hidden");
-    }
-
-    // Show selected page based on tab
-    switch (tabName) {
-      case "actions":
-        document.getElementById("actionsPanel")?.classList.remove("hidden");
-        break;
-      case "vacation":
-        document.getElementById("leaveRequestCard")?.classList.remove("hidden");
-        break;
-      case "timesheet":
-        document.getElementById("timesheetCard")?.classList.remove("hidden");
-        break;
-      case "documents":
-        document.getElementById("documentsCard")?.classList.remove("hidden");
-        break;
-    }
+    if (dashboard) dashboard.classList.remove("hidden");
+    if (homeInfo) homeInfo.classList.remove("hidden");
+  } else if (tabName === "vacation") {
+    const leaveCard = document.getElementById("leaveRequestCard");
+    if (leaveCard) leaveCard.classList.remove("hidden");
+  } else if (tabName === "timesheet") {
+    const timesheetCard = document.getElementById("timesheetCard");
+    if (timesheetCard) timesheetCard.classList.remove("hidden");
+  } else if (tabName === "documents") {
+    const docsCard = document.getElementById("documentsCard");
+    if (docsCard) docsCard.classList.remove("hidden");
   }
+}
 
   const hashByTab = {
     home: "home",
