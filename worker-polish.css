@@ -211,6 +211,36 @@ textarea:focus {
   gap: 14px;
 }
 
+/* Card QR refinement: smaller QR, compact gold frame, no extra chip overlay */
+.wc-qr-holder {
+  width: clamp(58px, 19%, 84px);
+  height: clamp(58px, 19%, 84px);
+}
+
+.wc-qr-frame {
+  inset: -4px;
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(212, 168, 67, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 -1px 0 rgba(96, 61, 12, 0.45);
+}
+
+.wc-qr-frame::before {
+  inset: 6px;
+  border-radius: 8px;
+  background-size: 10px 10px;
+}
+
+#dashboardQr,
+#workerQr,
+#visitorQr {
+  border-radius: 7px;
+  padding: 3px;
+}
+
+.dqr-countdown,
+.vc-timer-chip {
+  display: none !important;
+}
+
 .home-compact-info {
   gap: 10px;
 }
