@@ -501,6 +501,208 @@ html[data-theme="dark"] .worker-menu-icon {
   color: var(--corp-muted);
 }
 
+.worker-notice {
+  border: 1px solid rgba(184, 42, 36, 0.32);
+  background: rgba(255, 236, 236, 0.92);
+  color: #7f1f1b;
+  border-radius: var(--ui-radius-sm);
+}
+
+.status-banner {
+  border: 1px solid var(--corp-border);
+  border-left: 3px solid currentColor;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-soft);
+  color: var(--corp-text);
+}
+
+.status-banner.active {
+  background: rgba(33, 171, 94, 0.12);
+  border-color: rgba(33, 171, 94, 0.28);
+  color: #17653f;
+}
+
+.status-banner.warning {
+  background: rgba(222, 132, 24, 0.14);
+  border-color: rgba(222, 132, 24, 0.34);
+  color: #8f5200;
+}
+
+.status-banner.error {
+  background: rgba(203, 49, 49, 0.14);
+  border-color: rgba(203, 49, 49, 0.34);
+  color: #8d2323;
+}
+
+.status-banner.suspended {
+  background: rgba(100, 72, 214, 0.16);
+  border-color: rgba(100, 72, 214, 0.32);
+  color: #4b2aa8;
+}
+
+.leave-balance-badge {
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid rgba(33, 171, 94, 0.3);
+  background: rgba(33, 171, 94, 0.12);
+  color: #17653f;
+}
+
+.leave-balance-badge.medium {
+  border-color: rgba(222, 132, 24, 0.34);
+  background: rgba(222, 132, 24, 0.14);
+  color: #8f5200;
+}
+
+.leave-balance-badge.low {
+  border-color: rgba(203, 49, 49, 0.34);
+  background: rgba(203, 49, 49, 0.14);
+  color: #8d2323;
+}
+
+.leave-balance-label,
+.smart-hub-label,
+.smart-hub-meta-item small,
+.day-planner-text {
+  color: var(--corp-muted);
+}
+
+.smart-hub-item strong,
+.smart-hub-meta-item strong,
+.smart-hub-recommendation strong,
+.smart-hub-planner-head strong,
+.smart-hub-check-item {
+  color: var(--corp-text);
+}
+
+.day-planner-item,
+.smart-hub-check-item {
+  border: 1px solid var(--corp-border);
+  background: var(--corp-surface);
+}
+
+html[data-theme="dark"] .worker-notice {
+  border-color: rgba(230, 105, 105, 0.36);
+  background: rgba(100, 32, 32, 0.34);
+  color: #ffd0d0;
+}
+
+html[data-theme="dark"] .status-banner {
+  background: #122540;
+  border-color: #29466c;
+  color: #e8f1ff;
+}
+
+html[data-theme="dark"] .status-banner.active {
+  background: rgba(40, 161, 97, 0.2);
+  border-color: rgba(92, 218, 143, 0.34);
+  color: #bdf7d8;
+}
+
+html[data-theme="dark"] .status-banner.warning {
+  background: rgba(168, 113, 36, 0.24);
+  border-color: rgba(235, 166, 74, 0.38);
+  color: #ffe2b2;
+}
+
+html[data-theme="dark"] .status-banner.error {
+  background: rgba(146, 49, 49, 0.24);
+  border-color: rgba(241, 121, 121, 0.38);
+  color: #ffd0d0;
+}
+
+html[data-theme="dark"] .status-banner.suspended {
+  background: rgba(84, 64, 156, 0.28);
+  border-color: rgba(142, 122, 230, 0.4);
+  color: #e0d6ff;
+}
+
+html[data-theme="dark"] .leave-balance-badge {
+  border-color: rgba(92, 218, 143, 0.34);
+  background: rgba(40, 161, 97, 0.2);
+  color: #bdf7d8;
+}
+
+html[data-theme="dark"] .leave-balance-badge.medium {
+  border-color: rgba(235, 166, 74, 0.38);
+  background: rgba(168, 113, 36, 0.24);
+  color: #ffe2b2;
+}
+
+html[data-theme="dark"] .leave-balance-badge.low {
+  border-color: rgba(241, 121, 121, 0.38);
+  background: rgba(146, 49, 49, 0.24);
+  color: #ffd0d0;
+}
+
+html[data-theme="dark"] .day-planner-item,
+html[data-theme="dark"] .smart-hub-check-item {
+  border-color: #29466c;
+  background: #122540;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .worker-notice {
+    border-color: rgba(230, 105, 105, 0.36);
+    background: rgba(100, 32, 32, 0.34);
+    color: #ffd0d0;
+  }
+
+  html:not([data-theme]) .status-banner {
+    background: #122540;
+    border-color: #29466c;
+    color: #e8f1ff;
+  }
+
+  html:not([data-theme]) .status-banner.active {
+    background: rgba(40, 161, 97, 0.2);
+    border-color: rgba(92, 218, 143, 0.34);
+    color: #bdf7d8;
+  }
+
+  html:not([data-theme]) .status-banner.warning {
+    background: rgba(168, 113, 36, 0.24);
+    border-color: rgba(235, 166, 74, 0.38);
+    color: #ffe2b2;
+  }
+
+  html:not([data-theme]) .status-banner.error {
+    background: rgba(146, 49, 49, 0.24);
+    border-color: rgba(241, 121, 121, 0.38);
+    color: #ffd0d0;
+  }
+
+  html:not([data-theme]) .status-banner.suspended {
+    background: rgba(84, 64, 156, 0.28);
+    border-color: rgba(142, 122, 230, 0.4);
+    color: #e0d6ff;
+  }
+
+  html:not([data-theme]) .leave-balance-badge {
+    border-color: rgba(92, 218, 143, 0.34);
+    background: rgba(40, 161, 97, 0.2);
+    color: #bdf7d8;
+  }
+
+  html:not([data-theme]) .leave-balance-badge.medium {
+    border-color: rgba(235, 166, 74, 0.38);
+    background: rgba(168, 113, 36, 0.24);
+    color: #ffe2b2;
+  }
+
+  html:not([data-theme]) .leave-balance-badge.low {
+    border-color: rgba(241, 121, 121, 0.38);
+    background: rgba(146, 49, 49, 0.24);
+    color: #ffd0d0;
+  }
+
+  html:not([data-theme]) .day-planner-item,
+  html:not([data-theme]) .smart-hub-check-item {
+    border-color: #29466c;
+    background: #122540;
+  }
+}
+
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
