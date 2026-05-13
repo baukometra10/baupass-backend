@@ -69,6 +69,8 @@ const WORKER_LANG_KEY = "baupass-worker-lang";
 const WORKER_INACTIVITY_TIMEOUT_MS = 60 * 1000;
 const WORKER_PASS_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
 const WORKER_THEME_KEY = "baupass-worker-theme";
+const WORKER_DAY_PLANNER_KEY = "baupass-worker-day-planner";
+const SMART_HUB_NOTIFY_KEY = "baupass-smart-hub-notify";
 
 // ── i18n ──────────────────────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -113,6 +115,44 @@ const TRANSLATIONS = {
     smartHubActionAccess: "Zutritt steuern",
     smartHubActionTimes: "Zeiten prüfen",
     smartHubActionDocs: "Dokumente prüfen",
+    smartHubRecommendationLabel: "Empfohlene Aktion",
+    smartHubRecommendationDefault: "Arbeitsstatus wird analysiert…",
+    smartHubRecommendationOpenGate: "Noch kein Eintrag heute. Starte den Tag mit einem schnellen Check-in.",
+    smartHubRecommendationCheckout: "Schicht läuft lange offen. Prüfe Ausbuchung oder Abschluss jetzt.",
+    smartHubRecommendationDocs: "Dokumente sind abgelaufen oder laufen bald ab. Bitte sofort prüfen.",
+    smartHubRecommendationTimes: "Zeiten sind erfasst. Kontrolliere den Verlauf und halte ihn aktuell.",
+    smartHubPrimaryActionDefault: "Zum Zutritt",
+    smartHubPrimaryActionOpenGate: "Jetzt einchecken",
+    smartHubPrimaryActionCheckout: "Ausbuchung prüfen",
+    smartHubPrimaryActionDocs: "Dokumente öffnen",
+    smartHubPrimaryActionTimes: "Zeiten öffnen",
+    smartHubSyncLabel: "Sync-Queue",
+    smartHubSyncQueueMeta: "Keine ausstehenden Aktionen",
+    smartHubSyncQueuePending: "{count} ausstehende Aktion(en)",
+    smartHubDocumentsRiskLabel: "Dokumenten-Risiko",
+    smartHubDocRiskMeta: "Keine kritischen Dokumente",
+    smartHubDocRiskAlert: "{count} kritische Dokumente",
+    smartHubCrewLabel: "Team-Snapshot",
+    smartHubCrewMeta: "Teamdaten folgen aus Leitstand",
+    smartHubCrewLive: "{present}/{expected} vor Ort",
+    smartHubCrewOpen: "{open} offene Checkout(s)",
+    smartHubPlannerLabel: "Tagesplan",
+    smartHubPlannerReset: "Zurücksetzen",
+    smartHubPlannerTaskCheckin: "Check-in heute bestätigen",
+    smartHubPlannerTaskCheckout: "Schicht sauber abschließen",
+    smartHubPlannerTaskDocs: "Dokumentenlage kontrollieren",
+    smartHubPlannerTaskSafety: "Sicherheitscheck für den Einsatz erledigen",
+    smartHubChecklistLabel: "Dokumenten-Checkliste",
+    smartHubChecklistOk: "Alle Dokumente sind aktuell.",
+    smartHubChecklistExpired: "{count} Dokument(e) abgelaufen",
+    smartHubChecklistSoon: "{count} Dokument(e) laufen in <= 30 Tagen ab",
+    smartHubChecklistMissing: "Fehlende Typen: {types}",
+    smartHubNotifyCheckoutTitle: "Checkout-Erinnerung",
+    smartHubNotifyCheckoutBody: "Deine Schicht ist noch offen. Bitte Ausbuchung prüfen.",
+    smartHubNotifyDocsTitle: "Dokumentenhinweis",
+    smartHubNotifyDocsBody: "Es gibt kritische Dokumente, die Aufmerksamkeit brauchen.",
+    smartHubNotifyLateTitle: "Hinweis zum Start",
+    smartHubNotifyLateBody: "Heute wurde ein verspäteter Start erkannt.",
     nextStepKicker: "Heute im Fokus",
     nextStepWorkerTitle: "Heute direkt weitermachen",
     nextStepWorkerCopy: "Dein Ausweis ist aktiv. Rolle {role} am Standort {site} ist sofort sichtbar und bis {validUntil} gültig.",
@@ -936,6 +976,44 @@ Object.assign(TRANSLATIONS.en, {
   smartHubActionAccess: "Control access",
   smartHubActionTimes: "Check times",
   smartHubActionDocs: "Review documents",
+  smartHubRecommendationLabel: "Recommended action",
+  smartHubRecommendationDefault: "Analyzing your work status...",
+  smartHubRecommendationOpenGate: "No entry today yet. Start the day with a quick check-in.",
+  smartHubRecommendationCheckout: "Shift has been open for a long time. Check checkout now.",
+  smartHubRecommendationDocs: "Documents are expired or expiring soon. Review now.",
+  smartHubRecommendationTimes: "Times are recorded. Keep the timeline clean and current.",
+  smartHubPrimaryActionDefault: "Go to access",
+  smartHubPrimaryActionOpenGate: "Check in now",
+  smartHubPrimaryActionCheckout: "Review checkout",
+  smartHubPrimaryActionDocs: "Open documents",
+  smartHubPrimaryActionTimes: "Open times",
+  smartHubSyncLabel: "Sync queue",
+  smartHubSyncQueueMeta: "No pending actions",
+  smartHubSyncQueuePending: "{count} pending action(s)",
+  smartHubDocumentsRiskLabel: "Document risk",
+  smartHubDocRiskMeta: "No critical documents",
+  smartHubDocRiskAlert: "{count} critical documents",
+  smartHubCrewLabel: "Crew snapshot",
+  smartHubCrewMeta: "Team data will appear when dispatch feed is active",
+  smartHubCrewLive: "{present}/{expected} on site",
+  smartHubCrewOpen: "{open} open checkout(s)",
+  smartHubPlannerLabel: "Day planner",
+  smartHubPlannerReset: "Reset",
+  smartHubPlannerTaskCheckin: "Confirm today check-in",
+  smartHubPlannerTaskCheckout: "Close shift cleanly",
+  smartHubPlannerTaskDocs: "Verify document status",
+  smartHubPlannerTaskSafety: "Complete on-site safety check",
+  smartHubChecklistLabel: "Document checklist",
+  smartHubChecklistOk: "All documents are up to date.",
+  smartHubChecklistExpired: "{count} document(s) expired",
+  smartHubChecklistSoon: "{count} document(s) expire in <= 30 days",
+  smartHubChecklistMissing: "Missing types: {types}",
+  smartHubNotifyCheckoutTitle: "Checkout reminder",
+  smartHubNotifyCheckoutBody: "Your shift is still open. Please review checkout.",
+  smartHubNotifyDocsTitle: "Document notice",
+  smartHubNotifyDocsBody: "There are critical documents requiring attention.",
+  smartHubNotifyLateTitle: "Start notice",
+  smartHubNotifyLateBody: "A late start was detected today.",
   nextStepKicker: "Today in focus",
   nextStepWorkerTitle: "Keep going now",
   nextStepWorkerCopy: "Your pass is active. Role {role} at {site} is visible right away and valid until {validUntil}.",
@@ -2079,6 +2157,126 @@ function extractTodayTimesheetSummary(rows) {
   };
 }
 
+function getOfflineQueueCount() {
+  const photoQueue = readStoredJson(OFFLINE_PHOTO_QUEUE_KEY, []);
+  const eventQueue = readStoredJson(OFFLINE_EVENT_QUEUE_KEY, []);
+  const photoCount = Array.isArray(photoQueue) ? photoQueue.length : 0;
+  const eventCount = Array.isArray(eventQueue) ? eventQueue.length : 0;
+  return photoCount + eventCount;
+}
+
+function summarizeDocuments(rows, companyPreset) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const today = new Date().toISOString().slice(0, 10);
+  const soon = new Date();
+  soon.setDate(soon.getDate() + 30);
+  const soonStr = soon.toISOString().slice(0, 10);
+  const expired = safeRows.filter((doc) => doc.expiry_date && doc.expiry_date <= today);
+  const expiringSoon = safeRows.filter((doc) => doc.expiry_date && doc.expiry_date > today && doc.expiry_date <= soonStr);
+  const presentTypes = new Set(safeRows.map((doc) => String(doc.doc_type || "").trim().toLowerCase()).filter(Boolean));
+
+  const requiredByPreset = {
+    construction: ["id_card", "safety_training", "work_permit"],
+    industry: ["id_card", "safety_training", "machine_clearance"],
+    premium: ["id_card", "compliance_training", "nda"]
+  };
+  const requiredTypes = requiredByPreset[companyPreset] || requiredByPreset.construction;
+  const missingTypes = requiredTypes.filter((type) => !presentTypes.has(type));
+
+  return {
+    total: safeRows.length,
+    expiredCount: expired.length,
+    expiringSoonCount: expiringSoon.length,
+    missingTypes,
+    criticalCount: expired.length + expiringSoon.length,
+  };
+}
+
+function getPlannerStorageKey(worker) {
+  const badge = normalizeBadgeIdInput(worker?.badgeId || worker?.badge_id || "unknown");
+  const dateKey = new Date().toISOString().slice(0, 10);
+  return `${WORKER_DAY_PLANNER_KEY}:${badge}:${dateKey}`;
+}
+
+function buildDayPlannerTasks(timesheetSummary, docsSummary) {
+  const hasDocsRisk = (docsSummary.expiredCount + docsSummary.expiringSoonCount) > 0;
+  return [
+    { id: "checkin", label: t("smartHubPlannerTaskCheckin"), done: timesheetSummary.hasRows },
+    { id: "checkout", label: t("smartHubPlannerTaskCheckout"), done: timesheetSummary.hasRows && !timesheetSummary.isOpen },
+    { id: "docs", label: t("smartHubPlannerTaskDocs"), done: !hasDocsRisk },
+    { id: "safety", label: t("smartHubPlannerTaskSafety"), done: false },
+  ];
+}
+
+function loadPlannerState(storageKey) {
+  return readStoredJson(storageKey, {});
+}
+
+function savePlannerState(storageKey, state) {
+  writeStoredJson(storageKey, state || {});
+}
+
+function renderDayPlanner(payload, timesheetSummary, docsSummary) {
+  if (!elements.dayPlannerList || !payload?.worker) {
+    return;
+  }
+  const storageKey = getPlannerStorageKey(payload.worker);
+  const savedState = loadPlannerState(storageKey);
+  const tasks = buildDayPlannerTasks(timesheetSummary, docsSummary);
+  const mergedTasks = tasks.map((task) => ({
+    ...task,
+    done: typeof savedState[task.id] === "boolean" ? savedState[task.id] : task.done,
+  }));
+
+  elements.dayPlannerList.dataset.storageKey = storageKey;
+  elements.dayPlannerList.innerHTML = mergedTasks.map((task) => {
+    const checked = task.done ? "checked" : "";
+    const doneClass = task.done ? " done" : "";
+    return `<label class="day-planner-item${doneClass}">
+      <input type="checkbox" data-planner-task-id="${escapeHtmlBasic(task.id)}" ${checked} />
+      <span class="day-planner-text">${escapeHtmlBasic(task.label)}</span>
+    </label>`;
+  }).join("");
+}
+
+function renderDocumentChecklist(docsSummary) {
+  if (!elements.smartHubDocChecklist) {
+    return;
+  }
+  const items = [];
+  if (docsSummary.expiredCount > 0) {
+    items.push(`<div class="smart-hub-check-item alert">${escapeHtmlBasic(tf("smartHubChecklistExpired", { count: String(docsSummary.expiredCount) }))}</div>`);
+  }
+  if (docsSummary.expiringSoonCount > 0) {
+    items.push(`<div class="smart-hub-check-item warn">${escapeHtmlBasic(tf("smartHubChecklistSoon", { count: String(docsSummary.expiringSoonCount) }))}</div>`);
+  }
+  if (docsSummary.missingTypes.length > 0) {
+    const missing = docsSummary.missingTypes.map((item) => item.replace(/_/g, " ")).join(", ");
+    items.push(`<div class="smart-hub-check-item warn">${escapeHtmlBasic(tf("smartHubChecklistMissing", { types: missing }))}</div>`);
+  }
+  if (!items.length) {
+    items.push(`<div class="smart-hub-check-item ok">${escapeHtmlBasic(t("smartHubChecklistOk"))}</div>`);
+  }
+  elements.smartHubDocChecklist.innerHTML = items.join("");
+}
+
+function notifySmartHub(type, title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") {
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `${SMART_HUB_NOTIFY_KEY}:${type}:${today}`;
+  if (localStorage.getItem(key) === "1") {
+    return;
+  }
+  try {
+    new Notification(title, { body, tag: `${type}-${today}` });
+    localStorage.setItem(key, "1");
+  } catch {
+    // Ignore notification errors in restricted contexts.
+  }
+}
+
 function updateSmartWorkHub(payload = lastWorkerPayload, rows = lastTimesheetRows) {
   if (!elements.smartWorkHubCard || !payload) {
     return;
@@ -2120,9 +2318,86 @@ function updateSmartWorkHub(payload = lastWorkerPayload, rows = lastTimesheetRow
       : tf("smartHubMomentumClosedShift", { hours: hoursLabel })
     : t("smartHubMomentumPending");
 
+  const docsSummary = summarizeDocuments(lastDocumentRows, companyPreset);
+  const queueCount = getOfflineQueueCount();
+
+  let recommendationText = t("smartHubRecommendationTimes");
+  let primaryActionLabel = t("smartHubPrimaryActionTimes");
+  let primaryActionTarget = "timesheetCard";
+
+  if (!summary.hasRows) {
+    recommendationText = t("smartHubRecommendationOpenGate");
+    primaryActionLabel = t("smartHubPrimaryActionOpenGate");
+    primaryActionTarget = "actionsPanel";
+  } else if (summary.isOpen && summary.totalMin >= 9 * 60) {
+    recommendationText = t("smartHubRecommendationCheckout");
+    primaryActionLabel = t("smartHubPrimaryActionCheckout");
+    primaryActionTarget = "timesheetCard";
+  }
+
+  if (docsSummary.criticalCount > 0) {
+    recommendationText = t("smartHubRecommendationDocs");
+    primaryActionLabel = t("smartHubPrimaryActionDocs");
+    primaryActionTarget = "documentsCard";
+  }
+
   if (elements.smartHubPriorityValue) elements.smartHubPriorityValue.textContent = priorityText;
   if (elements.smartHubFocusValue) elements.smartHubFocusValue.textContent = focusText;
   if (elements.smartHubMomentumValue) elements.smartHubMomentumValue.textContent = momentumText;
+  if (elements.smartHubRecommendationText) elements.smartHubRecommendationText.textContent = recommendationText;
+  if (elements.smartHubPrimaryActionBtn) {
+    elements.smartHubPrimaryActionBtn.textContent = primaryActionLabel;
+    elements.smartHubPrimaryActionBtn.setAttribute("data-worker-page-target", primaryActionTarget);
+  }
+  if (elements.smartHubSyncQueueValue) {
+    elements.smartHubSyncQueueValue.textContent = String(queueCount);
+  }
+  if (elements.smartHubSyncQueueMeta) {
+    elements.smartHubSyncQueueMeta.textContent = queueCount > 0
+      ? tf("smartHubSyncQueuePending", { count: String(queueCount) })
+      : t("smartHubSyncQueueMeta");
+  }
+  if (elements.smartHubDocRiskValue) {
+    elements.smartHubDocRiskValue.textContent = String(docsSummary.criticalCount);
+  }
+  if (elements.smartHubDocRiskMeta) {
+    elements.smartHubDocRiskMeta.textContent = docsSummary.criticalCount > 0
+      ? tf("smartHubDocRiskAlert", { count: String(docsSummary.criticalCount) })
+      : t("smartHubDocRiskMeta");
+  }
+  if (elements.smartHubCrewValue) {
+    const crew = payload.teamSnapshot || {};
+    const present = Number(crew.present || 0);
+    const expected = Number(crew.expected || 0);
+    const openCheckouts = Number(crew.openCheckouts || 0);
+    if (expected > 0) {
+      elements.smartHubCrewValue.textContent = tf("smartHubCrewLive", {
+        present: String(present),
+        expected: String(expected)
+      });
+      if (elements.smartHubCrewMeta) {
+        elements.smartHubCrewMeta.textContent = tf("smartHubCrewOpen", { open: String(openCheckouts) });
+      }
+    } else {
+      elements.smartHubCrewValue.textContent = "--";
+      if (elements.smartHubCrewMeta) {
+        elements.smartHubCrewMeta.textContent = t("smartHubCrewMeta");
+      }
+    }
+  }
+
+  renderDayPlanner(payload, summary, docsSummary);
+  renderDocumentChecklist(docsSummary);
+
+  if (summary.isOpen && summary.totalMin >= 9 * 60) {
+    notifySmartHub("checkout", t("smartHubNotifyCheckoutTitle"), t("smartHubNotifyCheckoutBody"));
+  }
+  if (docsSummary.criticalCount > 0) {
+    notifySmartHub("docs", t("smartHubNotifyDocsTitle"), t("smartHubNotifyDocsBody"));
+  }
+  if (isLate) {
+    notifySmartHub("late", t("smartHubNotifyLateTitle"), t("smartHubNotifyLateBody"));
+  }
 }
 
 function applyTranslations() {
@@ -2219,6 +2494,7 @@ let batteryLevelPct = null;
 let batteryCharging = null;
 let lastWorkerPayload = null;
 let lastTimesheetRows = [];
+let lastDocumentRows = [];
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrCountdownInterval = null; // setInterval for per-second countdown
 let dqrRemainingSeconds = 60;    // seconds until next QR refresh
@@ -2252,6 +2528,17 @@ const elements = {
   smartHubPriorityValue: document.querySelector("#smartHubPriorityValue"),
   smartHubFocusValue: document.querySelector("#smartHubFocusValue"),
   smartHubMomentumValue: document.querySelector("#smartHubMomentumValue"),
+  smartHubRecommendationText: document.querySelector("#smartHubRecommendationText"),
+  smartHubPrimaryActionBtn: document.querySelector("#smartHubPrimaryActionBtn"),
+  smartHubSyncQueueValue: document.querySelector("#smartHubSyncQueueValue"),
+  smartHubSyncQueueMeta: document.querySelector("#smartHubSyncQueueMeta"),
+  smartHubDocRiskValue: document.querySelector("#smartHubDocRiskValue"),
+  smartHubDocRiskMeta: document.querySelector("#smartHubDocRiskMeta"),
+  smartHubCrewValue: document.querySelector("#smartHubCrewValue"),
+  smartHubCrewMeta: document.querySelector("#smartHubCrewMeta"),
+  dayPlannerList: document.querySelector("#dayPlannerList"),
+  dayPlannerResetBtn: document.querySelector("#dayPlannerResetBtn"),
+  smartHubDocChecklist: document.querySelector("#smartHubDocChecklist"),
   workerPassSubLabels: document.querySelectorAll("[data-pass-sub-label]"),
   walletCard: document.querySelector(".wallet-card"),
   workerStatus: document.querySelector("#workerStatus"),
@@ -3104,6 +3391,37 @@ function bindEvents() {
     elements.timesheetRefreshBtn.addEventListener("click", () => void loadMyTimesheets());
   }
 
+  if (elements.dayPlannerList) {
+    elements.dayPlannerList.addEventListener("change", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || input.type !== "checkbox") {
+        return;
+      }
+      const taskId = String(input.getAttribute("data-planner-task-id") || "").trim();
+      const storageKey = String(elements.dayPlannerList?.dataset.storageKey || "").trim();
+      if (!taskId || !storageKey) {
+        return;
+      }
+      const nextState = loadPlannerState(storageKey);
+      nextState[taskId] = input.checked;
+      savePlannerState(storageKey, nextState);
+      const row = input.closest(".day-planner-item");
+      if (row) {
+        row.classList.toggle("done", input.checked);
+      }
+    });
+  }
+
+  if (elements.dayPlannerResetBtn) {
+    elements.dayPlannerResetBtn.addEventListener("click", () => {
+      const storageKey = String(elements.dayPlannerList?.dataset.storageKey || "").trim();
+      if (storageKey) {
+        savePlannerState(storageKey, {});
+      }
+      updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
+    });
+  }
+
   window.addEventListener("beforeunload", stopCameraStream);
 }
 
@@ -3116,6 +3434,7 @@ function savePhotoToOfflineQueue(dataUrl) {
   }
   queue.push({ dataUrl, timestamp: Date.now() });
   localStorage.setItem(OFFLINE_PHOTO_QUEUE_KEY, JSON.stringify(queue));
+  updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
 }
 
 function readStoredJson(key, fallbackValue) {
@@ -3217,6 +3536,7 @@ function queueOfflineEvent(eventPayload) {
   const queue = readStoredJson(OFFLINE_EVENT_QUEUE_KEY, []);
   queue.push(eventPayload);
   writeStoredJson(OFFLINE_EVENT_QUEUE_KEY, queue.slice(-50));
+  updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
 }
 
 async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
@@ -3293,6 +3613,7 @@ async function syncOfflinePhotoQueue() {
   }
 
   localStorage.setItem(OFFLINE_PHOTO_QUEUE_KEY, JSON.stringify(pending));
+  updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
 }
 
 async function syncOfflineEventQueue() {
@@ -3311,8 +3632,10 @@ async function syncOfflineEventQueue() {
       body: JSON.stringify({ events: queue })
     });
     writeStoredJson(OFFLINE_EVENT_QUEUE_KEY, []);
+    updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
   } catch {
     // keep queue for next sync attempt
+    updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
   }
 }
 
@@ -4202,6 +4525,7 @@ function updateConnectionState() {
     elements.connectionBanner.className = "connection-banner offline";
   }
   updateWorkerPulsePanel();
+  updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
 }
 
 function showWorkerNotice(message) {
@@ -6023,8 +6347,10 @@ async function loadMyDocuments() {
     const rows = await fetchJson(`${API_BASE}/my-documents`, {
       headers: { Authorization: `Bearer ${workerToken}` }
     });
+    lastDocumentRows = Array.isArray(rows) ? rows : [];
     if (!Array.isArray(rows) || rows.length === 0) {
       elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsEmpty")}</p>`;
+      updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
@@ -6067,9 +6393,16 @@ async function loadMyDocuments() {
     const docsHiddenCount = Math.max(0, rows.length - visibleRows.length);
     const docsMarkup = visibleRows.map((doc) => {
       const isExpired = doc.expiry_date && doc.expiry_date < today;
+      const expiryTs = doc.expiry_date ? new Date(`${doc.expiry_date}T23:59:59`).getTime() : Number.NaN;
+      const dayDiff = Number.isNaN(expiryTs) ? null : Math.ceil((expiryTs - Date.now()) / 86400000);
       const statusLabel = doc.expiry_date
         ? (isExpired ? t("documentsStatusExpired") : t("documentsStatusOk"))
         : t("documentsStatusNoExpiry");
+      const expiryDeltaLabel = dayDiff === null
+        ? ""
+        : dayDiff < 0
+          ? `T+${Math.abs(dayDiff)}d`
+          : `T-${dayDiff}d`;
       const statusClass = doc.expiry_date
         ? (isExpired ? "doc-expired" : "doc-ok")
         : "doc-no-expiry";
@@ -6077,7 +6410,7 @@ async function loadMyDocuments() {
         <div class="doc-type">${escapeHtmlBasic(doc.doc_type?.replace(/_/g, " ") || "–")}</div>
         <div class="doc-meta">
           ${doc.expiry_date ? `<span>${t("documentsExpiry")}: ${formatDate(doc.expiry_date)}</span>` : ""}
-          <span class="doc-status-badge ${statusClass}">${statusLabel}</span>
+          <span class="doc-status-badge ${statusClass}">${statusLabel}${expiryDeltaLabel ? ` · ${expiryDeltaLabel}` : ""}</span>
         </div>
       </div>`;
     }).join("");
@@ -6095,8 +6428,11 @@ async function loadMyDocuments() {
         void loadMyDocuments();
       });
     }
+    updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
   } catch (error) {
+    lastDocumentRows = [];
     elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsEmpty")}</p>`;
+    updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
     console.warn("Could not load documents:", error);
   }
 }

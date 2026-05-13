@@ -5529,6 +5529,119 @@ body {
   border-radius: 10px;
 }
 
+.smart-hub-recommendation,
+.smart-hub-planner,
+.smart-hub-doc-checklist {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(208, 147, 82, 0.3);
+  background: linear-gradient(150deg, rgba(255, 251, 245, 0.92), rgba(255, 244, 229, 0.76));
+}
+
+.smart-hub-recommendation strong {
+  font-size: .91rem;
+  line-height: 1.35;
+}
+
+.smart-hub-recommendation .small-btn {
+  justify-self: flex-start;
+}
+
+.smart-hub-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.smart-hub-meta-item {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 111, 235, 0.16);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.smart-hub-meta-item strong {
+  font-size: .96rem;
+}
+
+.smart-hub-meta-item small {
+  font-size: .73rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.smart-hub-planner-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tiny-btn {
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: .7rem;
+  letter-spacing: .06em;
+}
+
+.day-planner-list {
+  display: grid;
+  gap: 7px;
+}
+
+.day-planner-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.day-planner-item input {
+  margin-top: 2px;
+}
+
+.day-planner-item.done .day-planner-text {
+  text-decoration: line-through;
+  opacity: .62;
+}
+
+.day-planner-text {
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+.smart-hub-checklist-list {
+  display: grid;
+  gap: 7px;
+}
+
+.smart-hub-check-item {
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: .8rem;
+  line-height: 1.35;
+}
+
+.smart-hub-check-item.ok {
+  border-left: 3px solid rgba(25, 165, 109, 0.72);
+}
+
+.smart-hub-check-item.warn {
+  border-left: 3px solid rgba(208, 147, 82, 0.9);
+}
+
+.smart-hub-check-item.alert {
+  border-left: 3px solid rgba(211, 58, 49, 0.9);
+}
+
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) .smart-hub-item {
     background: rgba(20, 30, 52, 0.9);
@@ -5538,11 +5651,22 @@ body {
   html:not([data-theme="light"]) .smart-hub-item strong {
     color: #eaf2ff;
   }
+
+  html:not([data-theme="light"]) .smart-hub-recommendation,
+  html:not([data-theme="light"]) .smart-hub-planner,
+  html:not([data-theme="light"]) .smart-hub-doc-checklist,
+  html:not([data-theme="light"]) .smart-hub-meta-item,
+  html:not([data-theme="light"]) .day-planner-item,
+  html:not([data-theme="light"]) .smart-hub-check-item {
+    background: rgba(17, 27, 46, 0.9);
+    border-color: rgba(166, 200, 255, 0.24);
+  }
 }
 
 @media (max-width: 560px) {
   .smart-work-hub-grid,
-  .smart-work-hub-actions {
+  .smart-work-hub-actions,
+  .smart-hub-meta-grid {
     grid-template-columns: 1fr;
   }
 }

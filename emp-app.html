@@ -488,11 +488,44 @@
               <strong id="smartHubMomentumValue" data-i18n="smartHubMomentumPending">Warte auf Tagesdaten</strong>
             </article>
           </div>
+          <article class="smart-hub-recommendation">
+            <p class="smart-hub-label" data-i18n="smartHubRecommendationLabel">Empfohlene Aktion</p>
+            <strong id="smartHubRecommendationText" data-i18n="smartHubRecommendationDefault">Arbeitsstatus wird analysiert…</strong>
+            <button id="smartHubPrimaryActionBtn" type="button" class="ghost small-btn" data-worker-page-target="actionsPanel" data-i18n="smartHubPrimaryActionDefault">Zum Zutritt</button>
+          </article>
           <div class="smart-work-hub-actions">
             <button type="button" class="ghost small-btn" data-worker-page-target="actionsPanel" data-i18n="smartHubActionAccess">Zutritt steuern</button>
             <button type="button" class="ghost small-btn" data-worker-page-target="timesheetCard" data-i18n="smartHubActionTimes">Zeiten prüfen</button>
             <button type="button" class="ghost small-btn" data-worker-page-target="documentsCard" data-i18n="smartHubActionDocs">Dokumente prüfen</button>
           </div>
+          <div class="smart-hub-meta-grid">
+            <article class="smart-hub-meta-item">
+              <p class="smart-hub-label" data-i18n="smartHubSyncLabel">Sync-Queue</p>
+              <strong id="smartHubSyncQueueValue">0</strong>
+              <small id="smartHubSyncQueueMeta" data-i18n="smartHubSyncQueueMeta">Keine ausstehenden Aktionen</small>
+            </article>
+            <article class="smart-hub-meta-item">
+              <p class="smart-hub-label" data-i18n="smartHubDocumentsRiskLabel">Dokumenten-Risiko</p>
+              <strong id="smartHubDocRiskValue">0</strong>
+              <small id="smartHubDocRiskMeta" data-i18n="smartHubDocRiskMeta">Keine kritischen Dokumente</small>
+            </article>
+            <article class="smart-hub-meta-item">
+              <p class="smart-hub-label" data-i18n="smartHubCrewLabel">Team-Snapshot</p>
+              <strong id="smartHubCrewValue">--</strong>
+              <small id="smartHubCrewMeta" data-i18n="smartHubCrewMeta">Teamdaten folgen aus Leitstand</small>
+            </article>
+          </div>
+          <article class="smart-hub-planner">
+            <div class="smart-hub-planner-head">
+              <p class="smart-hub-label" data-i18n="smartHubPlannerLabel">Tagesplan</p>
+              <button id="dayPlannerResetBtn" type="button" class="ghost tiny-btn" data-i18n="smartHubPlannerReset">Zurücksetzen</button>
+            </div>
+            <div id="dayPlannerList" class="day-planner-list"></div>
+          </article>
+          <article class="smart-hub-doc-checklist">
+            <p class="smart-hub-label" data-i18n="smartHubChecklistLabel">Dokumenten-Checkliste</p>
+            <div id="smartHubDocChecklist" class="smart-hub-checklist-list"></div>
+          </article>
         </div>
 
         <div id="workerPageNav" class="worker-page-nav hidden">
