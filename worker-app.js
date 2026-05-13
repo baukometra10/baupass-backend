@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513n";
+const WORKER_BUILD_TAG = "20260513o";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -2603,12 +2603,12 @@ function renderWorker(payload) {
     if (lateBanner) lateBanner.remove();
   }
 
-  // Keep bottom-tab pages available for workers so tabs never open blank screens.
+  // Keep bottom-tab pages available for all users so tabs never open blank screens.
   if (elements.timesheetCard) {
-    elements.timesheetCard.classList.toggle("hidden", isVisitor);
+    elements.timesheetCard.classList.remove("hidden");
   }
   if (elements.dailyInsightsCard) {
-    elements.dailyInsightsCard.classList.toggle("hidden", isVisitor);
+    elements.dailyInsightsCard.classList.remove("hidden");
   }
   if (elements.companyModeCard) {
     elements.companyModeCard.classList.toggle("hidden", isVisitor);
@@ -2616,26 +2616,26 @@ function renderWorker(payload) {
   if (elements.smartWorkHubCard) {
     elements.smartWorkHubCard.classList.toggle("hidden", isVisitor);
   }
-  // Hide worker-only quick actions for visitors.
+  // Keep shortcuts visible to match bottom-tab navigation.
   document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor);
+    btn.classList.remove("hidden");
   });
   document.querySelectorAll("[data-worker-page-target='dailyInsightsCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor);
+    btn.classList.remove("hidden");
   });
   document.querySelectorAll("[data-worker-page-target='companyModeCard']").forEach((btn) => {
     btn.classList.toggle("hidden", isVisitor);
   });
   if (elements.documentsCard) {
-    elements.documentsCard.classList.toggle("hidden", isVisitor);
+    elements.documentsCard.classList.remove("hidden");
   }
-  // Hide leave section for visitors.
+  // Keep leave section visible to avoid empty tab state.
   const leaveCard = document.getElementById("leaveRequestCard");
   if (leaveCard) {
-    leaveCard.classList.toggle("hidden", isVisitor);
+    leaveCard.classList.remove("hidden");
   }
   document.querySelectorAll("[data-scroll-target='leaveRequestCard'], [data-worker-page-target='leaveRequestCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor);
+    btn.classList.remove("hidden");
   });
   
   // Load section data after render.
@@ -4564,6 +4564,10 @@ function switchToTab(tabName) {
   // Backward compatibility: older flows still call "pass"
   if (tabName === "pass") tabName = "home";
   if (tabName === "request") tabName = "vacation";
+
+  // Tab mode must win over legacy overview/focus modes.
+  document.body.classList.remove("worker-tile-overview");
+  applyWorkerPageView("");
 
   // Safety: stale showcase mode can keep all interior panels hidden.
   const appShell = document.querySelector(".app-shell");

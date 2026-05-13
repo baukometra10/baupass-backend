@@ -137,6 +137,11 @@ body.worker-loaded .sparkasse-top-bar {
   gap: 8px;
 }
 
+.stb-right #forceRefreshButton,
+.stb-right #installButton {
+  display: none !important;
+}
+
 .stb-connection-stack {
   display: inline-flex;
   flex-direction: column;

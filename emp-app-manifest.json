@@ -3,7 +3,7 @@
   "name": "BauPass – Mitarbeiter",
   "short_name": "BauPass",
   "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
-  "start_url": "/emp-app.html?view=card&v=20260513n",
+  "start_url": "/emp-app.html?view=card&v=20260513o",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#f6f1e8",
