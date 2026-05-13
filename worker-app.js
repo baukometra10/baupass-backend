@@ -4746,6 +4746,13 @@ function renderWorker(payload) {
   setWorkerHubExpanded(true);
   haptic([18, 35, 22]);
   
+  // Start 10-second card showcase
+  setTimeout(() => {
+    if (typeof startCardShowcase === "function") {
+      startCardShowcase();
+    }
+  }, 300);
+  
   // ══════════════════════════════════════════════════════════════
   // ── PROFESSIONAL CARD ENTRANCE ANIMATION ──
   // البطاقة تظهر مباشرة عند الدخول، ثم بعد 15 ثانية تنتقل للأعلى
@@ -6615,6 +6622,129 @@ function renderCompanyModeExperience(companyPreset, isVisitor) {
   }
 }
 
+// ── 10-Second Card Showcase & Bottom Tab Navigation (Global Functions) ──────────────
+let showcaseTimeoutId = null;
+let currentActiveTab = "pass";
+
+function startCardShowcase() {
+  // Hide everything except badge card
+  const appShell = document.querySelector(".app-shell");
+  if (appShell) {
+    appShell.classList.add("showcase-mode");
+  }
+
+  // Hide header and nav
+  const topPanel = document.getElementById("topPanel");
+  const workerBottomNav = document.getElementById("workerBottomNav");
+  if (topPanel) topPanel.classList.add("hidden");
+  if (workerBottomNav) workerBottomNav.classList.add("hidden");
+
+  // Show badge card fullscreen
+  const badgeCard = document.getElementById("badgeCard");
+  if (badgeCard) {
+    badgeCard.classList.remove("hidden");
+  }
+
+  // Clear any previous timeout
+  if (showcaseTimeoutId) clearTimeout(showcaseTimeoutId);
+
+  // Start 10-second countdown
+  let countdownSeconds = 10;
+  showcaseTimeoutId = setInterval(() => {
+    countdownSeconds--;
+    if (countdownSeconds <= 0) {
+      clearInterval(showcaseTimeoutId);
+      endCardShowcase();
+    }
+  }, 1000);
+}
+
+function endCardShowcase() {
+  const appShell = document.querySelector(".app-shell");
+  if (appShell) {
+    appShell.classList.remove("showcase-mode");
+  }
+
+  // Show header and nav
+  const topPanel = document.getElementById("topPanel");
+  const workerBottomNav = document.getElementById("workerBottomNav");
+  if (topPanel) topPanel.classList.remove("hidden");
+  if (workerBottomNav) workerBottomNav.classList.remove("hidden");
+
+  // Mark as loaded
+  document.body.classList.add("worker-loaded");
+
+  // Switch to pass tab by default
+  switchToTab("pass");
+}
+
+function switchToTab(tabName) {
+  currentActiveTab = tabName;
+
+  // Update button states
+  const navTabs = document.querySelectorAll(".nav-tab");
+  navTabs.forEach((tab) => {
+    const isActive = tab.dataset.tab === tabName;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-selected", isActive);
+  });
+
+  // Hide all content panels
+  const panels = [
+    "badgeCard",
+    "actionsPanel",
+    "leaveRequestCard",
+    "timesheetCard",
+    "documentsCard",
+    "sessionInfoCard",
+    "companyModeCard",
+    "dailyInsightsCard",
+    "smartWorkHubCard"
+  ];
+
+  panels.forEach((panelId) => {
+    const panel = document.getElementById(panelId);
+    if (panel) {
+      panel.classList.add("hidden");
+    }
+  });
+
+  // Show selected panel based on tab
+  switch (tabName) {
+    case "pass":
+      document.getElementById("badgeCard")?.classList.remove("hidden");
+      break;
+    case "actions":
+      document.getElementById("actionsPanel")?.classList.remove("hidden");
+      break;
+    case "request":
+      document.getElementById("leaveRequestCard")?.classList.remove("hidden");
+      break;
+    case "timesheet":
+      document.getElementById("timesheetCard")?.classList.remove("hidden");
+      break;
+    case "documents":
+      document.getElementById("documentsCard")?.classList.remove("hidden");
+      break;
+  }
+
+  // Scroll to top of content
+  window.scrollTo(0, 0);
+}
+
+function initBottomTabNavigation() {
+  const navButtons = document.querySelectorAll(".nav-tab");
+  navButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const tabName = btn.dataset.tab;
+      if (tabName) {
+        switchToTab(tabName);
+      }
+    });
+  });
+}
+
 function updateDailyInsightsFromTimesheets(rows) {
   lastTimesheetRows = Array.isArray(rows) ? rows : [];
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -7118,3 +7248,8 @@ function stopVisitorCountdownTimer() {
       timerChip.classList.remove("timer-warning", "timer-critical");
   }
 }
+
+// Initialize bottom tab navigation on page load
+document.addEventListener("DOMContentLoaded", () => {
+  initBottomTabNavigation();
+});
