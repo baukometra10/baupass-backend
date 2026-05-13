@@ -119,24 +119,10 @@
       </div>
     </header>
 
-    <section id="loginCard" class="card login-card">
+    <section id="loginCard" class="card login-card login-compact">
       <div class="section-head">
         <p class="section-kicker" data-i18n="loginKicker">Direkter Einstieg</p>
         <h2 data-i18n="loginTitle">Digitalen Ausweis aktivieren</h2>
-      </div>
-      <p class="section-copy" data-i18n="loginCopy">Du kannst den Ausweis per Mitarbeiter-Link oder direkt mit deiner Badge-ID von der Karte aktivieren.</p>
-      <div class="login-hero-strip" aria-hidden="true">
-        <div class="login-hero-glow"></div>
-        <div class="login-hero-copy">
-          <span class="login-hero-kicker" data-i18n="loginHeroKicker">Schneller Einstieg</span>
-          <strong data-i18n="loginHeroTitle">Gezielt, sicher und sofort einsatzbereit.</strong>
-          <p data-i18n="loginHeroLead">Die Anmeldung ist auf mobile Nutzung, Baustelle und unterschiedliche Unternehmensprofile abgestimmt.</p>
-        </div>
-        <div class="login-hero-points">
-          <span class="login-hero-point" data-i18n="loginHeroPoint1">Unternehmensprofil wird automatisch erkannt</span>
-          <span class="login-hero-point" data-i18n="loginHeroPoint2">Sofortiger Einstieg mit sauberer Oberfläche</span>
-          <span class="login-hero-point" data-i18n="loginHeroPoint3">Optimiert für schnelle Arbeit vor Ort</span>
-        </div>
       </div>
       <div class="lang-option-block">
         <label class="lang-option-label" for="workerLanguageSelect" data-i18n="languageLabel">Sprache</label>
@@ -168,10 +154,114 @@
         <button id="workerResumeLoginButton" type="button" class="ghost small-btn" data-i18n="resumeLoginBtn">Mit gespeicherter Badge fortfahren</button>
       </div>
       <p id="geolocationHint" class="geolocation-hint hidden force-hidden" data-i18n="geolocationHint"></p>
-      <div class="login-tips" aria-hidden="true">
-        <span class="login-tip" data-i18n="tipBadge">Badge-ID plus PIN statt QR</span>
-        <span class="login-tip" data-i18n="tipHome">Funktioniert als Homescreen-App</span>
-        <span class="login-tip" data-i18n="tipRoute">Direkter Weg zur Baustelle</span>
+    </section>
+
+    <!-- New: Featured Dashboard with Card + Action Buttons -->
+    <section id="workerDashboard" class="worker-dashboard hidden">
+      <!-- Featured Pass Card (Large) -->
+      <div class="dashboard-featured-card">
+        <div class="wallet-card" id="dashboardWalletCard">
+          <div class="wc-shimmer"></div>
+          <div class="wc-grid"></div>
+
+          <!-- Top: Marke + NFC -->
+          <div class="wc-top">
+            <div class="wc-brand">
+              <div class="wc-brand-mark">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M3 17L12 4l9 13H3z" fill="#fff" fill-opacity=".9"/>
+                  <rect x="7" y="17" width="10" height="4" rx="1" fill="#fff" fill-opacity=".7"/>
+                  <rect x="10" y="13" width="4" height="4" fill="#fff" fill-opacity=".5"/>
+                </svg>
+              </div>
+              <div class="wc-brand-text">
+                <span class="wc-brand-name" id="dashboardBrandName">BAUPASS</span>
+                <span class="wc-brand-sub" data-i18n="workerPassSubLabel">Mitarbeiterausweis</span>
+              </div>
+            </div>
+            <svg class="wc-nfc" width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <path d="M4 13a9 9 0 019-9" stroke="rgba(255,255,255,.75)" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M7.5 13a5.5 5.5 0 015.5-5.5" stroke="rgba(255,255,255,.55)" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M11 13a2 2 0 012-2" stroke="rgba(255,255,255,.4)" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="13" cy="13" r="1.2" fill="rgba(255,255,255,.6)"/>
+            </svg>
+          </div>
+
+          <!-- Mitte: QR-Chip + Foto -->
+          <div class="wc-middle">
+            <div class="wc-qr-holder">
+              <div class="wc-qr-frame" aria-hidden="true"></div>
+              <img id="dashboardQr" alt="QR Code" data-i18n="qrCodeAlt" data-i18n-attr="alt" />
+              <div class="dqr-countdown" aria-live="polite" aria-label="QR Aktualisierung">
+                <svg class="dqr-ring" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+                  <circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="2"></circle>
+                  <circle id="dashboardDqrCountdownRing" cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round" stroke-dasharray="62.83" stroke-dashoffset="0"></circle>
+                </svg>
+                <span id="dashboardDqrCountdownText" class="dqr-countdown-text">60s</span>
+              </div>
+            </div>
+            <img id="dashboardPhoto" class="wc-photo" alt="Mitarbeiterfoto" data-i18n="workerPhotoAlt" data-i18n-attr="alt" />
+          </div>
+
+          <!-- Unten: Name + Felder -->
+          <div class="wc-bottom">
+            <p id="dashboardName" class="wc-name">Mitarbeiter</p>
+            <p id="dashboardRole" class="wc-role-text">Rolle</p>
+            <div class="wc-footer">
+              <div class="wc-fields">
+                <div class="wc-field wc-field-badge">
+                  <span class="wc-field-label" data-i18n="fieldBadgeId">Badge-ID</span>
+                  <span id="dashboardBadgeId" class="wc-field-value">–</span>
+                </div>
+                <div class="wc-field">
+                  <span class="wc-field-label" data-i18n="fieldValidUntil">Gültig bis</span>
+                  <span id="dashboardValidUntil" class="wc-field-value">–</span>
+                </div>
+              </div>
+              <div class="wc-right">
+                <p id="dashboardCompanyName" class="wc-company">Baufirma</p>
+                <p id="dashboardSubcompany" class="wc-subcompany hidden">Subunternehmen</p>
+                <div id="dashboardStatus" class="wc-status">Aktiv</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons (4 Icons) -->
+      <div class="dashboard-quick-actions">
+        <button class="action-card-btn" id="actionCardTransfer" type="button" title="Geld senden" data-i18n="actionCardTransfer" data-i18n-attr="title">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12h18M12 5l7 7-7 7"/>
+          </svg>
+          <span>Geld senden</span>
+        </button>
+        <button class="action-card-btn" id="actionCardDetails" type="button" title="Kontaktdetails" data-i18n="actionCardDetails" data-i18n-attr="title">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>
+          </svg>
+          <span>Kontakt</span>
+        </button>
+        <button class="action-card-btn" id="actionCardSearch" type="button" title="Umsätze suchen" data-i18n="actionCardSearch" data-i18n-attr="title">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <span>Umsätze</span>
+        </button>
+        <button class="action-card-btn" id="actionCardMore" type="button" title="Weitere Optionen" data-i18n="actionCardMore" data-i18n-attr="title">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="19" cy="12" r="1"/>
+            <circle cx="5" cy="12" r="1"/>
+          </svg>
+          <span>Mehr</span>
+        </button>
+      </div>
+
+      <!-- Content Sections (shown via switchToTab) -->
+      <div id="dashboardContent" class="dashboard-content">
+        <!-- Content panels will be switched here -->
       </div>
     </section>
 
@@ -715,6 +805,48 @@
       </div>
 
     </section>
+
+    <!-- Bottom Tab Navigation (hidden until card showcase completes) -->
+    <nav id="workerBottomNav" class="worker-bottom-nav hidden" role="tablist" aria-label="App-Navigation">
+      <button id="navPass" class="nav-tab active" role="tab" aria-selected="true" data-tab="pass" aria-controls="passPanel">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1"/>
+          <circle cx="7" cy="15" r="1.5" fill="currentColor"/>
+        </svg>
+        <span class="nav-label" data-i18n="navPass">Pass</span>
+      </button>
+      <button id="navActions" class="nav-tab" role="tab" aria-selected="false" data-tab="actions" aria-controls="actionsPanel">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M5 20c0-3.3 3-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="nav-label" data-i18n="navActions">Aktionen</span>
+      </button>
+      <button id="navRequest" class="nav-tab" role="tab" aria-selected="false" data-tab="request" aria-controls="leaveRequestCard">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M9 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M9 3v4h6V3M9 13h6M9 17h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="nav-label" data-i18n="navRequest">Antrag</span>
+      </button>
+      <button id="navTimesheet" class="nav-tab" role="tab" aria-selected="false" data-tab="timesheet" aria-controls="timesheetCard">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="1"/>
+          <line x1="8" y1="3" x2="8" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+          <line x1="16" y1="3" x2="16" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+        <span class="nav-label" data-i18n="navTimesheet">Stunden</span>
+      </button>
+      <button id="navDocuments" class="nav-tab" role="tab" aria-selected="false" data-tab="documents" aria-controls="documentsCard">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M9 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M9 3v4h6V3M12 14v4M10 18h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span class="nav-label" data-i18n="navDocuments">Docs</span>
+      </button>
+    </nav>
 
     <!-- Quick Gate FAB – immer sichtbar wenn Ausweis geladen (oben rechts) -->
     <button id="quickGateModeButton" class="quick-gate-fab" type="button" aria-label="Drehkreuz-Modus" data-i18n="gateBtn" data-i18n-attr="aria-label">

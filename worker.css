@@ -6047,7 +6047,7 @@ body.worker-loaded .app-shell {
   max-width: 100%;
 }
 
-.showcase-mode #badgeCard {
+.showcase-mode .dashboard-featured-card {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -6056,8 +6056,14 @@ body.worker-loaded .app-shell {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  padding: 0;
-  overflow: hidden;
+  aspect-ratio: auto;
+}
+
+.showcase-mode .dashboard-featured-card .wallet-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .showcase-mode .worker-quick-menu,
@@ -6068,7 +6074,9 @@ body.worker-loaded .app-shell {
 .showcase-mode #sessionInfoCard,
 .showcase-mode #leaveRequestCard,
 .showcase-mode #timesheetCard,
-.showcase-mode #documentsCard {
+.showcase-mode #documentsCard,
+.showcase-mode .dashboard-quick-actions,
+.showcase-mode .dashboard-content {
   display: none !important;
 }
 
@@ -6134,6 +6142,117 @@ body.worker-loaded .app-shell {
 
   body.worker-loaded .app-shell {
     padding-bottom: 70px;
+  }
+}
+
+/* ── Worker Dashboard Layout ──────────────────────────────────────────── */
+.worker-dashboard {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.dashboard-featured-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.dashboard-featured-card .wallet-card {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 20px;
+}
+
+.dashboard-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.action-card-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  min-height: 100px;
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-border);
+  border-radius: 16px;
+  color: var(--corp-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.action-card-btn svg {
+  color: var(--corp-primary);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.action-card-btn:hover,
+.action-card-btn:active {
+  background: var(--corp-bg);
+  border-color: var(--corp-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(10, 87, 192, 0.12);
+}
+
+.action-card-btn:hover svg {
+  transform: scale(1.1);
+  color: var(--corp-primary-dark);
+}
+
+.dashboard-content {
+  display: grid;
+  gap: 20px;
+  min-height: 200px;
+}
+
+@media (max-width: 540px) {
+  .dashboard-quick-actions {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .action-card-btn {
+    padding: 14px 10px;
+    min-height: 90px;
+    font-size: 0.68rem;
+  }
+
+  .dashboard-featured-card {
+    aspect-ratio: 16 / 10;
+    border-radius: 16px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .action-card-btn {
+    background: #102036;
+    border-color: #2a446c;
+    color: #e7f0ff;
+  }
+
+  html:not([data-theme="light"]) .action-card-btn:hover,
+  html:not([data-theme="light"]) .action-card-btn:active {
+    background: #0f1a29;
+    border-color: #2b79ea;
+  }
+
+  html:not([data-theme="light"]) .action-card-btn svg {
+    color: #2b79ea;
   }
 }
 

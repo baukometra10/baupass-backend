@@ -791,6 +791,10 @@ Object.assign(TRANSLATIONS.de, {
   quickMenuRequest: "Antrag",
   quickMenuHours: "Stunden",
   quickMenuDocs: "Docs",
+  actionCardTransfer: "Geld senden",
+  actionCardDetails: "Kontakt",
+  actionCardSearch: "Umsätze",
+  actionCardMore: "Mehr",
   leaveBalanceDaysRemaining: "Tage verbleibend",
   topStatPass: "Pass",
   topStatDigital: "Digital",
@@ -884,6 +888,10 @@ Object.assign(TRANSLATIONS.en, {
   quickMenuRequest: "Request",
   quickMenuHours: "Hours",
   quickMenuDocs: "Docs",
+  actionCardTransfer: "Send Money",
+  actionCardDetails: "Contact",
+  actionCardSearch: "Transactions",
+  actionCardMore: "More",
   leaveBalanceDaysRemaining: "days remaining",
   topStatPass: "Pass",
   topStatDigital: "Digital",
@@ -4746,6 +4754,14 @@ function renderWorker(payload) {
   setWorkerHubExpanded(true);
   haptic([18, 35, 22]);
   
+  // Show new Dashboard instead of old badgeCard
+  const dashboardEl = document.getElementById("workerDashboard");
+  if (dashboardEl) {
+    dashboardEl.classList.remove("hidden");
+    // Sync worker data to dashboard
+    syncWorkerDataToDashboard(lastWorkerPayload);
+  }
+  
   // Start 10-second card showcase
   setTimeout(() => {
     if (typeof startCardShowcase === "function") {
@@ -6627,7 +6643,7 @@ let showcaseTimeoutId = null;
 let currentActiveTab = "pass";
 
 function startCardShowcase() {
-  // Hide everything except badge card
+  // Hide everything except featured card
   const appShell = document.querySelector(".app-shell");
   if (appShell) {
     appShell.classList.add("showcase-mode");
@@ -6639,10 +6655,10 @@ function startCardShowcase() {
   if (topPanel) topPanel.classList.add("hidden");
   if (workerBottomNav) workerBottomNav.classList.add("hidden");
 
-  // Show badge card fullscreen
-  const badgeCard = document.getElementById("badgeCard");
-  if (badgeCard) {
-    badgeCard.classList.remove("hidden");
+  // Show featured card fullscreen
+  const dashboardCard = document.querySelector(".dashboard-featured-card");
+  if (dashboardCard) {
+    dashboardCard.style.display = "block";
   }
 
   // Clear any previous timeout
@@ -6674,7 +6690,13 @@ function endCardShowcase() {
   // Mark as loaded
   document.body.classList.add("worker-loaded");
 
-  // Switch to pass tab by default
+  // Featured card and buttons visible again
+  const dashboardCard = document.querySelector(".dashboard-featured-card");
+  if (dashboardCard) {
+    dashboardCard.style.display = "";
+  }
+
+  // Switch to pass tab by default (shows dashboard)
   switchToTab("pass");
 }
 
@@ -6689,43 +6711,60 @@ function switchToTab(tabName) {
     tab.setAttribute("aria-selected", isActive);
   });
 
-  // Hide all content panels
-  const panels = [
-    "badgeCard",
-    "actionsPanel",
-    "leaveRequestCard",
-    "timesheetCard",
-    "documentsCard",
-    "sessionInfoCard",
-    "companyModeCard",
-    "dailyInsightsCard",
-    "smartWorkHubCard"
-  ];
-
-  panels.forEach((panelId) => {
-    const panel = document.getElementById(panelId);
-    if (panel) {
-      panel.classList.add("hidden");
+  // When switching to "pass" tab, show dashboard featured card + buttons
+  if (tabName === "pass") {
+    const dashboard = document.getElementById("workerDashboard");
+    if (dashboard) {
+      dashboard.classList.remove("hidden");
     }
-  });
+    // Hide all other content panels
+    const contentPanels = ["actionsPanel", "leaveRequestCard", "timesheetCard", "documentsCard"];
+    contentPanels.forEach((id) => {
+      const panel = document.getElementById(id);
+      if (panel) panel.classList.add("hidden");
+    });
+  } else {
+    // Hide dashboard, show specific content panel
+    const dashboard = document.getElementById("workerDashboard");
+    if (dashboard) {
+      dashboard.classList.add("hidden");
+    }
 
-  // Show selected panel based on tab
-  switch (tabName) {
-    case "pass":
-      document.getElementById("badgeCard")?.classList.remove("hidden");
-      break;
-    case "actions":
-      document.getElementById("actionsPanel")?.classList.remove("hidden");
-      break;
-    case "request":
-      document.getElementById("leaveRequestCard")?.classList.remove("hidden");
-      break;
-    case "timesheet":
-      document.getElementById("timesheetCard")?.classList.remove("hidden");
-      break;
-    case "documents":
-      document.getElementById("documentsCard")?.classList.remove("hidden");
-      break;
+    // Hide all panels first
+    const panels = [
+      "badgeCard",
+      "actionsPanel",
+      "leaveRequestCard",
+      "timesheetCard",
+      "documentsCard",
+      "sessionInfoCard",
+      "companyModeCard",
+      "dailyInsightsCard",
+      "smartWorkHubCard"
+    ];
+
+    panels.forEach((panelId) => {
+      const panel = document.getElementById(panelId);
+      if (panel) {
+        panel.classList.add("hidden");
+      }
+    });
+
+    // Show selected panel based on tab
+    switch (tabName) {
+      case "actions":
+        document.getElementById("actionsPanel")?.classList.remove("hidden");
+        break;
+      case "request":
+        document.getElementById("leaveRequestCard")?.classList.remove("hidden");
+        break;
+      case "timesheet":
+        document.getElementById("timesheetCard")?.classList.remove("hidden");
+        break;
+      case "documents":
+        document.getElementById("documentsCard")?.classList.remove("hidden");
+        break;
+    }
   }
 
   // Scroll to top of content
@@ -6743,6 +6782,72 @@ function initBottomTabNavigation() {
       }
     });
   });
+}
+
+// Sync worker data to dashboard featured card
+function syncWorkerDataToDashboard(payload) {
+  if (!payload) return;
+
+  const dashboard = {
+    name: document.getElementById("dashboardName"),
+    role: document.getElementById("dashboardRole"),
+    brandName: document.getElementById("dashboardBrandName"),
+    badgeId: document.getElementById("dashboardBadgeId"),
+    validUntil: document.getElementById("dashboardValidUntil"),
+    companyName: document.getElementById("dashboardCompanyName"),
+    subcompany: document.getElementById("dashboardSubcompany"),
+    status: document.getElementById("dashboardStatus"),
+    photo: document.getElementById("dashboardPhoto"),
+    qr: document.getElementById("dashboardQr")
+  };
+
+  const worker = {
+    name: document.getElementById("workerName"),
+    role: document.getElementById("workerRole"),
+    brandName: document.getElementById("workerBrandName"),
+    badgeId: document.getElementById("workerBadgeId"),
+    validUntil: document.getElementById("workerValidUntil"),
+    companyName: document.getElementById("companyName"),
+    subcompany: document.getElementById("workerSubcompany"),
+    status: document.getElementById("workerStatus"),
+    photo: document.getElementById("workerPhoto"),
+    qr: document.getElementById("workerQr")
+  };
+
+  // Copy text content
+  if (worker.name && dashboard.name) {
+    dashboard.name.textContent = worker.name.textContent;
+  }
+  if (worker.role && dashboard.role) {
+    dashboard.role.textContent = worker.role.textContent;
+  }
+  if (worker.brandName && dashboard.brandName) {
+    dashboard.brandName.textContent = worker.brandName.textContent;
+  }
+  if (worker.badgeId && dashboard.badgeId) {
+    dashboard.badgeId.textContent = worker.badgeId.textContent;
+  }
+  if (worker.validUntil && dashboard.validUntil) {
+    dashboard.validUntil.textContent = worker.validUntil.textContent;
+  }
+  if (worker.companyName && dashboard.companyName) {
+    dashboard.companyName.textContent = worker.companyName.textContent;
+  }
+  if (worker.subcompany && dashboard.subcompany) {
+    dashboard.subcompany.textContent = worker.subcompany.textContent;
+    dashboard.subcompany.classList.toggle("hidden", worker.subcompany.classList.contains("hidden"));
+  }
+  if (worker.status && dashboard.status) {
+    dashboard.status.textContent = worker.status.textContent;
+  }
+
+  // Copy image sources
+  if (worker.photo && dashboard.photo && worker.photo.src) {
+    dashboard.photo.src = worker.photo.src;
+  }
+  if (worker.qr && dashboard.qr && worker.qr.src) {
+    dashboard.qr.src = worker.qr.src;
+  }
 }
 
 function updateDailyInsightsFromTimesheets(rows) {
