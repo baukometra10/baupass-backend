@@ -4785,6 +4785,9 @@ function renderWorker(payload) {
   if (topBar) {
     topBar.classList.remove("hidden");
   }
+
+  // Initialize tab navigation to Home tab
+  switchToTab("home");
   
   // Disable legacy entrance flow in the tab-first UI.
   clearCardEntranceAnimation();
