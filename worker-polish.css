@@ -359,9 +359,23 @@ html[data-theme="dark"] .form-input-sparkasse,
 html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea {
-  background: var(--ui-surface-soft);
-  border-color: var(--corp-border);
-  color: var(--corp-text);
+  background: #122540;
+  border-color: #29466c;
+  color: #e8f1ff;
+}
+
+html[data-theme="dark"] .login-sparkasse .form-input-sparkasse,
+html[data-theme="dark"] #workerAccessToken,
+html[data-theme="dark"] #workerBadgePin {
+  background: #122540 !important;
+  border-color: #29466c !important;
+  color: #e8f1ff !important;
+}
+
+html[data-theme="dark"] .login-sparkasse .form-input-sparkasse::placeholder,
+html[data-theme="dark"] #workerAccessToken::placeholder,
+html[data-theme="dark"] #workerBadgePin::placeholder {
+  color: #9db3d0;
 }
 
 html[data-theme="dark"] .worker-page-nav,
@@ -399,9 +413,23 @@ html[data-theme="dark"] .worker-menu-icon {
   html:not([data-theme]) input,
   html:not([data-theme]) select,
   html:not([data-theme]) textarea {
-    background: var(--ui-surface-soft);
-    border-color: var(--corp-border);
-    color: var(--corp-text);
+    background: #122540;
+    border-color: #29466c;
+    color: #e8f1ff;
+  }
+
+  html:not([data-theme]) .login-sparkasse .form-input-sparkasse,
+  html:not([data-theme]) #workerAccessToken,
+  html:not([data-theme]) #workerBadgePin {
+    background: #122540 !important;
+    border-color: #29466c !important;
+    color: #e8f1ff !important;
+  }
+
+  html:not([data-theme]) .login-sparkasse .form-input-sparkasse::placeholder,
+  html:not([data-theme]) #workerAccessToken::placeholder,
+  html:not([data-theme]) #workerBadgePin::placeholder {
+    color: #9db3d0;
   }
 
   html:not([data-theme]) .worker-page-nav,
@@ -471,6 +499,36 @@ html[data-theme="dark"] .worker-menu-icon {
 .subtle,
 .help-text {
   color: var(--corp-muted);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--corp-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--ui-surface-soft) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+html[data-theme="dark"] input:-webkit-autofill,
+html[data-theme="dark"] input:-webkit-autofill:hover,
+html[data-theme="dark"] input:-webkit-autofill:focus,
+html[data-theme="dark"] textarea:-webkit-autofill,
+html[data-theme="dark"] select:-webkit-autofill {
+  -webkit-text-fill-color: #e8f1ff;
+  -webkit-box-shadow: 0 0 0 1000px #122540 inset;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) input:-webkit-autofill,
+  html:not([data-theme]) input:-webkit-autofill:hover,
+  html:not([data-theme]) input:-webkit-autofill:focus,
+  html:not([data-theme]) textarea:-webkit-autofill,
+  html:not([data-theme]) select:-webkit-autofill {
+    -webkit-text-fill-color: #e8f1ff;
+    -webkit-box-shadow: 0 0 0 1000px #122540 inset;
+  }
 }
 
 button:focus-visible,
