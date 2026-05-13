@@ -5483,6 +5483,173 @@ body {
   }
 }
 
+
+/* ── Clean Banking UI Override (Map-safe) ───────────────────────────── */
+:root {
+  --bank-bg: #f3f6fb;
+  --bank-surface: #ffffff;
+  --bank-surface-soft: #f8fbff;
+  --bank-border: #dce6f4;
+  --bank-text: #0f1f36;
+  --bank-muted: #5b6f8e;
+  --bank-accent: #0c5ccf;
+  --bank-accent-strong: #0949a4;
+  --bank-shadow: 0 18px 42px rgba(15, 31, 54, 0.1);
+}
+
+body {
+  background:
+    radial-gradient(1000px 520px at -10% -18%, rgba(12, 92, 207, 0.14), transparent 58%),
+    radial-gradient(900px 460px at 110% -20%, rgba(11, 88, 187, 0.09), transparent 60%),
+    linear-gradient(160deg, #f8fbff 0%, var(--bank-bg) 52%, #eef3fa 100%);
+}
+
+.top-panel {
+  background: linear-gradient(145deg, #0f2a52 0%, #0c5ccf 56%, #0b4ca9 100%);
+  border: 1px solid rgba(184, 210, 245, 0.45);
+  box-shadow: 0 28px 70px rgba(10, 33, 70, 0.34);
+  border-radius: 20px;
+}
+
+.top-panel h1 {
+  letter-spacing: -0.025em;
+}
+
+.top-panel .top-lead,
+.top-panel .eyebrow,
+.top-panel .platform-hint {
+  color: rgba(236, 246, 255, 0.9);
+}
+
+.worker-loaded .card,
+.worker-loaded .below-card:not(#routeCard),
+.worker-loaded #workerMenuCard,
+.worker-loaded .worker-hub-panel,
+.worker-loaded .actions-panel,
+.worker-loaded .timesheet-card,
+.worker-loaded .documents-card,
+.worker-loaded .leave-request-card,
+.worker-loaded .login-card,
+.worker-loaded .worker-pass {
+  background: linear-gradient(180deg, var(--bank-surface) 0%, var(--bank-surface-soft) 100%);
+  border: 1px solid var(--bank-border);
+  box-shadow: var(--bank-shadow);
+  border-radius: 16px;
+}
+
+.section-kicker,
+.pulse-label,
+.top-stat-label,
+.worker-next-step-kicker {
+  color: var(--bank-muted);
+  letter-spacing: 0.12em;
+}
+
+.worker-loaded h2,
+.worker-loaded h3,
+.worker-loaded .info-value,
+.worker-loaded .doc-type,
+.worker-loaded .entry-time {
+  color: var(--bank-text);
+}
+
+.worker-loaded .section-copy,
+.worker-loaded .muted-info,
+.worker-loaded .doc-meta,
+.worker-loaded .entry-gate,
+.worker-loaded .worker-next-step-copy {
+  color: var(--bank-muted);
+}
+
+.primary,
+.quick-menu-btn.active,
+.actions-gate-btn {
+  background: linear-gradient(140deg, var(--bank-accent) 0%, var(--bank-accent-strong) 100%);
+  border: 1px solid rgba(10, 74, 164, 0.35);
+  box-shadow: 0 10px 24px rgba(12, 92, 207, 0.32);
+}
+
+.ghost,
+.small-btn,
+.theme-toggle-btn,
+.voice-command-btn,
+.quick-menu-btn,
+.worker-menu-btn {
+  border: 1px solid var(--bank-border);
+  background: #ffffff;
+}
+
+.worker-menu-btn {
+  min-height: 132px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.worker-menu-btn:hover,
+.quick-menu-btn:hover,
+.timesheet-entry:hover,
+.document-item:hover,
+.leave-request-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(12, 92, 207, 0.36);
+  box-shadow: 0 14px 30px rgba(15, 31, 54, 0.12);
+}
+
+input,
+select,
+textarea {
+  border: 1px solid #cfdced;
+  background: #ffffff;
+  border-radius: 12px;
+  color: var(--bank-text);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(12, 92, 207, 0.45);
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --bank-bg: #0a1323;
+    --bank-surface: #101d33;
+    --bank-surface-soft: #12223a;
+    --bank-border: #1f3353;
+    --bank-text: #e8f1ff;
+    --bank-muted: #9ab0d1;
+    --bank-accent: #2b79ea;
+    --bank-accent-strong: #175fc8;
+    --bank-shadow: 0 20px 46px rgba(2, 8, 18, 0.5);
+  }
+
+  html:not([data-theme="light"]) body {
+    background:
+      radial-gradient(1000px 520px at -10% -18%, rgba(43, 121, 234, 0.2), transparent 58%),
+      radial-gradient(900px 460px at 110% -20%, rgba(23, 95, 200, 0.17), transparent 60%),
+      linear-gradient(160deg, #091221 0%, #0a1323 52%, #0d182c 100%);
+  }
+
+  html:not([data-theme="light"]) .ghost,
+  html:not([data-theme="light"]) .small-btn,
+  html:not([data-theme="light"]) .theme-toggle-btn,
+  html:not([data-theme="light"]) .voice-command-btn,
+  html:not([data-theme="light"]) .quick-menu-btn,
+  html:not([data-theme="light"]) .worker-menu-btn,
+  html:not([data-theme="light"]) input,
+  html:not([data-theme="light"]) select,
+  html:not([data-theme="light"]) textarea {
+    background: #0f1d32;
+    border-color: #243a5d;
+    color: #e8f1ff;
+  }
+}
+  .worker-menu-btn {
+    min-height: 126px;
+  }
+}
+
 .smart-work-hub-card {
   display: grid;
   gap: 12px;
@@ -5668,6 +5835,415 @@ body {
   .smart-work-hub-actions,
   .smart-hub-meta-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Sparkasse-Clean Strict (Map-safe, final) ────────────────────────── */
+:root {
+  --spark-bg: #f4f7fb;
+  --spark-surface: #ffffff;
+  --spark-surface-soft: #f9fbfe;
+  --spark-border: #d7e1ee;
+  --spark-text: #11233d;
+  --spark-muted: #5e738f;
+  --spark-primary: #0b5ac5;
+  --spark-primary-strong: #08489f;
+}
+
+body {
+  background:
+    radial-gradient(760px 360px at -10% -15%, rgba(11, 90, 197, 0.08), transparent 60%),
+    linear-gradient(170deg, #f8fbff 0%, var(--spark-bg) 55%, #edf3fa 100%);
+}
+
+.top-panel {
+  background: linear-gradient(160deg, #0f2a52 0%, #0b5ac5 100%);
+  border: 1px solid rgba(167, 195, 236, 0.45);
+  border-radius: 16px;
+  box-shadow: 0 20px 46px rgba(11, 34, 69, 0.28);
+}
+
+.worker-loaded .card,
+.worker-loaded .below-card:not(#routeCard),
+.worker-loaded #workerMenuCard,
+.worker-loaded .worker-hub-panel,
+.worker-loaded .actions-panel,
+.worker-loaded .timesheet-card,
+.worker-loaded .documents-card,
+.worker-loaded .leave-request-card,
+.worker-loaded .login-card,
+.worker-loaded .worker-pass {
+  background: linear-gradient(180deg, var(--spark-surface) 0%, var(--spark-surface-soft) 100%);
+  border: 1px solid var(--spark-border);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(17, 35, 61, 0.08);
+}
+
+.worker-loaded h2,
+.worker-loaded h3,
+.worker-loaded .info-value,
+.worker-loaded .doc-type,
+.worker-loaded .entry-time {
+  color: var(--spark-text);
+}
+
+.worker-loaded .section-copy,
+.worker-loaded .muted-info,
+.worker-loaded .doc-meta,
+.worker-loaded .entry-gate,
+.worker-loaded .worker-next-step-copy,
+.section-kicker,
+.pulse-label,
+.top-stat-label,
+.worker-next-step-kicker {
+  color: var(--spark-muted);
+}
+
+.primary,
+.quick-menu-btn.active,
+.actions-gate-btn {
+  background: linear-gradient(160deg, var(--spark-primary) 0%, var(--spark-primary-strong) 100%);
+  border: 1px solid rgba(8, 72, 159, 0.4);
+  box-shadow: 0 8px 18px rgba(11, 90, 197, 0.22);
+}
+
+.ghost,
+.small-btn,
+.theme-toggle-btn,
+.voice-command-btn,
+.quick-menu-btn,
+.worker-menu-btn,
+input,
+select,
+textarea {
+  background: #ffffff;
+  border: 1px solid var(--spark-border);
+  color: var(--spark-text);
+}
+
+.worker-menu-btn,
+.quick-menu-btn,
+.timesheet-entry,
+.document-item,
+.leave-request-item {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.worker-menu-btn:hover,
+.quick-menu-btn:hover,
+.timesheet-entry:hover,
+.document-item:hover,
+.leave-request-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(17, 35, 61, 0.1);
+  border-color: rgba(11, 90, 197, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --spark-bg: #0a1322;
+    --spark-surface: #0f1d33;
+    --spark-surface-soft: #12243d;
+    --spark-border: #233a5d;
+    --spark-text: #e7f0ff;
+    --spark-muted: #9ab0ce;
+    --spark-primary: #2b79ea;
+    --spark-primary-strong: #175fc8;
+  }
+
+  html:not([data-theme="light"]) body {
+    background:
+      radial-gradient(760px 360px at -10% -15%, rgba(43, 121, 234, 0.14), transparent 60%),
+      linear-gradient(170deg, #091221 0%, #0a1322 55%, #0d182b 100%);
+  }
+
+  html:not([data-theme="light"]) .ghost,
+  html:not([data-theme="light"]) .small-btn,
+  html:not([data-theme="light"]) .theme-toggle-btn,
+  html:not([data-theme="light"]) .voice-command-btn,
+  html:not([data-theme="light"]) .quick-menu-btn,
+  html:not([data-theme="light"]) .worker-menu-btn,
+  html:not([data-theme="light"]) input,
+  html:not([data-theme="light"]) select,
+  html:not([data-theme="light"]) textarea {
+    background: #102036;
+    border-color: #2a446c;
+    color: #e7f0ff;
+  }
+}
+
+/* ── Ultra-Clean Compact Banking (Map-safe) ─────────────────────────── */
+.app-shell {
+  max-width: 520px;
+  gap: 12px;
+  padding: 16px 12px 24px;
+}
+
+.top-panel {
+  padding: 16px 14px;
+  border-radius: 12px;
+}
+
+.top-panel h1 {
+  font-size: clamp(1.55rem, 6.2vw, 2.05rem);
+  line-height: 1.03;
+}
+
+.top-lead {
+  font-size: 0.9rem;
+  line-height: 1.42;
+}
+
+.worker-loaded .card,
+.worker-loaded .below-card:not(#routeCard),
+.worker-loaded #workerMenuCard,
+.worker-loaded .worker-hub-panel,
+.worker-loaded .actions-panel,
+.worker-loaded .timesheet-card,
+.worker-loaded .documents-card,
+.worker-loaded .leave-request-card,
+.worker-loaded .login-card,
+.worker-loaded .worker-pass {
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(17, 35, 61, 0.07);
+}
+
+.section-head.compact-head {
+  margin-bottom: 6px;
+}
+
+.section-kicker {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+.worker-loaded h2,
+.worker-loaded h3 {
+  font-size: 1.02rem;
+  line-height: 1.22;
+}
+
+.worker-menu-grid {
+  gap: 8px;
+}
+
+.worker-menu-btn {
+  min-height: 108px;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.worker-menu-label {
+  font-size: 0.78rem;
+  line-height: 1.18;
+}
+
+.quick-menu-btn,
+.small-btn,
+.ghost,
+.theme-toggle-btn,
+.voice-command-btn {
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 0.76rem;
+}
+
+.actions-panel .actions-secondary {
+  gap: 8px;
+}
+
+.primary,
+.actions-gate-btn {
+  min-height: 42px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+}
+
+.timesheet-entry,
+.document-item,
+.leave-request-item,
+.smart-hub-item,
+.smart-hub-meta-item,
+.smart-hub-recommendation,
+.smart-hub-planner,
+.smart-hub-doc-checklist {
+  padding: 8px 9px;
+  border-radius: 10px;
+}
+
+.day-planner-item,
+.smart-hub-check-item {
+  padding: 6px 7px;
+  border-radius: 8px;
+}
+
+input,
+select,
+textarea {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 0.88rem;
+}
+
+textarea {
+  min-height: 86px;
+}
+
+@media (max-width: 420px) {
+  .app-shell {
+    gap: 10px;
+    padding: 12px 10px 18px;
+  }
+
+  .top-panel {
+    padding: 14px 12px;
+    border-radius: 10px;
+  }
+
+  .worker-menu-btn {
+    min-height: 98px;
+    padding: 8px;
+  }
+
+  .quick-menu-btn,
+  .small-btn,
+  .ghost,
+  .theme-toggle-btn,
+  .voice-command-btn {
+    min-height: 32px;
+    padding: 6px 9px;
+    font-size: 0.74rem;
+  }
+}
+
+/* ── Sparkasse Corporate Flat (Map-safe, final refinement) ───────────── */
+:root {
+  --corp-bg: #f2f5f9;
+  --corp-surface: #ffffff;
+  --corp-border: #d4deea;
+  --corp-text: #132845;
+  --corp-muted: #5f7390;
+  --corp-primary: #0a57c0;
+  --corp-primary-strong: #08479e;
+}
+
+body {
+  background: linear-gradient(180deg, #f7f9fc 0%, var(--corp-bg) 56%, #edf2f8 100%);
+}
+
+.top-panel {
+  background: #0f3f86;
+  border: 1px solid rgba(166, 194, 234, 0.5);
+  box-shadow: 0 14px 28px rgba(14, 35, 65, 0.24);
+}
+
+.worker-loaded .card,
+.worker-loaded .below-card:not(#routeCard),
+.worker-loaded #workerMenuCard,
+.worker-loaded .worker-hub-panel,
+.worker-loaded .actions-panel,
+.worker-loaded .timesheet-card,
+.worker-loaded .documents-card,
+.worker-loaded .leave-request-card,
+.worker-loaded .login-card,
+.worker-loaded .worker-pass {
+  background: var(--corp-surface);
+  border: 1px solid var(--corp-border);
+  box-shadow: 0 6px 14px rgba(19, 40, 69, 0.06);
+}
+
+.worker-loaded h2,
+.worker-loaded h3,
+.worker-loaded .info-value,
+.worker-loaded .doc-type,
+.worker-loaded .entry-time {
+  color: var(--corp-text);
+}
+
+.worker-loaded .section-copy,
+.worker-loaded .muted-info,
+.worker-loaded .doc-meta,
+.worker-loaded .entry-gate,
+.worker-loaded .worker-next-step-copy,
+.section-kicker,
+.pulse-label,
+.top-stat-label,
+.worker-next-step-kicker {
+  color: var(--corp-muted);
+}
+
+.primary,
+.quick-menu-btn.active,
+.actions-gate-btn {
+  background: var(--corp-primary);
+  border: 1px solid rgba(8, 71, 158, 0.45);
+  box-shadow: 0 4px 10px rgba(10, 87, 192, 0.2);
+}
+
+.primary:hover,
+.quick-menu-btn.active:hover,
+.actions-gate-btn:hover {
+  background: var(--corp-primary-strong);
+}
+
+.ghost,
+.small-btn,
+.theme-toggle-btn,
+.voice-command-btn,
+.quick-menu-btn,
+.worker-menu-btn,
+input,
+select,
+textarea {
+  background: #ffffff;
+  border: 1px solid var(--corp-border);
+  color: var(--corp-text);
+}
+
+.worker-menu-btn:hover,
+.quick-menu-btn:hover,
+.timesheet-entry:hover,
+.document-item:hover,
+.leave-request-item:hover {
+  transform: none;
+  box-shadow: 0 4px 10px rgba(19, 40, 69, 0.08);
+  border-color: rgba(10, 87, 192, 0.34);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --corp-bg: #0a1322;
+    --corp-surface: #0f1e34;
+    --corp-border: #263e61;
+    --corp-text: #e8f1ff;
+    --corp-muted: #9db3d0;
+    --corp-primary: #2b79ea;
+    --corp-primary-strong: #1d66d1;
+  }
+
+  html:not([data-theme="light"]) body {
+    background: linear-gradient(180deg, #0b1424 0%, #0a1322 56%, #0d182b 100%);
+  }
+
+  html:not([data-theme="light"]) .top-panel {
+    background: #123f82;
+    border-color: rgba(103, 145, 207, 0.5);
+  }
+
+  html:not([data-theme="light"]) .ghost,
+  html:not([data-theme="light"]) .small-btn,
+  html:not([data-theme="light"]) .theme-toggle-btn,
+  html:not([data-theme="light"]) .voice-command-btn,
+  html:not([data-theme="light"]) .quick-menu-btn,
+  html:not([data-theme="light"]) .worker-menu-btn,
+  html:not([data-theme="light"]) input,
+  html:not([data-theme="light"]) select,
+  html:not([data-theme="light"]) textarea {
+    background: #11223a;
+    border-color: #2b476f;
+    color: #e8f1ff;
   }
 }
 
