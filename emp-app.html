@@ -119,40 +119,75 @@
       </div>
     </header>
 
-    <section id="loginCard" class="card login-card login-compact">
-      <div class="section-head">
-        <p class="section-kicker" data-i18n="loginKicker">Direkter Einstieg</p>
-        <h2 data-i18n="loginTitle">Digitalen Ausweis aktivieren</h2>
+    <section id="loginCard" class="card login-card login-sparkasse">
+      <!-- Sparkasse-Style: Minimal Header -->
+      <div class="login-header-sparkasse">
+        <div class="login-brand-sparkasse">
+          <h1 class="login-brand-title">BauPass</h1>
+          <p class="login-brand-sub" data-i18n="loginSubtitle">Mitarbeiterausweis</p>
+        </div>
+        <div class="login-actions-top">
+          <select id="workerLanguageSelect" class="lang-select-minimal" aria-label="Sprache auswählen" data-i18n="languageSelectAria" data-i18n-attr="aria-label">
+            <option value="de">🇩🇪 DE</option>
+            <option value="en">🇬🇧 EN</option>
+            <option value="tr">🇹🇷 TR</option>
+            <option value="ar">🇸🇦 AR</option>
+            <option value="fr">🇫🇷 FR</option>
+            <option value="es">🇪🇸 ES</option>
+            <option value="it">🇮🇹 IT</option>
+            <option value="pl">🇵🇱 PL</option>
+          </select>
+        </div>
       </div>
-      <div class="lang-option-block">
-        <label class="lang-option-label" for="workerLanguageSelect" data-i18n="languageLabel">Sprache</label>
-        <select id="workerLanguageSelect" class="lang-option-select" aria-label="Sprache auswählen" data-i18n="languageSelectAria" data-i18n-attr="aria-label">
-          <option value="de">🇩🇪 Deutsch</option>
-          <option value="en">🇬🇧 English</option>
-          <option value="tr">🇹🇷 Türkçe</option>
-          <option value="ar">🇸🇦 العربية</option>
-          <option value="fr">🇫🇷 Français</option>
-          <option value="es">🇪🇸 Español</option>
-          <option value="it">🇮🇹 Italiano</option>
-          <option value="pl">🇵🇱 Polski</option>
-        </select>
+
+      <!-- Main Login Content -->
+      <div class="login-content-sparkasse">
+        <div class="login-welcome">
+          <h2 class="login-title-sparkasse" data-i18n="loginTitle">Digitalen Ausweis aktivieren</h2>
+          <p class="login-copy-sparkasse" data-i18n="loginCopy">Gib deinen Link-Code oder deine Badge-ID ein, um deinen Ausweis zu laden.</p>
+        </div>
+
+        <div id="workerNotice" class="worker-notice hidden" role="alert" aria-live="polite"></div>
+
+        <form id="workerLoginForm" class="login-form-sparkasse">
+          <div class="form-group">
+            <label for="workerAccessToken" class="form-label" data-i18n="loginTokenLabel">Link-Code oder Badge-ID</label>
+            <input 
+              id="workerAccessToken" 
+              type="text" 
+              class="form-input-sparkasse"
+              data-i18n="loginTokenPlaceholder" 
+              data-i18n-attr="placeholder" 
+              placeholder="z.B. BP-12345 oder Link-Code"
+              required 
+              autocomplete="off"
+            />
+          </div>
+
+          <div id="pinFieldWrapper" class="form-group hidden">
+            <label for="workerBadgePin" class="form-label" data-i18n="loginPinLabel">Badge-PIN</label>
+            <input 
+              id="workerBadgePin" 
+              type="password" 
+              inputmode="numeric" 
+              class="form-input-sparkasse"
+              pattern="[0-9]{4,8}" 
+              data-i18n="loginPinPlaceholder" 
+              data-i18n-attr="placeholder" 
+              placeholder="4–8 stellige PIN"
+              autocomplete="off"
+            />
+          </div>
+
+          <button class="login-btn-primary" type="submit" data-i18n="loginBtn">Ausweis laden</button>
+        </form>
+
+        <div id="workerResumeLoginRow" class="login-resume-row hidden">
+          <p class="login-resume-copy" data-i18n="resumeLoginHint">Auf diesem Gerät ist bereits eine Badge-ID gespeichert.</p>
+          <button id="workerResumeLoginButton" type="button" class="login-btn-secondary" data-i18n="resumeLoginBtn">Mit gespeicherter Badge fortfahren</button>
+        </div>
       </div>
-      <div id="workerNotice" class="worker-notice hidden" role="alert" aria-live="polite"></div>
-      <form id="workerLoginForm" class="grid">
-        <label>
-          <span data-i18n="loginTokenLabel">Link-Code oder Badge-ID</span>
-          <input id="workerAccessToken" type="text" data-i18n="loginTokenPlaceholder" data-i18n-attr="placeholder" placeholder="Token aus Link oder BP-..." required />
-        </label>
-        <label id="pinFieldWrapper" class="hidden">
-          <span data-i18n="loginPinLabel">Badge-PIN</span>
-          <input id="workerBadgePin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" data-i18n="loginPinPlaceholder" data-i18n-attr="placeholder" placeholder="4–8 stelliger PIN" />
-        </label>
-        <button class="primary" type="submit" data-i18n="loginBtn">Ausweis laden</button>
-      </form>
-      <div id="workerResumeLoginRow" class="login-resume-row hidden">
-        <p class="login-resume-copy" data-i18n="resumeLoginHint">Auf diesem Gerät ist bereits eine Badge-ID gespeichert.</p>
-        <button id="workerResumeLoginButton" type="button" class="ghost small-btn" data-i18n="resumeLoginBtn">Mit gespeicherter Badge fortfahren</button>
-      </div>
+
       <p id="geolocationHint" class="geolocation-hint hidden force-hidden" data-i18n="geolocationHint"></p>
     </section>
 
