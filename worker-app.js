@@ -2186,12 +2186,17 @@ async function loadWorkerData() {
     showLogin();
     return false;
   }
+  const tokenAtRequest = workerToken;
 
   console.log("[loadWorkerData] Starting fetch for /me...");
   try {
     const payload = await fetchJson(`${API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${workerToken}` }
+      headers: { Authorization: `Bearer ${tokenAtRequest}` }
     });
+    if (!tokenAtRequest || tokenAtRequest !== workerToken) {
+      // Ignore stale response after logout/login switch.
+      return false;
+    }
     console.log("[loadWorkerData] Success:", payload);
     localStorage.setItem(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
     offlineWorkerSessionActive = false;
@@ -2202,6 +2207,10 @@ async function loadWorkerData() {
     await syncOfflineEventQueue();
     return true;
   } catch (error) {
+    if (!tokenAtRequest || tokenAtRequest !== workerToken) {
+      // Ignore stale request failures after auth state changes.
+      return false;
+    }
     // Session expired or revoked — must re-login
     if (error?.code === "worker_session_expired" || error?.code === "invalid_worker_session") {
       localStorage.removeItem(WORKER_TOKEN_KEY);
@@ -2660,10 +2669,14 @@ function showLogin() {
   const dashboardEl = document.getElementById("workerDashboard");
   if (dashboardEl) dashboardEl.classList.add("hidden");
   if (elements.walletCard) elements.walletCard.classList.remove("hidden");
-  if (elements.loginCard) elements.loginCard.classList.remove("hidden");
+  if (elements.loginCard) {
+    elements.loginCard.classList.remove("hidden");
+    elements.loginCard.style.removeProperty("display");
+  }
   document.body.removeAttribute("data-company-mode");
   resetDailyInsights();
   setWorkerHubExpanded(false);
+  document.body.classList.remove("worker-loaded");
   enforceUiVisibilityGuard();
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
   applyWorkerPageView("");
@@ -2671,7 +2684,6 @@ function showLogin() {
     quickMenuObserver.disconnect();
     quickMenuObserver = null;
   }
-  document.body.classList.remove("worker-loaded");
   updateWalletImmersiveMode();
   updateWorkerPulsePanel();
 
@@ -2881,17 +2893,8 @@ function showPassLockError(message) {
 }
 
 async function workerLogout() {
-    stopDynamicQrRefresh();
-  try {
-    if (workerToken) {
-      await fetchJson(`${API_BASE}/logout`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${workerToken}` }
-      });
-    }
-  } catch {
-    // ignore logout call failures
-  }
+  stopDynamicQrRefresh();
+  const tokenForRevoke = workerToken;
 
   localStorage.removeItem(WORKER_TOKEN_KEY);
   localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
@@ -2913,6 +2916,16 @@ async function workerLogout() {
   }
   closeGateMode();
   showLogin();
+
+  // Revoke backend session in best-effort mode without blocking UI logout.
+  if (tokenForRevoke) {
+    fetchJson(`${API_BASE}/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tokenForRevoke}` }
+    }).catch(() => {
+      // ignore logout call failures
+    });
+  }
 }
 
 async function openGateMode() {
@@ -4745,6 +4758,7 @@ function syncWorkerDataToDashboard(payload) {
     role: document.getElementById("workerRole"),
     brandName: document.getElementById("workerBrandName"),
     badgeId: document.getElementById("workerBadgeId"),
+    site: document.getElementById("workerSite"),
     validUntil: document.getElementById("workerValidUntil"),
     companyName: document.getElementById("companyName"),
     subcompany: document.getElementById("workerSubcompany"),
@@ -4787,10 +4801,14 @@ function syncWorkerDataToDashboard(payload) {
   }
 
   const homeInfoStatus = document.getElementById("homeInfoStatus");
+  const homeInfoSite = document.getElementById("homeInfoSite");
   const homeInfoCompany = document.getElementById("homeInfoCompany");
   const homeInfoValidUntil = document.getElementById("homeInfoValidUntil");
   if (homeInfoStatus && worker.status) {
     homeInfoStatus.textContent = worker.status.textContent || "Aktiv";
+  }
+  if (homeInfoSite && worker.site) {
+    homeInfoSite.textContent = worker.site.textContent || "-";
   }
   if (homeInfoCompany && worker.companyName) {
     homeInfoCompany.textContent = worker.companyName.textContent || "Baufirma";
