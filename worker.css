@@ -1428,18 +1428,13 @@ button:hover,
 
 .worker-menu-btn:hover .worker-menu-svg {
   transform: scale(1.15) rotate(3deg);
-  filter: drop-shadow(0 3px 6px rgba(217, 93, 57, 0.2));
-}
-
-.worker-menu-btn:active .worker-menu-svg {
-  transform: scale(0.92);
 }
 
 .worker-menu-label {
   line-height: 1.3;
   font-weight: 500;
-  color: #1a1a1a;
-  font-size: 0.92rem;
+  font-size: 0.78rem;
+  color: var(--text);
   max-width: 16ch;
   min-height: 2.6em;
   display: inline-flex;
@@ -6607,32 +6602,40 @@ body.worker-loaded .app-shell {
 .home-compact-info {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .home-info-item {
   display: grid;
-  gap: 4px;
-  padding: 12px 10px;
-  border: 1px solid var(--corp-border);
-  border-radius: 12px;
-  background: var(--corp-surface);
+  gap: 6px;
+  padding: 14px 12px;
+  border: 1px solid rgba(60, 94, 139, 0.44);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(19, 37, 62, 0.98), rgba(14, 28, 48, 0.98));
+  box-shadow: 0 6px 18px rgba(7, 20, 38, 0.25);
 }
 
 .home-info-label {
-  font-size: 0.68rem;
-  color: var(--corp-muted);
+  font-size: 0.72rem;
+  color: #8ea5c6;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
 .home-info-value {
-  font-size: 0.82rem;
+  font-size: 1.06rem;
   font-weight: 700;
-  color: var(--corp-text);
+  color: #ecf3ff;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 520px) {
+  .home-compact-info {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-featured-card {

@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513c";
+const WORKER_BUILD_TAG = "20260513d";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -288,11 +288,14 @@ const TRANSLATIONS = {
     leaveRequestNoteLabel: "Notiz",
     leaveRequestSubmitBtn: "Antrag einreichen",
     leaveRequestNewBtn: "+ Neuer Antrag",
+    navHome: "Start",
+    navVacation: "Urlaub",
+    navTimesheet: "Stunden",
+    navDocuments: "Docs",
     notificationBannerText: "Benachrichtigungen für Checkout-Erinnerungen aktivieren?",
     notificationEnableBtn: "Aktivieren",
     timesheetKicker: "Zeiterfassung",
     timesheetTitle: "Meine Stunden",
-    navTimesheet: "Stunden",
     timesheetCardTitle: "Eintritte & Zeiten",
     timesheetLoading: "Lade Einträge…",
     timesheetEmpty: "Noch keine Einträge vorhanden.",
@@ -442,6 +445,10 @@ const TRANSLATIONS = {
     leaveRequestNoteLabel: "Note",
     leaveRequestSubmitBtn: "Submit Request",
     leaveRequestNewBtn: "+ New Request",
+    navHome: "Home",
+    navVacation: "Leave",
+    navTimesheet: "Hours",
+    navDocuments: "Docs",
     notificationBannerText: "Enable notifications for checkout reminders?",
     notificationEnableBtn: "Enable",
     timesheetKicker: "Time Tracking",
@@ -6815,6 +6822,20 @@ function initBottomTabNavigation() {
       }
     });
   });
+
+  const hashToTab = {
+    "#home": "home",
+    "#urlaub": "vacation",
+    "#stunden": "timesheet",
+    "#docs": "documents"
+  };
+
+  const syncFromHash = () => {
+    const targetTab = hashToTab[(window.location.hash || "").toLowerCase()] || "home";
+    switchToTab(targetTab);
+  };
+
+  window.addEventListener("hashchange", syncFromHash);
 }
 
 // Sync worker data to dashboard featured card
