@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513j";
+const WORKER_BUILD_TAG = "20260513k";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -6796,6 +6796,12 @@ function switchToTab(tabName) {
   if (tabName === "request") tabName = "vacation";
 
   currentActiveTab = tabName;
+
+  // Never allow tab navigation to reveal interior panels before login completes.
+  if (!document.body.classList.contains("worker-loaded")) {
+    enforceUiVisibilityGuard();
+    return;
+  }
 
   // First enforce a strict clean state so legacy sections never leak into view.
   const managedPanels = [
