@@ -4419,6 +4419,7 @@ function renderCompanyModeExperience(companyPreset, isVisitor) {
 // ── 10-Second Card Showcase & Bottom Tab Navigation (Global Functions) ──────────────
 let showcaseTimeoutId = null;
 let currentActiveTab = "home";
+let bottomTabNavInitialized = false;
 
 function startCardShowcase() {
   // Hide everything except featured card
@@ -4619,6 +4620,9 @@ function switchToTab(tabName) {
 }
 
 function initBottomTabNavigation() {
+  if (bottomTabNavInitialized) return;
+  bottomTabNavInitialized = true;
+
   const navButtons = document.querySelectorAll(".nav-tab");
   navButtons.forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -4629,6 +4633,21 @@ function initBottomTabNavigation() {
       }
     });
   });
+
+  // Fallback: delegated handling on the nav container in case individual
+  // listeners are missed due to lifecycle/caching edge cases.
+  const navContainer = document.getElementById("workerBottomNav");
+  if (navContainer) {
+    navContainer.addEventListener("click", (e) => {
+      const clicked = e.target instanceof Element ? e.target.closest(".nav-tab") : null;
+      if (!clicked) return;
+      e.preventDefault();
+      const tabName = clicked.getAttribute("data-tab") || "";
+      if (tabName) {
+        switchToTab(tabName);
+      }
+    });
+  }
 
   const hashToTab = {
     "#home": "home",
@@ -5245,9 +5264,16 @@ function stopVisitorCountdownTimer() {
   }
 }
 
-// Initialize bottom tab navigation on page load
-document.addEventListener("DOMContentLoaded", () => {
+// Initialize bottom tab navigation on page load and also when script runs
+// after DOMContentLoaded (webview/service-worker cache edge cases).
+function initWorkerAppShell() {
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initWorkerAppShell, { once: true });
+} else {
+  initWorkerAppShell();
+}
 

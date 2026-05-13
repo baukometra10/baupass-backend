@@ -289,6 +289,33 @@ html[data-theme="dark"] .worker-bottom-nav {
 
 .nav-tab.active {
   color: var(--corp-text);
+  background: rgba(10, 87, 192, 0.12);
+  border: 1px solid rgba(10, 87, 192, 0.26);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+html[data-theme="dark"] .nav-tab {
+  color: var(--corp-muted);
+}
+
+html[data-theme="dark"] .nav-tab.active {
+  color: var(--corp-text);
+  background: rgba(43, 121, 234, 0.22);
+  border-color: rgba(86, 154, 244, 0.42);
+  box-shadow: inset 0 1px 0 rgba(180, 210, 255, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .nav-tab {
+    color: var(--corp-muted);
+  }
+
+  html:not([data-theme]) .nav-tab.active {
+    color: var(--corp-text);
+    background: rgba(43, 121, 234, 0.22);
+    border-color: rgba(86, 154, 244, 0.42);
+    box-shadow: inset 0 1px 0 rgba(180, 210, 255, 0.2);
+  }
 }
 
 .worker-quick-menu {
@@ -567,6 +594,35 @@ html[data-theme="dark"] .worker-menu-icon {
   color: var(--corp-muted);
 }
 
+.leave-days-hint {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(33, 171, 94, 0.28);
+  background: rgba(33, 171, 94, 0.1);
+  color: #17653f;
+  font-weight: 600;
+}
+
+.doc-warning-banner {
+  border-radius: var(--ui-radius-sm);
+  border: 1px solid var(--corp-border);
+}
+
+.doc-warning-expired {
+  background: rgba(203, 49, 49, 0.14);
+  border-color: rgba(203, 49, 49, 0.34);
+  color: #8d2323;
+}
+
+.doc-warning-soon {
+  background: rgba(222, 132, 24, 0.14);
+  border-color: rgba(222, 132, 24, 0.34);
+  color: #8f5200;
+}
+
 .smart-hub-item strong,
 .smart-hub-meta-item strong,
 .smart-hub-recommendation strong,
@@ -635,6 +691,24 @@ html[data-theme="dark"] .leave-balance-badge.low {
   color: #ffd0d0;
 }
 
+html[data-theme="dark"] .leave-days-hint {
+  border-color: rgba(92, 218, 143, 0.34);
+  background: rgba(40, 161, 97, 0.2);
+  color: #bdf7d8;
+}
+
+html[data-theme="dark"] .doc-warning-expired {
+  border-color: rgba(241, 121, 121, 0.38);
+  background: rgba(146, 49, 49, 0.24);
+  color: #ffd0d0;
+}
+
+html[data-theme="dark"] .doc-warning-soon {
+  border-color: rgba(235, 166, 74, 0.38);
+  background: rgba(168, 113, 36, 0.24);
+  color: #ffe2b2;
+}
+
 html[data-theme="dark"] .day-planner-item,
 html[data-theme="dark"] .smart-hub-check-item {
   border-color: #29466c;
@@ -694,6 +768,24 @@ html[data-theme="dark"] .smart-hub-check-item {
     border-color: rgba(241, 121, 121, 0.38);
     background: rgba(146, 49, 49, 0.24);
     color: #ffd0d0;
+  }
+
+  html:not([data-theme]) .leave-days-hint {
+    border-color: rgba(92, 218, 143, 0.34);
+    background: rgba(40, 161, 97, 0.2);
+    color: #bdf7d8;
+  }
+
+  html:not([data-theme]) .doc-warning-expired {
+    border-color: rgba(241, 121, 121, 0.38);
+    background: rgba(146, 49, 49, 0.24);
+    color: #ffd0d0;
+  }
+
+  html:not([data-theme]) .doc-warning-soon {
+    border-color: rgba(235, 166, 74, 0.38);
+    background: rgba(168, 113, 36, 0.24);
+    color: #ffe2b2;
   }
 
   html:not([data-theme]) .day-planner-item,
