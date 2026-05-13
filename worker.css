@@ -6218,13 +6218,15 @@ textarea {
 .worker-bottom-nav {
   position: fixed;
   inset: auto 0 0 0;
-  height: 64px;
+  height: calc(68px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 6px max(6px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   background: var(--corp-surface);
   border-top: 1px solid var(--corp-border);
   display: flex;
   align-items: center;
-  justify-content: space-around;
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  justify-content: space-evenly;
+  box-shadow: 0 -2px 10px rgba(8, 28, 54, 0.08);
   z-index: 100;
   gap: 0;
 }
@@ -6239,46 +6241,64 @@ body:not(.worker-loaded) #topPanel {
 }
 
 .nav-tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   flex: 1;
   height: 100%;
   background: transparent;
   border: none;
-  color: var(--corp-muted);
+  color: #4f6078;
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
   border-radius: 0;
   padding: 0;
 }
 
 .nav-tab svg {
-  width: 24px;
-  height: 24px;
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.8;
 }
 
 .nav-label {
-  font-size: 0.68rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
 .nav-tab.active {
-  color: var(--corp-primary);
-  background-color: rgba(10, 87, 192, 0.05);
+  color: #0f1724;
+  background-color: transparent;
+}
+
+.nav-tab.active::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 8px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--corp-primary);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
 }
 
 .nav-tab:hover {
   background-color: rgba(10, 87, 192, 0.08);
 }
 
+.nav-tab:active {
+  transform: translateY(1px);
+}
+
 /* When bottom nav is visible, adjust main content spacing */
 body.worker-loaded .app-shell {
-  padding-bottom: 80px;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Showcase mode: full-screen pass card for 10 seconds */
@@ -6364,13 +6384,23 @@ body.worker-loaded .app-shell {
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) .worker-bottom-nav {
-    background: #102036;
-    border-color: #2a446c;
+    background: #0f1e34;
+    border-color: #223a60;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.35);
   }
 
   html:not([data-theme="light"]) .nav-tab.active {
-    color: #2b79ea;
-    background-color: rgba(43, 121, 234, 0.1);
+    color: #e7f0ff;
+    background-color: transparent;
+  }
+
+  html:not([data-theme="light"]) .nav-tab {
+    color: #94aac8;
+  }
+
+  html:not([data-theme="light"]) .nav-tab.active::after {
+    background: #2b79ea;
+    box-shadow: 0 0 0 2px rgba(15, 30, 52, 0.95);
   }
 
   html:not([data-theme="light"]) .showcase-mode {
@@ -6380,7 +6410,8 @@ body.worker-loaded .app-shell {
 
 @media (max-width: 420px) {
   .worker-bottom-nav {
-    height: 60px;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-top: 4px;
   }
 
   .nav-tab {
@@ -6388,11 +6419,11 @@ body.worker-loaded .app-shell {
   }
 
   .nav-label {
-    font-size: 0.62rem;
+    font-size: 0.64rem;
   }
 
   body.worker-loaded .app-shell {
-    padding-bottom: 70px;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }
 
