@@ -2951,8 +2951,8 @@ body.qr-high-contrast #gateQr {
     font-size: .5rem;
   }
   .wallet-card {
-    aspect-ratio: 85.6 / 58;
-    min-height: 248px;
+    aspect-ratio: 85.6 / 62;
+    min-height: 274px;
   }
   .wc-field.wc-field-badge .wc-field-value {
     font-size: .66rem;
@@ -2971,6 +2971,14 @@ body.qr-high-contrast #gateQr {
     min-height: 146px;
     padding: 12px 7px 9px;
     gap: 8px;
+  }
+
+  .home-compact-info {
+    gap: 6px;
+  }
+
+  .home-info-item {
+    padding: 9px 7px;
   }
 
   .worker-menu-icon,
@@ -6367,7 +6375,7 @@ textarea {
   align-items: center;
   justify-content: space-evenly;
   box-shadow: 0 -2px 10px rgba(8, 28, 54, 0.08);
-  z-index: 100;
+  z-index: 1200;
   gap: 0;
 }
 
@@ -6421,8 +6429,8 @@ body.worker-loaded #badgeCard {
   padding: 0;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 .nav-tab svg {
@@ -6669,7 +6677,69 @@ body.worker-loaded .app-shell {
 
 @media (max-width: 520px) {
   .home-compact-info {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .home-info-item {
+    padding: 10px 8px;
+    border-radius: 12px;
+    gap: 4px;
+  }
+
+  .home-info-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.05em;
+  }
+
+  .home-info-value {
+    font-size: 0.82rem;
+    white-space: normal;
+  }
+
+  .dashboard-featured-card {
+    aspect-ratio: 85.6 / 60;
+    border-radius: 16px;
+  }
+
+  .wallet-card {
+    max-width: 100%;
+    aspect-ratio: 85.6 / 60;
+    min-height: 286px;
+    padding: 4.8% 5.2%;
+  }
+
+  .wc-top {
+    margin-top: 0;
+  }
+
+  .wc-middle {
+    gap: 10px;
+    align-items: center;
+  }
+
+  .wc-qr-holder {
+    width: clamp(82px, 33vw, 124px);
+    height: clamp(82px, 33vw, 124px);
+  }
+
+  .wc-photo {
+    width: clamp(54px, 18vw, 76px);
+    height: clamp(54px, 18vw, 76px);
+    border-radius: 12px;
+  }
+
+  .wc-bottom {
+    margin-top: 0;
+  }
+
+  .wc-qr-frame {
+    inset: -5px;
+  }
+
+  #workerQr,
+  #visitorQr {
+    padding: 3px;
   }
 }
 
