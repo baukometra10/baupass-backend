@@ -115,7 +115,7 @@ html[data-theme="dark"] body {
 }
 
 body.worker-loaded .app-shell {
-  padding-top: 22px;
+  padding-top: 26px;
 }
 
 .sparkasse-top-bar {
@@ -125,7 +125,7 @@ body.worker-loaded .app-shell {
 }
 
 body.worker-loaded .sparkasse-top-bar {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .stb-inner {
@@ -259,18 +259,40 @@ textarea:focus {
 }
 
 body.worker-loaded .worker-dashboard {
-  margin-top: 8px;
+  margin-top: 12px;
+}
+
+.dashboard-featured-card {
+  margin-top: 4px;
+}
+
+.dashboard-featured-card .wallet-card {
+  border-radius: 28px;
+  padding: 5.2% 5.8%;
+}
+
+.wc-top {
+  margin-bottom: 4px;
+}
+
+.wc-brand-name {
+  font-size: clamp(0.5rem, 2vw, 0.72rem);
+  letter-spacing: 0.15em;
+}
+
+.wc-brand-sub {
+  font-size: clamp(0.36rem, 1.35vw, 0.5rem);
 }
 
 /* Card QR refinement: smaller QR, compact gold frame, no extra chip overlay */
 .wc-qr-holder {
-  width: clamp(58px, 19%, 84px);
-  height: clamp(58px, 19%, 84px);
+  width: clamp(64px, 20.5%, 92px);
+  height: clamp(64px, 20.5%, 92px);
 }
 
 .wc-middle {
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 html[dir="rtl"] .wc-middle {
@@ -296,6 +318,12 @@ html[dir="rtl"] .wc-middle {
   padding: 3px;
 }
 
+.wc-photo {
+  width: clamp(64px, 20%, 88px);
+  height: clamp(64px, 20%, 88px);
+  border-radius: 12px;
+}
+
 .dqr-countdown,
 .vc-timer-chip {
   display: none !important;
@@ -303,11 +331,28 @@ html[dir="rtl"] .wc-middle {
 
 .wc-footer {
   align-items: flex-start;
+  gap: 8px;
 }
 
 .wc-fields,
 .wc-right {
   flex: 1 1 0;
+}
+
+.wc-fields {
+  min-width: 48%;
+}
+
+.wc-right {
+  min-width: 44%;
+}
+
+.wc-company {
+  max-width: 16ch;
+}
+
+.wc-subcompany {
+  max-width: 16ch;
 }
 
 html[dir="rtl"] .wc-footer {
@@ -977,7 +1022,11 @@ textarea:focus-visible,
   }
 
   body.worker-loaded .app-shell {
-    padding-top: 16px;
+    padding-top: 18px;
+  }
+
+  body.worker-loaded .worker-dashboard {
+    margin-top: 8px;
   }
 
   body:not(.worker-loaded) .login-content-sparkasse {

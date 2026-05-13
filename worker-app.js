@@ -4778,6 +4778,12 @@ function syncWorkerDataToDashboard(payload) {
   }
   if (worker.status && dashboard.status) {
     dashboard.status.textContent = worker.status.textContent;
+    const normalizedStatus = worker.status.dataset?.status || "";
+    if (normalizedStatus) {
+      dashboard.status.dataset.status = normalizedStatus;
+    } else {
+      delete dashboard.status.dataset.status;
+    }
   }
 
   const homeInfoStatus = document.getElementById("homeInfoStatus");
