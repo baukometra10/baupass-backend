@@ -4544,6 +4544,8 @@ function switchToTab(tabName) {
 
   currentActiveTab = tabName;
 
+  const workerHubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
+
   // Never allow tab navigation to reveal interior panels before login completes.
   if (!document.body.classList.contains("worker-loaded")) {
     const loginCard = document.getElementById("loginCard");
@@ -4601,6 +4603,10 @@ function switchToTab(tabName) {
 
   // Show the correct panel based on tab
   if (tabName === "home") {
+    if (workerHubPanel) {
+      workerHubPanel.classList.add("hidden");
+      workerHubPanel.style.setProperty("display", "none", "important");
+    }
     const dashboard = document.getElementById("workerDashboard");
     const homeInfo = document.getElementById("homeCompactInfo");
     if (dashboard) {
@@ -4612,18 +4618,30 @@ function switchToTab(tabName) {
       homeInfo.style.removeProperty("display");
     }
   } else if (tabName === "vacation") {
+    if (workerHubPanel) {
+      workerHubPanel.classList.remove("hidden");
+      workerHubPanel.style.removeProperty("display");
+    }
     const leaveCard = document.getElementById("leaveRequestCard");
     if (leaveCard) {
       leaveCard.classList.remove("hidden");
       leaveCard.style.removeProperty("display");
     }
   } else if (tabName === "timesheet") {
+    if (workerHubPanel) {
+      workerHubPanel.classList.remove("hidden");
+      workerHubPanel.style.removeProperty("display");
+    }
     const timesheetCard = document.getElementById("timesheetCard");
     if (timesheetCard) {
       timesheetCard.classList.remove("hidden");
       timesheetCard.style.removeProperty("display");
     }
   } else if (tabName === "documents") {
+    if (workerHubPanel) {
+      workerHubPanel.classList.remove("hidden");
+      workerHubPanel.style.removeProperty("display");
+    }
     const docsCard = document.getElementById("documentsCard");
     if (docsCard) {
       docsCard.classList.remove("hidden");
