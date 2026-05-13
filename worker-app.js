@@ -6307,6 +6307,7 @@ async function submitLeaveRequest() {
   const start = elements.leaveRequestStart?.value || "";
   const end = elements.leaveRequestEnd?.value || "";
   const note = elements.leaveRequestNote?.value || "";
+  const recipientEmail = (elements.leaveRequestBossEmail?.value || "").trim();
   
   if (!start || !end) {
     showWorkerNotice(t("enterAccessCode")); // Reuse: please enter dates
@@ -6328,7 +6329,13 @@ async function submitLeaveRequest() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${workerToken}`
       },
-      body: JSON.stringify({ type, start_date: start, end_date: end, note })
+      body: JSON.stringify({
+        type,
+        start_date: start,
+        end_date: end,
+        note,
+        recipient_email: recipientEmail
+      })
     });
     lastSubmittedLeaveRequestId = String(result?.id || "");
     

@@ -22150,6 +22150,69 @@ def trigger_checkout_reminders():
 
 
 # ── Urlaubsantraege & Krankmeldungen ─────────────────────────────────
+def _build_leave_request_pdf_bytes(payload: dict) -> bytes | None:
+    """Build a compact leave request PDF for mail attachments."""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as rl_canvas
+    except Exception:
+        return None
+
+    worker_name = str(payload.get("worker_name") or "-")
+    badge_id = str(payload.get("badge_id") or "-")
+    req_type = str(payload.get("type") or "-")
+    type_label = {
+        "urlaub": "Urlaub",
+        "krank": "Krankmeldung",
+        "sonstiges": "Sonstiger Antrag",
+    }.get(req_type, req_type)
+
+    buf = io.BytesIO()
+    pdf = rl_canvas.Canvas(buf, pagesize=A4)
+    _w, page_h = A4
+    y = page_h - 50
+
+    pdf.setFont("Helvetica-Bold", 15)
+    pdf.drawString(40, y, "BauPass - Abwesenheitsantrag")
+    y -= 18
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(40, y, f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+
+    y -= 24
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(40, y, "Antragsdaten")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+
+    lines = [
+        f"Mitarbeiter: {worker_name}",
+        f"Badge-ID: {badge_id}",
+        f"Art: {type_label}",
+        f"Zeitraum: {payload.get('start_date', '-')} bis {payload.get('end_date', '-')}",
+        f"Arbeitstage: {int(payload.get('days_count') or 0)}",
+        f"Status: {payload.get('status', 'ausstehend')}",
+        f"Antrags-ID: {payload.get('id', '-')}",
+        f"Eingereicht am: {payload.get('created_at', '-')}",
+    ]
+    for line in lines:
+        pdf.drawString(40, y, line)
+        y -= 14
+
+    note = (str(payload.get("note") or "").strip()) or "-"
+    y -= 6
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(40, y, "Notiz")
+    y -= 14
+    pdf.setFont("Helvetica", 10)
+    for chunk in textwrap.wrap(note, width=95)[:12]:
+        pdf.drawString(40, y, chunk)
+        y -= 13
+
+    pdf.save()
+    buf.seek(0)
+    return buf.getvalue()
+
+
 @app.route("/api/worker-app/leave-requests", methods=["GET"])
 @require_worker_session
 def worker_get_leave_requests():
@@ -22178,6 +22241,7 @@ def worker_submit_leave_request():
     start_date = str(data.get("start_date", "")).strip()
     end_date = str(data.get("end_date", "")).strip()
     note = str(data.get("note", "")).strip()[:500]
+    manager_email = str(data.get("recipient_email") or data.get("boss_email") or "").strip()
     if req_type not in ("urlaub", "krank", "sonstiges"):
         return jsonify({"error": "invalid_type"}), 400
     if not start_date or not end_date:
@@ -22186,6 +22250,8 @@ def worker_submit_leave_request():
         return jsonify({"error": "invalid_date_format"}), 400
     if start_date > end_date:
         return jsonify({"error": "end_before_start"}), 400
+    if manager_email and "@" not in manager_email:
+        return jsonify({"error": "invalid_recipient_email"}), 400
     req_id = f"leave-{secrets.token_hex(8)}"
     days_count = _count_working_days(start_date, end_date)
     db.execute(
@@ -22200,18 +22266,12 @@ def worker_submit_leave_request():
         target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
     )
 
-    # E-Mail-Benachrichtigung an Firmen-Admins
-    admin_rows = db.execute(
-        "SELECT name, email FROM users WHERE company_id = ? AND role = 'company-admin' AND email != ''",
-        (worker["company_id"],)
-    ).fetchall()
-    if admin_rows:
-        type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiger Antrag"}
-        req_type_label = type_labels.get(req_type, req_type)
-        worker_name = f"{worker['first_name']} {worker['last_name']}"
-        subject = f"Neuer Antrag: {req_type_label} – {worker_name}"
-        note_html = f'<p style="color:#555;margin:8px 0 0;"><strong>Notiz:</strong> {note}</p>' if note else ""
-        html_mail = f"""<!DOCTYPE html>
+    type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiger Antrag"}
+    req_type_label = type_labels.get(req_type, req_type)
+    worker_name = f"{worker['first_name']} {worker['last_name']}"
+    subject = f"Neuer Antrag: {req_type_label} – {worker_name}"
+    note_html = f'<p style="color:#555;margin:8px 0 0;"><strong>Notiz:</strong> {note}</p>' if note else ""
+    html_mail = f"""<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"></head>
 <body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f8;margin:0;padding:32px 0;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
@@ -22227,18 +22287,114 @@ def worker_submit_leave_request():
     <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt im BauPass Admin-Portal prüfen und genehmigen oder ablehnen.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
-        text_mail = f"Neuer Antrag von {worker_name}: {req_type_label} {start_date}–{end_date}." + (f"\nNotiz: {note}" if note else "")
-        settings_row = db.execute("SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1").fetchone()
-        s = dict(settings_row) if settings_row else {}
-        sender_email = (s.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-        sender_name = (s.get("smtp_sender_name") or "BauPass").strip()
-        for admin in admin_rows:
-            try:
-                _send_via_any_api(subject, sender_email, sender_name, admin["email"], text_mail, html_mail)
-            except Exception:
-                pass
+    text_mail = f"Neuer Antrag von {worker_name}: {req_type_label} {start_date}–{end_date}." + (f"\nNotiz: {note}" if note else "")
 
-    return jsonify({"ok": True, "id": req_id}), 201
+    admin_rows = db.execute(
+        "SELECT name, email FROM users WHERE company_id = ? AND role = 'company-admin' AND email != ''",
+        (worker["company_id"],)
+    ).fetchall()
+    recipients = [manager_email] if manager_email else [str(a["email"]).strip() for a in admin_rows if str(a["email"] or "").strip()]
+
+    settings_row = db.execute(
+        "SELECT smtp_sender_email, smtp_sender_name, smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls FROM settings WHERE id = 1"
+    ).fetchone()
+    s = dict(settings_row) if settings_row else {}
+    sender_email = (s.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
+    sender_name = (s.get("smtp_sender_name") or "BauPass").strip()
+
+    pdf_payload = {
+        "id": req_id,
+        "worker_name": worker_name,
+        "badge_id": worker.get("badge_id") or "-",
+        "type": req_type,
+        "start_date": start_date,
+        "end_date": end_date,
+        "days_count": days_count,
+        "status": "ausstehend",
+        "created_at": now_iso(),
+        "note": note,
+    }
+    pdf_bytes = _build_leave_request_pdf_bytes(pdf_payload)
+    attachments = []
+    if pdf_bytes:
+        import base64 as _b64
+        attachments.append({
+            "filename": f"urlaubsantrag-{req_id}.pdf",
+            "content_b64": _b64.b64encode(pdf_bytes).decode("ascii"),
+            "mime_type": "application/pdf",
+        })
+
+    sent_recipients = []
+    failed_recipients = []
+    for recipient in recipients:
+        ok, err, _provider = _send_via_any_api(
+            subject,
+            sender_email,
+            sender_name,
+            recipient,
+            text_mail,
+            html_mail,
+            attachments=attachments,
+        )
+
+        if not ok:
+            smtp_host = (s.get("smtp_host") or "").strip()
+            if smtp_host:
+                try:
+                    import smtplib
+                    from email.message import EmailMessage as _EM
+
+                    msg = _EM()
+                    msg["Subject"] = subject
+                    msg["From"] = f'"{sender_name}" <{sender_email}>'
+                    msg["To"] = recipient
+                    msg.set_content(text_mail)
+                    msg.add_alternative(html_mail, subtype="html")
+                    if pdf_bytes:
+                        msg.add_attachment(
+                            pdf_bytes,
+                            maintype="application",
+                            subtype="pdf",
+                            filename=f"urlaubsantrag-{req_id}.pdf",
+                        )
+
+                    with smtplib.SMTP(smtp_host, int(s.get("smtp_port") or 587), timeout=10) as smtp:
+                        if int(s.get("smtp_use_tls") or 0) == 1:
+                            smtp.starttls()
+                        smtp_user = (s.get("smtp_username") or "").strip()
+                        if smtp_user:
+                            smtp.login(smtp_user, s.get("smtp_password") or "")
+                        smtp.send_message(msg)
+                    ok = True
+                    err = ""
+                except Exception as exc:
+                    ok = False
+                    err = f"smtp: {exc}"
+
+        if ok:
+            sent_recipients.append(recipient)
+        else:
+            failed_recipients.append({"email": recipient, "error": err})
+
+    if sent_recipients:
+        db.execute(
+            "UPDATE leave_requests SET email_forwarded_to = ? WHERE id = ?",
+            (", ".join(sent_recipients), req_id),
+        )
+        db.commit()
+        log_audit(
+            "leave_request.email_sent",
+            f"Antrag {req_id} automatisch per E-Mail gesendet: {', '.join(sent_recipients)} ({worker_name})",
+            target_type="worker", target_id=worker["id"], company_id=worker["company_id"],
+        )
+
+    return jsonify({
+        "ok": True,
+        "id": req_id,
+        "mail_sent": bool(sent_recipients),
+        "mail_recipients": sent_recipients,
+        "mail_failed": failed_recipients,
+    }), 201
 
 
 @app.route("/api/leave-requests")
