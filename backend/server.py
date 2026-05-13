@@ -10889,6 +10889,7 @@ def worker_app_me():
                 late_minutes = max(0, (ch * 60 + cm) - (sh * 60 + sm))
         except Exception:
             pass
+    team_snapshot = build_worker_team_snapshot(db, worker)
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker),
@@ -10915,9 +10916,90 @@ def worker_app_me():
                 "today": checked_in_late_today,
                 "minutes": late_minutes,
             },
+            "teamSnapshot": team_snapshot,
             "planFeatures": get_plan_features(company["plan"] if company else "starter"),
         }
     )
+
+
+def build_worker_team_snapshot(db, worker_row):
+    company_id = str(worker_row["company_id"] or "").strip()
+    site_name = str(worker_row["site"] or "").strip()
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+
+    if not company_id:
+        return {
+            "scope": "company",
+            "site": "",
+            "expected": 0,
+            "present": 0,
+            "openCheckouts": 0,
+        }
+
+    worker_filter_sql = """
+        w.company_id = ?
+        AND w.worker_type = 'worker'
+        AND w.deleted_at IS NULL
+        AND COALESCE(w.status, '') != 'gesperrt'
+    """
+    worker_filter_params = [company_id]
+
+    scope = "company"
+    if site_name:
+        worker_filter_sql += " AND COALESCE(w.site, '') = ?"
+        worker_filter_params.append(site_name)
+        scope = "site"
+
+    expected_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS total
+        FROM workers w
+        WHERE {worker_filter_sql}
+        """,
+        tuple(worker_filter_params),
+    ).fetchone()
+    expected = int((expected_row["total"] if expected_row else 0) or 0)
+
+    live_params = list(worker_filter_params)
+    live_params.extend([f"{today_prefix}%", f"{today_prefix}%"])
+    present_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS total
+        FROM (
+            SELECT al.worker_id, al.direction
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE {worker_filter_sql}
+              AND al.timestamp LIKE ?
+              AND al.timestamp = (
+                  SELECT MAX(al2.timestamp)
+                  FROM access_logs al2
+                  WHERE al2.worker_id = al.worker_id
+                    AND al2.timestamp LIKE ?
+              )
+        ) latest
+        WHERE latest.direction = 'check-in'
+        """,
+        tuple(live_params),
+    ).fetchone()
+    present = int((present_row["total"] if present_row else 0) or 0)
+
+    return {
+        "scope": scope,
+        "site": site_name,
+        "expected": expected,
+        "present": present,
+        "openCheckouts": present,
+    }
+
+
+@app.get("/api/worker-app/team-snapshot")
+@require_worker_session
+def worker_app_team_snapshot():
+    db = get_db()
+    worker = g.worker
+    snapshot = build_worker_team_snapshot(db, worker)
+    return jsonify(snapshot)
 
 
 @app.post("/api/worker-app/offline-events")
