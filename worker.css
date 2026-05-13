@@ -5143,3 +5143,137 @@ body {
   }
 }
 
+/* ── Final Polish Pass ────────────────────────────────────────────── */
+.app-shell {
+  max-width: 540px;
+  gap: 20px;
+}
+
+.top-panel {
+  padding: 28px 24px;
+}
+
+.top-lead {
+  max-width: 38ch;
+  line-height: 1.5;
+}
+
+.section-copy,
+.worker-next-step-copy {
+  line-height: 1.55;
+}
+
+.status-banner {
+  border-left: 3px solid currentColor;
+  border-radius: 16px;
+}
+
+.quick-menu-btn {
+  min-height: 36px;
+  font-weight: 800;
+}
+
+.quick-menu-btn.active {
+  box-shadow: 0 10px 22px rgba(12, 103, 96, 0.28);
+}
+
+.worker-menu-btn {
+  border: 1px solid rgba(12, 103, 96, 0.14);
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.96), rgba(239, 250, 247, 0.92));
+}
+
+.worker-menu-btn:hover {
+  border-color: rgba(12, 103, 96, 0.28);
+  box-shadow: 0 14px 30px rgba(7, 44, 45, 0.16);
+}
+
+.timesheet-entry,
+.document-item,
+.leave-request-item {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.timesheet-entry:hover,
+.document-item:hover,
+.leave-request-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(8, 38, 39, 0.1);
+  border-color: rgba(12, 103, 96, 0.24);
+}
+
+.actions-panel .actions-secondary {
+  gap: 12px;
+}
+
+.actions-panel .small-btn,
+.actions-panel .theme-toggle-btn,
+.actions-panel .voice-command-btn {
+  border-radius: 12px;
+}
+
+.worker-next-step-panel {
+  border-left: 4px solid rgba(198, 146, 47, 0.56);
+}
+
+button:focus-visible,
+.quick-menu-btn:focus-visible,
+.worker-menu-btn:focus-visible,
+.site-map-link:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(10, 127, 115, 0.55);
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .worker-loaded .below-card,
+  html:not([data-theme="light"]) .worker-loaded .worker-hub-panel,
+  html:not([data-theme="light"]) .worker-loaded .actions-panel,
+  html:not([data-theme="light"]) .worker-loaded .timesheet-card,
+  html:not([data-theme="light"]) .worker-loaded .documents-card,
+  html:not([data-theme="light"]) .worker-loaded .leave-request-card {
+    background: linear-gradient(180deg, rgba(20, 34, 45, 0.94), rgba(15, 27, 36, 0.96));
+    border-color: rgba(137, 213, 202, 0.2);
+    box-shadow: 0 16px 30px rgba(2, 11, 14, 0.42);
+  }
+
+  html:not([data-theme="light"]) .worker-loaded .compact-head h3,
+  html:not([data-theme="light"]) .worker-loaded .info-value,
+  html:not([data-theme="light"]) .worker-loaded .doc-type,
+  html:not([data-theme="light"]) .worker-loaded .entry-time {
+    color: #ecfffb;
+  }
+
+  html:not([data-theme="light"]) .worker-loaded .section-copy,
+  html:not([data-theme="light"]) .worker-loaded .muted-info,
+  html:not([data-theme="light"]) .worker-loaded .doc-meta,
+  html:not([data-theme="light"]) .worker-loaded .entry-gate {
+    color: rgba(220, 246, 241, 0.76);
+  }
+}
+
+@media (max-width: 420px) {
+  .app-shell {
+    gap: 16px;
+    padding-top: 20px;
+  }
+
+  .top-panel {
+    padding: 22px 18px;
+  }
+
+  .top-panel h1 {
+    font-size: clamp(1.85rem, 8vw, 2.35rem);
+    line-height: 1;
+  }
+
+  .worker-menu-btn {
+    min-height: 132px;
+  }
+
+  .worker-next-step-panel {
+    padding: 12px 13px;
+  }
+}
+
