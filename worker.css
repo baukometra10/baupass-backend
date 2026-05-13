@@ -7148,3 +7148,66 @@ textarea {
   }
 }
 
+/* ── Visual Rescue: Stable Layout Layer ───────────────────────────── */
+body:not(.worker-loaded) .app-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(42px, 9vh, 96px) 14px 24px;
+  box-sizing: border-box;
+}
+
+body:not(.worker-loaded) .login-sparkasse {
+  min-height: 0;
+  width: min(100%, 510px);
+  border: 1px solid var(--corp-border);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 20px 48px rgba(18, 42, 74, 0.14);
+}
+
+body.worker-loaded .app-shell {
+  max-width: 540px;
+  padding: 14px 12px calc(98px + env(safe-area-inset-bottom, 0px));
+  gap: 14px;
+}
+
+body.worker-loaded .worker-dashboard {
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+body.worker-loaded #leaveRequestCard,
+body.worker-loaded #timesheetCard,
+body.worker-loaded #documentsCard {
+  margin-top: 0;
+  border-radius: 16px;
+  border: 1px solid var(--corp-border);
+  box-shadow: 0 8px 20px rgba(19, 40, 69, 0.08);
+  overflow: hidden;
+}
+
+.worker-bottom-nav {
+  width: min(100%, 540px);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  box-shadow: 0 -6px 20px rgba(9, 31, 57, 0.12);
+}
+
+@media (max-width: 540px) {
+  body:not(.worker-loaded) .app-shell {
+    padding: clamp(26px, 6vh, 52px) 12px 16px;
+  }
+
+  body:not(.worker-loaded) .login-sparkasse {
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  body.worker-loaded .app-shell {
+    padding: 12px 10px calc(90px + env(safe-area-inset-bottom, 0px));
+    gap: 12px;
+  }
+}
+

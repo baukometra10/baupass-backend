@@ -4764,12 +4764,7 @@ function renderWorker(payload) {
     syncWorkerDataToDashboard(lastWorkerPayload);
   }
   
-  // Start 10-second card showcase
-  setTimeout(() => {
-    if (typeof startCardShowcase === "function") {
-      startCardShowcase();
-    }
-  }, 300);
+  // Keep the UX stable after login: no forced fullscreen showcase.
   
   // Disable legacy entrance flow in the tab-first UI.
   clearCardEntranceAnimation();
