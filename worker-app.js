@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513h";
+const WORKER_BUILD_TAG = "20260513i";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -6767,7 +6767,11 @@ function switchToTab(tabName) {
   ];
   managedPanels.forEach((panelId) => {
     const panel = document.getElementById(panelId);
-    if (panel) panel.classList.add("hidden");
+    if (panel) {
+      panel.classList.add("hidden");
+      // Hard-stop legacy CSS from forcing hidden panels visible.
+      panel.style.setProperty("display", "none", "important");
+    }
   });
 
   // Update button states
@@ -6782,17 +6786,32 @@ function switchToTab(tabName) {
   if (tabName === "home") {
     const dashboard = document.getElementById("workerDashboard");
     const homeInfo = document.getElementById("homeCompactInfo");
-    if (dashboard) dashboard.classList.remove("hidden");
-    if (homeInfo) homeInfo.classList.remove("hidden");
+    if (dashboard) {
+      dashboard.classList.remove("hidden");
+      dashboard.style.removeProperty("display");
+    }
+    if (homeInfo) {
+      homeInfo.classList.remove("hidden");
+      homeInfo.style.removeProperty("display");
+    }
   } else if (tabName === "vacation") {
     const leaveCard = document.getElementById("leaveRequestCard");
-    if (leaveCard) leaveCard.classList.remove("hidden");
+    if (leaveCard) {
+      leaveCard.classList.remove("hidden");
+      leaveCard.style.removeProperty("display");
+    }
   } else if (tabName === "timesheet") {
     const timesheetCard = document.getElementById("timesheetCard");
-    if (timesheetCard) timesheetCard.classList.remove("hidden");
+    if (timesheetCard) {
+      timesheetCard.classList.remove("hidden");
+      timesheetCard.style.removeProperty("display");
+    }
   } else if (tabName === "documents") {
     const docsCard = document.getElementById("documentsCard");
-    if (docsCard) docsCard.classList.remove("hidden");
+    if (docsCard) {
+      docsCard.classList.remove("hidden");
+      docsCard.style.removeProperty("display");
+    }
   }
 
   // Update hash for browser history

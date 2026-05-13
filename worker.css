@@ -6054,10 +6054,6 @@ textarea:focus-visible {
     color: #e8f1ff;
   }
 }
-  .worker-menu-btn {
-    min-height: 126px;
-  }
-}
 
 .smart-work-hub-card {
   display: grid;
