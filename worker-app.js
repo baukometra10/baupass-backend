@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513i";
+const WORKER_BUILD_TAG = "20260513j";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -4786,6 +4786,8 @@ function renderWorker(payload) {
     topBar.classList.remove("hidden");
   }
 
+  enforceUiVisibilityGuard();
+
   // Disable legacy entrance flow in the tab-first UI.
   clearCardEntranceAnimation();
   
@@ -4928,6 +4930,7 @@ function showLogin() {
   document.body.removeAttribute("data-company-mode");
   resetDailyInsights();
   setWorkerHubExpanded(false);
+  enforceUiVisibilityGuard();
   if (elements.workerQuickMenu) elements.workerQuickMenu.classList.add("hidden");
   applyWorkerPageView("");
   if (quickMenuObserver) {
@@ -6742,6 +6745,51 @@ function endCardShowcase() {
   switchToTab("home");
 }
 
+function enforceUiVisibilityGuard() {
+  const isLoaded = document.body.classList.contains("worker-loaded");
+  const loginCard = document.getElementById("loginCard");
+  const interiorIds = [
+    "workerDashboard",
+    "homeCompactInfo",
+    "leaveRequestCard",
+    "timesheetCard",
+    "documentsCard",
+    "workerBottomNav",
+    "topPanel",
+    "workerMenuCard",
+    "sessionInfoCard",
+    "actionsPanel",
+    "routeCard",
+    "companyModeCard",
+    "dailyInsightsCard",
+    "smartWorkHubCard"
+  ];
+
+  if (!isLoaded) {
+    document.body.classList.remove("wallet-immersive-sections-open", "card-animating", "card-transitioned");
+    interiorIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add("hidden");
+      el.style.setProperty("display", "none", "important");
+    });
+    if (loginCard) {
+      loginCard.classList.remove("hidden");
+      loginCard.style.removeProperty("display");
+    }
+    return;
+  }
+
+  if (loginCard) {
+    loginCard.classList.add("hidden");
+    loginCard.style.setProperty("display", "none", "important");
+  }
+  const topPanel = document.getElementById("topPanel");
+  const bottomNav = document.getElementById("workerBottomNav");
+  if (topPanel) topPanel.style.removeProperty("display");
+  if (bottomNav) bottomNav.style.removeProperty("display");
+}
+
 function switchToTab(tabName) {
   // Backward compatibility: older flows still call "pass"
   if (tabName === "pass") tabName = "home";
@@ -7460,5 +7508,6 @@ function stopVisitorCountdownTimer() {
 
 // Initialize bottom tab navigation on page load
 document.addEventListener("DOMContentLoaded", () => {
+  enforceUiVisibilityGuard();
   initBottomTabNavigation();
 });
