@@ -2244,7 +2244,7 @@ body.worker-loaded .wallet-card {
   background: linear-gradient(135deg, #c85b3e, #86351f);
   color: #fff;
   border: none;
-  display: none; /* hidden until worker-loaded */
+  display: none !important;
   align-items: center;
   justify-content: center;
   box-shadow: 0 10px 26px rgba(134, 53, 31, .38), 0 2px 8px rgba(0,0,0,.18);
@@ -2262,15 +2262,7 @@ body.worker-loaded .wallet-card {
   transform: scale(0.96);
 }
 
-body.worker-loaded .quick-gate-fab {
-  display: flex;
-  background: linear-gradient(135deg, #b95c40, #7f3120);
-  box-shadow: 0 10px 26px rgba(127, 49, 32, 0.36), 0 2px 8px rgba(0, 0, 0, 0.18);
-}
 
-.worker-loaded .quick-gate-fab:hover {
-  box-shadow: 0 14px 34px rgba(127, 49, 32, 0.44), 0 4px 12px rgba(0, 0, 0, 0.22);
-}
 
 .route-card {
   display: grid;
@@ -2887,7 +2879,46 @@ body.qr-high-contrast #gateQr {
   .wallet-card {
     max-width: 100%;
     aspect-ratio: 85.6 / 57;
-    min-height: 264px;
+    min-height: 248px;
+  }
+
+  .dashboard-featured-card {
+    max-width: 100%;
+    border-radius: 18px;
+  }
+
+  .wc-middle {
+    gap: 10px;
+    align-items: center;
+  }
+
+  .wc-qr-holder {
+    width: clamp(74px, 28vw, 112px);
+    height: clamp(74px, 28vw, 112px);
+  }
+
+  .wc-photo {
+    width: clamp(58px, 19vw, 82px);
+    height: clamp(58px, 19vw, 82px);
+    border-radius: 12px;
+  }
+
+  .wc-bottom {
+    margin-top: 2px;
+  }
+
+  .wc-name {
+    letter-spacing: 0.05em;
+  }
+
+  .wc-footer {
+    gap: 8px;
+  }
+
+  .wc-field,
+  .wc-company,
+  .wc-status {
+    font-size: 0.72rem;
   }
 
   .worker-pass {
