@@ -4943,10 +4943,10 @@ function updateConnectionState() {
   }
   if (navigator.onLine) {
     elements.connectionBanner.textContent = t("online");
-    elements.connectionBanner.className = "connection-banner online";
+    elements.connectionBanner.className = "stb-connection-dot online";
   } else {
     elements.connectionBanner.textContent = t("offline");
-    elements.connectionBanner.className = "connection-banner offline";
+    elements.connectionBanner.className = "stb-connection-dot offline";
   }
   updateWorkerPulsePanel();
   updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);

@@ -195,21 +195,13 @@ body {
   overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(217, 93, 57, 0.16), transparent 30%),
-    radial-gradient(circle at 80% 20%, rgba(22, 94, 216, 0.12), transparent 24%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.4), transparent 32%),
-    linear-gradient(145deg, #faf4eb 0%, #f1e4d5 44%, #e6ddd2 100%);
+  background: #f2f5f9;
   transition: background var(--transition-base), color var(--transition-base);
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background:
-      radial-gradient(circle at top left, rgba(245, 138, 70, 0.18), transparent 34%),
-      radial-gradient(circle at 80% 20%, rgba(93, 135, 232, 0.15), transparent 28%),
-      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08), transparent 36%),
-      linear-gradient(145deg, #0d1016 0%, #131a24 42%, #0f141e 100%);
+    background: #0d1016;
   }
 }
 
@@ -249,25 +241,14 @@ body {
 }
 
 [data-theme="light"] body {
-  background:
-    radial-gradient(circle at top left, rgba(217, 93, 57, 0.16), transparent 30%),
-    radial-gradient(circle at 80% 20%, rgba(22, 94, 216, 0.12), transparent 24%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.4), transparent 32%),
-    linear-gradient(145deg, #faf4eb 0%, #f1e4d5 44%, #e6ddd2 100%);
+  background: #f2f5f9;
+}
 }
 
-.app-backdrop {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.backdrop-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(10px);
-  opacity: .85;
+.app-backdrop,
+.backdrop-orb,
+.backdrop-grid {
+  display: none !important;
 }
 
 .orb-one {
@@ -304,6 +285,13 @@ body {
   gap: 18px;
   position: relative;
   z-index: 1;
+}
+
+/* Login phase: remove wrapper padding so login fills viewport */
+body:not(.worker-loaded) .app-shell {
+  padding: 0;
+  gap: 0;
+  max-width: none;
 }
 
 /* iPhone standalone wallet mode: focus only the pass card */
@@ -408,17 +396,9 @@ html {
   font-size: .75rem;
 }
 
+/* Old .top-panel replaced by .sparkasse-top-bar */
 .top-panel {
-  display: grid;
-  gap: 20px;
-  padding: 26px 22px;
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at 15% 18%, rgba(255, 255, 255, .1), transparent 22%),
-    linear-gradient(135deg, rgba(16, 18, 25, .95), rgba(35, 24, 19, .86));
-  color: #fff7f1;
-  box-shadow: 0 26px 56px rgba(10, 12, 16, .24), var(--shadow);
-  border: 1px solid rgba(255, 255, 255, .12);
+  display: none !important;
 }
 
 .top-copy {
@@ -1498,8 +1478,8 @@ body.worker-loaded .top-panel {
 }
 
 body.worker-loaded .app-shell {
-  max-width: 470px;
-  padding-top: 28px;
+  max-width: 520px;
+  padding-top: 12px;
 }
 
 /* ═══════════════════════════════════════════════
@@ -6672,13 +6652,143 @@ textarea {
 }
 
 body {
-  background: linear-gradient(180deg, #f7f9fc 0%, var(--corp-bg) 56%, #edf2f8 100%);
+  background: var(--corp-bg);
 }
 
-.top-panel {
-  background: #0f3f86;
-  border: 1px solid rgba(166, 194, 234, 0.5);
-  box-shadow: 0 14px 28px rgba(14, 35, 65, 0.24);
+@media (prefers-color-scheme: dark) {
+  body { background: #102036; }
+}
+
+/* ── Sparkasse Top Bar ────────────────────────────────────────────── */
+.sparkasse-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #ffffff;
+  border-bottom: 1px solid var(--corp-border);
+  box-shadow: 0 1px 4px rgba(11, 38, 80, 0.08);
+  padding: 0 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sparkasse-top-bar {
+    background: #0f1e34;
+    border-bottom-color: #1e3355;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.stb-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.stb-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stb-logo-mark {
+  width: 34px;
+  height: 34px;
+  background: var(--corp-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stb-logo-mark svg path,
+.stb-logo-mark svg rect {
+  fill: #ffffff;
+}
+
+.stb-brand-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--corp-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  .stb-brand-name { color: #e7f0ff; }
+}
+
+.stb-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stb-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--corp-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stb-icon-btn:hover,
+.stb-icon-btn:focus-visible {
+  background: rgba(10, 87, 192, 0.08);
+  color: var(--corp-primary);
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .stb-icon-btn {
+    color: #7a9bc4;
+  }
+  .stb-icon-btn:hover,
+  .stb-icon-btn:focus-visible {
+    background: rgba(43, 121, 234, 0.15);
+    color: #2b79ea;
+  }
+}
+
+.stb-connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.stb-connection-dot.online {
+  background: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+}
+
+.stb-connection-dot.offline {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+/* Screen-reader only (for hidden functional elements) */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 .worker-loaded .card,

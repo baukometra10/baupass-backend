@@ -52,12 +52,6 @@
     </div>
   </div>
 
-  <div class="app-backdrop" aria-hidden="true">
-    <span class="backdrop-orb orb-one"></span>
-    <span class="backdrop-orb orb-two"></span>
-    <span class="backdrop-grid"></span>
-  </div>
-
   <!-- Update-Banner: wird per JS eingeblendet wenn neue App-Version bereit ist -->
   <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
     <span class="update-banner-icon" aria-hidden="true">
@@ -67,55 +61,50 @@
   </div>
 
   <main class="app-shell">
-    <header class="top top-panel">
-      <div class="top-copy">
-        <p class="eyebrow" data-i18n="appEyebrow">Mitarbeiter-App</p>
-        <div class="brand-ribbon" aria-hidden="true">
-          <span class="brand-chip brand-chip-platform" id="workerBrandChip">BauPass</span>
-          <span class="brand-chip brand-chip-operator">Baukometra</span>
+    <!-- Sparkasse-style minimal top bar (shown after login) -->
+    <header id="topPanel" class="sparkasse-top-bar hidden">
+      <div class="stb-inner">
+        <div class="stb-left">
+          <div class="stb-logo-mark" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M3 17L12 4l9 13H3z" fill="var(--corp-primary)" fill-opacity=".9"/>
+              <rect x="7" y="17" width="10" height="4" rx="1" fill="var(--corp-primary)" fill-opacity=".7"/>
+            </svg>
+          </div>
+          <span class="stb-brand-name">BauPass</span>
         </div>
-        <h1 id="workerAppTitle" data-i18n="appTitle">BauPass Mobile</h1>
-        <p class="top-lead" data-i18n="appLead">Dein Ausweis, dein Arbeitsweg und dein Einlass an einem Ort. Schnell, sauber und direkt auf dem Homescreen.</p>
+        <div class="stb-right">
+          <div id="connectionBanner" class="stb-connection-dot online" aria-live="polite" title="Online"></div>
+          <button id="forceRefreshButton" class="stb-icon-btn" type="button" aria-label="Aktualisieren" data-i18n="forceRefreshBtn" data-i18n-attr="aria-label">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 019-9 9 9 0 016.36 2.64L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 01-9 9 9 9 0 01-6.36-2.64L3 16"/>
+            </svg>
+          </button>
+          <button id="installButton" class="stb-icon-btn" aria-label="App installieren" data-i18n="installBtn" data-i18n-attr="aria-label" hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v13M8 13l4 4 4-4"/>
+              <path d="M20 21H4"/>
+            </svg>
+          </button>
+        </div>
       </div>
-      <div class="top-actions">
-        <button id="installButton" class="ghost install-cta" data-i18n="installBtn" hidden>App installieren</button>
-        <button id="forceRefreshButton" class="ghost install-cta force-refresh-cta" data-i18n="forceRefreshBtn" type="button">Jetzt aktualisieren</button>
-        <p id="installPlatformHint" class="platform-hint" data-i18n="installHint">Für iPhone und Android optimiert. Installiere die App für schnellen Zugriff am Drehkreuz.</p>
-        <div class="top-stats" aria-hidden="true">
-          <div class="top-stat-card">
-            <span class="top-stat-label" data-i18n="topStatPass">Pass</span>
-            <strong data-i18n="topStatDigital">Digital</strong>
-          </div>
-          <div class="top-stat-card">
-            <span class="top-stat-label" data-i18n="topStatSync">Sync</span>
-            <strong data-i18n="topStatInstant">Sofort</strong>
-          </div>
-        </div>
-        <p id="connectionBanner" class="connection-banner online" data-i18n="online">Online</p>
-        <p id="lastSyncInfo" class="platform-hint" data-i18n="lastSyncInitial">Zuletzt synchronisiert: -</p>
-        <p id="workerBuildBadge" class="build-badge" aria-live="polite">Build 20260512a</p>
-        <div id="workerPulsePanel" class="worker-pulse-panel" aria-live="polite">
-          <article class="pulse-item pulse-item-network">
-            <p class="pulse-label" data-i18n="pulseLabelSystem">System</p>
-            <strong id="pulseNetworkValue" data-i18n="online">Online</strong>
-            <span id="pulseNetworkMeta" data-i18n="pulseNetworkLive">Live</span>
-          </article>
-          <article class="pulse-item pulse-item-sync">
-            <p class="pulse-label" data-i18n="pulseLabelSync">Sync</p>
-            <strong id="pulseSyncValue">-</strong>
-            <span id="pulseSyncMeta" data-i18n="pulseSyncPending">Pending</span>
-          </article>
-          <article class="pulse-item pulse-item-power">
-            <p class="pulse-label" data-i18n="pulseLabelPower">Power</p>
-            <strong id="pulsePowerValue">--%</strong>
-            <span id="pulsePowerMeta" data-i18n="pulsePowerUnknown">Unknown</span>
-          </article>
-          <article class="pulse-item pulse-item-flow">
-            <p class="pulse-label" data-i18n="pulseLabelFlow">Flow</p>
-            <strong id="pulseFlowValue" data-i18n="pulseFlowLogin">Login</strong>
-            <span id="pulseFlowMeta" data-i18n="pulseFlowWebMode">Web mode</span>
-          </article>
-        </div>
+      <!-- Functional hidden elements kept for JS compatibility -->
+      <span id="workerAppTitle" class="sr-only" data-i18n="appTitle">BauPass Mobile</span>
+      <span id="workerBrandChip" class="sr-only">BauPass</span>
+      <span id="installPlatformHint" class="sr-only" data-i18n="installHint"></span>
+      <span id="lastSyncInfo" class="sr-only" data-i18n="lastSyncInitial">-</span>
+      <span id="workerBuildBadge" class="sr-only" aria-live="polite">Build 20260512a</span>
+      <div id="workerPulsePanel" class="sr-only" aria-live="polite">
+        <strong id="pulseNetworkValue" data-i18n="online">Online</strong>
+        <strong id="pulseSyncValue">-</strong>
+        <strong id="pulsePowerValue">--%</strong>
+        <strong id="pulseFlowValue" data-i18n="pulseFlowLogin">Login</strong>
+        <span id="pulseNetworkMeta" data-i18n="pulseNetworkLive">Live</span>
+        <span id="pulseSyncMeta" data-i18n="pulseSyncPending">Pending</span>
+        <span id="pulsePowerMeta" data-i18n="pulsePowerUnknown">Unknown</span>
+        <span id="pulseFlowMeta" data-i18n="pulseFlowWebMode">Web mode</span>
       </div>
     </header>
 
@@ -302,31 +291,13 @@
 
     <section id="badgeCard" class="card worker-pass hidden">
 
-      <nav id="workerQuickMenu" class="worker-quick-menu hidden" aria-label="Schnellnavigation" data-i18n="quickMenuAria" data-i18n-attr="aria-label">
-        <button type="button" class="quick-menu-btn" data-scroll-target="badgeCard" data-i18n="quickMenuPass">Pass</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="actionsPanel" data-i18n="quickMenuActions">Aktionen</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="leaveRequestCard" data-i18n="quickMenuRequest">Antrag</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="timesheetCard" data-i18n="quickMenuHours">Stunden</button>
-        <button type="button" class="quick-menu-btn" data-scroll-target="documentsCard" data-i18n="quickMenuDocs">Docs</button>
-      </nav>
-
-      <!-- Pass-Titel + Status-Banner -->
-      <div class="pass-header">
-        <div>
-          <p class="section-kicker" data-i18n="workerPassSubLabel" data-pass-sub-label>Mitarbeiterausweis</p>
-          <h2 id="workerPassTitle" class="pass-title" data-i18n="workerCardTitle">Dein BauPass für heute</h2>
-        </div>
-        <div id="workerStatusBanner" class="status-banner active status-banner-hidden" role="status" aria-live="polite">
-          <span class="status-banner-icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <span id="workerStatusText" data-i18n="statusActiveShort">Aktiv</span>
-        </div>
+      <!-- Status-Banner (functional, used by JS) -->
+      <div id="workerStatusBanner" class="status-banner active status-banner-hidden sr-only" role="status" aria-live="polite">
+        <span id="workerStatusText" data-i18n="statusActiveShort">Aktiv</span>
       </div>
-      <div id="workerNextStepPanel" class="worker-next-step-panel" aria-live="polite">
-        <p class="worker-next-step-kicker" data-i18n="nextStepKicker">Nächster Schritt</p>
+      <div id="workerNextStepPanel" class="sr-only" aria-live="polite">
         <strong id="workerNextStepTitle" data-i18n="nextStepWorkerTitle">Heute direkt weitermachen</strong>
-        <p id="workerNextStepCopy" class="worker-next-step-copy" data-i18n="nextStepWorkerCopy">Dein Ausweis ist aktiv. Die wichtigsten Infos sind sofort sichtbar.</p>
+        <p id="workerNextStepCopy" data-i18n="nextStepWorkerCopy"></p>
       </div>
 
       <div class="pass-stage">
