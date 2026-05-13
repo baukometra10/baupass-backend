@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Language" content="de" />
   <meta name="google" content="notranslate" />
   <meta name="theme-color" content="#d4b597" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260513g" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260513h" />
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192-20260511f.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192-20260511f.png" />
   <title>BauPass App installieren</title>
@@ -102,7 +102,7 @@
     }
 
     async function resolveLatestTargetUrl() {
-      let buildInfo = { build: "20260513g", entry: "/emp-app.html" };
+      let buildInfo = { build: "20260513h", entry: "/emp-app.html" };
       try {
         const response = await fetch(`./worker-build.json?t=${Date.now()}`, { cache: "no-store" });
         if (response.ok) {
@@ -114,7 +114,7 @@
 
       const target = new URL(buildInfo.entry || "/emp-app.html", window.location.origin);
       target.searchParams.set("view", "card");
-      target.searchParams.set("v", buildInfo.build || "20260513g");
+      target.searchParams.set("v", buildInfo.build || "20260513h");
       if (accessToken) {
         target.searchParams.set("access", accessToken);
       }
