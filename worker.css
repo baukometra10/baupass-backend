@@ -6257,6 +6257,16 @@ body:not(.worker-loaded) #topPanel {
   display: none !important;
 }
 
+/* The floating quick gate FAB clashes with the new bottom tab layout. */
+.quick-gate-fab {
+  display: none !important;
+}
+
+/* Legacy card must stay hidden in the new dashboard-first flow. */
+body.worker-loaded #badgeCard {
+  display: none !important;
+}
+
 .nav-tab {
   position: relative;
   display: flex;

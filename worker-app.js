@@ -4746,14 +4746,14 @@ function renderWorker(payload) {
   }
 
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
-  if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
+  // Legacy card remains hidden; dashboard is now the main surface.
+  if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
-  focusWorkerPassOnLoad();
   updateWalletImmersiveMode();
-  setWorkerHubExpanded(true);
+  setWorkerHubExpanded(false);
   haptic([18, 35, 22]);
   
   // Show new Dashboard instead of old badgeCard
@@ -4771,11 +4771,8 @@ function renderWorker(payload) {
     }
   }, 300);
   
-  // ══════════════════════════════════════════════════════════════
-  // ── PROFESSIONAL CARD ENTRANCE ANIMATION ──
-  // البطاقة تظهر مباشرة عند الدخول، ثم بعد 15 ثانية تنتقل للأعلى
-  // ══════════════════════════════════════════════════════════════
-  initializeCardEntranceAnimation();
+  // Disable legacy entrance flow in the tab-first UI.
+  clearCardEntranceAnimation();
   
   // Start dynamic QR lifecycle as soon as pass is visible.
   startDynamicQrRefresh();
@@ -4790,6 +4787,9 @@ function renderWorker(payload) {
   // Keep leave page hidden until user opens the Vacation tab.
   if (elements.leaveRequestCard) {
     elements.leaveRequestCard.classList.add("hidden");
+  }
+  if (elements.quickGateModeButton) {
+    elements.quickGateModeButton.classList.add("hidden");
   }
 
   // Show leave balance badge
@@ -4902,6 +4902,8 @@ function showLogin() {
     stopDynamicQrRefresh();
   clearCardEntranceAnimation();  // Clear card animation when showing login
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
+  const dashboardEl = document.getElementById("workerDashboard");
+  if (dashboardEl) dashboardEl.classList.add("hidden");
   if (elements.walletCard) elements.walletCard.classList.remove("hidden");
   if (elements.loginCard) elements.loginCard.classList.remove("hidden");
   document.body.removeAttribute("data-company-mode");
@@ -6655,7 +6657,7 @@ function renderCompanyModeExperience(companyPreset, isVisitor) {
 
 // ── 10-Second Card Showcase & Bottom Tab Navigation (Global Functions) ──────────────
 let showcaseTimeoutId = null;
-let currentActiveTab = "pass";
+let currentActiveTab = "home";
 
 function startCardShowcase() {
   // Hide everything except featured card
@@ -6722,6 +6724,25 @@ function switchToTab(tabName) {
 
   currentActiveTab = tabName;
 
+  // First enforce a strict clean state so legacy sections never leak into view.
+  const managedPanels = [
+    "badgeCard",
+    "routeCard",
+    "sessionInfoCard",
+    "companyModeCard",
+    "dailyInsightsCard",
+    "smartWorkHubCard",
+    "workerMenuCard",
+    "actionsPanel",
+    "leaveRequestCard",
+    "timesheetCard",
+    "documentsCard"
+  ];
+  managedPanels.forEach((panelId) => {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.classList.add("hidden");
+  });
+
   // Update button states
   const navTabs = document.querySelectorAll(".nav-tab");
   navTabs.forEach((tab) => {
@@ -6744,38 +6765,12 @@ function switchToTab(tabName) {
     if (quickActions) {
       quickActions.classList.add("hidden");
     }
-    // Hide all other content panels
-    const contentPanels = ["actionsPanel", "leaveRequestCard", "timesheetCard", "documentsCard"];
-    contentPanels.forEach((id) => {
-      const panel = document.getElementById(id);
-      if (panel) panel.classList.add("hidden");
-    });
   } else {
     // Hide dashboard, show specific content panel
     const dashboard = document.getElementById("workerDashboard");
     if (dashboard) {
       dashboard.classList.add("hidden");
     }
-
-    // Hide all panels first
-    const panels = [
-      "badgeCard",
-      "actionsPanel",
-      "leaveRequestCard",
-      "timesheetCard",
-      "documentsCard",
-      "sessionInfoCard",
-      "companyModeCard",
-      "dailyInsightsCard",
-      "smartWorkHubCard"
-    ];
-
-    panels.forEach((panelId) => {
-      const panel = document.getElementById(panelId);
-      if (panel) {
-        panel.classList.add("hidden");
-      }
-    });
 
     const homeInfo = document.getElementById("homeCompactInfo");
     const quickActions = document.querySelector(".dashboard-quick-actions");
