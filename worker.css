@@ -5483,3 +5483,67 @@ body {
   }
 }
 
+.smart-work-hub-card {
+  display: grid;
+  gap: 12px;
+}
+
+.smart-work-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.smart-hub-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 111, 235, 0.18);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.9));
+}
+
+.smart-hub-label {
+  margin: 0;
+  font-size: .66rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.smart-hub-item strong {
+  font-size: .86rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.smart-work-hub-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.smart-work-hub-actions .small-btn {
+  min-height: 42px;
+  font-size: .79rem;
+  border-radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .smart-hub-item {
+    background: rgba(20, 30, 52, 0.9);
+    border-color: rgba(147, 183, 255, 0.26);
+  }
+
+  html:not([data-theme="light"]) .smart-hub-item strong {
+    color: #eaf2ff;
+  }
+}
+
+@media (max-width: 560px) {
+  .smart-work-hub-grid,
+  .smart-work-hub-actions {
+    grid-template-columns: 1fr;
+  }
+}
+

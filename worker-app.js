@@ -94,6 +94,25 @@ const TRANSLATIONS = {
     loginHeroPoint3: "Optimiert für schnelle Arbeit vor Ort",
     resumeLoginHint: "Auf diesem Gerät ist bereits eine Badge-ID gespeichert.",
     resumeLoginBtn: "Mit gespeicherter Badge fortfahren",
+    smartHubKicker: "Work Hub",
+    smartHubTitle: "Live Einsatzsteuerung",
+    smartHubPriorityLabel: "Priorität",
+    smartHubFocusLabel: "Fokus",
+    smartHubMomentumLabel: "Momentum",
+    smartHubPriorityOnTrack: "Alles im Plan",
+    smartHubPriorityOffline: "Offline-Betrieb aktiv",
+    smartHubPriorityLate: "Heute verspäteter Start",
+    smartHubPriorityAttention: "Status prüfen",
+    smartHubFocusConstruction: "Baustellenfluss",
+    smartHubFocusIndustry: "Schichtproduktion",
+    smartHubFocusPremium: "Premium-Kontrolle",
+    smartHubFocusVisitor: "Besucherführung",
+    smartHubMomentumPending: "Warte auf Tagesdaten",
+    smartHubMomentumOpenShift: "Schicht offen · {hours}h",
+    smartHubMomentumClosedShift: "Schicht abgeschlossen · {hours}h",
+    smartHubActionAccess: "Zutritt steuern",
+    smartHubActionTimes: "Zeiten prüfen",
+    smartHubActionDocs: "Dokumente prüfen",
     nextStepKicker: "Heute im Fokus",
     nextStepWorkerTitle: "Heute direkt weitermachen",
     nextStepWorkerCopy: "Dein Ausweis ist aktiv. Rolle {role} am Standort {site} ist sofort sichtbar und bis {validUntil} gültig.",
@@ -898,6 +917,25 @@ Object.assign(TRANSLATIONS.en, {
   loginHeroPoint3: "Optimized for fast work on site",
   resumeLoginHint: "A badge ID is already saved on this device.",
   resumeLoginBtn: "Continue with saved badge",
+  smartHubKicker: "Work Hub",
+  smartHubTitle: "Live operations control",
+  smartHubPriorityLabel: "Priority",
+  smartHubFocusLabel: "Focus",
+  smartHubMomentumLabel: "Momentum",
+  smartHubPriorityOnTrack: "Everything on track",
+  smartHubPriorityOffline: "Offline mode active",
+  smartHubPriorityLate: "Late start today",
+  smartHubPriorityAttention: "Check status",
+  smartHubFocusConstruction: "Site workflow",
+  smartHubFocusIndustry: "Shift production",
+  smartHubFocusPremium: "Premium control",
+  smartHubFocusVisitor: "Visitor guidance",
+  smartHubMomentumPending: "Waiting for day data",
+  smartHubMomentumOpenShift: "Shift open · {hours}h",
+  smartHubMomentumClosedShift: "Shift closed · {hours}h",
+  smartHubActionAccess: "Control access",
+  smartHubActionTimes: "Check times",
+  smartHubActionDocs: "Review documents",
   nextStepKicker: "Today in focus",
   nextStepWorkerTitle: "Keep going now",
   nextStepWorkerCopy: "Your pass is active. Role {role} at {site} is visible right away and valid until {validUntil}.",
@@ -2000,6 +2038,93 @@ function updateWorkerNextStepPanel({ worker, companyPreset, isVisitor }) {
   }
 }
 
+function formatHoursFromMinutes(totalMin) {
+  const safeMin = Math.max(0, Number(totalMin) || 0);
+  const hours = Math.floor(safeMin / 60);
+  const minutes = safeMin % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}`;
+}
+
+function extractTodayTimesheetSummary(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { hasRows: false, totalMin: 0, isOpen: false };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRows = rows
+    .filter((row) => String(row.timestamp || "").slice(0, 10) === today)
+    .sort((a, b) => String(a.timestamp || "") > String(b.timestamp || "") ? 1 : -1);
+
+  if (todayRows.length === 0) {
+    return { hasRows: false, totalMin: 0, isOpen: false };
+  }
+
+  const checkins = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "in");
+  const checkouts = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "out");
+  const pairCount = Math.min(checkins.length, checkouts.length);
+  let totalMin = 0;
+
+  for (let i = 0; i < pairCount; i++) {
+    const inTime = new Date(checkins[i].timestamp);
+    const outTime = new Date(checkouts[i].timestamp);
+    if (outTime > inTime) {
+      totalMin += Math.round((outTime - inTime) / 60000);
+    }
+  }
+
+  return {
+    hasRows: true,
+    totalMin,
+    isOpen: checkins.length > checkouts.length,
+  };
+}
+
+function updateSmartWorkHub(payload = lastWorkerPayload, rows = lastTimesheetRows) {
+  if (!elements.smartWorkHubCard || !payload) {
+    return;
+  }
+
+  const worker = payload.worker || {};
+  const company = payload.company || {};
+  const companyPreset = normalizeCompanyBrandingPreset(company.brandingPreset || company.branding_preset);
+  const workerType = String(worker.workerType || "worker").trim().toLowerCase();
+  const isVisitor = workerType === "visitor";
+  elements.smartWorkHubCard.classList.toggle("hidden", isVisitor);
+  if (isVisitor) {
+    return;
+  }
+
+  const lateInfo = payload.lateCheckIn || {};
+  const isLate = Boolean(lateInfo.isLate || lateInfo.late || Number(lateInfo.minutes || lateInfo.minutesLate || 0) > 0);
+  const rawStatus = String(worker.status || "").trim().toLowerCase();
+  const needsAttention = rawStatus.includes("sperr") || rawStatus.includes("inaktiv") || String(worker.banned || "").trim().toLowerCase() === "true";
+
+  let priorityText = t("smartHubPriorityOnTrack");
+  if (offlineWorkerSessionActive) {
+    priorityText = t("smartHubPriorityOffline");
+  } else if (isLate) {
+    priorityText = t("smartHubPriorityLate");
+  } else if (needsAttention) {
+    priorityText = t("smartHubPriorityAttention");
+  }
+
+  let focusText = t("smartHubFocusConstruction");
+  if (companyPreset === "industry") focusText = t("smartHubFocusIndustry");
+  if (companyPreset === "premium") focusText = t("smartHubFocusPremium");
+
+  const summary = extractTodayTimesheetSummary(rows);
+  const hoursLabel = formatHoursFromMinutes(summary.totalMin);
+  const momentumText = summary.hasRows
+    ? summary.isOpen
+      ? tf("smartHubMomentumOpenShift", { hours: hoursLabel })
+      : tf("smartHubMomentumClosedShift", { hours: hoursLabel })
+    : t("smartHubMomentumPending");
+
+  if (elements.smartHubPriorityValue) elements.smartHubPriorityValue.textContent = priorityText;
+  if (elements.smartHubFocusValue) elements.smartHubFocusValue.textContent = focusText;
+  if (elements.smartHubMomentumValue) elements.smartHubMomentumValue.textContent = momentumText;
+}
+
 function applyTranslations() {
   const lang = currentLang;
   const dir = LANG_META[lang]?.dir || "ltr";
@@ -2092,6 +2217,8 @@ let leaveCompactExpanded = false;
 let workerLastSyncAt = null;
 let batteryLevelPct = null;
 let batteryCharging = null;
+let lastWorkerPayload = null;
+let lastTimesheetRows = [];
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrCountdownInterval = null; // setInterval for per-second countdown
 let dqrRemainingSeconds = 60;    // seconds until next QR refresh
@@ -2121,6 +2248,10 @@ const elements = {
   workerNextStepPanel: document.querySelector("#workerNextStepPanel"),
   workerNextStepTitle: document.querySelector("#workerNextStepTitle"),
   workerNextStepCopy: document.querySelector("#workerNextStepCopy"),
+  smartWorkHubCard: document.querySelector("#smartWorkHubCard"),
+  smartHubPriorityValue: document.querySelector("#smartHubPriorityValue"),
+  smartHubFocusValue: document.querySelector("#smartHubFocusValue"),
+  smartHubMomentumValue: document.querySelector("#smartHubMomentumValue"),
   workerPassSubLabels: document.querySelectorAll("[data-pass-sub-label]"),
   walletCard: document.querySelector(".wallet-card"),
   workerStatus: document.querySelector("#workerStatus"),
@@ -3637,6 +3768,7 @@ async function loadWorkerData() {
 }
 
 function renderWorker(payload) {
+  lastWorkerPayload = payload;
   const worker = payload.worker || {};
   const company = payload.company || {};
   const subcompany = payload.subcompany || {};
@@ -3721,6 +3853,7 @@ function renderWorker(payload) {
     elements.workerStatus.dataset.status = normalizedStatus;
   }
   updateWorkerNextStepPanel({ worker, companyPreset, isVisitor });
+  updateSmartWorkHub(payload, lastTimesheetRows);
   if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";
   if (elements.workerSite) elements.workerSite.textContent = worker.site || "-";
   updateSiteMapLink(worker.site || "");
@@ -3968,6 +4101,9 @@ function renderWorker(payload) {
   }
   if (elements.companyModeCard) {
     elements.companyModeCard.classList.toggle("hidden", isVisitor);
+  }
+  if (elements.smartWorkHubCard) {
+    elements.smartWorkHubCard.classList.toggle("hidden", isVisitor);
   }
   // Also hide timesheet quick-menu and nav buttons for visitors or plan restriction
   document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
@@ -5757,8 +5893,10 @@ function renderCompanyModeExperience(companyPreset, isVisitor) {
 }
 
 function updateDailyInsightsFromTimesheets(rows) {
+  lastTimesheetRows = Array.isArray(rows) ? rows : [];
   if (!Array.isArray(rows) || rows.length === 0) {
     resetDailyInsights();
+    updateSmartWorkHub(lastWorkerPayload, []);
     return;
   }
 
@@ -5769,6 +5907,7 @@ function updateDailyInsightsFromTimesheets(rows) {
 
   if (todayRows.length === 0) {
     resetDailyInsights();
+    updateSmartWorkHub(lastWorkerPayload, rows);
     return;
   }
 
@@ -5793,6 +5932,7 @@ function updateDailyInsightsFromTimesheets(rows) {
   if (elements.dailyCheckoutsValue) elements.dailyCheckoutsValue.textContent = String(checkouts.length);
   if (elements.dailyHoursValue) elements.dailyHoursValue.textContent = `${hours}:${String(minutes).padStart(2, "0")}`;
   if (elements.dailyBalanceValue) elements.dailyBalanceValue.textContent = isOpen ? t("dailyBalanceOpen") : t("dailyBalanceClosed");
+  updateSmartWorkHub(lastWorkerPayload, rows);
 }
 
 async function loadMyTimesheets() {
@@ -5805,6 +5945,8 @@ async function loadMyTimesheets() {
     if (!Array.isArray(rows) || rows.length === 0) {
       elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
       resetDailyInsights();
+      lastTimesheetRows = [];
+      updateSmartWorkHub(lastWorkerPayload, []);
       return;
     }
     updateDailyInsightsFromTimesheets(rows);
