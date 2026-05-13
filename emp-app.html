@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192-20260511f.png" />
   <link rel="icon" type="image/svg+xml" href="/worker-icon-192-20260511f.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192-20260511f.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260513k" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260513n" />
   <title>BauPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -24,10 +24,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker-theme.css?v=20260513k" />
-  <link rel="stylesheet" href="./worker.css?v=20260513k" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260513k" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260513k" />
+  <link rel="stylesheet" href="./worker-theme.css?v=20260513n" />
+  <link rel="stylesheet" href="./worker.css?v=20260513n" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260513n" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260513n" />
 </head>
 <body class="notranslate" translate="no">
   <!-- Splash screen – dismissed by JS after init; auto-hides via CSS after 9s if JS fails -->
@@ -95,6 +95,13 @@
               <path d="M20 21H4"/>
             </svg>
           </button>
+          <button id="topLogoutButton" class="stb-icon-btn" type="button" aria-label="Abmelden" data-i18n="logoutBtn" data-i18n-attr="aria-label">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <path d="M16 17l5-5-5-5"/>
+              <path d="M21 12H9"/>
+            </svg>
+          </button>
         </div>
       </div>
       <!-- Functional hidden elements kept for JS compatibility -->
@@ -102,7 +109,7 @@
       <span id="workerBrandChip" class="sr-only">BauPass</span>
       <span id="installPlatformHint" class="sr-only" data-i18n="installHint"></span>
       <span id="lastSyncInfo" class="sr-only" data-i18n="lastSyncInitial">-</span>
-      <span id="workerBuildBadge" class="sr-only" aria-live="polite">Build 20260513k</span>
+      <span id="workerBuildBadge" class="sr-only" aria-live="polite">Build 20260513n</span>
       <div id="workerPulsePanel" class="sr-only" aria-live="polite">
         <strong id="pulseNetworkValue" data-i18n="online">Online</strong>
         <strong id="pulseSyncValue">-</strong>
@@ -267,7 +274,7 @@
         </div>
         <div class="home-info-item">
           <span class="home-info-label" data-i18n="fieldSite">Standort</span>
-          <span id="homeInfoSite" class="home-info-value">-</span>
+          <a id="homeInfoSite" class="home-info-value site-inline-link" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">-</a>
         </div>
         <div class="home-info-item">
           <span class="home-info-label">Firma</span>
@@ -925,7 +932,7 @@
     </div>
   </div>
 
-  <script src="./worker-i18n.js?v=20260513k"></script>
-  <script src="./worker-app.js?v=20260513k"></script>
+  <script src="./worker-i18n.js?v=20260513n"></script>
+  <script src="./worker-app.js?v=20260513n"></script>
 </body>
 </html>

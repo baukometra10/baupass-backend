@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513k";
+const WORKER_BUILD_TAG = "20260513n";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -606,7 +606,9 @@ function setLang(lang) {
 }
 // ─────────────────────────────────────────────────────────────────────
 
-let workerToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
+let workerToken = "";
+// Security-first startup: require fresh login when app is reopened.
+localStorage.removeItem(WORKER_TOKEN_KEY);
 let deferredInstallPrompt = null;
 let cameraStream = null;
 let lastCameraPhotoDataUrl = null;
@@ -710,6 +712,7 @@ const elements = {
   qrFallbackText: document.querySelector("#qrFallbackText"),
   refreshButton: document.querySelector("#refreshButton"),
   logoutButton: document.querySelector("#logoutButton"),
+  topLogoutButton: document.querySelector("#topLogoutButton"),
   installButton: document.querySelector("#installButton"),
   forceRefreshButton: document.querySelector("#forceRefreshButton"),
   installPlatformHint: document.querySelector("#installPlatformHint"),
@@ -1356,6 +1359,10 @@ function bindEvents() {
 
   if (elements.logoutButton) {
     elements.logoutButton.addEventListener("click", workerLogout);
+  }
+
+  if (elements.topLogoutButton) {
+    elements.topLogoutButton.addEventListener("click", workerLogout);
   }
 
   if (elements.installButton) {
@@ -2570,9 +2577,6 @@ function renderWorker(payload) {
 
   // Plan-Feature-Gates
   const planFeatures = payload.planFeatures || {};
-  const hasTimesheet    = !!planFeatures.worker_app;           // ab starter
-  const hasLeave        = !!planFeatures.leave_management;     // ab starter
-  const hasDocs         = !!planFeatures.document_upload;      // ab starter
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
   // Show voice control for workers. If API is unavailable, fallback input is used.
@@ -2599,12 +2603,12 @@ function renderWorker(payload) {
     if (lateBanner) lateBanner.remove();
   }
 
-  // Show timesheet only for regular workers (not visitors) and if plan allows
+  // Keep bottom-tab pages available for workers so tabs never open blank screens.
   if (elements.timesheetCard) {
-    elements.timesheetCard.classList.toggle("hidden", isVisitor || !hasTimesheet);
+    elements.timesheetCard.classList.toggle("hidden", isVisitor);
   }
   if (elements.dailyInsightsCard) {
-    elements.dailyInsightsCard.classList.toggle("hidden", isVisitor || !hasTimesheet);
+    elements.dailyInsightsCard.classList.toggle("hidden", isVisitor);
   }
   if (elements.companyModeCard) {
     elements.companyModeCard.classList.toggle("hidden", isVisitor);
@@ -2612,42 +2616,42 @@ function renderWorker(payload) {
   if (elements.smartWorkHubCard) {
     elements.smartWorkHubCard.classList.toggle("hidden", isVisitor);
   }
-  // Also hide timesheet quick-menu and nav buttons for visitors or plan restriction
+  // Hide worker-only quick actions for visitors.
   document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor || !hasTimesheet);
+    btn.classList.toggle("hidden", isVisitor);
   });
   document.querySelectorAll("[data-worker-page-target='dailyInsightsCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor || !hasTimesheet);
+    btn.classList.toggle("hidden", isVisitor);
   });
   document.querySelectorAll("[data-worker-page-target='companyModeCard']").forEach((btn) => {
     btn.classList.toggle("hidden", isVisitor);
   });
   if (elements.documentsCard) {
-    elements.documentsCard.classList.toggle("hidden", !hasDocs);
+    elements.documentsCard.classList.toggle("hidden", isVisitor);
   }
-  // Hide leave section if plan doesn't support it
+  // Hide leave section for visitors.
   const leaveCard = document.getElementById("leaveRequestCard");
   if (leaveCard) {
-    leaveCard.classList.toggle("hidden", isVisitor || !hasLeave);
+    leaveCard.classList.toggle("hidden", isVisitor);
   }
   document.querySelectorAll("[data-scroll-target='leaveRequestCard'], [data-worker-page-target='leaveRequestCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor || !hasLeave);
+    btn.classList.toggle("hidden", isVisitor);
   });
   
-  // Load leave requests after render
-  if (hasLeave && !isVisitor) void loadLeaveRequests();
+  // Load section data after render.
+  if (!isVisitor) void loadLeaveRequests();
   if (leaveRefreshInterval) {
     clearInterval(leaveRefreshInterval);
   }
-  if (hasLeave && !isVisitor) {
+  if (!isVisitor) {
     leaveRefreshInterval = setInterval(() => {
       if (workerToken) {
         void loadLeaveRequests();
       }
     }, 60000);
   }
-  if (hasTimesheet && !isVisitor) void loadMyTimesheets();
-  if (hasDocs) void loadMyDocuments();
+  if (!isVisitor) void loadMyTimesheets();
+  if (!isVisitor) void loadMyDocuments();
   renderCompanyModeExperience(companyPreset, isVisitor);
   void prefillCompanyAdminEmails();
   updateWorkerPulsePanel();
@@ -3298,6 +3302,12 @@ function updateSiteMapLink(site) {
     elements.workerSite.textContent = "-";
     elements.workerSite.setAttribute("href", "#");
     elements.workerSite.setAttribute("aria-disabled", "true");
+    const homeInfoSite = document.getElementById("homeInfoSite");
+    if (homeInfoSite) {
+      homeInfoSite.textContent = "-";
+      homeInfoSite.setAttribute("href", "#");
+      homeInfoSite.setAttribute("aria-disabled", "true");
+    }
     return;
   }
 
@@ -3307,6 +3317,12 @@ function updateSiteMapLink(site) {
   elements.workerSite.textContent = normalizedSite;
   elements.workerSite.href = mapsUrl.toString();
   elements.workerSite.removeAttribute("aria-disabled");
+  const homeInfoSite = document.getElementById("homeInfoSite");
+  if (homeInfoSite) {
+    homeInfoSite.textContent = normalizedSite;
+    homeInfoSite.href = mapsUrl.toString();
+    homeInfoSite.removeAttribute("aria-disabled");
+  }
 }
 
 function resolveApiRoot(workerApiBase) {
@@ -4809,6 +4825,14 @@ function syncWorkerDataToDashboard(payload) {
   }
   if (homeInfoSite && worker.site) {
     homeInfoSite.textContent = worker.site.textContent || "-";
+    if (worker.site instanceof HTMLAnchorElement) {
+      homeInfoSite.href = worker.site.getAttribute("href") || "#";
+      if (worker.site.getAttribute("aria-disabled") === "true") {
+        homeInfoSite.setAttribute("aria-disabled", "true");
+      } else {
+        homeInfoSite.removeAttribute("aria-disabled");
+      }
+    }
   }
   if (homeInfoCompany && worker.companyName) {
     homeInfoCompany.textContent = worker.companyName.textContent || "Baufirma";
