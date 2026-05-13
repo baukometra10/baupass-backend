@@ -6700,7 +6700,7 @@ body.worker-loaded .app-shell {
 
 @media (max-width: 520px) {
   .home-compact-info {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
@@ -6720,6 +6720,10 @@ body.worker-loaded .app-shell {
     white-space: normal;
   }
 
+  .home-info-item:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
   .dashboard-featured-card {
     aspect-ratio: 85.6 / 60;
     border-radius: 16px;
@@ -6728,8 +6732,8 @@ body.worker-loaded .app-shell {
   .wallet-card {
     max-width: 100%;
     aspect-ratio: 85.6 / 60;
-    min-height: 286px;
-    padding: 4.8% 5.2%;
+    min-height: 292px;
+    padding: 4.4% 4.8%;
   }
 
   .wc-top {
@@ -6737,23 +6741,42 @@ body.worker-loaded .app-shell {
   }
 
   .wc-middle {
-    gap: 10px;
+    gap: 12px;
     align-items: center;
   }
 
   .wc-qr-holder {
-    width: clamp(82px, 33vw, 124px);
-    height: clamp(82px, 33vw, 124px);
+    width: clamp(86px, 34vw, 126px);
+    height: clamp(86px, 34vw, 126px);
   }
 
   .wc-photo {
-    width: clamp(54px, 18vw, 76px);
-    height: clamp(54px, 18vw, 76px);
+    width: clamp(58px, 19vw, 80px);
+    height: clamp(58px, 19vw, 80px);
     border-radius: 12px;
   }
 
   .wc-bottom {
     margin-top: 0;
+  }
+
+  .wc-name {
+    font-size: clamp(.68rem, 2.5vw, .92rem);
+    letter-spacing: 0.1em;
+  }
+
+  .wc-role-text {
+    font-size: clamp(.44rem, 1.9vw, .62rem);
+  }
+
+  .wc-footer {
+    gap: 8px;
+    align-items: center;
+  }
+
+  .wc-company,
+  .wc-status {
+    font-size: 0.72rem;
   }
 
   .wc-qr-frame {
