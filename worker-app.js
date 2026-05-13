@@ -738,6 +738,7 @@ const elements = {
   gateStatusFeedback: document.querySelector("#gateStatusFeedback"),
   gateContrastToggle: document.querySelector("#gateContrastToggle"),
   connectionBanner: document.querySelector("#connectionBanner"),
+  connectionStatusLabel: document.querySelector("#connectionStatusLabel"),
   lastSyncInfo: document.querySelector("#lastSyncInfo"),
   workerBuildBadge: document.querySelector("#workerBuildBadge"),
   workerPulsePanel: document.querySelector("#workerPulsePanel"),
@@ -2698,11 +2699,17 @@ function updateConnectionState() {
     return;
   }
   if (navigator.onLine) {
-    elements.connectionBanner.textContent = t("online");
+    elements.connectionBanner.textContent = "";
     elements.connectionBanner.className = "stb-connection-dot online";
+    if (elements.connectionStatusLabel) {
+      elements.connectionStatusLabel.textContent = t("online");
+    }
   } else {
-    elements.connectionBanner.textContent = t("offline");
+    elements.connectionBanner.textContent = "";
     elements.connectionBanner.className = "stb-connection-dot offline";
+    if (elements.connectionStatusLabel) {
+      elements.connectionStatusLabel.textContent = t("offline");
+    }
   }
   updateWorkerPulsePanel();
   updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);

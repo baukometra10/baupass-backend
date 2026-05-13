@@ -114,10 +114,18 @@ html[data-theme="dark"] body {
   gap: 14px;
 }
 
+body.worker-loaded .app-shell {
+  padding-top: 22px;
+}
+
 .sparkasse-top-bar {
   border-bottom: 1px solid var(--corp-border);
   box-shadow: 0 1px 0 rgba(20, 42, 68, 0.04);
   background: var(--corp-surface);
+}
+
+body.worker-loaded .sparkasse-top-bar {
+  margin-top: 6px;
 }
 
 .stb-inner {
@@ -125,9 +133,48 @@ html[data-theme="dark"] body {
   height: 56px;
 }
 
+.stb-right {
+  gap: 8px;
+}
+
+.stb-connection-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  line-height: 1;
+}
+
+.stb-connection-label {
+  margin-top: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--corp-muted);
+  text-transform: uppercase;
+}
+
+.stb-connection-dot {
+  margin-right: 0;
+}
+
 .stb-brand-name {
   font-size: 16px;
   letter-spacing: -0.15px;
+}
+
+.stb-brand-arrow {
+  margin-left: 2px;
+  color: var(--corp-primary);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+html[dir="rtl"] .stb-brand-arrow {
+  margin-left: 0;
+  margin-right: 2px;
 }
 
 .login-sparkasse {
@@ -211,10 +258,23 @@ textarea:focus {
   gap: 14px;
 }
 
+body.worker-loaded .worker-dashboard {
+  margin-top: 8px;
+}
+
 /* Card QR refinement: smaller QR, compact gold frame, no extra chip overlay */
 .wc-qr-holder {
   width: clamp(58px, 19%, 84px);
   height: clamp(58px, 19%, 84px);
+}
+
+.wc-middle {
+  align-items: center;
+  gap: 12px;
+}
+
+html[dir="rtl"] .wc-middle {
+  flex-direction: row-reverse;
 }
 
 .wc-qr-frame {
@@ -239,6 +299,52 @@ textarea:focus {
 .dqr-countdown,
 .vc-timer-chip {
   display: none !important;
+}
+
+.wc-footer {
+  align-items: flex-start;
+}
+
+.wc-fields,
+.wc-right {
+  flex: 1 1 0;
+}
+
+html[dir="rtl"] .wc-footer {
+  flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .wc-right {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.wc-status[data-status="aktiv"],
+.wc-status[data-status="active"],
+.wc-status[data-status="online"] {
+  color: #79f2b1;
+}
+
+.wc-status[data-status="gesperrt"],
+.wc-status[data-status="inaktiv"],
+.wc-status[data-status="closed"],
+.wc-status[data-status="offline"] {
+  color: #ffb5b5;
+}
+
+.wc-status[data-status="aktiv"]::before,
+.wc-status[data-status="active"]::before,
+.wc-status[data-status="online"]::before {
+  background: #4ade80;
+  box-shadow: 0 0 7px rgba(74, 222, 128, 0.7);
+}
+
+.wc-status[data-status="gesperrt"]::before,
+.wc-status[data-status="inaktiv"]::before,
+.wc-status[data-status="closed"]::before,
+.wc-status[data-status="offline"]::before {
+  background: #ff6b6b;
+  box-shadow: 0 0 7px rgba(255, 107, 107, 0.7);
 }
 
 .home-compact-info {
@@ -868,6 +974,10 @@ textarea:focus-visible,
   .app-shell {
     padding: 10px 10px 18px;
     gap: 10px;
+  }
+
+  body.worker-loaded .app-shell {
+    padding-top: 16px;
   }
 
   body:not(.worker-loaded) .login-content-sparkasse {
