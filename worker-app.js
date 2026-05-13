@@ -4914,23 +4914,22 @@ function showLogin() {
   updateWalletImmersiveMode();
   updateWorkerPulsePanel();
 
-  // Prefill stored Badge-ID so the worker only needs to enter the PIN
-  const savedBadgeId = (localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
-  if (savedBadgeId && elements.workerAccessToken) {
-    elements.workerAccessToken.value = normalizeBadgeIdInput(savedBadgeId);
-    const pinWrapper = document.querySelector("#pinFieldWrapper");
-    if (pinWrapper && !isVisitorBadgeId(savedBadgeId)) {
-      pinWrapper.classList.remove("hidden");
-      // Focus the PIN field so the worker can type right away
-      const pinInput = document.querySelector("#workerBadgePin");
-      if (pinInput) setTimeout(() => pinInput.focus(), 120);
-    }
+  // Auto-login disabled: always show fresh login form
+  if (elements.workerAccessToken) {
+    elements.workerAccessToken.value = "";
+  }
+  const pinWrapper = document.querySelector("#pinFieldWrapper");
+  if (pinWrapper) {
+    pinWrapper.classList.add("hidden");
+  }
+  const pinInput = document.querySelector("#workerBadgePin");
+  if (pinInput) {
+    pinInput.value = "";
   }
 
   const resumeRow = elements.workerResumeLoginRow;
   if (resumeRow) {
-    const canResume = Boolean(savedBadgeId && !isVisitorBadgeId(savedBadgeId));
-    resumeRow.classList.toggle("hidden", !canResume);
+    resumeRow.classList.add("hidden");
   }
 }
 
