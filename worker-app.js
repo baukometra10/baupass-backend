@@ -2029,6 +2029,83 @@ Object.assign(TRANSLATIONS.pl, {
   companyModePremiumItem3: "Dopracowane prowadzenie użytkownika dla top wydajności"
 });
 
+// ─ FOREMAN DASHBOARD TRANSLATIONS ──────────────────────────────────────────
+Object.assign(TRANSLATIONS.de, {
+  foremanTitle: "Foreman Dashboard",
+  foremanSubtitle: "Team-Verwaltung und Live-Übersicht",
+  foremanTabTeam: "Team-Status",
+  foremanTabAnalytics: "Analytics",
+  foremanTabShifts: "Schichten",
+  foremanTabNotifications: "Benachrichtigungen",
+  foremanHealthScore: "Health Score",
+  foremanCheckedInToday: "Eingecheckt heute",
+  foremanMissingDocs: "Fehlende Docs",
+  foremanTrendsTitle: "Arbeitszeit-Trends (7 Tage)",
+  foremanDocHealthTitle: "Dokumenten-Health",
+  foremanPunctualityTitle: "Pünktlichkeits-Report",
+  foremanColName: "Name",
+  foremanColCheckinTime: "Check-in Zeit",
+  foremanColDelay: "Verspätung",
+  foremanColWorker: "Mitarbeiter",
+  foremanColStartTime: "Start",
+  foremanColEndTime: "Ende",
+  foremanColSite: "Standort",
+  foremanColStatus: "Status",
+  foremanLoading: "Lädt...",
+  foremanNoWorkers: "Keine Mitarbeiter gefunden",
+  foremanAssignShift: "Neue Schicht zuweisen",
+  foremanWorkerLabel: "Mitarbeiter",
+  foremanStartTime: "Start-Zeit",
+  foremanEndTime: "End-Zeit",
+  foremanSiteLabel: "Standort",
+  foremanNotesLabel: "Notizen",
+  foremanSubmitShift: "Schicht zuweisen",
+  foremanUpcomingShifts: "Anstehende Schichten",
+  foremanSendAlert: "Alert versenden",
+  foremanAlertType: "Alert-Typ",
+  foremanMessageLabel: "Nachricht",
+  foremanSendBtn: "Versenken",
+  foremanNotificationHistory: "Benachrichtigungs-Verlauf",
+});
+
+Object.assign(TRANSLATIONS.en, {
+  foremanTitle: "Foreman Dashboard",
+  foremanSubtitle: "Team management and live overview",
+  foremanTabTeam: "Team Status",
+  foremanTabAnalytics: "Analytics",
+  foremanTabShifts: "Shifts",
+  foremanTabNotifications: "Notifications",
+  foremanHealthScore: "Health Score",
+  foremanCheckedInToday: "Checked in today",
+  foremanMissingDocs: "Missing Docs",
+  foremanTrendsTitle: "Work Time Trends (7 days)",
+  foremanDocHealthTitle: "Document Health",
+  foremanPunctualityTitle: "Punctuality Report",
+  foremanColName: "Name",
+  foremanColCheckinTime: "Check-in time",
+  foremanColDelay: "Delay",
+  foremanColWorker: "Worker",
+  foremanColStartTime: "Start",
+  foremanColEndTime: "End",
+  foremanColSite: "Location",
+  foremanColStatus: "Status",
+  foremanLoading: "Loading...",
+  foremanNoWorkers: "No workers found",
+  foremanAssignShift: "Assign new shift",
+  foremanWorkerLabel: "Worker",
+  foremanStartTime: "Start time",
+  foremanEndTime: "End time",
+  foremanSiteLabel: "Location",
+  foremanNotesLabel: "Notes",
+  foremanSubmitShift: "Assign shift",
+  foremanUpcomingShifts: "Upcoming shifts",
+  foremanSendAlert: "Send alert",
+  foremanAlertType: "Alert type",
+  foremanMessageLabel: "Message",
+  foremanSendBtn: "Send",
+  foremanNotificationHistory: "Notification history",
+});
+
 const LANG_META = {
   de: { label: "DE", flag: "🇩🇪", dir: "ltr" },
   en: { label: "EN", flag: "🇬🇧", dir: "ltr" },
@@ -2272,8 +2349,137 @@ function notifySmartHub(type, title, body) {
   try {
     new Notification(title, { body, tag: `${type}-${today}` });
     localStorage.setItem(key, "1");
+    
+    // Also store in notification history
+    addNotificationToHistory({ type, title, body, timestamp: now_iso() });
   } catch {
     // Ignore notification errors in restricted contexts.
+  }
+}
+
+// ─ ENHANCED NOTIFICATION SYSTEM ─────────────────────────────────────────────
+const NOTIFICATION_HISTORY_KEY = "baupass-notification-history";
+const MAX_NOTIFICATIONS_STORED = 50;
+
+function addNotificationToHistory(notif) {
+  try {
+    const history = JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_KEY) || "[]");
+    const newNotif = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: notif.type || "general",
+      title: notif.title || "",
+      body: notif.body || "",
+      message: notif.body || "",
+      timestamp: notif.timestamp || new Date().toISOString(),
+      read: false,
+    };
+    
+    history.unshift(newNotif);
+    if (history.length > MAX_NOTIFICATIONS_STORED) {
+      history.pop();
+    }
+    
+    localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
+  } catch (err) {
+    console.error("Failed to add notification to history:", err);
+  }
+}
+
+function getNotificationHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function clearNotificationHistory() {
+  localStorage.removeItem(NOTIFICATION_HISTORY_KEY);
+}
+
+function markNotificationAsRead(notifId) {
+  try {
+    const history = JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_KEY) || "[]");
+    const notif = history.find(n => n.id === notifId);
+    if (notif) {
+      notif.read = true;
+      localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
+    }
+  } catch (err) {
+    console.error("Failed to mark notification as read:", err);
+  }
+}
+
+// ─ OFFLINE SYNC CONFLICT DETECTION & RESOLUTION ────────────────────────────
+const SYNC_CONFLICTS_KEY = "baupass-sync-conflicts";
+
+function reportSyncConflict(conflictType, localData, serverData) {
+  try {
+    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    const newConflict = {
+      id: `conflict-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      conflictType: conflictType,
+      localData: typeof localData === 'string' ? localData : JSON.stringify(localData),
+      serverData: typeof serverData === 'string' ? serverData : JSON.stringify(serverData),
+      resolution: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    
+    conflicts.unshift(newConflict);
+    if (conflicts.length > 20) {
+      conflicts.pop();
+    }
+    
+    localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
+    
+    // Send to backend for logging
+    fetch(`/api/sync/report-conflict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConflict),
+    }).catch(err => console.error('Failed to report conflict to backend:', err));
+    
+    return newConflict.id;
+  } catch (err) {
+    console.error("Failed to report sync conflict:", err);
+  }
+}
+
+function getSyncConflicts(resolution = 'pending') {
+  try {
+    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    return resolution ? conflicts.filter(c => c.resolution === resolution) : conflicts;
+  } catch {
+    return [];
+  }
+}
+
+function resolveSyncConflict(conflictId, resolution) {
+  try {
+    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    const conflict = conflicts.find(c => c.id === conflictId);
+    if (conflict) {
+      conflict.resolution = resolution;
+      conflict.resolvedAt = new Date().toISOString();
+      localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
+    }
+  } catch (err) {
+    console.error("Failed to resolve sync conflict:", err);
+  }
+}
+
+function autoResolveSyncConflicts(strategy = 'server_win') {
+  try {
+    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    conflicts.forEach(c => {
+      if (c.resolution === 'pending') {
+        c.resolution = strategy;
+        c.resolvedAt = new Date().toISOString();
+      }
+    });
+    localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
+  } catch (err) {
+    console.error("Failed to auto-resolve sync conflicts:", err);
   }
 }
 

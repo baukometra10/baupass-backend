@@ -3307,6 +3307,92 @@ def init_db():
         """
     )
 
+    # ── Neu: Schicht-Zuweisungen (Shift Management) ────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_assignments (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            site TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            assigned_at TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'scheduled',
+            notes TEXT NOT NULL DEFAULT '',
+            created_by_user_id TEXT,
+            FOREIGN KEY(company_id) REFERENCES companies(id),
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_shift_assignments_worker_site ON shift_assignments(worker_id, site, start_time DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_shift_assignments_company_status ON shift_assignments(company_id, status, start_time)")
+
+    # ── Neu: Schicht-Tausch-Anfragen ──────────────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_swaps (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            from_worker_id TEXT NOT NULL,
+            to_worker_id TEXT NOT NULL,
+            shift_assignment_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            reason TEXT NOT NULL DEFAULT '',
+            requested_at TEXT NOT NULL,
+            responded_at TEXT,
+            FOREIGN KEY(company_id) REFERENCES companies(id),
+            FOREIGN KEY(from_worker_id) REFERENCES workers(id),
+            FOREIGN KEY(to_worker_id) REFERENCES workers(id),
+            FOREIGN KEY(shift_assignment_id) REFERENCES shift_assignments(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_shift_swaps_to_worker ON shift_swaps(to_worker_id, status, requested_at DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_shift_swaps_company_status ON shift_swaps(company_id, status)")
+
+    # ── Neu: Benachrichtigungs-Verlauf ───────────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notifications (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            action_url TEXT NOT NULL DEFAULT '',
+            read_at TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_notifications_worker_created ON notifications(worker_id, created_at DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_notifications_company_type ON notifications(company_id, type, created_at DESC)")
+
+    # ── Neu: Sync-Konflikt-Tracking ──────────────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sync_conflicts (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            conflict_type TEXT NOT NULL,
+            local_data TEXT NOT NULL,
+            server_data TEXT NOT NULL,
+            resolution TEXT NOT NULL DEFAULT 'pending',
+            resolved_at TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_conflicts_worker_resolution ON sync_conflicts(worker_id, resolution, created_at DESC)")
+
     # Populate Resend key cache from DB so _get_resend_api_key_and_source() works without
     # opening a second connection. Safe here because we're still in init_db's raw connection.
     try:
@@ -11040,6 +11126,616 @@ def worker_app_logout():
     db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (g.worker_token,))
     db.commit()
     return jsonify({"ok": True})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1: FOREMAN/SUPERVISOR HUB
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/foreman/team-status")
+@require_admin_session
+def foreman_team_status():
+    """Foreman-View: Live-Status aller Mitarbeiter des Teams."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+
+    rows = db.execute(
+        """
+        SELECT
+            w.id,
+            w.first_name,
+            w.last_name,
+            w.badge_id,
+            w.site,
+            w.role,
+            COALESCE(
+                (SELECT al.direction FROM access_logs al
+                 WHERE al.worker_id = w.id AND al.timestamp LIKE ?
+                 ORDER BY al.timestamp DESC LIMIT 1),
+                'unknown'
+            ) AS status,
+            COALESCE(
+                (SELECT al.timestamp FROM access_logs al
+                 WHERE al.worker_id = w.id AND al.timestamp LIKE ?
+                 ORDER BY al.timestamp DESC LIMIT 1),
+                ''
+            ) AS last_event_time,
+            COALESCE(
+                (SELECT wd.id FROM worker_documents wd
+                 WHERE wd.worker_id = w.id AND wd.created_at > datetime('now', '-30 days')
+                 ORDER BY wd.created_at DESC LIMIT 1),
+                NULL
+            ) IS NOT NULL AS has_recent_docs
+        FROM workers w
+        WHERE w.company_id = ? AND w.worker_type = 'worker' AND w.deleted_at IS NULL
+        ORDER BY w.site, w.last_name, w.first_name
+        """,
+        (f"{today_prefix}%", f"{today_prefix}%", company_id),
+    ).fetchall()
+
+    team_data = []
+    for row in rows:
+        team_data.append({
+            "workerId": row["id"],
+            "name": f"{row['first_name']} {row['last_name']}",
+            "badge": row["badge_id"],
+            "site": row["site"],
+            "role": row["role"],
+            "status": row["status"],
+            "lastEventTime": row["last_event_time"],
+            "hasRecentDocs": bool(row["has_recent_docs"]),
+        })
+
+    return jsonify({"team": team_data, "total": len(team_data)})
+
+
+@app.get("/api/foreman/crew-health")
+@require_admin_session
+def foreman_crew_health():
+    """Crew-Health-Score: Durchschnittliche Metriken des Teams."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+
+    total_workers = db.execute(
+        "SELECT COUNT(*) AS cnt FROM workers WHERE company_id = ? AND worker_type = 'worker' AND deleted_at IS NULL",
+        (company_id,)
+    ).fetchone()["cnt"]
+
+    checked_in_today = db.execute(
+        """
+        SELECT COUNT(DISTINCT al.worker_id) AS cnt
+        FROM access_logs al
+        WHERE al.timestamp LIKE ?
+          AND al.direction = 'check-in'
+          AND al.worker_id IN (SELECT id FROM workers WHERE company_id = ? AND deleted_at IS NULL)
+        """,
+        (f"{today_prefix}%", company_id)
+    ).fetchone()["cnt"]
+
+    missing_docs = db.execute(
+        """
+        SELECT COUNT(DISTINCT w.id) AS cnt
+        FROM workers w
+        LEFT JOIN worker_documents wd ON w.id = wd.worker_id AND wd.created_at > datetime('now', '-30 days')
+        WHERE w.company_id = ? AND w.worker_type = 'worker' AND w.deleted_at IS NULL
+          AND wd.id IS NULL
+        """,
+        (company_id,)
+    ).fetchone()["cnt"]
+
+    health_score = round((checked_in_today / max(1, total_workers)) * 100, 0) if total_workers > 0 else 0
+
+    return jsonify({
+        "healthScore": int(health_score),
+        "totalWorkers": total_workers,
+        "checkedInToday": checked_in_today,
+        "missingDocuments": missing_docs,
+        "timestamp": now_iso(),
+    })
+
+
+@app.post("/api/foreman/send-alert")
+@require_admin_session
+def foreman_send_alert():
+    """Foreman sendet Alert an einen Mitarbeiter."""
+    db = get_db()
+    user = g.admin_user
+    payload = request.get_json(silent=True) or {}
+    
+    worker_id = str(payload.get("workerId") or "").strip()
+    alert_type = str(payload.get("type") or "").strip()  # checkout_reminder, document_alert, etc
+    message = str(payload.get("message") or "").strip()
+
+    if not worker_id or not alert_type or not message:
+        return jsonify({"error": "missing_fields"}), 400
+
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker or worker["company_id"] != user["company_id"]:
+        return jsonify({"error": "not_found"}), 404
+
+    notif_id = f"notif-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO notifications (id, worker_id, company_id, type, title, message, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (notif_id, worker_id, user["company_id"], alert_type, alert_type, message, now_iso())
+    )
+    db.commit()
+
+    log_audit(
+        "foreman.alert_sent",
+        f"Alert '{alert_type}' an {worker['first_name']} {worker['last_name']} versendet",
+        target_type="worker",
+        target_id=worker_id,
+        company_id=user["company_id"],
+    )
+
+    return jsonify({"ok": True, "notificationId": notif_id})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 2: ANALYTICS & INSIGHTS DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/analytics/worker-trends")
+@require_admin_session
+def analytics_worker_trends():
+    """Arbeitszeit-Trends: Durchschnittliche Schichtten pro Woche."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+    
+    now = datetime.now()
+    week_ago = now - timedelta(days=7)
+    week_ago_str = week_ago.strftime("%Y-%m-%d")
+
+    trends = db.execute(
+        """
+        SELECT
+            DATE(al.timestamp) as work_date,
+            COUNT(DISTINCT al.worker_id) as active_workers,
+            AVG(
+                CASE
+                    WHEN al.direction = 'check-in' THEN 1
+                    ELSE 0
+                END
+            ) * 100 AS checkin_rate
+        FROM access_logs al
+        WHERE al.timestamp > ?
+          AND al.worker_id IN (SELECT id FROM workers WHERE company_id = ? AND deleted_at IS NULL)
+        GROUP BY DATE(al.timestamp)
+        ORDER BY work_date DESC
+        LIMIT 7
+        """,
+        (week_ago_str, company_id)
+    ).fetchall()
+
+    result = []
+    for row in trends:
+        result.append({
+            "date": row["work_date"],
+            "activeWorkers": row["active_workers"],
+            "checkinRate": round(row["checkin_rate"], 1) if row["checkin_rate"] else 0,
+        })
+
+    return jsonify({"trends": result})
+
+
+@app.get("/api/analytics/document-health")
+@require_admin_session
+def analytics_document_health():
+    """Doku-Health: Score pro Dokumenttyp."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+
+    total_workers = db.execute(
+        "SELECT COUNT(*) as cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
+        (company_id,)
+    ).fetchone()["cnt"]
+
+    doc_types = db.execute(
+        """
+        SELECT
+            doc_type,
+            COUNT(DISTINCT worker_id) as workers_with_doc,
+            COUNT(*) as total_docs
+        FROM worker_documents
+        WHERE company_id = ?
+        GROUP BY doc_type
+        ORDER BY doc_type
+        """,
+        (company_id,)
+    ).fetchall()
+
+    health_data = []
+    for row in doc_types:
+        coverage = round((row["workers_with_doc"] / max(1, total_workers)) * 100, 0)
+        health_data.append({
+            "docType": row["doc_type"],
+            "coverage": int(coverage),
+            "workersWithDoc": row["workers_with_doc"],
+            "totalDocs": row["total_docs"],
+        })
+
+    return jsonify({"docHealth": health_data, "totalWorkers": total_workers})
+
+
+@app.get("/api/analytics/punctuality-report")
+@require_admin_session
+def analytics_punctuality_report():
+    """Pünktlichkeits-Report: Verspätungen im Team."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+
+    # Late check-ins (nach 08:00)
+    late_workers = db.execute(
+        """
+        SELECT
+            w.id,
+            w.first_name,
+            w.last_name,
+            TIME(al.timestamp) as checkin_time
+        FROM workers w
+        JOIN access_logs al ON w.id = al.worker_id
+        WHERE w.company_id = ?
+          AND al.timestamp LIKE ?
+          AND al.direction = 'check-in'
+          AND TIME(al.timestamp) > '08:00:00'
+          AND al.timestamp = (
+              SELECT MAX(al2.timestamp)
+              FROM access_logs al2
+              WHERE al2.worker_id = w.id AND al2.timestamp LIKE ?
+          )
+        ORDER BY al.timestamp
+        """,
+        (company_id, f"{today_prefix}%", f"{today_prefix}%")
+    ).fetchall()
+
+    late_count = len(late_workers)
+    total_count = db.execute(
+        "SELECT COUNT(*) as cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
+        (company_id,)
+    ).fetchone()["cnt"]
+
+    punctuality_rate = round(((total_count - late_count) / max(1, total_count)) * 100, 1)
+
+    return jsonify({
+        "punctualityRate": punctuality_rate,
+        "lateWorkers": [{"name": f"{w['first_name']} {w['last_name']}", "checkinTime": w["checkin_time"]} for w in late_workers],
+        "totalWorkers": total_count,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 3: SHIFT & SCHEDULE MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/shift/assignments")
+@require_worker_session
+def shift_get_assignments():
+    """Mitarbeiter: Seine Schicht-Zuweisungen auflisten."""
+    db = get_db()
+    worker = g.worker
+
+    assignments = db.execute(
+        """
+        SELECT
+            id, start_time, end_time, site, status, notes
+        FROM shift_assignments
+        WHERE worker_id = ? AND status != 'cancelled'
+        ORDER BY start_time DESC
+        LIMIT 20
+        """,
+        (worker["id"],)
+    ).fetchall()
+
+    result = []
+    for a in assignments:
+        result.append({
+            "id": a["id"],
+            "startTime": a["start_time"],
+            "endTime": a["end_time"],
+            "site": a["site"],
+            "status": a["status"],
+            "notes": a["notes"],
+        })
+
+    return jsonify({"assignments": result})
+
+
+@app.post("/api/shift/assignments")
+@require_admin_session
+def shift_create_assignment():
+    """Admin: Neue Schicht-Zuweisung erstellen."""
+    db = get_db()
+    user = g.admin_user
+    payload = request.get_json(silent=True) or {}
+
+    worker_id = str(payload.get("workerId") or "").strip()
+    start_time = str(payload.get("startTime") or "").strip()
+    end_time = str(payload.get("endTime") or "").strip()
+    site = str(payload.get("site") or "").strip()
+    notes = str(payload.get("notes") or "").strip()
+
+    if not worker_id or not start_time or not end_time:
+        return jsonify({"error": "missing_fields"}), 400
+
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker or worker["company_id"] != user["company_id"]:
+        return jsonify({"error": "not_found"}), 404
+
+    assign_id = f"shift-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO shift_assignments (id, company_id, site, worker_id, assigned_at, start_time, end_time, status, notes, created_by_user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (assign_id, user["company_id"], site or worker["site"], worker_id, now_iso(), start_time, end_time, "scheduled", notes, user["id"])
+    )
+    db.commit()
+
+    return jsonify({"ok": True, "assignmentId": assign_id})
+
+
+@app.get("/api/shift/swaps")
+@require_worker_session
+def shift_get_swaps():
+    """Mitarbeiter: Seine offenen Swap-Anfragen."""
+    db = get_db()
+    worker = g.worker
+
+    swaps = db.execute(
+        """
+        SELECT
+            ss.id,
+            ss.from_worker_id,
+            ss.reason,
+            ss.status,
+            ss.requested_at,
+            w.first_name,
+            w.last_name,
+            sa.start_time,
+            sa.end_time,
+            sa.site
+        FROM shift_swaps ss
+        JOIN workers w ON ss.from_worker_id = w.id
+        JOIN shift_assignments sa ON ss.shift_assignment_id = sa.id
+        WHERE ss.to_worker_id = ? AND ss.status = 'pending'
+        ORDER BY ss.requested_at DESC
+        """,
+        (worker["id"],)
+    ).fetchall()
+
+    result = []
+    for s in swaps:
+        result.append({
+            "id": s["id"],
+            "fromWorker": f"{s['first_name']} {s['last_name']}",
+            "reason": s["reason"],
+            "status": s["status"],
+            "requestedAt": s["requested_at"],
+            "startTime": s["start_time"],
+            "endTime": s["end_time"],
+            "site": s["site"],
+        })
+
+    return jsonify({"swaps": result})
+
+
+@app.post("/api/shift/propose-swap")
+@require_worker_session
+def shift_propose_swap():
+    """Mitarbeiter: Schicht-Tausch mit anderem Mitarbeiter vorschlagen."""
+    db = get_db()
+    worker = g.worker
+    payload = request.get_json(silent=True) or {}
+
+    to_worker_id = str(payload.get("toWorkerId") or "").strip()
+    assignment_id = str(payload.get("assignmentId") or "").strip()
+    reason = str(payload.get("reason") or "").strip()
+
+    if not to_worker_id or not assignment_id:
+        return jsonify({"error": "missing_fields"}), 400
+
+    to_worker = db.execute("SELECT * FROM workers WHERE id = ?", (to_worker_id,)).fetchone()
+    if not to_worker or to_worker["company_id"] != worker["company_id"]:
+        return jsonify({"error": "not_found"}), 404
+
+    assignment = db.execute("SELECT * FROM shift_assignments WHERE id = ?", (assignment_id,)).fetchone()
+    if not assignment or assignment["worker_id"] != worker["id"]:
+        return jsonify({"error": "not_authorized"}), 403
+
+    swap_id = f"swap-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO shift_swaps (id, company_id, from_worker_id, to_worker_id, shift_assignment_id, status, reason, requested_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (swap_id, worker["company_id"], worker["id"], to_worker_id, assignment_id, "pending", reason, now_iso())
+    )
+    db.commit()
+
+    return jsonify({"ok": True, "swapId": swap_id})
+
+
+@app.post("/api/shift/respond-swap/<swap_id>")
+@require_worker_session
+def shift_respond_swap(swap_id):
+    """Mitarbeiter: Auf Swap-Anfrage antworten."""
+    db = get_db()
+    worker = g.worker
+    payload = request.get_json(silent=True) or {}
+    
+    response = str(payload.get("response") or "").strip().lower()  # accepted or rejected
+    if response not in ["accepted", "rejected"]:
+        return jsonify({"error": "invalid_response"}), 400
+
+    swap = db.execute("SELECT * FROM shift_swaps WHERE id = ?", (swap_id,)).fetchone()
+    if not swap or swap["to_worker_id"] != worker["id"]:
+        return jsonify({"error": "not_authorized"}), 403
+
+    new_status = "accepted" if response == "accepted" else "rejected"
+    db.execute(
+        "UPDATE shift_swaps SET status = ?, responded_at = ? WHERE id = ?",
+        (new_status, now_iso(), swap_id)
+    )
+    db.commit()
+
+    return jsonify({"ok": True, "status": new_status})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 4: NOTIFICATIONS & ALERTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/notifications")
+@require_worker_session
+def notifications_get():
+    """Mitarbeiter: Seinen Benachrichtigungs-Verlauf abrufen."""
+    db = get_db()
+    worker = g.worker
+
+    notifications = db.execute(
+        """
+        SELECT id, type, title, message, action_url, read_at, created_at
+        FROM notifications
+        WHERE worker_id = ?
+        ORDER BY created_at DESC
+        LIMIT 50
+        """,
+        (worker["id"],)
+    ).fetchall()
+
+    result = []
+    for n in notifications:
+        result.append({
+            "id": n["id"],
+            "type": n["type"],
+            "title": n["title"],
+            "message": n["message"],
+            "actionUrl": n["action_url"],
+            "isRead": n["read_at"] is not None,
+            "createdAt": n["created_at"],
+        })
+
+    return jsonify({"notifications": result})
+
+
+@app.post("/api/notifications/<notif_id>/mark-read")
+@require_worker_session
+def notifications_mark_read(notif_id):
+    """Mitarbeiter: Benachrichtigung als gelesen markieren."""
+    db = get_db()
+    worker = g.worker
+
+    notif = db.execute("SELECT * FROM notifications WHERE id = ?", (notif_id,)).fetchone()
+    if not notif or notif["worker_id"] != worker["id"]:
+        return jsonify({"error": "not_found"}), 404
+
+    db.execute("UPDATE notifications SET read_at = ? WHERE id = ?", (now_iso(), notif_id))
+    db.commit()
+
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/notifications/<notif_id>")
+@require_worker_session
+def notifications_delete(notif_id):
+    """Mitarbeiter: Benachrichtigung löschen."""
+    db = get_db()
+    worker = g.worker
+
+    notif = db.execute("SELECT * FROM notifications WHERE id = ?", (notif_id,)).fetchone()
+    if not notif or notif["worker_id"] != worker["id"]:
+        return jsonify({"error": "not_found"}), 404
+
+    db.execute("DELETE FROM notifications WHERE id = ?", (notif_id,))
+    db.commit()
+
+    return jsonify({"ok": True})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 5: OFFLINE SYNC & CONFLICT RESOLUTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/sync/conflicts")
+@require_worker_session
+def sync_get_conflicts():
+    """Mitarbeiter: Seine ungelösten Sync-Konflikte abrufen."""
+    db = get_db()
+    worker = g.worker
+
+    conflicts = db.execute(
+        """
+        SELECT id, conflict_type, local_data, server_data, resolution, created_at
+        FROM sync_conflicts
+        WHERE worker_id = ? AND resolution = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 20
+        """,
+        (worker["id"],)
+    ).fetchall()
+
+    result = []
+    for c in conflicts:
+        try:
+            local = json.loads(c["local_data"] or "{}")
+            server = json.loads(c["server_data"] or "{}")
+        except (json.JSONDecodeError, ValueError):
+            local = {}
+            server = {}
+
+        result.append({
+            "id": c["id"],
+            "conflictType": c["conflict_type"],
+            "local": local,
+            "server": server,
+            "createdAt": c["created_at"],
+        })
+
+    return jsonify({"conflicts": result})
+
+
+@app.post("/api/sync/resolve/<conflict_id>")
+@require_worker_session
+def sync_resolve_conflict(conflict_id):
+    """Mitarbeiter: Sync-Konflikt auflösen."""
+    db = get_db()
+    worker = g.worker
+    payload = request.get_json(silent=True) or {}
+
+    conflict = db.execute("SELECT * FROM sync_conflicts WHERE id = ?", (conflict_id,)).fetchone()
+    if not conflict or conflict["worker_id"] != worker["id"]:
+        return jsonify({"error": "not_found"}), 404
+
+    resolution = str(payload.get("resolution") or "").strip()  # merged, server_win, local_win, manual
+    if resolution not in ["merged", "server_win", "local_win", "manual"]:
+        return jsonify({"error": "invalid_resolution"}), 400
+
+    db.execute(
+        "UPDATE sync_conflicts SET resolution = ?, resolved_at = ? WHERE id = ?",
+        (resolution, now_iso(), conflict_id)
+    )
+    db.commit()
+
+    log_audit(
+        "worker_app.sync_resolved",
+        f"Sync-Konflikt {conflict['conflict_type']} mit Strategie '{resolution}' aufgelöst",
+        target_type="worker",
+        target_id=worker["id"],
+        company_id=worker["company_id"],
+    )
+
+    return jsonify({"ok": True, "resolution": resolution})
 
 
 # ── Dynamic QR helpers ────────────────────────────────────────────────────────

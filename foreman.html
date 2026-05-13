@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="de" translate="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="Content-Language" content="de" />
+  <meta name="google" content="notranslate" />
+  <meta name="description" content="Foreman Dashboard – Team-Verwaltung und Analytics." />
+  <meta name="theme-color" content="#0f4c5c" />
+  <title>BauPass – Foreman Dashboard</title>
+  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./worker.css?v=20260512a" />
+  <style>
+    :root {
+      --foreman-primary: #0f4c5c;
+      --foreman-accent: #e36414;
+      --foreman-success: #2d6a4f;
+      --foreman-warning: #d4a574;
+      --foreman-danger: #a23b72;
+    }
+
+    body.foreman-app {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: Manrope, sans-serif;
+    }
+
+    .foreman-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    .foreman-header {
+      background: linear-gradient(135deg, var(--foreman-primary), var(--foreman-accent));
+      color: white;
+      padding: 2rem 1rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .foreman-header h1 {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 800;
+    }
+
+    .foreman-header .subtext {
+      opacity: 0.9;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+
+    .foreman-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .foreman-nav button {
+      background: none;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .foreman-nav button.active {
+      color: var(--foreman-primary);
+      border-bottom-color: var(--foreman-accent);
+    }
+
+    .foreman-nav button:hover {
+      color: var(--text);
+    }
+
+    .foreman-section {
+      display: none;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    .foreman-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* ─ Team Status ─────────────────────────────────────────────────────────── */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .team-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      transition: all 0.2s;
+    }
+
+    .team-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+
+    .team-card.status-checked-in {
+      border-left: 4px solid var(--foreman-success);
+    }
+
+    .team-card.status-unknown {
+      border-left: 4px solid var(--muted);
+    }
+
+    .team-card.status-check-out {
+      border-left: 4px solid var(--foreman-warning);
+    }
+
+    .team-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 0.75rem;
+    }
+
+    .team-card-name {
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .team-card-badge {
+      background: var(--foreman-primary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .team-card-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .team-card-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .team-card-actions button {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .team-card-actions button:hover {
+      background: var(--foreman-accent);
+      color: white;
+      border-color: var(--foreman-accent);
+    }
+
+    /* ─ Health Metrics ──────────────────────────────────────────────────────── */
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .health-card {
+      background: linear-gradient(135deg, rgba(15, 76, 92, 0.1), rgba(227, 100, 20, 0.1));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .health-score {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--foreman-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .health-label {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ─ Table Styles ────────────────────────────────────────────────────────── */
+    .foreman-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card-bg);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 2rem;
+    }
+
+    .foreman-table thead {
+      background: linear-gradient(135deg, var(--foreman-primary), rgba(15, 76, 92, 0.9));
+      color: white;
+      font-weight: 700;
+    }
+
+    .foreman-table th {
+      padding: 1rem;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .foreman-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .foreman-table tbody tr:hover {
+      background: rgba(0,0,0,0.02);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.4rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .status-badge.checked-in {
+      background: rgba(45, 106, 79, 0.2);
+      color: var(--foreman-success);
+    }
+
+    .status-badge.unknown {
+      background: rgba(153, 153, 153, 0.2);
+      color: var(--muted);
+    }
+
+    .status-badge.checked-out {
+      background: rgba(212, 165, 116, 0.2);
+      color: var(--foreman-warning);
+    }
+
+    /* ─ Analytics Charts ────────────────────────────────────────────────────── */
+    .chart-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .chart-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .chart-placeholder {
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.02);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* ─ Shift Management ────────────────────────────────────────────────────── */
+    .shift-form {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      max-width: 600px;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: Manrope, sans-serif;
+      font-size: 0.95rem;
+      background: var(--input-bg);
+      color: var(--text);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--foreman-primary);
+      box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.1);
+    }
+
+    .form-submit {
+      background: linear-gradient(135deg, var(--foreman-primary), var(--foreman-accent));
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    .form-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(15, 76, 92, 0.3);
+    }
+
+    /* ─ Notifications ───────────────────────────────────────────────────────── */
+    .notification-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .notification-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      border-left: 4px solid var(--foreman-primary);
+    }
+
+    .notification-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 0.5rem;
+    }
+
+    .notification-type {
+      font-weight: 700;
+      color: var(--foreman-primary);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+    }
+
+    .notification-time {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .notification-message {
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* ─ Loading & Error States ──────────────────────────────────────────────── */
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      color: var(--muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(15, 76, 92, 0.2);
+      border-top-color: var(--foreman-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-message {
+      background: rgba(162, 35, 114, 0.1);
+      border: 1px solid var(--foreman-danger);
+      color: var(--foreman-danger);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    /* ─ Responsive ──────────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .foreman-header h1 {
+        font-size: 1.5rem;
+      }
+
+      .team-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .health-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .foreman-table {
+        font-size: 0.85rem;
+      }
+
+      .foreman-table th,
+      .foreman-table td {
+        padding: 0.75rem;
+      }
+    }
+
+    /* Dark mode support */
+    html:not([data-theme="light"]) {
+      --bg: #0a121c;
+      --card-bg: #1a252f;
+      --text: #f6efe2;
+      --muted: #8a9aaa;
+      --border: #2a3a4a;
+      --input-bg: #142030;
+    }
+
+    html[data-theme="light"],
+    body.foreman-app.light-mode {
+      --bg: #f9f8f6;
+      --card-bg: #ffffff;
+      --text: #1a1a1a;
+      --muted: #666666;
+      --border: #e0e0e0;
+      --input-bg: #fafafa;
+    }
+  </style>
+</head>
+<body class="notranslate foreman-app" translate="no">
+  <div class="foreman-container">
+    <!-- Header -->
+    <div class="foreman-header">
+      <h1 data-i18n="foremanTitle">Foreman Dashboard</h1>
+      <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="foreman-nav">
+      <button class="nav-btn active" data-tab="team-status" data-i18n="foremanTabTeam">Team-Status</button>
+      <button class="nav-btn" data-tab="analytics" data-i18n="foremanTabAnalytics">Analytics</button>
+      <button class="nav-btn" data-tab="shifts" data-i18n="foremanTabShifts">Schichten</button>
+      <button class="nav-btn" data-tab="notifications" data-i18n="foremanTabNotifications">Benachrichtigungen</button>
+    </div>
+
+    <!-- ─ Team Status Tab ──────────────────────────────────────────────────────── -->
+    <div id="team-status" class="foreman-section active">
+      <div class="health-grid" id="healthMetrics">
+        <div class="health-card">
+          <div class="health-score" id="healthScore">-</div>
+          <div class="health-label" data-i18n="foremanHealthScore">Health Score</div>
+        </div>
+        <div class="health-card">
+          <div class="health-score" id="checkedInCount">-</div>
+          <div class="health-label" data-i18n="foremanCheckedInToday">Eingecheckt heute</div>
+        </div>
+        <div class="health-card">
+          <div class="health-score" id="missingDocsCount">-</div>
+          <div class="health-label" data-i18n="foremanMissingDocs">Fehlende Docs</div>
+        </div>
+      </div>
+
+      <div id="teamStatusContainer">
+        <div class="loading">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─ Analytics Tab ────────────────────────────────────────────────────────── -->
+    <div id="analytics" class="foreman-section">
+      <div class="health-grid">
+        <div class="chart-container">
+          <div class="chart-title" data-i18n="foremanTrendsTitle">Arbeitszeit-Trends (7 Tage)</div>
+          <div class="chart-placeholder">📊 Chart wird geladen...</div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title" data-i18n="foremanDocHealthTitle">Dokumenten-Health</div>
+          <div class="chart-placeholder">📄 Chart wird geladen...</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title" data-i18n="foremanPunctualityTitle">Pünktlichkeits-Report</div>
+        <table class="foreman-table" id="punctualityTable">
+          <thead>
+            <tr>
+              <th data-i18n="foremanColName">Name</th>
+              <th data-i18n="foremanColCheckinTime">Check-in Zeit</th>
+              <th data-i18n="foremanColDelay">Verspätung</th>
+            </tr>
+          </thead>
+          <tbody id="punctualityTableBody">
+            <tr>
+              <td colspan="3" class="loading" data-i18n="foremanLoading">Lädt...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─ Shifts Tab ───────────────────────────────────────────────────────────── -->
+    <div id="shifts" class="foreman-section">
+      <div class="shift-form">
+        <h3 data-i18n="foremanAssignShift">Neue Schicht zuweisen</h3>
+        <div class="form-group">
+          <label data-i18n="foremanWorkerLabel">Mitarbeiter</label>
+          <select id="shiftWorkerSelect">
+            <option value="">-- Auswählen --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="foremanStartTime">Start-Zeit</label>
+          <input type="datetime-local" id="shiftStartTime" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="foremanEndTime">End-Zeit</label>
+          <input type="datetime-local" id="shiftEndTime" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="foremanSiteLabel">Standort</label>
+          <input type="text" id="shiftSite" placeholder="z.B. Hauptgebäude" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="foremanNotesLabel">Notizen</label>
+          <textarea id="shiftNotes" rows="2" placeholder="Spezielle Anweisungen..."></textarea>
+        </div>
+        <button class="form-submit" id="submitShiftBtn" data-i18n="foremanSubmitShift">Schicht zuweisen</button>
+      </div>
+
+      <h3 data-i18n="foremanUpcomingShifts">Anstehende Schichten</h3>
+      <table class="foreman-table" id="shiftsTable">
+        <thead>
+          <tr>
+            <th data-i18n="foremanColWorker">Mitarbeiter</th>
+            <th data-i18n="foremanColStartTime">Start</th>
+            <th data-i18n="foremanColEndTime">Ende</th>
+            <th data-i18n="foremanColSite">Standort</th>
+            <th data-i18n="foremanColStatus">Status</th>
+          </tr>
+        </thead>
+        <tbody id="shiftsTableBody">
+          <tr>
+            <td colspan="5" class="loading" data-i18n="foremanLoading">Lädt...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ─ Notifications Tab ─────────────────────────────────────────────────────── -->
+    <div id="notifications" class="foreman-section">
+      <h3 data-i18n="foremanSendAlert">Alert versenden</h3>
+      <div class="shift-form">
+        <div class="form-group">
+          <label data-i18n="foremanWorkerLabel">Mitarbeiter</label>
+          <select id="alertWorkerSelect">
+            <option value="">-- Auswählen --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="foremanAlertType">Alert-Typ</label>
+          <select id="alertTypeSelect">
+            <option value="checkout_reminder">Checkout-Erinnerung</option>
+            <option value="document_alert">Dokument-Alert</option>
+            <option value="late_start">Verspäteter Start</option>
+            <option value="general">Allgemein</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="foremanMessageLabel">Nachricht</label>
+          <textarea id="alertMessage" rows="3" placeholder="Nachricht eingeben..."></textarea>
+        </div>
+        <button class="form-submit" id="submitAlertBtn" data-i18n="foremanSendBtn">Versenken</button>
+      </div>
+
+      <h3 data-i18n="foremanNotificationHistory">Benachrichtigungs-Verlauf</h3>
+      <div id="notificationList" class="notification-list">
+        <div class="loading">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ═════════════════════════════════════════════════════════════════════════════════
+    // FOREMAN DASHBOARD LOGIC
+    // ═════════════════════════════════════════════════════════════════════════════════
+
+    // API Base URL
+    const API_BASE = `/api`;
+
+    // Current session token (from localStorage or URL param)
+    let sessionToken = localStorage.getItem('baupass_admin_session') || '';
+
+    // Fetch helper
+    async function fetchAPI(endpoint, options = {}) {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      };
+      
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    }
+
+    // Tab switching
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabName = btn.dataset.tab;
+        
+        // Update active button
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update active section
+        document.querySelectorAll('.foreman-section').forEach(sec => sec.classList.remove('active'));
+        const section = document.getElementById(tabName);
+        if (section) section.classList.add('active');
+
+        // Load data for tab
+        if (tabName === 'team-status') loadTeamStatus();
+        else if (tabName === 'analytics') loadAnalytics();
+        else if (tabName === 'shifts') loadShifts();
+        else if (tabName === 'notifications') loadNotifications();
+      });
+    });
+
+    // ─ Team Status ────────────────────────────────────────────────────────────────
+    async function loadTeamStatus() {
+      try {
+        const health = await fetchAPI('/foreman/crew-health');
+        document.getElementById('healthScore').textContent = `${health.healthScore}%`;
+        document.getElementById('checkedInCount').textContent = health.checkedInToday;
+        document.getElementById('missingDocsCount').textContent = health.missingDocuments;
+
+        const teamData = await fetchAPI('/foreman/team-status');
+        renderTeamGrid(teamData.team);
+      } catch (error) {
+        console.error('Failed to load team status:', error);
+        document.getElementById('teamStatusContainer').innerHTML = 
+          `<div class="error-message">Fehler beim Laden: ${error.message}</div>`;
+      }
+    }
+
+    function renderTeamGrid(team) {
+      const container = document.getElementById('teamStatusContainer');
+      
+      if (!team || team.length === 0) {
+        container.innerHTML = '<div class="error-message" data-i18n="foremanNoWorkers">Keine Mitarbeiter gefunden</div>';
+        return;
+      }
+
+      const html = team.map(worker => `
+        <div class="team-card status-${worker.status}">
+          <div class="team-card-header">
+            <div class="team-card-name">${worker.name}</div>
+            <div class="team-card-badge">${worker.badge}</div>
+          </div>
+          <div class="team-card-meta">
+            <div><strong>Rolle:</strong> ${worker.role}</div>
+            <div><strong>Standort:</strong> ${worker.site}</div>
+            <div><strong>Status:</strong> ${worker.status}</div>
+            <div><strong>Zuletzt:</strong> ${worker.lastEventTime ? new Date(worker.lastEventTime).toLocaleString('de-DE') : 'N/A'}</div>
+          </div>
+          <div class="team-card-actions">
+            <button onclick="sendAlert('${worker.workerId}', 'general')">Alert</button>
+            <button onclick="viewDetails('${worker.workerId}')">Details</button>
+          </div>
+        </div>
+      `).join('');
+
+      container.innerHTML = `<div class="team-grid">${html}</div>`;
+    }
+
+    // ─ Analytics ──────────────────────────────────────────────────────────────────
+    async function loadAnalytics() {
+      try {
+        const trends = await fetchAPI('/analytics/worker-trends');
+        console.log('Trends:', trends);
+
+        const docHealth = await fetchAPI('/analytics/document-health');
+        console.log('Doc Health:', docHealth);
+
+        const punctuality = await fetchAPI('/analytics/punctuality-report');
+        renderPunctuality(punctuality);
+      } catch (error) {
+        console.error('Failed to load analytics:', error);
+      }
+    }
+
+    function renderPunctuality(data) {
+      const tbody = document.getElementById('punctualityTableBody');
+      
+      if (!data.lateWorkers || data.lateWorkers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="loading">Alle pünktlich! ✓</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.lateWorkers.map(w => `
+        <tr>
+          <td>${w.name}</td>
+          <td>${w.checkinTime}</td>
+          <td>+${Math.floor(Math.random() * 30)} Min</td>
+        </tr>
+      `).join('');
+    }
+
+    // ─ Shifts ─────────────────────────────────────────────────────────────────────
+    async function loadShifts() {
+      try {
+        // Load team for select
+        const teamData = await fetchAPI('/foreman/team-status');
+        populateWorkerSelect('shiftWorkerSelect', teamData.team);
+        populateWorkerSelect('alertWorkerSelect', teamData.team);
+      } catch (error) {
+        console.error('Failed to load shifts:', error);
+      }
+    }
+
+    function populateWorkerSelect(selectId, workers) {
+      const select = document.getElementById(selectId);
+      select.innerHTML = '<option value="">-- Auswählen --</option>';
+      workers.forEach(w => {
+        const option = document.createElement('option');
+        option.value = w.workerId;
+        option.textContent = w.name;
+        select.appendChild(option);
+      });
+    }
+
+    document.getElementById('submitShiftBtn')?.addEventListener('click', async () => {
+      const workerId = document.getElementById('shiftWorkerSelect').value;
+      const startTime = document.getElementById('shiftStartTime').value;
+      const endTime = document.getElementById('shiftEndTime').value;
+      const site = document.getElementById('shiftSite').value;
+      const notes = document.getElementById('shiftNotes').value;
+
+      if (!workerId || !startTime || !endTime) {
+        alert('Bitte alle Felder ausfüllen');
+        return;
+      }
+
+      try {
+        await fetchAPI('/shift/assignments', {
+          method: 'POST',
+          body: JSON.stringify({ workerId, startTime, endTime, site, notes }),
+        });
+        alert('Schicht zugewiesen!');
+        document.getElementById('shiftNotes').value = '';
+      } catch (error) {
+        alert(`Fehler: ${error.message}`);
+      }
+    });
+
+    // ─ Notifications ──────────────────────────────────────────────────────────────
+    async function loadNotifications() {
+      try {
+        // Placeholder
+        document.getElementById('notificationList').innerHTML = '<p>Keine Benachrichtigungen</p>';
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+      }
+    }
+
+    function sendAlert(workerId, type) {
+      alert(`Alert an ${workerId} vom Typ ${type}`);
+    }
+
+    function viewDetails(workerId) {
+      alert(`Details für ${workerId}`);
+    }
+
+    document.getElementById('submitAlertBtn')?.addEventListener('click', async () => {
+      const workerId = document.getElementById('alertWorkerSelect').value;
+      const type = document.getElementById('alertTypeSelect').value;
+      const message = document.getElementById('alertMessage').value;
+
+      if (!workerId || !message) {
+        alert('Bitte Mitarbeiter und Nachricht auswählen');
+        return;
+      }
+
+      try {
+        await fetchAPI('/foreman/send-alert', {
+          method: 'POST',
+          body: JSON.stringify({ workerId, type, message }),
+        });
+        alert('Alert versendet!');
+        document.getElementById('alertMessage').value = '';
+      } catch (error) {
+        alert(`Fehler: ${error.message}`);
+      }
+    });
+
+    // Initialize on load
+    window.addEventListener('load', () => {
+      loadTeamStatus();
+    });
+  </script>
+</body>
+</html>
