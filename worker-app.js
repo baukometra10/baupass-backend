@@ -5395,6 +5395,8 @@ function _updateQrCountdownDisplay() {
     const fraction = Math.min(1, Math.max(0, sec / total));
     el.style.strokeDashoffset = String(circ * (1 - fraction));
   }
+  // Sync countdown to dashboard
+  syncDashboardQrCountdown();
 }
 
 function scheduleNextDynamicQrRefresh() {
@@ -5439,6 +5441,17 @@ async function fetchAndDisplayDynamicQr() {
         void setQrImage(elements.gateQr, dqrCurrentToken, gSz);
         setGateScannerFeedbackState("refresh", t("gateQrRefreshed"));
         queueGateScannerReadyState(1000);
+      }
+      // Also update dashboard QR if visible
+      const dashboardQr = document.getElementById("dashboardQr");
+      if (dashboardQr && !dashboardQr.classList.contains("hidden")) {
+        const dSz = isCompact ? 320 : 280;
+        void setQrImage(dashboardQr, dqrCurrentToken, dSz);
+        dashboardQr.style.opacity = "0.4";
+        requestAnimationFrame(() => {
+          dashboardQr.style.transition = "opacity 0.35s ease";
+          dashboardQr.style.opacity = "1";
+        });
       }
       // Update fallback text
       if (elements.qrFallbackText) elements.qrFallbackText.textContent = `Code: ${data.badgeId}`;
@@ -6849,6 +6862,23 @@ function syncWorkerDataToDashboard(payload) {
   }
   if (worker.qr && dashboard.qr && worker.qr.src) {
     dashboard.qr.src = worker.qr.src;
+  }
+}
+
+// Sync QR countdown to dashboard
+function syncDashboardQrCountdown() {
+  const workerCountdownRing = document.getElementById("dqrCountdownRing");
+  const dashboardCountdownRing = document.getElementById("dashboardDqrCountdownRing");
+  
+  const workerCountdownText = document.getElementById("dqrCountdownText");
+  const dashboardCountdownText = document.getElementById("dashboardDqrCountdownText");
+
+  if (workerCountdownRing && dashboardCountdownRing) {
+    dashboardCountdownRing.style.strokeDashoffset = workerCountdownRing.style.strokeDashoffset;
+  }
+
+  if (workerCountdownText && dashboardCountdownText) {
+    dashboardCountdownText.textContent = workerCountdownText.textContent;
   }
 }
 
