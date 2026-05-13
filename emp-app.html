@@ -125,6 +125,19 @@
         <h2 data-i18n="loginTitle">Digitalen Ausweis aktivieren</h2>
       </div>
       <p class="section-copy" data-i18n="loginCopy">Du kannst den Ausweis per Mitarbeiter-Link oder direkt mit deiner Badge-ID von der Karte aktivieren.</p>
+      <div class="login-hero-strip" aria-hidden="true">
+        <div class="login-hero-glow"></div>
+        <div class="login-hero-copy">
+          <span class="login-hero-kicker" data-i18n="loginHeroKicker">Schneller Einstieg</span>
+          <strong data-i18n="loginHeroTitle">Gezielt, sicher und sofort einsatzbereit.</strong>
+          <p data-i18n="loginHeroLead">Die Anmeldung ist auf mobile Nutzung, Baustelle und unterschiedliche Unternehmensprofile abgestimmt.</p>
+        </div>
+        <div class="login-hero-points">
+          <span class="login-hero-point" data-i18n="loginHeroPoint1">Unternehmensprofil wird automatisch erkannt</span>
+          <span class="login-hero-point" data-i18n="loginHeroPoint2">Sofortiger Einstieg mit sauberer Oberfläche</span>
+          <span class="login-hero-point" data-i18n="loginHeroPoint3">Optimiert für schnelle Arbeit vor Ort</span>
+        </div>
+      </div>
       <div class="lang-option-block">
         <label class="lang-option-label" for="workerLanguageSelect" data-i18n="languageLabel">Sprache</label>
         <select id="workerLanguageSelect" class="lang-option-select" aria-label="Sprache auswählen" data-i18n="languageSelectAria" data-i18n-attr="aria-label">
@@ -150,6 +163,10 @@
         </label>
         <button class="primary" type="submit" data-i18n="loginBtn">Ausweis laden</button>
       </form>
+      <div id="workerResumeLoginRow" class="login-resume-row hidden">
+        <p class="login-resume-copy" data-i18n="resumeLoginHint">Auf diesem Gerät ist bereits eine Badge-ID gespeichert.</p>
+        <button id="workerResumeLoginButton" type="button" class="ghost small-btn" data-i18n="resumeLoginBtn">Mit gespeicherter Badge fortfahren</button>
+      </div>
       <p id="geolocationHint" class="geolocation-hint hidden force-hidden" data-i18n="geolocationHint"></p>
       <div class="login-tips" aria-hidden="true">
         <span class="login-tip" data-i18n="tipBadge">Badge-ID plus PIN statt QR</span>
@@ -180,6 +197,11 @@
           </span>
           <span id="workerStatusText" data-i18n="statusActiveShort">Aktiv</span>
         </div>
+      </div>
+      <div id="workerNextStepPanel" class="worker-next-step-panel" aria-live="polite">
+        <p class="worker-next-step-kicker" data-i18n="nextStepKicker">Nächster Schritt</p>
+        <strong id="workerNextStepTitle" data-i18n="nextStepWorkerTitle">Heute direkt weitermachen</strong>
+        <p id="workerNextStepCopy" class="worker-next-step-copy" data-i18n="nextStepWorkerCopy">Dein Ausweis ist aktiv. Die wichtigsten Infos sind sofort sichtbar.</p>
       </div>
 
       <div class="pass-stage">

@@ -649,6 +649,104 @@ html[dir="rtl"] .wc-brand {
   gap: 20px;
 }
 
+.login-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(199, 134, 82, .22);
+  background:
+    radial-gradient(circle at top right, rgba(199, 134, 82, .14), transparent 26%),
+    radial-gradient(circle at bottom left, rgba(22, 94, 216, .08), transparent 24%),
+    var(--card);
+}
+
+.login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255,255,255,.14), transparent 40%, rgba(255,255,255,.04) 60%, transparent 100%);
+  opacity: .8;
+}
+
+.login-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-hero-strip {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(199, 134, 82, .18);
+  background: linear-gradient(145deg, rgba(255, 255, 255, .88), rgba(249, 242, 233, .94));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 12px 30px rgba(68, 41, 25, .08);
+  overflow: hidden;
+}
+
+.login-hero-glow {
+  position: absolute;
+  inset: auto -30px -50px auto;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(199, 134, 82, .22) 0%, rgba(199, 134, 82, 0) 68%);
+  pointer-events: none;
+}
+
+.login-hero-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.login-hero-kicker {
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: .68rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.login-hero-copy strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.02rem;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.login-hero-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.login-hero-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.login-hero-point {
+  display: flex;
+  align-items: flex-start;
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .76);
+  border: 1px solid rgba(196, 178, 158, .45);
+  color: var(--text);
+  font-size: .8rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 18px rgba(75, 48, 31, .08);
+}
+
+@media (max-width: 540px) {
+  .login-hero-points {
+    grid-template-columns: 1fr;
+  }
+}
+
 body.worker-loaded .worker-pass {
   margin-top: 12px;
 }
@@ -673,6 +771,39 @@ body.worker-loaded .worker-pass {
 }
 
 .section-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.worker-next-step-panel {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(250, 242, 232, .92));
+  border: 1px solid rgba(199, 134, 82, .22);
+  box-shadow: 0 12px 26px rgba(68, 41, 25, .08);
+}
+
+.worker-next-step-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: .7rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.worker-next-step-title,
+.worker-next-step-panel strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.worker-next-step-copy {
   margin: 0;
   color: var(--muted);
   line-height: 1.45;
@@ -873,6 +1004,26 @@ button:hover,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.login-resume-row {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .7);
+  border: 1px solid rgba(196, 178, 158, .35);
+}
+
+.login-resume-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+.login-resume-row .ghost {
+  width: 100%;
 }
 
 .login-tip {

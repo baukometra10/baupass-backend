@@ -86,6 +86,25 @@ const TRANSLATIONS = {
     loginKicker: "Direkter Einstieg",
     loginTitle: "Digitalen Ausweis aktivieren",
     loginCopy: "Du kannst den Ausweis per Mitarbeiter-Link oder direkt mit deiner Badge-ID von der Karte aktivieren.",
+    loginHeroKicker: "Schneller Einstieg",
+    loginHeroTitle: "Gezielt, sicher und sofort einsatzbereit.",
+    loginHeroLead: "Die Anmeldung ist auf mobile Nutzung, Baustelle und unterschiedliche Unternehmensprofile abgestimmt.",
+    loginHeroPoint1: "Unternehmensprofil wird automatisch erkannt",
+    loginHeroPoint2: "Sofortiger Einstieg mit sauberer Oberfläche",
+    loginHeroPoint3: "Optimiert für schnelle Arbeit vor Ort",
+    resumeLoginHint: "Auf diesem Gerät ist bereits eine Badge-ID gespeichert.",
+    resumeLoginBtn: "Mit gespeicherter Badge fortfahren",
+    nextStepKicker: "Heute im Fokus",
+    nextStepWorkerTitle: "Heute direkt weitermachen",
+    nextStepWorkerCopy: "Dein Ausweis ist aktiv. Rolle {role} am Standort {site} ist sofort sichtbar und bis {validUntil} gültig.",
+    nextStepConstructionTitle: "Baustelle zuerst",
+    nextStepConstructionCopy: "Direkt auf den Standort {site} und die wichtigsten Baustelleninfos zugreifen.",
+    nextStepIndustryTitle: "Schicht im Blick",
+    nextStepIndustryCopy: "Rolle {role}, Standort {site} und die nächsten Produktionsschritte sind sofort bereit.",
+    nextStepPremiumTitle: "Premium-Flow bereit",
+    nextStepPremiumCopy: "Schneller Zugriff auf {site} mit Fokus auf Status, Kontrolle und Übersicht.",
+    nextStepVisitorTitle: "Besuch heute im Blick",
+    nextStepVisitorCopy: "Besuch bei {site} mit Ansprechpartner {host}. Gültig bis {validUntil}.",
     loginTokenLabel: "Link-Code oder Badge-ID",
     loginTokenPlaceholder: "Token aus Link oder BP-...",
     loginPinLabel: "Badge-PIN",
@@ -871,6 +890,25 @@ Object.assign(TRANSLATIONS.en, {
   dailyBalanceLabel: "Status",
   dailyBalanceOpen: "Open",
   dailyBalanceClosed: "Closed",
+  loginHeroKicker: "Fast entry",
+  loginHeroTitle: "Focused, secure, and ready right away.",
+  loginHeroLead: "The sign-in flow is tuned for mobile use, site work, and different company profiles.",
+  loginHeroPoint1: "Company profile is detected automatically",
+  loginHeroPoint2: "Immediate entry with a clean interface",
+  loginHeroPoint3: "Optimized for fast work on site",
+  resumeLoginHint: "A badge ID is already saved on this device.",
+  resumeLoginBtn: "Continue with saved badge",
+  nextStepKicker: "Today in focus",
+  nextStepWorkerTitle: "Keep going now",
+  nextStepWorkerCopy: "Your pass is active. Role {role} at {site} is visible right away and valid until {validUntil}.",
+  nextStepConstructionTitle: "Site first",
+  nextStepConstructionCopy: "Go straight to {site} and the most important site details.",
+  nextStepIndustryTitle: "Shift in view",
+  nextStepIndustryCopy: "Role {role}, site {site}, and the next production steps are ready now.",
+  nextStepPremiumTitle: "Premium flow ready",
+  nextStepPremiumCopy: "Fast access to {site} with status, control, and overview in focus.",
+  nextStepVisitorTitle: "Visit in view",
+  nextStepVisitorCopy: "Visit at {site} with contact {host}. Valid until {validUntil}.",
   companyModeKicker: "Company profile",
   companyModeTitle: "Company mode",
   companyModeConstructionLead: "Construction-first workflow with fast site access.",
@@ -966,6 +1004,25 @@ Object.assign(TRANSLATIONS.tr, {
   dailyBalanceLabel: "Durum",
   dailyBalanceOpen: "Açık",
   dailyBalanceClosed: "Tamamlandı",
+  loginHeroKicker: "Hızlı giriş",
+  loginHeroTitle: "Odaklı, güvenli ve hemen kullanıma hazır.",
+  loginHeroLead: "Giriş akışı mobil kullanım, şantiye ve farklı şirket profillerine göre ayarlandı.",
+  loginHeroPoint1: "Şirket profili otomatik algılanır",
+  loginHeroPoint2: "Temiz arayüzle anında giriş",
+  loginHeroPoint3: "Sahada hızlı çalışma için optimize edildi",
+  resumeLoginHint: "Bu cihazda zaten kayıtlı bir rozet kimliği var.",
+  resumeLoginBtn: "Kayıtlı rozetle devam et",
+  nextStepKicker: "Bugün odakta",
+  nextStepWorkerTitle: "Şimdi devam et",
+  nextStepWorkerCopy: "Kartın aktif. {role} rolü ve {site} konumu hemen görünür, {validUntil} tarihine kadar geçerli.",
+  nextStepConstructionTitle: "Önce şantiye",
+  nextStepConstructionCopy: "Doğrudan {site} konumuna ve en önemli şantiye bilgilerine geç.",
+  nextStepIndustryTitle: "Vardiya görünür",
+  nextStepIndustryCopy: "{role} rolü, {site} konumu ve bir sonraki üretim adımları hazır.",
+  nextStepPremiumTitle: "Premium akış hazır",
+  nextStepPremiumCopy: "{site} için durum, kontrol ve genel bakış odaklı hızlı erişim.",
+  nextStepVisitorTitle: "Ziyaret görünümde",
+  nextStepVisitorCopy: "{site} ziyaretinde iletişim: {host}. {validUntil} tarihine kadar geçerli.",
   companyModeKicker: "Şirket profili",
   companyModeTitle: "Şirket modu",
   companyModeConstructionLead: "Şantiye odaklı, hızlı giriş akışı.",
@@ -1061,6 +1118,25 @@ Object.assign(TRANSLATIONS.ar, {
   dailyBalanceLabel: "الحالة",
   dailyBalanceOpen: "مفتوح",
   dailyBalanceClosed: "مغلق",
+  loginHeroKicker: "دخول سريع",
+  loginHeroTitle: "مركّز وآمن وجاهز فورًا.",
+  loginHeroLead: "تدفق تسجيل الدخول مضبوط للاستخدام عبر الهاتف والموقع وملفات الشركات المختلفة.",
+  loginHeroPoint1: "يتم التعرف على ملف الشركة تلقائيًا",
+  loginHeroPoint2: "دخول فوري مع واجهة نظيفة",
+  loginHeroPoint3: "محسّن للعمل السريع في الموقع",
+  resumeLoginHint: "تم حفظ رقم بطاقة على هذا الجهاز بالفعل.",
+  resumeLoginBtn: "المتابعة بالبطاقة المحفوظة",
+  nextStepKicker: "اليوم في المقدمة",
+  nextStepWorkerTitle: "تابع مباشرة",
+  nextStepWorkerCopy: "بطاقتك نشطة. الدور {role} في الموقع {site} ظاهر فورًا وصالح حتى {validUntil}.",
+  nextStepConstructionTitle: "الموقع أولًا",
+  nextStepConstructionCopy: "انتقل مباشرة إلى {site} وأهم معلومات الموقع.",
+  nextStepIndustryTitle: "الوردية أمامك",
+  nextStepIndustryCopy: "الدور {role} والموقع {site} والخطوات الإنتاجية التالية جاهزة الآن.",
+  nextStepPremiumTitle: "تدفق Premium جاهز",
+  nextStepPremiumCopy: "وصول سريع إلى {site} مع تركيز على الحالة والتحكم والوضوح.",
+  nextStepVisitorTitle: "الزيارة في المقدمة",
+  nextStepVisitorCopy: "زيارة {site} مع جهة الاتصال {host}. صالح حتى {validUntil}.",
   companyModeKicker: "ملف الشركة",
   companyModeTitle: "وضع الشركة",
   companyModeConstructionLead: "تدفق عمل مخصص للبناء مع دخول سريع.",
@@ -1074,7 +1150,21 @@ Object.assign(TRANSLATIONS.ar, {
   companyModePremiumLead: "تدفق Premium مع تحكم كامل وشفافية أعلى.",
   companyModePremiumItem1: "أولويات ذكية لاتخاذ قرار أسرع",
   companyModePremiumItem2: "أمان متقدم للمناطق عالية القيمة",
-  companyModePremiumItem3: "تجربة مصقولة لأداء احترافي"
+  companyModePremiumItem3: "تجربة مصقولة لأداء احترافي",
+  companyModeKicker: "Profil de l'entreprise",
+  companyModeTitle: "Mode entreprise",
+  companyModeConstructionLead: "Flux centré chantier avec accès rapide.",
+  companyModeConstructionItem1: "Entrée rapide pour les check-ins chantier",
+  companyModeConstructionItem2: "Statut journalier et contrôle d'accès au premier plan",
+  companyModeConstructionItem3: "Interface claire pour début et fin de poste",
+  companyModeIndustryLead: "Flux centré production avec postes stables.",
+  companyModeIndustryItem1: "Transitions de poste structurées et fenêtres claires",
+  companyModeIndustryItem2: "Autorisation sécurisée pour zones sensibles",
+  companyModeIndustryItem3: "Traçabilité précise pour conformité et audit",
+  companyModePremiumLead: "Flux premium avec contrôle total et visibilité maximale.",
+  companyModePremiumItem1: "Actions prioritaires pour décisions plus rapides",
+  companyModePremiumItem2: "Sécurité renforcée pour zones à forte valeur",
+  companyModePremiumItem3: "Expérience raffinée pour une performance haut de gamme"
 });
 
 Object.assign(TRANSLATIONS.fr, {
@@ -1228,6 +1318,25 @@ Object.assign(TRANSLATIONS.fr, {
   loginKicker: "Accès direct",
   loginTitle: "Activer le badge numérique",
   loginCopy: "Vous pouvez activer le badge via le lien employé ou directement avec votre Badge-ID.",
+  loginHeroKicker: "Entrée rapide",
+  loginHeroTitle: "Ciblé, sécurisé et prêt immédiatement.",
+  loginHeroLead: "L'écran de connexion est adapté à l'usage mobile, au chantier et aux différents profils d'entreprise.",
+  loginHeroPoint1: "Le profil d'entreprise est détecté automatiquement",
+  loginHeroPoint2: "Entrée immédiate avec une interface épurée",
+  loginHeroPoint3: "Optimisé pour travailler vite sur site",
+  resumeLoginHint: "Une Badge-ID est déjà enregistrée sur cet appareil.",
+  resumeLoginBtn: "Continuer avec le badge enregistré",
+  nextStepKicker: "Aujourd'hui en priorité",
+  nextStepWorkerTitle: "Continuer tout de suite",
+  nextStepWorkerCopy: "Votre badge est actif. Le rôle {role} sur le site {site} est visible immédiatement et valable jusqu'au {validUntil}.",
+  nextStepConstructionTitle: "Le chantier d'abord",
+  nextStepConstructionCopy: "Accédez directement au site {site} et aux informations chantier importantes.",
+  nextStepIndustryTitle: "La relève en vue",
+  nextStepIndustryCopy: "Rôle {role}, site {site} et prochaines étapes de production sont prêts.",
+  nextStepPremiumTitle: "Flux premium prêt",
+  nextStepPremiumCopy: "Accès rapide à {site} avec statut, contrôle et vue d'ensemble.",
+  nextStepVisitorTitle: "Visite en vue",
+  nextStepVisitorCopy: "Visite sur {site} avec contact {host}. Valable jusqu'au {validUntil}.",
   loginTokenLabel: "Code lien ou Badge-ID",
   loginTokenPlaceholder: "Token du lien ou BP-...",
   loginPinLabel: "Badge-PIN",
@@ -1347,6 +1456,25 @@ Object.assign(TRANSLATIONS.es, {
   loginKicker: "Acceso directo",
   loginTitle: "Activar credencial digital",
   loginCopy: "Puedes activar la credencial con el enlace del trabajador o con tu Badge-ID.",
+  loginHeroKicker: "Entrada rápida",
+  loginHeroTitle: "Enfocado, seguro y listo al instante.",
+  loginHeroLead: "El acceso está ajustado para uso móvil, obra y distintos perfiles de empresa.",
+  loginHeroPoint1: "El perfil de empresa se detecta automáticamente",
+  loginHeroPoint2: "Acceso inmediato con una interfaz limpia",
+  loginHeroPoint3: "Optimizado para trabajar rápido en obra",
+  resumeLoginHint: "Ya hay una Badge-ID guardada en este dispositivo.",
+  resumeLoginBtn: "Continuar con la credencial guardada",
+  nextStepKicker: "Hoy en foco",
+  nextStepWorkerTitle: "Seguir ahora",
+  nextStepWorkerCopy: "Tu credencial está activa. El rol {role} en la obra {site} se ve al instante y es válido hasta {validUntil}.",
+  nextStepConstructionTitle: "Primero la obra",
+  nextStepConstructionCopy: "Accede directo a {site} y a la información más importante de la obra.",
+  nextStepIndustryTitle: "Turno a la vista",
+  nextStepIndustryCopy: "Rol {role}, sitio {site} y los siguientes pasos de producción están listos.",
+  nextStepPremiumTitle: "Flujo premium listo",
+  nextStepPremiumCopy: "Acceso rápido a {site} con estado, control y visión general.",
+  nextStepVisitorTitle: "Visita a la vista",
+  nextStepVisitorCopy: "Visita en {site} con contacto {host}. Válido hasta {validUntil}.",
   loginTokenLabel: "Código de enlace o Badge-ID",
   loginTokenPlaceholder: "Token del enlace o BP-...",
   loginPinLabel: "Badge-PIN",
@@ -1452,7 +1580,21 @@ Object.assign(TRANSLATIONS.es, {
   dailyHoursLabel: "Horas",
   dailyBalanceLabel: "Estado",
   dailyBalanceOpen: "Abierto",
-  dailyBalanceClosed: "Cerrado"
+  dailyBalanceClosed: "Cerrado",
+  companyModeKicker: "Perfil de empresa",
+  companyModeTitle: "Modo empresa",
+  companyModeConstructionLead: "Flujo centrado en obra con acceso rápido.",
+  companyModeConstructionItem1: "Entrada rápida para check-ins de obra",
+  companyModeConstructionItem2: "Estado diario y control de acceso en primer plano",
+  companyModeConstructionItem3: "Interfaz clara para inicio y fin de turno",
+  companyModeIndustryLead: "Flujo centrado en producción con turnos estables.",
+  companyModeIndustryItem1: "Transiciones de turno estructuradas y ventanas claras",
+  companyModeIndustryItem2: "Autorización segura para zonas sensibles de producción",
+  companyModeIndustryItem3: "Trazabilidad precisa para cumplimiento y auditoría",
+  companyModePremiumLead: "Flujo premium con control total y máxima visibilidad.",
+  companyModePremiumItem1: "Acciones priorizadas para decisiones más rápidas",
+  companyModePremiumItem2: "Seguridad reforzada para áreas de alto valor",
+  companyModePremiumItem3: "Experiencia refinada para rendimiento superior"
 });
 
 Object.assign(TRANSLATIONS.it, {
@@ -1466,6 +1608,25 @@ Object.assign(TRANSLATIONS.it, {
   loginKicker: "Accesso rapido",
   loginTitle: "Attiva badge digitale",
   loginCopy: "Puoi attivare il badge con il link lavoratore o con il tuo Badge-ID.",
+  loginHeroKicker: "Accesso rapido",
+  loginHeroTitle: "Mirato, sicuro e pronto subito.",
+  loginHeroLead: "Il flusso di accesso è tarato per uso mobile, cantiere e diversi profili aziendali.",
+  loginHeroPoint1: "Il profilo aziendale viene rilevato automaticamente",
+  loginHeroPoint2: "Ingresso immediato con interfaccia pulita",
+  loginHeroPoint3: "Ottimizzato per lavorare velocemente in cantiere",
+  resumeLoginHint: "Su questo dispositivo è già salvato un Badge-ID.",
+  resumeLoginBtn: "Continua con il badge salvato",
+  nextStepKicker: "Oggi in primo piano",
+  nextStepWorkerTitle: "Continua subito",
+  nextStepWorkerCopy: "Il badge è attivo. Il ruolo {role} sul cantiere {site} è visibile subito e valido fino al {validUntil}.",
+  nextStepConstructionTitle: "Prima il cantiere",
+  nextStepConstructionCopy: "Vai direttamente al cantiere {site} e alle informazioni più importanti.",
+  nextStepIndustryTitle: "Turno in vista",
+  nextStepIndustryCopy: "Ruolo {role}, sito {site} e i prossimi passi di produzione sono pronti.",
+  nextStepPremiumTitle: "Flusso premium pronto",
+  nextStepPremiumCopy: "Accesso rapido a {site} con stato, controllo e panoramica.",
+  nextStepVisitorTitle: "Visita in vista",
+  nextStepVisitorCopy: "Visita a {site} con contatto {host}. Valido fino al {validUntil}.",
   loginTokenLabel: "Codice link o Badge-ID",
   loginTokenPlaceholder: "Token dal link o BP-...",
   loginPinLabel: "Badge-PIN",
@@ -1577,7 +1738,21 @@ Object.assign(TRANSLATIONS.it, {
   dailyHoursLabel: "Ore",
   dailyBalanceLabel: "Stato",
   dailyBalanceOpen: "Aperto",
-  dailyBalanceClosed: "Chiuso"
+  dailyBalanceClosed: "Chiuso",
+  companyModeKicker: "Profilo aziendale",
+  companyModeTitle: "Modalità azienda",
+  companyModeConstructionLead: "Flusso centrato sul cantiere con accesso rapido.",
+  companyModeConstructionItem1: "Ingresso rapido per check-in di cantiere",
+  companyModeConstructionItem2: "Stato giornaliero e controllo accessi in primo piano",
+  companyModeConstructionItem3: "Interfaccia chiara per inizio e fine turno",
+  companyModeIndustryLead: "Flusso centrato sulla produzione con turni stabili.",
+  companyModeIndustryItem1: "Passaggi di turno strutturati e finestre chiare",
+  companyModeIndustryItem2: "Autorizzazione sicura per aree produttive sensibili",
+  companyModeIndustryItem3: "Tracciabilità precisa per conformità e audit",
+  companyModePremiumLead: "Flusso premium con controllo totale e massima visibilità.",
+  companyModePremiumItem1: "Azioni prioritarie per decisioni più rapide",
+  companyModePremiumItem2: "Sicurezza avanzata per aree di alto valore",
+  companyModePremiumItem3: "Esperienza rifinita per performance top"
 });
 
 Object.assign(TRANSLATIONS.pl, {
@@ -1591,6 +1766,25 @@ Object.assign(TRANSLATIONS.pl, {
   loginKicker: "Szybki start",
   loginTitle: "Aktywuj cyfrową kartę",
   loginCopy: "Możesz aktywować kartę linkiem pracownika lub bezpośrednio przez Badge-ID.",
+  loginHeroKicker: "Szybki start",
+  loginHeroTitle: "Skupione, bezpieczne i gotowe od razu.",
+  loginHeroLead: "Logowanie jest dopasowane do użycia mobilnego, pracy na budowie i różnych profili firm.",
+  loginHeroPoint1: "Profil firmy jest wykrywany automatycznie",
+  loginHeroPoint2: "Natychmiastowe wejście z czystym interfejsem",
+  loginHeroPoint3: "Zoptymalizowane do szybkiej pracy na miejscu",
+  resumeLoginHint: "Na tym urządzeniu jest już zapisany Badge-ID.",
+  resumeLoginBtn: "Kontynuuj z zapisanym badge",
+  nextStepKicker: "Dziś na pierwszy plan",
+  nextStepWorkerTitle: "Kontynuuj od razu",
+  nextStepWorkerCopy: "Twoja karta jest aktywna. Rola {role} na budowie {site} jest widoczna od razu i ważna do {validUntil}.",
+  nextStepConstructionTitle: "Najpierw budowa",
+  nextStepConstructionCopy: "Przejdź bezpośrednio do {site} i najważniejszych informacji z budowy.",
+  nextStepIndustryTitle: "Zmiana w zasięgu wzroku",
+  nextStepIndustryCopy: "Rola {role}, lokalizacja {site} i kolejne kroki produkcyjne są gotowe.",
+  nextStepPremiumTitle: "Premium flow gotowy",
+  nextStepPremiumCopy: "Szybki dostęp do {site} z naciskiem na status, kontrolę i przegląd.",
+  nextStepVisitorTitle: "Wizyta w zasięgu wzroku",
+  nextStepVisitorCopy: "Wizyta w {site} z kontaktem {host}. Ważne do {validUntil}.",
   loginTokenLabel: "Kod linku lub Badge-ID",
   loginTokenPlaceholder: "Token z linku lub BP-...",
   loginPinLabel: "Badge-PIN",
@@ -1702,7 +1896,21 @@ Object.assign(TRANSLATIONS.pl, {
   dailyHoursLabel: "Godziny",
   dailyBalanceLabel: "Status",
   dailyBalanceOpen: "Otwarte",
-  dailyBalanceClosed: "Zamknięte"
+  dailyBalanceClosed: "Zamknięte",
+  companyModeKicker: "Profil firmy",
+  companyModeTitle: "Tryb firmy",
+  companyModeConstructionLead: "Przepływ nastawiony na budowę z szybkim dostępem.",
+  companyModeConstructionItem1: "Szybkie wejście do check-in na budowie",
+  companyModeConstructionItem2: "Dzienne statusy i kontrola dostępu na pierwszym planie",
+  companyModeConstructionItem3: "Czytelny interfejs do startu i końca zmiany",
+  companyModeIndustryLead: "Przepływ produkcyjny ze stabilnymi zmianami.",
+  companyModeIndustryItem1: "Ustrukturyzowane zmiany i jasne okna czasowe",
+  companyModeIndustryItem2: "Bezpieczne uprawnienia do stref produkcyjnych",
+  companyModeIndustryItem3: "Precyzyjna śledzalność zgodności i audytu",
+  companyModePremiumLead: "Tryb premium z pełną kontrolą i widocznością.",
+  companyModePremiumItem1: "Priorytetowe akcje dla szybszych decyzji",
+  companyModePremiumItem2: "Wzmocnione bezpieczeństwo dla obszarów wysokiej wartości",
+  companyModePremiumItem3: "Dopracowane prowadzenie użytkownika dla top wydajności"
 });
 
 const LANG_META = {
@@ -1750,6 +1958,46 @@ function normalizeCompanyBrandingPreset(value) {
     return preset;
   }
   return "construction";
+}
+
+function updateWorkerNextStepPanel({ worker, companyPreset, isVisitor }) {
+  if (!elements.workerNextStepPanel) {
+    return;
+  }
+
+  const siteName = String(worker?.site || "").trim() || t("companyFallback");
+  const roleName = String(worker?.role || "").trim() || t("workerDefaultRole");
+  const hostName = String(worker?.hostName || "").trim() || t("workerDefaultName");
+  const validUntil = String(worker?.validUntil || "").trim();
+
+  let titleKey = "nextStepWorkerTitle";
+  let copyKey = "nextStepWorkerCopy";
+  let copyArgs = { role: roleName, site: siteName, validUntil };
+
+  if (isVisitor) {
+    titleKey = "nextStepVisitorTitle";
+    copyKey = "nextStepVisitorCopy";
+    copyArgs = { site: siteName, host: hostName, validUntil };
+  } else if (companyPreset === "premium") {
+    titleKey = "nextStepPremiumTitle";
+    copyKey = "nextStepPremiumCopy";
+    copyArgs = { role: roleName, site: siteName, validUntil };
+  } else if (companyPreset === "industry") {
+    titleKey = "nextStepIndustryTitle";
+    copyKey = "nextStepIndustryCopy";
+    copyArgs = { role: roleName, site: siteName, validUntil };
+  } else {
+    titleKey = "nextStepConstructionTitle";
+    copyKey = "nextStepConstructionCopy";
+    copyArgs = { role: roleName, site: siteName, validUntil };
+  }
+
+  if (elements.workerNextStepTitle) {
+    elements.workerNextStepTitle.textContent = t(titleKey);
+  }
+  if (elements.workerNextStepCopy) {
+    elements.workerNextStepCopy.textContent = tf(copyKey, copyArgs);
+  }
 }
 
 function applyTranslations() {
@@ -1860,6 +2108,8 @@ const elements = {
   loginCard: document.querySelector("#loginCard"),
   badgeCard: document.querySelector("#badgeCard"),
   workerNotice: document.querySelector("#workerNotice"),
+  workerResumeLoginRow: document.querySelector("#workerResumeLoginRow"),
+  workerResumeLoginButton: document.querySelector("#workerResumeLoginButton"),
   workerLoginForm: document.querySelector("#workerLoginForm"),
   workerAccessToken: document.querySelector("#workerAccessToken"),
   workerBadgePin: document.querySelector("#workerBadgePin"),
@@ -1868,6 +2118,9 @@ const elements = {
   workerName: document.querySelector("#workerName"),
   workerRole: document.querySelector("#workerRole"),
   workerPassTitle: document.querySelector("#workerPassTitle"),
+  workerNextStepPanel: document.querySelector("#workerNextStepPanel"),
+  workerNextStepTitle: document.querySelector("#workerNextStepTitle"),
+  workerNextStepCopy: document.querySelector("#workerNextStepCopy"),
   workerPassSubLabels: document.querySelectorAll("[data-pass-sub-label]"),
   walletCard: document.querySelector(".wallet-card"),
   workerStatus: document.querySelector("#workerStatus"),
@@ -2492,6 +2745,24 @@ function bindEvents() {
       }
       if (elements.geolocationHint) {
         elements.geolocationHint.classList.toggle("hidden", !isBadge);
+      }
+    });
+  }
+
+  if (elements.workerResumeLoginButton) {
+    elements.workerResumeLoginButton.addEventListener("click", () => {
+      const savedBadgeId = normalizeBadgeIdInput(localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "");
+      if (!savedBadgeId || !elements.workerAccessToken) {
+        return;
+      }
+
+      elements.workerAccessToken.value = savedBadgeId;
+      elements.workerAccessToken.dispatchEvent(new Event("input", { bubbles: true }));
+
+      const pinInput = document.querySelector("#workerBadgePin");
+      if (pinInput) {
+        pinInput.focus();
+        pinInput.select?.();
       }
     });
   }
@@ -3449,6 +3720,7 @@ function renderWorker(payload) {
     elements.workerStatus.textContent = worker.status || "-";
     elements.workerStatus.dataset.status = normalizedStatus;
   }
+  updateWorkerNextStepPanel({ worker, companyPreset, isVisitor });
   if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";
   if (elements.workerSite) elements.workerSite.textContent = worker.site || "-";
   updateSiteMapLink(worker.site || "");
@@ -3773,6 +4045,12 @@ function showLogin() {
       const pinInput = document.querySelector("#workerBadgePin");
       if (pinInput) setTimeout(() => pinInput.focus(), 120);
     }
+  }
+
+  const resumeRow = elements.workerResumeLoginRow;
+  if (resumeRow) {
+    const canResume = Boolean(savedBadgeId && !isVisitorBadgeId(savedBadgeId));
+    resumeRow.classList.toggle("hidden", !canResume);
   }
 }
 
