@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260512a";
+const WORKER_BUILD_TAG = "20260513c";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -292,6 +292,7 @@ const TRANSLATIONS = {
     notificationEnableBtn: "Aktivieren",
     timesheetKicker: "Zeiterfassung",
     timesheetTitle: "Meine Stunden",
+    navTimesheet: "Stunden",
     timesheetCardTitle: "Eintritte & Zeiten",
     timesheetLoading: "Lade Einträge…",
     timesheetEmpty: "Noch keine Einträge vorhanden.",
@@ -3789,14 +3790,6 @@ function bindEvents() {
   };
   if (elements.leaveRequestStart) elements.leaveRequestStart.addEventListener("change", calcDays);
   if (elements.leaveRequestEnd) elements.leaveRequestEnd.addEventListener("change", calcDays);
-
-    // ── Tab Navigation Click Handlers ──
-  document.querySelectorAll('.nav-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabName = tab.getAttribute('data-tab');
-      if (tabName) switchToTab(tabName);
-    });
-  });
 
     if (elements.sendToBossBtn) {
     elements.sendToBossBtn.addEventListener("click", async () => {
