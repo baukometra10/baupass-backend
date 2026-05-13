@@ -741,6 +741,10 @@ body.worker-loaded .worker-pass {
   min-height: 100vh;
 }
 
+body:not(.worker-loaded) .login-sparkasse {
+  padding-top: clamp(20px, 4vh, 52px);
+}
+
 .login-header-sparkasse {
   display: flex;
   align-items: center;
@@ -6225,6 +6229,15 @@ textarea {
   gap: 0;
 }
 
+/* Login page must never show bottom navigation */
+body:not(.worker-loaded) .worker-bottom-nav {
+  display: none !important;
+}
+
+body:not(.worker-loaded) #topPanel {
+  display: none !important;
+}
+
 .nav-tab {
   display: flex;
   flex-direction: column;
@@ -6390,6 +6403,37 @@ body.worker-loaded .app-shell {
   margin-bottom: 20px;
 }
 
+.home-compact-info {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-info-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px 10px;
+  border: 1px solid var(--corp-border);
+  border-radius: 12px;
+  background: var(--corp-surface);
+}
+
+.home-info-label {
+  font-size: 0.68rem;
+  color: var(--corp-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.home-info-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--corp-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .dashboard-featured-card {
   position: relative;
   width: 100%;
@@ -6459,6 +6503,10 @@ body.worker-loaded .app-shell {
 }
 
 @media (max-width: 540px) {
+  .home-compact-info {
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-quick-actions {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;

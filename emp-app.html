@@ -252,8 +252,24 @@
         </div>
       </div>
 
-      <!-- Quick Action Buttons (4 Icons) -->
-      <div class="dashboard-quick-actions">
+      <!-- Home: compact info under the card -->
+      <div id="homeCompactInfo" class="home-compact-info">
+        <div class="home-info-item">
+          <span class="home-info-label">Status</span>
+          <span id="homeInfoStatus" class="home-info-value">Aktiv</span>
+        </div>
+        <div class="home-info-item">
+          <span class="home-info-label">Firma</span>
+          <span id="homeInfoCompany" class="home-info-value">Baufirma</span>
+        </div>
+        <div class="home-info-item">
+          <span class="home-info-label">Gueltig bis</span>
+          <span id="homeInfoValidUntil" class="home-info-value">-</span>
+        </div>
+      </div>
+
+      <!-- Legacy quick actions (hidden on Home) -->
+      <div class="dashboard-quick-actions hidden">
         <button class="action-card-btn" id="actionCardTransfer" type="button" title="Geld senden" data-i18n="actionCardTransfer" data-i18n-attr="title">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12h18M12 5l7 7-7 7"/>
@@ -814,29 +830,21 @@
 
     <!-- Bottom Tab Navigation (hidden until card showcase completes) -->
     <nav id="workerBottomNav" class="worker-bottom-nav hidden" role="tablist" aria-label="App-Navigation">
-      <button id="navPass" class="nav-tab active" role="tab" aria-selected="true" data-tab="pass" aria-controls="passPanel">
+      <button id="navHome" class="nav-tab active" role="tab" aria-selected="true" data-tab="home">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
-          <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1"/>
-          <circle cx="7" cy="15" r="1.5" fill="currentColor"/>
+          <path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
         </svg>
-        <span class="nav-label" data-i18n="navPass">Pass</span>
+        <span class="nav-label">Home</span>
       </button>
-      <button id="navActions" class="nav-tab" role="tab" aria-selected="false" data-tab="actions" aria-controls="actionsPanel">
+      <button id="navVacation" class="nav-tab" role="tab" aria-selected="false" data-tab="vacation">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M5 20c0-3.3 3-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 20h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M7 20c0-4 2.5-6.5 6.5-6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M14.5 13.5l2-2m-1-2.5a2.5 2.5 0 1 1 0 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <span class="nav-label" data-i18n="navActions">Aktionen</span>
+        <span class="nav-label">Urlaub</span>
       </button>
-      <button id="navRequest" class="nav-tab" role="tab" aria-selected="false" data-tab="request" aria-controls="leaveRequestCard">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M9 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M9 3v4h6V3M9 13h6M9 17h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <span class="nav-label" data-i18n="navRequest">Antrag</span>
-      </button>
-      <button id="navTimesheet" class="nav-tab" role="tab" aria-selected="false" data-tab="timesheet" aria-controls="timesheetCard">
+      <button id="navTimesheet" class="nav-tab" role="tab" aria-selected="false" data-tab="timesheet">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
           <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="1"/>
@@ -845,12 +853,12 @@
         </svg>
         <span class="nav-label" data-i18n="navTimesheet">Stunden</span>
       </button>
-      <button id="navDocuments" class="nav-tab" role="tab" aria-selected="false" data-tab="documents" aria-controls="documentsCard">
+      <button id="navDocuments" class="nav-tab" role="tab" aria-selected="false" data-tab="documents">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M9 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M9 3v4h6V3M12 14v4M10 18h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <span class="nav-label" data-i18n="navDocuments">Docs</span>
+        <span class="nav-label">Docs</span>
       </button>
     </nav>
 

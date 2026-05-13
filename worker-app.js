@@ -4787,9 +4787,9 @@ function renderWorker(payload) {
     quickMenuObserver = null;
   }
   
-  // Show leave request card
+  // Keep leave page hidden until user opens the Vacation tab.
   if (elements.leaveRequestCard) {
-    elements.leaveRequestCard.classList.remove("hidden");
+    elements.leaveRequestCard.classList.add("hidden");
   }
 
   // Show leave balance badge
@@ -6711,11 +6711,15 @@ function endCardShowcase() {
     dashboardCard.style.display = "";
   }
 
-  // Switch to pass tab by default (shows dashboard)
-  switchToTab("pass");
+  // Switch to Home tab by default (shows dashboard card + compact info)
+  switchToTab("home");
 }
 
 function switchToTab(tabName) {
+  // Backward compatibility: older flows still call "pass"
+  if (tabName === "pass") tabName = "home";
+  if (tabName === "request") tabName = "vacation";
+
   currentActiveTab = tabName;
 
   // Update button states
@@ -6726,11 +6730,19 @@ function switchToTab(tabName) {
     tab.setAttribute("aria-selected", isActive);
   });
 
-  // When switching to "pass" tab, show dashboard featured card + buttons
-  if (tabName === "pass") {
+  // Home tab: show featured card + compact info only
+  if (tabName === "home") {
     const dashboard = document.getElementById("workerDashboard");
+    const homeInfo = document.getElementById("homeCompactInfo");
+    const quickActions = document.querySelector(".dashboard-quick-actions");
     if (dashboard) {
       dashboard.classList.remove("hidden");
+    }
+    if (homeInfo) {
+      homeInfo.classList.remove("hidden");
+    }
+    if (quickActions) {
+      quickActions.classList.add("hidden");
     }
     // Hide all other content panels
     const contentPanels = ["actionsPanel", "leaveRequestCard", "timesheetCard", "documentsCard"];
@@ -6765,12 +6777,21 @@ function switchToTab(tabName) {
       }
     });
 
-    // Show selected panel based on tab
+    const homeInfo = document.getElementById("homeCompactInfo");
+    const quickActions = document.querySelector(".dashboard-quick-actions");
+    if (homeInfo) {
+      homeInfo.classList.add("hidden");
+    }
+    if (quickActions) {
+      quickActions.classList.add("hidden");
+    }
+
+    // Show selected page based on tab
     switch (tabName) {
       case "actions":
         document.getElementById("actionsPanel")?.classList.remove("hidden");
         break;
-      case "request":
+      case "vacation":
         document.getElementById("leaveRequestCard")?.classList.remove("hidden");
         break;
       case "timesheet":
@@ -6780,6 +6801,18 @@ function switchToTab(tabName) {
         document.getElementById("documentsCard")?.classList.remove("hidden");
         break;
     }
+  }
+
+  const hashByTab = {
+    home: "home",
+    vacation: "urlaub",
+    timesheet: "stunden",
+    documents: "docs",
+    actions: "aktionen"
+  };
+  const nextHash = hashByTab[tabName];
+  if (nextHash && window.location.hash !== `#${nextHash}`) {
+    history.replaceState(null, "", `#${nextHash}`);
   }
 
   // Scroll to top of content
@@ -6854,6 +6887,19 @@ function syncWorkerDataToDashboard(payload) {
   }
   if (worker.status && dashboard.status) {
     dashboard.status.textContent = worker.status.textContent;
+  }
+
+  const homeInfoStatus = document.getElementById("homeInfoStatus");
+  const homeInfoCompany = document.getElementById("homeInfoCompany");
+  const homeInfoValidUntil = document.getElementById("homeInfoValidUntil");
+  if (homeInfoStatus && worker.status) {
+    homeInfoStatus.textContent = worker.status.textContent || "Aktiv";
+  }
+  if (homeInfoCompany && worker.companyName) {
+    homeInfoCompany.textContent = worker.companyName.textContent || "Baufirma";
+  }
+  if (homeInfoValidUntil && worker.validUntil) {
+    homeInfoValidUntil.textContent = worker.validUntil.textContent || "-";
   }
 
   // Copy image sources
