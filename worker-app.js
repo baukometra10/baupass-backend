@@ -607,8 +607,12 @@ function setLang(lang) {
 // ─────────────────────────────────────────────────────────────────────
 
 let workerToken = "";
+let showcaseTimeoutId = null;
+let currentActiveTab = "home";
+let bottomTabNavInitialized = false;
 // Security-first startup: require fresh login when app is reopened.
 localStorage.removeItem(WORKER_TOKEN_KEY);
+localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
 let deferredInstallPrompt = null;
 let cameraStream = null;
 let lastCameraPhotoDataUrl = null;
@@ -1102,6 +1106,7 @@ async function init() {
   applyTranslations();
   updateWorkerBuildBadge();
   bindEvents();
+  initBottomTabNavigation();
   updateWalletImmersiveMode();
   applyQrContrastState();
   applyAutoOpenScannerState();
@@ -1702,15 +1707,15 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   const cachedPayload = readStoredJson(WORKER_CACHED_PAYLOAD_KEY, null);
   const normalizedBadgeId = normalizeBadgeIdInput(badgeId);
   if (!offlineProfile || !cachedPayload || !isCachedWorkerPayloadUsable(cachedPayload)) {
-    return false;
+    return { restored: false, message: t("offlineLoginFailed") };
   }
   if (normalizeBadgeIdInput(offlineProfile.badgeId) !== normalizedBadgeId) {
-    return false;
+    return { restored: false, message: t("offlineLoginFailed") };
   }
 
   const expectedPinHash = await hashSensitiveValue(`${normalizedBadgeId}:${normalizeBadgePinInput(badgePin)}`);
   if (offlineProfile.pinHash !== expectedPinHash) {
-    return false;
+    return { restored: false, message: t("offlineLoginFailed") };
   }
 
   const siteLocation = cachedPayload?.worker?.siteLocation;
@@ -1719,8 +1724,7 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   if (hasSiteGeo && locationPayload) {
     distanceMeters = Math.round(calculateDistanceMeters(siteLocation.latitude, siteLocation.longitude, locationPayload.latitude, locationPayload.longitude));
     if (distanceMeters > Number(siteLocation.radiusMeters || 100)) {
-      showWorkerNotice(tf("offlineLoginOnSiteOnly", { meters: distanceMeters }));
-      return true;
+      return { restored: false, message: tf("offlineLoginOnSiteOnly", { meters: distanceMeters }) };
     }
   }
   // No GPS available or no site location configured → allow PIN-based offline login
@@ -1739,7 +1743,7 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
     distanceMeters,
   });
   initializeSessionInactivityProtection();
-  return true;
+  return { restored: true };
 }
 
 async function syncOfflinePhotoQueue() {
@@ -2161,10 +2165,14 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     initializeSessionInactivityProtection();
   } catch (error) {
     if (!navigator.onLine || !error.code) {
-      const restored = await tryOfflineBadgeLogin(normalizedBadgeId, normalizedBadgePin, locationPayload);
-      if (restored) {
+      const restoreResult = await tryOfflineBadgeLogin(normalizedBadgeId, normalizedBadgePin, locationPayload);
+      if (restoreResult.restored) {
         return;
       }
+      if (!silent) {
+        showWorkerNotice(restoreResult.message || `${t("loginFailed")}: ${t("offlineLoginFailed")}`);
+      }
+      return;
     }
     if (silent) {
       showLogin();
@@ -4218,9 +4226,9 @@ async function prefillCompanyAdminEmails() {
 }
 
 function toggleLeaveRequestForm() {
-  if (elements.leaveRequestToggleBtn) {
-    elements.leaveRequestToggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestTitle");
-  }
+  if (!elements.leaveRequestFormWrapper || !elements.leaveRequestToggleBtn) return;
+  const isHidden = elements.leaveRequestFormWrapper.classList.toggle("hidden");
+  elements.leaveRequestToggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestTitle");
 }
 
 async function loadLeaveRequests() {
@@ -4453,10 +4461,6 @@ function renderCompanyModeExperience(companyPreset, isVisitor) {
 }
 
 // ── 10-Second Card Showcase & Bottom Tab Navigation (Global Functions) ──────────────
-let showcaseTimeoutId = null;
-let currentActiveTab = "home";
-let bottomTabNavInitialized = false;
-
 function startCardShowcase() {
   // Hide everything except featured card
   const appShell = document.querySelector(".app-shell");
@@ -4541,7 +4545,10 @@ function enforceUiVisibilityGuard() {
       const el = document.getElementById(id);
       if (!el) return;
       el.classList.add("hidden");
-      el.style.setProperty("display", "none", "important");
+      // Never force-hide bottom nav and top panel with inline styles during login
+      if (id !== "workerBottomNav" && id !== "topPanel") {
+        el.style.setProperty("display", "none", "important");
+      }
     });
     if (loginCard) {
       loginCard.classList.remove("hidden");
@@ -4567,7 +4574,6 @@ function switchToTab(tabName) {
 
   // Tab mode must win over legacy overview/focus modes.
   document.body.classList.remove("worker-tile-overview");
-  applyWorkerPageView("");
 
   // Safety: stale showcase mode can keep all interior panels hidden.
   const appShell = document.querySelector(".app-shell");
@@ -4660,6 +4666,9 @@ function switchToTab(tabName) {
       leaveCard.classList.remove("hidden");
       leaveCard.style.removeProperty("display");
     }
+    if (workerToken) {
+      void loadLeaveRequests();
+    }
   } else if (tabName === "timesheet") {
     if (workerHubPanel) {
       workerHubPanel.classList.remove("hidden");
@@ -4670,6 +4679,9 @@ function switchToTab(tabName) {
       timesheetCard.classList.remove("hidden");
       timesheetCard.style.removeProperty("display");
     }
+    if (workerToken) {
+      void loadMyTimesheets();
+    }
   } else if (tabName === "documents") {
     if (workerHubPanel) {
       workerHubPanel.classList.remove("hidden");
@@ -4679,6 +4691,9 @@ function switchToTab(tabName) {
     if (docsCard) {
       docsCard.classList.remove("hidden");
       docsCard.style.removeProperty("display");
+    }
+    if (workerToken) {
+      void loadMyDocuments();
     }
   }
 
@@ -4693,6 +4708,18 @@ function switchToTab(tabName) {
   const nextHash = hashByTab[tabName];
   if (nextHash && window.location.hash !== `#${nextHash}`) {
     history.replaceState(null, "", `#${nextHash}`);
+  }
+
+  // Ensure bottom nav and top bar stay visible when switching tabs
+  const bottomNav = document.getElementById("workerBottomNav");
+  const topBar = document.getElementById("topPanel");
+  if (bottomNav && document.body.classList.contains("worker-loaded")) {
+    bottomNav.classList.remove("hidden");
+    bottomNav.style.removeProperty("display");
+  }
+  if (topBar && document.body.classList.contains("worker-loaded")) {
+    topBar.classList.remove("hidden");
+    topBar.style.removeProperty("display");
   }
 
   // Scroll to top of content

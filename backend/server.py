@@ -36,7 +36,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, ec
+from cryptography.hazmat.primitives.asymmetric import padding, ec, rsa
 from cryptography.hazmat.primitives.serialization import pkcs12, pkcs7
 from cryptography.fernet import Fernet
 import pyotp
@@ -12417,15 +12417,36 @@ def device_biometric_auth():
     signature = str(payload.get("signature") or "").strip()
     timestamp = str(payload.get("timestamp") or "").strip()
 
-    if not device_id or not signature:
+    if not device_id or not signature or not timestamp:
         return jsonify({"error": "invalid_biometric"}), 401
 
-    # TODO: Verify signature using device's public key from DB
-    # For now, just return success if format is valid
-    if len(signature) < 20:
+    if not _validate_biometric_auth_timestamp(timestamp):
+        return jsonify({"error": "invalid_timestamp"}), 401
+
+    db = get_db()
+    registration = db.execute(
+        "SELECT public_key, company_id, worker_id FROM device_registrations WHERE id = ?",
+        (device_id,),
+    ).fetchone()
+    if not registration or not str(registration["public_key"] or "").strip():
+        return jsonify({"error": "unknown_device"}), 401
+
+    if not _verify_device_biometric_signature(
+        registration["public_key"], device_id, timestamp, signature
+    ):
         return jsonify({"error": "invalid_signature"}), 401
 
-    return jsonify({"ok": True, "authToken": f"bioauth-{secrets.token_hex(16)}"})
+    auth_token = f"bioauth-{secrets.token_hex(16)}"
+    log_audit(
+        "device.biometric_auth",
+        f"Biometric auth succeeded for device {device_id}",
+        target_type="device",
+        target_id=device_id,
+        company_id=registration["company_id"],
+        actor=registration["worker_id"],
+    )
+
+    return jsonify({"ok": True, "authToken": auth_token})
 
 
 @app.get("/api/geofences")
@@ -12603,6 +12624,60 @@ def _hce_verify_device_signature_v2(public_key_b64: str, device_id: str, nonce: 
         return False
     except Exception:
         return False
+
+
+def _load_public_key_from_string(public_key_str: str):
+    raw = str(public_key_str or "").strip()
+    if not raw:
+        return None
+    try:
+        if "-----BEGIN" in raw:
+            return serialization.load_pem_public_key(raw.encode("utf-8"))
+    except Exception:
+        pass
+    try:
+        der_bytes = base64.b64decode(raw)
+        return serialization.load_der_public_key(der_bytes)
+    except Exception:
+        return None
+
+
+def _verify_device_biometric_signature(public_key_str: str, device_id: str, timestamp: str, signature_str: str) -> bool:
+    public_key = _load_public_key_from_string(public_key_str)
+    if public_key is None:
+        return False
+
+    try:
+        signature = base64.b64decode(signature_str)
+    except Exception:
+        try:
+            signature = bytes.fromhex(signature_str)
+        except Exception:
+            return False
+
+    message = f"{device_id}|{timestamp}".encode("utf-8")
+    try:
+        if isinstance(public_key, ec.EllipticCurvePublicKey):
+            public_key.verify(signature, message, ec.ECDSA(hashes.SHA256()))
+        elif isinstance(public_key, rsa.RSAPublicKey):
+            public_key.verify(signature, message, padding.PKCS1v15(), hashes.SHA256())
+        else:
+            public_key.verify(signature, message)
+        return True
+    except Exception:
+        return False
+
+
+def _validate_biometric_auth_timestamp(timestamp: str, max_skew_seconds: int = 120) -> bool:
+    try:
+        ts_int = int(str(timestamp or "").strip())
+    except (TypeError, ValueError):
+        return False
+
+    now_ms = int(time.time() * 1000)
+    if ts_int > 10**11:
+        return abs(now_ms - ts_int) <= max_skew_seconds * 1000
+    return abs(now_ms - ts_int * 1000) <= max_skew_seconds * 1000
 
 
 def _hce_validate_client_timestamp(client_ts: str, max_skew_ms: int = 120000) -> bool:

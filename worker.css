@@ -6458,14 +6458,40 @@ body {
   outline: none;
 }
 
+.stb-logout-btn {
+  min-width: 92px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(10, 87, 192, 0.16);
+  background: rgba(10, 87, 192, 0.08);
+  color: var(--corp-primary);
+  font-weight: 700;
+  font-size: 0.86rem;
+  line-height: 1.2;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stb-logout-btn:hover,
+.stb-logout-btn:focus-visible {
+  background: rgba(10, 87, 192, 0.14);
+  outline: none;
+}
+
 @media (prefers-color-scheme: dark) {
-  .stb-icon-btn {
-    color: #7a9bc4;
+  .stb-logout-btn {
+    border-color: rgba(43, 121, 234, 0.26);
+    background: rgba(43, 121, 234, 0.12);
+    color: #b4d1ff;
   }
-  .stb-icon-btn:hover,
-  .stb-icon-btn:focus-visible {
-    background: rgba(43, 121, 234, 0.15);
-    color: #2b79ea;
+  .stb-logout-btn:hover,
+  .stb-logout-btn:focus-visible {
+    background: rgba(43, 121, 234, 0.2);
   }
 }
 
