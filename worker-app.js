@@ -506,6 +506,11 @@ function updateSmartWorkHub(payload = lastWorkerPayload, rows = lastTimesheetRow
       ? tf("smartHubSyncQueuePending", { count: String(queueCount) })
       : t("smartHubSyncQueueMeta");
   }
+  if (elements.manualSyncBtn) {
+    const hasOfflineData = queueCount > 0 || readStoredJson(OFFLINE_PHOTO_QUEUE_KEY, []).length > 0;
+    const canSync = navigator.onLine && workerToken;
+    elements.manualSyncBtn.classList.toggle("hidden", !hasOfflineData || !canSync);
+  }
   if (elements.smartHubDocRiskValue) {
     elements.smartHubDocRiskValue.textContent = String(docsSummary.criticalCount);
   }
@@ -688,6 +693,7 @@ const elements = {
   smartHubPrimaryActionBtn: document.querySelector("#smartHubPrimaryActionBtn"),
   smartHubSyncQueueValue: document.querySelector("#smartHubSyncQueueValue"),
   smartHubSyncQueueMeta: document.querySelector("#smartHubSyncQueueMeta"),
+  manualSyncBtn: document.querySelector("#manualSyncBtn"),
   smartHubDocRiskValue: document.querySelector("#smartHubDocRiskValue"),
   smartHubDocRiskMeta: document.querySelector("#smartHubDocRiskMeta"),
   smartHubCrewValue: document.querySelector("#smartHubCrewValue"),
@@ -1616,6 +1622,11 @@ function writeStoredJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function clearOfflineLoginData() {
+  localStorage.removeItem(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+  localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
+}
+
 function resolveExpiryTimestamp(value) {
   if (!value) {
     return Number.POSITIVE_INFINITY;
@@ -1707,6 +1718,7 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   const cachedPayload = readStoredJson(WORKER_CACHED_PAYLOAD_KEY, null);
   const normalizedBadgeId = normalizeBadgeIdInput(badgeId);
   if (!offlineProfile || !cachedPayload || !isCachedWorkerPayloadUsable(cachedPayload)) {
+    clearOfflineLoginData();
     return { restored: false, message: t("offlineLoginFailed") };
   }
   if (normalizeBadgeIdInput(offlineProfile.badgeId) !== normalizedBadgeId) {
@@ -1798,6 +1810,38 @@ async function syncOfflineEventQueue() {
   } catch {
     // keep queue for next sync attempt
     updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
+  }
+}
+
+async function manualSyncOfflineData() {
+  if (!navigator.onLine) {
+    showWorkerNotice(t("syncOfflineNoConnection"));
+    return;
+  }
+
+  if (!workerToken) {
+    showWorkerNotice(t("syncOfflineNotLoggedIn"));
+    return;
+  }
+
+  try {
+    showWorkerNotice(t("syncOfflineStarting"));
+    
+    // Sync offline events first
+    await syncOfflineEventQueue();
+    
+    // Sync offline photos
+    await syncOfflinePhotoQueue();
+    
+    // Refresh worker data
+    await refreshWorkerData();
+    
+    showWorkerNotice(t("syncOfflineCompleted"));
+    updateConnectionState();
+    
+  } catch (error) {
+    console.error("Manual sync failed:", error);
+    showWorkerNotice(t("syncOfflineFailed"));
   }
 }
 
