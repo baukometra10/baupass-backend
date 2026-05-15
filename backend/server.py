@@ -21848,10 +21848,14 @@ def root():
 
 @app.get("/worker.html")
 def worker_entry_redirect():
-    query = request.query_string.decode("utf-8", errors="ignore")
-    target = "/emp-app.html"
-    if query:
-        target = f"{target}?{query}"
+    """QR entry: /worker.html?view=card&badge=BP-... -> emp-app Mitarbeiter-PWA."""
+    from urllib.parse import parse_qs, urlencode
+
+    params = parse_qs(request.query_string.decode("utf-8", errors="ignore"), keep_blank_values=True)
+    params["worker"] = ["1"]
+    if not params.get("view"):
+        params["view"] = ["card"]
+    target = f"/emp-app.html?{urlencode(params, doseq=True)}"
     return redirect(target, code=302)
 
 

@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-c21ed.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260515a";
+const WORKER_BUILD_TAG = "20260515b";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -139,7 +139,8 @@ function applyWorkerBrandLabels(brandTitle) {
   if (storedToken) applyDynamicManifestStartUrl(storedToken, title);
 }
 
-function applyWorkerSystemBranding({ platformName, primaryColor, accentColor, logoData, companyPreset } = {}) {
+/** Firmen-Branding auf der Mitarbeiter-Karte (Preset aus Admin/Firma, nicht Rechnung). */
+function applyWorkerCompanyBranding({ companyName, companyPreset } = {}) {
   const preset = normalizeCompanyBrandingPreset(companyPreset);
   document.body.setAttribute("data-branding-preset", preset);
 
@@ -148,58 +149,26 @@ function applyWorkerSystemBranding({ platformName, primaryColor, accentColor, lo
     premium: "Kontrollpass",
     construction: "BauPass",
   };
-  const systemTitle = String(platformName || "").trim();
-  applyWorkerBrandLabels(systemTitle || presetTitleMap[preset] || "BauPass");
+  const cardTitle = String(companyName || "").trim() || presetTitleMap[preset] || "BauPass";
+  applyWorkerBrandLabels(cardTitle);
 
-  const primary = normalizeHexColor(primaryColor, "");
-  const accent = normalizeHexColor(accentColor, "");
-  const cards = document.querySelectorAll(".wallet-card");
-  cards.forEach((card) => {
+  document.querySelectorAll(".wallet-card").forEach((card) => {
     card.classList.remove("preset-construction", "preset-industry", "preset-premium", "branding-custom");
     card.classList.add(`preset-${preset}`);
-    if (primary) {
-      card.classList.add("branding-custom");
-      const dark = shadeHexColor(primary, -42);
-      const light = shadeHexColor(primary, 28);
-      card.style.setProperty("--worker-card-primary", primary);
-      card.style.setProperty("--worker-card-primary-dark", dark || primary);
-      card.style.setProperty("--worker-card-primary-light", light || primary);
-      card.style.setProperty("--worker-card-accent", accent || primary);
-    } else {
-      card.style.removeProperty("--worker-card-primary");
-      card.style.removeProperty("--worker-card-primary-dark");
-      card.style.removeProperty("--worker-card-primary-light");
-      card.style.removeProperty("--worker-card-accent");
-    }
+    card.style.removeProperty("--worker-card-primary");
+    card.style.removeProperty("--worker-card-primary-dark");
+    card.style.removeProperty("--worker-card-primary-light");
+    card.style.removeProperty("--worker-card-accent");
   });
-
-  if (logoData) {
-    document.querySelectorAll(".wc-brand-mark").forEach((mark) => {
-      mark.innerHTML = `<img src="${logoData}" alt="" class="wc-brand-logo" />`;
-    });
-  }
-
-  if (primary) {
-    document.documentElement.style.setProperty("--worker-brand-primary", primary);
-  }
-  if (accent) {
-    document.documentElement.style.setProperty("--worker-brand-accent", accent);
-  }
 }
 
-async function loadPublicWorkerBranding() {
-  try {
-    const data = await fetchJson(`${API_ROOT}/public/branding`);
-    applyWorkerSystemBranding({
-      platformName: data.platformName,
-      primaryColor: data.primaryColor,
-      accentColor: data.accentColor,
-      logoData: data.logoData,
-      companyPreset: document.body.getAttribute("data-branding-preset") || "construction",
-    });
-  } catch (error) {
-    console.warn("[branding] public branding not loaded:", error.message);
+function finishWorkerLoginUi() {
+  replaceWorkerHistoryAfterLogin();
+  if (isWorkerCardInstallEntry()) {
+    applyWorkerCardInstallView();
+    return;
   }
+  switchToTab("home");
 }
 
 function updateWorkerNextStepPanel({ worker, companyPreset, isVisitor }) {
@@ -1119,6 +1088,35 @@ function updateWalletImmersiveMode() {
   }
 }
 
+function isWorkerCardInstallEntry() {
+  try {
+    return (new URLSearchParams(window.location.search).get("view") || "").toLowerCase() === "card";
+  } catch {
+    return false;
+  }
+}
+
+function replaceWorkerHistoryAfterLogin() {
+  try {
+    const next = new URL(window.location.href);
+    next.searchParams.set("worker", "1");
+    next.searchParams.set("v", WORKER_BUILD_TAG);
+    next.searchParams.delete("access");
+    window.history.replaceState({}, document.title, next.toString());
+  } catch {
+    window.history.replaceState({}, document.title, `./emp-app.html?worker=1&v=${WORKER_BUILD_TAG}`);
+  }
+}
+
+function applyWorkerCardInstallView() {
+  document.body.classList.add("worker-card-install");
+  const dashboardEl = document.getElementById("workerDashboard");
+  if (dashboardEl) dashboardEl.classList.add("hidden");
+  if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
+  applyWorkerPageView("badgeCard");
+  window.scrollTo(0, 0);
+}
+
 function setActiveQuickMenuTarget(targetId) {
   if (!elements.quickMenuButtons?.length) return;
   elements.quickMenuButtons.forEach((btn) => {
@@ -1244,6 +1242,9 @@ async function init() {
   const params = new URL(window.location.href).searchParams;
   const urlToken = (params.get("access") || "").trim();
   const viewParam = (params.get("view") || "").trim().toLowerCase();
+  if (viewParam === "card") {
+    document.body.classList.add("worker-card-install");
+  }
   const urlBadgeParam = normalizeBadgeIdInput(params.get("badge") || "");
   const storedAccessToken = (window.localStorage.getItem(WORKER_ACCESS_TOKEN_KEY) || "").trim();
   const storedBadgeId = (window.localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
@@ -1269,7 +1270,6 @@ async function init() {
     if (workerToken) {
       const loaded = await loadWorkerData();
       if (loaded) {
-        if (viewParam === "card") applyWorkerPageView("badgeCard");
         return;
       }
     }
@@ -1277,14 +1277,12 @@ async function init() {
     // keepUrlToken: false → URL wird sofort bereinigt, damit ein Seitenrefresh
     // nicht denselben (bereits verbrauchten) Einmalcode nochmals sendet.
     await loginWithAccessToken(urlToken, { keepUrlToken: false, silent: false, locationPayload });
-    if (viewParam === "card" && workerToken) applyWorkerPageView("badgeCard");
     return;
   }
 
   if (workerToken) {
     const loaded = await loadWorkerData();
     if (loaded) {
-      applyWorkerPageView("badgeCard");
       return;
     }
   }
@@ -2201,10 +2199,8 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     localStorage.setItem(WORKER_ACCESS_TOKEN_KEY, accessToken);
     localStorage.removeItem(WORKER_BADGE_LOGIN_KEY);
     applyDynamicManifestStartUrl(accessToken);
-    if (!keepUrlToken) {
-      window.history.replaceState({}, document.title, "./worker.html");
-    }
     await loadWorkerData();
+    finishWorkerLoginUi();
 
     // Einmaltoken ist jetzt verbraucht – aus Storage löschen, damit beim nächsten
     // App-Start kein Fehler „Anmeldung fehlgeschlagen" wegen ungültigem Token entsteht.
@@ -2326,6 +2322,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     }
     await loadWorkerData();
     await persistOfflineBadgeProfile(normalizedBadgeId, normalizedBadgePin, payload);
+    finishWorkerLoginUi();
 
     if (!isStandaloneMode() && elements.installButton) {
       elements.installButton.hidden = false;
@@ -2456,11 +2453,8 @@ function renderWorker(payload) {
     initializePassLockProtection();
   }
 
-  applyWorkerSystemBranding({
-    platformName: payload.settings?.platformName,
-    primaryColor: payload.settings?.primaryColor,
-    accentColor: payload.settings?.accentColor,
-    logoData: payload.settings?.logoData,
+  applyWorkerCompanyBranding({
+    companyName: company.name,
     companyPreset,
   });
 
@@ -2808,9 +2802,11 @@ function renderWorker(payload) {
   void prefillCompanyAdminEmails();
   updateWorkerPulsePanel();
 
-  // Navigate to Home tab LAST — after all feature-gate visibility toggles,
-  // so switchToTab() is the final word on what panels are shown.
-  switchToTab("home");
+  if (!isWorkerCardInstallEntry()) {
+    switchToTab("home");
+  } else {
+    applyWorkerCardInstallView();
+  }
 }
 
 function showLogin() {
@@ -5644,7 +5640,6 @@ function stopVisitorCountdownTimer() {
 function initWorkerAppShell() {
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
-  void loadPublicWorkerBranding();
 }
 
 if (document.readyState === "loading") {

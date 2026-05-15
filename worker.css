@@ -1019,6 +1019,32 @@ body.worker-loaded .wallet-card {
   border-color: color-mix(in srgb, var(--worker-card-accent, #f08a50) 46%, transparent);
 }
 
+/* QR flow: /worker.html?view=card&badge=BP-... */
+body.worker-card-install.worker-loaded #loginCard {
+  display: none !important;
+}
+
+body.worker-card-install.worker-loaded #badgeCard {
+  display: block !important;
+}
+
+body.worker-card-install.worker-loaded #workerBottomNav {
+  display: flex !important;
+}
+
+body.worker-card-install.worker-loaded .worker-menu-card,
+body.worker-card-install.worker-loaded #smartWorkHubCard {
+  display: block !important;
+}
+
+body.worker-card-install.worker-loaded #workerMenuCard.hidden {
+  display: block !important;
+}
+
+body.worker-card-install.worker-loaded #installButton {
+  display: inline-flex !important;
+}
+
 .wallet-card.preset-construction {
   background: linear-gradient(135deg, #0b1520 0%, #183243 44%, #081018 100%);
 }

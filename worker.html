@@ -3,33 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass Worker Redirect</title>
+  <title>Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta http-equiv="expires" content="0" />
   <script>
     (function () {
       try {
+        var BUILD = "20260515a";
         var url = new URL(window.location.href);
-        var target = new URL('/emp-app.html', window.location.origin);
+        var target = new URL("/emp-app.html", window.location.origin);
         url.searchParams.forEach(function (value, key) {
           target.searchParams.set(key, value);
         });
-        target.searchParams.set('v', '20260513o');
-        // Mark redirect as worker-mode so emp-app can show worker-only UI
-        target.searchParams.set('worker', '1');
+        target.searchParams.set("worker", "1");
+        target.searchParams.set("v", BUILD);
+        if (!target.searchParams.get("view")) {
+          target.searchParams.set("view", "card");
+        }
         window.location.replace(target.toString());
       } catch (err) {
-        window.location.href = '/emp-app.html?v=20260513o';
+        window.location.href = "/emp-app.html?worker=1&view=card&v=20260515a";
       }
     })();
   </script>
   <noscript>
-    <meta http-equiv="refresh" content="0;url=/emp-app.html?v=20260513o" />
+    <meta http-equiv="refresh" content="0;url=/emp-app.html?worker=1&view=card&v=20260515a" />
   </noscript>
 </head>
 <body>
-  <p>Redirecting to employee app...</p>
-  <p><a href="/emp-app.html?v=20260513o">Continue</a></p>
+  <p>Weiterleitung zur Mitarbeiter-App…</p>
+  <p><a href="/emp-app.html?worker=1&view=card&v=20260515a">Weiter</a></p>
 </body>
 </html>
