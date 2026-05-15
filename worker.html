@@ -16,6 +16,8 @@
           target.searchParams.set(key, value);
         });
         target.searchParams.set('v', '20260513o');
+        // Mark redirect as worker-mode so emp-app can show worker-only UI
+        target.searchParams.set('worker', '1');
         window.location.replace(target.toString());
       } catch (err) {
         window.location.href = '/emp-app.html?v=20260513o';
