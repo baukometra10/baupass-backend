@@ -1024,12 +1024,27 @@ body.worker-card-install.worker-loaded #loginCard {
   display: none !important;
 }
 
-body.worker-card-install.worker-loaded #badgeCard {
+body.worker-card-install.worker-loaded #workerDashboard {
+  display: none !important;
+}
+
+body.worker-card-install.worker-loaded #badgeCard,
+body.worker-loaded.worker-feature-tab-active #badgeCard {
   display: block !important;
 }
 
 body.worker-card-install.worker-loaded #workerBottomNav {
   display: flex !important;
+}
+
+body.worker-card-install.worker-loaded #leaveRequestCard:not(.hidden),
+body.worker-card-install.worker-loaded #timesheetCard:not(.hidden),
+body.worker-card-install.worker-loaded #documentsCard:not(.hidden) {
+  display: block !important;
+}
+
+body.worker-card-install.worker-loaded #workerHubPanel:not(.hidden) {
+  display: block !important;
 }
 
 body.worker-card-install.worker-loaded .worker-menu-card,
@@ -1047,6 +1062,21 @@ body.worker-card-install.worker-loaded #installButton {
 
 .wallet-card.preset-construction {
   background: linear-gradient(135deg, #0b1520 0%, #183243 44%, #081018 100%);
+}
+
+.wallet-card.preset-construction::before {
+  background: linear-gradient(90deg, #d95d39 0%, #f08a50 48%, #d95d39 100%);
+}
+
+.wallet-card.preset-construction .wc-brand-mark {
+  background: linear-gradient(135deg, #d95d39, #b94a2a);
+  box-shadow: 0 3px 10px rgba(217, 93, 57, .52);
+}
+
+.wallet-card.preset-construction .wc-qr-frame {
+  background: linear-gradient(135deg, #6a3d18 0%, #c07c35 24%, #e8c886 44%, #d49344 64%, #774519 100%);
+  border-color: rgba(240, 190, 120, .46);
+  box-shadow: 0 14px 28px rgba(122, 76, 33, .38), inset 0 1px 0 rgba(255, 255, 255, .4), inset 0 -1px 0 rgba(65, 38, 15, .48);
 }
 
 .wallet-card.preset-industry {
@@ -5799,11 +5829,6 @@ body:not(.worker-loaded) #topPanel {
 
 /* The floating quick gate FAB clashes with the new bottom tab layout. */
 .quick-gate-fab {
-  display: none !important;
-}
-
-/* Legacy card must stay hidden in the new dashboard-first flow. */
-body.worker-loaded #badgeCard {
   display: none !important;
 }
 

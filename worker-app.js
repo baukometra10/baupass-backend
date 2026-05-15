@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-c21ed.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260515a";
+const WORKER_BUILD_TAG = "20260515c";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -120,6 +120,7 @@ function applyWorkerBrandLabels(brandTitle) {
   document.title = `${title} – ${t("pageTitle")}`;
   const targets = [
     document.getElementById("workerBrandName"),
+    document.getElementById("dashboardBrandName"),
     document.getElementById("visitorBrandName"),
     document.getElementById("workerAppTitle"),
     document.getElementById("workerSplashTitle"),
@@ -127,7 +128,7 @@ function applyWorkerBrandLabels(brandTitle) {
   ];
   targets.forEach((el) => {
     if (!el) return;
-    el.textContent = el.id === "workerBrandName" || el.id === "visitorBrandName"
+    el.textContent = el.id === "workerBrandName" || el.id === "dashboardBrandName" || el.id === "visitorBrandName"
       ? title.toUpperCase()
       : title;
   });
@@ -139,18 +140,19 @@ function applyWorkerBrandLabels(brandTitle) {
   if (storedToken) applyDynamicManifestStartUrl(storedToken, title);
 }
 
+function getWorkerCardBrandTitle(companyPreset) {
+  const preset = normalizeCompanyBrandingPreset(companyPreset);
+  if (preset === "industry" || preset === "premium") {
+    return "ControlPass";
+  }
+  return "BauPass";
+}
+
 /** Firmen-Branding auf der Mitarbeiter-Karte (Preset aus Admin/Firma, nicht Rechnung). */
-function applyWorkerCompanyBranding({ companyName, companyPreset } = {}) {
+function applyWorkerCompanyBranding({ companyPreset } = {}) {
   const preset = normalizeCompanyBrandingPreset(companyPreset);
   document.body.setAttribute("data-branding-preset", preset);
-
-  const presetTitleMap = {
-    industry: "Kontrollpass",
-    premium: "Kontrollpass",
-    construction: "BauPass",
-  };
-  const cardTitle = String(companyName || "").trim() || presetTitleMap[preset] || "BauPass";
-  applyWorkerBrandLabels(cardTitle);
+  applyWorkerBrandLabels(getWorkerCardBrandTitle(preset));
 
   document.querySelectorAll(".wallet-card").forEach((card) => {
     card.classList.remove("preset-construction", "preset-industry", "preset-premium", "branding-custom");
@@ -1108,12 +1110,70 @@ function replaceWorkerHistoryAfterLogin() {
   }
 }
 
+function getWorkerPassStage() {
+  return elements.badgeCard?.querySelector(".pass-stage") || null;
+}
+
+/** Dashboard-Karte vs. QR-Pass vs. Hub-Bereiche (Urlaub/Zeiten/Docs) sichtbar schalten. */
+function updateWorkerShellForTab(tabName) {
+  const cardInstall = document.body.classList.contains("worker-card-install");
+  const dashboardEl = document.getElementById("workerDashboard");
+  const homeInfo = document.getElementById("homeCompactInfo");
+  const hubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
+  const passStage = getWorkerPassStage();
+  const isHome = tabName === "home";
+
+  if (dashboardEl) {
+    const showDashboard = isHome && !cardInstall;
+    dashboardEl.classList.toggle("hidden", !showDashboard);
+    if (showDashboard) {
+      dashboardEl.style.removeProperty("display");
+    } else {
+      dashboardEl.style.setProperty("display", "none", "important");
+    }
+  }
+
+  if (homeInfo) {
+    const showHomeInfo = isHome && !cardInstall;
+    homeInfo.classList.toggle("hidden", !showHomeInfo);
+    if (showHomeInfo) {
+      homeInfo.style.removeProperty("display");
+    } else {
+      homeInfo.style.setProperty("display", "none", "important");
+    }
+  }
+
+  if (elements.badgeCard) {
+    const showBadgeShell = cardInstall || !isHome;
+    elements.badgeCard.classList.toggle("hidden", !showBadgeShell);
+    if (showBadgeShell) {
+      elements.badgeCard.style.removeProperty("display");
+    } else {
+      elements.badgeCard.style.setProperty("display", "none", "important");
+    }
+  }
+
+  if (passStage) {
+    const showPass = isHome && (cardInstall || !dashboardEl);
+    passStage.classList.toggle("hidden", !showPass);
+  }
+
+  if (hubPanel) {
+    const showHub = !isHome;
+    hubPanel.classList.toggle("hidden", !showHub);
+    if (showHub) {
+      hubPanel.style.removeProperty("display");
+    } else {
+      hubPanel.style.setProperty("display", "none", "important");
+    }
+  }
+}
+
 function applyWorkerCardInstallView() {
   document.body.classList.add("worker-card-install");
-  const dashboardEl = document.getElementById("workerDashboard");
-  if (dashboardEl) dashboardEl.classList.add("hidden");
-  if (elements.badgeCard) elements.badgeCard.classList.remove("hidden");
-  applyWorkerPageView("badgeCard");
+  updateWorkerShellForTab("home");
+  document.body.classList.remove("worker-tile-overview");
+  activeWorkerPageTarget = "";
   window.scrollTo(0, 0);
 }
 
@@ -2453,10 +2513,7 @@ function renderWorker(payload) {
     initializePassLockProtection();
   }
 
-  applyWorkerCompanyBranding({
-    companyName: company.name,
-    companyPreset,
-  });
+  applyWorkerCompanyBranding({ companyPreset });
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");
@@ -2472,8 +2529,8 @@ function renderWorker(payload) {
   if (elements.workerSubcompany) {
     const subcompanyName = String(subcompany.name || "").trim();
     if (subcompanyName) {
-      elements.workerSubcompany.textContent = `Subunternehmen: ${subcompanyName}`;
-      elements.workerSubcompany.title = `Subunternehmen: ${subcompanyName}`;
+      elements.workerSubcompany.textContent = `Sub: ${subcompanyName}`;
+      elements.workerSubcompany.title = `Sub: ${subcompanyName}`;
       elements.workerSubcompany.classList.remove("hidden");
     } else {
       elements.workerSubcompany.textContent = "";
@@ -2649,8 +2706,6 @@ function renderWorker(payload) {
   }
 
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
-  // Legacy card remains hidden; dashboard is now the main surface.
-  if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -2658,12 +2713,8 @@ function renderWorker(payload) {
   updateWalletImmersiveMode();
   setWorkerHubExpanded(false);
   haptic([18, 35, 22]);
-  
-  // Show new Dashboard instead of old badgeCard
-  const dashboardEl = document.getElementById("workerDashboard");
-  if (dashboardEl) {
-    dashboardEl.classList.remove("hidden");
-    // Sync worker data to dashboard
+
+  if (!isWorkerCardInstallEntry()) {
     syncWorkerDataToDashboard(lastWorkerPayload);
   }
   
@@ -2802,11 +2853,10 @@ function renderWorker(payload) {
   void prefillCompanyAdminEmails();
   updateWorkerPulsePanel();
 
-  if (!isWorkerCardInstallEntry()) {
-    switchToTab("home");
-  } else {
-    applyWorkerCardInstallView();
+  if (isWorkerCardInstallEntry()) {
+    document.body.classList.add("worker-card-install");
   }
+  switchToTab("home");
 }
 
 function showLogin() {
@@ -4815,6 +4865,7 @@ function switchToTab(tabName) {
   }
 
   currentActiveTab = tabName;
+  document.body.classList.toggle("worker-feature-tab-active", tabName !== "home");
 
   const workerHubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
 
@@ -4842,7 +4893,6 @@ function switchToTab(tabName) {
 
   // First enforce a strict clean state so legacy sections never leak into view.
   const managedPanels = [
-    "badgeCard",
     "routeCard",
     "sessionInfoCard",
     "companyModeCard",
@@ -4873,21 +4923,15 @@ function switchToTab(tabName) {
     tab.setAttribute("aria-selected", isActive);
   });
 
+  updateWorkerShellForTab(tabName);
+  document.body.classList.remove("worker-tile-overview");
+  activeWorkerPageTarget = "";
+
   // Show the correct panel based on tab
   if (tabName === "home") {
     if (workerHubPanel) {
       workerHubPanel.classList.add("hidden");
       workerHubPanel.style.setProperty("display", "none", "important");
-    }
-    const dashboard = document.getElementById("workerDashboard");
-    const homeInfo = document.getElementById("homeCompactInfo");
-    if (dashboard) {
-      dashboard.classList.remove("hidden");
-      dashboard.style.removeProperty("display");
-    }
-    if (homeInfo) {
-      homeInfo.classList.remove("hidden");
-      homeInfo.style.removeProperty("display");
     }
   } else if (tabName === "vacation") {
     if (workerHubPanel) {
@@ -4963,25 +5007,6 @@ function initBottomTabNavigation() {
   if (bottomTabNavInitialized) return;
   bottomTabNavInitialized = true;
 
-  const navButtons = document.querySelectorAll(".nav-tab");
-  navButtons.forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (!document.body.classList.contains("worker-loaded")) {
-        const loginCard = document.getElementById("loginCard");
-        if (loginCard && loginCard.classList.contains("hidden")) {
-          document.body.classList.add("worker-loaded");
-        }
-      }
-      const tabName = btn.dataset.tab;
-      if (tabName) {
-        switchToTab(tabName);
-      }
-    });
-  });
-
-  // Fallback: delegated handling on the nav container in case individual
-  // listeners are missed due to lifecycle/caching edge cases.
   const navContainer = document.getElementById("workerBottomNav");
   if (navContainer) {
     navContainer.addEventListener("click", (e) => {
