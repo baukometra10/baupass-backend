@@ -216,6 +216,11 @@ def enqueue_in(
         return None
 
 
+def task_queues_ready() -> bool:
+    """True when Redis RQ queues were initialized (background jobs can use rq mode)."""
+    return bool(_rq_queues)
+
+
 def get_queue_stats() -> dict:
     """يُعيد إحصائيات الـ queues للـ monitoring."""
     stats = {}

@@ -374,14 +374,6 @@ function reportSyncConflict(conflictType, localData, serverData) {
     }
     
     localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
-    
-    // Send to backend for logging
-    fetch(`/api/sync/report-conflict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newConflict),
-    }).catch(err => console.error('Failed to report conflict to backend:', err));
-    
     return newConflict.id;
   } catch (err) {
     console.error("Failed to report sync conflict:", err);
@@ -620,9 +612,9 @@ let workerToken = "";
 let showcaseTimeoutId = null;
 let currentActiveTab = "home";
 let bottomTabNavInitialized = false;
-// Security-first startup: require fresh login when app is reopened.
-localStorage.removeItem(WORKER_TOKEN_KEY);
+// One-time QR/link codes must not survive a cold start; bearer session may persist for PWA/offline sync.
 localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+workerToken = (localStorage.getItem(WORKER_TOKEN_KEY) || "").trim();
 let deferredInstallPrompt = null;
 let cameraStream = null;
 let lastCameraPhotoDataUrl = null;
@@ -791,6 +783,14 @@ const elements = {
   leaveRequestNote: document.querySelector("#leaveRequestNote"),
   leaveRequestAiBtn: document.querySelector("#leaveRequestAiBtn"),
   leaveRequestBossEmail: document.querySelector("#leaveRequestBossEmail"),
+  incidentCard: document.querySelector("#incidentCard"),
+  incidentForm: document.querySelector("#incidentForm"),
+  incidentType: document.querySelector("#incidentType"),
+  incidentSeverity: document.querySelector("#incidentSeverity"),
+  incidentDescription: document.querySelector("#incidentDescription"),
+  incidentList: document.querySelector("#incidentList"),
+  walletAppleBtn: document.querySelector("#walletAppleBtn"),
+  walletGoogleBtn: document.querySelector("#walletGoogleBtn"),
   workerHubToggle: document.querySelector("#workerHubToggle"),
   workerHubPanel: document.querySelector("#workerHubPanel"),
   workerMenuCard: document.querySelector("#workerMenuCard"),
@@ -1045,6 +1045,7 @@ function getWorkerPageTitle(targetId) {
   if (targetId === "dailyInsightsCard") return t("dailyInsightsTitle");
   if (targetId === "actionsPanel") return t("actionsTitle");
   if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
+  if (targetId === "incidentCard") return t("incidentTitle");
   if (targetId === "timesheetCard") return t("timesheetCardTitle");
   if (targetId === "documentsCard") return t("documentsTitle");
   return t("workerPageDefault");
@@ -1058,6 +1059,7 @@ function getWorkerPageSections() {
     document.querySelector("#dailyInsightsCard"),
     document.querySelector("#actionsPanel"),
     elements.leaveRequestCard,
+    elements.incidentCard,
     elements.timesheetCard,
     elements.documentsCard,
   ].filter(Boolean);
@@ -1114,6 +1116,7 @@ function applyWorkerPageView(targetId = "") {
 init().finally(dismissSplash);
 
 async function init() {
+  workerToken = (localStorage.getItem(WORKER_TOKEN_KEY) || "").trim();
   applyTranslations();
   updateWorkerBuildBadge();
   bindEvents();
@@ -1565,6 +1568,21 @@ function bindEvents() {
     elements.timesheetRefreshBtn.addEventListener("click", () => void loadMyTimesheets());
   }
 
+  if (elements.incidentForm) {
+    elements.incidentForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await submitIncidentReport();
+    });
+  }
+
+  if (elements.walletAppleBtn) {
+    elements.walletAppleBtn.addEventListener("click", () => void addWorkerPassToWallet("apple"));
+  }
+
+  if (elements.walletGoogleBtn) {
+    elements.walletGoogleBtn.addEventListener("click", () => void addWorkerPassToWallet("google"));
+  }
+
   if (elements.dayPlannerList) {
     elements.dayPlannerList.addEventListener("change", (event) => {
       const input = event.target;
@@ -1838,8 +1856,7 @@ async function manualSyncOfflineData() {
     // Sync offline photos
     await syncOfflinePhotoQueue();
     
-    // Refresh worker data
-    await refreshWorkerData();
+    await loadWorkerData();
     
     showWorkerNotice(t("syncOfflineCompleted"));
     updateConnectionState();
@@ -2697,6 +2714,7 @@ function renderWorker(payload) {
   
   // Load section data after render.
   if (!isVisitor) void loadLeaveRequests();
+  if (!isVisitor) void loadIncidents();
   if (leaveRefreshInterval) {
     clearInterval(leaveRefreshInterval);
   }
@@ -4278,6 +4296,99 @@ function toggleLeaveRequestForm() {
   if (!elements.leaveRequestFormWrapper || !elements.leaveRequestToggleBtn) return;
   const isHidden = elements.leaveRequestFormWrapper.classList.toggle("hidden");
   elements.leaveRequestToggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestTitle");
+}
+
+async function addWorkerPassToWallet(platform) {
+  if (!workerToken) {
+    showLogin();
+    return;
+  }
+  try {
+    showWorkerNotice(t("walletLoading"));
+    const payload = await fetchJson(
+      `${API_BASE}/wallet/pass?platform=${encodeURIComponent(platform)}`,
+      { headers: { Authorization: `Bearer ${workerToken}` } },
+    );
+    const url = platform === "google"
+      ? (payload.add_to_wallet_url || payload.pass_url)
+      : payload.pass_url;
+    if (!url) {
+      showWorkerNotice(t("walletUnavailable"));
+      return;
+    }
+    if (platform === "apple") {
+      window.location.assign(url);
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  } catch (error) {
+    if (error?.code === "wallet_not_configured") {
+      showWorkerNotice(t("walletNotConfigured"));
+      return;
+    }
+    showWorkerNotice(`${t("walletError")}: ${error.message}`);
+  }
+}
+
+async function loadIncidents() {
+  if (!workerToken || !elements.incidentList) return;
+  try {
+    const payload = await fetchJson(`${API_ROOT}/incidents`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
+    const incidents = Array.isArray(payload?.incidents) ? payload.incidents : [];
+    if (!incidents.length) {
+      elements.incidentList.innerHTML = `<p class="muted-info">${t("incidentNoReports")}</p>`;
+      return;
+    }
+    elements.incidentList.innerHTML = incidents.map((item) => {
+      const status = String(item.status || "open");
+      const type = String(item.incident_type || item.type || "-");
+      const severity = String(item.severity || "medium");
+      const created = formatDateTime(item.created_at);
+      const description = String(item.description || "").trim();
+      return `<div class="leave-request-item">
+        <div class="leave-req-row">
+          <strong>${type}</strong>
+          <span class="leave-req-badge leave-status-pending">${status} · ${severity}</span>
+        </div>
+        <div class="leave-req-dates">${created}</div>
+        ${description ? `<div class="leave-req-note">${description}</div>` : ""}
+      </div>`;
+    }).join("");
+  } catch (error) {
+    console.warn("Could not load incidents:", error);
+    elements.incidentList.innerHTML = `<p class="muted-info">${t("incidentSubmitFailed")}</p>`;
+  }
+}
+
+async function submitIncidentReport() {
+  if (!workerToken || !elements.incidentForm) return;
+  const incidentType = String(elements.incidentType?.value || "").trim();
+  const severity = String(elements.incidentSeverity?.value || "medium").trim();
+  const description = String(elements.incidentDescription?.value || "").trim();
+  if (!incidentType || !description) {
+    showWorkerNotice(t("incidentSubmitFailed"));
+    return;
+  }
+  try {
+    await fetchJson(`${API_ROOT}/incidents`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${workerToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ type: incidentType, severity, description }),
+    });
+    elements.incidentForm.reset();
+    if (elements.incidentSeverity) {
+      elements.incidentSeverity.value = "medium";
+    }
+    showWorkerNotice(t("incidentSubmitSuccess"));
+    await loadIncidents();
+  } catch (error) {
+    showWorkerNotice(`${t("incidentSubmitFailed")}: ${error.message}`);
+  }
 }
 
 async function loadLeaveRequests() {

@@ -19,6 +19,7 @@ attendance_bp  = Blueprint("attendance",  __name__)
 admin_bp       = Blueprint("admin",       __name__)
 public_bp      = Blueprint("public",      __name__)
 health_bp      = Blueprint("health",      __name__)
+worker_app_bp  = Blueprint("worker_app",  __name__)
 
 # ── Route Registrations ───────────────────────────────────────────────────────
 # يُستورد هنا لتفعيل تسجيل الـ routes
@@ -41,4 +42,5 @@ __all__ = [
     "admin_bp",
     "public_bp",
     "health_bp",
+    "worker_app_bp",
 ]

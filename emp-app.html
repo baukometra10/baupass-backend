@@ -580,6 +580,18 @@
               <span class="worker-menu-label" data-i18n="timesheetCardTitle">Eintritte & Zeiten</span>
             </button>
 
+            <!-- Vorfälle -->
+            <button type="button" class="worker-menu-btn" data-worker-page-target="incidentCard">
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <path d="M24 6 42 38H6L24 6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  <line x1="24" y1="18" x2="24" y2="28" stroke="#f4c400" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="24" cy="33" r="1.8" fill="#f4c400"/>
+                </svg>
+              </span>
+              <span class="worker-menu-label" data-i18n="incidentTitle">Vorfall melden</span>
+            </button>
+
             <!-- Dokumente -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="documentsCard">
               <span class="worker-menu-icon" aria-hidden="true">
@@ -734,6 +746,8 @@
             <button id="qrContrastToggle" class="ghost small-btn" type="button" data-i18n="qrContrastOff">High-Contrast QR: Aus</button>
             <button id="changePhotoButton" class="ghost small-btn" type="button" data-i18n="changePhotoBtn">Foto ändern</button>
             <button id="refreshButton" class="ghost small-btn" type="button" data-i18n="refreshBtn">Aktualisieren</button>
+            <button id="walletAppleBtn" class="ghost small-btn" type="button" data-i18n="walletAppleBtn">Apple Wallet</button>
+            <button id="walletGoogleBtn" class="ghost small-btn" type="button" data-i18n="walletGoogleBtn">Google Wallet</button>
             <button id="themeToggleBtn" class="theme-toggle-btn ghost small-btn" type="button" data-i18n="themeToggleBtn">🌙</button>
             <button id="voiceCommandBtn" class="voice-command-btn ghost small-btn" type="button" data-i18n="voiceCommandBtn">🎤</button>
             <button id="notificationPermissionBtn" class="ghost small-btn hidden-control" type="button" data-i18n="notificationPermissionBtn">Benachrichtigungen</button>
@@ -807,6 +821,40 @@
           <div id="timesheetList" class="timesheet-list">
             <p class="muted-info" data-i18n="timesheetLoading">Lade Einträge…</p>
           </div>
+        </div>
+
+        <!-- Vorfälle -->
+        <div id="incidentCard" class="below-card leave-request-card hidden">
+          <div class="section-head compact-head">
+            <p class="section-kicker" data-i18n="incidentKicker">Sicherheit</p>
+            <h3 data-i18n="incidentTitle">Vorfall melden</h3>
+          </div>
+          <form id="incidentForm" class="leave-request-form">
+            <label>
+              <span data-i18n="incidentTypeLabel">Art</span>
+              <select id="incidentType" required>
+                <option value="safety" data-i18n="incidentTypeSafety">Sicherheit</option>
+                <option value="damage" data-i18n="incidentTypeDamage">Schaden</option>
+                <option value="conflict" data-i18n="incidentTypeConflict">Konflikt</option>
+                <option value="other" data-i18n="incidentTypeOther">Sonstiges</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="incidentSeverityLabel">Schwere</span>
+              <select id="incidentSeverity" required>
+                <option value="low" data-i18n="incidentSeverityLow">Niedrig</option>
+                <option value="medium" selected data-i18n="incidentSeverityMedium">Mittel</option>
+                <option value="high" data-i18n="incidentSeverityHigh">Hoch</option>
+                <option value="critical" data-i18n="incidentSeverityCritical">Kritisch</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="incidentDescriptionLabel">Beschreibung</span>
+              <textarea id="incidentDescription" rows="4" required data-i18n="incidentDescriptionPlaceholder" data-i18n-attr="placeholder" placeholder="Was ist passiert?"></textarea>
+            </label>
+            <button type="submit" class="primary" data-i18n="incidentSubmitBtn">Meldung senden</button>
+          </form>
+          <div id="incidentList" class="leave-request-list" style="margin-top: 1rem;"></div>
         </div>
 
         <!-- Dokumente -->

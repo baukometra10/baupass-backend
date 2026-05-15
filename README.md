@@ -304,10 +304,4 @@ Wichtig:
 
 ## Wichtiger Hinweis
 
-Der aktuelle Stand ist bewusst ohne Node.js umgesetzt und nutzt Python/Flask als Backend. Fuer den produktiven Einsatz solltest du als naechstes HTTPS erzwingen, Session-Store zentralisieren und ein professionelles Identity-Management anbinden.# baupass-backend
-# baupass-backend
-# baupass-backend
-# baupass-backend
-# baupass-backend
-# baupass-backend
-# baupass-backend
+Der aktuelle Stand ist bewusst ohne Node.js umgesetzt und nutzt Python/Flask als Backend. Fuer den produktiven Einsatz solltest du als naechstes HTTPS erzwingen, Session-Store zentralisieren und ein professionelles Identity-Management anbinden.

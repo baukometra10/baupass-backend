@@ -1046,6 +1046,17 @@ def get_rate_limit_key(scope):
 
 
 def check_rate_limit(scope):
+    limiter = app.extensions.get("rate_limiter") if hasattr(app, "extensions") else None
+    if limiter is not None:
+        legacy_map = app.extensions.get("rate_limit_legacy_map") or {}
+        mapped_scope = legacy_map.get(scope, scope)
+        scopes = getattr(limiter, "_scopes", {})
+        if mapped_scope in scopes:
+            try:
+                return limiter.check(mapped_scope, get_client_ip())
+            except Exception as exc:
+                logger.warning("Distributed rate limit check failed, using in-memory fallback: %s", exc)
+
     rule = REQUEST_RATE_LIMITS.get(scope)
     if not rule:
         return True, 0
@@ -3644,6 +3655,28 @@ except Exception as _init_db_exc:
     _tb.print_exc()
     raise
 
+try:
+    import sys as _sys
+
+    _project_root = Path(__file__).resolve().parent.parent
+    if str(_project_root) not in _sys.path:
+        _sys.path.insert(0, str(_project_root))
+
+    from backend.app.runtime_bootstrap import integrate_server_runtime
+
+    _runtime_summary = integrate_server_runtime(app, DB_PATH, REQUEST_RATE_LIMITS)
+    print(
+        f"[baupass] Runtime ready (rate_limiter={_runtime_summary.get('rate_limiter')}, "
+        f"task_queues={_runtime_summary.get('task_queues')}, "
+        f"security={_runtime_summary.get('security')})",
+        flush=True,
+    )
+except Exception as _bootstrap_exc:
+    import traceback as _tb
+
+    print(f"[baupass] WARNING: runtime bootstrap failed: {_bootstrap_exc}", flush=True)
+    _tb.print_exc()
+
 
 def row_to_dict(row):
     return dict(row) if row is not None else None
@@ -3992,7 +4025,6 @@ def require_worker_session(handler):
 
 
 # --- API: Foto-Upload für Mitarbeiter (nach require_worker_session und app Definitionen!) ---
-@app.post("/api/worker-app/photo")
 @require_worker_session
 def update_worker_photo():
     payload = request.get_json(silent=True) or {}
@@ -4006,7 +4038,6 @@ def update_worker_photo():
     return jsonify({"ok": True})
 
 
-@app.get("/api/worker-app/wallet/pass")
 @require_worker_session
 def get_worker_wallet_pass():
     platform = str(request.args.get("platform") or "").strip().lower()
@@ -4109,7 +4140,6 @@ def get_worker_wallet_pass():
     return jsonify(response_payload)
 
 
-@app.get("/api/worker-app/wallet/pass/file/<pass_object_id>.pkpass")
 @require_worker_session
 def get_worker_wallet_pass_file(pass_object_id):
     normalized_object_id = clean_id_input(pass_object_id, max_len=128)
@@ -4198,7 +4228,6 @@ def get_worker_wallet_pass_file(pass_object_id):
     )
 
 
-@app.get("/api/worker-app/wallet/pass/google/<pass_object_id>")
 @require_worker_session
 def get_worker_wallet_google_redirect(pass_object_id):
     normalized_object_id = clean_id_input(pass_object_id, max_len=128)
@@ -6396,10 +6425,19 @@ def start_background_jobs():
     interval_hours = max(1, int(os.getenv("BAUPASS_DUNNING_INTERVAL_HOURS", "24")))
     session_cleanup_seconds = max(60, int(os.getenv("BAUPASS_WORKER_SESSION_CLEANUP_SECONDS", "300")))
     invoice_retry_seconds = max(60, int(os.getenv("BAUPASS_INVOICE_RETRY_SECONDS", "180")))
-    invoice_retry_mode = str(os.getenv("BAUPASS_INVOICE_RETRY_MODE", "thread")).strip().lower()
-    session_cleanup_mode = str(os.getenv("BAUPASS_WORKER_SESSION_CLEANUP_MODE", "thread")).strip().lower()
-    daily_jobs_mode = str(os.getenv("BAUPASS_DAILY_JOBS_MODE", "thread")).strip().lower()
+    from backend.app.runtime_bootstrap import resolve_background_job_mode
+
+    invoice_retry_mode = resolve_background_job_mode("BAUPASS_INVOICE_RETRY_MODE")
+    session_cleanup_mode = resolve_background_job_mode("BAUPASS_WORKER_SESSION_CLEANUP_MODE")
+    daily_jobs_mode = resolve_background_job_mode("BAUPASS_DAILY_JOBS_MODE")
+    dunning_mode = resolve_background_job_mode("BAUPASS_DUNNING_MODE")
     rq_strict_mode = str(os.getenv("BAUPASS_RQ_STRICT_MODE", "0")).strip().lower() in {"1", "true", "yes", "on"}
+
+    print(
+        f"[baupass] Background modes: daily={daily_jobs_mode} session_cleanup={session_cleanup_mode} "
+        f"invoice_retry={invoice_retry_mode} dunning={dunning_mode}",
+        flush=True,
+    )
 
     def scheduler_loop():
         while True:
@@ -6889,7 +6927,19 @@ def start_background_jobs():
             run_invoice_retry_cycle_once()
             time.sleep(invoice_retry_seconds)
 
-    threading.Thread(target=scheduler_loop, name="baupass-dunning-scheduler", daemon=True).start()
+    if dunning_mode == "rq":
+        try:
+            from backend.app.tasks.legacy_runtime import bootstrap_legacy_dunning_scheduler
+
+            boot_ok = bool(bootstrap_legacy_dunning_scheduler())
+            if rq_strict_mode and not boot_ok:
+                raise RuntimeError("Dunning RQ bootstrap failed in strict mode")
+        except Exception:
+            if rq_strict_mode:
+                raise
+            threading.Thread(target=scheduler_loop, name="baupass-dunning-scheduler", daemon=True).start()
+    else:
+        threading.Thread(target=scheduler_loop, name="baupass-dunning-scheduler", daemon=True).start()
     if session_cleanup_mode == "rq":
         try:
             from backend.app.tasks.legacy_runtime import bootstrap_legacy_worker_session_cleanup_scheduler
@@ -10991,7 +11041,6 @@ def worker_badge_qr(worker_id):
     )
 
 
-@app.post("/api/worker-app/login")
 @require_rate_limit("worker_login")
 def worker_app_login():
     payload = request.get_json(silent=True) or {}
@@ -11130,7 +11179,6 @@ def worker_app_login():
     return jsonify(session_data)
 
 
-@app.get("/api/worker-app/me")
 @require_worker_session
 def worker_app_me():
     db = get_db()
@@ -11268,16 +11316,40 @@ def build_worker_team_snapshot(db, worker_row):
     ).fetchone()
     present = int((present_row["total"] if present_row else 0) or 0)
 
+    open_checkout_params = list(worker_filter_params)
+    open_checkout_params.extend([f"{today_prefix}%", f"{today_prefix}%"])
+    open_checkouts_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS total
+        FROM workers w
+        WHERE {worker_filter_sql}
+          AND (
+              SELECT COUNT(*)
+              FROM access_logs al_in
+              WHERE al_in.worker_id = w.id
+                AND al_in.direction = 'check-in'
+                AND al_in.timestamp LIKE ?
+          ) > COALESCE((
+              SELECT COUNT(*)
+              FROM access_logs al_out
+              WHERE al_out.worker_id = w.id
+                AND al_out.direction = 'check-out'
+                AND al_out.timestamp LIKE ?
+          ), 0)
+        """,
+        tuple(open_checkout_params),
+    ).fetchone()
+    open_checkouts = int((open_checkouts_row["total"] if open_checkouts_row else 0) or 0)
+
     return {
         "scope": scope,
         "site": site_name,
         "expected": expected,
         "present": present,
-        "openCheckouts": present,
+        "openCheckouts": open_checkouts,
     }
 
 
-@app.get("/api/worker-app/team-snapshot")
 @require_worker_session
 def worker_app_team_snapshot():
     db = get_db()
@@ -11286,7 +11358,6 @@ def worker_app_team_snapshot():
     return jsonify(snapshot)
 
 
-@app.post("/api/worker-app/offline-events")
 @require_worker_session
 def worker_app_sync_offline_events():
     payload = request.get_json(silent=True) or {}
@@ -11317,7 +11388,6 @@ def worker_app_sync_offline_events():
     return jsonify({"ok": True, "stored": stored_count})
 
 
-@app.post("/api/worker-app/logout")
 @require_worker_session
 def worker_app_logout():
     db = get_db()
@@ -12689,7 +12759,6 @@ def _hce_validate_client_timestamp(client_ts: str, max_skew_ms: int = 120000) ->
     return abs(now_ms - ts_int) <= max_skew_ms
 
 
-@app.post("/api/worker-app/hce/device/register")
 @require_worker_session
 def worker_app_hce_device_register():
     worker = g.worker
@@ -12769,7 +12838,6 @@ def worker_app_hce_device_register():
     )
 
 
-@app.get("/api/worker-app/dynamic-qr")
 @require_worker_session
 def worker_app_dynamic_qr():
     """Return a fresh short-lived signed QR token for the worker's badge."""
@@ -12792,7 +12860,6 @@ def worker_app_dynamic_qr():
     )
 
 
-@app.post("/api/worker-app/hce/bootstrap")
 @require_worker_session
 def worker_app_hce_bootstrap():
     """Bootstrap endpoint for Android HCE companion app.
@@ -12904,7 +12971,6 @@ def worker_app_hce_bootstrap():
     )
 
 
-@app.get("/api/worker-app/access-last")
 @require_worker_session
 def worker_app_access_last():
     worker = g.worker
@@ -12975,7 +13041,6 @@ def _prune_pin_fail_counts():
         _pin_fail_counts.pop(k, None)
 
 
-@app.post("/api/worker-app/verify-pin")
 @require_worker_session
 def worker_app_verify_pin():
     worker = g.worker
@@ -22125,13 +22190,11 @@ def export_audit_logs():
 
 
 # ── Push-Benachrichtigungen (VAPID) ──────────────────────────────────
-@app.route("/api/worker-app/push-vapid-key")
 def get_vapid_public_key():
     key = os.getenv("VAPID_PUBLIC_KEY", "").strip()
     return jsonify({"publicKey": key or None})
 
 
-@app.post("/api/worker-app/push-subscribe")
 @require_worker_session
 def worker_push_subscribe():
     worker = g.worker
@@ -22288,7 +22351,6 @@ def _build_leave_request_pdf_bytes(payload: dict) -> bytes | None:
     return buf.getvalue()
 
 
-@app.route("/api/worker-app/leave-requests", methods=["GET"])
 @require_worker_session
 def worker_get_leave_requests():
     worker = g.worker
@@ -22303,7 +22365,6 @@ def worker_get_leave_requests():
     return jsonify([row_to_dict(r) for r in rows])
 
 
-@app.route("/api/worker-app/leave-requests", methods=["POST"])
 @require_worker_session
 def worker_submit_leave_request():
     worker = g.worker
@@ -22667,7 +22728,6 @@ def export_leave_request_pdf(req_id):
 
 # ── Mitarbeiter-App: eigene Stundennachweise ────────────────────────────────
 
-@app.get("/api/worker-app/my-timesheets")
 @require_worker_session
 def worker_app_my_timesheets():
     db = get_db()
@@ -22908,7 +22968,6 @@ def get_company_plan_features(company_id):
 
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
 
-@app.get("/api/worker-app/my-documents")
 @require_worker_session
 def worker_app_my_documents():
     db = get_db()
@@ -22923,7 +22982,6 @@ def worker_app_my_documents():
     return jsonify([dict(r) for r in rows])
 
 
-@app.route("/api/worker-app/company-admins", methods=["GET"])
 @require_worker_session
 def worker_get_company_admins():
     """Gibt Firmen-Admin-E-Mail-Adressen zurueck (fuer Chef-Versand-Vorschlag)."""
@@ -22936,7 +22994,6 @@ def worker_get_company_admins():
     return jsonify([{"name": r["name"], "email": r["email"]} for r in rows])
 
 
-@app.route("/api/worker-app/leave-requests/<req_id>/send-email", methods=["POST"])
 @require_worker_session
 def worker_send_leave_request_email(req_id):
     worker = g.worker
@@ -23451,7 +23508,29 @@ def gate_ingest():
     return jsonify({**response_payload, "readerType": adapter.reader_type}), status_code
 
 
+try:
+    from backend.app.api.blueprint_registry import register_modular_blueprints
+
+    register_modular_blueprints(app)
+except Exception as _blueprint_exc:
+    import traceback as _bp_tb
+
+    print(f"[baupass] WARNING: blueprint registration failed: {_blueprint_exc}", flush=True)
+    _bp_tb.print_exc()
+
+
 if __name__ == "__main__":
+    # Avoid double-loading server.py as both __main__ and backend.server.
+    if __package__ is None:
+        import runpy
+        import sys
+
+        root = str(BASE_DIR)
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        runpy.run_module("backend.server", run_name="__main__", alter_sys=True)
+        raise SystemExit(0)
+
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8080"))
     ssl_context = get_ssl_context_from_env()

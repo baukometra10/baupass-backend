@@ -130,6 +130,57 @@ def run_daily_jobs_cycle_once_task(*, reschedule: bool = True) -> dict[str, Any]
     return result
 
 
+def run_dunning_cycle_once_task(*, reschedule: bool = True) -> dict[str, Any]:
+    """Runs legacy dunning + backup rotation once, then schedules the next run."""
+    legacy = _import_legacy_server()
+    with legacy.app.app_context():
+        legacy.run_dunning_job_once()
+    result = {"ok": True}
+
+    if reschedule:
+        interval_hours = max(1, int(os.getenv("BAUPASS_DUNNING_INTERVAL_HOURS", "24")))
+        interval_seconds = interval_hours * 3600
+        enqueue_in(
+            interval_seconds,
+            "scheduled",
+            run_dunning_cycle_once_task,
+            reschedule=True,
+            description="legacy.dunning.cycle",
+        )
+
+    return result
+
+
+def bootstrap_legacy_dunning_scheduler() -> bool:
+    """Enqueues the first dunning cycle once per deployment window."""
+    interval_hours = max(1, int(os.getenv("BAUPASS_DUNNING_INTERVAL_HOURS", "24")))
+    interval_seconds = interval_hours * 3600
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    lock_key = "baupass:rq:legacy:dunning:bootstrap"
+
+    try:
+        import redis
+
+        conn = redis.Redis.from_url(redis_url, decode_responses=True)
+        lock_acquired = bool(conn.set(lock_key, str(int(time.time())), nx=True, ex=max(600, int(interval_seconds * 0.1))))
+        if not lock_acquired:
+            logger.info("Legacy dunning scheduler already bootstrapped")
+            return False
+
+        enqueue_in(
+            30,
+            "scheduled",
+            run_dunning_cycle_once_task,
+            reschedule=True,
+            description="legacy.dunning.bootstrap",
+        )
+        logger.info("Legacy dunning scheduler bootstrapped via RQ")
+        return True
+    except Exception as exc:
+        logger.error("Failed to bootstrap legacy dunning scheduler: %s", exc)
+        return False
+
+
 def bootstrap_legacy_daily_jobs_scheduler() -> bool:
     """Enqueues the first daily jobs cycle once per deployment window."""
     interval = max(3600, int(os.getenv("BAUPASS_DAILY_JOBS_SECONDS", "86400")))

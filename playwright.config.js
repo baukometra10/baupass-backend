@@ -7,7 +7,8 @@ const defaultPythonPath = process.platform === 'win32'
   ? path.resolve('.venv', 'Scripts', 'python.exe')
   : path.resolve('.venv', 'bin', 'python');
 const pythonCommand = process.env.PYTHON || `"${defaultPythonPath}"`;
-const e2eServerCommand = `npx cross-env BAUPASS_E2E_RESET_SUPERADMIN=1 ${pythonCommand} backend/server.py`;
+const projectRoot = path.resolve(__dirname);
+const e2eServerCommand = `npx cross-env BAUPASS_E2E_RESET_SUPERADMIN=1 PYTHONPATH="${projectRoot}" ${pythonCommand} -m backend.server`;
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
@@ -24,7 +25,7 @@ module.exports = defineConfig({
     command: e2eServerCommand,
     url: baseURL,
     reuseExistingServer: true,
-    timeout: 15_000,
+    timeout: 120_000,
   },
   reporter: [['list']],
 });

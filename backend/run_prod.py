@@ -2,10 +2,23 @@ import socket
 import sys
 import os
 import logging
+from pathlib import Path
 
 from waitress import serve
 
-from server import app, get_runtime_diagnostics, init_db, check_and_apply_overdue_suspensions, run_invoice_dunning_cycle, get_db
+# Ensure project root is on sys.path when started from backend/ (Docker, Railway).
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from backend.server import (  # noqa: E402
+    app,
+    check_and_apply_overdue_suspensions,
+    get_db,
+    get_runtime_diagnostics,
+    init_db,
+    run_invoice_dunning_cycle,
+)
 
 
 HOST = os.getenv("HOST", "0.0.0.0")
@@ -78,6 +91,22 @@ if __name__ == "__main__":
         print("[baupass] Resend: NOT configured")
     for warning in warnings:
         print(f"[baupass][warn] {warning['code']}: {warning['message']}")
+    try:
+        from backend.app.runtime_bootstrap import resolve_background_job_mode
+
+        rq_modes = [
+            resolve_background_job_mode("BAUPASS_DAILY_JOBS_MODE"),
+            resolve_background_job_mode("BAUPASS_WORKER_SESSION_CLEANUP_MODE"),
+            resolve_background_job_mode("BAUPASS_INVOICE_RETRY_MODE"),
+            resolve_background_job_mode("BAUPASS_DUNNING_MODE"),
+        ]
+        if any(mode == "rq" for mode in rq_modes):
+            print(
+                "[baupass] RQ background modes active — start a worker process: "
+                "python -m backend.app.tasks.worker"
+            )
+    except Exception:
+        pass
     if not SHOW_WAITRESS_QUEUE_WARNINGS:
         # Queue depth warnings are noisy under short bursts and do not always indicate a real issue.
         logging.getLogger("waitress.queue").setLevel(logging.ERROR)

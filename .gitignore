@@ -37,6 +37,15 @@ fix_porter_keys.py
 # Node dependencies
 node_modules/
 
+# Playwright / local test artifacts
+test-results/
+playwright-report/
+backend/tests/*.db
+backend/tests/*.db-wal
+backend/tests/*.db-shm
+emp-app.tmp.html
+backend/tmp_inspect_db.py
+
 # Electron build output
 dist/
 *.exe
