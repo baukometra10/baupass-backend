@@ -506,11 +506,7 @@ function updateSmartWorkHub(payload = lastWorkerPayload, rows = lastTimesheetRow
       ? tf("smartHubSyncQueuePending", { count: String(queueCount) })
       : t("smartHubSyncQueueMeta");
   }
-  if (elements.manualSyncBtn) {
-    const hasOfflineData = queueCount > 0 || readStoredJson(OFFLINE_PHOTO_QUEUE_KEY, []).length > 0;
-    const canSync = navigator.onLine && workerToken;
-    elements.manualSyncBtn.classList.toggle("hidden", !hasOfflineData || !canSync);
-  }
+  // Manual sync button removed for employee app; no UI changes required here.
   if (elements.smartHubDocRiskValue) {
     elements.smartHubDocRiskValue.textContent = String(docsSummary.criticalCount);
   }
@@ -693,7 +689,6 @@ const elements = {
   smartHubPrimaryActionBtn: document.querySelector("#smartHubPrimaryActionBtn"),
   smartHubSyncQueueValue: document.querySelector("#smartHubSyncQueueValue"),
   smartHubSyncQueueMeta: document.querySelector("#smartHubSyncQueueMeta"),
-  manualSyncBtn: document.querySelector("#manualSyncBtn"),
   smartHubDocRiskValue: document.querySelector("#smartHubDocRiskValue"),
   smartHubDocRiskMeta: document.querySelector("#smartHubDocRiskMeta"),
   smartHubCrewValue: document.querySelector("#smartHubCrewValue"),
