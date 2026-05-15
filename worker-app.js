@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-c21ed.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260515b";
+const WORKER_BUILD_TAG = "20260515a";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
