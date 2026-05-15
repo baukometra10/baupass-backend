@@ -1,6 +1,6 @@
-const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
+const DEFAULT_RENDER_API_BASE = "https://web-production-c21ed.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260513o";
+const WORKER_BUILD_TAG = "20260515a";
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -94,6 +94,112 @@ function normalizeCompanyBrandingPreset(value) {
     return preset;
   }
   return "construction";
+}
+
+function normalizeHexColor(value, fallback = "") {
+  const raw = String(value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : fallback;
+}
+
+function shadeHexColor(hex, amount) {
+  const normalized = normalizeHexColor(hex, "");
+  if (!normalized) return "";
+  const channel = normalized.slice(1);
+  const parts = [channel.slice(0, 2), channel.slice(2, 4), channel.slice(4, 6)].map((part) => {
+    const value = parseInt(part, 16);
+    const next = Math.min(255, Math.max(0, value + amount));
+    return next.toString(16).padStart(2, "0");
+  });
+  return `#${parts.join("")}`;
+}
+
+function applyWorkerBrandLabels(brandTitle) {
+  const title = String(brandTitle || "").trim();
+  if (!title) return;
+  currentAppBrandTitle = title;
+  document.title = `${title} – ${t("pageTitle")}`;
+  const targets = [
+    document.getElementById("workerBrandName"),
+    document.getElementById("visitorBrandName"),
+    document.getElementById("workerAppTitle"),
+    document.getElementById("workerSplashTitle"),
+    document.getElementById("workerBrandChip"),
+  ];
+  targets.forEach((el) => {
+    if (!el) return;
+    el.textContent = el.id === "workerBrandName" || el.id === "visitorBrandName"
+      ? title.toUpperCase()
+      : title;
+  });
+  const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (metaAppTitle) metaAppTitle.setAttribute("content", title);
+  const metaAppName = document.querySelector('meta[name="application-name"]');
+  if (metaAppName) metaAppName.setAttribute("content", `${title} Mitarbeiter-App`);
+  const storedToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
+  if (storedToken) applyDynamicManifestStartUrl(storedToken, title);
+}
+
+function applyWorkerSystemBranding({ platformName, primaryColor, accentColor, logoData, companyPreset } = {}) {
+  const preset = normalizeCompanyBrandingPreset(companyPreset);
+  document.body.setAttribute("data-branding-preset", preset);
+
+  const presetTitleMap = {
+    industry: "Kontrollpass",
+    premium: "Kontrollpass",
+    construction: "BauPass",
+  };
+  const systemTitle = String(platformName || "").trim();
+  applyWorkerBrandLabels(systemTitle || presetTitleMap[preset] || "BauPass");
+
+  const primary = normalizeHexColor(primaryColor, "");
+  const accent = normalizeHexColor(accentColor, "");
+  const cards = document.querySelectorAll(".wallet-card");
+  cards.forEach((card) => {
+    card.classList.remove("preset-construction", "preset-industry", "preset-premium", "branding-custom");
+    card.classList.add(`preset-${preset}`);
+    if (primary) {
+      card.classList.add("branding-custom");
+      const dark = shadeHexColor(primary, -42);
+      const light = shadeHexColor(primary, 28);
+      card.style.setProperty("--worker-card-primary", primary);
+      card.style.setProperty("--worker-card-primary-dark", dark || primary);
+      card.style.setProperty("--worker-card-primary-light", light || primary);
+      card.style.setProperty("--worker-card-accent", accent || primary);
+    } else {
+      card.style.removeProperty("--worker-card-primary");
+      card.style.removeProperty("--worker-card-primary-dark");
+      card.style.removeProperty("--worker-card-primary-light");
+      card.style.removeProperty("--worker-card-accent");
+    }
+  });
+
+  if (logoData) {
+    document.querySelectorAll(".wc-brand-mark").forEach((mark) => {
+      mark.innerHTML = `<img src="${logoData}" alt="" class="wc-brand-logo" />`;
+    });
+  }
+
+  if (primary) {
+    document.documentElement.style.setProperty("--worker-brand-primary", primary);
+  }
+  if (accent) {
+    document.documentElement.style.setProperty("--worker-brand-accent", accent);
+  }
+}
+
+async function loadPublicWorkerBranding() {
+  try {
+    const data = await fetchJson(`${API_ROOT}/public/branding`);
+    applyWorkerSystemBranding({
+      platformName: data.platformName,
+      primaryColor: data.primaryColor,
+      accentColor: data.accentColor,
+      logoData: data.logoData,
+      companyPreset: document.body.getAttribute("data-branding-preset") || "construction",
+    });
+  } catch (error) {
+    console.warn("[branding] public branding not loaded:", error.message);
+  }
 }
 
 function updateWorkerNextStepPanel({ worker, companyPreset, isVisitor }) {
@@ -1295,6 +1401,7 @@ function bindEvents() {
       if (workerToken) {
         void requestWakeLock();
         void fetchAndDisplayDynamicQr();
+        void loadWorkerData();
       }
     } else {
       releaseWakeLock();
@@ -2349,38 +2456,13 @@ function renderWorker(payload) {
     initializePassLockProtection();
   }
 
-  // ── Dynamic platform branding ──
-  const platformName = ((payload.settings?.platformName) || "Control Pass").trim() || "Control Pass";
-  
-  // Determine app title based on company branding preset
-  const appTitleMap = {
-    "industry": "Kontrollpass",
-    "premium": "Kontrollpass",
-    "construction": "BauPass"
-  };
-  const appBrandTitle = appTitleMap[companyPreset] || platformName;
-  currentAppBrandTitle = appBrandTitle; // store globally so applyTranslations() can preserve it
-  
-  document.title = appBrandTitle + " – " + t("pageTitle");
-  const brandEl = document.getElementById("workerBrandName");
-  if (brandEl) brandEl.textContent = appBrandTitle.toUpperCase();
-  const visitorBrandEl = document.getElementById("visitorBrandName");
-  if (visitorBrandEl) visitorBrandEl.textContent = appBrandTitle.toUpperCase();
-  const appTitleEl = document.getElementById("workerAppTitle");
-  if (appTitleEl) appTitleEl.textContent = appBrandTitle;
-  const splashTitleEl = document.getElementById("workerSplashTitle");
-  if (splashTitleEl) splashTitleEl.textContent = appBrandTitle;
-  // Brand chip in top panel
-  const brandChipEl = document.getElementById("workerBrandChip");
-  if (brandChipEl) brandChipEl.textContent = appBrandTitle;
-  // Update iOS / Android meta tags dynamically
-  const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-  if (metaAppTitle) metaAppTitle.setAttribute("content", appBrandTitle);
-  const metaAppName = document.querySelector('meta[name="application-name"]');
-  if (metaAppName) metaAppName.setAttribute("content", appBrandTitle + " Mitarbeiter-App");
-  // Update manifest with white-label name
-  const _storedToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
-  if (_storedToken) applyDynamicManifestStartUrl(_storedToken, appBrandTitle);
+  applyWorkerSystemBranding({
+    platformName: payload.settings?.platformName,
+    primaryColor: payload.settings?.primaryColor,
+    accentColor: payload.settings?.accentColor,
+    logoData: payload.settings?.logoData,
+    companyPreset,
+  });
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");
@@ -2390,11 +2472,6 @@ function renderWorker(payload) {
     elements.workerPassSubLabels.forEach((el) => {
       el.textContent = passSubLabel;
     });
-  }
-
-  if (elements.walletCard) {
-    elements.walletCard.classList.remove("preset-construction", "preset-industry", "preset-premium");
-    elements.walletCard.classList.add(`preset-${companyPreset}`);
   }
 
   if (elements.companyName) elements.companyName.textContent = company.name || t("companyFallback");
@@ -5567,6 +5644,7 @@ function stopVisitorCountdownTimer() {
 function initWorkerAppShell() {
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
+  void loadPublicWorkerBranding();
 }
 
 if (document.readyState === "loading") {

@@ -11235,6 +11235,9 @@ def worker_app_me():
             "settings": {
                 "platformName": setting["platform_name"],
                 "operatorName": setting["operator_name"],
+                "primaryColor": str(setting["invoice_primary_color"] or "#0f4c5c"),
+                "accentColor": str(setting["invoice_accent_color"] or "#e36414"),
+                "logoData": str(setting["invoice_logo_data"] or ""),
                 "workerPassLockEnabled": int(setting["worker_pass_lock_enabled"]) if setting and "worker_pass_lock_enabled" in setting.keys() else 0,
             },
             "sessionExpiresAt": getattr(g, "worker_session_expires_at", ""),

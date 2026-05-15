@@ -973,6 +973,52 @@ body.worker-loaded .wallet-card {
   pointer-events: none;
 }
 
+.wallet-card.branding-custom {
+  background: linear-gradient(
+    145deg,
+    var(--worker-card-primary-dark, #081018) 0%,
+    var(--worker-card-primary, #183243) 48%,
+    var(--worker-card-primary-dark, #081018) 100%
+  ) !important;
+  box-shadow:
+    0 56px 104px color-mix(in srgb, var(--worker-card-primary, #183243) 36%, transparent),
+    0 14px 38px rgba(0, 0, 0, .42),
+    0 0 0 1px color-mix(in srgb, var(--worker-card-accent, #f08a50) 28%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+.wallet-card.branding-custom::before {
+  background: linear-gradient(
+    90deg,
+    var(--worker-card-accent, #f08a50) 0%,
+    var(--worker-card-primary-light, #f0b27a) 50%,
+    var(--worker-card-accent, #f08a50) 100%
+  ) !important;
+}
+
+.wallet-card.branding-custom .wc-brand-mark {
+  background: linear-gradient(135deg, var(--worker-card-primary, #183243), var(--worker-card-accent, #f08a50));
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--worker-card-accent, #f08a50) 45%, transparent);
+}
+
+.wallet-card.branding-custom .wc-brand-mark .wc-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
+.wallet-card.branding-custom .wc-qr-frame {
+  background: linear-gradient(
+    135deg,
+    var(--worker-card-primary-dark, #183243) 0%,
+    var(--worker-card-accent, #f08a50) 42%,
+    var(--worker-card-primary-light, #f0b27a) 100%
+  );
+  border-color: color-mix(in srgb, var(--worker-card-accent, #f08a50) 46%, transparent);
+}
+
 .wallet-card.preset-construction {
   background: linear-gradient(135deg, #0b1520 0%, #183243 44%, #081018 100%);
 }

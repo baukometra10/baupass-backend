@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-const DEFAULT_RENDER_API_BASE = "https://baupass-backend.onrender.com";
+const DEFAULT_RENDER_API_BASE = "https://web-production-c21ed.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
   "http://127.0.0.1:8000",
