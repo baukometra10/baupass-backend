@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516c";
+const WORKER_BUILD_TAG = "20260516d";
 const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
 
 function normalizeApiBase(value) {
@@ -2065,19 +2065,11 @@ function registerWorkerSw() {
       .catch(() => {});
   }
   
-  const swTimestamp = Math.floor(Date.now() / 1000);
-  navigator.serviceWorker.register(`./worker-sw.js?v=${WORKER_BUILD_TAG}&t=${swTimestamp}`).then((registration) => {
+  navigator.serviceWorker.register(`./worker-sw.js?v=${WORKER_BUILD_TAG}`).then((registration) => {
     registration.update().catch(() => {});
 
-    let swActivatedOnce = false;
     const handleControllerChange = () => {
       updateWorkerBuildBadge();
-      if (!swActivatedOnce) {
-        swActivatedOnce = true;
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      }
     };
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
