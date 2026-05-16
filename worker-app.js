@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516e";
+const WORKER_BUILD_TAG = "20260516f";
 const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
 
 function normalizeApiBase(value) {
@@ -4871,7 +4871,19 @@ function switchToTab(tabName) {
   }
 
   currentActiveTab = tabName;
-  document.body.classList.toggle("worker-feature-tab-active", tabName !== "home");
+  const isFeatureTab = tabName !== "home";
+  document.body.classList.toggle("worker-feature-tab-active", isFeatureTab);
+  document.body.classList.toggle("wallet-immersive-sections-open", isFeatureTab);
+  if (isFeatureTab) {
+    document.body.classList.remove("card-animating", "card-transitioned");
+    if (cardEntranceTimer) {
+      clearTimeout(cardEntranceTimer);
+      cardEntranceTimer = null;
+    }
+    if (elements.badgeCard) {
+      elements.badgeCard.classList.remove("card-entrance-active", "card-transition-top");
+    }
+  }
 
   const workerHubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
 
