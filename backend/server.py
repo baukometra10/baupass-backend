@@ -21855,7 +21855,7 @@ def worker_entry_redirect():
     params["worker"] = ["1"]
     if not params.get("view"):
         params["view"] = ["card"]
-    params["v"] = ["20260515c"]
+    params["v"] = ["20260516a"]
     target = f"/emp-app.html?{urlencode(params, doseq=True)}"
     return redirect(target, code=302)
 
