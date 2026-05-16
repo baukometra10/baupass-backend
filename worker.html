@@ -9,12 +9,15 @@
   <meta http-equiv="expires" content="0" />
   <script>
     (function () {
-      try {
-        var BUILD = "20260516g";
+      var BUILD = "20260516h";
+
+      function buildTargetUrl() {
         var url = new URL(window.location.href);
         var target = new URL("/emp-app.html", window.location.origin);
         url.searchParams.forEach(function (value, key) {
-          target.searchParams.set(key, value);
+          if (key !== "refresh") {
+            target.searchParams.set(key, value);
+          }
         });
         target.searchParams.set("worker", "1");
         target.searchParams.set("v", BUILD);
@@ -22,18 +25,53 @@
         if (!target.searchParams.get("view")) {
           target.searchParams.set("view", "card");
         }
-        window.location.replace(target.toString());
+        return target;
+      }
+
+      function clearOldWorkerRuntime() {
+        var jobs = [];
+        if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
+          jobs.push(
+            navigator.serviceWorker.getRegistrations()
+              .then(function (registrations) {
+                return Promise.all(registrations.map(function (registration) {
+                  return registration.unregister().catch(function () {});
+                }));
+              })
+              .catch(function () {})
+          );
+        }
+        if ("caches" in window && caches.keys) {
+          jobs.push(
+            caches.keys()
+              .then(function (keys) {
+                return Promise.all(keys
+                  .filter(function (key) { return key.indexOf("baupass-worker-") === 0; })
+                  .map(function (key) { return caches.delete(key).catch(function () {}); }));
+              })
+              .catch(function () {})
+          );
+        }
+        return Promise.all(jobs);
+      }
+
+      try {
+        var target = buildTargetUrl();
+        var timeout = new Promise(function (resolve) { window.setTimeout(resolve, 900); });
+        Promise.race([clearOldWorkerRuntime(), timeout]).finally(function () {
+          window.location.replace(target.toString());
+        });
       } catch (err) {
-        window.location.href = "/emp-app.html?worker=1&view=card&v=20260516g";
+        window.location.href = "/emp-app.html?worker=1&view=card&v=20260516h";
       }
     })();
   </script>
   <noscript>
-    <meta http-equiv="refresh" content="0;url=/emp-app.html?worker=1&view=card&v=20260516g" />
+    <meta http-equiv="refresh" content="0;url=/emp-app.html?worker=1&view=card&v=20260516h" />
   </noscript>
 </head>
 <body>
   <p>Weiterleitung zur Mitarbeiter-App…</p>
-  <p><a href="/emp-app.html?worker=1&view=card&v=20260516g">Weiter</a></p>
+  <p><a href="/emp-app.html?worker=1&view=card&v=20260516h">Weiter</a></p>
 </body>
 </html>

@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516g";
+const WORKER_BUILD_TAG = "20260516h";
 const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
 
 function normalizeApiBase(value) {
@@ -2187,8 +2187,11 @@ function enforceWorkerBuildFreshness() {
 
   try {
     const url = new URL(window.location.href);
+    url.searchParams.delete("refresh");
     if (url.searchParams.get("v") !== buildTag) {
       url.searchParams.set("v", buildTag);
+    }
+    if (url.toString() !== window.location.href) {
       window.history.replaceState({}, "", url.toString());
     }
   } catch {
@@ -2289,10 +2292,15 @@ async function forceRefreshApp() {
     }
   }
 
-  const nextUrl = new URL(window.location.href);
-  nextUrl.searchParams.set("v", WORKER_BUILD_TAG);
-  nextUrl.searchParams.set("refresh", String(Date.now()));
-  window.location.replace(nextUrl.toString());
+  try {
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("v", WORKER_BUILD_TAG);
+    nextUrl.searchParams.delete("refresh");
+    window.history.replaceState({}, "", nextUrl.toString());
+  } catch {
+    // ignore URL cleanup failures
+  }
+  window.location.reload();
 }
 
 async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent = false, locationPayload = null } = {}) {

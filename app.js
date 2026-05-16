@@ -86,7 +86,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260516g";
+const WORKER_PWA_BUILD_TAG = "20260516h";
 
 function loadStoredSessionToken() {
   try {
