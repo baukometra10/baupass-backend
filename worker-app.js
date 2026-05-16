@@ -1,6 +1,7 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516b";
+const WORKER_BUILD_TAG = "20260516c";
+const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -33,7 +34,20 @@ function sanitizeApiBase(value) {
 function resolveWorkerApiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = sanitizeApiBase(params.get("apiBase"));
-  const storedValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
+  let storedValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
+  if (storedValue) {
+    try {
+      const storedHost = new URL(storedValue).hostname.toLowerCase();
+      const currentHost = window.location.hostname.toLowerCase();
+      if (RETIRED_WORKER_API_HOSTS.has(storedHost) || storedHost !== currentHost && currentHost.endsWith(".up.railway.app")) {
+        storedValue = "";
+        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      }
+    } catch {
+      storedValue = "";
+      window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    }
+  }
   const configuredValue = queryValue || storedValue;
 
   if (configuredValue) {
