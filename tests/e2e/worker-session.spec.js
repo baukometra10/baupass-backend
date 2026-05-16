@@ -58,17 +58,23 @@ test('worker session loads pass and dynamic QR', async ({ page, request }) => {
     localStorage.removeItem('baupass-worker-cached-payload');
   }, { sessionToken: token });
 
-  await page.goto('/emp-app.html?worker=1&view=card&v=20260516f', { waitUntil: 'domcontentloaded' });
+  await page.goto('/emp-app.html?worker=1&view=card&v=20260516g', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('body.worker-loaded', { timeout: 45000 });
   await expect(page.locator('#workerName')).toContainText('E2E');
   await expect(page.locator('#workerBrandName')).toHaveText(/BAUPASS/i);
 
   await page.locator('#navVacation').click();
   await expect(page.locator('#leaveRequestCard')).toBeVisible();
+  await expect(page.locator('#leaveRequestCard')).toContainText(/Urlaubsantrag|Abwesenheit/);
+  await expect.poll(async () => (await page.locator('#leaveRequestCard').boundingBox())?.y ?? 9999).toBeLessThan(260);
   await page.locator('#navTimesheet').click();
   await expect(page.locator('#timesheetCard')).toBeVisible();
+  await expect(page.locator('#timesheetCard')).toContainText(/Meine Stunden|Zeiterfassung/);
+  await expect.poll(async () => (await page.locator('#timesheetCard').boundingBox())?.y ?? 9999).toBeLessThan(260);
   await page.locator('#navDocuments').click();
   await expect(page.locator('#documentsCard')).toBeVisible();
+  await expect(page.locator('#documentsCard')).toContainText(/Meine Unterlagen|Dokumente/);
+  await expect.poll(async () => (await page.locator('#documentsCard').boundingBox())?.y ?? 9999).toBeLessThan(260);
   await page.locator('#navHome').click();
   await expect(page.locator('#badgeCard')).toBeVisible();
 });

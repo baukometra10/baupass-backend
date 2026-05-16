@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516f";
+const WORKER_BUILD_TAG = "20260516g";
 const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
 
 function normalizeApiBase(value) {
@@ -1135,6 +1135,8 @@ function updateWorkerShellForTab(tabName) {
   const homeInfo = document.getElementById("homeCompactInfo");
   const hubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
   const passStage = getWorkerPassStage();
+  const visitorCard = document.getElementById("visitorCardContainer");
+  const hubToggleRow = document.querySelector(".worker-hub-toggle-row");
   const isHome = tabName === "home";
 
   if (dashboardEl) {
@@ -1170,6 +1172,30 @@ function updateWorkerShellForTab(tabName) {
   if (passStage) {
     const showPass = isHome && (cardInstall || !dashboardEl);
     passStage.classList.toggle("hidden", !showPass);
+    if (showPass) {
+      passStage.style.removeProperty("display");
+    } else {
+      passStage.style.setProperty("display", "none", "important");
+    }
+  }
+
+  if (visitorCard) {
+    const showVisitorCard = isHome && !visitorCard.classList.contains("hidden") && (cardInstall || !dashboardEl);
+    if (showVisitorCard) {
+      visitorCard.style.removeProperty("display");
+    } else {
+      visitorCard.style.setProperty("display", "none", "important");
+    }
+  }
+
+  if (hubToggleRow) {
+    const showHubToggle = isHome;
+    hubToggleRow.classList.toggle("hidden", !showHubToggle);
+    if (showHubToggle) {
+      hubToggleRow.style.removeProperty("display");
+    } else {
+      hubToggleRow.style.setProperty("display", "none", "important");
+    }
   }
 
   if (hubPanel) {
@@ -1181,6 +1207,35 @@ function updateWorkerShellForTab(tabName) {
       hubPanel.style.setProperty("display", "none", "important");
     }
   }
+}
+
+function showOnlyWorkerFeaturePanel(panelId) {
+  const panelIds = [
+    "routeCard",
+    "sessionInfoCard",
+    "companyModeCard",
+    "dailyInsightsCard",
+    "smartWorkHubCard",
+    "workerMenuCard",
+    "actionsPanel",
+    "leaveRequestCard",
+    "timesheetCard",
+    "documentsCard",
+    "incidentCard",
+    "notificationBanner",
+  ];
+
+  panelIds.forEach((id) => {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    const isActive = id === panelId;
+    panel.classList.toggle("hidden", !isActive);
+    if (isActive) {
+      panel.style.removeProperty("display");
+    } else {
+      panel.style.setProperty("display", "none", "important");
+    }
+  });
 }
 
 function applyWorkerCardInstallView() {
@@ -4956,11 +5011,7 @@ function switchToTab(tabName) {
       workerHubPanel.classList.remove("hidden");
       workerHubPanel.style.removeProperty("display");
     }
-    const leaveCard = document.getElementById("leaveRequestCard");
-    if (leaveCard) {
-      leaveCard.classList.remove("hidden");
-      leaveCard.style.removeProperty("display");
-    }
+    showOnlyWorkerFeaturePanel("leaveRequestCard");
     if (workerToken) {
       void loadLeaveRequests();
     }
@@ -4969,11 +5020,7 @@ function switchToTab(tabName) {
       workerHubPanel.classList.remove("hidden");
       workerHubPanel.style.removeProperty("display");
     }
-    const timesheetCard = document.getElementById("timesheetCard");
-    if (timesheetCard) {
-      timesheetCard.classList.remove("hidden");
-      timesheetCard.style.removeProperty("display");
-    }
+    showOnlyWorkerFeaturePanel("timesheetCard");
     if (workerToken) {
       void loadMyTimesheets();
     }
@@ -4982,11 +5029,7 @@ function switchToTab(tabName) {
       workerHubPanel.classList.remove("hidden");
       workerHubPanel.style.removeProperty("display");
     }
-    const docsCard = document.getElementById("documentsCard");
-    if (docsCard) {
-      docsCard.classList.remove("hidden");
-      docsCard.style.removeProperty("display");
-    }
+    showOnlyWorkerFeaturePanel("documentsCard");
     if (workerToken) {
       void loadMyDocuments();
     }

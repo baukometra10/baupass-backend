@@ -1033,6 +1033,30 @@ body.worker-loaded.worker-feature-tab-active #badgeCard {
   display: block !important;
 }
 
+body.worker-card-install.worker-loaded #badgeCard,
+body.worker-loaded.worker-feature-tab-active #badgeCard {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+body.worker-loaded.worker-feature-tab-active #badgeCard .pass-stage,
+body.worker-loaded.worker-feature-tab-active #visitorCardContainer,
+body.worker-loaded.worker-feature-tab-active #badgeCard .worker-hub-toggle-row,
+body.worker-loaded.worker-feature-tab-active #workerMenuCard,
+body.worker-loaded.worker-feature-tab-active #smartWorkHubCard,
+body.worker-loaded.worker-feature-tab-active #routeCard,
+body.worker-loaded.worker-feature-tab-active #sessionInfoCard,
+body.worker-loaded.worker-feature-tab-active #companyModeCard,
+body.worker-loaded.worker-feature-tab-active #dailyInsightsCard,
+body.worker-loaded.worker-feature-tab-active #actionsPanel,
+body.worker-loaded.worker-feature-tab-active #incidentCard,
+body.worker-loaded.worker-feature-tab-active #notificationBanner {
+  display: none !important;
+}
+
 body.worker-card-install.worker-loaded #workerBottomNav {
   display: flex !important;
 }
@@ -1045,6 +1069,21 @@ body.worker-card-install.worker-loaded #documentsCard:not(.hidden) {
 
 body.worker-card-install.worker-loaded #workerHubPanel:not(.hidden) {
   display: block !important;
+}
+
+body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden) {
+  display: block !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body.worker-loaded.worker-feature-tab-active #leaveRequestCard:not(.hidden),
+body.worker-loaded.worker-feature-tab-active #timesheetCard:not(.hidden),
+body.worker-loaded.worker-feature-tab-active #documentsCard:not(.hidden) {
+  display: block !important;
+  margin-top: 12px !important;
 }
 
 body.worker-card-install.worker-loaded .worker-menu-card,
