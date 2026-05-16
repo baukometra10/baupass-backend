@@ -21853,17 +21853,12 @@ def root():
 
 @app.get("/worker.html")
 def worker_entry_redirect():
-    """QR entry: /worker.html?view=card&badge=BP-... -> emp-app Mitarbeiter-PWA."""
-    from urllib.parse import parse_qs, urlencode
-
-    params = parse_qs(request.query_string.decode("utf-8", errors="ignore"), keep_blank_values=True)
-    params["worker"] = ["1"]
-    if not params.get("view"):
-        params["view"] = ["card"]
-    params["apiBase"] = [get_public_base_url()]
-    params["v"] = ["20260516h"]
-    target = f"/emp-app.html?{urlencode(params, doseq=True)}"
-    return redirect(target, code=302)
+    """QR entry handoff page; its JS clears stale PWA runtime before opening emp-app."""
+    response = send_from_directory(BASE_DIR, "worker.html")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, no-transform"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.get("/review.html")
