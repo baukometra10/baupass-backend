@@ -13,7 +13,7 @@ if (!gotTheLock) {
 }
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const DESKTOP_URL = (process.env.BAUPASS_DESKTOP_URL || "https://web-production-c21ed.up.railway.app").trim();
+const DESKTOP_URL = (process.env.BAUPASS_DESKTOP_URL || "https://web-production-922fe.up.railway.app").trim();
 // Backend auto-start only makes sense when pointing at localhost.
 const IS_LOCAL = DESKTOP_URL.includes("127.0.0.1") || DESKTOP_URL.includes("localhost");
 const AUTOSTART_BACKEND = IS_LOCAL && String(process.env.BAUPASS_DESKTOP_AUTOSTART_BACKEND || "1").trim() !== "0";

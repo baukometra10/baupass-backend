@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-const DEFAULT_RENDER_API_BASE = "https://web-production-c21ed.up.railway.app";
+const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
   "http://127.0.0.1:8000",
@@ -8,7 +8,7 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://localhost:8443",
 ];
 const REMOTE_API_BASE_FALLBACKS = [
-  "https://web-production-c21ed.up.railway.app",
+  "https://web-production-922fe.up.railway.app",
 ];
 
 function normalizeApiBase(value) {
@@ -86,7 +86,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260516a";
+const WORKER_PWA_BUILD_TAG = "20260516b";
 
 function loadStoredSessionToken() {
   try {

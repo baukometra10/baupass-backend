@@ -58,7 +58,7 @@ test('worker session loads pass and dynamic QR', async ({ page, request }) => {
     localStorage.removeItem('baupass-worker-cached-payload');
   }, { sessionToken: token });
 
-  await page.goto('/emp-app.html?worker=1&v=20260516a', { waitUntil: 'domcontentloaded' });
+  await page.goto('/emp-app.html?worker=1&v=20260516b', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('body.worker-loaded', { timeout: 45000 });
   await expect(page.locator('#workerName, #dashboardName').first()).toContainText('E2E');
   await expect(page.locator('#workerBrandName, #dashboardBrandName').first()).toHaveText(/BAUPASS/i);

@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sqlite3
 import secrets
 import csv
@@ -21855,7 +21855,7 @@ def worker_entry_redirect():
     params["worker"] = ["1"]
     if not params.get("view"):
         params["view"] = ["card"]
-    params["v"] = ["20260516a"]
+    params["v"] = ["20260516b"]
     target = f"/emp-app.html?{urlencode(params, doseq=True)}"
     return redirect(target, code=302)
 
