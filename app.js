@@ -86,7 +86,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260516d";
+const WORKER_PWA_BUILD_TAG = "20260516e";
 
 function loadStoredSessionToken() {
   try {
@@ -16179,15 +16179,18 @@ function normalizeWorkerAppLink(rawLink) {
 
   try {
     const normalized = new URL(candidate, window.location.origin);
+    const workerApiBase = normalizeApiBase(API_BASE || window.location.origin);
     if (normalized.pathname.endsWith("/worker.html")) {
       // Access links should land on the install handoff page to avoid stale homescreen installs.
       if (normalized.searchParams.get("access")) {
         normalized.pathname = "/worker-install.html";
       }
       normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
+      normalized.searchParams.set("apiBase", workerApiBase);
     }
     if (normalized.pathname.endsWith("/worker-install.html")) {
       normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
+      normalized.searchParams.set("apiBase", workerApiBase);
     }
     return normalized.toString();
   } catch {
@@ -21674,12 +21677,9 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
   if (!isVisitorCard && worker?.badgeId) {
     try {
       const base = new URL(absoluteLink);
-      const apiBaseParam = base.searchParams.get("apiBase");
       base.search = "";
       base.pathname = "/worker.html";
-      if (apiBaseParam) {
-        base.searchParams.set("apiBase", apiBaseParam);
-      }
+      base.searchParams.set("apiBase", normalizeApiBase(API_BASE || window.location.origin));
       base.searchParams.set("view", "card");
       base.searchParams.set("v", WORKER_PWA_BUILD_TAG);
       base.searchParams.set("badge", worker.badgeId);

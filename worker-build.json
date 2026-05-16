@@ -1,6 +1,6 @@
 {
-  "build": "20260516d",
+  "build": "20260516e",
   "entry": "/emp-app.html",
   "launcher": "/worker-install.html?launch=1",
-  "manifest": "/emp-app-manifest.json?v=20260516d"
+  "manifest": "/emp-app-manifest.json?v=20260516e"
 }
