@@ -170,11 +170,8 @@ python backend/run_prod.py
 
 ## Demo-Zugaenge
 
-- Super-Admin: `superadmin` / `1234`
-- Firmen-Admin: `firma` / `1234`
-- Drehkreuz-Terminal: `drehkreuz` / `1234`
 
-Beim Anlegen neuer Firmen erzeugt das System automatisch einen Firmen-Admin mit Startpasswort `1234`.
+
 
 ## Mitarbeiter-App (PWA)
 
