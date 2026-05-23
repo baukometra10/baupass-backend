@@ -40,8 +40,8 @@ Nach dem Setzen: **Actions → railway-deploy → Run workflow**.
 
 ## Häufige Fehler im Build-Log
 
+- **Build-Timeout / „Diagnosis failed“** – oft weil `COPY . .` ohne `.dockerignore` über 800 MB (`node_modules`, `.git`, `.venv`) hochlädt. Ab Fix-Commit mit `.dockerignore` im Repo-Root sollte der Build deutlich kleiner sein.
 - Falscher Branch / falsches Repo verknüpft
-- Docker-Build-Timeout (großes `COPY . .`)
 - Start-Command nicht `python backend/run_prod.py` (siehe `railway.json`)
 
 ## Nach erfolgreichem Deploy

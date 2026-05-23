@@ -1,0 +1,48 @@
+# Keep Docker build context small (Railway timeouts otherwise).
+.git
+.github
+.cursor
+.vscode
+.idea
+
+# Local tooling / deps (not used in container)
+node_modules
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+dist
+build
+*.egg-info
+
+# Tests & dev artifacts
+test-results
+playwright-report
+coverage
+*.log
+
+# Local databases & uploads (production uses /data volume on Railway)
+*.db
+*.sqlite
+*.sqlite3
+backend/uploads
+backend/backups
+backend/e2e-doc-uploads
+backend/e2e-doc-uploads-hardened
+backend/tests/baupass-test.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Docs not needed at runtime (optional trim)
+docs
+desktop
+agent-transcripts
