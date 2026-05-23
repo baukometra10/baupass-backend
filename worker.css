@@ -1084,6 +1084,16 @@ body.worker-loaded.worker-feature-tab-active #timesheetCard:not(.hidden),
 body.worker-loaded.worker-feature-tab-active #documentsCard:not(.hidden) {
   display: block !important;
   margin-top: 12px !important;
+  min-height: 120px;
+}
+
+.worker-panel-error {
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.08);
+  border: 1px solid rgba(180, 35, 24, 0.22);
+  border-radius: 10px;
+  padding: 12px 14px;
+  line-height: 1.45;
 }
 
 body.worker-card-install.worker-loaded .worker-menu-card,

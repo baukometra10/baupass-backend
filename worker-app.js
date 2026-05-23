@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516h";
+const WORKER_BUILD_TAG = "20260516i";
 const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
 
 function normalizeApiBase(value) {
@@ -248,8 +248,8 @@ function extractTodayTimesheetSummary(rows) {
     return { hasRows: false, totalMin: 0, isOpen: false };
   }
 
-  const checkins = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "in");
-  const checkouts = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "out");
+  const checkins = todayRows.filter((row) => isAccessLogCheckIn(row.direction));
+  const checkouts = todayRows.filter((row) => isAccessLogCheckOut(row.direction));
   const pairCount = Math.min(checkins.length, checkouts.length);
   let totalMin = 0;
 
@@ -4136,6 +4136,54 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
+function isAccessLogCheckIn(direction) {
+  const value = String(direction || "").trim().toLowerCase();
+  return value === "in" || value === "check-in" || value === "check_in" || value === "entry";
+}
+
+function isAccessLogCheckOut(direction) {
+  const value = String(direction || "").trim().toLowerCase();
+  return value === "out" || value === "check-out" || value === "check_out" || value === "exit";
+}
+
+function formatWorkerApiError(error) {
+  const code = String(error?.code || error?.payload?.error || "").trim();
+  if (code === "feature_not_available") {
+    const feature = String(error?.payload?.feature || "").trim();
+    const requiredPlan = String(error?.payload?.requiredPlan || "").trim();
+    const labels = {
+      worker_hours_report: "Arbeitsstunden",
+      document_upload: "Dokumente",
+      leave_management: "Urlaubsanträge",
+      worker_app: "Mitarbeiter-App",
+    };
+    const label = labels[feature] || "Diese Funktion";
+    return requiredPlan
+      ? `${label} ist in Ihrem Paket nicht freigeschaltet (benötigt: ${requiredPlan}). Bitte Ihren Administrator kontaktieren.`
+      : `${label} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.`;
+  }
+  if (code === "unauthorized" || code === "session_expired" || code === "invalid_session") {
+    return "Sitzung abgelaufen – bitte erneut mit Badge-ID und PIN anmelden.";
+  }
+  return String(error?.message || "Daten konnten nicht geladen werden.");
+}
+
+function renderWorkerListMessage(listEl, message, type = "info") {
+  if (!listEl) return;
+  const cls = type === "error" ? "worker-panel-error" : "muted-info";
+  listEl.innerHTML = `<p class="${cls}">${escapeHtmlBasic(message)}</p>`;
+}
+
+function ensureWorkerFeatureHubVisible() {
+  workerHubExpanded = true;
+  document.body.classList.add("wallet-immersive-sections-open");
+  if (elements.workerHubPanel) {
+    elements.workerHubPanel.classList.remove("hidden");
+    elements.workerHubPanel.style.removeProperty("display");
+  }
+  clearCardEntranceAnimation();
+}
+
 function formatDate(value) {
   if (!value) {
     return "-";
@@ -4635,6 +4683,7 @@ async function loadLeaveRequests() {
       }
     }
   } catch (error) {
+    renderWorkerListMessage(elements.leaveRequestList, formatWorkerApiError(error), "error");
     console.warn("Could not load leave requests:", error);
   }
 }
@@ -5015,31 +5064,28 @@ function switchToTab(tabName) {
       workerHubPanel.style.setProperty("display", "none", "important");
     }
   } else if (tabName === "vacation") {
-    if (workerHubPanel) {
-      workerHubPanel.classList.remove("hidden");
-      workerHubPanel.style.removeProperty("display");
-    }
+    ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("leaveRequestCard");
     if (workerToken) {
       void loadLeaveRequests();
+    } else {
+      renderWorkerListMessage(elements.leaveRequestList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
   } else if (tabName === "timesheet") {
-    if (workerHubPanel) {
-      workerHubPanel.classList.remove("hidden");
-      workerHubPanel.style.removeProperty("display");
-    }
+    ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("timesheetCard");
     if (workerToken) {
       void loadMyTimesheets();
+    } else {
+      renderWorkerListMessage(elements.timesheetList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
   } else if (tabName === "documents") {
-    if (workerHubPanel) {
-      workerHubPanel.classList.remove("hidden");
-      workerHubPanel.style.removeProperty("display");
-    }
+    ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("documentsCard");
     if (workerToken) {
       void loadMyDocuments();
+    } else {
+      renderWorkerListMessage(elements.documentsList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
   }
 
@@ -5244,8 +5290,8 @@ function updateDailyInsightsFromTimesheets(rows) {
     return;
   }
 
-  const checkins = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "in");
-  const checkouts = todayRows.filter((row) => String(row.direction || "").toLowerCase() === "out");
+  const checkins = todayRows.filter((row) => isAccessLogCheckIn(row.direction));
+  const checkouts = todayRows.filter((row) => isAccessLogCheckOut(row.direction));
 
   let totalMin = 0;
   const pairCount = Math.min(checkins.length, checkouts.length);
@@ -5299,8 +5345,8 @@ async function loadMyTimesheets() {
 
     const dayMarkup = visibleDayGroups.map(([date, entries]) => {
         // Pair IN/OUT entries to calculate total hours
-        const ins = entries.filter(e => (e.direction || "").toLowerCase() === "in").sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
-        const outs = entries.filter(e => (e.direction || "").toLowerCase() === "out").sort((a,b) => a.timestamp > b.timestamp ? 1 : -1);
+        const ins = entries.filter((e) => isAccessLogCheckIn(e.direction)).sort((a, b) => (a.timestamp > b.timestamp ? 1 : -1));
+        const outs = entries.filter((e) => isAccessLogCheckOut(e.direction)).sort((a, b) => (a.timestamp > b.timestamp ? 1 : -1));
         let totalMin = 0;
         const pairCount = Math.min(ins.length, outs.length);
         for (let i = 0; i < pairCount; i++) {
@@ -5315,7 +5361,7 @@ async function loadMyTimesheets() {
           ${totalLabel ? `<span class="timesheet-total">${totalLabel}</span>` : ""}
         </div>
         ${entries.map((e) => {
-          const isIn = (e.direction || "").toLowerCase() === "in";
+          const isIn = isAccessLogCheckIn(e.direction);
           return `<div class="timesheet-entry ${isIn ? "entry-in" : "entry-out"}">
             <span class="entry-direction">${isIn ? t("timesheetDirectionIn") : t("timesheetDirectionOut")}</span>
             <span class="entry-time">${(e.timestamp || "").slice(11, 16)}</span>
@@ -5339,8 +5385,10 @@ async function loadMyTimesheets() {
       });
     }
   } catch (error) {
-    elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
+    renderWorkerListMessage(elements.timesheetList, formatWorkerApiError(error), "error");
     resetDailyInsights();
+    lastTimesheetRows = [];
+    updateSmartWorkHub(lastWorkerPayload, []);
     console.warn("Could not load timesheets:", error);
   }
 }
@@ -5440,7 +5488,7 @@ async function loadMyDocuments() {
     updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
   } catch (error) {
     lastDocumentRows = [];
-    elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsEmpty")}</p>`;
+    renderWorkerListMessage(elements.documentsList, formatWorkerApiError(error), "error");
     updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
     console.warn("Could not load documents:", error);
   }
