@@ -1,0 +1,44 @@
+# Deploys the Docker image to Railway on every push to main.
+# Required GitHub repository secrets:
+#   RAILWAY_TOKEN        – Account token from https://railway.com/account/tokens
+#   RAILWAY_SERVICE_ID   – Service ID (Railway → Service → Settings → Service ID)
+name: railway-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: railway-deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_SERVICE_ID != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli@latest
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service "${{ secrets.RAILWAY_SERVICE_ID }}" --detach
+
+  deploy-skipped-hint:
+    if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_SERVICE_ID == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remind to configure Railway secrets
+        run: |
+          echo "Railway deploy skipped: set RAILWAY_TOKEN and RAILWAY_SERVICE_ID in GitHub repo secrets."
+          echo "Then re-run this workflow or push again."
