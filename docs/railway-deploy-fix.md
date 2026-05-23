@@ -38,6 +38,21 @@ Workflow: `.github/workflows/railway-deploy.yml` (läuft bei jedem Push auf `mai
 
 Nach dem Setzen: **Actions → railway-deploy → Run workflow**.
 
+## Fehler: `##NOT-FOUND## repository not found` (Initialization)
+
+Railway findet das verknüpfte GitHub-Repo **nicht** (kein Docker-Problem).
+
+**Fix in Railway:**
+
+1. Projekt → Service **web** → **Settings** → **Source**
+2. **Disconnect** (Git-Verbindung trennen)
+3. **Connect Repo** erneut → **`baupass/baupass-backend`**, Branch **`main`**
+4. Prüfen: GitHub-App „Railway“ hat Zugriff auf die Org **`baupass`** und das Repo (bei privaten Repos unter github.com/settings/installations)
+
+Häufige Ursachen: Repo umbenannt/verschoben, Org gewechselt, GitHub-App-Zugriff entzogen, falscher Repo-Name (z. B. noch `baustelle` statt `baupass-backend`).
+
+**Alternative ohne Railway-Git:** GitHub Actions mit `RAILWAY_TOKEN` + `RAILWAY_SERVICE_ID` (Workflow `.github/workflows/railway-deploy.yml`) – deployt direkt aus dem Checkout, unabhängig von „Snapshot code“.
+
 ## Häufige Fehler im Build-Log
 
 - **Build-Timeout / „Diagnosis failed“** – oft weil `COPY . .` ohne `.dockerignore` über 800 MB (`node_modules`, `.git`, `.venv`) hochlädt. Ab Fix-Commit mit `.dockerignore` im Repo-Root sollte der Build deutlich kleiner sein.
