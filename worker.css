@@ -282,6 +282,27 @@ html {
   scroll-behavior: smooth;
 }
 
+html.baupass-local-dev {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.baupass-local-dev body::after {
+  content: "Lokal · " attr(data-local-url);
+  position: fixed;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: 10px;
+  z-index: 99999;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f3d2e;
+  background: rgba(167, 243, 208, 0.95);
+  border: 1px solid rgba(16, 120, 87, 0.35);
+  pointer-events: none;
+}
+
 /* ── Shared Typography ─────────────────────────── */
 .top h1, .card h2 { margin: 0; font-family: "Space Grotesk", sans-serif; }
 
@@ -1094,6 +1115,16 @@ body.worker-loaded.worker-feature-tab-active #documentsCard:not(.hidden) {
   border-radius: 10px;
   padding: 12px 14px;
   line-height: 1.45;
+}
+
+.nav-tab.nav-tab-locked {
+  opacity: 0.55;
+}
+
+.nav-tab.nav-tab-locked::after {
+  content: "🔒";
+  font-size: 0.65rem;
+  margin-left: 4px;
 }
 
 body.worker-card-install.worker-loaded .worker-menu-card,

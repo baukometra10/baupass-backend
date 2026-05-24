@@ -44,5 +44,10 @@ Thumbs.db
 
 # Docs not needed at runtime (optional trim)
 docs
-desktop
 agent-transcripts
+
+# desktop/renderer.js is required by index.html (admin UI titlebar in Electron + web fallback)
+# Exclude only Electron main process (not needed in container):
+desktop/main.js
+desktop/preload.js
+desktop/splash-preload.js

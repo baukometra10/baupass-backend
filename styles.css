@@ -204,6 +204,12 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   position: relative;
@@ -255,6 +261,30 @@ body.auth-locked {
   overflow: hidden;
 }
 
+/* Lokaler Entwicklungsmodus – nur localhost */
+html.baupass-local-dev body::after {
+  content: "Lokal · " attr(data-local-url);
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  z-index: 99999;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0f3d2e;
+  background: rgba(167, 243, 208, 0.95);
+  border: 1px solid rgba(16, 120, 87, 0.35);
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+html.baupass-local-dev {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -284,7 +314,7 @@ select {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -297,7 +327,7 @@ select {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 32px;
+  padding: 24px;
   color: #fff7ef;
   background:
     linear-gradient(178deg, rgba(13, 19, 26, 0.98), rgba(21, 26, 32, 0.95)),
@@ -1253,7 +1283,7 @@ textarea.invoice-field-valid {
 .topbar {
   position: fixed;
   top: 0;
-  left: 320px;
+  left: 280px;
   right: 0;
   z-index: 30;
   display: flex;
@@ -1603,11 +1633,17 @@ textarea.invoice-field-valid {
 }
 
 .panel-grid.two-columns {
-  grid-template-columns: 1fr !important;
-  width: 100% !important;
-  height: 100% !important;
-  gap: 32px !important;
-  padding: 0 0 32px 0 !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  height: auto;
+  gap: 18px;
+  padding: 0;
+}
+
+@media (max-width: 960px) {
+  .panel-grid.two-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stats-grid {
@@ -1717,7 +1753,7 @@ textarea.invoice-field-valid {
 .panel-heading h3 {
   margin: 0;
   color: #0f4c5c;
-  font-size: 2.1rem;
+  font-size: 1.65rem;
   font-family: 'Space Grotesk', Arial, sans-serif;
   font-weight: 700;
 }
@@ -3523,10 +3559,10 @@ body.theme-black .doc-inbox-unread {
   position: relative;
   container-type: inline-size;
   width: 100%;
-  max-width: 430px;
+  max-width: 360px;
   margin: 0 auto;
   aspect-ratio: 85.6 / 56;
-  min-height: 272px;
+  min-height: 228px;
   border-radius: 22px;
   padding: 3.8% 4.5% 3.2%;
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
@@ -4617,10 +4653,10 @@ body.theme-black .bulk-action-bar .ghost-button {
 
 .topbar-actions .ghost-button,
 .topbar-actions .primary-button {
-  min-height: 42px;
-  padding: 10px 14px;
+  min-height: 38px;
+  padding: 8px 12px;
   border-radius: 12px;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   flex: 0 1 auto;
 }
 

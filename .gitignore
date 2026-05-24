@@ -7,6 +7,7 @@ __pycache__/
 
 # Local virtual environments
 .venv/
+.venv311/
 
 # Local runtime database
 backend/baupass.db
@@ -50,3 +51,6 @@ backend/tmp_inspect_db.py
 dist/
 *.exe
 *.ico
+
+# Deploy pack artifacts (rebuild with deploy/hetzner-pack.ps1)
+baupass-hetzner-upload.zip

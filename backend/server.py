@@ -420,10 +420,19 @@ DEVICE_EVENT_DEDUP_SECONDS = max(3, int(os.getenv("BAUPASS_DEVICE_EVENT_DEDUP_SE
 DEVICE_EVENT_TIME_DRIFT_WARN_SECONDS = max(5, int(os.getenv("BAUPASS_DEVICE_EVENT_TIME_DRIFT_WARN_SECONDS", "120")))
 IDENTITY_TOKEN_TTL_DAYS = max(30, int(os.getenv("BAUPASS_IDENTITY_TOKEN_TTL_DAYS", "3650")))
 
+def _rate_limit_rule(env_name, default_max, window_seconds=60):
+    raw = str(os.getenv(env_name, str(default_max))).strip()
+    try:
+        max_requests = int(raw)
+    except ValueError:
+        max_requests = default_max
+    return {"max": max(5, max_requests), "window_seconds": window_seconds}
+
+
 REQUEST_RATE_LIMITS = {
     "import": {"max": 10, "window_seconds": 60},
-    "login": {"max": 30, "window_seconds": 60},
-    "worker_login": {"max": 30, "window_seconds": 60},
+    "login": _rate_limit_rule("BAUPASS_LOGIN_RATE_MAX", 120),
+    "worker_login": _rate_limit_rule("BAUPASS_WORKER_LOGIN_RATE_MAX", 60),
     "worker_api": {"max": 180, "window_seconds": 60},
     "worker_api_auth_fail": {"max": 25, "window_seconds": 60},
     "password_reset": {"max": 5, "window_seconds": 300},
@@ -10207,7 +10216,8 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     )
     db.commit()
 
-    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v=20260511i"
+    build_tag = _get_worker_build_info().get("build") or "latest"
+    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v={build_tag}"
     return {
         "accessToken": access_token,
         "link": link,

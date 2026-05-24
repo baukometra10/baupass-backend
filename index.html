@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260510ag";
+        const buildTag = "20260524c";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -30,6 +30,15 @@
             return;
           }
           window.localStorage.setItem(storageKey, buildTag);
+          const host = window.location.hostname;
+          if (host === "localhost" || host === "127.0.0.1") {
+            try {
+              window.localStorage.removeItem("baupass-api-base");
+            } catch {
+              // no-op
+            }
+            document.documentElement.classList.add("baupass-local-dev");
+          }
         } catch {
           // no-op
         }
@@ -42,9 +51,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260510ag" />
+    <link rel="stylesheet" href="./styles.css?v=20260524c" />
 </head>
-<body class="auth-locked notranslate" translate="no">
+<body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
     <div class="desktop-titlebar-brand">Control Pass</div>
     <div class="desktop-titlebar-spacer"></div>
@@ -1851,8 +1860,8 @@
       }
     })();
   </script>
-  <script src="./app.js?v=20260511ai"></script>
-  <script src="./desktop/renderer.js?v=20260420a"></script>
+  <script src="./app.js?v=20260524c"></script>
+  <script src="./desktop/renderer.js?v=20260524c" defer></script>
   <script>
     (function applyPublicBranding() {
       fetch('/api/public/branding').then(function(r) { return r.json(); }).then(function(b) {

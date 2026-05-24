@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
+const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
   "http://127.0.0.1:8000",
@@ -8,7 +8,9 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://localhost:8443",
 ];
 const REMOTE_API_BASE_FALLBACKS = [
+  "https://baupass-production.up.railway.app",
   "https://web-production-922fe.up.railway.app",
+  "https://baupass-control.up.railway.app",
 ];
 
 function normalizeApiBase(value) {
@@ -43,10 +45,26 @@ function sanitizeApiBase(value) {
 function resolveApiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = sanitizeApiBase(params.get("apiBase"));
-  const rawStoredValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
   const metaValue = sanitizeApiBase(document.querySelector('meta[name="baupass-api-base"]')?.content);
+  const onLocalHost = isLocalHostName(window.location.hostname);
+
+  // Lokal immer same-origin – nie gespeicherte Production-URL (baupass-production…).
+  if (onLocalHost) {
+    if (!queryValue) {
+      try {
+        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+      return "";
+    }
+    window.localStorage.setItem(API_BASE_STORAGE_KEY, queryValue);
+    return queryValue;
+  }
+
+  const rawStoredValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
   let storedValue = rawStoredValue;
-  if (storedValue && !isLocalHostName(window.location.hostname)) {
+  if (storedValue) {
     try {
       const storedHost = new URL(storedValue).hostname;
       if (isLocalHostName(storedHost)) {
@@ -64,7 +82,6 @@ function resolveApiBase() {
     return configuredValue;
   }
 
-  // Entfernt veraltete/ungueltige API-Konfigurationen, damit der sichere Default greift.
   if (!configuredValue && window.localStorage.getItem(API_BASE_STORAGE_KEY)) {
     window.localStorage.removeItem(API_BASE_STORAGE_KEY);
   }
@@ -86,7 +103,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260516i";
+const WORKER_PWA_BUILD_TAG = "20260524a";
 
 function loadStoredSessionToken() {
   try {
@@ -26370,6 +26387,15 @@ async function handleLoginSubmit(event) {
       showLoginSecurityLockScreen();
       return;
     }
+    if (error.message === "rate_limited" || error.status === 429) {
+      const retrySec = Number(error?.payload?.retryAfterSeconds || 60);
+      showToast(
+        `Zu viele Anfragen – bitte ${retrySec} Sekunden warten und erneut versuchen.`,
+        "error",
+        5000
+      );
+      return;
+    }
     if (error.message === "forbidden_tenant_host") {
       showToast(uiT("alertForbiddenTenantHost"), "error", 3600);
       return;
@@ -30115,11 +30141,43 @@ function getCurrentLang() {
   }
 }
 
+function warnBrowserZoom() {
+  try {
+    const scale = window.visualViewport?.scale || 1;
+    if (scale > 1.05) {
+      showToast(
+        `Browser-Zoom liegt bei etwa ${Math.round(scale * 100)} %. Mit Strg+0 auf 100 % zurücksetzen.`,
+        "info",
+        7000
+      );
+    }
+  } catch {
+    // no-op
+  }
+}
+
+function warnStaleControlAssets() {
+  try {
+    const cssHref = document.querySelector('link[rel="stylesheet"][href*="styles.css"]')?.getAttribute("href") || "";
+    if (cssHref && !cssHref.includes("20260524")) {
+      showToast(
+        "Alte Oberfläche im Browser-Cache. Bitte Strg+F5 drücken – auf dem Server muss zuerst das neue Docker-Image deployed werden.",
+        "warning",
+        9000
+      );
+    }
+  } catch {
+    // no-op
+  }
+}
+
 // ── App-Start: läuft bei jedem Seitenaufruf / Refresh ─────────────────────
 initUiLanguageControl();
 initSystemThemeControl();
 registerControlServiceWorker();
 initNativeDesktopShell();
+warnBrowserZoom();
+warnStaleControlAssets();
 
 (async () => {
   const bootLoader = document.getElementById("appBootLoader");

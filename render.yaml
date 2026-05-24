@@ -1,18 +1,12 @@
+# Render Blueprint – Free Plan (ohne Disk; Daten bei Neustart/Deploy ggf. neu)
+# Für dauerhafte DB: Render Dashboard → Disk hinzufügen (kostenpflichtiger Plan)
 services:
   - type: web
-    name: baupass-backend
-    env: python
+    name: baupass
+    runtime: python
     plan: free
-    disks:
-      - name: baupass-data
-        mountPath: /var/data
-        sizeGB: 1
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r backend/requirements.txt
     startCommand: python backend/run_prod.py
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: PUBLIC_BASE_URL
-        value: https://baupass-backend.onrender.com
-      - key: BAUPASS_DB_PATH
-        value: /var/data/baupass.db
+        value: "3.11.9"

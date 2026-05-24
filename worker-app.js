@@ -1,7 +1,15 @@
-const DEFAULT_RENDER_API_BASE = "https://web-production-922fe.up.railway.app";
+const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260516i";
-const RETIRED_WORKER_API_HOSTS = new Set(["web-production-c21ed.up.railway.app"]);
+const WORKER_BUILD_TAG = "20260524a";
+const RETIRED_WORKER_API_HOSTS = new Set([
+  "baupass-control.up.railway.app",
+  "web-production-c21ed.up.railway.app",
+]);
+const WORKER_PLAN_TAB_FEATURES = {
+  vacation: "leave_management",
+  timesheet: "worker_hours_report",
+  documents: "document_upload",
+};
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -31,15 +39,37 @@ function sanitizeApiBase(value) {
   return parsed.toString().replace(/\/+$/, "");
 }
 
+function isLocalWorkerHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
 function resolveWorkerApiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = sanitizeApiBase(params.get("apiBase"));
+  const currentHost = window.location.hostname.toLowerCase();
+
+  if (isLocalWorkerHost(currentHost)) {
+    if (queryValue) {
+      window.localStorage.setItem(API_BASE_STORAGE_KEY, queryValue);
+      return `${queryValue}/api/worker-app`;
+    }
+    try {
+      window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    return "/api/worker-app";
+  }
+
   let storedValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
   if (storedValue) {
     try {
       const storedHost = new URL(storedValue).hostname.toLowerCase();
-      const currentHost = window.location.hostname.toLowerCase();
-      if (RETIRED_WORKER_API_HOSTS.has(storedHost) || storedHost !== currentHost && currentHost.endsWith(".up.railway.app")) {
+      if (
+        RETIRED_WORKER_API_HOSTS.has(storedHost)
+        || (storedHost !== currentHost && currentHost.endsWith(".up.railway.app"))
+      ) {
         storedValue = "";
         window.localStorage.removeItem(API_BASE_STORAGE_KEY);
       }
@@ -2842,6 +2872,7 @@ function renderWorker(payload) {
 
   // Plan-Feature-Gates
   const planFeatures = payload.planFeatures || {};
+  applyWorkerPlanNavState(planFeatures);
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
   // Show voice control for workers. If API is unavailable, fallback input is used.
@@ -4146,6 +4177,38 @@ function isAccessLogCheckOut(direction) {
   return value === "out" || value === "check-out" || value === "check_out" || value === "exit";
 }
 
+function workerPlanAllowsFeature(featureKey) {
+  if (!featureKey) return true;
+  const features = lastWorkerPayload?.planFeatures;
+  if (!features || typeof features !== "object") return true;
+  return Boolean(features[featureKey]);
+}
+
+function planFeatureBlockedMessage(featureKey) {
+  const labels = {
+    worker_hours_report: "Arbeitsstunden",
+    document_upload: "Dokumente",
+    leave_management: "Urlaubsanträge",
+  };
+  const label = labels[featureKey] || "Diese Funktion";
+  return `${label} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.`;
+}
+
+function applyWorkerPlanNavState(planFeatures = {}) {
+  Object.entries(WORKER_PLAN_TAB_FEATURES).forEach(([tabName, featureKey]) => {
+    const tab = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
+    if (!tab) return;
+    const allowed = Boolean(planFeatures[featureKey]);
+    tab.classList.toggle("nav-tab-locked", !allowed);
+    tab.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed) {
+      tab.title = planFeatureBlockedMessage(featureKey);
+    } else {
+      tab.removeAttribute("title");
+    }
+  });
+}
+
 function formatWorkerApiError(error) {
   const code = String(error?.code || error?.payload?.error || "").trim();
   if (code === "feature_not_available") {
@@ -4181,7 +4244,24 @@ function ensureWorkerFeatureHubVisible() {
     elements.workerHubPanel.classList.remove("hidden");
     elements.workerHubPanel.style.removeProperty("display");
   }
+  if (elements.badgeCard) {
+    elements.badgeCard.classList.remove("hidden");
+    elements.badgeCard.style.removeProperty("display");
+  }
   clearCardEntranceAnimation();
+}
+
+function scrollWorkerFeaturePanelIntoView(panelId) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  requestAnimationFrame(() => {
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    const shell = document.querySelector(".app-shell");
+    if (shell) {
+      shell.scrollTop = 0;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
 }
 
 function formatDate(value) {
@@ -5066,27 +5146,36 @@ function switchToTab(tabName) {
   } else if (tabName === "vacation") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("leaveRequestCard");
-    if (workerToken) {
+    if (!workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.vacation)) {
+      renderWorkerListMessage(elements.leaveRequestList, planFeatureBlockedMessage(WORKER_PLAN_TAB_FEATURES.vacation), "error");
+    } else if (workerToken) {
       void loadLeaveRequests();
     } else {
       renderWorkerListMessage(elements.leaveRequestList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
+    scrollWorkerFeaturePanelIntoView("leaveRequestCard");
   } else if (tabName === "timesheet") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("timesheetCard");
-    if (workerToken) {
+    if (!workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.timesheet)) {
+      renderWorkerListMessage(elements.timesheetList, planFeatureBlockedMessage(WORKER_PLAN_TAB_FEATURES.timesheet), "error");
+    } else if (workerToken) {
       void loadMyTimesheets();
     } else {
       renderWorkerListMessage(elements.timesheetList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
+    scrollWorkerFeaturePanelIntoView("timesheetCard");
   } else if (tabName === "documents") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("documentsCard");
-    if (workerToken) {
+    if (!workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.documents)) {
+      renderWorkerListMessage(elements.documentsList, planFeatureBlockedMessage(WORKER_PLAN_TAB_FEATURES.documents), "error");
+    } else if (workerToken) {
       void loadMyDocuments();
     } else {
       renderWorkerListMessage(elements.documentsList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
+    scrollWorkerFeaturePanelIntoView("documentsCard");
   }
 
   // Update hash for browser history

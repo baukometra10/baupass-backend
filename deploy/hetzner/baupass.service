@@ -1,0 +1,19 @@
+[Unit]
+Description=BauPass Control
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/baupass
+Environment=HOST=127.0.0.1
+Environment=PORT=8000
+Environment=PUBLIC_BASE_URL=__PUBLIC_BASE_URL__
+Environment=BAUPASS_DB_PATH=/opt/baupass/data/baupass.db
+Environment=BAUPASS_ENABLE_IMAP_POLLER=0
+Environment=BAUPASS_RUN_DUNNING_ON_BOOT=0
+ExecStart=/opt/baupass/.venv/bin/python backend/run_prod.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
