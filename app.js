@@ -103,7 +103,7 @@ const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
 const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260524a";
+const WORKER_PWA_BUILD_TAG = "20260525b";
 
 function loadStoredSessionToken() {
   try {
@@ -17322,6 +17322,25 @@ setInterval(() => {
 // ── Print Badge ──────────────────────────────────────────────────────────────
 const qrPrefetchPromises = new Map();
 
+function buildWorkerBadgeDeepLink(badgeId) {
+  const normalized = String(badgeId || "").trim().toUpperCase();
+  if (!normalized) {
+    return "";
+  }
+  try {
+    const target = new URL("/worker.html", window.location.origin);
+    target.searchParams.set("badge", normalized);
+    target.searchParams.set("view", "card");
+    target.searchParams.set("v", WORKER_PWA_BUILD_TAG);
+    target.searchParams.set("launch", "1");
+    target.searchParams.set("fast", "1");
+    target.searchParams.set("apiBase", normalizeApiBase(API_BASE || window.location.origin));
+    return target.toString();
+  } catch {
+    return "";
+  }
+}
+
 function buildQrImageUrl(payload, size = 280) {
   return `${API_BASE}/api/qr.png?size=${size}&data=${encodeURIComponent(payload)}`;
 }
@@ -17380,7 +17399,7 @@ function waitForQrImage(img, timeoutMs = 2200) {
 }
 
 async function ensureBadgeQrReadyForPrint(worker) {
-  const payload = worker?.badgeId || worker?.id;
+  const payload = buildWorkerBadgeDeepLink(worker?.badgeId || worker?.id) || worker?.badgeId || worker?.id;
   if (!payload) {
     return false;
   }
@@ -22117,17 +22136,22 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
   const permanentQrId = `workerAppQrPerm-${Date.now()}`;
   let permanentLink = "";
   if (!isVisitorCard && worker?.badgeId) {
-    try {
-      const base = new URL(absoluteLink);
-      base.search = "";
-      base.pathname = "/worker.html";
-      base.searchParams.set("apiBase", normalizeApiBase(API_BASE || window.location.origin));
-      base.searchParams.set("view", "card");
-      base.searchParams.set("v", WORKER_PWA_BUILD_TAG);
-      base.searchParams.set("badge", worker.badgeId);
-      permanentLink = base.toString();
-    } catch {
-      permanentLink = "";
+    permanentLink = buildWorkerBadgeDeepLink(worker.badgeId);
+    if (!permanentLink) {
+      try {
+        const base = new URL(absoluteLink);
+        base.search = "";
+        base.pathname = "/worker.html";
+        base.searchParams.set("apiBase", normalizeApiBase(API_BASE || window.location.origin));
+        base.searchParams.set("view", "card");
+        base.searchParams.set("v", WORKER_PWA_BUILD_TAG);
+        base.searchParams.set("launch", "1");
+        base.searchParams.set("fast", "1");
+        base.searchParams.set("badge", worker.badgeId);
+        permanentLink = base.toString();
+      } catch {
+        permanentLink = "";
+      }
     }
   }
   const primaryLink = permanentLink || absoluteLink;

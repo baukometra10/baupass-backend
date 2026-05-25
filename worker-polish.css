@@ -1072,3 +1072,17 @@ body.site-app-mode #gateModeButton,
 body.site-app-mode #quickGateModeButton {
   display: none !important;
 }
+
+body.qr-fast-login .login-form-sparkasse .form-group.hidden {
+  display: none !important;
+}
+
+body.qr-fast-login #workerBadgePin {
+  font-size: 1.45rem;
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+
+body.qr-fast-login .login-btn-primary {
+  margin-top: 8px;
+}

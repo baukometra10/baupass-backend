@@ -28,7 +28,7 @@ from pathlib import Path
 import importlib
 from email.message import EmailMessage
 from email.utils import getaddresses
-from urllib.parse import quote, urlsplit, unquote_to_bytes
+from urllib.parse import quote, urlencode, urlsplit, unquote_to_bytes
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from flask import Flask, jsonify, request, send_from_directory, send_file, g, Response, redirect, has_request_context
@@ -2068,6 +2068,24 @@ def should_force_https_links(hostname):
     if flag in {"0", "false", "off", "no"}:
         return False
     return is_private_or_local_host(hostname)
+
+
+def build_worker_badge_deeplink(badge_id, *, view="card", fast_login=True):
+    """QR payload: opens worker handoff → emp-app with badge pre-filled and fast PIN login."""
+    normalized_badge = normalize_badge_id(badge_id)
+    if not normalized_badge:
+        return ""
+    build_tag = _get_worker_build_info().get("build") or "latest"
+    params = {
+        "badge": normalized_badge,
+        "view": view,
+        "v": build_tag,
+        "launch": "1",
+    }
+    if fast_login:
+        params["fast"] = "1"
+    query = urlencode(params)
+    return f"{get_public_base_url().rstrip('/')}/worker.html?{query}"
 
 
 def get_public_base_url():
@@ -11860,7 +11878,7 @@ def create_worker_app_access(worker_id):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def worker_badge_qr(worker_id):
-    """QR-Code fuer den Worker-Badge generieren (Badge-ID als QR)."""
+    """QR-Code mit App-Deep-Link (Badge vorausgefuellt, nur PIN noetig)."""
     db = get_db()
     worker = db.execute("SELECT * FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
     if not worker:
@@ -11868,8 +11886,9 @@ def worker_badge_qr(worker_id):
     if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden"}), 403
     badge_id = worker["badge_id"]
+    qr_payload = build_worker_badge_deeplink(badge_id)
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=4)
-    qr.add_data(badge_id)
+    qr.add_data(qr_payload or badge_id)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
     buf = io.BytesIO()

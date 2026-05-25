@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260525a";
+const WORKER_BUILD_TAG = "20260525b";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -1410,6 +1410,7 @@ async function init() {
     document.body.classList.add("worker-card-install");
   }
   const urlBadgeParam = normalizeBadgeIdInput(params.get("badge") || "");
+  const urlFastLogin = params.get("fast") === "1" || params.get("launch") === "1";
   const storedAccessToken = (window.localStorage.getItem(WORKER_ACCESS_TOKEN_KEY) || "").trim();
   const storedBadgeId = (window.localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
   const bootstrapAccessToken = urlToken || storedAccessToken;
@@ -1463,9 +1464,8 @@ async function init() {
     }
   }
 
-  // ?badge=WRK-001 → permanent QR code that pre-fills badge ID and focuses PIN
+  // ?badge=WRK-001 → QR deep link: Badge vorausgefuellt, nur PIN (schnell)
   if (urlBadgeParam) {
-    // If already logged in with a valid session, just go to card
     if (workerToken) {
       const loaded = await loadWorkerData();
       if (loaded) {
@@ -1473,8 +1473,19 @@ async function init() {
         return;
       }
     }
-    // Pre-fill badge ID and let worker enter PIN
     localStorage.setItem(WORKER_BADGE_LOGIN_KEY, urlBadgeParam);
+    showLogin();
+    if (urlFastLogin) {
+      applyQrFastLoginUi(urlBadgeParam);
+      const fastLoggedIn = await tryFastBadgeLoginFromQr(urlBadgeParam);
+      if (fastLoggedIn) {
+        finishWorkerLoginUi();
+        if (viewParam === "card") applyWorkerPageView("badgeCard");
+        return;
+      }
+      setupQrPinAutoSubmit(urlBadgeParam);
+      return;
+    }
     if (elements.workerAccessToken) {
       elements.workerAccessToken.value = urlBadgeParam;
     }
@@ -3584,6 +3595,80 @@ function normalizeBadgeIdInput(value) {
 
 function normalizeBadgePinInput(value) {
   return String(value || "").replace(/\s+/g, "").trim();
+}
+
+function applyQrFastLoginUi(badgeId) {
+  document.body.classList.add("qr-fast-login");
+  const loginCopy = document.querySelector(".login-copy-sparkasse");
+  if (loginCopy) {
+    loginCopy.textContent = tf("loginCopyQrFast", { badge: badgeId });
+  }
+  const badgeGroup = elements.workerAccessToken?.closest(".form-group");
+  if (badgeGroup) {
+    badgeGroup.classList.add("hidden");
+  }
+  if (elements.workerAccessToken) {
+    elements.workerAccessToken.value = badgeId;
+    elements.workerAccessToken.removeAttribute("required");
+  }
+  const pinWrapper = document.querySelector("#pinFieldWrapper");
+  if (pinWrapper && !isVisitorBadgeId(badgeId)) {
+    pinWrapper.classList.remove("hidden");
+  }
+  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
+  if (pinInput) {
+    pinInput.setAttribute("required", "required");
+    pinInput.value = "";
+    setTimeout(() => pinInput.focus(), 80);
+  }
+}
+
+async function tryFastBadgeLoginFromQr(badgeId) {
+  if (!badgeId || isVisitorBadgeId(badgeId)) {
+    return false;
+  }
+  let storedPin = "";
+  try {
+    storedPin = sessionStorage.getItem("_wpf") || "";
+  } catch {
+    storedPin = "";
+  }
+  if (storedPin.length < 4) {
+    return false;
+  }
+  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
+  if (pinInput) {
+    pinInput.value = storedPin;
+  }
+  try {
+    const locationPayload = await resolveLoginLocation();
+    await loginWithBadgeId(badgeId, storedPin, { silent: true, locationPayload });
+    return Boolean(workerToken);
+  } catch {
+    return false;
+  }
+}
+
+function setupQrPinAutoSubmit(badgeId) {
+  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
+  if (!pinInput || isVisitorBadgeId(badgeId)) {
+    return;
+  }
+  let submitPending = false;
+  const onPinInput = async () => {
+    const pin = normalizeBadgePinInput(pinInput.value);
+    if (pin.length < 4 || submitPending) {
+      return;
+    }
+    submitPending = true;
+    try {
+      const locationPayload = await resolveLoginLocation();
+      await loginWithBadgeId(badgeId, pin, { locationPayload });
+    } finally {
+      submitPending = false;
+    }
+  };
+  pinInput.addEventListener("input", onPinInput);
 }
 
 function looksLikeBadgeId(value) {
