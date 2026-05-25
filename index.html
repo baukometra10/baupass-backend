@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260524j";
+        const buildTag = "20260524k";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,7 +51,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260524j" />
+    <link rel="stylesheet" href="./styles.css?v=20260524k" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -136,6 +136,10 @@
         <label>
           <span data-ui-i18n="loginPasswordLabel">Passwort</span>
           <input id="loginPassword" type="password" placeholder="Passwort eingeben" data-ui-i18n="loginPasswordPlaceholder" data-ui-i18n-attr="placeholder" required autocomplete="off" />
+        </label>
+        <label id="loginSetupEmailLabel" style="display:none;">
+          <span data-ui-i18n="loginSetupEmailLabel">E-Mail für OTP (einmalig, Superadmin)</span>
+          <input id="loginSetupEmail" type="email" placeholder="ihre@email.de" data-ui-i18n="loginSetupEmailPlaceholder" data-ui-i18n-attr="placeholder" autocomplete="email" />
         </label>
         <label>
           <span data-ui-i18n="loginOtpLabel">OTP-Code (wenn 2FA aktiv)</span>
@@ -1891,8 +1895,8 @@
       }
     })();
   </script>
-  <script src="./app.js?v=20260524j"></script>
-  <script src="./desktop/renderer.js?v=20260524j" defer></script>
+  <script src="./app.js?v=20260524k"></script>
+  <script src="./desktop/renderer.js?v=20260524k" defer></script>
   <script>
     (function applyPublicBranding() {
       fetch('/api/public/branding').then(function(r) { return r.json(); }).then(function(b) {

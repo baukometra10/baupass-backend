@@ -392,7 +392,7 @@ APP_STARTED_AT = datetime.now(timezone.utc)
 DUNNING_LAST_RUN_AT = None
 DUNNING_LAST_RESULT = {"remindersSent": 0, "reminderFailures": 0, "overdueUpdated": 0, "suspendedCompanies": 0}
 BACKUP_RETENTION_DAYS = max(1, int(os.getenv("BAUPASS_BACKUP_RETENTION_DAYS", "30")))
-REQUIRE_SUPERADMIN_2FA = str(os.getenv("BAUPASS_REQUIRE_SUPERADMIN_2FA", "1")).strip().lower() in {"1", "true", "yes", "on"}
+REQUIRE_SUPERADMIN_2FA = str(os.getenv("BAUPASS_REQUIRE_SUPERADMIN_2FA", "0")).strip().lower() in {"1", "true", "yes", "on"}
 IMMUTABLE_AUDIT_ENABLED = str(os.getenv("BAUPASS_IMMUTABLE_AUDIT", "1")).strip().lower() in {"1", "true", "yes", "on"}
 IMMUTABLE_AUDIT_EVENT_PREFIXES = tuple(
     filter(
@@ -7717,17 +7717,34 @@ def login():
     twofa_enabled = int(user["twofa_enabled"]) == 1
     turnstile_auto_2fa = user["role"] == "turnstile"
     if REQUIRE_SUPERADMIN_2FA and user["role"] == "superadmin" and not twofa_enabled:
-        register_login_failure(throttle_key)
-        log_audit(
-            "security.superadmin_2fa_required",
-            f"Superadmin-Login ohne 2FA blockiert: {username}",
-            target_type="user",
-            target_id=user["id"],
-        )
-        return login_error(
-            "superadmin_2fa_required",
-            message="Fuer Superadmin-Konten ist die Zwei-Faktor-Anmeldung (E-Mail-OTP) Pflicht. Bitte 2FA in den Einstellungen aktivieren.",
-        )
+        user_keys = set(user.keys()) if hasattr(user, "keys") else set()
+        user_email = (user["email"] if "email" in user_keys else "").strip().lower()
+        setup_email = clean_text_input(payload.get("setupEmail") or "", max_len=200).strip().lower()
+        if setup_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", setup_email):
+            return login_error("invalid_setup_email", message="Bitte eine gueltige E-Mail-Adresse eingeben.")
+        target_email = setup_email or user_email
+        if target_email:
+            def _bootstrap_superadmin_twofa():
+                db.execute(
+                    "UPDATE users SET email = ?, twofa_enabled = 1 WHERE id = ?",
+                    (target_email, user["id"]),
+                )
+                db.commit()
+
+            run_db_write_with_retry(_bootstrap_superadmin_twofa)
+            user = db.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
+            twofa_enabled = True
+            log_audit(
+                "security.superadmin_2fa_bootstrapped",
+                f"Superadmin 2FA (E-Mail-OTP) beim Login vorbereitet: {username}",
+                target_type="user",
+                target_id=user["id"],
+            )
+        else:
+            return login_error(
+                "superadmin_setup_email_required",
+                message="Superadmin: Bitte E-Mail fuer OTP eingeben und erneut anmelden (einmalige Einrichtung).",
+            )
     if twofa_enabled and not turnstile_auto_2fa:
         user_keys = set(user.keys()) if hasattr(user, "keys") else set()
         user_email = (user["email"] if "email" in user_keys else "").strip()

@@ -1054,8 +1054,11 @@ const UI_TRANSLATIONS = {
     opsBackupDb: "Datenbank-Backup",
     opsBackupDone: "Backup erstellt.",
     opsBackupFailed: "Backup fehlgeschlagen: {error}",
-    alertSuperadmin2faRequired: "Superadmin: Bitte zuerst Zwei-Faktor-Anmeldung (E-Mail-OTP) in den Einstellungen aktivieren.",
-    bannerSuperadmin2fa: "Sicherheit: Superadmin-2FA ist noch nicht aktiv. Bitte in Einstellungen aktivieren.",
+    alertSuperadmin2faRequired: "Superadmin: Bitte E-Mail eingeben und erneut anmelden – OTP wird per E-Mail gesendet.",
+    alertSuperadminSetupEmail: "Bitte Ihre E-Mail eintragen und erneut auf Anmelden klicken. Danach erhalten Sie einen OTP-Code.",
+    loginSetupEmailLabel: "E-Mail für OTP (einmalig, Superadmin)",
+    loginSetupEmailPlaceholder: "ihre@email.de",
+    bannerSuperadmin2fa: "Sicherheit: 2FA per E-Mail-OTP ist empfohlen (Konto → 2FA Verwaltung).",
     expiringDocsH3: "Ablaufende Dokumente",
     btnRefreshExpiringDocs: "Aktualisieren",
     adminSuperAdminHint: "Nur <strong>Super-Admin</strong> kann globale Einstellungen ändern. Firmen-Admins sehen ausschließlich ihre erlaubten Daten.",
@@ -7740,6 +7743,7 @@ const state = {
   porterLive: { workerId: null, lastEvent: null },
   twofa: { enabled: false, secret: "", otpauthUri: "" },
   loginOtpPending: false,
+  loginSetupEmailPending: false,
   loginSecurity: {
     failCount: 0,
     blockedUntil: 0,
@@ -14386,16 +14390,23 @@ function renderSupportReadOnlyTopbarBadge(loggedIn) {
 
 function updateLoginOtpVisibility() {
   const otpLabel = elements.loginOtpCode?.closest("label");
-  if (!otpLabel) {
-    return;
-  }
+  const setupEmailLabel = document.getElementById("loginSetupEmailLabel");
   const scope = String(elements.loginScope?.value || "auto").trim().toLowerCase();
   const hideForTurnstile = scope === "turnstile";
-  // Show OTP field only after credentials were verified and OTP was sent (2-step)
+  const showSetupEmail = !hideForTurnstile && state.loginSetupEmailPending;
   const showOtp = !hideForTurnstile && state.loginOtpPending;
-  otpLabel.style.display = showOtp ? "" : "none";
-  if (!showOtp && elements.loginOtpCode) {
-    elements.loginOtpCode.value = "";
+  if (setupEmailLabel) {
+    setupEmailLabel.style.display = showSetupEmail ? "" : "none";
+  }
+  if (!showSetupEmail) {
+    const setupInput = document.getElementById("loginSetupEmail");
+    if (setupInput) setupInput.value = "";
+  }
+  if (otpLabel) {
+    otpLabel.style.display = showOtp ? "" : "none";
+    if (!showOtp && elements.loginOtpCode) {
+      elements.loginOtpCode.value = "";
+    }
   }
 }
 
@@ -15741,6 +15752,7 @@ function clearSession() {
   persistSessionToken("");
   state.currentUser = null;
   state.loginOtpPending = false;
+  state.loginSetupEmailPending = false;
 }
 
 function handleExpiredControlSession() {
@@ -26667,6 +26679,9 @@ async function handleLoginSubmit(event) {
         password: elements.loginPassword.value,
         // Only send OTP in step 2
         otpCode: state.loginOtpPending ? elements.loginOtpCode.value.trim() : "",
+        setupEmail: state.loginSetupEmailPending
+          ? String(document.getElementById("loginSetupEmail")?.value || "").trim()
+          : "",
         loginScope,
         supportCompanyId: loginScope === "company-admin" ? (supportContext?.companyId || "") : "",
         supportActorName: loginScope === "company-admin" ? (supportContext?.actorName || "") : ""
@@ -26682,6 +26697,7 @@ async function handleLoginSubmit(event) {
 
     resetLoginFailureCounter();
     state.loginOtpPending = false;
+    state.loginSetupEmailPending = false;
     token = payload.token;
     console.log("[Login] Token received:", token ? `${token.slice(0, 20)}...` : "NONE");
     persistSessionToken(token);
@@ -26716,6 +26732,7 @@ async function handleLoginSubmit(event) {
       }
       // Credentials verified – OTP was emailed. Show OTP field.
       resetLoginFailureCounter();
+      state.loginSetupEmailPending = false;
       state.loginOtpPending = true;
       updateLoginOtpVisibility();
       await tryAutofillOtpFromClipboard();
@@ -26775,9 +26792,15 @@ async function handleLoginSubmit(event) {
       showToast(backendMessage || uiT("alertLoginFailed").replace("{error}", error.message), "error", 4200);
       return;
     }
-    if (error.message === "superadmin_2fa_required") {
-      showToast(uiT("alertSuperadmin2faRequired"), "error", 8000);
-      setView("admin");
+    if (error.message === "superadmin_2fa_required" || error.message === "superadmin_setup_email_required") {
+      state.loginSetupEmailPending = true;
+      updateLoginOtpVisibility();
+      document.getElementById("loginSetupEmail")?.focus();
+      showToast(uiT("alertSuperadminSetupEmail"), "info", 9000);
+      return;
+    }
+    if (error.message === "invalid_setup_email") {
+      showToast(uiT("alertTfaEmailRequired"), "error");
       return;
     }
     if (error.message === "invalid_credentials") {
@@ -28466,6 +28489,7 @@ if (elements.authOverlay) {
 if (elements.loginScope) {
   elements.loginScope.addEventListener("change", () => {
     state.loginOtpPending = false;
+    state.loginSetupEmailPending = false;
     updateLoginOtpVisibility();
     if (!token) {
       focusLoginInput({ force: true });
