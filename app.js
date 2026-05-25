@@ -382,6 +382,16 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Gespeicherte Dokumente",
     workerDocsEmpty: "Keine Dokumente hinterlegt.",
     workerAkteLabel: "Mitarbeiter-Akte",
+    complianceSignatureEyebrow: "Mitarbeiterakte",
+    complianceSignatureHeading: "Unterschrift bei Ausweisübergabe",
+    complianceSignatureHelp: "Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.",
+    complianceSignatureClear: "Unterschrift löschen",
+    complianceSignatureSaved: "Unterschrift in der Akte gespeichert.",
+    complianceSignatureEmpty: "Noch keine Unterschrift hinterlegt.",
+    complianceSignatureStatusNew: "Neue Unterschrift – wird beim Speichern übernommen.",
+    idHandoverDateLabel: "Ausweis übergeben am",
+    workerDetailSignatureHeading: "Unterschrift (Ausweisübergabe)",
+    workerDetailIdHandover: "Ausweis übergeben",
     workerHceHeading: "HCE-Geraete",
     workerHceRefreshBtn: "Aktualisieren",
     workerHceLoading: "Lade Geraete...",
@@ -1030,6 +1040,22 @@ const UI_TRANSLATIONS = {
     discountToggleLabel: "Rabatt / Skonto anwenden",
     discountAmountLabel: "Rabattbetrag (EUR netto)",
     netTotalLabel: "Nettosumme:",
+    operationsEyebrow: "Live-Betrieb",
+    operationsH3: "Einsatzlage heute",
+    operationsRefreshBtn: "Aktualisieren",
+    opsWorkersOnSite: "Aktuell auf der Baustelle",
+    opsCheckInsToday: "Anmeldungen heute",
+    opsCheckOutsToday: "Abmeldungen heute",
+    opsExpiringDocs7: "Dokumente ≤ 7 Tage",
+    opsMissingSignatures: "Aktive ohne Unterschrift",
+    opsActiveVisitors: "Besucher vor Ort",
+    opsLockedWorkers: "Gesperrte Mitarbeiter",
+    opsDownloadAktePdf: "Akte als PDF",
+    opsBackupDb: "Datenbank-Backup",
+    opsBackupDone: "Backup erstellt.",
+    opsBackupFailed: "Backup fehlgeschlagen: {error}",
+    alertSuperadmin2faRequired: "Superadmin: Bitte zuerst Zwei-Faktor-Anmeldung (E-Mail-OTP) in den Einstellungen aktivieren.",
+    bannerSuperadmin2fa: "Sicherheit: Superadmin-2FA ist noch nicht aktiv. Bitte in Einstellungen aktivieren.",
     expiringDocsH3: "Ablaufende Dokumente",
     btnRefreshExpiringDocs: "Aktualisieren",
     adminSuperAdminHint: "Nur <strong>Super-Admin</strong> kann globale Einstellungen ändern. Firmen-Admins sehen ausschließlich ihre erlaubten Daten.",
@@ -1168,6 +1194,16 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "Stored Documents",
     workerDocsEmpty: "No documents on file.",
     workerAkteLabel: "Worker File",
+    complianceSignatureEyebrow: "Employee file",
+    complianceSignatureHeading: "Signature on ID handover",
+    complianceSignatureHelp: "Captured in admin only – not in the worker app. Stored in the employee file.",
+    complianceSignatureClear: "Clear signature",
+    complianceSignatureSaved: "Signature saved to file.",
+    complianceSignatureEmpty: "No signature on file yet.",
+    complianceSignatureStatusNew: "New signature – saved when you submit.",
+    idHandoverDateLabel: "ID handed over on",
+    workerDetailSignatureHeading: "Signature (ID handover)",
+    workerDetailIdHandover: "ID handed over",
     workerHceHeading: "HCE Devices",
     workerHceRefreshBtn: "Refresh",
     workerHceLoading: "Loading devices...",
@@ -1814,6 +1850,22 @@ const UI_TRANSLATIONS = {
     discountToggleLabel: "Apply discount / rebate",
     discountAmountLabel: "Discount amount (EUR net)",
     netTotalLabel: "Net total:",
+    operationsEyebrow: "Live operations",
+    operationsH3: "Today's site status",
+    operationsRefreshBtn: "Refresh",
+    opsWorkersOnSite: "On site now",
+    opsCheckInsToday: "Check-ins today",
+    opsCheckOutsToday: "Check-outs today",
+    opsExpiringDocs7: "Docs expiring ≤ 7 days",
+    opsMissingSignatures: "Active without signature",
+    opsActiveVisitors: "Visitors on site",
+    opsLockedWorkers: "Locked workers",
+    opsDownloadAktePdf: "Download file (PDF)",
+    opsBackupDb: "Database backup",
+    opsBackupDone: "Backup created.",
+    opsBackupFailed: "Backup failed: {error}",
+    alertSuperadmin2faRequired: "Superadmin: enable two-factor login (email OTP) in settings first.",
+    bannerSuperadmin2fa: "Security: Superadmin 2FA is not enabled yet. Enable it in settings.",
     expiringDocsH3: "Expiring documents",
     btnRefreshExpiringDocs: "Refresh",
     adminSuperAdminHint: "Only <strong>Super Admin</strong> can change global settings. Company admins see exclusively their permitted data.",
@@ -3013,6 +3065,16 @@ const UI_TRANSLATIONS = {
     workerDocsHeading: "المستندات المحفوظة",
     workerDocsEmpty: "لا توجد مستندات.",
     workerAkteLabel: "ملف العامل",
+    complianceSignatureEyebrow: "ملف الموظف",
+    complianceSignatureHeading: "توقيع عند تسليم الهوية",
+    complianceSignatureHelp: "يُسجَّل في لوحة الإدارة فقط — وليس في تطبيق الموظف. يُخزَّن في ملف الموظف.",
+    complianceSignatureClear: "مسح التوقيع",
+    complianceSignatureSaved: "تم حفظ التوقيع في الملف.",
+    complianceSignatureEmpty: "لا يوجد توقيع بعد.",
+    complianceSignatureStatusNew: "توقيع جديد — يُحفظ عند الحفظ.",
+    idHandoverDateLabel: "تاريخ تسليم الهوية",
+    workerDetailSignatureHeading: "التوقيع (تسليم الهوية)",
+    workerDetailIdHandover: "تم تسليم الهوية",
     workerHceHeading: "أجهزة HCE",
     workerHceRefreshBtn: "تحديث",
     workerHceLoading: "جار تحميل الأجهزة...",
@@ -3321,6 +3383,22 @@ const UI_TRANSLATIONS = {
     discountToggleLabel: "تطبيق خصم",
     discountAmountLabel: "مبلغ الخصم (EUR صافي)",
     netTotalLabel: "الإجمالي الصافي:",
+    operationsEyebrow: "التشغيل المباشر",
+    operationsH3: "وضع الموقع اليوم",
+    operationsRefreshBtn: "تحديث",
+    opsWorkersOnSite: "على الموقع الآن",
+    opsCheckInsToday: "تسجيل دخول اليوم",
+    opsCheckOutsToday: "تسجيل خروج اليوم",
+    opsExpiringDocs7: "مستندات خلال 7 أيام",
+    opsMissingSignatures: "نشطون بدون توقيع",
+    opsActiveVisitors: "زوار على الموقع",
+    opsLockedWorkers: "موظفون محظورون",
+    opsDownloadAktePdf: "تحميل الملف PDF",
+    opsBackupDb: "نسخ قاعدة البيانات",
+    opsBackupDone: "تم إنشاء النسخة.",
+    opsBackupFailed: "فشل النسخ: {error}",
+    alertSuperadmin2faRequired: "المشرف العام: فعّل المصادقة الثنائية (OTP بالبريد) من الإعدادات أولاً.",
+    bannerSuperadmin2fa: "الأمان: المصادقة الثنائية للمشرف غير مفعّلة. فعّلها من الإعدادات.",
     expiringDocsH3: "المستندات المنتهية",
     btnRefreshExpiringDocs: "تحديث",
     adminSuperAdminHint: "فقط <strong>المشرف العام</strong> يمكنه تغيير الإعدادات العامة.",
@@ -14798,6 +14876,10 @@ function syncWorkerTypeUi() {
   if (isVisitor && document.querySelector("#validUntil") && elements.visitEndAt?.value) {
     document.querySelector("#validUntil").value = elements.visitEndAt.value.slice(0, 10);
   }
+  const complianceBlock = document.getElementById("complianceSignatureBlock");
+  if (complianceBlock) {
+    complianceBlock.classList.toggle("hidden", isVisitor);
+  }
 }
 
 function populateSubcompanySelects() {
@@ -15003,6 +15085,162 @@ function syncWorkerEditorUi() {
   }
 }
 
+const complianceSignatureState = {
+  padReady: false,
+  hasStroke: false,
+  touched: false,
+  loadedForWorkerId: null,
+};
+
+function getComplianceSignatureElements() {
+  return {
+    canvas: document.getElementById("complianceSignatureCanvas"),
+    hidden: document.getElementById("complianceSignatureData"),
+    status: document.getElementById("complianceSignatureStatus"),
+    clearBtn: document.getElementById("complianceSignatureClearBtn"),
+    handoverInput: document.getElementById("idHandoverAt"),
+  };
+}
+
+function drawComplianceSignatureImage(dataUrl) {
+  const { canvas, hidden, status } = getComplianceSignatureElements();
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  complianceSignatureState.hasStroke = false;
+  if (!dataUrl) {
+    if (hidden) hidden.value = "";
+    if (status) status.textContent = uiT("complianceSignatureEmpty");
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    complianceSignatureState.hasStroke = true;
+    if (hidden) hidden.value = dataUrl;
+    if (status) status.textContent = uiT("complianceSignatureSaved");
+  };
+  img.src = dataUrl;
+}
+
+function initComplianceSignaturePad() {
+  if (complianceSignatureState.padReady) return;
+  const { canvas, clearBtn, status } = getComplianceSignatureElements();
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  complianceSignatureState.padReady = true;
+  ctx.strokeStyle = "#111417";
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  const pointerPos = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startStroke = (event) => {
+    event.preventDefault();
+    complianceSignatureState.touched = true;
+    const { x, y } = pointerPos(event);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    canvas._sigDrawing = true;
+  };
+  const moveStroke = (event) => {
+    if (!canvas._sigDrawing) return;
+    event.preventDefault();
+    const { x, y } = pointerPos(event);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    complianceSignatureState.hasStroke = true;
+    const { hidden, status: statusEl } = getComplianceSignatureElements();
+    if (hidden) hidden.value = canvas.toDataURL("image/png");
+    if (statusEl) statusEl.textContent = uiT("complianceSignatureStatusNew");
+  };
+  const endStroke = () => {
+    canvas._sigDrawing = false;
+  };
+
+  canvas.addEventListener("pointerdown", startStroke);
+  canvas.addEventListener("pointermove", moveStroke);
+  canvas.addEventListener("pointerup", endStroke);
+  canvas.addEventListener("pointerleave", endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      complianceSignatureState.touched = true;
+      complianceSignatureState.hasStroke = false;
+      drawComplianceSignatureImage("");
+      const { status: statusEl } = getComplianceSignatureElements();
+      if (statusEl) statusEl.textContent = uiT("complianceSignatureEmpty");
+    });
+  }
+  drawComplianceSignatureImage("");
+  if (status) status.textContent = uiT("complianceSignatureEmpty");
+}
+
+function resetComplianceSignatureEditor() {
+  complianceSignatureState.touched = false;
+  complianceSignatureState.hasStroke = false;
+  complianceSignatureState.loadedForWorkerId = null;
+  initComplianceSignaturePad();
+  drawComplianceSignatureImage("");
+  const { handoverInput } = getComplianceSignatureElements();
+  if (handoverInput) handoverInput.value = "";
+}
+
+async function loadComplianceSignatureForWorker(worker) {
+  initComplianceSignaturePad();
+  complianceSignatureState.touched = false;
+  complianceSignatureState.loadedForWorkerId = worker?.id || null;
+  const { handoverInput } = getComplianceSignatureElements();
+  if (handoverInput) {
+    handoverInput.value = worker?.idHandoverAt ? toDateTimeLocalValue(worker.idHandoverAt) : "";
+  }
+  if (!worker?.id || !worker?.hasComplianceSignature) {
+    drawComplianceSignatureImage("");
+    return;
+  }
+  try {
+    const data = await apiRequest(`${API_BASE}/api/workers/${worker.id}/compliance-signature`);
+    drawComplianceSignatureImage(data?.signatureData || "");
+    if (handoverInput && data?.idHandoverAt) {
+      handoverInput.value = toDateTimeLocalValue(data.idHandoverAt);
+    }
+  } catch (_error) {
+    drawComplianceSignatureImage("");
+  }
+}
+
+function appendComplianceFieldsToWorkerPayload(payload) {
+  const workerType = elements.workerType?.value || "worker";
+  if (workerType === "visitor") return payload;
+  const { hidden, handoverInput } = getComplianceSignatureElements();
+  if (handoverInput?.value) {
+    payload.idHandoverAt = handoverInput.value;
+  } else if (complianceSignatureState.touched) {
+    payload.idHandoverAt = "";
+  }
+  if (!complianceSignatureState.touched) return payload;
+  const sig = String(hidden?.value || "").trim();
+  if (sig) {
+    payload.complianceSignatureData = sig;
+  } else {
+    payload.clearComplianceSignature = true;
+  }
+  return payload;
+}
+
 function clearWorkerEditor() {
   const form = document.querySelector("#workerForm");
   if (form) {
@@ -15014,6 +15252,7 @@ function clearWorkerEditor() {
   }
   state.editingWorkerId = null;
   setPhotoEditorSource("", { resetOffset: true });
+  resetComplianceSignatureEditor();
   if (elements.workerType) {
     elements.workerType.value = "worker";
   }
@@ -16299,10 +16538,11 @@ async function loadAllData() {
     apiRequest(`${API_BASE}/api/compliance/overview`),
     apiRequest(`${API_BASE}/api/compliance/expiring-docs?days=30&limit=150`),
     apiRequest(`${API_BASE}/api/audit-logs?limit=200`),
-    apiRequest(`${API_BASE}/api/gates/ops-metrics?windowMinutes=${gateOpsWindowMinutes}`)
+    apiRequest(`${API_BASE}/api/gates/ops-metrics?windowMinutes=${gateOpsWindowMinutes}`),
+    apiRequest(`${API_BASE}/api/operations/snapshot`)
   ]);
 
-  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, complianceExpiringDocs, auditLogs, gateOpsMetrics] = requests;
+  const [settings, companies, subcompanies, workers, accessLogs, latestAccess, invoices, summary, dayClose, repairAudit, reporting, complianceOverview, complianceExpiringDocs, auditLogs, gateOpsMetrics, operationsSnapshot] = requests;
   if (settings.status === "fulfilled") {
     state.settings = settings.value || state.settings;
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
@@ -16365,8 +16605,12 @@ async function loadAllData() {
 
   if (complianceExpiringDocs.status === "fulfilled") {
     state.complianceExpiringDocs = Array.isArray(complianceExpiringDocs.value?.items) ? complianceExpiringDocs.value.items : [];
+    state.expiringDocsCriticalCount = state.complianceExpiringDocs.filter(
+      (item) => Number(item?.daysLeft) <= 7 || item?.urgency === "critical"
+    ).length;
   } else {
     state.complianceExpiringDocs = [];
+    state.expiringDocsCriticalCount = 0;
   }
   state.auditLogPageSize = 50;
 
@@ -16374,6 +16618,12 @@ async function loadAllData() {
     state.auditLogs = Array.isArray(auditLogs.value?.logs) ? auditLogs.value.logs : [];
   } else {
     state.auditLogs = [];
+  }
+
+  if (operationsSnapshot.status === "fulfilled") {
+    state.operationsSnapshot = operationsSnapshot.value || null;
+  } else {
+    state.operationsSnapshot = null;
   }
 
   if (gateOpsMetrics.status === "fulfilled") {
@@ -16498,7 +16748,11 @@ function refreshAll() {
     const previewMarkup = isSuperadminCompanyPreviewMode() && previewCompany
       ? `<br /><strong>${escapeHtml(runtimeText("companyBrandingPreviewLabel"))}:</strong> ${escapeHtml(runtimeText("companyViewLabel"))} ${escapeHtml(previewCompany.name || uiT("supportCompanyFallback"))}`
       : "";
-    elements.sessionCard.innerHTML = `<strong>${escapeHtml(texts.sessionLoggedIn)}:</strong> ${escapeHtml(user)} | <strong>${escapeHtml(texts.sessionRole)}:</strong> ${escapeHtml(role)}${supportModeMarkup}${previewMarkup}`;
+    const needs2fa = state.currentUser?.role === "superadmin" && !Number(state.currentUser?.twofa_enabled);
+    const twofaBanner = needs2fa
+      ? `<p class="helper-text helper-text-warning" style="margin-top:8px;">${escapeHtml(uiT("bannerSuperadmin2fa"))}</p>`
+      : "";
+    elements.sessionCard.innerHTML = `<strong>${escapeHtml(texts.sessionLoggedIn)}:</strong> ${escapeHtml(user)} | <strong>${escapeHtml(texts.sessionRole)}:</strong> ${escapeHtml(role)}${supportModeMarkup}${previewMarkup}${twofaBanner}`;
   }
 
   if (!loggedIn) {
@@ -16511,6 +16765,7 @@ function refreshAll() {
   applyActiveCompanyBrandingPreset();
 
   renderStats();
+  renderOperationsSnapshot();
   renderComplianceKpi();
   renderWorkerStatsPanel();
   renderReportingPanels();
@@ -18051,6 +18306,49 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
   }
 }
 
+async function loadOperationsSnapshot() {
+  try {
+    state.operationsSnapshot = await apiRequest(`${API_BASE}/api/operations/snapshot`);
+  } catch (_error) {
+    state.operationsSnapshot = null;
+  }
+  renderOperationsSnapshot();
+}
+
+function renderOperationsSnapshot() {
+  const container = document.getElementById("operationsSnapshotGrid");
+  if (!container) return;
+  const snap = state.operationsSnapshot;
+  if (!snap) {
+    container.innerHTML = `<p class="helper-text muted">${escapeHtml(uiT("statusLoading"))}</p>`;
+    return;
+  }
+  const isDarkTheme = document.body.classList.contains("theme-black");
+  const cards = [
+    ["🏗️", uiT("opsWorkersOnSite"), snap.workersOnSite, "#0f4c5c", "", snap.workersOnSite > 0],
+    ["↗️", uiT("opsCheckInsToday"), snap.checkInsToday, "#0891b2", "", false],
+    ["↘️", uiT("opsCheckOutsToday"), snap.checkOutsToday, "#0369a1", "", false],
+    ["📄", uiT("opsExpiringDocs7"), snap.expiringDocs7Days, snap.expiringDocs7Days > 0 ? "#d97706" : "#6b7280", isDarkTheme ? "" : (snap.expiringDocs7Days > 0 ? "rgba(254,243,199,0.5)" : ""), snap.expiringDocs7Days > 0],
+    ["✍️", uiT("opsMissingSignatures"), snap.activeWorkersMissingSignature, snap.activeWorkersMissingSignature > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (snap.activeWorkersMissingSignature > 0 ? "rgba(254,226,226,0.5)" : ""), snap.activeWorkersMissingSignature > 0],
+    ["🚶", uiT("opsActiveVisitors"), snap.activeVisitors, "#7c3aed", "", false],
+    ["🔒", uiT("opsLockedWorkers"), snap.lockedWorkers, snap.lockedWorkers > 0 ? "#dc2626" : "#6b7280", "", snap.lockedWorkers > 0],
+  ];
+  container.innerHTML = cards
+    .map(([icon, label, value, color, bg, isWarn]) => {
+      const styleStr = [
+        bg ? `background:${bg}` : "",
+        isDarkTheme && color ? `border-color:${color}33` : "",
+        color ? `--stat-accent:${color}` : "",
+      ].filter(Boolean).join(";");
+      return `<article class="stat-card stat-card-v2${isWarn ? " stat-card-warn" : ""}" style="${styleStr}">
+        <span class="stat-icon">${icon}</span>
+        <p class="stat-label">${escapeHtml(label)}</p>
+        <strong class="stat-value-v2" style="color:${color};">${escapeHtml(String(value ?? 0))}</strong>
+      </article>`;
+    })
+    .join("");
+}
+
 function renderStats() {
   if (!elements.statsGrid) return;
   const texts = getRuntimeUiTexts();
@@ -18682,6 +18980,7 @@ function bindWorkerRowActions() {
       document.querySelector("#workerStatus").value = worker.status || "aktiv";
       document.querySelector("#badgePin").value = "";
       setPhotoEditorSource(worker.photoData || "", { resetOffset: true });
+      loadComplianceSignatureForWorker(worker);
       syncWorkerTypeUi();
       syncWorkerEditorUi();
       setView("workers");
@@ -21309,9 +21608,11 @@ function showWorkerDetailOverlay(worker) {
         <button type="button" class="ghost-button" id="workerCheckOutBtn" ${readOnly ? "disabled" : ""}>${uiT("detailCheckoutBtn")}</button>
         ${canResetPin ? `<button type="button" class="ghost-button" id="workerResetPinBtn">${uiT("btnResetPin")}</button>` : ""}
         ${!isVisitorWorker(worker) && ["superadmin", "company-admin"].includes(role) ? `<button type="button" class="ghost-button" id="workerQrBtn">QR-Code</button>` : ""}
+        ${!isVisitorWorker(worker) && ["superadmin", "company-admin"].includes(role) ? `<button type="button" class="ghost-button" id="workerAktePdfBtn">${escapeHtml(uiT("opsDownloadAktePdf"))}</button>` : ""}
       </div>
       ${!isVisitorWorker(worker) ? `
       <hr style="margin:16px 0; border:none; border-top:1px solid #e5e7eb;" />
+      <div id="workerDetailSignatureSection" class="worker-detail-signature hidden"></div>
       <div class="worker-docs-section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
           <h4 style="margin:0;">${escapeHtml(uiT("workerDocsHeading"))}</h4>
@@ -21366,6 +21667,33 @@ function showWorkerDetailOverlay(worker) {
     };
   }
 
+  const aktePdfBtn = overlay.querySelector("#workerAktePdfBtn");
+  if (aktePdfBtn) {
+    aktePdfBtn.onclick = async () => {
+      aktePdfBtn.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/api/workers/${worker.id}/akte.pdf`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error(`API ${response.status}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `akte-${(worker.badgeId || worker.id).toLowerCase()}.pdf`;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        showToast(uiT("alertGenericError").replace("{error}", error.message), "error", 3600);
+      } finally {
+        aktePdfBtn.disabled = false;
+      }
+    };
+  }
+
   // QR-Code herunterladen
   const qrBtn = overlay.querySelector("#workerQrBtn");
   if (qrBtn) {
@@ -21396,6 +21724,28 @@ function showWorkerDetailOverlay(worker) {
 
   // Worker-Dokumente laden und rendern
   if (!isVisitorWorker(worker)) {
+    const sigSection = overlay.querySelector("#workerDetailSignatureSection");
+    if (sigSection && (worker.hasComplianceSignature || worker.idHandoverAt)) {
+      sigSection.classList.remove("hidden");
+      apiRequest(`${API_BASE}/api/workers/${worker.id}/compliance-signature`)
+        .then((data) => {
+          const handoverLine = data?.idHandoverAt
+            ? `<p class="helper-text"><strong>${escapeHtml(uiT("workerDetailIdHandover"))}:</strong> ${escapeHtml(formatTimestamp(data.idHandoverAt))}</p>`
+            : "";
+          const imgLine = data?.signatureData
+            ? `<img src="${sanitizeImageSrc(data.signatureData, "")}" alt="${escapeHtml(uiT("workerDetailSignatureHeading"))}" />`
+            : `<p class="muted">${escapeHtml(uiT("complianceSignatureEmpty"))}</p>`;
+          sigSection.innerHTML = `
+            <h4 style="margin:0 0 8px;">${escapeHtml(uiT("workerDetailSignatureHeading"))}</h4>
+            ${handoverLine}
+            ${imgLine}
+            ${data?.signatureAt ? `<p class="helper-text muted">${escapeHtml(formatTimestamp(data.signatureAt))}</p>` : ""}
+          `;
+        })
+        .catch(() => {
+          sigSection.classList.add("hidden");
+        });
+    }
     const docsContainer = overlay.querySelector("#workerDocsList");
     if (docsContainer) {
       loadWorkerDocuments(worker.id).then((docs) => {
@@ -21535,6 +21885,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
       document.querySelector("#workerStatus").value = worker.status;
       document.querySelector("#badgePin").value = "";
       setPhotoEditorSource(worker.photoData || "", { resetOffset: true });
+      loadComplianceSignatureForWorker(worker);
       syncWorkerEditorUi();
       setView("workers");
     });
@@ -21850,6 +22201,7 @@ function renderBadge() {
           if (typeof setPhotoEditorSource === 'function') {
             setPhotoEditorSource(worker.photoData || "", { resetOffset: true });
           }
+          loadComplianceSignatureForWorker(worker);
           const cameraBlock = document.querySelector('.camera-block');
           if (cameraBlock) cameraBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 200);
@@ -22945,6 +23297,7 @@ async function handleWorkerSubmit(event) {
     badgeId: buildBadgeId(firstName, lastName, elements.workerType?.value || "worker"),
     badgePin: document.querySelector("#badgePin").value.trim()
   };
+  appendComplianceFieldsToWorkerPayload(payload);
 
   try {
     let targetWorkerId = state.editingWorkerId || null;
@@ -26422,6 +26775,11 @@ async function handleLoginSubmit(event) {
       showToast(backendMessage || uiT("alertLoginFailed").replace("{error}", error.message), "error", 4200);
       return;
     }
+    if (error.message === "superadmin_2fa_required") {
+      showToast(uiT("alertSuperadmin2faRequired"), "error", 8000);
+      setView("admin");
+      return;
+    }
     if (error.message === "invalid_credentials") {
       registerLoginFailure(error.message);
       if (!isLoginBlockedLocally()) {
@@ -28158,6 +28516,7 @@ if (workerCsvButton) {
 const workerForm = document.querySelector("#workerForm");
 if (workerForm) {
   workerForm.addEventListener("submit", handleWorkerSubmit);
+  initComplianceSignaturePad();
 }
 
 const workerStatusFilter = document.querySelector("#workerStatusFilter");
@@ -29269,6 +29628,37 @@ if (refreshSystemStatusButton) {
 const repairSystemButton = document.querySelector("#repairSystemButton");
 if (repairSystemButton) {
   repairSystemButton.addEventListener("click", handleSystemRepair);
+}
+
+const databaseBackupButton = document.querySelector("#databaseBackupButton");
+if (databaseBackupButton) {
+  databaseBackupButton.addEventListener("click", async () => {
+    if (getEffectiveUiRole() !== "superadmin") return;
+    const resultNode = document.querySelector("#databaseBackupResult");
+    databaseBackupButton.disabled = true;
+    try {
+      const payload = await apiRequest(`${API_BASE}/api/admin/database/backup`, { method: "POST", body: {} });
+      if (resultNode) {
+        resultNode.textContent = `${uiT("opsBackupDone")} ${payload?.backupPath || payload?.path || ""}`;
+      }
+      showToast(uiT("opsBackupDone"), "success");
+    } catch (error) {
+      const msg = uiT("opsBackupFailed").replace("{error}", error.message || String(error));
+      if (resultNode) resultNode.textContent = msg;
+      showToast(msg, "error", 5000);
+    } finally {
+      databaseBackupButton.disabled = false;
+    }
+  });
+}
+
+const operationsSnapshotRefreshBtn = document.querySelector("#operationsSnapshotRefreshBtn");
+if (operationsSnapshotRefreshBtn) {
+  operationsSnapshotRefreshBtn.addEventListener("click", async () => {
+    operationsSnapshotRefreshBtn.disabled = true;
+    await loadOperationsSnapshot();
+    operationsSnapshotRefreshBtn.disabled = false;
+  });
 }
 
 if (elements.dayCloseAcknowledgeForm) {

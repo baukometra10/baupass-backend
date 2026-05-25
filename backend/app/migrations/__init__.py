@@ -315,4 +315,26 @@ ALL_MIGRATIONS: list[Migration] = [
         down_sql="DROP TABLE IF EXISTS idempotency_keys;",
     ),
 
+    Migration(
+        version="011",
+        name="worker_compliance_indexes",
+        up_sql="""
+            CREATE INDEX IF NOT EXISTS idx_workers_company_handover
+                ON workers(company_id, id_handover_at)
+                WHERE deleted_at IS NULL AND id_handover_at IS NOT NULL AND id_handover_at != '';
+            CREATE INDEX IF NOT EXISTS idx_workers_active_missing_signature
+                ON workers(company_id, status)
+                WHERE deleted_at IS NULL
+                  AND worker_type = 'worker'
+                  AND COALESCE(compliance_signature_data, '') = '';
+            CREATE INDEX IF NOT EXISTS idx_access_logs_ts_direction
+                ON access_logs(timestamp DESC, direction);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_workers_company_handover;
+            DROP INDEX IF EXISTS idx_workers_active_missing_signature;
+            DROP INDEX IF EXISTS idx_access_logs_ts_direction;
+        """,
+    ),
+
 ]

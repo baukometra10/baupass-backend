@@ -19,6 +19,7 @@ import math
 import zipfile
 import logging
 import uuid
+import shutil
 from contextlib import closing, contextmanager
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -391,6 +392,20 @@ APP_STARTED_AT = datetime.now(timezone.utc)
 DUNNING_LAST_RUN_AT = None
 DUNNING_LAST_RESULT = {"remindersSent": 0, "reminderFailures": 0, "overdueUpdated": 0, "suspendedCompanies": 0}
 BACKUP_RETENTION_DAYS = max(1, int(os.getenv("BAUPASS_BACKUP_RETENTION_DAYS", "30")))
+REQUIRE_SUPERADMIN_2FA = str(os.getenv("BAUPASS_REQUIRE_SUPERADMIN_2FA", "1")).strip().lower() in {"1", "true", "yes", "on"}
+IMMUTABLE_AUDIT_ENABLED = str(os.getenv("BAUPASS_IMMUTABLE_AUDIT", "1")).strip().lower() in {"1", "true", "yes", "on"}
+IMMUTABLE_AUDIT_EVENT_PREFIXES = tuple(
+    filter(
+        None,
+        [
+            p.strip()
+            for p in os.getenv(
+                "BAUPASS_IMMUTABLE_AUDIT_PREFIXES",
+                "security.,login.,worker.compliance_signature,import.,worker.deleted",
+            ).split(",")
+        ],
+    )
+)
 ALERT_DEDUP_MINUTES = max(5, int(os.getenv("BAUPASS_ALERT_DEDUP_MINUTES", "30")))
 INVOICE_SEND_MAX_RETRIES = max(1, int(os.getenv("BAUPASS_INVOICE_SEND_MAX_RETRIES", "5")))
 INVOICE_RETRY_CRITICAL_WARN_THRESHOLD = max(1, int(os.getenv("BAUPASS_INVOICE_RETRY_CRITICAL_WARN_THRESHOLD", "10")))
@@ -622,6 +637,23 @@ def sanitize_photo_data(value, required=False):
         raise ValueError("photo_too_large")
     if not _PHOTO_DATA_URL_RE.fullmatch(raw):
         raise ValueError("invalid_photo_data")
+    return raw.replace("\n", "").replace("\r", "")
+
+
+_SIGNATURE_DATA_URL_RE = re.compile(r"^data:image\/png;base64,[A-Za-z0-9+/=]+$", re.IGNORECASE)
+
+
+def sanitize_compliance_signature_data(value, required=False):
+    """PNG data-URL for admin-captured handover signature (not worker-app)."""
+    raw = str(value or "").strip()
+    if not raw:
+        if required:
+            raise ValueError("signature_required")
+        return ""
+    if len(raw) > 400_000:
+        raise ValueError("signature_too_large")
+    if not _SIGNATURE_DATA_URL_RE.fullmatch(raw.replace("\n", "").replace("\r", "")):
+        raise ValueError("invalid_signature_data")
     return raw.replace("\n", "").replace("\r", "")
 
 
@@ -1397,8 +1429,20 @@ def parse_datetime_local_to_utc_iso(value):
     return as_utc.isoformat() + "Z"
 
 
-def serialize_worker_record(row):
+def _worker_compliance_signature_meta(row):
+    sig = ""
+    if hasattr(row, "keys") and "compliance_signature_data" in row.keys():
+        sig = (row["compliance_signature_data"] or "").strip()
     return {
+        "hasComplianceSignature": bool(sig),
+        "complianceSignatureAt": (row["compliance_signature_at"] or "") if hasattr(row, "keys") and "compliance_signature_at" in row.keys() else "",
+        "complianceSignatureCapturedBy": (row["compliance_signature_captured_by"] or "") if hasattr(row, "keys") and "compliance_signature_captured_by" in row.keys() else "",
+        "idHandoverAt": (row["id_handover_at"] or "") if hasattr(row, "keys") and "id_handover_at" in row.keys() else "",
+    }
+
+
+def serialize_worker_record(row):
+    payload = {
         "id": row["id"],
         "companyId": row["company_id"],
         "subcompanyId": row["subcompany_id"],
@@ -1420,6 +1464,8 @@ def serialize_worker_record(row):
         "physicalCardId": row["physical_card_id"],
         "deletedAt": row["deleted_at"],
     }
+    payload.update(_worker_compliance_signature_meta(row))
+    return payload
 
 
 def resolve_worker_access_end_utc(worker):
@@ -1516,6 +1562,11 @@ def apply_security_headers(response):
         existing_cache_control = response.headers.get("Cache-Control") or ""
         if "no-transform" not in existing_cache_control.lower():
             response.headers["Cache-Control"] = (existing_cache_control + ", no-transform").strip(", ")
+
+    enable_hsts = str(os.getenv("BAUPASS_ENABLE_HSTS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    public_base = str(os.getenv("PUBLIC_BASE_URL", "") or "").strip().lower()
+    if enable_hsts or public_base.startswith("https://"):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     started_at = getattr(g, "request_started_monotonic", None)
     duration_ms = ""
@@ -2938,6 +2989,14 @@ def init_db():
         cur.execute("ALTER TABLE workers ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''")
     if "leave_balance" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN leave_balance INTEGER NOT NULL DEFAULT 30")
+    if "compliance_signature_data" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN compliance_signature_data TEXT NOT NULL DEFAULT ''")
+    if "compliance_signature_at" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN compliance_signature_at TEXT NOT NULL DEFAULT ''")
+    if "compliance_signature_captured_by" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN compliance_signature_captured_by TEXT NOT NULL DEFAULT ''")
+    if "id_handover_at" not in worker_columns:
+        cur.execute("ALTER TABLE workers ADD COLUMN id_handover_at TEXT NOT NULL DEFAULT ''")
 
     # ── Urlaubstage-Zaehler in leave_requests ────────────────────
     # Bei frischen DBs kann die Tabelle hier noch nicht existieren.
@@ -3791,6 +3850,33 @@ def log_audit(event_type, message, target_type=None, target_id=None, company_id=
         ),
     )
     db.commit()
+
+    if IMMUTABLE_AUDIT_ENABLED and event_type:
+        should_mirror = any(event_type.startswith(prefix) for prefix in IMMUTABLE_AUDIT_EVENT_PREFIXES)
+        if should_mirror:
+            try:
+                from backend.app.audit.immutable import append_immutable_audit_event
+
+                request_id = getattr(g, "request_id", None) if has_request_context() else None
+                company_id_int = None
+                if resolved_company is not None and str(resolved_company).strip().isdigit():
+                    company_id_int = int(resolved_company)
+                append_immutable_audit_event(
+                    db,
+                    event_type=event_type,
+                    payload={
+                        "message": message,
+                        "targetType": target_type,
+                        "targetId": target_id,
+                    },
+                    company_id=company_id_int,
+                    actor_id=actor_user_id,
+                    request_id=request_id,
+                    source="legacy_audit",
+                )
+                db.commit()
+            except Exception as exc:
+                app.logger.warning(f"[audit] immutable mirror failed for {event_type}: {exc}")
 
 
 def is_read_only_support_session(session_row):
@@ -5760,7 +5846,7 @@ def rotate_import_backups(backup_dir):
     kept = 0
     errors = 0
 
-    for path in backup_dir.glob("import-backup-*.json"):
+    for path in list(backup_dir.glob("import-backup-*.json")) + list(backup_dir.glob("db-backup-*.db")):
         try:
             mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
             age_days = (now_dt - mtime).days
@@ -5773,6 +5859,49 @@ def rotate_import_backups(backup_dir):
             errors += 1
 
     return {"removed": removed, "kept": kept, "errors": errors, "retentionDays": BACKUP_RETENTION_DAYS}
+
+
+def create_sqlite_database_backup():
+    """Hot-backup SQLite DB (WAL checkpoint + file copy). Returns (path, meta)."""
+    src = Path(DB_PATH).resolve()
+    if not src.exists():
+        raise FileNotFoundError("database_not_found")
+
+    backup_dir = BASE_DIR / "backend" / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    rotation = rotate_import_backups(backup_dir)
+
+    timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
+    dest = backup_dir / f"db-backup-{timestamp}-{secrets.token_hex(2)}.db"
+
+    with closing(sqlite3.connect(str(src), timeout=120)) as conn:
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except Exception:
+            pass
+
+    shutil.copy2(src, dest)
+    wal_src = Path(f"{src}-wal")
+    shm_src = Path(f"{src}-shm")
+    if wal_src.exists():
+        try:
+            shutil.copy2(wal_src, Path(f"{dest}-wal"))
+        except Exception:
+            pass
+    if shm_src.exists():
+        try:
+            shutil.copy2(shm_src, Path(f"{dest}-shm"))
+        except Exception:
+            pass
+
+    meta = {
+        "path": str(dest),
+        "sizeBytes": dest.stat().st_size,
+        "createdAt": now_iso(),
+        "rotation": rotation,
+        "source": str(src),
+    }
+    return str(dest), meta
 
 
 def create_import_rollback_backup(db, role, target_company_id):
@@ -6424,7 +6553,21 @@ def run_daily_jobs_cycle_once():
 
         if callable(send_document_expiry_notifications):
             send_document_expiry_notifications()
-        return {"ok": True, "monthly": monthly_result}
+        backup_result = {"ok": False}
+        try:
+            backup_path, backup_meta = create_sqlite_database_backup()
+            backup_result = {"ok": True, "path": backup_path, **backup_meta}
+            with app.app_context():
+                db = get_db()
+                log_audit(
+                    "system.database_backup",
+                    f"Geplantes SQLite-Backup erstellt: {backup_path}",
+                    target_type="database",
+                    target_id="sqlite",
+                )
+        except Exception as backup_exc:
+            backup_result = {"ok": False, "error": str(backup_exc)}
+        return {"ok": True, "monthly": monthly_result, "databaseBackup": backup_result}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
@@ -7573,6 +7716,18 @@ def login():
 
     twofa_enabled = int(user["twofa_enabled"]) == 1
     turnstile_auto_2fa = user["role"] == "turnstile"
+    if REQUIRE_SUPERADMIN_2FA and user["role"] == "superadmin" and not twofa_enabled:
+        register_login_failure(throttle_key)
+        log_audit(
+            "security.superadmin_2fa_required",
+            f"Superadmin-Login ohne 2FA blockiert: {username}",
+            target_type="user",
+            target_id=user["id"],
+        )
+        return login_error(
+            "superadmin_2fa_required",
+            message="Fuer Superadmin-Konten ist die Zwei-Faktor-Anmeldung (E-Mail-OTP) Pflicht. Bitte 2FA in den Einstellungen aktivieren.",
+        )
     if twofa_enabled and not turnstile_auto_2fa:
         user_keys = set(user.keys()) if hasattr(user, "keys") else set()
         user_email = (user["email"] if "email" in user_keys else "").strip()
@@ -9725,10 +9880,69 @@ def create_worker():
             None,
         ),
     )
+    try:
+        _persist_worker_compliance_fields(db, worker_id, payload, g.current_user, is_new=True)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
     db.commit()
     log_audit("worker.created", f"Mitarbeiter {first_name} {last_name} erstellt", target_type="worker", target_id=worker_id, company_id=company_id, actor=g.current_user)
     row = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
     return jsonify(serialize_worker_record(row)), 201
+
+
+def _persist_worker_compliance_fields(db, worker_id, payload, actor, is_new=False):
+    """Admin-only compliance signature + ID handover date (never worker-app)."""
+    actor_id = str((actor or {}).get("id") or (actor or {}).get("user_id") or "").strip()
+    now_value = now_iso()
+    handover_raw = payload.get("idHandoverAt")
+    handover_value = None
+    if handover_raw is not None:
+        handover_value = parse_datetime_local_to_utc_iso(handover_raw) if str(handover_raw).strip() else ""
+
+    signature_changed = "complianceSignatureData" in payload or bool(payload.get("clearComplianceSignature"))
+    if signature_changed:
+        if payload.get("clearComplianceSignature"):
+            signature_data = ""
+            signature_at = ""
+            captured_by = ""
+        else:
+            try:
+                signature_data = sanitize_compliance_signature_data(payload.get("complianceSignatureData"), required=False)
+            except ValueError as error:
+                raise ValueError(str(error))
+            if signature_data:
+                signature_at = now_value
+                captured_by = actor_id
+            else:
+                signature_at = ""
+                captured_by = ""
+        db.execute(
+            """
+            UPDATE workers
+            SET compliance_signature_data = ?, compliance_signature_at = ?, compliance_signature_captured_by = ?
+            WHERE id = ?
+            """,
+            (signature_data, signature_at, captured_by, worker_id),
+        )
+        if signature_data:
+            log_audit(
+                "worker.compliance_signature_saved",
+                f"Unterschrift in Mitarbeiterakte {worker_id} gespeichert",
+                target_type="worker",
+                target_id=worker_id,
+                actor=actor,
+            )
+        elif not is_new:
+            log_audit(
+                "worker.compliance_signature_cleared",
+                f"Unterschrift in Mitarbeiterakte {worker_id} entfernt",
+                target_type="worker",
+                target_id=worker_id,
+                actor=actor,
+            )
+
+    if handover_value is not None:
+        db.execute("UPDATE workers SET id_handover_at = ? WHERE id = ?", (handover_value, worker_id))
 
 
 @app.put("/api/workers/<worker_id>")
@@ -9875,6 +10089,14 @@ def update_worker(worker_id):
             "message": "Foto-Override erfordert eine zweite Superadmin-Freigabe.",
         }), 202
 
+    try:
+        _persist_worker_compliance_fields(db, worker_id, payload, g.current_user, is_new=False)
+    except ValueError as error:
+        code = str(error)
+        if code in ("signature_required", "signature_too_large", "invalid_signature_data"):
+            return jsonify({"error": code}), 400
+        return jsonify({"error": code}), 400
+
     db.execute(
         """
         UPDATE workers
@@ -9937,6 +10159,303 @@ def delete_worker(worker_id):
     db.commit()
     log_audit("worker.deleted", f"Mitarbeiter {worker_id} geloescht", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
     return jsonify({"ok": True})
+
+
+@app.get("/api/workers/<worker_id>/compliance-signature")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def get_worker_compliance_signature(worker_id):
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+    return jsonify({
+        "workerId": worker_id,
+        "signatureData": worker["compliance_signature_data"] or "",
+        "signatureAt": worker["compliance_signature_at"] or "",
+        "capturedByUserId": worker["compliance_signature_captured_by"] or "",
+        "idHandoverAt": worker["id_handover_at"] or "",
+    })
+
+
+@app.put("/api/workers/<worker_id>/compliance-signature")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def put_worker_compliance_signature(worker_id):
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+    if worker["deleted_at"]:
+        return jsonify({"error": "worker_deleted"}), 400
+    try:
+        _persist_worker_compliance_fields(db, worker_id, payload, g.current_user, is_new=False)
+    except ValueError as error:
+        code = str(error)
+        return jsonify({"error": code}), 400
+    db.commit()
+    row = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    meta = _worker_compliance_signature_meta(row)
+    return jsonify({"ok": True, **meta, "signatureData": row["compliance_signature_data"] or ""})
+
+
+def _operations_company_filter_sql(user, alias="w"):
+    if user["role"] == "superadmin":
+        return "", []
+    return f" AND {alias}.company_id = ?", [user.get("company_id")]
+
+
+@app.get("/api/operations/snapshot")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def operations_snapshot():
+    """Live KPIs for dashboard: on-site, documents, signatures, visitors."""
+    db = get_db()
+    user = g.current_user
+    today_prefix = utc_now().strftime("%Y-%m-%d")
+    company_sql, company_params = _operations_company_filter_sql(user, "w")
+
+    present_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS total
+        FROM (
+            SELECT al.worker_id, al.direction
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE w.deleted_at IS NULL
+              {company_sql}
+              AND al.timestamp LIKE ?
+              AND al.timestamp = (
+                  SELECT MAX(al2.timestamp)
+                  FROM access_logs al2
+                  WHERE al2.worker_id = al.worker_id
+                    AND al2.timestamp LIKE ?
+              )
+        ) latest
+        WHERE latest.direction = 'check-in'
+        """,
+        tuple(company_params + [f"{today_prefix}%", f"{today_prefix}%"]),
+    ).fetchone()
+    workers_on_site = int((present_row["total"] if present_row else 0) or 0)
+
+    checkins_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM access_logs al
+        JOIN workers w ON w.id = al.worker_id
+        WHERE al.direction = 'check-in' AND al.timestamp LIKE ? {company_sql}
+        """,
+        tuple([f"{today_prefix}%"] + company_params),
+    ).fetchone()
+    checkouts_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM access_logs al
+        JOIN workers w ON w.id = al.worker_id
+        WHERE al.direction = 'check-out' AND al.timestamp LIKE ? {company_sql}
+        """,
+        tuple([f"{today_prefix}%"] + company_params),
+    ).fetchone()
+
+    limit_7 = (utc_now() + timedelta(days=7)).strftime("%Y-%m-%d")
+    limit_30 = (utc_now() + timedelta(days=30)).strftime("%Y-%m-%d")
+    expiring_7_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM worker_documents wd
+        JOIN workers w ON w.id = wd.worker_id
+        WHERE w.deleted_at IS NULL
+          AND wd.expiry_date IS NOT NULL AND wd.expiry_date != ''
+          AND wd.expiry_date >= ? AND wd.expiry_date <= ?
+          {company_sql}
+        """,
+        tuple([today_prefix, limit_7] + company_params),
+    ).fetchone()
+    expiring_30_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM worker_documents wd
+        JOIN workers w ON w.id = wd.worker_id
+        WHERE w.deleted_at IS NULL
+          AND wd.expiry_date IS NOT NULL AND wd.expiry_date != ''
+          AND wd.expiry_date >= ? AND wd.expiry_date <= ?
+          {company_sql}
+        """,
+        tuple([today_prefix, limit_30] + company_params),
+    ).fetchone()
+    expired_docs_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM worker_documents wd
+        JOIN workers w ON w.id = wd.worker_id
+        WHERE w.deleted_at IS NULL
+          AND wd.expiry_date IS NOT NULL AND wd.expiry_date < ?
+          {company_sql}
+        """,
+        tuple([today_prefix] + company_params),
+    ).fetchone()
+
+    missing_sig_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM workers w
+        WHERE w.deleted_at IS NULL
+          AND w.worker_type = 'worker'
+          AND w.status = 'aktiv'
+          AND COALESCE(w.compliance_signature_data, '') = ''
+          {company_sql}
+        """,
+        tuple(company_params),
+    ).fetchone()
+
+    now_str = datetime.utcnow().isoformat()
+    visitor_sql = company_sql.replace("w.", "w.") if company_sql else ""
+    active_visitors_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM workers w
+        WHERE w.worker_type = 'visitor'
+          AND w.deleted_at IS NULL
+          AND w.status != 'gesperrt'
+          AND (w.visit_end_at = '' OR w.visit_end_at > ?)
+          {visitor_sql}
+        """,
+        tuple([now_str] + company_params),
+    ).fetchone()
+
+    locked_workers_row = db.execute(
+        f"""
+        SELECT COUNT(*) AS c FROM workers w
+        WHERE w.deleted_at IS NULL AND w.status = 'gesperrt' {company_sql}
+        """,
+        tuple(company_params),
+    ).fetchone()
+
+    return jsonify({
+        "date": today_prefix,
+        "workersOnSite": workers_on_site,
+        "checkInsToday": int((checkins_row["c"] if checkins_row else 0) or 0),
+        "checkOutsToday": int((checkouts_row["c"] if checkouts_row else 0) or 0),
+        "expiringDocs7Days": int((expiring_7_row["c"] if expiring_7_row else 0) or 0),
+        "expiringDocs30Days": int((expiring_30_row["c"] if expiring_30_row else 0) or 0),
+        "expiredDocs": int((expired_docs_row["c"] if expired_docs_row else 0) or 0),
+        "activeWorkersMissingSignature": int((missing_sig_row["c"] if missing_sig_row else 0) or 0),
+        "activeVisitors": int((active_visitors_row["c"] if active_visitors_row else 0) or 0),
+        "lockedWorkers": int((locked_workers_row["c"] if locked_workers_row else 0) or 0),
+    })
+
+
+@app.get("/api/workers/<worker_id>/akte.pdf")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def download_worker_akte_pdf(worker_id):
+    db = get_db()
+    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.utils import ImageReader
+    except Exception:
+        return jsonify({"error": "pdf_dependency_missing"}), 503
+
+    company = db.execute("SELECT name FROM companies WHERE id = ?", (worker["company_id"],)).fetchone()
+    doc_count_row = db.execute(
+        "SELECT COUNT(*) AS c FROM worker_documents WHERE worker_id = ?", (worker_id,)
+    ).fetchone()
+    doc_count = int((doc_count_row["c"] if doc_count_row else 0) or 0)
+
+    buf = io.BytesIO()
+    page_width, page_height = A4
+    pdf = rl_canvas.Canvas(buf, pagesize=A4)
+    y = page_height - 48
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(40, y, "Mitarbeiter-Akte")
+    y -= 28
+    pdf.setFont("Helvetica", 11)
+    full_name = f"{worker['first_name']} {worker['last_name']}".strip()
+    lines = [
+        f"Name: {full_name}",
+        f"Badge-ID: {worker['badge_id']}",
+        f"Firma: {(company['name'] if company else '-')}",
+        f"Rolle: {worker['role']}",
+        f"Standort: {worker['site']}",
+        f"Status: {worker['status']}",
+        f"Dokumente in Akte: {doc_count}",
+    ]
+    handover = (worker["id_handover_at"] or "").strip()
+    if handover:
+        lines.append(f"Ausweis uebergeben: {handover[:19]}")
+    if worker["compliance_signature_at"]:
+        lines.append(f"Unterschrift gespeichert: {worker['compliance_signature_at']}")
+    for line in lines:
+        pdf.drawString(40, y, line[:95])
+        y -= 16
+
+    sig_data = (worker["compliance_signature_data"] or "").strip()
+    if sig_data.startswith("data:image"):
+        try:
+            _, encoded = sig_data.split(",", 1)
+            raw = base64.b64decode(encoded)
+            img = ImageReader(io.BytesIO(raw))
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(40, y - 8, "Unterschrift (Ausweisuebergabe)")
+            pdf.drawImage(img, 40, max(80, y - 130), width=220, height=70, preserveAspectRatio=True, mask="auto")
+        except Exception:
+            pass
+
+    pdf.setFont("Helvetica", 8)
+    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | BauPass Mitarbeiterakte")
+    pdf.showPage()
+    pdf.save()
+    buf.seek(0)
+    safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", full_name or worker_id)[:40]
+    return Response(
+        buf.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="akte-{safe_name}.pdf"'},
+    )
+
+
+@app.post("/api/admin/database/backup")
+@require_auth
+@require_roles("superadmin")
+def admin_create_database_backup():
+    try:
+        backup_path, meta = create_sqlite_database_backup()
+        log_audit(
+            "system.database_backup",
+            f"Manuelles SQLite-Backup: {backup_path}",
+            target_type="database",
+            target_id="sqlite",
+            actor=g.current_user,
+        )
+        return jsonify({"ok": True, "backupPath": backup_path, **meta})
+    except Exception as exc:
+        return jsonify({"error": "backup_failed", "detail": str(exc)}), 500
+
+
+@app.get("/api/admin/database/backups")
+@require_auth
+@require_roles("superadmin")
+def admin_list_database_backups():
+    backup_dir = BASE_DIR / "backend" / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    items = []
+    for path in sorted(backup_dir.glob("db-backup-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)[:30]:
+        try:
+            stat = path.stat()
+            items.append({
+                "filename": path.name,
+                "path": str(path),
+                "sizeBytes": stat.st_size,
+                "createdAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+            })
+        except Exception:
+            continue
+    return jsonify({"items": items, "retentionDays": BACKUP_RETENTION_DAYS})
 
 
 @app.patch("/api/workers/bulk-status")

@@ -2095,6 +2095,53 @@ select:focus {
   border: 1px dashed rgba(23, 23, 23, 0.12);
 }
 
+.compliance-signature-block {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 122, 0, 0.06);
+  border: 1px solid rgba(255, 122, 0, 0.22);
+}
+
+.compliance-signature-block h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.signature-pad-wrap {
+  border-radius: 12px;
+  border: 1px solid rgba(23, 23, 23, 0.15);
+  background: #fff;
+  overflow: hidden;
+  touch-action: none;
+}
+
+#complianceSignatureCanvas {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  cursor: crosshair;
+}
+
+.worker-detail-signature {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(23, 23, 23, 0.08);
+}
+
+.worker-detail-signature img {
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
 .camera-preview-wrap {
   position: relative;
   min-height: 260px;
