@@ -34,15 +34,46 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host ""
 }
 
-git push -u origin main
+git push -u origin main 2>&1 | Tee-Object -Variable pushOut
 if ($LASTEXITCODE -ne 0) {
+    $pushText = ($pushOut | Out-String)
+    if ($pushText -match "fetch first|rejected") {
+        Write-Host ""
+        Write-Host "GitHub hat nur 'Initial commit' – lade volles Projekt hoch..." -ForegroundColor Yellow
+        git push --force-with-lease origin main
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Host "OK – volles Projekt ist auf GitHub." -ForegroundColor Green
+            Write-Host "Pruefen: https://github.com/baukometra10/baupass-backend"
+            exit 0
+        }
+    }
+    $err = $pushText
+    if ($err -match "denied to baupass") {
+        Write-Host ""
+        Write-Host "Falscher GitHub-User: baupass (alt). Bitte als baukometra10 anmelden." -ForegroundColor Red
+        Write-Host "Windows: Einstellungen -> Konten -> Anmeldeinfo -> Windows-Anmeldeinformationen"
+        Write-Host "  -> git:https://github.com entfernen, dann Skript erneut starten."
+    }
     Write-Host ""
     Write-Host "Push fehlgeschlagen." -ForegroundColor Red
-    Write-Host "1. Repo existiert? https://github.com/baukometra10/baupass-backend"
-    Write-Host "2. Token: https://github.com/settings/tokens (Berechtigung: repo)"
-    Write-Host "3. Login-User muss baukometra10 sein (nicht baupass)"
-    Write-Host "4. Erneut: .\deploy\github-push.ps1"
+    Write-Host "1. Token: https://github.com/settings/tokens (Berechtigung: repo)"
+    Write-Host "2. Login-User: baukometra10"
+    Write-Host "3. Erneut: .\deploy\github-push.ps1"
     exit $LASTEXITCODE
+}
+
+# GitHub hat oft nur "Initial commit" – volles Projekt ersetzt das sicher.
+$localHead = (git rev-parse main).Trim()
+$remoteHead = (git rev-parse origin/main 2>$null).Trim()
+if ($localHead -ne $remoteHead) {
+    Write-Host ""
+    Write-Host "Remote hat anderen Stand (z.B. nur Initial commit). Ersetze mit vollem Projekt..." -ForegroundColor Yellow
+    git push --force-with-lease origin main
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Force-Push fehlgeschlagen. Nochmal mit baukometra10-Token versuchen." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
 }
 
 Write-Host ""
