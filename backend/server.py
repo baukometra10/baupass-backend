@@ -4092,7 +4092,10 @@ def require_worker_session(handler):
             db.commit()
         session = db.execute("SELECT worker_id, expires_at FROM worker_app_sessions WHERE token = ?", (token,)).fetchone()
         if not session:
-            return _worker_auth_fail("invalid_worker_session", "Session token not found.")
+            return _worker_auth_fail(
+                "invalid_worker_session",
+                "Sitzung nicht gefunden. Bitte mit Badge-ID und PIN erneut anmelden.",
+            )
 
         now_value = now_iso()
         if session["expires_at"] < now_value:
@@ -4116,9 +4119,17 @@ def require_worker_session(handler):
             db.commit()
             return feature_not_available_response("worker_app", plan_value)
 
+        refreshed_expires_at = resolve_worker_session_expiry_iso(worker)
+        if refreshed_expires_at != session["expires_at"]:
+            db.execute(
+                "UPDATE worker_app_sessions SET expires_at = ? WHERE token = ?",
+                (refreshed_expires_at, token),
+            )
+            db.commit()
+
         g.worker = row_to_dict(worker)
         g.worker_token = token
-        g.worker_session_expires_at = session["expires_at"]
+        g.worker_session_expires_at = refreshed_expires_at
         return handler(*args, **kwargs)
 
     return wrapper

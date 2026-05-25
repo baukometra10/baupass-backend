@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260524a";
+const WORKER_BUILD_TAG = "20260524m";
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
@@ -2556,13 +2556,8 @@ async function loadWorkerData() {
       return false;
     }
     // Session expired or revoked — must re-login
-    if (error?.code === "worker_session_expired" || error?.code === "invalid_worker_session") {
-      localStorage.removeItem(WORKER_TOKEN_KEY);
-      localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
-      workerToken = "";
-      clearWorkerSessionExpiryTimer();
-      showWorkerNotice(t("sessionExpired"));
-      showLogin();
+    if (isWorkerSessionAuthError(error?.code)) {
+      invalidateWorkerSession({ showNotice: true });
       return false;
     }
     // Network error — show cached data if available
@@ -4146,6 +4141,27 @@ async function uploadPhotoToBackend(dataUrl) {
   await loadWorkerData();
 }
 
+function isWorkerSessionAuthError(code) {
+  return code === "worker_session_expired" || code === "invalid_worker_session";
+}
+
+function isWorkerProtectedApiUrl(url) {
+  const value = String(url || "");
+  return value.includes("/api/worker-app") || (API_BASE && value.startsWith(API_BASE));
+}
+
+function invalidateWorkerSession({ showNotice = true } = {}) {
+  localStorage.removeItem(WORKER_TOKEN_KEY);
+  localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
+  offlineWorkerSessionActive = false;
+  workerToken = "";
+  clearWorkerSessionExpiryTimer();
+  if (showNotice) {
+    showWorkerNotice(t("sessionExpired"));
+  }
+  showLogin();
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -4162,6 +4178,9 @@ async function fetchJson(url, options = {}) {
     const error = new Error(message);
     error.code = code;
     error.payload = payload;
+    if (isWorkerProtectedApiUrl(url) && isWorkerSessionAuthError(code)) {
+      invalidateWorkerSession({ showNotice: true });
+    }
     throw error;
   }
   return response.json();
@@ -4227,6 +4246,9 @@ function formatWorkerApiError(error) {
   }
   if (code === "unauthorized" || code === "session_expired" || code === "invalid_session") {
     return "Sitzung abgelaufen – bitte erneut mit Badge-ID und PIN anmelden.";
+  }
+  if (isWorkerSessionAuthError(code)) {
+    return t("sessionExpired");
   }
   return String(error?.message || "Daten konnten nicht geladen werden.");
 }
@@ -4487,7 +4509,11 @@ function arrayBufferToBase64(buffer) {
 
 async function submitLeaveRequest() {
   if (!workerToken || !elements.leaveRequestForm) return;
-  
+  if (offlineWorkerSessionActive) {
+    showWorkerNotice(t("leaveRequiresOnlineLogin"));
+    return;
+  }
+
   const type = elements.leaveRequestType?.value || "urlaub";
   const start = elements.leaveRequestStart?.value || "";
   const end = elements.leaveRequestEnd?.value || "";
@@ -4535,7 +4561,10 @@ async function submitLeaveRequest() {
     toggleLeaveRequestForm();
     await loadLeaveRequests();
   } catch (error) {
-    showWorkerNotice(`Fehler: ${error.message}`);
+    if (isWorkerSessionAuthError(error?.code)) {
+      return;
+    }
+    showWorkerNotice(`Fehler: ${formatWorkerApiError(error)}`);
   }
 }
 
@@ -4556,6 +4585,10 @@ function applyAiLeaveSuggestion() {
 
 async function sendLastLeaveRequestToBoss() {
   if (!workerToken) return;
+  if (offlineWorkerSessionActive) {
+    showWorkerNotice(t("leaveRequiresOnlineLogin"));
+    return;
+  }
   if (!lastSubmittedLeaveRequestId) {
     showWorkerNotice(t("submitRequestFirst"));
     return;
@@ -4577,7 +4610,10 @@ async function sendLastLeaveRequestToBoss() {
     });
     showWorkerNotice(t("sendToBossSuccess"));
   } catch (error) {
-    showWorkerNotice(`${t("sendToBossError")}: ${error.message}`);
+    if (isWorkerSessionAuthError(error?.code)) {
+      return;
+    }
+    showWorkerNotice(`${t("sendToBossError")}: ${formatWorkerApiError(error)}`);
   }
 }
 
