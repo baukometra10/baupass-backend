@@ -86,4 +86,10 @@
 
 ## Build-Tag
 
-Admin-UI nach Deploy: `?v=20260524j` (Service Worker v76).
+Admin-UI nach Deploy: `?v=20260524l` (Service Worker v78).
+
+### Dashboard & Admin (Build `20260524l`)
+
+- Dashboard: **Bald ablaufende Dokumente** (Top-Liste, Link zu Dokumente)
+- Admin: **Wallet & Mitarbeiter-App** (Apple/Google/SMTP/Redis/Backups + Install-Link kopieren)
+- Systemstatus: Runtime-Warnungen aus `get_runtime_diagnostics()`

@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260524k";
+        const buildTag = "20260524l";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,7 +51,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260524k" />
+    <link rel="stylesheet" href="./styles.css?v=20260524l" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -298,6 +298,17 @@
             <button type="button" id="operationsSnapshotRefreshBtn" class="ghost-button small-button" data-ui-i18n="operationsRefreshBtn">Aktualisieren</button>
           </div>
           <div id="operationsSnapshotGrid" class="stats-grid"></div>
+        </article>
+
+        <article class="panel" style="margin-top: 16px;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-ui-i18n="dashExpiringEyebrow">Compliance</p>
+              <h3 data-ui-i18n="dashExpiringH3">Bald ablaufende Dokumente</h3>
+            </div>
+            <button type="button" id="dashExpiringDocsBtn" class="ghost-button small-button" data-ui-i18n="dashExpiringOpenDocs">Alle Dokumente</button>
+          </div>
+          <div id="dashboardExpiringDocsPanel" class="list"></div>
         </article>
 
         <article class="panel" style="margin-top: 24px;">
@@ -1169,6 +1180,18 @@
 
             <div class="panel-heading">
               <div>
+                <p class="eyebrow" data-ui-i18n="readinessEyebrow">Produkt</p>
+                <h3 data-ui-i18n="readinessH3">Wallet &amp; Mitarbeiter-App</h3>
+              </div>
+            </div>
+            <div id="productReadinessPanel" class="card-item">
+              <p class="helper-text muted" data-ui-i18n="statusLoading">Status wird geladen...</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="panel-heading">
+              <div>
                 <p class="eyebrow" data-ui-i18n="superAdminEyebrow">Systemhoheit</p>
                 <h3 data-ui-i18n="superAdminH3">Super-Admin Einstellungen</h3>
               </div>
@@ -1895,8 +1918,8 @@
       }
     })();
   </script>
-  <script src="./app.js?v=20260524k"></script>
-  <script src="./desktop/renderer.js?v=20260524k" defer></script>
+  <script src="./app.js?v=20260524l"></script>
+  <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
       fetch('/api/public/branding').then(function(r) { return r.json(); }).then(function(b) {

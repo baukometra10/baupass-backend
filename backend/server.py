@@ -7989,7 +7989,28 @@ def system_status():
         (now_iso(),),
     ).fetchall()
 
-    setting = db.execute("SELECT worker_app_enabled FROM settings WHERE id = 1").fetchone()
+    setting = db.execute(
+        "SELECT worker_app_enabled, smtp_host, smtp_sender_email, platform_name FROM settings WHERE id = 1"
+    ).fetchone()
+    diagnostics = get_runtime_diagnostics()
+    wallet_status = _wallet_collect_runtime_status()
+    backup_dir = BASE_DIR / "backend" / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    db_backup_count = len(list(backup_dir.glob("db-backup-*.db")))
+    redis_ready = False
+    try:
+        from backend.app.tasks import task_queues_ready
+
+        redis_ready = bool(task_queues_ready())
+    except Exception:
+        redis_ready = False
+
+    public_base = get_public_base_url()
+    worker_build = _get_worker_build_info().get("build") or "latest"
+    worker_install_url = f"{public_base}/worker-install.html?v={worker_build}"
+
+    smtp_host_value = str((setting["smtp_host"] if setting else "") or "").strip()
+    smtp_configured = bool(smtp_host_value) or bool(diagnostics.get("brevoConfigured")) or bool(diagnostics.get("resendConfigured"))
 
     return jsonify(
         {
@@ -8011,6 +8032,13 @@ def system_status():
                 for row in session_details
             ],
             "workerAppEnabled": int(setting["worker_app_enabled"]) == 1 if setting else True,
+            "publicBaseUrl": public_base,
+            "workerInstallUrl": worker_install_url,
+            "smtpConfigured": smtp_configured,
+            "redisReady": redis_ready,
+            "dbBackupCount": db_backup_count,
+            "wallet": wallet_status,
+            "runtimeWarnings": diagnostics.get("warnings") or [],
         }
     )
 

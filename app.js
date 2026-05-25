@@ -1054,6 +1054,23 @@ const UI_TRANSLATIONS = {
     opsBackupDb: "Datenbank-Backup",
     opsBackupDone: "Backup erstellt.",
     opsBackupFailed: "Backup fehlgeschlagen: {error}",
+    dashExpiringEyebrow: "Compliance",
+    dashExpiringH3: "Bald ablaufende Dokumente",
+    dashExpiringOpenDocs: "Alle Dokumente",
+    dashExpiringEmpty: "Keine ablaufenden Dokumente in den nächsten 30 Tagen.",
+    dashExpiringMore: "+ {count} weitere in Dokumente",
+    readinessEyebrow: "Produkt",
+    readinessH3: "Wallet & Mitarbeiter-App",
+    readinessAppleWallet: "Apple Wallet",
+    readinessGoogleWallet: "Google Wallet",
+    readinessSmtp: "E-Mail (OTP/Rechnungen)",
+    readinessRedis: "Redis (Jobs/Rate-Limit)",
+    readinessDbBackups: "SQLite-Backups",
+    readinessWorkerInstall: "Mitarbeiter-App Install-Link",
+    readinessCopyInstall: "Link kopieren",
+    readinessInstallCopied: "Install-Link kopiert.",
+    readinessStatusOk: "OK",
+    readinessStatusWarn: "Fehlt",
     alertSuperadmin2faRequired: "Superadmin: Bitte E-Mail eingeben und erneut anmelden – OTP wird per E-Mail gesendet.",
     alertSuperadminSetupEmail: "Bitte Ihre E-Mail eintragen und erneut auf Anmelden klicken. Danach erhalten Sie einen OTP-Code.",
     loginSetupEmailLabel: "E-Mail für OTP (einmalig, Superadmin)",
@@ -16778,6 +16795,7 @@ function refreshAll() {
 
   renderStats();
   renderOperationsSnapshot();
+  renderDashboardExpiringDocs();
   renderComplianceKpi();
   renderWorkerStatsPanel();
   renderReportingPanels();
@@ -18325,6 +18343,45 @@ async function loadOperationsSnapshot() {
     state.operationsSnapshot = null;
   }
   renderOperationsSnapshot();
+}
+
+function renderDashboardExpiringDocs() {
+  const container = document.getElementById("dashboardExpiringDocsPanel");
+  if (!container) return;
+  const docs = Array.isArray(state.complianceExpiringDocs) ? state.complianceExpiringDocs : [];
+  const critical = docs.filter((d) => d.status === "expired" || Number(d.daysLeft) <= 7);
+  const list = (critical.length ? critical : docs).slice(0, 8);
+  if (!list.length) {
+    container.innerHTML = `<p class="helper-text muted">${escapeHtml(uiT("dashExpiringEmpty"))}</p>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="compliance-expiry-list">
+      ${list.map((entry) => {
+        const status = String(entry.status || "upcoming");
+        const rawDocType = String(entry.docType || "");
+        const docTypeKey = `docType${rawDocType.charAt(0).toUpperCase()}${rawDocType.slice(1)}`;
+        const docTypeLabel = uiT(docTypeKey) || rawDocType || "-";
+        const statusLabel = status === "expired"
+          ? runtimeText("complianceExpiringStatusExpired")
+          : status === "today"
+            ? runtimeText("complianceExpiringStatusToday")
+            : runtimeTextTemplate("complianceExpiringStatusDays", { count: Math.max(Number(entry.daysLeft) || 0, 0) });
+        return `
+          <div class="compliance-expiry-item">
+            <div>
+              <strong>${escapeHtml(entry.workerName || "-")}</strong>
+              <span>${escapeHtml(entry.companyName || "-")} • ${escapeHtml(docTypeLabel)}</span>
+            </div>
+            <div class="compliance-expiry-meta">
+              <span>${escapeHtml(formatDate(entry.expiryDate || ""))}</span>
+              <span class="status-pill ${status === "expired" ? "status-critical" : "status-check-in"}">${escapeHtml(statusLabel)}</span>
+            </div>
+          </div>`;
+      }).join("")}
+    </div>
+    ${docs.length > list.length ? `<p class="helper-text">${escapeHtml(runtimeTextTemplate("dashExpiringMore", { count: docs.length - list.length }))}</p>` : ""}
+  `;
 }
 
 function renderOperationsSnapshot() {
@@ -24285,6 +24342,48 @@ async function sendSmtpTestMail() {
   }
 }
 
+function renderReadinessPill(label, ok) {
+  const cls = ok ? "status-ok" : "status-test";
+  const text = ok ? uiT("readinessStatusOk") : uiT("readinessStatusWarn");
+  return `<span class="status-pill ${cls}" style="margin:2px 4px 2px 0;">${escapeHtml(label)}: ${escapeHtml(text)}</span>`;
+}
+
+function renderProductReadinessPanel(statusPayload) {
+  const panel = document.getElementById("productReadinessPanel");
+  if (!panel) return;
+  if (!statusPayload) {
+    panel.innerHTML = `<p class="muted">${escapeHtml(runtimeText("genericUnknownError"))}</p>`;
+    return;
+  }
+  const wallet = statusPayload.wallet || {};
+  const appleOk = Boolean(wallet?.runtime?.apple?.ok);
+  const googleOk = Boolean(wallet?.runtime?.google?.ok);
+  const installUrl = String(statusPayload.workerInstallUrl || "").trim();
+  panel.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
+      ${renderReadinessPill(uiT("readinessAppleWallet"), appleOk)}
+      ${renderReadinessPill(uiT("readinessGoogleWallet"), googleOk)}
+      ${renderReadinessPill(uiT("readinessSmtp"), Boolean(statusPayload.smtpConfigured))}
+      ${renderReadinessPill(uiT("readinessRedis"), Boolean(statusPayload.redisReady))}
+      ${renderReadinessPill(uiT("readinessDbBackups"), Number(statusPayload.dbBackupCount || 0) > 0)}
+    </div>
+    <p class="helper-text" style="margin:0 0 6px;"><strong>${escapeHtml(uiT("readinessWorkerInstall"))}</strong></p>
+    <p style="margin:0 0 8px;font-size:0.82rem;word-break:break-all;">${escapeHtml(installUrl || "-")}</p>
+    ${installUrl ? `<button type="button" class="ghost-button small-button" id="copyWorkerInstallUrlBtn">${escapeHtml(uiT("readinessCopyInstall"))}</button>` : ""}
+  `;
+  const copyBtn = panel.querySelector("#copyWorkerInstallUrlBtn");
+  if (copyBtn && installUrl) {
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(installUrl);
+        showToast(uiT("readinessInstallCopied"), "success");
+      } catch (_err) {
+        showToast(installUrl, "info", 5000);
+      }
+    };
+  }
+}
+
 function renderSystemStatusPanel(statusPayload) {
   const panel = document.querySelector("#systemStatusPanel");
   if (!panel) return;
@@ -24300,6 +24399,8 @@ function renderSystemStatusPanel(statusPayload) {
   const loginLocks = Array.isArray(statusPayload.loginLocks) ? statusPayload.loginLocks.length : 0;
   const recentIssues = Array.isArray(statusPayload.recentIssues) ? statusPayload.recentIssues.length : 0;
   const serverTime = formatTimestamp(statusPayload.serverTime || new Date().toISOString());
+  const warnings = Array.isArray(statusPayload.runtimeWarnings) ? statusPayload.runtimeWarnings : [];
+  const warningLines = warnings.slice(0, 5).map((w) => `<li>${escapeHtml(w.message || w.code || "")}</li>`).join("");
 
   panel.innerHTML = `
     <p><strong>${escapeHtml(runtimeText("systemStatusServerTime"))}:</strong> ${escapeHtml(serverTime)}</p>
@@ -24308,7 +24409,9 @@ function renderSystemStatusPanel(statusPayload) {
     <p><strong>${escapeHtml(runtimeText("systemStatusOpenEntries"))}:</strong> ${openEntries}</p>
     <p><strong>${escapeHtml(runtimeText("systemStatusLoginLocks"))}:</strong> ${loginLocks}</p>
     <p><strong>${escapeHtml(runtimeText("systemStatusRecentIssues"))}:</strong> ${recentIssues}</p>
+    ${warningLines ? `<ul class="helper-text" style="margin:8px 0 0;padding-left:18px;">${warningLines}</ul>` : ""}
   `;
+  renderProductReadinessPanel(statusPayload);
 }
 
 async function refreshSystemStatus() {
@@ -29683,6 +29786,11 @@ if (operationsSnapshotRefreshBtn) {
     await loadOperationsSnapshot();
     operationsSnapshotRefreshBtn.disabled = false;
   });
+}
+
+const dashExpiringDocsBtn = document.querySelector("#dashExpiringDocsBtn");
+if (dashExpiringDocsBtn) {
+  dashExpiringDocsBtn.addEventListener("click", () => setView("documents"));
 }
 
 if (elements.dayCloseAcknowledgeForm) {
