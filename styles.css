@@ -609,17 +609,17 @@ select {
 }
 
 .auth-panel {
-  width: min(100%, 400px);
-  display: grid;
-  gap: 12px;
+  width: min(100%, 380px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   position: relative;
-  padding: 20px 18px;
-  max-height: calc(100vh - 32px);
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding: 14px 16px 12px;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
   margin: 0;
-  border-radius: 20px;
-  font-size: 0.92rem;
+  border-radius: 18px;
+  font-size: 0.9rem;
   background:
     radial-gradient(circle at top right, rgba(217, 93, 57, 0.16), transparent 38%),
     rgba(255, 251, 245, 0.96);
@@ -628,10 +628,29 @@ select {
   animation: auth-enter 420ms ease;
 }
 
+.auth-lang-field-compact {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 3;
+  margin: 0;
+  width: min(148px, 42vw);
+  gap: 4px;
+}
+
+.auth-lang-field-compact > span {
+  display: none;
+}
+
+.auth-intro {
+  padding-right: 92px;
+  flex-shrink: 0;
+}
+
 .auth-panel h2 {
-  margin: 6px 0 0;
-  font-size: 1.22rem;
-  line-height: 1.25;
+  margin: 4px 0 0;
+  font-size: 1.12rem;
+  line-height: 1.2;
   font-family: "Space Grotesk", sans-serif;
   letter-spacing: -0.02em;
 }
@@ -651,8 +670,13 @@ select {
 }
 
 .auth-panel .eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.68rem;
+  display: none;
+}
+
+/* Langer Text + Drehkreuz-Karte sparen Platz – Login ohne Scrollen */
+.auth-copy,
+.auth-system-card.full-width {
+  display: none;
 }
 
 .auth-panel .auth-copy,
@@ -707,13 +731,6 @@ select {
   width: 100%;
 }
 
-.auth-lang-field-compact {
-  width: min(100%, 168px);
-  justify-self: start;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-
 .auth-lang-field > span {
   font-size: 0.72rem;
   font-weight: 700;
@@ -738,7 +755,7 @@ select {
 
 .auth-lang-trigger {
   width: 100%;
-  min-height: 38px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
@@ -907,8 +924,8 @@ select {
 .auth-system-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .auth-system-card {
@@ -938,10 +955,10 @@ select {
 }
 
 .auth-copy {
-  margin: 6px 0 0;
-  font-size: 0.82rem;
+  margin: 0;
+  font-size: 0.8rem;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .website-logo {
@@ -952,9 +969,9 @@ select {
 }
 
 .website-logo-auth {
-  margin-bottom: 8px;
-  max-width: 150px;
-  max-height: 56px;
+  margin-bottom: 4px;
+  max-width: 128px;
+  max-height: 44px;
 }
 
 .website-logo-sidebar {
@@ -1185,21 +1202,40 @@ select {
 
 .auth-form {
   display: grid;
-  gap: 6px;
-  margin-top: 4px;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.auth-form label:has(#loginUsername),
+.auth-form label:has(#loginPassword),
+.auth-form label:has(#loginSupportNotice),
+.auth-form > .primary-button,
+.auth-form > .ghost-button,
+.auth-form #loginSupportNotice {
+  grid-column: 1 / -1;
+}
+
+.auth-form label:has(#loginOtpCode) {
+  grid-column: 1;
+}
+
+.auth-form label:has(#loginScope) {
+  grid-column: 2;
 }
 
 .auth-form label {
-  gap: 4px;
-  font-size: 0.84rem;
+  gap: 3px;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
 .auth-form input,
 .auth-form select {
-  padding: 10px 12px;
-  font-size: 0.9rem;
-  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  border-radius: 9px;
   background: #ffffff;
   color: #1b2430;
   border-color: rgba(20, 27, 34, 0.14);
@@ -1207,10 +1243,12 @@ select {
 
 .auth-form .primary-button,
 .auth-form .ghost-button {
-  padding: 10px 14px;
-  font-size: 0.9rem;
-  border-radius: 10px;
-  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 0.86rem;
+  border-radius: 9px;
+  min-height: 36px;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .auth-form #loginSupportNotice {
@@ -1261,27 +1299,47 @@ textarea.invoice-field-valid {
 }
 
 .auth-hints {
-  display: grid;
-  gap: 8px;
+  display: block;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.auth-hints .meta-box {
-  padding: 10px 12px;
-  font-size: 0.82rem;
+.auth-hints .meta-box.install-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 7px 10px;
+  font-size: 0.76rem;
 }
 
-.auth-hints .helper-text {
-  font-size: 0.78rem;
-  line-height: 1.4;
+.auth-hints .install-box .helper-text {
+  display: none;
+}
+
+.auth-hints .install-box > p {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.auth-hints .install-box .ghost-button {
+  padding: 5px 10px;
+  font-size: 0.74rem;
+  min-height: 28px;
+  width: auto;
 }
 
 .auth-legal-footer {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   justify-content: center;
-  margin-top: 10px;
-  font-size: 0.78rem;
+  margin-top: 4px;
+  padding-top: 0;
+  flex-shrink: 0;
+  font-size: 0.74rem;
   color: var(--muted, #6b7280);
 }
 
@@ -1341,28 +1399,24 @@ textarea.invoice-field-valid {
   gap: 12px;
 }
 
-@media (max-height: 720px) {
-  .auth-panel {
-    padding: 14px 16px;
-    gap: 10px;
-  }
-
-  .auth-copy {
-    display: none;
-  }
-
+@media (max-height: 640px) {
   .auth-system-grid {
     display: none;
   }
 
-  .auth-hints .install-box p:first-child {
-    margin: 0;
+  .auth-hints {
+    display: none;
   }
 }
 
-@media (max-height: 600px) {
-  .auth-hints {
-    display: none;
+@media (max-width: 420px) {
+  .auth-form {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-form label:has(#loginOtpCode),
+  .auth-form label:has(#loginScope) {
+    grid-column: 1 / -1;
   }
 }
 
