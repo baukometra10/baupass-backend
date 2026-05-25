@@ -15036,7 +15036,12 @@ async function loadPublicBranding() {
     // Platform name as page title prefix
     if (data.platformName) {
       document.title = data.platformName;
+      state.settings.platformName = data.platformName;
     }
+    if (data.operatorName) {
+      state.settings.operatorName = data.operatorName;
+    }
+    renderSystemIdentity();
     // Brand colors as CSS variables for the login page
     const root = document.documentElement;
     if (data.primaryColor && /^#[0-9a-fA-F]{6}$/.test(data.primaryColor)) {
@@ -30159,7 +30164,7 @@ function warnBrowserZoom() {
 function warnStaleControlAssets() {
   try {
     const cssHref = document.querySelector('link[rel="stylesheet"][href*="styles.css"]')?.getAttribute("href") || "";
-    if (cssHref && !cssHref.includes("20260524g")) {
+    if (cssHref && !cssHref.includes("20260524h")) {
       showToast(
         "Alte Oberfläche im Browser-Cache. Bitte Strg+F5 drücken – auf dem Server muss zuerst das neue Docker-Image deployed werden.",
         "warning",

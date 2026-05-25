@@ -628,14 +628,20 @@ select {
   animation: auth-enter 420ms ease;
 }
 
+.auth-intro-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .auth-lang-field-compact {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 3;
+  position: static;
   margin: 0;
-  width: min(148px, 42vw);
-  gap: 4px;
+  width: min(132px, 38vw);
+  gap: 0;
+  flex-shrink: 0;
 }
 
 .auth-lang-field-compact > span {
@@ -643,7 +649,6 @@ select {
 }
 
 .auth-intro {
-  padding-right: 92px;
   flex-shrink: 0;
 }
 
@@ -969,9 +974,13 @@ select {
 }
 
 .website-logo-auth {
-  margin-bottom: 4px;
-  max-width: 128px;
-  max-height: 44px;
+  margin: 0;
+  max-width: 140px;
+  max-height: 40px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  flex: 0 1 auto;
 }
 
 .website-logo-sidebar {
@@ -1292,10 +1301,50 @@ textarea.invoice-field-valid {
   margin-top: 2px;
 }
 
+/* Login-Buttons: einheitlich (kein Orange-Blau-Split aus theme-black) */
+.auth-panel .primary-button {
+  background: linear-gradient(135deg, #e36414 0%, #d35410 100%) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: 0 8px 20px rgba(217, 93, 57, 0.28) !important;
+}
+
+.auth-panel .primary-button::after {
+  display: none;
+}
+
+.auth-panel .ghost-button {
+  background: #fff !important;
+  color: #1b2430 !important;
+  border: 1px solid rgba(20, 27, 34, 0.14) !important;
+  box-shadow: none !important;
+}
+
+.auth-panel .ghost-button::after {
+  display: none;
+}
+
+.auth-legal-footer .ghost-button {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #374151 !important;
+  border: 1px solid rgba(20, 27, 34, 0.12) !important;
+}
+
+.auth-hints .meta-box.install-box {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(20, 27, 34, 0.1);
+  color: #1b2430;
+}
+
+.auth-hints .install-box .ghost-button {
+  background: #f3f4f6 !important;
+  color: #1b2430 !important;
+  border: 1px solid rgba(20, 27, 34, 0.12) !important;
+}
+
 .auth-form .primary-button {
-  margin-top: 8px;
-  margin-bottom: 4px;
-  box-shadow: 0 14px 30px rgba(217, 93, 57, 0.24);
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .auth-hints {
