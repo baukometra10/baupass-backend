@@ -21,13 +21,27 @@ Write-Host "Starte git push..." -ForegroundColor Cyan
 Write-Host "Login: Benutzer = baukometra10 | Passwort = Personal Access Token (nicht Kontopasswort)" -ForegroundColor Yellow
 Write-Host ""
 
+git ls-remote origin 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "GitHub-Repo nicht erreichbar (404 oder kein Zugriff)." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Repo zuerst anlegen (als baukometra10 eingeloggt):"
+    Write-Host "  https://github.com/new"
+    Write-Host "  Name: baupass-backend"
+    Write-Host "  OHNE README, .gitignore oder License (Projekt ist schon lokal fertig)"
+    Write-Host "  Dann dieses Skript erneut ausfuehren."
+    Write-Host ""
+}
+
 git push -u origin main
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Host "Push fehlgeschlagen." -ForegroundColor Red
-    Write-Host "1. Token: https://github.com/settings/tokens (Berechtigung: repo)"
-    Write-Host "2. Erneut: .\deploy\github-push.ps1"
-    Write-Host "3. Repo pruefen: https://github.com/baukometra10/baupass-backend"
+    Write-Host "1. Repo existiert? https://github.com/baukometra10/baupass-backend"
+    Write-Host "2. Token: https://github.com/settings/tokens (Berechtigung: repo)"
+    Write-Host "3. Login-User muss baukometra10 sein (nicht baupass)"
+    Write-Host "4. Erneut: .\deploy\github-push.ps1"
     exit $LASTEXITCODE
 }
 
