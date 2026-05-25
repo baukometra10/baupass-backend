@@ -30159,7 +30159,7 @@ function warnBrowserZoom() {
 function warnStaleControlAssets() {
   try {
     const cssHref = document.querySelector('link[rel="stylesheet"][href*="styles.css"]')?.getAttribute("href") || "";
-    if (cssHref && !cssHref.includes("20260524e")) {
+    if (cssHref && !cssHref.includes("20260524f")) {
       showToast(
         "Alte Oberfläche im Browser-Cache. Bitte Strg+F5 drücken – auf dem Server muss zuerst das neue Docker-Image deployed werden.",
         "warning",
