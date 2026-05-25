@@ -87,10 +87,36 @@ Workflow: `.github/workflows/railway-deploy.yml` (startet bei jedem Push auf `ma
 
 ---
 
+## Wichtig: Daten nach Git-Push weg (Karten / Mitarbeiter fehlen)
+
+**Ursache:** Ohne persistentes Volume speichert Railway die SQLite-DB **im Container**. Jeder neue Deploy startet mit einer **leeren** Datenbank – Karten wirken „nie angelegt“.
+
+**Pflicht (einmalig pro Railway-Service):**
+
+1. Service → **Volumes** → Volume anlegen und an **`/data`** mounten (nicht löschen bei Updates).
+2. Variable setzen: `BAUPASS_DB_PATH=/data/baupass.db` (optional, Auto-Erkennung wenn `/data` beschreibbar ist).
+3. **Redeploy** – danach neu angelegte Mitarbeiter bleiben erhalten.
+
+**Prüfen nach Deploy:**
+
+```text
+https://DEINE-DOMAIN.up.railway.app/api/health
+```
+
+Erwartung: `"db": { "persistent": true, "workersActive": <Anzahl> }`.  
+Bei `"persistent": false` → Volume fehlt oder falscher Service.
+
+**Nicht zwei verschiedene Railway-URLs mischen** (z. B. alter `web-production-*` vs. neuer `baupass-production-*`) – jeder Service hat seine **eigene** Datenbank.
+
+Backups auf dem Volume: `/data/backups/` (automatisch beim Start, wenn Mitarbeiter existieren).
+
+---
+
 ## Häufige Probleme
 
 | Problem | Lösung |
 |---------|--------|
+| Nach Push sind alle Karten weg | Volume `/data` + `BAUPASS_DB_PATH=/data/baupass.db`; `/api/health` → `persistent: true` |
 | `denied to baupass` beim Push | `.\deploy\github-push.ps1` (löscht alte Anmeldung) |
 | Repo leer auf GitHub | Push noch nicht gelungen → Schritt 1 |
 | Railway zeigt alten Stand | **Deployments** → **Redeploy**; Health prüfen: `railwayGitCommit` |

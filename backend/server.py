@@ -194,6 +194,59 @@ except OSError:
     DB_PATH = _default_db_path
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+
+def _database_is_persistent(db_path: Path) -> bool:
+    """True when SQLite lives on Railway volume (/data) or an explicit persistent path."""
+    try:
+        resolved = db_path.resolve()
+    except OSError:
+        resolved = db_path
+    resolved_str = str(resolved).replace("\\", "/")
+    if resolved_str == "/data/baupass.db" or resolved_str.startswith("/data/"):
+        return True
+    explicit = os.getenv("BAUPASS_DB_PATH", "").strip().replace("\\", "/")
+    return explicit.startswith("/data/")
+
+
+DB_IS_PERSISTENT = _database_is_persistent(DB_PATH)
+
+
+def resolve_sqlite_backup_dir() -> Path:
+    """Store backups next to the DB on Railway (/data/backups), else under backend/backups."""
+    if DB_IS_PERSISTENT:
+        backup_dir = Path("/data/backups")
+    else:
+        backup_dir = BASE_DIR / "backend" / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    return backup_dir
+
+
+def get_database_runtime_info():
+    """DB path, persistence flag, and row counts (for deploy health checks)."""
+    path = Path(DB_PATH)
+    info = {
+        "path": str(path),
+        "persistent": DB_IS_PERSISTENT,
+        "exists": path.exists(),
+        "sizeBytes": int(path.stat().st_size) if path.exists() else 0,
+        "workersActive": 0,
+        "companiesActive": 0,
+    }
+    if not path.exists():
+        return info
+    try:
+        with closing(sqlite3.connect(str(path), timeout=5)) as db:
+            info["workersActive"] = int(
+                db.execute("SELECT COUNT(*) FROM workers WHERE deleted_at IS NULL").fetchone()[0]
+            )
+            info["companiesActive"] = int(
+                db.execute("SELECT COUNT(*) FROM companies WHERE deleted_at IS NULL").fetchone()[0]
+            )
+    except Exception as exc:
+        info["countError"] = str(exc)
+    return info
+
+
 # Module-level cache for Resend credentials stored in DB.
 # Populated at startup (init_db) and refreshed after settings save.
 # Avoids opening a second SQLite connection from background threads.
@@ -5878,8 +5931,7 @@ def create_sqlite_database_backup():
     if not src.exists():
         raise FileNotFoundError("database_not_found")
 
-    backup_dir = BASE_DIR / "backend" / "backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = resolve_sqlite_backup_dir()
     rotation = rotate_import_backups(backup_dir)
 
     timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
@@ -7610,6 +7662,34 @@ def get_runtime_diagnostics():
             }
         )
 
+    db_info = get_database_runtime_info()
+    diagnostics["database"] = db_info
+    on_railway = bool(
+        (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip()
+    )
+    if on_railway and not db_info.get("persistent"):
+        diagnostics["warnings"].append(
+            {
+                "code": "ephemeral_database",
+                "message": (
+                    "Datenbank liegt NICHT auf Volume /data – bei jedem Deploy gehen Mitarbeiter, "
+                    "Karten und Anträge verloren. Railway: Volume an /data mounten, "
+                    "BAUPASS_DB_PATH=/data/baupass.db setzen, Redeploy."
+                ),
+            }
+        )
+    elif on_railway and db_info.get("persistent") and db_info.get("workersActive", 0) == 0:
+        diagnostics["warnings"].append(
+            {
+                "code": "empty_persistent_database",
+                "message": (
+                    "Persistente DB auf /data ist leer (0 aktive Mitarbeiter). "
+                    "Falls Daten nach Deploy fehlen: falschen Railway-Service oder Volume prüfen, "
+                    "Backup unter /data/backups wiederherstellen."
+                ),
+            }
+        )
+
     return diagnostics
 
 
@@ -8005,8 +8085,7 @@ def system_status():
     ).fetchone()
     diagnostics = get_runtime_diagnostics()
     wallet_status = _wallet_collect_runtime_status()
-    backup_dir = BASE_DIR / "backend" / "backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = resolve_sqlite_backup_dir()
     db_backup_count = len(list(backup_dir.glob("db-backup-*.db")))
     redis_ready = False
     try:
@@ -8048,6 +8127,8 @@ def system_status():
             "smtpConfigured": smtp_configured,
             "redisReady": redis_ready,
             "dbBackupCount": db_backup_count,
+            "database": get_database_runtime_info(),
+            "databaseBackupDir": str(backup_dir),
             "wallet": wallet_status,
             "runtimeWarnings": diagnostics.get("warnings") or [],
         }
@@ -20860,8 +20941,13 @@ def api_health():
 
     uptime_seconds = int((utc_now() - APP_STARTED_AT).total_seconds())
     diagnostics = get_runtime_diagnostics()
+    db_runtime = diagnostics.get("database") or get_database_runtime_info()
     worker_build_info = _get_worker_build_info()
     status = "ok" if db_ok else "degraded"
+    if db_ok and not db_runtime.get("persistent") and (
+        os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA")
+    ):
+        status = "degraded"
 
     alerts = []
     try:
@@ -20879,7 +20965,15 @@ def api_health():
             "status": status,
             "uptimeSeconds": uptime_seconds,
             "startedAt": APP_STARTED_AT.replace(microsecond=0).isoformat() + "Z",
-            "db": {"ok": db_ok, "error": db_error},
+            "db": {
+                "ok": db_ok,
+                "error": db_error,
+                "path": db_runtime.get("path"),
+                "persistent": bool(db_runtime.get("persistent")),
+                "sizeBytes": db_runtime.get("sizeBytes"),
+                "workersActive": db_runtime.get("workersActive"),
+                "companiesActive": db_runtime.get("companiesActive"),
+            },
             "dunning": {
                 "lastRunAt": DUNNING_LAST_RUN_AT,
                 "lastResult": DUNNING_LAST_RESULT,

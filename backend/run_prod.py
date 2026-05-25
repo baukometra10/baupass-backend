@@ -14,6 +14,8 @@ if str(_ROOT) not in sys.path:
 from backend.server import (  # noqa: E402
     app,
     check_and_apply_overdue_suspensions,
+    create_sqlite_database_backup,
+    get_database_runtime_info,
     get_db,
     get_runtime_diagnostics,
     init_db,
@@ -80,6 +82,32 @@ if __name__ == "__main__":
         )
     if suspended:
         print(f"[baupass] Auto-suspended {len(suspended)} company/ies due to overdue invoices")
+    db_info = get_database_runtime_info()
+    print(
+        "[baupass] Database: "
+        f"path={db_info.get('path')}, "
+        f"persistent={db_info.get('persistent')}, "
+        f"workers={db_info.get('workersActive')}, "
+        f"companies={db_info.get('companiesActive')}, "
+        f"sizeBytes={db_info.get('sizeBytes')}",
+        flush=True,
+    )
+    backup_on_boot = str(os.getenv("BAUPASS_BACKUP_ON_BOOT", "1")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if backup_on_boot and db_info.get("persistent") and int(db_info.get("workersActive") or 0) > 0:
+        try:
+            backup_path, backup_meta = create_sqlite_database_backup()
+            print(
+                f"[baupass] Startup DB backup: {backup_path} ({backup_meta.get('sizeBytes', 0)} bytes)",
+                flush=True,
+            )
+        except Exception as backup_exc:
+            print(f"[baupass] WARNING: Startup DB backup failed: {backup_exc}", flush=True)
+
     diagnostics = get_runtime_diagnostics()
     warnings = diagnostics.get("warnings", [])
     print(f"[baupass] Runtime-Check: {len(warnings)} Warnung(en)")
