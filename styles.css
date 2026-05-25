@@ -1681,17 +1681,27 @@ textarea.invoice-field-valid {
   gap: 18px;
 }
 
+/* Panels untereinander (volle Breite) – vermeidet halbe leere Seite + Höhen-Lücken */
 .panel-grid.two-columns {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   height: auto;
-  gap: 18px;
+  gap: 20px;
   padding: 0;
+  align-items: stretch;
 }
 
-@media (max-width: 960px) {
-  .panel-grid.two-columns {
-    grid-template-columns: 1fr;
+.panel-grid.two-columns > .panel,
+.panel-grid.two-columns > article.panel {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Optional: zwei gleichwertige Karten nur auf sehr breiten Bildschirmen */
+@media (min-width: 1500px) {
+  .panel-grid.two-columns.layout-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 }
 
