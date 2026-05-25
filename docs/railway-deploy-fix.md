@@ -22,7 +22,7 @@ Erfolg = `railwayGitCommit` beginnt mit `a4a4792` oder neuer, `build` = `2026051
 
 1. [railway.app](https://railway.app) → Projekt mit Domain `web-production-922fe`
 2. **Deployments** → letzten **Failed**-Eintrag öffnen → Build-Log lesen
-3. **Settings** → **Source**: Repo `baupass/baupass-backend`, Branch `main`
+3. **Settings** → **Source**: Repo `baukometra10/baupass-backend`, Branch `main`
 4. **Redeploy** / **Deploy latest** auf Commit `bd57ad1` (oder aktuellster `main`)
 
 ## Option B: GitHub Actions (dauerhaft)
@@ -46,8 +46,8 @@ Railway findet das verknüpfte GitHub-Repo **nicht** (kein Docker-Problem).
 
 1. Projekt → Service **web** → **Settings** → **Source**
 2. **Disconnect** (Git-Verbindung trennen)
-3. **Connect Repo** erneut → **`baupass/baupass-backend`**, Branch **`main`**
-4. Prüfen: GitHub-App „Railway“ hat Zugriff auf die Org **`baupass`** und das Repo (bei privaten Repos unter github.com/settings/installations)
+3. **Connect Repo** erneut → **`baukometra10/baupass-backend`**, Branch **`main`**
+4. Prüfen: GitHub-App „Railway“ hat Zugriff auf **`baukometra10`** und das Repo (bei privaten Repos unter github.com/settings/installations)
 
 Häufige Ursachen: Repo umbenannt/verschoben, Org gewechselt, GitHub-App-Zugriff entzogen, falscher Repo-Name (z. B. noch `baustelle` statt `baupass-backend`).
 

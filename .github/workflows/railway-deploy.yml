@@ -1,4 +1,6 @@
-# Deploys the Docker image to Railway on every push to main.
+# Optional backup deploy when Railway Git snapshot fails.
+# Repo: https://github.com/baukometra10/baupass-backend
+# Primary path: Railway → Deploy from GitHub repo (auto on push to main).
 # Required GitHub repository secrets:
 #   RAILWAY_TOKEN        – Account token from https://railway.com/account/tokens
 #   RAILWAY_SERVICE_ID   – Service ID (Railway → Service → Settings → Service ID)
