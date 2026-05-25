@@ -1,15 +1,15 @@
-const SHELL_CACHE = "baupass-control-shell-v68";
-const RUNTIME_CACHE = "baupass-control-runtime-v68";
+const SHELL_CACHE = "baupass-control-shell-v69";
+const RUNTIME_CACHE = "baupass-control-runtime-v69";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
-  "/index.html?v=20260524c",
+  "/index.html?v=20260524d",
   "/app.js",
-  "/app.js?v=20260524c",
+  "/app.js?v=20260524d",
   "/styles.css",
-  "/styles.css?v=20260524c",
+  "/styles.css?v=20260524d",
   "/desktop/renderer.js",
-  "/desktop/renderer.js?v=20260524c",
+  "/desktop/renderer.js?v=20260524d",
   "/control-manifest.json",
   "/branding/baukometra-logo.svg",
   "/branding/baukometra-alt-logo.svg",
