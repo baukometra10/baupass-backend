@@ -170,11 +170,26 @@ _default_db_path = BASE_DIR / "backend" / "baupass.db"
 #    always use /data/baupass.db – even on first deploy (init_db creates it).
 #    This ensures data survives redeployments without manual env var config.
 # 3. Fall back to backend/baupass.db (local / default).
-_env_db_path = os.getenv("BAUPASS_DB_PATH", "").strip()
-if not _env_db_path:
-    _railway_data = Path("/data")
-    _railway_candidate = _railway_data / "baupass.db"
-    if _railway_data.is_dir() and os.access(_railway_data, os.W_OK):
+_explicit_db_path = os.getenv("BAUPASS_DB_PATH", "").strip().replace("\\", "/")
+_ephemeral_db_hints = {
+    "",
+    "backend/baupass.db",
+    "/app/backend/baupass.db",
+    str(_default_db_path).replace("\\", "/"),
+}
+_railway_data = Path("/data")
+_railway_candidate = _railway_data / "baupass.db"
+_railway_volume_ready = _railway_data.is_dir() and os.access(_railway_data, os.W_OK)
+_env_db_path = _explicit_db_path
+
+if _railway_volume_ready:
+    if _explicit_db_path in _ephemeral_db_hints or not _explicit_db_path.startswith("/data/"):
+        if _explicit_db_path and _explicit_db_path not in _ephemeral_db_hints:
+            print(
+                f"[baupass] WARNING: BAUPASS_DB_PATH={_explicit_db_path} ignored – "
+                f"using persistent {_railway_candidate} because /data volume is mounted.",
+                flush=True,
+            )
         _env_db_path = str(_railway_candidate)
         # Auto-migrate: if the persistent volume is empty but the local fallback DB
         # already has data (companies, workers etc.), copy it over automatically so
@@ -186,6 +201,17 @@ if not _env_db_path:
                 print(f"[baupass] Auto-migrated existing DB from {_default_db_path} to {_railway_candidate}", flush=True)
             except Exception as _migrate_err:
                 print(f"[baupass] WARNING: DB auto-migration failed: {_migrate_err}", flush=True)
+elif not _env_db_path:
+    if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip():
+        if _railway_data.exists():
+            print("[baupass] WARNING: /data exists but is not writable – using ephemeral DB.", flush=True)
+        else:
+            print(
+                "[baupass] WARNING: Railway deploy without /data volume – "
+                "data will be lost on every redeploy. Mount volume at /data and redeploy.",
+                flush=True,
+            )
+
 DB_PATH = Path((_env_db_path or str(_default_db_path))).expanduser()
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

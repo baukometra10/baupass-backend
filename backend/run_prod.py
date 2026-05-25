@@ -62,6 +62,14 @@ if __name__ == "__main__":
         "on",
     }
     init_db()
+    data_dir = Path("/data")
+    if data_dir.exists():
+        print(
+            f"[baupass] /data volume: exists=True writable={os.access(data_dir, os.W_OK)}",
+            flush=True,
+        )
+    else:
+        print("[baupass] /data volume: exists=False (not mounted in this container)", flush=True)
     with app.app_context():
         db = get_db()
         dunning_result = {
