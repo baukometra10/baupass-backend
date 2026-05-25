@@ -1963,6 +1963,19 @@
             <input id="manualEntryWorkEnd" type="time" step="60" />
           </label>
         </div>
+        <div class="manual-entry-worktime-grid" style="margin-top:10px;">
+          <label class="manual-entry-worktime-label">
+            <span id="manualEntryAccessModeLabel">Zutritt (Industrie ohne Drehkreuz)</span>
+            <select id="manualEntryAccessMode">
+              <option value="gate">Drehkreuz / QR am Tor</option>
+              <option value="site_app">Nur Standort-App (genauer GPS-Radius)</option>
+            </select>
+          </label>
+          <label class="manual-entry-worktime-label">
+            <span id="manualEntrySiteRadiusLabel">Standort-Radius (Meter)</span>
+            <input id="manualEntrySiteRadius" type="number" min="10" max="40" step="1" value="20" />
+          </label>
+        </div>
         <button id="manualEntryWorkTimeSave" type="button" class="ghost-button small-button">Arbeitszeiten speichern</button>
       </div>
       <div id="manualEntryList" class="manual-entry-list"></div>

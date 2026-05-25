@@ -1054,3 +1054,21 @@ textarea:focus-visible,
     transform: none;
   }
 }
+
+.worker-work-hours-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--ui-radius-md, 12px);
+  background: rgba(10, 87, 192, 0.1);
+  border: 1px solid rgba(10, 87, 192, 0.25);
+  color: var(--ui-light-text, #142a44);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+body.site-app-mode .gate-mode-entry,
+body.site-app-mode #gateModeButton,
+body.site-app-mode #quickGateModeButton {
+  display: none !important;
+}

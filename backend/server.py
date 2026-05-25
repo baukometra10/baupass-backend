@@ -76,6 +76,9 @@ def _load_local_env_files():
 _load_local_env_files()
 
 WORKER_LOGIN_MAX_DISTANCE_METERS = 100
+WORKER_SITE_GEOFENCE_DEFAULT_METERS = 20
+WORKER_SITE_GEOFENCE_MIN_METERS = 10
+WORKER_SITE_GEOFENCE_MAX_METERS = 40
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -2979,6 +2982,14 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN work_start_time TEXT NOT NULL DEFAULT ''")
     if "work_end_time" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN work_end_time TEXT NOT NULL DEFAULT ''")
+    if "access_mode" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'gate'")
+    if "site_geofence_radius_meters" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN site_geofence_radius_meters INTEGER NOT NULL DEFAULT 20")
+    if "site_auto_checkin" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN site_auto_checkin INTEGER NOT NULL DEFAULT 1")
+    if "site_auto_logout_on_leave" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN site_auto_logout_on_leave INTEGER NOT NULL DEFAULT 1")
     if "branding_preset" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN branding_preset TEXT NOT NULL DEFAULT 'construction'")
     if "customer_number" not in company_columns:
@@ -10911,15 +10922,156 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     }, None
 
 
-def serialize_worker_for_app(worker):
+def normalize_company_access_mode(value):
+    mode = str(value or "gate").strip().lower()
+    return "site_app" if mode in {"site_app", "site-app", "industry", "industrie", "standort"} else "gate"
+
+
+def normalize_site_geofence_radius_meters(value, access_mode="gate"):
+    if normalize_company_access_mode(access_mode) == "site_app":
+        try:
+            radius = int(value)
+        except (TypeError, ValueError):
+            radius = WORKER_SITE_GEOFENCE_DEFAULT_METERS
+        return max(WORKER_SITE_GEOFENCE_MIN_METERS, min(WORKER_SITE_GEOFENCE_MAX_METERS, radius))
+    return WORKER_LOGIN_MAX_DISTANCE_METERS
+
+
+def get_company_site_access_row(db, company_id):
+    if not company_id:
+        return None
+    return db.execute(
+        """
+        SELECT access_mode, site_geofence_radius_meters, site_auto_checkin, site_auto_logout_on_leave,
+               work_start_time, work_end_time
+        FROM companies
+        WHERE id = ? AND deleted_at IS NULL
+        LIMIT 1
+        """,
+        (company_id,),
+    ).fetchone()
+
+
+def get_company_site_access_config(db, company_id):
+    row = get_company_site_access_row(db, company_id)
+    access_mode = normalize_company_access_mode(row["access_mode"] if row else "gate")
+    radius = normalize_site_geofence_radius_meters(
+        row["site_geofence_radius_meters"] if row else WORKER_SITE_GEOFENCE_DEFAULT_METERS,
+        access_mode,
+    )
+    return {
+        "accessMode": access_mode,
+        "siteGeofenceRadiusMeters": radius,
+        "siteAutoCheckin": bool(int(row["site_auto_checkin"])) if row and "site_auto_checkin" in row.keys() else True,
+        "siteAutoLogoutOnLeave": bool(int(row["site_auto_logout_on_leave"])) if row and "site_auto_logout_on_leave" in row.keys() else True,
+        "workStartTime": str(row["work_start_time"] or "").strip() if row else "",
+        "workEndTime": str(row["work_end_time"] or "").strip() if row else "",
+    }
+
+
+def is_company_workday_today():
+    # Mo–Fr = Arbeitstag (Industrie-Standard)
+    return datetime.now().weekday() < 5
+
+
+def worker_has_open_checkin_today(db, worker_id):
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    open_row = db.execute(
+        """
+        SELECT al.id
+        FROM access_logs al
+        WHERE al.worker_id = ?
+          AND al.timestamp LIKE ?
+          AND al.direction = 'check-in'
+          AND NOT EXISTS (
+              SELECT 1 FROM access_logs al2
+              WHERE al2.worker_id = al.worker_id
+                AND al2.timestamp > al.timestamp
+                AND al2.timestamp LIKE ?
+                AND al2.direction = 'check-out'
+          )
+        ORDER BY al.timestamp DESC
+        LIMIT 1
+        """,
+        (worker_id, f"{today_prefix}%", f"{today_prefix}%"),
+    ).fetchone()
+    return bool(open_row)
+
+
+def get_effective_work_end_time(db, worker_id):
+    row = db.execute(
+        """
+        SELECT c.work_end_time AS company_work_end_time, s.work_end_time AS global_work_end_time
+        FROM workers w
+        LEFT JOIN companies c ON c.id = w.company_id
+        LEFT JOIN settings s ON s.id = 1
+        WHERE w.id = ?
+        LIMIT 1
+        """,
+        (worker_id,),
+    ).fetchone()
+    if not row:
+        return ""
+    return str(row["company_work_end_time"] or row["global_work_end_time"] or "").strip()
+
+
+def measure_worker_site_distance(db, worker, location):
+    if normalize_worker_type(worker["worker_type"]) != "worker":
+        return None
+    site_coordinates = ensure_worker_site_coordinates(db, worker)
+    if not site_coordinates:
+        return None
+    if not isinstance(location, dict):
+        raise ValueError("worker_geolocation_required")
+    device_latitude = _normalize_float(location.get("latitude"))
+    device_longitude = _normalize_float(location.get("longitude"))
+    if device_latitude is None or device_longitude is None:
+        raise ValueError("worker_geolocation_required")
+    distance_meters = _haversine_meters(
+        site_coordinates[0], site_coordinates[1], device_latitude, device_longitude
+    )
+    return {
+        "distanceMeters": int(round(distance_meters)),
+        "siteLatitude": float(site_coordinates[0]),
+        "siteLongitude": float(site_coordinates[1]),
+        "deviceLatitude": float(device_latitude),
+        "deviceLongitude": float(device_longitude),
+    }
+
+
+def maybe_site_app_auto_checkin(db, worker):
+    company_id = worker["company_id"]
+    site_cfg = get_company_site_access_config(db, company_id)
+    if site_cfg["accessMode"] != "site_app" or not site_cfg["siteAutoCheckin"]:
+        return None
+    if not is_company_workday_today():
+        return None
+    if worker_has_open_checkin_today(db, worker["id"]):
+        return None
+    log_id = create_access_log_entry(
+        db,
+        worker["id"],
+        "check-in",
+        "Mitarbeiter-App (Standort)",
+        "Automatischer Check-in nach Standort-Login",
+        worker_type=worker["worker_type"],
+    )
+    return log_id
+
+
+def serialize_worker_for_app(worker, db=None, company_id=None):
     site_location = None
     latitude = worker["site_latitude"] if hasattr(worker, "keys") and "site_latitude" in worker.keys() else None
     longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
+    radius_meters = WORKER_LOGIN_MAX_DISTANCE_METERS
+    if db is not None:
+        cid = company_id or worker["company_id"]
+        radius_meters = get_company_site_access_config(db, cid)["siteGeofenceRadiusMeters"]
     if latitude is not None and longitude is not None:
         site_location = {
             "latitude": float(latitude),
             "longitude": float(longitude),
-            "radiusMeters": WORKER_LOGIN_MAX_DISTANCE_METERS,
+            "radiusMeters": radius_meters,
         }
     return {
         "id": worker["id"],
@@ -11025,31 +11177,23 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
     if normalize_worker_type(worker["worker_type"]) != "worker":
         return None
 
-    # Erst prüfen ob für diesen Mitarbeiter überhaupt Baustellen-Koordinaten existieren.
-    # Wenn nicht, gibt es keine Basis für einen Geofence-Check → Login erlauben.
     site_coordinates = ensure_worker_site_coordinates(db, worker)
     if not site_coordinates:
         return None
 
-    # Baustellen-Koordinaten bekannt → jetzt Location aus dem Request prüfen
     location = payload.get("location") if isinstance(payload, dict) else None
-    if not isinstance(location, dict):
-        raise ValueError("worker_geolocation_required")
+    measured = measure_worker_site_distance(db, worker, location)
+    if not measured:
+        return None
 
-    device_latitude = _normalize_float(location.get("latitude"))
-    device_longitude = _normalize_float(location.get("longitude"))
-    if device_latitude is None or device_longitude is None:
-        raise ValueError("worker_geolocation_required")
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    max_distance = int(site_cfg["siteGeofenceRadiusMeters"])
+    if measured["distanceMeters"] > max_distance:
+        raise PermissionError(f"outside_site_radius:{measured['distanceMeters']}")
 
-    distance_meters = _haversine_meters(site_coordinates[0], site_coordinates[1], device_latitude, device_longitude)
-    if distance_meters > WORKER_LOGIN_MAX_DISTANCE_METERS:
-        raise PermissionError(f"outside_site_radius:{int(round(distance_meters))}")
-
-    return {
-        "distanceMeters": int(round(distance_meters)),
-        "siteLatitude": float(site_coordinates[0]),
-        "siteLongitude": float(site_coordinates[1]),
-    }
+    measured["radiusMeters"] = max_distance
+    measured["accessMode"] = site_cfg["accessMode"]
+    return measured
 
 
 def normalize_badge_id(value):
@@ -11672,7 +11816,7 @@ def create_worker_app_session(db, worker):
         worker_payload["site_longitude"] = float(site_coordinates[1])
     return {
         "token": session_token,
-        "worker": serialize_worker_for_app(worker_payload),
+        "worker": serialize_worker_for_app(worker_payload, db=db, company_id=worker["company_id"]),
         "sessionExpiresAt": expires_at,
         "cardType": normalize_worker_type(worker["worker_type"]),
     }
@@ -11864,9 +12008,17 @@ def worker_app_login():
         raise
     except PermissionError as exc:
         distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
-        return jsonify({"error": "outside_site_radius", "message": f"Login nur am Standort moeglich (max. {WORKER_LOGIN_MAX_DISTANCE_METERS} m). Aktuell ca. {distance_text} m entfernt."}), 403
+        site_cfg = get_company_site_access_config(db, worker["company_id"])
+        max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+        return jsonify({
+            "error": "outside_site_radius",
+            "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
+        }), 403
 
     session_data = create_worker_app_session(db, worker)
+    checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+    if checkin_log_id:
+        session_data["autoCheckInLogId"] = checkin_log_id
     login_type = "Besucher" if is_visitor else "Mitarbeiter"
     log_audit(
         "worker_app.login",
@@ -11920,12 +12072,21 @@ def worker_app_me():
         except Exception:
             pass
     team_snapshot = build_worker_team_snapshot(db, worker)
+    site_access = get_company_site_access_config(db, worker["company_id"])
+    work_end = get_effective_work_end_time(db, worker["id"])
+    work_start = get_effective_work_start_time(db, worker["id"])
+    open_checkin = worker_has_open_checkin_today(db, worker["id"])
     return jsonify(
         {
-            "worker": serialize_worker_for_app(worker),
+            "worker": serialize_worker_for_app(worker, db=db),
             "company": {
                 "name": company["name"] if company else "",
                 "brandingPreset": normalize_branding_preset(company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"),
+                "accessMode": site_access["accessMode"],
+                "workStartTime": work_start or site_access["workStartTime"],
+                "workEndTime": work_end or site_access["workEndTime"],
+                "siteGeofenceRadiusMeters": site_access["siteGeofenceRadiusMeters"],
+                "siteAutoLogoutOnLeave": site_access["siteAutoLogoutOnLeave"],
             },
             "subcompany": {
                 "name": subcompany["name"] if subcompany else "",
@@ -11951,8 +12112,88 @@ def worker_app_me():
             },
             "teamSnapshot": team_snapshot,
             "planFeatures": get_plan_features(company["plan"] if company else "starter"),
+            "siteAccess": {
+                **site_access,
+                "workStartTime": work_start or site_access["workStartTime"],
+                "workEndTime": work_end or site_access["workEndTime"],
+                "openCheckInToday": open_checkin,
+                "isWorkdayToday": is_company_workday_today(),
+            },
         }
     )
+
+
+@require_worker_session
+def worker_app_site_presence():
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    location = payload.get("location") if isinstance(payload, dict) else payload
+    try:
+        measured = measure_worker_site_distance(db, worker, location)
+    except ValueError:
+        return jsonify({"error": "worker_geolocation_required", "message": "Standort erforderlich."}), 400
+    if not measured:
+        return jsonify({"error": "site_location_unavailable", "message": "Standort der Firma ist nicht konfiguriert."}), 403
+
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    radius = int(site_cfg["siteGeofenceRadiusMeters"])
+    on_site = measured["distanceMeters"] <= radius
+    return jsonify(
+        {
+            "onSite": on_site,
+            "distanceMeters": measured["distanceMeters"],
+            "radiusMeters": radius,
+            "accessMode": site_cfg["accessMode"],
+            "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
+            "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
+        }
+    )
+
+
+@require_worker_session
+def worker_app_site_leave():
+    """Check-out and revoke session when the worker leaves the site geofence."""
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    location = payload.get("location") if isinstance(payload, dict) else payload
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    if site_cfg["accessMode"] != "site_app":
+        return jsonify({"error": "not_site_app_mode"}), 400
+
+    try:
+        measured = measure_worker_site_distance(db, worker, location)
+    except ValueError:
+        return jsonify({"error": "worker_geolocation_required"}), 400
+
+    radius = int(site_cfg["siteGeofenceRadiusMeters"])
+    if measured and measured["distanceMeters"] <= radius:
+        return jsonify({"error": "still_on_site", "distanceMeters": measured["distanceMeters"]}), 409
+
+    checkout_log_id = None
+    if worker_has_open_checkin_today(db, worker["id"]):
+        checkout_log_id = create_access_log_entry(
+            db,
+            worker["id"],
+            "check-out",
+            "Mitarbeiter-App (Standort)",
+            "Automatischer Check-out beim Verlassen des Standorts",
+            worker_type=worker["worker_type"],
+        )
+
+    token = getattr(g, "worker_token", "")
+    if token:
+        db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
+    db.commit()
+    log_audit(
+        "worker_app.site_leave",
+        f"Mitarbeiter {worker['first_name']} {worker['last_name']} hat den Standort verlassen (Auto-Abmeldung)",
+        target_type="worker",
+        target_id=worker["id"],
+        company_id=worker["company_id"],
+    )
+    return jsonify({"ok": True, "checkoutLogId": checkout_log_id, "loggedOut": True})
 
 
 def build_worker_team_snapshot(db, worker_row):
@@ -14202,15 +14443,28 @@ def update_company_work_times(company_id):
     except ValueError:
         return jsonify({"error": "invalid_work_time"}), 400
 
+    access_mode = normalize_company_access_mode(payload.get("accessMode"))
+    site_radius = normalize_site_geofence_radius_meters(
+        payload.get("siteGeofenceRadiusMeters"),
+        access_mode,
+    )
+    site_auto_checkin = 1 if payload.get("siteAutoCheckin", True) in (True, 1, "1", "true", "yes") else 0
+    site_auto_logout = 1 if payload.get("siteAutoLogoutOnLeave", True) in (True, 1, "1", "true", "yes") else 0
+
     db.execute(
-        "UPDATE companies SET work_start_time = ?, work_end_time = ? WHERE id = ?",
-        (work_start_time, work_end_time, company_id),
+        """
+        UPDATE companies
+        SET work_start_time = ?, work_end_time = ?, access_mode = ?,
+            site_geofence_radius_meters = ?, site_auto_checkin = ?, site_auto_logout_on_leave = ?
+        WHERE id = ?
+        """,
+        (work_start_time, work_end_time, access_mode, site_radius, site_auto_checkin, site_auto_logout, company_id),
     )
     db.commit()
 
     log_audit(
         "company.work_times.updated",
-        f"Arbeitszeiten fuer Firma {company_id} aktualisiert",
+        f"Firmeneinstellungen (Zeiten/Standort-Modus) fuer {company_id} aktualisiert",
         target_type="company",
         target_id=company_id,
         company_id=company_id,
@@ -14223,6 +14477,10 @@ def update_company_work_times(company_id):
             "companyId": company_id,
             "workStartTime": work_start_time,
             "workEndTime": work_end_time,
+            "accessMode": access_mode,
+            "siteGeofenceRadiusMeters": site_radius,
+            "siteAutoCheckin": bool(site_auto_checkin),
+            "siteAutoLogoutOnLeave": bool(site_auto_logout),
         }
     )
 

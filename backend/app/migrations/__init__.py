@@ -316,6 +316,13 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="012",
+        name="company_site_access_mode",
+        up_sql="SELECT 1;",
+        down_sql="SELECT 1;",
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""

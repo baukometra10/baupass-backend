@@ -28849,6 +28849,8 @@ if (accessForm) {
   const workStartLabel = document.getElementById("manualEntryWorkStartLabel");
   const workEndLabel = document.getElementById("manualEntryWorkEndLabel");
   const workTimeStatus = document.getElementById("manualEntryWorkTimeStatus");
+  const accessModeInput = document.getElementById("manualEntryAccessMode");
+  const siteRadiusInput = document.getElementById("manualEntrySiteRadius");
   const contextHint = document.getElementById("manualEntryContextHint");
 
   if (!btn || !modal) return;
@@ -28861,6 +28863,12 @@ if (accessForm) {
     const start = String(company?.workStartTime || company?.work_start_time || state.settings?.workStartTime || "").trim();
     const end   = String(company?.workEndTime   || company?.work_end_time   || state.settings?.workEndTime   || "").trim();
     return { start, end, companyId, company };
+  }
+
+  if (accessModeInput) {
+    accessModeInput.addEventListener("change", () => {
+      if (siteRadiusInput) siteRadiusInput.disabled = accessModeInput.value !== "site_app";
+    });
   }
 
   function isWorkerLate(w) {
@@ -28879,7 +28887,7 @@ if (accessForm) {
     const canEdit = ["company-admin", "company_admin"].includes(role);
     if (!canEdit) { workTimePanel.classList.add("hidden"); return; }
 
-    const { start, end, companyId } = getEffectiveWorkTimes();
+    const { start, end, companyId, company } = getEffectiveWorkTimes();
     workTimePanel.classList.toggle("hidden", !companyId);
     if (!companyId) return;
 
@@ -28889,6 +28897,12 @@ if (accessForm) {
     if (workTimeSaveBtn) workTimeSaveBtn.textContent = runtimeText("manualEntryWorkTimesSaveBtn");
     if (workStartInput) workStartInput.value = start;
     if (workEndInput)   workEndInput.value   = end;
+    const accessMode = String(company?.access_mode || company?.accessMode || "gate").trim().toLowerCase();
+    if (accessModeInput) accessModeInput.value = accessMode === "site_app" ? "site_app" : "gate";
+    if (siteRadiusInput) {
+      siteRadiusInput.value = String(company?.site_geofence_radius_meters || company?.siteGeofenceRadiusMeters || 20);
+      siteRadiusInput.disabled = accessModeInput?.value !== "site_app";
+    }
 
     if (workTimeStatus) {
       const now = new Date();
@@ -28921,7 +28935,11 @@ if (accessForm) {
           method: "PUT",
           body: {
             workStartTime: workStartInput?.value || "",
-            workEndTime:   workEndInput?.value   || "",
+            workEndTime: workEndInput?.value || "",
+            accessMode: accessModeInput?.value || "gate",
+            siteGeofenceRadiusMeters: Number(siteRadiusInput?.value || 20),
+            siteAutoCheckin: true,
+            siteAutoLogoutOnLeave: true,
           },
         });
         // Update local state so UI reflects immediately
@@ -28931,6 +28949,10 @@ if (accessForm) {
           comp.work_start_time = comp.workStartTime;
           comp.workEndTime   = workEndInput?.value   || "";
           comp.work_end_time = comp.workEndTime;
+          comp.access_mode = accessModeInput?.value || "gate";
+          comp.accessMode = comp.access_mode;
+          comp.site_geofence_radius_meters = Number(siteRadiusInput?.value || 20);
+          comp.siteGeofenceRadiusMeters = comp.site_geofence_radius_meters;
         }
         if (feedbackEl) {
           feedbackEl.textContent = runtimeText("manualEntryWorkTimesSaved");

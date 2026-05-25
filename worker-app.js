@@ -1,6 +1,8 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260524m";
+const WORKER_BUILD_TAG = "20260525a";
+const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
+const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
@@ -755,6 +757,9 @@ let gateAutoOpenTriggered = false;
 let lastUserInteractionAt = Date.now();
 let autoOpenScannerEnabled = localStorage.getItem(AUTO_OPEN_SCANNER_KEY) !== "0";
 let offlineWorkerSessionActive = false;
+let siteGeofenceWatchTimer = null;
+let siteOffSiteStrikeCount = 0;
+let siteGeofenceLeaveInProgress = false;
 let pinLockEnabled = false; // Wird vom Backend gesetzt
 let isPassLocked = false; // Aktueller Status
 let lastPassInteractionAt = Date.now();
@@ -2482,6 +2487,9 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     await loadWorkerData();
     await persistOfflineBadgeProfile(normalizedBadgeId, normalizedBadgePin, payload);
     finishWorkerLoginUi();
+    if (payload.autoCheckInLogId) {
+      showWorkerNotice(t("siteAutoCheckIn"));
+    }
 
     if (!isStandaloneMode() && elements.installButton) {
       elements.installButton.hidden = false;
@@ -2640,6 +2648,7 @@ function renderWorker(payload) {
   }
   updateWorkerNextStepPanel({ worker, companyPreset, isVisitor });
   updateSmartWorkHub(payload, lastTimesheetRows);
+  applySiteAccessUi(payload);
   if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";
   if (elements.workerSite) elements.workerSite.textContent = worker.site || "-";
   updateSiteMapLink(worker.site || "");
@@ -3190,6 +3199,7 @@ function showPassLockError(message) {
 }
 
 async function workerLogout() {
+  stopSiteGeofenceMonitor();
   stopDynamicQrRefresh();
   const tokenForRevoke = workerToken;
 
@@ -4150,7 +4160,144 @@ function isWorkerProtectedApiUrl(url) {
   return value.includes("/api/worker-app") || (API_BASE && value.startsWith(API_BASE));
 }
 
+function stopSiteGeofenceMonitor() {
+  if (siteGeofenceWatchTimer) {
+    clearInterval(siteGeofenceWatchTimer);
+    siteGeofenceWatchTimer = null;
+  }
+  siteOffSiteStrikeCount = 0;
+}
+
+function getSiteAccessFromPayload(payload = lastWorkerPayload) {
+  const company = payload?.company || {};
+  const siteAccess = payload?.siteAccess || {};
+  const worker = payload?.worker || {};
+  const siteLocation = worker.siteLocation || null;
+  const accessMode = String(company.accessMode || siteAccess.accessMode || "gate").trim().toLowerCase();
+  return {
+    accessMode,
+    siteApp: accessMode === "site_app",
+    radiusMeters: Number(
+      company.siteGeofenceRadiusMeters ||
+        siteAccess.siteGeofenceRadiusMeters ||
+        siteLocation?.radiusMeters ||
+        20
+    ),
+    autoLogout: company.siteAutoLogoutOnLeave !== false && siteAccess.siteAutoLogoutOnLeave !== false,
+    workStart: String(company.workStartTime || siteAccess.workStartTime || "").trim(),
+    workEnd: String(company.workEndTime || siteAccess.workEndTime || "").trim(),
+    isWorkdayToday: siteAccess.isWorkdayToday !== false,
+    siteLocation,
+  };
+}
+
+function applySiteAccessUi(payload = lastWorkerPayload) {
+  const cfg = getSiteAccessFromPayload(payload);
+  document.body.classList.toggle("site-app-mode", cfg.siteApp);
+
+  [elements.gateModeButton, elements.quickGateModeButton].forEach((btn) => {
+    if (!btn) return;
+    btn.classList.toggle("hidden", cfg.siteApp);
+    btn.setAttribute("aria-hidden", cfg.siteApp ? "true" : "false");
+  });
+
+  let banner = document.getElementById("workerWorkHoursBanner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "workerWorkHoursBanner";
+    banner.className = "worker-work-hours-banner";
+    const anchor = elements.workerHubPanel || document.querySelector(".app-shell");
+    if (anchor) anchor.prepend(banner);
+  }
+  if (banner) {
+    if (cfg.siteApp) {
+      if (cfg.workStart && cfg.workEnd) {
+        const dayHint = cfg.isWorkdayToday ? "" : ` · ${t("notAWorkdayToday")}`;
+        banner.textContent = `${t("workHoursToday")}: ${cfg.workStart} – ${cfg.workEnd}${dayHint}`;
+      } else {
+        banner.textContent = t("workHoursConfigureInAdmin");
+      }
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
+    }
+  }
+
+  stopSiteGeofenceMonitor();
+  if (cfg.siteApp && cfg.autoLogout && cfg.siteLocation && workerToken && !offlineWorkerSessionActive) {
+    startSiteGeofenceMonitor(cfg);
+  }
+}
+
+async function handleSiteLeaveDetected() {
+  if (siteGeofenceLeaveInProgress || !workerToken) return;
+  siteGeofenceLeaveInProgress = true;
+  stopSiteGeofenceMonitor();
+  const tokenForLeave = workerToken;
+  try {
+    const locationPayload = await resolveLoginLocation();
+    await fetchJson(`${API_BASE}/site-leave`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenForLeave}`,
+      },
+      body: JSON.stringify({ location: locationPayload }),
+    });
+  } catch (error) {
+    console.warn("[site-leave]", error);
+  }
+  if (tokenForLeave === workerToken) {
+    invalidateWorkerSession({ showNotice: false });
+    showWorkerNotice(t("siteLeaveAutoLogout"));
+  }
+  siteGeofenceLeaveInProgress = false;
+}
+
+async function pollSitePresence(cfg) {
+  if (!workerToken || offlineWorkerSessionActive || siteGeofenceLeaveInProgress) return;
+  let locationPayload = null;
+  try {
+    locationPayload = await resolveLoginLocation();
+  } catch {
+    return;
+  }
+  try {
+    const presence = await fetchJson(`${API_BASE}/site-presence`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${workerToken}`,
+      },
+      body: JSON.stringify({ location: locationPayload }),
+    });
+    if (presence?.onSite === false) {
+      siteOffSiteStrikeCount += 1;
+      if (siteOffSiteStrikeCount >= SITE_OFF_SITE_STRIKES_REQUIRED) {
+        await handleSiteLeaveDetected();
+      }
+    } else {
+      siteOffSiteStrikeCount = 0;
+    }
+  } catch (error) {
+    if (isWorkerSessionAuthError(error?.code)) {
+      return;
+    }
+    console.warn("[site-presence]", error);
+  }
+}
+
+function startSiteGeofenceMonitor(cfg) {
+  stopSiteGeofenceMonitor();
+  siteOffSiteStrikeCount = 0;
+  void pollSitePresence(cfg);
+  siteGeofenceWatchTimer = setInterval(() => {
+    void pollSitePresence(cfg);
+  }, SITE_GEOFENCE_WATCH_INTERVAL_MS);
+}
+
 function invalidateWorkerSession({ showNotice = true } = {}) {
+  stopSiteGeofenceMonitor();
   localStorage.removeItem(WORKER_TOKEN_KEY);
   localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
   offlineWorkerSessionActive = false;
