@@ -15330,7 +15330,7 @@ async function loadPublicBranding() {
 }
 
 function applyWebsiteLogo(dataUrl) {
-  const fixedBpIconPath = "./worker-icon-192.png?v=20260421bp";
+  const fixedBpIconPath = "./worker-icon-192.png";
   const hasLogo = Boolean(dataUrl);
   document.querySelectorAll(".website-logo-sync").forEach((img) => {
     if (hasLogo) {
