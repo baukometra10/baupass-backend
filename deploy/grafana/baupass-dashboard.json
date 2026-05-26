@@ -1,0 +1,21 @@
+{
+  "title": "BauPass Overview",
+  "panels": [
+    {
+      "title": "HTTP requests",
+      "targets": [{"expr": "sum(rate(baupass_http_requests_total[5m])) by (status)"}]
+    },
+    {
+      "title": "Request latency p95",
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(baupass_http_request_duration_seconds_bucket[5m])) by (le))"}]
+    },
+    {
+      "title": "Events published",
+      "targets": [{"expr": "sum(rate(baupass_events_published_total[5m])) by (event_type)"}]
+    },
+    {
+      "title": "Webhook deliveries",
+      "targets": [{"expr": "sum(rate(baupass_webhook_deliveries_total[5m])) by (status)"}]
+    }
+  ]
+}

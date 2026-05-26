@@ -128,21 +128,44 @@ if __name__ == "__main__":
     for warning in warnings:
         print(f"[baupass][warn] {warning['code']}: {warning['message']}")
     try:
+        from backend.app.extensions import get_redis
         from backend.app.runtime_bootstrap import resolve_background_job_mode
+        from backend.app.tasks import get_queue_stats, task_queues_ready
 
-        rq_modes = [
-            resolve_background_job_mode("BAUPASS_DAILY_JOBS_MODE"),
-            resolve_background_job_mode("BAUPASS_WORKER_SESSION_CLEANUP_MODE"),
-            resolve_background_job_mode("BAUPASS_INVOICE_RETRY_MODE"),
-            resolve_background_job_mode("BAUPASS_DUNNING_MODE"),
-        ]
-        if any(mode == "rq" for mode in rq_modes):
+        redis = get_redis()
+        if redis:
+            try:
+                redis.ping()
+                print("[baupass] Redis: connected", flush=True)
+            except Exception as redis_exc:
+                print(f"[baupass] Redis: ping failed ({redis_exc})", flush=True)
+        else:
+            print("[baupass] Redis: not configured (rate limits use in-memory fallback)", flush=True)
+
+        if task_queues_ready():
+            try:
+                stats = get_queue_stats()
+                print(f"[baupass] RQ queues: {stats}", flush=True)
+            except Exception:
+                print("[baupass] RQ queues: ready", flush=True)
+        else:
+            print("[baupass] RQ queues: not ready", flush=True)
+
+        rq_modes = {
+            "daily_jobs": resolve_background_job_mode("BAUPASS_DAILY_JOBS_MODE"),
+            "session_cleanup": resolve_background_job_mode("BAUPASS_WORKER_SESSION_CLEANUP_MODE"),
+            "invoice_retry": resolve_background_job_mode("BAUPASS_INVOICE_RETRY_MODE"),
+            "dunning": resolve_background_job_mode("BAUPASS_DUNNING_MODE"),
+        }
+        print(f"[baupass] Background job modes: {rq_modes}", flush=True)
+        if any(mode == "rq" for mode in rq_modes.values()):
             print(
-                "[baupass] RQ background modes active — start a worker process: "
-                "python -m backend.app.tasks.worker"
+                "[baupass] RQ modes active — run worker service: "
+                "python -m backend.app.tasks.worker",
+                flush=True,
             )
-    except Exception:
-        pass
+    except Exception as boot_exc:
+        print(f"[baupass] Runtime queue check skipped: {boot_exc}", flush=True)
     if not SHOW_WAITRESS_QUEUE_WARNINGS:
         # Queue depth warnings are noisy under short bursts and do not always indicate a real issue.
         logging.getLogger("waitress.queue").setLevel(logging.ERROR)

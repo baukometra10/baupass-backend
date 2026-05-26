@@ -1,0 +1,76 @@
+"""
+Server-Sent Events (SSE) for live workforce / access updates.
+"""
+from __future__ import annotations
+
+import json
+import time
+from typing import Generator
+
+from flask import Blueprint, Flask, Response, g, request, stream_with_context
+
+realtime_bp = Blueprint("platform_realtime", __name__)
+
+
+def _resolve_company_id() -> int | None:
+    user = getattr(g, "current_user", None) or {}
+    cid = user.get("company_id")
+    if cid:
+        return int(cid)
+    raw = request.args.get("company_id", "").strip()
+    if raw.isdigit():
+        return int(raw)
+    return None
+
+
+def register_realtime_blueprint(flask_app: Flask) -> None:
+    from backend.server import require_auth, require_roles
+
+    @realtime_bp.get("/v1/stream/events")
+    @require_auth
+    def stream_events():
+        company_id = _resolve_company_id()
+        last_id = request.args.get("last_id", "").strip() or None
+
+        @stream_with_context
+        def generate() -> Generator[str, None, None]:
+            from backend.app.platform.events.bus import list_recent_events
+
+            cursor = last_id
+            yield "event: connected\ndata: {}\n\n"
+            idle_ticks = 0
+            while idle_ticks < 120:
+                events = list_recent_events(company_id, limit=25, since_id=cursor)
+                for evt in events:
+                    cursor = evt["id"]
+                    yield f"event: {evt['type']}\ndata: {json.dumps(evt, ensure_ascii=False)}\n\n"
+                    idle_ticks = 0
+                if not events:
+                    idle_ticks += 1
+                    yield ": keepalive\n\n"
+                time.sleep(2)
+
+        return Response(
+            generate(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
+    @realtime_bp.get("/v1/events/recent")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def recent_events():
+        from backend.app.platform.events.bus import list_recent_events
+
+        company_id = _resolve_company_id()
+        if g.current_user.get("role") != "superadmin":
+            company_id = int(g.current_user.get("company_id") or 0) or None
+        limit = min(200, max(1, int(request.args.get("limit", "50"))))
+        since_id = request.args.get("since_id", "").strip() or None
+        return {"events": list_recent_events(company_id, limit=limit, since_id=since_id)}
+
+    flask_app.register_blueprint(realtime_bp, url_prefix="/api")

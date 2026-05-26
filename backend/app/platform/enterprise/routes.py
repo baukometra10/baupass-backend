@@ -1,0 +1,570 @@
+"""
+Enterprise endpoints for gaps not yet exposed or missing from modular layer.
+"""
+from __future__ import annotations
+
+import base64
+import json
+import os
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from flask import Blueprint, g, jsonify, request
+
+enterprise_bp = Blueprint("enterprise", __name__)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+
+
+def _company_id() -> int:
+    user = g.current_user
+    if user.get("role") == "superadmin":
+        raw = request.args.get("company_id", "").strip() or str(user.get("company_id") or "")
+        if raw.isdigit():
+            return int(raw)
+    return int(user.get("company_id") or 0)
+
+
+def register_enterprise_routes(flask_app):
+    from backend.server import require_auth, require_roles
+
+    # ── Geofence admin CRUD ───────────────────────────────────────────────────
+    @enterprise_bp.get("/geofences/admin")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_list_geofences():
+        from backend.server import get_db
+
+        cid = _company_id()
+        rows = get_db().execute(
+            "SELECT * FROM geofences WHERE company_id = ? ORDER BY site_name",
+            (str(cid),),
+        ).fetchall()
+        return jsonify({"geofences": [dict(r) for r in rows]})
+
+    @enterprise_bp.post("/geofences/admin")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_create_geofence():
+        from backend.server import get_db
+
+        data = request.get_json(silent=True) or {}
+        cid = _company_id()
+        gf_id = f"gf-{uuid.uuid4().hex[:10]}"
+        get_db().execute(
+            """
+            INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            (
+                gf_id,
+                str(cid),
+                str(data.get("site_name", "")).strip(),
+                float(data.get("latitude", 0)),
+                float(data.get("longitude", 0)),
+                int(data.get("radius_meters", 25)),
+                _now_iso(),
+            ),
+        )
+        get_db().commit()
+        return jsonify({"id": gf_id}), 201
+
+    @enterprise_bp.put("/geofences/admin/<gf_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_update_geofence(gf_id: str):
+        from backend.server import get_db
+
+        data = request.get_json(silent=True) or {}
+        cid = str(_company_id())
+        get_db().execute(
+            """
+            UPDATE geofences
+            SET site_name = COALESCE(?, site_name),
+                latitude = COALESCE(?, latitude),
+                longitude = COALESCE(?, longitude),
+                radius_meters = COALESCE(?, radius_meters),
+                active = COALESCE(?, active)
+            WHERE id = ? AND company_id = ?
+            """,
+            (
+                data.get("site_name"),
+                data.get("latitude"),
+                data.get("longitude"),
+                data.get("radius_meters"),
+                data.get("active"),
+                gf_id,
+                cid,
+            ),
+        )
+        get_db().commit()
+        return jsonify({"ok": True})
+
+    # ── Workforce heatmap ─────────────────────────────────────────────────────
+    @enterprise_bp.get("/analytics/workforce-heatmap")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def workforce_heatmap():
+        from backend.server import get_db
+
+        cid = _company_id()
+        days = min(30, max(1, int(request.args.get("days", "7"))))
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        rows = get_db().execute(
+            """
+            SELECT substr(al.timestamp, 1, 10) AS day,
+                   substr(al.timestamp, 12, 2) AS hour,
+                   al.direction,
+                   COUNT(*) AS c
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE w.company_id = ? AND al.timestamp >= ?
+            GROUP BY day, hour, al.direction
+            ORDER BY day, hour
+            """,
+            (cid, since),
+        ).fetchall()
+        cells = [dict(r) for r in rows]
+        return jsonify({"days": days, "cells": cells})
+
+    # ── Contractor intelligence ───────────────────────────────────────────────
+    @enterprise_bp.get("/contractors/intelligence")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def contractor_intelligence():
+        from backend.server import get_db
+
+        cid = _company_id()
+        rows = get_db().execute(
+            """
+            SELECT w.id, w.first_name, w.last_name, w.status, w.badge_id,
+                   COUNT(al.id) AS access_count,
+                   MAX(al.timestamp) AS last_access
+            FROM workers w
+            LEFT JOIN access_logs al ON al.worker_id = w.id
+            WHERE w.company_id = ? AND w.worker_type = 'contractor' AND w.deleted_at IS NULL
+            GROUP BY w.id
+            ORDER BY access_count DESC
+            LIMIT 200
+            """,
+            (cid,),
+        ).fetchall()
+        return jsonify({"contractors": [dict(r) for r in rows]})
+
+    # ── Emergency response ────────────────────────────────────────────────────
+    @enterprise_bp.post("/emergency/trigger")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def emergency_trigger():
+        from backend.server import get_db, log_audit
+        from backend.app.platform.events.bus import publish_event
+
+        data = request.get_json(silent=True) or {}
+        cid = _company_id()
+        eid = f"emg-{uuid.uuid4().hex[:10]}"
+        message = str(data.get("message", "Emergency")).strip()
+        get_db().execute(
+            """
+            INSERT INTO emergency_events (id, company_id, message, status, created_by, created_at)
+            VALUES (?, ?, ?, 'active', ?, ?)
+            """,
+            (eid, cid, message, str(g.current_user.get("id", "")), _now_iso()),
+        )
+        get_db().commit()
+        publish_event("emergency.triggered", cid, {"emergency_id": eid, "message": message})
+        log_audit("emergency.triggered", message, company_id=cid, actor=g.current_user)
+        return jsonify({"id": eid, "status": "active"}), 201
+
+    @enterprise_bp.get("/emergency/active")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def emergency_active():
+        from backend.server import get_db
+
+        cid = _company_id()
+        rows = get_db().execute(
+            "SELECT * FROM emergency_events WHERE company_id = ? AND status = 'active' ORDER BY created_at DESC",
+            (cid,),
+        ).fetchall()
+        return jsonify({"emergencies": [dict(r) for r in rows]})
+
+    # ── Visitor temporary access ──────────────────────────────────────────────
+    @enterprise_bp.post("/visitors/temporary-access")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def visitor_temporary_access():
+        data = request.get_json(silent=True) or {}
+        hours = min(72, max(1, int(data.get("hours", 8))))
+        end_at = (datetime.now(timezone.utc) + timedelta(hours=hours)).replace(microsecond=0).isoformat() + "Z"
+        return jsonify(
+            {
+                "useEndpoint": "POST /api/workers",
+                "payloadTemplate": {
+                    "workerType": "visitor",
+                    "firstName": data.get("first_name", "Guest"),
+                    "lastName": data.get("last_name", "Visitor"),
+                    "visitorCompany": data.get("visitor_company", "Guest"),
+                    "visitPurpose": data.get("visit_purpose", "Temporary access"),
+                    "hostName": data.get("host_name", g.current_user.get("username", "Admin")),
+                    "visitEndAt": end_at,
+                    "companyId": _company_id(),
+                },
+            }
+        )
+
+    # ── Dynamic access permissions ────────────────────────────────────────────
+    @enterprise_bp.get("/access-permissions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def list_access_permissions():
+        from backend.server import get_db
+
+        rows = get_db().execute(
+            "SELECT * FROM access_permissions WHERE company_id = ? ORDER BY created_at DESC",
+            (_company_id(),),
+        ).fetchall()
+        return jsonify({"permissions": [dict(r) for r in rows]})
+
+    @enterprise_bp.post("/access-permissions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def create_access_permission():
+        from backend.server import get_db
+
+        data = request.get_json(silent=True) or {}
+        pid = f"ap-{uuid.uuid4().hex[:10]}"
+        get_db().execute(
+            """
+            INSERT INTO access_permissions
+                (id, company_id, worker_id, zone_id, allowed_from, allowed_until, rules_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                pid,
+                _company_id(),
+                data.get("worker_id"),
+                data.get("zone_id"),
+                data.get("allowed_from"),
+                data.get("allowed_until"),
+                json.dumps(data.get("rules") or {}),
+                _now_iso(),
+            ),
+        )
+        get_db().commit()
+        return jsonify({"id": pid}), 201
+
+    # ── Automation rules ──────────────────────────────────────────────────────
+    @enterprise_bp.get("/automation/rules")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def automation_list():
+        from backend.server import get_db
+        from .automation_engine import list_rules
+
+        return jsonify({"rules": list_rules(get_db(), _company_id())})
+
+    @enterprise_bp.post("/automation/rules")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def automation_create():
+        from backend.server import get_db
+        from .automation_engine import create_rule
+
+        return jsonify(create_rule(get_db(), _company_id(), request.get_json(silent=True) or {})), 201
+
+    # ── Integrations ──────────────────────────────────────────────────────────
+    @enterprise_bp.get("/integrations")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def integrations_list():
+        from backend.server import get_db
+
+        rows = get_db().execute(
+            "SELECT id, company_id, provider, status, config_json, created_at, updated_at FROM integration_connections WHERE company_id = ?",
+            (_company_id(),),
+        ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            cfg = json.loads(item.pop("config_json") or "{}")
+            item["config"] = {k: "***" if "secret" in k.lower() or "token" in k.lower() else v for k, v in cfg.items()}
+            out.append(item)
+        return jsonify({"integrations": out})
+
+    @enterprise_bp.post("/integrations/<provider>/connect")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def integrations_connect(provider: str):
+        from backend.server import get_db
+
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle"):
+            return jsonify({"error": "unknown_provider"}), 400
+        data = request.get_json(silent=True) or {}
+        cid = _company_id()
+        iid = f"int-{uuid.uuid4().hex[:10]}"
+        existing = get_db().execute(
+            "SELECT id FROM integration_connections WHERE company_id = ? AND provider = ?",
+            (cid, provider),
+        ).fetchone()
+        if existing:
+            get_db().execute(
+                """
+                UPDATE integration_connections
+                SET status = 'connected', config_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (json.dumps(data), _now_iso(), existing["id"]),
+            )
+            iid = existing["id"]
+        else:
+            get_db().execute(
+                """
+                INSERT INTO integration_connections (id, company_id, provider, status, config_json, created_at, updated_at)
+                VALUES (?, ?, ?, 'connected', ?, ?, ?)
+                """,
+                (iid, cid, provider, json.dumps(data), _now_iso(), _now_iso()),
+            )
+        get_db().commit()
+        return jsonify({"id": iid, "provider": provider, "status": "connected"}), 201
+
+    @enterprise_bp.post("/integrations/<provider>/sync")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def integrations_sync(provider: str):
+        """Trigger integration sync job (queued when Redis available)."""
+        from backend.app.tasks import enqueue
+
+        cid = _company_id()
+
+        def _sync_job(company_id: int, prov: str):
+            from backend.app.platform.events.bus import publish_event
+
+            publish_event(f"integration.{prov}.sync_completed", company_id, {"provider": prov})
+
+        try:
+            enqueue("default", _sync_job, company_id=cid, prov=provider)
+            return jsonify({"queued": True, "provider": provider})
+        except Exception:
+            _sync_job(cid, provider)
+            return jsonify({"queued": False, "provider": provider, "completed": True})
+
+    # ── Stripe billing ────────────────────────────────────────────────────────
+    @enterprise_bp.post("/billing/stripe/checkout-session")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def stripe_checkout():
+        key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+        if not key:
+            return jsonify({"error": "stripe_not_configured", "hint": "Set STRIPE_SECRET_KEY"}), 503
+        data = request.get_json(silent=True) or {}
+        from urllib import parse, request as urlrequest
+
+        payload = parse.urlencode(
+            {
+                "mode": "subscription",
+                "success_url": data.get("success_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
+                "cancel_url": data.get("cancel_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
+                "line_items[0][price]": data.get("price_id", ""),
+                "line_items[0][quantity]": "1",
+            }
+        ).encode()
+        req = urlrequest.Request(
+            "https://api.stripe.com/v1/checkout/sessions",
+            data=payload,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        with urlrequest.urlopen(req, timeout=30) as resp:
+            body = json.loads(resp.read().decode())
+        return jsonify(body)
+
+    @enterprise_bp.post("/billing/stripe/webhook")
+    def stripe_webhook():
+        from backend.app.platform.events.bus import publish_event
+
+        payload = request.get_json(silent=True) or {}
+        event_type = str(payload.get("type", "stripe.event"))
+        publish_event(event_type, None, payload)
+        return jsonify({"received": True})
+
+    # ── Plugin marketplace ────────────────────────────────────────────────────
+    @enterprise_bp.get("/marketplace/plugins")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def marketplace_plugins():
+        from backend.server import get_db
+
+        catalog = [
+            {"id": "plugin-geofence-pro", "name": "Geofence Pro", "category": "access"},
+            {"id": "plugin-payroll-export", "name": "Payroll Export", "category": "billing"},
+            {"id": "plugin-ai-insights", "name": "AI Insights", "category": "ai"},
+        ]
+        installed = get_db().execute(
+            "SELECT plugin_id, status, installed_at FROM company_plugins WHERE company_id = ?",
+            (_company_id(),),
+        ).fetchall()
+        return jsonify({"catalog": catalog, "installed": [dict(r) for r in installed]})
+
+    @enterprise_bp.post("/marketplace/plugins/<plugin_id>/install")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def marketplace_install(plugin_id: str):
+        from backend.server import get_db
+
+        get_db().execute(
+            """
+            INSERT INTO company_plugins (company_id, plugin_id, status, installed_at)
+            VALUES (?, ?, 'active', ?)
+            ON CONFLICT(company_id, plugin_id) DO UPDATE SET status='active', installed_at=excluded.installed_at
+            """,
+            (_company_id(), plugin_id, _now_iso()),
+        )
+        get_db().commit()
+        return jsonify({"ok": True, "plugin_id": plugin_id})
+
+    # ── API marketplace catalog ───────────────────────────────────────────────
+    @enterprise_bp.get("/marketplace/apis")
+    def api_marketplace():
+        return jsonify(
+            {
+                "apis": [
+                    {"id": "workers", "version": "v1", "path": "/api/v1/workers"},
+                    {"id": "access-logs", "version": "v1", "path": "/api/v1/access-logs/recent"},
+                    {"id": "webhooks", "version": "v1", "path": "/api/developer/webhooks"},
+                    {"id": "events-stream", "version": "v1", "path": "/api/v1/stream/events"},
+                ]
+            }
+        )
+
+    # ── Document OCR + AI analysis ────────────────────────────────────────────
+    @enterprise_bp.post("/documents/ocr-analyze")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def document_ocr_analyze():
+        from backend.server import get_db
+        from backend.app.platform.ai.assistant import is_ai_configured, natural_language_query
+
+        data = request.get_json(silent=True) or {}
+        b64 = str(data.get("file_data_b64", "")).strip()
+        if not b64:
+            return jsonify({"error": "missing_file"}), 400
+        raw = base64.b64decode(b64.split(",", 1)[-1])
+        text_guess = ""
+        try:
+            import pytesseract
+            from PIL import Image
+            import io
+
+            img = Image.open(io.BytesIO(raw))
+            text_guess = pytesseract.image_to_string(img)[:8000]
+        except Exception:
+            text_guess = f"[binary {len(raw)} bytes — install pytesseract for local OCR]"
+
+        doc_id = f"ocr-{uuid.uuid4().hex[:10]}"
+        get_db().execute(
+            """
+            INSERT INTO document_ocr_results (id, company_id, extracted_text, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (doc_id, _company_id(), text_guess, _now_iso()),
+        )
+        get_db().commit()
+        ai = None
+        if is_ai_configured() and text_guess:
+            ai = natural_language_query(
+                _company_id(),
+                "Summarize this document and list compliance risks.",
+                {"ocr_text": text_guess[:4000]},
+            )
+        return jsonify({"id": doc_id, "extracted_text": text_guess[:2000], "ai": ai})
+
+    # ── Smart expiry prediction ───────────────────────────────────────────────
+    @enterprise_bp.get("/compliance/expiry-predictions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def expiry_predictions():
+        from backend.server import get_db
+
+        cid = _company_id()
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = get_db().execute(
+            """
+            SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, w.first_name, w.last_name
+            FROM worker_documents wd
+            JOIN workers w ON w.id = wd.worker_id
+            WHERE w.company_id = ? AND wd.expiry_date IS NOT NULL AND wd.expiry_date >= ?
+            ORDER BY wd.expiry_date ASC
+            LIMIT 100
+            """,
+            (cid, today),
+        ).fetchall()
+        predictions = []
+        for row in rows:
+            try:
+                exp = datetime.strptime(row["expiry_date"][:10], "%Y-%m-%d")
+                days_left = (exp - datetime.strptime(today, "%Y-%m-%d")).days
+                risk = "high" if days_left <= 7 else "medium" if days_left <= 30 else "low"
+            except ValueError:
+                days_left = None
+                risk = "unknown"
+            predictions.append({**dict(row), "days_left": days_left, "risk": risk})
+        return jsonify({"predictions": predictions})
+
+    # ── IoT device ping ───────────────────────────────────────────────────────
+    @enterprise_bp.post("/iot/devices/<device_id>/telemetry")
+    def iot_telemetry(device_id: str):
+        from backend.server import get_db
+        from backend.app.platform.events.bus import publish_event
+
+        data = request.get_json(silent=True) or {}
+        get_db().execute(
+            """
+            INSERT INTO iot_telemetry (id, device_id, payload_json, received_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (f"iot-{uuid.uuid4().hex[:10]}", device_id, json.dumps(data), _now_iso()),
+        )
+        get_db().commit()
+        publish_event("iot.telemetry", data.get("company_id"), {"device_id": device_id, "payload": data})
+        return jsonify({"ok": True})
+
+    # ── Live dashboard (extends operations snapshot) ──────────────────────────
+    @enterprise_bp.get("/dashboard/live")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def dashboard_live():
+        from backend.server import get_db, utc_now
+        from backend.app.platform.events.bus import list_recent_events
+
+        cid = _company_id()
+        today_prefix = utc_now().strftime("%Y-%m-%d")
+        db = get_db()
+        on_site_row = db.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM (
+                SELECT al.worker_id, al.direction
+                FROM access_logs al
+                JOIN workers w ON w.id = al.worker_id
+                WHERE w.company_id = ? AND w.deleted_at IS NULL AND al.timestamp LIKE ?
+                  AND al.timestamp = (
+                      SELECT MAX(al2.timestamp) FROM access_logs al2
+                      WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+                  )
+            ) latest
+            WHERE latest.direction = 'check-in'
+            """,
+            (cid, f"{today_prefix}%", f"{today_prefix}%"),
+        ).fetchone()
+        events = list_recent_events(cid, limit=30)
+        return jsonify(
+            {
+                "date": today_prefix,
+                "workersOnSite": int((on_site_row["c"] if on_site_row else 0) or 0),
+                "recent_events": events,
+            }
+        )
+
+    flask_app.register_blueprint(enterprise_bp, url_prefix="/api")

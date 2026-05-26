@@ -8028,9 +8028,9 @@ def login():
 @app.post("/api/logout")
 @require_auth
 def logout():
-    get_db().execute("DELETE FROM sessions WHERE token = ?", (g.token,))
-    get_db().commit()
-    log_audit("login.logout", f"Benutzer {g.current_user['username']} abgemeldet", target_type="user", target_id=g.current_user["id"], actor=g.current_user)
+    from backend.app.domains.auth.service import AuthService
+
+    AuthService().logout(g.token, g.current_user)
     response = jsonify({"ok": True})
     response.delete_cookie(SESSION_COOKIE_NAME)
     return response
@@ -16325,6 +16325,23 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         reason_code="ok",
     )
     db.commit()
+
+    try:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event(
+            f"access.{direction.replace('-', '_')}",
+            int(worker["company_id"]) if worker["company_id"] else None,
+            {
+                "worker_id": worker["id"],
+                "badge_id": worker["badge_id"],
+                "gate": gate_name,
+                "log_id": log_id,
+            },
+            actor_id=str(turnstile_user["id"] if turnstile_user else ""),
+        )
+    except Exception:
+        pass
 
     return {
         "ok": True,

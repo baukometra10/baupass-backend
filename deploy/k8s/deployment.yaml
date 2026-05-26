@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baupass-api
+  labels:
+    app: baupass-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: baupass-api
+  template:
+    metadata:
+      labels:
+        app: baupass-api
+    spec:
+      containers:
+        - name: api
+          image: baupass:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: baupass-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: baupass-api
+spec:
+  selector:
+    app: baupass-api
+  ports:
+    - port: 80
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baupass-rq-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baupass-rq-worker
+  template:
+    metadata:
+      labels:
+        app: baupass-rq-worker
+    spec:
+      containers:
+        - name: worker
+          image: baupass:latest
+          command: ["python", "-m", "backend.app.tasks.worker"]
+          envFrom:
+            - secretRef:
+                name: baupass-secrets

@@ -38,6 +38,7 @@ class BaseConfig:
     # ── Database ──────────────────────────────────────────────────────────────
     # تحديد مسار SQLite أو DATABASE_URL لـ PostgreSQL مستقبلاً
     DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
+    DATABASE_READ_REPLICA_URL: str = os.getenv("DATABASE_READ_REPLICA_URL", "").strip()
     SQLITE_PATH: str = os.getenv("BAUPASS_DB_PATH", "").strip()
     DB_POOL_MIN_SIZE: int = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
     DB_POOL_MAX_SIZE: int = int(os.getenv("DB_POOL_MAX_SIZE", "20"))

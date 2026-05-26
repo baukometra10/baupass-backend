@@ -12,3 +12,12 @@ redis==7.4.0
 rq==2.8.0
 psycopg[binary]==3.2.12
 psycopg-pool==3.2.6
+prometheus-client==0.21.1
+sentry-sdk[flask]==2.19.2
+boto3==1.35.99
+flask-socketio==5.4.1
+pytesseract==0.3.13
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-instrumentation-flask==0.50b0
+opentelemetry-exporter-otlp-proto-http==1.29.0

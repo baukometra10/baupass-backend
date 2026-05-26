@@ -47,6 +47,11 @@ Falls das Repo **nicht** in der Liste steht:
 | **Start** | `python backend/run_prod.py` |
 | **Volume** | Mount **`/data`** (Datenbank bleibt erhalten) |
 | **`PUBLIC_BASE_URL`** | `https://DEINE-DOMAIN.up.railway.app` |
+| **Redis** (empfohlen) | Service **Redis** + `REDIS_URL` referenzieren |
+| **RQ Worker** (empfohlen) | Zweiter Service: `python -m backend.app.tasks.worker` |
+
+Ausführlich (DE/AR): [railway-production-setup-AR.md](./railway-production-setup-AR.md)  
+7-Tage Markt-Plan: [market-readiness-7-days-AR.md](./market-readiness-7-days-AR.md)
 
 Domain: Service → **Settings** → **Networking** → **Generate Domain**.
 

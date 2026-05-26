@@ -323,6 +323,203 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="013",
+        name="platform_api_keys_webhooks_events",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS platform_events (
+                id              TEXT PRIMARY KEY,
+                event_type      TEXT NOT NULL,
+                company_id      INTEGER,
+                actor_id        TEXT,
+                payload_json    TEXT NOT NULL DEFAULT '{}',
+                created_at      TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_platform_events_company_ts
+                ON platform_events(company_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_platform_events_type_ts
+                ON platform_events(event_type, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS developer_api_keys (
+                id                  TEXT PRIMARY KEY,
+                company_id          INTEGER NOT NULL,
+                name                TEXT NOT NULL,
+                key_prefix          TEXT NOT NULL,
+                key_hash            TEXT NOT NULL UNIQUE,
+                scopes              TEXT NOT NULL DEFAULT 'read',
+                status              TEXT NOT NULL DEFAULT 'active',
+                created_by_user_id  TEXT,
+                created_at          TEXT NOT NULL,
+                last_used_at        TEXT,
+                expires_at          TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_dev_api_keys_company
+                ON developer_api_keys(company_id, status);
+
+            CREATE TABLE IF NOT EXISTS webhook_endpoints (
+                id              TEXT PRIMARY KEY,
+                company_id      INTEGER NOT NULL,
+                url             TEXT NOT NULL,
+                secret          TEXT NOT NULL,
+                events_json     TEXT NOT NULL DEFAULT '[]',
+                status          TEXT NOT NULL DEFAULT 'active',
+                created_at      TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_company
+                ON webhook_endpoints(company_id, status);
+
+            CREATE TABLE IF NOT EXISTS webhook_deliveries (
+                id              TEXT PRIMARY KEY,
+                endpoint_id     TEXT NOT NULL,
+                company_id      INTEGER NOT NULL,
+                event_type      TEXT NOT NULL,
+                payload_json    TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                attempt_count   INTEGER NOT NULL DEFAULT 0,
+                next_retry_at   TEXT,
+                response_status INTEGER,
+                response_body   TEXT,
+                created_at      TEXT NOT NULL,
+                completed_at    TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending
+                ON webhook_deliveries(company_id, status, next_retry_at);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS webhook_deliveries;
+            DROP TABLE IF EXISTS webhook_endpoints;
+            DROP TABLE IF EXISTS developer_api_keys;
+            DROP TABLE IF EXISTS platform_events;
+        """,
+    ),
+
+    Migration(
+        version="014",
+        name="enterprise_automation_integrations",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS automation_rules (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                trigger_event TEXT NOT NULL DEFAULT '*',
+                conditions_json TEXT NOT NULL DEFAULT '[]',
+                actions_json TEXT NOT NULL DEFAULT '[]',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_automation_rules_company ON automation_rules(company_id, enabled);
+
+            CREATE TABLE IF NOT EXISTS integration_connections (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                provider TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'connected',
+                config_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_integration_company ON integration_connections(company_id, provider);
+
+            CREATE TABLE IF NOT EXISTS company_plugins (
+                company_id INTEGER NOT NULL,
+                plugin_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                installed_at TEXT NOT NULL,
+                PRIMARY KEY (company_id, plugin_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS access_permissions (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                worker_id TEXT,
+                zone_id TEXT,
+                allowed_from TEXT,
+                allowed_until TEXT,
+                rules_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_access_perm_company ON access_permissions(company_id);
+
+            CREATE TABLE IF NOT EXISTS emergency_events (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                created_by TEXT,
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_emergency_company ON emergency_events(company_id, status);
+
+            CREATE TABLE IF NOT EXISTS document_ocr_results (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                extracted_text TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS iot_telemetry (
+                id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                received_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_iot_device_ts ON iot_telemetry(device_id, received_at DESC);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS iot_telemetry;
+            DROP TABLE IF EXISTS document_ocr_results;
+            DROP TABLE IF EXISTS emergency_events;
+            DROP TABLE IF EXISTS access_permissions;
+            DROP TABLE IF EXISTS company_plugins;
+            DROP TABLE IF EXISTS integration_connections;
+            DROP TABLE IF EXISTS automation_rules;
+        """,
+    ),
+
+    Migration(
+        version="015",
+        name="session_devices_and_ai_cache",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS session_devices (
+                id TEXT PRIMARY KEY,
+                session_token_hash TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                device_fingerprint TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                ip_address TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_session_devices_user ON session_devices(user_id, last_seen_at DESC);
+
+            CREATE TABLE IF NOT EXISTS ai_insights_cache (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                insight_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_insights_company_type ON ai_insights_cache(company_id, insight_type, expires_at);
+
+            CREATE TABLE IF NOT EXISTS access_logs_archive (
+                id TEXT PRIMARY KEY,
+                company_id TEXT,
+                worker_id TEXT,
+                direction TEXT,
+                gate TEXT,
+                timestamp TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_access_archive_ts ON access_logs_archive(timestamp DESC);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS access_logs_archive;
+            DROP TABLE IF EXISTS ai_insights_cache;
+            DROP TABLE IF EXISTS session_devices;
+        """,
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""
