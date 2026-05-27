@@ -8,7 +8,7 @@ class WorkersRepository:
     def list_active(self, db, company_id: str, limit: int = 500) -> list[dict[str, Any]]:
         rows = db.execute(
             """
-            SELECT id, badge_id, first_name, last_name, status, worker_type, site
+            SELECT id, badge_id, first_name, last_name, status, worker_type, site, physical_card_id
             FROM workers
             WHERE company_id = ? AND deleted_at IS NULL
             ORDER BY last_name, first_name
@@ -47,3 +47,16 @@ class WorkersRepository:
             (company_id, f"{today_prefix}%", f"{today_prefix}%"),
         ).fetchone()
         return int((row["c"] if row else 0) or 0)
+
+    def update_physical_card_id(
+        self, db, company_id: str, worker_id: str, physical_card_id: str | None
+    ) -> bool:
+        cur = db.execute(
+            """
+            UPDATE workers
+            SET physical_card_id = ?
+            WHERE id = ? AND company_id = ? AND deleted_at IS NULL
+            """,
+            (physical_card_id, worker_id, company_id),
+        )
+        return int(cur.rowcount or 0) > 0

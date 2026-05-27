@@ -31,10 +31,14 @@ def ensure_postgres_pool(config: dict[str, Any] | None = None) -> bool:
 @contextmanager
 def get_connection() -> Generator[Any, None, None]:
     """Yield sqlite (server) or postgres connection."""
-    if is_postgres_configured() and os.getenv("BAUPASS_USE_PG_ADAPTER", "1").strip() in {"1", "true", "yes"}:
-        ensure_postgres_pool()
-        with postgres_connection() as conn:
+    from backend.app.db.runtime import postgres_runtime_enabled, open_request_db, close_request_db
+
+    if postgres_runtime_enabled():
+        conn = open_request_db()
+        try:
             yield conn
+        finally:
+            close_request_db(conn)
         return
     from backend.server import get_db
 

@@ -62,6 +62,22 @@ if __name__ == "__main__":
         "on",
     }
     init_db()
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+        from backend.app.database import postgres_preflight
+
+        if postgres_runtime_enabled():
+            pf = postgres_preflight()
+            print(f"[baupass] PostgreSQL preflight: {pf.get('status')}", flush=True)
+        else:
+            from backend.app.runtime_bootstrap import apply_sqlite_migrations
+            from backend.server import DB_PATH
+
+            applied = apply_sqlite_migrations(Path(DB_PATH))
+            if applied:
+                print(f"[baupass] Migrations on boot: {', '.join(applied)}", flush=True)
+    except Exception as exc:
+        print(f"[baupass] WARNING: migrations on boot failed: {exc}", flush=True)
     data_dir = Path("/data")
     if data_dir.exists():
         print(
@@ -116,6 +132,17 @@ if __name__ == "__main__":
         except Exception as backup_exc:
             print(f"[baupass] WARNING: Startup DB backup failed: {backup_exc}", flush=True)
 
+    try:
+        from backend.app.core.cloud_profile import get_cloud_profile
+
+        profile = get_cloud_profile()
+        print(
+            f"[baupass] Cloud: provider={profile.get('provider')} "
+            f"region={profile.get('region')} env={profile.get('environment')}",
+            flush=True,
+        )
+    except Exception:
+        pass
     diagnostics = get_runtime_diagnostics()
     warnings = diagnostics.get("warnings", [])
     print(f"[baupass] Runtime-Check: {len(warnings)} Warnung(en)")

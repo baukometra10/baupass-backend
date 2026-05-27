@@ -1,43 +1,48 @@
 """
-BauPass enterprise platform layer.
-
-Observability, event bus, real-time SSE, public API (keys/webhooks), object storage.
+BauPass enterprise platform layer (optional modules — failures are non-fatal).
 """
 from __future__ import annotations
 
+import logging
+import os
+import traceback
+
 from flask import Flask
+
+logger = logging.getLogger("baupass.platform")
+
+
+def _step(name: str, fn) -> None:
+    try:
+        fn()
+    except Exception as exc:
+        logger.warning("Platform step skipped (%s): %s", name, exc)
+        print(f"[baupass] WARNING: platform/{name} skipped: {exc}", flush=True)
+        traceback.print_exc()
 
 
 def init_platform(flask_app: Flask) -> None:
-    """Initialize cross-cutting platform services on the legacy Flask app."""
-    from .observability.sentry_init import init_sentry
-    from .observability.middleware import register_metrics_middleware
-    from .observability.tracing import init_tracing
-    from .observability.log_forwarder import attach_log_forwarder
-    from .security.zero_trust import register_zero_trust_middleware
-    from .edge.cdn_middleware import register_cdn_middleware
+    if os.getenv("BAUPASS_PLATFORM_ENABLED", "1").strip().lower() in {"0", "false", "no"}:
+        print("[baupass] Platform layer disabled (BAUPASS_PLATFORM_ENABLED=0)", flush=True)
+        return
 
-    init_sentry(flask_app)
-    register_metrics_middleware(flask_app)
-    init_tracing(flask_app)
-    attach_log_forwarder()
-    register_zero_trust_middleware(flask_app)
-    register_cdn_middleware(flask_app)
+    _step("sentry", lambda: __import__("backend.app.platform.observability.sentry_init", fromlist=["init_sentry"]).init_sentry(flask_app))
+    _step("metrics", lambda: __import__("backend.app.platform.observability.middleware", fromlist=["register_metrics_middleware"]).register_metrics_middleware(flask_app))
+    _step("tracing", lambda: __import__("backend.app.platform.observability.tracing", fromlist=["init_tracing"]).init_tracing(flask_app))
+    _step("log_forwarder", lambda: __import__("backend.app.platform.observability.log_forwarder", fromlist=["attach_log_forwarder"]).attach_log_forwarder())
+    _step("zero_trust", lambda: __import__("backend.app.platform.security.zero_trust", fromlist=["register_zero_trust_middleware"]).register_zero_trust_middleware(flask_app))
+    _step("cdn", lambda: __import__("backend.app.platform.edge.cdn_middleware", fromlist=["register_cdn_middleware"]).register_cdn_middleware(flask_app))
 
 
 def register_platform_blueprints(flask_app: Flask) -> None:
-    """Register all platform HTTP blueprints."""
-    from .observability.routes import register_metrics_blueprint
-    from .realtime.routes import register_realtime_blueprint
-    from .realtime.websocket import init_socketio
-    from .api_platform.routes import register_api_platform_blueprints
-    from .ai.routes import register_ai_blueprint
-    from .enterprise import register_enterprise_blueprints
+    if os.getenv("BAUPASS_PLATFORM_ENABLED", "1").strip().lower() in {"0", "false", "no"}:
+        return
 
     init_platform(flask_app)
-    init_socketio(flask_app)
-    register_metrics_blueprint(flask_app)
-    register_realtime_blueprint(flask_app)
-    register_api_platform_blueprints(flask_app)
-    register_ai_blueprint(flask_app)
-    register_enterprise_blueprints(flask_app)
+
+    _step("socketio", lambda: __import__("backend.app.platform.realtime.websocket", fromlist=["init_socketio"]).init_socketio(flask_app))
+    _step("metrics_routes", lambda: __import__("backend.app.platform.observability.routes", fromlist=["register_metrics_blueprint"]).register_metrics_blueprint(flask_app))
+    _step("realtime", lambda: __import__("backend.app.platform.realtime.routes", fromlist=["register_realtime_blueprint"]).register_realtime_blueprint(flask_app))
+    _step("api_platform", lambda: __import__("backend.app.platform.api_platform.routes", fromlist=["register_api_platform_blueprints"]).register_api_platform_blueprints(flask_app))
+    _step("ai", lambda: __import__("backend.app.platform.ai.routes", fromlist=["register_ai_blueprint"]).register_ai_blueprint(flask_app))
+    _step("enterprise", lambda: __import__("backend.app.platform.enterprise", fromlist=["register_enterprise_blueprints"]).register_enterprise_blueprints(flask_app))

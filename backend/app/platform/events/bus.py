@@ -1,20 +1,27 @@
 """
 Event bus — Redis pub/sub when available, SQLite event log always.
+
+Hot-path rule: persist synchronously; side effects (webhooks, automation, WS) run in
+a background thread so gate taps and API responses stay fast.
 """
 from __future__ import annotations
 
 import json
 import logging
 import secrets
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from backend.app.platform.observability.metrics import EVENTS_PUBLISHED
-
 logger = logging.getLogger("baupass.events")
 
 CHANNEL_PREFIX = "baupass:events"
+
+try:
+    from backend.app.platform.observability.metrics import EVENTS_PUBLISHED
+except Exception:
+    EVENTS_PUBLISHED = None
 
 
 def _now_iso() -> str:
@@ -38,28 +45,33 @@ def publish_event(
         "payload": payload or {},
         "created_at": _now_iso(),
     }
-    EVENTS_PUBLISHED.labels(event_type=event_type).inc()
+    if EVENTS_PUBLISHED is not None:
+        try:
+            EVENTS_PUBLISHED.labels(event_type=event_type).inc()
+        except Exception:
+            pass
 
     _persist_event(body)
-    _redis_publish(body)
-    _websocket_broadcast(body)
 
-    if company_id is not None:
+    def _side_effects() -> None:
+        _redis_publish(body)
+        _websocket_broadcast(body)
+        if company_id is not None:
+            try:
+                from backend.app.platform.enterprise.automation_engine import evaluate_event
+                from backend.server import get_db
+
+                evaluate_event(get_db(), int(company_id), event_type, payload or {})
+            except Exception as exc:
+                logger.debug("automation evaluate skipped: %s", exc)
         try:
-            from backend.app.platform.enterprise.automation_engine import evaluate_event
-            from backend.server import get_db
+            from backend.app.platform.api_platform.webhooks import schedule_webhook_deliveries
 
-            evaluate_event(get_db(), int(company_id), event_type, payload or {})
+            schedule_webhook_deliveries(event_type, company_id, body)
         except Exception as exc:
-            logger.debug("automation evaluate skipped: %s", exc)
+            logger.debug("webhook scheduling skipped: %s", exc)
 
-    try:
-        from backend.app.platform.api_platform.webhooks import schedule_webhook_deliveries
-
-        schedule_webhook_deliveries(event_type, company_id, body)
-    except Exception as exc:
-        logger.debug("webhook scheduling skipped: %s", exc)
-
+    threading.Thread(target=_side_effects, daemon=True, name=f"evt-{event_id[:8]}").start()
     return event_id
 
 
@@ -84,7 +96,7 @@ def _persist_event(body: dict[str, Any]) -> None:
         )
         db.commit()
     except Exception as exc:
-        logger.warning("platform_events persist failed: %s", exc)
+        logger.debug("platform_events persist skipped: %s", exc)
 
 
 def _redis_publish(body: dict[str, Any]) -> None:
@@ -152,7 +164,7 @@ def list_recent_events(company_id: int | None, limit: int = 50, since_id: str | 
             )
         return list(reversed(out))
     except Exception as exc:
-        logger.warning("list_recent_events failed: %s", exc)
+        logger.debug("list_recent_events failed: %s", exc)
         return []
 
 

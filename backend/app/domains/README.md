@@ -11,6 +11,7 @@ domains/
   access/         # Gates, geofences, access logs, visitors
   billing/        # Plans, invoices, dunning, approvals
   notifications/  # Email, push, IMAP, system alerts
+  admin/          # v2 dashboard aggregates for admin-v2 SPA
 ```
 
 Each domain follows:

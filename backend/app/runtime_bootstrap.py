@@ -39,7 +39,12 @@ def apply_sqlite_migrations(db_path: Path) -> list[str]:
     conn = sqlite3.connect(str(db_path), timeout=60)
     conn.row_factory = sqlite3.Row
     try:
-        conn.executescript("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")
+        try:
+            from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas
+
+            apply_sqlite_pragmas(conn)
+        except Exception:
+            conn.executescript("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")
         runner = MigrationRunner(conn)
         return runner.run(ALL_MIGRATIONS)
     finally:
@@ -75,6 +80,7 @@ def integrate_server_runtime(
         "rate_limiter": "legacy",
         "security": False,
     }
+    flask_app.extensions["runtime_summary"] = summary
 
     if db_path.suffix.lower() == ".db":
         try:
@@ -101,6 +107,15 @@ def integrate_server_runtime(
     init_extensions(flask_app)
     build_rate_limiter(flask_app)
     register_security_middleware(flask_app)
+
+    try:
+        from backend.app.middleware.edge_global import register_global_edge_middleware
+
+        register_global_edge_middleware(flask_app)
+        summary["edge_middleware"] = True
+    except Exception as exc:
+        print(f"[baupass] WARNING: global edge middleware skipped: {exc}", flush=True)
+        summary["edge_middleware"] = False
 
     from backend.app.tasks import init_task_queues, task_queues_ready
 

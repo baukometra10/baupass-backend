@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f4c5c" />
+  <title>BauPass Admin v2</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <section id="loginView" class="panel login-panel">
+      <h1>BauPass Admin</h1>
+      <p class="muted">لوحة إدارة Enterprise — API v2</p>
+      <label>
+        <span>اسم المستخدم</span>
+        <input id="username" type="text" autocomplete="username" />
+      </label>
+      <label>
+        <span>كلمة المرور</span>
+        <input id="password" type="password" autocomplete="current-password" />
+      </label>
+      <label>
+        <span>نوع الحساب</span>
+        <select id="loginScope">
+          <option value="company-admin">مدير شركة</option>
+          <option value="superadmin">Superadmin</option>
+        </select>
+      </label>
+      <button id="loginBtn" type="button">تسجيل الدخول</button>
+      <p id="loginError" class="error hidden"></p>
+      <p class="muted small">
+        <a href="/index.html">اللوحة الكاملة (Legacy)</a>
+      </p>
+    </section>
+
+    <section id="dashboardView" class="hidden">
+      <header class="topbar">
+        <div>
+          <h1 id="brandTitle">BauPass Admin v2</h1>
+          <p id="userLine" class="muted"></p>
+        </div>
+        <div class="topbar-actions">
+          <label id="companyPickerWrap" class="company-picker hidden">
+            <span class="muted small">الشركة</span>
+            <select id="companyPicker"></select>
+          </label>
+          <button id="refreshBtn" type="button">تحديث</button>
+          <button id="logoutBtn" type="button" class="ghost">خروج</button>
+        </div>
+      </header>
+
+      <nav class="tabs">
+        <button type="button" data-tab="overview" class="tab active">نظرة عامة</button>
+        <button type="button" data-tab="workers" class="tab">الموظفون</button>
+        <button type="button" data-tab="access" class="tab">الحضور</button>
+      </nav>
+
+      <main>
+        <div id="tab-overview" class="tab-panel">
+          <div class="cards" id="statCards"></div>
+          <h2>آخر عمليات الدخول</h2>
+          <div id="recentAccess" class="table-wrap"></div>
+        </div>
+        <div id="tab-workers" class="tab-panel hidden">
+          <p class="muted small">عيّن <strong>بطاقة NFC</strong> (UID) لتمكين الحضور من تطبيق الموظف والقارئ.</p>
+          <div id="workersTable" class="table-wrap"></div>
+        </div>
+        <div id="tab-access" class="tab-panel hidden">
+          <div id="accessTable" class="table-wrap"></div>
+        </div>
+      </main>
+    </section>
+  </div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

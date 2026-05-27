@@ -36,6 +36,25 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: railway up --service "${{ secrets.RAILWAY_SERVICE_ID }}" --detach
 
+  smoke-test:
+    needs: deploy
+    if: ${{ secrets.PUBLIC_BASE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for service
+        run: sleep 45
+
+      - name: Health smoke test
+        env:
+          BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+        run: |
+          set -e
+          curl -fsS "$BASE_URL/api/health/live"
+          curl -fsS "$BASE_URL/api/health/ready" | grep -q ready
+          curl -fsS "$BASE_URL/api/health"
+          curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/admin-v2/index.html" | grep -q 200
+          echo "Smoke tests passed (health + admin-v2 static)."
+
   deploy-skipped-hint:
     if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_SERVICE_ID == '' }}
     runs-on: ubuntu-latest

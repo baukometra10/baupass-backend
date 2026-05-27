@@ -25,17 +25,38 @@ function Test-Endpoint($path) {
 
 $health = Test-Endpoint "/api/health"
 if ($health) {
-    $db = $health.checks.database
-    Write-Host "  Database persistent: $($db.persistent) path: $($db.path)"
-    if ($health.checks.redis) {
-        Write-Host "  Redis: $($health.checks.redis.status)"
+    $db = $health.db
+    if (-not $db -and $health.checks) { $db = $health.checks.database }
+    if ($db) {
+        Write-Host "  Database persistent: $($db.persistent) path: $($db.path)"
+    }
+    $redis = $health.checks.redis
+    if ($redis) {
+        Write-Host "  Redis: $($redis.status) ok=$($redis.ok)"
+    }
+    if ($health.cloud) {
+        Write-Host "  Cloud: provider=$($health.cloud.provider) region=$($health.cloud.region)"
     }
 }
 
+$ready = Test-Endpoint "/api/health/ready"
+if ($ready -and $ready.status -ne "ready") {
+    Write-Host "  WARNING: service not fully ready" -ForegroundColor Yellow
+}
+
 Test-Endpoint "/api/health/live" | Out-Null
-Test-Endpoint "/api/health/ready" | Out-Null
 Test-Endpoint "/api/health/queues" | Out-Null
 Test-Endpoint "/api/v1/public/health" | Out-Null
 Test-Endpoint "/worker-build.json" | Out-Null
+
+try {
+    $r = Invoke-WebRequest -Uri "$BaseUrl/admin-v2/index.html" -TimeoutSec 30 -UseBasicParsing
+    if ($r.StatusCode -eq 200) {
+        Write-Host "[OK] /admin-v2/index.html" -ForegroundColor Green
+    }
+}
+catch {
+    Write-Host "[FAIL] /admin-v2/index.html — $($_.Exception.Message)" -ForegroundColor Red
+}
 
 Write-Host "Done." -ForegroundColor Cyan

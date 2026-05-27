@@ -11,7 +11,7 @@
 | 1 | Modular Architecture | 🟡 | `backend/app/domains/`, `platform/`, `server.py` legacy |
 | 2 | Domains Auth/Workers/Access/Billing/Notifications | 🟡 | `domains/*` + `/api/v2/*` |
 | 3 | Clean Architecture | 🟡 | routes → service → repository في v2 |
-| 4 | PostgreSQL كامل | 🟡 | `database.py` pool + `db/connection.py` |
+| 4 | PostgreSQL كامل | 🟡 | `BAUPASS_PG_RUNTIME=1` + `sqlite_to_postgres.py` |
 | 5 | Database Indexing | ✅ | migrations 002, 011 |
 | 6 | Connection Pooling | ✅ | `psycopg_pool` |
 | 7 | Database Replication | 🟡 | `DATABASE_READ_REPLICA_URL` (انظر config) |

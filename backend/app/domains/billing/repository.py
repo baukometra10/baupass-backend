@@ -22,7 +22,7 @@ class BillingRepository:
     def recent_invoices(self, db, company_id: str, limit: int = 20) -> list[dict]:
         rows = db.execute(
             """
-            SELECT id, status, invoice_date, due_date, total_amount
+            SELECT id, status, invoice_date, invoice_period, total_amount
             FROM invoices
             WHERE company_id = ?
             ORDER BY invoice_date DESC

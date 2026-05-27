@@ -272,7 +272,12 @@ def register_rate_limit_middleware(app: Flask) -> None:
             return None
 
         path = request.path
-        if path in _EXCLUDED_PATHS or path.startswith("/static/"):
+        if (
+            path in _EXCLUDED_PATHS
+            or path.startswith("/api/health")
+            or path.startswith("/metrics")
+            or path.startswith("/static/")
+        ):
             return None
 
         client_ip = _get_client_ip(request)

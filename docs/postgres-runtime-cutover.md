@@ -4,13 +4,17 @@
 Move production runtime from SQLite to PostgreSQL with connection pooling and safe rollback.
 
 ## What is already implemented
-- PostgreSQL pool adapter in backend/app/database.py
-- Production guard requiring DATABASE_URL by default
-- Health checks now show database backend and status
-- Preflight script: backend/ops/postgres_preflight.py
+- PostgreSQL pool adapter in `backend/app/database.py`
+- Runtime switch: `BAUPASS_PG_RUNTIME=1` wires `get_db()` to PostgreSQL
+- SQL compatibility layer: `backend/app/db/pg_compat.py`, `pg_adapter.py`
+- Data migration: `backend/ops/sqlite_to_postgres.py`
+- Preflight: `backend/ops/postgres_preflight.py`
+- Arabic guide: `docs/postgres-cutover-steps-AR.md`
 
 ## Environment variables
 - DATABASE_URL=postgresql://user:pass@host:5432/dbname
+- BAUPASS_PG_RUNTIME=1
+- BAUPASS_ALLOW_SQLITE_PRODUCTION=1
 - DB_POOL_MIN_SIZE=2
 - DB_POOL_MAX_SIZE=20
 - DB_POOL_TIMEOUT_SECONDS=10

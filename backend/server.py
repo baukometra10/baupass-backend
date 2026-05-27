@@ -252,8 +252,48 @@ def resolve_sqlite_backup_dir() -> Path:
 
 def get_database_runtime_info():
     """DB path, persistence flag, and row counts (for deploy health checks)."""
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+        from backend.app.database import get_database_health
+
+        if postgres_runtime_enabled():
+            health = get_database_health()
+            workers = companies = 0
+            try:
+                from backend.app.database import init_postgres_pool, postgres_connection
+                from backend.app.db.pg_adapter import PgConnection
+
+                init_postgres_pool()
+                with postgres_connection() as raw:
+                    db = PgConnection(raw)
+                    workers = int(
+                        db.execute("SELECT COUNT(*) FROM workers WHERE deleted_at IS NULL").fetchone()[0]
+                    )
+                    companies = int(
+                        db.execute("SELECT COUNT(*) FROM companies WHERE deleted_at IS NULL").fetchone()[0]
+                    )
+            except Exception as exc:
+                return {
+                    "backend": "postgres",
+                    "persistent": True,
+                    "path": os.getenv("DATABASE_URL", "").split("@")[-1][:80],
+                    "databaseHealth": health,
+                    "countError": str(exc),
+                }
+            return {
+                "backend": "postgres",
+                "persistent": True,
+                "path": "postgresql",
+                "workersActive": workers,
+                "companiesActive": companies,
+                "databaseHealth": health,
+            }
+    except ImportError:
+        pass
+
     path = Path(DB_PATH)
     info = {
+        "backend": "sqlite",
         "path": str(path),
         "persistent": DB_IS_PERSISTENT,
         "exists": path.exists(),
@@ -601,19 +641,18 @@ def decrypt_mail_credential(encrypted_value: str, company_id: str) -> str:
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH, timeout=60)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA journal_mode=WAL")
-        g.db.execute("PRAGMA synchronous=NORMAL")
-        g.db.execute("PRAGMA busy_timeout=60000")
+        from backend.app.db.runtime import open_request_db
+
+        g.db = open_request_db()
     return g.db
 
 
 @app.teardown_appcontext
 def close_db(_exc):
+    from backend.app.db.runtime import close_request_db
+
     db = g.pop("db", None)
-    if db is not None:
-        db.close()
+    close_request_db(db)
 
 
 def utc_now():
@@ -2445,6 +2484,20 @@ def ip_allowed(ip_value, whitelist):
 
 
 def init_db():
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+
+        if postgres_runtime_enabled():
+            from backend.app.database import init_postgres_pool, postgres_preflight
+
+            init_postgres_pool()
+            check = postgres_preflight()
+            if check.get("status") != "ok":
+                raise RuntimeError(f"PostgreSQL preflight failed: {check}")
+            print("[baupass] init_db: PostgreSQL runtime (schema must exist — run sqlite_to_postgres.py)", flush=True)
+            return
+    except ImportError:
+        pass
     db = sqlite3.connect(DB_PATH, timeout=60)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA busy_timeout=60000")
@@ -11238,6 +11291,15 @@ def normalize_physical_card_id(value):
     return normalized or None
 
 
+def normalize_nfc_uid(value):
+    """Normalize NFC tag UID for comparison (hex only, uppercase)."""
+    base = normalize_physical_card_id(value)
+    if not base:
+        return None
+    compact = re.sub(r"[^0-9A-F]", "", base)
+    return compact or None
+
+
 def normalize_device_protocol(value):
     normalized = str(value or "").strip().lower()
     if normalized in {"usb", "http", "tcp", "mqtt", "serial"}:
@@ -12215,6 +12277,229 @@ def worker_app_site_leave():
     return jsonify({"ok": True, "checkoutLogId": checkout_log_id, "loggedOut": True})
 
 
+def _access_log_has_client_event_id(db, worker_id, client_event_id):
+    if not client_event_id:
+        return False
+    marker = f"clientEventId={client_event_id}"
+    row = db.execute(
+        """
+        SELECT id FROM access_logs
+        WHERE worker_id = ? AND note LIKE ?
+        LIMIT 1
+        """,
+        (worker_id, f"%{marker}%"),
+    ).fetchone()
+    return bool(row)
+
+
+def record_worker_app_nfc_attendance(
+    db,
+    worker,
+    *,
+    nfc_uid,
+    direction_requested="auto",
+    location=None,
+    gate=None,
+    note=None,
+    timestamp_value=None,
+    client_event_id=None,
+    offline_sync=False,
+):
+    """
+    Shared NFC attendance logic for live API and offline replay.
+    Returns dict with ok=True/False (never raises for business rule failures).
+    """
+    scanned_uid = normalize_nfc_uid(nfc_uid)
+    if not scanned_uid:
+        return {"ok": False, "error": "missing_nfc_uid", "status": 400}
+
+    enrolled_uid = normalize_nfc_uid(worker.get("physical_card_id"))
+    if not enrolled_uid:
+        return {
+            "ok": False,
+            "error": "nfc_card_not_enrolled",
+            "status": 403,
+            "message": "No physical NFC card is assigned to this worker.",
+        }
+
+    if scanned_uid != enrolled_uid:
+        return {
+            "ok": False,
+            "error": "nfc_uid_mismatch",
+            "status": 403,
+            "message": "Scanned card does not match the card assigned to your profile.",
+        }
+
+    if str(worker.get("status") or "").strip().lower() not in {"aktiv", "active"}:
+        return {"ok": False, "error": "worker_not_active", "status": 403}
+
+    company_error = get_company_access_error(db, worker["company_id"])
+    if company_error:
+        return {"ok": False, "error": company_error.get("error", "company_blocked"), "status": 403, "message": company_error.get("message")}
+
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "nfc_badges"):
+        return {"ok": False, "error": "nfc_badges", "status": 403, "feature": "nfc_badges", "plan": plan_value}
+
+    if lock_worker_for_expired_documents(db, worker):
+        return {"ok": False, "error": "worker_documents_expired", "status": 403}
+
+    if client_event_id and _access_log_has_client_event_id(db, worker["id"], client_event_id):
+        return {
+            "ok": True,
+            "duplicate": True,
+            "replay": True,
+            "clientEventId": client_event_id,
+            "message": "Attendance event already recorded.",
+        }
+
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    if site_cfg["accessMode"] == "site_app" and not offline_sync:
+        if not isinstance(location, dict):
+            return {
+                "ok": False,
+                "error": "worker_geolocation_required",
+                "status": 400,
+                "message": "Location is required for site-based attendance.",
+            }
+        try:
+            measured = measure_worker_site_distance(db, worker, location)
+        except ValueError:
+            return {"ok": False, "error": "worker_geolocation_required", "status": 400}
+        if not measured:
+            return {"ok": False, "error": "site_location_unavailable", "status": 403}
+        radius = int(site_cfg["siteGeofenceRadiusMeters"])
+        if measured["distanceMeters"] > radius:
+            return {
+                "ok": False,
+                "error": "outside_geofence",
+                "status": 403,
+                "distanceMeters": measured["distanceMeters"],
+                "radiusMeters": radius,
+            }
+
+    requested_direction = str(direction_requested or "auto").strip().lower()
+    if requested_direction not in {"check-in", "check-out", "auto", "toggle"}:
+        return {"ok": False, "error": "invalid_direction", "status": 400}
+
+    if requested_direction in {"auto", "toggle", ""}:
+        direction = "check-out" if worker_has_open_checkin_today(db, worker["id"]) else "check-in"
+    else:
+        direction = requested_direction
+
+    gate_label = str(gate or "Mitarbeiter-App (NFC)").strip() or "Mitarbeiter-App (NFC)"
+    if offline_sync:
+        gate_label = "Mitarbeiter-App (NFC offline)"
+    note_text = str(note or "NFC attendance via employee app").strip()
+    if offline_sync:
+        note_text = f"{note_text} | offline sync"
+    if client_event_id:
+        note_text = f"{note_text} | clientEventId={client_event_id}"
+    if isinstance(location, dict):
+        distance_hint = _normalize_float(location.get("distanceMeters"))
+        if distance_hint is not None:
+            note_text = f"{note_text} | distance {int(round(distance_hint))} m"
+
+    debounce_row = db.execute(
+        """
+        SELECT id, direction, timestamp
+        FROM access_logs
+        WHERE worker_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 1
+        """,
+        (worker["id"],),
+    ).fetchone()
+    if debounce_row and not offline_sync:
+        last_direction = str(debounce_row["direction"] or "").strip().lower()
+        last_ts = str(debounce_row["timestamp"] or "")
+        if last_direction == direction:
+            try:
+                last_dt = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                age_seconds = (utc_now() - last_dt.astimezone(timezone.utc)).total_seconds()
+                if age_seconds < 45:
+                    return {
+                        "ok": True,
+                        "duplicate": True,
+                        "logId": str(debounce_row["id"]),
+                        "direction": direction,
+                        "timestamp": last_ts,
+                    }
+            except Exception:
+                pass
+
+    log_id = create_access_log_entry(
+        db,
+        worker["id"],
+        direction,
+        gate_label,
+        note_text,
+        timestamp_value=timestamp_value,
+        worker_type=worker["worker_type"],
+    )
+    return {
+        "ok": True,
+        "duplicate": False,
+        "logId": log_id,
+        "direction": direction,
+        "timestamp": timestamp_value or now_iso(),
+        "gate": gate_label,
+        "clientEventId": client_event_id,
+    }
+
+
+@require_worker_session
+def worker_app_attendance_nfc():
+    """
+    Record check-in/check-out from the employee Flutter app after an NFC tag scan.
+    Requires worker session + enrolled physical_card_id matching the scanned UID.
+    """
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_payload"}), 400
+
+    location = payload.get("location") if isinstance(payload.get("location"), dict) else None
+    result = record_worker_app_nfc_attendance(
+        db,
+        worker,
+        nfc_uid=payload.get("nfcUid") or payload.get("nfc_uid"),
+        direction_requested=payload.get("direction") or "auto",
+        location=location,
+        gate=payload.get("gate"),
+        note=payload.get("note"),
+        client_event_id=clean_id_input(payload.get("clientEventId"), max_len=80),
+    )
+    if not result.get("ok"):
+        status = int(result.get("status") or 400)
+        if result.get("error") == "nfc_badges":
+            return feature_not_available_response("nfc_badges", result.get("plan"))
+        if result.get("error") == "worker_documents_expired":
+            db.commit()
+        body = {k: v for k, v in result.items() if k not in {"ok", "status"}}
+        body["error"] = result.get("error")
+        return jsonify(body), status
+
+    if not result.get("duplicate") and not result.get("replay"):
+        db.commit()
+        scanned_uid = normalize_nfc_uid(payload.get("nfcUid") or payload.get("nfc_uid")) or ""
+        log_audit(
+            "worker_app.attendance_nfc",
+            f"NFC {result.get('direction')} for {worker['first_name']} {worker['last_name']} (uid={scanned_uid[:8]}…)",
+            target_type="worker",
+            target_id=worker["id"],
+            company_id=worker["company_id"],
+        )
+    else:
+        db.commit()
+
+    result["openCheckInToday"] = worker_has_open_checkin_today(db, worker["id"])
+    return jsonify(result)
+
+
 def build_worker_team_snapshot(db, worker_row):
     company_id = str(worker_row["company_id"] or "").strip()
     site_name = str(worker_row["site"] or "").strip()
@@ -12327,13 +12612,50 @@ def worker_app_sync_offline_events():
         return jsonify({"error": "invalid_offline_events"}), 400
 
     worker = g.worker
+    db = get_db()
     stored_count = 0
+    results = []
     for event in events[:50]:
         if not isinstance(event, dict):
             continue
         event_type = str(event.get("type") or "offline_login").strip() or "offline_login"
         occurred_at = str(event.get("occurredAt") or now_iso()).strip() or now_iso()
+        client_event_id = clean_id_input(event.get("clientEventId"), max_len=80)
         distance_meters = _normalize_float(event.get("distanceMeters"))
+
+        if event_type == "nfc_attendance":
+            location = event.get("location") if isinstance(event.get("location"), dict) else None
+            if distance_meters is not None and location is not None:
+                location = dict(location)
+                location["distanceMeters"] = distance_meters
+            attendance_result = record_worker_app_nfc_attendance(
+                db,
+                worker,
+                nfc_uid=event.get("nfcUid") or event.get("nfc_uid"),
+                direction_requested=event.get("direction") or "auto",
+                location=location,
+                gate=event.get("gate"),
+                note=event.get("note"),
+                timestamp_value=occurred_at,
+                client_event_id=client_event_id,
+                offline_sync=True,
+            )
+            attendance_result["type"] = event_type
+            if client_event_id:
+                attendance_result["clientEventId"] = client_event_id
+            results.append(attendance_result)
+            if attendance_result.get("ok"):
+                stored_count += 1
+                if not attendance_result.get("duplicate") and not attendance_result.get("replay"):
+                    log_audit(
+                        "worker_app.nfc_attendance_offline",
+                        f"Offline NFC {attendance_result.get('direction')} replayed at {occurred_at}",
+                        target_type="worker",
+                        target_id=worker["id"],
+                        company_id=worker["company_id"],
+                    )
+            continue
+
         message = f"Offline-Ereignis nachsynchronisiert: {event_type} | Zeitpunkt {occurred_at}"
         if distance_meters is not None:
             message += f" | Distanz {int(round(distance_meters))} m"
@@ -12345,8 +12667,10 @@ def worker_app_sync_offline_events():
             company_id=worker["company_id"],
         )
         stored_count += 1
+        results.append({"ok": True, "type": event_type, "clientEventId": client_event_id})
 
-    return jsonify({"ok": True, "stored": stored_count})
+    db.commit()
+    return jsonify({"ok": True, "stored": stored_count, "results": results})
 
 
 @require_worker_session
@@ -21280,20 +21604,43 @@ def api_health():
     except Exception:
         alerts = []
 
+    redis_check = {"ok": True, "status": "unknown"}
+    try:
+        from backend.app.health.readiness import _redis_status
+
+        redis_check = _redis_status()
+    except Exception:
+        pass
+
+    cloud = {}
+    try:
+        from backend.app.core.cloud_profile import get_cloud_profile
+
+        cloud = get_cloud_profile()
+    except Exception:
+        pass
+
+    db_block = {
+        "ok": db_ok,
+        "error": db_error,
+        "path": db_runtime.get("path"),
+        "persistent": bool(db_runtime.get("persistent")),
+        "sizeBytes": db_runtime.get("sizeBytes"),
+        "workersActive": db_runtime.get("workersActive"),
+        "companiesActive": db_runtime.get("companiesActive"),
+    }
+
     return jsonify(
         {
             "status": status,
             "uptimeSeconds": uptime_seconds,
             "startedAt": APP_STARTED_AT.replace(microsecond=0).isoformat() + "Z",
-            "db": {
-                "ok": db_ok,
-                "error": db_error,
-                "path": db_runtime.get("path"),
-                "persistent": bool(db_runtime.get("persistent")),
-                "sizeBytes": db_runtime.get("sizeBytes"),
-                "workersActive": db_runtime.get("workersActive"),
-                "companiesActive": db_runtime.get("companiesActive"),
+            "db": db_block,
+            "checks": {
+                "database": db_block,
+                "redis": redis_check,
             },
+            "cloud": cloud,
             "dunning": {
                 "lastRunAt": DUNNING_LAST_RUN_AT,
                 "lastResult": DUNNING_LAST_RESULT,
@@ -21305,6 +21652,12 @@ def api_health():
             "deploy": {
                 "renderGitCommit": (os.getenv("RENDER_GIT_COMMIT") or "").strip(),
                 "railwayGitCommit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip(),
+            },
+            "architecture": {
+                "modularBlueprints": app.extensions.get("modular_blueprints", []),
+                "platformEnabled": os.getenv("BAUPASS_PLATFORM_ENABLED", "1")
+                not in {"0", "false", "no"},
+                "runtime": app.extensions.get("runtime_summary", {}),
             },
         }
     ), (200 if db_ok else 503)
@@ -21318,11 +21671,24 @@ def api_health_live():
 @app.get("/api/health/ready")
 def api_health_ready():
     try:
-        with closing(sqlite3.connect(DB_PATH)) as db:
-            db.execute("SELECT 1").fetchone()
-        return jsonify({"status": "ready"}), 200
+        from backend.app.health.readiness import collect_readiness
+
+        report = collect_readiness(app, DB_PATH)
+        if report.get("ready"):
+            return jsonify({"status": "ready", **report}), 200
+        return jsonify({"status": "not_ready", **report}), 503
     except Exception as exc:
         return jsonify({"status": "not_ready", "error": str(exc)}), 503
+
+
+@app.get("/api/health/queues")
+def api_health_queues():
+    try:
+        from backend.app.health.readiness import _queue_status
+
+        return jsonify(_queue_status()), 200
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
 
 
 @app.get("/api/system-alerts")
@@ -24524,7 +24890,7 @@ try:
 except Exception as _blueprint_exc:
     import traceback as _bp_tb
 
-    print(f"[baupass] WARNING: blueprint registration failed: {_blueprint_exc}", flush=True)
+    print(f"[baupass] CRITICAL: blueprint registry failed: {_blueprint_exc}", flush=True)
     _bp_tb.print_exc()
 
 

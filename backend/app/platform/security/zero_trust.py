@@ -17,7 +17,7 @@ def register_zero_trust_middleware(flask_app: Flask) -> None:
     def _zero_trust_check():
         if not request.path.startswith("/api/"):
             return None
-        if request.path in {"/api/health", "/api/health/live", "/api/health/ready", "/metrics"}:
+        if request.path.startswith("/api/health") or request.path in {"/metrics", "/observability/status"}:
             return None
         expected = os.getenv("BAUPASS_ZERO_TRUST_TOKEN", "").strip()
         if expected and request.headers.get("X-Zero-Trust-Token", "") != expected:

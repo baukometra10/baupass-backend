@@ -11,6 +11,11 @@ class WorkersService:
     def list_workers(self, db, company_id: str) -> list[dict]:
         return self.repo.list_active(db, company_id)
 
+    def assign_physical_card(
+        self, db, company_id: str, worker_id: str, physical_card_id: str | None
+    ) -> bool:
+        return self.repo.update_physical_card_id(db, company_id, worker_id, physical_card_id)
+
     def workforce_tracking(self, db, company_id: str, today_prefix: str) -> dict:
         on_site = self.repo.count_on_site_today(db, company_id, today_prefix)
         workers = self.repo.list_active(db, company_id, limit=1000)
