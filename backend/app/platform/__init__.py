@@ -32,6 +32,13 @@ def init_platform(flask_app: Flask) -> None:
     _step("log_forwarder", lambda: __import__("backend.app.platform.observability.log_forwarder", fromlist=["attach_log_forwarder"]).attach_log_forwarder())
     _step("zero_trust", lambda: __import__("backend.app.platform.security.zero_trust", fromlist=["register_zero_trust_middleware"]).register_zero_trust_middleware(flask_app))
     _step("cdn", lambda: __import__("backend.app.platform.edge.cdn_middleware", fromlist=["register_cdn_middleware"]).register_cdn_middleware(flask_app))
+    _step(
+        "data_residency",
+        lambda: __import__(
+            "backend.app.platform.multi_region.middleware",
+            fromlist=["register_data_residency_middleware"],
+        ).register_data_residency_middleware(flask_app),
+    )
 
 
 def register_platform_blueprints(flask_app: Flask) -> None:

@@ -93,11 +93,35 @@ def sync_provider(provider: str, config: dict[str, str], *, company_id: int | No
         return sync_google_workspace(config)
     if provider == "payroll":
         return sync_payroll(config, company_id=company_id)
-    if provider in {"sap", "oracle"}:
+    if provider == "sap":
         from .integrations import provider_connectivity
+        from .erp_adapters import sap_export_preview
 
         probe = provider_connectivity(provider, config)
-        return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe}
+        preview = None
+        if company_id is not None:
+            try:
+                from backend.server import get_db
+
+                preview = sap_export_preview(get_db(), int(company_id))
+            except Exception as exc:
+                preview = {"error": str(exc)}
+        return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe, "exportPreview": preview}
+
+    if provider == "oracle":
+        from .integrations import provider_connectivity
+        from .erp_adapters import oracle_export_preview
+
+        probe = provider_connectivity(provider, config)
+        preview = None
+        if company_id is not None:
+            try:
+                from backend.server import get_db
+
+                preview = oracle_export_preview(get_db(), int(company_id))
+            except Exception as exc:
+                preview = {"error": str(exc)}
+        return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe, "exportPreview": preview}
     from .integrations import provider_connectivity
 
     probe = provider_connectivity(provider, config)

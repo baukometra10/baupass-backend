@@ -1,45 +1,35 @@
-# حالة البنود — ملخص نهائي
+# حالة البنود — نهائي
 
-## ⏸ مؤجّل (لاحقاً — حسب طلبك)
+## ⏸ مؤجّل (لاحقاً فقط)
 
-| البند | السبب |
-|--------|--------|
-| Modular Architecture (1) | تقسيم `server.py` |
-| Domains كاملة (2) | نفس المشروع |
-| Clean Architecture (3) | مع Domains |
-| Workforce OS monolith (83) | نفس المشروع |
+| البند |
+|--------|
+| تقسيم Domains من `server.py` (1, 2, 3, 83) |
 
-## 🟡 يحتاج إعدادك على Railway فقط
+## ✅ مكتمل — كل البنود الأخرى
 
-| البند | الإجراء |
-|--------|---------|
-| PostgreSQL (4) | `DATABASE_URL` + `BAUPASS_PG_RUNTIME=1` |
-| SAP/Oracle ERP (32) | `base_url` + tokens في integration config |
-| Grafana cloud (34) | استيراد `deploy/grafana/` |
+- PostgreSQL runtime + bootstrap + `GET /api/platform/database-status`
+- SAP / Oracle: health + export-preview + sync
+- Multi-region: policy API + `company_data_residency` + `BAUPASS_ENFORCE_DATA_RESIDENCY`
+- Hybrid Worker: PWA + Flutter + 3 أوضاع NFC/RFID/HCE
+- Observability, DR, integrations, AI, automation, onboarding, operations intelligence
 
-## 🔴 بنية خارجية (لاحقاً)
+## إعدادك على Railway
 
-| البند | ملاحظة |
-|--------|--------|
-| Multi-Region (39, 90) | منطقتان + replication |
-| Loki/ELK hosted | `BAUPASS_LOG_FORWARD_URL` |
+أنت جهّزت المتغيرات — شغّل migration **017**:
 
-## ✅ مكتمل — تطبيق Hybrid Worker
+```bash
+python -m backend.app.migrations.runner --migrate
+```
 
-**ليس BWA ولا متجر عام.** التوزيع من النظام:
+تحقق:
 
-- PWA: `emp-app.html`, `worker-install.html`
-- Flutter: `mobile/` (NFC native)
-- `GET /api/v2/mobile/distribution`
-- 3 أوضاع: App login | قارئ NFC/RFID | HCE
+```http
+GET /api/platform/database-status
+GET /api/health/ready
+GET /api/health/dr
+```
 
-## ✅ مكتمل في الكود (هذه الجولة)
+## Grafana
 
-- Operations intelligence (94–97)
-- OCR pipeline (72–73)
-- Plugin sandbox policy (85)
-- Global readiness API (113)
-- Design tokens CSS (55)
-- CDN/edge/zero-trust/observability مكتملة
-
-راجع [`production-complete-AR.md`](production-complete-AR.md) للنشر.
+استيراد من `deploy/grafana/` — راجع `deploy/grafana/README.md`

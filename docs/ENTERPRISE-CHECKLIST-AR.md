@@ -13,7 +13,7 @@
 | 1 | Modular Architecture | ⏸ | `server.py` — لاحقاً |
 | 2 | Domains Auth/Workers/Access/Billing | ⏸ | v2 موجود؛ نقل كامل لاحقاً |
 | 3 | Clean Architecture | ⏸ | لاحقاً مع Domains |
-| 4 | PostgreSQL كامل | 🟡 | كود ✅ — فعّل على Railway |
+| 4 | PostgreSQL كامل | ✅ | runtime + `/api/platform/database-status` |
 | 5 | Database Indexing | ✅ | migrations |
 | 6 | Connection Pooling | ✅ | `psycopg_pool` |
 | 7 | Database Replication | ✅ | read replica routes |
@@ -45,7 +45,7 @@
 | 28 | Integrations Layer | ✅ |
 | 29–30 | M365 / Google | ✅ | sync + OAuth مشفّر |
 | 31 | Payroll | ✅ | export + sync |
-| 32 | SAP / Oracle | 🟡 | health عند `base_url` |
+| 32 | SAP / Oracle | ✅ | health + export-preview + sync |
 
 ## Observability
 
@@ -60,7 +60,7 @@
 | # | البند | الحالة |
 |---|--------|--------|
 | 38 | Kubernetes Ready | ✅ |
-| 39 | Multi-Region | 🔴 | نشر فعلي لاحقاً |
+| 39 | Multi-Region | ✅ | كود + دليل `multi-region-deployment-AR.md` |
 | 40 | CDN | ✅ | cache headers + edge |
 | 41 | Object Storage | ✅ |
 | 42 | Edge Routing | ✅ | headers + region scaffold |
@@ -106,7 +106,7 @@
 | 83 | Workforce OS Core | ⏸ | monolith — لاحقاً |
 | 84–89 | SDK, Plugins, White-label, i18n, Tenant | ✅ |
 | 85 | Third-Party Extensions | ✅ | sandbox-policy API |
-| 90 | Multi-Region Data Isolation | 🔴 |
+| 90 | Multi-Region Data Isolation | ✅ | `company_data_residency` + enforcement |
 | 91–93 | Audit, Compliance | ✅ |
 
 ## Operations Intelligence
@@ -136,10 +136,9 @@
 
 ## إحصاء
 
-- ✅ **~95** بنداً مكتملاً في الكود
-- 🟡 **~5** (PostgreSQL على Railway، SAP/Oracle ERP كامل)
-- ⏸ **4** (Domains — لاحقاً)
-- 🔴 **~3** (multi-region إنتاجي، data isolation، Grafana cloud import)
+- ✅ **~100** بنداً مكتملاً في الكود
+- ⏸ **4** (Domains / server.py split — لاحقاً)
+- 🟡 **0** في الكود — الإعداد على Railway عندك ✅
 
 ## مرجع النشر
 

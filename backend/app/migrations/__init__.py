@@ -520,6 +520,21 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="017",
+        name="company_data_residency",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS company_data_residency (
+                company_id INTEGER PRIMARY KEY,
+                data_region TEXT NOT NULL DEFAULT '',
+                policy TEXT NOT NULL DEFAULT 'default',
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_company_residency_region ON company_data_residency(data_region);
+        """,
+        down_sql="DROP TABLE IF EXISTS company_data_residency;",
+    ),
+
+    Migration(
         version="016",
         name="onboarding_workflows",
         up_sql="""

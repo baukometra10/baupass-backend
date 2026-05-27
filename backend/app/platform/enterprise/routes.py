@@ -547,6 +547,26 @@ def register_enterprise_routes(flask_app):
         period = (request.args.get("period") or "").strip()[:7]
         return jsonify(preview(get_db(), _company_id(), period=period))
 
+    @enterprise_bp.get("/integrations/sap/export-preview")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def sap_export_preview_route():
+        from backend.server import get_db
+        from .erp_adapters import sap_export_preview
+
+        period = (request.args.get("period") or "").strip()[:7]
+        return jsonify(sap_export_preview(get_db(), _company_id(), period=period))
+
+    @enterprise_bp.get("/integrations/oracle/export-preview")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def oracle_export_preview_route():
+        from backend.server import get_db
+        from .erp_adapters import oracle_export_preview
+
+        period = (request.args.get("period") or "").strip()[:7]
+        return jsonify(oracle_export_preview(get_db(), _company_id(), period=period))
+
     @enterprise_bp.get("/integrations/<provider>/health")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -652,25 +672,77 @@ def register_enterprise_routes(flask_app):
 
     @enterprise_bp.get("/platform/global-readiness")
     @require_auth
-    @require_roles("superadmin")
+    @require_roles("superadmin", "company-admin")
     def global_readiness():
         import os
         from backend.app.core.cloud_profile import get_cloud_profile
         from backend.app.health.dr_status import collect_dr_status
-        from backend.server import DB_PATH
+        from backend.app.platform.multi_region.residency import (
+            current_deployment_region,
+            get_company_residency,
+        )
+        from backend.server import DB_PATH, get_db
 
+        cid = _company_id()
         return jsonify(
             {
                 "cloud": get_cloud_profile(),
                 "dr": collect_dr_status(Path(DB_PATH)),
+                "dataResidency": get_company_residency(get_db(), cid),
+                "deploymentRegion": current_deployment_region(),
                 "expansion": {
                     "multiRegionReady": os.getenv("BAUPASS_REGION_STRATEGY", "single") == "multi",
-                    "activeRegions": (os.getenv("BAUPASS_ACTIVE_REGIONS") or "").split(","),
+                    "activeRegions": [r for r in (os.getenv("BAUPASS_ACTIVE_REGIONS") or "").split(",") if r.strip()],
+                    "enforceResidency": os.getenv("BAUPASS_ENFORCE_DATA_RESIDENCY", "0") in {"1", "true", "yes"},
                     "documentation": "docs/multi-region-readiness-AR.md",
                 },
                 "domainsSplitDeferred": True,
             }
         )
+
+    @enterprise_bp.get("/platform/database-status")
+    @require_auth
+    @require_roles("superadmin")
+    def platform_database_status():
+        from backend.app.database import get_database_health, postgres_preflight
+        from backend.app.db.runtime import postgres_runtime_enabled
+        from backend.app.db.pg_bootstrap import core_schema_ready, missing_core_tables
+
+        payload = {
+            "postgresRuntime": postgres_runtime_enabled(),
+            "health": get_database_health(),
+            "preflight": postgres_preflight() if postgres_runtime_enabled() else {"status": "skipped"},
+            "coreSchemaReady": core_schema_ready() if postgres_runtime_enabled() else None,
+            "missingTables": missing_core_tables(force_refresh=True) if postgres_runtime_enabled() else [],
+        }
+        payload["ok"] = (
+            not postgres_runtime_enabled()
+            or (payload.get("preflight", {}).get("status") == "ok" and payload.get("coreSchemaReady"))
+        )
+        return jsonify(payload)
+
+    @enterprise_bp.put("/platform/companies/<int:company_id>/data-residency")
+    @require_auth
+    @require_roles("superadmin")
+    def set_data_residency(company_id: int):
+        from backend.server import get_db
+        from backend.app.platform.multi_region.residency import set_company_residency
+
+        data = request.get_json(silent=True) or {}
+        region = str(data.get("data_region") or data.get("region") or "").strip()
+        policy = str(data.get("policy") or "strict").strip()
+        return jsonify(set_company_residency(get_db(), company_id, region, policy))
+
+    @enterprise_bp.get("/platform/companies/<int:company_id>/data-residency")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def get_data_residency(company_id: int):
+        from backend.server import get_db
+        from backend.app.platform.multi_region.residency import get_company_residency
+
+        if g.current_user.get("role") != "superadmin" and int(g.current_user.get("company_id") or 0) != company_id:
+            return jsonify({"error": "forbidden"}), 403
+        return jsonify(get_company_residency(get_db(), company_id))
 
     # ── Smart expiry prediction ───────────────────────────────────────────────
     @enterprise_bp.get("/compliance/expiry-predictions")
