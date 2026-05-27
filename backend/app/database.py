@@ -38,6 +38,8 @@ _migration_lock = threading.Lock()
 # ── PostgreSQL pool globals (transition mode) ───────────────────────────────
 _pg_pool = None
 _pg_pool_lock = threading.Lock()
+_pg_read_pool = None
+_pg_read_pool_lock = threading.Lock()
 
 
 # =============================================================================
@@ -66,8 +68,19 @@ def _resolve_database_url(config: Optional[dict[str, Any]] = None) -> str:
     return os.getenv("DATABASE_URL", "").strip()
 
 
+def _resolve_read_replica_url(config: Optional[dict[str, Any]] = None) -> str:
+    if config and config.get("DATABASE_READ_REPLICA_URL"):
+        return str(config.get("DATABASE_READ_REPLICA_URL", "")).strip()
+    return os.getenv("DATABASE_READ_REPLICA_URL", "").strip()
+
+
 def is_postgres_configured(config: Optional[dict[str, Any]] = None) -> bool:
     url = _resolve_database_url(config)
+    return url.startswith("postgres://") or url.startswith("postgresql://")
+
+
+def is_postgres_replica_configured(config: Optional[dict[str, Any]] = None) -> bool:
+    url = _resolve_read_replica_url(config)
     return url.startswith("postgres://") or url.startswith("postgresql://")
 
 
@@ -122,14 +135,69 @@ def init_postgres_pool(config: Optional[dict[str, Any]] = None) -> bool:
         return False
 
 
+def init_postgres_read_pool(config: Optional[dict[str, Any]] = None) -> bool:
+    """
+    Initializes PostgreSQL read-replica connection pool.
+    Falls back to primary pool when replica URL is not configured.
+    """
+    global _pg_read_pool
+
+    if _pg_read_pool is not None:
+        return True
+
+    replica_url = _resolve_read_replica_url(config)
+    if not (replica_url.startswith("postgres://") or replica_url.startswith("postgresql://")):
+        return init_postgres_pool(config)
+
+    try:
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
+
+        min_size = int((config or {}).get("DB_READ_POOL_MIN_SIZE", os.getenv("DB_READ_POOL_MIN_SIZE", "2")))
+        max_size = int((config or {}).get("DB_READ_POOL_MAX_SIZE", os.getenv("DB_READ_POOL_MAX_SIZE", "16")))
+        timeout = int((config or {}).get("DB_POOL_TIMEOUT_SECONDS", os.getenv("DB_POOL_TIMEOUT_SECONDS", "10")))
+
+        with _pg_read_pool_lock:
+            if _pg_read_pool is not None:
+                return True
+            pool = ConnectionPool(
+                conninfo=replica_url,
+                min_size=max(1, min_size),
+                max_size=max(max_size, min_size),
+                timeout=max(3, timeout),
+                kwargs={
+                    "autocommit": True,
+                    "row_factory": dict_row,
+                },
+            )
+            pool.wait(timeout=max(3, timeout))
+            _pg_read_pool = pool
+        logger.info(
+            "PostgreSQL read-replica pool initialized (min=%s max=%s timeout=%ss)",
+            min_size,
+            max_size,
+            timeout,
+        )
+        return True
+    except Exception as exc:
+        logger.error("Failed to initialize PostgreSQL read-replica pool: %s", exc)
+        return False
+
+
 def close_postgres_pool() -> None:
-    global _pg_pool
+    global _pg_pool, _pg_read_pool
     with _pg_pool_lock:
         if _pg_pool is not None:
             try:
                 _pg_pool.close()
             finally:
                 _pg_pool = None
+    with _pg_read_pool_lock:
+        if _pg_read_pool is not None:
+            try:
+                _pg_read_pool.close()
+            finally:
+                _pg_read_pool = None
 
 
 def get_postgres_pool_stats() -> dict[str, Any]:
@@ -142,12 +210,40 @@ def get_postgres_pool_stats() -> dict[str, Any]:
         return {"status": "error", "error": str(exc)}
 
 
+def get_postgres_read_pool_stats() -> dict[str, Any]:
+    if _pg_read_pool is None:
+        if is_postgres_replica_configured():
+            return {"status": "not_initialized", "replica_configured": True}
+        return {"status": "disabled", "replica_configured": False}
+    try:
+        stats = _pg_read_pool.get_stats() or {}
+        return {"status": "ok", "replica_configured": True, **stats}
+    except Exception as exc:
+        return {"status": "error", "replica_configured": True, "error": str(exc)}
+
+
 @contextmanager
 def postgres_connection() -> Generator[Any, None, None]:
     """Returns a pooled PostgreSQL connection."""
     if _pg_pool is None:
         raise RuntimeError("PostgreSQL pool is not initialized")
     with _pg_pool.connection() as conn:
+        yield conn
+
+
+@contextmanager
+def postgres_read_connection() -> Generator[Any, None, None]:
+    """
+    Returns a read-only pooled PostgreSQL connection.
+    Uses replica when configured, otherwise primary.
+    """
+    if _pg_read_pool is None:
+        init_postgres_read_pool()
+    if _pg_read_pool is not None:
+        with _pg_read_pool.connection() as conn:
+            yield conn
+        return
+    with postgres_connection() as conn:
         yield conn
 
 
@@ -185,10 +281,38 @@ def postgres_preflight(config: Optional[dict[str, Any]] = None) -> dict[str, Any
         return {"enabled": True, "status": "error", "error": str(exc)}
 
 
+def postgres_replica_preflight(config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    if not is_postgres_replica_configured(config):
+        return {"enabled": False, "status": "skipped", "reason": "DATABASE_READ_REPLICA_URL not set"}
+
+    started = time.monotonic()
+    ok = init_postgres_read_pool(config)
+    if not ok:
+        return {"enabled": True, "status": "error", "error": "read_pool_init_failed"}
+    try:
+        with postgres_read_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return {
+            "enabled": True,
+            "status": "ok",
+            "duration_ms": duration_ms,
+            "pool": get_postgres_read_pool_stats(),
+        }
+    except Exception as exc:
+        return {"enabled": True, "status": "error", "error": str(exc)}
+
+
 def get_database_health(config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Unified database health check for readiness and observability."""
     if is_postgres_configured(config):
-        return {"backend": "postgres", **postgres_preflight(config)}
+        return {
+            "backend": "postgres",
+            **postgres_preflight(config),
+            "read_replica": postgres_replica_preflight(config),
+        }
 
     try:
         db_path = get_db_path()

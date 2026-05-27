@@ -5,20 +5,38 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger("baupass.websocket")
 
 socketio = None
+_socketio_state: dict[str, Any] = {"enabled": False, "reason": "not_initialized"}
 
 
 def init_socketio(flask_app) -> Any:
     global socketio
+    enabled = os.getenv("BAUPASS_WEBSOCKET_ENABLED", "1").strip().lower() in {"1", "true", "yes", "on"}
+    if not enabled:
+        _socketio_state.update({"enabled": False, "reason": "disabled_by_env"})
+        return None
     try:
         from flask_socketio import SocketIO, emit, join_room
 
-        cors = "*"
-        socketio = SocketIO(flask_app, cors_allowed_origins=cors, async_mode="threading", logger=False, engineio_logger=False)
+        cors = os.getenv("BAUPASS_WEBSOCKET_CORS", "*").strip() or "*"
+        ping_interval = int(os.getenv("BAUPASS_WEBSOCKET_PING_INTERVAL", "25"))
+        ping_timeout = int(os.getenv("BAUPASS_WEBSOCKET_PING_TIMEOUT", "20"))
+        max_buffer = int(os.getenv("BAUPASS_WEBSOCKET_MAX_HTTP_BUFFER", "1000000"))
+        socketio = SocketIO(
+            flask_app,
+            cors_allowed_origins=cors,
+            async_mode="threading",
+            logger=False,
+            engineio_logger=False,
+            ping_interval=max(10, ping_interval),
+            ping_timeout=max(10, ping_timeout),
+            max_http_buffer_size=max(100000, max_buffer),
+        )
 
         @socketio.on("connect")
         def on_connect():
@@ -36,9 +54,19 @@ def init_socketio(flask_app) -> Any:
             emit("pong", {})
 
         flask_app.extensions["socketio"] = socketio
+        _socketio_state.update(
+            {
+                "enabled": True,
+                "reason": "ok",
+                "cors": cors,
+                "ping_interval": ping_interval,
+                "ping_timeout": ping_timeout,
+            }
+        )
         logger.info("WebSocket (SocketIO) enabled")
         return socketio
     except ImportError:
+        _socketio_state.update({"enabled": False, "reason": "flask_socketio_not_installed"})
         logger.warning("flask-socketio not installed — WebSocket disabled")
         return None
 
@@ -51,3 +79,7 @@ def broadcast_event(company_id: int | None, event: dict) -> None:
         socketio.emit("platform_event", event, namespace="/")
     except Exception as exc:
         logger.debug("socketio broadcast failed: %s", exc)
+
+
+def websocket_status() -> dict[str, Any]:
+    return dict(_socketio_state)

@@ -52,6 +52,7 @@ def _database_status(db_path: Path) -> dict[str, Any]:
                 "backend": "postgres",
                 "companiesTable": tables_ok,
                 "health": health,
+                "readReplica": health.get("read_replica", {}),
             }
         with sqlite3.connect(str(db_path), timeout=3) as conn:
             conn.execute("SELECT 1").fetchone()

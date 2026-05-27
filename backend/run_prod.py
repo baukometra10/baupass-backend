@@ -67,13 +67,24 @@ def _ensure_postgres_bootstrap() -> None:
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('system_alerts', 'invoices', 'workers', 'companies')
+                  AND table_name IN (
+                    'settings', 'system_alerts', 'invoices', 'workers',
+                    'companies', 'users', 'audit_logs'
+                  )
                 """
             )
             existing = {row[0] for row in cur.fetchall()}
-    required = {"system_alerts", "invoices", "workers", "companies"}
+    required = {
+        "settings",
+        "system_alerts",
+        "invoices",
+        "workers",
+        "companies",
+        "users",
+        "audit_logs",
+    }
     if required.issubset(existing):
-        print("[baupass] PostgreSQL bootstrap: schema already present", flush=True)
+        print("[baupass] PostgreSQL bootstrap: core schema present", flush=True)
         return
 
     source = os.getenv("BAUPASS_PG_BOOTSTRAP_SQLITE_PATH", os.getenv("BAUPASS_DB_PATH", "/data/baupass.db"))
@@ -112,7 +123,10 @@ if __name__ == "__main__":
         from backend.app.database import postgres_preflight
 
         if postgres_runtime_enabled():
-            _ensure_postgres_bootstrap()
+            try:
+                _ensure_postgres_bootstrap()
+            except Exception as exc:
+                print(f"[baupass] WARNING: PostgreSQL bootstrap failed: {exc}", flush=True)
             pf = postgres_preflight()
             print(f"[baupass] PostgreSQL preflight: {pf.get('status')}", flush=True)
         else:
@@ -123,7 +137,7 @@ if __name__ == "__main__":
             if applied:
                 print(f"[baupass] Migrations on boot: {', '.join(applied)}", flush=True)
     except Exception as exc:
-        print(f"[baupass] WARNING: migrations on boot failed: {exc}", flush=True)
+        print(f"[baupass] WARNING: database prep on boot failed: {exc}", flush=True)
     data_dir = Path("/data")
     if data_dir.exists():
         print(
@@ -141,8 +155,15 @@ if __name__ == "__main__":
         }
         if run_dunning_on_boot:
             # Optional on-boot dunning; disabled by default to avoid delaying bind/readiness on platforms like Railway.
-            dunning_result = run_invoice_dunning_cycle(db)
-        suspended = check_and_apply_overdue_suspensions(db)
+            try:
+                dunning_result = run_invoice_dunning_cycle(db)
+            except Exception as exc:
+                print(f"[baupass] WARNING: on-boot dunning skipped: {exc}", flush=True)
+        suspended = []
+        try:
+            suspended = check_and_apply_overdue_suspensions(db)
+        except Exception as exc:
+            print(f"[baupass] WARNING: overdue suspension check skipped: {exc}", flush=True)
     if dunning_result.get("remindersSent") or dunning_result.get("reminderFailures") or dunning_result.get("overdueUpdated"):
         print(
             "[baupass] Dunning cycle: "

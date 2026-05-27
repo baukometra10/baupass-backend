@@ -73,4 +73,12 @@ def register_realtime_blueprint(flask_app: Flask) -> None:
         since_id = request.args.get("since_id", "").strip() or None
         return {"events": list_recent_events(company_id, limit=limit, since_id=since_id)}
 
+    @realtime_bp.get("/v1/realtime/status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def realtime_status():
+        from backend.app.platform.realtime.websocket import websocket_status
+
+        return jsonify({"websocket": websocket_status()})
+
     flask_app.register_blueprint(realtime_bp, url_prefix="/api")

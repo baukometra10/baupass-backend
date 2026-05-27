@@ -4600,16 +4600,33 @@ def visible_company_clause(user):
 def check_and_apply_overdue_suspensions(db):
     """Checks for overdue unpaid invoices and auto-locks companies."""
     today = now_iso().split("T")[0]
-    overdue_rows = db.execute(
-        """
-        SELECT DISTINCT inv.company_id FROM invoices AS inv
-        WHERE inv.status IN ('sent', 'overdue')
-          AND inv.paid_at IS NULL
-          AND inv.due_date IS NOT NULL
-                    AND DATE(inv.due_date) <= DATE(?, ?)
-        """,
-                (today, f"-{AUTO_SUSPEND_GRACE_DAYS} day"),
-    ).fetchall()
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+    except ImportError:
+        postgres_runtime_enabled = lambda: False  # type: ignore[assignment]
+
+    if postgres_runtime_enabled():
+        overdue_rows = db.execute(
+            """
+            SELECT DISTINCT inv.company_id FROM invoices AS inv
+            WHERE inv.status IN ('sent', 'overdue')
+              AND inv.paid_at IS NULL
+              AND inv.due_date IS NOT NULL
+              AND inv.due_date::date <= (CURRENT_DATE - (%s * INTERVAL '1 day'))
+            """,
+            (AUTO_SUSPEND_GRACE_DAYS,),
+        ).fetchall()
+    else:
+        overdue_rows = db.execute(
+            """
+            SELECT DISTINCT inv.company_id FROM invoices AS inv
+            WHERE inv.status IN ('sent', 'overdue')
+              AND inv.paid_at IS NULL
+              AND inv.due_date IS NOT NULL
+                        AND DATE(inv.due_date) <= DATE(?, ?)
+            """,
+            (today, f"-{AUTO_SUSPEND_GRACE_DAYS} day"),
+        ).fetchall()
 
     suspended_companies = []
     for row in overdue_rows:
@@ -6244,31 +6261,42 @@ def check_visitor_card_expiry_notifications(db):
 
 def run_dunning_job_once():
     global DUNNING_LAST_RUN_AT, DUNNING_LAST_RESULT
-    with app.app_context():
-        db = get_db()
-        result = run_invoice_dunning_cycle(db)
-        suspended = check_and_apply_overdue_suspensions(db)
-        result["suspendedCompanies"] = len(suspended)
-        check_visitor_card_expiry_notifications(db)
-        if int(result.get("reminderFailures", 0)) > 0:
-            create_system_alert(
-                db,
-                code="dunning_reminder_failures",
-                severity="warning",
-                message=f"Dunning hatte {int(result.get('reminderFailures', 0))} fehlgeschlagene Erinnerungen.",
-                details=result,
-            )
-        if int(result.get("suspendedCompanies", 0)) > 0:
-            create_system_alert(
-                db,
-                code="dunning_company_suspensions",
-                severity="info",
-                message=f"Dunning hat {int(result.get('suspendedCompanies', 0))} Firmen gesperrt.",
-                details=result,
-                dedup_minutes=10,
-            )
-        DUNNING_LAST_RUN_AT = now_iso()
-        DUNNING_LAST_RESULT = result
+    try:
+        with app.app_context():
+            db = get_db()
+            try:
+                result = run_invoice_dunning_cycle(db)
+                suspended = check_and_apply_overdue_suspensions(db)
+                result["suspendedCompanies"] = len(suspended)
+                check_visitor_card_expiry_notifications(db)
+                if int(result.get("reminderFailures", 0)) > 0:
+                    create_system_alert(
+                        db,
+                        code="dunning_reminder_failures",
+                        severity="warning",
+                        message=f"Dunning hatte {int(result.get('reminderFailures', 0))} fehlgeschlagene Erinnerungen.",
+                        details=result,
+                    )
+                if int(result.get("suspendedCompanies", 0)) > 0:
+                    create_system_alert(
+                        db,
+                        code="dunning_company_suspensions",
+                        severity="info",
+                        message=f"Dunning hat {int(result.get('suspendedCompanies', 0))} Firmen gesperrt.",
+                        details=result,
+                        dedup_minutes=10,
+                    )
+                DUNNING_LAST_RUN_AT = now_iso()
+                DUNNING_LAST_RESULT = result
+            except Exception as exc:
+                try:
+                    if hasattr(db, "rollback"):
+                        db.rollback()
+                except Exception:
+                    pass
+                print(f"[baupass] WARNING: dunning job skipped: {exc}", flush=True)
+    except Exception as exc:
+        print(f"[baupass] WARNING: dunning job context failed: {exc}", flush=True)
 
 
 def _month_period_range(reference_date=None):
@@ -6787,15 +6815,19 @@ def start_background_jobs():
                             details=rotation,
                         )
             except Exception as exc:
-                with app.app_context():
-                    db = get_db()
-                    create_system_alert(
-                        db,
-                        code="dunning_scheduler_error",
-                        severity="critical",
-                        message="Dunning-Scheduler ist fehlgeschlagen.",
-                        details={"error": str(exc)},
-                    )
+                print(f"[baupass] WARNING: dunning scheduler iteration failed: {exc}", flush=True)
+                try:
+                    with app.app_context():
+                        db = get_db()
+                        create_system_alert(
+                            db,
+                            code="dunning_scheduler_error",
+                            severity="critical",
+                            message="Dunning-Scheduler ist fehlgeschlagen.",
+                            details={"error": str(exc)},
+                        )
+                except Exception as alert_exc:
+                    print(f"[baupass] WARNING: could not record dunning scheduler alert: {alert_exc}", flush=True)
             time.sleep(interval_hours * 3600)
 
     def check_doc_expiry_warnings():
