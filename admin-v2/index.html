@@ -72,6 +72,24 @@
       </main>
     </section>
   </div>
+
+  <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2>تفعيل تطبيق الموظف</h2>
+      <p id="joinModalName" class="muted"></p>
+      <p class="muted small">اطلب من الموظف مسح رمز QR بهاتفه — ثم تثبيت التطبيق (APK أو TestFlight) وفتح «في التطبيق».</p>
+      <div class="join-qr-wrap">
+        <img id="joinQrImg" alt="QR" width="240" height="240" />
+      </div>
+      <p id="joinExpires" class="muted small"></p>
+      <input id="joinLinkInput" type="text" readonly class="join-link-input" />
+      <div class="modal-actions">
+        <button type="button" id="joinCopyBtn">نسخ الرابط</button>
+        <button type="button" id="joinCloseBtn" class="ghost">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js" type="module"></script>
 </body>
 </html>

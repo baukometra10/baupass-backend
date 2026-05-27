@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import '../../core/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.auth, required this.onLoggedIn});
+  const LoginScreen({
+    super.key,
+    required this.auth,
+    required this.onLoggedIn,
+    this.initialError,
+  });
 
   final AuthRepository auth;
   final VoidCallback onLoggedIn;
+  final String? initialError;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -24,6 +30,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
+    if (widget.initialError != null && widget.initialError!.isNotEmpty) {
+      _error = widget.initialError;
+    }
   }
 
   @override

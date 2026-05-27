@@ -5,6 +5,7 @@ import 'core/auth_repository.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/worker_shell.dart';
 import 'services/attendance_repository.dart';
+import 'services/deep_link_service.dart';
 import 'services/nfc_service.dart';
 import 'services/offline_attendance_store.dart';
 import 'services/push_notification_service.dart';
@@ -27,8 +28,10 @@ class _WorkerAppState extends State<WorkerApp> {
   late final WorkerCache _workerCache;
   late final TasksRepository _tasks;
   late final PushNotificationService _push;
+  late final DeepLinkService _deepLinks;
   String? _sessionToken;
   bool _bootstrapping = true;
+  String? _joinError;
 
   @override
   void initState() {
@@ -41,26 +44,68 @@ class _WorkerAppState extends State<WorkerApp> {
     _workerCache = WorkerCache();
     _tasks = TasksRepository(_api);
     _push = PushNotificationService(_api);
-    _restoreSession();
+    _deepLinks = DeepLinkService();
+    _boot();
   }
 
-  Future<void> _restoreSession() async {
-    final token = await _auth.loadToken();
+  Future<void> _boot() async {
+    final existing = await _auth.loadToken();
+    if (existing != null && existing.isNotEmpty) {
+      _finishBoot(existing);
+      _listenDeepLinks();
+      return;
+    }
+    final initialUri = await _deepLinks.getInitialUri();
+    final access = DeepLinkService.accessTokenFromUri(initialUri);
+    if (access != null) {
+      await _loginWithJoinToken(access);
+    } else {
+      _finishBoot(null);
+    }
+    _listenDeepLinks();
+  }
+
+  void _listenDeepLinks() {
+    _deepLinks.listen((uri) async {
+      final access = DeepLinkService.accessTokenFromUri(uri);
+      if (access == null || _sessionToken != null) return;
+      await _loginWithJoinToken(access);
+    });
+  }
+
+  Future<void> _loginWithJoinToken(String accessToken) async {
+    setState(() {
+      _bootstrapping = true;
+      _joinError = null;
+    });
+    try {
+      await _auth.loginWithAccessToken(accessToken);
+      final token = await _auth.loadToken();
+      _finishBoot(token);
+    } catch (e) {
+      _finishBoot(null, error: e.toString());
+    }
+  }
+
+  void _finishBoot(String? token, {String? error}) {
+    if (!mounted) return;
     setState(() {
       _sessionToken = token;
+      _joinError = error;
       _bootstrapping = false;
     });
+  }
+
+  @override
+  void dispose() {
+    _deepLinks.dispose();
+    _api.close();
+    super.dispose();
   }
 
   void _onLoggedIn() async {
     final token = await _auth.loadToken();
     setState(() => _sessionToken = token);
-  }
-
-  @override
-  void dispose() {
-    _api.close();
-    super.dispose();
   }
 
   @override
@@ -84,7 +129,11 @@ class _WorkerAppState extends State<WorkerApp> {
                   tasks: _tasks,
                   push: _push,
                 )
-              : LoginScreen(auth: _auth, onLoggedIn: _onLoggedIn),
+              : LoginScreen(
+                  auth: _auth,
+                  onLoggedIn: _onLoggedIn,
+                  initialError: _joinError,
+                ),
     );
   }
 }

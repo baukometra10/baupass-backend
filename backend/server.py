@@ -1652,6 +1652,8 @@ def apply_security_headers(response):
             "/worker.html",
             "/emp-app.html",
             "/worker-install.html",
+            "/join.html",
+            "/worker-join-config.json",
             "/worker.css",
             "/worker-app.js",
             "/emp-app-manifest.json",
@@ -10982,10 +10984,21 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     db.commit()
 
     build_tag = _get_worker_build_info().get("build") or "latest"
-    link = f"{get_public_base_url()}/worker-install.html?access={access_token}&v={build_tag}"
+    public_base = get_public_base_url().rstrip("/")
+    api_base_param = urlencode({"apiBase": public_base}) if public_base else ""
+    join_query = f"access={access_token}&v={build_tag}&launch=1"
+    if api_base_param:
+        join_query = f"{join_query}&{api_base_param}"
+    link = f"{public_base}/join.html?{join_query}"
+    pwa_link = f"{public_base}/worker-install.html?access={access_token}&v={build_tag}"
+    if api_base_param:
+        pwa_link = f"{pwa_link}&{api_base_param}"
     return {
         "accessToken": access_token,
         "link": link,
+        "joinLink": link,
+        "pwaLink": pwa_link,
+        "deepLink": f"baupass://join?access={access_token}",
         "created": True,
         "oneTime": True,
         "accessExpiresAt": access_expires_at,
@@ -11934,6 +11947,39 @@ def create_worker_app_access(worker_id):
     worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
     log_audit("worker.app_access_created", f"Mitarbeiter-App-Link fuer {worker_id} erzeugt", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
     return jsonify(payload)
+
+
+def _qr_png_response(payload_text):
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=4)
+    qr.add_data(str(payload_text or ""))
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/worker-join-config.json")
+def worker_join_config_public():
+    """Public distribution URLs for join.html (APK, TestFlight, stores)."""
+    return jsonify(
+        {
+            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or "").strip(),
+            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip(),
+            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or "").strip(),
+            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or "").strip(),
+        }
+    )
+
+
+@app.get("/api/qr.png")
+@require_auth
+def admin_qr_png():
+    data = (request.args.get("data") or "").strip()
+    if not data or len(data) > 2048:
+        return jsonify({"error": "invalid_qr_data"}), 400
+    return _qr_png_response(data)
 
 
 @app.get("/api/workers/<worker_id>/qr.png")

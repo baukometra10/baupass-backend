@@ -139,6 +139,66 @@ async function loadOverview() {
   ]);
 }
 
+async function loadQrImage(link) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(`/api/qr.png?data=${encodeURIComponent(link)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error("qr_failed");
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
+function closeJoinModal() {
+  const modal = $("joinModal");
+  modal.classList.add("hidden");
+  const img = $("joinQrImg");
+  if (img.dataset.blobUrl) {
+    URL.revokeObjectURL(img.dataset.blobUrl);
+    delete img.dataset.blobUrl;
+  }
+  img.removeAttribute("src");
+}
+
+async function showWorkerJoin(workerId, workerName) {
+  const payload = await api(`/api/workers/${encodeURIComponent(workerId)}/app-access`, {
+    method: "POST",
+  });
+  const link = payload.link || payload.joinLink || "";
+  if (!link) {
+    alert("لم يُنشأ رابط التفعيل.");
+    return;
+  }
+  $("joinModalName").textContent = workerName;
+  $("joinLinkInput").value = link;
+  const exp = payload.accessExpiresAt ? String(payload.accessExpiresAt).slice(0, 19) : "";
+  $("joinExpires").textContent = exp
+    ? `رابط لمرة واحدة — صالح حتى: ${exp} (UTC)`
+    : "رابط لمرة واحدة — يُستخدم عند أول تسجيل دخول.";
+  const blobUrl = await loadQrImage(link);
+  const img = $("joinQrImg");
+  img.src = blobUrl;
+  img.dataset.blobUrl = blobUrl;
+  $("joinModal").classList.remove("hidden");
+}
+
+$("joinCloseBtn").addEventListener("click", closeJoinModal);
+$("joinModal").addEventListener("click", (e) => {
+  if (e.target === $("joinModal")) closeJoinModal();
+});
+$("joinCopyBtn").addEventListener("click", async () => {
+  const link = $("joinLinkInput").value;
+  try {
+    await navigator.clipboard.writeText(link);
+    alert("تم نسخ الرابط.");
+  } catch {
+    $("joinLinkInput").select();
+    document.execCommand("copy");
+    alert("تم نسخ الرابط.");
+  }
+});
+
 async function assignNfc(workerId, inputEl) {
   const uid = (inputEl.value || "").trim();
   if (!uid) {
@@ -172,18 +232,23 @@ async function loadWorkers() {
       <th>Badge</th>
       <th>بطاقة NFC</th>
       <th>تعيين UID</th>
+      <th>التطبيق</th>
     </tr>`;
   const body = rows
     .map((r) => {
       const id = r.id;
+      const name = `${r.first_name || ""} ${r.last_name || ""}`.trim();
       const current = r.physical_card_id || "";
       return `<tr>
-        <td>${(r.first_name || "")} ${(r.last_name || "")}</td>
+        <td>${name}</td>
         <td>${r.badge_id || "-"}</td>
         <td><code>${current || "—"}</code></td>
         <td>
           <input class="nfc-input" type="text" placeholder="UID" value="${current}" data-worker-id="${id}" />
           <button type="button" class="btn-link" data-save-nfc="${id}">حفظ</button>
+        </td>
+        <td>
+          <button type="button" class="btn-link" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">QR تفعيل</button>
         </td>
       </tr>`;
     })
@@ -194,6 +259,13 @@ async function loadWorkers() {
       const wid = btn.getAttribute("data-save-nfc");
       const input = container.querySelector(`input[data-worker-id="${wid}"]`);
       assignNfc(wid, input).catch((e) => alert(e.message));
+    });
+  });
+  container.querySelectorAll("[data-join-app]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const wid = btn.getAttribute("data-join-app");
+      const wname = btn.getAttribute("data-worker-name") || wid;
+      showWorkerJoin(wid, wname).catch((e) => alert(e.message || e));
     });
   });
 }

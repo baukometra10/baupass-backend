@@ -1,0 +1,45 @@
+# Build iOS archive/IPA (unsigned export for local signing + TestFlight upload).
+# Upload to TestFlight still requires Apple certificates (see docs/testflight-internal-distribution.md).
+name: Build worker iOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/flutter-worker-ios.yml"
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Complete Flutter platform scaffolding
+        working-directory: mobile
+        run: flutter create . --org com.baupass --project-name baupass_worker
+
+      - name: Resolve dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        working-directory: mobile
+        env:
+          API_URL: https://baupass-production.up.railway.app
+        run: >
+          flutter build ipa --release --no-codesign
+          --dart-define=BAUPASS_API_URL=${{ env.API_URL }}
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: baupass-worker-ipa-unsigned
+          path: mobile/build/ios/ipa/*.ipa
+          if-no-files-found: error

@@ -136,9 +136,24 @@ mobile/lib/
 | E | مهام / إجازات + مستندات في التطبيق | ✅ |
 | F | Admin SPA على v2 | ✅ `admin-v2/` + `GET /api/v2/admin/overview` |
 
-## 6. مراجع
+## 6. التوزيع (مرحلة أولى: داخلي — ليس متجراً عاماً فوراً)
+
+| منصة | المرحلة 1 (موصى بها الآن) | المرحلة 2 (لاحقاً) |
+|------|---------------------------|---------------------|
+| Android | APK داخلي / رابط / MDM — CI: `flutter-worker-apk.yml` | Google Play أو Enterprise |
+| iPhone | **TestFlight** للموظفين والاختبار | App Store أو Apple Business Manager |
+
+**لماذا:** تسريع NFC والتحديثات دون انتظار مراجعة المتجر؛ بعد الاستقرار يُختار النشر العام أو الاستمرار داخلياً.
+
+- NFC: قراءة UID فقط — **بدون** محاكاة بطاقة (HCE) في تطبيق الموظف → لا حاجة لموافقة Apple خاصة بالدفع.
+- PWA (`emp-app.html`) تبقى legacy؛ التطبيق الرسمي للحضور NFC هو **Flutter**.
+
+راجع: [enterprise-hybrid-mobile-architecture.md](./enterprise-hybrid-mobile-architecture.md) (إنجليزي — مرجع رسمي).
+
+## 7. مراجع
 
 - [worker-mobile-nfc-api.md](./worker-mobile-nfc-api.md)
 - [worker-attendance-fallback-AR.md](./worker-attendance-fallback-AR.md)
 - [architecture-qr-nfc-wallet-tiers.md](./architecture-qr-nfc-wallet-tiers.md)
+- [distribute-worker-app-AR.md](./distribute-worker-app-AR.md)
 - [mobile/README.md](../mobile/README.md)

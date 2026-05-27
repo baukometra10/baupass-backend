@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="de" translate="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Language" content="de" />
+  <meta name="google" content="notranslate" />
+  <meta name="theme-color" content="#1b5e8c" />
+  <title>BauPass — App aktivieren</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: radial-gradient(circle at 20% 10%, #f0f7fb, #e2eef5 55%, #d4e4ef 100%);
+      color: #14212b;
+      padding: 20px;
+    }
+    .card {
+      width: min(520px, 100%);
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 20px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.1);
+      padding: 24px;
+      display: grid;
+      gap: 12px;
+    }
+    h1 { margin: 0; font-size: 1.45rem; }
+    p { margin: 0; line-height: 1.5; color: #3a4a56; }
+    .actions { display: grid; gap: 10px; margin-top: 8px; }
+    .btn {
+      display: block;
+      text-align: center;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .primary { background: linear-gradient(135deg, #1b5e8c, #0f4c5c); color: #fff; }
+    .secondary { background: #eef4f8; color: #1b3d52; border: 1px solid rgba(0,0,0,0.08); }
+    .muted { font-size: 0.88rem; color: #5f6f7a; }
+    .hidden { display: none !important; }
+    .status { padding: 10px 12px; border-radius: 10px; background: #f3faf6; color: #166534; font-size: 0.9rem; }
+    .error { background: #fef2f2; color: #991b1b; }
+  </style>
+</head>
+<body class="notranslate" translate="no">
+  <main class="card">
+    <h1 id="title">BauPass Mitarbeiter-App</h1>
+    <p id="subtitle">Installiere die App und melde dich mit diesem Einmal-Link an.</p>
+    <p id="hint" class="muted"></p>
+    <div id="statusBox" class="status hidden"></div>
+    <div class="actions">
+      <a id="openAppBtn" class="btn primary hidden" href="#">In BauPass-App öffnen</a>
+      <a id="androidApkBtn" class="btn secondary hidden" href="#" rel="noopener">Android: APK installieren</a>
+      <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener">iPhone: TestFlight</a>
+      <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener">Google Play</a>
+      <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener">App Store</a>
+      <a id="pwaBtn" class="btn secondary hidden" href="#">Web-App (PWA, Fallback)</a>
+    </div>
+    <p class="muted" id="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
+  </main>
+
+  <script>
+    const PENDING_KEY = "baupass-pending-access-token";
+    const API_BASE_KEY = "baupass-api-base";
+    const params = new URL(window.location.href).searchParams;
+    const accessToken = (params.get("access") || "").trim();
+    const apiBase = (params.get("apiBase") || "").trim();
+    const launch = params.get("launch") === "1";
+
+    function detectPlatform() {
+      const ua = navigator.userAgent || "";
+      if (/iphone|ipad|ipod/i.test(ua)) return "ios";
+      if (/android/i.test(ua)) return "android";
+      return "other";
+    }
+
+    function storePending() {
+      if (!accessToken) return;
+      try {
+        localStorage.setItem(PENDING_KEY, accessToken);
+      } catch { /* ignore */ }
+      if (apiBase) {
+        try {
+          localStorage.setItem(API_BASE_KEY, apiBase);
+        } catch { /* ignore */ }
+      }
+    }
+
+    function deepLinkUrl() {
+      const q = new URLSearchParams();
+      if (accessToken) q.set("access", accessToken);
+      if (apiBase) q.set("apiBase", apiBase);
+      return `baupass://join?${q.toString()}`;
+    }
+
+    function pwaFallbackUrl() {
+      const u = new URL("./worker-install.html", window.location.origin);
+      if (accessToken) u.searchParams.set("access", accessToken);
+      if (apiBase) u.searchParams.set("apiBase", apiBase);
+      u.searchParams.set("launch", "1");
+      return u.toString();
+    }
+
+    function setVisible(id, show) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle("hidden", !show);
+    }
+
+    function showStatus(text, isError) {
+      const box = document.getElementById("statusBox");
+      box.textContent = text;
+      box.classList.remove("hidden", "error");
+      if (isError) box.classList.add("error");
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch(`./worker-join-config.json?t=${Date.now()}`, { cache: "no-store" });
+        if (res.ok) return await res.json();
+      } catch { /* ignore */ }
+      return {};
+    }
+
+    async function boot() {
+      storePending();
+      const platform = detectPlatform();
+      const cfg = await loadConfig();
+      const openApp = document.getElementById("openAppBtn");
+      openApp.href = deepLinkUrl();
+
+      if (accessToken) {
+        setVisible("openAppBtn", true);
+        document.getElementById("hint").textContent =
+          "Einmal-Link aktiv. Gültig bis zum ersten erfolgreichen Login.";
+      } else {
+        showStatus("Kein Zugangstoken im Link. Bitte QR erneut vom Administrator anfordern.", true);
+      }
+
+      const apk = (cfg.apkUrl || "").trim();
+      const testFlight = (cfg.testFlightUrl || "").trim();
+      const play = (cfg.playStoreUrl || "").trim();
+      const appStore = (cfg.appStoreUrl || "").trim();
+
+      if (platform === "android") {
+        if (apk) {
+          document.getElementById("androidApkBtn").href = apk;
+          setVisible("androidApkBtn", true);
+        }
+        if (play) {
+          document.getElementById("playStoreBtn").href = play;
+          setVisible("playStoreBtn", true);
+        }
+      } else if (platform === "ios") {
+        if (testFlight) {
+          document.getElementById("testFlightBtn").href = testFlight;
+          setVisible("testFlightBtn", true);
+        }
+        if (appStore) {
+          document.getElementById("appStoreBtn").href = appStore;
+          setVisible("appStoreBtn", true);
+        }
+      } else {
+        if (apk) {
+          document.getElementById("androidApkBtn").href = apk;
+          setVisible("androidApkBtn", true);
+        }
+        if (testFlight) {
+          document.getElementById("testFlightBtn").href = testFlight;
+          setVisible("testFlightBtn", true);
+        }
+      }
+
+      document.getElementById("pwaBtn").href = pwaFallbackUrl();
+      setVisible("pwaBtn", true);
+
+      if (launch && accessToken) {
+        showStatus("App wird geöffnet…");
+        window.location.href = deepLinkUrl();
+        setTimeout(() => {
+          if (platform === "android" && apk) {
+            showStatus("Falls die App nicht installiert ist: APK herunterladen.");
+          } else if (platform === "ios" && testFlight) {
+            showStatus("Falls die App nicht installiert ist: TestFlight öffnen.");
+          }
+        }, 1200);
+      }
+    }
+
+    boot().catch(() => showStatus("Konfiguration konnte nicht geladen werden.", true));
+  </script>
+</body>
+</html>
