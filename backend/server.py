@@ -10623,7 +10623,13 @@ def _operations_company_filter_sql(user, alias="w"):
 @require_roles("superadmin", "company-admin", "turnstile")
 def operations_snapshot():
     """Live KPIs for dashboard: on-site, documents, signatures, visitors."""
-    db = get_db()
+    from backend.app.db.connection import get_read_connection
+
+    with get_read_connection() as db:
+        return _operations_snapshot_with_db(db)
+
+
+def _operations_snapshot_with_db(db):
     user = g.current_user
     today_prefix = utc_now().strftime("%Y-%m-%d")
     company_sql, company_params = _operations_company_filter_sql(user, "w")

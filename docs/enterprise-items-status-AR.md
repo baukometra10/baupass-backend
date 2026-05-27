@@ -26,8 +26,9 @@
 | 3 | Clean Architecture | repositories لكل aggregate |
 | 4 | PostgreSQL كامل | تفعيل Railway + `BAUPASS_PG_REQUIRED` + مراجعة كل SQL |
 | 7 | Database Replication | replica على المزيد من التقارير؛ خدمة Postgres replica على Railway |
-| 20 | Behavior Pattern Analysis | endpoint تحليل أنماط مخصص |
-| 29–32 | M365 / Google / Payroll / SAP | OAuth refresh كامل؛ ERP حقيقي لـ SAP/Oracle |
+| 20 | Behavior Pattern Analysis | ✅ `/api/analytics/behavior-patterns` |
+| 29–31 | M365 / Google / Payroll | ✅ sync + OAuth مشفّر |
+| 32 | SAP / Oracle | health عند base_url؛ ERP كامل لاحقاً |
 | 36 | Centralized Logging | نشر Loki/ELK + `BAUPASS_LOG_FORWARD_URL` |
 | 37 | Distributed Tracing | agent OpenTelemetry في الحاوية |
 | 40 | CDN | شبكة CDN أمام Railway (Cloudflare) |

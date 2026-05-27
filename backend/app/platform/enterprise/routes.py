@@ -401,7 +401,7 @@ def register_enterprise_routes(flask_app):
 
             cfg_for_sync = dict(cfg)
             cfg_for_sync.update(extract_oauth_config(cfg))
-            sync_result = sync_provider(prov, cfg_for_sync)
+            sync_result = sync_provider(prov, cfg_for_sync, company_id=company_id)
             probe = sync_result if sync_result.get("provider") else provider_connectivity(prov, cfg)
             status = "connected" if sync_result.get("ok") else "degraded"
             db.execute(
@@ -532,6 +532,24 @@ def register_enterprise_routes(flask_app):
 
         period = (request.args.get("period") or "").strip()[:7]
         return jsonify(preview(get_db(), _company_id(), period=period))
+
+    @enterprise_bp.get("/integrations/<provider>/health")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def integration_health(provider: str):
+        from backend.server import get_db
+        from .integrations import provider_connectivity
+        from .integration_oauth import extract_oauth_config
+
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle"):
+            return jsonify({"error": "unknown_provider"}), 400
+        row = get_db().execute(
+            "SELECT config_json FROM integration_connections WHERE company_id = ? AND provider = ? LIMIT 1",
+            (_company_id(), provider),
+        ).fetchone()
+        cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+        cfg.update(extract_oauth_config(cfg))
+        return jsonify({"provider": provider, "health": provider_connectivity(provider, cfg)})
 
     # ── Document OCR + AI analysis ────────────────────────────────────────────
     @enterprise_bp.post("/documents/ocr-analyze")

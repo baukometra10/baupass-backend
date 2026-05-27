@@ -67,12 +67,37 @@ def sync_google_workspace(config: dict[str, str]) -> dict[str, Any]:
         return {"ok": False, "error": str(exc), "provider": "google_workspace"}
 
 
-def sync_provider(provider: str, config: dict[str, str]) -> dict[str, Any]:
+def sync_payroll(config: dict[str, str], company_id: int | None = None) -> dict[str, Any]:
+    from .integrations import provider_connectivity
+
+    probe = provider_connectivity("payroll", config)
+    if not probe.get("ok"):
+        return {"ok": False, "provider": "payroll", "probe": probe}
+    if company_id is None:
+        return {"ok": True, "provider": "payroll", "probe": probe}
+    try:
+        from backend.server import get_db
+        from .payroll_adapter import payroll_export_preview
+
+        preview = payroll_export_preview(get_db(), int(company_id))
+        return {"ok": True, "provider": "payroll", "probe": probe, "exportPreview": preview}
+    except Exception as exc:
+        return {"ok": True, "provider": "payroll", "probe": probe, "exportPreviewError": str(exc)}
+
+
+def sync_provider(provider: str, config: dict[str, str], *, company_id: int | None = None) -> dict[str, Any]:
     provider = (provider or "").strip().lower()
     if provider == "microsoft365":
         return sync_microsoft365(config)
     if provider == "google_workspace":
         return sync_google_workspace(config)
+    if provider == "payroll":
+        return sync_payroll(config, company_id=company_id)
+    if provider in {"sap", "oracle"}:
+        from .integrations import provider_connectivity
+
+        probe = provider_connectivity(provider, config)
+        return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe}
     from .integrations import provider_connectivity
 
     probe = provider_connectivity(provider, config)

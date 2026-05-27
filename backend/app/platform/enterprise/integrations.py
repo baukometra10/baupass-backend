@@ -41,8 +41,21 @@ def provider_connectivity(provider: str, config: dict[str, str] | None = None) -
         data = _request_json("https://accounts.google.com/.well-known/openid-configuration")
         return {"ok": "authorization_endpoint" in data, "probe": "openid_config"}
 
-    if provider in {"payroll", "sap", "oracle"}:
-        # Placeholder adapters with explicit state so ops can track readiness.
-        return {"ok": True, "probe": "adapter_stub", "note": "provider adapter scaffold active"}
+    if provider == "payroll":
+        return {
+            "ok": bool(cfg.get("vendor") or cfg.get("export_format")),
+            "probe": "payroll_config",
+            "vendor": cfg.get("vendor") or "generic",
+        }
+
+    if provider == "sap":
+        from .erp_adapters import sap_health
+
+        return sap_health(cfg)
+
+    if provider == "oracle":
+        from .erp_adapters import oracle_health
+
+        return oracle_health(cfg)
 
     return {"ok": False, "error": "unknown_provider"}

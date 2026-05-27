@@ -14,7 +14,7 @@
 | 4 | PostgreSQL كامل | 🟡 | runtime+bootstrap ✅؛ فعّل على Railway + `BAUPASS_PG_REQUIRED` لاحقاً |
 | 5 | Database Indexing | ✅ | migrations 002, 011 |
 | 6 | Connection Pooling | ✅ | `psycopg_pool` |
-| 7 | Database Replication | 🟡 | replica على analytics + enterprise reads ✅ |
+| 7 | Database Replication | ✅ | analytics + enterprise + operations snapshot |
 | 8 | Database Partitioning | ✅ | `access_logs_archive` + job أرشفة |
 
 ## Real-Time
@@ -56,10 +56,10 @@
 | # | البند | الحالة |
 |---|--------|--------|
 | 28 | Enterprise Integrations Layer | ✅ `/api/integrations` |
-| 29 | Microsoft 365 | 🟡 | sync Graph عند `access_token` |
-| 30 | Google Workspace | 🟡 | sync userinfo عند `access_token` |
-| 31 | Payroll | 🟡 | probe/stub |
-| 32 | SAP / Oracle | 🟡 | probe/stub |
+| 29 | Microsoft 365 | ✅ | Graph sync + OAuth مشفّر في config |
+| 30 | Google Workspace | ✅ | userinfo sync + OAuth |
+| 31 | Payroll | ✅ | export-preview + sync |
+| 32 | SAP / Oracle | 🟡 | health عند `base_url` + token |
 
 ## Observability
 
