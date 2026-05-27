@@ -22,6 +22,15 @@ def register_zero_trust_middleware(flask_app: Flask) -> None:
         expected = os.getenv("BAUPASS_ZERO_TRUST_TOKEN", "").strip()
         if expected and request.headers.get("X-Zero-Trust-Token", "") != expected:
             return jsonify({"error": "zero_trust_denied"}), 403
+        allowlist = [
+            x.strip()
+            for x in (os.getenv("BAUPASS_ZERO_TRUST_IP_ALLOWLIST", "") or "").split(",")
+            if x.strip()
+        ]
+        if allowlist:
+            client_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+            if client_ip not in allowlist:
+                return jsonify({"error": "zero_trust_ip_denied"}), 403
         fp = request.headers.get("X-Device-Fingerprint", "")
         if fp:
             g.device_fingerprint = hashlib.sha256(fp.encode()).hexdigest()[:32]

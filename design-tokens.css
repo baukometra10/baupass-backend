@@ -1,0 +1,22 @@
+/**
+ * BauPass enterprise design tokens (admin-v2 + worker PWA).
+ * Import in HTML: <link rel="stylesheet" href="/design-tokens.css">
+ */
+:root {
+  --bp-color-primary: #a66a3d;
+  --bp-color-primary-dark: #8a5632;
+  --bp-color-surface: #fff8f1;
+  --bp-color-surface-elevated: #ffffff;
+  --bp-color-text: #1f1f1f;
+  --bp-color-text-muted: #5f5f5f;
+  --bp-color-border: rgba(0, 0, 0, 0.08);
+  --bp-radius-sm: 8px;
+  --bp-radius-md: 12px;
+  --bp-radius-lg: 20px;
+  --bp-shadow-card: 0 18px 40px rgba(0, 0, 0, 0.12);
+  --bp-font-sans: "Segoe UI", system-ui, Arial, sans-serif;
+  --bp-space-xs: 4px;
+  --bp-space-sm: 8px;
+  --bp-space-md: 16px;
+  --bp-space-lg: 24px;
+}

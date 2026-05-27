@@ -236,6 +236,20 @@ if __name__ == "__main__":
                 "python -m backend.app.tasks.worker",
                 flush=True,
             )
+        schedule_archive = str(os.getenv("BAUPASS_SCHEDULE_ACCESS_ARCHIVE", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if schedule_archive and task_queues_ready():
+            try:
+                from backend.app.tasks import enqueue
+                from backend.app.tasks.maintenance_jobs import run_access_log_archive
+
+                enqueue("scheduled", run_access_log_archive)
+                print("[baupass] Scheduled access_log archive job enqueued", flush=True)
+            except Exception as sched_exc:
+                print(f"[baupass] WARNING: schedule archive skipped: {sched_exc}", flush=True)
     except Exception as boot_exc:
         print(f"[baupass] Runtime queue check skipped: {boot_exc}", flush=True)
     if not SHOW_WAITRESS_QUEUE_WARNINGS:

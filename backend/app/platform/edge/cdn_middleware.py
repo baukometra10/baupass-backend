@@ -12,7 +12,17 @@ def register_cdn_middleware(flask_app: Flask) -> None:
     @flask_app.after_request
     def _cdn_headers(response):
         path = request.path or ""
-        if path.endswith((".js", ".css", ".png", ".svg", ".woff2", ".ico", ".webp")):
+        static_ext = (".js", ".css", ".png", ".svg", ".woff2", ".ico", ".webp", ".wasm")
+        shell_pages = {
+            "/emp-app.html",
+            "/worker-install.html",
+            "/join.html",
+            "/design-tokens.css",
+            "/worker-build.json",
+        }
+        if path.endswith(static_ext) or path in shell_pages:
             response.headers.setdefault("Cache-Control", f"public, max-age={max_age}")
             response.headers.setdefault("X-CDN-Edge", "baupass")
+        if path in shell_pages:
+            response.headers.setdefault("Vary", "Accept-Encoding")
         return response

@@ -32,8 +32,12 @@ def observability_status():
     return jsonify(
         {
             "prometheus": True,
+            "grafana": {"dashboards": "deploy/grafana/", "importRequired": True},
             "sentry": bool(os.getenv("SENTRY_DSN", "").strip()),
             "structured_logs": os.getenv("BAUPASS_STRUCTURED_LOGS", "1") in {"1", "true", "yes"},
+            "log_forwarder": bool(os.getenv("BAUPASS_LOG_FORWARD_URL", "").strip()),
+            "otel": os.getenv("BAUPASS_OTEL", "0") in {"1", "true", "yes"}
+            or bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()),
             "platform_enabled": os.getenv("BAUPASS_PLATFORM_ENABLED", "1") not in {"0", "false", "no"},
             "modular_blueprints": modular,
         }

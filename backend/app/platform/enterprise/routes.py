@@ -9,6 +9,7 @@ import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from flask import Blueprint, g, jsonify, request
 
@@ -496,6 +497,19 @@ def register_enterprise_routes(flask_app):
         get_db().commit()
         return jsonify({"ok": True, "plugin_id": plugin_id})
 
+    @enterprise_bp.get("/marketplace/plugins/sandbox-policy")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def marketplace_sandbox_policy():
+        return jsonify(
+            {
+                "sandbox": True,
+                "allowedScopes": ["read:workers", "read:access_logs", "write:webhooks"],
+                "isolatedBy": "company_id",
+                "note": "Plugins run against tenant-scoped APIs only; no cross-company data",
+            }
+        )
+
     # ── API marketplace catalog ───────────────────────────────────────────────
     @enterprise_bp.get("/marketplace/apis")
     def api_marketplace():
@@ -564,16 +578,10 @@ def register_enterprise_routes(flask_app):
         if not b64:
             return jsonify({"error": "missing_file"}), 400
         raw = base64.b64decode(b64.split(",", 1)[-1])
-        text_guess = ""
-        try:
-            import pytesseract
-            from PIL import Image
-            import io
+        from backend.app.platform.documents.ocr_pipeline import extract_text_from_bytes
 
-            img = Image.open(io.BytesIO(raw))
-            text_guess = pytesseract.image_to_string(img)[:8000]
-        except Exception:
-            text_guess = f"[binary {len(raw)} bytes — install pytesseract for local OCR]"
+        ocr_result = extract_text_from_bytes(raw, str(data.get("filename") or ""))
+        text_guess = ocr_result.get("text") or ""
 
         doc_id = f"ocr-{uuid.uuid4().hex[:10]}"
         get_db().execute(
@@ -591,7 +599,78 @@ def register_enterprise_routes(flask_app):
                 "Summarize this document and list compliance risks.",
                 {"ocr_text": text_guess[:4000]},
             )
-        return jsonify({"id": doc_id, "extracted_text": text_guess[:2000], "ai": ai})
+        return jsonify(
+            {
+                "id": doc_id,
+                "extracted_text": text_guess[:2000],
+                "engines": ocr_result.get("engines", []),
+                "ai": ai,
+            }
+        )
+
+    # ── Operations intelligence ───────────────────────────────────────────────
+    @enterprise_bp.get("/operations/intelligence/optimization")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_optimization():
+        from backend.app.db.connection import get_read_connection
+        from backend.app.platform.operations.intelligence import workforce_optimization
+
+        with get_read_connection() as db:
+            return jsonify(workforce_optimization(db, _company_id()))
+
+    @enterprise_bp.get("/operations/intelligence/allocation")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_allocation():
+        from backend.app.db.connection import get_read_connection
+        from backend.app.platform.operations.intelligence import resource_allocation
+
+        with get_read_connection() as db:
+            return jsonify(resource_allocation(db, _company_id()))
+
+    @enterprise_bp.get("/operations/intelligence/scheduling")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_scheduling():
+        from backend.app.db.connection import get_read_connection
+        from backend.app.platform.operations.intelligence import ai_scheduling_hints
+
+        with get_read_connection() as db:
+            return jsonify(ai_scheduling_hints(db, _company_id()))
+
+    @enterprise_bp.get("/operations/intelligence/forecast")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_forecast():
+        from backend.app.db.connection import get_read_connection
+        from backend.app.platform.operations.intelligence import predictive_workforce_plan
+
+        days = min(60, max(1, int(request.args.get("days", "14"))))
+        with get_read_connection() as db:
+            return jsonify(predictive_workforce_plan(db, _company_id(), horizon_days=days))
+
+    @enterprise_bp.get("/platform/global-readiness")
+    @require_auth
+    @require_roles("superadmin")
+    def global_readiness():
+        import os
+        from backend.app.core.cloud_profile import get_cloud_profile
+        from backend.app.health.dr_status import collect_dr_status
+        from backend.server import DB_PATH
+
+        return jsonify(
+            {
+                "cloud": get_cloud_profile(),
+                "dr": collect_dr_status(Path(DB_PATH)),
+                "expansion": {
+                    "multiRegionReady": os.getenv("BAUPASS_REGION_STRATEGY", "single") == "multi",
+                    "activeRegions": (os.getenv("BAUPASS_ACTIVE_REGIONS") or "").split(","),
+                    "documentation": "docs/multi-region-readiness-AR.md",
+                },
+                "domainsSplitDeferred": True,
+            }
+        )
 
     # ── Smart expiry prediction ───────────────────────────────────────────────
     @enterprise_bp.get("/compliance/expiry-predictions")
