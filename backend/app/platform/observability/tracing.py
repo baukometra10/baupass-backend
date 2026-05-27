@@ -34,6 +34,16 @@ def init_tracing(flask_app: Flask) -> None:
             provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
         trace.set_tracer_provider(provider)
         FlaskInstrumentor().instrument_app(flask_app)
+
+        @flask_app.after_request
+        def _attach_trace_headers(response):
+            # Helps correlate frontend/API logs even without full OTEL backend UI.
+            current = trace.get_current_span()
+            ctx = current.get_span_context() if current else None
+            if ctx and getattr(ctx, "trace_id", 0):
+                response.headers.setdefault("X-Trace-Id", f"{ctx.trace_id:032x}")
+            return response
+
         logger.info("OpenTelemetry tracing enabled")
     except ImportError:
         logger.warning("opentelemetry packages not installed")

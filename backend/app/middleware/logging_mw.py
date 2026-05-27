@@ -41,16 +41,20 @@ def register_logging_middleware(app: Flask) -> None:
 
         # لا نُسجّل health checks أو static files
         path = request.path
-        if path in {"/api/health", "/favicon.ico"} or path.startswith("/static/"):
+        if path.startswith("/api/health") or path in {"/favicon.ico"} or path.startswith("/static/"):
             return response
 
         log_data: dict[str, Any] = {
             "request_id": request_id,
             "method": request.method,
             "path": path[:200],
+            "query": (request.query_string.decode(errors="ignore") if request.query_string else "")[:300],
             "status": response.status_code,
             "duration_ms": duration_ms,
             "ip": _get_ip(),
+            "user_agent": (request.headers.get("User-Agent") or "")[:200],
+            "content_length": int(request.content_length or 0),
+            "trace_id": (response.headers.get("X-Trace-Id") or "")[:64],
         }
 
         # معلومات المستخدم إذا متاحة
@@ -59,6 +63,11 @@ def register_logging_middleware(app: Flask) -> None:
             log_data["user_id"] = user.get("id", "-")
             log_data["company_id"] = user.get("company_id", "-")
             log_data["role"] = user.get("role", "-")
+        else:
+            # fallback when endpoint is unauthenticated but scoped by header
+            company_hint = (request.headers.get("X-Company-Id") or "").strip()
+            if company_hint:
+                log_data["company_id"] = company_hint[:64]
 
         # تسجيل بمستوى مناسب
         if response.status_code >= 500:

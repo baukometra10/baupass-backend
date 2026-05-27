@@ -111,6 +111,21 @@ def _redis_publish(body: dict[str, Any]) -> None:
         redis.publish(f"{CHANNEL_PREFIX}:all", message)
         if company_id is not None:
             redis.publish(f"{CHANNEL_PREFIX}:company:{company_id}", message)
+        # Dedicated low-latency channel for live workforce tracking consumers.
+        if str(body.get("type", "")).startswith("access."):
+            redis.publish(
+                f"{CHANNEL_PREFIX}:workforce:tracking",
+                json.dumps(
+                    {
+                        "id": body.get("id"),
+                        "type": body.get("type"),
+                        "company_id": company_id,
+                        "created_at": body.get("created_at"),
+                        "payload": body.get("payload") or {},
+                    },
+                    ensure_ascii=False,
+                ),
+            )
     except Exception as exc:
         logger.debug("redis publish skipped: %s", exc)
 

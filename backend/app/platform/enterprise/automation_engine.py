@@ -4,9 +4,13 @@ Workflow automation rule evaluator.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger("baupass.automation")
+MAX_ACTIONS_PER_RULE = 20
 
 
 def _now_iso() -> str:
@@ -74,8 +78,26 @@ def evaluate_event(db, company_id: int, event_type: str, context: dict[str, Any]
         if not _conditions_match(conditions, context):
             continue
         actions = json.loads(row["actions_json"] or "[]")
-        for action in actions:
-            executed.append(_execute_action(db, company_id, row["id"], action, context))
+        for action in actions[:MAX_ACTIONS_PER_RULE]:
+            try:
+                executed.append(_execute_action(db, company_id, row["id"], action, context))
+            except Exception as exc:
+                logger.warning("automation action failed rule=%s event=%s err=%s", row["id"], event_type, exc)
+                try:
+                    from backend.app.tasks import enqueue
+
+                    enqueue(
+                        "dead_letter",
+                        _record_dead_letter,
+                        company_id=company_id,
+                        rule_id=row["id"],
+                        event_type=event_type,
+                        action=action,
+                        error=str(exc),
+                    )
+                except Exception:
+                    pass
+                executed.append({"type": str(action.get("type", "")), "status": "error", "error": str(exc)})
     return executed
 
 
@@ -87,11 +109,17 @@ def _conditions_match(conditions: list, context: dict) -> bool:
         op = cond.get("op", "eq")
         expected = cond.get("value")
         actual = context.get(field)
+        if field is None:
+            return False
         if op == "eq" and actual != expected:
+            return False
+        if op == "neq" and actual == expected:
             return False
         if op == "gt" and not (actual is not None and actual > expected):
             return False
         if op == "lt" and not (actual is not None and actual < expected):
+            return False
+        if op == "contains" and not (isinstance(actual, (str, list, tuple, dict)) and expected in actual):
             return False
     return True
 
@@ -132,3 +160,42 @@ def _execute_action(db, company_id: int, rule_id: str, action: dict, context: di
         db.commit()
         result = {"status": "ok", "alert_id": alert_id}
     return result
+
+
+def _record_dead_letter(
+    *,
+    company_id: int,
+    rule_id: str,
+    event_type: str,
+    action: dict[str, Any],
+    error: str,
+) -> dict[str, Any]:
+    """Persist automation failures in system alerts for operator visibility."""
+    from backend.server import get_db
+
+    db = get_db()
+    alert_id = f"alert-{uuid.uuid4().hex[:10]}"
+    db.execute(
+        """
+        INSERT INTO system_alerts (id, code, severity, message, details, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            alert_id,
+            "automation.dead_letter",
+            "warning",
+            "Automation action failed",
+            json.dumps(
+                {
+                    "company_id": company_id,
+                    "rule_id": rule_id,
+                    "event_type": event_type,
+                    "action": action,
+                    "error": error,
+                }
+            ),
+            _now_iso(),
+        ),
+    )
+    db.commit()
+    return {"alert_id": alert_id}

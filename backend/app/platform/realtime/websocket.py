@@ -45,9 +45,23 @@ def init_socketio(flask_app) -> Any:
         @socketio.on("subscribe")
         def on_subscribe(data):
             company_id = str((data or {}).get("company_id", "")).strip()
+            require_key = os.getenv("BAUPASS_WEBSOCKET_REQUIRE_SUBSCRIBE_KEY", "0").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            provided_key = str((data or {}).get("subscribe_key", "")).strip()
+            expected_key = os.getenv("BAUPASS_WEBSOCKET_SUBSCRIBE_KEY", "").strip()
+            if require_key and (not expected_key or provided_key != expected_key):
+                emit("subscribed", {"ok": False, "error": "forbidden"})
+                return
+            if company_id and (not company_id.isdigit() or len(company_id) > 12):
+                emit("subscribed", {"ok": False, "error": "invalid_company_id"})
+                return
             if company_id:
                 join_room(f"company:{company_id}")
-            emit("subscribed", {"company_id": company_id})
+            emit("subscribed", {"ok": True, "company_id": company_id})
 
         @socketio.on("ping")
         def on_ping():

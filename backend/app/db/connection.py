@@ -13,8 +13,10 @@ from typing import Any, Generator
 from backend.app.database import (
     get_database_health,
     init_postgres_pool,
+    init_postgres_read_pool,
     is_postgres_configured,
     postgres_connection,
+    postgres_read_connection,
 )
 
 
@@ -39,6 +41,23 @@ def get_connection() -> Generator[Any, None, None]:
             yield conn
         finally:
             close_request_db(conn)
+        return
+    from backend.server import get_db
+
+    yield get_db()
+
+
+@contextmanager
+def get_read_connection() -> Generator[Any, None, None]:
+    """Yield read-optimized connection (replica if configured)."""
+    from backend.app.db.runtime import postgres_runtime_enabled
+
+    if postgres_runtime_enabled():
+        from backend.app.db.pg_adapter import PgConnection
+
+        init_postgres_read_pool()
+        with postgres_read_connection() as conn:
+            yield PgConnection(conn)
         return
     from backend.server import get_db
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -25,6 +26,29 @@ def _company_id() -> int:
         if raw.isdigit():
             return int(raw)
     return int(user.get("company_id") or 0)
+
+
+def _post_form_with_retry(url: str, payload: dict[str, str], bearer: str, timeout_s: int = 30) -> dict:
+    """Simple retry wrapper for third-party integration HTTP posts."""
+    from urllib import parse, request as urlrequest
+
+    encoded = parse.urlencode(payload).encode()
+    last_err = None
+    for attempt in range(3):
+        try:
+            req = urlrequest.Request(
+                url,
+                data=encoded,
+                headers={"Authorization": f"Bearer {bearer}", "Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with urlrequest.urlopen(req, timeout=timeout_s) as resp:
+                return json.loads(resp.read().decode())
+        except Exception as exc:
+            last_err = exc
+            if attempt < 2:
+                time.sleep(0.4 * (attempt + 1))
+    raise RuntimeError(f"external_post_failed: {last_err}")
 
 
 def register_enterprise_routes(flask_app):
@@ -107,25 +131,26 @@ def register_enterprise_routes(flask_app):
     @require_auth
     @require_roles("superadmin", "company-admin")
     def workforce_heatmap():
-        from backend.server import get_db
+        from backend.app.db.connection import get_read_connection
 
         cid = _company_id()
         days = min(30, max(1, int(request.args.get("days", "7"))))
         since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
-        rows = get_db().execute(
-            """
-            SELECT substr(al.timestamp, 1, 10) AS day,
-                   substr(al.timestamp, 12, 2) AS hour,
-                   al.direction,
-                   COUNT(*) AS c
-            FROM access_logs al
-            JOIN workers w ON w.id = al.worker_id
-            WHERE w.company_id = ? AND al.timestamp >= ?
-            GROUP BY day, hour, al.direction
-            ORDER BY day, hour
-            """,
-            (cid, since),
-        ).fetchall()
+        with get_read_connection() as db:
+            rows = db.execute(
+                """
+                SELECT substr(al.timestamp, 1, 10) AS day,
+                       substr(al.timestamp, 12, 2) AS hour,
+                       al.direction,
+                       COUNT(*) AS c
+                FROM access_logs al
+                JOIN workers w ON w.id = al.worker_id
+                WHERE w.company_id = ? AND al.timestamp >= ?
+                GROUP BY day, hour, al.direction
+                ORDER BY day, hour
+                """,
+                (cid, since),
+            ).fetchall()
         cells = [dict(r) for r in rows]
         return jsonify({"days": days, "cells": cells})
 
@@ -134,23 +159,24 @@ def register_enterprise_routes(flask_app):
     @require_auth
     @require_roles("superadmin", "company-admin")
     def contractor_intelligence():
-        from backend.server import get_db
+        from backend.app.db.connection import get_read_connection
 
         cid = _company_id()
-        rows = get_db().execute(
-            """
-            SELECT w.id, w.first_name, w.last_name, w.status, w.badge_id,
-                   COUNT(al.id) AS access_count,
-                   MAX(al.timestamp) AS last_access
-            FROM workers w
-            LEFT JOIN access_logs al ON al.worker_id = w.id
-            WHERE w.company_id = ? AND w.worker_type = 'contractor' AND w.deleted_at IS NULL
-            GROUP BY w.id
-            ORDER BY access_count DESC
-            LIMIT 200
-            """,
-            (cid,),
-        ).fetchall()
+        with get_read_connection() as db:
+            rows = db.execute(
+                """
+                SELECT w.id, w.first_name, w.last_name, w.status, w.badge_id,
+                       COUNT(al.id) AS access_count,
+                       MAX(al.timestamp) AS last_access
+                FROM workers w
+                LEFT JOIN access_logs al ON al.worker_id = w.id
+                WHERE w.company_id = ? AND w.worker_type = 'contractor' AND w.deleted_at IS NULL
+                GROUP BY w.id
+                ORDER BY access_count DESC
+                LIMIT 200
+                """,
+                (cid,),
+            ).fetchall()
         return jsonify({"contractors": [dict(r) for r in rows]})
 
     # ── Emergency response ────────────────────────────────────────────────────
@@ -335,20 +361,48 @@ def register_enterprise_routes(flask_app):
     def integrations_sync(provider: str):
         """Trigger integration sync job (queued when Redis available)."""
         from backend.app.tasks import enqueue
+        from .integrations import provider_connectivity
+        from backend.server import get_db
 
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle"):
+            return jsonify({"error": "unknown_provider"}), 400
         cid = _company_id()
 
         def _sync_job(company_id: int, prov: str):
             from backend.app.platform.events.bus import publish_event
+            db = get_db()
+            row = db.execute(
+                "SELECT config_json FROM integration_connections WHERE company_id = ? AND provider = ? LIMIT 1",
+                (company_id, prov),
+            ).fetchone()
+            cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+            probe = provider_connectivity(prov, cfg)
+            status = "connected" if probe.get("ok") else "degraded"
+            db.execute(
+                """
+                UPDATE integration_connections
+                SET status = ?, updated_at = ?
+                WHERE company_id = ? AND provider = ?
+                """,
+                (status, _now_iso(), company_id, prov),
+            )
+            db.commit()
 
-            publish_event(f"integration.{prov}.sync_completed", company_id, {"provider": prov})
+            publish_event(
+                f"integration.{prov}.sync_completed",
+                company_id,
+                {"provider": prov, "probe": probe, "status": status},
+            )
+            return {"provider": prov, "probe": probe, "status": status}
 
         try:
-            enqueue("default", _sync_job, company_id=cid, prov=provider)
-            return jsonify({"queued": True, "provider": provider})
+            job = enqueue("default", _sync_job, company_id=cid, prov=provider)
+            if job is not None:
+                return jsonify({"queued": True, "provider": provider})
         except Exception:
-            _sync_job(cid, provider)
-            return jsonify({"queued": False, "provider": provider, "completed": True})
+            pass
+        result = _sync_job(cid, provider)
+        return jsonify({"queued": False, "provider": provider, "completed": True, "result": result})
 
     # ── Stripe billing ────────────────────────────────────────────────────────
     @enterprise_bp.post("/billing/stripe/checkout-session")
@@ -359,26 +413,18 @@ def register_enterprise_routes(flask_app):
         if not key:
             return jsonify({"error": "stripe_not_configured", "hint": "Set STRIPE_SECRET_KEY"}), 503
         data = request.get_json(silent=True) or {}
-        from urllib import parse, request as urlrequest
-
-        payload = parse.urlencode(
-            {
-                "mode": "subscription",
-                "success_url": data.get("success_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
-                "cancel_url": data.get("cancel_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
-                "line_items[0][price]": data.get("price_id", ""),
-                "line_items[0][quantity]": "1",
-            }
-        ).encode()
-        req = urlrequest.Request(
-            "https://api.stripe.com/v1/checkout/sessions",
-            data=payload,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-        with urlrequest.urlopen(req, timeout=30) as resp:
-            body = json.loads(resp.read().decode())
-        return jsonify(body)
+        payload = {
+            "mode": "subscription",
+            "success_url": data.get("success_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
+            "cancel_url": data.get("cancel_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
+            "line_items[0][price]": data.get("price_id", ""),
+            "line_items[0][quantity]": "1",
+        }
+        try:
+            body = _post_form_with_retry("https://api.stripe.com/v1/checkout/sessions", payload, key, timeout_s=30)
+            return jsonify(body)
+        except RuntimeError as exc:
+            return jsonify({"error": "stripe_upstream_failed", "detail": str(exc)}), 502
 
     @enterprise_bp.post("/billing/stripe/webhook")
     def stripe_webhook():

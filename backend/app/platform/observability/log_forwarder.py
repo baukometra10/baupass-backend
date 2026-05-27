@@ -64,11 +64,14 @@ class HttpForwardHandler(logging.Handler):
         if not url:
             return
         try:
+            extra_fields = getattr(record, "json_fields", {}) or {}
             payload = json.dumps(
                 {
                     "level": record.levelname,
                     "message": record.getMessage(),
                     "logger": record.name,
+                    "timestamp": int(record.created * 1000),
+                    "fields": extra_fields,
                 }
             ).encode()
             self._start_worker()
