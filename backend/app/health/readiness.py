@@ -102,6 +102,18 @@ def _region_status() -> dict[str, Any]:
     }
 
 
+def _dr_status(db_path: Path) -> dict[str, Any]:
+    strict = os.getenv("BAUPASS_DR_STRICT", "0").strip().lower() in {"1", "true", "yes"}
+    try:
+        from backend.app.health.dr_status import collect_dr_status
+
+        report = collect_dr_status(db_path)
+        report["required"] = strict
+        return report
+    except Exception as exc:
+        return {"ok": not strict, "required": strict, "error": str(exc)}
+
+
 def collect_readiness(flask_app: Flask, db_path: Path) -> dict[str, Any]:
     checks = {
         "database": _database_status(db_path),
@@ -109,10 +121,13 @@ def collect_readiness(flask_app: Flask, db_path: Path) -> dict[str, Any]:
         "blueprints": _blueprint_status(flask_app),
         "queues": _queue_status(),
         "region": _region_status(),
+        "dr": _dr_status(db_path),
     }
     ready = checks["database"].get("ok") and checks["blueprints"].get("ok")
     if checks["redis"].get("required"):
         ready = ready and checks["redis"].get("ok")
     if checks["region"].get("strategy") != "single":
         ready = ready and checks["region"].get("ok")
+    if checks["dr"].get("required"):
+        ready = ready and checks["dr"].get("ok")
     return {"ready": ready, "checks": checks}

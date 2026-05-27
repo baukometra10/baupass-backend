@@ -21762,16 +21762,25 @@ def import_payload():
     return jsonify({"ok": True, "summary": summary, "backupPath": backup_path})
 
 
-@app.get("/api/health")
-def api_health():
-    db_ok = True
-    db_error = ""
+def _runtime_database_ping() -> tuple[bool, str]:
     try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+
+        if postgres_runtime_enabled():
+            from backend.app.database import postgres_preflight
+
+            pf = postgres_preflight()
+            return pf.get("status") == "ok", str(pf.get("error") or "")
         with closing(sqlite3.connect(DB_PATH, timeout=3)) as db:
             db.execute("SELECT 1").fetchone()
+        return True, ""
     except Exception as exc:
-        db_ok = False
-        db_error = str(exc)
+        return False, str(exc)
+
+
+@app.get("/api/health")
+def api_health():
+    db_ok, db_error = _runtime_database_ping()
 
     uptime_seconds = int((utc_now() - APP_STARTED_AT).total_seconds())
     diagnostics = get_runtime_diagnostics()
@@ -21785,12 +21794,25 @@ def api_health():
 
     alerts = []
     try:
-        with closing(sqlite3.connect(DB_PATH, timeout=3)) as alerts_db:
-            alerts_db.row_factory = sqlite3.Row
-            alert_rows = alerts_db.execute(
-                "SELECT * FROM system_alerts ORDER BY created_at DESC LIMIT 20"
-            ).fetchall()
-            alerts = [row_to_dict(row) for row in alert_rows]
+        from backend.app.db.runtime import postgres_runtime_enabled
+
+        if postgres_runtime_enabled():
+            from backend.app.database import postgres_connection
+
+            with postgres_connection() as pg_conn:
+                with pg_conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM system_alerts ORDER BY created_at DESC LIMIT 20"
+                    )
+                    alert_rows = cur.fetchall()
+            alerts = [dict(r) if isinstance(r, dict) else dict(r) for r in alert_rows]
+        else:
+            with closing(sqlite3.connect(DB_PATH, timeout=3)) as alerts_db:
+                alerts_db.row_factory = sqlite3.Row
+                alert_rows = alerts_db.execute(
+                    "SELECT * FROM system_alerts ORDER BY created_at DESC LIMIT 20"
+                ).fetchall()
+                alerts = [row_to_dict(row) for row in alert_rows]
     except Exception:
         alerts = []
 
@@ -21879,6 +21901,18 @@ def api_health_queues():
         return jsonify(_queue_status()), 200
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.get("/api/health/dr")
+def api_health_dr():
+    try:
+        from backend.app.health.dr_status import collect_dr_status
+
+        report = collect_dr_status(Path(DB_PATH))
+        status_code = 200 if report.get("ok") else 503
+        return jsonify({"status": "ok" if report.get("ok") else "degraded", **report}), status_code
+    except Exception as exc:
+        return jsonify({"status": "error", "ok": False, "error": str(exc)}), 503
 
 
 @app.get("/api/system-alerts")

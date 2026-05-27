@@ -531,21 +531,22 @@ def register_enterprise_routes(flask_app):
     @require_auth
     @require_roles("superadmin", "company-admin")
     def expiry_predictions():
-        from backend.server import get_db
+        from backend.app.db.connection import get_read_connection
 
         cid = _company_id()
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        rows = get_db().execute(
-            """
-            SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, w.first_name, w.last_name
-            FROM worker_documents wd
-            JOIN workers w ON w.id = wd.worker_id
-            WHERE w.company_id = ? AND wd.expiry_date IS NOT NULL AND wd.expiry_date >= ?
-            ORDER BY wd.expiry_date ASC
-            LIMIT 100
-            """,
-            (cid, today),
-        ).fetchall()
+        with get_read_connection() as db:
+            rows = db.execute(
+                """
+                SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, w.first_name, w.last_name
+                FROM worker_documents wd
+                JOIN workers w ON w.id = wd.worker_id
+                WHERE w.company_id = ? AND wd.expiry_date IS NOT NULL AND wd.expiry_date >= ?
+                ORDER BY wd.expiry_date ASC
+                LIMIT 100
+                """,
+                (cid, today),
+            ).fetchall()
         predictions = []
         for row in rows:
             try:
@@ -581,29 +582,30 @@ def register_enterprise_routes(flask_app):
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")
     def dashboard_live():
-        from backend.server import get_db, utc_now
+        from backend.app.db.connection import get_read_connection
+        from backend.server import utc_now
         from backend.app.platform.events.bus import list_recent_events
 
         cid = _company_id()
         today_prefix = utc_now().strftime("%Y-%m-%d")
-        db = get_db()
-        on_site_row = db.execute(
-            """
-            SELECT COUNT(*) AS c
-            FROM (
-                SELECT al.worker_id, al.direction
-                FROM access_logs al
-                JOIN workers w ON w.id = al.worker_id
-                WHERE w.company_id = ? AND w.deleted_at IS NULL AND al.timestamp LIKE ?
-                  AND al.timestamp = (
-                      SELECT MAX(al2.timestamp) FROM access_logs al2
-                      WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
-                  )
-            ) latest
-            WHERE latest.direction = 'check-in'
-            """,
-            (cid, f"{today_prefix}%", f"{today_prefix}%"),
-        ).fetchone()
+        with get_read_connection() as db:
+            on_site_row = db.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM (
+                    SELECT al.worker_id, al.direction
+                    FROM access_logs al
+                    JOIN workers w ON w.id = al.worker_id
+                    WHERE w.company_id = ? AND w.deleted_at IS NULL AND al.timestamp LIKE ?
+                      AND al.timestamp = (
+                          SELECT MAX(al2.timestamp) FROM access_logs al2
+                          WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+                      )
+                ) latest
+                WHERE latest.direction = 'check-in'
+                """,
+                (cid, f"{today_prefix}%", f"{today_prefix}%"),
+            ).fetchone()
         events = list_recent_events(cid, limit=30)
         return jsonify(
             {

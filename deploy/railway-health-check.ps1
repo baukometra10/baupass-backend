@@ -46,6 +46,10 @@ if ($ready -and $ready.status -ne "ready") {
 
 Test-Endpoint "/api/health/live" | Out-Null
 Test-Endpoint "/api/health/queues" | Out-Null
+$dr = Test-Endpoint "/api/health/dr"
+if ($dr -and -not $dr.ok) {
+    Write-Host "  WARNING: DR posture degraded (backup age / postgres / replica)" -ForegroundColor Yellow
+}
 Test-Endpoint "/api/v1/public/health" | Out-Null
 Test-Endpoint "/worker-build.json" | Out-Null
 
