@@ -128,6 +128,37 @@ def reset_sequences(pg_conn) -> None:
     pg_conn.commit()
 
 
+def migrate_sqlite_to_postgres(
+    sqlite_path: Path,
+    *,
+    batch: int = 500,
+    truncate: bool = False,
+    schema_only: bool = False,
+) -> dict[str, int | bool]:
+    """Migrate schema/data from SQLite file into configured PostgreSQL DB."""
+    if not is_postgres_configured():
+        raise RuntimeError("DATABASE_URL must be a postgresql:// URL")
+    if not init_postgres_pool():
+        raise RuntimeError("Could not initialize PostgreSQL pool")
+    if not sqlite_path.exists():
+        raise FileNotFoundError(f"SQLite file not found: {sqlite_path}")
+
+    sqlite_conn = sqlite3.connect(str(sqlite_path))
+    try:
+        tables = list_sqlite_tables(sqlite_conn)
+        rows_copied = 0
+        with postgres_connection() as pg_conn:
+            for table in tables:
+                create_pg_table(sqlite_conn, pg_conn, table, truncate=truncate)
+            if not schema_only:
+                for table in tables:
+                    rows_copied += copy_table_data(sqlite_conn, pg_conn, table, batch)
+                reset_sequences(pg_conn)
+        return {"tables": len(tables), "rows": rows_copied, "schema_only": schema_only}
+    finally:
+        sqlite_conn.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Migrate BauPass SQLite → PostgreSQL")
     parser.add_argument("--sqlite", required=True, help="Path to baupass.db")
@@ -136,36 +167,21 @@ def main() -> int:
     parser.add_argument("--schema-only", action="store_true")
     args = parser.parse_args()
 
-    if not is_postgres_configured():
-        print("ERROR: DATABASE_URL must be a postgresql:// URL", file=sys.stderr)
-        return 1
-
     sqlite_path = Path(args.sqlite).expanduser()
-    if not sqlite_path.exists():
-        print(f"ERROR: SQLite file not found: {sqlite_path}", file=sys.stderr)
+    try:
+        result = migrate_sqlite_to_postgres(
+            sqlite_path,
+            batch=args.batch,
+            truncate=args.truncate,
+            schema_only=args.schema_only,
+        )
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-
-    if not init_postgres_pool():
-        print("ERROR: Could not initialize PostgreSQL pool", file=sys.stderr)
-        return 1
-
-    sqlite_conn = sqlite3.connect(str(sqlite_path))
-    tables = list_sqlite_tables(sqlite_conn)
-    print(f"Tables: {len(tables)}")
-
-    with postgres_connection() as pg_conn:
-        for table in tables:
-            print(f"  schema: {table}")
-            create_pg_table(sqlite_conn, pg_conn, table, truncate=args.truncate)
-        if args.schema_only:
-            print("Schema only — done.")
-            return 0
-        for table in tables:
-            n = copy_table_data(sqlite_conn, pg_conn, table, args.batch)
-            print(f"  data: {table} ({n} rows)")
-        reset_sequences(pg_conn)
-
-    print("Migration complete. Set BAUPASS_PG_RUNTIME=1 and redeploy.")
+    print(
+        f"Migration complete (tables={result['tables']}, rows={result['rows']}). "
+        "Set BAUPASS_PG_RUNTIME=1 and redeploy."
+    )
     return 0
 
 

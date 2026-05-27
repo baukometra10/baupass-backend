@@ -48,6 +48,51 @@ SHOW_WAITRESS_QUEUE_WARNINGS = str(os.getenv("BAUPASS_WAITRESS_QUEUE_WARNINGS", 
 }
 
 
+def _ensure_postgres_bootstrap() -> None:
+    """If PG runtime is enabled and key tables are missing, auto-migrate from SQLite."""
+    auto = str(os.getenv("BAUPASS_PG_AUTO_BOOTSTRAP", "1")).strip().lower() in {"1", "true", "yes", "on"}
+    if not auto:
+        return
+    from backend.app.db.runtime import postgres_runtime_enabled
+
+    if not postgres_runtime_enabled():
+        return
+    from backend.app.database import init_postgres_pool, postgres_connection
+
+    init_postgres_pool()
+    with postgres_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name IN ('system_alerts', 'invoices', 'workers', 'companies')
+                """
+            )
+            existing = {row[0] for row in cur.fetchall()}
+    required = {"system_alerts", "invoices", "workers", "companies"}
+    if required.issubset(existing):
+        print("[baupass] PostgreSQL bootstrap: schema already present", flush=True)
+        return
+
+    source = os.getenv("BAUPASS_PG_BOOTSTRAP_SQLITE_PATH", os.getenv("BAUPASS_DB_PATH", "/data/baupass.db"))
+    source_path = Path(source).expanduser()
+    if not source_path.exists():
+        raise RuntimeError(
+            f"PostgreSQL tables missing ({sorted(required - existing)}), "
+            f"but bootstrap SQLite source not found: {source_path}"
+        )
+    from backend.ops.sqlite_to_postgres import migrate_sqlite_to_postgres
+
+    result = migrate_sqlite_to_postgres(source_path, truncate=False, schema_only=False)
+    print(
+        f"[baupass] PostgreSQL bootstrap completed from {source_path} "
+        f"(tables={result.get('tables')}, rows={result.get('rows')})",
+        flush=True,
+    )
+
+
 def port_is_listening(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.4)
@@ -67,6 +112,7 @@ if __name__ == "__main__":
         from backend.app.database import postgres_preflight
 
         if postgres_runtime_enabled():
+            _ensure_postgres_bootstrap()
             pf = postgres_preflight()
             print(f"[baupass] PostgreSQL preflight: {pf.get('status')}", flush=True)
         else:
