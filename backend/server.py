@@ -405,8 +405,12 @@ def get_cors_origins():
         "https://saa-s-flow--mahmodscharif12.replit.app",
         re.compile(r"^https://[a-z0-9-]+\.github\.io$"),
         re.compile(r"^https://[a-z0-9-]+\.onrender\.com$"),
+        re.compile(r"^https://[a-z0-9-]+\.up\.railway\.app$"),
     ]
-    extra_origins = [item.strip() for item in (os.getenv("BAUPASS_CORS_ORIGINS") or "").split(",") if item.strip()]
+    public_base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("BAUPASS_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if public_base:
+        origins.append(public_base)
+    extra_origins = [item.strip().rstrip("/") for item in (os.getenv("BAUPASS_CORS_ORIGINS") or "").split(",") if item.strip()]
     return origins + extra_origins
 
 @app.route("/user/<id>")

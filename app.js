@@ -7,10 +7,9 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://127.0.0.1:8443",
   "https://localhost:8443",
 ];
+// Only the canonical production API — old Railway hostnames cause CORS errors when tried as fallbacks.
 const REMOTE_API_BASE_FALLBACKS = [
-  "https://baupass-production.up.railway.app",
-  "https://web-production-922fe.up.railway.app",
-  "https://baupass-control.up.railway.app",
+  DEFAULT_RENDER_API_BASE,
 ];
 
 function normalizeApiBase(value) {
@@ -15904,6 +15903,13 @@ async function apiRequest(url, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (payload?.error === "database_not_ready") {
+      const requestError = new Error("database_not_ready");
+      requestError.code = "database_not_ready";
+      requestError.payload = payload;
+      requestError.status = response.status;
+      throw requestError;
+    }
     if ([502, 503, 504].includes(Number(response.status))) {
       const fallbacks = resolveLocalApiFallbackRequests(url);
       for (const fallback of fallbacks) {
@@ -26848,6 +26854,16 @@ async function handleLoginSubmit(event) {
   } catch (error) {
     if (error.message === "backend_unreachable") {
       showToast(runtimeText("backendUnreachableReload"), "error", 3600);
+      return;
+    }
+    if (error.message === "database_not_ready") {
+      const detail = String(error?.payload?.message || "").trim();
+      showToast(
+        detail
+          || "Datenbank auf dem Server ist noch nicht bereit. Bitte Railway-Variablen prüfen (BAUPASS_PG_RUNTIME=0 und /data/baupass.db).",
+        "error",
+        9000
+      );
       return;
     }
     if (error.message === "otp_sent") {
