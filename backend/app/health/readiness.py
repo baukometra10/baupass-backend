@@ -79,14 +79,40 @@ def _queue_status() -> dict[str, Any]:
         return {"ok": True, "ready": False, "error": str(exc)}
 
 
+def _region_status() -> dict[str, Any]:
+    strategy = (os.getenv("BAUPASS_REGION_STRATEGY", "single") or "single").strip().lower()
+    active_regions = [r.strip() for r in (os.getenv("BAUPASS_ACTIVE_REGIONS", "") or "").split(",") if r.strip()]
+    current_region = (
+        os.getenv("BAUPASS_REGION")
+        or os.getenv("RAILWAY_REPLICA_REGION")
+        or os.getenv("AWS_REGION")
+        or os.getenv("AZURE_REGION")
+        or os.getenv("GOOGLE_CLOUD_REGION")
+        or ""
+    ).strip()
+    if strategy == "single":
+        return {"ok": True, "strategy": strategy, "currentRegion": current_region or "unknown"}
+    # multi strategy requires declaring active regions and current region membership.
+    ok = bool(active_regions) and (not current_region or current_region in active_regions)
+    return {
+        "ok": ok,
+        "strategy": strategy,
+        "currentRegion": current_region or "unknown",
+        "activeRegions": active_regions,
+    }
+
+
 def collect_readiness(flask_app: Flask, db_path: Path) -> dict[str, Any]:
     checks = {
         "database": _database_status(db_path),
         "redis": _redis_status(),
         "blueprints": _blueprint_status(flask_app),
         "queues": _queue_status(),
+        "region": _region_status(),
     }
     ready = checks["database"].get("ok") and checks["blueprints"].get("ok")
     if checks["redis"].get("required"):
         ready = ready and checks["redis"].get("ok")
+    if checks["region"].get("strategy") != "single":
+        ready = ready and checks["region"].get("ok")
     return {"ready": ready, "checks": checks}

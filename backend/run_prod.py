@@ -151,7 +151,8 @@ if __name__ == "__main__":
         profile = get_cloud_profile()
         print(
             f"[baupass] Cloud: provider={profile.get('provider')} "
-            f"region={profile.get('region')} env={profile.get('environment')}",
+            f"region={profile.get('region')} env={profile.get('environment')} "
+            f"strategy={profile.get('regionStrategy')} active={profile.get('activeRegions')}",
             flush=True,
         )
     except Exception:

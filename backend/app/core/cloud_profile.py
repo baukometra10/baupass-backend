@@ -36,9 +36,14 @@ def get_cloud_profile() -> dict[str, Any]:
         or os.getenv("GOOGLE_CLOUD_REGION")
         or ""
     ).strip()
+    raw_regions = (os.getenv("BAUPASS_ACTIVE_REGIONS") or "").strip()
+    active_regions = [r.strip() for r in raw_regions.split(",") if r.strip()]
+    strategy = (os.getenv("BAUPASS_REGION_STRATEGY") or "single").strip().lower()
     return {
         "provider": _detect_provider(),
         "region": region or "unknown",
+        "activeRegions": active_regions or ([region] if region else []),
+        "regionStrategy": strategy,
         "timezone": os.getenv("BAUPASS_DEFAULT_TIMEZONE", "UTC").strip() or "UTC",
         "hostname": socket.gethostname(),
         "environment": (

@@ -19,6 +19,12 @@ def postgres_runtime_enabled() -> bool:
     return flag in {"1", "true", "yes", "on"}
 
 
+def postgres_runtime_required() -> bool:
+    """If enabled, fail fast when runtime is not actually on PostgreSQL."""
+    flag = os.getenv("BAUPASS_PG_REQUIRED", "").strip().lower()
+    return flag in {"1", "true", "yes", "on"}
+
+
 def _resolve_sqlite_path() -> Path:
     explicit = os.getenv("BAUPASS_DB_PATH", "").strip().replace("\\", "/")
     if explicit:
@@ -32,6 +38,8 @@ def _resolve_sqlite_path() -> Path:
 
 def open_request_db() -> Any:
     """Open DB for current Flask request (caller stores on flask.g)."""
+    if postgres_runtime_required() and not postgres_runtime_enabled():
+        raise RuntimeError("BAUPASS_PG_REQUIRED=1 but PostgreSQL runtime is disabled")
     if postgres_runtime_enabled():
         if not init_postgres_pool():
             raise RuntimeError("PostgreSQL pool failed to initialize (check DATABASE_URL)")
