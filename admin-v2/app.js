@@ -124,7 +124,8 @@ function renderQuickLinks() {
     { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
     { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
     { tab: "operations", title: "عمليات الموقع", desc: "12 طبقة Physical Operations OS" },
-    { tab: "platform", title: "جاهزية المنصة", desc: "Redis، DB، نضج عالمي" },
+    { tab: "tools", title: "Geofence · أتمتة · تكامل", desc: "SAP، Oracle، M365، قواعد" },
+    { tab: "platform", title: "جاهزية المنصة", desc: "Redis، AI، Wallet" },
     { tab: null, title: "لوحة كاملة (Legacy)", desc: "فواتير، أجهزة، إعدادات", href: "/index.html" },
   ];
   $("quickLinks").innerHTML = items
@@ -182,11 +183,13 @@ async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
   try {
-    const [caps, ready, health, ent] = await Promise.all([
+    const [caps, ready, health, ent, aiSt, wallet] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
       api("/api/platform/entitlements").catch(() => null),
+      api("/api/ai/status").catch(() => ({ configured: false })),
+      api("/api/admin/wallet/runtime-status").catch(() => null),
     ]);
     const steps = (caps.nextSteps || [])
       .map((s) => `<li>${s}</li>`)
@@ -220,12 +223,42 @@ async function loadPlatform() {
       </div>`
           : ""
       }
+      <div class="panel-block">
+        <h3>مساعد AI ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
+        <p class="muted small">يتطلب خطة Enterprise + OPENAI_API_KEY</p>
+        <form id="aiQuickForm" class="tool-form">
+          <input name="question" placeholder="اسأل: كم موظف على الموقع؟" required />
+          <button type="submit">إرسال</button>
+        </form>
+        <pre id="aiQuickAnswer" class="ai-answer muted small"></pre>
+      </div>
+      <div class="panel-block">
+        <h3>Wallet (Apple / Google)</h3>
+        <p class="muted small">${wallet ? JSON.stringify(wallet, null, 2) : "تحميل الحالة…"}</p>
+      </div>
       <div class="link-row">
         <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
-        <a href="/enterprise-hub.html">مركز المؤسسة</a>
+        <a href="/enterprise-hub.html?v=20260528a">مركز المؤسسة</a>
         <a href="/index.html">لوحة Legacy الكاملة</a>
       </div>
     `;
+    $("aiQuickForm")?.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const q = ev.target.question.value.trim();
+      const out = $("aiQuickAnswer");
+      out.textContent = "جاري الإرسال…";
+      try {
+        const res = await api("/api/ai/query", {
+          method: "POST",
+          body: JSON.stringify({ question: q }),
+        });
+        out.textContent = res.answer || res.hint || JSON.stringify(res, null, 2);
+      } catch (e) {
+        out.textContent = e.data?.error === "feature_not_available"
+          ? `يتطلب ترقية: ${e.data.requiredPlan}`
+          : e.message;
+      }
+    });
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message}</p>`;
   }
@@ -291,12 +324,162 @@ async function loadOperations() {
         <div class="layer-grid">${pills}</div>
       </div>
       <div class="link-row">
-        <a href="/index.html#access">إدارة Zutritt (Legacy)</a>
+        <a href="/ops-command-center.html" target="_blank" rel="noopener">مركز القيادة (Command Center)</a>
+        <a href="/enterprise-hub.html">مركز المؤسسة</a>
         <a href="/index.html#devices">الأجهزة (Legacy)</a>
       </div>
     `;
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || "تعذّر تحميل العمليات — قد تحتاج جداول إضافية في DB"}</p>`;
+  }
+}
+
+function requireCompany(panel) {
+  const q = companyQuery();
+  if (getUser().role === "superadmin" && !q) {
+    panel.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    return null;
+  }
+  return q;
+}
+
+async function loadTools() {
+  const panel = $("toolsPanel");
+  const q = requireCompany(panel);
+  if (q === null) return;
+  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  try {
+    const [geofences, rules, integrations] = await Promise.all([
+      api(`/api/geofences/admin${q}`),
+      api(`/api/automation/rules${q}`),
+      api(`/api/integrations${q}`),
+    ]);
+    const gfRows = geofences.geofences || [];
+    const ruleRows = rules.rules || [];
+    const intRows = integrations.integrations || [];
+    const providers = [
+      { id: "sap", label: "SAP" },
+      { id: "oracle", label: "Oracle" },
+      { id: "microsoft365", label: "Microsoft 365" },
+      { id: "google_workspace", label: "Google Workspace" },
+      { id: "payroll", label: "Payroll" },
+    ];
+    panel.innerHTML = `
+      <div class="panel-block">
+        <h3>Geofence — مناطق الحضور</h3>
+        <form id="geofenceForm" class="tool-form">
+          <input name="site_name" placeholder="اسم الموقع" required />
+          <input name="latitude" type="number" step="any" placeholder="Latitude" required />
+          <input name="longitude" type="number" step="any" placeholder="Longitude" required />
+          <input name="radius_meters" type="number" value="50" placeholder="نصف القطر (م)" />
+          <button type="submit">إضافة منطقة</button>
+        </form>
+        <div class="table-wrap" id="geofenceTable"></div>
+      </div>
+      <div class="panel-block">
+        <h3>أتمتة — قواعد سير العمل</h3>
+        <form id="automationForm" class="tool-form">
+          <input name="name" placeholder="اسم القاعدة" required />
+          <select name="trigger_event">
+            <option value="worker.checkin">عند الدخول</option>
+            <option value="worker.checkout">عند الخروج</option>
+            <option value="*">أي حدث</option>
+          </select>
+          <button type="submit">إنشاء قاعدة</button>
+        </form>
+        <div class="table-wrap" id="automationTable"></div>
+      </div>
+      <div class="panel-block">
+        <h3>تكاملات مؤسسية</h3>
+        <div class="layer-grid" id="integrationCards"></div>
+      </div>`;
+    renderTable($("geofenceTable"), gfRows, [
+      { label: "الموقع", render: (r) => r.site_name || "-" },
+      { label: "إحداثيات", render: (r) => `${r.latitude}, ${r.longitude}` },
+      { label: "نصف القطر", render: (r) => `${r.radius_meters}m` },
+      { label: "نشط", render: (r) => (r.active ? "نعم" : "لا") },
+    ]);
+    renderTable($("automationTable"), ruleRows, [
+      { label: "الاسم", render: (r) => r.name || "-" },
+      { label: "المحفّز", render: (r) => r.trigger_event || "-" },
+      { label: "مفعّل", render: (r) => (r.enabled ? "نعم" : "لا") },
+    ]);
+    const intByProvider = Object.fromEntries(intRows.map((r) => [r.provider, r]));
+    $("integrationCards").innerHTML = providers
+      .map((p) => {
+        const conn = intByProvider[p.id];
+        const st = conn ? conn.status : "غير مربوط";
+        return `<div class="layer-pill" data-provider="${p.id}">
+          <strong>${p.label}</strong><br><span class="muted small">${st}</span>
+          <button type="button" class="btn-link" data-connect="${p.id}">ربط</button>
+          <button type="button" class="btn-link" data-sync="${p.id}">مزامنة</button>
+        </div>`;
+      })
+      .join("");
+    $("geofenceForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      await api(`/api/geofences/admin${q}`, {
+        method: "POST",
+        body: JSON.stringify({
+          site_name: fd.get("site_name"),
+          latitude: parseFloat(fd.get("latitude")),
+          longitude: parseFloat(fd.get("longitude")),
+          radius_meters: parseInt(fd.get("radius_meters") || "50", 10),
+        }),
+      });
+      ev.target.reset();
+      await loadTools();
+    });
+    $("automationForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      await api(`/api/automation/rules${q}`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: fd.get("name"),
+          trigger_event: fd.get("trigger_event"),
+          conditions: [],
+          actions: [{ type: "log", message: "automation_triggered" }],
+          enabled: true,
+        }),
+      });
+      ev.target.reset();
+      await loadTools();
+    });
+    panel.querySelectorAll("[data-connect]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const provider = btn.getAttribute("data-connect");
+        const raw = prompt(
+          `إعدادات ${provider} (JSON):\nمثال: {"endpoint":"https://...","apiKey":"..."}`,
+          '{"endpoint":"","apiKey":""}'
+        );
+        if (!raw) return;
+        try {
+          await api(`/api/integrations/${provider}/connect${q}`, {
+            method: "POST",
+            body: raw,
+          });
+          alert("تم الربط.");
+          await loadTools();
+        } catch (e) {
+          alert(e.message);
+        }
+      });
+    });
+    panel.querySelectorAll("[data-sync]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const provider = btn.getAttribute("data-sync");
+        try {
+          const res = await api(`/api/integrations/${provider}/sync${q}`, { method: "POST", body: "{}" });
+          alert(JSON.stringify(res, null, 2).slice(0, 800));
+        } catch (e) {
+          alert(e.message);
+        }
+      });
+    });
+  } catch (e) {
+    panel.innerHTML = `<p class="error">${e.message}</p>`;
   }
 }
 
@@ -527,6 +710,7 @@ async function refreshActiveTab() {
   else if (tab === "mobile") await loadMobile();
   else if (tab === "operations") await loadOperations();
   else if (tab === "platform") await loadPlatform();
+  else if (tab === "tools") await loadTools();
   else if (tab === "enterprise") { /* iframe */ }
   else await loadOverview();
 }

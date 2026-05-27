@@ -18,6 +18,8 @@
 ```text
 {BASE}/api/health/live          → status: alive
 {BASE}/admin-v2/index.html      → HTTP 200
+{BASE}/enterprise-hub.html      → 16 طبقة (معاينة)
+{BASE}/enterprise               → نفس المركز
 ```
 
 PowerShell:
@@ -30,6 +32,18 @@ curl -o NUL -w "%{http_code}" "$BASE/admin-v2/index.html"
 
 - [ ] live = OK
 - [ ] admin-v2 = 200
+- [ ] enterprise-hub يعرض الطبقات
+
+---
+
+## 1b) مركز المؤسسة (~1 دقيقة)
+
+1. `{BASE}/enterprise-hub.html`
+2. تحقق من بانر الخطة وعدد القدرات
+3. (اختياري) سجّل دخول ثم جرّب مساعد AI على Enterprise
+
+- [ ] تظهر 16 طبقة
+- [ ] فلتر «متاح في خطتي» يعمل بعد الدخول
 
 ---
 
@@ -43,6 +57,8 @@ curl -o NUL -w "%{http_code}" "$BASE/admin-v2/index.html"
 
 - [ ] تسجيل الدخول نجح
 - [ ] UID محفوظ بدون خطأ `duplicate_physical_card_id`
+5. تبويب **Geofence · أتمتة · تكامل** — أضف منطقة geofence تجريبية
+6. تبويب **🏛 المؤسسة** — الخريطة الكاملة
 
 **بديل:** Legacy `{BASE}/index.html` → تعديل موظف → `physicalCardId`
 

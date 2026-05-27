@@ -53,14 +53,21 @@ if ($dr -and -not $dr.ok) {
 Test-Endpoint "/api/v1/public/health" | Out-Null
 Test-Endpoint "/worker-build.json" | Out-Null
 
-try {
-    $r = Invoke-WebRequest -Uri "$BaseUrl/admin-v2/index.html" -TimeoutSec 30 -UseBasicParsing
-    if ($r.StatusCode -eq 200) {
-        Write-Host "[OK] /admin-v2/index.html" -ForegroundColor Green
+foreach ($path in @("/admin-v2/index.html", "/enterprise-hub.html", "/enterprise", "/ops-command-center.html")) {
+    try {
+        $r = Invoke-WebRequest -Uri "$BaseUrl$path" -TimeoutSec 30 -UseBasicParsing
+        if ($r.StatusCode -eq 200) {
+            Write-Host "[OK] $path" -ForegroundColor Green
+        }
+    }
+    catch {
+        Write-Host "[FAIL] $path — $($_.Exception.Message)" -ForegroundColor Red
     }
 }
-catch {
-    Write-Host "[FAIL] /admin-v2/index.html — $($_.Exception.Message)" -ForegroundColor Red
+
+$preview = Test-Endpoint "/api/platform/enterprise-catalog/preview"
+if ($preview -and $preview.layerCount -ge 16) {
+    Write-Host "  Enterprise catalog: $($preview.layerCount) layers" -ForegroundColor Green
 }
 
 Write-Host "Done." -ForegroundColor Cyan
