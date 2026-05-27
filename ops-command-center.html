@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BauPass — مركز التحكم التشغيلي</title>
+  <link rel="stylesheet" href="/design-tokens.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f1419; color: #e8eef4; }
+    header { padding: 1rem 1.5rem; border-bottom: 1px solid #2a3544; display: flex; justify-content: space-between; align-items: center; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    main { padding: 1rem 1.5rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .card { background: #1a2332; border-radius: 12px; padding: 1rem; border: 1px solid #2a3544; }
+    .metric { font-size: 2rem; font-weight: 700; color: #5eead4; }
+    .label { font-size: 0.85rem; opacity: 0.75; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { text-align: right; padding: 0.4rem; border-bottom: 1px solid #2a3544; }
+    .err { color: #f87171; padding: 1rem; }
+    #status { font-size: 0.8rem; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>مركز التحكم — Physical Operations OS</h1>
+    <div>
+      <a href="/enterprise-hub.html" style="color:#5eead4;font-size:0.85rem;margin-left:1rem">← مركز المؤسسة (16 طبقة)</a>
+      <span id="status">جاري التحميل…</span>
+    </div>
+  </header>
+  <main id="grid"></main>
+  <script>
+    async function load() {
+      const status = document.getElementById('status');
+      const grid = document.getElementById('grid');
+      try {
+        const res = await fetch('/api/ops-os/command-center', { credentials: 'include' });
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        const data = await res.json();
+        status.textContent = data.date + ' · ' + (data.scope === 'global' ? 'كل الشركات' : 'شركة واحدة');
+        const t = data.totals || {};
+        grid.innerHTML = `
+          <div class="card"><div class="label">على الموقع الآن</div><div class="metric">${t.workersOnSite ?? 0}</div></div>
+          <div class="card"><div class="label">شركات</div><div class="metric">${t.companies ?? 0}</div></div>
+          <div class="card"><div class="label">طوارئ نشطة</div><div class="metric">${t.activeEmergencies ?? 0}</div></div>
+          <div class="card"><div class="label">تنبيهات أمن</div><div class="metric">${t.openSecurityAlerts ?? 0}</div></div>
+          <div class="card" style="grid-column: 1 / -1">
+            <div class="label">الشركات</div>
+            <table><thead><tr><th>الاسم</th><th>على الموقع</th><th>بوابات</th><th>طوارئ</th><th>أمن</th></tr></thead>
+            <tbody>${(data.companies || []).map(c => `
+              <tr><td>${c.name}</td><td>${c.workersOnSite}</td><td>${c.activeGatesToday}</td>
+              <td>${c.activeEmergencies}</td><td>${c.openSecurityAlerts}</td></tr>`).join('')}</tbody></table>
+          </div>`;
+      } catch (e) {
+        status.textContent = '';
+        grid.innerHTML = '<p class="err">سجّل الدخول من لوحة الإدارة ثم افتح هذه الصفحة. ' + e.message + '</p>';
+      }
+    }
+    load();
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>

@@ -554,6 +554,122 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="018",
+        name="physical_operations_os",
+        up_sql="""
+            ALTER TABLE emergency_events ADD COLUMN emergency_type TEXT NOT NULL DEFAULT 'general';
+            ALTER TABLE emergency_events ADD COLUMN site_name TEXT NOT NULL DEFAULT '';
+
+            CREATE TABLE IF NOT EXISTS emergency_roll_calls (
+                id TEXT PRIMARY KEY,
+                emergency_id TEXT NOT NULL,
+                company_id INTEGER NOT NULL,
+                worker_id TEXT NOT NULL,
+                expected_on_site INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'unknown',
+                last_gate TEXT NOT NULL DEFAULT '',
+                last_seen_at TEXT,
+                marked_at TEXT,
+                marked_by TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(emergency_id, worker_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_roll_call_emergency ON emergency_roll_calls(emergency_id, status);
+
+            CREATE TABLE IF NOT EXISTS site_equipment (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                site_name TEXT NOT NULL,
+                name TEXT NOT NULL,
+                equipment_type TEXT NOT NULL DEFAULT 'machinery',
+                latitude REAL,
+                longitude REAL,
+                status TEXT NOT NULL DEFAULT 'active',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_site_equipment_company ON site_equipment(company_id, site_name);
+
+            CREATE TABLE IF NOT EXISTS site_hazard_zones (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                site_name TEXT NOT NULL,
+                label TEXT NOT NULL,
+                hazard_level TEXT NOT NULL DEFAULT 'medium',
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                radius_meters INTEGER NOT NULL DEFAULT 50,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_hazard_zones_company ON site_hazard_zones(company_id, active);
+
+            CREATE TABLE IF NOT EXISTS iot_devices (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                device_type TEXT NOT NULL DEFAULT 'sensor',
+                name TEXT NOT NULL,
+                site_name TEXT NOT NULL DEFAULT '',
+                external_id TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'active',
+                config_json TEXT NOT NULL DEFAULT '{}',
+                last_seen_at TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_iot_devices_company ON iot_devices(company_id, device_type);
+
+            CREATE TABLE IF NOT EXISTS worker_reputation_scores (
+                worker_id TEXT NOT NULL,
+                company_id INTEGER NOT NULL,
+                score INTEGER NOT NULL DEFAULT 50,
+                grade TEXT NOT NULL DEFAULT 'C',
+                breakdown_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (worker_id, company_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_reputation_company_score ON worker_reputation_scores(company_id, score DESC);
+
+            CREATE TABLE IF NOT EXISTS security_alerts (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                worker_id TEXT,
+                alert_type TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'medium',
+                title TEXT NOT NULL,
+                details_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_security_alerts_company ON security_alerts(company_id, status, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS camera_ai_events (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                camera_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                worker_id TEXT,
+                confidence REAL NOT NULL DEFAULT 0,
+                ppe_compliant INTEGER,
+                zone_violation INTEGER NOT NULL DEFAULT 0,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_camera_events_company ON camera_ai_events(company_id, created_at DESC);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS camera_ai_events;
+            DROP TABLE IF EXISTS security_alerts;
+            DROP TABLE IF EXISTS worker_reputation_scores;
+            DROP TABLE IF EXISTS iot_devices;
+            DROP TABLE IF EXISTS site_hazard_zones;
+            DROP TABLE IF EXISTS site_equipment;
+            DROP TABLE IF EXISTS emergency_roll_calls;
+        """,
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""

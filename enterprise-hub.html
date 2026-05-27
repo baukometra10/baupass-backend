@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BauPass — مركز المؤسسة (16 طبقة)</title>
+  <link rel="stylesheet" href="/design-tokens.css" />
+  <style>
+    :root {
+      --bg: #0b1118;
+      --panel: #141c28;
+      --border: #2a3544;
+      --text: #e8eef4;
+      --muted: #94a3b8;
+      --accent: #5eead4;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    a { color: var(--accent); }
+    header {
+      padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+      background: var(--panel); position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { margin: 0; font-size: 1.15rem; }
+    .nav-links { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.85rem; }
+    .nav-links a { text-decoration: none; padding: 0.35rem 0.65rem; border: 1px solid var(--border); border-radius: 8px; }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; padding: 1rem 1.25rem; max-width: 1600px; margin: 0 auto; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+    .stats { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    .stat {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.5rem 0.75rem; font-size: 0.8rem; cursor: pointer;
+    }
+    .stat strong { display: block; font-size: 1.1rem; color: var(--accent); }
+    .stat.active { outline: 2px solid var(--accent); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+    .toolbar input {
+      flex: 1; min-width: 180px; padding: 0.5rem 0.75rem; border-radius: 8px;
+      border: 1px solid var(--border); background: #0f1419; color: var(--text);
+    }
+    .toolbar label { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.35rem; }
+    .layer {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      margin-bottom: 0.65rem; overflow: hidden;
+    }
+    .layer-head {
+      padding: 0.75rem 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    }
+    .layer-head:hover { background: #1a2332; }
+    .layer-num { opacity: 0.6; font-size: 0.8rem; margin-left: 0.5rem; }
+    .layer-body { display: none; padding: 0 1rem 0.75rem; }
+    .layer.open .layer-body { display: block; }
+    .cap-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .cap {
+      border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.75rem; font-size: 0.82rem;
+    }
+    .cap h4 { margin: 0 0 0.25rem; font-size: 0.9rem; }
+    .cap .ar { color: var(--muted); font-size: 0.78rem; }
+    .badge {
+      display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 6px;
+      margin-top: 0.35rem; font-weight: 600;
+    }
+    .cap-actions { margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .cap-actions a, .cap-actions button {
+      font-size: 0.72rem; padding: 0.2rem 0.45rem; border-radius: 6px;
+      border: 1px solid var(--border); background: #0f1419; color: var(--accent); cursor: pointer; text-decoration: none;
+    }
+    .ai-panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      display: flex; flex-direction: column; max-height: calc(100vh - 120px); position: sticky; top: 72px;
+    }
+    .ai-panel h2 { margin: 0; padding: 0.75rem 1rem; font-size: 1rem; border-bottom: 1px solid var(--border); }
+    #aiLog {
+      flex: 1; overflow-y: auto; padding: 0.75rem; font-size: 0.85rem; min-height: 200px;
+    }
+    .msg-user { background: #1e3a5f; padding: 0.5rem; border-radius: 8px; margin-bottom: 0.5rem; }
+    .msg-bot { background: #1a2e28; padding: 0.5rem; border-radius: 8px; margin-bottom: 0.5rem; white-space: pre-wrap; }
+    .msg-err { color: #f87171; }
+    .ai-form { padding: 0.75rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.5rem; }
+    .ai-form textarea {
+      resize: vertical; min-height: 64px; padding: 0.5rem; border-radius: 8px;
+      border: 1px solid var(--border); background: #0f1419; color: var(--text); font-family: inherit;
+    }
+    .ai-form button {
+      padding: 0.5rem; border: none; border-radius: 8px; background: var(--accent); color: #0b1118; font-weight: 700; cursor: pointer;
+    }
+    .maturity { font-size: 0.85rem; color: var(--muted); padding: 0 0 0.75rem; }
+    .plan-banner {
+      background: linear-gradient(135deg, #1a3a4a, #141c28); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem; margin-bottom: 1rem;
+    }
+    .plan-banner strong { color: var(--accent); font-size: 1.2rem; }
+    .plan-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin: 0.75rem 0; }
+    .plan-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; font-size: 0.78rem; text-align: center; }
+    .plan-card.current { outline: 2px solid var(--accent); }
+    .cap.locked { opacity: 0.55; border-style: dashed; }
+    .cap .plan-badge { font-size: 0.68rem; margin-right: 0.25rem; }
+    .cap .enabled-badge { color: #4ade80; }
+    .cap .locked-badge { color: #f87171; }
+    .err-box { background: #3f1d1d; border: 1px solid #7f1d1d; padding: 1rem; border-radius: 10px; margin: 1rem; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>مركز المؤسسة — خريطة الـ 16 طبقة</h1>
+      <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)">ما بُني فعلياً وأين تراه (واجهة · API · إعداد)</p>
+    </div>
+    <nav class="nav-links">
+      <a href="/admin-v2/index.html">Admin v2</a>
+      <a href="/index.html">Legacy</a>
+      <a href="/ops-command-center.html">مركز العمليات</a>
+      <a href="/join.html">تفعيل موظف</a>
+    </nav>
+  </header>
+
+  <div id="authErr" class="err-box hidden">
+    سجّل الدخول من <a href="/admin-v2/index.html">Admin v2</a> أو <a href="/index.html">Legacy</a> ثم أعد فتح هذه الصفحة.
+  </div>
+
+  <div class="layout" id="mainLayout">
+    <section>
+      <div id="planBanner" class="plan-banner hidden"></div>
+      <p id="maturity" class="maturity"></p>
+      <div id="stats" class="stats"></div>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="بحث: حضور، AI، Wallet، SAP…" />
+        <select id="filterPlan">
+          <option value="all">كل القدرات</option>
+          <option value="enabled">متاح في خطتي</option>
+          <option value="locked">يتطلب ترقية</option>
+        </select>
+        <label><input type="checkbox" id="openAll" /> فتح كل الطبقات</label>
+      </div>
+      <div id="layers"></div>
+    </section>
+
+    <aside class="ai-panel">
+      <h2>مساعد BauPass (AI)</h2>
+      <div id="aiStatus" style="padding:0 0.75rem;font-size:0.78rem;color:var(--muted)"></div>
+      <div id="aiLog"></div>
+      <form class="ai-form" id="aiForm">
+        <textarea id="aiQuestion" placeholder="اسأل بلغة طبيعية: كم موظف على الموقع؟ ما تنبيهات الأمن؟"></textarea>
+        <button type="submit">إرسال</button>
+      </form>
+    </aside>
+  </div>
+
+  <script>
+    const SURFACE_COLORS = {
+      legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
+      hub: "#f59e0b", api: "#64748b", config: "#ef4444",
+    };
+    const PLAN_LABELS = { tageskarte: "يومي", starter: "Starter", professional: "Professional", enterprise: "Enterprise" };
+    let catalog = null;
+    let filterSurface = "";
+    let filterEntitlement = "all";
+
+    async function api(path, opts) {
+      const res = await fetch(path, { credentials: "include", ...opts });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) throw new Error("auth");
+      if (!res.ok) {
+        const err = new Error(data.error || res.statusText);
+        err.payload = data;
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    }
+
+    function renderStats(stats, labels) {
+      const el = document.getElementById("stats");
+      const entries = Object.entries(stats).filter(([k]) => k !== "total");
+      el.innerHTML = [
+        `<div class="stat ${!filterSurface ? "active" : ""}" data-surface=""><strong>${stats.total}</strong>الكل</div>`,
+        ...entries.map(([k, v]) => {
+          const lab = (labels[k] || {}).ar || k;
+          return `<div class="stat ${filterSurface === k ? "active" : ""}" data-surface="${k}">
+            <strong>${v}</strong>${lab}</div>`;
+        }),
+      ].join("");
+      el.querySelectorAll(".stat").forEach((s) => {
+        s.addEventListener("click", () => {
+          filterSurface = s.dataset.surface || "";
+          renderLayers();
+          renderStats(stats, labels);
+        });
+      });
+    }
+
+    function matchItem(it, q) {
+      if (filterSurface && it.surface !== filterSurface) return false;
+      if (filterEntitlement === "enabled" && !it.enabled) return false;
+      if (filterEntitlement === "locked" && it.enabled) return false;
+      if (!q) return true;
+      const hay = (it.label + " " + it.labelAr + " " + (it.note || "") + " " + (it.apis || []).join(" ")).toLowerCase();
+      return hay.includes(q);
+    }
+
+    function renderPlanBanner(cat) {
+      const ent = cat.entitlements || {};
+      const plan = ent.plan || "starter";
+      const meta = (cat.plans || {})[plan] || {};
+      const comparison = (cat.planComparison || []).map((row) => {
+        const cur = row.plan === plan ? " current" : "";
+        return `<div class="plan-card${cur}"><strong>${PLAN_LABELS[row.plan] || row.plan}</strong><br>${row.enabledCount}/${row.total} قدرة<br>${row.coveragePercent}%</div>`;
+      }).join("");
+      document.getElementById("planBanner").innerHTML = `
+        <div><strong>خطتك: ${meta.labelAr || plan}</strong> — ${meta.taglineAr || ""}</div>
+        <div style="margin-top:0.5rem;font-size:0.85rem">
+          <span class="enabled-badge">✓ ${ent.enabledCount || 0} مفعّل</span> ·
+          <span class="locked-badge">🔒 ${ent.lockedCount || 0} يحتاج ترقية</span> ·
+          تغطية <strong>${ent.coveragePercent || 0}%</strong> من المنصة
+        </div>
+        <div class="plan-matrix">${comparison}</div>
+        <p style="font-size:0.75rem;color:var(--muted);margin:0">كل ما في قائمة الرؤية الـ16 طبقة موجود هنا — مُخصّص حسب خطتك. Enterprise يفتح AI والتكاملات ومركز القيادة العالمي.</p>`;
+      document.getElementById("planBanner").classList.remove("hidden");
+    }
+
+    function renderLayers() {
+      const q = (document.getElementById("search").value || "").trim().toLowerCase();
+      const openAll = document.getElementById("openAll").checked;
+      const root = document.getElementById("layers");
+      if (!catalog) return;
+      root.innerHTML = catalog.layers.map((layer) => {
+        const items = layer.items.filter((it) => matchItem(it, q));
+        if (!items.length) return "";
+        const open = openAll || q.length > 2;
+        return `
+          <article class="layer ${open ? "open" : ""}" data-layer="${layer.id}">
+            <div class="layer-head">
+              <div>
+                <span class="layer-num">#${layer.number}</span>
+                <strong>${layer.titleAr}</strong>
+                <div style="font-size:0.75rem;color:var(--muted)">${layer.title}</div>
+              </div>
+              <span>${items.filter(i => i.enabled).length}/${items.length} مفعّل</span>
+            </div>
+            <div class="layer-body">
+              <div class="cap-grid">${items.map(renderCap).join("")}</div>
+            </div>
+          </article>`;
+      }).join("");
+      root.querySelectorAll(".layer-head").forEach((h) => {
+        h.addEventListener("click", () => h.parentElement.classList.toggle("open"));
+      });
+    }
+
+    function renderCap(it) {
+      const color = SURFACE_COLORS[it.surface] || "#64748b";
+      const lab = (catalog.surfaceLabels[it.surface] || {}).ar || it.surface;
+      const locked = it.enabled === false;
+      const apis = !locked && (it.apis || []).slice(0, 2).map((a) =>
+        `<button type="button" data-try="${a.split(" ")[1] || a}">جرب API</button>`).join("");
+      const ui = !locked && it.ui
+        ? `<a href="${it.ui}" target="_blank" rel="noopener">فتح الواجهة</a>` : "";
+      const note = it.note ? `<div class="ar">${it.note}</div>` : "";
+      const planTag = `<span class="plan-badge badge" style="background:#6366f122;color:#a5b4fc">${PLAN_LABELS[it.minPlan] || it.minPlan}+</span>`;
+      const state = locked
+        ? `<span class="locked-badge badge">🔒 ترقية إلى ${PLAN_LABELS[it.minPlan] || it.minPlan}</span>`
+        : `<span class="enabled-badge badge">✓ متاح</span>`;
+      return `
+        <div class="cap ${locked ? "locked" : ""}">
+          <h4>${it.label}</h4>
+          <div class="ar">${it.labelAr}</div>
+          ${planTag}${state}
+          <span class="badge" style="background:${color}22;color:${color}">${lab}</span>
+          ${note}
+          <div class="cap-actions">${ui}${apis}</div>
+        </div>`;
+    }
+
+    async function loadCatalog() {
+      try {
+        const [cat, caps, aiSt] = await Promise.all([
+          api("/api/platform/enterprise-catalog"),
+          api("/api/platform/capabilities").catch(() => null),
+          api("/api/ai/status").catch(() => ({ configured: false })),
+        ]);
+        catalog = cat;
+        document.getElementById("authErr").classList.add("hidden");
+        document.getElementById("mainLayout").classList.remove("hidden");
+        renderPlanBanner(cat);
+        renderStats(cat.stats, cat.surfaceLabels);
+        renderLayers();
+        const m = document.getElementById("maturity");
+        if (caps) {
+          m.textContent = `نضج المنصة: ${caps.maturityLevel || "—"} (${caps.maturityScore ?? "—"}%) · DB: ${caps.dataLayer?.runtime || "—"} · Redis: ${caps.dataLayer?.redisConfigured ? "نعم" : "لا"}`;
+        }
+        document.getElementById("aiStatus").textContent = aiSt.configured
+          ? "AI مفعّل — اسأل عن التشغيل والحضور والأمن"
+          : "AI غير مفعّل — أضف OPENAI_API_KEY في Railway";
+        if (!aiSt.configured) {
+          appendAi("system", "المساعد يعمل بدون مفتاح OpenAI كملخص من الـ API فقط. أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.");
+        }
+      } catch (e) {
+        if (e.message === "auth") {
+          document.getElementById("authErr").classList.remove("hidden");
+          document.getElementById("mainLayout").classList.add("hidden");
+        } else {
+          document.getElementById("layers").innerHTML = `<p class="err-box">${e.message}</p>`;
+        }
+      }
+    }
+
+    function appendAi(role, text, isErr) {
+      const log = document.getElementById("aiLog");
+      const div = document.createElement("div");
+      div.className = role === "user" ? "msg-user" : (isErr ? "msg-bot msg-err" : "msg-bot");
+      div.textContent = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    document.getElementById("aiForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const q = document.getElementById("aiQuestion").value.trim();
+      if (!q) return;
+      appendAi("user", q);
+      document.getElementById("aiQuestion").value = "";
+      try {
+        const data = await api("/api/ai/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q }),
+        });
+        if (data.error === "feature_not_available") {
+          appendAi("bot", `هذه القدرة تتطلب خطة ${PLAN_LABELS[data.requiredPlan] || data.requiredPlan}. خطتك الحالية: ${PLAN_LABELS[data.plan] || data.plan}.`, true);
+        } else {
+          appendAi("bot", data.answer || data.hint || JSON.stringify(data, null, 2));
+        }
+      } catch (e) {
+        const p = e.payload || {};
+        if (p.error === "feature_not_available") {
+          appendAi("bot", `يتطلب خطة ${PLAN_LABELS[p.requiredPlan] || p.requiredPlan} (خطتك: ${PLAN_LABELS[p.plan] || p.plan})`, true);
+        } else {
+          appendAi("bot", e.message, true);
+        }
+      }
+    });
+
+    document.getElementById("search").addEventListener("input", renderLayers);
+    document.getElementById("openAll").addEventListener("change", renderLayers);
+    document.getElementById("filterPlan").addEventListener("change", (ev) => {
+      filterEntitlement = ev.target.value;
+      renderLayers();
+    });
+
+    document.getElementById("layers").addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("[data-try]");
+      if (!btn) return;
+      const path = btn.getAttribute("data-try");
+      try {
+        const data = await api(path);
+        alert(JSON.stringify(data, null, 2).slice(0, 1200));
+      } catch (e) {
+        alert("API: " + e.message);
+      }
+    });
+
+    loadCatalog();
+  </script>
+</body>
+</html>

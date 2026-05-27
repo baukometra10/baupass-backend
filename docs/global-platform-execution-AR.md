@@ -12,6 +12,17 @@
 | Flutter Worker | ✅ | NFC + offline + موقع GPS (site_app) |
 | Railway SQLite | ✅ | `/data/baupass.db` |
 | Enterprise APIs | ✅ | فوترة، تكاملات، مراقبة، عمليات |
+| **مركز المؤسسة** | ✅ | `/enterprise-hub.html` — خريطة 16 طبقة + مساعد AI |
+
+## مركز المؤسسة (واجهة الـ 16 طبقة)
+
+```http
+GET /api/platform/enterprise-catalog
+```
+
+واجهة: **`/enterprise-hub.html`** — لكل قدرة: `surface` + **`minPlan`** + **`enabled`** حسب خطتك + روابط UI و APIs.
+
+تفاصيل الخطط: `docs/plans-matrix-AR.md`
 
 ## تقرير الجاهزية البرمجية
 

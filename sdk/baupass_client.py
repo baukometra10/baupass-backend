@@ -29,3 +29,33 @@ class BauPassClient:
 
     def health(self) -> dict:
         return self._get("/api/v1/public/health")
+
+    def enterprise_layers(self, company_id: int | None = None) -> dict:
+        path = "/api/enterprise/layers"
+        if company_id is not None:
+            path += f"?company_id={company_id}"
+        return self._get(path)
+
+    def intelligence_layer(self) -> dict:
+        return self._get("/api/enterprise/layers/intelligence")
+
+    def list_webhooks(self) -> dict:
+        return self._get("/api/developer/webhooks")
+
+    def ops_os_overview(self, company_id: int | None = None) -> dict:
+        path = "/api/ops-os/overview"
+        if company_id is not None:
+            path += f"?company_id={company_id}"
+        return self._get(path)
+
+    def digital_twin(self) -> dict:
+        return self._get("/api/ops-os/digital-twin")
+
+    def command_center(self) -> dict:
+        return self._get("/api/ops-os/command-center")
+
+    def ops_copilot(self, question: str, company_id: int | None = None) -> dict:
+        body: dict = {"question": question}
+        if company_id is not None:
+            body["company_id"] = company_id
+        return self._post("/api/ops-os/copilot", body)

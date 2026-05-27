@@ -159,6 +159,42 @@ def _execute_action(db, company_id: int, rule_id: str, action: dict, context: di
         )
         db.commit()
         result = {"status": "ok", "alert_id": alert_id}
+    elif action_type == "lock_worker":
+        wid = str(action.get("worker_id") or context.get("worker_id") or "").strip()
+        if wid:
+            db.execute(
+                "UPDATE workers SET status = 'gesperrt' WHERE id = ? AND company_id = ?",
+                (wid, str(company_id)),
+            )
+            db.commit()
+            result = {"status": "ok", "worker_id": wid, "new_status": "gesperrt"}
+    elif action_type == "unlock_worker":
+        wid = str(action.get("worker_id") or context.get("worker_id") or "").strip()
+        if wid:
+            db.execute(
+                "UPDATE workers SET status = 'aktiv' WHERE id = ? AND company_id = ?",
+                (wid, str(company_id)),
+            )
+            db.commit()
+            result = {"status": "ok", "worker_id": wid, "new_status": "aktiv"}
+    elif action_type == "run_security_scan":
+        from backend.app.platform.physical_operations.security_engine import analyze_security
+
+        report = analyze_security(db, company_id, persist=True)
+        result = {"status": "ok", "newFindings": report.get("newFindings", 0)}
+    elif action_type == "generate_ops_report":
+        from backend.app.platform.physical_operations.copilot import build_copilot_context
+
+        snapshot = build_copilot_context(db, company_id)
+        publish_event = None
+        try:
+            from backend.app.platform.events.bus import publish_event as _pe
+
+            _pe("automation.ops_report", company_id, {"snapshot": snapshot})
+            publish_event = True
+        except Exception:
+            pass
+        result = {"status": "ok", "reportGenerated": True, "published": bool(publish_event)}
     return result
 
 

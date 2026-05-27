@@ -9,6 +9,7 @@ ai_bp = Blueprint("platform_ai", __name__)
 
 
 def register_ai_blueprint(flask_app: Flask) -> None:
+    from backend.app.platform.plan_guard import require_plan_capability
     from backend.server import require_auth, require_roles, get_db
 
     @ai_bp.get("/ai/status")
@@ -22,6 +23,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     @ai_bp.post("/ai/query")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
     def ai_query():
         from .assistant import natural_language_query
 
@@ -32,11 +34,18 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         company_id = int(g.current_user.get("company_id") or 0)
         if g.current_user.get("role") == "superadmin" and data.get("company_id"):
             company_id = int(data["company_id"])
-        return jsonify(natural_language_query(company_id, question, data.get("context")))
+        if data.get("context"):
+            ctx = data.get("context")
+        else:
+            from backend.app.platform.physical_operations.copilot import build_copilot_context
+
+            ctx = build_copilot_context(get_db(), company_id, g.current_user.get("role", ""))
+        return jsonify(natural_language_query(company_id, question, ctx))
 
     @ai_bp.get("/ai/intelligence")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("operational_insights")
     def ai_intelligence():
         from .intelligence import operational_insights
 
@@ -50,6 +59,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     @ai_bp.get("/ai/predictive-attendance")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("predictive_att")
     def ai_predictive_attendance():
         from .intelligence import predictive_attendance
 
@@ -59,6 +69,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     @ai_bp.get("/ai/fraud-detection")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("fraud")
     def ai_fraud():
         from .intelligence import fraud_signals
 

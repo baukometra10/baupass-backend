@@ -709,6 +709,66 @@ def register_enterprise_routes(flask_app):
 
         return jsonify(collect_platform_capabilities(Path(DB_PATH)))
 
+    @enterprise_bp.get("/platform/enterprise-catalog")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def platform_enterprise_catalog():
+        from backend.app.platform.enterprise_catalog import get_enterprise_catalog
+        from backend.app.platform.plan_entitlements import apply_plan_to_catalog, build_plan_comparison_matrix
+        from backend.server import get_company_plan, get_db
+
+        catalog = get_enterprise_catalog()
+        db = get_db()
+        cid = g.current_user.get("company_id")
+        if g.current_user.get("role") == "superadmin" and request.args.get("company_id"):
+            cid = request.args.get("company_id")
+        plan = get_company_plan(db, cid) if cid else "enterprise"
+        if g.current_user.get("role") == "superadmin" and request.args.get("plan"):
+            plan = str(request.args.get("plan")).strip().lower()
+        payload = apply_plan_to_catalog(catalog, plan)
+        payload["planComparison"] = build_plan_comparison_matrix(catalog)
+        return jsonify(payload)
+
+    @enterprise_bp.get("/platform/entitlements")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def platform_entitlements():
+        from backend.app.platform.enterprise_catalog import get_enterprise_catalog
+        from backend.app.platform.plan_entitlements import (
+            PLAN_META,
+            PLAN_ORDER,
+            apply_plan_to_catalog,
+            build_plan_comparison_matrix,
+        )
+        from backend.server import get_company_plan, get_plan_features, get_db
+
+        db = get_db()
+        cid = g.current_user.get("company_id")
+        if g.current_user.get("role") == "superadmin" and request.args.get("company_id"):
+            cid = request.args.get("company_id")
+        plan = get_company_plan(db, cid) if cid else "starter"
+        catalog = apply_plan_to_catalog(get_enterprise_catalog(), plan)
+        return jsonify(
+            {
+                "plan": plan,
+                "planMeta": PLAN_META.get(plan, {}),
+                "planOrder": list(PLAN_ORDER),
+                "legacyFeatures": get_plan_features(plan),
+                "entitlements": catalog.get("entitlements"),
+                "planComparison": build_plan_comparison_matrix(get_enterprise_catalog()),
+                "layersSummary": [
+                    {
+                        "id": L["id"],
+                        "number": L["number"],
+                        "titleAr": L["titleAr"],
+                        "enabledCount": L.get("enabledCount"),
+                        "totalCount": L.get("totalCount"),
+                    }
+                    for L in catalog.get("layers", [])
+                ],
+            }
+        )
+
     @enterprise_bp.get("/platform/database-status")
     @require_auth
     @require_roles("superadmin")

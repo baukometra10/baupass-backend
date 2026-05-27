@@ -119,6 +119,7 @@ function switchToTab(tabId) {
 
 function renderQuickLinks() {
   const items = [
+    { tab: null, title: "مركز المؤسسة (16 طبقة)", desc: "خريطة كل ما بُني + مساعد AI", href: "/enterprise-hub.html" },
     { tab: "workers", title: "الموظفون + NFC", desc: "تعيين بطاقة وQR تفعيل التطبيق" },
     { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
     { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
@@ -180,10 +181,11 @@ async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
   try {
-    const [caps, ready, health] = await Promise.all([
+    const [caps, ready, health, ent] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
+      api("/api/platform/entitlements").catch(() => null),
     ]);
     const steps = (caps.nextSteps || [])
       .map((s) => `<li>${s}</li>`)
@@ -208,8 +210,18 @@ async function loadPlatform() {
         <h3>قدرات الحضور (مفعّلة في الكود)</h3>
         <div class="table-wrap"><table><tbody>${attRows}</tbody></table></div>
       </div>
+      ${
+        ent
+          ? `<div class="panel-block">
+        <h3>خطتك: ${ent.planMeta?.labelAr || ent.plan}</h3>
+        <p>${ent.entitlements?.enabledCount || 0} قدرة مفعّلة · ${ent.entitlements?.lockedCount || 0} تحتاج ترقية · ${ent.entitlements?.coveragePercent || 0}% من المنصة</p>
+        <a class="feature-card" href="/enterprise-hub.html" style="display:inline-block;margin-top:0.5rem">فتح مركز المؤسسة (16 طبقة)</a>
+      </div>`
+          : ""
+      }
       <div class="link-row">
         <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
+        <a href="/enterprise-hub.html">مركز المؤسسة</a>
         <a href="/index.html">لوحة Legacy الكاملة</a>
       </div>
     `;

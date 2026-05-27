@@ -455,26 +455,44 @@ PLAN_WORKER_FREE_INCLUDED = {
 # Rangfolge: tageskarte < starter < professional < enterprise
 PLAN_RANK = {"tageskarte": 0, "starter": 1, "professional": 2, "enterprise": 3}
 
-PLAN_FEATURES = {
-    # Feature-Key: minimale Plan-Stufe
-    "access_logging":        "tageskarte",   # Basis: Ein-/Auslass-Protokoll
-    "worker_management":     "tageskarte",   # Basis: Mitarbeiterverwaltung
-    "qr_badges":             "tageskarte",   # Basis: QR-Badges
-    "worker_app":            "starter",      # Mitarbeiter-App (Mobile Pass)
-    "nfc_badges":            "starter",      # NFC-Karten
-    "leave_management":      "starter",      # Urlaubs-/Fehlerzeit-Antraege
-    "document_upload":       "starter",      # Dokument-Upload
-    "invoicing":             "professional", # Rechnungsstellung
-    "email_notifications":   "professional", # E-Mail-Benachrichtigungen
-    "worker_hours_report":   "professional", # Arbeitsstunden-Bericht
-    "late_checkin_alert":    "professional", # Zu-spaet-Meldung
-    "subcompanies":          "professional", # Subunternehmen
-    "white_label":           "enterprise",   # White-Label (eigenes Branding)
-    "api_access":            "enterprise",   # API-Zugriff
-    "multi_site":            "enterprise",   # Mehrere Standorte
-    "premium_support":       "enterprise",   # Priority-Support
-    "custom_pricing":        "enterprise",   # Individuelle Preisgestaltung
-}
+def _build_plan_features():
+    base = {
+        "access_logging": "tageskarte",
+        "worker_management": "tageskarte",
+        "qr_badges": "tageskarte",
+        "worker_app": "starter",
+        "nfc_badges": "starter",
+        "leave_management": "starter",
+        "document_upload": "starter",
+        "invoicing": "professional",
+        "email_notifications": "professional",
+        "worker_hours_report": "professional",
+        "late_checkin_alert": "professional",
+        "subcompanies": "professional",
+        "white_label": "enterprise",
+        "api_access": "enterprise",
+        "multi_site": "enterprise",
+        "premium_support": "enterprise",
+        "custom_pricing": "enterprise",
+        "ai_assistant": "enterprise",
+        "ai_copilot": "enterprise",
+        "ops_command_center": "enterprise",
+        "physical_operations_os": "professional",
+        "enterprise_integrations": "enterprise",
+        "realtime_operations": "professional",
+        "automation_suite": "professional",
+        "enterprise_hub": "starter",
+    }
+    try:
+        from backend.app.platform.plan_entitlements import catalog_keys_for_server_plan_features
+
+        base.update(catalog_keys_for_server_plan_features())
+    except Exception:
+        pass
+    return base
+
+
+PLAN_FEATURES = _build_plan_features()
 
 
 def company_has_feature(plan_value, feature_key):
@@ -503,11 +521,18 @@ def get_company_plan(db, company_id):
 
 def feature_not_available_response(feature_key, plan_value):
     """Standardisierte Antwort wenn ein Paket-Feature nicht verfuegbar ist."""
+    required = PLAN_FEATURES.get(feature_key, "enterprise")
+    try:
+        from backend.app.platform.plan_entitlements import min_plan_for_capability
+
+        required = min_plan_for_capability(feature_key)
+    except Exception:
+        pass
     return jsonify({
         "error": "feature_not_available",
         "feature": feature_key,
         "plan": normalize_company_plan(plan_value),
-        "requiredPlan": PLAN_FEATURES.get(feature_key, "enterprise"),
+        "requiredPlan": required,
     }), 403
 
 DEFAULT_PLATFORM_NAME = "BauPass"
