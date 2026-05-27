@@ -65,4 +65,13 @@ def register_workers_blueprint(flask_app: Flask) -> None:
         get_db().commit()
         return jsonify({"ok": True, "workerId": worker_id, "physicalCardId": physical_card_id})
 
+    @workers_domain_bp.get("/mobile/distribution")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def v2_mobile_distribution():
+        from backend.server import get_public_base_url
+        from .mobile_distribution import build_mobile_distribution
+
+        return jsonify(build_mobile_distribution(get_public_base_url()))
+
     flask_app.register_blueprint(workers_domain_bp, url_prefix="/api/v2")

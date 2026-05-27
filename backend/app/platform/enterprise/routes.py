@@ -325,7 +325,12 @@ def register_enterprise_routes(flask_app):
         for row in rows:
             item = dict(row)
             cfg = json.loads(item.pop("config_json") or "{}")
-            item["config"] = {k: "***" if "secret" in k.lower() or "token" in k.lower() else v for k, v in cfg.items()}
+            from .integration_oauth import oauth_config_for_api
+
+            safe = {k: "***" if "secret" in k.lower() or "token" in k.lower() else v for k, v in cfg.items()}
+            if cfg.get("oauth"):
+                safe["oauth"] = oauth_config_for_api(cfg)
+            item["config"] = safe
             out.append(item)
         return jsonify({"integrations": out})
 
@@ -338,6 +343,10 @@ def register_enterprise_routes(flask_app):
         if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle"):
             return jsonify({"error": "unknown_provider"}), 400
         data = request.get_json(silent=True) or {}
+        from .integration_oauth import merge_oauth_config
+
+        if isinstance(data.get("oauth"), dict):
+            data = merge_oauth_config({k: v for k, v in data.items() if k != "oauth"}, data["oauth"])
         cid = _company_id()
         iid = f"int-{uuid.uuid4().hex[:10]}"
         existing = get_db().execute(
@@ -388,7 +397,11 @@ def register_enterprise_routes(flask_app):
                 (company_id, prov),
             ).fetchone()
             cfg = json.loads((row["config_json"] if row else "{}") or "{}")
-            sync_result = sync_provider(prov, cfg)
+            from .integration_oauth import extract_oauth_config
+
+            cfg_for_sync = dict(cfg)
+            cfg_for_sync.update(extract_oauth_config(cfg))
+            sync_result = sync_provider(prov, cfg_for_sync)
             probe = sync_result if sync_result.get("provider") else provider_connectivity(prov, cfg)
             status = "connected" if sync_result.get("ok") else "degraded"
             db.execute(
@@ -496,6 +509,29 @@ def register_enterprise_routes(flask_app):
                 ]
             }
         )
+
+    # ── Behavior patterns ─────────────────────────────────────────────────────
+    @enterprise_bp.get("/analytics/behavior-patterns")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def behavior_patterns():
+        from backend.app.db.connection import get_read_connection
+        from backend.app.platform.ai.behavior_patterns import analyze_behavior_patterns
+
+        days = min(90, max(1, int(request.args.get("days", "14"))))
+        with get_read_connection() as db:
+            return jsonify(analyze_behavior_patterns(db, _company_id(), days=days))
+
+    # ── Payroll export preview ──────────────────────────────────────────────────
+    @enterprise_bp.get("/integrations/payroll/export-preview")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def payroll_export_preview():
+        from backend.server import get_db
+        from .payroll_adapter import payroll_export_preview as preview
+
+        period = (request.args.get("period") or "").strip()[:7]
+        return jsonify(preview(get_db(), _company_id(), period=period))
 
     # ── Document OCR + AI analysis ────────────────────────────────────────────
     @enterprise_bp.post("/documents/ocr-analyze")

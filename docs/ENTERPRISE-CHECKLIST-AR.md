@@ -37,7 +37,7 @@
 | 17 | Predictive Attendance | ✅ | `/api/ai/predictive-attendance` |
 | 18 | AI Fraud Detection | ✅ | `/api/ai/fraud-detection` |
 | 19 | Smart Productivity | ✅ | داخل intelligence |
-| 20 | Behavior Pattern Analysis | 🟡 | عبر access_logs analytics |
+| 20 | Behavior Pattern Analysis | ✅ | `/api/analytics/behavior-patterns` |
 | 21 | Workforce Risk Detection | ✅ | intelligence.risk |
 | 22 | Smart Operational Insights | ✅ | `/api/ai/intelligence` |
 
@@ -103,7 +103,7 @@
 | 53 | Mobile-First PWA | ✅ |
 | 54 | Ultra Fast UX | ✅ QR fast login |
 | 55 | Enterprise Design System | 🟡 CSS |
-| 56 | Cross-Platform Native Apps | 🔴 |
+| 56 | Worker Hybrid App (PWA + Flutter) | ✅ | `mobile/`, `emp-app.html`, `/api/v2/mobile/distribution` |
 | 57 | Advanced Offline Sync | ✅ worker-sw |
 | 58 | Conflict Resolution | ✅ `/api/sync/conflicts` |
 | 59 | Smart Device Sync | ✅ HCE |
