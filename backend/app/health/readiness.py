@@ -36,21 +36,17 @@ def _database_status(db_path: Path) -> dict[str, Any]:
         from backend.app.database import get_database_health, init_postgres_pool, postgres_connection
 
         if postgres_runtime_enabled():
+            from backend.app.db.pg_bootstrap import core_schema_ready, missing_core_tables
+
             health = get_database_health()
             ok = health.get("status") == "ok"
-            tables_ok = False
-            if ok:
-                init_postgres_pool()
-                with postgres_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            "SELECT 1 FROM information_schema.tables WHERE table_name = 'companies' LIMIT 1"
-                        )
-                        tables_ok = cur.fetchone() is not None
+            missing = missing_core_tables() if ok else list(missing_core_tables(force_refresh=True))
+            schema_ok = ok and core_schema_ready()
             return {
-                "ok": ok and tables_ok,
+                "ok": schema_ok,
                 "backend": "postgres",
-                "companiesTable": tables_ok,
+                "coreSchemaReady": schema_ok,
+                "missingTables": missing,
                 "health": health,
                 "readReplica": health.get("read_replica", {}),
             }

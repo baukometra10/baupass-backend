@@ -48,62 +48,6 @@ SHOW_WAITRESS_QUEUE_WARNINGS = str(os.getenv("BAUPASS_WAITRESS_QUEUE_WARNINGS", 
 }
 
 
-def _ensure_postgres_bootstrap() -> None:
-    """If PG runtime is enabled and key tables are missing, auto-migrate from SQLite."""
-    auto = str(os.getenv("BAUPASS_PG_AUTO_BOOTSTRAP", "1")).strip().lower() in {"1", "true", "yes", "on"}
-    if not auto:
-        return
-    from backend.app.db.runtime import postgres_runtime_enabled
-
-    if not postgres_runtime_enabled():
-        return
-    from backend.app.database import init_postgres_pool, postgres_connection
-
-    init_postgres_pool()
-    with postgres_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                  AND table_name IN (
-                    'settings', 'system_alerts', 'invoices', 'workers',
-                    'companies', 'users', 'audit_logs'
-                  )
-                """
-            )
-            existing = {row[0] for row in cur.fetchall()}
-    required = {
-        "settings",
-        "system_alerts",
-        "invoices",
-        "workers",
-        "companies",
-        "users",
-        "audit_logs",
-    }
-    if required.issubset(existing):
-        print("[baupass] PostgreSQL bootstrap: core schema present", flush=True)
-        return
-
-    source = os.getenv("BAUPASS_PG_BOOTSTRAP_SQLITE_PATH", os.getenv("BAUPASS_DB_PATH", "/data/baupass.db"))
-    source_path = Path(source).expanduser()
-    if not source_path.exists():
-        raise RuntimeError(
-            f"PostgreSQL tables missing ({sorted(required - existing)}), "
-            f"but bootstrap SQLite source not found: {source_path}"
-        )
-    from backend.ops.sqlite_to_postgres import migrate_sqlite_to_postgres
-
-    result = migrate_sqlite_to_postgres(source_path, truncate=False, schema_only=False)
-    print(
-        f"[baupass] PostgreSQL bootstrap completed from {source_path} "
-        f"(tables={result.get('tables')}, rows={result.get('rows')})",
-        flush=True,
-    )
-
-
 def port_is_listening(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.4)
@@ -124,7 +68,9 @@ if __name__ == "__main__":
 
         if postgres_runtime_enabled():
             try:
-                _ensure_postgres_bootstrap()
+                from backend.app.db.pg_bootstrap import ensure_postgres_bootstrap
+
+                ensure_postgres_bootstrap()
             except Exception as exc:
                 print(f"[baupass] WARNING: PostgreSQL bootstrap failed: {exc}", flush=True)
             pf = postgres_preflight()

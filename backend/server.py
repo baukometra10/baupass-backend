@@ -1707,6 +1707,21 @@ def apply_security_headers(response):
 
 
 @app.before_request
+def guard_auth_database_schema():
+    """Return 503 before rate limiting when PostgreSQL core tables are missing."""
+    path = (request.path or "").rstrip("/") or "/"
+    if path == "/api/login" and request.method == "POST":
+        from backend.app.db.schema_errors import guard_core_schema
+
+        return guard_core_schema(ok_field=True)
+    if path == "/api/session/bootstrap" and request.method == "GET":
+        from backend.app.db.schema_errors import guard_core_schema
+
+        return guard_core_schema()
+    return None
+
+
+@app.before_request
 def setup_request_context():
     incoming_request_id = (
         request.headers.get(REQUEST_ID_HEADER)
@@ -1781,16 +1796,26 @@ def get_user_from_session_token(token_value):
         return None
     db = get_db()
     try:
-        session = db.execute(
-            "SELECT user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id FROM sessions WHERE token = ?",
-            (token_value,),
-        ).fetchone()
-    except sqlite3.OperationalError:
-        # Backward compatibility for containers that still have an older sessions schema.
-        session = db.execute(
-            "SELECT user_id, expires_at FROM sessions WHERE token = ?",
-            (token_value,),
-        ).fetchone()
+        try:
+            session = db.execute(
+                "SELECT user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id FROM sessions WHERE token = ?",
+                (token_value,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            # Backward compatibility for containers that still have an older sessions schema.
+            session = db.execute(
+                "SELECT user_id, expires_at FROM sessions WHERE token = ?",
+                (token_value,),
+            ).fetchone()
+    except Exception as exc:
+        try:
+            from backend.app.db.pg_bootstrap import is_schema_error
+
+            if is_schema_error(exc):
+                return None
+        except ImportError:
+            pass
+        raise
     if not session:
         return None
     if session["expires_at"] < now_iso():
@@ -2491,12 +2516,26 @@ def init_db():
 
         if postgres_runtime_enabled():
             from backend.app.database import init_postgres_pool, postgres_preflight
+            from backend.app.db.pg_bootstrap import ensure_postgres_bootstrap, missing_core_tables
 
             init_postgres_pool()
+            try:
+                ensure_postgres_bootstrap()
+            except Exception as exc:
+                print(f"[baupass] WARNING: PostgreSQL bootstrap in init_db failed: {exc}", flush=True)
             check = postgres_preflight()
             if check.get("status") != "ok":
                 raise RuntimeError(f"PostgreSQL preflight failed: {check}")
-            print("[baupass] init_db: PostgreSQL runtime (schema must exist — run sqlite_to_postgres.py)", flush=True)
+            missing = missing_core_tables(force_refresh=True)
+            if missing:
+                print(
+                    f"[baupass] init_db: PostgreSQL runtime — LOGIN DISABLED until schema ready "
+                    f"(missing: {', '.join(missing)}). "
+                    f"Use BAUPASS_PG_RUNTIME=0 + /data/baupass.db or run sqlite_to_postgres.py",
+                    flush=True,
+                )
+            else:
+                print("[baupass] init_db: PostgreSQL runtime ready", flush=True)
             return
     except ImportError:
         pass
@@ -3991,28 +4030,42 @@ def serialize_user(user_row):
 
 
 def log_audit(event_type, message, target_type=None, target_id=None, company_id=None, actor=None):
-    db = get_db()
-    actor_user_id = actor["id"] if actor else None
-    actor_role = actor["role"] if actor else None
-    resolved_company = company_id if company_id is not None else (actor.get("company_id") if actor else None)
-    db.execute(
-        """
-        INSERT INTO audit_logs (id, event_type, actor_user_id, actor_role, company_id, target_type, target_id, message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            f"aud-{secrets.token_hex(8)}",
-            event_type,
-            actor_user_id,
-            actor_role,
-            resolved_company,
-            target_type,
-            target_id,
-            message,
-            now_iso(),
-        ),
-    )
-    db.commit()
+    try:
+        db = get_db()
+        actor_user_id = actor["id"] if actor else None
+        actor_role = actor["role"] if actor else None
+        resolved_company = company_id if company_id is not None else (actor.get("company_id") if actor else None)
+        db.execute(
+            """
+            INSERT INTO audit_logs (id, event_type, actor_user_id, actor_role, company_id, target_type, target_id, message, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"aud-{secrets.token_hex(8)}",
+                event_type,
+                actor_user_id,
+                actor_role,
+                resolved_company,
+                target_type,
+                target_id,
+                message,
+                now_iso(),
+            ),
+        )
+        db.commit()
+    except Exception as exc:
+        try:
+            from backend.app.db.pg_bootstrap import is_schema_error
+
+            if is_schema_error(exc):
+                app.logger.warning("[audit] skipped (schema not ready): %s", exc)
+                return
+        except ImportError:
+            pass
+        if "no such table" in str(exc).lower() or "audit_logs" in str(exc).lower():
+            app.logger.warning("[audit] skipped: %s", exc)
+            return
+        raise
 
     if IMMUTABLE_AUDIT_ENABLED and event_type:
         should_mirror = any(event_type.startswith(prefix) for prefix in IMMUTABLE_AUDIT_EVENT_PREFIXES)
@@ -7929,6 +7982,12 @@ def login():
         payload.update(extra)
         return jsonify(payload)
 
+    from backend.app.db.schema_errors import guard_core_schema
+
+    blocked = guard_core_schema(ok_field=True)
+    if blocked is not None:
+        return blocked
+
     throttle_key = build_login_throttle_key()
     allowed, retry_after = can_attempt_login(throttle_key)
     if not allowed:
@@ -7942,8 +8001,19 @@ def login():
     support_company_id = (payload.get("supportCompanyId") or "").strip()
     support_actor_name = (payload.get("supportActorName") or "").strip()
 
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE lower(username) = ?", (username,)).fetchone()
+    try:
+        db = get_db()
+        user = db.execute("SELECT * FROM users WHERE lower(username) = ?", (username,)).fetchone()
+    except Exception as exc:
+        try:
+            from backend.app.db.pg_bootstrap import is_schema_error
+            from backend.app.db.schema_errors import database_not_ready_response
+
+            if is_schema_error(exc):
+                return database_not_ready_response(ok_field=True)
+        except ImportError:
+            pass
+        raise
 
     if not user or not check_password_hash(user["password_hash"], password):
         register_login_failure(throttle_key)
@@ -8145,13 +8215,30 @@ def me():
 
 @app.get("/api/session/bootstrap")
 def session_bootstrap():
+    from backend.app.db.schema_errors import guard_core_schema
+
+    blocked = guard_core_schema()
+    if blocked is not None:
+        return blocked
+
     token = get_auth_token_from_request()
 
     user = get_user_from_session_token(token)
     if not user:
         return jsonify({"error": "unauthorized"}), 401
 
-    db = get_db()
+    try:
+        db = get_db()
+    except Exception as exc:
+        try:
+            from backend.app.db.pg_bootstrap import is_schema_error
+            from backend.app.db.schema_errors import database_not_ready_response
+
+            if is_schema_error(exc):
+                return database_not_ready_response()
+        except ImportError:
+            pass
+        raise
     if not is_tenant_host_valid(db, user):
         return jsonify({"error": "forbidden_tenant_host"}), 403
 
@@ -8162,14 +8249,25 @@ def session_bootstrap():
             db.commit()
             return jsonify(company_error), 403
 
-    if user.get("role") in ["superadmin", "company-admin"]:
-        settings_row = db.execute("SELECT admin_ip_whitelist FROM settings WHERE id = 1").fetchone()
-        whitelist = parse_ip_whitelist(settings_row["admin_ip_whitelist"] if settings_row else "")
-        if whitelist and not ip_allowed(get_client_ip(), whitelist):
-            return jsonify({"error": "admin_ip_not_allowed"}), 403
+    try:
+        if user.get("role") in ["superadmin", "company-admin"]:
+            settings_row = db.execute("SELECT admin_ip_whitelist FROM settings WHERE id = 1").fetchone()
+            whitelist = parse_ip_whitelist(settings_row["admin_ip_whitelist"] if settings_row else "")
+            if whitelist and not ip_allowed(get_client_ip(), whitelist):
+                return jsonify({"error": "admin_ip_not_allowed"}), 403
 
-    db.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (expiry_iso(), token))
-    db.commit()
+        db.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (expiry_iso(), token))
+        db.commit()
+    except Exception as exc:
+        try:
+            from backend.app.db.pg_bootstrap import is_schema_error
+            from backend.app.db.schema_errors import database_not_ready_response
+
+            if is_schema_error(exc):
+                return database_not_ready_response()
+        except ImportError:
+            pass
+        raise
 
     return jsonify({"token": token, "user": serialize_user(user)})
 
