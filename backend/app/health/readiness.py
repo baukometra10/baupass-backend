@@ -50,12 +50,30 @@ def _database_status(db_path: Path) -> dict[str, Any]:
                 "health": health,
                 "readReplica": health.get("read_replica", {}),
             }
-        with sqlite3.connect(str(db_path), timeout=3) as conn:
-            conn.execute("SELECT 1").fetchone()
-            row = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
-            ).fetchone()
-        return {"ok": True, "backend": "sqlite", "migrationsTable": bool(row), "path": str(db_path)}
+        from backend.app.db.pg_bootstrap import find_sqlite_data_path, pg_runtime_flag_enabled
+
+        sqlite_path = find_sqlite_data_path() or db_path
+        users_ok = False
+        migrations_table = False
+        try:
+            with sqlite3.connect(str(sqlite_path), timeout=3) as conn:
+                conn.execute("SELECT 1").fetchone()
+                conn.execute("SELECT 1 FROM users LIMIT 1").fetchone()
+                users_ok = True
+                row = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
+                ).fetchone()
+                migrations_table = bool(row)
+        except Exception:
+            users_ok = False
+        return {
+            "ok": users_ok and sqlite_path.is_file(),
+            "backend": "sqlite",
+            "path": str(sqlite_path),
+            "usersTableReadable": users_ok,
+            "migrationsTable": migrations_table,
+            "autoFallbackFromPostgres": pg_runtime_flag_enabled(),
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc), "path": str(db_path)}
 

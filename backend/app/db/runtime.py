@@ -13,10 +13,29 @@ from backend.app.database import init_postgres_pool, is_postgres_configured
 
 def postgres_runtime_enabled() -> bool:
     """Use PostgreSQL for get_db() when DATABASE_URL is postgres and flag is on."""
-    if not is_postgres_configured():
+    from backend.app.db.pg_bootstrap import find_sqlite_data_path, missing_core_tables, pg_runtime_flag_enabled
+
+    if not pg_runtime_flag_enabled():
         return False
-    flag = os.getenv("BAUPASS_PG_RUNTIME", "").strip().lower()
-    return flag in {"1", "true", "yes", "on"}
+
+    auto_sqlite = str(os.getenv("BAUPASS_PG_AUTO_SQLITE_FALLBACK", "1")).strip().lower()
+    if auto_sqlite in {"0", "false", "no", "off"}:
+        return True
+
+    try:
+        missing = missing_core_tables()
+        if missing and find_sqlite_data_path() is not None:
+            print(
+                "[baupass] PostgreSQL schema incomplete "
+                f"({', '.join(missing)}) — auto-using SQLite on /data. "
+                "Set BAUPASS_PG_RUNTIME=0 to disable Postgres entirely.",
+                flush=True,
+            )
+            return False
+    except Exception as exc:
+        print(f"[baupass] WARNING: PG/SQLite fallback check failed: {exc}", flush=True)
+
+    return True
 
 
 def postgres_runtime_required() -> bool:
@@ -54,6 +73,18 @@ def open_request_db() -> Any:
         return PgConnection(raw, pool_cm=cm)
 
     db_path = _resolve_sqlite_path()
+    if not db_path.is_file() or db_path.stat().st_size < 4096:
+        from backend.app.db.pg_bootstrap import find_sqlite_data_path
+        import shutil
+
+        fallback = find_sqlite_data_path()
+        if fallback and fallback != db_path:
+            try:
+                db_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(fallback, db_path)
+                print(f"[baupass] Restored SQLite DB from {fallback} → {db_path}", flush=True)
+            except Exception as exc:
+                print(f"[baupass] WARNING: could not restore SQLite from backup: {exc}", flush=True)
     conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
     try:

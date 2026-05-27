@@ -26,6 +26,10 @@ def database_not_ready_response(*, ok_field: bool = False):
 
 
 def guard_core_schema(*, ok_field: bool = False):
+    from backend.app.db.runtime import postgres_runtime_enabled
+
+    if not postgres_runtime_enabled():
+        return None
     if not missing_core_tables():
         return None
     return database_not_ready_response(ok_field=ok_field)
