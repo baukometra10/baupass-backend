@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../core/auth_repository.dart';
 import '../../services/attendance_repository.dart';
+import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
 import '../../services/worker_cache.dart';
@@ -14,6 +15,7 @@ class AttendanceScreen extends StatefulWidget {
     required this.auth,
     required this.attendance,
     required this.nfc,
+    required this.location,
     required this.offlineStore,
     required this.workerCache,
     this.embedded = false,
@@ -23,6 +25,7 @@ class AttendanceScreen extends StatefulWidget {
   final AuthRepository auth;
   final AttendanceRepository attendance;
   final NfcService nfc;
+  final LocationService location;
   final OfflineAttendanceStore offlineStore;
   final WorkerCache workerCache;
   final bool embedded;
@@ -102,7 +105,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return open ? 'check-out' : 'check-in';
   }
 
-  Future<void> _queueOfflineAttendance(String nfcUid, String direction) async {
+  Future<void> _queueOfflineAttendance(
+    String nfcUid,
+    String direction, {
+    Map<String, dynamic>? location,
+  }) async {
     final clientEventId =
         'nfc-${DateTime.now().toUtc().millisecondsSinceEpoch}-${nfcUid.hashCode.abs()}';
     await widget.offlineStore.enqueue(<String, dynamic>{
@@ -111,6 +118,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       'nfcUid': nfcUid,
       'direction': direction,
       'occurredAt': DateTime.now().toUtc().toIso8601String(),
+      if (location != null) 'location': location,
     });
     await widget.workerCache.setOpenCheckInToday(direction == 'check-in');
     await _refreshPendingCount();
@@ -137,12 +145,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final clientEventId =
           'nfc-${DateTime.now().toUtc().millisecondsSinceEpoch}-${scan.uid.hashCode.abs()}';
 
+      setState(() => _status = 'Getting location…');
+      final location = await widget.location.captureForAttendance();
+
       setState(() => _status = 'Sending attendance…');
       try {
         final result = await widget.attendance.recordNfcAttendance(
           sessionToken: widget.sessionToken,
           nfcUid: scan.uid,
           direction: direction,
+          location: location,
           clientEventId: clientEventId,
         );
         if (!mounted) return;
@@ -158,7 +170,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         });
       } on ApiException catch (e) {
         if (e.statusCode == 0 || e.errorCode == 'network_error' || e.statusCode >= 500) {
-          await _queueOfflineAttendance(scan.uid, direction);
+          await _queueOfflineAttendance(scan.uid, direction, location: location);
+          return;
+        }
+        if (e.errorCode == 'worker_geolocation_required' && location == null) {
+          if (!mounted) return;
+          setState(() => _status = 'Location required — enable GPS and try again.');
           return;
         }
         rethrow;

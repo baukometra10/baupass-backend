@@ -274,7 +274,42 @@ async function loadAccess() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
     $("accessTable").innerHTML = '<p class="muted" style="padding:1rem">اختر شركة.</p>';
+    $("accessSummary").innerHTML = "";
     return;
+  }
+  try {
+    const summary = await api(`/api/access-logs/summary${q}`);
+    const open = Array.isArray(summary.openEntries) ? summary.openEntries.length : 0;
+    const hourly = Array.isArray(summary.hourly) ? summary.hourly : [];
+    const checkIns = hourly.reduce((n, h) => n + (h.checkIn || 0), 0);
+    const checkOuts = hourly.reduce((n, h) => n + (h.checkOut || 0), 0);
+    $("accessSummary").innerHTML = `
+      <div class="card"><span class="muted">دخول اليوم</span><strong>${checkIns}</strong></div>
+      <div class="card"><span class="muted">خروج اليوم</span><strong>${checkOuts}</strong></div>
+      <div class="card"><span class="muted">جلسات مفتوحة</span><strong>${open}</strong></div>
+    `;
+  } catch {
+    $("accessSummary").innerHTML = "";
+  }
+  const exportLink = $("exportCsvLink");
+  if (exportLink) {
+    exportLink.href = `/api/access-logs/export.csv${q}`;
+    exportLink.onclick = (e) => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) return;
+      e.preventDefault();
+      fetch(exportLink.href, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.blob())
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "access-logs.csv";
+          a.click();
+          URL.revokeObjectURL(url);
+        })
+        .catch((err) => alert(err.message || "export_failed"));
+    };
   }
   const data = await api(`/api/v2/access/live${q}`);
   renderTable($("accessTable"), data.access_logs || [], [

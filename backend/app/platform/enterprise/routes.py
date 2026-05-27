@@ -700,6 +700,15 @@ def register_enterprise_routes(flask_app):
             }
         )
 
+    @enterprise_bp.get("/platform/capabilities")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def platform_capabilities():
+        from backend.app.platform.capabilities import collect_platform_capabilities
+        from backend.server import DB_PATH
+
+        return jsonify(collect_platform_capabilities(Path(DB_PATH)))
+
     @enterprise_bp.get("/platform/database-status")
     @require_auth
     @require_roles("superadmin")

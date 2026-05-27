@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
 import '../../services/attendance_repository.dart';
+import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
 import '../../services/push_notification_service.dart';
@@ -20,6 +21,7 @@ class WorkerShell extends StatefulWidget {
     required this.auth,
     required this.attendance,
     required this.nfc,
+    required this.location,
     required this.offlineStore,
     required this.workerCache,
     required this.tasks,
@@ -30,6 +32,7 @@ class WorkerShell extends StatefulWidget {
   final AuthRepository auth;
   final AttendanceRepository attendance;
   final NfcService nfc;
+  final LocationService location;
   final OfflineAttendanceStore offlineStore;
   final WorkerCache workerCache;
   final TasksRepository tasks;
@@ -62,6 +65,7 @@ class _WorkerShellState extends State<WorkerShell> {
         auth: widget.auth,
         attendance: widget.attendance,
         nfc: widget.nfc,
+        location: widget.location,
         offlineStore: widget.offlineStore,
         workerCache: widget.workerCache,
         embedded: true,

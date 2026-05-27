@@ -6,6 +6,7 @@ import 'features/auth/login_screen.dart';
 import 'features/shell/worker_shell.dart';
 import 'services/attendance_repository.dart';
 import 'services/deep_link_service.dart';
+import 'services/location_service.dart';
 import 'services/nfc_service.dart';
 import 'services/offline_attendance_store.dart';
 import 'services/push_notification_service.dart';
@@ -24,6 +25,7 @@ class _WorkerAppState extends State<WorkerApp> {
   late final AuthRepository _auth;
   late final AttendanceRepository _attendance;
   late final NfcService _nfc;
+  late final LocationService _location;
   late final OfflineAttendanceStore _offlineStore;
   late final WorkerCache _workerCache;
   late final TasksRepository _tasks;
@@ -40,6 +42,7 @@ class _WorkerAppState extends State<WorkerApp> {
     _auth = AuthRepository(_api);
     _attendance = AttendanceRepository(_api);
     _nfc = NfcService();
+    _location = LocationService();
     _offlineStore = OfflineAttendanceStore();
     _workerCache = WorkerCache();
     _tasks = TasksRepository(_api);
@@ -124,6 +127,7 @@ class _WorkerAppState extends State<WorkerApp> {
                   auth: _auth,
                   attendance: _attendance,
                   nfc: _nfc,
+                  location: _location,
                   offlineStore: _offlineStore,
                   workerCache: _workerCache,
                   tasks: _tasks,
