@@ -520,6 +520,25 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="016",
+        name="onboarding_workflows",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS onboarding_workflows (
+                id TEXT PRIMARY KEY,
+                company_id INTEGER NOT NULL,
+                worker_id TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                state_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_onboarding_company_status
+                ON onboarding_workflows(company_id, status, updated_at DESC);
+        """,
+        down_sql="DROP TABLE IF EXISTS onboarding_workflows;",
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""

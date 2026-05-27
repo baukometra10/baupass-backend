@@ -31,7 +31,7 @@ CORE_TABLES = (
 )
 
 
-def _counts() -> dict:
+def table_counts() -> dict:
     from backend.app.database import init_postgres_pool, postgres_connection
 
     if not init_postgres_pool():
@@ -75,7 +75,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        counts = _counts()
+        counts = table_counts()
         payload = {
             "ok": True,
             "createdAt": datetime.now(timezone.utc).isoformat(),

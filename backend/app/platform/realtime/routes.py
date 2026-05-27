@@ -7,7 +7,7 @@ import json
 import time
 from typing import Generator
 
-from flask import Blueprint, Flask, Response, g, request, stream_with_context
+from flask import Blueprint, Flask, Response, g, jsonify, request, stream_with_context
 
 realtime_bp = Blueprint("platform_realtime", __name__)
 

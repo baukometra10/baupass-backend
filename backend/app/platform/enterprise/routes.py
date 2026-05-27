@@ -300,6 +300,16 @@ def register_enterprise_routes(flask_app):
 
         return jsonify(create_rule(get_db(), _company_id(), request.get_json(silent=True) or {})), 201
 
+    # ── Ops: access log archival ───────────────────────────────────────────────
+    @enterprise_bp.post("/ops/archive-access-logs")
+    @require_auth
+    @require_roles("superadmin")
+    def archive_access_logs_route():
+        from backend.server import get_db
+        from backend.app.tasks.access_logs_archive import archive_access_logs
+
+        return jsonify(archive_access_logs(get_db()))
+
     # ── Integrations ──────────────────────────────────────────────────────────
     @enterprise_bp.get("/integrations")
     @require_auth
@@ -370,14 +380,17 @@ def register_enterprise_routes(flask_app):
 
         def _sync_job(company_id: int, prov: str):
             from backend.app.platform.events.bus import publish_event
+            from .integration_sync import sync_provider
+
             db = get_db()
             row = db.execute(
                 "SELECT config_json FROM integration_connections WHERE company_id = ? AND provider = ? LIMIT 1",
                 (company_id, prov),
             ).fetchone()
             cfg = json.loads((row["config_json"] if row else "{}") or "{}")
-            probe = provider_connectivity(prov, cfg)
-            status = "connected" if probe.get("ok") else "degraded"
+            sync_result = sync_provider(prov, cfg)
+            probe = sync_result if sync_result.get("provider") else provider_connectivity(prov, cfg)
+            status = "connected" if sync_result.get("ok") else "degraded"
             db.execute(
                 """
                 UPDATE integration_connections
@@ -391,9 +404,9 @@ def register_enterprise_routes(flask_app):
             publish_event(
                 f"integration.{prov}.sync_completed",
                 company_id,
-                {"provider": prov, "probe": probe, "status": status},
+                {"provider": prov, "sync": sync_result, "status": status},
             )
-            return {"provider": prov, "probe": probe, "status": status}
+            return {"provider": prov, "sync": sync_result, "status": status}
 
         try:
             job = enqueue("default", _sync_job, company_id=cid, prov=provider)

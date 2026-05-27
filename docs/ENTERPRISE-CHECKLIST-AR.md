@@ -8,20 +8,20 @@
 
 | # | البند | الحالة | أين |
 |---|--------|--------|-----|
-| 1 | Modular Architecture | 🟡 | `backend/app/domains/`, `platform/`, `server.py` legacy |
-| 2 | Domains Auth/Workers/Access/Billing/Notifications | 🟡 | `domains/*` + `/api/v2/*` |
-| 3 | Clean Architecture | 🟡 | routes → service → repository في v2 |
-| 4 | PostgreSQL كامل | 🟡 | `BAUPASS_PG_RUNTIME=1` + `sqlite_to_postgres.py` |
+| 1 | Modular Architecture | 🟡 | domains/platform ✅؛ `server.py` ما زال يحمل أغلب المسارات |
+| 2 | Domains Auth/Workers/Access/Billing/Notifications | 🟡 | v2 + onboarding ✅؛ نقل كامل من server قيد التقدم |
+| 3 | Clean Architecture | 🟡 | v2/onboarding/auth service ✅ |
+| 4 | PostgreSQL كامل | 🟡 | runtime+bootstrap ✅؛ فعّل على Railway + `BAUPASS_PG_REQUIRED` لاحقاً |
 | 5 | Database Indexing | ✅ | migrations 002, 011 |
 | 6 | Connection Pooling | ✅ | `psycopg_pool` |
-| 7 | Database Replication | 🟡 | `DATABASE_READ_REPLICA_URL` (انظر config) |
-| 8 | Database Partitioning | 🟡 | `access_logs_archive` migration 015 |
+| 7 | Database Replication | 🟡 | replica على analytics + enterprise reads ✅ |
+| 8 | Database Partitioning | ✅ | `access_logs_archive` + job أرشفة |
 
 ## Real-Time
 
 | # | البند | الحالة | أين |
 |---|--------|--------|-----|
-| 9 | WebSocket | 🟡 | `platform/realtime/websocket.py` |
+| 9 | WebSocket | ✅ | SocketIO + اشتراك بالجلسة |
 | 10 | Live Event Streaming | ✅ | event bus + SSE |
 | 11 | Real-Time Notifications | ✅ | push + `/api/notifications` |
 | 12 | Real-Time Workforce Tracking | ✅ | `/api/v2/workforce/tracking` |
@@ -56,10 +56,10 @@
 | # | البند | الحالة |
 |---|--------|--------|
 | 28 | Enterprise Integrations Layer | ✅ `/api/integrations` |
-| 29 | Microsoft 365 | 🟡 connect + sync |
-| 30 | Google Workspace | 🟡 |
-| 31 | Payroll | 🟡 |
-| 32 | SAP / Oracle | 🟡 |
+| 29 | Microsoft 365 | 🟡 | sync Graph عند `access_token` |
+| 30 | Google Workspace | 🟡 | sync userinfo عند `access_token` |
+| 31 | Payroll | 🟡 | probe/stub |
+| 32 | SAP / Oracle | 🟡 | probe/stub |
 
 ## Observability
 
@@ -68,8 +68,8 @@
 | 33 | Prometheus | ✅ `/metrics` |
 | 34 | Grafana | ✅ `deploy/grafana/` |
 | 35 | Sentry | ✅ `SENTRY_DSN` |
-| 36 | Centralized Logging | 🟡 `BAUPASS_LOG_FORWARD_URL` |
-| 37 | Distributed Tracing | 🟡 OpenTelemetry |
+| 36 | Centralized Logging | 🟡 | forwarder ✅ — يحتاج endpoint خارجي |
+| 37 | Distributed Tracing | 🟡 | OTEL + X-Trace-Id ✅ — يحتاج agent |
 
 ## Cloud
 
@@ -82,7 +82,7 @@
 | 42 | Edge Routing | 🟡 headers |
 | 43 | Auto Scaling | 🟡 `hpa.yaml` |
 | 44 | High Availability | 🟡 replicas في k8s |
-| 45 | Disaster Recovery | 🟡 backups موجودة |
+| 45 | Disaster Recovery | ✅ | `/api/health/dr` + ops scripts |
 | 46 | Enterprise Backup | ✅ |
 
 ## Security
@@ -91,10 +91,10 @@
 |---|--------|--------|
 | 47 | Production Security Hardening | ✅ headers, rate limit |
 | 48 | Advanced RBAC | ✅ + `/api/roles` |
-| 49 | Zero-Trust | 🟡 `BAUPASS_ZERO_TRUST=1` |
+| 49 | Zero-Trust | 🟡 | token + device binding ✅ |
 | 50 | Security Audit Layer | ✅ audit_logs |
-| 51 | Advanced Session Security | 🟡 `session_devices` 015 |
-| 52 | Encryption Layer | 🟡 field_encryption |
+| 51 | Advanced Session Security | ✅ | `session_devices` مسجّل عند login |
+| 52 | Encryption Layer | 🟡 | `notes` مشفّر عند المفتاح |
 
 ## Mobile & UX
 
@@ -127,7 +127,7 @@
 | 67 | Smart Automation Engine | ✅ automation_rules |
 | 68 | Workflow Automation Rules | ✅ |
 | 69 | Smart Approval Chains | ✅ invoices approvals |
-| 70 | Auto Employee Onboarding | 🟡 POST `/api/workers` |
+| 70 | Auto Employee Onboarding | ✅ | `/api/v2/onboarding/*` |
 | 71 | Smart Compliance | ✅ documents expiry |
 | 72 | Intelligent Document Processing | 🟡 OCR endpoint |
 | 73 | OCR + AI | 🟡 |
@@ -215,9 +215,9 @@
 
 ## إحصاء تقريبي
 
-- ✅ **~55** بنداً جاهزاً (موجود أو مكتمل)
-- 🟡 **~45** بنداً جزئياً (API/هيكل يحتاج إعداد أو توسيع)
-- 🔴 **~17** بنداً يحتاج بنية خارجية (native apps, multi-region فعلي، إلخ)
+- ✅ **~62** بنداً جاهزاً أو مكتملاً تشغيلياً
+- 🟡 **~38** بنداً جزئياً (إعداد سحابة أو نقل server.py)
+- 🔴 **~17** بنداً يحتاج بنية خارجية (native, multi-region فعلي, ERP كامل)
 
 ## بعد التحديث
 

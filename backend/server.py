@@ -4176,6 +4176,16 @@ def require_auth(handler):
         if is_read_only_support_session(session) and not is_read_only_support_request_allowed():
             return jsonify({"error": "support_session_read_only"}), 403
 
+        try:
+            from backend.app.platform.security.session_devices import session_device_allowed, touch_session_device
+
+            allowed, device_reason = session_device_allowed(db, token=token, req=request)
+            if not allowed:
+                return jsonify({"error": device_reason or "device_denied"}), 403
+            touch_session_device(db, token=token)
+        except Exception:
+            pass
+
         db.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (expiry_iso(), token))
         db.commit()
 
@@ -8174,6 +8184,13 @@ def login():
         db.commit()
 
     run_db_write_with_retry(_persist_login_session)
+
+    try:
+        from backend.app.platform.security.session_devices import register_session_device
+
+        register_session_device(db, token=token, user_id=user["id"], req=request)
+    except Exception:
+        pass
 
     login_message = f"Benutzer {user['username']} angemeldet"
     if support_read_only:
@@ -13029,7 +13046,8 @@ def foreman_send_alert():
 @require_admin_session
 def analytics_worker_trends():
     """Arbeitszeit-Trends: Durchschnittliche Schichtten pro Woche."""
-    db = get_db()
+    from backend.app.db.connection import get_read_connection
+
     user = g.admin_user
     company_id = user["company_id"]
     
@@ -13037,7 +13055,8 @@ def analytics_worker_trends():
     week_ago = now - timedelta(days=7)
     week_ago_str = week_ago.strftime("%Y-%m-%d")
 
-    trends = db.execute(
+    with get_read_connection() as db:
+        trends = db.execute(
         """
         SELECT
             DATE(al.timestamp) as work_date,
@@ -13055,16 +13074,16 @@ def analytics_worker_trends():
         ORDER BY work_date DESC
         LIMIT 7
         """,
-        (week_ago_str, company_id)
-    ).fetchall()
+            (week_ago_str, company_id),
+        ).fetchall()
 
-    result = []
-    for row in trends:
-        result.append({
-            "date": row["work_date"],
-            "activeWorkers": row["active_workers"],
-            "checkinRate": round(row["checkin_rate"], 1) if row["checkin_rate"] else 0,
-        })
+        result = []
+        for row in trends:
+            result.append({
+                "date": row["work_date"],
+                "activeWorkers": row["active_workers"],
+                "checkinRate": round(row["checkin_rate"], 1) if row["checkin_rate"] else 0,
+            })
 
     return jsonify({"trends": result})
 
@@ -13073,16 +13092,18 @@ def analytics_worker_trends():
 @require_admin_session
 def analytics_document_health():
     """Doku-Health: Score pro Dokumenttyp."""
-    db = get_db()
+    from backend.app.db.connection import get_read_connection
+
     user = g.admin_user
     company_id = user["company_id"]
 
-    total_workers = db.execute(
-        "SELECT COUNT(*) as cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
-        (company_id,)
-    ).fetchone()["cnt"]
+    with get_read_connection() as db:
+        total_workers = db.execute(
+            "SELECT COUNT(*) as cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
+            (company_id,),
+        ).fetchone()["cnt"]
 
-    doc_types = db.execute(
+        doc_types = db.execute(
         """
         SELECT
             doc_type,
@@ -13093,18 +13114,18 @@ def analytics_document_health():
         GROUP BY doc_type
         ORDER BY doc_type
         """,
-        (company_id,)
-    ).fetchall()
+            (company_id,),
+        ).fetchall()
 
-    health_data = []
-    for row in doc_types:
-        coverage = round((row["workers_with_doc"] / max(1, total_workers)) * 100, 0)
-        health_data.append({
-            "docType": row["doc_type"],
-            "coverage": int(coverage),
-            "workersWithDoc": row["workers_with_doc"],
-            "totalDocs": row["total_docs"],
-        })
+        health_data = []
+        for row in doc_types:
+            coverage = round((row["workers_with_doc"] / max(1, total_workers)) * 100, 0)
+            health_data.append({
+                "docType": row["doc_type"],
+                "coverage": int(coverage),
+                "workersWithDoc": row["workers_with_doc"],
+                "totalDocs": row["total_docs"],
+            })
 
     return jsonify({"docHealth": health_data, "totalWorkers": total_workers})
 
@@ -13113,13 +13134,15 @@ def analytics_document_health():
 @require_admin_session
 def analytics_punctuality_report():
     """Pünktlichkeits-Report: Verspätungen im Team."""
-    db = get_db()
+    from backend.app.db.connection import get_read_connection
+
     user = g.admin_user
     company_id = user["company_id"]
     today_prefix = datetime.now().strftime("%Y-%m-%d")
 
-    # Late check-ins (nach 08:00)
-    late_workers = db.execute(
+    with get_read_connection() as db:
+        # Late check-ins (nach 08:00)
+        late_workers = db.execute(
         """
         SELECT
             w.id,
@@ -13139,16 +13162,16 @@ def analytics_punctuality_report():
           )
         ORDER BY al.timestamp
         """,
-        (company_id, f"{today_prefix}%", f"{today_prefix}%")
-    ).fetchall()
+            (company_id, f"{today_prefix}%", f"{today_prefix}%"),
+        ).fetchall()
 
-    late_count = len(late_workers)
-    total_count = db.execute(
-        "SELECT COUNT(*) as cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
-        (company_id,)
-    ).fetchone()["cnt"]
+        late_count = len(late_workers)
+        total_count = db.execute(
+            "SELECT COUNT(*) as cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
+            (company_id,),
+        ).fetchone()["cnt"]
 
-    punctuality_rate = round(((total_count - late_count) / max(1, total_count)) * 100, 1)
+        punctuality_rate = round(((total_count - late_count) / max(1, total_count)) * 100, 1)
 
     return jsonify({
         "punctualityRate": punctuality_rate,
@@ -22965,7 +22988,9 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
             inbox_id,
             g.current_user["id"],
             now_iso(),
-            notes,
+            __import__(
+                "backend.app.platform.security.document_fields", fromlist=["maybe_encrypt_field"]
+            ).maybe_encrypt_field(notes),
         ),
     )
 

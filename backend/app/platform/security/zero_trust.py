@@ -25,4 +25,20 @@ def register_zero_trust_middleware(flask_app: Flask) -> None:
         fp = request.headers.get("X-Device-Fingerprint", "")
         if fp:
             g.device_fingerprint = hashlib.sha256(fp.encode()).hexdigest()[:32]
+        token = ""
+        auth = (request.headers.get("Authorization") or "").strip()
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+        if not token:
+            token = (request.cookies.get("baupass_session") or "").strip()
+        if token:
+            try:
+                from backend.server import get_db
+                from backend.app.platform.security.session_devices import session_device_allowed
+
+                allowed, reason = session_device_allowed(get_db(), token=token, req=request)
+                if not allowed:
+                    return jsonify({"error": reason or "zero_trust_device_denied"}), 403
+            except Exception:
+                pass
         return None

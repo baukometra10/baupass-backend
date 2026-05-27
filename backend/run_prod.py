@@ -145,6 +145,37 @@ if __name__ == "__main__":
         except Exception as backup_exc:
             print(f"[baupass] WARNING: Startup DB backup failed: {backup_exc}", flush=True)
 
+    archive_on_boot = str(os.getenv("BAUPASS_ARCHIVE_ACCESS_LOGS_ON_BOOT", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if archive_on_boot:
+        try:
+            with app.app_context():
+                from backend.app.tasks.access_logs_archive import archive_access_logs
+
+                archive_result = archive_access_logs(get_db())
+                print(f"[baupass] Access log archive: {archive_result}", flush=True)
+        except Exception as archive_exc:
+            print(f"[baupass] WARNING: access log archive skipped: {archive_exc}", flush=True)
+
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+
+        if postgres_runtime_enabled() and str(os.getenv("BAUPASS_PG_DR_SNAPSHOT_ON_BOOT", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
+            from backend.ops.postgres_dr_snapshot import table_counts
+
+            snap = {"ok": True, "tableCounts": table_counts()}
+            print(f"[baupass] PostgreSQL DR snapshot counts: {snap.get('tableCounts')}", flush=True)
+    except Exception as pg_dr_exc:
+        print(f"[baupass] WARNING: PG DR snapshot skipped: {pg_dr_exc}", flush=True)
+
     try:
         from backend.app.core.cloud_profile import get_cloud_profile
 

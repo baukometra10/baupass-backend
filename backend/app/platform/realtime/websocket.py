@@ -42,9 +42,54 @@ def init_socketio(flask_app) -> Any:
         def on_connect():
             emit("connected", {"ok": True})
 
+        def _session_company_id(data) -> tuple[str | None, str | None]:
+            """Return (company_id, error) after optional session validation."""
+            from flask import request as flask_request
+
+            require_session = os.getenv("BAUPASS_WEBSOCKET_REQUIRE_SESSION", "1").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            token = str((data or {}).get("session_token", "")).strip()
+            if not token:
+                token = (flask_request.cookies.get("baupass_session") or "").strip()
+            if not token:
+                auth = (flask_request.headers.get("Authorization") or "").strip()
+                if auth.lower().startswith("bearer "):
+                    token = auth[7:].strip()
+            if require_session and not token:
+                return None, "session_required"
+            if not token:
+                return str((data or {}).get("company_id", "")).strip() or None, None
+            try:
+                from backend.server import get_db, now_iso
+
+                row = get_db().execute(
+                    """
+                    SELECT u.company_id
+                    FROM sessions s
+                    JOIN users u ON u.id = s.user_id
+                    WHERE s.token = ? AND s.expires_at >= ?
+                    LIMIT 1
+                    """,
+                    (token, now_iso()),
+                ).fetchone()
+                if not row:
+                    return None, "invalid_session"
+                return str(row["company_id"] or ""), None
+            except Exception:
+                return None, "session_check_failed"
+
         @socketio.on("subscribe")
         def on_subscribe(data):
-            company_id = str((data or {}).get("company_id", "")).strip()
+            company_id, session_error = _session_company_id(data)
+            if session_error:
+                emit("subscribed", {"ok": False, "error": session_error})
+                return
+            if not company_id:
+                company_id = str((data or {}).get("company_id", "")).strip()
             require_key = os.getenv("BAUPASS_WEBSOCKET_REQUIRE_SUBSCRIBE_KEY", "0").strip().lower() in {
                 "1",
                 "true",

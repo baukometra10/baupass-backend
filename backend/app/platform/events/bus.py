@@ -141,9 +141,17 @@ def _websocket_broadcast(body: dict[str, Any]) -> None:
 
 def list_recent_events(company_id: int | None, limit: int = 50, since_id: str | None = None) -> list[dict]:
     try:
-        from backend.server import get_db
+        from backend.app.db.connection import get_read_connection
 
-        db = get_db()
+        with get_read_connection() as db:
+            return _list_recent_events_with_db(db, company_id, limit, since_id)
+    except Exception as exc:
+        logger.debug("list_recent_events failed: %s", exc)
+        return []
+
+
+def _list_recent_events_with_db(db, company_id: int | None, limit: int, since_id: str | None) -> list[dict]:
+    try:
         params: list[Any] = []
         where = "1=1"
         if company_id is not None:
@@ -179,7 +187,7 @@ def list_recent_events(company_id: int | None, limit: int = 50, since_id: str | 
             )
         return list(reversed(out))
     except Exception as exc:
-        logger.debug("list_recent_events failed: %s", exc)
+        logger.debug("_list_recent_events_with_db failed: %s", exc)
         return []
 
 
