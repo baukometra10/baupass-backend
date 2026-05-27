@@ -62,6 +62,17 @@ if __name__ == "__main__":
         "on",
     }
     init_db()
+    if str(os.getenv("BAUPASS_SEED_DEMO_ENTERPRISE", "0")).strip().lower() in {"1", "true", "yes", "on"}:
+        try:
+            from backend.ops.seed_demo_enterprise import seed_demo_enterprise
+
+            with app.app_context():
+                result = seed_demo_enterprise()
+            print(f"[baupass] Demo enterprise seed: {result}", flush=True)
+        except Exception as exc:
+            print(f"[baupass] WARNING: demo enterprise seed skipped: {exc}", flush=True)
+    if str(os.getenv("BAUPASS_ENV", "")).strip().lower() != "testing" and not (os.getenv("SENTRY_DSN") or "").strip():
+        print("[baupass] TIP: Set SENTRY_DSN for production error tracking", flush=True)
     try:
         from backend.app.db.runtime import postgres_runtime_enabled
         from backend.app.database import postgres_preflight

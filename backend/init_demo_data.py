@@ -19,7 +19,7 @@ company_name = 'Demo GmbH'
 company_contact = 'info@demo.de'
 company_billing_email = 'rechnung@demo.de'
 company_access_host = ''
-company_plan = 'starter'
+company_plan = 'enterprise'
 company_status = 'aktiv'
 
 # Zeitstempel

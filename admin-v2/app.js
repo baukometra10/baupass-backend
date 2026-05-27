@@ -1,6 +1,11 @@
+import { applyI18n, getLang, setLang, t } from "./i18n.js";
+import { mountGeofenceMap } from "./geofence-map.js";
+import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
+
 const TOKEN_KEY = "baupass-admin-v2-token";
 const USER_KEY = "baupass-admin-v2-user";
 const COMPANY_KEY = "baupass-admin-v2-company";
+let pendingIntegrationProvider = null;
 
 function getUser() {
   try {
@@ -183,14 +188,21 @@ async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
   try {
-    const [caps, ready, health, ent, aiSt, wallet] = await Promise.all([
+    const [caps, ready, health, ent, aiSt, wallet, setup] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
       api("/api/platform/entitlements").catch(() => null),
       api("/api/ai/status").catch(() => ({ configured: false })),
       api("/api/admin/wallet/runtime-status").catch(() => null),
+      fetch("/api/platform/setup-status").then((r) => r.json()).catch(() => null),
     ]);
+    const setupLines = (setup?.readyScore?.missing || [])
+      .map((m) => `<li class="miss">○ ${m}</li>`)
+      .join("");
+    const setupOk = setup
+      ? `<p>Railway setup: <strong>${setup.readyScore?.percent ?? 0}%</strong></p><ul class="setup-checklist">${setupLines || '<li class="ok">✓ All core keys set</li>'}</ul>`
+      : "";
     const steps = (caps.nextSteps || [])
       .map((s) => `<li>${s}</li>`)
       .join("");
@@ -199,6 +211,7 @@ async function loadPlatform() {
       .map(([k, v]) => `<tr><td>${k}</td><td>${statusBadge(!!v)}</td></tr>`)
       .join("");
     panel.innerHTML = `
+      <div class="panel-block">${setupOk}</div>
       <div class="panel-block">
         <h3>نضج عالمي <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
         <p class="muted">${caps.maturityLevel || ""}</p>
@@ -366,31 +379,33 @@ async function loadTools() {
     ];
     panel.innerHTML = `
       <div class="panel-block">
-        <h3>Geofence — مناطق الحضور</h3>
+        <h3>${t("tools.geofence")}</h3>
+        <p class="muted small">${t("tools.mapHint")}</p>
+        <div id="geofenceMap"></div>
         <form id="geofenceForm" class="tool-form">
-          <input name="site_name" placeholder="اسم الموقع" required />
+          <input name="site_name" placeholder="Site / Baustelle" required />
           <input name="latitude" type="number" step="any" placeholder="Latitude" required />
           <input name="longitude" type="number" step="any" placeholder="Longitude" required />
-          <input name="radius_meters" type="number" value="50" placeholder="نصف القطر (م)" />
-          <button type="submit">إضافة منطقة</button>
+          <input name="radius_meters" type="number" value="50" placeholder="Radius (m)" />
+          <button type="submit">${t("tools.addZone")}</button>
         </form>
         <div class="table-wrap" id="geofenceTable"></div>
       </div>
       <div class="panel-block">
-        <h3>أتمتة — قواعد سير العمل</h3>
+        <h3>${t("tools.automation")}</h3>
         <form id="automationForm" class="tool-form">
-          <input name="name" placeholder="اسم القاعدة" required />
+          <input name="name" placeholder="Rule name" required />
           <select name="trigger_event">
-            <option value="worker.checkin">عند الدخول</option>
-            <option value="worker.checkout">عند الخروج</option>
-            <option value="*">أي حدث</option>
+            <option value="worker.checkin">Check-in</option>
+            <option value="worker.checkout">Check-out</option>
+            <option value="*">Any event</option>
           </select>
-          <button type="submit">إنشاء قاعدة</button>
+          <button type="submit">Create rule</button>
         </form>
         <div class="table-wrap" id="automationTable"></div>
       </div>
       <div class="panel-block">
-        <h3>تكاملات مؤسسية</h3>
+        <h3>${t("tools.integrations")}</h3>
         <div class="layer-grid" id="integrationCards"></div>
       </div>`;
     renderTable($("geofenceTable"), gfRows, [
@@ -411,11 +426,15 @@ async function loadTools() {
         const st = conn ? conn.status : "غير مربوط";
         return `<div class="layer-pill" data-provider="${p.id}">
           <strong>${p.label}</strong><br><span class="muted small">${st}</span>
-          <button type="button" class="btn-link" data-connect="${p.id}">ربط</button>
-          <button type="button" class="btn-link" data-sync="${p.id}">مزامنة</button>
+          <button type="button" class="btn-link" data-connect="${p.id}">${t("tools.connect")}</button>
+          <button type="button" class="btn-link" data-sync="${p.id}">${t("tools.sync")}</button>
         </div>`;
       })
       .join("");
+    const gfForm = $("geofenceForm");
+    const latIn = gfForm.querySelector('[name="latitude"]');
+    const lngIn = gfForm.querySelector('[name="longitude"]');
+    mountGeofenceMap($("geofenceMap"), latIn, lngIn, gfRows);
     $("geofenceForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.target);
@@ -448,23 +467,13 @@ async function loadTools() {
       await loadTools();
     });
     panel.querySelectorAll("[data-connect]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const provider = btn.getAttribute("data-connect");
-        const raw = prompt(
-          `إعدادات ${provider} (JSON):\nمثال: {"endpoint":"https://...","apiKey":"..."}`,
-          '{"endpoint":"","apiKey":""}'
-        );
-        if (!raw) return;
-        try {
-          await api(`/api/integrations/${provider}/connect${q}`, {
-            method: "POST",
-            body: raw,
-          });
-          alert("تم الربط.");
-          await loadTools();
-        } catch (e) {
-          alert(e.message);
-        }
+      btn.addEventListener("click", () => {
+        pendingIntegrationProvider = btn.getAttribute("data-connect");
+        const spec = INTEGRATION_WIZARD[pendingIntegrationProvider];
+        if (!spec) return;
+        $("integrationModalTitle").textContent = spec.title;
+        renderWizardForm(pendingIntegrationProvider, $("integrationWizardForm"));
+        $("integrationModal").classList.remove("hidden");
       });
     });
     panel.querySelectorAll("[data-sync]").forEach((btn) => {
@@ -785,5 +794,37 @@ document.querySelectorAll(".tab").forEach((btn) => {
     refreshActiveTab().catch((e) => alert(e.message));
   });
 });
+
+$("integrationWizardForm")?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!pendingIntegrationProvider) return;
+  const q = companyQuery();
+  try {
+    const fd = new FormData(ev.target);
+    const body = buildConnectPayload(pendingIntegrationProvider, fd);
+    await api(`/api/integrations/${pendingIntegrationProvider}/connect${q}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    $("integrationModal").classList.add("hidden");
+    pendingIntegrationProvider = null;
+    alert("OK");
+    if (document.querySelector(".tab.active")?.dataset?.tab === "tools") await loadTools();
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+$("integrationModalClose")?.addEventListener("click", () => {
+  $("integrationModal").classList.add("hidden");
+  pendingIntegrationProvider = null;
+});
+
+const langSel = $("langSelect");
+if (langSel) {
+  langSel.value = getLang();
+  langSel.addEventListener("change", () => setLang(langSel.value));
+}
+applyI18n();
 
 bootSession();

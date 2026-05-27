@@ -709,6 +709,12 @@ def register_enterprise_routes(flask_app):
 
         return jsonify(collect_platform_capabilities(Path(DB_PATH)))
 
+    @enterprise_bp.get("/platform/setup-status")
+    def platform_setup_status():
+        from backend.app.platform.setup_status import collect_setup_status
+
+        return jsonify(collect_setup_status())
+
     @enterprise_bp.get("/platform/enterprise-catalog/preview")
     def platform_enterprise_catalog_preview():
         """Public read-only catalog (no auth) — demo plan professional for visibility."""

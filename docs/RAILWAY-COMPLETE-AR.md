@@ -54,16 +54,31 @@ BAUPASS_AI_MODEL=gpt-4o-mini
 
 ```powershell
 $env:PUBLIC_BASE_URL = "https://baupass-production.up.railway.app"
-powershell -ExecutionPolicy Bypass -File .\deploy\railway-health-check.ps1
+powershell -ExecutionPolicy Bypass -File .\deploy\railway-complete-setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\field-test.ps1
 ```
 
-يجب أن يمر:
+أو API مباشرة: `GET /api/platform/setup-status` — يعرض ما ينقص من المتغيرات.
 
-- `/api/health/ready` → ready
-- `/enterprise-hub.html` → 200
-- `/api/platform/enterprise-catalog/preview` → layerCount 16
+## 7) Demo Enterprise (اختياري)
 
-## 7) واجهات Admin
+```env
+BAUPASS_SEED_DEMO_ENTERPRISE=1
+```
+
+يفعّل خطة `enterprise` لشركات Demo عند الإقلاع.
+
+## 8) Sentry + Stripe (اختياري)
+
+```env
+SENTRY_DSN=https://...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+راجع: `docs/stripe-live-setup.md`
+
+## 9) واجهات Admin
 
 | الرابط | المحتوى |
 |--------|---------|
@@ -71,6 +86,12 @@ powershell -ExecutionPolicy Bypass -File .\deploy\railway-health-check.ps1
 | `/enterprise-hub.html` | 16 طبقة + خطط |
 | `/ops-command-center.html` | مركز العمليات |
 
-## 8) اختبار ميداني
+## 10) اختبار ميداني
 
-`docs/field-test-checklist-AR.md`
+- `docs/field-test-checklist-AR.md`
+- `docs/onboarding-1page-DE.md` / `docs/onboarding-1page-AR.md`
+- `scripts/field-test.ps1`
+
+## 11) PostgreSQL (لاحقاً)
+
+`docs/postgres-cutover-runbook.md`

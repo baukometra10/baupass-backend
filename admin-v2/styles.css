@@ -393,3 +393,35 @@ h2 {
   max-height: 200px;
   overflow: auto;
 }
+
+.lang-row {
+  margin-bottom: 1rem;
+}
+
+#geofenceMap {
+  height: 280px;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+
+.wizard-form label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.wizard-form span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
+.setup-checklist {
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.setup-checklist .ok { color: #4ade80; }
+.setup-checklist .miss { color: #f87171; }

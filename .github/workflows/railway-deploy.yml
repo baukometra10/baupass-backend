@@ -56,6 +56,7 @@ jobs:
           curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/enterprise-hub.html" | grep -q 200
           curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/join.html" | grep -q 200
           curl -fsS "$BASE_URL/api/platform/enterprise-catalog/preview" | grep -q layerCount
+          curl -fsS "$BASE_URL/api/platform/setup-status" | grep -q readyScore
           curl -fsS "$BASE_URL/worker-join-config.json" | grep -q apkUrl
           echo "Smoke tests passed (health + admin-v2 + enterprise-hub + join)."
 

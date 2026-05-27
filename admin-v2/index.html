@@ -5,29 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f4c5c" />
   <title>BauPass Admin v2</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260528b" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
   <div id="app">
     <section id="loginView" class="panel login-panel">
-      <h1>BauPass Admin</h1>
-      <p class="muted">لوحة التشغيل — حضور، تطبيق الموظف، والمنصة في مكان واحد</p>
+      <label class="lang-row">
+        <span data-i18n="lang">Sprache</span>
+        <select id="langSelect">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+        </select>
+      </label>
+      <h1 data-i18n="app.title">BauPass Admin</h1>
+      <p class="muted" data-i18n="app.subtitle">لوحة التشغيل</p>
       <label>
-        <span>اسم المستخدم</span>
+        <span data-i18n="login.user">اسم المستخدم</span>
         <input id="username" type="text" autocomplete="username" />
       </label>
       <label>
-        <span>كلمة المرور</span>
+        <span data-i18n="login.pass">كلمة المرور</span>
         <input id="password" type="password" autocomplete="current-password" />
       </label>
       <label>
-        <span>نوع الحساب</span>
+        <span data-i18n="login.scope">نوع الحساب</span>
         <select id="loginScope">
           <option value="company-admin">مدير شركة</option>
           <option value="superadmin">Superadmin</option>
         </select>
       </label>
-      <button id="loginBtn" type="button">تسجيل الدخول</button>
+      <button id="loginBtn" type="button" data-i18n="login.btn">تسجيل الدخول</button>
       <p id="loginError" class="error hidden"></p>
       <p class="muted small">
         <a href="/enterprise-hub.html">مركز المؤسسة (16 طبقة + AI)</a>
@@ -54,14 +64,14 @@
       <div id="platformBanner" class="platform-banner hidden"></div>
 
       <nav class="tabs">
-        <button type="button" data-tab="overview" class="tab active">نظرة عامة</button>
-        <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700">🏛 المؤسسة</button>
-        <button type="button" data-tab="workers" class="tab">الموظفون</button>
-        <button type="button" data-tab="access" class="tab">الحضور</button>
-        <button type="button" data-tab="mobile" class="tab">تطبيق الموظف</button>
-        <button type="button" data-tab="operations" class="tab">العمليات</button>
-        <button type="button" data-tab="tools" class="tab">Geofence · أتمتة · تكامل</button>
-        <button type="button" data-tab="platform" class="tab">المنصة</button>
+        <button type="button" data-tab="overview" class="tab active" data-i18n="tab.overview">نظرة عامة</button>
+        <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700" data-i18n="tab.enterprise">🏛 المؤسسة</button>
+        <button type="button" data-tab="workers" class="tab" data-i18n="tab.workers">الموظفون</button>
+        <button type="button" data-tab="access" class="tab" data-i18n="tab.access">الحضور</button>
+        <button type="button" data-tab="mobile" class="tab" data-i18n="tab.mobile">تطبيق الموظف</button>
+        <button type="button" data-tab="operations" class="tab" data-i18n="tab.operations">العمليات</button>
+        <button type="button" data-tab="tools" class="tab" data-i18n="tab.tools">Geofence · أتمتة · تكامل</button>
+        <button type="button" data-tab="platform" class="tab" data-i18n="tab.platform">المنصة</button>
       </nav>
 
       <main>
@@ -111,6 +121,17 @@
     </section>
   </div>
 
+  <div id="integrationModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2 id="integrationModalTitle">Integration</h2>
+      <form id="integrationWizardForm" class="wizard-form"></form>
+      <div class="modal-actions">
+        <button type="submit" form="integrationWizardForm">Connect</button>
+        <button type="button" id="integrationModalClose" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <h2>تفعيل تطبيق الموظف</h2>
@@ -128,6 +149,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260528a" type="module"></script>
+  <script src="app.js?v=20260528b" type="module"></script>
 </body>
 </html>

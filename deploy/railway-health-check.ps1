@@ -70,4 +70,9 @@ if ($preview -and $preview.layerCount -ge 16) {
     Write-Host "  Enterprise catalog: $($preview.layerCount) layers" -ForegroundColor Green
 }
 
+$setup = Test-Endpoint "/api/platform/setup-status"
+if ($setup) {
+    Write-Host "  Setup score: $($setup.readyScore.percent)% (missing: $($setup.readyScore.missing.Count))" -ForegroundColor $(if ($setup.readyScore.percent -ge 80) { "Green" } else { "Yellow" })
+}
+
 Write-Host "Done." -ForegroundColor Cyan
