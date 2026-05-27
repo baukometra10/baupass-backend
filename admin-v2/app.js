@@ -102,6 +102,191 @@ async function loadCompanies() {
   }
 }
 
+function statusBadge(ok) {
+  return ok
+    ? '<span class="badge badge-ok">جاهز</span>'
+    : '<span class="badge badge-warn">يحتاج إعداد</span>';
+}
+
+function switchToTab(tabId) {
+  document.querySelectorAll(".tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.id !== `tab-${tabId}`);
+  });
+}
+
+function renderQuickLinks() {
+  const items = [
+    { tab: "workers", title: "الموظفون + NFC", desc: "تعيين بطاقة وQR تفعيل التطبيق" },
+    { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
+    { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
+    { tab: "operations", title: "عمليات الموقع", desc: "12 طبقة Physical Operations OS" },
+    { tab: "platform", title: "جاهزية المنصة", desc: "Redis، DB، نضج عالمي" },
+    { tab: null, title: "لوحة كاملة (Legacy)", desc: "فواتير، أجهزة، إعدادات", href: "/index.html" },
+  ];
+  $("quickLinks").innerHTML = items
+    .map((item) => {
+      if (item.href) {
+        return `<a class="feature-card" href="${item.href}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></a>`;
+      }
+      return `<button type="button" class="feature-card" data-goto-tab="${item.tab}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
+    })
+    .join("");
+  $("quickLinks").querySelectorAll("[data-goto-tab]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      switchToTab(btn.getAttribute("data-goto-tab"));
+      await refreshActiveTab();
+    });
+  });
+}
+
+async function loadPlatformBanner() {
+  const el = $("platformBanner");
+  try {
+    const [caps, ready] = await Promise.all([
+      api("/api/platform/capabilities").catch(() => null),
+      fetch("/api/health/ready").then((r) => r.json()).catch(() => null),
+    ]);
+    if (!caps && !ready) {
+      el.classList.add("hidden");
+      return;
+    }
+    const score = caps?.maturityScore ?? "—";
+    const level = caps?.maturityLevel ?? "";
+    const dbOk = ready?.checks?.database?.ok;
+    const runtime = caps?.dataLayer?.runtime || ready?.checks?.database?.backend || "—";
+    el.innerHTML = `
+      <div>
+        <span class="muted small">نضج المنصة</span>
+        <strong>${score}/100</strong>
+        <span class="muted small">${level}</span>
+      </div>
+      <div>قاعدة البيانات: <strong>${runtime}</strong> ${statusBadge(dbOk)}</div>
+      <button type="button" class="btn-link" data-goto-tab="platform">تفاصيل المنصة ←</button>
+    `;
+    el.classList.remove("hidden");
+    el.querySelector("[data-goto-tab]")?.addEventListener("click", async () => {
+      switchToTab("platform");
+      await loadPlatform();
+    });
+  } catch {
+    el.classList.add("hidden");
+  }
+}
+
+async function loadPlatform() {
+  const panel = $("platformPanel");
+  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  try {
+    const [caps, ready, health] = await Promise.all([
+      api("/api/platform/capabilities"),
+      fetch("/api/health/ready").then((r) => r.json()),
+      fetch("/api/health").then((r) => r.json()).catch(() => ({})),
+    ]);
+    const steps = (caps.nextSteps || [])
+      .map((s) => `<li>${s}</li>`)
+      .join("");
+    const attendance = caps.attendance || {};
+    const attRows = Object.entries(attendance)
+      .map(([k, v]) => `<tr><td>${k}</td><td>${statusBadge(!!v)}</td></tr>`)
+      .join("");
+    panel.innerHTML = `
+      <div class="panel-block">
+        <h3>نضج عالمي <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
+        <p class="muted">${caps.maturityLevel || ""}</p>
+        ${steps ? `<ul class="muted small">${steps}</ul>` : ""}
+      </div>
+      <div class="panel-block">
+        <h3>البنية التحتية</h3>
+        <p>Runtime: <strong>${caps.dataLayer?.runtime || "—"}</strong> · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
+        <p class="muted small">Path: ${caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—"}</p>
+        <p>Readiness: ${statusBadge(ready.ready)} · Redis status: ${health.redis?.status || ready.checks?.redis?.status || "—"}</p>
+      </div>
+      <div class="panel-block">
+        <h3>قدرات الحضور (مفعّلة في الكود)</h3>
+        <div class="table-wrap"><table><tbody>${attRows}</tbody></table></div>
+      </div>
+      <div class="link-row">
+        <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
+        <a href="/index.html">لوحة Legacy الكاملة</a>
+      </div>
+    `;
+  } catch (e) {
+    panel.innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
+async function loadMobile() {
+  const panel = $("mobilePanel");
+  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  try {
+    const data = await api("/api/v2/mobile/distribution");
+    const install = data.install || {};
+    const modes = (data.hybridModes || [])
+      .map(
+        (m) =>
+          `<div class="layer-pill"><strong>${m.label || m.id}</strong><br/><span class="muted small">${m.api || ""}</span></div>`
+      )
+      .join("");
+    panel.innerHTML = `
+      <div class="panel-block">
+        <h3>تثبيت الموظف (ظاهر في join.html)</h3>
+        <p><a href="${install.joinPage || "/join.html"}" target="_blank" rel="noopener">${install.joinPage || "/join.html"}</a></p>
+        <p>APK: ${install.apkUrl ? `<a href="${install.apkUrl}" target="_blank" rel="noopener">${install.apkUrl}</a>` : statusBadge(false) + " عيّن BAUPASS_WORKER_APK_URL"}</p>
+        <p>TestFlight: ${install.testFlightUrl ? `<a href="${install.testFlightUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
+        <p>PWA: <a href="${install.pwaEntry || "#"}" target="_blank" rel="noopener">فتح PWA</a></p>
+      </div>
+      <div class="panel-block">
+        <h3>أوضاع الحضور الثلاثة</h3>
+        <div class="layer-grid">${modes}</div>
+      </div>
+      <p class="muted small">من تبويب الموظفين: زر «QR تفعيل» ينشئ رابط join لكل موظف.</p>
+    `;
+  } catch (e) {
+    panel.innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
+async function loadOperations() {
+  const panel = $("operationsPanel");
+  const q = companyQuery();
+  if (getUser().role === "superadmin" && !q) {
+    panel.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    return;
+  }
+  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  try {
+    const cid = q.replace("?company_id=", "");
+    const data = await api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
+    const layers = data.layers || {};
+    const pills = Object.entries(layers)
+      .map(([key, val]) => {
+        const label = key.replace(/_/g, " ");
+        const summary =
+          typeof val === "object" && val !== null
+            ? JSON.stringify(val).slice(0, 80) + "…"
+            : String(val);
+        return `<div class="layer-pill"><strong>${label}</strong><br/><span class="muted small">${summary}</span></div>`;
+      })
+      .join("");
+    panel.innerHTML = `
+      <div class="panel-block">
+        <h3>Physical Operations OS <span class="badge badge-ok">12 طبقة</span></h3>
+        <p class="muted small">Company ${data.companyId || cid}</p>
+        <div class="layer-grid">${pills}</div>
+      </div>
+      <div class="link-row">
+        <a href="/index.html#access">إدارة Zutritt (Legacy)</a>
+        <a href="/index.html#devices">الأجهزة (Legacy)</a>
+      </div>
+    `;
+  } catch (e) {
+    panel.innerHTML = `<p class="error">${e.message || "تعذّر تحميل العمليات — قد تحتاج جداول إضافية في DB"}</p>`;
+  }
+}
+
 function renderTable(container, rows, columns) {
   if (!rows.length) {
     container.innerHTML = '<p class="muted" style="padding:1rem">لا توجد بيانات.</p>';
@@ -118,6 +303,7 @@ function renderTable(container, rows, columns) {
 }
 
 async function loadOverview() {
+  renderQuickLinks();
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
     $("statCards").innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
@@ -325,6 +511,9 @@ async function refreshActiveTab() {
   const tab = active?.dataset?.tab || "overview";
   if (tab === "workers") await loadWorkers();
   else if (tab === "access") await loadAccess();
+  else if (tab === "mobile") await loadMobile();
+  else if (tab === "operations") await loadOperations();
+  else if (tab === "platform") await loadPlatform();
   else await loadOverview();
 }
 
@@ -338,6 +527,7 @@ async function bootSession() {
     await api("/api/v2/auth/session");
     showDashboard();
     await loadCompanies();
+    await loadPlatformBanner();
     await refreshActiveTab();
   } catch {
     localStorage.removeItem(TOKEN_KEY);
@@ -367,6 +557,7 @@ $("loginBtn").addEventListener("click", async () => {
     }
     showDashboard();
     await loadCompanies();
+    await loadPlatformBanner();
     await refreshActiveTab();
   } catch (e) {
     $("loginError").textContent = e.message || "فشل تسجيل الدخول";

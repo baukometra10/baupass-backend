@@ -23471,6 +23471,16 @@ def debug_imap_settings():
     })
 
 
+@app.get("/admin")
+@app.get("/admin/")
+def admin_v2_entry():
+    """Modern operations dashboard (visible enterprise features)."""
+    target = BASE_DIR / "admin-v2" / "index.html"
+    if target.is_file():
+        return send_from_directory(BASE_DIR / "admin-v2", "index.html")
+    return send_from_directory(BASE_DIR, "index.html")
+
+
 @app.get("/")
 def root():
     return send_from_directory(BASE_DIR, "index.html")

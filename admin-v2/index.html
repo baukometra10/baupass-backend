@@ -11,7 +11,7 @@
   <div id="app">
     <section id="loginView" class="panel login-panel">
       <h1>BauPass Admin</h1>
-      <p class="muted">لوحة إدارة Enterprise — API v2</p>
+      <p class="muted">لوحة التشغيل — حضور، تطبيق الموظف، والمنصة في مكان واحد</p>
       <label>
         <span>اسم المستخدم</span>
         <input id="username" type="text" autocomplete="username" />
@@ -30,7 +30,7 @@
       <button id="loginBtn" type="button">تسجيل الدخول</button>
       <p id="loginError" class="error hidden"></p>
       <p class="muted small">
-        <a href="/index.html">اللوحة الكاملة (Legacy)</a>
+        <a href="/index.html">اللوحة الكاملة (فواتير، أجهزة، إعدادات)</a>
       </p>
     </section>
 
@@ -50,16 +50,24 @@
         </div>
       </header>
 
+      <div id="platformBanner" class="platform-banner hidden"></div>
+
       <nav class="tabs">
         <button type="button" data-tab="overview" class="tab active">نظرة عامة</button>
         <button type="button" data-tab="workers" class="tab">الموظفون</button>
         <button type="button" data-tab="access" class="tab">الحضور</button>
+        <button type="button" data-tab="mobile" class="tab">تطبيق الموظف</button>
+        <button type="button" data-tab="operations" class="tab">العمليات</button>
+        <button type="button" data-tab="platform" class="tab">المنصة</button>
       </nav>
 
       <main>
         <div id="tab-overview" class="tab-panel">
+          <h2 class="section-title">التشغيل اليومي</h2>
           <div class="cards" id="statCards"></div>
-          <h2>آخر عمليات الدخول</h2>
+          <h2 class="section-title">اختصارات — ما بُني في المنصة</h2>
+          <div id="quickLinks" class="feature-grid"></div>
+          <h2 class="section-title">آخر عمليات الدخول</h2>
           <div id="recentAccess" class="table-wrap"></div>
         </div>
         <div id="tab-workers" class="tab-panel hidden">
@@ -75,6 +83,18 @@
             </p>
           </div>
           <div id="accessTable" class="table-wrap"></div>
+        </div>
+        <div id="tab-mobile" class="tab-panel hidden">
+          <p class="muted small">توزيع التطبيق الهجين (Flutter + PWA) — ما يظهر للموظف عند مسح QR التفعيل.</p>
+          <div id="mobilePanel" class="stack-panel"></div>
+        </div>
+        <div id="tab-operations" class="tab-panel hidden">
+          <p class="muted small">طبقات Physical Operations OS — ملخص مباشر من الـ API (ليس خلف الكواليس فقط).</p>
+          <div id="operationsPanel" class="stack-panel"></div>
+        </div>
+        <div id="tab-platform" class="tab-panel hidden">
+          <p class="muted small">جاهزية المنصة العالمية — قاعدة البيانات، Redis، التوزيع، والخطوات التالية.</p>
+          <div id="platformPanel" class="stack-panel"></div>
         </div>
       </main>
     </section>
