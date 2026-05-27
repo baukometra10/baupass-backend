@@ -7221,12 +7221,26 @@ def start_background_jobs():
     globals()["send_worker_expiry_reminders"] = send_worker_expiry_reminders
     globals()["send_document_expiry_notifications"] = send_document_expiry_notifications
 
-    # Expiry-Check beim Start einmal ausführen, danach täglich
-    check_doc_expiry_warnings()
-    with app.app_context():
-        db = get_db()
-        lock_workers_with_expired_documents(db)
-        run_monthly_invoice_cycle(db)
+    # Expiry-Check beim Start einmal ausführen, danach täglich (non-fatal on PG/SQLite errors)
+    try:
+        check_doc_expiry_warnings()
+    except Exception as exc:
+        print(f"[baupass] WARNING: doc expiry check skipped: {exc}", flush=True)
+    try:
+        with app.app_context():
+            db = get_db()
+            try:
+                lock_workers_with_expired_documents(db)
+                run_monthly_invoice_cycle(db)
+            except Exception as exc:
+                try:
+                    if hasattr(db, "rollback"):
+                        db.rollback()
+                except Exception:
+                    pass
+                print(f"[baupass] WARNING: startup maintenance jobs skipped: {exc}", flush=True)
+    except Exception as exc:
+        print(f"[baupass] WARNING: startup maintenance context skipped: {exc}", flush=True)
 
     def daily_job_loop():
         """Läuft einmal täglich: Dokument-Ablauf-Prüfung + Zusammenfassungs-E-Mail + Ablauf-Erinnerungen."""

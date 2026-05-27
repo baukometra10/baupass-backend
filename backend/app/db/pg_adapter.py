@@ -77,14 +77,28 @@ class PgConnection:
         if is_pragma(sql):
             return PgCursor(self._conn.execute("SELECT 1"))
         adapted = adapt_sql(sql)
-        cur = self._conn.execute(adapted, params or ())
-        return PgCursor(cur)
+        try:
+            cur = self._conn.execute(adapted, params or ())
+            return PgCursor(cur)
+        except Exception:
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            raise
 
     def executemany(self, sql: str, params_seq: Iterable[Sequence[Any]]):
         adapted = adapt_sql(sql)
         cur = self._conn.cursor()
-        cur.executemany(adapted, list(params_seq))
-        return PgCursor(cur)
+        try:
+            cur.executemany(adapted, list(params_seq))
+            return PgCursor(cur)
+        except Exception:
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            raise
 
     def cursor(self):
         return self._conn.cursor()
