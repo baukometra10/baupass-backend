@@ -14,6 +14,7 @@ from pathlib import Path
 backend_path = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(backend_path))
 
+import server
 from server import app, get_db, generate_password_hash, create_turnstile_api_key, hash_turnstile_api_key
 
 
@@ -26,14 +27,16 @@ class TestRBACEnforcement:
         db_path = tmp_path / "test.sqlite3"
         os.environ["BAUPASS_DB_PATH"] = str(db_path)
         os.environ["BAUPASS_STRUCTURED_LOGS"] = "1"
-        
+        server.DB_PATH = db_path
+        server.request_rate_state.clear()
+        server.failed_login_attempts.clear()
+
         app.config["TESTING"] = True
-        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+        app.config["WTF_CSRF_ENABLED"] = False
         self.client = app.test_client()
-        
+
         with app.app_context():
-            from server import init_db
-            init_db()
+            server.init_db()
             db = get_db()
             
             # Create demo users with different roles

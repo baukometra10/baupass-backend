@@ -23326,18 +23326,17 @@ def static_proxy(path):
     return jsonify({"error": "not_found"}), 404
 
 
-_background_jobs_enabled = str(os.getenv("BAUPASS_ENABLE_BACKGROUND_JOBS", "1")).strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-_imap_poller_enabled = str(os.getenv("BAUPASS_ENABLE_IMAP_POLLER", "1")).strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+_testing_runtime = str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing"
+_background_jobs_enabled = (
+    not _testing_runtime
+    and str(os.getenv("BAUPASS_ENABLE_BACKGROUND_JOBS", "1")).strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+_imap_poller_enabled = (
+    not _testing_runtime
+    and str(os.getenv("BAUPASS_SKIP_IMAP_POLL", "")).strip().lower() not in {"1", "true", "yes", "on"}
+    and str(os.getenv("BAUPASS_ENABLE_IMAP_POLLER", "1")).strip().lower() in {"1", "true", "yes", "on"}
+)
 
 if _background_jobs_enabled:
     start_background_jobs()

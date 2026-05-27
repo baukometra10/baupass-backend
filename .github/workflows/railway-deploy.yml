@@ -53,7 +53,9 @@ jobs:
           curl -fsS "$BASE_URL/api/health/ready" | grep -q ready
           curl -fsS "$BASE_URL/api/health"
           curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/admin-v2/index.html" | grep -q 200
-          echo "Smoke tests passed (health + admin-v2 static)."
+          curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/join.html" | grep -q 200
+          curl -fsS "$BASE_URL/worker-join-config.json" | grep -q apkUrl
+          echo "Smoke tests passed (health + admin-v2 + join.html)."
 
   deploy-skipped-hint:
     if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_SERVICE_ID == '' }}

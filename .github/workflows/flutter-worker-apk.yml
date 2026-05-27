@@ -21,14 +21,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses || true
+
       - name: Complete Flutter platform scaffolding
         working-directory: mobile
         run: flutter create . --org com.baupass --project-name baupass_worker
+
+      - name: Restore native customizations
+        run: |
+          git checkout HEAD -- \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
+            mobile/android/app/src/main/AndroidManifest.xml
 
       - name: Resolve dependencies
         working-directory: mobile

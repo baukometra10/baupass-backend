@@ -112,8 +112,16 @@ def register_security_middleware(app: Flask) -> None:
 
         path = request.path
 
+        # Admin/mobile APIs with Bearer token (no cookie CSRF)
+        auth_header = (request.headers.get("Authorization") or "").strip()
+        if auth_header.lower().startswith("bearer "):
+            return None
+
         # استثناء APIs التي تستخدم Bearer tokens (لها حماية خاصة)
         if any(path.startswith(prefix) for prefix in _CSRF_EXEMPT_PREFIXES):
+            return None
+
+        if app.config.get("TESTING") or not app.config.get("WTF_CSRF_ENABLED", True):
             return None
 
         # استثناء Content-Type: application/json (لا CSRF على JSON APIs)

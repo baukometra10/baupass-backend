@@ -1,5 +1,4 @@
-# Build iOS archive/IPA (unsigned export for local signing + TestFlight upload).
-# Upload to TestFlight still requires Apple certificates (see docs/testflight-internal-distribution.md).
+# Build iOS app (unsigned) for local signing / TestFlight upload.
 name: Build worker iOS
 
 on:
@@ -25,6 +24,14 @@ jobs:
         working-directory: mobile
         run: flutter create . --org com.baupass --project-name baupass_worker
 
+      - name: Restore native customizations
+        run: |
+          git checkout HEAD -- \
+            mobile/ios/Runner/NfcReaderPlugin.swift \
+            mobile/ios/Runner/AppDelegate.swift \
+            mobile/ios/Runner/Info.plist \
+            mobile/ios/Runner/Runner.entitlements
+
       - name: Resolve dependencies
         working-directory: mobile
         run: flutter pub get
@@ -34,12 +41,17 @@ jobs:
         env:
           API_URL: https://baupass-production.up.railway.app
         run: >
-          flutter build ipa --release --no-codesign
+          flutter build ios --release --no-codesign
           --dart-define=BAUPASS_API_URL=${{ env.API_URL }}
 
-      - name: Upload IPA artifact
+      - name: Package Runner.app
+        run: |
+          cd mobile/build/ios/iphoneos
+          zip -r ../../../baupass-worker-ios-unsigned.zip Runner.app
+
+      - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: baupass-worker-ipa-unsigned
-          path: mobile/build/ios/ipa/*.ipa
+          name: baupass-worker-ios-unsigned
+          path: mobile/baupass-worker-ios-unsigned.zip
           if-no-files-found: error

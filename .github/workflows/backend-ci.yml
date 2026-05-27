@@ -36,4 +36,7 @@ jobs:
       - name: Run tests
         env:
           BAUPASS_ENV: testing
+          BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
+          BAUPASS_ENABLE_IMAP_POLLER: "0"
+          BAUPASS_SKIP_IMAP_POLL: "1"
         run: pytest backend/tests -q
