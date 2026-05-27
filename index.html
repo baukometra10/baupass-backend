@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260524l";
+        const buildTag = "20260527e";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,7 +51,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260524l" />
+    <link rel="stylesheet" href="./styles.css?v=20260527e" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -274,6 +274,20 @@
 
       <section class="view active" data-view="dashboard">
         <div id="sessionCard" class="session-card" style="margin-bottom:24px;"></div>
+        <article class="panel" id="enterpriseHubBanner" style="margin-bottom:20px;border:2px solid #fbbf24;background:linear-gradient(135deg,#1a2838,#0d131a);">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" style="color:#fbbf24">جديد — منصة المؤسسة</p>
+              <h3 style="margin:0.25rem 0">مركز المؤسسة: 16 طبقة + خطط + مساعد AI</h3>
+              <p class="muted" style="margin-top:0.5rem">كل القدرات التي بُنيت (حضور، هوية، أمن، AI، تكاملات…) في مكان واحد — مُخصّصة حسب خطتك.</p>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.75rem">
+            <a href="/enterprise-hub.html?v=20260527e" class="primary-button" style="text-decoration:none;display:inline-block">فتح مركز المؤسسة</a>
+            <a href="/admin-v2/index.html?v=20260527e" class="ghost-button" style="text-decoration:none;display:inline-block">Admin v2</a>
+            <a href="/ops-command-center.html" class="ghost-button" style="text-decoration:none;display:inline-block">مركز العمليات</a>
+          </div>
+        </article>
         <div class="hero-panel">
           <div>
             <p class="eyebrow" data-ui-i18n="dashEyebrow">Verbesserter MVP</p>

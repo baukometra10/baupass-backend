@@ -103,21 +103,24 @@
   </style>
 </head>
 <body>
-  <header>
+  <header id="hubHeader">
     <div>
       <h1>مركز المؤسسة — خريطة الـ 16 طبقة</h1>
       <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)">ما بُني فعلياً وأين تراه (واجهة · API · إعداد)</p>
     </div>
-    <nav class="nav-links">
-      <a href="/admin-v2/index.html">Admin v2</a>
+    <nav class="nav-links" id="hubNav">
+      <a href="/admin-v2/index.html#enterprise">Admin v2</a>
       <a href="/index.html">Legacy</a>
       <a href="/ops-command-center.html">مركز العمليات</a>
       <a href="/join.html">تفعيل موظف</a>
     </nav>
   </header>
 
+  <div id="previewNote" class="err-box hidden" style="background:#1a2e3a;border-color:#2a5a6a;color:#94a3b8">
+    <strong>معاينة عامة</strong> (خطة Professional كمثال). <a href="/admin-v2/index.html">سجّل الدخول</a> لرؤية خطتك الفعلية وتفعيل AI.
+  </div>
   <div id="authErr" class="err-box hidden">
-    سجّل الدخول من <a href="/admin-v2/index.html">Admin v2</a> أو <a href="/index.html">Legacy</a> ثم أعد فتح هذه الصفحة.
+    تعذّر تحميل الكتالوج. <a href="/admin-v2/index.html">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).
   </div>
 
   <div class="layout" id="mainLayout">
@@ -273,38 +276,59 @@
         </div>`;
     }
 
+    async function fetchCatalog() {
+      try {
+        return await api("/api/platform/enterprise-catalog");
+      } catch (e) {
+        if (e.message === "auth") {
+          const prev = await fetch("/api/platform/enterprise-catalog/preview").then((r) => r.json());
+          prev._previewMode = true;
+          return prev;
+        }
+        throw e;
+      }
+    }
+
     async function loadCatalog() {
       try {
-        const [cat, caps, aiSt] = await Promise.all([
-          api("/api/platform/enterprise-catalog"),
-          api("/api/platform/capabilities").catch(() => null),
-          api("/api/ai/status").catch(() => ({ configured: false })),
+        const cat = await fetchCatalog();
+        const isPreview = !!cat._previewMode || cat.preview;
+        const [caps, aiSt] = await Promise.all([
+          isPreview ? null : api("/api/platform/capabilities").catch(() => null),
+          isPreview ? { configured: false } : api("/api/ai/status").catch(() => ({ configured: false })),
         ]);
         catalog = cat;
         document.getElementById("authErr").classList.add("hidden");
         document.getElementById("mainLayout").classList.remove("hidden");
+        document.getElementById("previewNote").classList.toggle("hidden", !isPreview);
         renderPlanBanner(cat);
         renderStats(cat.stats, cat.surfaceLabels);
         renderLayers();
         const m = document.getElementById("maturity");
         if (caps) {
           m.textContent = `نضج المنصة: ${caps.maturityLevel || "—"} (${caps.maturityScore ?? "—"}%) · DB: ${caps.dataLayer?.runtime || "—"} · Redis: ${caps.dataLayer?.redisConfigured ? "نعم" : "لا"}`;
+        } else if (isPreview) {
+          m.textContent = "معاينة عامة — سجّل الدخول لرؤية خطتك ومقاييس الإنتاج.";
         }
-        document.getElementById("aiStatus").textContent = aiSt.configured
-          ? "AI مفعّل — اسأل عن التشغيل والحضور والأمن"
-          : "AI غير مفعّل — أضف OPENAI_API_KEY في Railway";
-        if (!aiSt.configured) {
-          appendAi("system", "المساعد يعمل بدون مفتاح OpenAI كملخص من الـ API فقط. أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.");
+        document.getElementById("aiStatus").textContent = isPreview
+          ? "سجّل الدخول + خطة Enterprise لاستخدام مساعد AI"
+          : (aiSt.configured ? "AI مفعّل" : "AI غير مفعّل — OPENAI_API_KEY على Railway");
+        if (!isPreview && !aiSt.configured) {
+          appendAi("system", "أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.");
         }
       } catch (e) {
-        if (e.message === "auth") {
-          document.getElementById("authErr").classList.remove("hidden");
-          document.getElementById("mainLayout").classList.add("hidden");
-        } else {
-          document.getElementById("layers").innerHTML = `<p class="err-box">${e.message}</p>`;
-        }
+        document.getElementById("authErr").classList.remove("hidden");
+        document.getElementById("layers").innerHTML = `<p class="err-box">${e.message}</p>`;
       }
     }
+
+    (function initEmbed() {
+      const params = new URLSearchParams(location.search);
+      if (params.get("embed") === "1") {
+        document.getElementById("hubHeader")?.classList.add("hidden");
+        document.body.style.minHeight = "auto";
+      }
+    })();
 
     function appendAi(role, text, isErr) {
       const log = document.getElementById("aiLog");

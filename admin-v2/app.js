@@ -119,7 +119,7 @@ function switchToTab(tabId) {
 
 function renderQuickLinks() {
   const items = [
-    { tab: null, title: "مركز المؤسسة (16 طبقة)", desc: "خريطة كل ما بُني + مساعد AI", href: "/enterprise-hub.html" },
+    { tab: "enterprise", title: "مركز المؤسسة (16 طبقة)", desc: "خريطة كل ما بُني + مساعد AI" },
     { tab: "workers", title: "الموظفون + NFC", desc: "تعيين بطاقة وQR تفعيل التطبيق" },
     { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
     { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
@@ -165,6 +165,7 @@ async function loadPlatformBanner() {
         <span class="muted small">${level}</span>
       </div>
       <div>قاعدة البيانات: <strong>${runtime}</strong> ${statusBadge(dbOk)}</div>
+      <a href="/enterprise-hub.html?v=20260527e" class="btn-link" style="color:#fbbf24;font-weight:700">🏛 مركز المؤسسة (16 طبقة)</a>
       <button type="button" class="btn-link" data-goto-tab="platform">تفاصيل المنصة ←</button>
     `;
     el.classList.remove("hidden");
@@ -526,6 +527,7 @@ async function refreshActiveTab() {
   else if (tab === "mobile") await loadMobile();
   else if (tab === "operations") await loadOperations();
   else if (tab === "platform") await loadPlatform();
+  else if (tab === "enterprise") { /* iframe */ }
   else await loadOverview();
 }
 

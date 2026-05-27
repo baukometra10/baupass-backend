@@ -709,6 +709,17 @@ def register_enterprise_routes(flask_app):
 
         return jsonify(collect_platform_capabilities(Path(DB_PATH)))
 
+    @enterprise_bp.get("/platform/enterprise-catalog/preview")
+    def platform_enterprise_catalog_preview():
+        """Public read-only catalog (no auth) — demo plan professional for visibility."""
+        from backend.app.platform.enterprise_catalog import get_enterprise_catalog
+        from backend.app.platform.plan_entitlements import apply_plan_to_catalog, build_plan_comparison_matrix
+
+        catalog = apply_plan_to_catalog(get_enterprise_catalog(), "professional")
+        catalog["preview"] = True
+        catalog["planComparison"] = build_plan_comparison_matrix(get_enterprise_catalog())
+        return jsonify(catalog)
+
     @enterprise_bp.get("/platform/enterprise-catalog")
     @require_auth
     @require_roles("superadmin", "company-admin")

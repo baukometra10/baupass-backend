@@ -55,6 +55,7 @@
 
       <nav class="tabs">
         <button type="button" data-tab="overview" class="tab active">نظرة عامة</button>
+        <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700">🏛 المؤسسة</button>
         <button type="button" data-tab="workers" class="tab">الموظفون</button>
         <button type="button" data-tab="access" class="tab">الحضور</button>
         <button type="button" data-tab="mobile" class="tab">تطبيق الموظف</button>
@@ -63,6 +64,10 @@
       </nav>
 
       <main>
+        <div id="tab-enterprise" class="tab-panel hidden">
+          <p class="muted small">خريطة الـ 16 طبقة — كل ما بُني في المنصة (حسب خطتك).</p>
+          <iframe id="enterpriseFrame" title="مركز المؤسسة" src="/enterprise-hub.html?embed=1" style="width:100%;min-height:72vh;border:1px solid var(--border);border-radius:12px;background:#0b1118"></iframe>
+        </div>
         <div id="tab-overview" class="tab-panel">
           <h2 class="section-title">التشغيل اليومي</h2>
           <div class="cards" id="statCards"></div>
@@ -118,6 +123,6 @@
     </div>
   </div>
 
-  <script src="app.js" type="module"></script>
+  <script src="app.js?v=20260527e" type="module"></script>
 </body>
 </html>

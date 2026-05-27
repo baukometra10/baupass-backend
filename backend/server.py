@@ -23496,6 +23496,18 @@ def debug_imap_settings():
     })
 
 
+@app.get("/enterprise")
+@app.get("/enterprise/")
+def enterprise_hub_entry():
+    """Enterprise hub — 16 layers, plan matrix, AI assistant."""
+    target = BASE_DIR / "enterprise-hub.html"
+    if target.is_file():
+        response = send_from_directory(BASE_DIR, "enterprise-hub.html")
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
+    return jsonify({"error": "not_found"}), 404
+
+
 @app.get("/admin")
 @app.get("/admin/")
 def admin_v2_entry():
