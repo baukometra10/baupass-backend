@@ -8,33 +8,100 @@
   <link rel="stylesheet" href="/ops-shell.css" />
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body.ops-app {
+      font-family: system-ui, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
     a { color: var(--accent); }
-    header {
-      padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border);
-      display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
-      background: var(--panel); position: sticky; top: 0; z-index: 20;
+    header.ops-header {
+      flex-shrink: 0;
+      position: relative;
+      top: auto;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--panel);
+      z-index: 20;
     }
     header h1 { margin: 0; font-size: 1.1rem; }
     .nav a { text-decoration: none; font-size: 0.82rem; padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
-    .shell { display: grid; grid-template-columns: 220px 1fr 300px; gap: 0.75rem; padding: 0.75rem; max-width: 1680px; margin: 0 auto; min-height: calc(100vh - 56px); }
-    @media (max-width: 1200px) { .shell { grid-template-columns: 1fr; } .side, .insights { order: 2; } }
-    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 0; }
-    .panel h2 { margin: 0; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-bottom: 1px solid var(--border); }
-    .scroll { overflow: auto; flex: 1; padding: 0.65rem; }
+    #authErr { flex-shrink: 0; margin: 0.5rem 1rem; }
+    .shell {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) 300px;
+      grid-template-rows: minmax(0, 1fr);
+      gap: 0.75rem;
+      padding: 0.75rem;
+      max-width: 1680px;
+      width: 100%;
+      margin: 0 auto;
+      align-self: stretch;
+    }
+    @media (max-width: 1200px) {
+      .shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 140px) minmax(0, 1fr) minmax(0, 200px);
+      }
+      .side { order: 1; }
+      .chat { order: 2; }
+      .insights { order: 3; }
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
+    }
+    .panel h2 { margin: 0; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .panel .toolbar { flex-shrink: 0; }
+    .agent-tabs { flex-shrink: 0; }
+    .chip-row { flex-shrink: 0; }
+    .chat-form { flex-shrink: 0; }
+    .scroll {
+      overflow-x: hidden;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+      padding: 0.65rem;
+      -webkit-overflow-scrolling: touch;
+    }
     .agent-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.5rem; border-bottom: 1px solid var(--border); }
     .agent-tabs button {
       font-size: 0.72rem; padding: 0.3rem 0.55rem; border-radius: 999px; cursor: pointer;
       border: 1px solid var(--border); background: #0c1218; color: var(--muted);
     }
     .agent-tabs button.active { border-color: var(--accent); color: var(--accent); background: #14242a; }
-    #chatLog { display: flex; flex-direction: column; gap: 0.5rem; min-height: 280px; }
+    #chatLog { display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
     .msg-user { background: #1e3a5f; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
     .msg-bot { background: #152228; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
     .msg-meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; }
     .chat-form { padding: 0.65rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.4rem; }
     .chat-form textarea {
-      min-height: 72px; resize: vertical; padding: 0.5rem; border-radius: 8px;
+      min-height: 72px;
+      max-height: 120px;
+      resize: none;
+      padding: 0.5rem;
+      border-radius: 8px;
       border: 1px solid var(--border); background: #0a1016; color: var(--text); font-family: inherit;
     }
     .chat-form .row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
@@ -87,7 +154,7 @@
       padding: 0.4rem 0.55rem; border-radius: 8px; border: 1px solid var(--border);
       background: #0a1016; color: var(--text); font-size: 0.82rem;
     }
-    .status-line { font-size: 0.75rem; color: var(--muted); padding: 0 0.85rem 0.5rem; }
+    .status-line { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
     .hidden { display: none !important; }
     .err { color: var(--danger); padding: 1rem; }
   </style>
