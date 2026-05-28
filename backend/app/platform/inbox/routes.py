@@ -30,6 +30,19 @@ def register_inbox_blueprint(flask_app) -> None:
         )
         return jsonify(dash)
 
+    @inbox_bp.get("/inbox/counts")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def inbox_counts():
+        from .service import build_operations_inbox
+
+        role = str(g.current_user.get("role") or "company-admin")
+        company_id = str(g.current_user.get("company_id") or "").strip()
+        if role == "superadmin":
+            company_id = str(request.args.get("company_id") or company_id or "").strip() or None
+        dash = build_operations_inbox(get_db(), company_id, role=role, limit=10)
+        return jsonify({"counts": dash.get("counts", {}), "companyId": dash.get("companyId")})
+
     @inbox_bp.post("/inbox/<path:item_id>/resolve")
     @require_auth
     @require_roles("superadmin", "company-admin")

@@ -31,7 +31,12 @@ jobs:
           git checkout HEAD -- \
             mobile/ios/Runner/AppDelegate.swift \
             mobile/ios/Runner/Info.plist \
+            mobile/ios/Runner/GoogleService-Info.plist \
             mobile/ios/Runner/Runner.entitlements \
+            mobile/lib/firebase_bootstrap.dart \
+            mobile/lib/services/push_foreground_listener.dart \
+            mobile/lib/services/push_navigation.dart \
+            mobile/pubspec.yaml \
             mobile/test/widget_test.dart
 
       - name: Apply NFC entitlements to Xcode project

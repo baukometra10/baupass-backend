@@ -65,7 +65,7 @@
 
       <nav class="tabs">
         <button type="button" data-tab="overview" class="tab active" data-i18n="tab.overview">نظرة عامة</button>
-        <button type="button" data-tab="inbox" class="tab">📥 Posteingang</button>
+        <button type="button" data-tab="inbox" class="tab" id="tabInboxBtn">📥 Posteingang <span id="inboxTabBadge" class="tab-badge hidden"></span></button>
         <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700" data-i18n="tab.enterprise">🏛 المؤسسة</button>
         <button type="button" data-tab="workers" class="tab" data-i18n="tab.workers">الموظفون</button>
         <button type="button" data-tab="access" class="tab" data-i18n="tab.access">الحضور</button>
@@ -163,6 +163,6 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260528c" type="module"></script>
+  <script src="app.js?v=20260528d" type="module"></script>
 </body>
 </html>

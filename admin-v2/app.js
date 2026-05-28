@@ -150,9 +150,44 @@ function shouldRefreshOnEvent(evt) {
   return /inbox|security|leave|access|push|emergency|alert|document/i.test(t);
 }
 
+function updateInboxTabBadge(open, critical) {
+  const b = $("inboxTabBadge");
+  if (!b) return;
+  const n = Number(open) || 0;
+  const crit = Number(critical) || 0;
+  if (n <= 0) {
+    b.classList.add("hidden");
+    b.classList.remove("critical");
+    b.textContent = "";
+    return;
+  }
+  b.classList.remove("hidden");
+  b.classList.toggle("critical", crit > 0);
+  b.textContent = crit > 0 ? `${n}!` : String(n);
+}
+
+async function refreshInboxBadgeOnly() {
+  const q = companyQuery();
+  if (getUser().role === "superadmin" && !q) {
+    updateInboxTabBadge(0, 0);
+    return;
+  }
+  try {
+    const data = await api(`/api/inbox/counts${q}`);
+    const c = data.counts || {};
+    updateInboxTabBadge(c.open, c.critical);
+  } catch {
+    /* ignore */
+  }
+}
+
 function scheduleInboxReload() {
   clearTimeout(scheduleInboxReload._t);
-  scheduleInboxReload._t = setTimeout(() => loadInbox().catch(() => {}), 500);
+  scheduleInboxReload._t = setTimeout(() => {
+    const tab = document.querySelector(".tab.active")?.dataset?.tab;
+    if (tab === "inbox") loadInbox().catch(() => {});
+    else refreshInboxBadgeOnly();
+  }, 500);
 }
 
 async function startAdminRealtime() {
@@ -168,6 +203,11 @@ async function startAdminRealtime() {
     feedEl: null,
     onEvent: (evt) => {
       if (!shouldRefreshOnEvent(evt)) return;
+      if (evt?.type === "inbox.changed") {
+        scheduleInboxReload();
+        return;
+      }
+      refreshInboxBadgeOnly();
       const tab = document.querySelector(".tab.active")?.dataset?.tab || "overview";
       if (tab === "inbox") scheduleInboxReload();
       else if (tab === "overview") {
@@ -633,6 +673,7 @@ async function loadInbox() {
     pushEl.classList.add("hidden");
   }
   const c = data.counts || {};
+  updateInboxTabBadge(c.open, c.critical);
   countsEl.innerHTML = `
     <div class="card"><span class="muted">Offen</span><strong>${c.open ?? 0}</strong></div>
     <div class="card"><span class="muted">Kritisch</span><strong style="color:#f87171">${c.critical ?? 0}</strong></div>
@@ -1014,6 +1055,7 @@ async function bootSession() {
     await loadPlatformBanner();
     await refreshActiveTab();
     startAdminRealtime().catch(() => {});
+    refreshInboxBadgeOnly().catch(() => {});
   } catch {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -1045,6 +1087,7 @@ $("loginBtn").addEventListener("click", async () => {
     await loadPlatformBanner();
     await refreshActiveTab();
     startAdminRealtime().catch(() => {});
+    refreshInboxBadgeOnly().catch(() => {});
   } catch (e) {
     $("loginError").textContent = e.message || "فشل تسجيل الدخول";
     $("loginError").classList.remove("hidden");

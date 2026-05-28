@@ -64,7 +64,16 @@ class _WorkerAppState extends State<WorkerApp> {
     _push = PushNotificationService(_api);
     _ai = AiAssistantService(_api);
     _deepLinks = DeepLinkService();
-    PushForegroundListener.attach(_messengerKey);
+    PushForegroundListener.attach(
+      messengerKey: _messengerKey,
+      onRoute: (route) {
+        if (_session != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _shellKey.currentState?.navigateTo(route);
+          });
+        }
+      },
+    );
     _boot();
   }
 

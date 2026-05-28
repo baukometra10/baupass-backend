@@ -70,11 +70,13 @@ def deliver_worker_push(
         ).fetchall()
         tokens = list({str(r["push_token"]).strip() for r in native_rows if r["push_token"]})
         if tokens:
+            from .deeplinks import push_data_payload
+
             fcm = send_fcm_notification(
                 tokens,
                 title=title,
                 body=body,
-                data={"tag": tag, "workerId": str(worker_id)},
+                data=push_data_payload(tag=tag, worker_id=str(worker_id)),
             )
     except Exception:
         pass

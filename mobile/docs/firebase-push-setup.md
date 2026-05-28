@@ -4,7 +4,7 @@
 
 1. Create a project at [Firebase Console](https://console.firebase.google.com/).
 2. Add **Android** app `com.baupass.worker` → download `google-services.json` → replace `mobile/android/app/google-services.json` (placeholder is CI-only).
-3. Add **iOS** app → download `GoogleService-Info.plist` → `mobile/ios/Runner/` (when iOS scaffold is regenerated).
+3. Add **iOS** app `com.baupass.worker` → download `GoogleService-Info.plist` → replace `mobile/ios/Runner/GoogleService-Info.plist` (placeholder is CI-only).
 4. Set `FCM_SERVER_KEY` on Railway (backend legacy server key).
 
 ## 2. Flutter dependencies
