@@ -75,6 +75,9 @@ def ai_config_status() -> dict[str, Any]:
             "actions",
             "rag",
             "briefing_email",
+            "briefing_webhook",
+            "worker_voice",
+            "live_tool_stream",
         ],
     }
 

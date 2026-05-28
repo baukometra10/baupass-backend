@@ -108,6 +108,7 @@
           <button type="submit" id="sendBtn">Senden</button>
           <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
           <button type="button" class="secondary" id="emailBriefingBtn">Briefing mailen</button>
+          <button type="button" class="secondary" id="webhookBriefingBtn">Slack/Teams</button>
         </div>
       </form>
     </main>
@@ -135,6 +136,8 @@
         auth: "Bitte anmelden (Admin v2).", sources: "Quellen", tools: "Tools",
         actions: "Aktionen", emailBriefing: "Briefing mailen", emailPrompt: "Empfänger-E-Mail:",
         emailOk: "Briefing gesendet.", emailFail: "E-Mail fehlgeschlagen.",
+        webhookBriefing: "Slack/Teams", webhookOk: "Webhook gesendet.",
+        toolRunning: "Tool",
       },
       en: {
         title: "BauPass AI Command Center",
@@ -144,6 +147,8 @@
         auth: "Please sign in.", sources: "Sources", tools: "Tools",
         actions: "Actions", emailBriefing: "Email briefing", emailPrompt: "Recipient email:",
         emailOk: "Briefing sent.", emailFail: "Email failed.",
+        webhookBriefing: "Slack/Teams", webhookOk: "Webhook sent.",
+        toolRunning: "Tool",
       },
       ar: {
         title: "مركز قيادة AI — BauPass",
@@ -153,6 +158,8 @@
         auth: "يرجى تسجيل الدخول.", sources: "المصادر", tools: "أدوات",
         actions: "إجراءات", emailBriefing: "إرسال الملخص", emailPrompt: "البريد:",
         emailOk: "تم الإرسال.", emailFail: "فشل الإرسال.",
+        webhookBriefing: "Slack/Teams", webhookOk: "تم الإرسال للويبهوك.",
+        toolRunning: "أداة",
       },
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
@@ -203,6 +210,23 @@
 
     async function runExecuteAction(a, text) {
       const action = a.action;
+      if (action === "send_briefing_webhook") {
+        try {
+          const r = await api("/api/ai/actions/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "send_briefing_webhook",
+              company_id: selectedCompanyId,
+              briefing_text: text || lastAnswerText,
+            }),
+          });
+          appendMsg("bot", r.ok ? `${t("webhookOk")} (${r.sent}/${r.total})` : (r.error || "—"), {});
+        } catch (e) {
+          appendMsg("bot", e.payload?.hint || e.message, {});
+        }
+        return;
+      }
       if (action === "send_briefing_email") {
         const to = prompt(t("emailPrompt"));
         if (!to) return;
@@ -245,6 +269,7 @@
     document.getElementById("sendBtn").textContent = t("send");
     document.getElementById("briefingBtn").textContent = t("briefing");
     document.getElementById("emailBriefingBtn").textContent = t("emailBriefing");
+    document.getElementById("webhookBriefingBtn").textContent = t("webhookBriefing");
     document.getElementById("question").placeholder = t("placeholder");
 
     async function api(path, opts = {}) {
@@ -386,6 +411,9 @@
       log.appendChild(thinking);
       log.scrollTop = log.scrollHeight;
       let meta = {};
+      const statusEl = document.createElement("div");
+      statusEl.className = "msg-meta";
+      log.appendChild(statusEl);
       try {
         const res = await fetch("/api/ai/query/stream", {
           method: "POST",
@@ -416,6 +444,13 @@
             if (!line) continue;
             try {
               const payload = JSON.parse(line.slice(5).trim());
+              if (payload.type === "tool_start") {
+                statusEl.textContent = `${t("toolRunning")}: ${payload.tool}…`;
+              }
+              if (payload.type === "tool_done") {
+                statusEl.textContent = `${payload.tool} ✓`;
+              }
+              if (payload.type === "answer_start") statusEl.textContent = "";
               if (payload.type === "chunk") {
                 botDiv.textContent += payload.text || "";
                 log.scrollTop = log.scrollHeight;
@@ -461,6 +496,19 @@
         appendMsg("bot", e.payload?.hint || e.message);
       }
     }
+
+    document.getElementById("webhookBriefingBtn").onclick = async () => {
+      try {
+        const r = await api("/api/ai/briefing/webhook", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ company_id: selectedCompanyId, lang: LANG }),
+        });
+        appendMsg("bot", r.sent ? `${t("webhookOk")} (${r.sent}/${r.total})` : JSON.stringify(r.results || r));
+      } catch (e) {
+        appendMsg("bot", e.payload?.hint || e.message);
+      }
+    };
 
     document.getElementById("emailBriefingBtn").onclick = async () => {
       const to = prompt(t("emailPrompt"));

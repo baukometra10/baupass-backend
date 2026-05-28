@@ -14,6 +14,7 @@ ALLOWED_EXECUTE = frozenset(
     {
         "resolve_security_alert",
         "send_briefing_email",
+        "send_briefing_webhook",
         "export_briefing_markdown",
     }
 )
@@ -80,10 +81,20 @@ def suggest_actions(
             "id": "email_briefing",
             "type": "execute",
             "action": "send_briefing_email",
-                "labelDe": "Tagesbriefing per E-Mail senden",
-                "labelEn": "Email daily briefing",
-                "labelAr": "إرسال الملخص بالبريد",
+            "labelDe": "Tagesbriefing per E-Mail senden",
+            "labelEn": "Email daily briefing",
+            "labelAr": "إرسال الملخص بالبريد",
             "paramsSchema": {"to": "email"},
+        }
+    )
+    actions.append(
+        {
+            "id": "webhook_briefing",
+            "type": "execute",
+            "action": "send_briefing_webhook",
+            "labelDe": "Briefing an Slack/Teams Webhook",
+            "labelEn": "Post briefing to Slack/Teams",
+            "labelAr": "إرسال إلى Webhook",
         }
     )
     actions.append(
@@ -136,6 +147,15 @@ def execute_action(
         if not text:
             return {"ok": False, "error": "briefing_text_required"}
         return {"ok": True, "format": "markdown", "content": text}
+
+    if action == "send_briefing_webhook":
+        from .notifications import dispatch_briefing_notifications
+
+        text = (briefing_text or params.get("text") or "").strip()
+        if not text:
+            return {"ok": False, "error": "briefing_text_required"}
+        dispatch = dispatch_briefing_notifications(text, company_id=company_id)
+        return {"ok": dispatch.get("sent", 0) > 0, **dispatch}
 
     if action == "send_briefing_email":
         from .mailer import send_ai_briefing_email

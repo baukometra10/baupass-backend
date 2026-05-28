@@ -5,6 +5,7 @@ import 'core/auth_repository.dart';
 import 'core/session_store.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/worker_shell.dart';
+import 'services/ai_assistant_service.dart';
 import 'services/attendance_repository.dart';
 import 'services/deep_link_service.dart';
 import 'services/digital_card_repository.dart';

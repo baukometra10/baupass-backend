@@ -18,6 +18,14 @@ def chunk_text_stream(text: str, *, chunk_size: int = 48) -> Generator[str, None
         yield sse_event({"type": "chunk", "text": text[i : i + chunk_size]})
 
 
+def stream_agent_events(event_iter) -> Iterable[str]:
+    """Yield SSE from agent stream event dicts."""
+    for ev in event_iter:
+        yield sse_event(ev)
+        if ev.get("type") == "done":
+            break
+
+
 def stream_agent_result(result: dict[str, Any]) -> Iterable[str]:
     yield sse_event({"type": "start", "agentId": result.get("agentId")})
     if result.get("error"):

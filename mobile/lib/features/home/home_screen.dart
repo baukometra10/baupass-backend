@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
+import '../../services/ai_assistant_service.dart';
 import '../../services/digital_card_repository.dart';
+import '../ai/worker_ai_screen.dart';
 import '../../services/worker_cache.dart';
 import '../../widgets/digital_pass_card.dart';
 

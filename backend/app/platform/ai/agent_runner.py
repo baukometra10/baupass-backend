@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Generator
 
 from .agents import agent_system_prompt, agent_tool_schemas, get_agent
 from .assistant import is_ai_configured, resolve_ai_model
@@ -140,6 +140,125 @@ def run_agent_query(
             "hint": str(exc)[:500],
             "agentId": agent_id,
         }
+
+
+def run_agent_query_stream(
+    db,
+    company_id: str,
+    question: str,
+    *,
+    agent_id: str = "operations",
+    lang: str = "de",
+    role: str = "company-admin",
+    history: list[dict] | None = None,
+) -> Generator[dict[str, Any], None, None]:
+    """Yield progress events, then stream final answer tokens via OpenAI."""
+    from .assistant import _openai_stream_request, is_ai_configured
+
+    if not is_ai_configured():
+        yield {"type": "error", "hint": "OPENAI_API_KEY nicht konfiguriert."}
+        yield {"type": "done", "ok": False}
+        return
+
+    yield {"type": "start", "agentId": agent_id}
+
+    agent = get_agent(agent_id)
+    if not agent:
+        agent_id = "operations"
+        agent = get_agent("operations")
+    agent_id = agent["id"]
+    from .actions import suggest_actions
+    from .rag import search_knowledge
+
+    ctx = build_compact_context(db, company_id, role)
+    rag_chunks = search_knowledge(db, company_id, question)
+    if rag_chunks:
+        ctx["ragChunks"] = rag_chunks
+    tools = agent_tool_schemas(agent_id)
+    model, config_warning = resolve_ai_model()
+    system = agent_system_prompt(agent_id, lang)
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": system},
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "company_id": company_id,
+                    "baseline_context": ctx,
+                    "rag_chunks": rag_chunks,
+                    "instruction": "Use tools for fresh data when needed.",
+                },
+                ensure_ascii=False,
+            ),
+        },
+    ]
+    for h in (history or [])[-12:]:
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            messages.append({"role": h["role"], "content": str(h["content"])[:4000]})
+    messages.append({"role": "user", "content": question})
+
+    tools_used: list[str] = []
+    try:
+        for _ in range(MAX_TOOL_ROUNDS):
+            body = _chat_with_tools(messages, tools)
+            msg = body["choices"][0]["message"]
+            tool_calls = msg.get("tool_calls") or []
+
+            if tool_calls:
+                messages.append(msg)
+                for tc in tool_calls:
+                    fn = tc.get("function") or {}
+                    name = fn.get("name", "")
+                    yield {"type": "tool_start", "tool": name}
+                    result = run_tool(db, company_id, name, fn.get("arguments") or "{}")
+                    tools_used.append(name)
+                    yield {"type": "tool_done", "tool": name, "ok": "error" not in result}
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id"),
+                            "content": json.dumps(result, ensure_ascii=False)[:12000],
+                        }
+                    )
+                continue
+
+            yield {"type": "answer_start"}
+            preset = (msg.get("content") or "").strip()
+            full: list[str] = []
+            if preset:
+                step = max(24, len(preset) // 40)
+                for i in range(0, len(preset), step):
+                    part = preset[i : i + step]
+                    full.append(part)
+                    yield {"type": "chunk", "text": part}
+                answer = preset
+            else:
+                for delta in _openai_stream_request(messages):
+                    full.append(delta)
+                    yield {"type": "chunk", "text": delta}
+                answer = "".join(full)
+            suggested = suggest_actions(ctx, company_id=company_id, tools_used=tools_used)
+            yield {
+                "type": "done",
+                "ok": True,
+                "answer": answer,
+                "agentId": agent_id,
+                "model": model,
+                "toolsUsed": list(dict.fromkeys(tools_used)),
+                "sources": infer_context_sources(ctx) + [f"tool:{t}" for t in tools_used],
+                "suggestedActions": suggested,
+                "configWarning": config_warning,
+                "ragChunks": len(rag_chunks),
+            }
+            return
+
+        yield {"type": "error", "hint": "Tool-Schleife erschöpft.", "error": "tool_loop_exhausted"}
+        yield {"type": "done", "ok": False, "toolsUsed": tools_used}
+    except Exception as exc:
+        logger.exception("agent stream failed")
+        yield {"type": "error", "hint": str(exc)[:500]}
+        yield {"type": "done", "ok": False}
 
 
 def run_deep_analysis(

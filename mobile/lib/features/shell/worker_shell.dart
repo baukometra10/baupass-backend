@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
+import '../../services/ai_assistant_service.dart';
 import '../../services/attendance_repository.dart';
 import '../../services/digital_card_repository.dart';
 import '../../services/geofence_service.dart';
