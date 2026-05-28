@@ -24,8 +24,9 @@ def build_command_center(db, *, company_id: str | None = None, role: str = "comp
     total_on_site = 0
     open_emergencies = 0
     open_security = 0
-    for c in companies:
-        cid = str(c["id"] or "").strip()
+    for raw in companies:
+        c = dict(raw)
+        cid = str(c.get("id") or "").strip()
         on_site = count_on_site(db, cid, today)
         total_on_site += on_site
         emg = 0
@@ -60,7 +61,7 @@ def build_command_center(db, *, company_id: str | None = None, role: str = "comp
         company_snapshots.append(
             {
                 "companyId": cid,
-                "name": c["name"],
+                "name": c.get("name"),
                 "status": c.get("status"),
                 "workersOnSite": on_site,
                 "activeGatesToday": int((gates["c"] if gates else 0) or 0),

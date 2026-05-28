@@ -38,7 +38,7 @@ def build_workforce_graph(db, company_id: int, *, days: int = 14) -> dict[str, A
                 "target": r["w2"],
                 "weight": int(r["co_access_days"]),
                 "relationship": "co_access",
-                "site": r.get("site"),
+                "site": r["site"],
             }
         )
     site_clusters = db.execute(
@@ -74,7 +74,7 @@ def build_workforce_graph(db, company_id: int, *, days: int = 14) -> dict[str, A
         "layer": "workforce_graph_intelligence",
         "periodDays": days,
         "nodes": [
-            {"id": n["id"], "label": f"{n['first_name']} {n['last_name']}".strip(), "site": n.get("site")}
+            {"id": n["id"], "label": f"{n['first_name']} {n['last_name']}".strip(), "site": n["site"]}
             for n in nodes
         ],
         "edges": edges,
