@@ -32,9 +32,9 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def ai_status():
-        from .assistant import is_ai_configured
+        from .assistant import ai_config_status
 
-        return jsonify({"configured": is_ai_configured()})
+        return jsonify(ai_config_status())
 
     @ai_bp.post("/ai/query")
     @require_auth

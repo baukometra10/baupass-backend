@@ -516,9 +516,12 @@
         } else if (isPreview) {
           m.textContent = t("previewMaturity");
         }
-        document.getElementById("aiStatus").textContent = isPreview
+        const aiLine = isPreview
           ? t("aiPreview")
-          : (aiSt.configured ? t("aiOn") : t("aiOff"));
+          : (aiSt.configWarning
+            ? aiSt.configWarning
+            : (aiSt.configured ? `${t("aiOn")}${aiSt.model ? ` (${aiSt.model})` : ""}` : t("aiOff")));
+        document.getElementById("aiStatus").textContent = aiLine;
         if (!isPreview && !aiSt.configured) {
           appendAi("system", t("aiAddKey"));
         }
@@ -577,6 +580,7 @@
         } else if (data.error) {
           appendAi("bot", data.hint || data.error, true);
         } else {
+          if (data.configWarning) appendAi("bot", data.configWarning, true);
           appendAi("bot", data.answer || data.hint || t("aiAddKey"), !data.answer);
         }
       } catch (e) {

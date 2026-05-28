@@ -6,11 +6,58 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
 logger = logging.getLogger("baupass.ai")
+
+DEFAULT_AI_MODEL = "gpt-4o-mini"
+_SK_TOKEN_RE = re.compile(r"sk-[A-Za-z0-9_-]{8,}")
+
+
+def _looks_like_openai_key(value: str) -> bool:
+    v = (value or "").strip()
+    if not v:
+        return False
+    return v.startswith("sk-") or v.startswith("sk_proj")
+
+
+def _sanitize_error_detail(detail: str) -> str:
+    return _SK_TOKEN_RE.sub("sk-***", detail or "")
+
+
+def resolve_ai_model() -> tuple[str, str | None]:
+    """Return (model_or_deployment_name, config_warning_or_none)."""
+    raw_model = (os.getenv("BAUPASS_AI_MODEL") or "").strip()
+    azure_deployment = (os.getenv("AZURE_OPENAI_DEPLOYMENT") or "").strip()
+
+    if _looks_like_openai_key(raw_model):
+        logger.warning("BAUPASS_AI_MODEL looks like an API key; using %s", DEFAULT_AI_MODEL)
+        return DEFAULT_AI_MODEL, (
+            "BAUPASS_AI_MODEL enthält den API-Key statt eines Modellnamens. "
+            "Key nur in OPENAI_API_KEY setzen; Modell z. B. gpt-4o-mini (optional)."
+        )
+    if azure_deployment and _looks_like_openai_key(azure_deployment):
+        logger.warning("AZURE_OPENAI_DEPLOYMENT looks like an API key; using %s", DEFAULT_AI_MODEL)
+        return DEFAULT_AI_MODEL, (
+            "AZURE_OPENAI_DEPLOYMENT enthält den API-Key. "
+            "Nur den Deployment-Namen setzen (z. B. gpt-4o-mini)."
+        )
+    return (raw_model or DEFAULT_AI_MODEL), None
+
+
+def ai_config_status() -> dict[str, Any]:
+    model, warning = resolve_ai_model()
+    azure = bool((os.getenv("AZURE_OPENAI_API_KEY") or "").strip())
+    openai = bool((os.getenv("OPENAI_API_KEY") or "").strip())
+    return {
+        "configured": openai or azure,
+        "provider": "azure" if azure else ("openai" if openai else None),
+        "model": model,
+        "configWarning": warning,
+    }
 
 
 def is_ai_configured() -> bool:
@@ -23,13 +70,17 @@ def is_ai_configured() -> bool:
 def _chat_completion(messages: list[dict[str, str]]) -> dict[str, Any]:
     azure_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
-    model = os.getenv("BAUPASS_AI_MODEL", "gpt-4o-mini")
+    model, _warn = resolve_ai_model()
 
     if azure_key:
         endpoint = (os.getenv("AZURE_OPENAI_ENDPOINT") or "").strip().rstrip("/")
         if not endpoint:
             raise ValueError("AZURE_OPENAI_ENDPOINT is required when using AZURE_OPENAI_API_KEY")
-        deployment = (os.getenv("AZURE_OPENAI_DEPLOYMENT") or model).strip()
+        deployment = (os.getenv("AZURE_OPENAI_DEPLOYMENT") or "").strip()
+        if _looks_like_openai_key(deployment):
+            deployment = model
+        elif not deployment:
+            deployment = model
         api_version = (os.getenv("AZURE_OPENAI_API_VERSION") or "2024-02-15-preview").strip()
         url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
         headers = {"api-key": azure_key, "Content-Type": "application/json"}
@@ -78,24 +129,38 @@ def natural_language_query(
         {"role": "system", "content": system},
         {"role": "user", "content": user_content},
     ]
-    model = os.getenv("BAUPASS_AI_MODEL", "gpt-4o-mini")
+    model, config_warning = resolve_ai_model()
 
     try:
         body = _chat_completion(messages)
         answer = body["choices"][0]["message"]["content"]
-        return {"answer": answer, "configured": True, "model": model}
+        out: dict[str, Any] = {"answer": answer, "configured": True, "model": model}
+        if config_warning:
+            out["configWarning"] = config_warning
+        return out
     except urlerror.HTTPError as exc:
         detail = ""
         try:
-            detail = exc.read().decode("utf-8", errors="replace")[:800]
+            detail = _sanitize_error_detail(exc.read().decode("utf-8", errors="replace")[:800])
         except Exception:
-            detail = str(exc)
+            detail = _sanitize_error_detail(str(exc))
         logger.warning("OpenAI HTTP error %s: %s", exc.code, detail)
+        hint = f"KI-Anfrage fehlgeschlagen (HTTP {exc.code}). Prüfe API-Key, Modell und Guthaben."
+        if config_warning:
+            hint = f"{config_warning} {hint}"
+        elif "model_not_found" in detail or _looks_like_openai_key(detail):
+            hint = (
+                "Modell-Variable falsch: API-Key gehört in OPENAI_API_KEY, "
+                "nicht in BAUPASS_AI_MODEL. Modell z. B. gpt-4o-mini. "
+                + hint
+            )
+        if detail:
+            hint = f"{hint} {detail}"
         return {
             "answer": None,
             "configured": True,
             "error": "openai_http_error",
-            "hint": f"KI-Anfrage fehlgeschlagen (HTTP {exc.code}). Prüfe API-Key, Modell und Guthaben. {detail}",
+            "hint": hint,
         }
     except Exception as exc:
         logger.exception("AI query failed for company %s", company_id)
