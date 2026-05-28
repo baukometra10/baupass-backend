@@ -54,15 +54,11 @@ jobs:
         run: |
           rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
           git checkout HEAD -- \
+            mobile/android/app/build.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             mobile/android/app/src/main/AndroidManifest.xml \
             mobile/test/widget_test.dart
-
-      - name: Patch Android build for worker minSdk
-        run: |
-          BUILD_FILE=mobile/android/app/build.gradle.kts
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' "$BUILD_FILE"
 
       - name: Resolve dependencies
         working-directory: mobile
@@ -88,6 +84,15 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           }
+
+      - name: Upload build log on failure
+        if: failure() && steps.build_apk.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-log
+          path: mobile/build-apk.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
