@@ -129,13 +129,14 @@
       <p id="maturity" class="maturity"></p>
       <div id="stats" class="stats"></div>
       <div class="toolbar">
-        <input id="search" type="search" placeholder="بحث: حضور، AI، Wallet، SAP…" />
+        <select id="companySelect" class="hidden" style="min-width:200px;padding:0.5rem;border-radius:8px;border:1px solid var(--border);background:#0f1419;color:var(--text)"></select>
+        <input id="search" type="search" placeholder="" />
         <select id="filterPlan">
-          <option value="all">كل القدرات</option>
-          <option value="enabled">متاح في خطتي</option>
-          <option value="locked">يتطلب ترقية</option>
+          <option value="all"></option>
+          <option value="enabled"></option>
+          <option value="locked"></option>
         </select>
-        <label><input type="checkbox" id="openAll" /> فتح كل الطبقات</label>
+        <label><input type="checkbox" id="openAll" /> <span id="openAllLabel"></span></label>
       </div>
       <div id="layers"></div>
     </section>
@@ -156,10 +157,127 @@
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
       hub: "#f59e0b", api: "#64748b", config: "#ef4444",
     };
-    const PLAN_LABELS = { tageskarte: "يومي", starter: "Starter", professional: "Professional", enterprise: "Enterprise" };
+    const HUB_LANG = (() => {
+      const stored = (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2).toLowerCase();
+      return ["de", "en", "ar"].includes(stored) ? stored : "de";
+    })();
+    const HUB_I18N = {
+      de: {
+        title: "Enterprise-Hub — 16-Ebenen-Karte",
+        subtitle: "Was gebaut ist und wo Sie es finden (UI · API · Einstellungen)",
+        previewNote: "Öffentliche Vorschau (Professional als Beispiel). Anmelden für Ihren echten Tarif.",
+        authErr: "Katalog konnte nicht geladen werden. Bitte anmelden oder Seite neu laden (Strg+F5).",
+        searchPh: "Suche: Anwesenheit, KI, Wallet, SAP…",
+        filterAll: "Alle Funktionen",
+        filterEnabled: "In meinem Tarif",
+        filterLocked: "Upgrade nötig",
+        openAll: "Alle Ebenen öffnen",
+        yourPlan: "Ihr Tarif",
+        enabled: "aktiv",
+        locked: "Upgrade nötig",
+        coverage: "Abdeckung",
+        coverageOf: "der Plattform",
+        planMatrixFoot: "Alle 16 Ebenen — gefiltert nach Tarif. Enterprise öffnet KI, Integrationen und globales Command Center.",
+        layerEnabled: "aktiv",
+        capAvailable: "✓ verfügbar",
+        capUpgrade: "Upgrade auf",
+        tryApi: "API testen",
+        openUi: "UI öffnen",
+        aiTitle: "BauPass KI-Assistent",
+        aiPh: "Frage auf Deutsch: Wie viele Mitarbeiter sind auf der Baustelle?",
+        aiSend: "Senden",
+        aiPreview: "Anmelden + Enterprise-Tarif für KI",
+        aiOn: "KI aktiv",
+        aiOff: "KI inaktiv — OPENAI_API_KEY auf Railway setzen",
+        aiAddKey: "OPENAI_API_KEY für intelligente Antworten hinzufügen.",
+        maturity: "Reifegrad",
+        previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
+        companySelect: "Firma (Tarif-Vorschau)",
+        allCompanies: "— Superadmin (Firma wählen) —",
+      },
+      en: {
+        title: "Enterprise hub — 16-layer map",
+        subtitle: "What is built and where to find it (UI · API · settings)",
+        previewNote: "Public preview (Professional sample). Sign in for your real plan.",
+        authErr: "Could not load catalog. Please sign in or hard-refresh (Ctrl+F5).",
+        searchPh: "Search: attendance, AI, wallet, SAP…",
+        filterAll: "All capabilities",
+        filterEnabled: "In my plan",
+        filterLocked: "Needs upgrade",
+        openAll: "Expand all layers",
+        yourPlan: "Your plan",
+        enabled: "enabled",
+        locked: "needs upgrade",
+        coverage: "Coverage",
+        coverageOf: "of platform",
+        planMatrixFoot: "All 16 layers — filtered by plan. Enterprise unlocks AI, integrations and global command center.",
+        layerEnabled: "enabled",
+        capAvailable: "✓ available",
+        capUpgrade: "Upgrade to",
+        tryApi: "Try API",
+        openUi: "Open UI",
+        aiTitle: "BauPass AI assistant",
+        aiPh: "Ask in plain language: How many workers are on site?",
+        aiSend: "Send",
+        aiPreview: "Sign in + Enterprise plan for AI",
+        aiOn: "AI enabled",
+        aiOff: "AI disabled — set OPENAI_API_KEY on Railway",
+        aiAddKey: "Add OPENAI_API_KEY for smart answers.",
+        maturity: "Platform maturity",
+        previewMaturity: "Public preview — sign in for production metrics.",
+        companySelect: "Company (plan preview)",
+        allCompanies: "— Superadmin: pick company —",
+      },
+      ar: {
+        title: "مركز المؤسسة — خريطة الـ 16 طبقة",
+        subtitle: "ما بُني فعلياً وأين تراه (واجهة · API · إعداد)",
+        previewNote: "معاينة عامة (خطة Professional كمثال). سجّل الدخول لرؤية خطتك الفعلية.",
+        authErr: "تعذّر تحميل الكتالوج. سجّل الدخول أو حدّث الصفحة (Ctrl+F5).",
+        searchPh: "بحث: حضور، AI، Wallet، SAP…",
+        filterAll: "كل القدرات",
+        filterEnabled: "متاح في خطتي",
+        filterLocked: "يتطلب ترقية",
+        openAll: "فتح كل الطبقات",
+        yourPlan: "خطتك",
+        enabled: "مفعّل",
+        locked: "يحتاج ترقية",
+        coverage: "تغطية",
+        coverageOf: "من المنصة",
+        planMatrixFoot: "كل الـ 16 طبقة — مُخصّصة حسب خطتك. Enterprise يفتح AI والتكاملات ومركز القيادة.",
+        layerEnabled: "مفعّل",
+        capAvailable: "✓ متاح",
+        capUpgrade: "ترقية إلى",
+        tryApi: "جرب API",
+        openUi: "فتح الواجهة",
+        aiTitle: "مساعد BauPass (AI)",
+        aiPh: "اسأل بلغة طبيعية: كم موظف على الموقع؟",
+        aiSend: "إرسال",
+        aiPreview: "سجّل الدخول + خطة Enterprise لاستخدام AI",
+        aiOn: "AI مفعّل",
+        aiOff: "AI غير مفعّل — OPENAI_API_KEY على Railway",
+        aiAddKey: "أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.",
+        maturity: "نضج المنصة",
+        previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
+        companySelect: "الشركة (معاينة الخطة)",
+        allCompanies: "— المشرف: اختر شركة —",
+      },
+    };
+    function t(key) {
+      return (HUB_I18N[HUB_LANG] || HUB_I18N.de)[key] || (HUB_I18N.de[key] || key);
+    }
+    const PLAN_LABELS = {
+      de: { tageskarte: "Tageskarte", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
+      en: { tageskarte: "Day pass", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
+      ar: { tageskarte: "يومي", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
+    };
+    function planLabel(plan) {
+      return (PLAN_LABELS[HUB_LANG] || PLAN_LABELS.de)[plan] || plan;
+    }
     let catalog = null;
     let filterSurface = "";
-    let filterEntitlement = "all";
+    let filterEntitlement = "enabled";
+    let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
+    let currentUserRole = "";
 
     async function api(path, opts) {
       const res = await fetch(path, { credentials: "include", ...opts });
@@ -174,13 +292,50 @@
       return data;
     }
 
+    function surfaceLabel(surface, labels) {
+      const row = labels[surface] || {};
+      if (HUB_LANG === "ar") return row.ar || surface;
+      if (HUB_LANG === "en") return row.en || row.label || surface;
+      return row.de || row.label || row.en || surface;
+    }
+
+    function itemLabel(it) {
+      if (HUB_LANG === "ar") return it.labelAr || it.label;
+      return it.label || it.labelAr;
+    }
+
+    function applyStaticI18n() {
+      document.documentElement.lang = HUB_LANG === "ar" ? "ar" : (HUB_LANG === "de" ? "de" : "en");
+      document.documentElement.dir = HUB_LANG === "ar" ? "rtl" : "ltr";
+      document.title = `BauPass — ${t("title")}`;
+      const h1 = document.querySelector("#hubHeader h1");
+      if (h1) h1.textContent = t("title");
+      const sub = document.getElementById("subtitle");
+      if (sub) sub.textContent = t("subtitle");
+      document.getElementById("search").placeholder = t("searchPh");
+      const fp = document.getElementById("filterPlan");
+      fp.options[0].textContent = t("filterAll");
+      fp.options[1].textContent = t("filterEnabled");
+      fp.options[2].textContent = t("filterLocked");
+      fp.options[2].value = "locked";
+      fp.options[1].value = "enabled";
+      fp.options[0].value = "all";
+      document.getElementById("openAllLabel").textContent = t("openAll");
+      document.querySelector(".ai-panel h2").textContent = t("aiTitle");
+      document.getElementById("aiQuestion").placeholder = t("aiPh");
+      document.querySelector("#aiForm button").textContent = t("aiSend");
+      const prev = document.getElementById("previewNote");
+      if (prev) prev.querySelector("strong").textContent = HUB_LANG === "ar" ? "معاينة عامة" : (HUB_LANG === "en" ? "Public preview" : "Öffentliche Vorschau");
+    }
+
     function renderStats(stats, labels) {
       const el = document.getElementById("stats");
       const entries = Object.entries(stats).filter(([k]) => k !== "total");
+      const allLabel = HUB_LANG === "ar" ? "الكل" : (HUB_LANG === "en" ? "All" : "Alle");
       el.innerHTML = [
-        `<div class="stat ${!filterSurface ? "active" : ""}" data-surface=""><strong>${stats.total}</strong>الكل</div>`,
+        `<div class="stat ${!filterSurface ? "active" : ""}" data-surface=""><strong>${stats.total}</strong>${allLabel}</div>`,
         ...entries.map(([k, v]) => {
-          const lab = (labels[k] || {}).ar || k;
+          const lab = surfaceLabel(k, labels);
           return `<div class="stat ${filterSurface === k ? "active" : ""}" data-surface="${k}">
             <strong>${v}</strong>${lab}</div>`;
         }),
@@ -203,23 +358,30 @@
       return hay.includes(q);
     }
 
+    function planMetaLine(plan, meta) {
+      if (HUB_LANG === "ar") return `${meta.labelAr || planLabel(plan)} — ${meta.taglineAr || ""}`;
+      if (HUB_LANG === "en") return `${meta.label || planLabel(plan)} — ${meta.taglineEn || meta.taglineAr || ""}`;
+      return `${meta.label || planLabel(plan)} — ${meta.taglineDe || meta.taglineAr || ""}`;
+    }
+
     function renderPlanBanner(cat) {
       const ent = cat.entitlements || {};
       const plan = ent.plan || "starter";
       const meta = (cat.plans || {})[plan] || {};
+      const capWord = HUB_LANG === "ar" ? "قدرة" : (HUB_LANG === "en" ? "features" : "Funktionen");
       const comparison = (cat.planComparison || []).map((row) => {
         const cur = row.plan === plan ? " current" : "";
-        return `<div class="plan-card${cur}"><strong>${PLAN_LABELS[row.plan] || row.plan}</strong><br>${row.enabledCount}/${row.total} قدرة<br>${row.coveragePercent}%</div>`;
+        return `<div class="plan-card${cur}"><strong>${planLabel(row.plan)}</strong><br>${row.enabledCount}/${row.total} ${capWord}<br>${row.coveragePercent}%</div>`;
       }).join("");
       document.getElementById("planBanner").innerHTML = `
-        <div><strong>خطتك: ${meta.labelAr || plan}</strong> — ${meta.taglineAr || ""}</div>
+        <div><strong>${t("yourPlan")}: ${planMetaLine(plan, meta)}</strong></div>
         <div style="margin-top:0.5rem;font-size:0.85rem">
-          <span class="enabled-badge">✓ ${ent.enabledCount || 0} مفعّل</span> ·
-          <span class="locked-badge">🔒 ${ent.lockedCount || 0} يحتاج ترقية</span> ·
-          تغطية <strong>${ent.coveragePercent || 0}%</strong> من المنصة
+          <span class="enabled-badge">✓ ${ent.enabledCount || 0} ${t("enabled")}</span> ·
+          <span class="locked-badge">🔒 ${ent.lockedCount || 0} ${t("locked")}</span> ·
+          ${t("coverage")} <strong>${ent.coveragePercent || 0}%</strong> ${t("coverageOf")}
         </div>
         <div class="plan-matrix">${comparison}</div>
-        <p style="font-size:0.75rem;color:var(--muted);margin:0">كل ما في قائمة الرؤية الـ16 طبقة موجود هنا — مُخصّص حسب خطتك. Enterprise يفتح AI والتكاملات ومركز القيادة العالمي.</p>`;
+        <p style="font-size:0.75rem;color:var(--muted);margin:0">${t("planMatrixFoot")}</p>`;
       document.getElementById("planBanner").classList.remove("hidden");
     }
 
@@ -240,7 +402,7 @@
                 <strong>${layer.titleAr}</strong>
                 <div style="font-size:0.75rem;color:var(--muted)">${layer.title}</div>
               </div>
-              <span>${items.filter(i => i.enabled).length}/${items.length} مفعّل</span>
+              <span>${items.filter(i => i.enabled).length}/${items.length} ${t("layerEnabled")}</span>
             </div>
             <div class="layer-body">
               <div class="cap-grid">${items.map(renderCap).join("")}</div>
@@ -254,21 +416,22 @@
 
     function renderCap(it) {
       const color = SURFACE_COLORS[it.surface] || "#64748b";
-      const lab = (catalog.surfaceLabels[it.surface] || {}).ar || it.surface;
+      const lab = surfaceLabel(it.surface, catalog.surfaceLabels || {});
       const locked = it.enabled === false;
       const apis = !locked && (it.apis || []).slice(0, 2).map((a) =>
-        `<button type="button" data-try="${a.split(" ")[1] || a}">جرب API</button>`).join("");
+        `<button type="button" data-try="${a.split(" ")[1] || a}">${t("tryApi")}</button>`).join("");
       const ui = !locked && it.ui
-        ? `<a href="${it.ui}" target="_blank" rel="noopener">فتح الواجهة</a>` : "";
+        ? `<a href="${it.ui}" target="_blank" rel="noopener">${t("openUi")}</a>` : "";
       const note = it.note ? `<div class="ar">${it.note}</div>` : "";
-      const planTag = `<span class="plan-badge badge" style="background:#6366f122;color:#a5b4fc">${PLAN_LABELS[it.minPlan] || it.minPlan}+</span>`;
+      const planTag = `<span class="plan-badge badge" style="background:#6366f122;color:#a5b4fc">${planLabel(it.minPlan)}+</span>`;
       const state = locked
-        ? `<span class="locked-badge badge">🔒 ترقية إلى ${PLAN_LABELS[it.minPlan] || it.minPlan}</span>`
-        : `<span class="enabled-badge badge">✓ متاح</span>`;
+        ? `<span class="locked-badge badge">🔒 ${t("capUpgrade")} ${planLabel(it.minPlan)}</span>`
+        : `<span class="enabled-badge badge">${t("capAvailable")}</span>`;
+      const secondary = HUB_LANG === "ar" ? it.label : (it.labelAr || "");
       return `
         <div class="cap ${locked ? "locked" : ""}">
-          <h4>${it.label}</h4>
-          <div class="ar">${it.labelAr}</div>
+          <h4>${itemLabel(it)}</h4>
+          <div class="ar">${secondary}</div>
           ${planTag}${state}
           <span class="badge" style="background:${color}22;color:${color}">${lab}</span>
           ${note}
@@ -276,9 +439,15 @@
         </div>`;
     }
 
+    function catalogUrl() {
+      const base = "/api/platform/enterprise-catalog";
+      if (!selectedCompanyId) return base;
+      return `${base}?company_id=${encodeURIComponent(selectedCompanyId)}`;
+    }
+
     async function fetchCatalog() {
       try {
-        return await api("/api/platform/enterprise-catalog");
+        return await api(catalogUrl());
       } catch (e) {
         if (e.message === "auth") {
           const prev = await fetch("/api/platform/enterprise-catalog/preview").then((r) => r.json());
@@ -286,6 +455,32 @@
           return prev;
         }
         throw e;
+      }
+    }
+
+    async function loadCompaniesForSuperadmin() {
+      const sel = document.getElementById("companySelect");
+      if (!sel || currentUserRole !== "superadmin") {
+        sel?.classList.add("hidden");
+        return;
+      }
+      try {
+        const rows = await api("/api/companies");
+        const list = Array.isArray(rows) ? rows.filter((c) => !c.deleted_at) : [];
+        sel.innerHTML = `<option value="">${t("allCompanies")}</option>` +
+          list.map((c) => `<option value="${c.id}" ${c.id === selectedCompanyId ? "selected" : ""}>${c.name} (${planLabel(c.plan)})</option>`).join("");
+        sel.classList.remove("hidden");
+        sel.title = t("companySelect");
+        sel.onchange = () => {
+          selectedCompanyId = sel.value || "";
+          const url = new URL(location.href);
+          if (selectedCompanyId) url.searchParams.set("company_id", selectedCompanyId);
+          else url.searchParams.delete("company_id");
+          history.replaceState({}, "", url);
+          loadCatalog();
+        };
+      } catch {
+        sel.classList.add("hidden");
       }
     }
 
@@ -306,19 +501,21 @@
         renderLayers();
         const m = document.getElementById("maturity");
         if (caps) {
-          m.textContent = `نضج المنصة: ${caps.maturityLevel || "—"} (${caps.maturityScore ?? "—"}%) · DB: ${caps.dataLayer?.runtime || "—"} · Redis: ${caps.dataLayer?.redisConfigured ? "نعم" : "لا"}`;
+          const redisYes = HUB_LANG === "ar" ? "نعم" : (HUB_LANG === "en" ? "yes" : "ja");
+          const redisNo = HUB_LANG === "ar" ? "لا" : (HUB_LANG === "en" ? "no" : "nein");
+          m.textContent = `${t("maturity")}: ${caps.maturityLevel || "—"} (${caps.maturityScore ?? "—"}%) · DB: ${caps.dataLayer?.runtime || "—"} · Redis: ${caps.dataLayer?.redisConfigured ? redisYes : redisNo}`;
         } else if (isPreview) {
-          m.textContent = "معاينة عامة — سجّل الدخول لرؤية خطتك ومقاييس الإنتاج.";
+          m.textContent = t("previewMaturity");
         }
         document.getElementById("aiStatus").textContent = isPreview
-          ? "سجّل الدخول + خطة Enterprise لاستخدام مساعد AI"
-          : (aiSt.configured ? "AI مفعّل" : "AI غير مفعّل — OPENAI_API_KEY على Railway");
+          ? t("aiPreview")
+          : (aiSt.configured ? t("aiOn") : t("aiOff"));
         if (!isPreview && !aiSt.configured) {
-          appendAi("system", "أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.");
+          appendAi("system", t("aiAddKey"));
         }
       } catch (e) {
         document.getElementById("authErr").classList.remove("hidden");
-        document.getElementById("layers").innerHTML = `<p class="err-box">${e.message}</p>`;
+        document.getElementById("layers").innerHTML = `<p class="err-box">${t("authErr")}</p>`;
       }
     }
 
@@ -352,14 +549,14 @@
           body: JSON.stringify({ question: q }),
         });
         if (data.error === "feature_not_available") {
-          appendAi("bot", `هذه القدرة تتطلب خطة ${PLAN_LABELS[data.requiredPlan] || data.requiredPlan}. خطتك الحالية: ${PLAN_LABELS[data.plan] || data.plan}.`, true);
+          appendAi("bot", `${t("capUpgrade")} ${planLabel(data.requiredPlan)} (${t("yourPlan")}: ${planLabel(data.plan)})`, true);
         } else {
           appendAi("bot", data.answer || data.hint || JSON.stringify(data, null, 2));
         }
       } catch (e) {
         const p = e.payload || {};
         if (p.error === "feature_not_available") {
-          appendAi("bot", `يتطلب خطة ${PLAN_LABELS[p.requiredPlan] || p.requiredPlan} (خطتك: ${PLAN_LABELS[p.plan] || p.plan})`, true);
+          appendAi("bot", `${t("capUpgrade")} ${planLabel(p.requiredPlan)} (${t("yourPlan")}: ${planLabel(p.plan)})`, true);
         } else {
           appendAi("bot", e.message, true);
         }
@@ -385,7 +582,23 @@
       }
     });
 
-    loadCatalog();
+    applyStaticI18n();
+    (async () => {
+      try {
+        const boot = await api("/api/session/bootstrap");
+        currentUserRole = boot?.user?.role || "";
+        if (currentUserRole === "company-admin" && boot?.user?.company_id) {
+          selectedCompanyId = boot.user.company_id;
+        }
+        if (currentUserRole === "superadmin" && boot?.user?.preview_company_id && !selectedCompanyId) {
+          selectedCompanyId = boot.user.preview_company_id;
+        }
+      } catch {
+        currentUserRole = "";
+      }
+      await loadCompaniesForSuperadmin();
+      await loadCatalog();
+    })();
   </script>
 </body>
 </html>

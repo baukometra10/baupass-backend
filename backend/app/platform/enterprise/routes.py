@@ -732,18 +732,25 @@ def register_enterprise_routes(flask_app):
     def platform_enterprise_catalog():
         from backend.app.platform.enterprise_catalog import get_enterprise_catalog
         from backend.app.platform.plan_entitlements import apply_plan_to_catalog, build_plan_comparison_matrix
-        from backend.server import get_company_plan, get_db
+        from backend.server import get_company_plan, get_db, normalize_company_plan
 
         catalog = get_enterprise_catalog()
         db = get_db()
+        role = g.current_user.get("role")
         cid = g.current_user.get("company_id")
-        if g.current_user.get("role") == "superadmin" and request.args.get("company_id"):
-            cid = request.args.get("company_id")
-        plan = get_company_plan(db, cid) if cid else "enterprise"
-        if g.current_user.get("role") == "superadmin" and request.args.get("plan"):
-            plan = str(request.args.get("plan")).strip().lower()
+        if role == "superadmin":
+            cid = (
+                request.args.get("company_id")
+                or getattr(g, "preview_company_id", "")
+                or g.current_user.get("preview_company_id")
+                or cid
+            )
+        plan = get_company_plan(db, cid) if cid else "starter"
+        if role == "superadmin" and request.args.get("plan"):
+            plan = normalize_company_plan(request.args.get("plan"))
         payload = apply_plan_to_catalog(catalog, plan)
         payload["planComparison"] = build_plan_comparison_matrix(catalog)
+        payload["resolvedCompanyId"] = cid or ""
         return jsonify(payload)
 
     @enterprise_bp.get("/platform/entitlements")
@@ -760,14 +767,21 @@ def register_enterprise_routes(flask_app):
         from backend.server import get_company_plan, get_plan_features, get_db
 
         db = get_db()
+        role = g.current_user.get("role")
         cid = g.current_user.get("company_id")
-        if g.current_user.get("role") == "superadmin" and request.args.get("company_id"):
-            cid = request.args.get("company_id")
+        if role == "superadmin":
+            cid = (
+                request.args.get("company_id")
+                or getattr(g, "preview_company_id", "")
+                or g.current_user.get("preview_company_id")
+                or cid
+            )
         plan = get_company_plan(db, cid) if cid else "starter"
         catalog = apply_plan_to_catalog(get_enterprise_catalog(), plan)
         return jsonify(
             {
                 "plan": plan,
+                "resolvedCompanyId": cid or "",
                 "planMeta": PLAN_META.get(plan, {}),
                 "planOrder": list(PLAN_ORDER),
                 "legacyFeatures": get_plan_features(plan),

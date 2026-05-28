@@ -422,8 +422,8 @@ from flask_cors import CORS
 CORS(app, supports_credentials=True, origins=get_cors_origins())
 
 SESSION_TTL_HOURS = 12
-LOGIN_MAX_ATTEMPTS = 5
-LOGIN_LOCK_MINUTES = 10
+LOGIN_MAX_ATTEMPTS = max(5, int(os.getenv("BAUPASS_LOGIN_MAX_ATTEMPTS", "12")))
+LOGIN_LOCK_MINUTES = max(1, int(os.getenv("BAUPASS_LOGIN_LOCK_MINUTES", "10")))
 SESSION_COOKIE_NAME = "baupass_session"
 failed_login_attempts = {}
 
@@ -1353,6 +1353,17 @@ def _throttled_session_purge(db):
 
 def normalize_company_plan(plan_value):
     plan = str(plan_value or "").strip().lower()
+    aliases = {
+        "startpreis": "starter",
+        "start": "starter",
+        "starterpaket": "starter",
+        "professionell": "professional",
+        "pro": "professional",
+        "tageskarte": "tageskarte",
+        "daypass": "tageskarte",
+        "besucherkarte": "tageskarte",
+    }
+    plan = aliases.get(plan, plan)
     return plan if plan in PLAN_NET_PRICE_EUR else "tageskarte"
 
 
@@ -8014,12 +8025,11 @@ def qr_data_url():
 
 
 @app.post("/api/login")
-@require_rate_limit("login")
 def login():
-    def login_error(code, **extra):
+    def login_error(code, status_code=200, **extra):
         payload = {"ok": False, "error": code}
         payload.update(extra)
-        return jsonify(payload)
+        return jsonify(payload), status_code
 
     from backend.app.db.schema_errors import guard_core_schema
 
@@ -8030,7 +8040,7 @@ def login():
     throttle_key = build_login_throttle_key()
     allowed, retry_after = can_attempt_login(throttle_key)
     if not allowed:
-        return login_error("too_many_attempts", retryAfterSeconds=retry_after)
+        return login_error("too_many_attempts", 429, retryAfterSeconds=retry_after)
 
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip().lower()
@@ -8115,6 +8125,7 @@ def login():
                     (user["id"], cooldown_threshold)
                 ).fetchone()
                 if recent_otp:
+                    clear_login_failures(throttle_key)
                     return login_error("otp_sent")
 
                 otp = str(secrets.randbelow(900000) + 100000)
@@ -8136,7 +8147,8 @@ def login():
                         f"[OTP-FALLBACK] Kein SMTP konfiguriert oder Versand fehlgeschlagen – "
                         f"OTP fuer Benutzer '{user['username']}': {otp}"
                     )
-                # Return "otp_sent" – NOT a login failure
+                # Return "otp_sent" – NOT a login failure (credentials were valid)
+                clear_login_failures(throttle_key)
                 return login_error("otp_sent")
             else:
                 # No email configured: fall back to TOTP prompt
@@ -8268,10 +8280,12 @@ def session_bootstrap():
         return blocked
 
     token = get_auth_token_from_request()
+    if not token:
+        return jsonify({"authenticated": False, "error": "unauthorized"})
 
     user = get_user_from_session_token(token)
     if not user:
-        return jsonify({"error": "unauthorized"}), 401
+        return jsonify({"authenticated": False, "error": "unauthorized"})
 
     try:
         db = get_db()
@@ -8315,7 +8329,7 @@ def session_bootstrap():
             pass
         raise
 
-    return jsonify({"token": token, "user": serialize_user(user)})
+    return jsonify({"authenticated": True, "token": token, "user": serialize_user(user)})
 
 
 @app.get("/api/system/status")

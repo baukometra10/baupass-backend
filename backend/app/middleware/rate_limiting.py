@@ -243,6 +243,7 @@ _INTERNAL_NETWORKS = [
 _EXCLUDED_PATHS = frozenset({
     "/api/health",
     "/api/public/branding",
+    "/api/session/bootstrap",
     "/favicon.ico",
 })
 
@@ -313,6 +314,8 @@ def register_rate_limit_middleware(app: Flask) -> None:
 
 def _detect_scope(path: str, method: str) -> str:
     """يُحدد الـ scope المناسب للـ rate limit بناءً على المسار."""
+    if path in {"/api/login", "/api/logout"} and method in {"POST", "PUT"}:
+        return "auth_login"
     if "/api/auth/login" in path or "/api/worker-app/auth" in path:
         return "auth_login"
     if "/api/gate/" in path or "/api/scan" in path:

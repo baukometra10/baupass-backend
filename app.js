@@ -106,11 +106,8 @@ const WORKER_PWA_BUILD_TAG = "20260525b";
 
 function loadStoredSessionToken() {
   try {
-    const stored = (window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY) || "").trim();
-    console.log("[Token] Loaded from storage:", stored ? `${stored.slice(0, 20)}...` : "NONE");
-    return stored;
-  } catch (err) {
-    console.warn("[Token] Failed to load from storage:", err);
+    return (window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY) || "").trim();
+  } catch {
     return "";
   }
 }
@@ -332,6 +329,14 @@ const UI_TRANSLATIONS = {
     dashBadge1: "Fotoaufnahme",
     dashBadge2: "Zutrittslog",
     dashBadge3: "Mandantenf\u00e4hig",
+    enterpriseHubEyebrow: "Neu — Enterprise-Plattform",
+    enterpriseHubTitle: "Enterprise-Hub: 16 Ebenen + Tarife + KI-Assistent",
+    enterpriseHubDesc: "Alle gebauten Funktionen (Anwesenheit, Identit\u00e4t, Sicherheit, KI, Integrationen \u2026) an einem Ort \u2014 gefiltert nach Ihrem Tarif.",
+    enterpriseHubOpenBtn: "Enterprise-Hub \u00f6ffnen",
+    enterpriseHubAdminV2Btn: "Admin v2",
+    enterpriseHubOpsBtn: "Ops-Zentrale",
+    enterpriseHubPlanHint: "Aktueller Tarif: {plan} \u2014 {enabled} von {total} Funktionen aktiv ({percent}%). Superadmin: Firmen-Vorschau w\u00e4hlen, um den Kunden-Tarif zu simulieren.",
+    enterpriseHubPreviewHint: "Firmen-Vorschau aktiv ({company}): Tarif {plan}",
     reportingEyebrow: "Reporting",
     reportingH3: "Zahlung und Sperrstatus",
     reportingPaid: "Bezahlt",
@@ -1164,6 +1169,14 @@ const UI_TRANSLATIONS = {
     dashBadge1: "Photo capture",
     dashBadge2: "Access log",
     dashBadge3: "Multi-tenant",
+    enterpriseHubEyebrow: "New — Enterprise platform",
+    enterpriseHubTitle: "Enterprise hub: 16 layers + plans + AI assistant",
+    enterpriseHubDesc: "All built capabilities (attendance, identity, security, AI, integrations …) in one place — filtered by your plan.",
+    enterpriseHubOpenBtn: "Open enterprise hub",
+    enterpriseHubAdminV2Btn: "Admin v2",
+    enterpriseHubOpsBtn: "Operations center",
+    enterpriseHubPlanHint: "Current plan: {plan} — {enabled} of {total} features active ({percent}%). Superadmin: select company preview to simulate customer plan.",
+    enterpriseHubPreviewHint: "Company preview active ({company}): plan {plan}",
     reportingEyebrow: "Reporting",
     reportingH3: "Payment & Block Status",
     reportingPaid: "Paid",
@@ -2723,6 +2736,14 @@ const UI_TRANSLATIONS = {
     dashBadge1: "التقاط الصور",
     dashBadge2: "سجل الدخول",
     dashBadge3: "تعدد المستأجرين",
+    enterpriseHubEyebrow: "جديد — منصة المؤسسة",
+    enterpriseHubTitle: "مركز المؤسسة: 16 طبقة + خطط + مساعد AI",
+    enterpriseHubDesc: "كل القدرات التي بُنيت (حضور، هوية، أمن، AI، تكاملات…) في مكان واحد — مُخصّصة حسب خطتك.",
+    enterpriseHubOpenBtn: "فتح مركز المؤسسة",
+    enterpriseHubAdminV2Btn: "Admin v2",
+    enterpriseHubOpsBtn: "مركز العمليات",
+    enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
+    enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
     reportingEyebrow: "التقارير",
     reportingH3: "حالة الدفع والتجميد",
     accessWeekEyebrow: "7 أيام",
@@ -15378,12 +15399,13 @@ function getCompanyPlan(companyId) {
 }
 
 function hasCompanyFeatureForCompanyId(companyId, featureKey) {
-  const role = String(getCurrentUser()?.role || "").toLowerCase();
-  if (role === "superadmin" && !isSuperadminCompanyPreviewMode()) {
-    return true;
-  }
   const requiredPlan = PLAN_FEATURES[featureKey] || "enterprise";
-  const companyPlan = getCompanyPlan(companyId || getEffectiveUiCompanyId());
+  const resolvedCompanyId = String(companyId || getEffectiveUiCompanyId() || "").trim();
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (!resolvedCompanyId) {
+    return role === "superadmin";
+  }
+  const companyPlan = getCompanyPlan(resolvedCompanyId);
   return (PLAN_RANK[companyPlan] || 0) >= (PLAN_RANK[requiredPlan] || 3);
 }
 
@@ -15769,6 +15791,9 @@ function clearSession() {
   state.currentUser = null;
   state.loginOtpPending = false;
   state.loginSetupEmailPending = false;
+  state.companyAdminSecurity = {};
+  state.companyTurnstiles = {};
+  state.companyMailSettings = {};
 }
 
 function handleExpiredControlSession() {
@@ -15784,10 +15809,24 @@ function handleExpiredControlSession() {
 }
 
 async function restoreSessionFromBootstrap() {
-  const bootstrap = await apiRequest(`${API_BASE}/api/session/bootstrap`, {
-    auth: false,
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  const headers = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_BASE}/api/session/bootstrap`, {
+    method: "GET",
+    headers,
+    credentials: "include",
   });
+  const bootstrap = await response.json().catch(() => ({}));
+  if (
+    !response.ok
+    || bootstrap?.authenticated === false
+    || ["unauthorized", "invalid_session", "session_expired"].includes(String(bootstrap?.error || ""))
+  ) {
+    clearSession();
+    throw new Error("session_expired");
+  }
   if (bootstrap?.token) {
     token = bootstrap.token;
     persistSessionToken(token);
@@ -15941,11 +15980,9 @@ async function apiRequest(url, options = {}) {
 
       // Vermeidet Rekursion, falls der fehlgeschlagene Request bereits bootstrap selbst ist.
       if (!String(url || "").includes("/api/session/bootstrap")) {
-        console.warn("⚠️  401 erhalten, versuche neue Session zu laden...");
         try {
           await restoreSessionFromBootstrap();
-          if (token) {
-            console.log("✓ Session erneuert, wiederhole Request");
+          if (token && state.currentUser) {
             return apiRequest(url, { ...options, retries: retries - 1 });
           }
         } catch {
@@ -16536,9 +16573,7 @@ async function loadAllData() {
   if (!state.currentUser) {
     let bootstrap;
     try {
-      console.log("[Bootstrap] Attempting with token:", token ? `${token.slice(0, 20)}...` : "NONE");
       bootstrap = await restoreSessionFromBootstrap();
-      console.log("[Bootstrap] Success:", { hasUser: !!bootstrap?.user, username: bootstrap?.user?.username });
     } catch (error) {
       const msg = String(error?.message || "");
       console.warn("[Bootstrap] Failed:", msg);
@@ -16733,6 +16768,58 @@ async function loadAllData() {
   }
 }
 
+async function renderEnterpriseHubBanner(loggedIn) {
+  const banner = document.getElementById("enterpriseHubBanner");
+  const hint = document.getElementById("enterpriseHubPlanHint");
+  const openLink = document.getElementById("enterpriseHubOpenLink");
+  if (!banner) {
+    return;
+  }
+  banner.classList.toggle("hidden", !loggedIn);
+  if (!loggedIn) {
+    if (hint) {
+      hint.classList.add("hidden");
+    }
+    return;
+  }
+  const companyId = getEffectiveUiCompanyId();
+  const previewCompany = companyId
+    ? (state.companies || []).find((entry) => String(entry?.id || "") === companyId)
+    : null;
+  const plan = getCompanyPlan(companyId);
+  let hubUrl = "/enterprise-hub.html?v=20260528b";
+  if (companyId) {
+    hubUrl += `&company_id=${encodeURIComponent(companyId)}`;
+  }
+  if (openLink) {
+    openLink.href = hubUrl;
+  }
+  if (!hint) {
+    return;
+  }
+  try {
+    const catalogUrl = `${API_BASE}/api/platform/enterprise-catalog${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
+    const catalog = await apiRequest(catalogUrl);
+    const ent = catalog?.entitlements || {};
+    const planLabel = getPlanLabel(ent.plan || plan);
+    const templateKey = previewCompany ? "enterpriseHubPreviewHint" : "enterpriseHubPlanHint";
+    hint.textContent = runtimeTextTemplate(templateKey, {
+      plan: planLabel,
+      company: previewCompany?.name || "",
+      enabled: String(ent.enabledCount ?? "—"),
+      total: String(ent.totalCapabilities ?? "—"),
+      percent: String(ent.coveragePercent ?? "—"),
+    });
+    hint.classList.remove("hidden");
+  } catch {
+    hint.textContent = runtimeTextTemplate(
+      previewCompany ? "enterpriseHubPreviewHint" : "enterpriseHubPlanHint",
+      { plan: getPlanLabel(plan), company: previewCompany?.name || "", enabled: "—", total: "—", percent: "—" }
+    );
+    hint.classList.remove("hidden");
+  }
+}
+
 function refreshAll() {
   const loggedIn = Boolean(token && state.currentUser);
   syncSupportLoginUi();
@@ -16841,6 +16928,7 @@ function refreshAll() {
   ensureInvoiceDefaults();
   refreshInvoicePreview({ silent: true });
   applySupportReadOnlyUiState();
+  void renderEnterpriseHubBanner(loggedIn);
 }
 
 // ── Login Greeting ──────────────────────────────────────────────────────────
@@ -19888,6 +19976,10 @@ function bindCompanyRowActions() {
 
     const otpSetupButton = event.target.closest("[data-company-otp-setup]");
     if (otpSetupButton && !otpSetupButton.disabled && elements.companyList.contains(otpSetupButton)) {
+      if (!token || state.currentUser?.role !== "superadmin") {
+        handleExpiredControlSession();
+        return;
+      }
       const companyId = otpSetupButton.dataset.companyOtpSetup;
       const company = state.companies.find((c) => c.id === companyId);
       if (!companyId || !company) return;
@@ -25171,6 +25263,10 @@ async function handleCompanySubmit(event) {
     }
 
     await loadAllData();
+    const createdCompanyId = String(response?.company?.id || "").trim();
+    if (createdCompanyId && getCurrentUser()?.role === "superadmin") {
+      await setSuperadminPreviewCompany(createdCompanyId, { refresh: false });
+    }
     refreshAll();
 
     if (response.adminCredentials) {
@@ -26791,8 +26887,14 @@ async function tryAutofillOtpFromClipboard() {
   }
 }
 
+let loginSubmitInFlight = false;
+
 async function handleLoginSubmit(event) {
   event.preventDefault();
+
+  if (loginSubmitInFlight) {
+    return;
+  }
 
   // Lockout check applies to ALL login scopes
   if (isLoginBlockedLocally()) {
@@ -26803,6 +26905,10 @@ async function handleLoginSubmit(event) {
   const supportContext = state.supportLoginContext || loadSupportLoginContext();
   const loginScope = elements.loginScope?.value || "auto";
 
+  loginSubmitInFlight = true;
+  if (elements.loginForm) {
+    elements.loginForm.setAttribute("aria-busy", "true");
+  }
   try {
     const payload = await apiRequest(API_BASE + "/api/login", {
       auth: false,
@@ -26832,9 +26938,7 @@ async function handleLoginSubmit(event) {
     state.loginOtpPending = false;
     state.loginSetupEmailPending = false;
     token = payload.token;
-    console.log("[Login] Token received:", token ? `${token.slice(0, 20)}...` : "NONE");
     persistSessionToken(token);
-    console.log("[Login] Token persisted to storage");
     state.currentUser = payload.user;
     clearSupportLoginContext();
     state.supportLoginContext = null;
@@ -26971,6 +27075,11 @@ async function handleLoginSubmit(event) {
       return;
     }
     showToast(uiT("alertLoginFailed").replace("{error}", error.message), "error", 4200);
+  } finally {
+    loginSubmitInFlight = false;
+    if (elements.loginForm) {
+      elements.loginForm.removeAttribute("aria-busy");
+    }
   }
 }
 

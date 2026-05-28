@@ -8,12 +8,12 @@ from typing import Any
 
 # surface: legacy | admin-v2 | worker | hub | api | config
 _SURFACE_LABELS = {
-    "legacy": {"ar": "لوحة Legacy", "color": "#3b82f6"},
-    "admin-v2": {"ar": "Admin v2", "color": "#14b8a6"},
-    "worker": {"ar": "تطبيق الموظف", "color": "#a855f7"},
-    "hub": {"ar": "مركز المؤسسة", "color": "#f59e0b"},
-    "api": {"ar": "API فقط", "color": "#64748b"},
-    "config": {"ar": "يتطلب إعداد", "color": "#ef4444"},
+    "legacy": {"de": "Legacy-Portal", "en": "Legacy portal", "ar": "لوحة Legacy", "color": "#3b82f6"},
+    "admin-v2": {"de": "Admin v2", "en": "Admin v2", "ar": "Admin v2", "color": "#14b8a6"},
+    "worker": {"de": "Worker-App", "en": "Worker app", "ar": "تطبيق الموظف", "color": "#a855f7"},
+    "hub": {"de": "Enterprise-Hub", "en": "Enterprise hub", "ar": "مركز المؤسسة", "color": "#f59e0b"},
+    "api": {"de": "Nur API", "en": "API only", "ar": "API فقط", "color": "#64748b"},
+    "config": {"de": "Konfiguration", "en": "Configuration", "ar": "يتطلب إعداد", "color": "#ef4444"},
 }
 
 
