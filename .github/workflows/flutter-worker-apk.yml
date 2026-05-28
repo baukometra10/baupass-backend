@@ -76,10 +76,11 @@ jobs:
         run: |
           set -o pipefail
           flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
+            echo "::error title=APK build failed::$(grep -E 'FAILURE:|error:|Error:|Exception' build-apk.log | tail -n 5 | tr '\n' ' ')"
             {
               echo "### Build failed"
               echo '```'
-              tail -n 120 build-apk.log
+              cat build-apk.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
