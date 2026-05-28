@@ -1,4 +1,4 @@
-# Firebase Push (FCM / APNs) for BauPass Worker
+# Firebase Push (FCM / APNs) for BauPass Hybrid Worker App
 
 ## 1. Firebase project
 
@@ -23,16 +23,19 @@ Run `flutter pub get`.
 
 - `lib/firebase_bootstrap.dart` — `Firebase.initializeApp()` + token
 - `lib/main.dart` — calls bootstrap before `runApp`
-- `lib/services/push_notification_service.dart` — registers token on login when push is enabled in Profile
+- `lib/services/push_notification_service.dart` — FCM token on login (device binding) + Profile toggle
+- `lib/services/push_navigation.dart` — tap opens `baupass://app/...` tabs
 
 For local dev without Firebase files: `flutter run --dart-define=BAUPASS_FCM_TOKEN=test-token`
 
-## 4. Backend registration
+## 4. Backend registration (hybrid)
 
-When the user enables notifications in **Profile**, the app calls:
+On login, the Flutter app sends `device.pushToken` in `POST /api/worker-app/login` (stored on `worker_bound_devices`).
 
-`POST /api/device/register` with `{ deviceToken, deviceType, deviceName, publicKey }`.
+Optional refresh: `POST /api/worker-app/push/register` with `{ pushToken, platform }`.
 
-## 5. Web push (PWA)
+Status: `GET /api/worker-app/push/status` → `fcmConfigured`, `workerAppKind: hybrid_native`.
 
-Worker PWA continues to use VAPID via `/api/worker-app/push-vapid-key` and `/api/worker-app/push-subscribe` — separate from native FCM.
+## 5. Legacy Web push (deprecated)
+
+Old browser PWA used VAPID (`push_subscriptions`). Production workers should use the **Flutter hybrid app**; Web Push is only a fallback when no FCM token exists.

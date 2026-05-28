@@ -660,6 +660,14 @@
                 dropThinking();
                 statusEl.textContent = "";
               }
+              if (payload.type === "answer_reset") {
+                botDiv.textContent = "";
+                statusEl.textContent = "";
+              }
+              if (payload.type === "status") {
+                dropThinking();
+                statusEl.textContent = payload.text || "";
+              }
               if (payload.type === "chunk") {
                 dropThinking();
                 botDiv.textContent += payload.text || "";

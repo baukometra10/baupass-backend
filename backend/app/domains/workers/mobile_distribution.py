@@ -1,6 +1,6 @@
 """
-Worker mobile app distribution — loaded from admin/system (PWA + APK + Flutter).
-Not a public app-store SKU; Hybrid app (PWA + Flutter) NFC/RFID/HCE modes use /api/worker-app/*.
+Worker mobile app distribution — hybrid native app (Flutter) + legacy browser install.
+Not a public app-store SKU; NFC/RFID/HCE modes use /api/worker-app/*.
 """
 from __future__ import annotations
 
@@ -24,13 +24,17 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
 
     return {
         "distributionModel": "in_system",
+        "workerAppKind": "hybrid_native",
+        "primaryChannel": "flutter_fcm",
+        "legacyChannels": ["pwa_vapid"],
         "hybridModes": [
             {
                 "id": "app_qr_badge",
-                "label": "Hybrid app: QR / Badge + PIN",
+                "label": "Hybrid app (Flutter): QR / Badge + PIN",
                 "api": "/api/worker-app/login",
                 "flutter": True,
-                "pwa": True,
+                "pwa": False,
+                "push": "fcm",
             },
             {
                 "id": "gate_reader_nfc_rfid",
@@ -45,12 +49,20 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
                 "companion": "android-hce-companion/",
             },
         ],
+        "nativeInstall": {
+            "label": "Flutter hybrid app (APK / TestFlight / internal build)",
+            "flutterProject": "mobile/",
+            "apiPrefix": "/api/worker-app",
+            "pushRegister": "/api/worker-app/push/register",
+        },
         "pwaInstall": {
-            "label": "PWA install from browser (same backend)",
+            "label": "Legacy browser install (deprecated — use Flutter app)",
+            "deprecated": True,
             "entry": f"{base}{entry}?worker=1",
             "launcher": f"{base}{launcher}?v={build_tag}",
         },
         "install": {
+            "primary": "flutter",
             "pwaLauncher": f"{base}{launcher}?v={build_tag}",
             "pwaEntry": f"{base}{entry}?worker=1&v={build_tag}",
             "joinPage": f"{base}/join.html",

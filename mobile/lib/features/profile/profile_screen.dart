@@ -138,11 +138,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   subtitle: Text(
                     _pushServerStatus == null
                         ? 'Loading push status…'
-                        : (_pushServerStatus!['anyChannelReady'] == true
+                        : (_pushServerStatus!['fcmConfigured'] == true
                             ? (_pushEnabled
-                                ? 'Server ready (FCM/Web). Token sync on login.'
-                                : 'Server push ready — enable to register device.')
-                            : 'Server push not configured (FCM/VAPID).'),
+                                ? 'Hybrid app (FCM). Token syncs on login.'
+                                : 'FCM ready — enable to register this device.')
+                            : (_pushServerStatus!['anyChannelReady'] == true
+                                ? 'Push partially configured on server.'
+                                : 'Set FCM_SERVER_KEY on server for native push.')),
                   ),
                   value: _pushEnabled,
                   onChanged: (value) async {
@@ -157,7 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Push enabled locally — add Firebase or BAUPASS_FCM_TOKEN for delivery.',
+                              'Push enabled — add google-services.json / GoogleService-Info.plist or BAUPASS_FCM_TOKEN.',
                             ),
                           ),
                         );

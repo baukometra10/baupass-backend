@@ -139,7 +139,8 @@ class _WorkerAppState extends State<WorkerApp> {
       _joinError = null;
     });
     try {
-      final session = await _auth.loginWithAccessToken(accessToken);
+      final pushToken = await _push.tokenForDeviceBinding();
+      final session = await _auth.loginWithAccessToken(accessToken, pushToken: pushToken);
       _bindSession(session);
       _finishBoot(session);
     } catch (e) {
@@ -206,6 +207,7 @@ class _WorkerAppState extends State<WorkerApp> {
               : LoginScreen(
                   auth: _auth,
                   location: _location,
+                  push: _push,
                   onLoggedIn: _onLoggedIn,
                   initialError: _joinError,
                 ),

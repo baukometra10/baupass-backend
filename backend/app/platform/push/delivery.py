@@ -1,4 +1,4 @@
-"""Worker push delivery with channel breakdown (Web Push + FCM)."""
+"""Worker push delivery — FCM/APNs first (Flutter hybrid), Web Push legacy."""
 from __future__ import annotations
 
 import json
@@ -10,10 +10,15 @@ def push_platform_status() -> dict[str, Any]:
     from .fcm import fcm_configured
 
     vapid = bool(os.getenv("VAPID_PRIVATE_KEY", "").strip())
+    fcm = fcm_configured()
     return {
+        "workerAppKind": "hybrid_native",
+        "primaryChannel": "fcm",
+        "fcmConfigured": fcm,
         "webPushConfigured": vapid,
-        "fcmConfigured": fcm_configured(),
-        "anyChannelReady": vapid or fcm_configured(),
+        "legacyWebPush": vapid,
+        "anyChannelReady": fcm or vapid,
+        "recommendedForWorkers": "fcm",
     }
 
 
@@ -26,40 +31,13 @@ def deliver_worker_push(
     tag: str = "notification",
     company_id: str | None = None,
 ) -> dict[str, Any]:
-    """Send push to all channels for a worker. Returns delivery breakdown."""
+    """Send push to worker devices (FCM first, legacy Web Push fallback)."""
     web_push = 0
     fcm = 0
 
     try:
-        from backend.server import _load_pywebpush_client
-
-        webpush, _ = _load_pywebpush_client()
-        vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-        vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
-        if callable(webpush) and vapid_private_key:
-            subs = db.execute(
-                "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
-                (worker_id,),
-            ).fetchall()
-            for sub in subs:
-                try:
-                    webpush(
-                        subscription_info={
-                            "endpoint": sub["endpoint"],
-                            "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
-                        },
-                        data=json.dumps({"title": title, "body": body, "tag": tag}),
-                        vapid_private_key=vapid_private_key,
-                        vapid_claims={"sub": vapid_email},
-                    )
-                    web_push += 1
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    try:
         from .fcm import send_fcm_notification
+        from .deeplinks import push_data_payload
 
         native_rows = db.execute(
             """
@@ -70,8 +48,6 @@ def deliver_worker_push(
         ).fetchall()
         tokens = list({str(r["push_token"]).strip() for r in native_rows if r["push_token"]})
         if tokens:
-            from .deeplinks import push_data_payload
-
             fcm = send_fcm_notification(
                 tokens,
                 title=title,
@@ -80,6 +56,46 @@ def deliver_worker_push(
             )
     except Exception:
         pass
+
+    if fcm <= 0:
+        try:
+            from backend.server import _load_pywebpush_client
+
+            webpush, _ = _load_pywebpush_client()
+            vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+            vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
+            if callable(webpush) and vapid_private_key:
+                from .deeplinks import push_data_payload
+
+                payload = push_data_payload(tag=tag, worker_id=str(worker_id))
+                subs = db.execute(
+                    "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
+                    (worker_id,),
+                ).fetchall()
+                for sub in subs:
+                    try:
+                        webpush(
+                            subscription_info={
+                                "endpoint": sub["endpoint"],
+                                "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
+                            },
+                            data=json.dumps(
+                                {
+                                    "title": title,
+                                    "body": body,
+                                    "tag": tag,
+                                    "route": payload.get("route"),
+                                    "deeplink": payload.get("deeplink"),
+                                }
+                            ),
+                            vapid_private_key=vapid_private_key,
+                            vapid_claims={"sub": vapid_email},
+                        )
+                        web_push += 1
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
     channels: list[str] = []
     if web_push:
@@ -117,5 +133,5 @@ def deliver_worker_push(
         "channels": channels,
         "hint": None
         if total > 0
-        else "Kein Push-Token — Worker-App Push aktivieren oder PWA abonnieren.",
+        else "Kein FCM-Token — in der Hybrid-App (Flutter) unter Profil Push aktivieren.",
     }

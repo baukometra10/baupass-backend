@@ -3,8 +3,14 @@ from __future__ import annotations
 
 _TAG_ROUTES: dict[str, str] = {
     "leave-request-status": "baupass://app/tasks",
+    "leave-approved": "baupass://app/tasks",
+    "leave-denied": "baupass://app/tasks",
+    "document-expiry": "baupass://app/tasks",
+    "attendance-reminder": "baupass://app/attendance",
+    "site-checkin": "baupass://app/attendance",
     "foreman-alert": "baupass://app/profile",
     "ops-notify": "baupass://app/profile",
+    "ai-briefing": "baupass://app/ai",
     "notification": "baupass://app/profile",
 }
 

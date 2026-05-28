@@ -205,17 +205,29 @@ def run_agent_query_stream(
         for _ in range(MAX_TOOL_ROUNDS):
             content_deltas: list[str] = []
             tool_msg: dict[str, Any] | None = None
+            live_answer = False
             for ev in _stream_chat_completion_events(messages, tools=tools):
                 if ev["type"] == "tool_calls":
                     tool_msg = ev["message"]
+                    if live_answer:
+                        yield {"type": "answer_reset"}
+                        live_answer = False
                     break
                 if ev["type"] == "content_delta":
-                    content_deltas.append(ev["text"])
-                    if ev["text"]:
-                        yield {"type": "thinking", "text": ev["text"]}
+                    text = ev.get("text") or ""
+                    if not text:
+                        continue
+                    content_deltas.append(text)
+                    if not live_answer:
+                        yield {"type": "answer_start"}
+                        live_answer = True
+                    yield {"type": "chunk", "text": text}
 
             tool_calls = (tool_msg or {}).get("tool_calls") or []
             if tool_calls:
+                preamble = "".join(content_deltas).strip()
+                if preamble and not live_answer:
+                    yield {"type": "status", "text": preamble[:400]}
                 messages.append(tool_msg)
                 for tc in tool_calls:
                     fn = tc.get("function") or {}
@@ -233,9 +245,10 @@ def run_agent_query_stream(
                     )
                 continue
 
-            yield {"type": "answer_start"}
-            for part in content_deltas:
-                yield {"type": "chunk", "text": part}
+            if not live_answer:
+                yield {"type": "answer_start"}
+                for part in content_deltas:
+                    yield {"type": "chunk", "text": part}
             answer = "".join(content_deltas)
             suggested = suggest_actions(ctx, company_id=company_id, tools_used=tools_used)
             yield {

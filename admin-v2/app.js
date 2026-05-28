@@ -162,8 +162,14 @@ function updateInboxTabBadge(open, critical) {
     return;
   }
   b.classList.remove("hidden");
+  const wasCritical = b.classList.contains("critical");
   b.classList.toggle("critical", crit > 0);
   b.textContent = crit > 0 ? `${n}!` : String(n);
+  if (crit > 0 && !wasCritical) {
+    b.classList.remove("badge-pulse-once");
+    void b.offsetWidth;
+    b.classList.add("badge-pulse-once");
+  }
 }
 
 async function refreshInboxBadgeOnly() {
@@ -417,13 +423,19 @@ async function loadMobile() {
           `<div class="layer-pill"><strong>${m.label || m.id}</strong><br/><span class="muted small">${m.api || ""}</span></div>`
       )
       .join("");
+    const native = data.nativeInstall || {};
+    const pwaLegacy = data.pwaInstall || {};
     panel.innerHTML = `
       <div class="panel-block">
-        <h3>تثبيت الموظف (ظاهر في join.html)</h3>
-        <p><a href="${install.joinPage || "/join.html"}" target="_blank" rel="noopener">${install.joinPage || "/join.html"}</a></p>
+        <h3>تطبيق الموظف الهجين (Flutter)</h3>
+        <p class="muted small">${native.label || "Hybrid native — FCM push"} · API: <code>${native.apiPrefix || "/api/worker-app"}</code></p>
+        <p><a href="${install.joinPage || "/join.html"}" target="_blank" rel="noopener">${install.joinPage || "/join.html"}</a> — QR التفعيل</p>
         <p>APK: ${install.apkUrl ? `<a href="${install.apkUrl}" target="_blank" rel="noopener">${install.apkUrl}</a>` : statusBadge(false) + " عيّن BAUPASS_WORKER_APK_URL"}</p>
         <p>TestFlight: ${install.testFlightUrl ? `<a href="${install.testFlightUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
-        <p>PWA: <a href="${install.pwaEntry || "#"}" target="_blank" rel="noopener">فتح PWA</a></p>
+        <p>Play Store: ${install.playStoreUrl ? `<a href="${install.playStoreUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
+        <p>App Store: ${install.appStoreUrl ? `<a href="${install.appStoreUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
+        <p class="muted small">Push: <code>${native.pushRegister || "/api/worker-app/push/register"}</code> (FCM) — ليس PWA.</p>
+        <p class="muted small">PWA (قديم): ${pwaLegacy.deprecated ? statusBadge(false) + " " : ""}<a href="${install.pwaEntry || "#"}" target="_blank" rel="noopener">${pwaLegacy.label || "Legacy browser"}</a></p>
       </div>
       <div class="panel-block">
         <h3>أوضاع الحضور الثلاثة</h3>

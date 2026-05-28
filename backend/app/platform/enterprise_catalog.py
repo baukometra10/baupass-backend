@@ -75,7 +75,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
                 _item("company_work_rules", "Company Work Rules", "قواعد الشركة", "legacy"),
                 _item("site_work_rules", "Site Work Rules", "قواعد الموقع", "legacy"),
                 _item("workforce_compliance", "Workforce Compliance", "امتثال القوى العاملة", "legacy"),
-                _item("worker_pwa", "Worker App (PWA)", "تطبيق PWA", "worker", ui="/emp-app.html"),
+                _item("worker_hybrid", "Worker App (Hybrid Flutter)", "تطبيق الموظف الهجين", "worker", apis=["GET /api/v2/mobile/distribution"]),
                 _item("worker_dashboard", "Worker Dashboard", "لوحة الموظف", "worker", ui="/emp-app.html"),
                 _item("self_service", "Worker Self-Service Portal", "بوابة الخدمة الذاتية", "worker"),
                 _item("offline", "Offline Workforce Operations", "عمل دون اتصال", "worker"),

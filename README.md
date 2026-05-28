@@ -179,7 +179,7 @@ python backend/run_prod.py
 
 
 
-## Mitarbeiter-App (PWA)
+## Mitarbeiter-App (Hybrid / Flutter)
 
 - Admin oeffnet die Mitarbeiterliste und klickt bei einer Person auf `App-Link`.
 - Der erzeugte Link wird in die Zwischenablage kopiert und kann per Messenger/E-Mail gesendet werden.

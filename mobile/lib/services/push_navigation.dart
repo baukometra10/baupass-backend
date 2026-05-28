@@ -16,7 +16,15 @@ class PushNavigation {
     }
     switch (data['tag']) {
       case 'leave-request-status':
+      case 'leave-approved':
+      case 'leave-denied':
+      case 'document-expiry':
         return const WorkerAppRoute(tabIndex: 2);
+      case 'attendance-reminder':
+      case 'site-checkin':
+        return const WorkerAppRoute(tabIndex: 1);
+      case 'ai-briefing':
+        return const WorkerAppRoute(tabIndex: 0, openAi: true);
       case 'foreman-alert':
       case 'ops-notify':
         return const WorkerAppRoute(tabIndex: 3);

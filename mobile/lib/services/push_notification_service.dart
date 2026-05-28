@@ -13,9 +13,11 @@ class PushNotificationService {
   final ApiClient _api;
   static const _enabledKey = 'baupass_push_enabled';
 
+  /// Hybrid app defaults push on (native FCM), not legacy PWA.
   Future<bool> isEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_enabledKey) ?? false;
+    if (!prefs.containsKey(_enabledKey)) return true;
+    return prefs.getBool(_enabledKey) ?? true;
   }
 
   Future<void> setEnabled(bool value) async {
@@ -37,6 +39,12 @@ class PushNotificationService {
         if (session.deviceId != null) 'deviceId': session.deviceId,
       },
     );
+  }
+
+  /// FCM/APNs token for login device binding (stored on worker_bound_devices).
+  Future<String?> tokenForDeviceBinding() async {
+    if (!await isEnabled()) return null;
+    return obtainNativeDeviceToken();
   }
 
   /// FCM token: Firebase (google-services.json) or --dart-define=BAUPASS_FCM_TOKEN=...

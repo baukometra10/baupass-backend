@@ -3,18 +3,21 @@ import 'package:flutter/material.dart';
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/location_service.dart';
+import '../../services/push_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
     required this.auth,
     required this.location,
+    required this.push,
     required this.onLoggedIn,
     this.initialError,
   });
 
   final AuthRepository auth;
   final LocationService location;
+  final PushNotificationService push;
   final void Function(WorkerSession session) onLoggedIn;
   final String? initialError;
 
@@ -57,10 +60,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
     await _runLogin(() async {
       final gps = await widget.location.captureForAttendance();
+      final pushToken = await widget.push.tokenForDeviceBinding();
       return widget.auth.loginWithBadge(
         badgeId: badgeId,
         badgePin: pin,
         location: gps,
+        pushToken: pushToken,
       );
     });
   }
@@ -71,7 +76,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       setState(() => _error = 'Einmal-Link-Code einfügen.');
       return;
     }
-    await _runLogin(() => widget.auth.loginWithAccessToken(token));
+    await _runLogin(() async {
+      final pushToken = await widget.push.tokenForDeviceBinding();
+      return widget.auth.loginWithAccessToken(token, pushToken: pushToken);
+    });
   }
 
   Future<void> _runLogin(Future<WorkerSession> Function() action) async {
