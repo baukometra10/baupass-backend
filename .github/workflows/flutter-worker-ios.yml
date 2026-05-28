@@ -22,7 +22,9 @@ jobs:
 
       - name: Complete Flutter platform scaffolding
         working-directory: mobile
-        run: flutter create . --org com.baupass --project-name worker
+        run: |
+          rm -rf ios
+          flutter create . --org com.baupass --project-name worker
 
       - name: Restore native customizations
         run: |
@@ -31,6 +33,22 @@ jobs:
             mobile/ios/Runner/Info.plist \
             mobile/ios/Runner/Runner.entitlements \
             mobile/test/widget_test.dart
+
+      - name: Apply NFC entitlements to Xcode project
+        working-directory: mobile
+        run: |
+          gem install xcodeproj --no-document
+          ruby <<'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+          target = project.targets.find { |t| t.name == 'Runner' }
+          raise 'Runner target not found' unless target
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
+          end
+          project.save
+          puts 'Runner.entitlements linked'
+          RUBY
 
       - name: Resolve dependencies
         working-directory: mobile
