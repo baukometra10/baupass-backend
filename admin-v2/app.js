@@ -85,6 +85,7 @@ function setupCompanyPicker(user) {
   select.onchange = () => {
     localStorage.setItem(COMPANY_KEY, select.value);
     syncEnterpriseFrame();
+    startAdminRealtime().catch(() => {});
     refreshActiveTab().catch((e) => alert(e.message));
   };
 }
@@ -135,6 +136,49 @@ function showActionToast(message, isError) {
   el.classList.remove("hidden");
   clearTimeout(showActionToast._t);
   showActionToast._t = setTimeout(() => el.classList.add("hidden"), 4500);
+}
+
+let adminRealtimeStop = null;
+
+function companyIdFromQuery() {
+  const q = companyQuery();
+  return q ? q.replace(/^\?company_id=/, "") : "";
+}
+
+function shouldRefreshOnEvent(evt) {
+  const t = String(evt?.type || evt?.event_type || "");
+  return /inbox|security|leave|access|push|emergency|alert|document/i.test(t);
+}
+
+function scheduleInboxReload() {
+  clearTimeout(scheduleInboxReload._t);
+  scheduleInboxReload._t = setTimeout(() => loadInbox().catch(() => {}), 500);
+}
+
+async function startAdminRealtime() {
+  if (!window.BauPassOpsRealtime) return;
+  if (adminRealtimeStop) {
+    adminRealtimeStop();
+    adminRealtimeStop = null;
+  }
+  const cid = companyIdFromQuery();
+  if (!cid && getUser().role === "superadmin") return;
+  adminRealtimeStop = await window.BauPassOpsRealtime.start({
+    companyId: cid,
+    feedEl: null,
+    onEvent: (evt) => {
+      if (!shouldRefreshOnEvent(evt)) return;
+      const tab = document.querySelector(".tab.active")?.dataset?.tab || "overview";
+      if (tab === "inbox") scheduleInboxReload();
+      else if (tab === "overview") {
+        clearTimeout(scheduleInboxReload._overviewT);
+        scheduleInboxReload._overviewT = setTimeout(() => loadOverview().catch(() => {}), 800);
+      } else if (tab === "operations") {
+        clearTimeout(scheduleInboxReload._opsT);
+        scheduleInboxReload._opsT = setTimeout(() => loadOperations().catch(() => {}), 1200);
+      }
+    },
+  });
 }
 
 function syncEnterpriseFrame() {
@@ -576,6 +620,8 @@ async function loadInbox() {
     api(`/api/inbox${q}`),
     api("/api/platform/push/status").catch(() => null),
   ]);
+  const liveHint = $("inboxLiveHint");
+  if (liveHint) liveHint.classList.remove("hidden");
   const pushEl = $("inboxPushStatus");
   if (pushEl && pushSt) {
     const ready = pushSt.anyChannelReady;
@@ -941,7 +987,10 @@ async function loadAccess() {
 async function refreshActiveTab() {
   const active = document.querySelector(".tab.active");
   const tab = active?.dataset?.tab || "overview";
-  if (tab === "inbox") await loadInbox();
+  if (tab === "inbox") {
+    await loadInbox();
+    await startAdminRealtime();
+  }
   else if (tab === "workers") await loadWorkers();
   else if (tab === "access") await loadAccess();
   else if (tab === "mobile") await loadMobile();
@@ -964,6 +1013,7 @@ async function bootSession() {
     await loadCompanies();
     await loadPlatformBanner();
     await refreshActiveTab();
+    startAdminRealtime().catch(() => {});
   } catch {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -994,6 +1044,7 @@ $("loginBtn").addEventListener("click", async () => {
     await loadCompanies();
     await loadPlatformBanner();
     await refreshActiveTab();
+    startAdminRealtime().catch(() => {});
   } catch (e) {
     $("loginError").textContent = e.message || "فشل تسجيل الدخول";
     $("loginError").classList.remove("hidden");

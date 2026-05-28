@@ -61,6 +61,7 @@ jobs:
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             mobile/android/app/src/main/AndroidManifest.xml \
             mobile/lib/firebase_bootstrap.dart \
+            mobile/lib/services/push_foreground_listener.dart \
             mobile/lib/main.dart \
             mobile/pubspec.yaml \
             mobile/test/widget_test.dart

@@ -212,6 +212,8 @@
     </aside>
   </div>
 
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="/ops-realtime.js"></script>
   <script>
     const LANG = (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2);
     const I18N = {
@@ -522,9 +524,26 @@
         `${data.snapshot?.workersOnSite ?? "—"} onsite · ${data.snapshot?.openSecurityFindings ?? 0} security · ${data.usage?.queries ?? 0} queries (7d) · ${t("refreshed")} ${ts}`;
     }
 
+    let insightsRealtimeStop = null;
+
+    function scheduleInsightsReload() {
+      clearTimeout(scheduleInsightsReload._t);
+      scheduleInsightsReload._t = setTimeout(() => loadInsights().catch(() => {}), 700);
+    }
+
     function startInsightsPolling() {
       if (insightsTimer) clearInterval(insightsTimer);
-      insightsTimer = setInterval(() => loadInsights().catch(() => {}), 30000);
+      insightsTimer = setInterval(() => loadInsights().catch(() => {}), 60000);
+    }
+
+    async function startInsightsRealtime() {
+      if (!window.BauPassOpsRealtime) return;
+      if (insightsRealtimeStop) insightsRealtimeStop();
+      insightsRealtimeStop = await window.BauPassOpsRealtime.start({
+        companyId: selectedCompanyId,
+        feedEl: null,
+        onEvent: () => scheduleInsightsReload(),
+      });
     }
 
     async function loadPrompts() {
@@ -756,6 +775,7 @@
       renderAgents();
       await Promise.all([loadInsights(), loadPrompts(), loadSessions()]);
       startInsightsPolling();
+      startInsightsRealtime();
     }
 
     (async () => {
@@ -769,6 +789,8 @@
         document.getElementById("authErr").classList.add("hidden");
         document.getElementById("shell").classList.remove("hidden");
         await loadCompanies();
+        const sel = document.getElementById("companySelect");
+        if (sel) sel.onchange = () => { startInsightsRealtime(); loadInsights().catch(() => {}); };
         await boot();
         const autoQ = new URLSearchParams(location.search).get("autoprompt");
         if (autoQ) {

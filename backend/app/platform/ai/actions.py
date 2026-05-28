@@ -219,6 +219,12 @@ def execute_action(
             )
         except Exception:
             pass
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(company_id, source="leave_action")
+        except Exception:
+            pass
         return {
             "ok": True,
             "leaveId": leave_id,

@@ -241,6 +241,9 @@ def resolve_inbox_item(
             (_now_iso(), alert_id),
         )
         db.commit()
+        from .events import notify_inbox_changed
+
+        notify_inbox_changed(company_id, source="security_resolve")
         return {"ok": True, "id": item_id, "status": "resolved"}
 
     if item_id.startswith("sys:"):
@@ -250,6 +253,9 @@ def resolve_inbox_item(
             (_now_iso(), alert_id),
         )
         db.commit()
+        from .events import notify_inbox_changed
+
+        notify_inbox_changed(company_id, source="system_ack")
         return {"ok": True, "id": item_id, "status": "acknowledged"}
 
     if item_id.startswith("leave:"):
@@ -257,12 +263,17 @@ def resolve_inbox_item(
         from backend.app.platform.ai.actions import execute_action
 
         act = "approve_leave_request" if (decision or "approve") == "approve" else "reject_leave_request"
-        return execute_action(
+        result = execute_action(
             db,
             company_id=company_id,
             user_id=user_id,
             action=act,
             params={"leave_id": leave_id},
         )
+        if result.get("ok"):
+            from .events import notify_inbox_changed
+
+            notify_inbox_changed(company_id, source="leave_resolve")
+        return result
 
     return {"ok": False, "error": "action_not_supported", "hint": "Use linked admin screens for documents and leave."}

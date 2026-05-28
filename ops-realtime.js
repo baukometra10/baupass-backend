@@ -14,6 +14,12 @@
         at: evt.created_at || evt.at || p.at || "",
       };
     }
+    if (type === "inbox.changed") {
+      return {
+        html: "<strong>Posteingang</strong> aktualisiert",
+        at: evt.created_at || "",
+      };
+    }
     if (type === "push_sent") {
       const ch = (evt.channels || p.channels || []).join("+") || "push";
       return {

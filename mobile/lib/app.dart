@@ -14,6 +14,7 @@ import 'services/location_service.dart';
 import 'services/nfc_service.dart';
 import 'services/offline_attendance_store.dart';
 import 'services/offline_sync_service.dart';
+import 'services/push_foreground_listener.dart';
 import 'services/push_notification_service.dart';
 import 'services/tasks_repository.dart';
 import 'services/worker_cache.dart';
@@ -44,6 +45,7 @@ class _WorkerAppState extends State<WorkerApp> {
   bool _bootstrapping = true;
   String? _joinError;
   final _shellKey = GlobalKey<WorkerShellState>();
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -62,6 +64,7 @@ class _WorkerAppState extends State<WorkerApp> {
     _push = PushNotificationService(_api);
     _ai = AiAssistantService(_api);
     _deepLinks = DeepLinkService();
+    PushForegroundListener.attach(_messengerKey);
     _boot();
   }
 
@@ -165,6 +168,7 @@ class _WorkerAppState extends State<WorkerApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: _messengerKey,
       title: 'BauPass Mitarbeiter',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E8C)),
