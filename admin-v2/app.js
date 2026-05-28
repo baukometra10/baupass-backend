@@ -261,11 +261,19 @@ async function loadPlatform() {
       const out = $("aiQuickAnswer");
       out.textContent = "جاري الإرسال…";
       try {
+        const aiBody = { question: q };
+        const user = getUser();
+        const cid =
+          localStorage.getItem(COMPANY_KEY) ||
+          user.preview_company_id ||
+          user.company_id ||
+          "";
+        if (cid) aiBody.company_id = cid;
         const res = await api("/api/ai/query", {
           method: "POST",
-          body: JSON.stringify({ question: q }),
+          body: JSON.stringify(aiBody),
         });
-        out.textContent = res.answer || res.hint || JSON.stringify(res, null, 2);
+        out.textContent = res.answer || res.hint || res.error || JSON.stringify(res, null, 2);
       } catch (e) {
         out.textContent = e.data?.error === "feature_not_available"
           ? `يتطلب ترقية: ${e.data.requiredPlan}`

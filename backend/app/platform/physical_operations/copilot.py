@@ -13,7 +13,7 @@ from .site_intelligence import build_site_intelligence
 from ._common import count_on_site, list_on_site_workers, today_prefix
 
 
-def build_copilot_context(db, company_id: int, role: str = "company-admin") -> dict[str, Any]:
+def build_copilot_context(db, company_id: str, role: str = "company-admin") -> dict[str, Any]:
     today = today_prefix()
     active_emergency = None
     try:
@@ -39,7 +39,7 @@ def build_copilot_context(db, company_id: int, role: str = "company-admin") -> d
     }
 
 
-def copilot_query(db, company_id: int, question: str, role: str = "company-admin") -> dict[str, Any]:
+def copilot_query(db, company_id: str, question: str, role: str = "company-admin") -> dict[str, Any]:
     from backend.app.platform.ai.assistant import is_ai_configured, natural_language_query
 
     ctx = build_copilot_context(db, company_id, role)

@@ -190,6 +190,9 @@
         aiOn: "KI aktiv",
         aiOff: "KI inaktiv — OPENAI_API_KEY auf Railway setzen",
         aiAddKey: "OPENAI_API_KEY für intelligente Antworten hinzufügen.",
+        aiThinking: "Denke nach…",
+        aiNeedCompany: "Bitte oben eine Firma wählen (Superadmin).",
+        aiNeedEnterprise: "KI-Assistent erfordert Tarif Enterprise.",
         maturity: "Reifegrad",
         previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
         companySelect: "Firma (Tarif-Vorschau)",
@@ -223,6 +226,9 @@
         aiOn: "AI enabled",
         aiOff: "AI disabled — set OPENAI_API_KEY on Railway",
         aiAddKey: "Add OPENAI_API_KEY for smart answers.",
+        aiThinking: "Thinking…",
+        aiNeedCompany: "Select a company above (superadmin).",
+        aiNeedEnterprise: "AI assistant requires Enterprise plan.",
         maturity: "Platform maturity",
         previewMaturity: "Public preview — sign in for production metrics.",
         companySelect: "Company (plan preview)",
@@ -256,6 +262,9 @@
         aiOn: "AI مفعّل",
         aiOff: "AI غير مفعّل — OPENAI_API_KEY على Railway",
         aiAddKey: "أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.",
+        aiThinking: "جاري التفكير…",
+        aiNeedCompany: "اختر شركة من القائمة أعلاه (المشرف).",
+        aiNeedEnterprise: "مساعد AI يتطلب خطة Enterprise.",
         maturity: "نضج المنصة",
         previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
         companySelect: "الشركة (معاينة الخطة)",
@@ -540,25 +549,45 @@
       ev.preventDefault();
       const q = document.getElementById("aiQuestion").value.trim();
       if (!q) return;
+      if (currentUserRole === "superadmin" && !selectedCompanyId) {
+        appendAi("bot", t("aiNeedCompany"), true);
+        return;
+      }
       appendAi("user", q);
       document.getElementById("aiQuestion").value = "";
+      const thinkingId = `ai-thinking-${Date.now()}`;
+      const log = document.getElementById("aiLog");
+      const thinking = document.createElement("div");
+      thinking.id = thinkingId;
+      thinking.className = "msg-bot";
+      thinking.textContent = t("aiThinking");
+      log.appendChild(thinking);
+      log.scrollTop = log.scrollHeight;
       try {
+        const body = { question: q };
+        if (selectedCompanyId) body.company_id = selectedCompanyId;
         const data = await api("/api/ai/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: q }),
+          body: JSON.stringify(body),
         });
+        thinking.remove();
         if (data.error === "feature_not_available") {
-          appendAi("bot", `${t("capUpgrade")} ${planLabel(data.requiredPlan)} (${t("yourPlan")}: ${planLabel(data.plan)})`, true);
+          appendAi("bot", `${t("aiNeedEnterprise")} (${t("yourPlan")}: ${planLabel(data.plan)}, ${t("capUpgrade")} ${planLabel(data.requiredPlan)})`, true);
+        } else if (data.error) {
+          appendAi("bot", data.hint || data.error, true);
         } else {
-          appendAi("bot", data.answer || data.hint || JSON.stringify(data, null, 2));
+          appendAi("bot", data.answer || data.hint || t("aiAddKey"), !data.answer);
         }
       } catch (e) {
+        thinking.remove();
         const p = e.payload || {};
         if (p.error === "feature_not_available") {
-          appendAi("bot", `${t("capUpgrade")} ${planLabel(p.requiredPlan)} (${t("yourPlan")}: ${planLabel(p.plan)})`, true);
+          appendAi("bot", `${t("aiNeedEnterprise")} (${planLabel(p.plan)} → ${planLabel(p.requiredPlan)})`, true);
+        } else if (p.error === "company_required") {
+          appendAi("bot", p.hint || t("aiNeedCompany"), true);
         } else {
-          appendAi("bot", e.message, true);
+          appendAi("bot", p.hint || p.message || e.message || String(e), true);
         }
       }
     });

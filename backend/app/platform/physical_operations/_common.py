@@ -13,12 +13,12 @@ def today_prefix() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
-def company_id_from_user(user: dict, request_args: Any = None) -> int:
+def company_id_from_user(user: dict, request_args: Any = None) -> str:
     if user.get("role") == "superadmin" and request_args:
         raw = str(request_args.get("company_id", "")).strip()
-        if raw.isdigit():
-            return int(raw)
-    return int(user.get("company_id") or 0)
+        if raw:
+            return raw
+    return str(user.get("company_id") or "").strip()
 
 
 def workers_on_site_sql(alias: str = "w") -> str:
@@ -36,11 +36,11 @@ def workers_on_site_sql(alias: str = "w") -> str:
     """
 
 
-def _cid_param(company_id: int) -> str | int:
-    return str(company_id)
+def _cid_param(company_id: str) -> str:
+    return str(company_id or "").strip()
 
 
-def count_on_site(db, company_id: int, today: str | None = None) -> int:
+def count_on_site(db, company_id: str, today: str | None = None) -> int:
     today = today or today_prefix()
     cid = _cid_param(company_id)
     row = db.execute(
@@ -53,7 +53,7 @@ def count_on_site(db, company_id: int, today: str | None = None) -> int:
     return int((row["c"] if row else 0) or 0)
 
 
-def list_on_site_workers(db, company_id: int, today: str | None = None) -> list[dict]:
+def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[dict]:
     today = today or today_prefix()
     cid = _cid_param(company_id)
     rows = db.execute(
