@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import uuid
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 
 ops_os_bp = Blueprint("physical_operations", __name__)
 
@@ -286,6 +286,22 @@ def register_physical_operations(flask_app) -> None:
         if role == "superadmin" and request.args.get("company_id"):
             cid = str(request.args.get("company_id", "") or "").strip()
         return jsonify(build_command_center(get_db(), company_id=cid, role=role))
+
+    @ops_os_bp.get("/ops-os/events/stream")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_events_stream():
+        from backend.app.platform.ops_events import stream_ops_events
+
+        role = g.current_user.get("role", "")
+        cid = _cid() if role != "superadmin" or request.args.get("company_id") else None
+        if role == "superadmin" and request.args.get("company_id"):
+            cid = str(request.args.get("company_id", "") or "").strip() or None
+        return Response(
+            stream_ops_events(get_db(), cid or None),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @ops_os_bp.get("/ops-os/workforce-graph")
     @require_auth

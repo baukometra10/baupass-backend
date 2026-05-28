@@ -28,6 +28,13 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
   bool _recording = false;
   String? _recordPath;
 
+  static const _promptChips = [
+    'Wer ist gerade auf der Baustelle?',
+    'Wann war mein letzter Check-in?',
+    'Welche Dokumente laufen bald ab?',
+    'Gibt es Sicherheitshinweise für heute?',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -71,14 +78,54 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
       _loading = true;
       _messages.add(_ChatMsg(role: 'user', text: q));
     });
+    _messages.add(_ChatMsg(role: 'bot', text: ''));
+    final botIdx = _messages.length - 1;
     try {
-      final res = await widget.ai.ask(widget.session, question: q);
-      _appendBot(res);
+      var answer = '';
+      Map<String, dynamic> doneMeta = {};
+      await for (final ev in widget.ai.askStream(widget.session, question: q)) {
+        if (!mounted) return;
+        final t = ev['type'] as String?;
+        if (t == 'chunk') {
+          answer += ev['text'] as String? ?? '';
+          _messages[botIdx] = _ChatMsg(role: 'bot', text: answer);
+          setState(() {});
+        } else if (t == 'tool_start') {
+          _messages[botIdx] = _ChatMsg(role: 'bot', text: '${answer}\n⏳ ${ev['tool']}…'.trim());
+          setState(() {});
+        } else if (t == 'done') {
+          doneMeta = ev;
+          answer = (ev['answer'] as String?) ?? answer;
+        } else if (t == 'error') {
+          answer = ev['hint'] as String? ?? 'Fehler';
+        }
+      }
+      _messages[botIdx] = _ChatMsg(
+        role: 'bot',
+        text: answer.isNotEmpty ? answer : 'Keine Antwort',
+        isError: answer.isEmpty,
+        meta: doneMeta.isNotEmpty ? doneMeta : null,
+      );
+      if (mounted) setState(() {});
     } catch (e) {
-      _messages.add(_ChatMsg(role: 'bot', text: e.toString(), isError: true));
+      _messages[botIdx] = _ChatMsg(role: 'bot', text: e.toString(), isError: true);
+      if (mounted) setState(() {});
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Widget _sourcesLine(Map<String, dynamic> res) {
+    final tools = (res['toolsUsed'] as List?)?.cast<String>() ?? [];
+    final sources = (res['sources'] as List?)?.cast<String>() ?? [];
+    if (tools.isEmpty && sources.isEmpty) return const SizedBox.shrink();
+    final parts = <String>[];
+    if (tools.isNotEmpty) parts.add('Tools: ${tools.join(', ')}');
+    if (sources.isNotEmpty) parts.add('Daten: ${sources.take(4).join(' · ')}');
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(parts.join('\n'), style: Theme.of(context).textTheme.labelSmall),
+    );
   }
 
   void _appendBot(Map<String, dynamic> res) {
@@ -93,6 +140,7 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
       role: 'bot',
       text: text,
       isError: answer == null || answer.isEmpty,
+      meta: res,
     ));
     if (mounted) setState(() {});
   }
@@ -191,12 +239,35 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
                       color: bg,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(m.text),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(m.text),
+                        if (m.meta != null) _sourcesLine(m.meta!),
+                      ],
+                    ),
                   ),
                 );
               },
             ),
           ),
+          if (!_loading && _messages.length < 4)
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: _promptChips.map((chip) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      label: Text(chip, style: const TextStyle(fontSize: 12)),
+                      onPressed: _loading ? null : () => _askText(chip),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
           if (_recording)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -253,8 +324,9 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
 }
 
 class _ChatMsg {
-  _ChatMsg({required this.role, required this.text, this.isError = false});
+  _ChatMsg({required this.role, required this.text, this.isError = false, this.meta});
   final String role;
   final String text;
   final bool isError;
+  final Map<String, dynamic>? meta;
 }

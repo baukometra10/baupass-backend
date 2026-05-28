@@ -246,6 +246,10 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         db = get_db()
         dash = build_insights_dashboard(db, company_id, role)
         dash["usage"] = audit_stats(db, company_id)
+        from .experience import enrich_insights_dashboard
+
+        lang = str(request.args.get("lang") or "de")[:2]
+        enrich_insights_dashboard(dash, company_id=company_id, lang=lang)
         return jsonify(dash)
 
     @ai_bp.post("/ai/analyze")

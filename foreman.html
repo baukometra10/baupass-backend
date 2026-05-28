@@ -728,14 +728,38 @@
       container.innerHTML = `<div class="team-grid">${html}</div>`;
     }
 
+    function renderMiniBarChart(container, series, labels) {
+      if (!container || !series?.length) {
+        container.innerHTML = '<span class="muted">Keine Daten</span>';
+        return;
+      }
+      const max = Math.max(...series, 1);
+      const w = 280;
+      const h = 80;
+      const barW = Math.floor(w / series.length) - 4;
+      const bars = series.map((v, i) => {
+        const bh = Math.round((v / max) * (h - 20));
+        const x = 8 + i * (barW + 4);
+        return `<rect x="${x}" y="${h - bh - 8}" width="${barW}" height="${bh}" fill="#5eead4" rx="3"/>
+          <text x="${x + barW/2}" y="${h}" text-anchor="middle" font-size="9" fill="#94a3b8">${(labels[i] || "").slice(5)}</text>`;
+      }).join('');
+      container.innerHTML = `<svg width="${w}" height="${h + 12}" viewBox="0 0 ${w} ${h + 12}">${bars}</svg>`;
+    }
+
     // ─ Analytics ──────────────────────────────────────────────────────────────────
     async function loadAnalytics() {
       try {
         const trends = await fetchAPI('/analytics/worker-trends');
-        console.log('Trends:', trends);
+        const trendEl = document.querySelector('#analytics .chart-container:nth-child(1) .chart-placeholder');
+        const vals = (trends?.daily || trends?.days || []).map((d) => d.checkins ?? d.count ?? 0);
+        const labs = (trends?.daily || trends?.days || []).map((d) => d.date || d.day || '');
+        renderMiniBarChart(trendEl, vals.length ? vals : [0,0,0,0,0,0,0], labs.length ? labs : ['Mo','Di','Mi','Do','Fr','Sa','So']);
 
         const docHealth = await fetchAPI('/analytics/document-health');
-        console.log('Doc Health:', docHealth);
+        const docEl = document.querySelector('#analytics .chart-container:nth-child(2) .chart-placeholder');
+        renderMiniBarChart(docEl,
+          [docHealth?.valid ?? 0, docHealth?.expiring ?? 0, docHealth?.expired ?? 0, docHealth?.missing ?? 0],
+          ['OK', 'Läuft ab', 'Abgel.', 'Fehlt']);
 
         const punctuality = await fetchAPI('/analytics/punctuality-report');
         renderPunctuality(punctuality);

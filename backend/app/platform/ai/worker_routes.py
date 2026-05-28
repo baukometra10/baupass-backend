@@ -99,5 +99,45 @@ def register_worker_ai_blueprint(flask_app) -> None:
         result["transcript"] = question
         return jsonify(result)
 
+    @worker_ai_bp.post("/ai/ask/stream")
+    @require_worker_session
+    def worker_ai_ask_stream():
+        from flask import Response
+
+        from .agent_runner import run_agent_query_stream
+        from .streaming import stream_agent_events
+
+        worker = g.worker or {}
+        company_id = str(worker.get("company_id") or "")
+        plan_row = get_db().execute("SELECT plan FROM companies WHERE id = ?", (company_id,)).fetchone()
+        plan = (plan_row["plan"] if plan_row else "starter") or "starter"
+        if not company_has_feature(plan, "worker_app"):
+            return jsonify({"error": "feature_not_available"}), 403
+
+        data = request.get_json(silent=True) or {}
+        question = str(data.get("question") or "").strip()
+        if not question:
+            return jsonify({"error": "question_required"}), 400
+        lang = str(data.get("lang") or "de")[:2]
+
+        def generate():
+            for chunk in stream_agent_events(
+                run_agent_query_stream(
+                    get_db(),
+                    company_id,
+                    question,
+                    agent_id="hr",
+                    lang=lang,
+                    role="worker",
+                )
+            ):
+                yield chunk
+
+        return Response(
+            generate(),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     if "worker_ai" not in flask_app.blueprints:
         flask_app.register_blueprint(worker_ai_bp, url_prefix="/api/worker-app")

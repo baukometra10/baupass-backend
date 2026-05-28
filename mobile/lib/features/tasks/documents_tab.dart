@@ -74,9 +74,27 @@ class _DocumentsTabState extends State<DocumentsTab> {
       onRefresh: _load,
       child: _items.isEmpty && _error == null
           ? ListView(
-              children: const [
-                SizedBox(height: 80),
-                Center(child: Text('No documents on file.')),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                const SizedBox(height: 48),
+                Icon(Icons.folder_open_outlined, size: 56, color: Theme.of(context).colorScheme.outline),
+                const SizedBox(height: 16),
+                Text(
+                  'Keine Dokumente hinterlegt',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    'Dein Arbeitgeber kann Nachweise hier bereitstellen. Bei Fragen: BauPass Assistent auf der Startseite.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
               ],
             )
           : ListView(

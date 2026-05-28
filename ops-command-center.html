@@ -1,62 +1,193 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass — مركز التحكم التشغيلي</title>
+  <title>BauPass — Ops Command Center</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #0f1419; color: #e8eef4; }
-    header { padding: 1rem 1.5rem; border-bottom: 1px solid #2a3544; display: flex; justify-content: space-between; align-items: center; }
-    h1 { margin: 0; font-size: 1.25rem; }
-    main { padding: 1rem 1.5rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .card { background: #1a2332; border-radius: 12px; padding: 1rem; border: 1px solid #2a3544; }
-    .metric { font-size: 2rem; font-weight: 700; color: #5eead4; }
-    .label { font-size: 0.85rem; opacity: 0.75; }
+    :root { --bg: #0f1419; --panel: #1a2332; --border: #2a3544; --text: #e8eef4; --muted: #94a3b8; --accent: #5eead4; --danger: #f87171; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+    header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem;
+      background: var(--panel); position: sticky; top: 0; z-index: 10;
+    }
+    h1 { margin: 0; font-size: 1.15rem; }
+    .nav a { color: var(--accent); text-decoration: none; font-size: 0.85rem; margin-inline-start: 1rem; }
+    main { padding: 1rem 1.5rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    .card {
+      background: var(--panel); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .card.critical { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .metric { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    .label { font-size: 0.85rem; color: var(--muted); }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th, td { text-align: right; padding: 0.4rem; border-bottom: 1px solid #2a3544; }
-    .err { color: #f87171; padding: 1rem; }
-    #status { font-size: 0.8rem; opacity: 0.7; }
+    th, td { text-align: start; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--border); }
+    tr[data-cid] { cursor: pointer; }
+    tr[data-cid]:hover { background: #14202c; }
+    .err { color: var(--danger); padding: 1rem; }
+    #status { font-size: 0.8rem; color: var(--muted); }
+    .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      animation: pulse 1.4s infinite; margin-inline-end: 0.35rem; vertical-align: middle; }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+    .actions { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .actions a, .actions button {
+      font-size: 0.78rem; padding: 0.35rem 0.65rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #0c1218; color: var(--accent); cursor: pointer; text-decoration: none;
+    }
+    .event-feed { max-height: 220px; overflow-y: auto; font-size: 0.78rem; }
+    .event-line { padding: 0.35rem 0; border-bottom: 1px solid var(--border); color: var(--muted); }
+    .event-line strong { color: var(--text); }
   </style>
 </head>
 <body>
   <header>
-    <h1>مركز التحكم — Physical Operations OS</h1>
     <div>
-      <a href="/enterprise-hub.html" style="color:#5eead4;font-size:0.85rem;margin-left:1rem">← مركز المؤسسة (16 طبقة)</a>
-      <span id="status">جاري التحميل…</span>
+      <h1><span class="pulse" id="liveDot"></span> Ops Command Center</h1>
+      <div id="status">Laden…</div>
     </div>
+    <nav class="nav">
+      <a href="/ai-command-center.html">KI Command Center</a>
+      <a href="/enterprise-hub.html">Enterprise Hub</a>
+      <a href="/admin-v2/index.html">Admin v2</a>
+      <a href="/foreman.html">Vorarbeiter</a>
+    </nav>
   </header>
   <main id="grid"></main>
   <script>
+    const qs = new URLSearchParams(location.search);
+    const companyId = qs.get("company_id") || "";
+    let lastPayload = null;
+
+    function companyLink(path, cid) {
+      const u = new URL(path, location.origin);
+      if (cid) u.searchParams.set("company_id", cid);
+      return u.pathname + u.search;
+    }
+
+    function render(data) {
+      lastPayload = data;
+      const status = document.getElementById("status");
+      const grid = document.getElementById("grid");
+      const t = data.totals || {};
+      status.textContent = `${data.date || "—"} · ${data.scope === "global" ? "Alle Firmen" : "Eine Firma"} · Live`;
+
+      const emerg = t.activeEmergencies ?? 0;
+      const sec = t.openSecurityAlerts ?? 0;
+
+      grid.innerHTML = `
+        <div class="card clickable" data-action="onsite" title="KI: Wer ist auf der Baustelle?">
+          <div class="label">Auf Baustelle</div><div class="metric">${t.workersOnSite ?? 0}</div>
+        </div>
+        <div class="card clickable" data-action="companies">
+          <div class="label">Firmen aktiv</div><div class="metric">${t.companies ?? 0}</div>
+        </div>
+        <div class="card clickable ${emerg > 0 ? "critical" : ""}" data-action="emergency">
+          <div class="label">Notfälle aktiv</div><div class="metric" style="color:${emerg > 0 ? "var(--danger)" : "var(--accent)"}">${emerg}</div>
+        </div>
+        <div class="card clickable ${sec > 3 ? "critical" : ""}" data-action="security">
+          <div class="label">Offene Security-Alerts</div><div class="metric">${sec}</div>
+        </div>
+        <div class="card" style="grid-column: 1 / -1">
+          <div class="label">Firmen — Klick für KI & Admin</div>
+          <table>
+            <thead><tr><th>Firma</th><th>On-site</th><th>Gates heute</th><th>Notfall</th><th>Security</th></tr></thead>
+            <tbody>${(data.companies || []).map((c) => `
+              <tr data-cid="${c.id || c.companyId || ""}" data-name="${(c.name || "").replace(/"/g, "")}">
+                <td><strong>${c.name}</strong></td>
+                <td>${c.workersOnSite}</td>
+                <td>${c.activeGatesToday}</td>
+                <td>${c.activeEmergencies > 0 ? "⚠ " + c.activeEmergencies : "—"}</td>
+                <td>${c.openSecurityAlerts > 0 ? c.openSecurityAlerts : "—"}</td>
+              </tr>`).join("")}</tbody>
+          </table>
+          <div class="actions">
+            <a href="${companyLink("/ai-command-center.html", companyId)}">KI Command Center</a>
+            <a href="/admin-v2/index.html#inbox">Posteingang</a>
+            <button type="button" id="refreshBtn">Jetzt aktualisieren</button>
+          </div>
+        </div>
+        <div class="card" style="grid-column: 1 / -1">
+          <div class="label">Live-Ereignisse (SSE)</div>
+          <div id="eventFeed" class="event-feed"><span class="muted">Verbinde…</span></div>
+        </div>`;
+
+      grid.querySelectorAll("[data-action]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const a = el.dataset.action;
+          const base = companyLink("/ai-command-center.html", companyId);
+          const prompts = {
+            onsite: "Wer ist gerade auf allen Baustellen und wo gibt es Engpässe?",
+            emergency: "Gibt es aktive Notfälle und was sind die Sofortmaßnahmen?",
+            security: "Fasse offene Security-Alerts zusammen und priorisiere.",
+            companies: "Vergleiche die Firmen nach Risiko und Anwesenheit.",
+          };
+          const q = encodeURIComponent(prompts[a] || "");
+          location.href = `${base}${base.includes("?") ? "&" : "?"}autoprompt=${q}`;
+        });
+      });
+
+      grid.querySelectorAll("tr[data-cid]").forEach((row) => {
+        row.addEventListener("click", () => {
+          const cid = row.dataset.cid;
+          if (!cid) return;
+          location.href = companyLink("/ai-command-center.html", cid);
+        });
+      });
+      document.getElementById("refreshBtn")?.addEventListener("click", load);
+    }
+
     async function load() {
-      const status = document.getElementById('status');
-      const grid = document.getElementById('grid');
+      const status = document.getElementById("status");
+      const grid = document.getElementById("grid");
       try {
-        const res = await fetch('/api/ops-os/command-center', { credentials: 'include' });
-        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-        const data = await res.json();
-        status.textContent = data.date + ' · ' + (data.scope === 'global' ? 'كل الشركات' : 'شركة واحدة');
-        const t = data.totals || {};
-        grid.innerHTML = `
-          <div class="card"><div class="label">على الموقع الآن</div><div class="metric">${t.workersOnSite ?? 0}</div></div>
-          <div class="card"><div class="label">شركات</div><div class="metric">${t.companies ?? 0}</div></div>
-          <div class="card"><div class="label">طوارئ نشطة</div><div class="metric">${t.activeEmergencies ?? 0}</div></div>
-          <div class="card"><div class="label">تنبيهات أمن</div><div class="metric">${t.openSecurityAlerts ?? 0}</div></div>
-          <div class="card" style="grid-column: 1 / -1">
-            <div class="label">الشركات</div>
-            <table><thead><tr><th>الاسم</th><th>على الموقع</th><th>بوابات</th><th>طوارئ</th><th>أمن</th></tr></thead>
-            <tbody>${(data.companies || []).map(c => `
-              <tr><td>${c.name}</td><td>${c.workersOnSite}</td><td>${c.activeGatesToday}</td>
-              <td>${c.activeEmergencies}</td><td>${c.openSecurityAlerts}</td></tr>`).join('')}</tbody></table>
-          </div>`;
+        let url = "/api/ops-os/command-center";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const res = await fetch(url, { credentials: "include" });
+        if (!res.ok) throw new Error(res.status + " " + res.statusText);
+        render(await res.json());
       } catch (e) {
-        status.textContent = '';
-        grid.innerHTML = '<p class="err">سجّل الدخول من لوحة الإدارة ثم افتح هذه الصفحة. ' + e.message + '</p>';
+        status.textContent = "";
+        grid.innerHTML = `<p class="err">Bitte in Admin v2 anmelden, dann diese Seite öffnen. ${e.message}</p>`;
       }
     }
+
+    function startEventStream() {
+      const feed = document.getElementById("eventFeed");
+      if (!feed) return;
+      let url = "/api/ops-os/events/stream";
+      if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+      const es = new EventSource(url, { withCredentials: true });
+      es.onmessage = (ev) => {
+        try {
+          const p = JSON.parse(ev.data);
+          if (p.type !== "events" || !p.items?.length) return;
+          feed.innerHTML = p.items.slice(0, 20).map((e) => {
+            const label = e.type === "access"
+              ? `<strong>${e.worker || "?"}</strong> ${e.action || ""} @ ${e.gate || "—"}`
+              : `<strong>${e.type || "event"}</strong> ${e.companyId || ""}`;
+            return `<div class="event-line">${label}<br><small>${(e.at || "").slice(0, 19)}</small></div>`;
+          }).join("");
+        } catch { /* ignore */ }
+      };
+      es.onerror = () => { feed.innerHTML = '<span class="err">Stream getrennt — Seite neu laden</span>'; };
+    }
+
     load();
     setInterval(load, 15000);
+    startEventStream();
+
+    (async () => {
+      const ap = qs.get("autoprompt");
+      if (ap) {
+        const dest = companyLink("/ai-command-center.html", companyId) + (companyId ? "&" : "?") + "autoprompt=" + ap;
+        if (!location.pathname.includes("ai-command")) location.href = dest;
+      }
+    })();
   </script>
 </body>
 </html>

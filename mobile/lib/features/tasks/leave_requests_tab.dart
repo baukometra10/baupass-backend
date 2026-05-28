@@ -133,9 +133,35 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
           Expanded(
             child: _items.isEmpty
                 ? ListView(
-                    children: const [
-                      SizedBox(height: 80),
-                      Center(child: Text('No leave requests yet.')),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 48),
+                      Icon(Icons.beach_access_outlined, size: 56, color: Theme.of(context).colorScheme.outline),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Noch keine Urlaubsanträge',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          'Stelle einen Antrag — dein Team sieht ihn sofort in BauPass Admin.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Center(
+                        child: FilledButton.icon(
+                          onPressed: _openForm,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Ersten Antrag stellen'),
+                        ),
+                      ),
                     ],
                   )
                 : ListView.builder(

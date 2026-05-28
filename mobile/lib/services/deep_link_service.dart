@@ -9,6 +9,27 @@ class DeepLinkService {
   final AppLinks _appLinks;
   StreamSubscription<Uri>? _subscription;
 
+  /// App routes: baupass://app/ai | attendance | tasks | profile
+  static WorkerAppRoute? appRouteFromUri(Uri? uri) {
+    if (uri == null) return null;
+    if (uri.scheme != 'baupass' || uri.host != 'app') return null;
+    final seg = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : uri.path.replaceFirst('/', '');
+    switch (seg) {
+      case 'ai':
+        return const WorkerAppRoute(tabIndex: 0, openAi: true);
+      case 'attendance':
+      case 'nfc':
+        return const WorkerAppRoute(tabIndex: 1);
+      case 'tasks':
+      case 'leave':
+        return const WorkerAppRoute(tabIndex: 2);
+      case 'profile':
+        return const WorkerAppRoute(tabIndex: 3);
+      default:
+        return const WorkerAppRoute(tabIndex: 0);
+    }
+  }
+
   static String? accessTokenFromUri(Uri? uri) {
     if (uri == null) return null;
     final access = (uri.queryParameters['access'] ?? '').trim();
@@ -45,4 +66,11 @@ class DeepLinkService {
     _subscription?.cancel();
     _subscription = null;
   }
+}
+
+class WorkerAppRoute {
+  const WorkerAppRoute({required this.tabIndex, this.openAi = false});
+
+  final int tabIndex;
+  final bool openAi;
 }

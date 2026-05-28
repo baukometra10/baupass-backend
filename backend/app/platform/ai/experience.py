@@ -1,0 +1,146 @@
+"""Experience layer — turn insights into navigable, executable next steps."""
+from __future__ import annotations
+
+from typing import Any
+
+_CARD_ACTIONS: dict[str, list[dict[str, str]]] = {
+    "emergency": [
+        {"type": "navigate", "url": "/index.html", "labelDe": "Notfall-Center", "labelEn": "Emergency center", "labelAr": "مركز الطوارئ"},
+        {"type": "prompt", "promptDe": "Beschreibe den aktiven Notfall und empfohlene Sofortmaßnahmen.", "promptEn": "Describe the active emergency and immediate actions.", "promptAr": "صف حالة الطوارئ النشطة والإجراءات الفورية."},
+        {"type": "analyze", "topic": "operations", "labelDe": "KI-Analyse", "labelEn": "AI analysis", "labelAr": "تحليل AI"},
+    ],
+    "security": [
+        {"type": "navigate", "url": "/admin-v2/index.html#operations", "labelDe": "Sicherheit öffnen", "labelEn": "Open security", "labelAr": "فتح الأمن"},
+        {"type": "analyze", "topic": "security", "labelDe": "Security Deep-Dive", "labelEn": "Security deep dive", "labelAr": "تحليل أمني"},
+        {"type": "prompt", "promptDe": "Welche Sicherheitsalerts sind offen und wie priorisieren?", "promptEn": "Which security alerts are open and how to prioritize?", "promptAr": "ما التنبيهات الأمنية المفتوحة؟"},
+    ],
+    "onsite": [
+        {"type": "navigate", "url": "/foreman.html", "labelDe": "Vorarbeiter-Dashboard", "labelEn": "Foreman dashboard", "labelAr": "لوحة المشرف"},
+        {"type": "navigate", "url": "/ops-command-center.html", "labelDe": "Ops Live", "labelEn": "Ops live", "labelAr": "عمليات مباشرة"},
+        {"type": "prompt", "promptDe": "Wer ist gerade auf der Baustelle und gibt es Engpässe?", "promptEn": "Who is on site now and are there bottlenecks?", "promptAr": "من على الموقع الآن؟"},
+    ],
+    "risk": [
+        {"type": "analyze", "topic": "compliance", "labelDe": "Compliance prüfen", "labelEn": "Check compliance", "labelAr": "فحص الامتثال"},
+        {"type": "navigate", "url": "/index.html#workers", "labelDe": "Mitarbeiter", "labelEn": "Workers", "labelAr": "الموظفون"},
+    ],
+    "attendance": [
+        {"type": "analyze", "topic": "attendance", "labelDe": "Anwesenheit analysieren", "labelEn": "Analyze attendance", "labelAr": "تحليل الحضور"},
+        {"type": "prompt", "promptDe": "Welche Mitarbeiter haben Ausfallrisiko in den nächsten 7 Tagen?", "promptEn": "Which workers are at no-show risk in the next 7 days?", "promptAr": "من معرض لخطر الغياب؟"},
+    ],
+    "fraud": [
+        {"type": "analyze", "topic": "security", "labelDe": "Betrug prüfen", "labelEn": "Investigate fraud", "labelAr": "تحقيق احتيال"},
+        {"type": "navigate", "url": "/admin-v2/index.html#access", "labelDe": "Zutrittslogs", "labelEn": "Access logs", "labelAr": "سجلات الدخول"},
+    ],
+    "productivity": [
+        {"type": "analyze", "topic": "operations", "labelDe": "Betrieb analysieren", "labelEn": "Operations analysis", "labelAr": "تحليل تشغيلي"},
+        {"type": "prompt", "promptDe": "Wie war die Produktivität heute vs. gestern?", "promptEn": "How was productivity today vs yesterday?", "promptAr": "كيف كانت الإنتاجية اليوم؟"},
+    ],
+}
+
+_RECOMMENDATIONS: dict[str, dict[str, str]] = {
+    "review_security_findings": {
+        "labelDe": "Sicherheitsbefunde bearbeiten",
+        "labelEn": "Review security findings",
+        "labelAr": "مراجعة نتائج الأمن",
+        "type": "analyze",
+        "topic": "security",
+    },
+    "contact_at_risk_workers": {
+        "labelDe": "Ausfallrisiko: Kontaktliste",
+        "labelEn": "Contact at-risk workers",
+        "labelAr": "التواصل مع المعرضين للغياب",
+        "type": "prompt",
+        "promptDe": "Liste Mitarbeiter mit Ausfallrisiko und schlage Kontaktmaßnahmen vor.",
+        "promptEn": "List at-risk workers and suggest contact actions.",
+        "promptAr": "اذكر المعرضين لخطر الغياب.",
+    },
+    "investigate_low_activity_sites": {
+        "labelDe": "Baustellen mit wenig Aktivität",
+        "labelEn": "Investigate low-activity sites",
+        "labelAr": "مواقع قليلة النشاط",
+        "type": "analyze",
+        "topic": "operations",
+    },
+    "manage_active_emergency": {
+        "labelDe": "Notfall steuern",
+        "labelEn": "Manage emergency",
+        "labelAr": "إدارة الطوارئ",
+        "type": "navigate",
+        "url": "/index.html",
+    },
+    "renew_expired_documents": {
+        "labelDe": "Abgelaufene Dokumente",
+        "labelEn": "Renew expired documents",
+        "labelAr": "تجديد الوثائق",
+        "type": "analyze",
+        "topic": "compliance",
+    },
+}
+
+
+def _localized(item: dict[str, str], lang: str, prefix: str) -> str:
+    suffix = {"de": "De", "en": "En", "ar": "Ar"}.get((lang or "de")[:2], "De")
+    return (
+        item.get(f"{prefix}{suffix}")
+        or item.get(f"{prefix}De")
+        or item.get(f"{prefix}En")
+        or item.get(f"{prefix}Ar")
+        or ""
+    )
+
+
+def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: str = "de") -> dict[str, Any]:
+    """Attach per-card and playbook next actions for Command Center UI."""
+    lang = (lang or "de")[:2]
+    qs = f"company_id={company_id}&lang={lang}" if company_id else f"lang={lang}"
+
+    for card in dash.get("cards") or []:
+        cid = card.get("id") or ""
+        raw_actions = _CARD_ACTIONS.get(cid, [])
+        actions: list[dict[str, Any]] = []
+        for a in raw_actions:
+            act: dict[str, Any] = {"type": a["type"]}
+            if a["type"] == "navigate":
+                act["url"] = a["url"]
+                act["label"] = _localized(a, lang, "label")
+            elif a["type"] == "analyze":
+                act["topic"] = a.get("topic", "operations")
+                act["label"] = _localized(a, lang, "label")
+            elif a["type"] == "prompt":
+                act["prompt"] = _localized(a, lang, "prompt")
+                act["label"] = act["prompt"][:48] + ("…" if len(act["prompt"]) > 48 else "")
+            actions.append(act)
+        card["actions"] = actions
+
+    next_actions: list[dict[str, Any]] = []
+    for rec in dash.get("recommendations") or []:
+        spec = _RECOMMENDATIONS.get(rec)
+        if not spec:
+            continue
+        item: dict[str, Any] = {
+            "id": rec,
+            "type": spec["type"],
+            "label": _localized(spec, lang, "label"),
+        }
+        if spec["type"] == "navigate":
+            item["url"] = spec.get("url", "/ai-command-center.html")
+        elif spec["type"] == "analyze":
+            item["topic"] = spec.get("topic", "operations")
+        elif spec["type"] == "prompt":
+            item["prompt"] = _localized(spec, lang, "prompt")
+        next_actions.append(item)
+
+    if not next_actions and int((dash.get("snapshot") or {}).get("openSecurityFindings") or 0) > 0:
+        next_actions.append(
+            {
+                "id": "default_security",
+                "type": "analyze",
+                "topic": "security",
+                "label": _localized(_RECOMMENDATIONS["review_security_findings"], lang, "label"),
+            }
+        )
+
+    dash["nextActions"] = next_actions[:6]
+    dash["playbookUrl"] = f"/ai-command-center.html?{qs}"
+    dash["opsUrl"] = f"/ops-command-center.html?{qs}"
+    return dash

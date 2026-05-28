@@ -65,6 +65,7 @@
 
       <nav class="tabs">
         <button type="button" data-tab="overview" class="tab active" data-i18n="tab.overview">نظرة عامة</button>
+        <button type="button" data-tab="inbox" class="tab">📥 Posteingang</button>
         <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700" data-i18n="tab.enterprise">🏛 المؤسسة</button>
         <button type="button" data-tab="workers" class="tab" data-i18n="tab.workers">الموظفون</button>
         <button type="button" data-tab="access" class="tab" data-i18n="tab.access">الحضور</button>
@@ -78,6 +79,12 @@
         <div id="tab-enterprise" class="tab-panel hidden">
           <p class="muted small">خريطة الـ 16 طبقة — كل ما بُني في المنصة (حسب خطتك).</p>
           <iframe id="enterpriseFrame" title="مركز المؤسسة" src="/enterprise-hub.html?embed=1" style="width:100%;min-height:72vh;border:1px solid var(--border);border-radius:12px;background:#0b1118"></iframe>
+        </div>
+        <div id="tab-inbox" class="tab-panel hidden">
+          <h2 class="section-title">Operations-Posteingang</h2>
+          <p class="muted small">Security, System, Dokumente, Urlaub — mit einem Klick erledigen oder an KI übergeben.</p>
+          <div id="inboxCounts" class="cards"></div>
+          <div id="inboxList" class="table-wrap"></div>
         </div>
         <div id="tab-overview" class="tab-panel">
           <h2 class="section-title">التشغيل اليومي</h2>

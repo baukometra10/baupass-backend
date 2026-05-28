@@ -60,6 +60,27 @@
     .insight-card.critical { border-color: var(--danger); }
     .insight-card.high { border-color: var(--warn); }
     .insight-card strong { color: var(--accent); font-size: 1rem; }
+    .insight-card .card-actions { margin-top: 0.45rem; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .insight-card .card-actions button {
+      font-size: 0.68rem; padding: 0.25rem 0.5rem; border-radius: 6px; cursor: pointer;
+      border: 1px solid var(--border); background: #14242a; color: var(--accent);
+    }
+    .playbook-block { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+    .playbook-block h3 { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+    .issue-row {
+      padding: 0.4rem 0.5rem; margin-bottom: 0.35rem; border-radius: 8px; background: #0c1218;
+      font-size: 0.75rem; cursor: pointer; border: 1px solid transparent;
+    }
+    .issue-row:hover { border-color: var(--accent); }
+    .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      margin-inline-end: 0.35rem; animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .toast {
+      position: fixed; bottom: 1rem; right: 1rem; padding: 0.55rem 0.85rem; border-radius: 10px;
+      background: #14242a; border: 1px solid var(--accent); font-size: 0.8rem; z-index: 100;
+      animation: fadein 0.25s ease;
+    }
+    @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     .chip-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }
     .chip-row button {
       font-size: 0.68rem; padding: 0.2rem 0.45rem; border-radius: 999px;
@@ -84,6 +105,8 @@
       <select id="companySelect" class="hidden"></select>
       <a href="/enterprise-hub.html">Enterprise Hub</a>
       <a href="/admin-v2/index.html">Admin v2</a>
+      <a href="/admin-v2/index.html">Posteingang</a>
+      <a href="/ops-command-center.html">Ops Live</a>
     </nav>
   </header>
 
@@ -138,6 +161,8 @@
         emailOk: "Briefing gesendet.", emailFail: "E-Mail fehlgeschlagen.",
         webhookBriefing: "Slack/Teams", webhookOk: "Webhook gesendet.",
         toolRunning: "Tool",
+        nextActions: "Nächste Schritte", issues: "Baustellen-Hinweise",
+        openOps: "Ops Live", refreshed: "Aktualisiert",
       },
       en: {
         title: "BauPass AI Command Center",
@@ -149,6 +174,8 @@
         emailOk: "Briefing sent.", emailFail: "Email failed.",
         webhookBriefing: "Slack/Teams", webhookOk: "Webhook sent.",
         toolRunning: "Tool",
+        nextActions: "Next steps", issues: "Site notices",
+        openOps: "Ops live", refreshed: "Updated",
       },
       ar: {
         title: "مركز قيادة AI — BauPass",
@@ -160,6 +187,8 @@
         emailOk: "تم الإرسال.", emailFail: "فشل الإرسال.",
         webhookBriefing: "Slack/Teams", webhookOk: "تم الإرسال للويبهوك.",
         toolRunning: "أداة",
+        nextActions: "الخطوات التالية", issues: "ملاحظات الموقع",
+        openOps: "عمليات مباشرة", refreshed: "تم التحديث",
       },
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
@@ -333,23 +362,92 @@
       });
     }
 
-    function renderInsights(cards) {
-      const labels = CARD_LABELS[LANG] || CARD_LABELS.de;
-      document.getElementById("insightCards").innerHTML = (cards || []).map((c) =>
-        `<div class="insight-card ${c.severity || ""}">
-          <div>${labels[c.titleKey] || c.titleKey}</div>
-          <strong>${c.value}</strong>
-          <div class="status-line">${c.detail || ""}</div>
-        </div>`
-      ).join("");
+    function showToast(msg) {
+      const el = document.createElement("div");
+      el.className = "toast";
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2800);
     }
 
+    function runInsightAction(a) {
+      if (!a) return;
+      if (a.type === "navigate" && a.url) {
+        const u = a.url.includes("?") ? a.url : `${a.url}?${companyQs()}`;
+        location.href = u;
+        return;
+      }
+      if (a.type === "analyze" && a.topic) {
+        document.querySelector(`[data-topic="${a.topic}"]`)?.click();
+        return;
+      }
+      if (a.type === "prompt" && a.prompt) submitQuestion(a.prompt);
+    }
+
+    function renderInsights(data) {
+      const labels = CARD_LABELS[LANG] || CARD_LABELS.de;
+      const cards = data?.cards || [];
+      let html = "";
+      const next = data?.nextActions || [];
+      if (next.length) {
+        html += `<div class="playbook-block"><h3>${t("nextActions")}</h3><div class="card-actions">` +
+          next.map((a, i) => `<button type="button" data-na="${i}">${a.label || a.id}</button>`).join("") +
+          `</div></div>`;
+      }
+      html += cards.map((c) => {
+        const pulse = c.severity === "critical" ? '<span class="pulse-dot"></span>' : "";
+        const acts = (c.actions || []).map((a, i) =>
+          `<button type="button" data-ca="${c.id}-${i}">${a.label || a.type}</button>`
+        ).join("");
+        return `<div class="insight-card ${c.severity || ""}" data-card="${c.id}">
+          <div>${pulse}${labels[c.titleKey] || c.titleKey}</div>
+          <strong>${c.value}</strong>
+          <div class="status-line">${c.detail || ""}</div>
+          ${acts ? `<div class="card-actions">${acts}</div>` : ""}
+        </div>`;
+      }).join("");
+      const issues = data?.operationalIssues || [];
+      if (issues.length) {
+        html += `<div class="playbook-block"><h3>${t("issues")}</h3>` +
+          issues.map((iss, i) => {
+            const msg = typeof iss === "string" ? iss : (iss.message || iss.site || JSON.stringify(iss));
+            return `<div class="issue-row" data-issue="${i}" title="KI fragen">${msg}</div>`;
+          }).join("") + `</div>`;
+      }
+      if (data?.opsUrl) {
+        html += `<div class="playbook-block"><a href="${data.opsUrl}">${t("openOps")} →</a></div>`;
+      }
+      const el = document.getElementById("insightCards");
+      el.innerHTML = html || `<p class="status-line">—</p>`;
+      next.forEach((a, i) => {
+        el.querySelector(`[data-na="${i}"]`)?.addEventListener("click", () => runInsightAction(a));
+      });
+      cards.forEach((c) => {
+        (c.actions || []).forEach((a, i) => {
+          el.querySelector(`[data-ca="${c.id}-${i}"]`)?.addEventListener("click", () => runInsightAction(a));
+        });
+      });
+      issues.forEach((iss, i) => {
+        el.querySelector(`[data-issue="${i}"]`)?.addEventListener("click", () => {
+          const msg = typeof iss === "string" ? iss : (iss.message || iss.site || "");
+          submitQuestion(`Was bedeutet dieser Hinweis und was soll ich tun? ${msg}`);
+        });
+      });
+    }
+
+    let insightsTimer = null;
     async function loadInsights() {
       if (!selectedCompanyId && currentRole === "superadmin") return;
       const data = await api(`/api/ai/insights?${companyQs()}`);
-      renderInsights(data.cards);
+      renderInsights(data);
+      const ts = new Date().toLocaleTimeString();
       document.getElementById("statusLine").textContent =
-        `${data.snapshot?.workersOnSite ?? "—"} onsite · ${data.snapshot?.openSecurityFindings ?? 0} security · ${data.usage?.queries ?? 0} queries (7d)`;
+        `${data.snapshot?.workersOnSite ?? "—"} onsite · ${data.snapshot?.openSecurityFindings ?? 0} security · ${data.usage?.queries ?? 0} queries (7d) · ${t("refreshed")} ${ts}`;
+    }
+
+    function startInsightsPolling() {
+      if (insightsTimer) clearInterval(insightsTimer);
+      insightsTimer = setInterval(() => loadInsights().catch(() => {}), 30000);
     }
 
     async function loadPrompts() {
@@ -564,6 +662,7 @@
       if (!activeAgent && agents[0]) activeAgent = agents[0].id;
       renderAgents();
       await Promise.all([loadInsights(), loadPrompts(), loadSessions()]);
+      startInsightsPolling();
     }
 
     (async () => {
@@ -578,6 +677,10 @@
         document.getElementById("shell").classList.remove("hidden");
         await loadCompanies();
         await boot();
+        const autoQ = new URLSearchParams(location.search).get("autoprompt");
+        if (autoQ) {
+          try { await submitQuestion(decodeURIComponent(autoQ)); } catch { /* ignore */ }
+        }
       } catch {
         document.getElementById("authErr").classList.remove("hidden");
         document.getElementById("authErr").textContent = t("auth");

@@ -15,8 +15,10 @@ import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import '../attendance/attendance_screen.dart';
 import '../home/home_screen.dart';
+import '../ai/worker_ai_screen.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
+import '../../services/deep_link_service.dart';
 
 /// Unified post-login shell — sole employee UI for Android and iOS.
 class WorkerShell extends StatefulWidget {
@@ -54,16 +56,34 @@ class WorkerShell extends StatefulWidget {
   final VoidCallback onLogout;
 
   @override
-  State<WorkerShell> createState() => _WorkerShellState();
+  State<WorkerShell> createState() => WorkerShellState();
 }
 
-class _WorkerShellState extends State<WorkerShell> {
+class WorkerShellState extends State<WorkerShell> {
   int _index = 0;
+  int _offlinePending = 0;
 
   @override
   void initState() {
     super.initState();
     _loadProfileAndGeofence();
+    _refreshBadges();
+  }
+
+  void navigateTo(WorkerAppRoute route) {
+    setState(() => _index = route.tabIndex.clamp(0, 3));
+    if (route.openAi && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+        ),
+      );
+    }
+  }
+
+  Future<void> _refreshBadges() async {
+    final n = await widget.offlineStore.pendingCount();
+    if (mounted) setState(() => _offlinePending = n);
   }
 
   @override
@@ -145,12 +165,27 @@ class _WorkerShellState extends State<WorkerShell> {
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),
-          NavigationDestination(icon: Icon(Icons.nfc_outlined), selectedIcon: Icon(Icons.nfc), label: 'Check-in'),
-          NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
+        onDestinationSelected: (i) {
+          setState(() => _index = i);
+          if (i == 1) _refreshBadges();
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: _offlinePending > 0,
+              label: Text('$_offlinePending'),
+              child: const Icon(Icons.nfc_outlined),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: _offlinePending > 0,
+              label: Text('$_offlinePending'),
+              child: const Icon(Icons.nfc),
+            ),
+            label: 'Check-in',
+          ),
+          const NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );

@@ -67,3 +67,4 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_physical_operations"],
         ).register_physical_operations(flask_app),
     )
+    _step("inbox", lambda: __import__("backend.app.platform.inbox", fromlist=["register_inbox_blueprint"]).register_inbox_blueprint(flask_app))

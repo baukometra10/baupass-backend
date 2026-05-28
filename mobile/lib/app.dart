@@ -43,6 +43,7 @@ class _WorkerAppState extends State<WorkerApp> {
   WorkerSession? _session;
   bool _bootstrapping = true;
   String? _joinError;
+  final _shellKey = GlobalKey<WorkerShellState>();
 
   @override
   void initState() {
@@ -78,6 +79,12 @@ class _WorkerAppState extends State<WorkerApp> {
       await _loginWithJoinToken(access);
     } else {
       _finishBoot(null);
+      final route = DeepLinkService.appRouteFromUri(initialUri);
+      if (route != null && _session != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _shellKey.currentState?.navigateTo(route);
+        });
+      }
     }
     _listenDeepLinks();
   }
@@ -103,8 +110,14 @@ class _WorkerAppState extends State<WorkerApp> {
   void _listenDeepLinks() {
     _deepLinks.listen((uri) async {
       final access = DeepLinkService.accessTokenFromUri(uri);
-      if (access == null || _session != null) return;
-      await _loginWithJoinToken(access);
+      if (access != null && _session == null) {
+        await _loginWithJoinToken(access);
+        return;
+      }
+      final route = DeepLinkService.appRouteFromUri(uri);
+      if (route != null && _session != null) {
+        _shellKey.currentState?.navigateTo(route);
+      }
     });
   }
 
@@ -161,6 +174,7 @@ class _WorkerAppState extends State<WorkerApp> {
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : _session != null
               ? WorkerShell(
+                  key: _shellKey,
                   session: _session!,
                   auth: _auth,
                   attendance: _attendance,

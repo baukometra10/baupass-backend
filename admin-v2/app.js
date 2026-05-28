@@ -128,6 +128,7 @@ function renderQuickLinks() {
     { tab: "workers", title: "الموظفون + NFC", desc: "تعيين بطاقة وQR تفعيل التطبيق" },
     { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
     { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
+    { tab: "inbox", title: "Posteingang", desc: "Alerts, Dokumente, Urlaub — handeln statt nur lesen" },
     { tab: "operations", title: "عمليات الموقع", desc: "12 طبقة Physical Operations OS" },
     { tab: "tools", title: "Geofence · أتمتة · تكامل", desc: "SAP، Oracle، M365، قواعد" },
     { tab: "platform", title: "جاهزية المنصة", desc: "Redis، AI، Wallet" },
@@ -516,6 +517,65 @@ function renderTable(container, rows, columns) {
   container.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+async function loadInbox() {
+  const el = $("inboxList");
+  const countsEl = $("inboxCounts");
+  const q = companyQuery();
+  if (getUser().role === "superadmin" && !q) {
+    el.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    countsEl.innerHTML = "";
+    return;
+  }
+  el.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  const data = await api(`/api/inbox${q}`);
+  const c = data.counts || {};
+  countsEl.innerHTML = `
+    <div class="card"><span class="muted">Offen</span><strong>${c.open ?? 0}</strong></div>
+    <div class="card"><span class="muted">Kritisch</span><strong style="color:#f87171">${c.critical ?? 0}</strong></div>
+    <div class="card"><span class="muted">Gesamt</span><strong>${c.total ?? 0}</strong></div>
+    <button type="button" class="feature-card" data-goto-tab="operations">Ops Center →</button>
+  `;
+  countsEl.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
+    switchToTab("operations");
+    refreshActiveTab();
+  });
+  const items = data.items || [];
+  if (!items.length) {
+    el.innerHTML = '<p class="muted">Keine offenen Punkte — alles im grünen Bereich.</p>';
+    return;
+  }
+  el.innerHTML = `<table><thead><tr><th></th><th>Titel</th><th>Quelle</th><th>Aktionen</th></tr></thead><tbody>${items
+    .map((it) => {
+      const acts = (it.actions || [])
+        .map((a, i) => {
+          if (a.type === "resolve" || a.type === "ack")
+            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">Erledigt</button>`;
+          if (a.type === "navigate")
+            return `<a class="btn-link" href="${a.url}${q}">${a.label || "Öffnen"}</a>`;
+          if (a.type === "prompt")
+            return `<a class="btn-link" href="/ai-command-center.html${q}&autoprompt=${encodeURIComponent(a.prompt || "")}">KI</a>`;
+          return "";
+        })
+        .join(" · ");
+      return `<tr class="${it.severity === "critical" ? "row-critical" : ""}">
+        <td><span class="badge badge-warn">${it.severity || ""}</span></td>
+        <td><strong>${it.title || ""}</strong><br><span class="muted small">${it.message || ""}</span></td>
+        <td>${it.source || ""}</td>
+        <td>${acts}</td></tr>`;
+    })
+    .join("")}</tbody></table>`;
+  el.querySelectorAll(".inbox-resolve").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await api(`/api/inbox/${encodeURIComponent(btn.dataset.id)}/resolve${q}`, { method: "POST", body: "{}" });
+        await loadInbox();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+  });
+}
+
 async function loadOverview() {
   renderQuickLinks();
   const q = companyQuery();
@@ -523,13 +583,24 @@ async function loadOverview() {
     $("statCards").innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
     return;
   }
-  const overview = await api(`/api/v2/admin/overview${q}`);
+  const [overview, inbox] = await Promise.all([
+    api(`/api/v2/admin/overview${q}`),
+    api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
+  ]);
   const wf = overview.workforce || {};
+  const openInbox = inbox?.counts?.open ?? 0;
   $("statCards").innerHTML = `
     <div class="card"><span class="muted">على الموقع الآن</span><strong>${wf.onSite ?? 0}</strong></div>
     <div class="card"><span class="muted">موظفون نشطون</span><strong>${wf.totalActive ?? 0}</strong></div>
     <div class="card"><span class="muted">مناطق Geofence</span><strong>${overview.zonesCount ?? 0}</strong></div>
+    <button type="button" class="card" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
+      <span class="muted">Posteingang</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
+    </button>
   `;
+  $("statCards").querySelector('[data-goto-tab="inbox"]')?.addEventListener("click", async () => {
+    switchToTab("inbox");
+    await loadInbox();
+  });
   renderTable($("recentAccess"), overview.recentAccess || [], [
     { label: "الموظف", render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: "Badge", render: (r) => r.badge_id || "-" },
@@ -723,7 +794,8 @@ async function loadAccess() {
 async function refreshActiveTab() {
   const active = document.querySelector(".tab.active");
   const tab = active?.dataset?.tab || "overview";
-  if (tab === "workers") await loadWorkers();
+  if (tab === "inbox") await loadInbox();
+  else if (tab === "workers") await loadWorkers();
   else if (tab === "access") await loadAccess();
   else if (tab === "mobile") await loadMobile();
   else if (tab === "operations") await loadOperations();
