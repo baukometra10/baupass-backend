@@ -29,7 +29,7 @@ def _retry_iso(attempt: int) -> str:
 def create_webhook_endpoint(
     db,
     *,
-    company_id: int,
+    company_id: str,
     url: str,
     events: list[str],
     secret: str | None = None,
@@ -49,7 +49,7 @@ def create_webhook_endpoint(
     return {"id": endpoint_id, "url": url, "events": events, "secret": wh_secret}
 
 
-def list_webhook_endpoints(db, company_id: int) -> list[dict[str, Any]]:
+def list_webhook_endpoints(db, company_id: str) -> list[dict[str, Any]]:
     rows = db.execute(
         """
         SELECT id, company_id, url, events_json, status, created_at
@@ -67,7 +67,7 @@ def list_webhook_endpoints(db, company_id: int) -> list[dict[str, Any]]:
     return out
 
 
-def delete_webhook_endpoint(db, company_id: int, endpoint_id: str) -> bool:
+def delete_webhook_endpoint(db, company_id: str, endpoint_id: str) -> bool:
     cur = db.execute(
         "UPDATE webhook_endpoints SET status = 'disabled' WHERE id = ? AND company_id = ?",
         (endpoint_id, company_id),
@@ -76,7 +76,7 @@ def delete_webhook_endpoint(db, company_id: int, endpoint_id: str) -> bool:
     return cur.rowcount > 0
 
 
-def schedule_webhook_deliveries(event_type: str, company_id: int | None, body: dict[str, Any]) -> None:
+def schedule_webhook_deliveries(event_type: str, company_id: str | int | None, body: dict[str, Any]) -> None:
     if company_id is None:
         return
     try:
@@ -118,7 +118,7 @@ def schedule_webhook_deliveries(event_type: str, company_id: int | None, body: d
         logger.warning("schedule_webhook_deliveries failed: %s", exc)
 
 
-def _enqueue_pending_deliveries(company_id: int) -> None:
+def _enqueue_pending_deliveries(company_id: str) -> None:
     try:
         from backend.app.tasks import enqueue
 
@@ -127,7 +127,7 @@ def _enqueue_pending_deliveries(company_id: int) -> None:
         process_webhook_delivery_batch(company_id=company_id)
 
 
-def process_webhook_delivery_batch(company_id: int, limit: int = 20) -> dict[str, int]:
+def process_webhook_delivery_batch(company_id: str, limit: int = 20) -> dict[str, int]:
     from backend.server import get_db
 
     db = get_db()

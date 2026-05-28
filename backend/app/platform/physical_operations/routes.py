@@ -26,8 +26,13 @@ def register_physical_operations(flask_app) -> None:
     from .identity_hub import build_identity_hub
     from .copilot import copilot_query, build_copilot_context
 
-    def _cid() -> int:
-        return company_id_from_user(g.current_user, request.args)
+    def _cid() -> str:
+        cid = company_id_from_user(g.current_user, request.args)
+        if cid:
+            return cid
+        if g.current_user.get("role") == "superadmin":
+            return str(request.args.get("company_id", "") or "").strip()
+        return str(g.current_user.get("company_id") or "").strip()
 
     # ── Overview (all 12 layers) ──────────────────────────────────────────────
     @ops_os_bp.get("/ops-os/overview")
@@ -39,7 +44,7 @@ def register_physical_operations(flask_app) -> None:
             return jsonify({"error": "company_required"}), 400
         db = get_db()
         role = g.current_user.get("role", "")
-        cid = cid or int(request.args.get("company_id", 0) or 0)
+        cid = cid or str(request.args.get("company_id", "") or "").strip()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
         return jsonify(
@@ -279,7 +284,7 @@ def register_physical_operations(flask_app) -> None:
         role = g.current_user.get("role", "")
         cid = _cid() if role != "superadmin" or request.args.get("company_id") else None
         if role == "superadmin" and request.args.get("company_id"):
-            cid = int(request.args.get("company_id"))
+            cid = str(request.args.get("company_id", "") or "").strip()
         return jsonify(build_command_center(get_db(), company_id=cid, role=role))
 
     @ops_os_bp.get("/ops-os/workforce-graph")
@@ -308,7 +313,7 @@ def register_physical_operations(flask_app) -> None:
             return jsonify({"error": "question_required"}), 400
         cid = _cid()
         if g.current_user.get("role") == "superadmin" and data.get("company_id"):
-            cid = int(data["company_id"])
+            cid = str(data.get("company_id", "") or "").strip()
         return jsonify(copilot_query(get_db(), cid, question, g.current_user.get("role", "")))
 
     @ops_os_bp.get("/ops-os/copilot/context")

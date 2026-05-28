@@ -13,12 +13,12 @@ enterprise_layers_bp = Blueprint("enterprise_layers", __name__)
 def register_enterprise_layers(flask_app) -> None:
     from backend.server import require_auth, require_roles, get_db, DB_PATH
 
-    def _cid() -> int:
+    def _cid() -> str:
         if g.current_user.get("role") == "superadmin":
-            raw = request.args.get("company_id", "").strip()
-            if raw.isdigit():
-                return int(raw)
-        return int(g.current_user.get("company_id") or 0)
+            raw = str(request.args.get("company_id", "") or "").strip()
+            if raw:
+                return raw
+        return str(g.current_user.get("company_id") or "").strip()
 
     @enterprise_layers_bp.get("/enterprise/layers")
     @require_auth

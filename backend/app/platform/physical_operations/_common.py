@@ -13,6 +13,11 @@ def today_prefix() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def as_company_id(value: Any) -> str:
+    """Company ids are strings like cmp-abc123 — never int()."""
+    return str(value or "").strip()
+
+
 def company_id_from_user(user: dict, request_args: Any = None) -> str:
     if user.get("role") == "superadmin" and request_args:
         raw = str(request_args.get("company_id", "")).strip()

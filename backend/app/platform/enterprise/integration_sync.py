@@ -79,13 +79,13 @@ def sync_payroll(config: dict[str, str], company_id: int | None = None) -> dict[
         from backend.server import get_db
         from .payroll_adapter import payroll_export_preview
 
-        preview = payroll_export_preview(get_db(), int(company_id))
+        preview = payroll_export_preview(get_db(), str(company_id))
         return {"ok": True, "provider": "payroll", "probe": probe, "exportPreview": preview}
     except Exception as exc:
         return {"ok": True, "provider": "payroll", "probe": probe, "exportPreviewError": str(exc)}
 
 
-def sync_provider(provider: str, config: dict[str, str], *, company_id: int | None = None) -> dict[str, Any]:
+def sync_provider(provider: str, config: dict[str, str], *, company_id: str | int | None = None) -> dict[str, Any]:
     provider = (provider or "").strip().lower()
     if provider == "microsoft365":
         return sync_microsoft365(config)
@@ -103,7 +103,7 @@ def sync_provider(provider: str, config: dict[str, str], *, company_id: int | No
             try:
                 from backend.server import get_db
 
-                preview = sap_export_preview(get_db(), int(company_id))
+                preview = sap_export_preview(get_db(), str(company_id))
             except Exception as exc:
                 preview = {"error": str(exc)}
         return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe, "exportPreview": preview}
@@ -118,7 +118,7 @@ def sync_provider(provider: str, config: dict[str, str], *, company_id: int | No
             try:
                 from backend.server import get_db
 
-                preview = oracle_export_preview(get_db(), int(company_id))
+                preview = oracle_export_preview(get_db(), str(company_id))
             except Exception as exc:
                 preview = {"error": str(exc)}
         return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe, "exportPreview": preview}

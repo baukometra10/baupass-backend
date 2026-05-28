@@ -17,7 +17,7 @@ def current_deployment_region() -> str:
     ).strip() or "unknown"
 
 
-def get_company_residency(db, company_id: int) -> dict[str, Any]:
+def get_company_residency(db, company_id: str | int) -> dict[str, Any]:
     try:
         row = db.execute(
             """
@@ -40,7 +40,7 @@ def get_company_residency(db, company_id: int) -> dict[str, Any]:
     }
 
 
-def set_company_residency(db, company_id: int, data_region: str, policy: str = "strict") -> dict[str, Any]:
+def set_company_residency(db, company_id: str | int, data_region: str, policy: str = "strict") -> dict[str, Any]:
     region = (data_region or "").strip() or current_deployment_region()
     pol = (policy or "strict").strip().lower()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -59,13 +59,13 @@ def set_company_residency(db, company_id: int, data_region: str, policy: str = "
     return {"company_id": company_id, "data_region": region, "policy": pol, "updated_at": now}
 
 
-def residency_allows_request(db, company_id: int | None) -> tuple[bool, str]:
+def residency_allows_request(db, company_id: str | int | None) -> tuple[bool, str]:
     if not company_id:
         return True, ""
     enforce = os.getenv("BAUPASS_ENFORCE_DATA_RESIDENCY", "0").strip().lower() in {"1", "true", "yes"}
     if not enforce:
         return True, ""
-    residency = get_company_residency(db, int(company_id))
+    residency = get_company_residency(db, str(company_id))
     if residency.get("policy") != "strict":
         return True, ""
     required = str(residency.get("data_region") or "").strip()

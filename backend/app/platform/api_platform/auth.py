@@ -32,7 +32,7 @@ def require_api_key(scopes: str | None = None):
                 if needed and not needed.issubset(allowed) and "*" not in allowed:
                     return jsonify({"error": "insufficient_scope"}), 403
             g.api_key = row
-            g.api_company_id = int(row["company_id"])
+            g.api_company_id = str(row["company_id"] or "").strip()
             return handler(*args, **kwargs)
 
         return wrapper

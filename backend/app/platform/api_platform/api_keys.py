@@ -23,7 +23,7 @@ def _hash_key(raw_key: str) -> str:
 def create_api_key(
     db,
     *,
-    company_id: int,
+    company_id: str,
     name: str,
     scopes: str,
     created_by_user_id: str | None,
@@ -52,7 +52,7 @@ def create_api_key(
     }
 
 
-def list_api_keys(db, company_id: int) -> list[dict[str, Any]]:
+def list_api_keys(db, company_id: str) -> list[dict[str, Any]]:
     rows = db.execute(
         """
         SELECT id, company_id, name, key_prefix, scopes, status, created_at, last_used_at, expires_at
@@ -65,7 +65,7 @@ def list_api_keys(db, company_id: int) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def revoke_api_key(db, company_id: int, key_id: str) -> bool:
+def revoke_api_key(db, company_id: str, key_id: str) -> bool:
     cur = db.execute(
         """
         UPDATE developer_api_keys SET status = 'revoked'

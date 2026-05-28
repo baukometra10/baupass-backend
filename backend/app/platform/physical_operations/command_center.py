@@ -6,7 +6,7 @@ from typing import Any
 from ._common import count_on_site, today_prefix
 
 
-def build_command_center(db, *, company_id: int | None = None, role: str = "company-admin") -> dict[str, Any]:
+def build_command_center(db, *, company_id: str | None = None, role: str = "company-admin") -> dict[str, Any]:
     today = today_prefix()
     if role == "superadmin" and company_id is None:
         companies = db.execute(
@@ -25,7 +25,7 @@ def build_command_center(db, *, company_id: int | None = None, role: str = "comp
     open_emergencies = 0
     open_security = 0
     for c in companies:
-        cid = int(c["id"])
+        cid = str(c["id"] or "").strip()
         on_site = count_on_site(db, cid, today)
         total_on_site += on_site
         emg = 0
@@ -91,7 +91,8 @@ def build_command_center(db, *, company_id: int | None = None, role: str = "comp
             """
         ).fetchall()
         if company_id:
-            alerts = [dict(r) for r in rows if int(r["company_id"]) == company_id]
+            target = str(company_id).strip()
+            alerts = [dict(r) for r in rows if str(r["company_id"] or "").strip() == target]
         else:
             alerts = [dict(r) for r in rows]
     except Exception:

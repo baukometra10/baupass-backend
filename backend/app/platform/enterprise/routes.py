@@ -20,13 +20,15 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
 
 
-def _company_id() -> int:
+def _company_id() -> str:
     user = g.current_user
     if user.get("role") == "superadmin":
-        raw = request.args.get("company_id", "").strip() or str(user.get("company_id") or "")
-        if raw.isdigit():
-            return int(raw)
-    return int(user.get("company_id") or 0)
+        return (
+            str(request.args.get("company_id", "") or "").strip()
+            or str(user.get("preview_company_id") or "").strip()
+            or str(user.get("company_id") or "").strip()
+        )
+    return str(user.get("company_id") or "").strip()
 
 
 def _post_form_with_retry(url: str, payload: dict[str, str], bearer: str, timeout_s: int = 30) -> dict:
@@ -821,10 +823,10 @@ def register_enterprise_routes(flask_app):
         )
         return jsonify(payload)
 
-    @enterprise_bp.put("/platform/companies/<int:company_id>/data-residency")
+    @enterprise_bp.put("/platform/companies/<company_id>/data-residency")
     @require_auth
     @require_roles("superadmin")
-    def set_data_residency(company_id: int):
+    def set_data_residency(company_id: str):
         from backend.server import get_db
         from backend.app.platform.multi_region.residency import set_company_residency
 
@@ -833,14 +835,15 @@ def register_enterprise_routes(flask_app):
         policy = str(data.get("policy") or "strict").strip()
         return jsonify(set_company_residency(get_db(), company_id, region, policy))
 
-    @enterprise_bp.get("/platform/companies/<int:company_id>/data-residency")
+    @enterprise_bp.get("/platform/companies/<company_id>/data-residency")
     @require_auth
     @require_roles("superadmin", "company-admin")
-    def get_data_residency(company_id: int):
+    def get_data_residency(company_id: str):
         from backend.server import get_db
         from backend.app.platform.multi_region.residency import get_company_residency
 
-        if g.current_user.get("role") != "superadmin" and int(g.current_user.get("company_id") or 0) != company_id:
+        user_cid = str(g.current_user.get("company_id") or "").strip()
+        if g.current_user.get("role") != "superadmin" and user_cid != str(company_id).strip():
             return jsonify({"error": "forbidden"}), 403
         return jsonify(get_company_residency(get_db(), company_id))
 

@@ -17061,7 +17061,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
 
         publish_event(
             f"access.{direction.replace('-', '_')}",
-            int(worker["company_id"]) if worker["company_id"] else None,
+            str(worker["company_id"]) if worker["company_id"] else None,
             {
                 "worker_id": worker["id"],
                 "badge_id": worker["badge_id"],

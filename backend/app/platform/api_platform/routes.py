@@ -13,14 +13,14 @@ api_v1_bp = Blueprint("api_v1", __name__)
 api_platform_bp = Blueprint("api_platform", __name__)
 
 
-def _company_id_from_session() -> int:
+def _company_id_from_session() -> str:
     user = g.current_user
     if user.get("role") == "superadmin":
-        raw = request.args.get("company_id", "").strip()
-        if raw.isdigit():
-            return int(raw)
-        return int(user.get("company_id") or 0)
-    return int(user.get("company_id") or 0)
+        raw = str(request.args.get("company_id", "") or "").strip()
+        if raw:
+            return raw
+        return str(user.get("company_id") or "").strip()
+    return str(user.get("company_id") or "").strip()
 
 
 # ── Public (API key) ─────────────────────────────────────────────────────────

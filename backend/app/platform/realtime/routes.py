@@ -12,15 +12,13 @@ from flask import Blueprint, Flask, Response, g, jsonify, request, stream_with_c
 realtime_bp = Blueprint("platform_realtime", __name__)
 
 
-def _resolve_company_id() -> int | None:
+def _resolve_company_id() -> str | None:
     user = getattr(g, "current_user", None) or {}
-    cid = user.get("company_id")
+    cid = str(user.get("company_id") or "").strip()
     if cid:
-        return int(cid)
-    raw = request.args.get("company_id", "").strip()
-    if raw.isdigit():
-        return int(raw)
-    return None
+        return cid
+    raw = str(request.args.get("company_id", "") or "").strip()
+    return raw or None
 
 
 def register_realtime_blueprint(flask_app: Flask) -> None:
@@ -68,7 +66,7 @@ def register_realtime_blueprint(flask_app: Flask) -> None:
 
         company_id = _resolve_company_id()
         if g.current_user.get("role") != "superadmin":
-            company_id = int(g.current_user.get("company_id") or 0) or None
+            company_id = str(g.current_user.get("company_id") or "").strip() or None
         limit = min(200, max(1, int(request.args.get("limit", "50"))))
         since_id = request.args.get("since_id", "").strip() or None
         return {"events": list_recent_events(company_id, limit=limit, since_id=since_id)}

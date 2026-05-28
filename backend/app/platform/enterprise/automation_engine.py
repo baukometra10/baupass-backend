@@ -59,7 +59,7 @@ def create_rule(db, company_id: int, payload: dict[str, Any]) -> dict:
     return {"id": rule_id}
 
 
-def evaluate_event(db, company_id: int, event_type: str, context: dict[str, Any]) -> list[dict]:
+def evaluate_event(db, company_id: str, event_type: str, context: dict[str, Any]) -> list[dict]:
     """Run matching automation rules; returns executed action summaries."""
     rows = db.execute(
         """

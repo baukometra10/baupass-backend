@@ -30,7 +30,7 @@ def _now_iso() -> str:
 
 def publish_event(
     event_type: str,
-    company_id: int | None,
+    company_id: str | int | None,
     payload: dict[str, Any] | None = None,
     *,
     actor_id: str | None = None,
@@ -61,7 +61,7 @@ def publish_event(
                 from backend.app.platform.enterprise.automation_engine import evaluate_event
                 from backend.server import get_db
 
-                evaluate_event(get_db(), int(company_id), event_type, payload or {})
+                evaluate_event(get_db(), str(company_id), event_type, payload or {})
             except Exception as exc:
                 logger.debug("automation evaluate skipped: %s", exc)
         try:
@@ -139,7 +139,7 @@ def _websocket_broadcast(body: dict[str, Any]) -> None:
         logger.debug("websocket broadcast skipped: %s", exc)
 
 
-def list_recent_events(company_id: int | None, limit: int = 50, since_id: str | None = None) -> list[dict]:
+def list_recent_events(company_id: str | int | None, limit: int = 50, since_id: str | None = None) -> list[dict]:
     try:
         from backend.app.db.connection import get_read_connection
 
@@ -150,7 +150,7 @@ def list_recent_events(company_id: int | None, limit: int = 50, since_id: str | 
         return []
 
 
-def _list_recent_events_with_db(db, company_id: int | None, limit: int, since_id: str | None) -> list[dict]:
+def _list_recent_events_with_db(db, company_id: str | int | None, limit: int, since_id: str | None) -> list[dict]:
     try:
         params: list[Any] = []
         where = "1=1"
