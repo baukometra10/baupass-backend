@@ -40,7 +40,7 @@
 	<key>NFCReaderUsageDescription</key>
 	<string>BauPass uses NFC to record your attendance when you tap your employee card.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>BauPass uses the microphone for voice questions to the AI assistant.</string>
+	<string>BauPass uses the microphone for voice questions to the on-site assistant.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>BauPass uses your location to verify you are on the construction site when checking in or out.</string>
 	<key>UIApplicationSceneManifest</key>

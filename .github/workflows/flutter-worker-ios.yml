@@ -27,40 +27,10 @@ jobs:
       - name: Restore native customizations
         run: |
           git checkout HEAD -- \
-            mobile/ios/Runner/NfcReaderPlugin.swift \
             mobile/ios/Runner/AppDelegate.swift \
             mobile/ios/Runner/Info.plist \
             mobile/ios/Runner/Runner.entitlements \
             mobile/test/widget_test.dart
-
-      - name: Register NfcReaderPlugin in Xcode project
-        working-directory: mobile
-        run: |
-          gem install xcodeproj --no-document
-          ruby <<'RUBY'
-          require 'xcodeproj'
-
-          project_path = 'ios/Runner.xcodeproj'
-          project = Xcodeproj::Project.open(project_path)
-          target = project.targets.find { |t| t.name == 'Runner' }
-          raise 'Runner target not found' unless target
-
-          runner_group = project.main_group['Runner']
-          raise 'Runner group not found' unless runner_group
-
-          file_name = 'NfcReaderPlugin.swift'
-          existing = runner_group.files.find { |f| f.path == file_name }
-          unless existing
-            file_ref = runner_group.new_file("Runner/#{file_name}")
-            target.source_build_phase.add_file_reference(file_ref)
-          end
-
-          target.build_configurations.each do |config|
-            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
-          end
-
-          project.save
-          RUBY
 
       - name: Resolve dependencies
         working-directory: mobile
