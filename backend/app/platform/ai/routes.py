@@ -12,12 +12,13 @@ logger = logging.getLogger("baupass.ai.routes")
 ai_bp = Blueprint("platform_ai", __name__)
 
 
-def _resolve_query_company_id(data: dict) -> str:
+def _resolve_company_id_from_request(data: dict | None = None) -> str:
     """Company IDs are strings (cmp-…), never integers."""
+    data = data or {}
     role = str(g.current_user.get("role") or "")
     if role == "superadmin":
         return (
-            str(data.get("company_id") or "").strip()
+            str(data.get("company_id") or request.args.get("company_id") or "").strip()
             or str(getattr(g, "preview_company_id", "") or "").strip()
             or str(g.current_user.get("preview_company_id") or "").strip()
         )
@@ -42,6 +43,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     @require_plan_capability("ai_assistant")
     def ai_query():
         from .assistant import natural_language_query
+        from .context_builder import build_compact_context
         from backend.app.platform.physical_operations.copilot import build_copilot_context
 
         data = request.get_json(silent=True) or {}
@@ -49,7 +51,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         if not question:
             return jsonify({"error": "question_required", "hint": "Bitte eine Frage eingeben."}), 400
 
-        company_id = _resolve_query_company_id(data)
+        company_id = _resolve_company_id_from_request(data)
         if not company_id:
             return jsonify({
                 "error": "company_required",
@@ -57,17 +59,19 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             }), 400
 
         role = str(g.current_user.get("role") or "company-admin")
+        lang = str(data.get("lang") or request.args.get("lang") or "de")[:2]
         try:
             if data.get("context"):
                 ctx = data.get("context")
             else:
-                ctx = build_copilot_context(get_db(), company_id, role)
-            result = natural_language_query(company_id, question, ctx)
+                ctx = build_compact_context(get_db(), company_id, role)
+            result = natural_language_query(company_id, question, ctx, lang=lang)
             result["companyId"] = company_id
             if not result.get("answer") and not result.get("error"):
                 from backend.app.platform.physical_operations.copilot import _deterministic_qa
 
-                fallback = _deterministic_qa(ctx, question)
+                full_ctx = build_copilot_context(get_db(), company_id, role)
+                fallback = _deterministic_qa(full_ctx, question)
                 if fallback.get("answer"):
                     result["answer"] = fallback["answer"]
                     result["source"] = fallback.get("source", "deterministic")
@@ -79,6 +83,50 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                 "hint": str(exc),
                 "companyId": company_id,
             }), 500
+
+    @ai_bp.get("/ai/briefing")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_briefing():
+        from .assistant import generate_operations_briefing
+        from .context_builder import build_compact_context
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        lang = str(request.args.get("lang") or "de")[:2]
+        role = str(g.current_user.get("role") or "company-admin")
+        ctx = build_compact_context(get_db(), company_id, role)
+        result = generate_operations_briefing(company_id, ctx, lang=lang)
+        result["companyId"] = company_id
+        return jsonify(result)
+
+    @ai_bp.get("/ai/prompts")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_prompts():
+        from .context_builder import build_compact_context, suggested_prompts
+
+        company_id = str(request.args.get("company_id") or "").strip()
+        if g.current_user.get("role") != "superadmin":
+            company_id = str(g.current_user.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        lang = str(request.args.get("lang") or "de")[:2]
+        role = str(g.current_user.get("role") or "company-admin")
+        ctx = build_compact_context(get_db(), company_id, role)
+        return jsonify({
+            "companyId": company_id,
+            "prompts": suggested_prompts(ctx, lang),
+            "snapshot": {
+                "workersOnSite": ctx.get("workersOnSite"),
+                "openSecurityFindings": (ctx.get("security") or {}).get("openFindings"),
+            },
+        })
 
     @ai_bp.get("/ai/intelligence")
     @require_auth

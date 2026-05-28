@@ -182,7 +182,19 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Enterprise Intelligence Layer",
             "titleAr": "الذكاء المؤسسي + AI",
             "items": [
-                _item("ai_assistant", "AI Assistant", "مساعد ذكاء", "hub", apis=["POST /api/ai/query", "GET /api/ai/status"], ui="/enterprise-hub.html"),
+                _item(
+                    "ai_assistant",
+                    "AI Assistant",
+                    "مساعد ذكاء",
+                    "hub",
+                    apis=[
+                        "POST /api/ai/query",
+                        "GET /api/ai/status",
+                        "GET /api/ai/briefing",
+                        "GET /api/ai/prompts",
+                    ],
+                    ui="/enterprise-hub.html",
+                ),
                 _item("ai_copilot", "AI Copilot", "Copilot تشغيلي", "hub", apis=["POST /api/ops-os/copilot"]),
                 _item("predictive_att", "Predictive Attendance", "تنبؤ الحضور", "api", apis=["GET /api/ai/predictive-attendance"]),
                 _item("fraud", "Fraud Detection", "كشف احتيال", "api", apis=["GET /api/ai/fraud-detection"]),

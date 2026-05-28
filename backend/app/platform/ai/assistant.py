@@ -105,10 +105,28 @@ def _chat_completion(messages: list[dict[str, str]]) -> dict[str, Any]:
     return body
 
 
+_CHAT_SYSTEM = (
+    "You are BauPass, an enterprise workforce operations assistant for construction sites. "
+    "Answer in the same language as the user's question (German, English, or Arabic). "
+    "Use ONLY the JSON context — never invent workers, counts, or alerts. "
+    "Format: short title, then bullet points; end with 'Empfohlene Maßnahmen' (or equivalent) "
+    "with 1–3 concrete actions when relevant. If data is missing, say so clearly."
+)
+
+_BRIEFING_SYSTEM = (
+    "You are BauPass operations lead. Produce a concise daily site briefing from the JSON context. "
+    "Use the user's language. Sections: Lage / On-site, Sicherheit, Anwesenheit & Risiko, "
+    "Empfohlene Maßnahmen (numbered). Max 12 bullets total. No invented data."
+)
+
+
 def natural_language_query(
     company_id: str,
     question: str,
     context: dict[str, Any] | None = None,
+    *,
+    mode: str = "chat",
+    lang: str = "de",
 ) -> dict[str, Any]:
     if not is_ai_configured():
         return {
@@ -117,12 +135,15 @@ def natural_language_query(
             "hint": "Set OPENAI_API_KEY or AZURE_OPENAI_API_KEY (+ AZURE_OPENAI_ENDPOINT) on the server.",
         }
 
-    system = (
-        "You are BauPass workforce assistant. Answer briefly in the user's language. "
-        "Use only the provided JSON context; do not invent employee data."
-    )
+    system = _BRIEFING_SYSTEM if mode == "briefing" else _CHAT_SYSTEM
     user_content = json.dumps(
-        {"question": question, "context": context or {}, "company_id": company_id},
+        {
+            "question": question,
+            "mode": mode,
+            "lang": lang,
+            "context": context or {},
+            "company_id": company_id,
+        },
         ensure_ascii=False,
     )
     messages = [
@@ -134,7 +155,15 @@ def natural_language_query(
     try:
         body = _chat_completion(messages)
         answer = body["choices"][0]["message"]["content"]
-        out: dict[str, Any] = {"answer": answer, "configured": True, "model": model}
+        from .context_builder import infer_context_sources
+
+        out: dict[str, Any] = {
+            "answer": answer,
+            "configured": True,
+            "model": model,
+            "mode": mode,
+            "sources": infer_context_sources(context or {}),
+        }
         if config_warning:
             out["configWarning"] = config_warning
         return out
@@ -170,3 +199,34 @@ def natural_language_query(
             "error": "ai_request_failed",
             "hint": f"KI-Anfrage fehlgeschlagen: {exc}",
         }
+
+
+def generate_operations_briefing(
+    company_id: str,
+    context: dict[str, Any],
+    *,
+    lang: str = "de",
+) -> dict[str, Any]:
+    from .context_builder import deterministic_briefing
+
+    question = {
+        "de": "Erstelle das Tagesbriefing für diese Firma.",
+        "en": "Create today's operations briefing for this company.",
+        "ar": "أنشئ ملخص عمليات اليوم لهذه الشركة.",
+    }.get(lang[:2], "Erstelle das Tagesbriefing für diese Firma.")
+
+    if not is_ai_configured():
+        return {
+            "answer": deterministic_briefing(context, lang),
+            "configured": False,
+            "mode": "briefing",
+            "source": "deterministic",
+        }
+    result = natural_language_query(
+        company_id, question, context, mode="briefing", lang=lang
+    )
+    result["mode"] = "briefing"
+    if not result.get("answer"):
+        result["answer"] = deterministic_briefing(context, lang)
+        result["source"] = "deterministic"
+    return result

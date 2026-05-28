@@ -41,8 +41,9 @@ def build_copilot_context(db, company_id: str, role: str = "company-admin") -> d
 
 def copilot_query(db, company_id: str, question: str, role: str = "company-admin") -> dict[str, Any]:
     from backend.app.platform.ai.assistant import is_ai_configured, natural_language_query
+    from backend.app.platform.ai.context_builder import build_compact_context, infer_context_sources
 
-    ctx = build_copilot_context(db, company_id, role)
+    ctx = build_compact_context(db, company_id, role)
     if not is_ai_configured():
         return {
             "configured": False,
@@ -51,10 +52,12 @@ def copilot_query(db, company_id: str, question: str, role: str = "company-admin
             "deterministicAnswers": _deterministic_qa(ctx, question),
         }
     result = natural_language_query(company_id, question, ctx)
+    sec = ctx.get("security") or {}
     result["contextSummary"] = {
-        "workersOnSite": ctx["workersOnSite"],
-        "openSecurityFindings": len(ctx.get("security", {}).get("findings", [])),
-        "operationalIssues": len(ctx.get("siteIntelligence", {}).get("operationalIssues", [])),
+        "workersOnSite": ctx.get("workersOnSite", 0),
+        "openSecurityFindings": int(sec.get("openFindings") or 0),
+        "operationalIssues": len(ctx.get("operationalIssues") or []),
+        "sources": infer_context_sources(ctx),
     }
     return result
 
@@ -64,12 +67,13 @@ def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
     if "inside" in q or "on site" in q or "موقع" in q or "داخل" in q:
         return {"answer": f"{ctx['workersOnSite']} workers currently on site.", "source": "live_access_logs"}
     if "late" in q or "متأخر" in q:
-        issues = ctx.get("siteIntelligence", {}).get("operationalIssues", [])
+        issues = ctx.get("operationalIssues") or ctx.get("siteIntelligence", {}).get("operationalIssues", [])
         return {"answer": issues or "No critical late-shift issues in rules.", "source": "site_intelligence"}
     if "compliance" in q or "مخاطر" in q or "risk" in q:
         sec = ctx.get("security", {})
+        n = int(sec.get("openFindings") or len(sec.get("findings") or []))
         return {
-            "answer": f"{len(sec.get('findings', []))} security findings; check open alerts.",
+            "answer": f"{n} security findings; check open alerts.",
             "source": "security_engine",
         }
     if "emergency" in q or "طوارئ" in q:

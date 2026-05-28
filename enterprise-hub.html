@@ -85,6 +85,19 @@
     .ai-form button {
       padding: 0.5rem; border: none; border-radius: 8px; background: var(--accent); color: #0b1118; font-weight: 700; cursor: pointer;
     }
+    .ai-toolbar { padding: 0 0.75rem 0.5rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .ai-toolbar button {
+      font-size: 0.72rem; padding: 0.25rem 0.5rem; border-radius: 6px;
+      border: 1px solid var(--border); background: #0f1419; color: var(--accent); cursor: pointer;
+    }
+    .ai-toolbar button.primary { background: #1a3a4a; color: var(--text); border-color: var(--accent); }
+    #aiPrompts { padding: 0 0.75rem 0.5rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    #aiPrompts button {
+      font-size: 0.7rem; padding: 0.2rem 0.45rem; border-radius: 999px;
+      border: 1px solid var(--border); background: #0f1419; color: var(--muted); cursor: pointer; text-align: start;
+    }
+    #aiPrompts button:hover { color: var(--accent); border-color: var(--accent); }
+    .msg-sources { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
     .maturity { font-size: 0.85rem; color: var(--muted); padding: 0 0 0.75rem; }
     .plan-banner {
       background: linear-gradient(135deg, #1a3a4a, #141c28); border: 1px solid var(--border);
@@ -144,6 +157,10 @@
     <aside class="ai-panel">
       <h2>مساعد BauPass (AI)</h2>
       <div id="aiStatus" style="padding:0 0.75rem;font-size:0.78rem;color:var(--muted)"></div>
+      <div class="ai-toolbar">
+        <button type="button" id="aiBriefingBtn" class="primary"></button>
+      </div>
+      <div id="aiPrompts"></div>
       <div id="aiLog"></div>
       <form class="ai-form" id="aiForm">
         <textarea id="aiQuestion" placeholder="اسأل بلغة طبيعية: كم موظف على الموقع؟ ما تنبيهات الأمن؟"></textarea>
@@ -193,6 +210,8 @@
         aiThinking: "Denke nach…",
         aiNeedCompany: "Bitte oben eine Firma wählen (Superadmin).",
         aiNeedEnterprise: "KI-Assistent erfordert Tarif Enterprise.",
+        aiBriefing: "Tagesbriefing",
+        aiSources: "Quellen",
         maturity: "Reifegrad",
         previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
         companySelect: "Firma (Tarif-Vorschau)",
@@ -229,6 +248,8 @@
         aiThinking: "Thinking…",
         aiNeedCompany: "Select a company above (superadmin).",
         aiNeedEnterprise: "AI assistant requires Enterprise plan.",
+        aiBriefing: "Daily briefing",
+        aiSources: "Sources",
         maturity: "Platform maturity",
         previewMaturity: "Public preview — sign in for production metrics.",
         companySelect: "Company (plan preview)",
@@ -265,6 +286,8 @@
         aiThinking: "جاري التفكير…",
         aiNeedCompany: "اختر شركة من القائمة أعلاه (المشرف).",
         aiNeedEnterprise: "مساعد AI يتطلب خطة Enterprise.",
+        aiBriefing: "ملخص اليوم",
+        aiSources: "المصادر",
         maturity: "نضج المنصة",
         previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
         companySelect: "الشركة (معاينة الخطة)",
@@ -333,6 +356,8 @@
       document.querySelector(".ai-panel h2").textContent = t("aiTitle");
       document.getElementById("aiQuestion").placeholder = t("aiPh");
       document.querySelector("#aiForm button").textContent = t("aiSend");
+      const briefingBtn = document.getElementById("aiBriefingBtn");
+      if (briefingBtn) briefingBtn.textContent = t("aiBriefing");
       const prev = document.getElementById("previewNote");
       if (prev) prev.querySelector("strong").textContent = HUB_LANG === "ar" ? "معاينة عامة" : (HUB_LANG === "en" ? "Public preview" : "Öffentliche Vorschau");
     }
@@ -525,6 +550,7 @@
         if (!isPreview && !aiSt.configured) {
           appendAi("system", t("aiAddKey"));
         }
+        if (!isPreview) await loadAiPrompts();
       } catch (e) {
         document.getElementById("authErr").classList.remove("hidden");
         document.getElementById("layers").innerHTML = `<p class="err-box">${t("authErr")}</p>`;
@@ -539,35 +565,64 @@
       }
     })();
 
-    function appendAi(role, text, isErr) {
+    function appendAi(role, text, isErr, extra) {
       const log = document.getElementById("aiLog");
       const div = document.createElement("div");
       div.className = role === "user" ? "msg-user" : (isErr ? "msg-bot msg-err" : "msg-bot");
       div.textContent = text;
+      if (extra?.sources?.length) {
+        const src = document.createElement("div");
+        src.className = "msg-sources";
+        src.textContent = `${t("aiSources")}: ${extra.sources.join(" · ")}`;
+        div.appendChild(src);
+      }
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
     }
 
-    document.getElementById("aiForm").addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      const q = document.getElementById("aiQuestion").value.trim();
-      if (!q) return;
-      if (currentUserRole === "superadmin" && !selectedCompanyId) {
+    function aiCompanyRequired() {
+      return currentUserRole === "superadmin" && !selectedCompanyId;
+    }
+
+    async function loadAiPrompts() {
+      const el = document.getElementById("aiPrompts");
+      if (!el) return;
+      el.innerHTML = "";
+      if (aiCompanyRequired()) return;
+      try {
+        let url = `/api/ai/prompts?lang=${encodeURIComponent(HUB_LANG)}`;
+        if (selectedCompanyId) url += `&company_id=${encodeURIComponent(selectedCompanyId)}`;
+        const data = await api(url);
+        data.prompts.forEach((p) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const label = p.text.length > 48 ? `${p.text.slice(0, 46)}…` : p.text;
+          btn.textContent = label;
+          btn.title = p.text;
+          btn.addEventListener("click", () => submitAiQuestion(p.text));
+          el.appendChild(btn);
+        });
+      } catch {
+        el.innerHTML = "";
+      }
+    }
+
+    async function submitAiQuestion(q) {
+      const question = String(q || "").trim();
+      if (!question) return;
+      if (aiCompanyRequired()) {
         appendAi("bot", t("aiNeedCompany"), true);
         return;
       }
-      appendAi("user", q);
-      document.getElementById("aiQuestion").value = "";
-      const thinkingId = `ai-thinking-${Date.now()}`;
+      appendAi("user", question);
       const log = document.getElementById("aiLog");
       const thinking = document.createElement("div");
-      thinking.id = thinkingId;
       thinking.className = "msg-bot";
       thinking.textContent = t("aiThinking");
       log.appendChild(thinking);
       log.scrollTop = log.scrollHeight;
       try {
-        const body = { question: q };
+        const body = { question, lang: HUB_LANG };
         if (selectedCompanyId) body.company_id = selectedCompanyId;
         const data = await api("/api/ai/query", {
           method: "POST",
@@ -581,7 +636,8 @@
           appendAi("bot", data.hint || data.error, true);
         } else {
           if (data.configWarning) appendAi("bot", data.configWarning, true);
-          appendAi("bot", data.answer || data.hint || t("aiAddKey"), !data.answer);
+          const sources = data.sources || data.contextSummary?.sources;
+          appendAi("bot", data.answer || data.hint || t("aiAddKey"), !data.answer, { sources });
         }
       } catch (e) {
         thinking.remove();
@@ -593,6 +649,41 @@
         } else {
           appendAi("bot", p.hint || p.message || e.message || String(e), true);
         }
+      }
+    }
+
+    document.getElementById("aiForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const q = document.getElementById("aiQuestion").value.trim();
+      if (!q) return;
+      document.getElementById("aiQuestion").value = "";
+      await submitAiQuestion(q);
+    });
+
+    document.getElementById("aiBriefingBtn").addEventListener("click", async () => {
+      if (aiCompanyRequired()) {
+        appendAi("bot", t("aiNeedCompany"), true);
+        return;
+      }
+      appendAi("user", t("aiBriefing"));
+      const log = document.getElementById("aiLog");
+      const thinking = document.createElement("div");
+      thinking.className = "msg-bot";
+      thinking.textContent = t("aiThinking");
+      log.appendChild(thinking);
+      try {
+        let url = `/api/ai/briefing?lang=${encodeURIComponent(HUB_LANG)}`;
+        if (selectedCompanyId) url += `&company_id=${encodeURIComponent(selectedCompanyId)}`;
+        const data = await api(url);
+        thinking.remove();
+        if (data.error) {
+          appendAi("bot", data.hint || data.error, true);
+        } else {
+          appendAi("bot", data.answer || t("aiAddKey"), !data.answer, { sources: data.sources });
+        }
+      } catch (e) {
+        thinking.remove();
+        appendAi("bot", e.payload?.hint || e.message || String(e), true);
       }
     });
 
