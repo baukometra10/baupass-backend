@@ -7484,6 +7484,41 @@ def start_background_jobs():
     else:
         threading.Thread(target=invoice_retry_loop, name="baupass-invoice-retry", daemon=True).start()
 
+    ai_briefing_cron = str(os.getenv("BAUPASS_AI_BRIEFING_CRON", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if ai_briefing_cron:
+        ai_briefing_mode = resolve_background_job_mode("BAUPASS_AI_BRIEFING_MODE")
+        print(f"[baupass] AI briefing cron: enabled (mode={ai_briefing_mode})", flush=True)
+
+        def ai_briefing_loop():
+            from backend.app.platform.ai.scheduler import run_ai_briefing_cycle_once, seconds_until_next_briefing
+
+            while True:
+                try:
+                    with app.app_context():
+                        run_ai_briefing_cycle_once(reschedule=False)
+                except Exception as exc:
+                    print(f"[baupass] WARNING: AI briefing cycle failed: {exc}", flush=True)
+                time.sleep(seconds_until_next_briefing())
+
+        if ai_briefing_mode == "rq":
+            try:
+                from backend.app.platform.ai.scheduler import bootstrap_ai_briefing_scheduler
+
+                boot_ok = bool(bootstrap_ai_briefing_scheduler())
+                if rq_strict_mode and not boot_ok:
+                    raise RuntimeError("AI briefing RQ bootstrap failed in strict mode")
+            except Exception:
+                if rq_strict_mode:
+                    raise
+                threading.Thread(target=ai_briefing_loop, name="baupass-ai-briefing", daemon=True).start()  # baupass:allow-inline-thread
+        else:
+            threading.Thread(target=ai_briefing_loop, name="baupass-ai-briefing", daemon=True).start()  # baupass:allow-inline-thread
+
 
 def get_company_access_error(db, company_id):
     if not company_id:

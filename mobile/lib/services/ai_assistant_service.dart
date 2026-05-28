@@ -26,4 +26,18 @@ class AiAssistantService {
       body: {'question': question, 'lang': lang},
     );
   }
+
+  Future<Map<String, dynamic>> voice(
+    WorkerSession session, {
+    required String audioBase64,
+    String mime = 'audio/m4a',
+    String lang = 'de',
+  }) async {
+    return _api.postJson(
+      '/api/worker-app/ai/voice',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: {'audio': audioBase64, 'mime': mime, 'lang': lang},
+    );
+  }
 }

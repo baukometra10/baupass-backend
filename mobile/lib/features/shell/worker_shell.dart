@@ -34,6 +34,7 @@ class WorkerShell extends StatefulWidget {
     required this.workerCache,
     required this.tasks,
     required this.push,
+    required this.ai,
     required this.onLogout,
   });
 
@@ -49,6 +50,7 @@ class WorkerShell extends StatefulWidget {
   final WorkerCache workerCache;
   final TasksRepository tasks;
   final PushNotificationService push;
+  final AiAssistantService ai;
   final VoidCallback onLogout;
 
   @override
@@ -110,6 +112,7 @@ class _WorkerShellState extends State<WorkerShell> {
         auth: widget.auth,
         digitalCard: widget.digitalCard,
         workerCache: widget.workerCache,
+        ai: widget.ai,
         onOpenAttendance: () => setState(() => _index = 1),
       ),
       AttendanceScreen(

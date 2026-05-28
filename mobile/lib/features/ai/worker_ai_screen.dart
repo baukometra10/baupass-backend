@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
@@ -16,9 +21,12 @@ class WorkerAiScreen extends StatefulWidget {
 
 class _WorkerAiScreenState extends State<WorkerAiScreen> {
   final _controller = TextEditingController();
+  final _recorder = AudioRecorder();
   final _messages = <_ChatMsg>[];
   bool _loading = false;
   bool _configured = false;
+  bool _recording = false;
+  String? _recordPath;
 
   @override
   void initState() {
@@ -29,6 +37,7 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -41,7 +50,7 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
       if (hints.isNotEmpty) {
         _messages.add(_ChatMsg(
           role: 'bot',
-          text: 'Beispiele:\n• ${hints.join('\n• ')}',
+          text: 'Beispiele:\n• ${hints.join('\n• ')}\n\nSprache: Mikrofon antippen, erneut antippen zum Senden.',
         ));
         setState(() {});
       }
@@ -54,21 +63,92 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
     final q = _controller.text.trim();
     if (q.isEmpty || _loading) return;
     _controller.clear();
+    await _askText(q);
+  }
+
+  Future<void> _askText(String q) async {
     setState(() {
       _loading = true;
       _messages.add(_ChatMsg(role: 'user', text: q));
     });
     try {
       final res = await widget.ai.ask(widget.session, question: q);
-      final answer = (res['answer'] as String?)?.trim();
-      final hint = (res['hint'] as String?)?.trim();
-      _messages.add(_ChatMsg(
-        role: 'bot',
-        text: answer?.isNotEmpty == true ? answer! : (hint ?? 'Keine Antwort'),
-        isError: answer == null || answer.isEmpty,
-      ));
+      _appendBot(res);
     } catch (e) {
       _messages.add(_ChatMsg(role: 'bot', text: e.toString(), isError: true));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _appendBot(Map<String, dynamic> res) {
+    final answer = (res['answer'] as String?)?.trim();
+    final hint = (res['hint'] as String?)?.trim();
+    final transcript = (res['transcript'] as String?)?.trim();
+    var text = answer?.isNotEmpty == true ? answer! : (hint ?? 'Keine Antwort');
+    if (transcript != null && transcript.isNotEmpty) {
+      text = '🎤 $transcript\n\n$text';
+    }
+    _messages.add(_ChatMsg(
+      role: 'bot',
+      text: text,
+      isError: answer == null || answer.isEmpty,
+    ));
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_loading) return;
+    if (!_recording) {
+      if (!await _recorder.hasPermission()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mikrofon-Berechtigung erforderlich.')),
+        );
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      _recordPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000),
+        path: _recordPath!,
+      );
+      if (!mounted) return;
+      setState(() => _recording = true);
+      return;
+    }
+
+    final path = await _recorder.stop();
+    if (!mounted) return;
+    setState(() => _recording = false);
+    final filePath = path ?? _recordPath;
+    if (filePath == null) return;
+    final file = File(filePath);
+    if (!await file.exists()) return;
+
+    setState(() {
+      _loading = true;
+      _messages.add(_ChatMsg(role: 'user', text: '🎤 Sprachnachricht…'));
+    });
+    try {
+      final bytes = await file.readAsBytes();
+      await file.delete();
+      final res = await widget.ai.voice(
+        widget.session,
+        audioBase64: base64Encode(bytes),
+        mime: 'audio/m4a',
+      );
+      if (_messages.isNotEmpty && _messages.last.role == 'user') {
+        final transcript = (res['transcript'] as String?)?.trim();
+        _messages[_messages.length - 1] = _ChatMsg(
+          role: 'user',
+          text: transcript?.isNotEmpty == true ? '🎤 $transcript' : '🎤 (Sprache)',
+        );
+      }
+      _appendBot(res);
+    } catch (e) {
+      _messages.add(_ChatMsg(role: 'bot', text: e.toString(), isError: true));
+      if (mounted) setState(() {});
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -117,6 +197,17 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
               },
             ),
           ),
+          if (_recording)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.mic, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(width: 8),
+                  const Text('Aufnahme… erneut antippen zum Senden'),
+                ],
+              ),
+            ),
           if (_loading)
             const Padding(
               padding: EdgeInsets.all(8),
@@ -127,6 +218,12 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Row(
                 children: [
+                  IconButton.filledTonal(
+                    onPressed: _loading ? null : _toggleVoice,
+                    icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.mic_none),
+                    tooltip: _recording ? 'Aufnahme beenden' : 'Sprachfrage',
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _controller,

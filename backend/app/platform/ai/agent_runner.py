@@ -153,7 +153,7 @@ def run_agent_query_stream(
     history: list[dict] | None = None,
 ) -> Generator[dict[str, Any], None, None]:
     """Yield progress events, then stream final answer tokens via OpenAI."""
-    from .assistant import _openai_stream_request, is_ai_configured
+    from .assistant import is_ai_configured
 
     if not is_ai_configured():
         yield {"type": "error", "hint": "OPENAI_API_KEY nicht konfiguriert."}
@@ -200,13 +200,21 @@ def run_agent_query_stream(
 
     tools_used: list[str] = []
     try:
-        for _ in range(MAX_TOOL_ROUNDS):
-            body = _chat_with_tools(messages, tools)
-            msg = body["choices"][0]["message"]
-            tool_calls = msg.get("tool_calls") or []
+        from .assistant import _stream_chat_completion_events
 
+        for _ in range(MAX_TOOL_ROUNDS):
+            content_deltas: list[str] = []
+            tool_msg: dict[str, Any] | None = None
+            for ev in _stream_chat_completion_events(messages, tools=tools):
+                if ev["type"] == "tool_calls":
+                    tool_msg = ev["message"]
+                    break
+                if ev["type"] == "content_delta":
+                    content_deltas.append(ev["text"])
+
+            tool_calls = (tool_msg or {}).get("tool_calls") or []
             if tool_calls:
-                messages.append(msg)
+                messages.append(tool_msg)
                 for tc in tool_calls:
                     fn = tc.get("function") or {}
                     name = fn.get("name", "")
@@ -224,20 +232,9 @@ def run_agent_query_stream(
                 continue
 
             yield {"type": "answer_start"}
-            preset = (msg.get("content") or "").strip()
-            full: list[str] = []
-            if preset:
-                step = max(24, len(preset) // 40)
-                for i in range(0, len(preset), step):
-                    part = preset[i : i + step]
-                    full.append(part)
-                    yield {"type": "chunk", "text": part}
-                answer = preset
-            else:
-                for delta in _openai_stream_request(messages):
-                    full.append(delta)
-                    yield {"type": "chunk", "text": delta}
-                answer = "".join(full)
+            for part in content_deltas:
+                yield {"type": "chunk", "text": part}
+            answer = "".join(content_deltas)
             suggested = suggest_actions(ctx, company_id=company_id, tools_used=tools_used)
             yield {
                 "type": "done",

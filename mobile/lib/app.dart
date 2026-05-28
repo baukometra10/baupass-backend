@@ -38,6 +38,7 @@ class _WorkerAppState extends State<WorkerApp> {
   late final WorkerCache _workerCache;
   late final TasksRepository _tasks;
   late final PushNotificationService _push;
+  late final AiAssistantService _ai;
   late final DeepLinkService _deepLinks;
   WorkerSession? _session;
   bool _bootstrapping = true;
@@ -58,6 +59,7 @@ class _WorkerAppState extends State<WorkerApp> {
     _workerCache = WorkerCache();
     _tasks = TasksRepository(_api);
     _push = PushNotificationService(_api);
+    _ai = AiAssistantService(_api);
     _deepLinks = DeepLinkService();
     _boot();
   }
@@ -171,6 +173,7 @@ class _WorkerAppState extends State<WorkerApp> {
                   workerCache: _workerCache,
                   tasks: _tasks,
                   push: _push,
+                  ai: _ai,
                   onLogout: _onLogout,
                 )
               : LoginScreen(

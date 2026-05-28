@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
     required this.auth,
     required this.digitalCard,
     required this.workerCache,
+    required this.ai,
     required this.onOpenAttendance,
   });
 
@@ -24,6 +25,7 @@ class HomeScreen extends StatefulWidget {
   final AuthRepository auth;
   final DigitalCardRepository digitalCard;
   final WorkerCache workerCache;
+  final AiAssistantService ai;
   final VoidCallback onOpenAttendance;
 
   @override
@@ -86,6 +88,17 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('BauPass'),
         actions: [
+          IconButton(
+            tooltip: 'KI Assistent',
+            icon: const Icon(Icons.smart_toy_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+                ),
+              );
+            },
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
@@ -132,6 +145,19 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.nfc),
               label: const Text('NFC Check-in / Check-out'),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat_outlined),
+              label: const Text('BauPass Assistent (KI)'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
             ),
           ],
         ),

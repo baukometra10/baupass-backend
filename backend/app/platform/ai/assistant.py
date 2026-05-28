@@ -78,6 +78,8 @@ def ai_config_status() -> dict[str, Any]:
             "briefing_webhook",
             "worker_voice",
             "live_tool_stream",
+            "briefing_cron",
+            "openai_token_stream",
         ],
     }
 
@@ -154,6 +156,87 @@ def _openai_request_config() -> tuple[str, dict[str, str], str]:
             model,
         )
     raise ValueError("No OpenAI API key configured")
+
+
+def _stream_chat_completion_events(
+    messages: list[dict[str, Any]],
+    *,
+    tools: list[dict[str, Any]] | None = None,
+):
+    """
+    Stream one chat completion round.
+
+    Yields:
+      {"type": "content_delta", "text": str}
+      {"type": "tool_calls", "message": assistant message with tool_calls}
+    """
+    url, headers, payload_model = _openai_request_config()
+    body: dict[str, Any] = {
+        "model": payload_model,
+        "messages": messages,
+        "temperature": 0.2,
+        "stream": True,
+    }
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = "auto"
+    payload = json.dumps(body).encode("utf-8")
+    req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
+    tool_calls_acc: dict[int, dict[str, Any]] = {}
+    with urlrequest.urlopen(req, timeout=120) as resp:
+        for raw_line in resp:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            delta = choices[0].get("delta") or {}
+            text = delta.get("content")
+            if text:
+                yield {"type": "content_delta", "text": text}
+            for tc in delta.get("tool_calls") or []:
+                idx = int(tc.get("index") or 0)
+                acc = tool_calls_acc.setdefault(
+                    idx,
+                    {"id": "", "type": "function", "function": {"name": "", "arguments": ""}},
+                )
+                if tc.get("id"):
+                    acc["id"] = tc["id"]
+                fn = tc.get("function") or {}
+                if fn.get("name"):
+                    acc["function"]["name"] += str(fn["name"])
+                if fn.get("arguments"):
+                    acc["function"]["arguments"] += str(fn["arguments"])
+
+    if tool_calls_acc:
+        ordered = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
+        yield {
+            "type": "tool_calls",
+            "message": {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": t["id"],
+                        "type": "function",
+                        "function": {
+                            "name": t["function"]["name"],
+                            "arguments": t["function"]["arguments"] or "{}",
+                        },
+                    }
+                    for t in ordered
+                    if t.get("id") and t["function"].get("name")
+                ],
+            },
+        }
 
 
 def _openai_stream_request(
