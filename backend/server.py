@@ -13178,6 +13178,19 @@ def foreman_crew_health():
     })
 
 
+@app.get("/api/foreman/tomorrow-forecast")
+@require_admin_session
+def foreman_tomorrow_forecast():
+    """Vorarbeiter: Personalprognose für den nächsten Arbeitstag."""
+    from backend.app.platform.predictions.engine import build_tomorrow_forecast
+
+    user = g.admin_user
+    company_id = str(user.get("company_id") or "").strip()
+    if not company_id:
+        return jsonify({"error": "company_required"}), 400
+    return jsonify(build_tomorrow_forecast(get_db(), company_id))
+
+
 @app.post("/api/foreman/send-alert")
 @require_admin_session
 def foreman_send_alert():

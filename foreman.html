@@ -425,6 +425,33 @@
       margin-bottom: 1rem;
     }
 
+    .forecast-banner {
+      background: linear-gradient(135deg, rgba(15, 76, 92, 0.35), rgba(227, 100, 20, 0.2));
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .forecast-banner h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: var(--foreman-accent);
+    }
+
+    .forecast-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      margin-top: 0.5rem;
+    }
+
+    .forecast-stats div strong {
+      display: block;
+      font-size: 1.5rem;
+      color: var(--foreman-primary);
+    }
+
     /* ─ Responsive ──────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
       .foreman-header h1 {
@@ -493,6 +520,7 @@
 
     <!-- ─ Team Status Tab ──────────────────────────────────────────────────────── -->
     <div id="team-status" class="foreman-section active">
+      <div id="forecastBanner" class="forecast-banner hidden"></div>
       <div class="health-grid" id="healthMetrics">
         <div class="health-card">
           <div class="health-score" id="healthScore">-</div>
@@ -687,14 +715,44 @@
     });
 
     // ─ Team Status ────────────────────────────────────────────────────────────────
+    function renderForecast(fc) {
+      const el = document.getElementById('forecastBanner');
+      if (!el) return;
+      if (!fc?.date) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+      }
+      el.classList.remove('hidden');
+      const drivers = (fc.drivers || []).slice(0, 3).map((d) => {
+        const label = d.type === 'approved_leave' ? 'Urlaub' : (d.type === 'attendance_pattern' ? 'Ausfallrisiko' : d.type);
+        return `<li>${label}: ${d.count || 0}</li>`;
+      }).join('');
+      el.innerHTML = `
+        <h3>Prognose morgen · ${fc.weekdayLabel || ''} ${fc.date}</h3>
+        <p style="margin:0;opacity:0.9">${fc.summary || ''}</p>
+        <div class="forecast-stats">
+          <div><span>Erwartet on-site</span><strong>${fc.expectedOnSite ?? '—'}</strong></div>
+          <div><span>Ausfallrisiko</span><strong>${fc.expectedAbsent ?? '—'}</strong></div>
+          <div><span>Aktiv gesamt</span><strong>${fc.totalActive ?? '—'}</strong></div>
+        </div>
+        ${drivers ? `<ul style="margin:0.75rem 0 0;padding-inline-start:1.2rem;font-size:0.88rem">${drivers}</ul>` : ''}
+        <p style="margin:0.75rem 0 0;font-size:0.85rem">
+          <a href="/ai-command-center.html" style="color:var(--foreman-accent)">KI: Personalplan</a>
+        </p>`;
+    }
+
     async function loadTeamStatus() {
       try {
-        const health = await fetchAPI('/foreman/crew-health');
+        const [health, teamData, forecast] = await Promise.all([
+          fetchAPI('/foreman/crew-health'),
+          fetchAPI('/foreman/team-status'),
+          fetchAPI('/foreman/tomorrow-forecast').catch(() => null),
+        ]);
         document.getElementById('healthScore').textContent = `${health.healthScore}%`;
         document.getElementById('checkedInCount').textContent = health.checkedInToday;
         document.getElementById('missingDocsCount').textContent = health.missingDocuments;
-
-        const teamData = await fetchAPI('/foreman/team-status');
+        renderForecast(forecast);
         renderTeamGrid(teamData.team);
       } catch (error) {
         console.error('Failed to load team status:', error);

@@ -35,6 +35,11 @@ _CARD_ACTIONS: dict[str, list[dict[str, str]]] = {
         {"type": "analyze", "topic": "operations", "labelDe": "Betrieb analysieren", "labelEn": "Operations analysis", "labelAr": "تحليل تشغيلي"},
         {"type": "prompt", "promptDe": "Wie war die Produktivität heute vs. gestern?", "promptEn": "How was productivity today vs yesterday?", "promptAr": "كيف كانت الإنتاجية اليوم؟"},
     ],
+    "tomorrow": [
+        {"type": "navigate", "url": "/foreman.html", "labelDe": "Vorarbeiter: Planung", "labelEn": "Foreman planning", "labelAr": "تخطيط المشرف"},
+        {"type": "navigate", "url": "/ops-command-center.html", "labelDe": "Ops Center", "labelEn": "Ops center", "labelAr": "مركز العمليات"},
+        {"type": "prompt", "promptDe": "Erstelle einen Personalplan für morgen inkl. Ausfallrisiken und Kontaktliste.", "promptEn": "Create a staffing plan for tomorrow including absence risks.", "promptAr": "أنشئ خطة توظيف للغد مع مخاطر الغياب."},
+    ],
 }
 
 _RECOMMENDATIONS: dict[str, dict[str, str]] = {
@@ -74,6 +79,29 @@ _RECOMMENDATIONS: dict[str, dict[str, str]] = {
         "labelAr": "تجديد الوثائق",
         "type": "analyze",
         "topic": "compliance",
+    },
+    "plan_tomorrow_staffing": {
+        "labelDe": "Personalplan morgen",
+        "labelEn": "Plan tomorrow staffing",
+        "labelAr": "تخطيط الغد",
+        "type": "prompt",
+        "promptDe": "Welche Maßnahmen für morgen wegen Ausfallrisiko und Urlaub?",
+        "promptEn": "What actions for tomorrow given absence risk and leave?",
+        "promptAr": "ما الإجراءات للغد بسبب الغياب والإجازات؟",
+    },
+    "notify_foreman": {
+        "labelDe": "Vorarbeiter informieren",
+        "labelEn": "Notify foreman",
+        "labelAr": "إبلاغ المشرف",
+        "type": "navigate",
+        "url": "/foreman.html",
+    },
+    "shift_coverage_review": {
+        "labelDe": "Schichtabdeckung prüfen",
+        "labelEn": "Review shift coverage",
+        "labelAr": "مراجعة تغطية الورديات",
+        "type": "navigate",
+        "url": "/foreman.html",
     },
 }
 

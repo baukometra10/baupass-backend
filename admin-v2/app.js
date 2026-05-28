@@ -618,12 +618,20 @@ async function loadOverview() {
     $("statCards").innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
     return;
   }
-  const [overview, inbox] = await Promise.all([
+  const [overview, inbox, roleDash] = await Promise.all([
     api(`/api/v2/admin/overview${q}`),
     api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
+    api(`/api/dashboard/role${q}`).catch(() => null),
   ]);
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
+  const dashWidgets = (roleDash?.widgets || []).filter((w) => w.id !== "on_site");
+  const extraCards = dashWidgets
+    .map(
+      (w) =>
+        `<div class="card"><span class="muted">${w.label || w.id}</span><strong>${w.value ?? "—"}</strong>${w.detail ? `<small class="muted">${w.detail}</small>` : ""}</div>`,
+    )
+    .join("");
   $("statCards").innerHTML = `
     <div class="card"><span class="muted">على الموقع الآن</span><strong>${wf.onSite ?? 0}</strong></div>
     <div class="card"><span class="muted">موظفون نشطون</span><strong>${wf.totalActive ?? 0}</strong></div>
@@ -631,6 +639,7 @@ async function loadOverview() {
     <button type="button" class="card" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
       <span class="muted">Posteingang</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
     </button>
+    ${extraCards}
   `;
   $("statCards").querySelector('[data-goto-tab="inbox"]')?.addEventListener("click", async () => {
     switchToTab("inbox");

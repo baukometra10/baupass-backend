@@ -103,6 +103,27 @@
       background: linear-gradient(135deg, #1a3a4a, #141c28); border: 1px solid var(--border);
       border-radius: 12px; padding: 1rem; margin-bottom: 1rem;
     }
+    .role-playbook {
+      background: linear-gradient(135deg, #152535, #1a3040);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .role-playbook h3 { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--accent); }
+    .playbook-widgets { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem; }
+    .playbook-widget {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.45rem 0.65rem; font-size: 0.78rem; min-width: 110px;
+    }
+    .playbook-widget strong { display: block; font-size: 1.05rem; color: var(--accent); }
+    .playbook-widget.sev-high strong { color: #fbbf24; }
+    .playbook-widget.sev-medium strong { color: #fbbf24; }
+    .playbook-links { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .playbook-links a {
+      font-size: 0.75rem; padding: 0.3rem 0.55rem; border-radius: 8px;
+      border: 1px solid var(--border); text-decoration: none; color: var(--accent);
+    }
     .plan-banner strong { color: var(--accent); font-size: 1.2rem; }
     .plan-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin: 0.75rem 0; }
     .plan-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; font-size: 0.78rem; text-align: center; }
@@ -140,6 +161,7 @@
   <div class="layout" id="mainLayout">
     <section>
       <div id="planBanner" class="plan-banner hidden"></div>
+      <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
       <div id="stats" class="stats"></div>
       <div class="toolbar">
@@ -219,6 +241,8 @@
         previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
         companySelect: "Firma (Tarif-Vorschau)",
         allCompanies: "— Superadmin (Firma wählen) —",
+        rolePlaybook: "Ihr Einsatz-Playbook",
+        rolePickCompany: "Firma wählen für Live-KPIs.",
       },
       en: {
         title: "Enterprise hub — 16-layer map",
@@ -257,6 +281,8 @@
         previewMaturity: "Public preview — sign in for production metrics.",
         companySelect: "Company (plan preview)",
         allCompanies: "— Superadmin: pick company —",
+        rolePlaybook: "Your operations playbook",
+        rolePickCompany: "Select a company for live KPIs.",
       },
       ar: {
         title: "مركز المؤسسة — خريطة الـ 16 طبقة",
@@ -296,6 +322,8 @@
         previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
         companySelect: "الشركة (معاينة الخطة)",
         allCompanies: "— المشرف: اختر شركة —",
+        rolePlaybook: "دليل التشغيل الخاص بك",
+        rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
       },
     };
     function t(key) {
@@ -368,6 +396,58 @@
       if (navAi) navAi.textContent = HUB_LANG === "ar" ? "مركز AI" : (HUB_LANG === "en" ? "AI Center" : "KI Center");
       const prev = document.getElementById("previewNote");
       if (prev) prev.querySelector("strong").textContent = HUB_LANG === "ar" ? "معاينة عامة" : (HUB_LANG === "en" ? "Public preview" : "Öffentliche Vorschau");
+    }
+
+    function roleDashboardUrl() {
+      let url = "/api/dashboard/role";
+      if (selectedCompanyId) url += `?company_id=${encodeURIComponent(selectedCompanyId)}`;
+      return url;
+    }
+
+    function appendCompanyToUrl(href) {
+      if (!selectedCompanyId || !href || href.startsWith("http")) return href;
+      const u = new URL(href, location.origin);
+      if (!u.searchParams.has("company_id")) u.searchParams.set("company_id", selectedCompanyId);
+      return u.pathname + u.search + u.hash;
+    }
+
+    async function loadRolePlaybook(isPreview) {
+      const el = document.getElementById("rolePlaybook");
+      if (!el) return;
+      if (isPreview || (currentUserRole === "superadmin" && !selectedCompanyId)) {
+        el.classList.toggle("hidden", isPreview);
+        if (!isPreview && currentUserRole === "superadmin") {
+          el.classList.remove("hidden");
+          el.innerHTML = `<h3>${t("rolePlaybook")}</h3><p style="margin:0;font-size:0.82rem;color:var(--muted)">${t("rolePickCompany")}</p>`;
+        } else {
+          el.classList.add("hidden");
+          el.innerHTML = "";
+        }
+        return;
+      }
+      try {
+        const dash = await api(roleDashboardUrl());
+        const widgets = (dash.widgets || []).map((w) => {
+          const sev = w.severity === "high" ? " sev-high" : (w.severity === "medium" ? " sev-medium" : "");
+          const detail = w.detail ? `<span style="display:block;font-size:0.7rem;color:var(--muted)">${w.detail}</span>` : "";
+          return `<div class="playbook-widget${sev}"><span>${w.label}</span><strong>${w.value ?? "—"}</strong>${detail}</div>`;
+        }).join("");
+        const links = (dash.quickLinks || []).map((l) => {
+          const href = appendCompanyToUrl(l.url || "#");
+          return `<a href="${href}">${l.label}</a>`;
+        }).join("");
+        const fc = dash.forecast || {};
+        const forecastLine = fc.summary
+          ? `<p style="margin:0.35rem 0 0;font-size:0.78rem;color:var(--muted)">${fc.summary}</p>`
+          : "";
+        el.innerHTML = `<h3>${t("rolePlaybook")} · ${dash.role || ""}</h3>
+          <div class="playbook-widgets">${widgets || ""}</div>${forecastLine}
+          <div class="playbook-links">${links}</div>`;
+        el.classList.remove("hidden");
+      } catch {
+        el.classList.add("hidden");
+        el.innerHTML = "";
+      }
     }
 
     function renderStats(stats, labels) {
@@ -539,6 +619,7 @@
         document.getElementById("mainLayout").classList.remove("hidden");
         document.getElementById("previewNote").classList.toggle("hidden", !isPreview);
         renderPlanBanner(cat);
+        await loadRolePlaybook(isPreview);
         renderStats(cat.stats, cat.surfaceLabels);
         renderLayers();
         const m = document.getElementById("maturity");
