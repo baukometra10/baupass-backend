@@ -53,6 +53,7 @@ jobs:
       - name: Restore native customizations
         run: |
           git checkout HEAD -- \
+            mobile/android/app/build.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             mobile/android/app/src/main/AndroidManifest.xml \
