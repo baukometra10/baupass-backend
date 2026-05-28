@@ -288,6 +288,17 @@ def register_physical_operations(flask_app) -> None:
             cid = str(request.args.get("company_id", "") or "").strip()
         return jsonify(build_command_center(get_db(), company_id=cid, role=role))
 
+    @ops_os_bp.get("/ops-os/predictions/tomorrow")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_tomorrow_prediction():
+        from backend.app.platform.predictions.engine import build_tomorrow_forecast
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
+        return jsonify(build_tomorrow_forecast(get_db(), cid))
+
     @ops_os_bp.get("/ops-os/live-map")
     @require_auth
     @require_roles("superadmin", "company-admin")

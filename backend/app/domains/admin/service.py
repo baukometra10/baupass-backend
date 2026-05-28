@@ -14,6 +14,13 @@ class AdminService:
         workforce = self._workers.workforce_tracking(db, company_id, today_prefix)
         live = self._access.live_access_feed(db, company_id)
         zones = self._access.geofence_zones(db, company_id)
+        forecast = {}
+        try:
+            from backend.app.platform.predictions.engine import build_tomorrow_forecast
+
+            forecast = build_tomorrow_forecast(db, company_id)
+        except Exception:
+            pass
         return {
             "workforce": {
                 "onSite": workforce.get("on_site", 0),
@@ -21,4 +28,5 @@ class AdminService:
             },
             "recentAccess": live.get("access_logs", []),
             "zonesCount": len(zones.get("zones") or []),
+            "tomorrowForecast": forecast,
         }

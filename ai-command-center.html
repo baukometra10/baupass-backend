@@ -193,9 +193,9 @@
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
     const CARD_LABELS = {
-      de: { onsite: "Auf Baustelle", security: "Sicherheit", workforceRisk: "Risiko", attendanceRisk: "Ausfallrisiko", fraud: "Betrug", productivity: "Produktivität", emergency: "Notfall" },
-      en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency" },
-      ar: { onsite: "على الموقع", security: "الأمن", workforceRisk: "المخاطر", attendanceRisk: "غياب", fraud: "احتيال", productivity: "الإنتاجية", emergency: "طوارئ" },
+      de: { onsite: "Auf Baustelle", security: "Sicherheit", workforceRisk: "Risiko", attendanceRisk: "Ausfallrisiko", fraud: "Betrug", productivity: "Produktivität", emergency: "Notfall", tomorrowForecast: "Prognose morgen" },
+      en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency", tomorrowForecast: "Tomorrow forecast" },
+      ar: { onsite: "على الموقع", security: "الأمن", workforceRisk: "المخاطر", attendanceRisk: "غياب", fraud: "احتيال", productivity: "الإنتاجية", emergency: "طوارئ", tomorrowForecast: "توقعات الغد" },
     };
 
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";

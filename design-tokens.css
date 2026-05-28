@@ -19,4 +19,16 @@
   --bp-space-sm: 8px;
   --bp-space-md: 16px;
   --bp-space-lg: 24px;
+
+  /* Ops / command centers (dark surfaces) */
+  --bp-ops-bg: #0b1220;
+  --bp-ops-surface: #111827;
+  --bp-ops-surface-2: #1f2937;
+  --bp-ops-border: rgba(255, 255, 255, 0.08);
+  --bp-ops-text: #f3f4f6;
+  --bp-ops-muted: #9ca3af;
+  --bp-ops-accent: #38bdf8;
+  --bp-ops-warn: #fbbf24;
+  --bp-ops-danger: #f87171;
+  --bp-ops-success: #34d399;
 }

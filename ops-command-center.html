@@ -6,7 +6,12 @@
   <title>BauPass — Ops Command Center</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <style>
-    :root { --bg: #0f1419; --panel: #1a2332; --border: #2a3544; --text: #e8eef4; --muted: #94a3b8; --accent: #5eead4; --danger: #f87171; }
+    :root {
+      --bg: var(--bp-ops-bg, #0f1419); --panel: var(--bp-ops-surface, #1a2332);
+      --border: var(--bp-ops-border, #2a3544); --text: var(--bp-ops-text, #e8eef4);
+      --muted: var(--bp-ops-muted, #94a3b8); --accent: var(--bp-ops-accent, #5eead4);
+      --danger: var(--bp-ops-danger, #f87171);
+    }
     body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
     header {
       padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
@@ -72,7 +77,25 @@
       return u.pathname + u.search;
     }
 
-    function render(data) {
+    function renderForecastCard(grid, fc) {
+      if (!fc?.date || !grid) return;
+      const el = document.createElement("div");
+      el.className = "card";
+      el.dataset.action = "tomorrow";
+      el.title = "KI: Personalplanung für morgen";
+      el.innerHTML = `
+        <div class="label">Prognose morgen · ${fc.weekdayLabel || ""}</div>
+        <div class="metric" style="font-size:1.35rem">${fc.expectedOnSite ?? "—"} <span style="font-size:0.75rem;color:var(--muted)">on-site</span></div>
+        <div class="label" style="margin-top:0.35rem">${(fc.summary || "").slice(0, 90)}…</div>`;
+      el.addEventListener("click", () => {
+        const base = companyLink("/ai-command-center.html", companyId);
+        const q = encodeURIComponent("Was ist die Personalprognose für morgen und welche Maßnahmen empfiehlst du?");
+        location.href = `${base}${base.includes("?") ? "&" : "?"}autoprompt=${q}`;
+      });
+      grid.insertBefore(el, grid.querySelector(".card[style*='grid-column']") || grid.firstChild);
+    }
+
+    function render(data, forecast) {
       lastPayload = data;
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
@@ -142,6 +165,21 @@
         });
       });
       document.getElementById("refreshBtn")?.addEventListener("click", load);
+      if (forecast) renderForecastCard(grid, forecast);
+    }
+
+    async function loadForecast() {
+      if (!companyId) return null;
+      try {
+        const res = await fetch(
+          `/api/ops-os/predictions/tomorrow?company_id=${encodeURIComponent(companyId)}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
     }
 
     async function load() {
@@ -150,9 +188,12 @@
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const res = await fetch(url, { credentials: "include" });
+        const [res, forecast] = await Promise.all([
+          fetch(url, { credentials: "include" }),
+          loadForecast(),
+        ]);
         if (!res.ok) throw new Error(res.status + " " + res.statusText);
-        render(await res.json());
+        render(await res.json(), forecast);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">Bitte in Admin v2 anmelden, dann diese Seite öffnen. ${e.message}</p>`;

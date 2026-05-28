@@ -10,6 +10,13 @@ from backend.app.platform.ai.intelligence import operational_insights
 def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -> dict[str, Any]:
     ctx = build_compact_context(db, company_id, role)
     intel = ctx.get("intelligence") or operational_insights(db, company_id)
+    forecast = {}
+    try:
+        from backend.app.platform.predictions.engine import build_tomorrow_forecast
+
+        forecast = build_tomorrow_forecast(db, company_id)
+    except Exception:
+        pass
     sec = ctx.get("security") or {}
     em = ctx.get("emergency") or {}
     risk = intel.get("risk") or {}
@@ -62,6 +69,18 @@ def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -
         },
     ]
 
+    if forecast.get("expectedAbsent", 0) > 0:
+        cards.insert(
+            0,
+            {
+                "id": "tomorrow",
+                "severity": "medium" if forecast.get("expectedAbsent", 0) < 4 else "high",
+                "titleKey": "tomorrowForecast",
+                "value": forecast.get("expectedOnSite", 0),
+                "detail": forecast.get("summary", "")[:120],
+            },
+        )
+
     if em.get("active"):
         cards.insert(
             0,
@@ -80,6 +99,8 @@ def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -
         recommendations.append("review_security_findings")
     if at_risk:
         recommendations.append("contact_at_risk_workers")
+    if int(forecast.get("expectedAbsent") or 0) >= 3:
+        recommendations.append("plan_tomorrow_staffing")
     if issues:
         recommendations.append("investigate_low_activity_sites")
     if em.get("active"):
@@ -94,6 +115,7 @@ def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -
         "operationalIssues": issues[:8],
         "recommendations": recommendations,
         "sources": infer_context_sources(ctx),
+        "tomorrowForecast": forecast,
         "snapshot": {
             "workersOnSite": ctx.get("workersOnSite"),
             "openSecurityFindings": sec.get("openFindings"),

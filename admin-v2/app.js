@@ -636,6 +636,28 @@ async function loadOverview() {
     switchToTab("inbox");
     await loadInbox();
   });
+  const fc = overview.tomorrowForecast || {};
+  const fp = $("forecastPanel");
+  if (fp && fc.date) {
+    fp.classList.remove("hidden");
+    fp.innerHTML = `
+      <div class="card forecast-card">
+        <div class="forecast-head">
+          <span class="muted">Prognose morgen · ${fc.weekdayLabel || ""} ${fc.date}</span>
+          <span class="badge">${fc.confidence === "high" ? "hoch" : "mittel"}</span>
+        </div>
+        <p class="forecast-summary">${fc.summary || ""}</p>
+        <div class="cards forecast-stats">
+          <div><span class="muted">Erwartet on-site</span><strong>${fc.expectedOnSite ?? "—"}</strong></div>
+          <div><span class="muted">Ausfallrisiko</span><strong>${fc.expectedAbsent ?? "—"}</strong></div>
+          <div><span class="muted">Aktiv gesamt</span><strong>${fc.totalActive ?? "—"}</strong></div>
+        </div>
+        <p class="muted small"><a href="/ai-command-center.html${q}">KI Command Center</a> · <a href="/ops-command-center.html${q}">Ops OS</a></p>
+      </div>`;
+  } else if (fp) {
+    fp.classList.add("hidden");
+    fp.innerHTML = "";
+  }
   renderTable($("recentAccess"), overview.recentAccess || [], [
     { label: "الموظف", render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: "Badge", render: (r) => r.badge_id || "-" },

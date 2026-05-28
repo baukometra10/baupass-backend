@@ -181,6 +181,35 @@ main {
   margin-top: 0.35rem;
 }
 
+.forecast-panel {
+  margin-bottom: 1.5rem;
+}
+
+.forecast-card {
+  border-color: rgba(166, 106, 61, 0.35);
+}
+
+.forecast-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.forecast-summary {
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+}
+
+.forecast-stats {
+  margin-bottom: 0.75rem;
+}
+
+.forecast-stats strong {
+  font-size: 1.35rem;
+}
+
 .section-title {
   margin: 1.25rem 0 0.75rem;
   font-size: 1rem;
