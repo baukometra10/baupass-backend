@@ -1,7 +1,21 @@
 # BauPass Worker — Flutter Hybrid App (Enterprise)
 
-**~90%** shared Dart (Android + iOS): login, profile, attendance, tasks shell, API, offline queue.  
-**~10%** native NFC only: Kotlin (Android) + Swift (Core NFC) via Platform Channel.
+**Sole employee UI** for BauPass: hybrid Flutter (Android + iOS) talking to the existing `/api/worker-app/*` backend on PostgreSQL/Railway — no backend rewrite.
+
+**~90%** shared Dart: login + JWT/device binding, digital pass card (dynamic QR), NFC attendance, offline queue, geofence polling, tasks.  
+**~10%** native NFC: Kotlin (Android) + Swift (Core NFC) via Platform Channel.
+
+Distribution without store dependency: **APK sideload** + **TestFlight internal** — see [docs/mobile-distribution-DE.md](../docs/mobile-distribution-DE.md).
+
+### CI pipeline (Android)
+
+1. Push to `main` (changes under `mobile/`)
+2. GitHub Actions → **Build worker APK**
+3. Download artifact `baupass-worker-apk`
+4. `.\deploy\install-worker-apk.ps1 -ApkPath ...`
+5. Field test: [docs/mobile-field-test-DE.md](../docs/mobile-field-test-DE.md)
+6. Later: Firebase Push (`mobile/docs/firebase-push-setup.md`)
+
 
 Platform architecture: [docs/enterprise-hybrid-platform-AR.md](../docs/enterprise-hybrid-platform-AR.md)
 

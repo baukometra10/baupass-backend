@@ -41,6 +41,13 @@ class OfflineAttendanceStore {
     await saveQueue(queue);
   }
 
+  Future<void> removeByClientEventIds(Set<String> ids) async {
+    if (ids.isEmpty) return;
+    final queue = await loadQueue();
+    queue.removeWhere((event) => ids.contains(event['clientEventId'] as String?));
+    await saveQueue(queue);
+  }
+
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_queueKey);

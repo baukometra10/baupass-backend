@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 
 class DocumentsTab extends StatefulWidget {
   const DocumentsTab({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.tasks,
     required this.enabled,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final TasksRepository tasks;
   final bool enabled;
 
@@ -39,7 +40,7 @@ class _DocumentsTabState extends State<DocumentsTab> {
       _error = null;
     });
     try {
-      final rows = await widget.tasks.listDocuments(widget.sessionToken);
+      final rows = await widget.tasks.listDocuments(widget.session);
       if (!mounted) return;
       setState(() {
         _items = rows;

@@ -3,11 +3,9 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api_client.dart';
+import '../core/session_store.dart';
 
 /// Native push (FCM / APNs) integration point.
-///
-/// Wire [firebase_messaging] when `google-services.json` / `GoogleService-Info.plist`
-/// are configured. Until then, preferences and API hooks are prepared.
 class PushNotificationService {
   PushNotificationService(this._api);
 
@@ -24,40 +22,34 @@ class PushNotificationService {
     await prefs.setBool(_enabledKey, value);
   }
 
-  /// Call after login when user opts in. Registers device token with central backend.
-  Future<void> registerIfEnabled({
-    required String sessionToken,
-    required String deviceToken,
-  }) async {
+  Future<void> registerIfEnabled({required WorkerSession session, required String deviceToken}) async {
     if (!await isEnabled()) return;
     final deviceType = Platform.isIOS ? 'ios' : 'android';
     await _api.postJson(
-      '/api/device/register',
-      bearerToken: sessionToken,
+      '/api/worker-app/push/register',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
       body: <String, dynamic>{
-        'deviceToken': deviceToken,
-        'deviceType': deviceType,
+        'pushToken': deviceToken,
+        'platform': deviceType,
         'deviceName': Platform.operatingSystemVersion,
-        // Placeholder until biometric keys are implemented on device.
-        'publicKey': 'push-only-${deviceToken.hashCode.abs()}',
+        if (session.deviceId != null) 'deviceId': session.deviceId,
       },
     );
   }
 
-  /// Stub: obtain FCM/APNs token — replace with FirebaseMessaging when configured.
+  /// Wire [firebase_messaging] when Firebase project files are present.
   Future<String?> obtainNativeDeviceToken() async {
     // return await FirebaseMessaging.instance.getToken();
     return null;
   }
 
-  Future<void> initializeAfterLogin(String sessionToken) async {
+  Future<void> initializeAfterLogin(WorkerSession session) async {
     if (!await isEnabled()) return;
     final token = await obtainNativeDeviceToken();
     if (token == null || token.isEmpty) return;
     try {
-      await registerIfEnabled(sessionToken: sessionToken, deviceToken: token);
-    } catch (_) {
-      // Non-fatal until Firebase project is linked.
-    }
+      await registerIfEnabled(session: session, deviceToken: token);
+    } catch (_) {}
   }
 }

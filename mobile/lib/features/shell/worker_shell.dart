@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
+import '../../core/session_store.dart';
 import '../../services/attendance_repository.dart';
+import '../../services/digital_card_repository.dart';
+import '../../services/geofence_service.dart';
 import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
+import '../../services/offline_sync_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
@@ -13,30 +17,38 @@ import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
 
-/// Unified post-login shell — shared navigation for Android and iOS.
+/// Unified post-login shell — sole employee UI for Android and iOS.
 class WorkerShell extends StatefulWidget {
   const WorkerShell({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.auth,
     required this.attendance,
+    required this.digitalCard,
     required this.nfc,
     required this.location,
+    required this.geofence,
     required this.offlineStore,
+    required this.offlineSync,
     required this.workerCache,
     required this.tasks,
     required this.push,
+    required this.onLogout,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final AuthRepository auth;
   final AttendanceRepository attendance;
+  final DigitalCardRepository digitalCard;
   final NfcService nfc;
   final LocationService location;
+  final GeofenceService geofence;
   final OfflineAttendanceStore offlineStore;
+  final OfflineSyncService offlineSync;
   final WorkerCache workerCache;
   final TasksRepository tasks;
   final PushNotificationService push;
+  final VoidCallback onLogout;
 
   @override
   State<WorkerShell> createState() => _WorkerShellState();
@@ -44,44 +56,87 @@ class WorkerShell extends StatefulWidget {
 
 class _WorkerShellState extends State<WorkerShell> {
   int _index = 0;
+  Map<String, dynamic>? _profile;
 
   @override
   void initState() {
     super.initState();
-    widget.push.initializeAfterLogin(widget.sessionToken);
+    _loadProfileAndGeofence();
+  }
+
+  @override
+  void dispose() {
+    widget.geofence.stop();
+    super.dispose();
+  }
+
+  Future<void> _loadProfileAndGeofence() async {
+    try {
+      final me = await widget.auth.fetchProfile(widget.session);
+      await widget.workerCache.saveProfile(me);
+      if (!mounted) return;
+      setState(() => _profile = me);
+      _startGeofence(me);
+    } catch (_) {
+      final cached = await widget.workerCache.loadProfile();
+      if (!mounted) return;
+      setState(() => _profile = cached);
+      if (cached != null) _startGeofence(cached);
+    }
+  }
+
+  void _startGeofence(Map<String, dynamic> profile) {
+    final company = profile['company'] as Map<String, dynamic>?;
+    final siteAccess = profile['siteAccess'] as Map<String, dynamic>?;
+    final accessMode = company?['accessMode'] as String? ?? '';
+    widget.geofence.start(
+      bearer: widget.session.bearer,
+      deviceId: widget.session.deviceId,
+      siteAppMode: accessMode == 'site_app',
+      autoLogout: siteAccess?['autoLogout'] == true,
+      onAutoLogout: () {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Automatischer Check-out — Baustelle verlassen')),
+        );
+        widget.onLogout();
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
       HomeScreen(
-        sessionToken: widget.sessionToken,
+        session: widget.session,
         auth: widget.auth,
+        digitalCard: widget.digitalCard,
         workerCache: widget.workerCache,
         onOpenAttendance: () => setState(() => _index = 1),
       ),
       AttendanceScreen(
-        sessionToken: widget.sessionToken,
+        session: widget.session,
         auth: widget.auth,
         attendance: widget.attendance,
         nfc: widget.nfc,
         location: widget.location,
         offlineStore: widget.offlineStore,
+        offlineSync: widget.offlineSync,
         workerCache: widget.workerCache,
         embedded: true,
       ),
       TasksScreen(
-        sessionToken: widget.sessionToken,
+        session: widget.session,
         tasks: widget.tasks,
         auth: widget.auth,
         workerCache: widget.workerCache,
       ),
       ProfileScreen(
-        sessionToken: widget.sessionToken,
+        session: widget.session,
         auth: widget.auth,
         workerCache: widget.workerCache,
         push: widget.push,
-        onLogout: () => Navigator.of(context).popUntil((route) => route.isFirst),
+        onLogout: widget.onLogout,
       ),
     ];
 
@@ -91,14 +146,10 @@ class _WorkerShellState extends State<WorkerShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(
-            icon: Icon(Icons.nfc_outlined),
-            selectedIcon: Icon(Icons.nfc),
-            label: 'Attendance',
-          ),
-          NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Tasks'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+          NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),
+          NavigationDestination(icon: Icon(Icons.nfc_outlined), selectedIcon: Icon(Icons.nfc), label: 'Check-in'),
+          NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );

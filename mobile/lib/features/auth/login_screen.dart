@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
+import '../../core/session_store.dart';
+import '../../services/location_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
     required this.auth,
+    required this.location,
     required this.onLoggedIn,
     this.initialError,
   });
 
   final AuthRepository auth;
-  final VoidCallback onLoggedIn;
+  final LocationService location;
+  final void Function(WorkerSession session) onLoggedIn;
   final String? initialError;
 
   @override
@@ -48,30 +52,37 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final badgeId = _badgeIdController.text.trim();
     final pin = _pinController.text.trim();
     if (badgeId.isEmpty || pin.length < 4) {
-      setState(() => _error = 'Enter Badge-ID and PIN (min. 4 digits).');
+      setState(() => _error = 'Badge-ID und PIN eingeben (mind. 4 Stellen).');
       return;
     }
-    await _runLogin(() => widget.auth.loginWithBadge(badgeId: badgeId, badgePin: pin));
+    await _runLogin(() async {
+      final gps = await widget.location.captureForAttendance();
+      return widget.auth.loginWithBadge(
+        badgeId: badgeId,
+        badgePin: pin,
+        location: gps,
+      );
+    });
   }
 
   Future<void> _loginToken() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      setState(() => _error = 'Paste the one-time access token.');
+      setState(() => _error = 'Einmal-Link-Code einfügen.');
       return;
     }
     await _runLogin(() => widget.auth.loginWithAccessToken(token));
   }
 
-  Future<void> _runLogin(Future<String> Function() action) async {
+  Future<void> _runLogin(Future<WorkerSession> Function() action) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await action();
+      final session = await action();
       if (!mounted) return;
-      widget.onLoggedIn();
+      widget.onLoggedIn(session);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -84,12 +95,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BauPass Worker'),
+        title: const Text('BauPass Mitarbeiter'),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
             Tab(text: 'Badge + PIN'),
-            Tab(text: 'Access link'),
+            Tab(text: 'Aktivierungslink'),
           ],
         ),
       ),
@@ -109,7 +120,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Sign in with your employee Badge-ID and PIN.'),
+          const Text(
+            'Melde dich mit Badge-ID und PIN an. Das Gerät wird beim ersten Login gebunden.',
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _badgeIdController,
@@ -140,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             onPressed: _loading ? null : _loginBadge,
             child: _loading
                 ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Sign in'),
+                : const Text('Anmelden'),
           ),
         ],
       ),
@@ -153,12 +166,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('For visitors or first setup: paste the one-time token from your administrator.'),
+          const Text(
+            'Für Besucher oder Ersteinrichtung: Einmal-Code vom Administrator einfügen.',
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _tokenController,
             decoration: const InputDecoration(
-              labelText: 'Access token',
+              labelText: 'Aktivierungslink / Code',
               border: OutlineInputBorder(),
             ),
             enabled: !_loading,
@@ -172,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             onPressed: _loading ? null : _loginToken,
             child: _loading
                 ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Sign in'),
+                : const Text('Ausweis aktivieren'),
           ),
         ],
       ),

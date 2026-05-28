@@ -1,4 +1,5 @@
 import '../core/api_client.dart';
+import '../core/session_store.dart';
 
 class AttendanceRepository {
   AttendanceRepository(this._api);
@@ -6,7 +7,7 @@ class AttendanceRepository {
   final ApiClient _api;
 
   Future<Map<String, dynamic>> recordNfcAttendance({
-    required String sessionToken,
+    required WorkerSession session,
     required String nfcUid,
     String direction = 'auto',
     Map<String, dynamic>? location,
@@ -14,7 +15,8 @@ class AttendanceRepository {
   }) {
     return _api.postJson(
       '/api/worker-app/attendance/nfc',
-      bearerToken: sessionToken,
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
       body: <String, dynamic>{
         'nfcUid': nfcUid,
         'direction': direction,
@@ -25,12 +27,13 @@ class AttendanceRepository {
   }
 
   Future<Map<String, dynamic>> syncOfflineEvents({
-    required String sessionToken,
+    required WorkerSession session,
     required List<Map<String, dynamic>> events,
   }) {
     return _api.postJson(
       '/api/worker-app/offline-events',
-      bearerToken: sessionToken,
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
       body: <String, dynamic>{'events': events},
     );
   }

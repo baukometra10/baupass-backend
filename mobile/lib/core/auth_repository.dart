@@ -1,73 +1,89 @@
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'api_client.dart';
+import 'session_store.dart';
+import '../services/device_identity_service.dart';
 
 class AuthRepository {
-  AuthRepository(this._api);
+  AuthRepository(this._api, {SessionStore? sessionStore, DeviceIdentityService? deviceIdentity})
+      : _sessionStore = sessionStore ?? SessionStore(),
+        _deviceIdentity = deviceIdentity ?? DeviceIdentityService();
 
   final ApiClient _api;
-  static const _tokenKey = 'worker_session_token';
+  final SessionStore _sessionStore;
+  final DeviceIdentityService _deviceIdentity;
+
+  Future<WorkerSession?> loadSession() => _sessionStore.load();
 
   Future<String?> loadToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+    final session = await _sessionStore.load();
+    return session?.token;
   }
 
-  Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
-  }
+  Future<void> saveSession(WorkerSession session) => _sessionStore.save(session);
 
-  Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-  }
+  Future<void> clearToken() => _sessionStore.clear();
 
-  /// Daily login: Badge-ID + PIN (same contract as worker PWA).
-  Future<String> loginWithBadge({
+  Future<WorkerSession> loginWithBadge({
     required String badgeId,
     required String badgePin,
     Map<String, dynamic>? location,
+    String? pushToken,
   }) async {
+    final device = await _deviceIdentity.loginPayload(pushToken: pushToken);
     final body = await _api.postJson(
       '/api/worker-app/login',
       body: <String, dynamic>{
         'badgeId': badgeId.trim().toUpperCase(),
         'badgePin': badgePin.trim(),
         if (location != null) 'location': location,
+        'device': device,
       },
     );
-    final token = body['token'] as String?;
-    if (token == null || token.isEmpty) {
-      throw ApiException(500, 'missing_token', 'Login response did not include a session token.');
-    }
-    await saveToken(token);
-    return token;
+    return _sessionFromLoginBody(body);
   }
 
-  /// Login with one-time access token from admin (visitors / onboarding).
-  Future<String> loginWithAccessToken(String accessToken) async {
+  Future<WorkerSession> loginWithAccessToken(String accessToken, {String? pushToken}) async {
+    final device = await _deviceIdentity.loginPayload(pushToken: pushToken);
     final body = await _api.postJson(
       '/api/worker-app/login',
-      body: <String, dynamic>{'accessToken': accessToken.trim()},
+      body: <String, dynamic>{
+        'accessToken': accessToken.trim(),
+        'device': device,
+      },
     );
+    return _sessionFromLoginBody(body);
+  }
+
+  Future<WorkerSession> _sessionFromLoginBody(Map<String, dynamic> body) async {
     final token = body['token'] as String?;
     if (token == null || token.isEmpty) {
       throw ApiException(500, 'missing_token', 'Login response did not include a session token.');
     }
-    await saveToken(token);
-    return token;
+    final session = WorkerSession(
+      token: token,
+      jwt: body['jwt'] as String?,
+      deviceId: body['deviceId'] as String?,
+    );
+    await _sessionStore.save(session);
+    return session;
   }
 
-  Future<Map<String, dynamic>> fetchProfile(String token) {
-    return _api.getJson('/api/worker-app/me', bearerToken: token);
+  Future<Map<String, dynamic>> fetchProfile(WorkerSession session) {
+    return _api.getJson(
+      '/api/worker-app/me',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
   }
 
-  Future<void> logout(String token) async {
+  Future<void> logout(WorkerSession session) async {
     try {
-      await _api.postJson('/api/worker-app/logout', bearerToken: token);
+      await _api.postJson(
+        '/api/worker-app/logout',
+        bearerToken: session.bearer,
+        deviceId: session.deviceId,
+      );
     } finally {
-      await clearToken();
+      await _sessionStore.clear();
     }
   }
 }

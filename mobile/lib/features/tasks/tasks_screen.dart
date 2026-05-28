@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
 import '../../core/plan_features.dart';
+import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import 'documents_tab.dart';
@@ -10,13 +11,13 @@ import 'leave_requests_tab.dart';
 class TasksScreen extends StatefulWidget {
   const TasksScreen({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.tasks,
     required this.auth,
     required this.workerCache,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final TasksRepository tasks;
   final AuthRepository auth;
   final WorkerCache workerCache;
@@ -44,7 +45,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
   Future<void> _loadProfile() async {
     try {
-      final me = await widget.auth.fetchProfile(widget.sessionToken);
+      final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
       if (mounted) setState(() => _profile = me);
     } catch (_) {
@@ -74,13 +75,13 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
         controller: _tabs,
         children: [
           LeaveRequestsTab(
-            sessionToken: widget.sessionToken,
+            session: widget.session,
             tasks: widget.tasks,
             enabled: leaveOk,
             onSubmitted: _loadProfile,
           ),
           DocumentsTab(
-            sessionToken: widget.sessionToken,
+            session: widget.session,
             tasks: widget.tasks,
             enabled: docsOk,
           ),

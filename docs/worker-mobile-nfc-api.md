@@ -4,10 +4,45 @@ Contract between the Flutter employee app and the BauPass backend.
 
 ## Authentication
 
-All worker-app endpoints use Bearer session tokens from `POST /api/worker-app/login`.
+Worker sessions come from `POST /api/worker-app/login`. The Flutter app sends a stable device fingerprint on login; the server binds the session to that device when `BAUPASS_WORKER_DEVICE_BINDING=1` (default).
 
 ```http
-Authorization: Bearer <session_token>
+Authorization: Bearer <jwt_or_opaque_session_token>
+X-Device-Id: wbd-…
+```
+
+- **Opaque token** (`token` in login response) — backward compatible with PWA.
+- **JWT** (`jwt` in login response, HS256) — preferred by Flutter; contains `sub`, `did`, `sid`, `exp`.
+
+### Login (mobile)
+
+```http
+POST /api/worker-app/login
+Content-Type: application/json
+
+{
+  "badgeId": "BP-12345",
+  "badgePin": "1234",
+  "location": { "latitude": 52.52, "longitude": 13.405 },
+  "device": {
+    "fingerprint": "uuid-per-install",
+    "name": "Pixel 8",
+    "platform": "android",
+    "pushToken": "optional-fcm-token"
+  }
+}
+```
+
+Response adds `deviceId`, `jwt`, `deviceBindingRequired`.
+
+### Push register (native)
+
+```http
+POST /api/worker-app/push/register
+Authorization: Bearer <token>
+X-Device-Id: wbd-…
+
+{ "pushToken": "…", "platform": "ios" }
 ```
 
 ## Record NFC attendance
@@ -57,6 +92,8 @@ When the same direction was recorded within 45 seconds, `duplicate` is `true` an
 | 403 | `outside_geofence` | Worker outside site radius |
 | 403 | `worker_not_active` | Worker status not active |
 | 403 | `nfc_badges` (feature) | Plan does not include NFC |
+| 403 | `device_not_bound` | `X-Device-Id` does not match session binding |
+| 403 | `missing_device_id` | Bound session but no device header |
 
 ## Platform channel (Flutter ↔ Native)
 

@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
+import '../../core/session_store.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/worker_cache.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.auth,
     required this.workerCache,
     required this.push,
     required this.onLogout,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final AuthRepository auth;
   final WorkerCache workerCache;
   final PushNotificationService push;
@@ -44,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final me = await widget.auth.fetchProfile(widget.sessionToken);
+      final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
       if (!mounted) return;
       setState(() {
@@ -62,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
-    await widget.auth.logout(widget.sessionToken);
+    await widget.auth.logout(widget.session);
     widget.onLogout();
   }
 
@@ -134,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onChanged: (value) async {
                     await widget.push.setEnabled(value);
                     if (value) {
-                      await widget.push.initializeAfterLogin(widget.sessionToken);
+                      await widget.push.initializeAfterLogin(widget.session);
                     }
                     if (mounted) setState(() => _pushEnabled = value);
                   },

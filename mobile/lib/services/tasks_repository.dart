@@ -1,16 +1,21 @@
 import '../core/api_client.dart';
+import '../core/session_store.dart';
 
 class TasksRepository {
   TasksRepository(this._api);
 
   final ApiClient _api;
 
-  Future<List<Map<String, dynamic>>> listLeaveRequests(String sessionToken) {
-    return _api.getJsonList('/api/worker-app/leave-requests', bearerToken: sessionToken);
+  Future<List<Map<String, dynamic>>> listLeaveRequests(WorkerSession session) {
+    return _api.getJsonList(
+      '/api/worker-app/leave-requests',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
   }
 
   Future<Map<String, dynamic>> submitLeaveRequest({
-    required String sessionToken,
+    required WorkerSession session,
     required String type,
     required String startDate,
     required String endDate,
@@ -19,7 +24,8 @@ class TasksRepository {
   }) {
     return _api.postJson(
       '/api/worker-app/leave-requests',
-      bearerToken: sessionToken,
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
       body: <String, dynamic>{
         'type': type,
         'start_date': startDate,
@@ -31,11 +37,19 @@ class TasksRepository {
     );
   }
 
-  Future<List<Map<String, dynamic>>> listDocuments(String sessionToken) {
-    return _api.getJsonList('/api/worker-app/my-documents', bearerToken: sessionToken);
+  Future<List<Map<String, dynamic>>> listDocuments(WorkerSession session) {
+    return _api.getJsonList(
+      '/api/worker-app/my-documents',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
   }
 
-  Future<List<Map<String, dynamic>>> listCompanyAdmins(String sessionToken) {
-    return _api.getJsonList('/api/worker-app/company-admins', bearerToken: sessionToken);
+  Future<List<Map<String, dynamic>>> listCompanyAdmins(WorkerSession session) {
+    return _api.getJsonList(
+      '/api/worker-app/company-admins',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
   }
 }

@@ -3227,6 +3227,9 @@ def init_db():
             cur.execute("ALTER TABLE worker_identity_tokens ADD COLUMN last_device_id TEXT NOT NULL DEFAULT ''")
         if "last_source" not in worker_identity_token_columns:
             cur.execute("ALTER TABLE worker_identity_tokens ADD COLUMN last_source TEXT NOT NULL DEFAULT ''")
+    worker_app_session_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_app_sessions)").fetchall()]
+    if worker_app_session_columns and "bound_device_id" not in worker_app_session_columns:
+        cur.execute("ALTER TABLE worker_app_sessions ADD COLUMN bound_device_id TEXT NOT NULL DEFAULT ''")
     if "contact_email" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''")
     if "leave_balance" not in worker_columns:
@@ -3836,6 +3839,29 @@ def init_db():
 
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS worker_bound_devices (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            device_fingerprint TEXT NOT NULL,
+            device_name TEXT NOT NULL DEFAULT '',
+            platform TEXT NOT NULL DEFAULT '',
+            push_token TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id),
+            UNIQUE(worker_id, device_fingerprint)
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_worker_bound_devices_worker ON worker_bound_devices(worker_id, status, last_seen_at DESC)"
+    )
+
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS geofences (
             id TEXT PRIMARY KEY,
             company_id TEXT NOT NULL,
@@ -4349,14 +4375,21 @@ def require_worker_session(handler):
         token = parts[1].strip()
         if not token:
             return _worker_auth_fail("unauthorized", "Bearer token is empty.")
-        if len(token) > 512:
+        if len(token) > 2048:
             return _worker_auth_fail("unauthorized", "Bearer token is too long.")
+
+        session_token, jwt_claims = resolve_worker_session_token_from_bearer(token)
+        if not session_token:
+            return _worker_auth_fail("invalid_worker_session", "Session token is invalid or expired.")
 
         db = get_db()
         purged = _throttled_session_purge(db)
         if purged > 0:
             db.commit()
-        session = db.execute("SELECT worker_id, expires_at FROM worker_app_sessions WHERE token = ?", (token,)).fetchone()
+        session = db.execute(
+            "SELECT worker_id, expires_at, bound_device_id FROM worker_app_sessions WHERE token = ?",
+            (session_token,),
+        ).fetchone()
         if not session:
             return _worker_auth_fail(
                 "invalid_worker_session",
@@ -4365,7 +4398,7 @@ def require_worker_session(handler):
 
         now_value = now_iso()
         if session["expires_at"] < now_value:
-            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
+            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (session_token,))
             db.commit()
             return _worker_auth_fail("worker_session_expired", "Session has expired.")
 
@@ -4375,26 +4408,33 @@ def require_worker_session(handler):
 
         company_error = get_company_access_error(db, worker["company_id"])
         if company_error:
-            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
+            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (session_token,))
             db.commit()
             return jsonify(company_error), 403
 
         plan_value = get_company_plan(db, worker["company_id"])
         if not company_has_feature(plan_value, "worker_app"):
-            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
+            db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (session_token,))
             db.commit()
             return feature_not_available_response("worker_app", plan_value)
+
+        device_error = validate_worker_bound_device_or_raise(db, worker["id"], session_token)
+        if device_error:
+            return device_error
 
         refreshed_expires_at = resolve_worker_session_expiry_iso(worker)
         if refreshed_expires_at != session["expires_at"]:
             db.execute(
                 "UPDATE worker_app_sessions SET expires_at = ? WHERE token = ?",
-                (refreshed_expires_at, token),
+                (refreshed_expires_at, session_token),
             )
             db.commit()
 
         g.worker = row_to_dict(worker)
-        g.worker_token = token
+        g.worker_token = session_token
+        g.worker_bearer_token = token
+        g.worker_jwt_claims = jwt_claims
+        g.worker_bound_device_id = str(session["bound_device_id"] or "").strip()
         g.worker_session_expires_at = refreshed_expires_at
         return handler(*args, **kwargs)
 
@@ -12104,25 +12144,80 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
     return log_id
 
 
-def create_worker_app_session(db, worker):
+def create_worker_app_session(db, worker, device_payload=None):
     session_token = secrets.token_urlsafe(28)
     expires_at = resolve_worker_session_expiry_iso(worker)
     site_coordinates = ensure_worker_site_coordinates(db, worker)
     db.execute(
-        "INSERT INTO worker_app_sessions (token, worker_id, expires_at) VALUES (?, ?, ?)",
-        (session_token, worker["id"], expires_at),
+        "INSERT INTO worker_app_sessions (token, worker_id, expires_at, bound_device_id) VALUES (?, ?, ?, ?)",
+        (session_token, worker["id"], expires_at, ""),
     )
     db.commit()
     worker_payload = dict(worker)
     if site_coordinates:
         worker_payload["site_latitude"] = float(site_coordinates[0])
         worker_payload["site_longitude"] = float(site_coordinates[1])
-    return {
+    session_data = {
         "token": session_token,
         "worker": serialize_worker_for_app(worker_payload, db=db, company_id=worker["company_id"]),
         "sessionExpiresAt": expires_at,
         "cardType": normalize_worker_type(worker["worker_type"]),
     }
+    session_data.update(enrich_worker_mobile_session(db, worker, session_token, expires_at, device_payload))
+    return session_data
+
+
+def enrich_worker_mobile_session(db, worker, session_token, expires_at, device_payload=None):
+    from backend.app.platform.security.worker_devices import (
+        bind_worker_device,
+        issue_worker_access_jwt,
+        worker_device_binding_enabled,
+        worker_jwt_enabled,
+    )
+
+    extras = {"deviceBindingRequired": worker_device_binding_enabled()}
+    if device_payload:
+        bind_result = bind_worker_device(db, worker, device_payload, session_token)
+        extras.update(bind_result)
+    if worker_jwt_enabled():
+        extras["jwt"] = issue_worker_access_jwt(
+            worker_id=worker["id"],
+            device_id=str(extras.get("deviceId") or ""),
+            session_token=session_token,
+            expires_at_iso=expires_at,
+        )
+    return extras
+
+
+def resolve_worker_session_token_from_bearer(raw_token):
+    from backend.app.platform.security.worker_devices import looks_like_jwt, verify_worker_access_jwt
+
+    token = str(raw_token or "").strip()
+    if not token:
+        return None, None
+    if looks_like_jwt(token):
+        claims = verify_worker_access_jwt(token)
+        if not claims:
+            return None, None
+        return claims["session_token"], claims
+    return token, None
+
+
+def validate_worker_bound_device_or_raise(db, worker_id, session_token):
+    from backend.app.platform.security.worker_devices import validate_bound_device_for_request
+
+    device_header = str(
+        request.headers.get("X-Device-Id") or request.headers.get("X-Worker-Device-Id") or ""
+    ).strip()
+    ok, error_code = validate_bound_device_for_request(db, worker_id, session_token, device_header)
+    if ok:
+        return None
+    messages = {
+        "missing_device_id": "Registriertes Geraet erforderlich (X-Device-Id Header fehlt).",
+        "device_not_bound": "Dieses Geraet ist nicht fuer die aktive Sitzung freigegeben.",
+        "device_not_active": "Geraetebindung ist deaktiviert. Bitte erneut anmelden.",
+    }
+    return jsonify({"error": error_code, "message": messages.get(error_code, error_code)}), 403
 
 
 @app.get("/api/workers/<worker_id>/app-access")
@@ -12226,6 +12321,7 @@ def worker_app_login():
     access_token = (payload.get("accessToken") or "").strip()
     badge_id = normalize_badge_id(payload.get("badgeId"))
     badge_pin = normalize_badge_pin(payload.get("badgePin"))
+    device_payload = payload.get("device") if isinstance(payload.get("device"), dict) else None
     if not access_token and not badge_id:
         return jsonify({"error": "missing_worker_app_credentials"}), 400
 
@@ -12289,7 +12385,7 @@ def worker_app_login():
                 "badgeId": (fallback_badge_row["badge_id"] if fallback_badge_row else ""),
             }), 401
 
-        session_data = create_worker_app_session(db, worker)
+        session_data = create_worker_app_session(db, worker, device_payload=device_payload)
         log_audit(
             "worker_app.login",
             f"Besucher {worker['first_name']} {worker['last_name']} (Badge {worker['badge_id']}) hat sich per Einmal-Link angemeldet",
@@ -12352,7 +12448,7 @@ def worker_app_login():
             "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
         }), 403
 
-    session_data = create_worker_app_session(db, worker)
+    session_data = create_worker_app_session(db, worker, device_payload=device_payload)
     checkin_log_id = maybe_site_app_auto_checkin(db, worker)
     if checkin_log_id:
         session_data["autoCheckInLogId"] = checkin_log_id
@@ -14001,8 +14097,10 @@ def device_register():
     device_name = str(payload.get("deviceName") or "Device").strip()
     public_key = str(payload.get("publicKey") or "").strip()
 
-    if not device_token or not public_key:
+    if not device_token:
         return jsonify({"error": "missing_fields"}), 400
+    if not public_key:
+        public_key = f"push-only-{hashlib.sha256(device_token.encode('utf-8')).hexdigest()[:32]}"
 
     device_id = f"device-{secrets.token_hex(8)}"
     db.execute(
@@ -14023,6 +14121,52 @@ def device_register():
     )
 
     return jsonify({"ok": True, "deviceId": device_id})
+
+
+@require_worker_session
+def worker_app_push_register():
+    """Register native push token (FCM/APNs) for the bound worker device."""
+    db = get_db()
+    worker = g.worker
+    payload = request.get_json(silent=True) or {}
+    push_token = str(payload.get("pushToken") or payload.get("deviceToken") or "").strip()
+    platform = str(payload.get("platform") or payload.get("deviceType") or "unknown").strip()[:40]
+    bound_device_id = str(payload.get("deviceId") or g.worker_bound_device_id or "").strip()
+
+    if not push_token:
+        return jsonify({"error": "missing_push_token"}), 400
+
+    if bound_device_id:
+        updated = db.execute(
+            """
+            UPDATE worker_bound_devices
+            SET push_token = ?, platform = ?, last_seen_at = ?
+            WHERE id = ? AND worker_id = ?
+            """,
+            (push_token, platform, now_iso(), bound_device_id, worker["id"]),
+        )
+        if int(updated.rowcount or 0) == 0:
+            return jsonify({"error": "device_not_bound"}), 403
+    else:
+        db.execute(
+            """
+            INSERT INTO device_registrations (id, company_id, worker_id, device_token, device_type, device_name, public_key, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"push-{secrets.token_hex(8)}",
+                worker["company_id"],
+                worker["id"],
+                push_token,
+                platform,
+                str(payload.get("deviceName") or "Mobile").strip()[:120],
+                f"push-only-{hashlib.sha256(push_token.encode('utf-8')).hexdigest()[:32]}",
+                now_iso(),
+            ),
+        )
+
+    db.commit()
+    return jsonify({"ok": True, "deviceId": bound_device_id or None})
 
 
 @app.post("/api/device/biometric-auth")

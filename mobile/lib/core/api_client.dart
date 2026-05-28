@@ -12,35 +12,57 @@ class ApiException implements Exception {
   final String? message;
 
   @override
-  String toString() => 'ApiException($statusCode, $errorCode, $message)';
+  String toString() => message ?? 'ApiException($statusCode, $errorCode)';
 }
 
+typedef SessionExpiredCallback = void Function();
+
 class ApiClient {
-  ApiClient({http.Client? httpClient, String? baseUrl})
+  ApiClient({http.Client? httpClient, String? baseUrl, this.onSessionExpired})
       : _http = httpClient ?? http.Client(),
         _baseUrl = (baseUrl ?? AppConfig.apiBaseUrl).replaceAll(RegExp(r'/+$'), '');
 
   final http.Client _http;
   final String _baseUrl;
+  SessionExpiredCallback? onSessionExpired;
+
+  Map<String, String> _headers({
+    String? bearerToken,
+    String? deviceId,
+    bool jsonBody = false,
+  }) {
+    final headers = <String, String>{'Accept': 'application/json'};
+    if (jsonBody) headers['Content-Type'] = 'application/json';
+    if (bearerToken != null && bearerToken.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $bearerToken';
+    }
+    if (deviceId != null && deviceId.isNotEmpty) {
+      headers['X-Device-Id'] = deviceId;
+    }
+    return headers;
+  }
+
+  void _maybeNotifySessionExpired(int statusCode, String? errorCode) {
+    if (statusCode == 401 &&
+        (errorCode == 'invalid_worker_session' ||
+            errorCode == 'worker_session_expired' ||
+            errorCode == 'worker_not_available')) {
+      onSessionExpired?.call();
+    }
+  }
 
   Future<Map<String, dynamic>> postJson(
     String path, {
     Map<String, dynamic>? body,
     String? bearerToken,
+    String? deviceId,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-    if (bearerToken != null && bearerToken.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $bearerToken';
-    }
     final http.Response response;
     try {
       response = await _http.post(
         uri,
-        headers: headers,
+        headers: _headers(bearerToken: bearerToken, deviceId: deviceId, jsonBody: true),
         body: jsonEncode(body ?? <String, dynamic>{}),
       );
     } on Exception catch (e) {
@@ -49,29 +71,32 @@ class ApiClient {
     Map<String, dynamic> decoded = <String, dynamic>{};
     if (response.body.isNotEmpty) {
       final parsed = jsonDecode(response.body);
-      if (parsed is Map<String, dynamic>) {
-        decoded = parsed;
-      }
+      if (parsed is Map<String, dynamic>) decoded = parsed;
     }
     if (response.statusCode >= 400) {
+      final errorCode = decoded['error'] as String?;
+      _maybeNotifySessionExpired(response.statusCode, errorCode);
       throw ApiException(
         response.statusCode,
-        decoded['error'] as String?,
+        errorCode,
         decoded['message'] as String?,
       );
     }
     return decoded;
   }
 
-  Future<List<Map<String, dynamic>>> getJsonList(String path, {String? bearerToken}) async {
+  Future<List<Map<String, dynamic>>> getJsonList(
+    String path, {
+    String? bearerToken,
+    String? deviceId,
+  }) async {
     final uri = Uri.parse('$_baseUrl$path');
-    final headers = <String, String>{'Accept': 'application/json'};
-    if (bearerToken != null && bearerToken.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $bearerToken';
-    }
     final http.Response response;
     try {
-      response = await _http.get(uri, headers: headers);
+      response = await _http.get(
+        uri,
+        headers: _headers(bearerToken: bearerToken, deviceId: deviceId),
+      );
     } on Exception catch (e) {
       throw ApiException(0, 'network_error', e.toString());
     }
@@ -81,44 +106,46 @@ class ApiClient {
         final parsed = jsonDecode(response.body);
         if (parsed is Map<String, dynamic>) decoded = parsed;
       }
+      final errorCode = decoded['error'] as String?;
+      _maybeNotifySessionExpired(response.statusCode, errorCode);
       throw ApiException(
         response.statusCode,
-        decoded['error'] as String?,
+        errorCode,
         decoded['message'] as String?,
       );
     }
     if (response.body.isEmpty) return <Map<String, dynamic>>[];
     final parsed = jsonDecode(response.body);
     if (parsed is! List) return <Map<String, dynamic>>[];
-    return parsed
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    return parsed.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
-  Future<Map<String, dynamic>> getJson(String path, {String? bearerToken}) async {
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    String? bearerToken,
+    String? deviceId,
+  }) async {
     final uri = Uri.parse('$_baseUrl$path');
-    final headers = <String, String>{'Accept': 'application/json'};
-    if (bearerToken != null && bearerToken.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $bearerToken';
-    }
     final http.Response response;
     try {
-      response = await _http.get(uri, headers: headers);
+      response = await _http.get(
+        uri,
+        headers: _headers(bearerToken: bearerToken, deviceId: deviceId),
+      );
     } on Exception catch (e) {
       throw ApiException(0, 'network_error', e.toString());
     }
     Map<String, dynamic> decoded = <String, dynamic>{};
     if (response.body.isNotEmpty) {
       final parsed = jsonDecode(response.body);
-      if (parsed is Map<String, dynamic>) {
-        decoded = parsed;
-      }
+      if (parsed is Map<String, dynamic>) decoded = parsed;
     }
     if (response.statusCode >= 400) {
+      final errorCode = decoded['error'] as String?;
+      _maybeNotifySessionExpired(response.statusCode, errorCode);
       throw ApiException(
         response.statusCode,
-        decoded['error'] as String?,
+        errorCode,
         decoded['message'] as String?,
       );
     }

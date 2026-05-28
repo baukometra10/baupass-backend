@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 import 'leave_request_form.dart';
 
 class LeaveRequestsTab extends StatefulWidget {
   const LeaveRequestsTab({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.tasks,
     required this.enabled,
     this.onSubmitted,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final TasksRepository tasks;
   final bool enabled;
   final VoidCallback? onSubmitted;
@@ -45,7 +46,7 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
       _error = null;
     });
     try {
-      final rows = await widget.tasks.listLeaveRequests(widget.sessionToken);
+      final rows = await widget.tasks.listLeaveRequests(widget.session);
       if (!mounted) return;
       setState(() {
         _items = rows;
@@ -64,7 +65,7 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => LeaveRequestForm(
-          sessionToken: widget.sessionToken,
+          session: widget.session,
           tasks: widget.tasks,
         ),
       ),

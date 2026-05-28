@@ -2,31 +2,35 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
 import '../../core/auth_repository.dart';
+import '../../core/session_store.dart';
 import '../../services/attendance_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
+import '../../services/offline_sync_service.dart';
 import '../../services/worker_cache.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.auth,
     required this.attendance,
     required this.nfc,
     required this.location,
     required this.offlineStore,
+    required this.offlineSync,
     required this.workerCache,
     this.embedded = false,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final AuthRepository auth;
   final AttendanceRepository attendance;
   final NfcService nfc;
   final LocationService location;
   final OfflineAttendanceStore offlineStore;
+  final OfflineSyncService offlineSync;
   final WorkerCache workerCache;
   final bool embedded;
 
@@ -50,7 +54,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _bootstrap() async {
     await _refreshPendingCount();
     await _loadProfile();
-    await _trySyncOffline();
+    await widget.offlineSync.syncNow();
+    await _refreshPendingCount();
   }
 
   Future<void> _refreshPendingCount() async {
@@ -60,7 +65,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _loadProfile() async {
     try {
-      final me = await widget.auth.fetchProfile(widget.sessionToken);
+      final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
       if (!mounted) return;
       setState(() => _profile = me);
@@ -70,36 +75,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _profile = cached;
         if (cached != null) {
-          _status = 'Offline — showing cached profile. Sync when online.';
+          _status = 'Offline — zwischengespeichertes Profil.';
         }
       });
     }
   }
 
-  Future<void> _trySyncOffline() async {
-    final queue = await widget.offlineStore.loadQueue();
-    if (queue.isEmpty) return;
-    try {
-      final response = await widget.attendance.syncOfflineEvents(
-        sessionToken: widget.sessionToken,
-        events: queue,
-      );
-      final stored = response['stored'] as int? ?? 0;
-      if (stored > 0) {
-        await widget.offlineStore.clear();
-        await _refreshPendingCount();
-        if (mounted) {
-          setState(() => _status = 'Synced $stored offline attendance event(s).');
-        }
-        await _loadProfile();
-      }
-    } on ApiException {
-      // Stay queued until connectivity returns.
-    } catch (_) {}
-  }
-
   String _resolveDirectionForQueue() {
-    // Direction is fixed at tap time so offline replay stays correct.
     final siteAccess = _profile?['siteAccess'] as Map<String, dynamic>?;
     final open = siteAccess?['openCheckInToday'] == true;
     return open ? 'check-out' : 'check-in';
@@ -125,33 +107,32 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (!mounted) return;
     setState(() {
       _lastDirection = direction;
-      _status =
-          'No internet: attendance saved on phone ($direction). Will sync automatically.';
+      _status = 'Offline gespeichert ($direction) — wird synchronisiert.';
     });
   }
 
   Future<void> _tapAttendance() async {
     setState(() {
       _busy = true;
-      _status = 'Hold your NFC card near the phone…';
+      _status = 'NFC-Karte ans Handy halten…';
     });
     try {
       final available = await widget.nfc.isAvailable();
       if (!available) {
-        throw NfcUnavailableException('NFC is not available. Enable NFC in device settings.');
+        throw NfcUnavailableException('NFC nicht verfügbar — in den Einstellungen aktivieren.');
       }
       final scan = await widget.nfc.scanTag();
       final direction = _resolveDirectionForQueue();
       final clientEventId =
           'nfc-${DateTime.now().toUtc().millisecondsSinceEpoch}-${scan.uid.hashCode.abs()}';
 
-      setState(() => _status = 'Getting location…');
+      setState(() => _status = 'Standort wird ermittelt…');
       final location = await widget.location.captureForAttendance();
 
-      setState(() => _status = 'Sending attendance…');
+      setState(() => _status = 'Check-in wird gesendet…');
       try {
         final result = await widget.attendance.recordNfcAttendance(
-          sessionToken: widget.sessionToken,
+          session: widget.session,
           nfcUid: scan.uid,
           direction: direction,
           location: location,
@@ -165,8 +146,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         setState(() {
           _lastDirection = recordedDirection;
           _status = duplicate
-              ? 'Already recorded ($recordedDirection).'
-              : 'Attendance saved: $recordedDirection';
+              ? 'Bereits erfasst ($recordedDirection).'
+              : 'Anwesenheit gespeichert: $recordedDirection';
         });
       } on ApiException catch (e) {
         if (e.statusCode == 0 || e.errorCode == 'network_error' || e.statusCode >= 500) {
@@ -175,7 +156,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
         if (e.errorCode == 'worker_geolocation_required' && location == null) {
           if (!mounted) return;
-          setState(() => _status = 'Location required — enable GPS and try again.');
+          setState(() => _status = 'GPS erforderlich — Standortfreigabe aktivieren.');
+          return;
+        }
+        if (e.errorCode == 'device_not_bound') {
+          if (!mounted) return;
+          setState(() => _status = 'Gerät nicht freigegeben — bitte erneut anmelden.');
           return;
         }
         rethrow;
@@ -202,7 +188,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Scaffold(
       appBar: widget.embedded
           ? AppBar(
-              title: const Text('Attendance'),
+              title: const Text('Check-in'),
               automaticallyImplyLeading: false,
               actions: [
                 if (_pendingOffline > 0)
@@ -210,44 +196,32 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Chip(
-                        label: Text('$_pendingOffline pending'),
+                        label: Text('$_pendingOffline offline'),
                         visualDensity: VisualDensity.compact,
                       ),
                     ),
                   ),
                 IconButton(
                   icon: const Icon(Icons.sync),
-                  onPressed: _busy ? null : _trySyncOffline,
-                  tooltip: 'Sync offline queue',
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          await widget.offlineSync.syncNow();
+                          await _refreshPendingCount();
+                          await _loadProfile();
+                        },
+                  tooltip: 'Offline-Sync',
                 ),
               ],
             )
-          : AppBar(
-              title: const Text('Attendance'),
-              actions: [
-                if (_pendingOffline > 0)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Chip(
-                        label: Text('$_pendingOffline pending'),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.sync),
-                  onPressed: _busy ? null : _trySyncOffline,
-                ),
-              ],
-            ),
+          : AppBar(title: const Text('Check-in')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (name.isNotEmpty)
-              Text('Hello, $name', style: Theme.of(context).textTheme.titleLarge),
+              Text('Hallo, $name', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             Card(
               child: Padding(
@@ -255,18 +229,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'If the phone has no internet',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                    Text('NFC am Bauzaun', style: Theme.of(context).textTheme.titleSmall),
                     const SizedBox(height: 8),
                     const Text(
-                      '1. Tap your physical card on the site gate reader (recommended).\n'
-                      '2. Or scan NFC here — we save on the phone and sync later.',
+                      '1. Physische Karte am Gate-Reader (empfohlen bei schlechtem Netz).\n'
+                      '2. Oder NFC hier scannen — offline zwischengespeichert, später synchronisiert.',
                     ),
                     if (badgeId != null && badgeId.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text('Badge ID: $badgeId', style: const TextStyle(fontFamily: 'monospace')),
+                      Text('Badge-ID: $badgeId', style: const TextStyle(fontFamily: 'monospace')),
                     ],
                   ],
                 ),
@@ -274,7 +245,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
             if (_lastDirection != null) ...[
               const SizedBox(height: 8),
-              Text('Last action: $_lastDirection'),
+              Text('Letzte Aktion: $_lastDirection'),
             ],
             const Spacer(),
             SizedBox(
@@ -288,19 +259,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.nfc, size: 36),
-                label: Text(_busy ? 'Scanning…' : 'Tap NFC — Attendance'),
-                style: FilledButton.styleFrom(
-                  textStyle: const TextStyle(fontSize: 18),
-                ),
+                label: Text(_busy ? 'Scanne…' : 'NFC — Check-in/out'),
+                style: FilledButton.styleFrom(textStyle: const TextStyle(fontSize: 18)),
               ),
             ),
             const SizedBox(height: 24),
             if (_status != null)
-              Text(
-                _status!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              Text(_status!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
             const Spacer(),
           ],
         ),

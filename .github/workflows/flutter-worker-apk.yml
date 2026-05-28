@@ -1,4 +1,5 @@
 # Build BauPass worker APK (release, debug-signed) and upload as artifact.
+# Pipeline: git push main → this workflow → Artifacts → baupass-worker-apk
 # Download: GitHub → Actions → latest run → Artifacts → baupass-worker-apk
 name: Build worker APK
 
@@ -13,7 +14,18 @@ on:
     branches: [main]
     paths:
       - "mobile/**"
+      - "backend/app/api/worker_app_routes.py"
+      - "backend/app/platform/security/worker_devices.py"
       - ".github/workflows/flutter-worker-apk.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/flutter-worker-apk.yml"
+
+concurrency:
+  group: worker-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apk:
@@ -29,6 +41,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.27.1"
           cache: true
 
       - name: Accept Android licenses
@@ -49,6 +62,10 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Analyze Dart
+        working-directory: mobile
+        run: flutter analyze --no-fatal-infos
+
       - name: Build release APK
         working-directory: mobile
         env:
@@ -63,3 +80,19 @@ jobs:
           name: baupass-worker-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Job summary
+        env:
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+        run: |
+          {
+            echo "## BauPass Worker APK"
+            echo ""
+            echo "- **API URL baked in:** \`$API_URL\`"
+            echo "- **Artifact:** \`baupass-worker-apk\` → \`app-release.apk\`"
+            echo "- **Install (USB):** \`adb install -r app-release.apk\`"
+            echo "- **Windows script:** \`deploy/install-worker-apk.ps1 -ApkPath ...\`"
+            echo ""
+            echo "Feldtest: \`docs/mobile-field-test-DE.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"

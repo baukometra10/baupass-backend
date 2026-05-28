@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
+import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 
 class LeaveRequestForm extends StatefulWidget {
   const LeaveRequestForm({
     super.key,
-    required this.sessionToken,
+    required this.session,
     required this.tasks,
   });
 
-  final String sessionToken;
+  final WorkerSession session;
   final TasksRepository tasks;
 
   @override
@@ -58,7 +59,7 @@ class _LeaveRequestFormState extends State<LeaveRequestForm> {
     });
     try {
       await widget.tasks.submitLeaveRequest(
-        sessionToken: widget.sessionToken,
+        session: widget.session,
         type: _type,
         startDate: _formatDate(_start),
         endDate: _formatDate(_end),
