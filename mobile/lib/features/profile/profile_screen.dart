@@ -128,16 +128,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 8),
                 SwitchListTile(
                   title: const Text('Push notifications'),
-                  subtitle: const Text(
-                    'Enable when Firebase (FCM/APNs) is configured. Registers via /api/device/register.',
+                  subtitle: Text(
+                    _pushEnabled
+                        ? 'Token sync on login (FCM via BAUPASS_FCM_TOKEN or Firebase).'
+                        : 'Requires FCM_SERVER_KEY on server + device token.',
                   ),
                   value: _pushEnabled,
                   onChanged: (value) async {
                     await widget.push.setEnabled(value);
+                    var registered = false;
                     if (value) {
-                      await widget.push.initializeAfterLogin(widget.session);
+                      registered = await widget.push.initializeAfterLogin(widget.session);
                     }
-                    if (mounted) setState(() => _pushEnabled = value);
+                    if (mounted) {
+                      setState(() => _pushEnabled = value);
+                      if (value && !registered) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Push enabled locally — add Firebase or BAUPASS_FCM_TOKEN for delivery.',
+                            ),
+                          ),
+                        );
+                      }
+                    }
                   },
                 ),
                 const SizedBox(height: 16),

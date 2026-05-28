@@ -211,6 +211,8 @@ def run_agent_query_stream(
                     break
                 if ev["type"] == "content_delta":
                     content_deltas.append(ev["text"])
+                    if ev["text"]:
+                        yield {"type": "thinking", "text": ev["text"]}
 
             tool_calls = (tool_msg or {}).get("tool_calls") or []
             if tool_calls:

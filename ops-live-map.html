@@ -6,8 +6,8 @@
   <title>BauPass — Live Ops Karte</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="/design-tokens.css" />
+  <link rel="stylesheet" href="/ops-shell.css" />
   <style>
-    :root { --bg: #0f1419; --panel: #1a2332; --border: #2a3544; --text: #e8eef4; --accent: #5eead4; }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
     header {
@@ -32,8 +32,8 @@
     @media (max-width: 800px) { .side { display: none; } }
   </style>
 </head>
-<body>
-  <header>
+<body class="ops-app">
+  <header class="ops-header">
     <div>
       <strong>Live Ops Karte</strong>
       <span id="status">Laden…</span>

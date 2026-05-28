@@ -210,6 +210,27 @@ main {
   font-size: 1.35rem;
 }
 
+.ops-command-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.ops-command-strip a {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #152535;
+  color: #5eead4;
+  text-decoration: none;
+}
+
+.ops-command-strip a:hover {
+  border-color: #5eead4;
+}
+
 .section-title {
   margin: 1.25rem 0 0.75rem;
   font-size: 1rem;

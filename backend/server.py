@@ -5694,31 +5694,53 @@ def _load_pywebpush_client():
 
 
 def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
-    """Schickt eine Web-Push-Nachricht an alle Subscriptions eines Mitarbeiters.
-    Gibt die Anzahl der erfolgreich gesendeten Nachrichten zurueck."""
+    """Web Push (PWA) + native FCM tokens (Flutter). Returns total deliveries."""
+    sent = 0
+
     webpush, _webpush_exception = _load_pywebpush_client()
-    if not callable(webpush):
-        return 0
     vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
     vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
-    if not vapid_private_key:
-        return 0
-    subs = db.execute(
-        "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
-        (worker_id,)
-    ).fetchall()
-    sent = 0
-    for sub in subs:
-        try:
-            webpush(
-                subscription_info={"endpoint": sub["endpoint"], "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}},
-                data=json.dumps({"title": title, "body": body, "tag": tag}),
-                vapid_private_key=vapid_private_key,
-                vapid_claims={"sub": vapid_email}
+    if callable(webpush) and vapid_private_key:
+        subs = db.execute(
+            "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
+            (worker_id,),
+        ).fetchall()
+        for sub in subs:
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": sub["endpoint"],
+                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
+                    },
+                    data=json.dumps({"title": title, "body": body, "tag": tag}),
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims={"sub": vapid_email},
+                )
+                sent += 1
+            except Exception:
+                pass
+
+    try:
+        from backend.app.platform.push.fcm import send_fcm_notification
+
+        native_rows = db.execute(
+            """
+            SELECT push_token FROM worker_bound_devices
+            WHERE worker_id = ? AND status = 'active' AND push_token IS NOT NULL AND push_token != ''
+            """,
+            (worker_id,),
+        ).fetchall()
+        tokens = list({str(r["push_token"]).strip() for r in native_rows if r["push_token"]})
+        if tokens:
+            sent += send_fcm_notification(
+                tokens,
+                title=title,
+                body=body,
+                data={"tag": tag, "workerId": str(worker_id)},
             )
-            sent += 1
-        except Exception:
-            pass
+    except Exception:
+        pass
+
     return sent
 
 

@@ -5,27 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — Ops Command Center</title>
   <link rel="stylesheet" href="/design-tokens.css" />
+  <link rel="stylesheet" href="/ops-shell.css" />
   <style>
-    :root {
-      --bg: var(--bp-ops-bg, #0f1419); --panel: var(--bp-ops-surface, #1a2332);
-      --border: var(--bp-ops-border, #2a3544); --text: var(--bp-ops-text, #e8eef4);
-      --muted: var(--bp-ops-muted, #94a3b8); --accent: var(--bp-ops-accent, #5eead4);
-      --danger: var(--bp-ops-danger, #f87171);
-    }
-    body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
-    header {
-      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
-      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem;
-      background: var(--panel); position: sticky; top: 0; z-index: 10;
-    }
-    h1 { margin: 0; font-size: 1.15rem; }
-    .nav a { color: var(--accent); text-decoration: none; font-size: 0.85rem; margin-inline-start: 1rem; }
     main { padding: 1rem 1.5rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
     .card {
       background: var(--panel); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);
       transition: border-color 0.2s, transform 0.15s;
     }
-    .card.critical { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248,113,113,0.25); }
+    .card.critical { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25); }
     .card.clickable { cursor: pointer; }
     .card.clickable:hover { border-color: var(--accent); transform: translateY(-2px); }
     .metric { font-size: 2rem; font-weight: 700; color: var(--accent); }
@@ -36,9 +23,6 @@
     tr[data-cid]:hover { background: #14202c; }
     .err { color: var(--danger); padding: 1rem; }
     #status { font-size: 0.8rem; color: var(--muted); }
-    .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
-      animation: pulse 1.4s infinite; margin-inline-end: 0.35rem; vertical-align: middle; }
-    @keyframes pulse { 50% { opacity: 0.3; } }
     .actions { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .actions a, .actions button {
       font-size: 0.78rem; padding: 0.35rem 0.65rem; border-radius: 8px; border: 1px solid var(--border);
@@ -49,13 +33,13 @@
     .event-line strong { color: var(--text); }
   </style>
 </head>
-<body>
-  <header>
+<body class="ops-app">
+  <header class="ops-header">
     <div>
-      <h1><span class="pulse" id="liveDot"></span> Ops Command Center</h1>
+      <h1><span class="ops-pulse" id="liveDot"></span> Ops Command Center</h1>
       <div id="status">Laden…</div>
     </div>
-    <nav class="nav">
+    <nav class="ops-nav">
       <a href="/ai-command-center.html">KI Command Center</a>
       <a href="/enterprise-hub.html">Enterprise Hub</a>
       <a href="/admin-v2/index.html">Admin v2</a>
@@ -106,8 +90,8 @@
       const sec = t.openSecurityAlerts ?? 0;
 
       grid.innerHTML = `
-        <div class="card clickable" data-action="onsite" title="KI: Wer ist auf der Baustelle?">
-          <div class="label">Auf Baustelle</div><div class="metric">${t.workersOnSite ?? 0}</div>
+        <div class="card ops-card clickable" data-action="onsite" title="KI: Wer ist auf der Baustelle?">
+          <div class="ops-label">Auf Baustelle</div><div class="ops-metric">${t.workersOnSite ?? 0}</div>
         </div>
         <div class="card clickable" data-action="companies">
           <div class="label">Firmen aktiv</div><div class="metric">${t.companies ?? 0}</div>

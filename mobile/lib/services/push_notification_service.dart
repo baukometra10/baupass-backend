@@ -38,18 +38,25 @@ class PushNotificationService {
     );
   }
 
-  /// Wire firebase_messaging when Firebase project files are present.
+  /// Native FCM token: set via --dart-define=BAUPASS_FCM_TOKEN=... for CI/dev,
+  /// or wire firebase_messaging when google-services.json is in the project.
   Future<String?> obtainNativeDeviceToken() async {
-    // return await FirebaseMessaging.instance.getToken();
+    const fromDefine = String.fromEnvironment('BAUPASS_FCM_TOKEN');
+    if (fromDefine.isNotEmpty) return fromDefine;
+    // When firebase_messaging is added: return FirebaseMessaging.instance.getToken();
     return null;
   }
 
-  Future<void> initializeAfterLogin(WorkerSession session) async {
-    if (!await isEnabled()) return;
+  /// Returns true when a token was registered with the backend.
+  Future<bool> initializeAfterLogin(WorkerSession session) async {
+    if (!await isEnabled()) return false;
     final token = await obtainNativeDeviceToken();
-    if (token == null || token.isEmpty) return;
+    if (token == null || token.isEmpty) return false;
     try {
       await registerIfEnabled(session: session, deviceToken: token);
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }

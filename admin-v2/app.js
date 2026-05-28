@@ -84,6 +84,7 @@ function setupCompanyPicker(user) {
   wrap.classList.remove("hidden");
   select.onchange = () => {
     localStorage.setItem(COMPANY_KEY, select.value);
+    syncEnterpriseFrame();
     refreshActiveTab().catch((e) => alert(e.message));
   };
 }
@@ -113,6 +114,15 @@ function statusBadge(ok) {
     : '<span class="badge badge-warn">يحتاج إعداد</span>';
 }
 
+function syncEnterpriseFrame() {
+  const frame = $("enterpriseFrame");
+  if (!frame) return;
+  const q = companyQuery();
+  const cid = q ? q.replace(/^\?company_id=/, "") : "";
+  const base = "/enterprise-hub.html?embed=1";
+  frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
+}
+
 function switchToTab(tabId) {
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tab === tabId);
@@ -120,6 +130,7 @@ function switchToTab(tabId) {
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("hidden", panel.id !== `tab-${tabId}`);
   });
+  if (tabId === "enterprise") syncEnterpriseFrame();
 }
 
 function renderQuickLinks() {
@@ -667,6 +678,18 @@ async function loadOverview() {
     fp.classList.add("hidden");
     fp.innerHTML = "";
   }
+  const strip = $("opsCommandStrip");
+  if (strip && q) {
+    strip.classList.remove("hidden");
+    strip.innerHTML = `
+      <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">Ops Command Center</a>
+      <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">Live Karte</a>
+      <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">KI Command Center</a>
+      <a href="/foreman.html" target="_blank" rel="noopener">Vorarbeiter</a>
+    `;
+  } else if (strip) {
+    strip.classList.add("hidden");
+  }
   renderTable($("recentAccess"), overview.recentAccess || [], [
     { label: "الموظف", render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: "Badge", render: (r) => r.badge_id || "-" },
@@ -867,7 +890,7 @@ async function refreshActiveTab() {
   else if (tab === "operations") await loadOperations();
   else if (tab === "platform") await loadPlatform();
   else if (tab === "tools") await loadTools();
-  else if (tab === "enterprise") { /* iframe */ }
+  else if (tab === "enterprise") syncEnterpriseFrame();
   else await loadOverview();
 }
 
