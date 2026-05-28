@@ -56,7 +56,6 @@ class WorkerShell extends StatefulWidget {
 
 class _WorkerShellState extends State<WorkerShell> {
   int _index = 0;
-  Map<String, dynamic>? _profile;
 
   @override
   void initState() {
@@ -75,12 +74,10 @@ class _WorkerShellState extends State<WorkerShell> {
       final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
       if (!mounted) return;
-      setState(() => _profile = me);
       _startGeofence(me);
     } catch (_) {
       final cached = await widget.workerCache.loadProfile();
       if (!mounted) return;
-      setState(() => _profile = cached);
       if (cached != null) _startGeofence(cached);
     }
   }

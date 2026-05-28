@@ -47,7 +47,7 @@ class DigitalPassCard extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               theme.colorScheme.primary,
-              theme.colorScheme.primaryContainer.withValues(alpha: 0.95),
+              theme.colorScheme.primaryContainer.withOpacity(0.95),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,

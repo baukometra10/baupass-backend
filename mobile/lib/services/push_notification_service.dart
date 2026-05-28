@@ -38,7 +38,7 @@ class PushNotificationService {
     );
   }
 
-  /// Wire [firebase_messaging] when Firebase project files are present.
+  /// Wire firebase_messaging when Firebase project files are present.
   Future<String?> obtainNativeDeviceToken() async {
     // return await FirebaseMessaging.instance.getToken();
     return null;

@@ -30,7 +30,8 @@ jobs:
             mobile/ios/Runner/NfcReaderPlugin.swift \
             mobile/ios/Runner/AppDelegate.swift \
             mobile/ios/Runner/Info.plist \
-            mobile/ios/Runner/Runner.entitlements
+            mobile/ios/Runner/Runner.entitlements \
+            mobile/test/widget_test.dart
 
       - name: Resolve dependencies
         working-directory: mobile

@@ -41,7 +41,6 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: "3.27.1"
           cache: true
 
       - name: Accept Android licenses
@@ -56,7 +55,8 @@ jobs:
           git checkout HEAD -- \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
-            mobile/android/app/src/main/AndroidManifest.xml
+            mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/test/widget_test.dart
 
       - name: Resolve dependencies
         working-directory: mobile
