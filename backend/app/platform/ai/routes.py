@@ -37,13 +37,20 @@ def register_ai_blueprint(flask_app: Flask) -> None:
 
         return jsonify(ai_config_status())
 
+    def _user_id() -> str:
+        return str(g.current_user.get("id") or g.current_user.get("username") or "unknown")
+
     @ai_bp.post("/ai/query")
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("ai_assistant")
     def ai_query():
+        import os
+
+        from .agent_runner import run_agent_query
         from .assistant import natural_language_query
         from .context_builder import build_compact_context
+        from .sessions import append_message, get_session, list_messages, record_audit, touch_session_title
         from backend.app.platform.physical_operations.copilot import build_copilot_context
 
         data = request.get_json(silent=True) or {}
@@ -60,21 +67,71 @@ def register_ai_blueprint(flask_app: Flask) -> None:
 
         role = str(g.current_user.get("role") or "company-admin")
         lang = str(data.get("lang") or request.args.get("lang") or "de")[:2]
-        try:
-            if data.get("context"):
-                ctx = data.get("context")
-            else:
-                ctx = build_compact_context(get_db(), company_id, role)
-            result = natural_language_query(company_id, question, ctx, lang=lang)
-            result["companyId"] = company_id
-            if not result.get("answer") and not result.get("error"):
-                from backend.app.platform.physical_operations.copilot import _deterministic_qa
+        agent_id = str(data.get("agent_id") or data.get("agent") or "operations").strip()
+        session_id = str(data.get("session_id") or "").strip()
+        use_agent = data.get("use_agent", True)
+        if isinstance(use_agent, str):
+            use_agent = use_agent.lower() not in {"0", "false", "no"}
+        tools_env = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
+        use_agent = use_agent and tools_env
 
-                full_ctx = build_copilot_context(get_db(), company_id, role)
-                fallback = _deterministic_qa(full_ctx, question)
-                if fallback.get("answer"):
-                    result["answer"] = fallback["answer"]
-                    result["source"] = fallback.get("source", "deterministic")
+        db = get_db()
+        history = []
+        if session_id:
+            sess = get_session(db, session_id, company_id=company_id, user_id=_user_id())
+            if not sess:
+                return jsonify({"error": "session_not_found"}), 404
+            agent_id = sess["agent_id"] or agent_id
+            history = [{"role": m["role"], "content": m["content"]} for m in list_messages(db, session_id)]
+
+        try:
+            if use_agent:
+                result = run_agent_query(
+                    db,
+                    company_id,
+                    question,
+                    agent_id=agent_id,
+                    lang=lang,
+                    role=role,
+                    history=history,
+                )
+            else:
+                ctx = data.get("context") or build_compact_context(db, company_id, role)
+                result = natural_language_query(company_id, question, ctx, lang=lang)
+                if not result.get("answer") and not result.get("error"):
+                    from backend.app.platform.physical_operations.copilot import _deterministic_qa
+
+                    full_ctx = build_copilot_context(db, company_id, role)
+                    fallback = _deterministic_qa(full_ctx, question)
+                    if fallback.get("answer"):
+                        result["answer"] = fallback["answer"]
+                        result["source"] = fallback.get("source", "deterministic")
+
+            result["companyId"] = company_id
+            tool_count = len(result.get("toolsUsed") or [])
+            record_audit(
+                db,
+                company_id=company_id,
+                user_id=_user_id(),
+                question=question,
+                agent_id=agent_id,
+                mode="agent" if use_agent else "chat",
+                session_id=session_id or None,
+                tool_calls=tool_count,
+            )
+
+            if session_id and result.get("answer"):
+                append_message(db, session_id, role="user", content=question)
+                append_message(
+                    db,
+                    session_id,
+                    role="assistant",
+                    content=result["answer"],
+                    meta={"toolsUsed": result.get("toolsUsed"), "sources": result.get("sources")},
+                )
+                if len(history) <= 1:
+                    touch_session_title(db, session_id, question[:80])
+
             return jsonify(result)
         except Exception as exc:
             logger.exception("ai_query failed company_id=%s", company_id)
@@ -161,5 +218,151 @@ def register_ai_blueprint(flask_app: Flask) -> None:
 
         cid = str(request.args.get("company_id") or g.current_user.get("company_id") or "")
         return jsonify(fraud_signals(get_db(), cid))
+
+    @ai_bp.get("/ai/agents")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_agents():
+        from .agents import list_agents
+
+        lang = str(request.args.get("lang") or "de")[:2]
+        return jsonify({"agents": list_agents(lang)})
+
+    @ai_bp.get("/ai/insights")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_insights():
+        from .insights import build_insights_dashboard
+        from .sessions import audit_stats
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        role = str(g.current_user.get("role") or "company-admin")
+        db = get_db()
+        dash = build_insights_dashboard(db, company_id, role)
+        dash["usage"] = audit_stats(db, company_id)
+        return jsonify(dash)
+
+    @ai_bp.post("/ai/analyze")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_analyze():
+        from .agent_runner import run_deep_analysis
+        from .sessions import record_audit
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        topic = str(data.get("topic") or "operations").strip()
+        lang = str(data.get("lang") or "de")[:2]
+        role = str(g.current_user.get("role") or "company-admin")
+        result = run_deep_analysis(get_db(), company_id, topic, lang=lang, role=role)
+        record_audit(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            question=f"[analyze:{topic}]",
+            agent_id=result.get("agentId", topic),
+            mode="analyze",
+            tool_calls=len(result.get("toolsUsed") or []),
+        )
+        result["companyId"] = company_id
+        result["topic"] = topic
+        return jsonify(result)
+
+    @ai_bp.get("/ai/sessions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_sessions_list():
+        from .sessions import list_sessions
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        sessions = list_sessions(get_db(), company_id=company_id, user_id=_user_id())
+        return jsonify({"sessions": sessions, "companyId": company_id})
+
+    @ai_bp.post("/ai/sessions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_sessions_create():
+        from .sessions import create_session
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        agent_id = str(data.get("agent_id") or "operations").strip()
+        lang = str(data.get("lang") or "de")[:2]
+        title = str(data.get("title") or "").strip()
+        sess = create_session(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            agent_id=agent_id,
+            title=title,
+            lang=lang,
+        )
+        return jsonify(sess), 201
+
+    @ai_bp.get("/ai/sessions/<session_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_session_detail(session_id: str):
+        from .sessions import get_session, list_messages
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        sess = get_session(get_db(), session_id, company_id=company_id, user_id=_user_id())
+        if not sess:
+            return jsonify({"error": "session_not_found"}), 404
+        messages = list_messages(get_db(), session_id)
+        return jsonify({
+            "session": {
+                "id": sess["id"],
+                "agentId": sess["agent_id"],
+                "title": sess["title"],
+                "lang": sess["lang"],
+            },
+            "messages": messages,
+        })
+
+    @ai_bp.delete("/ai/sessions/<session_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_session_delete(session_id: str):
+        from .sessions import ensure_ai_tables
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        db = get_db()
+        ensure_ai_tables(db)
+        db.execute(
+            "DELETE FROM ai_chat_messages WHERE session_id = ?",
+            (session_id,),
+        )
+        db.execute(
+            "DELETE FROM ai_chat_sessions WHERE id = ? AND company_id = ? AND user_id = ?",
+            (session_id, company_id, _user_id()),
+        )
+        db.commit()
+        return jsonify({"deleted": session_id})
 
     flask_app.register_blueprint(ai_bp, url_prefix="/api")

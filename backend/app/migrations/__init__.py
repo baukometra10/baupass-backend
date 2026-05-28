@@ -670,6 +670,51 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="012",
+        name="ai_chat_sessions",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL DEFAULT 'operations',
+                title TEXT NOT NULL DEFAULT '',
+                lang TEXT NOT NULL DEFAULT 'de',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ai_chat_messages (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                meta_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ai_query_audit (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                session_id TEXT,
+                agent_id TEXT NOT NULL DEFAULT 'operations',
+                mode TEXT NOT NULL DEFAULT 'chat',
+                question TEXT NOT NULL,
+                tool_calls INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_sessions_company ON ai_chat_sessions(company_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_ai_sessions_user ON ai_chat_sessions(user_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_ai_messages_session ON ai_chat_messages(session_id, created_at ASC);
+            CREATE INDEX IF NOT EXISTS idx_ai_audit_company ON ai_query_audit(company_id, created_at DESC);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS ai_query_audit;
+            DROP TABLE IF EXISTS ai_chat_messages;
+            DROP TABLE IF EXISTS ai_chat_sessions;
+        """,
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""

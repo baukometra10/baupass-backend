@@ -49,14 +49,29 @@ def resolve_ai_model() -> tuple[str, str | None]:
 
 
 def ai_config_status() -> dict[str, Any]:
+    from .agents import list_agents
+
     model, warning = resolve_ai_model()
     azure = bool((os.getenv("AZURE_OPENAI_API_KEY") or "").strip())
     openai = bool((os.getenv("OPENAI_API_KEY") or "").strip())
+    tools_on = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
     return {
         "configured": openai or azure,
         "provider": "azure" if azure else ("openai" if openai else None),
         "model": model,
         "configWarning": warning,
+        "agentsEnabled": bool(openai or azure),
+        "toolCalling": tools_on,
+        "agents": list_agents("de"),
+        "features": [
+            "chat",
+            "briefing",
+            "prompts",
+            "agents",
+            "sessions",
+            "insights",
+            "deep_analysis",
+        ],
     }
 
 
@@ -67,7 +82,12 @@ def is_ai_configured() -> bool:
     )
 
 
-def _chat_completion(messages: list[dict[str, str]]) -> dict[str, Any]:
+def _chat_completion(
+    messages: list[dict[str, Any]],
+    *,
+    tools: list[dict[str, Any]] | None = None,
+    tool_choice: str | dict = "auto",
+) -> dict[str, Any]:
     azure_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     model, _warn = resolve_ai_model()
@@ -92,13 +112,15 @@ def _chat_completion(messages: list[dict[str, str]]) -> dict[str, Any]:
     else:
         raise ValueError("No OpenAI API key configured")
 
-    payload = json.dumps(
-        {
-            "model": payload_model,
-            "messages": messages,
-            "temperature": 0.2,
-        }
-    ).encode("utf-8")
+    body: dict[str, Any] = {
+        "model": payload_model,
+        "messages": messages,
+        "temperature": 0.2,
+    }
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = tool_choice
+    payload = json.dumps(body).encode("utf-8")
     req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
     with urlrequest.urlopen(req, timeout=90) as resp:
         body = json.loads(resp.read().decode("utf-8"))

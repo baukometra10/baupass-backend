@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BauPass — KI Command Center</title>
+  <link rel="stylesheet" href="/design-tokens.css" />
+  <style>
+    :root {
+      --bg: #070b10; --panel: #121a24; --border: #2a3544; --text: #e8eef4;
+      --muted: #94a3b8; --accent: #5eead4; --danger: #f87171; --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    a { color: var(--accent); }
+    header {
+      padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+      background: var(--panel); position: sticky; top: 0; z-index: 20;
+    }
+    header h1 { margin: 0; font-size: 1.1rem; }
+    .nav a { text-decoration: none; font-size: 0.82rem; padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
+    .shell { display: grid; grid-template-columns: 220px 1fr 300px; gap: 0.75rem; padding: 0.75rem; max-width: 1680px; margin: 0 auto; min-height: calc(100vh - 56px); }
+    @media (max-width: 1200px) { .shell { grid-template-columns: 1fr; } .side, .insights { order: 2; } }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 0; }
+    .panel h2 { margin: 0; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-bottom: 1px solid var(--border); }
+    .scroll { overflow: auto; flex: 1; padding: 0.65rem; }
+    .agent-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.5rem; border-bottom: 1px solid var(--border); }
+    .agent-tabs button {
+      font-size: 0.72rem; padding: 0.3rem 0.55rem; border-radius: 999px; cursor: pointer;
+      border: 1px solid var(--border); background: #0c1218; color: var(--muted);
+    }
+    .agent-tabs button.active { border-color: var(--accent); color: var(--accent); background: #14242a; }
+    #chatLog { display: flex; flex-direction: column; gap: 0.5rem; min-height: 280px; }
+    .msg-user { background: #1e3a5f; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
+    .msg-bot { background: #152228; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
+    .msg-meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; }
+    .chat-form { padding: 0.65rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.4rem; }
+    .chat-form textarea {
+      min-height: 72px; resize: vertical; padding: 0.5rem; border-radius: 8px;
+      border: 1px solid var(--border); background: #0a1016; color: var(--text); font-family: inherit;
+    }
+    .chat-form .row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .chat-form button, .toolbar button {
+      padding: 0.45rem 0.75rem; border-radius: 8px; border: none; cursor: pointer;
+      background: var(--accent); color: #061018; font-weight: 700; font-size: 0.8rem;
+    }
+    .toolbar button.secondary { background: #1a2e3a; color: var(--text); border: 1px solid var(--border); }
+    .session-item {
+      display: block; width: 100%; text-align: start; padding: 0.45rem 0.5rem; margin-bottom: 0.35rem;
+      border-radius: 8px; border: 1px solid transparent; background: #0c1218; color: var(--text);
+      cursor: pointer; font-size: 0.78rem;
+    }
+    .session-item.active { border-color: var(--accent); }
+    .session-item small { display: block; color: var(--muted); font-size: 0.68rem; }
+    .insight-card {
+      border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.65rem; margin-bottom: 0.45rem;
+      font-size: 0.78rem;
+    }
+    .insight-card.critical { border-color: var(--danger); }
+    .insight-card.high { border-color: var(--warn); }
+    .insight-card strong { color: var(--accent); font-size: 1rem; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }
+    .chip-row button {
+      font-size: 0.68rem; padding: 0.2rem 0.45rem; border-radius: 999px;
+      border: 1px solid var(--border); background: #0a1016; color: var(--muted); cursor: pointer;
+    }
+    select, #companySelect {
+      padding: 0.4rem 0.55rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #0a1016; color: var(--text); font-size: 0.82rem;
+    }
+    .status-line { font-size: 0.75rem; color: var(--muted); padding: 0 0.85rem 0.5rem; }
+    .hidden { display: none !important; }
+    .err { color: var(--danger); padding: 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 id="pageTitle">BauPass KI Command Center</h1>
+      <div class="status-line" id="statusLine"></div>
+    </div>
+    <nav class="nav">
+      <select id="companySelect" class="hidden"></select>
+      <a href="/enterprise-hub.html">Enterprise Hub</a>
+      <a href="/admin-v2/index.html">Admin v2</a>
+    </nav>
+  </header>
+
+  <div id="authErr" class="err hidden">Bitte anmelden.</div>
+
+  <div class="shell hidden" id="shell">
+    <aside class="panel side">
+      <h2 id="sessionsTitle">Chats</h2>
+      <div class="toolbar" style="padding:0.5rem;display:flex;gap:0.35rem">
+        <button type="button" class="secondary" id="newChatBtn">+ Neu</button>
+      </div>
+      <div class="scroll" id="sessionList"></div>
+    </aside>
+
+    <main class="panel chat">
+      <div class="agent-tabs" id="agentTabs"></div>
+      <div class="scroll" id="chatLog"></div>
+      <div class="chip-row" id="quickPrompts" style="padding:0 0.65rem"></div>
+      <form class="chat-form" id="chatForm">
+        <textarea id="question" placeholder="Frage stellen…"></textarea>
+        <div class="row">
+          <button type="submit" id="sendBtn">Senden</button>
+          <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="panel insights">
+      <h2 id="insightsTitle">Live Insights</h2>
+      <div class="toolbar" style="padding:0.5rem;display:flex;flex-wrap:wrap;gap:0.35rem">
+        <button type="button" class="secondary" data-topic="security">Security</button>
+        <button type="button" class="secondary" data-topic="compliance">Compliance</button>
+        <button type="button" class="secondary" data-topic="attendance">Attendance</button>
+        <button type="button" class="secondary" data-topic="executive">Executive</button>
+      </div>
+      <div class="scroll" id="insightCards"></div>
+    </aside>
+  </div>
+
+  <script>
+    const LANG = (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2);
+    const I18N = {
+      de: {
+        title: "BauPass KI Command Center",
+        sessions: "Chats", insights: "Live Insights", newChat: "+ Neu",
+        send: "Senden", briefing: "Tagesbriefing", placeholder: "Frage an den Agenten…",
+        thinking: "Analysiere Live-Daten…", needCompany: "Firma wählen.",
+        auth: "Bitte anmelden (Admin v2).", sources: "Quellen", tools: "Tools",
+      },
+      en: {
+        title: "BauPass AI Command Center",
+        sessions: "Chats", insights: "Live Insights", newChat: "+ New",
+        send: "Send", briefing: "Daily briefing", placeholder: "Ask the agent…",
+        thinking: "Analyzing live data…", needCompany: "Select company.",
+        auth: "Please sign in.", sources: "Sources", tools: "Tools",
+      },
+      ar: {
+        title: "مركز قيادة AI — BauPass",
+        sessions: "المحادثات", insights: "رؤى مباشرة", newChat: "+ جديد",
+        send: "إرسال", briefing: "ملخص اليوم", placeholder: "اسأل الوكيل…",
+        thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
+        auth: "يرجى تسجيل الدخول.", sources: "المصادر", tools: "أدوات",
+      },
+    };
+    const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
+    const CARD_LABELS = {
+      de: { onsite: "Auf Baustelle", security: "Sicherheit", workforceRisk: "Risiko", attendanceRisk: "Ausfallrisiko", fraud: "Betrug", productivity: "Produktivität", emergency: "Notfall" },
+      en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency" },
+      ar: { onsite: "على الموقع", security: "الأمن", workforceRisk: "المخاطر", attendanceRisk: "غياب", fraud: "احتيال", productivity: "الإنتاجية", emergency: "طوارئ" },
+    };
+
+    let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
+    let currentRole = "";
+    let agents = [];
+    let activeAgent = "operations";
+    let sessionId = "";
+    let sessions = [];
+
+    document.getElementById("pageTitle").textContent = t("title");
+    document.getElementById("sessionsTitle").textContent = t("sessions");
+    document.getElementById("insightsTitle").textContent = t("insights");
+    document.getElementById("newChatBtn").textContent = t("newChat");
+    document.getElementById("sendBtn").textContent = t("send");
+    document.getElementById("briefingBtn").textContent = t("briefing");
+    document.getElementById("question").placeholder = t("placeholder");
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, { credentials: "include", ...opts });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) throw new Error("auth");
+      if (!res.ok) { const e = new Error(data.hint || data.error || res.statusText); e.payload = data; throw e; }
+      return data;
+    }
+
+    function appendMsg(role, text, meta = {}) {
+      const log = document.getElementById("chatLog");
+      const div = document.createElement("div");
+      div.className = role === "user" ? "msg-user" : "msg-bot";
+      div.textContent = text;
+      if (meta.sources?.length || meta.toolsUsed?.length) {
+        const m = document.createElement("div");
+        m.className = "msg-meta";
+        const parts = [];
+        if (meta.toolsUsed?.length) parts.push(`${t("tools")}: ${meta.toolsUsed.join(", ")}`);
+        if (meta.sources?.length) parts.push(`${t("sources")}: ${meta.sources.join(" · ")}`);
+        m.textContent = parts.join(" | ");
+        div.appendChild(m);
+      }
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function companyQs() {
+      return selectedCompanyId ? `company_id=${encodeURIComponent(selectedCompanyId)}&lang=${LANG}` : `lang=${LANG}`;
+    }
+
+    async function loadCompanies() {
+      if (currentRole !== "superadmin") return;
+      const sel = document.getElementById("companySelect");
+      try {
+        const rows = await api("/api/companies");
+        const list = Array.isArray(rows) ? rows.filter((c) => !c.deleted_at) : [];
+        sel.innerHTML = `<option value="">— Firma —</option>` +
+          list.map((c) => `<option value="${c.id}" ${c.id === selectedCompanyId ? "selected" : ""}>${c.name}</option>`).join("");
+        sel.classList.remove("hidden");
+        sel.onchange = () => { selectedCompanyId = sel.value; boot(); };
+      } catch { sel.classList.add("hidden"); }
+    }
+
+    function renderAgents() {
+      const el = document.getElementById("agentTabs");
+      el.innerHTML = agents.map((a) =>
+        `<button type="button" data-agent="${a.id}" class="${a.id === activeAgent ? "active" : ""}">${a.label}</button>`
+      ).join("");
+      el.querySelectorAll("button").forEach((btn) => {
+        btn.onclick = () => { activeAgent = btn.dataset.agent; renderAgents(); };
+      });
+    }
+
+    function renderSessions() {
+      const el = document.getElementById("sessionList");
+      el.innerHTML = sessions.map((s) =>
+        `<button type="button" class="session-item ${s.id === sessionId ? "active" : ""}" data-id="${s.id}">
+          <span>${s.title || s.id}</span><small>${s.agentId} · ${(s.updatedAt || "").slice(0, 16)}</small>
+        </button>`
+      ).join("") || `<p class="status-line">—</p>`;
+      el.querySelectorAll(".session-item").forEach((btn) => {
+        btn.onclick = () => loadSession(btn.dataset.id);
+      });
+    }
+
+    function renderInsights(cards) {
+      const labels = CARD_LABELS[LANG] || CARD_LABELS.de;
+      document.getElementById("insightCards").innerHTML = (cards || []).map((c) =>
+        `<div class="insight-card ${c.severity || ""}">
+          <div>${labels[c.titleKey] || c.titleKey}</div>
+          <strong>${c.value}</strong>
+          <div class="status-line">${c.detail || ""}</div>
+        </div>`
+      ).join("");
+    }
+
+    async function loadInsights() {
+      if (!selectedCompanyId && currentRole === "superadmin") return;
+      const data = await api(`/api/ai/insights?${companyQs()}`);
+      renderInsights(data.cards);
+      document.getElementById("statusLine").textContent =
+        `${data.snapshot?.workersOnSite ?? "—"} onsite · ${data.snapshot?.openSecurityFindings ?? 0} security · ${data.usage?.queries ?? 0} queries (7d)`;
+    }
+
+    async function loadPrompts() {
+      const el = document.getElementById("quickPrompts");
+      el.innerHTML = "";
+      try {
+        const data = await api(`/api/ai/prompts?${companyQs()}`);
+        data.prompts.forEach((p) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = p.text.length > 40 ? p.text.slice(0, 38) + "…" : p.text;
+          b.title = p.text;
+          b.onclick = () => submitQuestion(p.text);
+          el.appendChild(b);
+        });
+      } catch { /* ignore */ }
+    }
+
+    async function loadSessions() {
+      const data = await api(`/api/ai/sessions?${companyQs()}`);
+      sessions = data.sessions || [];
+      renderSessions();
+    }
+
+    async function loadSession(id) {
+      sessionId = id;
+      renderSessions();
+      const data = await api(`/api/ai/sessions/${id}?${companyQs()}`);
+      document.getElementById("chatLog").innerHTML = "";
+      activeAgent = data.session?.agentId || activeAgent;
+      renderAgents();
+      (data.messages || []).forEach((m) => appendMsg(m.role, m.content, m.meta || {}));
+    }
+
+    async function newSession() {
+      if (!selectedCompanyId && currentRole === "superadmin") { appendMsg("bot", t("needCompany")); return; }
+      const s = await api("/api/ai/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: selectedCompanyId, agent_id: activeAgent, lang: LANG }),
+      });
+      sessionId = s.id;
+      document.getElementById("chatLog").innerHTML = "";
+      await loadSessions();
+    }
+
+    async function submitQuestion(q) {
+      if (!selectedCompanyId && currentRole === "superadmin") { appendMsg("bot", t("needCompany")); return; }
+      if (!sessionId) await newSession();
+      appendMsg("user", q);
+      const thinking = document.createElement("div");
+      thinking.className = "msg-bot";
+      thinking.textContent = t("thinking");
+      document.getElementById("chatLog").appendChild(thinking);
+      try {
+        const data = await api("/api/ai/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: q, company_id: selectedCompanyId, agent_id: activeAgent,
+            session_id: sessionId, lang: LANG, use_agent: true,
+          }),
+        });
+        thinking.remove();
+        appendMsg("bot", data.answer || data.hint || "—", {
+          sources: data.sources, toolsUsed: data.toolsUsed,
+        });
+        await loadSessions();
+        await loadInsights();
+      } catch (e) {
+        thinking.remove();
+        appendMsg("bot", e.payload?.hint || e.message, {});
+      }
+    }
+
+    async function runBriefing() {
+      appendMsg("user", t("briefing"));
+      const thinking = document.createElement("div");
+      thinking.className = "msg-bot";
+      thinking.textContent = t("thinking");
+      document.getElementById("chatLog").appendChild(thinking);
+      try {
+        const data = await api(`/api/ai/briefing?${companyQs()}`);
+        thinking.remove();
+        appendMsg("bot", data.answer || "—", { sources: data.sources });
+      } catch (e) {
+        thinking.remove();
+        appendMsg("bot", e.payload?.hint || e.message);
+      }
+    }
+
+    async function runAnalysis(topic) {
+      appendMsg("user", `[${topic}]`);
+      const thinking = document.createElement("div");
+      thinking.className = "msg-bot";
+      thinking.textContent = t("thinking");
+      document.getElementById("chatLog").appendChild(thinking);
+      try {
+        const data = await api("/api/ai/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic, company_id: selectedCompanyId, lang: LANG }),
+        });
+        thinking.remove();
+        appendMsg("bot", data.answer || "—", { sources: data.sources, toolsUsed: data.toolsUsed });
+      } catch (e) {
+        thinking.remove();
+        appendMsg("bot", e.payload?.hint || e.message);
+      }
+    }
+
+    document.getElementById("chatForm").onsubmit = (ev) => {
+      ev.preventDefault();
+      const q = document.getElementById("question").value.trim();
+      if (!q) return;
+      document.getElementById("question").value = "";
+      submitQuestion(q);
+    };
+    document.getElementById("briefingBtn").onclick = runBriefing;
+    document.getElementById("newChatBtn").onclick = newSession;
+    document.querySelectorAll("[data-topic]").forEach((btn) => {
+      btn.onclick = () => runAnalysis(btn.dataset.topic);
+    });
+
+    async function boot() {
+      const st = await api("/api/ai/status");
+      agents = st.agents || [];
+      if (!activeAgent && agents[0]) activeAgent = agents[0].id;
+      renderAgents();
+      await Promise.all([loadInsights(), loadPrompts(), loadSessions()]);
+    }
+
+    (async () => {
+      try {
+        const bootData = await api("/api/session/bootstrap");
+        currentRole = bootData?.user?.role || "";
+        if (currentRole === "company-admin") selectedCompanyId = bootData.user.company_id || selectedCompanyId;
+        if (currentRole === "superadmin" && bootData?.user?.preview_company_id && !selectedCompanyId) {
+          selectedCompanyId = bootData.user.preview_company_id;
+        }
+        document.getElementById("authErr").classList.add("hidden");
+        document.getElementById("shell").classList.remove("hidden");
+        await loadCompanies();
+        await boot();
+      } catch {
+        document.getElementById("authErr").classList.remove("hidden");
+        document.getElementById("authErr").textContent = t("auth");
+      }
+    })();
+  </script>
+</body>
+</html>

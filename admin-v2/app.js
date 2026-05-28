@@ -233,6 +233,7 @@ async function loadPlatform() {
         <h3>خطتك: ${ent.planMeta?.labelAr || ent.plan}</h3>
         <p>${ent.entitlements?.enabledCount || 0} قدرة مفعّلة · ${ent.entitlements?.lockedCount || 0} تحتاج ترقية · ${ent.entitlements?.coveragePercent || 0}% من المنصة</p>
         <a class="feature-card" href="/enterprise-hub.html" style="display:inline-block;margin-top:0.5rem">فتح مركز المؤسسة (16 طبقة)</a>
+        <a class="feature-card" href="/ai-command-center.html" style="display:inline-block;margin-top:0.5rem">KI Command Center (Agents + Tools)</a>
       </div>`
           : ""
       }
@@ -261,7 +262,7 @@ async function loadPlatform() {
       const out = $("aiQuickAnswer");
       out.textContent = "جاري الإرسال…";
       try {
-        const aiBody = { question: q };
+        const aiBody = { question: q, use_agent: true, agent_id: "operations", lang: (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2) };
         const user = getUser();
         const cid =
           localStorage.getItem(COMPANY_KEY) ||

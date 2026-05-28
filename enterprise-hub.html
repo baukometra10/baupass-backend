@@ -125,6 +125,7 @@
       <a href="/admin-v2/index.html#enterprise">Admin v2</a>
       <a href="/index.html">Legacy</a>
       <a href="/ops-command-center.html">مركز العمليات</a>
+      <a href="/ai-command-center.html" id="navAiCenter">KI Command Center</a>
       <a href="/join.html">تفعيل موظف</a>
     </nav>
   </header>
@@ -159,6 +160,7 @@
       <div id="aiStatus" style="padding:0 0.75rem;font-size:0.78rem;color:var(--muted)"></div>
       <div class="ai-toolbar">
         <button type="button" id="aiBriefingBtn" class="primary"></button>
+        <a href="/ai-command-center.html" id="aiCenterLink" style="font-size:0.72rem;padding:0.25rem 0.5rem;border-radius:6px;border:1px solid var(--border);text-decoration:none;color:var(--accent)"></a>
       </div>
       <div id="aiPrompts"></div>
       <div id="aiLog"></div>
@@ -212,6 +214,7 @@
         aiNeedEnterprise: "KI-Assistent erfordert Tarif Enterprise.",
         aiBriefing: "Tagesbriefing",
         aiSources: "Quellen",
+        aiOpenCenter: "Vollständiges KI Command Center öffnen",
         maturity: "Reifegrad",
         previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
         companySelect: "Firma (Tarif-Vorschau)",
@@ -288,6 +291,7 @@
         aiNeedEnterprise: "مساعد AI يتطلب خطة Enterprise.",
         aiBriefing: "ملخص اليوم",
         aiSources: "المصادر",
+        aiOpenCenter: "فتح مركز قيادة AI الكامل",
         maturity: "نضج المنصة",
         previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
         companySelect: "الشركة (معاينة الخطة)",
@@ -358,6 +362,10 @@
       document.querySelector("#aiForm button").textContent = t("aiSend");
       const briefingBtn = document.getElementById("aiBriefingBtn");
       if (briefingBtn) briefingBtn.textContent = t("aiBriefing");
+      const centerLink = document.getElementById("aiCenterLink");
+      if (centerLink) centerLink.textContent = t("aiOpenCenter");
+      const navAi = document.getElementById("navAiCenter");
+      if (navAi) navAi.textContent = HUB_LANG === "ar" ? "مركز AI" : (HUB_LANG === "en" ? "AI Center" : "KI Center");
       const prev = document.getElementById("previewNote");
       if (prev) prev.querySelector("strong").textContent = HUB_LANG === "ar" ? "معاينة عامة" : (HUB_LANG === "en" ? "Public preview" : "Öffentliche Vorschau");
     }
@@ -622,7 +630,7 @@
       log.appendChild(thinking);
       log.scrollTop = log.scrollHeight;
       try {
-        const body = { question, lang: HUB_LANG };
+        const body = { question, lang: HUB_LANG, use_agent: true, agent_id: "operations" };
         if (selectedCompanyId) body.company_id = selectedCompanyId;
         const data = await api("/api/ai/query", {
           method: "POST",
