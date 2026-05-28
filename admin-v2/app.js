@@ -580,9 +580,8 @@ function initOpsCarousel(root) {
       hint.textContent = "";
       return;
     }
-    const atStart = track.scrollLeft <= 8;
-    const atEnd = track.scrollLeft >= max - 8;
-    hint.textContent = atStart ? "← weiter wischen" : atEnd ? "Ende →" : "← → wischen oder Pfeile";
+    hint.textContent =
+      "Nur manuell: nach links/rechts ziehen, wischen oder ‹ › — kein Auto-Scroll.";
   };
 
   prev?.addEventListener("click", () => {
@@ -591,6 +590,60 @@ function initOpsCarousel(root) {
   next?.addEventListener("click", () => {
     track.scrollBy({ left: step(), behavior: "smooth" });
   });
+
+  /* Maus/Touch: Bereich festhalten und horizontal ziehen (wie Display schieben) */
+  let dragActive = false;
+  let dragStartX = 0;
+  let dragScrollLeft = 0;
+
+  const endDrag = () => {
+    dragActive = false;
+    track.classList.remove("ops-dragging");
+  };
+
+  track.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const tag = (e.target?.tagName || "").toLowerCase();
+    if (tag === "button" || tag === "a") return;
+    dragActive = true;
+    dragStartX = e.clientX;
+    dragScrollLeft = track.scrollLeft;
+    track.classList.add("ops-dragging");
+    track.setPointerCapture(e.pointerId);
+  });
+
+  track.addEventListener("pointermove", (e) => {
+    if (!dragActive) return;
+    const dx = e.clientX - dragStartX;
+    track.scrollLeft = dragScrollLeft - dx;
+  });
+
+  track.addEventListener("pointerup", endDrag);
+  track.addEventListener("pointercancel", endDrag);
+  track.addEventListener("lostpointercapture", endDrag);
+
+  track.addEventListener(
+    "wheel",
+    (e) => {
+      const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      if (!horizontal && !e.shiftKey) return;
+      e.preventDefault();
+      track.scrollLeft += horizontal ? e.deltaX : e.deltaY;
+    },
+    { passive: false }
+  );
+
+  track.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      track.scrollBy({ left: -step(), behavior: "smooth" });
+    }
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      track.scrollBy({ left: step(), behavior: "smooth" });
+    }
+  });
+
   track.addEventListener("scroll", updateHint, { passive: true });
   updateHint();
 }
@@ -623,7 +676,7 @@ async function loadOperations() {
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
           <h3>Physical Operations OS <span class="badge badge-ok">12 Ebenen</span> ${rtLabel}</h3>
-          <p class="muted small">Firma ${data.companyId || cid} — mit Pfeilen oder Wischen navigieren</p>
+          <p class="muted small">Firma ${data.companyId || cid} — horizontal ziehen/wischen (nur manuell)</p>
         </div>
         <div class="ops-carousel-wrap" id="opsCarousel">
           <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="Nach links">‹</button>

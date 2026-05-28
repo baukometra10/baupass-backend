@@ -403,9 +403,19 @@ main {
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+  user-select: none;
   padding: 0.25rem 0.15rem 0.65rem;
   scrollbar-width: thin;
   scrollbar-color: #3d4f63 transparent;
+}
+
+.ops-carousel-track.ops-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
 }
 
 .ops-carousel-track::-webkit-scrollbar {
