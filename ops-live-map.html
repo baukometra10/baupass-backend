@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BauPass — Live Ops Karte</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="/design-tokens.css" />
+  <style>
+    :root { --bg: #0f1419; --panel: #1a2332; --border: #2a3544; --text: #e8eef4; --accent: #5eead4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+    header {
+      padding: 0.65rem 1rem; border-bottom: 1px solid var(--border); background: var(--panel);
+      display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+    }
+    header a { color: var(--accent); font-size: 0.85rem; margin-inline-start: 0.75rem; }
+    #map { flex: 1; min-height: 300px; }
+    .legend {
+      position: absolute; bottom: 12px; left: 12px; z-index: 500; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.75rem; font-size: 0.78rem;
+    }
+    .legend span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 6px; }
+    .side {
+      width: 280px; max-width: 40vw; border-inline-start: 1px solid var(--border);
+      background: var(--panel); overflow: auto; font-size: 0.8rem;
+    }
+    .wrap { display: flex; flex: 1; min-height: 0; position: relative; }
+    .worker-row { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .worker-row:hover { background: #14202c; }
+    #status { font-size: 0.8rem; color: #94a3b8; }
+    @media (max-width: 800px) { .side { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <strong>Live Ops Karte</strong>
+      <span id="status">Laden…</span>
+    </div>
+    <nav>
+      <select id="companySelect" style="display:none"></select>
+      <a href="/ops-command-center.html">Command Center</a>
+      <a href="/ai-command-center.html">KI</a>
+      <a href="/admin-v2/index.html">Admin</a>
+      <button type="button" id="refreshBtn" style="margin-inline-start:8px">Aktualisieren</button>
+    </nav>
+  </header>
+  <div class="wrap">
+    <div id="map"></div>
+    <aside class="side" id="workerList"></aside>
+    <div class="legend">
+      <div><span style="background:#5eead4"></span> Auf Baustelle</div>
+      <div><span style="background:#1b7a9e"></span> Geofence</div>
+      <div><span style="background:#fbbf24"></span> Gate (heute)</div>
+    </div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    const qs = new URLSearchParams(location.search);
+    let companyId = qs.get("company_id") || "";
+    let map, layers = { zones: [], workers: [], gates: [] };
+
+    async function api(path) {
+      const r = await fetch(path, { credentials: "include" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      return d;
+    }
+
+    function clearLayers(key) {
+      layers[key].forEach((l) => map.removeLayer(l));
+      layers[key] = [];
+    }
+
+    function renderMap(data) {
+      const c = data.center || { lat: 52.52, lng: 13.405 };
+      if (!map) {
+        map = L.map("map").setView([c.lat, c.lng], 15);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19, attribution: "© OSM",
+        }).addTo(map);
+      }
+      clearLayers("zones");
+      clearLayers("workers");
+      clearLayers("gates");
+      const bounds = [];
+      (data.geofences || []).forEach((z) => {
+        if (z.latitude == null) return;
+        const circle = L.circle([z.latitude, z.longitude], {
+          radius: z.radius_meters || 50, color: "#1b7a9e", fillOpacity: 0.12,
+        }).addTo(map).bindPopup(`<b>${z.site_name}</b><br>${z.radius_meters}m`);
+        layers.zones.push(circle);
+        bounds.push([z.latitude, z.longitude]);
+      });
+      (data.workersOnSite || []).forEach((w) => {
+        const m = L.circleMarker([w.lat, w.lng], {
+          radius: 8, color: "#5eead4", fillColor: "#5eead4", fillOpacity: 0.85,
+        }).addTo(map).bindPopup(`<b>${w.name}</b><br>${w.site || ""}<br>${w.gate || ""}<br><small>${(w.lastAccess||"").slice(0,19)}</small>`);
+        layers.workers.push(m);
+        bounds.push([w.lat, w.lng]);
+      });
+      (data.gates || []).forEach((g) => {
+        const m = L.marker([g.lat, g.lng], { title: g.name }).addTo(map).bindPopup(g.name);
+        layers.gates.push(m);
+        bounds.push([g.lat, g.lng]);
+      });
+      if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
+      document.getElementById("status").textContent =
+        `${data.counts?.onSite ?? 0} on-site · ${data.counts?.zones ?? 0} Zonen · ${data.openSecurityAlerts ?? 0} Security`;
+      const list = document.getElementById("workerList");
+      list.innerHTML = "<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>Auf Baustelle</h3>" +
+        (data.workersOnSite || []).map((w) =>
+          `<div class="worker-row" data-lat="${w.lat}" data-lng="${w.lng}"><strong>${w.name}</strong><br><span style="color:#94a3b8">${w.site||""} · ${w.gate||""}</span></div>`
+        ).join("") || "<p style='padding:0.65rem'>Niemand eingecheckt</p>";
+      list.querySelectorAll(".worker-row").forEach((row) => {
+        row.onclick = () => map.setView([+row.dataset.lat, +row.dataset.lng], 17);
+      });
+    }
+
+    async function load() {
+      if (!companyId) {
+        document.getElementById("status").textContent = "Firma wählen (Superadmin)";
+        return;
+      }
+      const data = await api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`);
+      renderMap(data);
+    }
+
+    async function boot() {
+      try {
+        const boot = await api("/api/session/bootstrap");
+        const role = boot?.user?.role || "";
+        if (role === "company-admin") companyId = boot.user.company_id || companyId;
+        if (role === "superadmin") {
+          const sel = document.getElementById("companySelect");
+          sel.style.display = "inline-block";
+          const rows = await api("/api/companies");
+          sel.innerHTML = `<option value="">— Firma —</option>` + rows.filter(c => !c.deleted_at).map(c =>
+            `<option value="${c.id}" ${c.id === companyId ? "selected" : ""}>${c.name}</option>`).join("");
+          sel.onchange = () => { companyId = sel.value; load().catch(e => alert(e.message)); };
+        }
+        await load();
+        let url = "/api/ops-os/events/stream";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const es = new EventSource(url, { withCredentials: true });
+        es.onmessage = (ev) => {
+          try {
+            const p = JSON.parse(ev.data);
+            if (p.type === "events") load().catch(() => {});
+          } catch { /* ignore */ }
+        };
+      } catch (e) {
+        document.getElementById("status").textContent = "Anmeldung erforderlich";
+        alert(e.message);
+      }
+    }
+
+    document.getElementById("refreshBtn").onclick = () => load().catch(e => alert(e.message));
+    boot();
+  </script>
+</body>
+</html>

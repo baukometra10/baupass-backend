@@ -42,7 +42,15 @@ def register_inbox_blueprint(flask_app) -> None:
             data = request.get_json(silent=True) or {}
             company_id = str(request.args.get("company_id") or data.get("company_id") or company_id)
         user_id = str(g.current_user.get("id") or g.current_user.get("username") or "")
-        result = resolve_inbox_item(get_db(), item_id=item_id, company_id=company_id, user_id=user_id)
+        data = request.get_json(silent=True) or {}
+        decision = str(data.get("decision") or "").strip() or None
+        result = resolve_inbox_item(
+            get_db(),
+            item_id=item_id,
+            company_id=company_id,
+            user_id=user_id,
+            decision=decision,
+        )
         code = 200 if result.get("ok") else 400
         return jsonify(result), code
 

@@ -55,12 +55,15 @@
       <a href="/enterprise-hub.html">Enterprise Hub</a>
       <a href="/admin-v2/index.html">Admin v2</a>
       <a href="/foreman.html">Vorarbeiter</a>
+      <a href="/ops-live-map.html" id="mapLink">Live Karte</a>
     </nav>
   </header>
   <main id="grid"></main>
   <script>
     const qs = new URLSearchParams(location.search);
     const companyId = qs.get("company_id") || "";
+    const mapLink = document.getElementById("mapLink");
+    if (mapLink && companyId) mapLink.href = `/ops-live-map.html?company_id=${encodeURIComponent(companyId)}`;
     let lastPayload = null;
 
     function companyLink(path, cid) {

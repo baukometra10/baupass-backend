@@ -22,6 +22,7 @@ def register_physical_operations(flask_app) -> None:
     from .camera_ai import ingest_camera_event
     from .iot_registry import build_iot_overview, list_devices, register_device, record_telemetry
     from .command_center import build_command_center
+    from .live_map import build_live_ops_map
     from .workforce_graph import build_workforce_graph
     from .identity_hub import build_identity_hub
     from .copilot import copilot_query, build_copilot_context
@@ -286,6 +287,15 @@ def register_physical_operations(flask_app) -> None:
         if role == "superadmin" and request.args.get("company_id"):
             cid = str(request.args.get("company_id", "") or "").strip()
         return jsonify(build_command_center(get_db(), company_id=cid, role=role))
+
+    @ops_os_bp.get("/ops-os/live-map")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_live_map():
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
+        return jsonify(build_live_ops_map(get_db(), cid))
 
     @ops_os_bp.get("/ops-os/events/stream")
     @require_auth

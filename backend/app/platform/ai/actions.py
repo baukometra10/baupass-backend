@@ -16,6 +16,10 @@ ALLOWED_EXECUTE = frozenset(
         "send_briefing_email",
         "send_briefing_webhook",
         "export_briefing_markdown",
+        "approve_leave_request",
+        "reject_leave_request",
+        "notify_worker",
+        "ack_system_alert",
     }
 )
 
@@ -97,6 +101,18 @@ def suggest_actions(
             "labelAr": "إرسال إلى Webhook",
         }
     )
+    pending_leave = int((ctx.get("pendingLeave") or 0))
+    if pending_leave > 0:
+        actions.append(
+            {
+                "id": "nav_inbox",
+                "type": "navigate",
+                "labelDe": f"{pending_leave} Urlaubsanträge im Posteingang",
+                "labelEn": f"{pending_leave} leave requests in inbox",
+                "url": "/admin-v2/index.html",
+            }
+        )
+
     actions.append(
         {
             "id": "export_md",
@@ -167,5 +183,72 @@ def execute_action(
             return {"ok": False, "error": "to_and_body_required"}
         ok, err = send_ai_briefing_email(to=to, subject=subject, body_text=body)
         return {"ok": ok, "to": to, "error": err or None}
+
+    if action in ("approve_leave_request", "reject_leave_request"):
+        leave_id = str(params.get("leave_id") or params.get("request_id") or "").strip()
+        if not leave_id:
+            return {"ok": False, "error": "leave_id_required"}
+        new_status = "genehmigt" if action == "approve_leave_request" else "abgelehnt"
+        row = db.execute("SELECT * FROM leave_requests WHERE id = ?", (leave_id,)).fetchone()
+        if not row:
+            return {"ok": False, "error": "leave_not_found"}
+        if str(row["company_id"]) != str(company_id):
+            return {"ok": False, "error": "forbidden"}
+        review_note = str(params.get("review_note") or "KI/Posteingang")[:500]
+        db.execute(
+            """
+            UPDATE leave_requests
+            SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_note = ?
+            WHERE id = ?
+            """,
+            (new_status, user_id or "ai-inbox", _now(), review_note, leave_id),
+        )
+        db.commit()
+        try:
+            from backend.server import _send_push_to_worker
+
+            label = "genehmigt ✓" if new_status == "genehmigt" else "abgelehnt ✗"
+            _send_push_to_worker(
+                db,
+                row["worker_id"],
+                f"Antrag {label}",
+                f"{row['type']} {row['start_date']}–{row['end_date']}",
+                tag="leave-request-status",
+            )
+        except Exception:
+            pass
+        return {"ok": True, "leaveId": leave_id, "status": new_status}
+
+    if action == "notify_worker":
+        worker_id = str(params.get("worker_id") or "").strip()
+        title = str(params.get("title") or "BauPass").strip()[:120]
+        body = str(params.get("body") or params.get("message") or "").strip()[:500]
+        if not worker_id or not body:
+            return {"ok": False, "error": "worker_id_and_body_required"}
+        w = db.execute(
+            "SELECT id FROM workers WHERE id = ? AND company_id = ?",
+            (worker_id, company_id),
+        ).fetchone()
+        if not w:
+            return {"ok": False, "error": "worker_not_found"}
+        sent = 0
+        try:
+            from backend.server import _send_push_to_worker
+
+            sent = _send_push_to_worker(db, worker_id, title, body, tag="ops-notify")
+        except Exception as exc:
+            return {"ok": False, "error": "push_failed", "hint": str(exc)[:200]}
+        return {"ok": sent > 0, "pushSent": sent, "workerId": worker_id}
+
+    if action == "ack_system_alert":
+        alert_id = str(params.get("alert_id") or "").strip()
+        if not alert_id:
+            return {"ok": False, "error": "alert_id_required"}
+        db.execute(
+            "UPDATE system_alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL",
+            (_now(), alert_id),
+        )
+        db.commit()
+        return {"ok": True, "alertId": alert_id}
 
     return {"ok": False, "error": "unknown"}

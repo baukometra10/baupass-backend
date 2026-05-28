@@ -476,6 +476,11 @@
     <div class="foreman-header">
       <h1 data-i18n="foremanTitle">Foreman Dashboard</h1>
       <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
+      <p style="margin-top:0.6rem;font-size:0.88rem;opacity:0.95">
+        <a href="/ops-live-map.html" style="color:#fff;margin-right:1rem">Live Karte</a>
+        <a href="/ops-command-center.html" style="color:#fff;margin-right:1rem">Ops Center</a>
+        <a href="/ai-command-center.html" style="color:#fff">KI Assistent</a>
+      </p>
     </div>
 
     <!-- Navigation -->
@@ -719,7 +724,8 @@
             <div><strong>Zuletzt:</strong> ${worker.lastEventTime ? new Date(worker.lastEventTime).toLocaleString('de-DE') : 'N/A'}</div>
           </div>
           <div class="team-card-actions">
-            <button onclick="sendAlert('${worker.workerId}', 'general')">Alert</button>
+            <button onclick="sendAlert('${worker.workerId}', 'general')">Push</button>
+            <button onclick="askKi('${worker.name}', '${worker.workerId}')">KI</button>
             <button onclick="viewDetails('${worker.workerId}')">Details</button>
           </div>
         </div>
@@ -842,12 +848,27 @@
       }
     }
 
-    function sendAlert(workerId, type) {
-      alert(`Alert an ${workerId} vom Typ ${type}`);
+    function askKi(name, workerId) {
+      const q = encodeURIComponent(`Status und nächste Schritte für ${name} (ID ${workerId})?`);
+      window.open(`/ai-command-center.html?autoprompt=${q}`, "_blank");
+    }
+
+    async function sendAlert(workerId, type) {
+      const message = prompt("Nachricht an Mitarbeiter:", "Bitte kurz zur Baustelle kommen / Dokument mitbringen.");
+      if (!message) return;
+      try {
+        const res = await fetchAPI("/foreman/send-alert", {
+          method: "POST",
+          body: JSON.stringify({ workerId, type: type || "general", message }),
+        });
+        alert(res.pushSent ? "Push gesendet ✓" : "In-App Benachrichtigung erstellt");
+      } catch (e) {
+        alert("Fehler: " + e.message);
+      }
     }
 
     function viewDetails(workerId) {
-      alert(`Details für ${workerId}`);
+      window.open(`/admin-v2/index.html`, "_blank");
     }
 
     document.getElementById('submitAlertBtn')?.addEventListener('click', async () => {

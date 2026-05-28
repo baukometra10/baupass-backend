@@ -347,10 +347,12 @@ async function loadOperations() {
         <div class="layer-grid">${pills}</div>
       </div>
       <div class="link-row">
-        <a href="/ops-command-center.html" target="_blank" rel="noopener">مركز القيادة (Command Center)</a>
+        <a href="/ops-live-map.html${q ? q.replace("?", "?") : "?company_id=" + encodeURIComponent(cid)}" target="_blank" rel="noopener">🗺 Live Ops Karte</a>
+        <a href="/ops-command-center.html" target="_blank" rel="noopener">Command Center</a>
+        <a href="/ai-command-center.html${q}">KI Command Center</a>
         <a href="/enterprise-hub.html">مركز المؤسسة</a>
-        <a href="/index.html#devices">الأجهزة (Legacy)</a>
       </div>
+      <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="Live Karte" style="width:100%;height:420px;border:1px solid var(--border);border-radius:12px;margin-top:0.75rem"></iframe>
     `;
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || "تعذّر تحميل العمليات — قد تحتاج جداول إضافية في DB"}</p>`;
@@ -547,9 +549,11 @@ async function loadInbox() {
   el.innerHTML = `<table><thead><tr><th></th><th>Titel</th><th>Quelle</th><th>Aktionen</th></tr></thead><tbody>${items
     .map((it) => {
       const acts = (it.actions || [])
-        .map((a, i) => {
+        .map((a) => {
           if (a.type === "resolve" || a.type === "ack")
             return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">Erledigt</button>`;
+          if (a.type === "execute" && a.action)
+            return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
           if (a.type === "navigate")
             return `<a class="btn-link" href="${a.url}${q}">${a.label || "Öffnen"}</a>`;
           if (a.type === "prompt")
@@ -568,6 +572,37 @@ async function loadInbox() {
     btn.addEventListener("click", async () => {
       try {
         await api(`/api/inbox/${encodeURIComponent(btn.dataset.id)}/resolve${q}`, { method: "POST", body: "{}" });
+        await loadInbox();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+  });
+  el.querySelectorAll(".inbox-exec").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id || "";
+      const action = btn.dataset.action || "";
+      if (id.startsWith("leave:") && (action === "approve_leave_request" || action === "reject_leave_request")) {
+        const decision = action === "approve_leave_request" ? "approve" : "reject";
+        try {
+          await api(`/api/inbox/${encodeURIComponent(id)}/resolve${q}`, {
+            method: "POST",
+            body: JSON.stringify({ decision }),
+          });
+          await loadInbox();
+          return;
+        } catch (e) {
+          alert(e.message);
+          return;
+        }
+      }
+      try {
+        const params = JSON.parse(decodeURIComponent(btn.dataset.params || "%7B%7D"));
+        const cid = q.replace("?company_id=", "");
+        await api("/api/ai/actions/execute", {
+          method: "POST",
+          body: JSON.stringify({ action, params, company_id: cid || undefined }),
+        });
         await loadInbox();
       } catch (e) {
         alert(e.message);

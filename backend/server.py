@@ -13207,6 +13207,14 @@ def foreman_send_alert():
     )
     db.commit()
 
+    push_sent = _send_push_to_worker(
+        db,
+        worker_id,
+        alert_type.replace("_", " ").title()[:80],
+        message[:500],
+        tag="foreman-alert",
+    )
+
     log_audit(
         "foreman.alert_sent",
         f"Alert '{alert_type}' an {worker['first_name']} {worker['last_name']} versendet",
@@ -13215,7 +13223,7 @@ def foreman_send_alert():
         company_id=user["company_id"],
     )
 
-    return jsonify({"ok": True, "notificationId": notif_id})
+    return jsonify({"ok": True, "notificationId": notif_id, "pushSent": push_sent})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

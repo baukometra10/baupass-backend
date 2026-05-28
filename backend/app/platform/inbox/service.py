@@ -166,7 +166,19 @@ def build_operations_inbox(
                         "createdAt": _now_iso(),
                         "status": "open",
                         "actions": [
-                            {"type": "navigate", "url": "/index.html", "label": "Genehmigen (Legacy)"},
+                            {
+                                "type": "execute",
+                                "action": "approve_leave_request",
+                                "params": {"leave_id": r["id"]},
+                                "label": "Genehmigen",
+                            },
+                            {
+                                "type": "execute",
+                                "action": "reject_leave_request",
+                                "params": {"leave_id": r["id"]},
+                                "label": "Ablehnen",
+                            },
+                            {"type": "navigate", "url": "/ai-command-center.html", "label": "KI prüfen"},
                         ],
                     }
                 )
@@ -189,7 +201,14 @@ def build_operations_inbox(
     }
 
 
-def resolve_inbox_item(db, *, item_id: str, company_id: str, user_id: str) -> dict[str, Any]:
+def resolve_inbox_item(
+    db,
+    *,
+    item_id: str,
+    company_id: str,
+    user_id: str,
+    decision: str | None = None,
+) -> dict[str, Any]:
     """Resolve or acknowledge a single inbox item."""
     if item_id.startswith("sec:"):
         alert_id = item_id[4:]
@@ -216,5 +235,18 @@ def resolve_inbox_item(db, *, item_id: str, company_id: str, user_id: str) -> di
         )
         db.commit()
         return {"ok": True, "id": item_id, "status": "acknowledged"}
+
+    if item_id.startswith("leave:"):
+        leave_id = item_id[6:]
+        from backend.app.platform.ai.actions import execute_action
+
+        act = "approve_leave_request" if (decision or "approve") == "approve" else "reject_leave_request"
+        return execute_action(
+            db,
+            company_id=company_id,
+            user_id=user_id,
+            action=act,
+            params={"leave_id": leave_id},
+        )
 
     return {"ok": False, "error": "action_not_supported", "hint": "Use linked admin screens for documents and leave."}

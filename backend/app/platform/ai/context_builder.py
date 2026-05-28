@@ -15,6 +15,19 @@ def build_compact_context(db, company_id: str, role: str = "company-admin") -> d
     site = full.get("siteIntelligence") or {}
     em = full.get("activeEmergency")
     identity = (full.get("identity") or {}).get("summary") or {}
+    pending_leave = 0
+    try:
+        row = db.execute(
+            """
+            SELECT COUNT(*) AS c FROM leave_requests lr
+            JOIN workers w ON w.id = lr.worker_id
+            WHERE w.company_id = ? AND lr.status IN ('pending', 'ausstehend')
+            """,
+            (company_id,),
+        ).fetchone()
+        pending_leave = int((row["c"] if row else 0) or 0)
+    except Exception:
+        pass
 
     return {
         "date": full.get("date"),
@@ -54,6 +67,7 @@ def build_compact_context(db, company_id: str, role: str = "company-admin") -> d
         ),
         "identity": identity,
         "intelligence": operational_insights(db, company_id),
+        "pendingLeave": pending_leave,
     }
 
 

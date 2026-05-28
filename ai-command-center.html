@@ -271,6 +271,19 @@
         }
         return;
       }
+      if (action === "approve_leave_request" || action === "reject_leave_request" || action === "notify_worker") {
+        try {
+          const r = await api("/api/ai/actions/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, params: a.params || {}, company_id: selectedCompanyId }),
+          });
+          appendMsg("bot", r.ok ? `✓ ${action}` : (r.error || "—"), {});
+        } catch (e) {
+          appendMsg("bot", e.payload?.hint || e.message, {});
+        }
+        return;
+      }
       if (action === "export_briefing_markdown") {
         const blob = new Blob([text || lastAnswerText], { type: "text/markdown" });
         const aEl = document.createElement("a");
