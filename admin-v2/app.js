@@ -573,79 +573,40 @@ function initOpsCarousel(root) {
     return (card?.offsetWidth || 280) + gap;
   };
 
-  const updateHint = () => {
-    if (!hint) return;
-    const max = track.scrollWidth - track.clientWidth;
-    if (max <= 4) {
-      hint.textContent = "";
-      return;
-    }
-    hint.textContent =
-      "Nur manuell: nach links/rechts ziehen, wischen oder ‹ › — kein Auto-Scroll.";
-  };
+  if (hint) {
+    hint.textContent = "Ebenen mit ‹ › wechseln — die Admin-Seite bleibt fix, nur die Kartenzeile scrollt.";
+  }
 
-  prev?.addEventListener("click", () => {
+  prev?.addEventListener("click", (e) => {
+    e.stopPropagation();
     track.scrollBy({ left: -step(), behavior: "smooth" });
   });
-  next?.addEventListener("click", () => {
+  next?.addEventListener("click", (e) => {
+    e.stopPropagation();
     track.scrollBy({ left: step(), behavior: "smooth" });
   });
 
-  /* Maus/Touch: Bereich festhalten und horizontal ziehen (wie Display schieben) */
-  let dragActive = false;
-  let dragStartX = 0;
-  let dragScrollLeft = 0;
-
-  const endDrag = () => {
-    dragActive = false;
-    track.classList.remove("ops-dragging");
-  };
-
-  track.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    const tag = (e.target?.tagName || "").toLowerCase();
-    if (tag === "button" || tag === "a") return;
-    dragActive = true;
-    dragStartX = e.clientX;
-    dragScrollLeft = track.scrollLeft;
-    track.classList.add("ops-dragging");
-    track.setPointerCapture(e.pointerId);
-  });
-
-  track.addEventListener("pointermove", (e) => {
-    if (!dragActive) return;
-    const dx = e.clientX - dragStartX;
-    track.scrollLeft = dragScrollLeft - dx;
-  });
-
-  track.addEventListener("pointerup", endDrag);
-  track.addEventListener("pointercancel", endDrag);
-  track.addEventListener("lostpointercapture", endDrag);
-
+  /* Scroll-Chaining zur Seite verhindern — nur die Kartenzeile bewegt sich */
   track.addEventListener(
     "wheel",
     (e) => {
-      const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
-      if (!horizontal && !e.shiftKey) return;
+      const dx = Math.abs(e.deltaX);
+      const dy = Math.abs(e.deltaY);
+      if (dx <= dy && !e.shiftKey) return;
       e.preventDefault();
-      track.scrollLeft += horizontal ? e.deltaX : e.deltaY;
+      e.stopPropagation();
+      track.scrollLeft += dx > dy ? e.deltaX : e.deltaY;
     },
     { passive: false }
   );
 
-  track.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      track.scrollBy({ left: -step(), behavior: "smooth" });
-    }
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      track.scrollBy({ left: step(), behavior: "smooth" });
-    }
-  });
-
-  track.addEventListener("scroll", updateHint, { passive: true });
-  updateHint();
+  track.addEventListener(
+    "touchmove",
+    (e) => {
+      e.stopPropagation();
+    },
+    { passive: true }
+  );
 }
 
 async function loadOperations() {
@@ -676,12 +637,14 @@ async function loadOperations() {
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
           <h3>Physical Operations OS <span class="badge badge-ok">12 Ebenen</span> ${rtLabel}</h3>
-          <p class="muted small">Firma ${data.companyId || cid} — horizontal ziehen/wischen (nur manuell)</p>
+          <p class="muted small">Firma ${data.companyId || cid}</p>
         </div>
-        <div class="ops-carousel-wrap" id="opsCarousel">
-          <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="Nach links">‹</button>
-          <div class="ops-carousel-track" tabindex="0">${cards}</div>
-          <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="Nach rechts">›</button>
+        <div class="ops-carousel-shell" id="opsCarousel">
+          <div class="ops-carousel-wrap">
+            <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="Vorherige Ebene">‹</button>
+            <div class="ops-carousel-track">${cards}</div>
+            <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="Nächste Ebene">›</button>
+          </div>
         </div>
         <p class="ops-carousel-hint muted small"></p>
       </div>
