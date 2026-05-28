@@ -38,6 +38,7 @@ WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/site-leave", "worker_app_site_leave", ["POST"]),
     ("/attendance/nfc", "worker_app_attendance_nfc", ["POST"]),
     ("/push/register", "worker_app_push_register", ["POST"]),
+    ("/push/status", "worker_app_push_status", ["GET"]),
 )
 
 

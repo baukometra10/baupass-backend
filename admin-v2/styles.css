@@ -231,6 +231,25 @@ main {
   border-color: #5eead4;
 }
 
+.inbox-toast {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.inbox-toast.ok {
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #6ee7b7;
+}
+
+.inbox-toast.err {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
 .section-title {
   margin: 1.25rem 0 0.75rem;
   font-size: 1rem;

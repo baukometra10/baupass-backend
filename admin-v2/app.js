@@ -114,6 +114,29 @@ function statusBadge(ok) {
     : '<span class="badge badge-warn">يحتاج إعداد</span>';
 }
 
+function formatPushDelivery(res) {
+  const d = res?.pushDelivery || res;
+  if (!d) return "";
+  if (d.delivered || (d.pushSent ?? 0) > 0) {
+    const ch = (d.channels || []).join(" + ") || "push";
+    return `Push: ${d.pushSent} (${ch})`;
+  }
+  return d.hint || "Kein Push zugestellt — Token fehlt.";
+}
+
+function showActionToast(message, isError) {
+  const el = document.getElementById("inboxToast");
+  if (!el) {
+    alert(message);
+    return;
+  }
+  el.textContent = message;
+  el.className = isError ? "inbox-toast err" : "inbox-toast ok";
+  el.classList.remove("hidden");
+  clearTimeout(showActionToast._t);
+  showActionToast._t = setTimeout(() => el.classList.add("hidden"), 4500);
+}
+
 function syncEnterpriseFrame() {
   const frame = $("enterpriseFrame");
   if (!frame) return;
@@ -540,7 +563,20 @@ async function loadInbox() {
     return;
   }
   el.innerHTML = '<p class="muted">جاري التحميل…</p>';
-  const data = await api(`/api/inbox${q}`);
+  const [data, pushSt] = await Promise.all([
+    api(`/api/inbox${q}`),
+    api("/api/platform/push/status").catch(() => null),
+  ]);
+  const pushEl = $("inboxPushStatus");
+  if (pushEl && pushSt) {
+    const ready = pushSt.anyChannelReady;
+    pushEl.classList.remove("hidden");
+    pushEl.innerHTML = ready
+      ? `Push aktiv: ${pushSt.workersWithPush ?? 0} MA mit FCM · ${pushSt.webPushSubscriptions ?? 0} PWA`
+      : "Push nicht konfiguriert — VAPID_PRIVATE_KEY oder FCM_SERVER_KEY auf Railway setzen.";
+  } else if (pushEl) {
+    pushEl.classList.add("hidden");
+  }
   const c = data.counts || {};
   countsEl.innerHTML = `
     <div class="card"><span class="muted">Offen</span><strong>${c.open ?? 0}</strong></div>
@@ -582,10 +618,14 @@ async function loadInbox() {
   el.querySelectorAll(".inbox-resolve").forEach((btn) => {
     btn.addEventListener("click", async () => {
       try {
-        await api(`/api/inbox/${encodeURIComponent(btn.dataset.id)}/resolve${q}`, { method: "POST", body: "{}" });
+        const res = await api(`/api/inbox/${encodeURIComponent(btn.dataset.id)}/resolve${q}`, {
+          method: "POST",
+          body: "{}",
+        });
+        showActionToast(res.ok ? "Erledigt." : (res.error || "Fehler"), !res.ok);
         await loadInbox();
       } catch (e) {
-        alert(e.message);
+        showActionToast(e.message, true);
       }
     });
   });
@@ -596,27 +636,36 @@ async function loadInbox() {
       if (id.startsWith("leave:") && (action === "approve_leave_request" || action === "reject_leave_request")) {
         const decision = action === "approve_leave_request" ? "approve" : "reject";
         try {
-          await api(`/api/inbox/${encodeURIComponent(id)}/resolve${q}`, {
+          const res = await api(`/api/inbox/${encodeURIComponent(id)}/resolve${q}`, {
             method: "POST",
             body: JSON.stringify({ decision }),
           });
+          const msg = res.ok
+            ? `${decision === "approve" ? "Genehmigt" : "Abgelehnt"}. ${formatPushDelivery(res)}`
+            : res.error || "Fehler";
+          showActionToast(msg, !res.ok);
           await loadInbox();
           return;
         } catch (e) {
-          alert(e.message);
+          showActionToast(e.message, true);
           return;
         }
       }
       try {
         const params = JSON.parse(decodeURIComponent(btn.dataset.params || "%7B%7D"));
         const cid = q.replace("?company_id=", "");
-        await api("/api/ai/actions/execute", {
+        const res = await api("/api/ai/actions/execute", {
           method: "POST",
           body: JSON.stringify({ action, params, company_id: cid || undefined }),
         });
+        const pushMsg = formatPushDelivery(res);
+        showActionToast(
+          res.ok ? `${action} ✓${pushMsg ? ` — ${pushMsg}` : ""}` : res.error || "Fehler",
+          !res.ok,
+        );
         await loadInbox();
       } catch (e) {
-        alert(e.message);
+        showActionToast(e.message, true);
       }
     });
   });

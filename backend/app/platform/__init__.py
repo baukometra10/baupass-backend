@@ -75,3 +75,10 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_dashboards_blueprint"],
         ).register_dashboards_blueprint(flask_app),
     )
+    _step(
+        "push",
+        lambda: __import__(
+            "backend.app.platform.push.routes",
+            fromlist=["register_push_blueprint"],
+        ).register_push_blueprint(flask_app),
+    )

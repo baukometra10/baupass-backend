@@ -53,6 +53,22 @@ def build_operations_inbox(
                     "status": "open",
                     "actions": [
                         {"type": "resolve", "action": "resolve_security_alert", "params": {"alert_id": r["id"]}},
+                        *(
+                            [
+                                {
+                                    "type": "execute",
+                                    "action": "notify_worker",
+                                    "params": {
+                                        "worker_id": r["worker_id"],
+                                        "title": "BauPass Sicherheit",
+                                        "body": (r["title"] or "Security-Hinweis")[:200],
+                                    },
+                                    "label": "Push an MA",
+                                }
+                            ]
+                            if r["worker_id"]
+                            else []
+                        ),
                         {"type": "navigate", "url": "/ai-command-center.html", "label": "KI analysieren"},
                         {"type": "navigate", "url": "/index.html", "label": "Admin Legacy"},
                     ],

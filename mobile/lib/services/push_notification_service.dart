@@ -59,4 +59,16 @@ class PushNotificationService {
       return false;
     }
   }
+
+  Future<Map<String, dynamic>?> fetchServerPushStatus({required WorkerSession session}) async {
+    try {
+      return await _api.getJson(
+        '/api/worker-app/push/status',
+        bearerToken: session.bearer,
+        deviceId: session.deviceId,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 }

@@ -204,20 +204,28 @@ def execute_action(
             (new_status, user_id or "ai-inbox", _now(), review_note, leave_id),
         )
         db.commit()
+        push_delivery = {"delivered": False, "pushSent": 0, "channels": []}
         try:
-            from backend.server import _send_push_to_worker
+            from backend.app.platform.push.delivery import deliver_worker_push
 
             label = "genehmigt ✓" if new_status == "genehmigt" else "abgelehnt ✗"
-            _send_push_to_worker(
+            push_delivery = deliver_worker_push(
                 db,
                 row["worker_id"],
                 f"Antrag {label}",
                 f"{row['type']} {row['start_date']}–{row['end_date']}",
                 tag="leave-request-status",
+                company_id=str(company_id),
             )
         except Exception:
             pass
-        return {"ok": True, "leaveId": leave_id, "status": new_status}
+        return {
+            "ok": True,
+            "leaveId": leave_id,
+            "status": new_status,
+            "pushDelivery": push_delivery,
+            "pushSent": push_delivery.get("pushSent", 0),
+        }
 
     if action == "notify_worker":
         worker_id = str(params.get("worker_id") or "").strip()
@@ -231,14 +239,21 @@ def execute_action(
         ).fetchone()
         if not w:
             return {"ok": False, "error": "worker_not_found"}
-        sent = 0
         try:
-            from backend.server import _send_push_to_worker
+            from backend.app.platform.push.delivery import deliver_worker_push
 
-            sent = _send_push_to_worker(db, worker_id, title, body, tag="ops-notify")
+            delivery = deliver_worker_push(
+                db, worker_id, title, body, tag="ops-notify", company_id=str(company_id)
+            )
         except Exception as exc:
             return {"ok": False, "error": "push_failed", "hint": str(exc)[:200]}
-        return {"ok": sent > 0, "pushSent": sent, "workerId": worker_id}
+        sent = int(delivery.get("pushSent") or 0)
+        return {
+            "ok": sent > 0,
+            "pushSent": sent,
+            "pushDelivery": delivery,
+            "workerId": worker_id,
+        }
 
     if action == "ack_system_alert":
         alert_id = str(params.get("alert_id") or "").strip()

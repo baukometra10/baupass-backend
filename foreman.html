@@ -919,7 +919,13 @@
           method: "POST",
           body: JSON.stringify({ workerId, type: type || "general", message }),
         });
-        alert(res.pushSent ? "Push gesendet ✓" : "In-App Benachrichtigung erstellt");
+        const d = res.pushDelivery || {};
+        const ch = (d.channels || []).join(" + ");
+        alert(
+          d.delivered || res.pushSent
+            ? `Push gesendet (${res.pushSent})${ch ? ` via ${ch}` : ""}`
+            : (d.hint || "In-App gespeichert — kein Push-Token beim Mitarbeiter."),
+        );
       } catch (e) {
         alert("Fehler: " + e.message);
       }
@@ -940,11 +946,16 @@
       }
 
       try {
-        await fetchAPI('/foreman/send-alert', {
+        const res = await fetchAPI('/foreman/send-alert', {
           method: 'POST',
           body: JSON.stringify({ workerId, type, message }),
         });
-        alert('Alert versendet!');
+        const d = res.pushDelivery || {};
+        alert(
+          d.delivered || res.pushSent
+            ? `Alert + Push (${res.pushSent})`
+            : (d.hint || 'In-App gespeichert.'),
+        );
         document.getElementById('alertMessage').value = '';
       } catch (error) {
         alert(`Fehler: ${error.message}`);

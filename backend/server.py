@@ -5694,54 +5694,10 @@ def _load_pywebpush_client():
 
 
 def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
-    """Web Push (PWA) + native FCM tokens (Flutter). Returns total deliveries."""
-    sent = 0
+    """Web Push (PWA) + native FCM. Returns total deliveries."""
+    from backend.app.platform.push.delivery import deliver_worker_push
 
-    webpush, _webpush_exception = _load_pywebpush_client()
-    vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-    vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
-    if callable(webpush) and vapid_private_key:
-        subs = db.execute(
-            "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
-            (worker_id,),
-        ).fetchall()
-        for sub in subs:
-            try:
-                webpush(
-                    subscription_info={
-                        "endpoint": sub["endpoint"],
-                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
-                    },
-                    data=json.dumps({"title": title, "body": body, "tag": tag}),
-                    vapid_private_key=vapid_private_key,
-                    vapid_claims={"sub": vapid_email},
-                )
-                sent += 1
-            except Exception:
-                pass
-
-    try:
-        from backend.app.platform.push.fcm import send_fcm_notification
-
-        native_rows = db.execute(
-            """
-            SELECT push_token FROM worker_bound_devices
-            WHERE worker_id = ? AND status = 'active' AND push_token IS NOT NULL AND push_token != ''
-            """,
-            (worker_id,),
-        ).fetchall()
-        tokens = list({str(r["push_token"]).strip() for r in native_rows if r["push_token"]})
-        if tokens:
-            sent += send_fcm_notification(
-                tokens,
-                title=title,
-                body=body,
-                data={"tag": tag, "workerId": str(worker_id)},
-            )
-    except Exception:
-        pass
-
-    return sent
+    return int(deliver_worker_push(db, worker_id, title, body, tag=tag).get("pushSent") or 0)
 
 
 def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html_body: str):
@@ -13242,14 +13198,6 @@ def foreman_send_alert():
     )
     db.commit()
 
-    push_sent = _send_push_to_worker(
-        db,
-        worker_id,
-        alert_type.replace("_", " ").title()[:80],
-        message[:500],
-        tag="foreman-alert",
-    )
-
     log_audit(
         "foreman.alert_sent",
         f"Alert '{alert_type}' an {worker['first_name']} {worker['last_name']} versendet",
@@ -13258,7 +13206,22 @@ def foreman_send_alert():
         company_id=user["company_id"],
     )
 
-    return jsonify({"ok": True, "notificationId": notif_id, "pushSent": push_sent})
+    from backend.app.platform.push.delivery import deliver_worker_push
+
+    delivery = deliver_worker_push(
+        db,
+        worker_id,
+        alert_type.replace("_", " ").title()[:80],
+        message[:500],
+        tag="foreman-alert",
+        company_id=str(user["company_id"]),
+    )
+    return jsonify({
+        "ok": True,
+        "notificationId": notif_id,
+        "pushSent": delivery.get("pushSent", 0),
+        "pushDelivery": delivery,
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -14245,6 +14208,15 @@ def worker_app_push_register():
 
     db.commit()
     return jsonify({"ok": True, "deviceId": bound_device_id or None})
+
+
+@app.get("/api/worker-app/push/status")
+@require_worker_session
+def worker_app_push_status():
+    """Push channel availability (for worker app profile UI)."""
+    from backend.app.platform.push.delivery import push_platform_status
+
+    return jsonify(push_platform_status())
 
 
 @app.post("/api/device/biometric-auth")

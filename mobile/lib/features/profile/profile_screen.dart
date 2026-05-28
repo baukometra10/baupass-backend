@@ -29,12 +29,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _loading = true;
   bool _pushEnabled = false;
+  Map<String, dynamic>? _pushServerStatus;
 
   @override
   void initState() {
     super.initState();
     _load();
     _loadPushPref();
+    _loadPushServerStatus();
+  }
+
+  Future<void> _loadPushServerStatus() async {
+    final st = await widget.push.fetchServerPushStatus(session: widget.session);
+    if (mounted) setState(() => _pushServerStatus = st);
   }
 
   Future<void> _loadPushPref() async {
@@ -129,9 +136,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SwitchListTile(
                   title: const Text('Push notifications'),
                   subtitle: Text(
-                    _pushEnabled
-                        ? 'Token sync on login (FCM via BAUPASS_FCM_TOKEN or Firebase).'
-                        : 'Requires FCM_SERVER_KEY on server + device token.',
+                    _pushServerStatus == null
+                        ? 'Loading push status…'
+                        : (_pushServerStatus!['anyChannelReady'] == true
+                            ? (_pushEnabled
+                                ? 'Server ready (FCM/Web). Token sync on login.'
+                                : 'Server push ready — enable to register device.')
+                            : 'Server push not configured (FCM/VAPID).'),
                   ),
                   value: _pushEnabled,
                   onChanged: (value) async {
