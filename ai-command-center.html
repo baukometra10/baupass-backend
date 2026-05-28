@@ -107,6 +107,7 @@
         <div class="row">
           <button type="submit" id="sendBtn">Senden</button>
           <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
+          <button type="button" class="secondary" id="emailBriefingBtn">Briefing mailen</button>
         </div>
       </form>
     </main>
@@ -132,6 +133,8 @@
         send: "Senden", briefing: "Tagesbriefing", placeholder: "Frage an den Agenten…",
         thinking: "Analysiere Live-Daten…", needCompany: "Firma wählen.",
         auth: "Bitte anmelden (Admin v2).", sources: "Quellen", tools: "Tools",
+        actions: "Aktionen", emailBriefing: "Briefing mailen", emailPrompt: "Empfänger-E-Mail:",
+        emailOk: "Briefing gesendet.", emailFail: "E-Mail fehlgeschlagen.",
       },
       en: {
         title: "BauPass AI Command Center",
@@ -139,6 +142,8 @@
         send: "Send", briefing: "Daily briefing", placeholder: "Ask the agent…",
         thinking: "Analyzing live data…", needCompany: "Select company.",
         auth: "Please sign in.", sources: "Sources", tools: "Tools",
+        actions: "Actions", emailBriefing: "Email briefing", emailPrompt: "Recipient email:",
+        emailOk: "Briefing sent.", emailFail: "Email failed.",
       },
       ar: {
         title: "مركز قيادة AI — BauPass",
@@ -146,6 +151,8 @@
         send: "إرسال", briefing: "ملخص اليوم", placeholder: "اسأل الوكيل…",
         thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
         auth: "يرجى تسجيل الدخول.", sources: "المصادر", tools: "أدوات",
+        actions: "إجراءات", emailBriefing: "إرسال الملخص", emailPrompt: "البريد:",
+        emailOk: "تم الإرسال.", emailFail: "فشل الإرسال.",
       },
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
@@ -161,6 +168,75 @@
     let activeAgent = "operations";
     let sessionId = "";
     let sessions = [];
+    let lastAnswerText = "";
+
+    function actionLabel(a) {
+      const key = "label" + LANG.charAt(0).toUpperCase() + LANG.slice(1);
+      return a[key] || a.labelDe || a.labelEn || a.action || a.id;
+    }
+
+    function attachMeta(div, meta) {
+      if (meta.sources?.length || meta.toolsUsed?.length) {
+        const m = document.createElement("div");
+        m.className = "msg-meta";
+        const parts = [];
+        if (meta.toolsUsed?.length) parts.push(`${t("tools")}: ${meta.toolsUsed.join(", ")}`);
+        if (meta.sources?.length) parts.push(`${t("sources")}: ${meta.sources.join(" · ")}`);
+        m.textContent = parts.join(" | ");
+        div.appendChild(m);
+      }
+      if (meta.suggestedActions?.length) {
+        const row = document.createElement("div");
+        row.className = "chip-row";
+        row.style.marginTop = "0.35rem";
+        meta.suggestedActions.forEach((a) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = actionLabel(a);
+          if (a.type === "navigate" && a.url) b.onclick = () => { location.href = a.url; };
+          else if (a.type === "execute") b.onclick = () => runExecuteAction(a, lastAnswerText);
+          row.appendChild(b);
+        });
+        div.appendChild(row);
+      }
+    }
+
+    async function runExecuteAction(a, text) {
+      const action = a.action;
+      if (action === "send_briefing_email") {
+        const to = prompt(t("emailPrompt"));
+        if (!to) return;
+        try {
+          const r = await api("/api/ai/briefing/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to, company_id: selectedCompanyId, lang: LANG, body: text }),
+          });
+          appendMsg("bot", r.ok ? t("emailOk") : (r.error || t("emailFail")), {});
+        } catch (e) {
+          appendMsg("bot", e.payload?.error || e.message, {});
+        }
+        return;
+      }
+      if (action === "export_briefing_markdown") {
+        const blob = new Blob([text || lastAnswerText], { type: "text/markdown" });
+        const aEl = document.createElement("a");
+        aEl.href = URL.createObjectURL(blob);
+        aEl.download = `baupass-briefing-${new Date().toISOString().slice(0, 10)}.md`;
+        aEl.click();
+        return;
+      }
+      try {
+        const r = await api("/api/ai/actions/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, params: a.params || {}, company_id: selectedCompanyId, briefing_text: text }),
+        });
+        appendMsg("bot", r.ok ? JSON.stringify(r) : (r.error || "—"), {});
+      } catch (e) {
+        appendMsg("bot", e.payload?.hint || e.message, {});
+      }
+    }
 
     document.getElementById("pageTitle").textContent = t("title");
     document.getElementById("sessionsTitle").textContent = t("sessions");
@@ -168,6 +244,7 @@
     document.getElementById("newChatBtn").textContent = t("newChat");
     document.getElementById("sendBtn").textContent = t("send");
     document.getElementById("briefingBtn").textContent = t("briefing");
+    document.getElementById("emailBriefingBtn").textContent = t("emailBriefing");
     document.getElementById("question").placeholder = t("placeholder");
 
     async function api(path, opts = {}) {
@@ -183,17 +260,13 @@
       const div = document.createElement("div");
       div.className = role === "user" ? "msg-user" : "msg-bot";
       div.textContent = text;
-      if (meta.sources?.length || meta.toolsUsed?.length) {
-        const m = document.createElement("div");
-        m.className = "msg-meta";
-        const parts = [];
-        if (meta.toolsUsed?.length) parts.push(`${t("tools")}: ${meta.toolsUsed.join(", ")}`);
-        if (meta.sources?.length) parts.push(`${t("sources")}: ${meta.sources.join(" · ")}`);
-        m.textContent = parts.join(" | ");
-        div.appendChild(m);
+      if (role === "bot") {
+        lastAnswerText = text;
+        attachMeta(div, meta);
       }
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
+      return div;
     }
 
     function companyQs() {
@@ -302,28 +375,67 @@
       if (!selectedCompanyId && currentRole === "superadmin") { appendMsg("bot", t("needCompany")); return; }
       if (!sessionId) await newSession();
       appendMsg("user", q);
+      const log = document.getElementById("chatLog");
+      const botDiv = document.createElement("div");
+      botDiv.className = "msg-bot";
+      botDiv.textContent = "";
+      log.appendChild(botDiv);
       const thinking = document.createElement("div");
       thinking.className = "msg-bot";
       thinking.textContent = t("thinking");
-      document.getElementById("chatLog").appendChild(thinking);
+      log.appendChild(thinking);
+      log.scrollTop = log.scrollHeight;
+      let meta = {};
       try {
-        const data = await api("/api/ai/query", {
+        const res = await fetch("/api/ai/query/stream", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             question: q, company_id: selectedCompanyId, agent_id: activeAgent,
-            session_id: sessionId, lang: LANG, use_agent: true,
+            session_id: sessionId, lang: LANG,
           }),
         });
         thinking.remove();
-        appendMsg("bot", data.answer || data.hint || "—", {
-          sources: data.sources, toolsUsed: data.toolsUsed,
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          botDiv.textContent = err.hint || err.error || res.statusText;
+          return;
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split("\n\n");
+          buf = parts.pop() || "";
+          for (const block of parts) {
+            const line = block.split("\n").find((l) => l.startsWith("data:"));
+            if (!line) continue;
+            try {
+              const payload = JSON.parse(line.slice(5).trim());
+              if (payload.type === "chunk") {
+                botDiv.textContent += payload.text || "";
+                log.scrollTop = log.scrollHeight;
+              }
+              if (payload.type === "done") meta = payload;
+              if (payload.type === "error") botDiv.textContent += "\n" + (payload.hint || payload.error);
+            } catch { /* skip */ }
+          }
+        }
+        lastAnswerText = botDiv.textContent;
+        attachMeta(botDiv, {
+          sources: meta.sources,
+          toolsUsed: meta.toolsUsed,
+          suggestedActions: meta.suggestedActions,
         });
         await loadSessions();
         await loadInsights();
       } catch (e) {
         thinking.remove();
-        appendMsg("bot", e.payload?.hint || e.message, {});
+        botDiv.textContent = e.message || String(e);
       }
     }
 
@@ -336,12 +448,34 @@
       try {
         const data = await api(`/api/ai/briefing?${companyQs()}`);
         thinking.remove();
-        appendMsg("bot", data.answer || "—", { sources: data.sources });
+        lastAnswerText = data.answer || "";
+        appendMsg("bot", data.answer || "—", {
+          sources: data.sources,
+          suggestedActions: [
+            { id: "em", type: "execute", action: "send_briefing_email", labelDe: t("emailBriefing"), labelEn: t("emailBriefing"), labelAr: t("emailBriefing") },
+            { id: "ex", type: "execute", action: "export_briefing_markdown", labelDe: "Markdown", labelEn: "Markdown", labelAr: "Markdown" },
+          ],
+        });
       } catch (e) {
         thinking.remove();
         appendMsg("bot", e.payload?.hint || e.message);
       }
     }
+
+    document.getElementById("emailBriefingBtn").onclick = async () => {
+      const to = prompt(t("emailPrompt"));
+      if (!to) return;
+      try {
+        const r = await api("/api/ai/briefing/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to, company_id: selectedCompanyId, lang: LANG }),
+        });
+        appendMsg("bot", r.ok ? t("emailOk") : (r.error || t("emailFail")));
+      } catch (e) {
+        appendMsg("bot", e.payload?.hint || e.message);
+      }
+    };
 
     async function runAnalysis(topic) {
       appendMsg("user", `[${topic}]`);

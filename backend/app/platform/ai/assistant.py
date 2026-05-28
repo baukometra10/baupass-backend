@@ -71,6 +71,10 @@ def ai_config_status() -> dict[str, Any]:
             "sessions",
             "insights",
             "deep_analysis",
+            "streaming",
+            "actions",
+            "rag",
+            "briefing_email",
         ],
     }
 
@@ -125,6 +129,66 @@ def _chat_completion(
     with urlrequest.urlopen(req, timeout=90) as resp:
         body = json.loads(resp.read().decode("utf-8"))
     return body
+
+
+def _openai_request_config() -> tuple[str, dict[str, str], str]:
+    """Return (url, headers, model) for OpenAI-compatible chat API."""
+    azure_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    model, _ = resolve_ai_model()
+    if azure_key:
+        endpoint = (os.getenv("AZURE_OPENAI_ENDPOINT") or "").strip().rstrip("/")
+        deployment = (os.getenv("AZURE_OPENAI_DEPLOYMENT") or "").strip() or model
+        if _looks_like_openai_key(deployment):
+            deployment = model
+        api_version = (os.getenv("AZURE_OPENAI_API_VERSION") or "2024-02-15-preview").strip()
+        url = f"{endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
+        return url, {"api-key": azure_key, "Content-Type": "application/json"}, deployment
+    if openai_key:
+        return (
+            "https://api.openai.com/v1/chat/completions",
+            {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+            model,
+        )
+    raise ValueError("No OpenAI API key configured")
+
+
+def _openai_stream_request(
+    messages: list[dict[str, Any]],
+    *,
+    tools: list[dict[str, Any]] | None = None,
+):
+    """Yield text deltas from streaming chat completion."""
+    url, headers, payload_model = _openai_request_config()
+    body: dict[str, Any] = {
+        "model": payload_model,
+        "messages": messages,
+        "temperature": 0.2,
+        "stream": True,
+    }
+    if tools:
+        body["tools"] = tools
+    payload = json.dumps(body).encode("utf-8")
+    req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
+    with urlrequest.urlopen(req, timeout=120) as resp:
+        for raw_line in resp:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            delta = choices[0].get("delta") or {}
+            text = delta.get("content")
+            if text:
+                yield text
 
 
 _CHAT_SYSTEM = (

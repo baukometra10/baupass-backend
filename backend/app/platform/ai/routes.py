@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 
-from flask import Blueprint, Flask, g, jsonify, request
+from flask import Blueprint, Flask, Response, g, jsonify, request, stream_with_context
 
 logger = logging.getLogger("baupass.ai.routes")
 
@@ -364,5 +364,155 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         )
         db.commit()
         return jsonify({"deleted": session_id})
+
+    @ai_bp.post("/ai/query/stream")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_query_stream():
+        import os
+
+        from .agent_runner import run_agent_query
+        from .sessions import append_message, get_session, list_messages, record_audit, touch_session_title
+        from .streaming import stream_agent_result
+
+        data = request.get_json(silent=True) or {}
+        question = str(data.get("question", "")).strip()
+        if not question:
+            return jsonify({"error": "question_required"}), 400
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+
+        agent_id = str(data.get("agent_id") or "operations").strip()
+        session_id = str(data.get("session_id") or "").strip()
+        lang = str(data.get("lang") or "de")[:2]
+        role = str(g.current_user.get("role") or "company-admin")
+        db = get_db()
+        history = []
+        if session_id:
+            sess = get_session(db, session_id, company_id=company_id, user_id=_user_id())
+            if not sess:
+                return jsonify({"error": "session_not_found"}), 404
+            agent_id = sess["agent_id"] or agent_id
+            history = [{"role": m["role"], "content": m["content"]} for m in list_messages(db, session_id)]
+
+        use_agent = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
+
+        def generate():
+            if use_agent:
+                result = run_agent_query(
+                    db, company_id, question, agent_id=agent_id, lang=lang, role=role, history=history
+                )
+            else:
+                from .assistant import natural_language_query
+                from .context_builder import build_compact_context
+
+                ctx = build_compact_context(db, company_id, role)
+                result = natural_language_query(company_id, question, ctx, lang=lang)
+
+            record_audit(
+                db,
+                company_id=company_id,
+                user_id=_user_id(),
+                question=question,
+                agent_id=agent_id,
+                mode="stream",
+                session_id=session_id or None,
+                tool_calls=len(result.get("toolsUsed") or []),
+            )
+            if session_id and result.get("answer"):
+                append_message(db, session_id, role="user", content=question)
+                append_message(
+                    db,
+                    session_id,
+                    role="assistant",
+                    content=result["answer"],
+                    meta={"toolsUsed": result.get("toolsUsed"), "stream": True},
+                )
+                if len(history) <= 1:
+                    touch_session_title(db, session_id, question[:80])
+
+            for chunk in stream_agent_result(result):
+                yield chunk
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @ai_bp.post("/ai/actions/execute")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_execute_action():
+        from .actions import execute_action
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        action = str(data.get("action") or "").strip()
+        params = data.get("params") or {}
+        briefing_text = str(data.get("briefingText") or data.get("briefing_text") or "").strip()
+        result = execute_action(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            action=action,
+            params=params,
+            briefing_text=briefing_text or None,
+        )
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
+
+    @ai_bp.post("/ai/briefing/email")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_briefing_email():
+        from .actions import execute_action
+        from .assistant import generate_operations_briefing
+        from .context_builder import build_compact_context
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        to = str(data.get("to") or g.current_user.get("email") or "").strip()
+        if not to:
+            return jsonify({"error": "email_required", "hint": "Empfänger-E-Mail angeben."}), 400
+        lang = str(data.get("lang") or "de")[:2]
+        role = str(g.current_user.get("role") or "company-admin")
+        ctx = build_compact_context(get_db(), company_id, role)
+        briefing = generate_operations_briefing(company_id, ctx, lang=lang)
+        body = briefing.get("answer") or ""
+        result = execute_action(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            action="send_briefing_email",
+            params={"to": to, "subject": data.get("subject") or "BauPass KI Tagesbriefing"},
+            briefing_text=body,
+        )
+        result["briefingPreview"] = body[:500]
+        return jsonify(result), (200 if result.get("ok") else 400)
+
+    @ai_bp.get("/ai/rag/search")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_rag_search():
+        from .rag import search_knowledge
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        q = str(request.args.get("q") or "").strip()
+        chunks = search_knowledge(get_db(), company_id, q)
+        return jsonify({"query": q, "chunks": chunks, "count": len(chunks)})
 
     flask_app.register_blueprint(ai_bp, url_prefix="/api")

@@ -45,7 +45,13 @@ def run_agent_query(
         agent_id = "operations"
         agent = get_agent("operations")
 
+    from .actions import suggest_actions
+    from .rag import search_knowledge
+
     ctx = build_compact_context(db, company_id, role)
+    rag_chunks = search_knowledge(db, company_id, question)
+    if rag_chunks:
+        ctx["ragChunks"] = rag_chunks
     tools = agent_tool_schemas(agent_id)
     model, config_warning = resolve_ai_model()
 
@@ -58,7 +64,8 @@ def run_agent_query(
                 {
                     "company_id": company_id,
                     "baseline_context": ctx,
-                    "instruction": "Use tools for fresh data when the question needs specifics.",
+                    "rag_chunks": rag_chunks,
+                    "instruction": "Use tools for fresh data when the question needs specifics. Use rag_chunks for document context.",
                 },
                 ensure_ascii=False,
             ),
@@ -113,6 +120,8 @@ def run_agent_query(
             }
             if config_warning:
                 out["configWarning"] = config_warning
+            out["ragChunks"] = len(rag_chunks)
+            out["suggestedActions"] = suggest_actions(ctx, company_id=company_id, tools_used=tools_used)
             return out
 
         return {
