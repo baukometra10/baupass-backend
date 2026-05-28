@@ -13206,6 +13206,13 @@ def foreman_send_alert():
         company_id=user["company_id"],
     )
 
+    tag_map = {
+        "checkout_reminder": "attendance-reminder",
+        "document_alert": "document-expiry",
+        "attendance_reminder": "attendance-reminder",
+    }
+    push_tag = tag_map.get(alert_type, "foreman-alert")
+
     from backend.app.platform.push.delivery import deliver_worker_push
 
     delivery = deliver_worker_push(
@@ -13213,7 +13220,7 @@ def foreman_send_alert():
         worker_id,
         alert_type.replace("_", " ").title()[:80],
         message[:500],
-        tag="foreman-alert",
+        tag=push_tag,
         company_id=str(user["company_id"]),
     )
     return jsonify({
@@ -24412,12 +24419,29 @@ def worker_submit_leave_request():
             target_type="worker", target_id=worker["id"], company_id=worker["company_id"],
         )
 
+    push_delivery = {"delivered": False, "pushSent": 0, "channels": []}
+    try:
+        from backend.app.platform.push.automation import push_leave_submitted
+
+        push_delivery = push_leave_submitted(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            req_type_label=req_type_label,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except Exception:
+        pass
+
     return jsonify({
         "ok": True,
         "id": req_id,
         "mail_sent": bool(sent_recipients),
         "mail_recipients": sent_recipients,
         "mail_failed": failed_recipients,
+        "pushSent": push_delivery.get("pushSent", 0),
+        "pushDelivery": push_delivery,
     }), 201
 
 
@@ -24483,15 +24507,25 @@ def review_leave_request(req_id):
         company_id=req_row["company_id"], actor=user
     )
 
-    # Push-Benachrichtigung an Mitarbeiter
-    status_label_de = {"genehmigt": "genehmigt ✓", "abgelehnt": "abgelehnt ✗", "ausstehend": "ausstehend"}.get(new_status, new_status)
-    type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Antrag"}
-    req_type_label = type_labels.get(req_row["type"], req_row["type"])
-    push_title = f"Antrag {status_label_de}"
-    push_body = f"{req_type_label} {req_row['start_date']}–{req_row['end_date']}"
-    if review_note:
-        push_body += f" – {review_note[:80]}"
-    _send_push_to_worker(db, req_row["worker_id"], push_title, push_body, tag="leave-request-status")
+    push_delivery = {"delivered": False, "pushSent": 0}
+    try:
+        from backend.app.platform.push.automation import push_leave_decision
+
+        push_delivery = push_leave_decision(
+            db, req_row, new_status, review_note=review_note
+        )
+    except Exception:
+        status_label_de = {"genehmigt": "genehmigt ✓", "abgelehnt": "abgelehnt ✗", "ausstehend": "ausstehend"}.get(
+            new_status, new_status
+        )
+        type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Antrag"}
+        req_type_label = type_labels.get(req_row["type"], req_row["type"])
+        push_title = f"Antrag {status_label_de}"
+        push_body = f"{req_type_label} {req_row['start_date']}–{req_row['end_date']}"
+        if review_note:
+            push_body += f" – {review_note[:80]}"
+        _send_push_to_worker(db, req_row["worker_id"], push_title, push_body, tag="leave-request-status")
+        push_delivery = {"pushSent": 1}
 
     # E-Mail-Benachrichtigung an Mitarbeiter (falls contact_email gesetzt)
     if new_status in ("genehmigt", "abgelehnt"):

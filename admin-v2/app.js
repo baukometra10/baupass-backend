@@ -313,7 +313,7 @@ async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
   try {
-    const [caps, ready, health, ent, aiSt, wallet, setup] = await Promise.all([
+    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
@@ -321,6 +321,8 @@ async function loadPlatform() {
       api("/api/ai/status").catch(() => ({ configured: false })),
       api("/api/admin/wallet/runtime-status").catch(() => null),
       fetch("/api/platform/setup-status").then((r) => r.json()).catch(() => null),
+      api("/api/platform/push/status").catch(() => null),
+      api("/api/v2/mobile/distribution").catch(() => null),
     ]);
     const setupLines = (setup?.readyScore?.missing || [])
       .map((m) => `<li class="miss">○ ${m}</li>`)
@@ -372,6 +374,17 @@ async function loadPlatform() {
         <pre id="aiQuickAnswer" class="ai-answer muted small"></pre>
       </div>
       <div class="panel-block">
+        <h3>Mitarbeiter Hybrid-App (Flutter + FCM)</h3>
+        <p>${pushSt?.fcmConfigured ? statusBadge(true) : statusBadge(false)} FCM · ${pushSt?.workersWithPush ?? 0} MA mit Token · ${pushSt?.registeredDevices ?? 0} Geräte</p>
+        <p class="muted small">Kanal: ${pushSt?.primaryChannel || "fcm"} · ${pushSt?.workerAppKind || "hybrid_native"}</p>
+        ${
+          mobileDist?.install
+            ? `<p class="muted small">APK: ${mobileDist.install.apkUrl ? `<a href="${mobileDist.install.apkUrl}" target="_blank" rel="noopener">Download</a>` : "BAUPASS_WORKER_APK_URL setzen (GitHub Actions Artifact)"}</p>`
+            : ""
+        }
+        <button type="button" class="feature-card" data-goto-tab="mobile">Mobile-Tab →</button>
+      </div>
+      <div class="panel-block">
         <h3>Wallet (Apple / Google)</h3>
         <p class="muted small">${wallet ? JSON.stringify(wallet, null, 2) : "تحميل الحالة…"}</p>
       </div>
@@ -381,6 +394,10 @@ async function loadPlatform() {
         <a href="/index.html">لوحة Legacy الكاملة</a>
       </div>
     `;
+    panel.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
+      switchToTab("mobile");
+      refreshActiveTab();
+    });
     $("aiQuickForm")?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const q = ev.target.question.value.trim();
@@ -679,8 +696,10 @@ async function loadInbox() {
     const ready = pushSt.anyChannelReady;
     pushEl.classList.remove("hidden");
     pushEl.innerHTML = ready
-      ? `Push aktiv: ${pushSt.workersWithPush ?? 0} MA mit FCM · ${pushSt.webPushSubscriptions ?? 0} PWA`
-      : "Push nicht konfiguriert — VAPID_PRIVATE_KEY oder FCM_SERVER_KEY auf Railway setzen.";
+      ? `Hybrid Push (FCM): ${pushSt.workersWithPush ?? 0} MA · ${pushSt.registeredDevices ?? 0} Geräte${
+          pushSt.fcmConfigured ? "" : " · FCM_SERVER_KEY fehlt"
+        }${pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} Legacy-PWA` : ""}`
+      : "FCM nicht konfiguriert — FCM_SERVER_KEY auf Railway setzen (Flutter Hybrid-App).";
   } else if (pushEl) {
     pushEl.classList.add("hidden");
   }

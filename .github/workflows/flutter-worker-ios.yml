@@ -36,6 +36,9 @@ jobs:
             mobile/lib/firebase_bootstrap.dart \
             mobile/lib/services/push_foreground_listener.dart \
             mobile/lib/services/push_navigation.dart \
+            mobile/lib/services/push_notification_service.dart \
+            mobile/lib/features/auth/login_screen.dart \
+            mobile/lib/app.dart \
             mobile/pubspec.yaml \
             mobile/test/widget_test.dart
 

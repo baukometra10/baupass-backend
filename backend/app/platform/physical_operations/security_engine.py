@@ -31,6 +31,21 @@ def _persist_alert(db, company_id: int, alert: dict) -> str:
             ),
         )
         db.commit()
+        wid = alert.get("worker_id")
+        sev = (alert.get("severity") or "medium").lower()
+        if wid and sev in ("critical", "high"):
+            try:
+                from backend.app.platform.push.automation import push_security_alert
+
+                push_security_alert(
+                    db,
+                    worker_id=str(wid),
+                    company_id=company_id,
+                    title=str(alert.get("title") or "Sicherheitshinweis"),
+                    severity=sev,
+                )
+            except Exception:
+                pass
     except Exception:
         pass
     return aid

@@ -146,6 +146,17 @@ def build_operations_inbox(
                         "createdAt": _now_iso(),
                         "status": "open",
                         "actions": [
+                            {
+                                "type": "execute",
+                                "action": "notify_worker",
+                                "params": {
+                                    "worker_id": r["worker_id"],
+                                    "title": "Dokument läuft ab",
+                                    "body": f"{r['doc_type']} bis {r['expiry_date']}",
+                                    "tag": "document-expiry",
+                                },
+                                "label": "Push an MA",
+                            },
                             {"type": "navigate", "url": "/index.html#workers", "label": "Mitarbeiter"},
                             {"type": "prompt", "prompt": f"Welche Schritte für ablaufendes Dokument {r['doc_type']} von {name}?"},
                         ],

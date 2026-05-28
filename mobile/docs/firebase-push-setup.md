@@ -36,6 +36,10 @@ Optional refresh: `POST /api/worker-app/push/register` with `{ pushToken, platfo
 
 Status: `GET /api/worker-app/push/status` → `fcmConfigured`, `workerAppKind: hybrid_native`.
 
-## 5. Legacy Web push (deprecated)
+## 5. CI APK for join.html
+
+GitHub Actions workflow `Build worker APK` uploads `baupass-worker-apk`. Host the APK and set `BAUPASS_WORKER_APK_URL` on Railway so `join.html` offers the hybrid app download.
+
+## 6. Legacy Web push (deprecated)
 
 Old browser PWA used VAPID (`push_subscriptions`). Production workers should use the **Flutter hybrid app**; Web Push is only a fallback when no FCM token exists.

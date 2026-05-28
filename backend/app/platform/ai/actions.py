@@ -206,23 +206,11 @@ def execute_action(
         db.commit()
         push_delivery = {"delivered": False, "pushSent": 0, "channels": []}
         try:
-            from backend.app.platform.push.delivery import deliver_worker_push
+            from backend.app.platform.push.automation import push_leave_decision
 
-            label = "genehmigt ✓" if new_status == "genehmigt" else "abgelehnt ✗"
-            push_delivery = deliver_worker_push(
-                db,
-                row["worker_id"],
-                f"Antrag {label}",
-                f"{row['type']} {row['start_date']}–{row['end_date']}",
-                tag="leave-request-status",
-                company_id=str(company_id),
+            push_delivery = push_leave_decision(
+                db, row, new_status, review_note=review_note
             )
-        except Exception:
-            pass
-        try:
-            from backend.app.platform.inbox.events import notify_inbox_changed
-
-            notify_inbox_changed(company_id, source="leave_action")
         except Exception:
             pass
         return {
@@ -245,11 +233,12 @@ def execute_action(
         ).fetchone()
         if not w:
             return {"ok": False, "error": "worker_not_found"}
+        tag = str(params.get("tag") or "ops-notify").strip()[:40] or "ops-notify"
         try:
-            from backend.app.platform.push.delivery import deliver_worker_push
+            from backend.app.platform.push.automation import push_to_worker
 
-            delivery = deliver_worker_push(
-                db, worker_id, title, body, tag="ops-notify", company_id=str(company_id)
+            delivery = push_to_worker(
+                db, worker_id, title, body, tag=tag, company_id=str(company_id)
             )
         except Exception as exc:
             return {"ok": False, "error": "push_failed", "hint": str(exc)[:200]}
