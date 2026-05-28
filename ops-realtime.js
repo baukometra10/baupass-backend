@@ -1,0 +1,144 @@
+/**
+ * BauPass ops live feed — Socket.IO (preferred) with SSE fallback.
+ */
+(function (global) {
+  function formatEventLine(evt) {
+    const type = evt.type || evt.event_type || "event";
+    const p = evt.payload || {};
+    if (type.startsWith("access") || type === "access") {
+      const worker = p.worker_name || p.worker || p.workerId || "?";
+      const gate = p.gate || p.gate_id || "—";
+      const action = p.action || p.direction || "";
+      return {
+        html: `<strong>${worker}</strong> ${action} @ ${gate}`,
+        at: evt.created_at || evt.at || p.at || "",
+      };
+    }
+    if (type === "push_sent") {
+      const ch = (evt.channels || p.channels || []).join("+") || "push";
+      return {
+        html: `<strong>Push</strong> → ${p.workerId || evt.workerId || "?"} (${ch})`,
+        at: evt.created_at || "",
+      };
+    }
+    return {
+      html: `<strong>${type}</strong> ${JSON.stringify(p).slice(0, 60)}`,
+      at: evt.created_at || evt.at || "",
+    };
+  }
+
+  function renderFeed(feedEl, events) {
+    if (!feedEl || !events?.length) return;
+    feedEl.innerHTML = events
+      .slice(0, 25)
+      .map((e) => {
+        const { html, at } = formatEventLine(e);
+        return `<div class="event-line">${html}<br><small>${String(at).slice(0, 19)}</small></div>`;
+      })
+      .join("");
+  }
+
+  function startSse({ companyId, feedEl, onMode, onEvent }) {
+    let url = "/api/ops-os/events/stream";
+    if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+    const es = new EventSource(url, { withCredentials: true });
+    const buffer = [];
+    es.onmessage = (ev) => {
+      try {
+        const p = JSON.parse(ev.data);
+        if (p.type !== "events" || !p.items?.length) return;
+        p.items.forEach((item) => {
+          buffer.unshift(item);
+          onEvent?.(item);
+        });
+        while (buffer.length > 30) buffer.pop();
+        renderFeed(feedEl, buffer);
+      } catch {
+        /* ignore */
+      }
+    };
+    es.onerror = () => {
+      if (feedEl) feedEl.innerHTML = '<span class="err">SSE getrennt — Seite neu laden</span>';
+    };
+    onMode?.("sse");
+    return () => es.close();
+  }
+
+  function startSocketIo({ companyId, feedEl, onMode, onEvent }) {
+    return new Promise((resolve) => {
+      if (typeof global.io !== "function") {
+        resolve(null);
+        return;
+      }
+      const buffer = [];
+      const socket = global.io({
+        path: "/socket.io",
+        transports: ["websocket", "polling"],
+        withCredentials: true,
+      });
+      let stopped = false;
+
+      const stop = () => {
+        stopped = true;
+        try {
+          socket.disconnect();
+        } catch {
+          /* ignore */
+        }
+      };
+
+      socket.on("connect", () => {
+        socket.emit("subscribe", { company_id: companyId || "" });
+      });
+
+      socket.on("subscribed", (msg) => {
+        if (msg && msg.ok === false) {
+          stop();
+          resolve(null);
+          return;
+        }
+        onMode?.("websocket");
+        resolve(stop);
+      });
+
+      socket.on("platform_event", (evt) => {
+        if (stopped) return;
+        buffer.unshift(evt);
+        onEvent?.(evt);
+        while (buffer.length > 30) buffer.pop();
+        renderFeed(feedEl, buffer);
+      });
+
+      socket.on("connect_error", () => {
+        if (!stopped) {
+          stop();
+          resolve(null);
+        }
+      });
+
+      setTimeout(() => {
+        if (!stopped && !socket.connected) {
+          stop();
+          resolve(null);
+        }
+      }, 4000);
+    });
+  }
+
+  async function start({ companyId, feedEl, onMode, onEvent }) {
+    try {
+      const st = await fetch("/api/v1/realtime/status", { credentials: "include" }).then((r) =>
+        r.ok ? r.json() : null,
+      );
+      if (st?.websocket?.enabled) {
+        const stopWs = await startSocketIo({ companyId, feedEl, onMode, onEvent });
+        if (stopWs) return stopWs;
+      }
+    } catch {
+      /* fallback */
+    }
+    return startSse({ companyId, feedEl, onMode, onEvent });
+  }
+
+  global.BauPassOpsRealtime = { start, formatEventLine, renderFeed };
+})(typeof window !== "undefined" ? window : globalThis);

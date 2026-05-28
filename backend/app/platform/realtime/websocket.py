@@ -101,11 +101,12 @@ def init_socketio(flask_app) -> Any:
             if require_key and (not expected_key or provided_key != expected_key):
                 emit("subscribed", {"ok": False, "error": "forbidden"})
                 return
-            if company_id and (not company_id.isdigit() or len(company_id) > 12):
+            cid = str(company_id or "").strip()
+            if cid and (len(cid) > 64 or not cid.replace("-", "").replace("_", "").isalnum()):
                 emit("subscribed", {"ok": False, "error": "invalid_company_id"})
                 return
-            if company_id:
-                join_room(f"company:{company_id}")
+            if cid:
+                join_room(f"company:{cid}")
             emit("subscribed", {"ok": True, "company_id": company_id})
 
         @socketio.on("ping")

@@ -55,9 +55,14 @@ jobs:
           rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
           git checkout HEAD -- \
             mobile/android/app/build.gradle.kts \
+            mobile/android/app/google-services.json \
+            mobile/android/settings.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/lib/firebase_bootstrap.dart \
+            mobile/lib/main.dart \
+            mobile/pubspec.yaml \
             mobile/test/widget_test.dart
 
       - name: Resolve dependencies

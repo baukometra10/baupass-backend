@@ -48,6 +48,8 @@
     </nav>
   </header>
   <main id="grid"></main>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="/ops-realtime.js"></script>
   <script>
     const qs = new URLSearchParams(location.search);
     const companyId = qs.get("company_id") || "";
@@ -184,25 +186,21 @@
       }
     }
 
-    function startEventStream() {
+    let stopRealtime = null;
+
+    async function startEventStream() {
       const feed = document.getElementById("eventFeed");
-      if (!feed) return;
-      let url = "/api/ops-os/events/stream";
-      if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-      const es = new EventSource(url, { withCredentials: true });
-      es.onmessage = (ev) => {
-        try {
-          const p = JSON.parse(ev.data);
-          if (p.type !== "events" || !p.items?.length) return;
-          feed.innerHTML = p.items.slice(0, 20).map((e) => {
-            const label = e.type === "access"
-              ? `<strong>${e.worker || "?"}</strong> ${e.action || ""} @ ${e.gate || "—"}`
-              : `<strong>${e.type || "event"}</strong> ${e.companyId || ""}`;
-            return `<div class="event-line">${label}<br><small>${(e.at || "").slice(0, 19)}</small></div>`;
-          }).join("");
-        } catch { /* ignore */ }
-      };
-      es.onerror = () => { feed.innerHTML = '<span class="err">Stream getrennt — Seite neu laden</span>'; };
+      if (!feed || !window.BauPassOpsRealtime) return;
+      if (stopRealtime) stopRealtime();
+      feed.innerHTML = '<span class="muted">Verbinde Live-Stream…</span>';
+      stopRealtime = await window.BauPassOpsRealtime.start({
+        companyId,
+        feedEl: feed,
+        onMode: (mode) => {
+          const st = document.getElementById("status");
+          if (st) st.textContent = `${st.textContent.split("·")[0].trim()} · Live (${mode})`;
+        },
+      });
     }
 
     load();

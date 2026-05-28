@@ -3,8 +3,9 @@
 ## 1. Firebase project
 
 1. Create a project at [Firebase Console](https://console.firebase.google.com/).
-2. Add **Android** app `com.baupass.worker` → download `google-services.json` → `mobile/android/app/`.
-3. Add **iOS** app → download `GoogleService-Info.plist` → `mobile/ios/Runner/`.
+2. Add **Android** app `com.baupass.worker` → download `google-services.json` → replace `mobile/android/app/google-services.json` (placeholder is CI-only).
+3. Add **iOS** app → download `GoogleService-Info.plist` → `mobile/ios/Runner/` (when iOS scaffold is regenerated).
+4. Set `FCM_SERVER_KEY` on Railway (backend legacy server key).
 
 ## 2. Flutter dependencies
 
@@ -18,18 +19,13 @@ dependencies:
 
 Run `flutter pub get`.
 
-## 3. Implement token in `push_notification_service.dart`
+## 3. App code (already wired)
 
-```dart
-import 'package:firebase_messaging/firebase_messaging.dart';
+- `lib/firebase_bootstrap.dart` — `Firebase.initializeApp()` + token
+- `lib/main.dart` — calls bootstrap before `runApp`
+- `lib/services/push_notification_service.dart` — registers token on login when push is enabled in Profile
 
-Future<String?> obtainNativeDeviceToken() async {
-  await FirebaseMessaging.instance.requestPermission();
-  return FirebaseMessaging.instance.getToken();
-}
-```
-
-Call `Firebase.initializeApp()` in `main.dart` before `runApp`.
+For local dev without Firebase files: `flutter run --dart-define=BAUPASS_FCM_TOKEN=test-token`
 
 ## 4. Backend registration
 

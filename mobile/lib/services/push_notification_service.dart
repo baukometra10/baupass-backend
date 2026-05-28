@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api_client.dart';
 import '../core/session_store.dart';
+import '../firebase_bootstrap.dart';
 
 /// Native push (FCM / APNs) integration point.
 class PushNotificationService {
@@ -38,13 +39,11 @@ class PushNotificationService {
     );
   }
 
-  /// Native FCM token: set via --dart-define=BAUPASS_FCM_TOKEN=... for CI/dev,
-  /// or wire firebase_messaging when google-services.json is in the project.
+  /// FCM token: Firebase (google-services.json) or --dart-define=BAUPASS_FCM_TOKEN=...
   Future<String?> obtainNativeDeviceToken() async {
     const fromDefine = String.fromEnvironment('BAUPASS_FCM_TOKEN');
     if (fromDefine.isNotEmpty) return fromDefine;
-    // When firebase_messaging is added: return FirebaseMessaging.instance.getToken();
-    return null;
+    return FirebaseBootstrap.deviceToken();
   }
 
   /// Returns true when a token was registered with the backend.

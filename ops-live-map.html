@@ -56,6 +56,8 @@
     </div>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="/ops-realtime.js"></script>
   <script>
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
@@ -141,15 +143,29 @@
           sel.onchange = () => { companyId = sel.value; load().catch(e => alert(e.message)); };
         }
         await load();
-        let url = "/api/ops-os/events/stream";
-        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const es = new EventSource(url, { withCredentials: true });
-        es.onmessage = (ev) => {
-          try {
-            const p = JSON.parse(ev.data);
-            if (p.type === "events") load().catch(() => {});
-          } catch { /* ignore */ }
-        };
+        if (window.BauPassOpsRealtime) {
+          await window.BauPassOpsRealtime.start({
+            companyId,
+            feedEl: null,
+            onMode: (mode) => {
+              const st = document.getElementById("status");
+              if (st && !st.textContent.includes("websocket") && !st.textContent.includes("sse")) {
+                st.textContent += ` · ${mode}`;
+              }
+            },
+            onEvent: () => load().catch(() => {}),
+          });
+        } else {
+          let url = "/api/ops-os/events/stream";
+          if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+          const es = new EventSource(url, { withCredentials: true });
+          es.onmessage = (ev) => {
+            try {
+              const p = JSON.parse(ev.data);
+              if (p.type === "events") load().catch(() => {});
+            } catch { /* ignore */ }
+          };
+        }
       } catch (e) {
         document.getElementById("status").textContent = "Anmeldung erforderlich";
         alert(e.message);

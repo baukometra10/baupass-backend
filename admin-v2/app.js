@@ -374,9 +374,18 @@ async function loadOperations() {
         return `<div class="layer-pill"><strong>${label}</strong><br/><span class="muted small">${summary}</span></div>`;
       })
       .join("");
+    let rtLabel = "";
+    try {
+      const rt = await api("/api/v1/realtime/status");
+      rtLabel = rt?.websocket?.enabled
+        ? '<span class="badge badge-ok">WebSocket live</span>'
+        : '<span class="badge badge-warn">SSE fallback</span>';
+    } catch {
+      rtLabel = "";
+    }
     panel.innerHTML = `
       <div class="panel-block">
-        <h3>Physical Operations OS <span class="badge badge-ok">12 طبقة</span></h3>
+        <h3>Physical Operations OS <span class="badge badge-ok">12 طبقة</span> ${rtLabel}</h3>
         <p class="muted small">Company ${data.companyId || cid}</p>
         <div class="layer-grid">${pills}</div>
       </div>
