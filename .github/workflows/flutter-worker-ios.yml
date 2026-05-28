@@ -33,17 +33,63 @@ jobs:
             mobile/ios/Runner/Runner.entitlements \
             mobile/test/widget_test.dart
 
+      - name: Register NfcReaderPlugin in Xcode project
+        working-directory: mobile
+        run: |
+          gem install xcodeproj --no-document
+          ruby <<'RUBY'
+          require 'xcodeproj'
+
+          project_path = 'ios/Runner.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.find { |t| t.name == 'Runner' }
+          raise 'Runner target not found' unless target
+
+          runner_group = project.main_group['Runner']
+          raise 'Runner group not found' unless runner_group
+
+          file_name = 'NfcReaderPlugin.swift'
+          existing = runner_group.files.find { |f| f.path == file_name }
+          unless existing
+            file_ref = runner_group.new_file("Runner/#{file_name}")
+            target.source_build_phase.add_file_reference(file_ref)
+          end
+
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
+          end
+
+          project.save
+          RUBY
+
       - name: Resolve dependencies
         working-directory: mobile
         run: flutter pub get
 
+      - name: Analyze Dart
+        working-directory: mobile
+        run: flutter analyze --no-fatal-infos
+
       - name: Build iOS (no codesign)
+        id: build_ios
         working-directory: mobile
         env:
           API_URL: https://baupass-production.up.railway.app
-        run: >
-          flutter build ios --release --no-codesign
-          --dart-define=BAUPASS_API_URL=${{ env.API_URL }}
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-ios.log || {
+            echo "::error title=iOS build failed::$(grep -E 'error:|Error:|failed|FAILURE' build-ios.log | tail -n 5 | tr '\n' ' ')"
+            exit 1
+          }
+
+      - name: Upload build log on failure
+        if: failure() && steps.build_ios.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ios-log
+          path: mobile/build-ios.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Package Runner.app
         run: |
@@ -56,3 +102,14 @@ jobs:
           name: baupass-worker-ios-unsigned
           path: mobile/baupass-worker-ios-unsigned.zip
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Job summary
+        if: success()
+        run: |
+          {
+            echo "## BauPass Worker iOS (unsigned)"
+            echo ""
+            echo "- **Artifact:** \`baupass-worker-ios-unsigned\`"
+            echo "- **TestFlight:** lokal signieren → \`docs/testflight-internal-distribution.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"
