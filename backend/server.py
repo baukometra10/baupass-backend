@@ -6846,6 +6846,7 @@ check_doc_expiry_warnings = None
 send_daily_summary_email = None
 send_worker_expiry_reminders = None
 send_document_expiry_notifications = None
+send_document_expiry_fcm_pushes = None
 
 
 def run_daily_jobs_cycle_once():
@@ -6875,6 +6876,9 @@ def run_daily_jobs_cycle_once():
 
         if callable(send_document_expiry_notifications):
             send_document_expiry_notifications()
+
+        if callable(send_document_expiry_fcm_pushes):
+            send_document_expiry_fcm_pushes()
         backup_result = {"ok": False}
         try:
             backup_path, backup_meta = create_sqlite_database_backup()
@@ -7373,6 +7377,19 @@ def start_background_jobs():
     globals()["send_daily_summary_email"] = send_daily_summary_email
     globals()["send_worker_expiry_reminders"] = send_worker_expiry_reminders
     globals()["send_document_expiry_notifications"] = send_document_expiry_notifications
+
+    def send_document_expiry_fcm_pushes():
+        """FCM push to hybrid worker app for documents expiring within 14 days."""
+        try:
+            with app.app_context():
+                db = get_db()
+                from backend.app.platform.push.document_expiry_job import run_daily_document_expiry_fcm
+
+                run_daily_document_expiry_fcm(db, horizon_days=14)
+        except Exception:
+            pass
+
+    globals()["send_document_expiry_fcm_pushes"] = send_document_expiry_fcm_pushes
 
     # Expiry-Check beim Start einmal ausführen, danach täglich (non-fatal on PG/SQLite errors)
     try:

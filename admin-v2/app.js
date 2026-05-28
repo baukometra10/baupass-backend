@@ -465,6 +465,136 @@ async function loadMobile() {
   }
 }
 
+const OPS_LAYER_ORDER = [
+  ["1_digital_twin", "Digital Twin", "🗺"],
+  ["2_ai_security", "AI Security", "🛡"],
+  ["3_site_intelligence", "Site Intelligence", "📊"],
+  ["4_reputation", "Reputation", "⭐"],
+  ["5_emergency", "Emergency", "🚨"],
+  ["6_camera_ai", "Camera AI", "📷"],
+  ["7_iot", "IoT", "📡"],
+  ["8_command_center", "Command Center", "🎛"],
+  ["9_autonomous", "Autonomous", "⚙"],
+  ["10_workforce_graph", "Workforce Graph", "🔗"],
+  ["11_identity", "Identity", "🪪"],
+  ["12_copilot", "Copilot", "🤖"],
+];
+
+function summarizeOpsLayer(key, val) {
+  const v = val && typeof val === "object" ? val : {};
+  const lines = [];
+  let stat = "—";
+  let tone = "ok";
+  switch (key) {
+    case "1_digital_twin":
+      stat = `${v.summary?.workersOnSite ?? 0} MA vor Ort`;
+      lines.push(`${v.summary?.gatesActive ?? 0} aktive Tore`, `${v.summary?.hazardZones ?? 0} Gefahrenzonen`);
+      break;
+    case "2_ai_security":
+      stat = `${(v.openAlerts || []).length} offene Alerts`;
+      lines.push(`${v.newFindings ?? 0} neue Findings`, (v.capabilities || []).slice(0, 2).join(", ") || "Analyse aktiv");
+      tone = (v.openAlerts || []).length > 0 ? "warn" : "ok";
+      break;
+    case "3_site_intelligence":
+      stat = `${(v.busiestGates || []).length} Top-Tore`;
+      lines.push(`Datum ${v.date || "—"}`, `${v.totalEvents24h ?? v.events24h ?? "—"} Events/24h`);
+      break;
+    case "4_reputation":
+      stat = `Ø ${Number(v.averageScore ?? 0).toFixed(1)} Punkte`;
+      lines.push(`${(v.leaderboard || v.workers || []).length} MA im Ranking`);
+      break;
+    case "5_emergency":
+      stat = v.active ? "Notfall aktiv" : "Kein Notfall";
+      tone = v.active ? "danger" : "ok";
+      if (v.active) lines.push(`ID ${v.emergencyId || v.id || "—"}`, `${v.insideCount ?? "—"} innen`);
+      break;
+    case "6_camera_ai":
+      stat = `${v.events24h ?? 0} Events / 24h`;
+      break;
+    case "7_iot":
+      stat = `${(v.devices || []).length} Geräte`;
+      lines.push(v.status || "Registry");
+      break;
+    case "8_command_center":
+      stat = `${v.totalOnSite ?? v.workersOnSite ?? 0} MA gesamt`;
+      lines.push(`${v.openEmergencies ?? v.activeEmergencies ?? 0} Notfälle`, `${v.openSecurity ?? 0} Security`);
+      break;
+    case "9_autonomous":
+      stat = `${v.enabledRules ?? v.ruleCount ?? 0} Regeln`;
+      lines.push(v.api || "/api/automation/rules");
+      break;
+    case "10_workforce_graph":
+      stat = `${(v.nodes || v.workers || []).length} Knoten`;
+      lines.push(`${(v.edges || []).length} Verbindungen`);
+      break;
+    case "11_identity":
+      stat = "Identity Hub";
+      lines.push((v.apis?.gates || "Gates API").toString().slice(0, 40));
+      break;
+    case "12_copilot":
+      stat = v.configured ? "KI bereit" : "Nicht konfiguriert";
+      lines.push(v.endpoint || "POST /api/ops-os/copilot");
+      tone = v.configured ? "ok" : "warn";
+      break;
+    default:
+      stat = v.status || v.layer || "aktiv";
+      break;
+  }
+  return { stat, lines: lines.filter(Boolean).slice(0, 3), tone };
+}
+
+function renderOpsLayerCard(key, title, icon, val) {
+  const sum = summarizeOpsLayer(key, val);
+  const num = String(key).replace(/\D/g, "").padStart(2, "0") || "—";
+  const meta = sum.lines.map((l) => `<li>${l}</li>`).join("");
+  return `
+    <article class="ops-layer-card ops-tone-${sum.tone}" data-layer="${key}">
+      <div class="ops-layer-head">
+        <span class="ops-layer-num">${num}</span>
+        <span class="ops-layer-icon" aria-hidden="true">${icon}</span>
+      </div>
+      <h4 class="ops-layer-title">${title}</h4>
+      <p class="ops-layer-stat">${sum.stat}</p>
+      ${meta ? `<ul class="ops-layer-meta">${meta}</ul>` : ""}
+    </article>
+  `;
+}
+
+function initOpsCarousel(root) {
+  const track = root?.querySelector(".ops-carousel-track");
+  const prev = root?.querySelector(".ops-carousel-prev");
+  const next = root?.querySelector(".ops-carousel-next");
+  const hint = root?.querySelector(".ops-carousel-hint");
+  if (!track) return;
+
+  const step = () => {
+    const card = track.querySelector(".ops-layer-card");
+    const gap = 14;
+    return (card?.offsetWidth || 280) + gap;
+  };
+
+  const updateHint = () => {
+    if (!hint) return;
+    const max = track.scrollWidth - track.clientWidth;
+    if (max <= 4) {
+      hint.textContent = "";
+      return;
+    }
+    const atStart = track.scrollLeft <= 8;
+    const atEnd = track.scrollLeft >= max - 8;
+    hint.textContent = atStart ? "← weiter wischen" : atEnd ? "Ende →" : "← → wischen oder Pfeile";
+  };
+
+  prev?.addEventListener("click", () => {
+    track.scrollBy({ left: -step(), behavior: "smooth" });
+  });
+  next?.addEventListener("click", () => {
+    track.scrollBy({ left: step(), behavior: "smooth" });
+  });
+  track.addEventListener("scroll", updateHint, { passive: true });
+  updateHint();
+}
+
 async function loadOperations() {
   const panel = $("operationsPanel");
   const q = companyQuery();
@@ -477,16 +607,9 @@ async function loadOperations() {
     const cid = q.replace("?company_id=", "");
     const data = await api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
     const layers = data.layers || {};
-    const pills = Object.entries(layers)
-      .map(([key, val]) => {
-        const label = key.replace(/_/g, " ");
-        const summary =
-          typeof val === "object" && val !== null
-            ? JSON.stringify(val).slice(0, 80) + "…"
-            : String(val);
-        return `<div class="layer-pill"><strong>${label}</strong><br/><span class="muted small">${summary}</span></div>`;
-      })
-      .join("");
+    const cards = OPS_LAYER_ORDER.map(([key, title, icon]) =>
+      renderOpsLayerCard(key, title, icon, layers[key])
+    ).join("");
     let rtLabel = "";
     try {
       const rt = await api("/api/v1/realtime/status");
@@ -497,10 +620,17 @@ async function loadOperations() {
       rtLabel = "";
     }
     panel.innerHTML = `
-      <div class="panel-block">
-        <h3>Physical Operations OS <span class="badge badge-ok">12 طبقة</span> ${rtLabel}</h3>
-        <p class="muted small">Company ${data.companyId || cid}</p>
-        <div class="layer-grid">${pills}</div>
+      <div class="panel-block ops-panel">
+        <div class="ops-panel-head">
+          <h3>Physical Operations OS <span class="badge badge-ok">12 Ebenen</span> ${rtLabel}</h3>
+          <p class="muted small">Firma ${data.companyId || cid} — mit Pfeilen oder Wischen navigieren</p>
+        </div>
+        <div class="ops-carousel-wrap" id="opsCarousel">
+          <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="Nach links">‹</button>
+          <div class="ops-carousel-track" tabindex="0">${cards}</div>
+          <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="Nach rechts">›</button>
+        </div>
+        <p class="ops-carousel-hint muted small"></p>
       </div>
       <div class="link-row">
         <a href="/ops-live-map.html${q ? q.replace("?", "?") : "?company_id=" + encodeURIComponent(cid)}" target="_blank" rel="noopener">🗺 Live Ops Karte</a>
@@ -508,8 +638,9 @@ async function loadOperations() {
         <a href="/ai-command-center.html${q}">KI Command Center</a>
         <a href="/enterprise-hub.html">مركز المؤسسة</a>
       </div>
-      <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="Live Karte" style="width:100%;height:420px;border:1px solid var(--border);border-radius:12px;margin-top:0.75rem"></iframe>
+      <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="Live Karte" class="ops-map-frame"></iframe>
     `;
+    initOpsCarousel($("opsCarousel"));
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || "تعذّر تحميل العمليات — قد تحتاج جداول إضافية في DB"}</p>`;
   }
