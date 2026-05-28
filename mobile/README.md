@@ -31,7 +31,7 @@ From repo root, generate Flutter platform scaffolding (Gradle, Xcode project fil
 
 ```bash
 cd mobile
-flutter create . --org com.baupass --project-name baupass_worker
+flutter create . --org com.baupass --project-name worker
 flutter pub get
 ```
 

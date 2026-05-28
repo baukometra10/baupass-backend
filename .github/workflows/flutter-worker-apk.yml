@@ -48,10 +48,11 @@ jobs:
 
       - name: Complete Flutter platform scaffolding
         working-directory: mobile
-        run: flutter create . --org com.baupass --project-name baupass_worker
+        run: flutter create . --org com.baupass --project-name worker
 
       - name: Restore native customizations
         run: |
+          rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
           git checkout HEAD -- \
             mobile/android/app/build.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \

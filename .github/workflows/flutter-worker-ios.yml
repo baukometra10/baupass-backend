@@ -22,7 +22,7 @@ jobs:
 
       - name: Complete Flutter platform scaffolding
         working-directory: mobile
-        run: flutter create . --org com.baupass --project-name baupass_worker
+        run: flutter create . --org com.baupass --project-name worker
 
       - name: Restore native customizations
         run: |
