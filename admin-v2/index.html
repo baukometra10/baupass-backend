@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f4c5c" />
   <title>BauPass Admin v2</title>
-  <link rel="stylesheet" href="styles.css?v=20260528i" />
+  <link rel="stylesheet" href="styles.css?v=20260528p" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -87,6 +87,7 @@
           <div id="inboxPushStatus" class="muted small hidden"></div>
           <p id="inboxLiveHint" class="muted small hidden">Live: Posteingang aktualisiert sich bei neuen Events (WebSocket/SSE).</p>
           <div id="inboxToast" class="inbox-toast hidden" role="status"></div>
+          <div id="inboxBulkBar" class="inbox-bulk-bar hidden"></div>
           <div id="inboxList" class="table-wrap"></div>
         </div>
         <div id="tab-overview" class="tab-panel">
@@ -176,6 +177,6 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260528o" type="module"></script>
+  <script src="app.js?v=20260528p" type="module"></script>
 </body>
 </html>

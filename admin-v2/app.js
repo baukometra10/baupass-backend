@@ -941,6 +941,25 @@ async function loadInbox() {
     refreshActiveTab();
   });
   const items = data.items || [];
+  const bulkBar = $("inboxBulkBar");
+  const docCount = items.filter((it) => String(it.id || "").startsWith("doc:")).length;
+  const leaveCount = items.filter((it) => String(it.id || "").startsWith("leave:")).length;
+  const sysCount = items.filter((it) => String(it.id || "").startsWith("sys:")).length;
+  if (bulkBar) {
+    if (!items.length) {
+      bulkBar.classList.add("hidden");
+      bulkBar.innerHTML = "";
+    } else {
+      bulkBar.classList.remove("hidden");
+      bulkBar.innerHTML = `
+        <span class="muted small">Sammelaktionen:</span>
+        ${docCount ? `<button type="button" class="ghost" id="inboxBulkDocPush">FCM an ${docCount} MA (Dokumente)</button>` : ""}
+        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveOk">Alle ${leaveCount} Urlaube genehmigen</button>` : ""}
+        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveNo">Alle ablehnen</button>` : ""}
+        ${sysCount ? `<button type="button" class="ghost" id="inboxBulkSysAck">${sysCount} System ack</button>` : ""}
+      `;
+    }
+  }
   if (!items.length) {
     el.innerHTML = '<p class="muted">Keine offenen Punkte — alles im grünen Bereich.</p>';
     return;
@@ -981,6 +1000,42 @@ async function loadInbox() {
       }
     });
   });
+  async function runInboxBulk(action, extra = {}) {
+    const cid = q.replace("?company_id=", "");
+    const res = await api(`/api/inbox/bulk${q}`, {
+      method: "POST",
+      body: JSON.stringify({ action, company_id: cid || undefined, ...extra }),
+    });
+    const msg =
+      action === "push_document_reminders"
+        ? `Push: ${res.pushSent ?? 0}/${res.processed ?? 0} Dokumente`
+        : action === "approve_pending_leave"
+          ? `${res.approvedOrRejected ?? 0} Urlaube · Push ${res.pushSent ?? 0}`
+          : `${res.acknowledged ?? 0} System-Alerts bestätigt`;
+    showActionToast(res.ok ? msg : res.error || "Fehler", !res.ok);
+    await loadInbox();
+  }
+
+  $("inboxBulkDocPush")?.addEventListener("click", () => {
+    if (!confirm("FCM-Push für alle ablaufenden Dokumente in der Liste senden?")) return;
+    runInboxBulk("push_document_reminders").catch((e) => showActionToast(e.message, true));
+  });
+  $("inboxBulkLeaveOk")?.addEventListener("click", () => {
+    if (!confirm("Alle offenen Urlaubsanträge in der Liste genehmigen?")) return;
+    runInboxBulk("approve_pending_leave", { decision: "approve" }).catch((e) =>
+      showActionToast(e.message, true),
+    );
+  });
+  $("inboxBulkLeaveNo")?.addEventListener("click", () => {
+    if (!confirm("Alle offenen Urlaubsanträge ablehnen?")) return;
+    runInboxBulk("approve_pending_leave", { decision: "reject" }).catch((e) =>
+      showActionToast(e.message, true),
+    );
+  });
+  $("inboxBulkSysAck")?.addEventListener("click", () => {
+    runInboxBulk("ack_system_alerts").catch((e) => showActionToast(e.message, true));
+  });
+
   el.querySelectorAll(".inbox-exec").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id || "";

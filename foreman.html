@@ -506,7 +506,8 @@
       <p style="margin-top:0.6rem;font-size:0.88rem;opacity:0.95">
         <a href="/ops-live-map.html" style="color:#fff;margin-right:1rem">Live Karte</a>
         <a href="/ops-command-center.html" style="color:#fff;margin-right:1rem">Ops Center</a>
-        <a href="/ai-command-center.html" style="color:#fff">KI Assistent</a>
+        <a href="/ai-command-center.html" style="color:#fff;margin-right:1rem">KI Assistent</a>
+        <a href="/admin-v2/index.html" style="color:#fff">Admin v2</a>
       </p>
     </div>
 
@@ -646,7 +647,7 @@
           <label data-i18n="foremanMessageLabel">Nachricht</label>
           <textarea id="alertMessage" rows="3" placeholder="Nachricht eingeben..."></textarea>
         </div>
-        <button class="form-submit" id="submitAlertBtn" data-i18n="foremanSendBtn">Versenken</button>
+        <button class="form-submit" id="submitAlertBtn" data-i18n="foremanSendBtn">Senden (Hybrid Push)</button>
       </div>
 
       <h3 data-i18n="foremanNotificationHistory">Benachrichtigungs-Verlauf</h3>
@@ -782,9 +783,9 @@
             <div><strong>Zuletzt:</strong> ${worker.lastEventTime ? new Date(worker.lastEventTime).toLocaleString('de-DE') : 'N/A'}</div>
           </div>
           <div class="team-card-actions">
-            <button onclick="sendAlert('${worker.workerId}', 'general')">Push</button>
-            <button onclick="askKi('${worker.name}', '${worker.workerId}')">KI</button>
-            <button onclick="viewDetails('${worker.workerId}')">Details</button>
+            <button type="button" onclick="sendQuickAlert('${worker.workerId}', 'checkout_reminder')">Checkout</button>
+            <button type="button" onclick="sendQuickAlert('${worker.workerId}', 'document_alert')">Dokument</button>
+            <button type="button" onclick="askKi('${worker.name}', '${worker.workerId}')">KI</button>
           </div>
         </div>
       `).join('');
@@ -898,41 +899,58 @@
 
     // ─ Notifications ──────────────────────────────────────────────────────────────
     async function loadNotifications() {
+      const list = document.getElementById('notificationList');
       try {
-        // Placeholder
-        document.getElementById('notificationList').innerHTML = '<p>Keine Benachrichtigungen</p>';
+        const data = await fetchAPI('/foreman/recent-notifications?limit=30');
+        const rows = data.notifications || [];
+        if (!rows.length) {
+          list.innerHTML = '<p class="muted">Noch keine Alerts versendet.</p>';
+          return;
+        }
+        list.innerHTML = rows
+          .map(
+            (n) => `
+          <div class="notification-item">
+            <strong>${n.workerName || n.workerId}</strong>
+            <span class="muted small">${n.type || ''} · ${(n.createdAt || '').slice(0, 16)}</span>
+            <p style="margin:0.35rem 0 0">${n.message || n.title || ''}</p>
+          </div>`,
+          )
+          .join('');
       } catch (error) {
-        console.error('Failed to load notifications:', error);
+        list.innerHTML = `<p class="error-message">${error.message}</p>`;
+      }
+    }
+
+    const QUICK_ALERTS = {
+      checkout_reminder: 'Bitte auschecken / Baustelle verlassen melden.',
+      document_alert: 'Bitte fehlendes oder ablaufendes Dokument mitbringen.',
+      late_start: 'Verspäteter Start — bitte Teamleitung informieren.',
+      general: 'Nachricht vom Vorarbeiter.',
+    };
+
+    async function sendQuickAlert(workerId, type) {
+      const message = QUICK_ALERTS[type] || QUICK_ALERTS.general;
+      try {
+        const res = await fetchAPI('/foreman/send-alert', {
+          method: 'POST',
+          body: JSON.stringify({ workerId, type, message }),
+        });
+        const d = res.pushDelivery || {};
+        alert(
+          d.delivered || res.pushSent
+            ? `Hybrid Push gesendet (${res.pushSent})`
+            : (d.hint || 'Kein FCM-Token — Mitarbeiter-App Push aktivieren.'),
+        );
+        loadNotifications();
+      } catch (e) {
+        alert('Fehler: ' + e.message);
       }
     }
 
     function askKi(name, workerId) {
       const q = encodeURIComponent(`Status und nächste Schritte für ${name} (ID ${workerId})?`);
       window.open(`/ai-command-center.html?autoprompt=${q}`, "_blank");
-    }
-
-    async function sendAlert(workerId, type) {
-      const message = prompt("Nachricht an Mitarbeiter:", "Bitte kurz zur Baustelle kommen / Dokument mitbringen.");
-      if (!message) return;
-      try {
-        const res = await fetchAPI("/foreman/send-alert", {
-          method: "POST",
-          body: JSON.stringify({ workerId, type: type || "general", message }),
-        });
-        const d = res.pushDelivery || {};
-        const ch = (d.channels || []).join(" + ");
-        alert(
-          d.delivered || res.pushSent
-            ? `Push gesendet (${res.pushSent})${ch ? ` via ${ch}` : ""}`
-            : (d.hint || "In-App gespeichert — kein Push-Token beim Mitarbeiter."),
-        );
-      } catch (e) {
-        alert("Fehler: " + e.message);
-      }
-    }
-
-    function viewDetails(workerId) {
-      window.open(`/admin-v2/index.html`, "_blank");
     }
 
     document.getElementById('submitAlertBtn')?.addEventListener('click', async () => {

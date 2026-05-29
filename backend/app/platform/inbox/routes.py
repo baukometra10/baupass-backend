@@ -67,5 +67,32 @@ def register_inbox_blueprint(flask_app) -> None:
         code = 200 if result.get("ok") else 400
         return jsonify(result), code
 
+    @inbox_bp.post("/inbox/bulk")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def inbox_bulk():
+        from .bulk import run_bulk_inbox_action
+
+        role = str(g.current_user.get("role") or "company-admin")
+        company_id = str(g.current_user.get("company_id") or "").strip()
+        data = request.get_json(silent=True) or {}
+        if role == "superadmin":
+            company_id = str(
+                request.args.get("company_id") or data.get("company_id") or company_id
+            ).strip()
+        action = str(data.get("action") or "").strip()
+        item_ids = data.get("item_ids") if isinstance(data.get("item_ids"), list) else None
+        decision = str(data.get("decision") or "approve").strip()
+        user_id = str(g.current_user.get("id") or g.current_user.get("username") or "")
+        result = run_bulk_inbox_action(
+            db=get_db(),
+            company_id=company_id,
+            user_id=user_id,
+            action=action,
+            item_ids=item_ids,
+            decision=decision,
+        )
+        return jsonify(result), 200 if result.get("ok") else 400
+
     if "platform_inbox" not in flask_app.blueprints:
         flask_app.register_blueprint(inbox_bp, url_prefix="/api")

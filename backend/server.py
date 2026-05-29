@@ -13255,6 +13255,43 @@ def foreman_send_alert():
     })
 
 
+@app.get("/api/foreman/recent-notifications")
+@require_admin_session
+def foreman_recent_notifications():
+    """Letzte Foreman/Admin Alerts an Mitarbeiter (Firma)."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+    limit = min(max(int(request.args.get("limit", "40")), 1), 100)
+    rows = db.execute(
+        """
+        SELECT n.id, n.worker_id, n.type, n.title, n.message, n.created_at,
+               w.first_name, w.last_name, w.badge_id
+        FROM notifications n
+        JOIN workers w ON w.id = n.worker_id
+        WHERE n.company_id = ?
+        ORDER BY n.created_at DESC
+        LIMIT ?
+        """,
+        (company_id, limit),
+    ).fetchall()
+    items = []
+    for r in rows:
+        items.append(
+            {
+                "id": r["id"],
+                "workerId": r["worker_id"],
+                "workerName": f"{r['first_name']} {r['last_name']}".strip(),
+                "badgeId": r["badge_id"],
+                "type": r["type"],
+                "title": r["title"],
+                "message": r["message"],
+                "createdAt": r["created_at"],
+            }
+        )
+    return jsonify({"notifications": items, "total": len(items)})
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PHASE 2: ANALYTICS & INSIGHTS DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
