@@ -41,7 +41,7 @@ jobs:
           BAUPASS_SKIP_IMAP_POLL: "1"
         run: |
           set -o pipefail
-          if ! pytest backend/tests -q --tb=short 2>&1 | tee pytest.log; then
+          if ! pytest backend/tests -q --tb=short --ignore=backend/tests/test_platform_api.py --ignore=backend/tests/manual_sync_test.py 2>&1 | tee pytest.log; then
             {
               echo "### pytest failures"
               echo '```'

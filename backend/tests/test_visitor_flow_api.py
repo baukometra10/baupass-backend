@@ -10,19 +10,6 @@ import pytest
 from backend import server  # noqa: E402
 
 
-@pytest.fixture()
-def client_and_db(tmp_path, monkeypatch):
-    db_path = tmp_path / "baupass-test.db"
-    monkeypatch.setattr(server, "DB_PATH", db_path)
-    server.request_rate_state.clear()
-    server.failed_login_attempts.clear()
-    server.init_db()
-    server.app.config.update(TESTING=True)
-
-    with server.app.test_client() as client:
-        yield client, db_path
-
-
 def _auth_headers(client):
     response = client.post(
         "/api/login",

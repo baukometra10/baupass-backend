@@ -1,31 +1,17 @@
 """Worker-app NFC attendance endpoint (pytest)."""
 from __future__ import annotations
 
-import os
-import sys
 import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-os.environ.setdefault("BAUPASS_ENABLE_BACKGROUND_JOBS", "0")
-os.environ.setdefault("BAUPASS_ENABLE_IMAP_POLLER", "0")
-os.environ["BAUPASS_DB_PATH"] = str(Path(__file__).resolve().parent / "baupass-test.db")
-
 from backend import server  # noqa: E402
 
-server.DB_PATH = Path(os.environ["BAUPASS_DB_PATH"])
 
-
-@pytest.fixture(scope="module")
-def client():
-    server.init_db()
-    return server.app.test_client()
+@pytest.fixture()
+def client(worker_client):
+    return worker_client
 
 
 @pytest.fixture
@@ -77,7 +63,7 @@ def nfc_worker_session(client):
             (worker_id, token, expires),
         )
         db.commit()
-        yield {
+        return {
             "token": token,
             "worker_id": worker_id,
             "card_uid": card_uid,

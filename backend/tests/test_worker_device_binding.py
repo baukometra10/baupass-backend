@@ -2,37 +2,26 @@
 from __future__ import annotations
 
 import os
-import sys
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-os.environ.setdefault("BAUPASS_ENABLE_BACKGROUND_JOBS", "0")
-os.environ.setdefault("BAUPASS_ENABLE_IMAP_POLLER", "0")
-os.environ["BAUPASS_DB_PATH"] = str(Path(__file__).resolve().parent / "baupass-device-test.db")
-os.environ["BAUPASS_WORKER_DEVICE_BINDING"] = "1"
-os.environ["BAUPASS_WORKER_JWT"] = "1"
-os.environ["BAUPASS_WORKER_JWT_SECRET"] = "test-worker-jwt-secret"
-
 from backend import server  # noqa: E402
 from backend.app.platform.security.worker_devices import verify_worker_access_jwt  # noqa: E402
 
-server.DB_PATH = Path(os.environ["BAUPASS_DB_PATH"])
+
+@pytest.fixture()
+def client(worker_client):
+    os.environ["BAUPASS_WORKER_DEVICE_BINDING"] = "1"
+    os.environ["BAUPASS_WORKER_JWT"] = "1"
+    os.environ["BAUPASS_WORKER_JWT_SECRET"] = "test-worker-jwt-secret"
+    return worker_client
 
 
-@pytest.fixture(scope="module")
-def client():
-    server.init_db()
-    return server.app.test_client()
-
-
-def _seed_worker(db, badge_id="BP-DEV-1", pin="1234"):
+def _seed_worker(db, badge_id=None, pin="1234"):
+    badge_id = badge_id or f"BP-DEV-{uuid.uuid4().hex[:6].upper()}"
     company_id = "cmp-device-test"
     try:
         db.execute(
@@ -49,8 +38,9 @@ def _seed_worker(db, badge_id="BP-DEV-1", pin="1234"):
         INSERT INTO workers (
             id, company_id, first_name, last_name, insurance_number,
             worker_type, role, site, valid_until, status, photo_data,
-            badge_id, badge_id_lookup, badge_pin_hash, physical_card_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            badge_id, badge_id_lookup, badge_pin_hash, physical_card_id,
+            site_latitude, site_longitude
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             worker_id,
@@ -68,6 +58,8 @@ def _seed_worker(db, badge_id="BP-DEV-1", pin="1234"):
             badge_id,
             server.generate_password_hash(pin),
             "04A1B2C3D4E5F6",
+            52.52,
+            13.405,
         ),
     )
     db.commit()
@@ -84,6 +76,7 @@ def test_login_binds_device_and_issues_jwt(client):
         json={
             "badgeId": badge_id,
             "badgePin": pin,
+            "location": {"latitude": 52.52, "longitude": 13.405},
             "device": {
                 "fingerprint": "test-device-fp-001",
                 "name": "Test Phone",
