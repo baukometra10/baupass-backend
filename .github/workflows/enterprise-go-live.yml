@@ -1,0 +1,61 @@
+# Re-run enterprise go-live checks without a full Railway deploy.
+# Required secret: PUBLIC_BASE_URL (e.g. https://baupass-production.up.railway.app)
+name: enterprise-go-live
+
+on:
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: Fail on recommended env gaps (not only critical)
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  schedule:
+    # Daily sanity check on production (06:00 UTC)
+    - cron: "0 6 * * *"
+
+concurrency:
+  group: enterprise-go-live
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: ${{ secrets.PUBLIC_BASE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Enterprise go-live (live)
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          STRICT: ${{ github.event.inputs.strict || 'false' }}
+        run: |
+          set -e
+          ARGS=(--base-url "$PUBLIC_BASE_URL")
+          if [ "$STRICT" = "true" ]; then ARGS+=(--strict); fi
+          python backend/ops/validate_enterprise_env.py "${ARGS[@]}"
+
+      - name: Production cutover check (DR/queues — non-blocking)
+        continue-on-error: true
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+        run: python backend/ops/production_cutover_check.py --base-url "$PUBLIC_BASE_URL"
+
+  missing-url-hint:
+    if: ${{ secrets.PUBLIC_BASE_URL == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure PUBLIC_BASE_URL secret
+        run: |
+          echo "Set repository secret PUBLIC_BASE_URL to your Railway HTTPS URL."
+          echo "Example: https://baupass-production.up.railway.app"
+          exit 1

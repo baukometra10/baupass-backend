@@ -4,6 +4,7 @@
 # Required GitHub repository secrets:
 #   RAILWAY_TOKEN        – Account token from https://railway.com/account/tokens
 #   RAILWAY_SERVICE_ID   – Service ID (Railway → Service → Settings → Service ID)
+#   PUBLIC_BASE_URL      – e.g. https://baupass-production.up.railway.app (enterprise go-live checks)
 name: railway-deploy
 
 on:
@@ -38,9 +39,17 @@ jobs:
 
   smoke-test:
     needs: deploy
-    if: ${{ secrets.PUBLIC_BASE_URL != '' }}
+    if: ${{ always() && (needs.deploy.result == 'success' || needs.deploy.result == 'skipped') && secrets.PUBLIC_BASE_URL != '' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Wait for service
         run: sleep 45
 
@@ -59,6 +68,27 @@ jobs:
           curl -fsS "$BASE_URL/api/platform/setup-status" | grep -q readyScore
           curl -fsS "$BASE_URL/worker-join-config.json" | grep -q apkUrl
           echo "Smoke tests passed (health + admin-v2 + enterprise-hub + join)."
+
+      - name: Enterprise go-live validation (live API)
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+        run: |
+          set -e
+          python backend/ops/validate_enterprise_env.py \
+            --base-url "$PUBLIC_BASE_URL" \
+            --json-only > /tmp/enterprise-report.json
+          python - <<'PY'
+          import json, sys
+          with open("/tmp/enterprise-report.json") as f:
+              r = json.load(f)
+          print(json.dumps(r, indent=2, ensure_ascii=False))
+          if not r.get("ok"):
+              sys.exit("Enterprise go-live checks failed (critical or live API)")
+          ent = (r.get("live") or {}).get("checks", {}).get("health", {}).get("enterprise") or {}
+          if ent.get("demoAllowed") is True:
+              sys.exit("demoAllowed must be false on production")
+          print("Enterprise go-live: OK")
+          PY
 
   deploy-skipped-hint:
     if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_SERVICE_ID == '' }}

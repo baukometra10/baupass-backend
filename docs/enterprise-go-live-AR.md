@@ -40,6 +40,15 @@ python backend/ops/production_cutover_check.py --base-url https://baupass-produc
 .\deploy\railway-health-check.ps1 -BaseUrl "https://baupass-production.up.railway.app"
 ```
 
+### GitHub Actions (automatisch)
+
+| Workflow | Wann |
+|----------|------|
+| `railway-deploy` | Nach jedem Push auf `main` (Job `smoke-test` + Enterprise-Validator) |
+| `enterprise-go-live` | Täglich 06:00 UTC + manuell (`workflow_dispatch`) |
+
+Repository secret **`PUBLIC_BASE_URL`** erforderlich (z. B. `https://baupass-production.up.railway.app`).
+
 **Exit-Code `0`** = kritische Checks OK · **`2`** = vor Go-Live beheben.
 
 Antworten live:
