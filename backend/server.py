@@ -12297,13 +12297,20 @@ def _qr_png_response(payload_text):
 
 @app.get("/worker-join-config.json")
 def worker_join_config_public():
-    """Public distribution URLs for join.html (APK, TestFlight, stores)."""
+    """Public distribution URLs for join.html (hybrid Flutter app first)."""
+    from backend.app.domains.workers.mobile_distribution import build_mobile_distribution
+
+    install = build_mobile_distribution(get_public_base_url()).get("install") or {}
     return jsonify(
         {
-            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or "").strip(),
-            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip(),
-            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or "").strip(),
-            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or "").strip(),
+            "workerAppKind": "hybrid_native",
+            "primaryChannel": "flutter_fcm",
+            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or install.get("apkUrl") or "").strip(),
+            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or install.get("testFlightUrl") or "").strip(),
+            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or install.get("playStoreUrl") or "").strip(),
+            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or install.get("appStoreUrl") or "").strip(),
+            "joinPage": install.get("joinPage") or f"{get_public_base_url()}/join.html",
+            "deepLinkScheme": "baupass://join",
         }
     )
 

@@ -297,6 +297,25 @@ main {
   border-color: #5eead4;
 }
 
+.ops-strip-kpi {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #111820;
+  color: var(--muted);
+}
+
+.ops-strip-kpi strong {
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+
+.ops-strip-tab {
+  font-size: 0.82rem !important;
+  padding: 0.4rem 0.75rem !important;
+}
+
 .inbox-toast {
   margin-bottom: 0.75rem;
   padding: 0.6rem 0.85rem;
@@ -482,6 +501,51 @@ main {
   border: 1px solid var(--border);
   background: linear-gradient(160deg, #141c26 0%, #0f151c 100%);
   min-height: 148px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.ops-layer-card:hover {
+  border-color: #4a6278;
+}
+
+.ops-layer-card:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+.ops-layer-more {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.ops-layer-modal-card {
+  max-width: 520px;
+  width: min(520px, 94vw);
+}
+
+.ops-layer-modal-stat {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.ops-layer-detail-wrap {
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.ops-layer-detail-table td:first-child {
+  width: 42%;
+  color: var(--muted);
+  font-size: 0.82rem;
+  vertical-align: top;
+  padding: 0.35rem 0.5rem 0.35rem 0;
+}
+
+.ops-layer-detail-table td:last-child {
+  font-size: 0.88rem;
+  padding: 0.35rem 0;
 }
 
 .ops-layer-card.ops-tone-warn {

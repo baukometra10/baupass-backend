@@ -115,6 +115,14 @@ function statusBadge(ok) {
     : '<span class="badge badge-warn">يحتاج إعداد</span>';
 }
 
+function escapeHtml(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function formatPushDelivery(res) {
   const d = res?.pushDelivery || res;
   if (!d) return "";
@@ -548,16 +556,84 @@ function renderOpsLayerCard(key, title, icon, val) {
   const num = String(key).replace(/\D/g, "").padStart(2, "0") || "—";
   const meta = sum.lines.map((l) => `<li>${l}</li>`).join("");
   return `
-    <article class="ops-layer-card ops-tone-${sum.tone}" data-layer="${key}">
+    <article class="ops-layer-card ops-tone-${sum.tone}" data-layer="${key}" role="button" tabindex="0" title="Details anzeigen">
       <div class="ops-layer-head">
         <span class="ops-layer-num">${num}</span>
         <span class="ops-layer-icon" aria-hidden="true">${icon}</span>
       </div>
       <h4 class="ops-layer-title">${title}</h4>
-      <p class="ops-layer-stat">${sum.stat}</p>
+      <p class="ops-layer-stat">${escapeHtml(sum.stat)}</p>
       ${meta ? `<ul class="ops-layer-meta">${meta}</ul>` : ""}
+      <span class="ops-layer-more muted small">Details ›</span>
     </article>
   `;
+}
+
+function formatOpsLayerDetailRows(val) {
+  const rows = [];
+  const push = (label, value) => {
+    if (value === undefined || value === null || value === "") return;
+    rows.push(`<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`);
+  };
+  const v = val && typeof val === "object" ? val : {};
+  if (v.layer) push("Layer", v.layer);
+  if (v.status) push("Status", v.status);
+  if (v.date) push("Datum", v.date);
+  if (v.company_id || v.companyId) push("Firma", v.company_id || v.companyId);
+  if (v.summary && typeof v.summary === "object") {
+    for (const [sk, sv] of Object.entries(v.summary)) push(sk, sv);
+  }
+  if (Array.isArray(v.openAlerts)) push("Offene Security-Alerts", v.openAlerts.length);
+  if (v.newFindings != null) push("Neue Findings", v.newFindings);
+  if (v.averageScore != null) push("Reputation Ø", Number(v.averageScore).toFixed(1));
+  if (v.active != null) push("Notfall aktiv", v.active ? "Ja" : "Nein");
+  if (v.events24h != null) push("Kamera Events 24h", v.events24h);
+  if (v.totalOnSite != null) push("MA on-site", v.totalOnSite);
+  if (v.openEmergencies != null) push("Offene Notfälle", v.openEmergencies);
+  if (v.openSecurity != null) push("Security offen", v.openSecurity);
+  if (v.enabledRules != null) push("Automation Regeln", v.enabledRules);
+  if (Array.isArray(v.devices)) push("IoT Geräte", v.devices.length);
+  if (Array.isArray(v.busiestGates)) push("Top-Tore", v.busiestGates.length);
+  if (v.configured != null) push("Copilot", v.configured ? "bereit" : "nicht konfiguriert");
+  if (v.endpoint) push("API", v.endpoint);
+  if (rows.length < 4) {
+    for (const [k, raw] of Object.entries(v)) {
+      if (["entities", "liveMovement", "findings", "leaderboard", "workers"].includes(k)) {
+        push(k, Array.isArray(raw) ? `${raw.length} Einträge` : "Objekt");
+        continue;
+      }
+      if (typeof raw === "object" && raw !== null) continue;
+      push(k, raw);
+      if (rows.length >= 14) break;
+    }
+  }
+  return rows.join("") || '<tr><td colspan="2" class="muted">Keine Detaildaten</td></tr>';
+}
+
+function openOpsLayerModal(layerKey) {
+  const layers = window.__opsLayersCache || {};
+  const meta = OPS_LAYER_ORDER.find(([k]) => k === layerKey);
+  const title = meta ? meta[1] : layerKey;
+  const val = layers[layerKey];
+  const sum = summarizeOpsLayer(layerKey, val);
+  $("opsLayerModalTitle").textContent = title;
+  $("opsLayerModalStat").textContent = sum.stat;
+  $("opsLayerModalBody").innerHTML = formatOpsLayerDetailRows(val);
+  $("opsLayerModal").classList.remove("hidden");
+}
+
+function initOpsLayerCards(root) {
+  if (!root) return;
+  root.querySelectorAll(".ops-layer-card").forEach((card) => {
+    const open = () => openOpsLayerModal(card.dataset.layer || "");
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+  });
 }
 
 function initOpsCarousel(root) {
@@ -656,7 +732,9 @@ async function loadOperations() {
       </div>
       <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="Live Karte" class="ops-map-frame"></iframe>
     `;
+    window.__opsLayersCache = layers;
     initOpsCarousel($("opsCarousel"));
+    initOpsLayerCards($("opsCarousel"));
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || "تعذّر تحميل العمليات — قد تحتاج جداول إضافية في DB"}</p>`;
   }
@@ -952,10 +1030,14 @@ async function loadOverview() {
     $("statCards").innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
     return;
   }
-  const [overview, inbox, roleDash] = await Promise.all([
+  const cid = q.replace("?company_id=", "");
+  const [overview, inbox, roleDash, opsBrief] = await Promise.all([
     api(`/api/v2/admin/overview${q}`),
     api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
     api(`/api/dashboard/role${q}`).catch(() => null),
+    cid
+      ? api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`).catch(() => null)
+      : Promise.resolve(null),
   ]);
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
@@ -1004,12 +1086,23 @@ async function loadOverview() {
   const strip = $("opsCommandStrip");
   if (strip && q) {
     strip.classList.remove("hidden");
+    const twin = opsBrief?.layers?.["1_digital_twin"]?.summary || {};
+    const sec = opsBrief?.layers?.["2_ai_security"] || {};
+    const emg = opsBrief?.layers?.["5_emergency"] || {};
     strip.innerHTML = `
+      <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> on-site</span>
+      <span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> Security</span>
+      <span class="ops-strip-kpi">${emg.active ? "🚨 Notfall" : "✓ ruhig"}</span>
       <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">Ops Command Center</a>
       <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">Live Karte</a>
       <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">KI Command Center</a>
       <a href="/foreman.html" target="_blank" rel="noopener">Vorarbeiter</a>
+      <button type="button" class="ghost ops-strip-tab" data-goto-tab="operations">12 Ebenen →</button>
     `;
+    strip.querySelector(".ops-strip-tab")?.addEventListener("click", async () => {
+      switchToTab("operations");
+      await loadOperations();
+    });
   } else if (strip) {
     strip.classList.add("hidden");
   }
@@ -1318,6 +1411,14 @@ $("integrationWizardForm")?.addEventListener("submit", async (ev) => {
 $("integrationModalClose")?.addEventListener("click", () => {
   $("integrationModal").classList.add("hidden");
   pendingIntegrationProvider = null;
+});
+
+$("opsLayerModalClose")?.addEventListener("click", () => {
+  $("opsLayerModal")?.classList.add("hidden");
+});
+
+$("opsLayerModal")?.addEventListener("click", (e) => {
+  if (e.target?.id === "opsLayerModal") $("opsLayerModal").classList.add("hidden");
 });
 
 const langSel = $("langSelect");

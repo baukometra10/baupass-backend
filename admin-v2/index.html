@@ -144,11 +144,24 @@
     </div>
   </div>
 
+  <div id="opsLayerModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card ops-layer-modal-card">
+      <h2 id="opsLayerModalTitle">Ebene</h2>
+      <p id="opsLayerModalStat" class="ops-layer-modal-stat"></p>
+      <div class="table-wrap ops-layer-detail-wrap">
+        <table class="ops-layer-detail-table"><tbody id="opsLayerModalBody"></tbody></table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="opsLayerModalClose" class="ghost">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <h2>تفعيل تطبيق الموظف</h2>
       <p id="joinModalName" class="muted"></p>
-      <p class="muted small">اطلب من الموظف مسح رمز QR بهاتفه — ثم تثبيت التطبيق (APK أو TestFlight) وفتح «في التطبيق».</p>
+      <p class="muted small">Hybrid-App (Flutter): QR scannen → APK oder TestFlight installieren → „In App öffnen“.</p>
       <div class="join-qr-wrap">
         <img id="joinQrImg" alt="QR" width="240" height="240" />
       </div>
@@ -163,6 +176,6 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260528i" type="module"></script>
+  <script src="app.js?v=20260528o" type="module"></script>
 </body>
 </html>

@@ -52,8 +52,9 @@
 </head>
 <body class="notranslate" translate="no">
   <main class="card">
-    <h1 id="title">BauPass Mitarbeiter-App</h1>
-    <p id="subtitle">Installiere die App und melde dich mit diesem Einmal-Link an.</p>
+    <h1 id="title">BauPass Hybrid-App</h1>
+    <p id="subtitle">Native App (Flutter) installieren — dann mit diesem Einmal-Link anmelden.</p>
+    <p class="muted" id="hybridBadge" style="font-weight:600;color:#1b5e8c">Empfohlen: Flutter-App (Android / iPhone)</p>
     <p id="hint" class="muted"></p>
     <div id="statusBox" class="status hidden"></div>
     <div class="actions">
@@ -62,7 +63,7 @@
       <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener">iPhone: TestFlight</a>
       <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener">Google Play</a>
       <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener">App Store</a>
-      <a id="pwaBtn" class="btn secondary hidden" href="#">Web-App (PWA, Fallback)</a>
+      <a id="pwaBtn" class="btn secondary hidden" href="#" style="font-size:0.9rem;opacity:0.85">Browser-Fallback (alt, nur wenn nötig)</a>
     </div>
     <p class="muted" id="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
   </main>
@@ -124,7 +125,7 @@
 
     async function loadConfig() {
       try {
-        const res = await fetch(`./worker-join-config.json?t=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch(`/worker-join-config.json?t=${Date.now()}`, { cache: "no-store" });
         if (res.ok) return await res.json();
       } catch { /* ignore */ }
       return {};
