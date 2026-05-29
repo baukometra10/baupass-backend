@@ -58,14 +58,27 @@ def register_worker_ai_blueprint(flask_app) -> None:
             "site": worker.get("site"),
             "status": worker.get("status"),
         }
-        result = run_agent_query(
+        from .intents import try_intent_response
+
+        intent_hit = try_intent_response(
             get_db(),
             company_id,
             question,
-            agent_id="hr",
-            lang=lang,
             role="worker",
+            lang=lang,
+            worker=worker,
         )
+        if intent_hit:
+            result = intent_hit
+        else:
+            result = run_agent_query(
+                get_db(),
+                company_id,
+                question,
+                agent_id="hr",
+                lang=lang,
+                role="worker",
+            )
         result["worker"] = ctx_worker
         return jsonify(result)
 
@@ -95,7 +108,27 @@ def register_worker_ai_blueprint(flask_app) -> None:
 
         question = tr["text"]
         lang = str(data.get("lang") or "de")[:2]
-        result = run_agent_query(get_db(), company_id, question, agent_id="hr", lang=lang, role="worker")
+        from .intents import try_intent_response
+
+        intent_hit = try_intent_response(
+            get_db(),
+            company_id,
+            question,
+            role="worker",
+            lang=lang,
+            worker=worker,
+        )
+        if intent_hit:
+            result = intent_hit
+        else:
+            result = run_agent_query(
+                get_db(),
+                company_id,
+                question,
+                agent_id="hr",
+                lang=lang,
+                role="worker",
+            )
         result["transcript"] = question
         return jsonify(result)
 

@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260525b";
+const WORKER_BUILD_TAG = "20260529e";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -942,7 +942,12 @@ const elements = {
   companyModeLead: document.querySelector("#companyModeLead"),
   companyModeFeatureList: document.querySelector("#companyModeFeatureList"),
   documentsCard: document.querySelector("#documentsCard"),
-  documentsList: document.querySelector("#documentsList")
+  documentsList: document.querySelector("#documentsList"),
+  workerAiCard: document.querySelector("#workerAiCard"),
+  workerAiLog: document.querySelector("#workerAiLog"),
+  workerAiForm: document.querySelector("#workerAiForm"),
+  workerAiQuestion: document.querySelector("#workerAiQuestion"),
+  workerAiVoiceBtn: document.querySelector("#workerAiVoiceBtn"),
 };
 
 const splashStartedAt = performance.now();
@@ -1313,6 +1318,7 @@ function getWorkerPageTitle(targetId) {
   if (targetId === "dailyInsightsCard") return t("dailyInsightsTitle");
   if (targetId === "actionsPanel") return t("actionsTitle");
   if (targetId === "leaveRequestCard") return t("leaveRequestTitle");
+  if (targetId === "workerAiCard") return t("workerAiTitle");
   if (targetId === "incidentCard") return t("incidentTitle");
   if (targetId === "timesheetCard") return t("timesheetCardTitle");
   if (targetId === "documentsCard") return t("documentsTitle");
@@ -1327,6 +1333,7 @@ function getWorkerPageSections() {
     document.querySelector("#dailyInsightsCard"),
     document.querySelector("#actionsPanel"),
     elements.leaveRequestCard,
+    elements.workerAiCard,
     elements.incidentCard,
     elements.timesheetCard,
     elements.documentsCard,
@@ -1819,6 +1826,21 @@ function bindEvents() {
 
   if (elements.leaveRequestAiBtn) {
     elements.leaveRequestAiBtn.addEventListener("click", applyAiLeaveSuggestion);
+  }
+
+  if (elements.workerAiForm) {
+    elements.workerAiForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitWorkerAiQuestion();
+    });
+  }
+  if (globalThis.BaupassAiUi?.bindVoiceInput && elements.workerAiQuestion) {
+    globalThis.BaupassAiUi.bindVoiceInput({
+      inputId: "workerAiQuestion",
+      buttonId: "workerAiVoiceBtn",
+      lang: getWorkerLang(),
+      onTranscript: () => void submitWorkerAiQuestion(),
+    });
   }
 
   // Urlaubstage live berechnen
@@ -5955,23 +5977,106 @@ function initVoiceCommands() {
   }
 }
 
+function getWorkerLang() {
+  return String(localStorage.getItem("baupass-worker-lang") || "de").slice(0, 2);
+}
+
+function formatWorkerAiAnswerHtml(text) {
+  const safe = escapeHtmlBasic(String(text || ""));
+  return safe.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
+}
+
+function appendWorkerAiLog(role, text, actions = []) {
+  if (!elements.workerAiLog || !text) return;
+  const row = document.createElement("div");
+  row.className = role === "user" ? "worker-ai-msg-user" : "worker-ai-msg-bot";
+  if (role === "bot") {
+    row.innerHTML = formatWorkerAiAnswerHtml(text);
+  } else {
+    row.textContent = text;
+  }
+  elements.workerAiLog.appendChild(row);
+  if (role === "bot" && actions?.length && globalThis.BaupassAiUi?.renderActionButtons) {
+    const actionHost = document.createElement("div");
+    actionHost.className = "worker-ai-action-host";
+    globalThis.BaupassAiUi.renderActionButtons(actionHost, actions, getWorkerLang());
+    actionHost.querySelectorAll(".ai-action-btn").forEach((btn) => {
+      btn.classList.add("worker-ai-action-btn");
+    });
+    elements.workerAiLog.appendChild(actionHost);
+  }
+  elements.workerAiLog.scrollTop = elements.workerAiLog.scrollHeight;
+}
+
+async function submitWorkerAiQuestion() {
+  const question = (elements.workerAiQuestion?.value || "").trim();
+  if (!question) return;
+  if (!workerToken) {
+    showWorkerNotice(t("sessionExpired"));
+    return;
+  }
+  appendWorkerAiLog("user", question);
+  if (elements.workerAiQuestion) {
+    elements.workerAiQuestion.value = "";
+  }
+  try {
+    const payload = await fetchJson(`${API_BASE}/ai/ask`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${workerToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ question, lang: getWorkerLang() }),
+    });
+    const answer = payload?.answer || payload?.message || t("workerAiNoAnswer");
+    const actions = payload?.actions || payload?.suggestedActions || [];
+    appendWorkerAiLog("bot", answer, actions);
+  } catch (error) {
+    appendWorkerAiLog("bot", formatWorkerApiError(error));
+  }
+}
+
+function isWorkerAiQuestion(text) {
+  const cmd = text.toLowerCase().trim();
+  if (!cmd) return false;
+  if (/(kontakt|contact|hilfe|help|admin|chef|support|mail|email|dokument|document|stunden|zeiten|urlaub|leave|ki\b|ai\b|frage|question|مساعدة|اتصل)/i.test(cmd)) {
+    return true;
+  }
+  return cmd.length > 28;
+}
+
 function processVoiceCommand(text) {
   const cmd = text.toLowerCase().trim();
   showWorkerNotice(`Befehl: "${text}"`);
-  
+
   if (cmd.includes("ausbuchen") || cmd.includes("checkout")) {
     openGateMode();
-  } else if (cmd.includes("antrag") || cmd.includes("urlaub")) {
+    return;
+  }
+  if (cmd.includes("antrag") || cmd.includes("urlaub")) {
+    applyWorkerPageView("leaveRequestCard");
     toggleLeaveRequestForm();
-  } else if (cmd.includes("thema") || cmd.includes("theme")) {
+    return;
+  }
+  if (cmd.includes("thema") || cmd.includes("theme")) {
     toggleTheme();
-  } else if (cmd.includes("beenden") || cmd.includes("exit")) {
+    return;
+  }
+  if (cmd.includes("beenden") || cmd.includes("exit")) {
     if (!elements.gateScannerOverlay?.classList.contains("hidden")) {
       closeGateMode();
     }
-  } else {
-    showWorkerNotice(`"${text}" nicht erkannt. Versuchen Sie: Ausbuchen, Antrag, Thema`);
+    return;
   }
+  if (isWorkerAiQuestion(text)) {
+    applyWorkerPageView("workerAiCard");
+    if (elements.workerAiQuestion) {
+      elements.workerAiQuestion.value = text.trim();
+    }
+    void submitWorkerAiQuestion();
+    return;
+  }
+  showWorkerNotice(`"${text}" nicht erkannt. Versuchen Sie: Ausbuchen, Antrag, Kontakt, Dokumente`);
 }
 
 // ═════════════════════════════════════════════════════════════════════

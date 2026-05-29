@@ -74,6 +74,12 @@
     }
     if (action.type === "execute" && typeof global.runExecuteAction === "function") {
       global.runExecuteAction(action, "");
+      return;
+    }
+    if (action.type === "worker_tab" && action.tab && typeof global.applyWorkerPageView === "function") {
+      global.applyWorkerPageView(action.tab);
+      const target = global.document?.getElementById(action.tab);
+      target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     }
   }
 

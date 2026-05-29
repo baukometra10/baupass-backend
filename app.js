@@ -372,6 +372,7 @@ const UI_TRANSLATIONS = {
     reportingCheckin: "Check-in",
     reportingCheckout: "Check-out",
     navEnterpriseSection: "Enterprise",
+    navBaupassAi: "BauPass KI",
     navEnterpriseHub: "Enterprise-Hub",
     navOpsCenter: "Ops-Zentrale",
     navAdminV2: "Betrieb v2",
@@ -1200,6 +1201,10 @@ const UI_TRANSLATIONS = {
     enterpriseHubDesc: "All built capabilities (attendance, identity, security, AI, integrations …) in one place — filtered by your plan.",
     enterpriseHubOpenBtn: "Open enterprise hub",
     enterpriseEmbedOpenTab: "Open in new tab",
+    navBaupassAi: "BauPass AI",
+    navEnterpriseHub: "Enterprise Hub",
+    navOpsCenter: "Ops center",
+    navAdminV2: "Operations v2",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "Operations center",
     enterpriseHubPlanHint: "Current plan: {plan} — {enabled} of {total} features active ({percent}%). Superadmin: select company preview to simulate customer plan.",
@@ -2772,6 +2777,10 @@ const UI_TRANSLATIONS = {
     enterpriseHubDesc: "كل القدرات التي بُنيت (حضور، هوية، أمن، AI، تكاملات…) في مكان واحد — مُخصّصة حسب خطتك.",
     enterpriseHubOpenBtn: "فتح مركز المؤسسة",
     enterpriseEmbedOpenTab: "فتح في تبويب جديد",
+    navBaupassAi: "BauPass KI",
+    navEnterpriseHub: "مركز المؤسسة",
+    navOpsCenter: "مركز العمليات",
+    navAdminV2: "التشغيل v2",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
@@ -7764,6 +7773,7 @@ const PLAN_WORKER_FREE_INCLUDED = {
 const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
 /** Enterprise sidebar (under Dokumente) — in-app embed views, filtered by plan */
 const ENTERPRISE_NAV_ITEMS = [
+  { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navBaupassAi", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
   { id: "admin-v2", view: "admin-v2", path: "/admin-v2/index.html", labelKey: "navAdminV2", minPlan: "starter", version: true, embed: true },
@@ -7771,6 +7781,7 @@ const ENTERPRISE_NAV_ITEMS = [
 ];
 
 const ENTERPRISE_EMBED_META = {
+  "ai-assistant": { frameId: "aiAssistantFrame", externalLinkId: "aiAssistantExternalLink", defaultItemId: "ai-assistant" },
   "enterprise-hub": { frameId: "enterpriseHubFrame", externalLinkId: "enterpriseHubExternalLink", defaultItemId: "enterprise-hub" },
   "ops-center": { frameId: "opsCenterFrame", externalLinkId: "opsCenterExternalLink", defaultItemId: "ops-center" },
   "admin-v2": { frameId: "adminV2Frame", externalLinkId: "adminV2ExternalLink", defaultItemId: "admin-v2" },
@@ -15783,7 +15794,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260529d");
+    params.push("v=20260529e");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);

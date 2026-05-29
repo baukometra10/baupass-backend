@@ -130,6 +130,37 @@ def _format_contact_answer(ctx: dict[str, Any], lang: str) -> str:
     )
 
 
+def _format_worker_contact_answer(ctx: dict[str, Any], lang: str) -> str:
+    cn = ctx.get("companyName") or "—"
+    cc = ctx.get("companyContact") or "—"
+    we = ctx.get("workerEmail") or "—"
+    op = ctx.get("operatorName") or "BauPass Support"
+    mail = ctx.get("supportEmail") or "—"
+    if lang == "ar":
+        return (
+            f"**شركتك ({cn})**\n"
+            f"• جهة اتصال الشركة: {cc}\n"
+            f"• بريدك المسجّل: {we}\n\n"
+            f"**الدعم ({op})**\n"
+            f"• بريد الدعم: {mail}"
+        )
+    if lang == "en":
+        return (
+            f"**Your company ({cn})**\n"
+            f"• Company contact: {cc}\n"
+            f"• Your email on file: {we}\n\n"
+            f"**{op} support**\n"
+            f"• Support email: {mail}"
+        )
+    return (
+        f"**Ihre Firma ({cn})**\n"
+        f"• Firmen-Kontakt / Admin: {cc}\n"
+        f"• Ihre hinterlegte E-Mail: {we}\n\n"
+        f"**{op} Support**\n"
+        f"• Support-E-Mail: {mail}"
+    )
+
+
 def try_intent_response(
     db,
     company_id: str,
@@ -137,6 +168,7 @@ def try_intent_response(
     *,
     role: str = "company-admin",
     lang: str = "de",
+    worker: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     q = (question or "").strip()
     if not q or not company_id:
@@ -145,6 +177,12 @@ def try_intent_response(
 
     if _CONTACT_PATTERNS.search(q):
         ctx = _load_help_context(db, company_id)
+        if worker:
+            ctx["workerEmail"] = (
+                worker.get("contact_email")
+                or worker.get("contactEmail")
+                or ""
+            )
         actions: list[dict[str, Any]] = []
         if ctx.get("companyContact"):
             contact = str(ctx["companyContact"])
@@ -180,14 +218,63 @@ def try_intent_response(
                 "labelAr": "فتح Admin v2",
             }
         )
+        answer_fn = _format_worker_contact_answer if worker else _format_contact_answer
+        if worker:
+            if ctx.get("companyContact") and "@" in str(ctx["companyContact"]):
+                actions.append(
+                    {
+                        "id": "mail_boss",
+                        "type": "navigate",
+                        "url": f"mailto:{ctx['companyContact']}",
+                        "labelDe": "Chef / Admin mailen",
+                        "labelEn": "Email admin",
+                        "labelAr": "مراسلة المدير",
+                    }
+                )
+            actions.append(
+                {
+                    "id": "worker_leave",
+                    "type": "worker_tab",
+                    "tab": "leaveRequestCard",
+                    "labelDe": "Urlaubsantrag",
+                    "labelEn": "Leave request",
+                    "labelAr": "طلب إجازة",
+                }
+            )
         return {
-            "answer": _format_contact_answer(ctx, lang),
+            "answer": answer_fn(ctx, lang),
             "intent": "contact_help",
             "configured": True,
             "sources": ["company_directory", "platform_settings"],
             "actions": actions,
             "suggestedActions": actions,
         }
+
+    if worker:
+        wnav = [
+            (re.compile(r"(urlaub|krank|abwesen|leave|إجاز)", re.I), "leaveRequestCard", {"de": "Urlaubsantrag", "en": "Leave", "ar": "إجازة"}),
+            (re.compile(r"(dokument|document|nachweis|وثائق)", re.I), "documentsCard", {"de": "Dokumente", "en": "Documents", "ar": "مستندات"}),
+            (re.compile(r"(stunden|zeiten|timesheet|ساعات)", re.I), "timesheetCard", {"de": "Stunden", "en": "Hours", "ar": "ساعات"}),
+            (re.compile(r"(ausweis|badge|qr|بطاقة)", re.I), "sessionInfoCard", {"de": "Ausweis", "en": "Badge", "ar": "البطاقة"}),
+        ]
+        for pattern, tab, labels in wnav:
+            if pattern.search(q):
+                action = {
+                    "id": f"tab_{tab}",
+                    "type": "worker_tab",
+                    "tab": tab,
+                    "labelDe": labels["de"],
+                    "labelEn": labels["en"],
+                    "labelAr": labels["ar"],
+                }
+                return {
+                    "answer": _label(labels, lang) + (" öffnen." if lang == "de" else ""),
+                    "intent": "worker_navigate",
+                    "configured": True,
+                    "sources": ["intent_router"],
+                    "actions": [action],
+                    "suggestedActions": [action],
+                }
 
     for pattern, url, labels in _NAV_RULES:
         if pattern.search(q):
