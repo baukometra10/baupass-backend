@@ -833,12 +833,12 @@ async function loadOperations() {
         <p class="ops-carousel-hint muted small"></p>
       </div>
       <div class="link-row">
-        <a href="/ops-live-map.html${q ? q.replace("?", "?") : "?company_id=" + encodeURIComponent(cid)}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
-        <a href="/ops-command-center.html" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
-        <a href="/ai-command-center.html${q}">${t("ops.aiCenter")}</a>
-        <a href="/enterprise-hub.html">${t("common.enterpriseHub")}</a>
+        <a href="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
+        <a href="/ops-command-center.html?embed=1${q ? q.replace("?", "&") : ""}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
+        <a href="/ai-command-center.html?embed=1${q ? q.replace("?", "&") : ""}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>
+        <a href="/enterprise-hub.html?embed=1${q ? q.replace("?", "&") : ""}" target="_blank" rel="noopener">${t("common.enterpriseHub")}</a>
       </div>
-      <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
+      <iframe src="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
     `;
     window.__opsLayersCache = layers;
     initOpsCarousel($("opsCarousel"));

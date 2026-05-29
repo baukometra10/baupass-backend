@@ -215,6 +215,14 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
+    (function initEmbed() {
+      const params = new URLSearchParams(location.search);
+      if (params.get("embed") === "1") {
+        document.body.classList.add("embed-mode");
+        document.querySelector("header.ops-header nav")?.remove();
+      }
+    })();
+
     const LANG = (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2);
     const I18N = {
       de: {

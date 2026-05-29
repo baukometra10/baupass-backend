@@ -1670,6 +1670,9 @@ _EMBEDDABLE_UI_PATHS = frozenset(
         "/enterprise-hub.html",
         "/enterprise",
         "/ops-command-center.html",
+        "/ops-live-map.html",
+        "/ai-command-center.html",
+        "/foreman.html",
         "/admin-v2/index.html",
         "/admin",
     }

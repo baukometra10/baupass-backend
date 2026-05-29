@@ -59,6 +59,14 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
+    (function initEmbed() {
+      const params = new URLSearchParams(location.search);
+      if (params.get("embed") === "1") {
+        document.body.classList.add("embed-mode");
+        document.querySelector("header.ops-header nav")?.remove();
+      }
+    })();
+
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
     let map, layers = { zones: [], workers: [], gates: [] };
