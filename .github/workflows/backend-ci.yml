@@ -39,4 +39,14 @@ jobs:
           BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
           BAUPASS_ENABLE_IMAP_POLLER: "0"
           BAUPASS_SKIP_IMAP_POLL: "1"
-        run: pytest backend/tests -q
+        run: |
+          set -o pipefail
+          if ! pytest backend/tests -q --tb=short 2>&1 | tee pytest.log; then
+            {
+              echo "### pytest failures"
+              echo '```'
+              tail -n 60 pytest.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
