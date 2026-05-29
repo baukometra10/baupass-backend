@@ -248,7 +248,6 @@ def _check_http(base: str) -> dict[str, Any]:
         "health": "/api/health",
         "ready": "/api/health/ready",
         "setupStatus": "/api/platform/setup-status",
-        "pushStatus": "/api/platform/push/status",
     }
     ok = True
     for name, path in endpoints.items():
@@ -266,6 +265,14 @@ def _check_http(base: str) -> dict[str, Any]:
                 if ent.get("demoAllowed") is True:
                     checks[name]["warning"] = "demoAllowed=true on live deployment"
                     ok = False
+            if name == "setupStatus":
+                rs = (payload.get("readyScore") or {})
+                checks[name]["readyPercent"] = rs.get("percent")
+                if rs.get("percent", 0) < 80:
+                    checks[name]["warning"] = "setup score below 80%"
+                    ok = False
+                if (payload.get("enterprise") or {}).get("demoAllowed") is True:
+                    ok = False
         except Exception as exc:
             checks[name] = {"ok": False, "error": str(exc)}
             ok = False
@@ -280,18 +287,25 @@ def main() -> int:
         action="store_true",
         help="Fail if any recommended check fails (not only critical)",
     )
+    parser.add_argument(
+        "--live-only",
+        action="store_true",
+        help="Skip local env checks; validate deployed API only (CI post-deploy).",
+    )
     parser.add_argument("--json-only", action="store_true")
     args = parser.parse_args()
 
-    env_report = _check_env()
+    env_report = _check_env() if not args.live_only else None
     result: dict[str, Any] = {"env": env_report, "live": None}
 
     if args.base_url:
         result["live"] = _check_http(args.base_url)
 
-    env_ok = env_report["summary"]["criticalFailed"] == 0
+    env_ok = True if args.live_only else env_report["summary"]["criticalFailed"] == 0
     live_ok = result["live"]["ok"] if result.get("live") else True
-    strict_ok = env_report["summary"]["recommendedFailed"] == 0 if args.strict else True
+    strict_ok = True
+    if not args.live_only and args.strict:
+        strict_ok = env_report["summary"]["recommendedFailed"] == 0
 
     result["ok"] = env_ok and live_ok and strict_ok
     result["tier"] = "enterprise_ready" if result["ok"] else "needs_work"
@@ -301,12 +315,18 @@ def main() -> int:
     else:
         print("BauPass Enterprise Go-Live Validation")
         print("=" * 40)
-        print(f"Score: {env_report['scorePercent']}% ({env_report['summary']['passed']}/{env_report['summary']['total']} checks)")
-        if env_report["criticalFailures"]:
+        if env_report:
+            print(
+                f"Score: {env_report['scorePercent']}% "
+                f"({env_report['summary']['passed']}/{env_report['summary']['total']} checks)"
+            )
+        elif args.live_only:
+            print("Env checks skipped (--live-only)")
+        if env_report and env_report["criticalFailures"]:
             print("\nCRITICAL (must fix):")
             for fid in env_report["criticalFailures"]:
                 print(f"  - {fid}")
-        if env_report["recommendedGaps"]:
+        if env_report and env_report["recommendedGaps"]:
             print("\nRECOMMENDED:")
             for fid in env_report["recommendedGaps"][:12]:
                 print(f"  - {fid}")

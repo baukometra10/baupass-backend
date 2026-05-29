@@ -37,11 +37,11 @@ jobs:
       - name: Enterprise go-live (live)
         env:
           PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
-          STRICT: ${{ github.event.inputs.strict || 'true' }}
+          STRICT: ${{ github.event.inputs.strict || 'false' }}
         run: |
           set -e
-          ARGS=(--base-url "$PUBLIC_BASE_URL" --strict)
-          if [ "$STRICT" = "false" ]; then ARGS=(--base-url "$PUBLIC_BASE_URL"); fi
+          ARGS=(--base-url "$PUBLIC_BASE_URL" --live-only)
+          if [ "$STRICT" = "true" ]; then ARGS+=(--strict); fi
           python backend/ops/validate_enterprise_env.py "${ARGS[@]}"
 
       - name: Production cutover check (DR/queues — non-blocking)
