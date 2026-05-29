@@ -116,3 +116,23 @@ htmlKeys.forEach((k) => {
   }
 });
 if (htmlMissing === 0) console.log("  All data-ui-i18n keys exist in UI_TRANSLATIONS!");
+
+// 8. i18n-packs.js coverage
+const packsPath = path.join(__dirname, "../i18n-packs.js");
+if (fs.existsSync(packsPath)) {
+  const packsCode = fs.readFileSync(packsPath, "utf8");
+  const packsMatch = packsCode.match(/window\.__I18N_PACKS\s*=\s*(\{[\s\S]*\});/);
+  if (packsMatch) {
+    const packs = JSON.parse(packsMatch[1]);
+    let packGaps = 0;
+    LANGS.forEach((lang) => {
+      const langPack = packs[lang] || {};
+      const missingInPack = [...deKeys2].filter((k) => !langs[lang]?.has(k) && !(k in langPack));
+      if (missingInPack.length) {
+        console.log(`  PACK ${lang.toUpperCase()} still missing ${missingInPack.length} keys`);
+        packGaps += missingInPack.length;
+      }
+    });
+    if (packGaps === 0) console.log("\n  i18n-packs.js covers all DE gaps in all languages!");
+  }
+}

@@ -13,9 +13,11 @@ if (!gotTheLock) {
 }
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const DESKTOP_URL = (process.env.BAUPASS_DESKTOP_URL || "https://baupass-production.up.railway.app").trim();
+const LOCAL_DESKTOP_URL = "http://127.0.0.1:8000";
+const REMOTE_DESKTOP_URL = "https://baupass-production.up.railway.app";
+let resolvedDesktopUrl = (process.env.BAUPASS_DESKTOP_URL || "").trim();
 // Backend auto-start only makes sense when pointing at localhost.
-const IS_LOCAL = DESKTOP_URL.includes("127.0.0.1") || DESKTOP_URL.includes("localhost");
+let IS_LOCAL = false;
 const AUTOSTART_BACKEND = IS_LOCAL && String(process.env.BAUPASS_DESKTOP_AUTOSTART_BACKEND || "1").trim() !== "0";
 
 let mainWindow = null;
@@ -104,10 +106,10 @@ function startBackend() {
   }
 
   const pythonCmd = resolvePythonCommand();
-  // Derive the port from DESKTOP_URL so backend and frontend always match.
-  let desktopPort = "8080";
+  // Derive the port from the resolved desktop URL so backend and frontend always match.
+  let desktopPort = "8000";
   try {
-    desktopPort = String(new URL(DESKTOP_URL).port || "8080");
+    desktopPort = String(new URL(resolvedDesktopUrl || LOCAL_DESKTOP_URL).port || "8000");
   } catch {
     // keep default
   }
@@ -148,7 +150,7 @@ async function ensureBackend() {
 
   updateSplashProgress(22, "Lokalen Dienst prüfen", "Backend-Verbindung wird getestet");
 
-  const available = await probeBackend(DESKTOP_URL);
+  const available = await probeBackend(resolvedDesktopUrl || LOCAL_DESKTOP_URL);
   if (available) {
     updateSplashProgress(32, "Lokaler Dienst bereit", "Anwendung wird vorbereitet");
     return;
@@ -166,7 +168,7 @@ async function ensureBackend() {
     // eslint-disable-next-line no-await-in-loop
     await wait(200);
     // eslint-disable-next-line no-await-in-loop
-    if (await probeBackend(DESKTOP_URL)) {
+    if (await probeBackend(resolvedDesktopUrl || LOCAL_DESKTOP_URL)) {
       updateSplashProgress(48, "Lokaler Dienst verbunden", "UI wird jetzt geladen");
       return;
     }
@@ -286,7 +288,7 @@ function createWindow() {
     revealMainWindow(0);
   });
 
-  mainWindow.loadURL(DESKTOP_URL);
+  mainWindow.loadURL(resolvedDesktopUrl || REMOTE_DESKTOP_URL);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -354,7 +356,23 @@ ipcMain.handle("desktop:get-window-state", () => ({
   isMaximized: Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()),
 }));
 
+async function resolveDesktopUrl() {
+  if (resolvedDesktopUrl) {
+    return resolvedDesktopUrl;
+  }
+  if (process.env.BAUPASS_DESKTOP_URL) {
+    resolvedDesktopUrl = String(process.env.BAUPASS_DESKTOP_URL).trim();
+  } else if (await probeBackend(LOCAL_DESKTOP_URL, 800)) {
+    resolvedDesktopUrl = LOCAL_DESKTOP_URL;
+  } else {
+    resolvedDesktopUrl = REMOTE_DESKTOP_URL;
+  }
+  IS_LOCAL = resolvedDesktopUrl.includes("127.0.0.1") || resolvedDesktopUrl.includes("localhost");
+  return resolvedDesktopUrl;
+}
+
 async function bootstrap() {
+  await resolveDesktopUrl();
   // For cloud deployments skip the splash entirely — show the main window
   // immediately so it appears within the first second.
   if (!IS_LOCAL) {
@@ -391,6 +409,6 @@ app.on("before-quit", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    resolveDesktopUrl().then(() => createWindow());
   }
 });

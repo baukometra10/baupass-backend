@@ -7,14 +7,16 @@ from typing import Any
 
 
 def push_platform_status() -> dict[str, Any]:
-    from .fcm import fcm_configured
+    from .fcm import fcm_configured, fcm_mode
 
     vapid = bool(os.getenv("VAPID_PRIVATE_KEY", "").strip())
     fcm = fcm_configured()
+    mode = fcm_mode()
     return {
         "workerAppKind": "hybrid_native",
         "primaryChannel": "fcm",
         "fcmConfigured": fcm,
+        "fcmMode": mode,
         "webPushConfigured": vapid,
         "legacyWebPush": vapid,
         "anyChannelReady": fcm or vapid,

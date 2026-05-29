@@ -14,7 +14,27 @@ _FCM_URL = "https://fcm.googleapis.com/fcm/send"
 
 
 def fcm_configured() -> bool:
-    return bool(os.getenv("FCM_SERVER_KEY", "").strip() or os.getenv("FIREBASE_SERVER_KEY", "").strip())
+    if os.getenv("FCM_SERVER_KEY", "").strip() or os.getenv("FIREBASE_SERVER_KEY", "").strip():
+        return True
+    try:
+        from .fcm_v1 import fcm_v1_configured
+
+        return fcm_v1_configured()
+    except Exception:
+        return False
+
+
+def fcm_mode() -> str:
+    try:
+        from .fcm_v1 import fcm_v1_configured
+
+        if fcm_v1_configured():
+            return "http_v1"
+    except Exception:
+        pass
+    if _server_key():
+        return "legacy"
+    return "none"
 
 
 def _server_key() -> str:
@@ -29,9 +49,22 @@ def send_fcm_notification(
     data: dict[str, Any] | None = None,
 ) -> int:
     """Send to one or more FCM registration tokens. Returns success count."""
-    key = _server_key()
     clean = [t.strip() for t in tokens if t and str(t).strip()]
-    if not key or not clean:
+    if not clean:
+        return 0
+
+    try:
+        from .fcm_v1 import fcm_v1_configured, send_fcm_v1
+
+        if fcm_v1_configured():
+            sent = send_fcm_v1(clean, title=title, body=body, data=data)
+            if sent > 0:
+                return sent
+    except Exception as exc:
+        logger.warning("FCM v1 path failed, trying legacy: %s", exc)
+
+    key = _server_key()
+    if not key:
         return 0
 
     payload: dict[str, Any] = {

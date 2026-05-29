@@ -1846,8 +1846,12 @@ textarea.invoice-field-valid {
 }
 
 .stats-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
   margin-bottom: 20px;
+}
+
+.panel .stats-grid {
+  margin-bottom: 0;
 }
 
 .two-columns {
@@ -4953,11 +4957,14 @@ body.theme-black .bulk-action-bar .ghost-button {
 
 @media (max-width: 1200px) {
   .shell,
-  .stats-grid,
   .two-columns,
   .form-grid,
   .two-col-mini {
     grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
   .sidebar {
@@ -6462,6 +6469,8 @@ body.desktop-app .topbar {
   flex-direction: column;
   gap: 4px;
   padding: 18px 20px;
+  overflow: visible;
+  min-height: 7.25rem;
 }
 
 .stat-card-v2 .stat-icon {
@@ -6474,9 +6483,15 @@ body.desktop-app .topbar {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-transform: none;
+  letter-spacing: 0.02em;
   margin: 0;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .stat-card-v2 .stat-value-v2 {
@@ -6582,6 +6597,25 @@ body.theme-black .compliance-kpi-card .compliance-kpi-meta {
   text-align: right;
 }
 
+.dashboard-compliance-panel .dashboard-compliance-divider {
+  border: 0;
+  border-top: 1px solid rgba(18, 21, 24, 0.1);
+  margin: 20px 0 4px;
+}
+
+.dashboard-compliance-panel .dashboard-compliance-subhead {
+  margin-bottom: 12px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.dashboard-compliance-panel .dashboard-compliance-subhead h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink, #121518);
+}
+
 body.theme-black .compliance-expiry-card {
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(14, 20, 29, 0.78);
@@ -6594,6 +6628,14 @@ body.theme-black .compliance-expiry-item {
 
 body.theme-black .compliance-expiry-item span {
   color: #b6c1cf;
+}
+
+body.theme-black .dashboard-compliance-panel .dashboard-compliance-divider {
+  border-top-color: rgba(148, 163, 184, 0.22);
+}
+
+body.theme-black .dashboard-compliance-panel .dashboard-compliance-subhead h4 {
+  color: #e8edf5;
 }
 
 /* ── Mobile Verbesserungen ────────────────────────────────────── */

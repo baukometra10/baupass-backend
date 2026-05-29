@@ -1,4 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
+window.__BAUPASS_UI_BUILD = "20260528f";
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
@@ -329,6 +330,8 @@ const UI_TRANSLATIONS = {
     dashBadge1: "Fotoaufnahme",
     dashBadge2: "Zutrittslog",
     dashBadge3: "Mandantenf\u00e4hig",
+    dashOverviewEyebrow: "Bestand",
+    dashOverviewH3: "Stammdaten & Status",
     enterpriseHubEyebrow: "Neu — Enterprise-Plattform",
     enterpriseHubTitle: "Enterprise-Hub: 16 Ebenen + Tarife + KI-Assistent",
     enterpriseHubDesc: "Alle gebauten Funktionen (Anwesenheit, Identit\u00e4t, Sicherheit, KI, Integrationen \u2026) an einem Ort \u2014 gefiltert nach Ihrem Tarif.",
@@ -1051,6 +1054,8 @@ const UI_TRANSLATIONS = {
     opsCheckInsToday: "Anmeldungen heute",
     opsCheckOutsToday: "Abmeldungen heute",
     opsExpiringDocs7: "Dokumente ≤ 7 Tage",
+    opsExpiringDocs30: "Dokumente ≤ 30 Tage",
+    opsExpiredDocs: "Abgelaufene Dokumente",
     opsMissingSignatures: "Aktive ohne Unterschrift",
     opsActiveVisitors: "Besucher vor Ort",
     opsLockedWorkers: "Gesperrte Mitarbeiter",
@@ -1882,6 +1887,8 @@ const UI_TRANSLATIONS = {
     discountToggleLabel: "Apply discount / rebate",
     discountAmountLabel: "Discount amount (EUR net)",
     netTotalLabel: "Net total:",
+    dashOverviewEyebrow: "Inventory",
+    dashOverviewH3: "Master data & status",
     operationsEyebrow: "Live operations",
     operationsH3: "Today's site status",
     operationsRefreshBtn: "Refresh",
@@ -1889,6 +1896,8 @@ const UI_TRANSLATIONS = {
     opsCheckInsToday: "Check-ins today",
     opsCheckOutsToday: "Check-outs today",
     opsExpiringDocs7: "Docs expiring ≤ 7 days",
+    opsExpiringDocs30: "Docs expiring ≤ 30 days",
+    opsExpiredDocs: "Expired documents",
     opsMissingSignatures: "Active without signature",
     opsActiveVisitors: "Visitors on site",
     opsLockedWorkers: "Locked workers",
@@ -3423,6 +3432,8 @@ const UI_TRANSLATIONS = {
     discountToggleLabel: "تطبيق خصم",
     discountAmountLabel: "مبلغ الخصم (EUR صافي)",
     netTotalLabel: "الإجمالي الصافي:",
+    dashOverviewEyebrow: "المخزون",
+    dashOverviewH3: "البيانات الأساسية والحالة",
     operationsEyebrow: "التشغيل المباشر",
     operationsH3: "وضع الموقع اليوم",
     operationsRefreshBtn: "تحديث",
@@ -3430,6 +3441,8 @@ const UI_TRANSLATIONS = {
     opsCheckInsToday: "تسجيل دخول اليوم",
     opsCheckOutsToday: "تسجيل خروج اليوم",
     opsExpiringDocs7: "مستندات خلال 7 أيام",
+    opsExpiringDocs30: "مستندات خلال 30 يومًا",
+    opsExpiredDocs: "مستندات منتهية",
     opsMissingSignatures: "نشطون بدون توقيع",
     opsActiveVisitors: "زوار على الموقع",
     opsLockedWorkers: "موظفون محظورون",
@@ -6594,6 +6607,32 @@ const UI_TRANSLATIONS = {
   },
 };
 
+if (typeof window !== "undefined" && window.__I18N_PACKS) {
+  Object.entries(window.__I18N_PACKS).forEach(([lang, patch]) => {
+    if (UI_TRANSLATIONS[lang] && patch && typeof patch === "object") {
+      Object.assign(UI_TRANSLATIONS[lang], patch);
+    }
+  });
+}
+
+let runtimeUiTextsCache = null;
+let runtimeUiTextsCacheLang = null;
+
+function invalidateRuntimeUiTextsCache() {
+  runtimeUiTextsCache = null;
+  runtimeUiTextsCacheLang = null;
+}
+
+function getRuntimeUiTextsCached() {
+  const lang = getStoredUiLang();
+  if (runtimeUiTextsCache && runtimeUiTextsCacheLang === lang) {
+    return runtimeUiTextsCache;
+  }
+  runtimeUiTextsCacheLang = lang;
+  runtimeUiTextsCache = getRuntimeUiTexts();
+  return runtimeUiTextsCache;
+}
+
 function normalizeUiLang(value) {
   const candidate = String(value || "").trim().toLowerCase();
   return Object.prototype.hasOwnProperty.call(UI_TRANSLATIONS, candidate) ? candidate : UI_FALLBACK_LANG;
@@ -6605,13 +6644,15 @@ function getStoredUiLang() {
 
 function uiT(key) {
   const lang = getStoredUiLang();
-  if (lang === UI_FALLBACK_LANG) {
-    return UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key] || key;
+  const fromPack = UI_TRANSLATIONS[lang]?.[key];
+  if (fromPack) return fromPack;
+  const fromRuntime = getRuntimeUiTextsCached()[key];
+  if (fromRuntime) return fromRuntime;
+  if (lang !== "en" && UI_TRANSLATIONS.en?.[key]) return UI_TRANSLATIONS.en[key];
+  if (lang !== UI_FALLBACK_LANG && UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key]) {
+    return UI_TRANSLATIONS[UI_FALLBACK_LANG][key];
   }
-  return UI_TRANSLATIONS[lang]?.[key]
-    || UI_TRANSLATIONS.en?.[key]
-    || UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key]
-    || key;
+  return key;
 }
 
 const UI_PLACEHOLDER_TEXTS = {
@@ -7335,6 +7376,7 @@ function applyUiTranslations() {
 function setUiLang(lang) {
   const normalized = normalizeUiLang(lang);
   window.localStorage.setItem(UI_LANG_STORAGE_KEY, normalized);
+  invalidateRuntimeUiTextsCache();
   applyUiTranslations();
   applySystemTheme(getStoredSystemTheme(), { persist: false });
   updateDesktopInstallHint();
@@ -7344,6 +7386,9 @@ function setUiLang(lang) {
   if (typeof renderWorkerStatsPanel === "function") renderWorkerStatsPanel();
   if (typeof renderReportingPanels === "function") renderReportingPanels();
   if (typeof renderGateOpsMetrics === "function") renderGateOpsMetrics();
+  if (typeof renderOperationsSnapshot === "function") renderOperationsSnapshot();
+  if (typeof renderDashboardExpiringDocs === "function") renderDashboardExpiringDocs();
+  if (typeof applyRuntimeUiTexts === "function") applyRuntimeUiTexts();
 }
 
 function initUiLanguageControl() {
@@ -8667,6 +8712,11 @@ function getRuntimeUiTexts() {
     companyAlertCustomerNumberInvalid: "Customer number must consist of digits only.",
     companyAlertLinkCopied: "Link copied!",
     companyPromptCopyLinkManual: "Copy link manually:",
+    accessDenied: "This feature is not available in your plan.",
+    companyBtnChangePlan: "Change plan",
+    dashExpiringMore: "+ {count} more in Documents",
+    labelCompanyStatus: "Status",
+    legalCloseTitle: "Close",
   };
     const map = {
     de: {
@@ -9504,6 +9554,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "Kundennummer muss aus Ziffern bestehen.",
       companyAlertLinkCopied: "Link kopiert!",
       companyPromptCopyLinkManual: "Link manuell kopieren:",
+      accessDenied: "Funktion in diesem Paket nicht verfügbar.",
+      companyBtnChangePlan: "Plan ändern",
+      dashExpiringMore: "+ {count} weitere in Dokumente",
+      labelCompanyStatus: "Status",
+      legalCloseTitle: "Schließen",
     },
     tr: {
       sessionLoggedIn: "Giris yapan",
@@ -10301,6 +10356,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "Müşteri numarası yalnızca rakamlardan oluşmalıdır.",
       companyAlertLinkCopied: "Bağlantı kopyalandı!",
       companyPromptCopyLinkManual: "Bağlantıyı manuel kopyalayın:",
+      accessDenied: "Bu özellik paketinizde kullanılamaz.",
+      companyBtnChangePlan: "Planı değiştir",
+      dashExpiringMore: "+ {count} tane daha Belgeler bölümünde",
+      labelCompanyStatus: "Durum",
+      legalCloseTitle: "Kapat",
     },
     ar: {
       sessionLoggedIn: "تسجيل الدخول",
@@ -11098,6 +11158,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "يجب أن يتكون رقم العميل من أرقام فقط.",
       companyAlertLinkCopied: "تم نسخ الرابط!",
       companyPromptCopyLinkManual: "انسخ الرابط يدويا:",
+      accessDenied: "هذه الميزة غير متاحة في باقاتك.",
+      companyBtnChangePlan: "تغيير الباقة",
+      dashExpiringMore: "+ {count} أخرى في المستندات",
+      labelCompanyStatus: "الحالة",
+      legalCloseTitle: "إغلاق",
     },
     fr: {
       sessionLoggedIn: "Connecté",
@@ -11895,6 +11960,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "Le numéro client doit contenir uniquement des chiffres.",
       companyAlertLinkCopied: "Lien copié !",
       companyPromptCopyLinkManual: "Copiez le lien manuellement :",
+      accessDenied: "Cette fonction n'est pas disponible dans votre offre.",
+      companyBtnChangePlan: "Changer d'offre",
+      dashExpiringMore: "+ {count} de plus dans Documents",
+      labelCompanyStatus: "Statut",
+      legalCloseTitle: "Fermer",
     },
     es: {
       sessionLoggedIn: "Conectado",
@@ -12692,6 +12762,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "El número de cliente debe constar solo de dígitos.",
       companyAlertLinkCopied: "¡Enlace copiado!",
       companyPromptCopyLinkManual: "Copia el enlace manualmente:",
+      accessDenied: "Esta función no está disponible en su plan.",
+      companyBtnChangePlan: "Cambiar plan",
+      dashExpiringMore: "+ {count} más en Documentos",
+      labelCompanyStatus: "Estado",
+      legalCloseTitle: "Cerrar",
     },
     it: {
       sessionLoggedIn: "Accesso effettuato",
@@ -13489,6 +13564,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "Il numero cliente deve contenere solo cifre.",
       companyAlertLinkCopied: "Link copiato!",
       companyPromptCopyLinkManual: "Copia il link manualmente:",
+      accessDenied: "Questa funzione non è disponibile nel tuo piano.",
+      companyBtnChangePlan: "Cambia piano",
+      dashExpiringMore: "+ {count} altri in Documenti",
+      labelCompanyStatus: "Stato",
+      legalCloseTitle: "Chiudi",
     },
     pl: {
       sessionLoggedIn: "Zalogowany",
@@ -14286,6 +14366,11 @@ function getRuntimeUiTexts() {
       companyAlertCustomerNumberInvalid: "Numer klienta musi składać się wyłącznie z cyfr.",
       companyAlertLinkCopied: "Skopiowano link!",
       companyPromptCopyLinkManual: "Skopiuj link ręcznie:",
+      accessDenied: "Ta funkcja nie jest dostępna w Twoim planie.",
+      companyBtnChangePlan: "Zmień plan",
+      dashExpiringMore: "+ {count} więcej w Dokumentach",
+      labelCompanyStatus: "Status",
+      legalCloseTitle: "Zamknij",
     },
   };;
   return {
@@ -14295,8 +14380,7 @@ function getRuntimeUiTexts() {
 }
 
 function runtimeText(key) {
-  const texts = getRuntimeUiTexts();
-  return texts[key] || "";
+  return getRuntimeUiTextsCached()[key] || "";
 }
 
 function runtimeTextTemplate(key, values = {}) {
@@ -14354,15 +14438,18 @@ function applyRuntimeUiTexts() {
       : runtimeText("badgePinHintWorker");
   }
   if (bulkSelectAllText) bulkSelectAllText.textContent = runtimeText("bulkSelectAllLabel");
-  if (gateOpsEyebrow) gateOpsEyebrow.textContent = runtimeText("gateOpsPanelEyebrow");
-  if (gateOpsTitle) gateOpsTitle.textContent = runtimeText("gateOpsPanelTitle");
-  if (gateOpsRefreshBtn) gateOpsRefreshBtn.textContent = runtimeText("gateOpsRefreshBtn");
+  if (gateOpsEyebrow) gateOpsEyebrow.textContent = uiT("gateOpsPanelEyebrow");
+  if (gateOpsTitle) gateOpsTitle.textContent = uiT("gateOpsPanelTitle");
+  if (gateOpsRefreshBtn) gateOpsRefreshBtn.textContent = uiT("gateOpsRefreshBtn");
   if (gateOpsWindowSelect) {
+    const windowLabels = {
+      15: uiT("gateOpsWindow15"),
+      60: uiT("gateOpsWindow60"),
+      240: uiT("gateOpsWindow240"),
+    };
     gateOpsWindowSelect.querySelectorAll("option").forEach((option) => {
       const minutes = Number(option.value || 0);
-      if (minutes > 0) {
-        option.textContent = runtimeTextTemplate("gateOpsWindowMinutes", { count: minutes });
-      }
+      if (windowLabels[minutes]) option.textContent = windowLabels[minutes];
     });
   }
 }
@@ -18510,11 +18597,12 @@ function renderOperationsSnapshot() {
     ["🏗️", uiT("opsWorkersOnSite"), snap.workersOnSite, "#0f4c5c", "", snap.workersOnSite > 0],
     ["↗️", uiT("opsCheckInsToday"), snap.checkInsToday, "#0891b2", "", false],
     ["↘️", uiT("opsCheckOutsToday"), snap.checkOutsToday, "#0369a1", "", false],
-    ["📄", uiT("opsExpiringDocs7"), snap.expiringDocs7Days, snap.expiringDocs7Days > 0 ? "#d97706" : "#6b7280", isDarkTheme ? "" : (snap.expiringDocs7Days > 0 ? "rgba(254,243,199,0.5)" : ""), snap.expiringDocs7Days > 0],
+    ["📄", uiT("opsExpiringDocs30"), snap.expiringDocs30Days, snap.expiringDocs30Days > 0 ? "#d97706" : "#6b7280", isDarkTheme ? "" : (snap.expiringDocs30Days > 0 ? "rgba(254,243,199,0.5)" : ""), snap.expiringDocs30Days > 0],
+    ["⛔", uiT("opsExpiredDocs"), snap.expiredDocs, snap.expiredDocs > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (snap.expiredDocs > 0 ? "rgba(254,226,226,0.5)" : ""), snap.expiredDocs > 0],
     ["✍️", uiT("opsMissingSignatures"), snap.activeWorkersMissingSignature, snap.activeWorkersMissingSignature > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (snap.activeWorkersMissingSignature > 0 ? "rgba(254,226,226,0.5)" : ""), snap.activeWorkersMissingSignature > 0],
     ["🚶", uiT("opsActiveVisitors"), snap.activeVisitors, "#7c3aed", "", false],
-    ["🔒", uiT("opsLockedWorkers"), snap.lockedWorkers, snap.lockedWorkers > 0 ? "#dc2626" : "#6b7280", "", snap.lockedWorkers > 0],
   ];
+  container.dataset.dashboardBuild = `${window.__BAUPASS_UI_BUILD || "?"}-ops6`;
   container.innerHTML = cards
     .map(([icon, label, value, color, bg, isWarn]) => {
       const styleStr = [
@@ -18536,29 +18624,24 @@ function renderStats() {
   const texts = getRuntimeUiTexts();
   const isDarkTheme = document.body.classList.contains("theme-black");
   const visibleWorkers = getUiVisibleWorkers();
-  const visibleLatestAccessEntries = getUiVisibleLatestAccessEntries();
   const scopedCompanyId = getEffectiveUiCompanyId();
 
   const totalWorkers = visibleWorkers.filter((w) => !w.deletedAt).length;
   const activeWorkers = visibleWorkers.filter((w) => !w.deletedAt && w.status === "aktiv").length;
   const totalVisitors = visibleWorkers.filter((w) => !w.deletedAt && isVisitorWorker(w)).length;
   const totalCompanies = scopedCompanyId ? 1 : state.companies.filter((c) => !c.deleted_at).length;
-  const accessToday = visibleLatestAccessEntries.filter((log) => log.direction === "check-in").length;
-
-  const expiringCritical = Number(state.expiringDocsCriticalCount ?? 0);
   const lockedWorkers = visibleWorkers.filter((w) => !w.deletedAt && w.status === "gesperrt").length;
 
-  // icon, label, value, accent-color, bg-color, isWarn
+  // Stammdaten: keine Live-KPIs (Anwesenheit/Dokumente heute → Live-Betrieb + Compliance)
   const cards = [
     ["👷", texts.statsWorkersTotal, totalWorkers, "#0f4c5c", "", false],
     ["✅", texts.statsWorkersActive, activeWorkers, "#16a34a", isDarkTheme ? "" : "rgba(220,252,231,0.5)", false],
     ["🚶", texts.statsVisitorsTotal, totalVisitors, "#7c3aed", isDarkTheme ? "" : "rgba(237,233,254,0.5)", false],
     ["🏢", texts.statsCompanies, totalCompanies, "#0369a1", isDarkTheme ? "" : "rgba(224,242,254,0.5)", false],
-    ["🔓", texts.statsAccessToday, accessToday, "#0891b2", isDarkTheme ? "" : "rgba(207,250,254,0.5)", false],
     ["🔒", runtimeText("statsLockedWorkers"), lockedWorkers, lockedWorkers > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : ""), lockedWorkers > 0],
-    ["⚠️", runtimeText("statsExpiringCritical"), expiringCritical, expiringCritical > 0 ? "#d97706" : "#6b7280", isDarkTheme ? "" : (expiringCritical > 0 ? "rgba(254,243,199,0.5)" : ""), expiringCritical > 0],
   ];
 
+  elements.statsGrid.dataset.dashboardBuild = `${window.__BAUPASS_UI_BUILD || "?"}-5`;
   elements.statsGrid.innerHTML = cards
     .map(([icon, label, value, color, bg, isWarn]) => {
       const styleStr = [

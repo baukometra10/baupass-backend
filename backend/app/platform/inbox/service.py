@@ -21,6 +21,7 @@ def build_operations_inbox(
     role: str = "company-admin",
     limit: int = 80,
     include_resolved: bool = False,
+    source_filter: str | None = None,
 ) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     cid = (company_id or "").strip()
@@ -213,17 +214,29 @@ def build_operations_inbox(
             pass
 
     items.sort(key=lambda x: (_severity_rank(x.get("severity", "low")), x.get("createdAt") or ""))
+
+    by_source: dict[str, int] = {}
+    for it in items:
+        src = str(it.get("source") or "other")
+        by_source[src] = by_source.get(src, 0) + 1
+
+    sf = (source_filter or "").strip().lower()
+    if sf:
+        items = [i for i in items if str(i.get("source") or "").lower() == sf]
+
     open_count = sum(1 for i in items if i.get("status") == "open")
     critical_count = sum(1 for i in items if i.get("status") == "open" and i.get("severity") == "critical")
 
     return {
         "companyId": cid or None,
         "role": role,
+        "sourceFilter": sf or None,
         "items": items[:limit],
         "counts": {
             "total": len(items[:limit]),
             "open": open_count,
             "critical": critical_count,
+            "bySource": by_source,
         },
     }
 
