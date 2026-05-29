@@ -1,4 +1,4 @@
-import { STRINGS } from "./i18n-strings.js";
+import { STRINGS } from "./i18n.js";
 
 const langs = Object.keys(STRINGS);
 const base = new Set(Object.keys(STRINGS.de));

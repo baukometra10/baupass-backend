@@ -113,6 +113,23 @@ function yn(v) {
   return v ? t("common.yes") : t("common.no");
 }
 
+function getOpsLayerOrder() {
+  return [
+    ["1_digital_twin", t("ops.layer.digitalTwin"), "🗺"],
+    ["2_ai_security", t("ops.layer.aiSecurity"), "🛡"],
+    ["3_site_intelligence", t("ops.layer.siteIntel"), "📊"],
+    ["4_reputation", t("ops.layer.reputation"), "⭐"],
+    ["5_emergency", t("ops.layer.emergency"), "🚨"],
+    ["6_camera_ai", t("ops.layer.cameraAi"), "📷"],
+    ["7_iot", t("ops.layer.iot"), "📡"],
+    ["8_command_center", t("ops.layer.commandCenter"), "🎛"],
+    ["9_autonomous", t("ops.layer.autonomous"), "⚙"],
+    ["10_workforce_graph", t("ops.layer.workforceGraph"), "🔗"],
+    ["11_identity", t("ops.layer.identity"), "🪪"],
+    ["12_copilot", t("ops.layer.copilot"), "🤖"],
+  ];
+}
+
 function statusBadge(ok) {
   return ok
     ? `<span class="badge badge-ok">${t("badge.ready")}</span>`
@@ -304,13 +321,13 @@ async function loadPlatformBanner() {
     const runtime = caps?.dataLayer?.runtime || ready?.checks?.database?.backend || "—";
     el.innerHTML = `
       <div>
-        <span class="muted small">نضج المنصة</span>
+        <span class="muted small">${t("platform.banner.maturity")}</span>
         <strong>${score}/100</strong>
         <span class="muted small">${level}</span>
       </div>
-      <div>قاعدة البيانات: <strong>${runtime}</strong> ${statusBadge(dbOk)}</div>
-      <a href="/enterprise-hub.html?v=20260527e" class="btn-link" style="color:#fbbf24;font-weight:700">🏛 مركز المؤسسة (16 طبقة)</a>
-      <button type="button" class="btn-link" data-goto-tab="platform">تفاصيل المنصة ←</button>
+      <div>${t("platform.banner.database")}: <strong>${runtime}</strong> ${statusBadge(dbOk)}</div>
+      <a href="/enterprise-hub.html?v=20260527e" class="btn-link" style="color:#fbbf24;font-weight:700">${t("platform.banner.enterpriseLink")}</a>
+      <button type="button" class="btn-link" data-goto-tab="platform">${t("platform.banner.details")}</button>
     `;
     el.classList.remove("hidden");
     el.querySelector("[data-goto-tab]")?.addEventListener("click", async () => {
@@ -341,7 +358,7 @@ async function loadPlatform() {
       .map((m) => `<li class="miss">○ ${m}</li>`)
       .join("");
     const setupOk = setup
-      ? `<p>Railway setup: <strong>${setup.readyScore?.percent ?? 0}%</strong></p><ul class="setup-checklist">${setupLines || '<li class="ok">✓ All core keys set</li>'}</ul>`
+      ? `<p>${t("platform.setup.railway")}: <strong>${setup.readyScore?.percent ?? 0}%</strong></p><ul class="setup-checklist">${setupLines || `<li class="ok">${t("platform.setup.allOk")}</li>`}</ul>`
       : "";
     const steps = (caps.nextSteps || [])
       .map((s) => `<li>${s}</li>`)
@@ -353,58 +370,62 @@ async function loadPlatform() {
     panel.innerHTML = `
       <div class="panel-block">${setupOk}</div>
       <div class="panel-block">
-        <h3>نضج عالمي <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
+        <h3>${t("platform.globalMaturity")} <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
         <p class="muted">${caps.maturityLevel || ""}</p>
         ${steps ? `<ul class="muted small">${steps}</ul>` : ""}
       </div>
       <div class="panel-block">
-        <h3>البنية التحتية</h3>
-        <p>Runtime: <strong>${caps.dataLayer?.runtime || "—"}</strong> · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
+        <h3>${t("platform.infrastructure")}</h3>
+        <p>${t("platform.runtime")}: <strong>${caps.dataLayer?.runtime || "—"}</strong> · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
         <p class="muted small">Path: ${caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—"}</p>
-        <p>Readiness: ${statusBadge(ready.ready)} · Redis status: ${health.redis?.status || ready.checks?.redis?.status || "—"}</p>
+        <p>${t("platform.readiness")}: ${statusBadge(ready.ready)} · Redis: ${health.checks?.redis?.status || health.redis?.status || ready.checks?.redis?.status || "—"}</p>
       </div>
       <div class="panel-block">
-        <h3>قدرات الحضور (مفعّلة في الكود)</h3>
+        <h3>${t("platform.attendanceCaps")}</h3>
         <div class="table-wrap"><table><tbody>${attRows}</tbody></table></div>
       </div>
       ${
         ent
           ? `<div class="panel-block">
-        <h3>خطتك: ${ent.planMeta?.labelAr || ent.plan}</h3>
-        <p>${ent.entitlements?.enabledCount || 0} قدرة مفعّلة · ${ent.entitlements?.lockedCount || 0} تحتاج ترقية · ${ent.entitlements?.coveragePercent || 0}% من المنصة</p>
-        <a class="feature-card" href="/enterprise-hub.html" style="display:inline-block;margin-top:0.5rem">فتح مركز المؤسسة (16 طبقة)</a>
-        <a class="feature-card" href="/ai-command-center.html" style="display:inline-block;margin-top:0.5rem">KI Command Center (Agents + Tools)</a>
+        <h3>${t("platform.yourPlan")}: ${ent.planMeta?.labelAr || ent.plan}</h3>
+        <p>${t("platform.planSummary", {
+          enabled: ent.entitlements?.enabledCount || 0,
+          locked: ent.entitlements?.lockedCount || 0,
+          pct: ent.entitlements?.coveragePercent || 0,
+        })}</p>
+        <a class="feature-card" href="/enterprise-hub.html" style="display:inline-block;margin-top:0.5rem">${t("platform.openEnterprise")}</a>
+        <a class="feature-card" href="/ai-command-center.html" style="display:inline-block;margin-top:0.5rem">${t("platform.openAiCenter")}</a>
       </div>`
           : ""
       }
       <div class="panel-block">
-        <h3>مساعد AI ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
-        <p class="muted small">يتطلب خطة Enterprise + OPENAI_API_KEY</p>
+        <h3>${t("platform.aiAssistant")} ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
+        <p class="muted small">${t("platform.aiRequires")}</p>
         <form id="aiQuickForm" class="tool-form">
-          <input name="question" placeholder="اسأل: كم موظف على الموقع؟" required />
-          <button type="submit">إرسال</button>
+          <input name="question" placeholder="${t("platform.aiPlaceholder")}" required />
+          <button type="submit">${t("common.send")}</button>
         </form>
         <pre id="aiQuickAnswer" class="ai-answer muted small"></pre>
       </div>
       <div class="panel-block">
-        <h3>Mitarbeiter Hybrid-App (Flutter + FCM)</h3>
-        <p>${pushSt?.fcmConfigured ? statusBadge(true) : statusBadge(false)} FCM · ${pushSt?.workersWithPush ?? 0} MA mit Token · ${pushSt?.registeredDevices ?? 0} Geräte</p>
-        <p class="muted small">Kanal: ${pushSt?.primaryChannel || "fcm"} · ${pushSt?.workerAppKind || "hybrid_native"}</p>
+        <h3>${t("platform.hybridApp")}</h3>
+        <p>${pushSt?.fcmConfigured ? statusBadge(true) : statusBadge(false)} FCM · ${t("platform.hybridWorkers", { workers: pushSt?.workersWithPush ?? 0, devices: pushSt?.registeredDevices ?? 0 })}</p>
+        <p class="muted small">${t("platform.hybridChannel")}: ${pushSt?.primaryChannel || "fcm"} · ${pushSt?.workerAppKind || "hybrid_native"}</p>
         ${
           mobileDist?.install
-            ? `<p class="muted small">APK: ${mobileDist.install.apkUrl ? `<a href="${mobileDist.install.apkUrl}" target="_blank" rel="noopener">Download</a>` : "BAUPASS_WORKER_APK_URL setzen (GitHub Actions Artifact)"}</p>`
+            ? `<p class="muted small">APK: ${mobileDist.install.apkUrl ? `<a href="${mobileDist.install.apkUrl}" target="_blank" rel="noopener">${t("common.download")}</a>` : t("platform.apkSet")}</p>`
             : ""
         }
-        <button type="button" class="feature-card" data-goto-tab="mobile">Mobile-Tab →</button>
+        <button type="button" class="feature-card" data-goto-tab="mobile">${t("platform.mobileTab")}</button>
       </div>
       <div class="panel-block">
-        <h3>Wallet (Apple / Google)</h3>
-        <p class="muted small">${wallet ? JSON.stringify(wallet, null, 2) : "تحميل الحالة…"}</p>
+        <h3>${t("platform.wallet")}</h3>
+        <p class="muted small">${wallet ? JSON.stringify(wallet, null, 2) : t("platform.walletLoading")}</p>
       </div>
       <div class="link-row">
         <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
-        <a href="/enterprise-hub.html?v=20260528a">مركز المؤسسة</a>
-        <a href="/index.html">لوحة Legacy الكاملة</a>
+        <a href="/enterprise-hub.html?v=20260528a">${t("common.enterpriseHub")}</a>
+        <a href="/index.html">${t("common.legacyDashboard")}</a>
       </div>
     `;
     panel.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
@@ -415,7 +436,7 @@ async function loadPlatform() {
       ev.preventDefault();
       const q = ev.target.question.value.trim();
       const out = $("aiQuickAnswer");
-      out.textContent = "جاري الإرسال…";
+      out.textContent = t("common.sending");
       try {
         const aiBody = { question: q, use_agent: true, agent_id: "operations", lang: getLang().slice(0, 2) };
         const user = getUser();
@@ -432,7 +453,7 @@ async function loadPlatform() {
         out.textContent = res.answer || res.hint || res.error || JSON.stringify(res, null, 2);
       } catch (e) {
         out.textContent = e.data?.error === "feature_not_available"
-          ? `يتطلب ترقية: ${e.data.requiredPlan}`
+          ? t("platform.upgradeRequired", { plan: e.data.requiredPlan })
           : e.message;
       }
     });
@@ -457,41 +478,26 @@ async function loadMobile() {
     const pwaLegacy = data.pwaInstall || {};
     panel.innerHTML = `
       <div class="panel-block">
-        <h3>تطبيق الموظف الهجين (Flutter)</h3>
+        <h3>${t("mobile.title")}</h3>
         <p class="muted small">${native.label || "Hybrid native — FCM push"} · API: <code>${native.apiPrefix || "/api/worker-app"}</code></p>
-        <p><a href="${install.joinPage || "/join.html"}" target="_blank" rel="noopener">${install.joinPage || "/join.html"}</a> — QR التفعيل</p>
-        <p>APK: ${install.apkUrl ? `<a href="${install.apkUrl}" target="_blank" rel="noopener">${install.apkUrl}</a>` : statusBadge(false) + " عيّن BAUPASS_WORKER_APK_URL"}</p>
-        <p>TestFlight: ${install.testFlightUrl ? `<a href="${install.testFlightUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
-        <p>Play Store: ${install.playStoreUrl ? `<a href="${install.playStoreUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
-        <p>App Store: ${install.appStoreUrl ? `<a href="${install.appStoreUrl}" target="_blank" rel="noopener">رابط</a>` : statusBadge(false)}</p>
-        <p class="muted small">Push: <code>${native.pushRegister || "/api/worker-app/push/register"}</code> (FCM) — ليس PWA.</p>
-        <p class="muted small">PWA (قديم): ${pwaLegacy.deprecated ? statusBadge(false) + " " : ""}<a href="${install.pwaEntry || "#"}" target="_blank" rel="noopener">${pwaLegacy.label || "Legacy browser"}</a></p>
+        <p><a href="${install.joinPage || "/join.html"}" target="_blank" rel="noopener">${install.joinPage || "/join.html"}</a> — ${t("mobile.qrActivation")}</p>
+        <p>APK: ${install.apkUrl ? `<a href="${install.apkUrl}" target="_blank" rel="noopener">${install.apkUrl}</a>` : statusBadge(false) + " " + t("mobile.apkMissing")}</p>
+        <p>TestFlight: ${install.testFlightUrl ? `<a href="${install.testFlightUrl}" target="_blank" rel="noopener">${t("mobile.storeLink")}</a>` : statusBadge(false)}</p>
+        <p>Play Store: ${install.playStoreUrl ? `<a href="${install.playStoreUrl}" target="_blank" rel="noopener">${t("mobile.storeLink")}</a>` : statusBadge(false)}</p>
+        <p>App Store: ${install.appStoreUrl ? `<a href="${install.appStoreUrl}" target="_blank" rel="noopener">${t("mobile.storeLink")}</a>` : statusBadge(false)}</p>
+        <p class="muted small">Push: <code>${native.pushRegister || "/api/worker-app/push/register"}</code> (FCM) — ${t("mobile.notPwa")}.</p>
+        <p class="muted small">${t("mobile.legacyPwa")}: ${pwaLegacy.deprecated ? statusBadge(false) + " " : ""}<a href="${install.pwaEntry || "#"}" target="_blank" rel="noopener">${pwaLegacy.label || "Legacy browser"}</a></p>
       </div>
       <div class="panel-block">
-        <h3>أوضاع الحضور الثلاثة</h3>
+        <h3>${t("mobile.attendanceModes")}</h3>
         <div class="layer-grid">${modes}</div>
       </div>
-      <p class="muted small">من تبويب الموظفين: زر «QR تفعيل» ينشئ رابط join لكل موظف.</p>
+      <p class="muted small">${t("mobile.workersHint")}</p>
     `;
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message}</p>`;
   }
 }
-
-const OPS_LAYER_ORDER = [
-  ["1_digital_twin", "Digital Twin", "🗺"],
-  ["2_ai_security", "AI Security", "🛡"],
-  ["3_site_intelligence", "Site Intelligence", "📊"],
-  ["4_reputation", "Reputation", "⭐"],
-  ["5_emergency", "Emergency", "🚨"],
-  ["6_camera_ai", "Camera AI", "📷"],
-  ["7_iot", "IoT", "📡"],
-  ["8_command_center", "Command Center", "🎛"],
-  ["9_autonomous", "Autonomous", "⚙"],
-  ["10_workforce_graph", "Workforce Graph", "🔗"],
-  ["11_identity", "Identity", "🪪"],
-  ["12_copilot", "Copilot", "🤖"],
-];
 
 function summarizeOpsLayer(key, val) {
   const v = val && typeof val === "object" ? val : {};
@@ -500,57 +506,71 @@ function summarizeOpsLayer(key, val) {
   let tone = "ok";
   switch (key) {
     case "1_digital_twin":
-      stat = `${v.summary?.workersOnSite ?? 0} MA vor Ort`;
-      lines.push(`${v.summary?.gatesActive ?? 0} aktive Tore`, `${v.summary?.hazardZones ?? 0} Gefahrenzonen`);
+      stat = t("ops.stat.workersOnSite", { n: v.summary?.workersOnSite ?? 0 });
+      lines.push(
+        t("ops.stat.gatesActive", { n: v.summary?.gatesActive ?? 0 }),
+        t("ops.stat.hazardZones", { n: v.summary?.hazardZones ?? 0 }),
+      );
       break;
     case "2_ai_security":
-      stat = `${(v.openAlerts || []).length} offene Alerts`;
-      lines.push(`${v.newFindings ?? 0} neue Findings`, (v.capabilities || []).slice(0, 2).join(", ") || "Analyse aktiv");
+      stat = t("ops.stat.openAlerts", { n: (v.openAlerts || []).length });
+      lines.push(
+        t("ops.stat.newFindings", { n: v.newFindings ?? 0 }),
+        (v.capabilities || []).slice(0, 2).join(", ") || t("ops.stat.analysisActive"),
+      );
       tone = (v.openAlerts || []).length > 0 ? "warn" : "ok";
       break;
     case "3_site_intelligence":
-      stat = `${(v.busiestGates || []).length} Top-Tore`;
-      lines.push(`Datum ${v.date || "—"}`, `${v.totalEvents24h ?? v.events24h ?? "—"} Events/24h`);
+      stat = t("ops.stat.topGates", { n: (v.busiestGates || []).length });
+      lines.push(
+        t("ops.stat.date", { date: v.date || "—" }),
+        t("ops.stat.events24h", { n: v.totalEvents24h ?? v.events24h ?? "—" }),
+      );
       break;
     case "4_reputation":
-      stat = `Ø ${Number(v.averageScore ?? 0).toFixed(1)} Punkte`;
-      lines.push(`${(v.leaderboard || v.workers || []).length} MA im Ranking`);
+      stat = t("ops.stat.avgScore", { n: Number(v.averageScore ?? 0).toFixed(1) });
+      lines.push(t("ops.stat.ranking", { n: (v.leaderboard || v.workers || []).length }));
       break;
     case "5_emergency":
-      stat = v.active ? "Notfall aktiv" : "Kein Notfall";
+      stat = v.active ? t("ops.stat.emergencyActive") : t("ops.stat.noEmergency");
       tone = v.active ? "danger" : "ok";
-      if (v.active) lines.push(`ID ${v.emergencyId || v.id || "—"}`, `${v.insideCount ?? "—"} innen`);
+      if (v.active) {
+        lines.push(`ID ${v.emergencyId || v.id || "—"}`, t("ops.stat.inside", { n: v.insideCount ?? "—" }));
+      }
       break;
     case "6_camera_ai":
-      stat = `${v.events24h ?? 0} Events / 24h`;
+      stat = t("ops.stat.events24h", { n: v.events24h ?? 0 });
       break;
     case "7_iot":
-      stat = `${(v.devices || []).length} Geräte`;
+      stat = t("ops.stat.devices", { n: (v.devices || []).length });
       lines.push(v.status || "Registry");
       break;
     case "8_command_center":
-      stat = `${v.totalOnSite ?? v.workersOnSite ?? 0} MA gesamt`;
-      lines.push(`${v.openEmergencies ?? v.activeEmergencies ?? 0} Notfälle`, `${v.openSecurity ?? 0} Security`);
+      stat = t("ops.stat.totalWorkers", { n: v.totalOnSite ?? v.workersOnSite ?? 0 });
+      lines.push(
+        t("ops.stat.emergencies", { n: v.openEmergencies ?? v.activeEmergencies ?? 0 }),
+        `${v.openSecurity ?? 0} Security`,
+      );
       break;
     case "9_autonomous":
-      stat = `${v.enabledRules ?? v.ruleCount ?? 0} Regeln`;
+      stat = t("ops.stat.rules", { n: v.enabledRules ?? v.ruleCount ?? 0 });
       lines.push(v.api || "/api/automation/rules");
       break;
     case "10_workforce_graph":
-      stat = `${(v.nodes || v.workers || []).length} Knoten`;
-      lines.push(`${(v.edges || []).length} Verbindungen`);
+      stat = t("ops.stat.nodes", { n: (v.nodes || v.workers || []).length });
+      lines.push(t("ops.stat.edges", { n: (v.edges || []).length }));
       break;
     case "11_identity":
-      stat = "Identity Hub";
+      stat = t("ops.stat.identityHub");
       lines.push((v.apis?.gates || "Gates API").toString().slice(0, 40));
       break;
     case "12_copilot":
-      stat = v.configured ? "KI bereit" : "Nicht konfiguriert";
+      stat = v.configured ? t("ops.stat.aiReady") : t("ops.stat.notConfigured");
       lines.push(v.endpoint || "POST /api/ops-os/copilot");
       tone = v.configured ? "ok" : "warn";
       break;
     default:
-      stat = v.status || v.layer || "aktiv";
+      stat = v.status || v.layer || t("ops.stat.active");
       break;
   }
   return { stat, lines: lines.filter(Boolean).slice(0, 3), tone };
@@ -561,7 +581,7 @@ function renderOpsLayerCard(key, title, icon, val) {
   const num = String(key).replace(/\D/g, "").padStart(2, "0") || "—";
   const meta = sum.lines.map((l) => `<li>${l}</li>`).join("");
   return `
-    <article class="ops-layer-card ops-tone-${sum.tone}" data-layer="${key}" role="button" tabindex="0" title="Details anzeigen">
+    <article class="ops-layer-card ops-tone-${sum.tone}" data-layer="${key}" role="button" tabindex="0" title="${t("ops.showDetails")}">
       <div class="ops-layer-head">
         <span class="ops-layer-num">${num}</span>
         <span class="ops-layer-icon" aria-hidden="true">${icon}</span>
@@ -569,7 +589,7 @@ function renderOpsLayerCard(key, title, icon, val) {
       <h4 class="ops-layer-title">${title}</h4>
       <p class="ops-layer-stat">${escapeHtml(sum.stat)}</p>
       ${meta ? `<ul class="ops-layer-meta">${meta}</ul>` : ""}
-      <span class="ops-layer-more muted small">Details ›</span>
+      <span class="ops-layer-more muted small">${t("ops.details")}</span>
     </article>
   `;
 }
@@ -581,30 +601,30 @@ function formatOpsLayerDetailRows(val) {
     rows.push(`<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`);
   };
   const v = val && typeof val === "object" ? val : {};
-  if (v.layer) push("Layer", v.layer);
-  if (v.status) push("Status", v.status);
-  if (v.date) push("Datum", v.date);
-  if (v.company_id || v.companyId) push("Firma", v.company_id || v.companyId);
+  if (v.layer) push(t("ops.detail.layer"), v.layer);
+  if (v.status) push(t("ops.detail.status"), v.status);
+  if (v.date) push(t("ops.detail.date"), v.date);
+  if (v.company_id || v.companyId) push(t("ops.detail.company"), v.company_id || v.companyId);
   if (v.summary && typeof v.summary === "object") {
     for (const [sk, sv] of Object.entries(v.summary)) push(sk, sv);
   }
-  if (Array.isArray(v.openAlerts)) push("Offene Security-Alerts", v.openAlerts.length);
-  if (v.newFindings != null) push("Neue Findings", v.newFindings);
-  if (v.averageScore != null) push("Reputation Ø", Number(v.averageScore).toFixed(1));
-  if (v.active != null) push("Notfall aktiv", v.active ? "Ja" : "Nein");
-  if (v.events24h != null) push("Kamera Events 24h", v.events24h);
-  if (v.totalOnSite != null) push("MA on-site", v.totalOnSite);
-  if (v.openEmergencies != null) push("Offene Notfälle", v.openEmergencies);
-  if (v.openSecurity != null) push("Security offen", v.openSecurity);
-  if (v.enabledRules != null) push("Automation Regeln", v.enabledRules);
-  if (Array.isArray(v.devices)) push("IoT Geräte", v.devices.length);
-  if (Array.isArray(v.busiestGates)) push("Top-Tore", v.busiestGates.length);
-  if (v.configured != null) push("Copilot", v.configured ? "bereit" : "nicht konfiguriert");
-  if (v.endpoint) push("API", v.endpoint);
+  if (Array.isArray(v.openAlerts)) push(t("ops.detail.openSecurity"), v.openAlerts.length);
+  if (v.newFindings != null) push(t("ops.detail.newFindings"), v.newFindings);
+  if (v.averageScore != null) push(t("ops.detail.reputationAvg"), Number(v.averageScore).toFixed(1));
+  if (v.active != null) push(t("ops.detail.emergencyActive"), yn(v.active));
+  if (v.events24h != null) push(t("ops.detail.cameraEvents"), v.events24h);
+  if (v.totalOnSite != null) push(t("ops.detail.onSite"), v.totalOnSite);
+  if (v.openEmergencies != null) push(t("ops.detail.openEmergencies"), v.openEmergencies);
+  if (v.openSecurity != null) push(t("ops.detail.openSecurityShort"), v.openSecurity);
+  if (v.enabledRules != null) push(t("ops.detail.automationRules"), v.enabledRules);
+  if (Array.isArray(v.devices)) push(t("ops.detail.iotDevices"), v.devices.length);
+  if (Array.isArray(v.busiestGates)) push(t("ops.detail.topGates"), v.busiestGates.length);
+  if (v.configured != null) push(t("ops.detail.copilot"), v.configured ? t("ops.stat.aiReady") : t("ops.stat.notConfigured"));
+  if (v.endpoint) push(t("ops.detail.api"), v.endpoint);
   if (rows.length < 4) {
     for (const [k, raw] of Object.entries(v)) {
       if (["entities", "liveMovement", "findings", "leaderboard", "workers"].includes(k)) {
-        push(k, Array.isArray(raw) ? `${raw.length} Einträge` : "Objekt");
+        push(k, Array.isArray(raw) ? t("ops.detail.entries", { n: raw.length }) : t("ops.detail.object"));
         continue;
       }
       if (typeof raw === "object" && raw !== null) continue;
@@ -612,12 +632,12 @@ function formatOpsLayerDetailRows(val) {
       if (rows.length >= 14) break;
     }
   }
-  return rows.join("") || '<tr><td colspan="2" class="muted">Keine Detaildaten</td></tr>';
+  return rows.join("") || `<tr><td colspan="2" class="muted">${t("ops.noDetailData")}</td></tr>`;
 }
 
 function openOpsLayerModal(layerKey) {
   const layers = window.__opsLayersCache || {};
-  const meta = OPS_LAYER_ORDER.find(([k]) => k === layerKey);
+  const meta = getOpsLayerOrder().find(([k]) => k === layerKey);
   const title = meta ? meta[1] : layerKey;
   const val = layers[layerKey];
   const sum = summarizeOpsLayer(layerKey, val);
@@ -702,40 +722,40 @@ async function loadOperations() {
     const cid = q.replace("?company_id=", "");
     const data = await api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
     const layers = data.layers || {};
-    const cards = OPS_LAYER_ORDER.map(([key, title, icon]) =>
-      renderOpsLayerCard(key, title, icon, layers[key])
-    ).join("");
+    const cards = getOpsLayerOrder()
+      .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
+      .join("");
     let rtLabel = "";
     try {
       const rt = await api("/api/v1/realtime/status");
       rtLabel = rt?.websocket?.enabled
-        ? '<span class="badge badge-ok">WebSocket live</span>'
-        : '<span class="badge badge-warn">SSE fallback</span>';
+        ? `<span class="badge badge-ok">${t("ops.websocketLive")}</span>`
+        : `<span class="badge badge-warn">${t("ops.sseFallback")}</span>`;
     } catch {
       rtLabel = "";
     }
     panel.innerHTML = `
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
-          <h3>Physical Operations OS <span class="badge badge-ok">12 Ebenen</span> ${rtLabel}</h3>
-          <p class="muted small">Firma ${data.companyId || cid}</p>
+          <h3>${t("ops.physicalOs")} <span class="badge badge-ok">${t("ops.layersBadge")}</span> ${rtLabel}</h3>
+          <p class="muted small">${t("ops.company", { id: data.companyId || cid })}</p>
         </div>
         <div class="ops-carousel-shell" id="opsCarousel">
           <div class="ops-carousel-wrap">
-            <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="Vorherige Ebene">‹</button>
+            <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="${t("ops.prevLayer")}">‹</button>
             <div class="ops-carousel-track">${cards}</div>
-            <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="Nächste Ebene">›</button>
+            <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="${t("ops.nextLayer")}">›</button>
           </div>
         </div>
         <p class="ops-carousel-hint muted small"></p>
       </div>
       <div class="link-row">
-        <a href="/ops-live-map.html${q ? q.replace("?", "?") : "?company_id=" + encodeURIComponent(cid)}" target="_blank" rel="noopener">🗺 Live Ops Karte</a>
-        <a href="/ops-command-center.html" target="_blank" rel="noopener">Command Center</a>
-        <a href="/ai-command-center.html${q}">KI Command Center</a>
-        <a href="/enterprise-hub.html">مركز المؤسسة</a>
+        <a href="/ops-live-map.html${q ? q.replace("?", "?") : "?company_id=" + encodeURIComponent(cid)}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
+        <a href="/ops-command-center.html" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
+        <a href="/ai-command-center.html${q}">${t("ops.aiCenter")}</a>
+        <a href="/enterprise-hub.html">${t("common.enterpriseHub")}</a>
       </div>
-      <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="Live Karte" class="ops-map-frame"></iframe>
+      <iframe src="/ops-live-map.html${q ? q : "?company_id=" + encodeURIComponent(cid)}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
     `;
     window.__opsLayersCache = layers;
     initOpsCarousel($("opsCarousel"));
@@ -781,10 +801,10 @@ async function loadTools() {
         <p class="muted small">${t("tools.mapHint")}</p>
         <div id="geofenceMap"></div>
         <form id="geofenceForm" class="tool-form">
-          <input name="site_name" placeholder="Site / Baustelle" required />
-          <input name="latitude" type="number" step="any" placeholder="Latitude" required />
-          <input name="longitude" type="number" step="any" placeholder="Longitude" required />
-          <input name="radius_meters" type="number" value="50" placeholder="Radius (m)" />
+          <input name="site_name" placeholder="${t("tools.sitePlaceholder")}" required />
+          <input name="latitude" type="number" step="any" placeholder="${t("tools.lat")}" required />
+          <input name="longitude" type="number" step="any" placeholder="${t("tools.lng")}" required />
+          <input name="radius_meters" type="number" value="50" placeholder="${t("tools.radius")}" />
           <button type="submit">${t("tools.addZone")}</button>
         </form>
         <div class="table-wrap" id="geofenceTable"></div>
@@ -792,13 +812,13 @@ async function loadTools() {
       <div class="panel-block">
         <h3>${t("tools.automation")}</h3>
         <form id="automationForm" class="tool-form">
-          <input name="name" placeholder="Rule name" required />
+          <input name="name" placeholder="${t("tools.ruleName")}" required />
           <select name="trigger_event">
-            <option value="worker.checkin">Check-in</option>
-            <option value="worker.checkout">Check-out</option>
-            <option value="*">Any event</option>
+            <option value="worker.checkin">${t("tools.checkin")}</option>
+            <option value="worker.checkout">${t("tools.checkout")}</option>
+            <option value="*">${t("tools.anyEvent")}</option>
           </select>
-          <button type="submit">Create rule</button>
+          <button type="submit">${t("tools.createRule")}</button>
         </form>
         <div class="table-wrap" id="automationTable"></div>
       </div>
@@ -920,10 +940,10 @@ function renderInboxFilters(bySource = {}) {
   if (!bar) return;
   const chips = [
     { id: "", label: t("inbox.filterAll") },
-    { id: "security", label: `Security (${bySource.security ?? 0})` },
-    { id: "leave", label: `Leave (${bySource.leave ?? 0})` },
-    { id: "document", label: `Docs (${bySource.document ?? 0})` },
-    { id: "system", label: `System (${bySource.system ?? 0})` },
+    { id: "security", label: `${t("inbox.filterSecurity")} (${bySource.security ?? 0})` },
+    { id: "leave", label: `${t("inbox.filterLeave")} (${bySource.leave ?? 0})` },
+    { id: "document", label: `${t("inbox.filterDocument")} (${bySource.document ?? 0})` },
+    { id: "system", label: `${t("inbox.filterSystem")} (${bySource.system ?? 0})` },
   ];
   bar.classList.remove("hidden");
   bar.innerHTML = chips
@@ -964,11 +984,14 @@ async function loadInbox() {
     pushEl.classList.remove("hidden");
     const mode = pushSt.fcmMode === "http_v1" ? "FCM v1" : pushSt.fcmMode === "legacy" ? "FCM legacy" : "";
     const v1only = pushSt.fcmV1Only ? " · v1-only" : "";
+    const extra = `${mode ? ` · ${mode}${v1only}` : ""}${pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} PWA` : ""}`;
     pushEl.innerHTML = ready
-      ? `Hybrid Push: ${pushSt.workersWithPush ?? 0} MA · ${pushSt.registeredDevices ?? 0} Geräte${mode ? ` · ${mode}${v1only}` : ""}${
-          pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} PWA` : ""
-        }`
-      : "FCM nicht konfiguriert — FCM_SERVER_KEY oder FCM_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID.";
+      ? t("inbox.pushHybrid", {
+          workers: pushSt.workersWithPush ?? 0,
+          devices: pushSt.registeredDevices ?? 0,
+          extra,
+        })
+      : t("inbox.pushNotConfigured");
   } else if (pushEl) {
     pushEl.classList.add("hidden");
   }
@@ -979,7 +1002,7 @@ async function loadInbox() {
     <div class="card"><span class="muted">${t("inbox.open")}</span><strong>${c.open ?? 0}</strong></div>
     <div class="card"><span class="muted">${t("inbox.critical")}</span><strong style="color:#f87171">${c.critical ?? 0}</strong></div>
     <div class="card"><span class="muted">${t("inbox.total")}</span><strong>${c.total ?? 0}</strong></div>
-    <button type="button" class="feature-card" data-goto-tab="operations">Ops Center →</button>
+    <button type="button" class="feature-card" data-goto-tab="operations">${t("inbox.opsCenter")}</button>
   `;
   countsEl.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
     switchToTab("operations");
@@ -1009,10 +1032,10 @@ async function loadInbox() {
         ${selHint}
         <button type="button" class="ghost" id="inboxSelectAll">${t("inbox.selectAll")}</button>
         <button type="button" class="ghost" id="inboxSelectNone">${t("inbox.selectNone")}</button>
-        ${docCount ? `<button type="button" class="ghost" id="inboxBulkDocPush">FCM an ${docCount} MA (Dokumente)</button>` : ""}
-        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveOk">${leaveCount} Urlaube genehmigen</button>` : ""}
-        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveNo">${leaveCount} ablehnen</button>` : ""}
-        ${sysCount ? `<button type="button" class="ghost" id="inboxBulkSysAck">${sysCount} System ack</button>` : ""}
+        ${docCount ? `<button type="button" class="ghost" id="inboxBulkDocPush">${t("inbox.bulkDocPush", { n: docCount })}</button>` : ""}
+        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveOk">${t("inbox.bulkLeaveApprove", { n: leaveCount })}</button>` : ""}
+        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveNo">${t("inbox.bulkLeaveReject", { n: leaveCount })}</button>` : ""}
+        ${sysCount ? `<button type="button" class="ghost" id="inboxBulkSysAck">${t("inbox.bulkSysAck", { n: sysCount })}</button>` : ""}
       `;
     }
   }
@@ -1040,14 +1063,14 @@ async function loadInbox() {
           if (a.type === "execute" && a.action)
             return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
           if (a.type === "navigate")
-            return `<a class="btn-link" href="${a.url}${q}">${a.label || "Öffnen"}</a>`;
+            return `<a class="btn-link" href="${a.url}${q}">${a.label || t("inbox.openAction")}</a>`;
           if (a.type === "prompt")
             return `<a class="btn-link" href="/ai-command-center.html${q}&autoprompt=${encodeURIComponent(a.prompt || "")}">KI</a>`;
           return "";
         })
         .join(" · ");
       return `<tr class="${it.severity === "critical" ? "row-critical" : ""}">
-        <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="Auswählen" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
+        <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
         <td><strong>${it.title || ""}</strong><br><span class="muted small">${it.message || ""}</span></td>
         <td class="${slaCls}">${slaLabel}</td>
         <td>${it.source || ""}</td>
@@ -1061,7 +1084,7 @@ async function loadInbox() {
           method: "POST",
           body: "{}",
         });
-        showActionToast(res.ok ? "Erledigt." : (res.error || "Fehler"), !res.ok);
+        showActionToast(res.ok ? t("common.done") : res.error || t("common.error"), !res.ok);
         await loadInbox();
       } catch (e) {
         showActionToast(e.message, true);
@@ -1099,26 +1122,26 @@ async function loadInbox() {
     });
     const msg =
       action === "push_document_reminders"
-        ? `Push: ${res.pushSent ?? 0}/${res.processed ?? 0} Dokumente`
+        ? t("inbox.bulkResultDoc", { sent: res.pushSent ?? 0, total: res.processed ?? 0 })
         : action === "approve_pending_leave"
-          ? `${res.approvedOrRejected ?? 0} Urlaube · Push ${res.pushSent ?? 0}`
-          : `${res.acknowledged ?? 0} System-Alerts bestätigt`;
-    showActionToast(res.ok ? msg : res.error || "Fehler", !res.ok);
+          ? t("inbox.bulkResultLeave", { n: res.approvedOrRejected ?? 0, push: res.pushSent ?? 0 })
+          : t("inbox.bulkResultSys", { n: res.acknowledged ?? 0 });
+    showActionToast(res.ok ? msg : res.error || t("common.error"), !res.ok);
     await loadInbox();
   }
 
   $("inboxBulkDocPush")?.addEventListener("click", () => {
-    if (!confirm("FCM-Push für alle ablaufenden Dokumente in der Liste senden?")) return;
+    if (!confirm(t("inbox.confirmDocPush"))) return;
     runInboxBulk("push_document_reminders").catch((e) => showActionToast(e.message, true));
   });
   $("inboxBulkLeaveOk")?.addEventListener("click", () => {
-    if (!confirm("Alle offenen Urlaubsanträge in der Liste genehmigen?")) return;
+    if (!confirm(t("inbox.confirmLeaveApprove"))) return;
     runInboxBulk("approve_pending_leave", { decision: "approve" }).catch((e) =>
       showActionToast(e.message, true),
     );
   });
   $("inboxBulkLeaveNo")?.addEventListener("click", () => {
-    if (!confirm("Alle offenen Urlaubsanträge ablehnen?")) return;
+    if (!confirm(t("inbox.confirmLeaveReject"))) return;
     runInboxBulk("approve_pending_leave", { decision: "reject" }).catch((e) =>
       showActionToast(e.message, true),
     );
@@ -1139,8 +1162,8 @@ async function loadInbox() {
             body: JSON.stringify({ decision }),
           });
           const msg = res.ok
-            ? `${decision === "approve" ? "Genehmigt" : "Abgelehnt"}. ${formatPushDelivery(res)}`
-            : res.error || "Fehler";
+            ? `${decision === "approve" ? t("inbox.approved") : t("inbox.rejected")}. ${formatPushDelivery(res)}`
+            : res.error || t("common.error");
           showActionToast(msg, !res.ok);
           await loadInbox();
           return;
@@ -1158,7 +1181,7 @@ async function loadInbox() {
         });
         const pushMsg = formatPushDelivery(res);
         showActionToast(
-          res.ok ? `${action} ✓${pushMsg ? ` — ${pushMsg}` : ""}` : res.error || "Fehler",
+          res.ok ? `${action} ✓${pushMsg ? ` — ${pushMsg}` : ""}` : res.error || t("common.error"),
           !res.ok,
         );
         await loadInbox();
@@ -1214,16 +1237,16 @@ async function loadOverview() {
     fp.innerHTML = `
       <div class="card forecast-card">
         <div class="forecast-head">
-          <span class="muted">Prognose morgen · ${fc.weekdayLabel || ""} ${fc.date}</span>
-          <span class="badge">${fc.confidence === "high" ? "hoch" : "mittel"}</span>
+          <span class="muted">${t("overview.forecastTomorrow", { day: fc.weekdayLabel || "", date: fc.date })}</span>
+          <span class="badge">${fc.confidence === "high" ? t("overview.confidenceHigh") : t("overview.confidenceMed")}</span>
         </div>
         <p class="forecast-summary">${fc.summary || ""}</p>
         <div class="cards forecast-stats">
-          <div><span class="muted">Erwartet on-site</span><strong>${fc.expectedOnSite ?? "—"}</strong></div>
-          <div><span class="muted">Ausfallrisiko</span><strong>${fc.expectedAbsent ?? "—"}</strong></div>
-          <div><span class="muted">Aktiv gesamt</span><strong>${fc.totalActive ?? "—"}</strong></div>
+          <div><span class="muted">${t("overview.expectedOnSite")}</span><strong>${fc.expectedOnSite ?? "—"}</strong></div>
+          <div><span class="muted">${t("overview.absentRisk")}</span><strong>${fc.expectedAbsent ?? "—"}</strong></div>
+          <div><span class="muted">${t("overview.totalActive")}</span><strong>${fc.totalActive ?? "—"}</strong></div>
         </div>
-        <p class="muted small"><a href="/ai-command-center.html${q}">KI Command Center</a> · <a href="/ops-command-center.html${q}">Ops OS</a></p>
+        <p class="muted small"><a href="/ai-command-center.html${q}">${t("ops.aiCenter")}</a> · <a href="/ops-command-center.html${q}">${t("ops.commandCenter")}</a></p>
       </div>`;
   } else if (fp) {
     fp.classList.add("hidden");
@@ -1236,14 +1259,14 @@ async function loadOverview() {
     const sec = opsBrief?.layers?.["2_ai_security"] || {};
     const emg = opsBrief?.layers?.["5_emergency"] || {};
     strip.innerHTML = `
-      <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> on-site</span>
-      <span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> Security</span>
-      <span class="ops-strip-kpi">${emg.active ? "🚨 Notfall" : "✓ ruhig"}</span>
-      <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">Ops Command Center</a>
-      <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">Live Karte</a>
-      <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">KI Command Center</a>
-      <a href="/foreman.html" target="_blank" rel="noopener">Vorarbeiter</a>
-      <button type="button" class="ghost ops-strip-tab" data-goto-tab="operations">12 Ebenen →</button>
+      <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
+      <span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>
+      <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
+      <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
+      <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
+      <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>
+      <a href="/foreman.html" target="_blank" rel="noopener">${t("overview.foreman")}</a>
+      <button type="button" class="ghost ops-strip-tab" data-goto-tab="operations">${t("overview.layers12")}</button>
     `;
     strip.querySelector(".ops-strip-tab")?.addEventListener("click", async () => {
       switchToTab("operations");
@@ -1464,10 +1487,13 @@ $("copilotForm")?.addEventListener("submit", async (e) => {
     if (res.answer) lines.push(String(res.answer));
     if (res.response) lines.push(String(res.response));
     if (res.deterministicAnswers?.answer) lines.push(String(res.deterministicAnswers.answer));
-    if (res.hint) lines.push(`Hinweis: ${res.hint}`);
+    if (res.hint) lines.push(`${t("section.copilot.hintPrefix")}: ${res.hint}`);
     if (res.contextSummary) {
       lines.push(
-        `\nKontext: ${res.contextSummary.workersOnSite ?? 0} MA vor Ort · ${res.contextSummary.openSecurityFindings ?? 0} Security`,
+        `\n${t("section.copilot.context", {
+          onSite: res.contextSummary.workersOnSite ?? 0,
+          security: res.contextSummary.openSecurityFindings ?? 0,
+        })}`,
       );
     }
     if (answerEl) answerEl.textContent = lines.filter(Boolean).join("\n\n") || JSON.stringify(res, null, 2);

@@ -1,4 +1,11 @@
-import { STRINGS } from "./i18n-strings.js";
+import { STRINGS as BASE_STRINGS } from "./i18n-strings.js";
+import { EXT_STRINGS } from "./i18n-strings-ext.js";
+
+const STRINGS = Object.fromEntries(
+  ["de", "en", "ar"].map((lang) => [lang, { ...BASE_STRINGS[lang], ...EXT_STRINGS[lang] }]),
+);
+
+export { STRINGS };
 
 const LANG_KEY = "baupass-admin-v2-lang";
 
