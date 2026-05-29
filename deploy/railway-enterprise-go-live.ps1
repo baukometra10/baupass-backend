@@ -45,6 +45,13 @@ try {
 
     if ($BaseUrl) {
         Write-Host ""
+        Write-Host "Running E2E production smoke..." -ForegroundColor Cyan
+        python "$root\backend\ops\e2e_production_smoke.py" --base-url $BaseUrl.TrimEnd("/")
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "E2E smoke FAILED — see docs/platform-phases-stability-AR.md" -ForegroundColor Red
+            exit 2
+        }
+        Write-Host ""
         Write-Host "Running health sweep..." -ForegroundColor Cyan
         & "$root\deploy\railway-health-check.ps1" -BaseUrl $BaseUrl
     }

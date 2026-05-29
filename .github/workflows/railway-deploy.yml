@@ -91,6 +91,14 @@ jobs:
           print("Enterprise go-live: OK")
           PY
 
+      - name: Production E2E smoke
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          BAUPASS_SMOKE_TOKEN: ${{ secrets.BAUPASS_SMOKE_TOKEN }}
+        run: |
+          set -e
+          python backend/ops/e2e_production_smoke.py --base-url "$PUBLIC_BASE_URL"
+
   deploy-skipped-hint:
     if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_SERVICE_ID == '' }}
     runs-on: ubuntu-latest

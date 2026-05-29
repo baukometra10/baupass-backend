@@ -44,6 +44,14 @@ jobs:
           if [ "$STRICT" = "true" ]; then ARGS+=(--strict); fi
           python backend/ops/validate_enterprise_env.py "${ARGS[@]}"
 
+      - name: Production E2E smoke (stability)
+        env:
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+          BAUPASS_SMOKE_TOKEN: ${{ secrets.BAUPASS_SMOKE_TOKEN }}
+        run: |
+          set -e
+          python backend/ops/e2e_production_smoke.py --base-url "$PUBLIC_BASE_URL" --json-only
+
       - name: Production cutover check (DR/queues — non-blocking)
         continue-on-error: true
         env:
