@@ -18,6 +18,9 @@ concurrency:
   group: mobile-release-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -38,13 +41,16 @@ jobs:
         run: yes | flutter doctor --android-licenses || true
 
       - name: Inject Firebase google-services.json (optional)
-        if: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON != '' }}
         working-directory: mobile/android/app
         env:
           FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: |
-          printf '%s' "$FIREBASE_JSON" > google-services.json
-          echo "Firebase config injected from secret."
+          if [ -n "$FIREBASE_JSON" ]; then
+            printf '%s' "$FIREBASE_JSON" > google-services.json
+            echo "Firebase config injected from secret."
+          else
+            echo "FIREBASE_GOOGLE_SERVICES_JSON not set — skipping Firebase inject."
+          fi
 
       - name: Complete Flutter platform scaffolding
         working-directory: mobile
@@ -85,15 +91,32 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 90
 
+      - name: Publish GitHub Release (APK asset)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: worker-apk-${{ github.run_number }}
+          name: Worker APK build ${{ github.run_number }}
+          files: mobile/build/app/outputs/flutter-apk/app-release.apk
+          make_latest: false
+          generate_release_notes: true
+
       - name: Release summary
         env:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+          RELEASE_TAG: worker-apk-${{ github.run_number }}
         run: |
+          REPO="${{ github.repository }}"
+          APK_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/app-release.apk"
           {
             echo "## Mobile release"
             echo ""
-            echo "- API URL: \`$API_URL\`"
-            echo "- Artifact: \`baupass-worker-release\`"
-            echo "- Host APK and set Railway \`BAUPASS_WORKER_APK_URL\`"
-            echo "- Firebase secret: \`${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON != '' && 'set' || 'missing' }}\`"
+            echo "- API URL (baked into APK): \`$API_URL\`"
+            echo "- CI artifact: \`baupass-worker-release\`"
+            echo "- GitHub Release APK: \`${APK_URL}\`"
+            echo ""
+            echo "### Railway"
+            echo "Set \`BAUPASS_WORKER_APK_URL\` to the Release URL above **or** your CDN/stable host."
+            echo "Production base: \`https://baupass-production.up.railway.app\`"
+            echo ""
+            echo "- Firebase secret: \`FIREBASE_GOOGLE_SERVICES_JSON\` (optional repo secret)"
           } >> "$GITHUB_STEP_SUMMARY"

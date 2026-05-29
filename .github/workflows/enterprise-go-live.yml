@@ -23,7 +23,6 @@ concurrency:
 
 jobs:
   validate:
-    if: ${{ secrets.PUBLIC_BASE_URL != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,6 +38,11 @@ jobs:
           PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
           STRICT: ${{ github.event.inputs.strict || 'false' }}
         run: |
+          if [ -z "$PUBLIC_BASE_URL" ]; then
+            echo "Set repository secret PUBLIC_BASE_URL to your Railway HTTPS URL."
+            echo "Example: https://baupass-production.up.railway.app"
+            exit 1
+          fi
           set -e
           ARGS=(--base-url "$PUBLIC_BASE_URL" --live-only)
           if [ "$STRICT" = "true" ]; then ARGS+=(--strict); fi
@@ -57,13 +61,3 @@ jobs:
         env:
           PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
         run: python backend/ops/production_cutover_check.py --base-url "$PUBLIC_BASE_URL"
-
-  missing-url-hint:
-    if: ${{ secrets.PUBLIC_BASE_URL == '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configure PUBLIC_BASE_URL secret
-        run: |
-          echo "Set repository secret PUBLIC_BASE_URL to your Railway HTTPS URL."
-          echo "Example: https://baupass-production.up.railway.app"
-          exit 1
