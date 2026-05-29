@@ -2,7 +2,7 @@
 export const STRINGS = {
   de: {
     "app.title": "BauPass Admin",
-    "app.subtitle": "Betrieb — Anwesenheit, Worker-App, Plattform",
+    "app.subtitle": "Anmeldung für Firmen-Admin und Superadmin",
     "lang": "Sprache",
     "login.user": "Benutzername",
     "login.pass": "Passwort",
@@ -146,7 +146,7 @@ export const STRINGS = {
   },
   en: {
     "app.title": "BauPass Admin",
-    "app.subtitle": "Operations — attendance, worker app, platform",
+    "app.subtitle": "Sign in for company admin or superadmin",
     "lang": "Language",
     "login.user": "Username",
     "login.pass": "Password",
@@ -290,7 +290,7 @@ export const STRINGS = {
   },
   ar: {
     "app.title": "BauPass Admin",
-    "app.subtitle": "لوحة التشغيل — حضور، تطبيق الموظف، والمنصة",
+    "app.subtitle": "تسجيل دخول مدير الشركة أو المشرف العام",
     "lang": "اللغة",
     "login.user": "اسم المستخدم",
     "login.pass": "كلمة المرور",

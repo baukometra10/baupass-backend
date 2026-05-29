@@ -176,10 +176,10 @@
   </header>
 
   <div id="previewNote" class="err-box hidden" style="background:#1a2e3a;border-color:#2a5a6a;color:#94a3b8">
-    <strong>معاينة عامة</strong> (خطة Professional كمثال). <a href="/admin-v2/index.html">سجّل الدخول</a> لرؤية خطتك الفعلية وتفعيل AI.
+    <strong>معاينة عامة</strong> (خطة Professional كمثال). <a href="/admin-v2/index.html?login=1">سجّل الدخول</a> لرؤية خطتك الفعلية وتفعيل AI.
   </div>
   <div id="authErr" class="err-box hidden">
-    تعذّر تحميل الكتالوج. <a href="/admin-v2/index.html">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).
+    تعذّر تحميل الكتالوج. <a href="/admin-v2/index.html?login=1">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).
   </div>
 
   <div class="layout" id="mainLayout">
@@ -220,7 +220,8 @@
     </aside>
   </div>
 
-  <script src="/ai-voice-ui.js?v=20260529e"></script>
+  <script src="/embed-helpers.js?v=20260529f"></script>
+  <script src="/ai-voice-ui.js?v=20260529f"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -613,6 +614,17 @@
       root.querySelectorAll(".layer-head").forEach((h) => {
         h.addEventListener("click", () => h.parentElement.classList.toggle("open"));
       });
+      root.querySelectorAll("a[data-hub-ui]").forEach((link) => {
+        link.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          const raw = link.getAttribute("data-hub-ui") || link.getAttribute("href") || "";
+          if (window.BaupassEmbed) {
+            window.BaupassEmbed.navigateFromEmbed(raw, hubCompanyParams());
+          } else {
+            location.href = raw;
+          }
+        });
+      });
     }
 
     function renderCap(it) {
@@ -621,8 +633,16 @@
       const locked = it.enabled === false;
       const apis = !locked && (it.apis || []).slice(0, 2).map((a) =>
         `<button type="button" data-try="${a.split(" ")[1] || a}">${t("tryApi")}</button>`).join("");
-      const ui = !locked && it.ui
-        ? `<a href="${it.ui}" target="_blank" rel="noopener">${t("openUi")}</a>` : "";
+      let ui = "";
+      if (!locked && it.ui) {
+        const uiHref = window.BaupassEmbed
+          ? window.BaupassEmbed.withEmbed(it.ui, hubCompanyParams())
+          : it.ui;
+        const embedNav = window.BaupassEmbed?.isEmbedMode?.();
+        ui = embedNav
+          ? `<a href="${uiHref}" data-hub-ui="${it.ui}">${t("openUi")}</a>`
+          : `<a href="${uiHref}" target="_blank" rel="noopener">${t("openUi")}</a>`;
+      }
       const note = it.note ? `<div class="ar">${it.note}</div>` : "";
       const planTag = `<span class="plan-badge badge" style="background:#6366f122;color:#a5b4fc">${planLabel(it.minPlan)}+</span>`;
       const state = locked
@@ -701,6 +721,7 @@
         await loadRolePlaybook(isPreview);
         renderStats(cat.stats, cat.surfaceLabels);
         renderLayers();
+        wireHubEmbedNav();
         const m = document.getElementById("maturity");
         if (caps) {
           const redisYes = HUB_LANG === "ar" ? "نعم" : (HUB_LANG === "en" ? "yes" : "ja");
@@ -725,6 +746,10 @@
       }
     }
 
+    function hubCompanyParams() {
+      return selectedCompanyId ? { company_id: selectedCompanyId } : {};
+    }
+
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
       if (params.get("embed") === "1") {
@@ -732,6 +757,15 @@
         document.body.style.minHeight = "auto";
       }
     })();
+
+    function wireHubEmbedNav() {
+      if (!window.BaupassEmbed) return;
+      window.BaupassEmbed.wireEmbedNav("#hubNav a[href^='/']", hubCompanyParams());
+      const aiLink = document.getElementById("aiCenterLink");
+      if (aiLink) {
+        aiLink.href = window.BaupassEmbed.withEmbed("/ai-command-center.html", hubCompanyParams());
+      }
+    }
 
     function appendAi(role, text, isErr, extra) {
       const log = document.getElementById("aiLog");

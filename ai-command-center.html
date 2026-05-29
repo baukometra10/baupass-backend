@@ -181,7 +181,11 @@
     </nav>
   </header>
 
-  <div id="authErr" class="err hidden">Bitte anmelden.</div>
+  <div id="authErr" class="err hidden">
+    <span id="authErrText">Bitte anmelden.</span>
+    <a id="authLoginLink" href="/admin-v2/index.html?login=1" style="margin-inline-start:0.5rem">Anmelden</a>
+    · <a href="/index.html">Control Pass</a>
+  </div>
 
   <div class="shell hidden" id="shell">
     <aside class="panel side">
@@ -224,13 +228,17 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="/ai-voice-ui.js?v=20260529e"></script>
+  <script src="/embed-helpers.js?v=20260529f"></script>
+  <script src="/ai-voice-ui.js?v=20260529f"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
       if (params.get("embed") === "1") {
         document.body.classList.add("embed-mode");
         document.querySelector("header.ops-header nav")?.remove();
+      }
+      if (window.BaupassEmbed) {
+        window.BaupassEmbed.wireEmbedNav("header.ops-header nav a[href^='/']");
       }
     })();
 
@@ -404,8 +412,18 @@
     document.getElementById("webhookBriefingBtn").textContent = t("webhookBriefing");
     document.getElementById("question").placeholder = t("placeholder");
 
+    function authHeaders(extra = {}) {
+      const headers = { ...extra };
+      const token = (localStorage.getItem("baupass-control-token") || "").trim();
+      if (token && !headers.Authorization) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      return headers;
+    }
+
     async function api(path, opts = {}) {
-      const res = await fetch(path, { credentials: "include", ...opts });
+      const headers = authHeaders(opts.headers || {});
+      const res = await fetch(path, { credentials: "include", ...opts, headers });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) throw new Error("auth");
       if (!res.ok) { const e = new Error(data.hint || data.error || res.statusText); e.payload = data; throw e; }
@@ -838,7 +856,13 @@
         }
       } catch {
         document.getElementById("authErr").classList.remove("hidden");
-        document.getElementById("authErr").textContent = t("auth");
+        const errText = document.getElementById("authErrText");
+        if (errText) errText.textContent = t("auth");
+        const loginLink = document.getElementById("authLoginLink");
+        if (loginLink) {
+          loginLink.href = "/admin-v2/index.html?login=1";
+          loginLink.textContent = LANG === "ar" ? "تسجيل الدخول" : (LANG === "en" ? "Sign in" : "Anmelden");
+        }
       }
     })();
   </script>

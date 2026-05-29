@@ -744,6 +744,30 @@ function initOpsLayerCards(root) {
   });
 }
 
+function buildOpsEmbedUrl(pagePath, companyId) {
+  const u = new URL(pagePath, location.origin);
+  u.searchParams.set("embed", "1");
+  if (companyId) {
+    u.searchParams.set("company_id", companyId);
+  }
+  return u.pathname + u.search;
+}
+
+function initOpsEmbedTabs(panel, companyId) {
+  const frame = panel?.querySelector("#opsEmbedFrame");
+  if (!frame) return;
+  panel.querySelectorAll(".ops-embed-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const page = btn.getAttribute("data-ops-page");
+      if (!page) return;
+      panel.querySelectorAll(".ops-embed-tab").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      frame.src = buildOpsEmbedUrl(page, companyId);
+      frame.title = btn.textContent || "";
+    });
+  });
+}
+
 function initOpsCarousel(root) {
   const track = root?.querySelector(".ops-carousel-track");
   const prev = root?.querySelector(".ops-carousel-prev");
@@ -832,17 +856,19 @@ async function loadOperations() {
         </div>
         <p class="ops-carousel-hint muted small"></p>
       </div>
-      <div class="link-row">
-        <a href="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
-        <a href="/ops-command-center.html?embed=1${q ? q.replace("?", "&") : ""}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
-        <a href="/ai-command-center.html?embed=1${q ? q.replace("?", "&") : ""}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>
-        <a href="/enterprise-hub.html?embed=1${q ? q.replace("?", "&") : ""}" target="_blank" rel="noopener">${t("common.enterpriseHub")}</a>
+      <div class="link-row ops-embed-tabs" role="tablist">
+        <button type="button" class="btn-link ops-embed-tab active" data-ops-page="/ops-live-map.html">${t("ops.liveMap")}</button>
+        <button type="button" class="btn-link ops-embed-tab" data-ops-page="/ops-command-center.html">${t("ops.commandCenter")}</button>
+        <button type="button" class="btn-link ops-embed-tab" data-ops-page="/ai-command-center.html">${t("ops.aiCenter")}</button>
+        <button type="button" class="btn-link ops-embed-tab" data-ops-page="/enterprise-hub.html">${t("common.enterpriseHub")}</button>
+        <a href="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener" class="muted small">${t("ops.openNewTab")}</a>
       </div>
-      <iframe src="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
+      <iframe id="opsEmbedFrame" src="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
     `;
     window.__opsLayersCache = layers;
     initOpsCarousel($("opsCarousel"));
     initOpsLayerCards($("opsCarousel"));
+    initOpsEmbedTabs(panel, cid);
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || t("ops.loadError")}</p>`;
   }
@@ -1606,11 +1632,12 @@ async function refreshActiveTab() {
 }
 
 async function bootSession() {
+  const forceLoginForm = new URLSearchParams(location.search).get("login") === "1";
   if (isEmbedMode()) {
     await tryEmbedSessionFromControlPass();
   }
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) {
+  if (!token || forceLoginForm) {
     showLogin();
     return;
   }

@@ -48,6 +48,7 @@
     </nav>
   </header>
   <main id="grid"></main>
+  <script src="/embed-helpers.js?v=20260529f"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
@@ -60,6 +61,9 @@
     function companyLink(path, cid) {
       const u = new URL(path, location.origin);
       if (cid) u.searchParams.set("company_id", cid);
+      if (window.BaupassEmbed?.isEmbedMode?.()) {
+        u.searchParams.set("embed", "1");
+      }
       return u.pathname + u.search;
     }
 
@@ -209,6 +213,9 @@
         document.body.classList.add("embed-mode");
         document.querySelector(".ops-header .ops-nav")?.remove();
         document.querySelector("header .ops-nav")?.remove();
+      } else if (window.BaupassEmbed) {
+        const extra = companyId ? { company_id: companyId } : {};
+        window.BaupassEmbed.wireEmbedNav(".ops-nav a[href^='/']", extra);
       }
     })();
 
