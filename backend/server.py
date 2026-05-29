@@ -1665,14 +1665,37 @@ def calculate_net_amount_by_plan(company_plan, payload_net_amount, worker_count=
     return round(base + worker_fee, 2)
 
 
+_EMBEDDABLE_UI_PATHS = frozenset(
+    {
+        "/enterprise-hub.html",
+        "/enterprise",
+        "/ops-command-center.html",
+        "/admin-v2/index.html",
+        "/admin",
+    }
+)
+
+
+def _allows_same_origin_framing() -> bool:
+    """Allow in-app iframe shells (Enterprise hub, Ops, Admin v2) on the same origin."""
+    path = (request.path or "").lower().rstrip("/") or "/"
+    if path in _EMBEDDABLE_UI_PATHS or path.startswith("/admin-v2/"):
+        return True
+    query = (request.query_string or b"").decode("utf-8", errors="ignore").lower()
+    return "embed=1" in query
+
+
 @app.after_request
 def apply_security_headers(response):
     request_id = getattr(g, "request_id", "")
     if request_id:
         response.headers[REQUEST_ID_HEADER] = request_id
 
+    allow_framing = _allows_same_origin_framing()
+    frame_ancestors = "'self'" if allow_framing else "'none'"
+
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN" if allow_framing else "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(self)"
     response.headers["Content-Security-Policy"] = (
@@ -1684,7 +1707,7 @@ def apply_security_headers(response):
         "connect-src 'self' https:; "
         "object-src 'none'; "
         "base-uri 'self'; "
-        "frame-ancestors 'none'"
+        f"frame-ancestors {frame_ancestors}"
     )
     path = (request.path or "").lower()
     is_pwa_asset = (

@@ -15783,7 +15783,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260529a");
+    params.push("v=20260529b");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -15794,7 +15794,11 @@ function buildEnterpriseEmbedUrl(item) {
   if (item.hash) {
     url += item.hash;
   }
-  return url;
+  try {
+    return new URL(url, window.location.origin).href;
+  } catch {
+    return url;
+  }
 }
 
 function loadEnterpriseEmbed(viewName) {
