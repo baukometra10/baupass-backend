@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+"""
+Enterprise go-live validation — env vars + optional live HTTP checks (no secrets printed).
+
+Usage:
+  python backend/ops/validate_enterprise_env.py
+  python backend/ops/validate_enterprise_env.py --base-url https://baupass-production.up.railway.app
+  python backend/ops/validate_enterprise_env.py --strict
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from pathlib import Path
+from typing import Any
+from urllib import request as urlrequest
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+_WEAK_SECRET_PATTERNS = (
+    r"^change-me",
+    r"^secret$",
+    r"^test$",
+    r"^1234",
+    r"^password",
+)
+
+
+def _fetch_json(url: str, timeout: int = 25) -> tuple[int, dict]:
+    req = urlrequest.Request(url, headers={"Accept": "application/json"}, method="GET")
+    with urlrequest.urlopen(req, timeout=timeout) as resp:
+        return resp.status, json.loads(resp.read().decode() or "{}")
+
+
+def _present(name: str) -> bool:
+    return bool((os.getenv(name) or "").strip())
+
+
+def _weak_secret(name: str, min_len: int = 24) -> str | None:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return None
+    if len(raw) < min_len:
+        return "too_short"
+    low = raw.lower()
+    for pat in _WEAK_SECRET_PATTERNS:
+        if re.search(pat, low):
+            return "weak_placeholder"
+    return None
+
+
+def _check_env() -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    hosted = bool(
+        os.getenv("RAILWAY_ENVIRONMENT")
+        or os.getenv("RENDER")
+        or (os.getenv("PUBLIC_BASE_URL") or "").strip()
+    )
+
+    def add(
+        key: str,
+        *,
+        ok: bool,
+        severity: str = "critical",
+        hint: str = "",
+        value_hint: str = "",
+    ) -> None:
+        items.append(
+            {
+                "id": key,
+                "ok": ok,
+                "severity": severity,
+                "hint": hint,
+                "configured": value_hint or ("yes" if ok else "no"),
+            }
+        )
+
+    # ── Security (critical) ─────────────────────────────────────────────
+    for var, min_len in (
+        ("BAUPASS_SECRET_KEY", 32),
+        ("BAUPASS_AUDIT_SIGNING_KEY", 24),
+    ):
+        weak = _weak_secret(var, min_len)
+        add(
+            var,
+            ok=_present(var) and not weak,
+            hint="Generate long random strings; never use change-me in production.",
+            value_hint="weak" if weak else ("set" if _present(var) else "missing"),
+        )
+
+    add(
+        "BAUPASS_DB_PATH",
+        ok=_present("BAUPASS_DB_PATH"),
+        hint="Mount Railway volume at /data and set BAUPASS_DB_PATH=/data/baupass.db",
+    )
+
+    if hosted:
+        add(
+            "BAUPASS_ALLOW_DEMO",
+            ok=not _present("BAUPASS_ALLOW_DEMO")
+            or os.getenv("BAUPASS_ALLOW_DEMO", "").strip().lower() in {"0", "false", "no", "off"},
+            severity="critical",
+            hint="Demo seed must stay off on production (omit or BAUPASS_ALLOW_DEMO=0).",
+            value_hint=os.getenv("BAUPASS_ALLOW_DEMO", "unset"),
+        )
+
+    add(
+        "PUBLIC_BASE_URL",
+        ok=_present("PUBLIC_BASE_URL"),
+        severity="critical" if hosted else "recommended",
+        hint="HTTPS URL of the Railway service — used in emails and deep links.",
+    )
+
+    # ── Redis / jobs (recommended for enterprise) ─────────────────────────
+    redis_ok = _present("REDIS_URL")
+    add("REDIS_URL", ok=redis_ok, severity="recommended", hint="Railway Redis + worker service.")
+    if redis_ok:
+        rq_modes = [
+            os.getenv("BAUPASS_DAILY_JOBS_MODE", "inline"),
+            os.getenv("BAUPASS_DUNNING_MODE", "inline"),
+        ]
+        add(
+            "BAUPASS_*_JOBS_MODE=rq",
+            ok=all(m == "rq" for m in rq_modes),
+            severity="recommended",
+            hint="Set BAUPASS_DAILY_JOBS_MODE=rq and BAUPASS_DUNNING_MODE=rq with a worker process.",
+            value_hint=",".join(rq_modes),
+        )
+
+    # ── Hybrid push (critical for worker app) ───────────────────────────
+    fcm_v1 = _present("FCM_PROJECT_ID") and (
+        _present("FCM_SERVICE_ACCOUNT_JSON") or _present("FCM_SERVICE_ACCOUNT_B64")
+    )
+    fcm_legacy = _present("FCM_SERVER_KEY") or _present("FIREBASE_SERVER_KEY")
+    fcm_ok = fcm_v1 or fcm_legacy
+    add(
+        "FCM (v1 preferred)",
+        ok=fcm_ok,
+        severity="critical",
+        hint="FCM_PROJECT_ID + FCM_SERVICE_ACCOUNT_JSON (or B64); set FCM_V1_ONLY=1 after test.",
+        value_hint="v1" if fcm_v1 else ("legacy" if fcm_legacy else "missing"),
+    )
+    if fcm_v1 and _present("FCM_V1_ONLY"):
+        add("FCM_V1_ONLY", ok=True, severity="recommended", value_hint="enabled")
+
+    add(
+        "BAUPASS_WORKER_APK_URL",
+        ok=_present("BAUPASS_WORKER_APK_URL"),
+        severity="recommended",
+        hint="Hosted APK for join.html hybrid distribution.",
+    )
+
+    # ── AI / Copilot ────────────────────────────────────────────────────
+    openai_ok = _present("OPENAI_API_KEY")
+    add(
+        "OPENAI_API_KEY",
+        ok=openai_ok,
+        severity="recommended",
+        hint="Required for KI Command Center, Ops Copilot, and agent tools.",
+    )
+    if openai_ok:
+        weak = _weak_secret("OPENAI_API_KEY", 20)
+        if weak:
+            items[-1]["ok"] = False
+            items[-1]["value_hint"] = "weak"
+
+    # ── Email ─────────────────────────────────────────────────────────────
+    smtp_ok = _present("SMTP_HOST") and _present("SMTP_PASSWORD")
+    add(
+        "SMTP",
+        ok=smtp_ok,
+        severity="recommended",
+        hint="Brevo/Gmail SMTP for invoices, leave, and alerts.",
+    )
+
+    add(
+        "BAUPASS_CONTACT_EMAIL",
+        ok=_present("BAUPASS_CONTACT_EMAIL") or _present("VAPID_EMAIL"),
+        severity="recommended",
+        hint="Used for Web Push (legacy PWA) and operational contact — not admin@example.com.",
+    )
+
+    # ── Observability ───────────────────────────────────────────────────
+    add("SENTRY_DSN", ok=_present("SENTRY_DSN"), severity="recommended")
+    add(
+        "BAUPASS_BACKUP_ON_BOOT",
+        ok=_present("BAUPASS_BACKUP_ON_BOOT"),
+        severity="recommended",
+        hint="Automatic DB backup when persistent volume is mounted.",
+    )
+
+    # ── Enterprise runtime flags ────────────────────────────────────────
+    try:
+        from backend.app.core.enterprise_mode import demo_features_allowed, copilot_configured
+
+        add(
+            "enterprise.demoAllowed",
+            ok=not demo_features_allowed() if hosted else True,
+            severity="critical" if hosted else "info",
+            hint="Production must not allow demo seed.",
+            value_hint=str(demo_features_allowed()),
+        )
+        add(
+            "enterprise.copilotConfigured",
+            ok=copilot_configured(),
+            severity="recommended",
+            value_hint=str(copilot_configured()),
+        )
+    except Exception as exc:
+        add("enterprise.flags", ok=False, hint=str(exc))
+
+    critical = [i for i in items if i["severity"] == "critical"]
+    recommended = [i for i in items if i["severity"] == "recommended"]
+    crit_fail = [i for i in critical if not i["ok"]]
+    rec_fail = [i for i in recommended if not i["ok"]]
+
+    score = int(
+        100
+        * (
+            sum(1 for i in items if i["ok"])
+            / max(1, len(items))
+        )
+    )
+
+    return {
+        "hosted": hosted,
+        "scorePercent": score,
+        "summary": {
+            "total": len(items),
+            "passed": sum(1 for i in items if i["ok"]),
+            "criticalFailed": len(crit_fail),
+            "recommendedFailed": len(rec_fail),
+        },
+        "items": items,
+        "criticalFailures": [i["id"] for i in crit_fail],
+        "recommendedGaps": [i["id"] for i in rec_fail],
+    }
+
+
+def _check_http(base: str) -> dict[str, Any]:
+    checks: dict[str, Any] = {}
+    endpoints = {
+        "health": "/api/health",
+        "ready": "/api/health/ready",
+        "setupStatus": "/api/platform/setup-status",
+        "pushStatus": "/api/platform/push/status",
+    }
+    ok = True
+    for name, path in endpoints.items():
+        url = f"{base.rstrip('/')}{path}"
+        try:
+            status, payload = _fetch_json(url)
+            checks[name] = {"httpStatus": status, "ok": status == 200, "payload": payload}
+            if status != 200:
+                ok = False
+            if name == "ready" and payload.get("status") != "ready":
+                ok = False
+            if name == "health":
+                ent = payload.get("enterprise") or {}
+                checks[name]["enterprise"] = ent
+                if ent.get("demoAllowed") is True:
+                    checks[name]["warning"] = "demoAllowed=true on live deployment"
+                    ok = False
+        except Exception as exc:
+            checks[name] = {"ok": False, "error": str(exc)}
+            ok = False
+    return {"ok": ok, "baseUrl": base, "checks": checks}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate BauPass enterprise go-live readiness")
+    parser.add_argument("--base-url", default=os.getenv("PUBLIC_BASE_URL", "").strip())
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail if any recommended check fails (not only critical)",
+    )
+    parser.add_argument("--json-only", action="store_true")
+    args = parser.parse_args()
+
+    env_report = _check_env()
+    result: dict[str, Any] = {"env": env_report, "live": None}
+
+    if args.base_url:
+        result["live"] = _check_http(args.base_url)
+
+    env_ok = env_report["summary"]["criticalFailed"] == 0
+    live_ok = result["live"]["ok"] if result.get("live") else True
+    strict_ok = env_report["summary"]["recommendedFailed"] == 0 if args.strict else True
+
+    result["ok"] = env_ok and live_ok and strict_ok
+    result["tier"] = "enterprise_ready" if result["ok"] else "needs_work"
+
+    if args.json_only:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print("BauPass Enterprise Go-Live Validation")
+        print("=" * 40)
+        print(f"Score: {env_report['scorePercent']}% ({env_report['summary']['passed']}/{env_report['summary']['total']} checks)")
+        if env_report["criticalFailures"]:
+            print("\nCRITICAL (must fix):")
+            for fid in env_report["criticalFailures"]:
+                print(f"  - {fid}")
+        if env_report["recommendedGaps"]:
+            print("\nRECOMMENDED:")
+            for fid in env_report["recommendedGaps"][:12]:
+                print(f"  - {fid}")
+            if len(env_report["recommendedGaps"]) > 12:
+                print(f"  ... +{len(env_report['recommendedGaps']) - 12} more")
+        if result.get("live"):
+            print(f"\nLive HTTP: {'OK' if result['live']['ok'] else 'FAILED'} — {args.base_url}")
+        print(f"\nOverall: {result['tier'].upper()} (ok={result['ok']})")
+        print("\nFull JSON: re-run with --json-only")
+
+    return 0 if result["ok"] else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

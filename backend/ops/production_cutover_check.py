@@ -73,6 +73,21 @@ def main() -> int:
         checks["postgres_preflight"] = {"error": str(exc)}
         ok = False
 
+    try:
+        from backend.ops.validate_enterprise_env import _check_env, _check_http
+
+        env_report = _check_env()
+        checks["enterprise_env"] = env_report
+        if env_report.get("criticalFailures"):
+            ok = False
+        live_ent = _check_http(base)
+        checks["enterprise_live"] = live_ent
+        if not live_ent.get("ok"):
+            ok = False
+    except Exception as exc:
+        checks["enterprise_validation"] = {"error": str(exc)}
+        ok = False
+
     result = {"ok": ok, "baseUrl": base, "checks": checks}
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if ok else 2

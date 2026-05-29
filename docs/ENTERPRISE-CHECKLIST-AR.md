@@ -1,5 +1,7 @@
 # BauPass — فحص القائمة الكاملة (نقطة بنقطة)
 
+> **Go-Live (إنتاج عالمي):** [`enterprise-go-live-AR.md`](enterprise-go-live-AR.md) + `python backend/ops/validate_enterprise_env.py`
+
 الرموز: ✅ جاهز | 🟡 جزئي / يحتاج إعداد سحابة | ⏸ مؤجّل | 🔴 بنية خارجية
 
 > **مؤجّل لاحقاً (حسب طلبك):** تقسيم Domains من `server.py` (البنود 1–3، 83).

@@ -44,8 +44,11 @@ python -m backend.app.tasks.worker
 ## التحقق بعد النشر
 
 ```powershell
+.\deploy\railway-enterprise-go-live.ps1 -BaseUrl "https://your-app.up.railway.app"
 .\deploy\railway-health-check.ps1 -BaseUrl "https://your-app.up.railway.app"
 ```
+
+دليل Go-Live الكامل: [`enterprise-go-live-AR.md`](enterprise-go-live-AR.md)
 
 أو يدوياً:
 
