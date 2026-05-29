@@ -1,92 +1,34 @@
-const STRINGS = {
-  de: {
-    "app.title": "BauPass Admin",
-    "app.subtitle": "Betrieb — Anwesenheit, Worker-App, Plattform",
-    "login.user": "Benutzername",
-    "login.pass": "Passwort",
-    "login.scope": "Kontotyp",
-    "login.btn": "Anmelden",
-    "tab.overview": "Übersicht",
-    "tab.enterprise": "🏛 Enterprise",
-    "tab.workers": "Mitarbeiter",
-    "tab.access": "Anwesenheit",
-    "tab.mobile": "Worker-App",
-    "tab.operations": "Betrieb",
-    "tab.tools": "Geofence · Auto · Integration",
-    "tab.platform": "Plattform",
-    "tools.geofence": "Geofence — Baustellen",
-    "tools.mapHint": "Karte anklicken = Koordinaten setzen",
-    "tools.addZone": "Zone hinzufügen",
-    "tools.automation": "Automatisierung",
-    "tools.integrations": "Integrationen",
-    "tools.connect": "Verbinden",
-    "tools.sync": "Sync",
-    "lang": "Sprache",
-  },
-  en: {
-    "app.title": "BauPass Admin",
-    "app.subtitle": "Operations — attendance, worker app, platform",
-    "login.user": "Username",
-    "login.pass": "Password",
-    "login.scope": "Account type",
-    "login.btn": "Sign in",
-    "tab.overview": "Overview",
-    "tab.enterprise": "🏛 Enterprise",
-    "tab.workers": "Workers",
-    "tab.access": "Attendance",
-    "tab.mobile": "Worker app",
-    "tab.operations": "Operations",
-    "tab.tools": "Geofence · Auto · Integrations",
-    "tab.platform": "Platform",
-    "tools.geofence": "Geofence — sites",
-    "tools.mapHint": "Click map to set coordinates",
-    "tools.addZone": "Add zone",
-    "tools.automation": "Automation",
-    "tools.integrations": "Integrations",
-    "tools.connect": "Connect",
-    "tools.sync": "Sync",
-    "lang": "Language",
-  },
-  ar: {
-    "app.title": "BauPass Admin",
-    "app.subtitle": "لوحة التشغيل — حضور، تطبيق الموظف، والمنصة",
-    "login.user": "اسم المستخدم",
-    "login.pass": "كلمة المرور",
-    "login.scope": "نوع الحساب",
-    "login.btn": "تسجيل الدخول",
-    "tab.overview": "نظرة عامة",
-    "tab.enterprise": "🏛 المؤسسة",
-    "tab.workers": "الموظفون",
-    "tab.access": "الحضور",
-    "tab.mobile": "تطبيق الموظف",
-    "tab.operations": "العمليات",
-    "tab.tools": "Geofence · أتمتة · تكامل",
-    "tab.platform": "المنصة",
-    "tools.geofence": "Geofence — مناطق الحضور",
-    "tools.mapHint": "انقر الخريطة لتعيين الإحداثيات",
-    "tools.addZone": "إضافة منطقة",
-    "tools.automation": "أتمتة",
-    "tools.integrations": "تكاملات",
-    "tools.connect": "ربط",
-    "tools.sync": "مزامنة",
-    "lang": "اللغة",
-  },
-};
+import { STRINGS } from "./i18n-strings.js";
 
 const LANG_KEY = "baupass-admin-v2-lang";
 
 export function getLang() {
-  return localStorage.getItem(LANG_KEY) || "de";
+  const code = localStorage.getItem(LANG_KEY) || "de";
+  return STRINGS[code] ? code : "de";
 }
 
 export function setLang(code) {
+  if (!STRINGS[code]) return;
   localStorage.setItem(LANG_KEY, code);
   applyI18n();
+  window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: code } }));
 }
 
-export function t(key) {
+/** Interpolate {name} placeholders in translated strings. */
+export function t(key, vars = {}) {
   const lang = getLang();
-  return STRINGS[lang]?.[key] || STRINGS.de[key] || STRINGS.en[key] || key;
+  let text = STRINGS[lang]?.[key] || STRINGS.de[key] || STRINGS.en[key] || key;
+  for (const [k, v] of Object.entries(vars)) {
+    text = text.replaceAll(`{${k}}`, String(v ?? ""));
+  }
+  return text;
+}
+
+function applyAttr(el, attr, key) {
+  const val = t(key);
+  if (attr === "placeholder") el.placeholder = val;
+  else if (attr === "title") el.title = val;
+  else el.setAttribute(attr, val);
 }
 
 export function applyI18n() {
@@ -94,6 +36,20 @@ export function applyI18n() {
     const key = el.getAttribute("data-i18n");
     if (key) el.textContent = t(key);
   });
-  document.documentElement.lang = getLang() === "ar" ? "ar" : getLang();
-  document.documentElement.dir = getLang() === "ar" ? "rtl" : "ltr";
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    applyAttr(el, "placeholder", el.getAttribute("data-i18n-placeholder"));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    applyAttr(el, "title", el.getAttribute("data-i18n-title"));
+  });
+  document.querySelectorAll("select option[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    if (key) el.textContent = t(key);
+  });
+  document.querySelectorAll("[data-lang-select]").forEach((sel) => {
+    if (sel.value !== getLang()) sel.value = getLang();
+  });
+  const lang = getLang();
+  document.documentElement.lang = lang === "ar" ? "ar" : lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
 }

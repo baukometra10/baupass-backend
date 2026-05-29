@@ -109,10 +109,14 @@ async function loadCompanies() {
   }
 }
 
+function yn(v) {
+  return v ? t("common.yes") : t("common.no");
+}
+
 function statusBadge(ok) {
   return ok
-    ? '<span class="badge badge-ok">جاهز</span>'
-    : '<span class="badge badge-warn">يحتاج إعداد</span>';
+    ? `<span class="badge badge-ok">${t("badge.ready")}</span>`
+    : `<span class="badge badge-warn">${t("badge.needsSetup")}</span>`;
 }
 
 function escapeHtml(text) {
@@ -130,7 +134,7 @@ function formatPushDelivery(res) {
     const ch = (d.channels || []).join(" + ") || "push";
     return `Push: ${d.pushSent} (${ch})`;
   }
-  return d.hint || "Kein Push zugestellt — Token fehlt.";
+  return d.hint || t("push.none");
 }
 
 function showActionToast(message, isError) {
@@ -256,16 +260,16 @@ function switchToTab(tabId) {
 
 function renderQuickLinks() {
   const items = [
-    { tab: "enterprise", title: "مركز المؤسسة (16 طبقة)", desc: "خريطة كل ما بُني + مساعد AI" },
-    { tab: "workers", title: "الموظفون + NFC", desc: "تعيين بطاقة وQR تفعيل التطبيق" },
-    { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
-    { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
-    { tab: "inbox", title: "Posteingang", desc: "Alerts, Dokumente, Urlaub — handeln statt nur lesen" },
-    { tab: "copilot", title: "Ops Copilot", desc: "KI mit Live-Kontext (Anwesenheit, Security)" },
-    { tab: "operations", title: "عمليات الموقع", desc: "12 طبقة Physical Operations OS" },
-    { tab: "tools", title: "Geofence · أتمتة · تكامل", desc: "SAP، Oracle، M365، قواعد" },
-    { tab: "platform", title: "جاهزية المنصة", desc: "Redis، AI، Wallet" },
-    { tab: null, title: "لوحة كاملة (Legacy)", desc: "فواتير، أجهزة، إعدادات", href: "/index.html" },
+    { tab: "enterprise", title: t("quick.enterprise.title"), desc: t("quick.enterprise.desc") },
+    { tab: "workers", title: t("quick.workers.title"), desc: t("quick.workers.desc") },
+    { tab: "access", title: t("quick.access.title"), desc: t("quick.access.desc") },
+    { tab: "mobile", title: t("quick.mobile.title"), desc: t("quick.mobile.desc") },
+    { tab: "inbox", title: t("tab.inbox"), desc: t("section.inbox.desc") },
+    { tab: "copilot", title: t("section.copilot.title"), desc: t("section.copilot.desc") },
+    { tab: "operations", title: t("quick.operations.title"), desc: t("quick.operations.desc") },
+    { tab: "tools", title: t("quick.tools.title"), desc: t("quick.tools.desc") },
+    { tab: "platform", title: t("quick.platform.title"), desc: t("quick.platform.desc") },
+    { tab: null, title: t("quick.legacy.title"), desc: t("quick.legacy.desc"), href: "/index.html" },
   ];
   $("quickLinks").innerHTML = items
     .map((item) => {
@@ -320,7 +324,7 @@ async function loadPlatformBanner() {
 
 async function loadPlatform() {
   const panel = $("platformPanel");
-  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
     const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist] = await Promise.all([
       api("/api/platform/capabilities"),
@@ -413,7 +417,7 @@ async function loadPlatform() {
       const out = $("aiQuickAnswer");
       out.textContent = "جاري الإرسال…";
       try {
-        const aiBody = { question: q, use_agent: true, agent_id: "operations", lang: (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2) };
+        const aiBody = { question: q, use_agent: true, agent_id: "operations", lang: getLang().slice(0, 2) };
         const user = getUser();
         const cid =
           localStorage.getItem(COMPANY_KEY) ||
@@ -439,7 +443,7 @@ async function loadPlatform() {
 
 async function loadMobile() {
   const panel = $("mobilePanel");
-  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
     const data = await api("/api/v2/mobile/distribution");
     const install = data.install || {};
@@ -651,7 +655,7 @@ function initOpsCarousel(root) {
   };
 
   if (hint) {
-    hint.textContent = "Ebenen mit ‹ › wechseln — die Admin-Seite bleibt fix, nur die Kartenzeile scrollt.";
+    hint.textContent = t("ops.scrollHint");
   }
 
   prev?.addEventListener("click", (e) => {
@@ -690,10 +694,10 @@ async function loadOperations() {
   const panel = $("operationsPanel");
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    panel.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;
   }
-  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
     const cid = q.replace("?company_id=", "");
     const data = await api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
@@ -737,14 +741,14 @@ async function loadOperations() {
     initOpsCarousel($("opsCarousel"));
     initOpsLayerCards($("opsCarousel"));
   } catch (e) {
-    panel.innerHTML = `<p class="error">${e.message || "تعذّر تحميل العمليات — قد تحتاج جداول إضافية في DB"}</p>`;
+    panel.innerHTML = `<p class="error">${e.message || t("ops.loadError")}</p>`;
   }
 }
 
 function requireCompany(panel) {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    panel.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return null;
   }
   return q;
@@ -754,7 +758,7 @@ async function loadTools() {
   const panel = $("toolsPanel");
   const q = requireCompany(panel);
   if (q === null) return;
-  panel.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
     const [geofences, rules, integrations] = await Promise.all([
       api(`/api/geofences/admin${q}`),
@@ -803,21 +807,21 @@ async function loadTools() {
         <div class="layer-grid" id="integrationCards"></div>
       </div>`;
     renderTable($("geofenceTable"), gfRows, [
-      { label: "الموقع", render: (r) => r.site_name || "-" },
-      { label: "إحداثيات", render: (r) => `${r.latitude}, ${r.longitude}` },
-      { label: "نصف القطر", render: (r) => `${r.radius_meters}m` },
-      { label: "نشط", render: (r) => (r.active ? "نعم" : "لا") },
+      { label: t("table.site"), render: (r) => r.site_name || "-" },
+      { label: t("table.coords"), render: (r) => `${r.latitude}, ${r.longitude}` },
+      { label: t("table.radius"), render: (r) => `${r.radius_meters}m` },
+      { label: t("table.active"), render: (r) => yn(r.active) },
     ]);
     renderTable($("automationTable"), ruleRows, [
-      { label: "الاسم", render: (r) => r.name || "-" },
-      { label: "المحفّز", render: (r) => r.trigger_event || "-" },
-      { label: "مفعّل", render: (r) => (r.enabled ? "نعم" : "لا") },
+      { label: t("table.name"), render: (r) => r.name || "-" },
+      { label: t("table.trigger"), render: (r) => r.trigger_event || "-" },
+      { label: t("table.enabled"), render: (r) => yn(r.enabled) },
     ]);
     const intByProvider = Object.fromEntries(intRows.map((r) => [r.provider, r]));
     $("integrationCards").innerHTML = providers
       .map((p) => {
         const conn = intByProvider[p.id];
-        const st = conn ? conn.status : "غير مربوط";
+        const st = conn ? conn.status : t("tools.notConnected");
         return `<div class="layer-pill" data-provider="${p.id}">
           <strong>${p.label}</strong><br><span class="muted small">${st}</span>
           <button type="button" class="btn-link" data-connect="${p.id}">${t("tools.connect")}</button>
@@ -888,7 +892,7 @@ async function loadTools() {
 
 function renderTable(container, rows, columns) {
   if (!rows.length) {
-    container.innerHTML = '<p class="muted" style="padding:1rem">لا توجد بيانات.</p>';
+    container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noData")}</p>`;
     return;
   }
   const head = columns.map((c) => `<th>${c.label}</th>`).join("");
@@ -915,10 +919,10 @@ function renderInboxFilters(bySource = {}) {
   const bar = $("inboxFilters");
   if (!bar) return;
   const chips = [
-    { id: "", label: "Alle" },
+    { id: "", label: t("inbox.filterAll") },
     { id: "security", label: `Security (${bySource.security ?? 0})` },
-    { id: "leave", label: `Urlaub (${bySource.leave ?? 0})` },
-    { id: "document", label: `Dokumente (${bySource.document ?? 0})` },
+    { id: "leave", label: `Leave (${bySource.leave ?? 0})` },
+    { id: "document", label: `Docs (${bySource.document ?? 0})` },
     { id: "system", label: `System (${bySource.system ?? 0})` },
   ];
   bar.classList.remove("hidden");
@@ -941,12 +945,12 @@ async function loadInbox() {
   const countsEl = $("inboxCounts");
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    el.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    el.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     countsEl.innerHTML = "";
     $("inboxFilters")?.classList.add("hidden");
     return;
   }
-  el.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  el.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   const iq = inboxApiQuery(q);
   const [data, pushSt] = await Promise.all([
     api(`/api/inbox${iq || q}`),
@@ -972,9 +976,9 @@ async function loadInbox() {
   renderInboxFilters(c.bySource || {});
   updateInboxTabBadge(c.open, c.critical);
   countsEl.innerHTML = `
-    <div class="card"><span class="muted">Offen</span><strong>${c.open ?? 0}</strong></div>
-    <div class="card"><span class="muted">Kritisch</span><strong style="color:#f87171">${c.critical ?? 0}</strong></div>
-    <div class="card"><span class="muted">Gesamt</span><strong>${c.total ?? 0}</strong></div>
+    <div class="card"><span class="muted">${t("inbox.open")}</span><strong>${c.open ?? 0}</strong></div>
+    <div class="card"><span class="muted">${t("inbox.critical")}</span><strong style="color:#f87171">${c.critical ?? 0}</strong></div>
+    <div class="card"><span class="muted">${t("inbox.total")}</span><strong>${c.total ?? 0}</strong></div>
     <button type="button" class="feature-card" data-goto-tab="operations">Ops Center →</button>
   `;
   countsEl.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
@@ -993,8 +997,8 @@ async function loadInbox() {
   const sysCount = scope.filter((it) => String(it.id || "").startsWith("sys:")).length;
   const selHint =
     selectedItems.length > 0
-      ? `<span class="muted small">${selectedItems.length} ausgewählt</span>`
-      : `<span class="muted small">Alle ${items.length} Einträge</span>`;
+      ? `<span class="muted small">${t("inbox.selected", { n: selectedItems.length })}</span>`
+      : `<span class="muted small">${t("inbox.allItems", { n: items.length })}</span>`;
   if (bulkBar) {
     if (!items.length) {
       bulkBar.classList.add("hidden");
@@ -1003,8 +1007,8 @@ async function loadInbox() {
       bulkBar.classList.remove("hidden");
       bulkBar.innerHTML = `
         ${selHint}
-        <button type="button" class="ghost" id="inboxSelectAll">Alle markieren</button>
-        <button type="button" class="ghost" id="inboxSelectNone">Auswahl löschen</button>
+        <button type="button" class="ghost" id="inboxSelectAll">${t("inbox.selectAll")}</button>
+        <button type="button" class="ghost" id="inboxSelectNone">${t("inbox.selectNone")}</button>
         ${docCount ? `<button type="button" class="ghost" id="inboxBulkDocPush">FCM an ${docCount} MA (Dokumente)</button>` : ""}
         ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveOk">${leaveCount} Urlaube genehmigen</button>` : ""}
         ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveNo">${leaveCount} ablehnen</button>` : ""}
@@ -1013,26 +1017,26 @@ async function loadInbox() {
     }
   }
   if (!items.length) {
-    el.innerHTML = '<p class="muted">Keine offenen Punkte — alles im grünen Bereich.</p>';
+    el.innerHTML = `<p class="muted">${t("inbox.empty")}</p>`;
     return;
   }
-  el.innerHTML = `<table><thead><tr><th></th><th>Titel</th><th>SLA</th><th>Quelle</th><th>Aktionen</th></tr></thead><tbody>${items
+  el.innerHTML = `<table><thead><tr><th></th><th>${t("inbox.colTitle")}</th><th>${t("inbox.colSla")}</th><th>${t("inbox.colSource")}</th><th>${t("inbox.colActions")}</th></tr></thead><tbody>${items
     .map((it) => {
       const checked = inboxSelectedIds.has(it.id) ? " checked" : "";
       const slaCls =
         it.slaStatus === "overdue" ? "sla-overdue" : it.slaStatus === "due_soon" ? "sla-due-soon" : "";
       const slaLabel =
         it.slaStatus === "overdue"
-          ? "überfällig"
+          ? t("inbox.slaOverdue")
           : it.slaStatus === "due_soon"
-            ? "bald fällig"
+            ? t("inbox.slaDueSoon")
             : it.slaDueAt
-              ? `bis ${(it.slaDueAt || "").slice(0, 16).replace("T", " ")}`
+              ? t("inbox.slaUntil", { date: (it.slaDueAt || "").slice(0, 16).replace("T", " ") })
               : "—";
       const acts = (it.actions || [])
         .map((a) => {
           if (a.type === "resolve" || a.type === "ack")
-            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">Erledigt</button>`;
+            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${t("inbox.done")}</button>`;
           if (a.type === "execute" && a.action)
             return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
           if (a.type === "navigate")
@@ -1169,7 +1173,7 @@ async function loadOverview() {
   renderQuickLinks();
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    $("statCards").innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
+    $("statCards").innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;
   }
   const cid = q.replace("?company_id=", "");
@@ -1191,11 +1195,11 @@ async function loadOverview() {
     )
     .join("");
   $("statCards").innerHTML = `
-    <div class="card"><span class="muted">على الموقع الآن</span><strong>${wf.onSite ?? 0}</strong></div>
-    <div class="card"><span class="muted">موظفون نشطون</span><strong>${wf.totalActive ?? 0}</strong></div>
-    <div class="card"><span class="muted">مناطق Geofence</span><strong>${overview.zonesCount ?? 0}</strong></div>
+    <div class="card"><span class="muted">${t("overview.onSite")}</span><strong>${wf.onSite ?? 0}</strong></div>
+    <div class="card"><span class="muted">${t("overview.activeWorkers")}</span><strong>${wf.totalActive ?? 0}</strong></div>
+    <div class="card"><span class="muted">${t("overview.geofenceZones")}</span><strong>${overview.zonesCount ?? 0}</strong></div>
     <button type="button" class="card" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
-      <span class="muted">Posteingang</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
+      <span class="muted">${t("overview.inbox")}</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
     </button>
     ${extraCards}
   `;
@@ -1249,11 +1253,11 @@ async function loadOverview() {
     strip.classList.add("hidden");
   }
   renderTable($("recentAccess"), overview.recentAccess || [], [
-    { label: "الموظف", render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
-    { label: "Badge", render: (r) => r.badge_id || "-" },
-    { label: "الاتجاه", render: (r) => r.direction || "-" },
-    { label: "البوابة", render: (r) => r.gate || "-" },
-    { label: "الوقت", render: (r) => (r.timestamp || "").slice(0, 19) },
+    { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
+    { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },
+    { label: t("table.direction"), render: (r) => r.direction || "-" },
+    { label: t("table.gate"), render: (r) => r.gate || "-" },
+    { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
   ]);
 }
 
@@ -1285,15 +1289,13 @@ async function showWorkerJoin(workerId, workerName) {
   });
   const link = payload.link || payload.joinLink || "";
   if (!link) {
-    alert("لم يُنشأ رابط التفعيل.");
+    alert(t("join.noLink"));
     return;
   }
   $("joinModalName").textContent = workerName;
   $("joinLinkInput").value = link;
   const exp = payload.accessExpiresAt ? String(payload.accessExpiresAt).slice(0, 19) : "";
-  $("joinExpires").textContent = exp
-    ? `رابط لمرة واحدة — صالح حتى: ${exp} (UTC)`
-    : "رابط لمرة واحدة — يُستخدم عند أول تسجيل دخول.";
+  $("joinExpires").textContent = exp ? t("join.expires", { exp }) : t("join.once");
   const blobUrl = await loadQrImage(link);
   const img = $("joinQrImg");
   img.src = blobUrl;
@@ -1309,48 +1311,48 @@ $("joinCopyBtn").addEventListener("click", async () => {
   const link = $("joinLinkInput").value;
   try {
     await navigator.clipboard.writeText(link);
-    alert("تم نسخ الرابط.");
+    alert(t("common.copyDone"));
   } catch {
     $("joinLinkInput").select();
     document.execCommand("copy");
-    alert("تم نسخ الرابط.");
+    alert(t("common.copyDone"));
   }
 });
 
 async function assignNfc(workerId, inputEl) {
   const uid = (inputEl.value || "").trim();
   if (!uid) {
-    alert("أدخل UID البطاقة (مثال: 04A1B2C3 أو 04:A1:B2:C3)");
+    alert(t("workers.nfcPrompt"));
     return;
   }
   await api(`/api/v2/workers/${encodeURIComponent(workerId)}/physical-card${companyQuery()}`, {
     method: "PATCH",
     body: JSON.stringify({ physicalCardId: uid }),
   });
-  alert("تم حفظ بطاقة NFC.");
+  alert(t("workers.nfcSaved"));
   await loadWorkers();
 }
 
 async function loadWorkers() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    $("workersTable").innerHTML = '<p class="muted" style="padding:1rem">اختر شركة.</p>';
+    $("workersTable").innerHTML = `<p class="muted" style="padding:1rem">${t("common.selectCompany")}</p>`;
     return;
   }
   const data = await api(`/api/v2/workers${q}`);
   const rows = data.workers || [];
   const container = $("workersTable");
   if (!rows.length) {
-    container.innerHTML = '<p class="muted" style="padding:1rem">لا يوجد موظفون.</p>';
+    container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noWorkers")}</p>`;
     return;
   }
   const head = `
     <tr>
-      <th>الاسم</th>
-      <th>Badge</th>
-      <th>بطاقة NFC</th>
-      <th>تعيين UID</th>
-      <th>التطبيق</th>
+      <th>${t("workers.colName")}</th>
+      <th>${t("workers.colBadge")}</th>
+      <th>${t("workers.colNfc")}</th>
+      <th>${t("workers.colAssign")}</th>
+      <th>${t("workers.colActions")}</th>
     </tr>`;
   const body = rows
     .map((r) => {
@@ -1363,10 +1365,10 @@ async function loadWorkers() {
         <td><code>${current || "—"}</code></td>
         <td>
           <input class="nfc-input" type="text" placeholder="UID" value="${current}" data-worker-id="${id}" />
-          <button type="button" class="btn-link" data-save-nfc="${id}">حفظ</button>
+          <button type="button" class="btn-link" data-save-nfc="${id}">${t("common.save")}</button>
         </td>
         <td>
-          <button type="button" class="btn-link" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">QR تفعيل</button>
+          <button type="button" class="btn-link" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.joinQr")}</button>
         </td>
       </tr>`;
     })
@@ -1391,7 +1393,7 @@ async function loadWorkers() {
 async function loadAccess() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    $("accessTable").innerHTML = '<p class="muted" style="padding:1rem">اختر شركة.</p>';
+    $("accessTable").innerHTML = `<p class="muted" style="padding:1rem">${t("common.selectCompany")}</p>`;
     $("accessSummary").innerHTML = "";
     return;
   }
@@ -1402,9 +1404,9 @@ async function loadAccess() {
     const checkIns = hourly.reduce((n, h) => n + (h.checkIn || 0), 0);
     const checkOuts = hourly.reduce((n, h) => n + (h.checkOut || 0), 0);
     $("accessSummary").innerHTML = `
-      <div class="card"><span class="muted">دخول اليوم</span><strong>${checkIns}</strong></div>
-      <div class="card"><span class="muted">خروج اليوم</span><strong>${checkOuts}</strong></div>
-      <div class="card"><span class="muted">جلسات مفتوحة</span><strong>${open}</strong></div>
+      <div class="card"><span class="muted">${t("access.checkIns")}</span><strong>${checkIns}</strong></div>
+      <div class="card"><span class="muted">${t("access.checkOuts")}</span><strong>${checkOuts}</strong></div>
+      <div class="card"><span class="muted">${t("access.openSessions")}</span><strong>${open}</strong></div>
     `;
   } catch {
     $("accessSummary").innerHTML = "";
@@ -1431,17 +1433,17 @@ async function loadAccess() {
   }
   const data = await api(`/api/v2/access/live${q}`);
   renderTable($("accessTable"), data.access_logs || [], [
-    { label: "الموظف", render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
-    { label: "الاتجاه", render: (r) => r.direction || "-" },
-    { label: "البوابة", render: (r) => r.gate || "-" },
-    { label: "الوقت", render: (r) => (r.timestamp || "").slice(0, 19) },
+    { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
+    { label: t("table.direction"), render: (r) => r.direction || "-" },
+    { label: t("table.gate"), render: (r) => r.gate || "-" },
+    { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
   ]);
 }
 
 async function loadCopilot() {
   const answerEl = $("copilotAnswer");
   if (!answerEl) return;
-  answerEl.textContent = "Stelle eine Frage — Copilot nutzt Live-Daten (Anwesenheit, Security, Notfall).";
+  answerEl.textContent = t("section.copilot.idle");
 }
 
 $("copilotForm")?.addEventListener("submit", async (e) => {
@@ -1450,7 +1452,7 @@ $("copilotForm")?.addEventListener("submit", async (e) => {
   if (!q) return;
   const answerEl = $("copilotAnswer");
   const btn = $("copilotSubmit");
-  if (answerEl) answerEl.textContent = "Denke nach…";
+  if (answerEl) answerEl.textContent = t("section.copilot.thinking");
   if (btn) btn.disabled = true;
   try {
     const cid = companyQuery().replace("?company_id=", "") || undefined;
@@ -1541,7 +1543,7 @@ $("loginBtn").addEventListener("click", async () => {
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
   } catch (e) {
-    $("loginError").textContent = e.message || "فشل تسجيل الدخول";
+    $("loginError").textContent = e.message || t("login.fail");
     $("loginError").classList.remove("hidden");
   }
 });
@@ -1602,11 +1604,23 @@ $("opsLayerModal")?.addEventListener("click", (e) => {
   if (e.target?.id === "opsLayerModal") $("opsLayerModal").classList.add("hidden");
 });
 
-const langSel = $("langSelect");
-if (langSel) {
-  langSel.value = getLang();
-  langSel.addEventListener("change", () => setLang(langSel.value));
+function bindLangSelect(sel) {
+  if (!sel) return;
+  sel.value = getLang();
+  sel.addEventListener("change", () => {
+    setLang(sel.value);
+    document.querySelectorAll("[data-lang-select]").forEach((other) => {
+      if (other !== sel) other.value = getLang();
+    });
+  });
 }
+bindLangSelect($("langSelect"));
+bindLangSelect($("langSelectDash"));
+window.addEventListener("baupass-admin-lang", () => {
+  if (!$("dashboardView").classList.contains("hidden")) {
+    refreshActiveTab().catch(() => {});
+  }
+});
 applyI18n();
 
 bootSession();

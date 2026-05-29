@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="de" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f4c5c" />
   <title>BauPass Admin v2</title>
-  <link rel="stylesheet" href="styles.css?v=20260530ad" />
+  <link rel="stylesheet" href="styles.css?v=20260531i18n" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -14,131 +14,139 @@
     <section id="loginView" class="panel login-panel">
       <label class="lang-row">
         <span data-i18n="lang">Sprache</span>
-        <select id="langSelect">
+        <select id="langSelect" data-lang-select>
           <option value="de">Deutsch</option>
           <option value="en">English</option>
           <option value="ar">العربية</option>
         </select>
       </label>
       <h1 data-i18n="app.title">BauPass Admin</h1>
-      <p class="muted" data-i18n="app.subtitle">لوحة التشغيل</p>
+      <p class="muted" data-i18n="app.subtitle">Betrieb</p>
       <label>
-        <span data-i18n="login.user">اسم المستخدم</span>
+        <span data-i18n="login.user">Benutzername</span>
         <input id="username" type="text" autocomplete="username" />
       </label>
       <label>
-        <span data-i18n="login.pass">كلمة المرور</span>
+        <span data-i18n="login.pass">Passwort</span>
         <input id="password" type="password" autocomplete="current-password" />
       </label>
       <label>
-        <span data-i18n="login.scope">نوع الحساب</span>
+        <span data-i18n="login.scope">Kontotyp</span>
         <select id="loginScope">
-          <option value="company-admin">مدير شركة</option>
-          <option value="superadmin">Superadmin</option>
+          <option value="company-admin" data-i18n="login.scopeCompany">Firmen-Admin</option>
+          <option value="superadmin" data-i18n="login.scopeSuperadmin">Superadmin</option>
         </select>
       </label>
-      <button id="loginBtn" type="button" data-i18n="login.btn">تسجيل الدخول</button>
+      <button id="loginBtn" type="button" data-i18n="login.btn">Anmelden</button>
       <p id="loginError" class="error hidden"></p>
       <p class="muted small">
-        <a href="/enterprise-hub.html">مركز المؤسسة (16 طبقة + AI)</a>
-        · <a href="/index.html">اللوحة الكاملة (فواتير، أجهزة، إعدادات)</a>
+        <a href="/enterprise-hub.html" data-i18n="login.footerEnterprise">Enterprise-Hub</a>
+        · <a href="/index.html" data-i18n="login.footerLegacy">Legacy-Dashboard</a>
       </p>
     </section>
 
     <section id="dashboardView" class="hidden">
       <header class="topbar">
         <div>
-          <h1 id="brandTitle">BauPass Admin v2</h1>
+          <h1 id="brandTitle" data-i18n="app.title">BauPass Admin</h1>
           <p id="userLine" class="muted"></p>
         </div>
         <div class="topbar-actions">
+          <label class="lang-row lang-row-compact">
+            <span data-i18n="lang" class="muted small">Sprache</span>
+            <select id="langSelectDash" data-lang-select>
+              <option value="de">DE</option>
+              <option value="en">EN</option>
+              <option value="ar">AR</option>
+            </select>
+          </label>
           <label id="companyPickerWrap" class="company-picker hidden">
-            <span class="muted small">الشركة</span>
+            <span class="muted small" data-i18n="common.company">Firma</span>
             <select id="companyPicker"></select>
           </label>
-          <button id="refreshBtn" type="button">تحديث</button>
-          <button id="logoutBtn" type="button" class="ghost">خروج</button>
+          <button id="refreshBtn" type="button" data-i18n="common.refresh">Aktualisieren</button>
+          <button id="logoutBtn" type="button" class="ghost" data-i18n="common.logout">Abmelden</button>
         </div>
       </header>
 
       <div id="platformBanner" class="platform-banner hidden"></div>
 
       <nav class="tabs">
-        <button type="button" data-tab="overview" class="tab active" data-i18n="tab.overview">نظرة عامة</button>
-        <button type="button" data-tab="inbox" class="tab" id="tabInboxBtn">📥 Posteingang <span id="inboxTabBadge" class="tab-badge hidden"></span></button>
-        <button type="button" data-tab="copilot" class="tab">🤖 Copilot</button>
-        <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700" data-i18n="tab.enterprise">🏛 المؤسسة</button>
-        <button type="button" data-tab="workers" class="tab" data-i18n="tab.workers">الموظفون</button>
-        <button type="button" data-tab="access" class="tab" data-i18n="tab.access">الحضور</button>
-        <button type="button" data-tab="mobile" class="tab" data-i18n="tab.mobile">تطبيق الموظف</button>
-        <button type="button" data-tab="operations" class="tab" data-i18n="tab.operations">العمليات</button>
-        <button type="button" data-tab="tools" class="tab" data-i18n="tab.tools">Geofence · أتمتة · تكامل</button>
-        <button type="button" data-tab="platform" class="tab" data-i18n="tab.platform">المنصة</button>
+        <button type="button" data-tab="overview" class="tab active" data-i18n="tab.overview">Übersicht</button>
+        <button type="button" data-tab="inbox" class="tab" id="tabInboxBtn"><span data-i18n="tab.inbox">Posteingang</span> <span id="inboxTabBadge" class="tab-badge hidden"></span></button>
+        <button type="button" data-tab="copilot" class="tab" data-i18n="tab.copilot">Copilot</button>
+        <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700" data-i18n="tab.enterprise">Enterprise</button>
+        <button type="button" data-tab="workers" class="tab" data-i18n="tab.workers">Mitarbeiter</button>
+        <button type="button" data-tab="access" class="tab" data-i18n="tab.access">Anwesenheit</button>
+        <button type="button" data-tab="mobile" class="tab" data-i18n="tab.mobile">Worker-App</button>
+        <button type="button" data-tab="operations" class="tab" data-i18n="tab.operations">Betrieb</button>
+        <button type="button" data-tab="tools" class="tab" data-i18n="tab.tools">Tools</button>
+        <button type="button" data-tab="platform" class="tab" data-i18n="tab.platform">Plattform</button>
       </nav>
 
       <main>
         <div id="tab-enterprise" class="tab-panel hidden">
-          <p class="muted small">خريطة الـ 16 طبقة — كل ما بُني في المنصة (حسب خطتك).</p>
-          <iframe id="enterpriseFrame" title="مركز المؤسسة" src="/enterprise-hub.html?embed=1" style="width:100%;min-height:72vh;border:1px solid var(--border);border-radius:12px;background:#0b1118"></iframe>
+          <p class="muted small" data-i18n="section.enterprise.desc">Enterprise layers</p>
+          <iframe id="enterpriseFrame" title="Enterprise hub" src="/enterprise-hub.html?embed=1" style="width:100%;min-height:72vh;border:1px solid var(--border);border-radius:12px;background:#0b1118"></iframe>
         </div>
         <div id="tab-copilot" class="tab-panel hidden">
-          <h2 class="section-title">Ops Copilot</h2>
-          <p class="muted small">Fragen zu Live-Daten: Anwesenheit, Security, Notfall, Dokumente.</p>
+          <h2 class="section-title" data-i18n="section.copilot.title">Ops Copilot</h2>
+          <p class="muted small" data-i18n="section.copilot.desc">Ask live data</p>
           <form id="copilotForm" class="copilot-form">
-            <textarea id="copilotQuestion" rows="3" placeholder="z.B. Wer ist heute zu spät? Welche Security-Alerts sind offen?"></textarea>
-            <button type="submit" id="copilotSubmit">Fragen</button>
+            <textarea id="copilotQuestion" rows="3" data-i18n-placeholder="section.copilot.placeholder"></textarea>
+            <button type="submit" id="copilotSubmit" data-i18n="common.ask">Fragen</button>
           </form>
-          <pre id="copilotAnswer" class="copilot-answer muted">—</pre>
+          <pre id="copilotAnswer" class="copilot-answer muted" data-i18n="section.copilot.empty">—</pre>
         </div>
         <div id="tab-inbox" class="tab-panel hidden">
-          <h2 class="section-title">Operations-Posteingang</h2>
-          <p class="muted small">Security, System, Dokumente, Urlaub — mit einem Klick erledigen oder an KI übergeben.</p>
+          <h2 class="section-title" data-i18n="section.inbox.title">Inbox</h2>
+          <p class="muted small" data-i18n="section.inbox.desc">Operations inbox</p>
           <div id="inboxCounts" class="cards"></div>
           <div id="inboxPushStatus" class="muted small hidden"></div>
-          <p id="inboxLiveHint" class="muted small hidden">Live: Posteingang aktualisiert sich bei neuen Events (WebSocket/SSE).</p>
+          <p id="inboxLiveHint" class="muted small hidden" data-i18n="section.inbox.live">Live updates</p>
           <div id="inboxToast" class="inbox-toast hidden" role="status"></div>
           <div id="inboxFilters" class="inbox-filters hidden"></div>
           <div id="inboxBulkBar" class="inbox-bulk-bar hidden"></div>
           <div id="inboxList" class="table-wrap"></div>
         </div>
         <div id="tab-overview" class="tab-panel">
-          <h2 class="section-title">التشغيل اليومي</h2>
+          <h2 class="section-title" data-i18n="section.overview.daily">Daily ops</h2>
           <div class="cards" id="statCards"></div>
           <div id="forecastPanel" class="forecast-panel hidden"></div>
           <div id="opsCommandStrip" class="ops-command-strip hidden"></div>
-          <h2 class="section-title">اختصارات — ما بُني في المنصة</h2>
+          <h2 class="section-title" data-i18n="section.overview.shortcuts">Shortcuts</h2>
           <div id="quickLinks" class="feature-grid"></div>
-          <h2 class="section-title">آخر عمليات الدخول</h2>
+          <h2 class="section-title" data-i18n="section.overview.recentAccess">Recent access</h2>
           <div id="recentAccess" class="table-wrap"></div>
         </div>
         <div id="tab-workers" class="tab-panel hidden">
-          <p class="muted small">عيّن <strong>بطاقة NFC</strong> (UID) لتمكين الحضور من تطبيق الموظف والقارئ.</p>
+          <p class="muted small" data-i18n="section.workers.hint">NFC hint</p>
           <div id="workersTable" class="table-wrap"></div>
         </div>
         <div id="tab-access" class="tab-panel hidden">
           <div class="access-toolbar">
             <div id="accessSummary" class="cards"></div>
             <p class="muted small">
-              <a id="exportCsvLink" href="#">تصدير CSV</a>
-              · <a href="/index.html">لوحة الحضور الكاملة (Legacy)</a>
+              <a id="exportCsvLink" href="#" data-i18n="common.exportCsv">CSV</a>
+              · <a href="/index.html" data-i18n="common.fullAccessBoard">Legacy</a>
             </p>
           </div>
           <div id="accessTable" class="table-wrap"></div>
         </div>
         <div id="tab-mobile" class="tab-panel hidden">
-          <p class="muted small">توزيع تطبيق الموظف الهجين (Flutter + FCM) — QR التفعيل في join.html.</p>
+          <p class="muted small" data-i18n="section.mobile.hint">Mobile hint</p>
           <div id="mobilePanel" class="stack-panel"></div>
         </div>
         <div id="tab-operations" class="tab-panel hidden">
-          <p class="muted small">Physical Operations OS — 12 Ebenen mit ‹ › (Seite bleibt stabil).</p>
+          <p class="muted small" data-i18n="section.operations.hint">Operations hint</p>
           <div id="operationsPanel" class="stack-panel"></div>
         </div>
         <div id="tab-tools" class="tab-panel hidden">
-          <p class="muted small">إعدادات Professional/Enterprise — مناطق الحضور، قواعد الأتمتة، وربط SAP/Oracle/M365.</p>
+          <p class="muted small" data-i18n="section.tools.hint">Tools hint</p>
           <div id="toolsPanel" class="stack-panel"></div>
         </div>
         <div id="tab-platform" class="tab-panel hidden">
-          <p class="muted small">جاهزية المنصة العالمية — Redis، AI، Wallet، والخطوات التالية.</p>
+          <p class="muted small" data-i18n="section.platform.hint">Platform hint</p>
           <div id="platformPanel" class="stack-panel"></div>
         </div>
       </main>
@@ -147,47 +155,47 @@
 
   <div id="integrationModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
-      <h2 id="integrationModalTitle">Integration</h2>
+      <h2 id="integrationModalTitle" data-i18n="modal.integration">Integration</h2>
       <form id="integrationWizardForm" class="wizard-form"></form>
       <div class="modal-actions">
-        <button type="submit" form="integrationWizardForm">Connect</button>
-        <button type="button" id="integrationModalClose" class="ghost">Close</button>
+        <button type="submit" form="integrationWizardForm" data-i18n="tools.connect">Connect</button>
+        <button type="button" id="integrationModalClose" class="ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
 
   <div id="opsLayerModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card ops-layer-modal-card">
-      <h2 id="opsLayerModalTitle">Ebene</h2>
+      <h2 id="opsLayerModalTitle" data-i18n="modal.layer">Layer</h2>
       <p id="opsLayerModalStat" class="ops-layer-modal-stat"></p>
       <div class="table-wrap ops-layer-detail-wrap">
         <table class="ops-layer-detail-table"><tbody id="opsLayerModalBody"></tbody></table>
       </div>
       <div class="modal-actions">
-        <button type="button" id="opsLayerModalClose" class="ghost">Schließen</button>
+        <button type="button" id="opsLayerModalClose" class="ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
 
   <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
-      <h2>تفعيل تطبيق الموظف</h2>
+      <h2 data-i18n="join.title">Worker app</h2>
       <p id="joinModalName" class="muted"></p>
-      <p class="muted small">Hybrid-App (Flutter): QR scannen → APK oder TestFlight installieren → „In App öffnen“.</p>
+      <p class="muted small" data-i18n="join.hint">QR hint</p>
       <div class="join-qr-wrap">
         <img id="joinQrImg" alt="QR" width="240" height="240" />
       </div>
       <p id="joinExpires" class="muted small"></p>
       <input id="joinLinkInput" type="text" readonly class="join-link-input" />
       <div class="modal-actions">
-        <button type="button" id="joinCopyBtn">نسخ الرابط</button>
-        <button type="button" id="joinCloseBtn" class="ghost">إغلاق</button>
+        <button type="button" id="joinCopyBtn" data-i18n="common.copy">Copy</button>
+        <button type="button" id="joinCloseBtn" class="ghost" data-i18n="common.close">Close</button>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260530ad" type="module"></script>
+  <script src="app.js?v=20260531i18n" type="module"></script>
 </body>
 </html>
