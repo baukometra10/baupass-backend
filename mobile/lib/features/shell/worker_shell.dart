@@ -61,6 +61,7 @@ class WorkerShell extends StatefulWidget {
 
 class WorkerShellState extends State<WorkerShell> {
   int _index = 0;
+  int _tasksSubTab = 0;
   int _offlinePending = 0;
 
   @override
@@ -147,10 +148,12 @@ class WorkerShellState extends State<WorkerShell> {
         embedded: true,
       ),
       TasksScreen(
+        key: ValueKey('tasks-$_tasksSubTab'),
         session: widget.session,
         tasks: widget.tasks,
         auth: widget.auth,
         workerCache: widget.workerCache,
+        initialTab: _tasksSubTab,
       ),
       ProfileScreen(
         session: widget.session,

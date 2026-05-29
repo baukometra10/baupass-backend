@@ -13336,10 +13336,13 @@ def analytics_worker_trends():
             result.append({
                 "date": row["work_date"],
                 "activeWorkers": row["active_workers"],
+                "checkins": row["active_workers"],
+                "count": row["active_workers"],
                 "checkinRate": round(row["checkin_rate"], 1) if row["checkin_rate"] else 0,
             })
 
-    return jsonify({"trends": result})
+    daily = list(reversed(result))
+    return jsonify({"trends": result, "daily": daily, "days": daily})
 
 
 @app.get("/api/analytics/document-health")
@@ -13381,7 +13384,45 @@ def analytics_document_health():
                 "totalDocs": row["total_docs"],
             })
 
-    return jsonify({"docHealth": health_data, "totalWorkers": total_workers})
+        today = datetime.now().strftime("%Y-%m-%d")
+        in_30 = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        valid = db.execute(
+            """
+            SELECT COUNT(*) AS cnt FROM worker_documents
+            WHERE company_id = ? AND (expiry_date IS NULL OR expiry_date = '' OR expiry_date > ?)
+            """,
+            (company_id, in_30),
+        ).fetchone()["cnt"]
+        expiring = db.execute(
+            """
+            SELECT COUNT(*) AS cnt FROM worker_documents
+            WHERE company_id = ? AND expiry_date IS NOT NULL AND expiry_date != ''
+              AND expiry_date > ? AND expiry_date <= ?
+            """,
+            (company_id, today, in_30),
+        ).fetchone()["cnt"]
+        expired = db.execute(
+            """
+            SELECT COUNT(*) AS cnt FROM worker_documents
+            WHERE company_id = ? AND expiry_date IS NOT NULL AND expiry_date != ''
+              AND expiry_date < ?
+            """,
+            (company_id, today),
+        ).fetchone()["cnt"]
+        with_doc = db.execute(
+            "SELECT COUNT(DISTINCT worker_id) AS cnt FROM worker_documents WHERE company_id = ?",
+            (company_id,),
+        ).fetchone()["cnt"]
+        missing = max(0, int(total_workers) - int(with_doc))
+
+    return jsonify({
+        "docHealth": health_data,
+        "totalWorkers": total_workers,
+        "valid": int(valid),
+        "expiring": int(expiring),
+        "expired": int(expired),
+        "missing": int(missing),
+    })
 
 
 @app.get("/api/analytics/punctuality-report")
@@ -13402,7 +13443,11 @@ def analytics_punctuality_report():
             w.id,
             w.first_name,
             w.last_name,
-            TIME(al.timestamp) as checkin_time
+            TIME(al.timestamp) as checkin_time,
+            CAST(
+                (strftime('%H', al.timestamp) - 8) * 60
+                + strftime('%M', al.timestamp)
+            AS INTEGER) AS minutes_late
         FROM workers w
         JOIN access_logs al ON w.id = al.worker_id
         WHERE w.company_id = ?
@@ -13414,7 +13459,8 @@ def analytics_punctuality_report():
               FROM access_logs al2
               WHERE al2.worker_id = w.id AND al2.timestamp LIKE ?
           )
-        ORDER BY al.timestamp
+        ORDER BY minutes_late DESC
+        LIMIT 25
         """,
             (company_id, f"{today_prefix}%", f"{today_prefix}%"),
         ).fetchall()
@@ -13429,7 +13475,14 @@ def analytics_punctuality_report():
 
     return jsonify({
         "punctualityRate": punctuality_rate,
-        "lateWorkers": [{"name": f"{w['first_name']} {w['last_name']}", "checkinTime": w["checkin_time"]} for w in late_workers],
+        "lateWorkers": [
+            {
+                "name": f"{w['first_name']} {w['last_name']}".strip(),
+                "checkinTime": w["checkin_time"],
+                "minutesLate": max(0, int(w["minutes_late"] or 0)),
+            }
+            for w in late_workers
+        ],
         "totalWorkers": total_count,
     })
 
@@ -13451,8 +13504,9 @@ def shift_get_assignments():
             id, start_time, end_time, site, status, notes
         FROM shift_assignments
         WHERE worker_id = ? AND status != 'cancelled'
-        ORDER BY start_time DESC
-        LIMIT 20
+          AND end_time >= datetime('now', '-1 day')
+        ORDER BY start_time ASC
+        LIMIT 30
         """,
         (worker["id"],)
     ).fetchall()

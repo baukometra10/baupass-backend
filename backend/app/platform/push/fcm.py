@@ -24,6 +24,10 @@ def fcm_configured() -> bool:
         return False
 
 
+def fcm_v1_only() -> bool:
+    return os.getenv("FCM_V1_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def fcm_mode() -> str:
     try:
         from .fcm_v1 import fcm_v1_configured
@@ -32,6 +36,8 @@ def fcm_mode() -> str:
             return "http_v1"
     except Exception:
         pass
+    if fcm_v1_only():
+        return "none"
     if _server_key():
         return "legacy"
     return "none"
@@ -58,10 +64,15 @@ def send_fcm_notification(
 
         if fcm_v1_configured():
             sent = send_fcm_v1(clean, title=title, body=body, data=data)
-            if sent > 0:
+            if sent > 0 or fcm_v1_only():
                 return sent
     except Exception as exc:
-        logger.warning("FCM v1 path failed, trying legacy: %s", exc)
+        logger.warning("FCM v1 path failed: %s", exc)
+        if fcm_v1_only():
+            return 0
+
+    if fcm_v1_only():
+        return 0
 
     key = _server_key()
     if not key:

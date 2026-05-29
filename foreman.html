@@ -816,8 +816,9 @@
       try {
         const trends = await fetchAPI('/analytics/worker-trends');
         const trendEl = document.querySelector('#analytics .chart-container:nth-child(1) .chart-placeholder');
-        const vals = (trends?.daily || trends?.days || []).map((d) => d.checkins ?? d.count ?? 0);
-        const labs = (trends?.daily || trends?.days || []).map((d) => d.date || d.day || '');
+        const trendRows = trends?.daily || trends?.days || trends?.trends || [];
+        const vals = trendRows.map((d) => d.checkins ?? d.activeWorkers ?? d.count ?? 0);
+        const labs = trendRows.map((d) => d.date || d.day || '');
         renderMiniBarChart(trendEl, vals.length ? vals : [0,0,0,0,0,0,0], labs.length ? labs : ['Mo','Di','Mi','Do','Fr','Sa','So']);
 
         const docHealth = await fetchAPI('/analytics/document-health');
@@ -845,7 +846,7 @@
         <tr>
           <td>${w.name}</td>
           <td>${w.checkinTime}</td>
-          <td>+${Math.floor(Math.random() * 30)} Min</td>
+          <td>+${w.minutesLate ?? 0} Min</td>
         </tr>
       `).join('');
     }

@@ -45,6 +45,17 @@ class TasksRepository {
     );
   }
 
+  Future<List<Map<String, dynamic>>> listShiftAssignments(WorkerSession session) async {
+    final data = await _api.getJson(
+      '/api/shift/assignments',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final raw = data['assignments'];
+    if (raw is! List) return [];
+    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   Future<List<Map<String, dynamic>>> listCompanyAdmins(WorkerSession session) {
     return _api.getJsonList(
       '/api/worker-app/company-admins',

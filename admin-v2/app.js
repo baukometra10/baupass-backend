@@ -901,6 +901,7 @@ function renderTable(container, rows, columns) {
 }
 
 let inboxSourceFilter = "";
+const inboxSelectedIds = new Set();
 
 function inboxApiQuery(baseQ) {
   const params = new URLSearchParams((baseQ || "").replace(/^\?/, ""));
@@ -957,8 +958,9 @@ async function loadInbox() {
     const ready = pushSt.anyChannelReady;
     pushEl.classList.remove("hidden");
     const mode = pushSt.fcmMode === "http_v1" ? "FCM v1" : pushSt.fcmMode === "legacy" ? "FCM legacy" : "";
+    const v1only = pushSt.fcmV1Only ? " · v1-only" : "";
     pushEl.innerHTML = ready
-      ? `Hybrid Push: ${pushSt.workersWithPush ?? 0} MA · ${pushSt.registeredDevices ?? 0} Geräte${mode ? ` · ${mode}` : ""}${
+      ? `Hybrid Push: ${pushSt.workersWithPush ?? 0} MA · ${pushSt.registeredDevices ?? 0} Geräte${mode ? ` · ${mode}${v1only}` : ""}${
           pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} PWA` : ""
         }`
       : "FCM nicht konfiguriert — FCM_SERVER_KEY oder FCM_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID.";
@@ -979,10 +981,19 @@ async function loadInbox() {
     refreshActiveTab();
   });
   const items = data.items || [];
+  for (const id of [...inboxSelectedIds]) {
+    if (!items.some((it) => it.id === id)) inboxSelectedIds.delete(id);
+  }
+  const selectedItems = items.filter((it) => inboxSelectedIds.has(it.id));
+  const scope = selectedItems.length ? selectedItems : items;
   const bulkBar = $("inboxBulkBar");
-  const docCount = items.filter((it) => String(it.id || "").startsWith("doc:")).length;
-  const leaveCount = items.filter((it) => String(it.id || "").startsWith("leave:")).length;
-  const sysCount = items.filter((it) => String(it.id || "").startsWith("sys:")).length;
+  const docCount = scope.filter((it) => String(it.id || "").startsWith("doc:")).length;
+  const leaveCount = scope.filter((it) => String(it.id || "").startsWith("leave:")).length;
+  const sysCount = scope.filter((it) => String(it.id || "").startsWith("sys:")).length;
+  const selHint =
+    selectedItems.length > 0
+      ? `<span class="muted small">${selectedItems.length} ausgewählt</span>`
+      : `<span class="muted small">Alle ${items.length} Einträge</span>`;
   if (bulkBar) {
     if (!items.length) {
       bulkBar.classList.add("hidden");
@@ -990,10 +1001,12 @@ async function loadInbox() {
     } else {
       bulkBar.classList.remove("hidden");
       bulkBar.innerHTML = `
-        <span class="muted small">Sammelaktionen:</span>
+        ${selHint}
+        <button type="button" class="ghost" id="inboxSelectAll">Alle markieren</button>
+        <button type="button" class="ghost" id="inboxSelectNone">Auswahl löschen</button>
         ${docCount ? `<button type="button" class="ghost" id="inboxBulkDocPush">FCM an ${docCount} MA (Dokumente)</button>` : ""}
-        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveOk">Alle ${leaveCount} Urlaube genehmigen</button>` : ""}
-        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveNo">Alle ablehnen</button>` : ""}
+        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveOk">${leaveCount} Urlaube genehmigen</button>` : ""}
+        ${leaveCount ? `<button type="button" class="ghost" id="inboxBulkLeaveNo">${leaveCount} ablehnen</button>` : ""}
         ${sysCount ? `<button type="button" class="ghost" id="inboxBulkSysAck">${sysCount} System ack</button>` : ""}
       `;
     }
@@ -1004,6 +1017,7 @@ async function loadInbox() {
   }
   el.innerHTML = `<table><thead><tr><th></th><th>Titel</th><th>Quelle</th><th>Aktionen</th></tr></thead><tbody>${items
     .map((it) => {
+      const checked = inboxSelectedIds.has(it.id) ? " checked" : "";
       const acts = (it.actions || [])
         .map((a) => {
           if (a.type === "resolve" || a.type === "ack")
@@ -1018,7 +1032,7 @@ async function loadInbox() {
         })
         .join(" · ");
       return `<tr class="${it.severity === "critical" ? "row-critical" : ""}">
-        <td><span class="badge badge-warn">${it.severity || ""}</span></td>
+        <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="Auswählen" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
         <td><strong>${it.title || ""}</strong><br><span class="muted small">${it.message || ""}</span></td>
         <td>${it.source || ""}</td>
         <td>${acts}</td></tr>`;
@@ -1038,11 +1052,34 @@ async function loadInbox() {
       }
     });
   });
+  el.querySelectorAll(".inbox-pick").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const id = cb.dataset.id || "";
+      if (!id) return;
+      if (cb.checked) inboxSelectedIds.add(id);
+      else inboxSelectedIds.delete(id);
+      loadInbox().catch(() => {});
+    });
+  });
+  $("inboxSelectAll")?.addEventListener("click", () => {
+    items.forEach((it) => {
+      if (it.id) inboxSelectedIds.add(it.id);
+    });
+    loadInbox().catch(() => {});
+  });
+  $("inboxSelectNone")?.addEventListener("click", () => {
+    inboxSelectedIds.clear();
+    loadInbox().catch(() => {});
+  });
+
   async function runInboxBulk(action, extra = {}) {
     const cid = q.replace("?company_id=", "");
+    const itemIds = selectedItems.length
+      ? selectedItems.map((it) => it.id).filter(Boolean)
+      : undefined;
     const res = await api(`/api/inbox/bulk${iq || q}`, {
       method: "POST",
-      body: JSON.stringify({ action, company_id: cid || undefined, ...extra }),
+      body: JSON.stringify({ action, company_id: cid || undefined, item_ids: itemIds, ...extra }),
     });
     const msg =
       action === "push_document_reminders"

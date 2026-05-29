@@ -363,6 +363,11 @@ main {
   padding: 0.35rem 0.65rem;
 }
 
+.inbox-pick {
+  margin-inline-end: 0.35rem;
+  vertical-align: middle;
+}
+
 .inbox-toast.ok {
   background: rgba(52, 211, 153, 0.12);
   border: 1px solid rgba(52, 211, 153, 0.35);

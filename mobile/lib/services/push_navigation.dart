@@ -21,6 +21,7 @@ class PushNavigation {
       case 'document-expiry':
         return const WorkerAppRoute(tabIndex: 2);
       case 'attendance-reminder':
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 2);
       case 'site-checkin':
         return const WorkerAppRoute(tabIndex: 1);
       case 'ai-briefing':

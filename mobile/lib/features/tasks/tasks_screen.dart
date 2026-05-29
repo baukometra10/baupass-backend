@@ -7,6 +7,7 @@ import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import 'documents_tab.dart';
 import 'leave_requests_tab.dart';
+import 'shifts_tab.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({
@@ -15,12 +16,14 @@ class TasksScreen extends StatefulWidget {
     required this.tasks,
     required this.auth,
     required this.workerCache,
+    this.initialTab = 0,
   });
 
   final WorkerSession session;
   final TasksRepository tasks;
   final AuthRepository auth;
   final WorkerCache workerCache;
+  final int initialTab;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -33,7 +36,11 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 2),
+    );
     _loadProfile();
   }
 
@@ -68,6 +75,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
           tabs: const [
             Tab(text: 'Leave'),
             Tab(text: 'Documents'),
+            Tab(text: 'Shifts'),
           ],
         ),
       ),
@@ -85,6 +93,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             tasks: widget.tasks,
             enabled: docsOk,
           ),
+          ShiftsTab(session: widget.session, tasks: widget.tasks),
         ],
       ),
     );

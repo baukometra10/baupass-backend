@@ -7,7 +7,7 @@ from typing import Any
 
 
 def push_platform_status() -> dict[str, Any]:
-    from .fcm import fcm_configured, fcm_mode
+    from .fcm import fcm_configured, fcm_mode, fcm_v1_only
 
     vapid = bool(os.getenv("VAPID_PRIVATE_KEY", "").strip())
     fcm = fcm_configured()
@@ -17,6 +17,7 @@ def push_platform_status() -> dict[str, Any]:
         "primaryChannel": "fcm",
         "fcmConfigured": fcm,
         "fcmMode": mode,
+        "fcmV1Only": fcm_v1_only(),
         "webPushConfigured": vapid,
         "legacyWebPush": vapid,
         "anyChannelReady": fcm or vapid,

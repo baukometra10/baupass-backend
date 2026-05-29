@@ -8,6 +8,7 @@
 4. Set on Railway either:
    - `FCM_SERVER_KEY` (legacy), or
    - `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` (HTTP v1, preferred for new Firebase projects).
+   - `FCM_V1_ONLY=1` — disable legacy `FCM_SERVER_KEY` fallback after v1 is configured.
 
 ## 2. Flutter dependencies
 
