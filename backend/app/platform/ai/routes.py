@@ -85,7 +85,14 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             history = [{"role": m["role"], "content": m["content"]} for m in list_messages(db, session_id)]
 
         try:
-            if use_agent:
+            from .intents import try_intent_response
+
+            intent_hit = try_intent_response(
+                db, company_id, question, role=role, lang=lang
+            )
+            if intent_hit:
+                result = intent_hit
+            elif use_agent:
                 result = run_agent_query(
                     db,
                     company_id,

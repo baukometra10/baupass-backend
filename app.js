@@ -15783,7 +15783,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260529c");
+    params.push("v=20260529d");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -17162,6 +17162,7 @@ function refreshAll() {
   refreshInvoicePreview({ silent: true });
   applySupportReadOnlyUiState();
   renderEnterpriseNavMenu();
+  applyDeepLinkViewFromUrl();
 }
 
 // ── Login Greeting ──────────────────────────────────────────────────────────
@@ -28991,6 +28992,40 @@ if (elements.navLinks.length) {
 }
 
 ensureEnterpriseNavDelegation();
+
+function applyDeepLinkViewFromUrl() {
+  if (!token) {
+    return;
+  }
+  const view = new URLSearchParams(window.location.search).get("view");
+  if (!view) {
+    return;
+  }
+  const allowed = getAllowedViewsForRole(getEffectiveUiRole());
+  if (allowed.includes(view)) {
+    setView(view);
+  }
+}
+
+window.addEventListener("message", (event) => {
+  if (!event?.data || event.origin !== window.location.origin) {
+    return;
+  }
+  if (event.data.type !== "baupass-navigate" || !token) {
+    return;
+  }
+  const view = String(event.data.view || "").trim();
+  if (view && getAllowedViewsForRole(getEffectiveUiRole()).includes(view)) {
+    if (view === "enterprise-hub" && event.data.url && String(event.data.url).includes("#ai-panel")) {
+      pendingEnterpriseEmbedItemId = "ai-copilot";
+    }
+    setView(view);
+    return;
+  }
+  if (event.data.url && typeof event.data.url === "string") {
+    window.open(event.data.url, "_blank", "noopener,noreferrer");
+  }
+});
 
 if (elements.loginForm) {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);

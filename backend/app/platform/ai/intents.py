@@ -1,0 +1,218 @@
+"""Fast intent routing before LLM — contact, help, and common navigation."""
+from __future__ import annotations
+
+import os
+import re
+from typing import Any
+
+_CONTACT_PATTERNS = re.compile(
+    r"(kontakt|contact|hilfe|help|support|admin|hotline|telefon|phone|email|e-mail|"
+    r"erreichen|anrufen|zuständig|zustaendig|wer ist mein|meine daten|"
+    r"اتصل|تواصل|مساعدة|دعم|مدير|بريد)",
+    re.I,
+)
+
+_NAV_RULES: list[tuple[re.Pattern[str], str, dict[str, str]]] = [
+    (
+        re.compile(r"(auf der baustelle|on site|on-site|wer ist drinnen|anwesend|موقع|حاضر)", re.I),
+        "/index.html?view=ops-center",
+        {"de": "Ops-Zentrale öffnen", "en": "Open ops center", "ar": "فتح مركز العمليات"},
+    ),
+    (
+        re.compile(r"(notfall|emergency|evaku|طوارئ)", re.I),
+        "/ops-command-center.html?embed=1",
+        {"de": "Notfall / Ops öffnen", "en": "Open emergency ops", "ar": "فتح الطوارئ"},
+    ),
+    (
+        re.compile(r"(sicherheit|security|alarm|تنبيه|أمن)", re.I),
+        "/index.html?view=admin-v2",
+        {"de": "Betrieb & Sicherheit", "en": "Operations & security", "ar": "التشغيل والأمن"},
+    ),
+    (
+        re.compile(r"(urlaub|leave|abwesen|إجاز)", re.I),
+        "/index.html?view=leave",
+        {"de": "Urlaubsanträge", "en": "Leave requests", "ar": "طلبات الإجازة"},
+    ),
+    (
+        re.compile(r"(dokument|document|ablauf|compliance|وثائق|مستند)", re.I),
+        "/index.html?view=documents",
+        {"de": "Dokumente", "en": "Documents", "ar": "المستندات"},
+    ),
+    (
+        re.compile(r"(mitarbeiter|worker|personal|موظف)", re.I),
+        "/index.html?view=workers",
+        {"de": "Mitarbeiter", "en": "Workers", "ar": "الموظفون"},
+    ),
+    (
+        re.compile(r"(zutritt|access|gate|drehkreuz|دخول)", re.I),
+        "/index.html?view=access",
+        {"de": "Zutritt", "en": "Access", "ar": "الدخول"},
+    ),
+    (
+        re.compile(r"(ki|copilot|assistent|assistant|مساعد)", re.I),
+        "/enterprise-hub.html?embed=1#ai-panel",
+        {"de": "KI-Assistent", "en": "AI assistant", "ar": "مساعد AI"},
+    ),
+]
+
+
+def _label(labels: dict[str, str], lang: str) -> str:
+    return labels.get(lang[:2]) or labels.get("de") or labels.get("en") or ""
+
+
+def _load_help_context(db, company_id: str) -> dict[str, Any]:
+    company = db.execute(
+        "SELECT id, name, contact, plan, status FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (company_id,),
+    ).fetchone()
+    settings = db.execute(
+        """
+        SELECT platform_name, operator_name, invoice_operator_phone,
+               invoice_operator_website, smtp_sender_email
+        FROM settings WHERE id = 1
+        """
+    ).fetchone()
+    public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    platform = (settings["platform_name"] if settings else "") or "BauPass"
+    operator = (settings["operator_name"] if settings else "") or "Support"
+    phone = (settings["invoice_operator_phone"] if settings else "") or ""
+    website = (settings["invoice_operator_website"] if settings else "") or public_base
+    mail = (settings["smtp_sender_email"] if settings else "") or ""
+    return {
+        "companyName": company["name"] if company else "",
+        "companyContact": (company["contact"] if company else "") or "",
+        "companyPlan": (company["plan"] if company else "") or "",
+        "companyStatus": (company["status"] if company else "") or "",
+        "platformName": platform,
+        "operatorName": operator,
+        "supportPhone": phone,
+        "supportWebsite": website,
+        "supportEmail": mail,
+        "portalUrl": public_base or website,
+    }
+
+
+def _format_contact_answer(ctx: dict[str, Any], lang: str) -> str:
+    cn = ctx.get("companyName") or "—"
+    cc = ctx.get("companyContact") or "—"
+    op = ctx.get("operatorName") or "BauPass Support"
+    phone = ctx.get("supportPhone") or "—"
+    mail = ctx.get("supportEmail") or "—"
+    web = ctx.get("portalUrl") or ctx.get("supportWebsite") or "—"
+    if lang == "ar":
+        return (
+            f"**شركتك ({cn})**\n"
+            f"• جهة اتصال الشركة: {cc}\n\n"
+            f"**دعم {ctx.get('platformName') or 'BauPass'}**\n"
+            f"• المشغّل: {op}\n"
+            f"• هاتف: {phone}\n"
+            f"• بريد: {mail}\n"
+            f"• البوابة: {web}"
+        )
+    if lang == "en":
+        return (
+            f"**Your company ({cn})**\n"
+            f"• Company contact: {cc}\n\n"
+            f"**{ctx.get('platformName') or 'BauPass'} support**\n"
+            f"• Operator: {op}\n"
+            f"• Phone: {phone}\n"
+            f"• Email: {mail}\n"
+            f"• Portal: {web}"
+        )
+    return (
+        f"**Ihre Firma ({cn})**\n"
+        f"• Firmen-Kontakt: {cc}\n\n"
+        f"**{ctx.get('platformName') or 'BauPass'} Support**\n"
+        f"• Betreiber: {op}\n"
+        f"• Telefon: {phone}\n"
+        f"• E-Mail: {mail}\n"
+        f"• Portal: {web}"
+    )
+
+
+def try_intent_response(
+    db,
+    company_id: str,
+    question: str,
+    *,
+    role: str = "company-admin",
+    lang: str = "de",
+) -> dict[str, Any] | None:
+    q = (question or "").strip()
+    if not q or not company_id:
+        return None
+    lang = (lang or "de")[:2]
+
+    if _CONTACT_PATTERNS.search(q):
+        ctx = _load_help_context(db, company_id)
+        actions: list[dict[str, Any]] = []
+        if ctx.get("companyContact"):
+            contact = str(ctx["companyContact"])
+            if "@" in contact:
+                actions.append(
+                    {
+                        "id": "mail_company",
+                        "type": "navigate",
+                        "url": f"mailto:{contact}",
+                        "labelDe": "E-Mail an Firma",
+                        "labelEn": "Email company",
+                        "labelAr": "مراسلة الشركة",
+                    }
+                )
+        if ctx.get("supportEmail"):
+            actions.append(
+                {
+                    "id": "mail_support",
+                    "type": "navigate",
+                    "url": f"mailto:{ctx['supportEmail']}",
+                    "labelDe": "Support kontaktieren",
+                    "labelEn": "Contact support",
+                    "labelAr": "مراسلة الدعم",
+                }
+            )
+        actions.append(
+            {
+                "id": "nav_admin",
+                "type": "navigate",
+                "url": "/index.html?view=admin-v2",
+                "labelDe": "Admin v2 öffnen",
+                "labelEn": "Open admin v2",
+                "labelAr": "فتح Admin v2",
+            }
+        )
+        return {
+            "answer": _format_contact_answer(ctx, lang),
+            "intent": "contact_help",
+            "configured": True,
+            "sources": ["company_directory", "platform_settings"],
+            "actions": actions,
+            "suggestedActions": actions,
+        }
+
+    for pattern, url, labels in _NAV_RULES:
+        if pattern.search(q):
+            action = {
+                "id": f"nav_{pattern.pattern[:12]}",
+                "type": "navigate",
+                "url": url,
+                "labelDe": labels["de"],
+                "labelEn": labels["en"],
+                "labelAr": labels["ar"],
+            }
+            answer_de = f"Ich leite Sie weiter: {_label(labels, lang)}."
+            if lang == "en":
+                answer = f"Opening: {_label(labels, lang)}."
+            elif lang == "ar":
+                answer = f"سأفتح: {_label(labels, lang)}."
+            else:
+                answer = answer_de
+            return {
+                "answer": answer,
+                "intent": "navigate",
+                "configured": True,
+                "sources": ["intent_router"],
+                "actions": [action],
+                "suggestedActions": [action],
+            }
+
+    return None

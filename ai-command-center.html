@@ -104,6 +104,13 @@
       border-radius: 8px;
       border: 1px solid var(--border); background: #0a1016; color: var(--text); font-family: inherit;
     }
+    .chat-form .input-row { display: flex; gap: 0.4rem; align-items: stretch; }
+    .chat-form .input-row textarea { flex: 1; }
+    .ai-voice-btn {
+      flex-shrink: 0; width: 2.75rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #0f1419; color: var(--accent); cursor: pointer; font-size: 1.1rem;
+    }
+    .ai-voice-btn.listening { background: #7f1d1d; color: #fecaca; }
     .chat-form .row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .chat-form button, .toolbar button {
       padding: 0.45rem 0.75rem; border-radius: 8px; border: none; cursor: pointer;
@@ -190,7 +197,10 @@
       <div class="scroll" id="chatLog"></div>
       <div class="chip-row" id="quickPrompts" style="padding:0 0.65rem"></div>
       <form class="chat-form" id="chatForm">
-        <textarea id="question" placeholder="Frage stellen…"></textarea>
+        <div class="input-row">
+          <textarea id="question" placeholder="Frage stellen…"></textarea>
+          <button type="button" id="aiVoiceBtn" class="ai-voice-btn" title="Sprechen" aria-label="Mikrofon">🎤</button>
+        </div>
         <div class="row">
           <button type="submit" id="sendBtn">Senden</button>
           <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
@@ -214,6 +224,7 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
+  <script src="/ai-voice-ui.js?v=20260529d"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -295,19 +306,24 @@
         m.textContent = parts.join(" | ");
         div.appendChild(m);
       }
-      if (meta.suggestedActions?.length) {
-        const row = document.createElement("div");
-        row.className = "chip-row";
-        row.style.marginTop = "0.35rem";
-        meta.suggestedActions.forEach((a) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.textContent = actionLabel(a);
-          if (a.type === "navigate" && a.url) b.onclick = () => { location.href = a.url; };
-          else if (a.type === "execute") b.onclick = () => runExecuteAction(a, lastAnswerText);
-          row.appendChild(b);
-        });
-        div.appendChild(row);
+      const actionList = meta.actions?.length ? meta.actions : meta.suggestedActions;
+      if (actionList?.length) {
+        if (window.BaupassAiUi) {
+          window.BaupassAiUi.renderActionButtons(div, actionList, LANG);
+        } else {
+          const row = document.createElement("div");
+          row.className = "chip-row";
+          row.style.marginTop = "0.35rem";
+          actionList.forEach((a) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = actionLabel(a);
+            if (a.type === "navigate" && a.url) b.onclick = () => { location.href = a.url; };
+            else if (a.type === "execute") b.onclick = () => runExecuteAction(a, lastAnswerText);
+            row.appendChild(b);
+          });
+          div.appendChild(row);
+        }
       }
     }
 
@@ -691,6 +707,7 @@
           sources: meta.sources,
           toolsUsed: meta.toolsUsed,
           suggestedActions: meta.suggestedActions,
+          actions: meta.actions || meta.suggestedActions,
         });
         await loadSessions();
         await loadInsights();
@@ -805,6 +822,13 @@
         document.getElementById("authErr").classList.add("hidden");
         document.getElementById("shell").classList.remove("hidden");
         await loadCompanies();
+        if (window.BaupassAiUi) {
+          window.BaupassAiUi.bindVoiceInput({
+            inputId: "question",
+            buttonId: "aiVoiceBtn",
+            lang: LANG,
+          });
+        }
         const sel = document.getElementById("companySelect");
         if (sel) sel.onchange = () => { startInsightsRealtime(); loadInsights().catch(() => {}); };
         await boot();
