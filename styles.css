@@ -423,6 +423,123 @@ select {
   background: rgba(255, 255, 255, 0.22);
 }
 
+.nav-enterprise-mount {
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.5rem 0 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-section-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin: 0 0 0.35rem 0.15rem;
+  font-weight: 600;
+}
+
+.nav-link-enterprise {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  font-size: 0.88rem;
+  border-inline-start: 2px solid rgba(94, 234, 212, 0.45);
+  padding-inline-start: 0.65rem;
+}
+
+.view-embed.active {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.enterprise-embed-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: calc(100vh - 7rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 12px);
+  overflow: hidden;
+  background: var(--surface-2, #0d131a);
+}
+
+.enterprise-embed-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.enterprise-embed-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.enterprise-embed-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 64vh;
+  border: none;
+  background: var(--surface-2, #0d131a);
+}
+
+body.embed-mode .ops-header .ops-nav,
+body.embed-mode #hubHeader {
+  display: none !important;
+}
+
+body.embed-mode.admin-v2-embed #loginView .small,
+body.embed-mode.admin-v2-embed #logoutBtn,
+body.embed-mode.admin-v2-embed .tabs button[data-tab="enterprise"] {
+  display: none !important;
+}
+
+body.embed-mode.admin-v2-embed {
+  background: transparent;
+}
+
+body.embed-mode.admin-v2-embed #app {
+  min-height: auto;
+}
+
+.dashboard-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-stack .session-card {
+  margin-bottom: 0;
+}
+
+.enterprise-hub-banner {
+  border: 2px solid var(--enterprise-accent, #fbbf24);
+  background: linear-gradient(135deg, var(--enterprise-bg-start, #1a2838), var(--enterprise-bg-end, #0d131a));
+}
+
+.enterprise-hub-banner-eyebrow {
+  color: var(--enterprise-accent, #fbbf24);
+}
+
+.enterprise-hub-plan-hint {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.enterprise-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0 1.25rem 1.25rem;
+}
+
 .nav-link {
   border: 1px solid rgba(255, 255, 255, 0.07);
   padding: 10px 12px;

@@ -8,15 +8,18 @@ const STRINGS = Object.fromEntries(
 export { STRINGS };
 
 const LANG_KEY = "baupass-admin-v2-lang";
+const SHARED_LANG_KEY = "baupass-ui-lang";
 
 export function getLang() {
-  const code = localStorage.getItem(LANG_KEY) || "de";
+  const code =
+    localStorage.getItem(LANG_KEY) || localStorage.getItem(SHARED_LANG_KEY) || "de";
   return STRINGS[code] ? code : "de";
 }
 
 export function setLang(code) {
   if (!STRINGS[code]) return;
   localStorage.setItem(LANG_KEY, code);
+  localStorage.setItem(SHARED_LANG_KEY, code);
   applyI18n();
   window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: code } }));
 }

@@ -5,6 +5,16 @@ import os
 from typing import Any
 
 
+def _worker_jwt_secret_weak() -> bool:
+    explicit = (os.getenv("BAUPASS_WORKER_JWT_SECRET") or "").strip()
+    if explicit and len(explicit) >= 32:
+        return False
+    fallback = (os.getenv("BAUPASS_DQR_SECRET") or os.getenv("BAUPASS_IDENTITY_TOKEN_SECRET") or "").strip()
+    if fallback and len(fallback) >= 32:
+        return False
+    return True
+
+
 def collect_setup_status() -> dict[str, Any]:
     from backend.app.tasks import task_queues_ready
 
@@ -26,6 +36,8 @@ def collect_setup_status() -> dict[str, Any]:
         "mobile": {
             "apkUrl": bool((os.getenv("BAUPASS_WORKER_APK_URL") or "").strip()),
             "testflightUrl": bool((os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip()),
+            "jwtSecretStrong": not _worker_jwt_secret_weak(),
+            "setupReport": "/api/worker-app/mobile-setup",
         },
         "ai": {"openai": bool((os.getenv("OPENAI_API_KEY") or "").strip())},
         "observability": {
@@ -59,6 +71,8 @@ def _score(redis_url: str) -> dict[str, Any]:
         (bool((os.getenv("BAUPASS_DB_PATH") or "").strip()), "BAUPASS_DB_PATH + Volume /data"),
         (bool(redis_url), "REDIS_URL"),
         (bool((os.getenv("BAUPASS_WORKER_APK_URL") or "").strip()), "BAUPASS_WORKER_APK_URL"),
+        (bool((os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip()), "BAUPASS_TESTFLIGHT_URL (iPhone)"),
+        (not _worker_jwt_secret_weak(), "BAUPASS_WORKER_JWT_SECRET"),
         (bool((os.getenv("OPENAI_API_KEY") or "").strip()), "OPENAI_API_KEY (Enterprise AI)"),
         (bool((os.getenv("SENTRY_DSN") or "").strip()), "SENTRY_DSN"),
     ]

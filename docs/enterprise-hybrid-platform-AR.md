@@ -150,7 +150,13 @@ mobile/lib/
 
 راجع: [enterprise-hybrid-mobile-architecture.md](./enterprise-hybrid-mobile-architecture.md) (إنجليزي — مرجع رسمي).
 
-## 7. مراجع
+## 7. مفاتيح الخادم + iPhone
+
+- [iphone-testflight-railway-AR.md](./iphone-testflight-railway-AR.md) — قائمة متغيرات Railway + TestFlight
+- [`.env.worker-mobile.example`](../.env.worker-mobile.example) — قالب نسخ
+- `GET /api/worker-app/mobile-setup` — فحص الجاهزية (بدون أسرار)
+
+## 8. مراجع
 
 - [worker-mobile-nfc-api.md](./worker-mobile-nfc-api.md)
 - [worker-attendance-fallback-AR.md](./worker-attendance-fallback-AR.md)

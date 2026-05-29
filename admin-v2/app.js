@@ -5,6 +5,42 @@ import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./int
 const TOKEN_KEY = "baupass-admin-v2-token";
 const USER_KEY = "baupass-admin-v2-user";
 const COMPANY_KEY = "baupass-admin-v2-company";
+const CONTROL_TOKEN_KEY = "baupass-control-token";
+
+function isEmbedMode() {
+  return new URLSearchParams(location.search).get("embed") === "1";
+}
+
+async function tryEmbedSessionFromControlPass() {
+  if (!isEmbedMode()) {
+    return false;
+  }
+  document.body.classList.add("embed-mode", "admin-v2-embed");
+  const parentToken = (localStorage.getItem(CONTROL_TOKEN_KEY) || "").trim();
+  if (!parentToken) {
+    return false;
+  }
+  try {
+    const res = await fetch(`${apiBase()}/api/v2/auth/session`, {
+      headers: { Authorization: `Bearer ${parentToken}`, Accept: "application/json" },
+    });
+    if (!res.ok) {
+      return false;
+    }
+    const data = await res.json();
+    localStorage.setItem(TOKEN_KEY, parentToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
+    const qsCid = new URLSearchParams(location.search).get("company_id") || "";
+    if (qsCid && String(data.user?.role || "") === "superadmin") {
+      localStorage.setItem(COMPANY_KEY, qsCid);
+    } else if (data.user?.company_id) {
+      localStorage.setItem(COMPANY_KEY, data.user.company_id);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 let pendingIntegrationProvider = null;
 
 function getUser() {
@@ -87,6 +123,9 @@ function setupCompanyPicker(user) {
     syncEnterpriseFrame();
     startAdminRealtime().catch(() => {});
     refreshActiveTab().catch((e) => alert(e.message));
+    if (document.querySelector(".tab.active")?.dataset?.tab === "platform") {
+      loadCompanyWorkTimesForm(select.value).catch(() => {});
+    }
   };
 }
 
@@ -339,9 +378,51 @@ async function loadPlatformBanner() {
   }
 }
 
+async function loadCompanyWorkTimesForm(companyId) {
+  const host = $("workTimesPanel");
+  if (!host) return;
+  if (!companyId) {
+    host.innerHTML = `<p class="muted small">${t("workTimes.pickCompany")}</p>`;
+    return;
+  }
+  try {
+    const cfg = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`);
+    const start = (cfg.workStartTime || "08:00").slice(0, 5);
+    const end = (cfg.workEndTime || "17:00").slice(0, 5);
+    host.innerHTML = `
+      <h3>${t("workTimes.title")}</h3>
+      <p class="muted small">${t("workTimes.hint")}</p>
+      <form id="workTimesForm" class="tool-form">
+        <label>${t("workTimes.start")} <input name="workStartTime" type="time" value="${start}" required /></label>
+        <label>${t("workTimes.end")} <input name="workEndTime" type="time" value="${end}" /></label>
+        <button type="submit">${t("workTimes.save")}</button>
+      </form>`;
+    $("workTimesForm")?.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
+        method: "PUT",
+        body: JSON.stringify({
+          workStartTime: fd.get("workStartTime"),
+          workEndTime: fd.get("workEndTime"),
+          accessMode: cfg.accessMode,
+          siteGeofenceRadiusMeters: cfg.siteGeofenceRadiusMeters,
+          siteAutoCheckin: cfg.siteAutoCheckin,
+          siteAutoLogoutOnLeave: cfg.siteAutoLogoutOnLeave,
+        }),
+      });
+      showActionToast(t("workTimes.saved"), false);
+      await loadCompanyWorkTimesForm(companyId);
+    });
+  } catch (e) {
+    host.innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
 async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  const cid = localStorage.getItem(COMPANY_KEY) || getUser().company_id || "";
   try {
     const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist] = await Promise.all([
       api("/api/platform/capabilities"),
@@ -368,6 +449,7 @@ async function loadPlatform() {
       .map(([k, v]) => `<tr><td>${k}</td><td>${statusBadge(!!v)}</td></tr>`)
       .join("");
     panel.innerHTML = `
+      <div class="panel-block" id="workTimesPanel"></div>
       <div class="panel-block">${setupOk}</div>
       <div class="panel-block">
         <h3>${t("platform.globalMaturity")} <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
@@ -428,6 +510,7 @@ async function loadPlatform() {
         <a href="/index.html">${t("common.legacyDashboard")}</a>
       </div>
     `;
+    await loadCompanyWorkTimesForm(cid);
     panel.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
       switchToTab("mobile");
       refreshActiveTab();
@@ -1523,6 +1606,9 @@ async function refreshActiveTab() {
 }
 
 async function bootSession() {
+  if (isEmbedMode()) {
+    await tryEmbedSessionFromControlPass();
+  }
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
     showLogin();
@@ -1610,7 +1696,7 @@ $("integrationWizardForm")?.addEventListener("submit", async (ev) => {
     });
     $("integrationModal").classList.add("hidden");
     pendingIntegrationProvider = null;
-    alert("OK");
+    alert(t("common.ok"));
     if (document.querySelector(".tab.active")?.dataset?.tab === "tools") await loadTools();
   } catch (e) {
     alert(e.message);

@@ -203,6 +203,14 @@
       });
     }
 
+    (function initEmbed() {
+      const params = new URLSearchParams(location.search);
+      if (params.get("embed") === "1") {
+        document.body.classList.add("embed-mode");
+        document.querySelector(".ops-header .ops-nav")?.remove();
+      }
+    })();
+
     load();
     setInterval(load, 15000);
     startEventStream();

@@ -23,6 +23,8 @@ os.environ["BAUPASS_WORKER_JWT_SECRET"] = "test-worker-jwt-secret"
 from backend import server  # noqa: E402
 from backend.app.platform.security.worker_devices import verify_worker_access_jwt  # noqa: E402
 
+server.DB_PATH = Path(os.environ["BAUPASS_DB_PATH"])
+
 
 @pytest.fixture(scope="module")
 def client():

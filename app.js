@@ -350,6 +350,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubTitle: "Enterprise-Hub: 16 Ebenen + Tarife + KI-Assistent",
     enterpriseHubDesc: "Alle gebauten Funktionen (Anwesenheit, Identit\u00e4t, Sicherheit, KI, Integrationen \u2026) an einem Ort \u2014 gefiltert nach Ihrem Tarif.",
     enterpriseHubOpenBtn: "Enterprise-Hub \u00f6ffnen",
+    enterpriseEmbedOpenTab: "In neuem Tab \u00f6ffnen",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "Ops-Zentrale",
     enterpriseHubPlanHint: "Aktueller Tarif: {plan} \u2014 {enabled} von {total} Funktionen aktiv ({percent}%). Superadmin: Firmen-Vorschau w\u00e4hlen, um den Kunden-Tarif zu simulieren.",
@@ -370,6 +371,12 @@ const UI_TRANSLATIONS = {
     reportingNoAccessDataLast7Days: "Keine Zutrittsdaten fuer die letzten 7 Tage.",
     reportingCheckin: "Check-in",
     reportingCheckout: "Check-out",
+    navEnterpriseSection: "Enterprise",
+    navEnterpriseHub: "Enterprise-Hub",
+    navOpsCenter: "Ops-Zentrale",
+    navAdminV2: "Betrieb v2",
+    navAiCopilot: "KI-Assistent",
+    navIntegrations: "Integrationen",
     navDocuments: "Dokumente",
     docInboxEyebrow: "Posteingang",
     docInboxH3: "Eingehende Dokumente per Mail",
@@ -1192,6 +1199,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubTitle: "Enterprise hub: 16 layers + plans + AI assistant",
     enterpriseHubDesc: "All built capabilities (attendance, identity, security, AI, integrations …) in one place — filtered by your plan.",
     enterpriseHubOpenBtn: "Open enterprise hub",
+    enterpriseEmbedOpenTab: "Open in new tab",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "Operations center",
     enterpriseHubPlanHint: "Current plan: {plan} — {enabled} of {total} features active ({percent}%). Superadmin: select company preview to simulate customer plan.",
@@ -2763,6 +2771,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubTitle: "مركز المؤسسة: 16 طبقة + خطط + مساعد AI",
     enterpriseHubDesc: "كل القدرات التي بُنيت (حضور، هوية، أمن، AI، تكاملات…) في مكان واحد — مُخصّصة حسب خطتك.",
     enterpriseHubOpenBtn: "فتح مركز المؤسسة",
+    enterpriseEmbedOpenTab: "فتح في تبويب جديد",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
@@ -7753,6 +7762,23 @@ const PLAN_WORKER_FREE_INCLUDED = {
 };
 
 const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
+/** Enterprise sidebar (under Dokumente) — in-app embed views, filtered by plan */
+const ENTERPRISE_NAV_ITEMS = [
+  { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "professional", queryCompany: true, version: true, embed: true },
+  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
+  { id: "admin-v2", view: "admin-v2", path: "/admin-v2/index.html", labelKey: "navAdminV2", minPlan: "starter", version: true, embed: true },
+  { id: "ai-copilot", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, hash: "#ai-panel", version: true, embed: true },
+];
+
+const ENTERPRISE_EMBED_META = {
+  "enterprise-hub": { frameId: "enterpriseHubFrame", externalLinkId: "enterpriseHubExternalLink", defaultItemId: "enterprise-hub" },
+  "ops-center": { frameId: "opsCenterFrame", externalLinkId: "opsCenterExternalLink", defaultItemId: "ops-center" },
+  "admin-v2": { frameId: "adminV2Frame", externalLinkId: "adminV2ExternalLink", defaultItemId: "admin-v2" },
+};
+
+let pendingEnterpriseEmbedItemId = null;
+let enterpriseNavDelegationBound = false;
+
 const PLAN_FEATURES = {
   access_logging: "tageskarte",
   worker_management: "tageskarte",
@@ -15713,6 +15739,12 @@ function getAllowedViewsForRole(role) {
   }
   if (normalized === "company-admin") {
     allowed = ["dashboard", "workers", "badge", "access", "documents"];
+    if (hasCompanyFeature("leave_management")) {
+      allowed.push("leave");
+    }
+    if ((PLAN_RANK[getCompanyPlan(getEffectiveUiCompanyId())] || 0) >= PLAN_RANK.starter) {
+      allowed.push("devices");
+    }
   }
   if (normalized === "turnstile") {
     allowed = ["access", "documents", "dashboard"];
@@ -15723,7 +15755,69 @@ function getAllowedViewsForRole(role) {
   if (!hasCompanyFeature("invoicing")) {
     allowed = allowed.filter((entry) => entry !== "invoices");
   }
+  if (normalized === "superadmin" || normalized === "company-admin") {
+    const embedViews = getEnterpriseEmbedViews();
+    allowed = [...new Set([...allowed, ...embedViews])];
+  }
   return allowed;
+}
+
+function getEnterpriseEmbedViews() {
+  const role = getEffectiveUiRole();
+  if (role === "turnstile") {
+    return [];
+  }
+  return [...new Set(
+    ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional")).map((item) => item.view)
+  )];
+}
+
+function buildEnterpriseEmbedUrl(item) {
+  if (!item?.path) {
+    return "/";
+  }
+  const cid = getEffectiveUiCompanyId();
+  let url = item.path;
+  const params = [];
+  if (item.embed) {
+    params.push("embed=1");
+  }
+  if (item.version) {
+    params.push("v=20260529a");
+  }
+  if (item.queryCompany && cid) {
+    params.push(`company_id=${encodeURIComponent(cid)}`);
+  }
+  if (params.length) {
+    url += `?${params.join("&")}`;
+  }
+  if (item.hash) {
+    url += item.hash;
+  }
+  return url;
+}
+
+function loadEnterpriseEmbed(viewName) {
+  const meta = ENTERPRISE_EMBED_META[viewName];
+  if (!meta) {
+    return;
+  }
+  const itemId = pendingEnterpriseEmbedItemId || meta.defaultItemId;
+  pendingEnterpriseEmbedItemId = null;
+  const item = ENTERPRISE_NAV_ITEMS.find((entry) => entry.id === itemId)
+    || ENTERPRISE_NAV_ITEMS.find((entry) => entry.view === viewName);
+  if (!item) {
+    return;
+  }
+  const url = buildEnterpriseEmbedUrl(item);
+  const iframe = document.getElementById(meta.frameId);
+  if (iframe && iframe.getAttribute("src") !== url) {
+    iframe.setAttribute("src", url);
+  }
+  const external = document.getElementById(meta.externalLinkId);
+  if (external) {
+    external.setAttribute("href", url);
+  }
 }
 
 function getCurrentViewName() {
@@ -15742,15 +15836,94 @@ function enforceRoleViewAccess() {
     link.style.display = allowed ? "" : "none";
   });
 
-  // Hide sections that are only for superadmin
-  const isSuperadmin = role === "superadmin";
+  // Hide sections that are only for superadmin (real role, not company preview)
+  const isSuperadmin = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin";
   document.querySelectorAll("[data-superadmin-only]").forEach((el) => {
-    el.style.display = isSuperadmin ? "" : "none";
+    const show = isSuperadmin;
+    el.hidden = !show;
+    el.style.display = show ? "" : "none";
+    el.setAttribute("aria-hidden", show ? "false" : "true");
   });
 
   if (!allowedViews.includes(currentView)) {
     setView(getDefaultViewForRole(role));
   }
+
+  renderEnterpriseNavMenu();
+}
+
+function companyMeetsMinPlan(minPlan) {
+  const role = getEffectiveUiRole();
+  const cid = getEffectiveUiCompanyId();
+  if (role === "superadmin" && !cid) {
+    return true;
+  }
+  if (!cid && role !== "superadmin") {
+    return false;
+  }
+  const plan = cid ? getCompanyPlan(cid) : "enterprise";
+  const need = PLAN_RANK[minPlan] ?? PLAN_RANK.professional;
+  return (PLAN_RANK[plan] ?? 0) >= need;
+}
+
+function renderEnterpriseNavMenu() {
+  const mount = document.getElementById("enterpriseNavMount");
+  if (!mount) {
+    return;
+  }
+  const role = getEffectiveUiRole();
+  if (role === "turnstile") {
+    mount.innerHTML = "";
+    mount.classList.add("hidden");
+    return;
+  }
+
+  const cid = getEffectiveUiCompanyId();
+  const items = ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional"));
+
+  if (!items.length) {
+    mount.innerHTML = "";
+    mount.classList.add("hidden");
+    return;
+  }
+
+  mount.classList.remove("hidden");
+  const planLabel = getPlanLabel(getCompanyPlan(cid));
+  let html = `<p class="nav-section-label">${escapeHtml(uiT("navEnterpriseSection"))} · ${escapeHtml(planLabel)}</p>`;
+  items.forEach((item) => {
+    const view = item.view || "";
+    const embedItem = item.id !== view ? item.id : "";
+    html += `<button type="button" class="nav-link nav-link-enterprise" data-view="${escapeHtml(view)}"${embedItem ? ` data-embed-item="${escapeHtml(embedItem)}"` : ""}>${escapeHtml(uiT(item.labelKey))}</button>`;
+  });
+  mount.innerHTML = html;
+  ensureEnterpriseNavDelegation();
+}
+
+function ensureEnterpriseNavDelegation() {
+  const mount = document.getElementById("enterpriseNavMount");
+  if (!mount || enterpriseNavDelegationBound) {
+    return;
+  }
+  mount.addEventListener("click", (event) => {
+    const btn = event.target.closest("button[data-view]");
+    if (!btn || !token) {
+      return;
+    }
+    event.preventDefault();
+    const embedItem = btn.getAttribute("data-embed-item");
+    if (embedItem) {
+      pendingEnterpriseEmbedItemId = embedItem;
+    }
+    setView(btn.dataset.view || "dashboard");
+  });
+  enterpriseNavDelegationBound = true;
+}
+
+function openEnterpriseView(viewName, embedItemId) {
+  if (embedItemId) {
+    pendingEnterpriseEmbedItemId = embedItemId;
+  }
+  setView(viewName);
 }
 
 let dashboardPollTimer = null;
@@ -15793,6 +15966,9 @@ function setView(viewName) {
   elements.navLinks.forEach((link) => {
     link.classList.toggle("active", link.dataset.view === targetView);
   });
+  document.querySelectorAll("#enterpriseNavMount .nav-link").forEach((link) => {
+    link.classList.toggle("active", link.dataset.view === targetView);
+  });
 
   if (targetView === "invoices") {
     markCurrentInvoicesAsSeen();
@@ -15815,6 +15991,10 @@ function setView(viewName) {
 
   if (targetView === "documents") {
     loadDocumentInbox({ silent: true });
+  }
+
+  if (ENTERPRISE_EMBED_META[targetView]) {
+    loadEnterpriseEmbed(targetView);
   }
 }
 
@@ -16869,58 +17049,6 @@ async function loadAllData() {
   }
 }
 
-async function renderEnterpriseHubBanner(loggedIn) {
-  const banner = document.getElementById("enterpriseHubBanner");
-  const hint = document.getElementById("enterpriseHubPlanHint");
-  const openLink = document.getElementById("enterpriseHubOpenLink");
-  if (!banner) {
-    return;
-  }
-  banner.classList.toggle("hidden", !loggedIn);
-  if (!loggedIn) {
-    if (hint) {
-      hint.classList.add("hidden");
-    }
-    return;
-  }
-  const companyId = getEffectiveUiCompanyId();
-  const previewCompany = companyId
-    ? (state.companies || []).find((entry) => String(entry?.id || "") === companyId)
-    : null;
-  const plan = getCompanyPlan(companyId);
-  let hubUrl = "/enterprise-hub.html?v=20260528b";
-  if (companyId) {
-    hubUrl += `&company_id=${encodeURIComponent(companyId)}`;
-  }
-  if (openLink) {
-    openLink.href = hubUrl;
-  }
-  if (!hint) {
-    return;
-  }
-  try {
-    const catalogUrl = `${API_BASE}/api/platform/enterprise-catalog${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
-    const catalog = await apiRequest(catalogUrl);
-    const ent = catalog?.entitlements || {};
-    const planLabel = getPlanLabel(ent.plan || plan);
-    const templateKey = previewCompany ? "enterpriseHubPreviewHint" : "enterpriseHubPlanHint";
-    hint.textContent = runtimeTextTemplate(templateKey, {
-      plan: planLabel,
-      company: previewCompany?.name || "",
-      enabled: String(ent.enabledCount ?? "—"),
-      total: String(ent.totalCapabilities ?? "—"),
-      percent: String(ent.coveragePercent ?? "—"),
-    });
-    hint.classList.remove("hidden");
-  } catch {
-    hint.textContent = runtimeTextTemplate(
-      previewCompany ? "enterpriseHubPreviewHint" : "enterpriseHubPlanHint",
-      { plan: getPlanLabel(plan), company: previewCompany?.name || "", enabled: "—", total: "—", percent: "—" }
-    );
-    hint.classList.remove("hidden");
-  }
-}
-
 function refreshAll() {
   const loggedIn = Boolean(token && state.currentUser);
   syncSupportLoginUi();
@@ -17029,7 +17157,7 @@ function refreshAll() {
   ensureInvoiceDefaults();
   refreshInvoicePreview({ silent: true });
   applySupportReadOnlyUiState();
-  void renderEnterpriseHubBanner(loggedIn);
+  renderEnterpriseNavMenu();
 }
 
 // ── Login Greeting ──────────────────────────────────────────────────────────
@@ -18318,23 +18446,23 @@ function updateTopbarActionsState(loggedIn) {
   const role = getCurrentUser()?.role || "";
   const canWrite = !isSupportReadOnlyMode();
   const demoAllowed = window.__baupassEnterprise?.demoAllowed !== false;
-  const canSeed = (role === "superadmin" || role === "company-admin") && canWrite && demoAllowed;
+  const canSeed = role === "superadmin" && canWrite && demoAllowed;
 
   if (elements.seedDataButton) {
-    elements.seedDataButton.style.display = loggedIn && demoAllowed ? "inline-flex" : "none";
+    elements.seedDataButton.style.display = loggedIn && canSeed ? "inline-flex" : "none";
     elements.seedDataButton.disabled = !canSeed;
     elements.seedDataButton.title = canSeed ? "" : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.exportButton) {
-    const canExport = (role === "superadmin" || role === "company-admin") && canWrite;
+    const canExport = role === "superadmin" && canWrite;
     elements.exportButton.style.display = loggedIn && canExport ? "inline-flex" : "none";
     elements.exportButton.disabled = !canExport;
     elements.exportButton.title = canExport ? "" : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.importButton) {
-    const canImport = (role === "superadmin" || role === "company-admin") && canWrite;
+    const canImport = role === "superadmin" && canWrite;
     elements.importButton.style.display = loggedIn && canImport ? "inline-flex" : "none";
     elements.importButton.disabled = !canImport;
     elements.importButton.title = canImport ? "" : runtimeText("adminOnlyTooltip");
@@ -18853,14 +18981,29 @@ function renderReportingPanels() {
   const topOverdueList = elements.reportingTopOverdueList;
   const accessDailyList = elements.reportingAccessDaily;
   const reportingPanels = document.querySelector("#reportingPanels");
+  const paymentPanel = document.getElementById("reportingPaymentPanel");
+  const accessPanel = document.getElementById("reportingAccessPanel");
   if (!summaryGrid || !topOverdueList || !accessDailyList) {
     return;
   }
 
-  const role = String(getEffectiveUiRole() || "").toLowerCase();
-  if (role !== "superadmin" && role !== "company-admin") {
+  const effectiveRole = String(getEffectiveUiRole() || "").toLowerCase();
+  const actualRole = String(getCurrentUser()?.role || "").toLowerCase();
+  const isSuperadmin = actualRole === "superadmin";
+  const isCompanyAdmin = effectiveRole === "company-admin";
+
+  if (paymentPanel) {
+    paymentPanel.hidden = !isSuperadmin;
+    paymentPanel.style.display = isSuperadmin ? "" : "none";
+  }
+
+  if (!isSuperadmin && !isCompanyAdmin) {
     if (reportingPanels) {
       reportingPanels.style.display = "none";
+      reportingPanels.hidden = true;
+    }
+    if (accessPanel) {
+      accessPanel.hidden = true;
     }
     summaryGrid.innerHTML = "";
     topOverdueList.innerHTML = "";
@@ -18869,42 +19012,59 @@ function renderReportingPanels() {
   }
 
   if (reportingPanels) {
+    reportingPanels.hidden = false;
     reportingPanels.style.display = "grid";
+    if (!isSuperadmin) {
+      reportingPanels.classList.remove("two-columns");
+      reportingPanels.style.gridTemplateColumns = "1fr";
+    } else {
+      reportingPanels.classList.add("two-columns");
+      reportingPanels.style.gridTemplateColumns = "";
+    }
+  }
+  if (accessPanel) {
+    accessPanel.hidden = false;
+    accessPanel.style.display = "";
   }
 
-  const kpis = state.reporting?.kpis || {};
-  const generatedAt = state.reporting?.generatedAt || "";
-  const summaryCards = [
-    [uiT("reportingPaid"), formatCurrencyEur(kpis.paidTotal)],
-    [uiT("reportingOpen"), formatCurrencyEur(kpis.openTotal)],
-    [uiT("reportingOverdue"), `${Number(kpis.overdueInvoiceCount || 0)} ${uiT("reportingInvoicesLabel")}`],
-    [uiT("reportingOverdueTotal"), formatCurrencyEur(kpis.overdueTotal)],
-    [uiT("reportingLockedCompanies"), String(Number(kpis.lockedCompanies || 0))],
-    [uiT("reportingAutoSuspensions30d"), String(Number(kpis.suspensionsLast30d || 0))]
-  ];
+  summaryGrid.innerHTML = "";
+  topOverdueList.innerHTML = "";
 
-  summaryGrid.innerHTML = summaryCards
-    .map(([label, value]) => `
-      <article class="card-item">
-        <p class="helper-text">${escapeHtml(label)}</p>
-        <strong>${escapeHtml(String(value))}</strong>
-      </article>
-    `)
-    .join("") + (generatedAt ? `<p class="helper-text">${escapeHtml(uiT("reportingGeneratedAt"))}: ${escapeHtml(formatTimestamp(generatedAt))}</p>` : "");
+  if (isSuperadmin) {
+    const kpis = state.reporting?.kpis || {};
+    const generatedAt = state.reporting?.generatedAt || "";
+    const summaryCards = [
+      [uiT("reportingPaid"), formatCurrencyEur(kpis.paidTotal)],
+      [uiT("reportingOpen"), formatCurrencyEur(kpis.openTotal)],
+      [uiT("reportingOverdue"), `${Number(kpis.overdueInvoiceCount || 0)} ${uiT("reportingInvoicesLabel")}`],
+      [uiT("reportingOverdueTotal"), formatCurrencyEur(kpis.overdueTotal)],
+      [uiT("reportingLockedCompanies"), String(Number(kpis.lockedCompanies || 0))],
+      [uiT("reportingAutoSuspensions30d"), String(Number(kpis.suspensionsLast30d || 0))]
+    ];
 
-  const topCompanies = state.reporting?.topOverdueCompanies || [];
-  if (!topCompanies.length) {
-    topOverdueList.innerHTML = `<div class="empty-state">${escapeHtml(uiT("reportingNoOverdueCompanies"))}</div>`;
-  } else {
-    topOverdueList.innerHTML = topCompanies
-      .map((entry) => `
+    summaryGrid.innerHTML = summaryCards
+      .map(([label, value]) => `
+        <article class="card-item">
+          <p class="helper-text">${escapeHtml(label)}</p>
+          <strong>${escapeHtml(String(value))}</strong>
+        </article>
+      `)
+      .join("") + (generatedAt ? `<p class="helper-text">${escapeHtml(uiT("reportingGeneratedAt"))}: ${escapeHtml(formatTimestamp(generatedAt))}</p>` : "");
+
+    const topCompanies = state.reporting?.topOverdueCompanies || [];
+    if (!topCompanies.length) {
+      topOverdueList.innerHTML = `<div class="empty-state">${escapeHtml(uiT("reportingNoOverdueCompanies"))}</div>`;
+    } else {
+      topOverdueList.innerHTML = topCompanies
+        .map((entry) => `
         <article class="card-item">
           <strong>${escapeHtml(entry.companyName || uiT("reportingFallbackCompany"))}</strong>
           <p class="helper-text">${Number(entry.overdueCount || 0)} ${escapeHtml(uiT("reportingOverdueInvoicesLabel"))}</p>
           <p>${escapeHtml(formatCurrencyEur(entry.overdueTotal))}</p>
         </article>
       `)
-      .join("");
+        .join("");
+    }
   }
 
   const dailyRows = state.reporting?.accessDaily || [];
@@ -28825,6 +28985,8 @@ if (elements.navLinks.length) {
     });
   });
 }
+
+ensureEnterpriseNavDelegation();
 
 if (elements.loginForm) {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);

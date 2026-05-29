@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260528f";
+        const buildTag = "20260529a";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,7 +51,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260528f" />
+    <link rel="stylesheet" href="./styles.css?v=20260529a" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -221,8 +221,6 @@
         <p class="sidebar-copy" data-ui-i18n="sidebarCopy">Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.</p>
       </div>
       <nav class="nav">
-        <a class="nav-link nav-link-external" href="/enterprise-hub.html" style="display:block;margin-bottom:0.35rem;color:#fbbf24;font-weight:700;">🏛 مركز المؤسسة — 16 طبقة + مساعد AI</a>
-        <a class="nav-link nav-link-external" href="/admin-v2/index.html" style="display:block;margin-bottom:0.35rem;color:#5ec4e8;font-weight:600;">⚡ لوحة التشغيل v2 (حضور + تطبيق + منصة)</a>
         <button class="nav-link active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
@@ -230,6 +228,7 @@
         <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
         <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
         <button class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
+        <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Enterprise"></div>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
         <button class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
       </nav>
@@ -272,23 +271,9 @@
         <div class="greet-bar"><div class="greet-bar-fill" id="greetBarFill"></div></div>
       </div>
 
-      <section class="view active" data-view="dashboard">
-        <div id="sessionCard" class="session-card" style="margin-bottom:24px;"></div>
-        <article class="panel" id="enterpriseHubBanner" style="margin-bottom:20px;border:2px solid #fbbf24;background:linear-gradient(135deg,#1a2838,#0d131a);">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow" style="color:#fbbf24" data-ui-i18n="enterpriseHubEyebrow">Neu — Enterprise-Plattform</p>
-              <h3 style="margin:0.25rem 0" data-ui-i18n="enterpriseHubTitle">Enterprise-Hub: 16 Ebenen + Tarife + KI-Assistent</h3>
-              <p class="muted" style="margin-top:0.5rem" data-ui-i18n="enterpriseHubDesc">Alle gebauten Funktionen (Anwesenheit, Identität, Sicherheit, KI, Integrationen …) an einem Ort — gefiltert nach Ihrem Tarif.</p>
-              <p id="enterpriseHubPlanHint" class="muted hidden" style="margin-top:0.35rem;font-size:0.85rem"></p>
-            </div>
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.75rem">
-            <a id="enterpriseHubOpenLink" href="/enterprise-hub.html?v=20260528b" class="primary-button" style="text-decoration:none;display:inline-block" data-ui-i18n="enterpriseHubOpenBtn">Enterprise-Hub öffnen</a>
-            <a href="/admin-v2/index.html?v=20260528b" class="ghost-button" style="text-decoration:none;display:inline-block" data-ui-i18n="enterpriseHubAdminV2Btn">Admin v2</a>
-            <a href="/ops-command-center.html" class="ghost-button" style="text-decoration:none;display:inline-block" data-ui-i18n="enterpriseHubOpsBtn">Ops-Zentrale</a>
-          </div>
-        </article>
+      <section class="view active view-dashboard" data-view="dashboard">
+        <div class="dashboard-stack">
+        <div id="sessionCard" class="session-card"></div>
         <div class="hero-panel">
           <div>
             <p class="eyebrow" data-ui-i18n="dashEyebrow">Verbesserter MVP</p>
@@ -302,7 +287,7 @@
           </div>
         </div>
 
-        <article class="panel" style="margin-top: 16px;">
+        <article class="panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow" data-ui-i18n="dashOverviewEyebrow">Bestand</p>
@@ -312,7 +297,7 @@
           <div class="stats-grid" id="statsGrid"></div>
         </article>
 
-        <article class="panel" style="margin-top: 16px;">
+        <article class="panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow" data-ui-i18n="operationsEyebrow">Live-Betrieb</p>
@@ -323,7 +308,7 @@
           <div id="operationsSnapshotGrid" class="stats-grid"></div>
         </article>
 
-        <article class="panel dashboard-compliance-panel" style="margin-top: 16px;">
+        <article class="panel dashboard-compliance-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow" data-ui-i18n="complianceEyebrow">Compliance</p>
@@ -342,7 +327,7 @@
         </article>
 
         <div class="panel-grid two-columns" id="reportingPanels">
-          <article class="panel">
+          <article class="panel" id="reportingPaymentPanel" data-superadmin-only hidden>
             <div class="panel-heading">
               <div>
                 <p class="eyebrow" data-ui-i18n="reportingEyebrow">Reporting</p>
@@ -353,7 +338,7 @@
             <div id="reportingTopOverdueList" class="list"></div>
           </article>
 
-          <article class="panel">
+          <article class="panel" id="reportingAccessPanel">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow" data-ui-i18n="accessWeekEyebrow">7 Tage</p>
@@ -364,7 +349,7 @@
           </article>
         </div>
 
-        <article class="panel" style="margin-top:24px;">
+        <article class="panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow" id="gateOpsEyebrow">Gate Operations</p>
@@ -383,7 +368,7 @@
           <div id="gateOpsDetailsList" class="list invoice-ops-trend-list"></div>
         </article>
 
-        <article class="panel" id="customerReviewsPanel" style="margin-top:24px; display:none;">
+        <article class="panel" id="customerReviewsPanel" style="display:none;">
           <div class="panel-heading">
             <div>
               <p class="eyebrow" data-ui-i18n="customerReviewsEyebrow">⭐ Feedback</p>
@@ -406,6 +391,37 @@
             <div id="recentAccessList" class="list"></div>
           </article>
 
+        </div>
+        </div>
+      </section>
+
+      <section class="view view-embed" data-view="enterprise-hub">
+        <div class="enterprise-embed-shell">
+          <div class="enterprise-embed-toolbar">
+            <span class="enterprise-embed-title" data-ui-i18n="navEnterpriseHub">Enterprise-Hub</span>
+            <a id="enterpriseHubExternalLink" href="/enterprise-hub.html" target="_blank" rel="noopener noreferrer" class="ghost-button small-button" data-ui-i18n="enterpriseEmbedOpenTab">In neuem Tab öffnen</a>
+          </div>
+          <iframe id="enterpriseHubFrame" class="enterprise-embed-frame" title="Enterprise Hub" loading="lazy"></iframe>
+        </div>
+      </section>
+
+      <section class="view view-embed" data-view="ops-center">
+        <div class="enterprise-embed-shell">
+          <div class="enterprise-embed-toolbar">
+            <span class="enterprise-embed-title" data-ui-i18n="navOpsCenter">Ops-Zentrale</span>
+            <a id="opsCenterExternalLink" href="/ops-command-center.html" target="_blank" rel="noopener noreferrer" class="ghost-button small-button" data-ui-i18n="enterpriseEmbedOpenTab">In neuem Tab öffnen</a>
+          </div>
+          <iframe id="opsCenterFrame" class="enterprise-embed-frame" title="Operations center" loading="lazy"></iframe>
+        </div>
+      </section>
+
+      <section class="view view-embed" data-view="admin-v2">
+        <div class="enterprise-embed-shell">
+          <div class="enterprise-embed-toolbar">
+            <span class="enterprise-embed-title" data-ui-i18n="navAdminV2">Betrieb v2</span>
+            <a id="adminV2ExternalLink" href="/admin-v2/index.html" target="_blank" rel="noopener noreferrer" class="ghost-button small-button" data-ui-i18n="enterpriseEmbedOpenTab">In neuem Tab öffnen</a>
+          </div>
+          <iframe id="adminV2Frame" class="enterprise-embed-frame" title="Admin v2" loading="lazy"></iframe>
         </div>
       </section>
 
@@ -1939,7 +1955,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260528f"></script>
+  <script src="./app.js?v=20260529a"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

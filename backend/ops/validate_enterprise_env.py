@@ -154,6 +154,20 @@ def _check_env() -> dict[str, Any]:
         severity="recommended",
         hint="Hosted APK for join.html hybrid distribution.",
     )
+    add(
+        "BAUPASS_TESTFLIGHT_URL",
+        ok=_present("BAUPASS_TESTFLIGHT_URL"),
+        severity="recommended",
+        hint="TestFlight invite link for iPhone worker app (join.html).",
+    )
+    weak_jwt = _weak_secret("BAUPASS_WORKER_JWT_SECRET", 32)
+    add(
+        "BAUPASS_WORKER_JWT_SECRET",
+        ok=_present("BAUPASS_WORKER_JWT_SECRET") and not weak_jwt,
+        severity="critical" if hosted else "recommended",
+        hint="Worker session JWT signing — 32+ random chars; do not rely on dev fallback.",
+        value_hint="weak" if weak_jwt else ("set" if _present("BAUPASS_WORKER_JWT_SECRET") else "missing"),
+    )
 
     # ── AI / Copilot ────────────────────────────────────────────────────
     openai_ok = _present("OPENAI_API_KEY")
@@ -248,6 +262,7 @@ def _check_http(base: str) -> dict[str, Any]:
         "health": "/api/health",
         "ready": "/api/health/ready",
         "setupStatus": "/api/platform/setup-status",
+        "workerMobileSetup": "/api/worker-app/mobile-setup",
     }
     ok = True
     for name, path in endpoints.items():

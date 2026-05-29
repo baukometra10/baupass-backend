@@ -20,6 +20,8 @@ os.environ["BAUPASS_DB_PATH"] = str(Path(__file__).resolve().parent / "baupass-t
 
 from backend import server  # noqa: E402
 
+server.DB_PATH = Path(os.environ["BAUPASS_DB_PATH"])
+
 
 @pytest.fixture(scope="module")
 def client():

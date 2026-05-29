@@ -12325,6 +12325,14 @@ def worker_join_config_public():
     )
 
 
+@app.get("/api/worker-app/mobile-setup")
+def worker_app_mobile_setup_public():
+    """Public checklist: Railway env keys for hybrid worker app (iPhone/Android). No secrets."""
+    from backend.app.platform.mobile_worker_setup import collect_worker_mobile_setup
+
+    return jsonify(collect_worker_mobile_setup())
+
+
 @app.get("/api/qr.png")
 @require_auth
 def admin_qr_png():
@@ -15545,6 +15553,22 @@ def test_company_mail_outbound_endpoint(company_id):
     return jsonify({"ok": False, "error": "smtp_diagnostic_failed", "diagnostics": diag_result}), 200
 
 
+@app.get("/api/companies/<company_id>/work-times")
+@require_auth
+@require_roles("superadmin", "company-admin", "turnstile")
+def get_company_work_times(company_id):
+    db = get_db()
+    company = db.execute("SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
+    if not company:
+        return jsonify({"error": "company_not_found"}), 404
+    user = g.current_user
+    user_role = str(user.get("role") or "").strip().lower()
+    if user_role != "superadmin" and str(user.get("company_id") or "") != str(company_id):
+        return jsonify({"error": "forbidden_company"}), 403
+    cfg = get_company_site_access_config(db, company_id)
+    return jsonify({"ok": True, "companyId": company_id, **cfg})
+
+
 @app.put("/api/companies/<company_id>/work-times")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
@@ -16927,6 +16951,15 @@ def reporting_summary():
             for row in top_rows
         ]
 
+    generated_at = now_iso()
+    if not is_superadmin:
+        return jsonify(
+            {
+                "accessDaily": access_daily,
+                "generatedAt": generated_at,
+            }
+        )
+
     return jsonify(
         {
             "kpis": {
@@ -16939,7 +16972,7 @@ def reporting_summary():
             },
             "accessDaily": access_daily,
             "topOverdueCompanies": top_overdue_companies,
-            "generatedAt": now_iso(),
+            "generatedAt": generated_at,
         }
     )
 

@@ -42,8 +42,14 @@ def register_modular_blueprints(flask_app: Flask) -> None:
 
         register_platform_blueprints(app)
 
+    def _shift(app: Flask) -> None:
+        from backend.app.api.shift_routes import register_shift_blueprint
+
+        register_shift_blueprint(app)
+
     for name, fn in (
         ("worker_app", _worker_app),
+        ("shift", _shift),
         ("domains", _domains),
         ("platform", _platform),
     ):

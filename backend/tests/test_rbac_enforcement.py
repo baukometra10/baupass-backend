@@ -10,12 +10,8 @@ import os
 import sys
 from pathlib import Path
 
-# Add backend to path
-backend_path = Path(__file__).parent.parent.resolve()
-sys.path.insert(0, str(backend_path))
-
-import server
-from server import app, get_db, generate_password_hash, create_turnstile_api_key, hash_turnstile_api_key
+from backend import server
+from backend.server import app, get_db, generate_password_hash, create_turnstile_api_key, hash_turnstile_api_key
 
 
 class TestRBACEnforcement:
@@ -402,7 +398,7 @@ class TestRBACMatrix:
         self.client = app.test_client()
         
         with app.app_context():
-            from server import init_db
+            from backend.server import init_db
             init_db()
 
     def test_rbac_matrix_documentation(self):

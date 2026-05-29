@@ -19,6 +19,8 @@ Distribution without store dependency: **APK sideload** + **TestFlight internal*
 
 Platform architecture: [docs/enterprise-hybrid-platform-AR.md](../docs/enterprise-hybrid-platform-AR.md)
 
+**Railway env keys (iPhone TestFlight + server):** [docs/iphone-testflight-railway-AR.md](../docs/iphone-testflight-railway-AR.md) · template [`.env.worker-mobile.example`](../.env.worker-mobile.example) · live check `GET /api/worker-app/mobile-setup`
+
 ## Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) 3.22+

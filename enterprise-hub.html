@@ -25,6 +25,10 @@
     header h1 { margin: 0; font-size: 1.15rem; }
     .nav-links { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.85rem; }
     .nav-links a { text-decoration: none; padding: 0.35rem 0.65rem; border: 1px solid var(--border); border-radius: 8px; }
+    .hub-lang-select {
+      padding: 0.35rem 0.5rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #0f1419; color: var(--text); font-size: 0.85rem;
+    }
     .layout { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; padding: 1rem 1.25rem; max-width: 1600px; margin: 0 auto; }
     @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
     .stats { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
@@ -143,11 +147,19 @@
       <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)">ما بُني فعلياً وأين تراه (واجهة · API · إعداد)</p>
     </div>
     <nav class="nav-links" id="hubNav">
-      <a href="/admin-v2/index.html#enterprise">Admin v2</a>
-      <a href="/index.html">Legacy</a>
-      <a href="/ops-command-center.html">مركز العمليات</a>
+      <label class="hub-lang-select" style="border:none;padding:0">
+        <span class="muted small" id="hubLangLabel">Lang</span>
+        <select id="hubLangSelect" aria-label="Language">
+          <option value="de">DE</option>
+          <option value="en">EN</option>
+          <option value="ar">AR</option>
+        </select>
+      </label>
+      <a href="/admin-v2/index.html#enterprise" id="navAdminV2">Admin v2</a>
+      <a href="/index.html" id="navLegacy">Legacy</a>
+      <a href="/ops-command-center.html" id="navOps">Ops</a>
       <a href="/ai-command-center.html" id="navAiCenter">KI Command Center</a>
-      <a href="/join.html">تفعيل موظف</a>
+      <a href="/join.html" id="navJoin">Join</a>
     </nav>
   </header>
 
@@ -198,10 +210,23 @@
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
       hub: "#f59e0b", api: "#64748b", config: "#ef4444",
     };
-    const HUB_LANG = (() => {
-      const stored = (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2).toLowerCase();
+    let HUB_LANG = (() => {
+      const stored = (
+        localStorage.getItem("baupass-ui-lang") ||
+        localStorage.getItem("baupass-admin-v2-lang") ||
+        "de"
+      ).slice(0, 2).toLowerCase();
       return ["de", "en", "ar"].includes(stored) ? stored : "de";
     })();
+
+    function setHubLang(code) {
+      if (!["de", "en", "ar"].includes(code)) return;
+      HUB_LANG = code;
+      localStorage.setItem("baupass-ui-lang", code);
+      localStorage.setItem("baupass-admin-v2-lang", code);
+      applyStaticI18n();
+      if (catalog) renderLayers();
+    }
     const HUB_I18N = {
       de: {
         title: "Enterprise-Hub — 16-Ebenen-Karte",
@@ -243,6 +268,11 @@
         allCompanies: "— Superadmin (Firma wählen) —",
         rolePlaybook: "Ihr Einsatz-Playbook",
         rolePickCompany: "Firma wählen für Live-KPIs.",
+        navAdminV2: "Admin v2",
+        navLegacy: "Legacy-Dashboard",
+        navOps: "Ops Center",
+        navJoin: "Mitarbeiter aktivieren",
+        hubLang: "Sprache",
       },
       en: {
         title: "Enterprise hub — 16-layer map",
@@ -283,6 +313,11 @@
         allCompanies: "— Superadmin: pick company —",
         rolePlaybook: "Your operations playbook",
         rolePickCompany: "Select a company for live KPIs.",
+        navAdminV2: "Admin v2",
+        navLegacy: "Legacy dashboard",
+        navOps: "Ops center",
+        navJoin: "Activate worker",
+        hubLang: "Language",
       },
       ar: {
         title: "مركز المؤسسة — خريطة الـ 16 طبقة",
@@ -324,6 +359,11 @@
         allCompanies: "— المشرف: اختر شركة —",
         rolePlaybook: "دليل التشغيل الخاص بك",
         rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
+        navAdminV2: "لوحة v2",
+        navLegacy: "لوحة قديمة",
+        navOps: "مركز العمليات",
+        navJoin: "تفعيل موظف",
+        hubLang: "اللغة",
       },
     };
     function t(key) {
@@ -394,6 +434,20 @@
       if (centerLink) centerLink.textContent = t("aiOpenCenter");
       const navAi = document.getElementById("navAiCenter");
       if (navAi) navAi.textContent = HUB_LANG === "ar" ? "مركز AI" : (HUB_LANG === "en" ? "AI Center" : "KI Center");
+      const navMap = [
+        ["navAdminV2", "navAdminV2"],
+        ["navLegacy", "navLegacy"],
+        ["navOps", "navOps"],
+        ["navJoin", "navJoin"],
+      ];
+      navMap.forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = t(key);
+      });
+      const hubLangLabel = document.getElementById("hubLangLabel");
+      if (hubLangLabel) hubLangLabel.textContent = t("hubLang");
+      const hubLangSelect = document.getElementById("hubLangSelect");
+      if (hubLangSelect) hubLangSelect.value = HUB_LANG;
       const prev = document.getElementById("previewNote");
       if (prev) prev.querySelector("strong").textContent = HUB_LANG === "ar" ? "معاينة عامة" : (HUB_LANG === "en" ? "Public preview" : "Öffentliche Vorschau");
     }
@@ -793,6 +847,10 @@
       } catch (e) {
         alert("API: " + e.message);
       }
+    });
+
+    document.getElementById("hubLangSelect")?.addEventListener("change", (ev) => {
+      setHubLang(ev.target.value);
     });
 
     applyStaticI18n();
