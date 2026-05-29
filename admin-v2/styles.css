@@ -368,6 +368,42 @@ main {
   vertical-align: middle;
 }
 
+.sla-overdue {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.sla-due-soon {
+  color: #fbbf24;
+}
+
+.copilot-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-width: 720px;
+}
+
+.copilot-form textarea {
+  width: 100%;
+  padding: 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.copilot-answer {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow: auto;
+}
+
 .inbox-toast.ok {
   background: rgba(52, 211, 153, 0.12);
   border: 1px solid rgba(52, 211, 153, 0.35);

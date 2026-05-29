@@ -261,6 +261,7 @@ function renderQuickLinks() {
     { tab: "access", title: "الحضور المباشر", desc: "دخول/خروج وتصدير CSV" },
     { tab: "mobile", title: "تطبيق الموظف", desc: "APK، TestFlight، join.html" },
     { tab: "inbox", title: "Posteingang", desc: "Alerts, Dokumente, Urlaub — handeln statt nur lesen" },
+    { tab: "copilot", title: "Ops Copilot", desc: "KI mit Live-Kontext (Anwesenheit, Security)" },
     { tab: "operations", title: "عمليات الموقع", desc: "12 طبقة Physical Operations OS" },
     { tab: "tools", title: "Geofence · أتمتة · تكامل", desc: "SAP، Oracle، M365، قواعد" },
     { tab: "platform", title: "جاهزية المنصة", desc: "Redis، AI، Wallet" },
@@ -1015,9 +1016,19 @@ async function loadInbox() {
     el.innerHTML = '<p class="muted">Keine offenen Punkte — alles im grünen Bereich.</p>';
     return;
   }
-  el.innerHTML = `<table><thead><tr><th></th><th>Titel</th><th>Quelle</th><th>Aktionen</th></tr></thead><tbody>${items
+  el.innerHTML = `<table><thead><tr><th></th><th>Titel</th><th>SLA</th><th>Quelle</th><th>Aktionen</th></tr></thead><tbody>${items
     .map((it) => {
       const checked = inboxSelectedIds.has(it.id) ? " checked" : "";
+      const slaCls =
+        it.slaStatus === "overdue" ? "sla-overdue" : it.slaStatus === "due_soon" ? "sla-due-soon" : "";
+      const slaLabel =
+        it.slaStatus === "overdue"
+          ? "überfällig"
+          : it.slaStatus === "due_soon"
+            ? "bald fällig"
+            : it.slaDueAt
+              ? `bis ${(it.slaDueAt || "").slice(0, 16).replace("T", " ")}`
+              : "—";
       const acts = (it.actions || [])
         .map((a) => {
           if (a.type === "resolve" || a.type === "ack")
@@ -1034,6 +1045,7 @@ async function loadInbox() {
       return `<tr class="${it.severity === "critical" ? "row-critical" : ""}">
         <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="Auswählen" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
         <td><strong>${it.title || ""}</strong><br><span class="muted small">${it.message || ""}</span></td>
+        <td class="${slaCls}">${slaLabel}</td>
         <td>${it.source || ""}</td>
         <td>${acts}</td></tr>`;
     })
@@ -1426,6 +1438,44 @@ async function loadAccess() {
   ]);
 }
 
+async function loadCopilot() {
+  const answerEl = $("copilotAnswer");
+  if (!answerEl) return;
+  answerEl.textContent = "Stelle eine Frage — Copilot nutzt Live-Daten (Anwesenheit, Security, Notfall).";
+}
+
+$("copilotForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = ($("copilotQuestion")?.value || "").trim();
+  if (!q) return;
+  const answerEl = $("copilotAnswer");
+  const btn = $("copilotSubmit");
+  if (answerEl) answerEl.textContent = "Denke nach…";
+  if (btn) btn.disabled = true;
+  try {
+    const cid = companyQuery().replace("?company_id=", "") || undefined;
+    const res = await api("/api/ops-os/copilot", {
+      method: "POST",
+      body: JSON.stringify({ question: q, company_id: cid }),
+    });
+    const lines = [];
+    if (res.answer) lines.push(String(res.answer));
+    if (res.response) lines.push(String(res.response));
+    if (res.deterministicAnswers?.answer) lines.push(String(res.deterministicAnswers.answer));
+    if (res.hint) lines.push(`Hinweis: ${res.hint}`);
+    if (res.contextSummary) {
+      lines.push(
+        `\nKontext: ${res.contextSummary.workersOnSite ?? 0} MA vor Ort · ${res.contextSummary.openSecurityFindings ?? 0} Security`,
+      );
+    }
+    if (answerEl) answerEl.textContent = lines.filter(Boolean).join("\n\n") || JSON.stringify(res, null, 2);
+  } catch (err) {
+    if (answerEl) answerEl.textContent = err.message || String(err);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
 async function refreshActiveTab() {
   const active = document.querySelector(".tab.active");
   const tab = active?.dataset?.tab || "overview";
@@ -1433,6 +1483,7 @@ async function refreshActiveTab() {
     await loadInbox();
     await startAdminRealtime();
   }
+  else if (tab === "copilot") await loadCopilot();
   else if (tab === "workers") await loadWorkers();
   else if (tab === "access") await loadAccess();
   else if (tab === "mobile") await loadMobile();

@@ -155,9 +155,9 @@ Dokumentation: [`mobile/docs/firebase-push-setup.md`](../mobile/docs/firebase-pu
 | Stufe | Fokus | Status-Ziel |
 |-------|--------|-------------|
 | **S1 — Stabil** | DB, Redis, Health, kein Demo | `enterprise_ready` im Validator |
-| **S2 — Mobil** | FCM v1, APK, Join-Flow | Push > 80 % aktiver MA |
-| **S3 — Intelligent** | OpenAI, Ops Copilot, Inbox-Automation | Copilot + Agent-Tools live |
-| **S4 — Global** | PG-Cutover, Multi-Region, Sentry/OTEL | Siehe `postgres-cutover-steps-AR.md` |
+| **S2 — Mobil** | FCM v1, APK (`mobile-release` CI), Join-Flow | Push > 80 % aktiver MA |
+| **S3 — Intelligent** | OpenAI, Ops Copilot (Admin v2 Tab), Inbox-SLA + Slack | Copilot + Agent-Tools live |
+| **S4 — Global** | `postgres_cutover_automation.py`, Strict-CI | Siehe `postgres-cutover-steps-AR.md` |
 | **S5 — Best-in-class** | SLA, DR-Übungen, KPI-Dashboards | Quartals-Review |
 
 Verwandte Dokumente:

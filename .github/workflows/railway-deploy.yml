@@ -76,6 +76,7 @@ jobs:
           set -e
           python backend/ops/validate_enterprise_env.py \
             --base-url "$PUBLIC_BASE_URL" \
+            --strict \
             --json-only > /tmp/enterprise-report.json
           python - <<'PY'
           import json, sys

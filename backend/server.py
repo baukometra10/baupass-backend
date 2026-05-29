@@ -13435,10 +13435,27 @@ def analytics_document_health():
     })
 
 
+def _company_work_start_hm(db, company_id: str) -> tuple[int, int, str]:
+    """Return (hour, minute, HH:MM:SS) from company work_start_time or 08:00."""
+    row = db.execute(
+        "SELECT work_start_time FROM companies WHERE id = ?",
+        (company_id,),
+    ).fetchone()
+    raw = str(row["work_start_time"] if row else "").strip()
+    try:
+        normalized = normalize_work_time_value(raw) if raw else "08:00"
+    except ValueError:
+        normalized = "08:00"
+    parts = normalized.split(":")
+    hour = int(parts[0]) if parts else 8
+    minute = int(parts[1]) if len(parts) > 1 else 0
+    return hour, minute, f"{hour:02d}:{minute:02d}:00"
+
+
 @app.get("/api/analytics/punctuality-report")
 @require_admin_session
 def analytics_punctuality_report():
-    """Pünktlichkeits-Report: Verspätungen im Team."""
+    """Pünktlichkeits-Report: Verspätungen vs. firmen-Arbeitsbeginn."""
     from backend.app.db.connection import get_read_connection
 
     user = g.admin_user
@@ -13446,34 +13463,57 @@ def analytics_punctuality_report():
     today_prefix = datetime.now().strftime("%Y-%m-%d")
 
     with get_read_connection() as db:
-        # Late check-ins (nach 08:00)
-        late_workers = db.execute(
-        """
-        SELECT
-            w.id,
-            w.first_name,
-            w.last_name,
-            TIME(al.timestamp) as checkin_time,
-            CAST(
-                (strftime('%H', al.timestamp) - 8) * 60
-                + strftime('%M', al.timestamp)
-            AS INTEGER) AS minutes_late
-        FROM workers w
-        JOIN access_logs al ON w.id = al.worker_id
-        WHERE w.company_id = ?
-          AND al.timestamp LIKE ?
-          AND al.direction = 'check-in'
-          AND TIME(al.timestamp) > '08:00:00'
-          AND al.timestamp = (
-              SELECT MAX(al2.timestamp)
-              FROM access_logs al2
-              WHERE al2.worker_id = w.id AND al2.timestamp LIKE ?
-          )
-        ORDER BY minutes_late DESC
-        LIMIT 25
-        """,
+        start_h, start_m, start_label = _company_work_start_hm(db, company_id)
+        rows = db.execute(
+            """
+            SELECT
+                w.id,
+                w.first_name,
+                w.last_name,
+                TIME(al.timestamp) AS checkin_time,
+                al.timestamp AS checkin_at
+            FROM workers w
+            JOIN access_logs al ON w.id = al.worker_id
+            WHERE w.company_id = ?
+              AND al.timestamp LIKE ?
+              AND al.direction = 'check-in'
+              AND al.timestamp = (
+                  SELECT MAX(al2.timestamp)
+                  FROM access_logs al2
+                  WHERE al2.worker_id = w.id AND al2.timestamp LIKE ?
+              )
+            ORDER BY al.timestamp DESC
+            LIMIT 80
+            """,
             (company_id, f"{today_prefix}%", f"{today_prefix}%"),
         ).fetchall()
+
+        late_workers = []
+        for w in rows:
+            try:
+                ts = str(w["checkin_at"] or "")
+                if "T" in ts:
+                    time_part = ts.split("T", 1)[1][:8]
+                else:
+                    time_part = str(w["checkin_time"] or "00:00:00")
+                parts = time_part.split(":")
+                ch = int(parts[0]) if parts else 0
+                cm = int(parts[1]) if len(parts) > 1 else 0
+                check_min = ch * 60 + cm
+                start_min = start_h * 60 + start_m
+                if check_min <= start_min:
+                    continue
+                late_workers.append(
+                    {
+                        "name": f"{w['first_name']} {w['last_name']}".strip(),
+                        "checkinTime": w["checkin_time"],
+                        "minutesLate": check_min - start_min,
+                    }
+                )
+            except (TypeError, ValueError):
+                continue
+        late_workers.sort(key=lambda x: x["minutesLate"], reverse=True)
+        late_workers = late_workers[:25]
 
         late_count = len(late_workers)
         total_count = db.execute(
@@ -13485,14 +13525,8 @@ def analytics_punctuality_report():
 
     return jsonify({
         "punctualityRate": punctuality_rate,
-        "lateWorkers": [
-            {
-                "name": f"{w['first_name']} {w['last_name']}".strip(),
-                "checkinTime": w["checkin_time"],
-                "minutesLate": max(0, int(w["minutes_late"] or 0)),
-            }
-            for w in late_workers
-        ],
+        "workStartTime": start_label[:5],
+        "lateWorkers": late_workers,
         "totalWorkers": total_count,
     })
 
@@ -13622,6 +13656,37 @@ def foreman_shift_assignments():
     return jsonify({"assignments": assignments, "total": len(assignments)})
 
 
+@app.get("/api/shift/coworkers")
+@require_worker_session
+def shift_coworkers():
+    """Mitarbeiter: Kollegen derselben Firma (für Schicht-Tausch)."""
+    db = get_db()
+    worker = g.worker
+    rows = db.execute(
+        """
+        SELECT id, first_name, last_name, badge_id, site
+        FROM workers
+        WHERE company_id = ? AND id != ? AND deleted_at IS NULL
+        ORDER BY last_name, first_name
+        LIMIT 200
+        """,
+        (worker["company_id"], worker["id"]),
+    ).fetchall()
+    return jsonify(
+        {
+            "coworkers": [
+                {
+                    "id": r["id"],
+                    "name": f"{r['first_name']} {r['last_name']}".strip(),
+                    "badgeId": r["badge_id"],
+                    "site": r["site"],
+                }
+                for r in rows
+            ]
+        }
+    )
+
+
 @app.get("/api/shift/swaps")
 @require_worker_session
 def shift_get_swaps():
@@ -13700,7 +13765,22 @@ def shift_propose_swap():
     )
     db.commit()
 
-    return jsonify({"ok": True, "swapId": swap_id})
+    push_delivery = {"pushSent": 0}
+    try:
+        from backend.app.platform.push.automation import push_to_worker
+
+        push_delivery = push_to_worker(
+            db,
+            to_worker_id,
+            "Schicht-Tausch",
+            f"{worker['first_name']} {worker['last_name']}: {reason[:120] if reason else 'Neue Anfrage'}",
+            tag="attendance-reminder",
+            company_id=worker["company_id"],
+        )
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "swapId": swap_id, "pushDelivery": push_delivery})
 
 
 @app.post("/api/shift/respond-swap/<swap_id>")
@@ -13724,9 +13804,30 @@ def shift_respond_swap(swap_id):
         "UPDATE shift_swaps SET status = ?, responded_at = ? WHERE id = ?",
         (new_status, now_iso(), swap_id)
     )
+    if new_status == "accepted":
+        db.execute(
+            "UPDATE shift_assignments SET worker_id = ? WHERE id = ?",
+            (worker["id"], swap["shift_assignment_id"]),
+        )
     db.commit()
 
-    return jsonify({"ok": True, "status": new_status})
+    push_delivery = {"pushSent": 0}
+    try:
+        from backend.app.platform.push.automation import push_to_worker
+
+        label = "angenommen" if new_status == "accepted" else "abgelehnt"
+        push_delivery = push_to_worker(
+            db,
+            swap["from_worker_id"],
+            "Schicht-Tausch",
+            f"Deine Anfrage wurde {label}.",
+            tag="attendance-reminder",
+            company_id=worker["company_id"],
+        )
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "status": new_status, "pushDelivery": push_delivery})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

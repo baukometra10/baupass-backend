@@ -109,7 +109,7 @@ def push_security_alert(
     sev = (severity or "medium").lower()
     if sev not in ("critical", "high"):
         return {"delivered": False, "pushSent": 0, "skipped": "severity_below_threshold"}
-    return push_to_worker(
+    delivery = push_to_worker(
         db,
         worker_id,
         "BauPass Sicherheit",
@@ -119,6 +119,19 @@ def push_security_alert(
         notify_admin_inbox=True,
         inbox_source="security_alert",
     )
+    try:
+        from backend.app.platform.inbox.events import notify_inbox_changed
+
+        notify_inbox_changed(
+            company_id,
+            source="security_alert",
+            alert_title=title or "Security alert",
+            alert_message=title or "",
+            severity=sev,
+        )
+    except Exception:
+        pass
+    return delivery
 
 
 def push_document_expiry(

@@ -1,0 +1,99 @@
+# Worker app release pipeline — APK build + optional Firebase config from secrets.
+name: mobile-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Backend URL baked into APK
+        required: false
+        default: https://baupass-production.up.railway.app
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-release.yml"
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses || true
+
+      - name: Inject Firebase google-services.json (optional)
+        if: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON != '' }}
+        working-directory: mobile/android/app
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$FIREBASE_JSON" > google-services.json
+          echo "Firebase config injected from secret."
+
+      - name: Complete Flutter platform scaffolding
+        working-directory: mobile
+        run: flutter create . --org com.baupass --project-name worker
+
+      - name: Restore native customizations
+        run: |
+          rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
+          git checkout HEAD -- \
+            mobile/android/app/build.gradle.kts \
+            mobile/android/app/google-services.json \
+            mobile/android/settings.gradle.kts \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
+            mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/lib \
+            mobile/pubspec.yaml \
+            mobile/test
+
+      - name: Resolve dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze Dart
+        working-directory: mobile
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build release APK
+        working-directory: mobile
+        env:
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+        run: flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: baupass-worker-release
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 90
+
+      - name: Release summary
+        env:
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+        run: |
+          {
+            echo "## Mobile release"
+            echo ""
+            echo "- API URL: \`$API_URL\`"
+            echo "- Artifact: \`baupass-worker-release\`"
+            echo "- Host APK and set Railway \`BAUPASS_WORKER_APK_URL\`"
+            echo "- Firebase secret: \`${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON != '' && 'set' || 'missing' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

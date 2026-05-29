@@ -10,6 +10,32 @@ def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _sla_meta(created_at: str, severity: str) -> dict[str, Any]:
+    sla_hours = {"critical": 4, "high": 24, "medium": 48}.get((severity or "").lower(), 72)
+    try:
+        raw = (created_at or "").replace("Z", "+00:00")
+        created = datetime.fromisoformat(raw)
+    except ValueError:
+        created = datetime.utcnow()
+    due = created + timedelta(hours=sla_hours)
+    now = datetime.utcnow()
+    overdue = now > due
+    due_soon = not overdue and (due - now).total_seconds() <= 4 * 3600
+    return {
+        "slaHours": sla_hours,
+        "slaDueAt": due.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "slaStatus": "overdue" if overdue else ("due_soon" if due_soon else "ok"),
+    }
+
+
+def _item_with_sla(item: dict[str, Any]) -> dict[str, Any]:
+    if item.get("status") != "open":
+        return item
+    meta = _sla_meta(str(item.get("createdAt") or ""), str(item.get("severity") or "medium"))
+    item.update(meta)
+    return item
+
+
 def _severity_rank(sev: str) -> int:
     return {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}.get((sev or "low").lower(), 5)
 
@@ -214,7 +240,14 @@ def build_operations_inbox(
         except Exception:
             pass
 
-    items.sort(key=lambda x: (_severity_rank(x.get("severity", "low")), x.get("createdAt") or ""))
+    items = [_item_with_sla(it) for it in items]
+    items.sort(
+        key=lambda x: (
+            _severity_rank(x.get("severity", "low")),
+            0 if x.get("slaStatus") == "overdue" else 1 if x.get("slaStatus") == "due_soon" else 2,
+            x.get("createdAt") or "",
+        )
+    )
 
     by_source: dict[str, int] = {}
     for it in items:

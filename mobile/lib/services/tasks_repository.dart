@@ -56,6 +56,59 @@ class TasksRepository {
     return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
+  Future<List<Map<String, dynamic>>> listShiftSwaps(WorkerSession session) async {
+    final data = await _api.getJson(
+      '/api/shift/swaps',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final raw = data['swaps'];
+    if (raw is! List) return [];
+    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> listShiftCoworkers(WorkerSession session) async {
+    final data = await _api.getJson(
+      '/api/shift/coworkers',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final raw = data['coworkers'];
+    if (raw is! List) return [];
+    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> proposeShiftSwap({
+    required WorkerSession session,
+    required String assignmentId,
+    required String toWorkerId,
+    String reason = '',
+  }) {
+    return _api.postJson(
+      '/api/shift/propose-swap',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{
+        'assignmentId': assignmentId,
+        'toWorkerId': toWorkerId,
+        'reason': reason,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> respondShiftSwap({
+    required WorkerSession session,
+    required String swapId,
+    required String response,
+  }) {
+    return _api.postJson(
+      '/api/shift/respond-swap/$swapId',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{'response': response},
+    );
+  }
+
   Future<List<Map<String, dynamic>>> listCompanyAdmins(WorkerSession session) {
     return _api.getJsonList(
       '/api/worker-app/company-admins',

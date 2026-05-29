@@ -17,15 +17,25 @@ class ShiftsTab extends StatefulWidget {
   State<ShiftsTab> createState() => _ShiftsTabState();
 }
 
-class _ShiftsTabState extends State<ShiftsTab> {
+class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
   List<Map<String, dynamic>> _assignments = [];
+  List<Map<String, dynamic>> _swaps = [];
+  List<Map<String, dynamic>> _coworkers = [];
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 2, vsync: this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -34,10 +44,16 @@ class _ShiftsTabState extends State<ShiftsTab> {
       _error = null;
     });
     try {
-      final rows = await widget.tasks.listShiftAssignments(widget.session);
+      final results = await Future.wait([
+        widget.tasks.listShiftAssignments(widget.session),
+        widget.tasks.listShiftSwaps(widget.session),
+        widget.tasks.listShiftCoworkers(widget.session),
+      ]);
       if (!mounted) return;
       setState(() {
-        _assignments = rows;
+        _assignments = results[0];
+        _swaps = results[1];
+        _coworkers = results[2];
         _loading = false;
       });
     } catch (e) {
@@ -51,8 +67,86 @@ class _ShiftsTabState extends State<ShiftsTab> {
 
   String _fmt(String? iso) {
     if (iso == null || iso.isEmpty) return '—';
-    final s = iso.length >= 16 ? iso.substring(0, 16).replaceFirst('T', ' ') : iso;
-    return s;
+    return iso.length >= 16 ? iso.substring(0, 16).replaceFirst('T', ' ') : iso;
+  }
+
+  Future<void> _proposeSwap(Map<String, dynamic> assignment) async {
+    final coworkers = _coworkers.where((c) => c['id'] != null).toList();
+    if (coworkers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine Kollegen für Tausch verfügbar')),
+      );
+      return;
+    }
+    String? pickId;
+    final reasonCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Schicht tauschen'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(labelText: 'Kollege'),
+              items: coworkers
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c['id'] as String?,
+                      child: Text((c['name'] as String?) ?? c['id'] as String? ?? ''),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => pickId = v,
+            ),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(labelText: 'Grund (optional)'),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Senden')),
+        ],
+      ),
+    );
+    if (ok != true || pickId == null) return;
+    try {
+      await widget.tasks.proposeShiftSwap(
+        session: widget.session,
+        assignmentId: assignment['id'] as String,
+        toWorkerId: pickId!,
+        reason: reasonCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tausch-Anfrage gesendet')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _respondSwap(String swapId, String response) async {
+    try {
+      await widget.tasks.respondShiftSwap(
+        session: widget.session,
+        swapId: swapId,
+        response: response,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response == 'accepted' ? 'Angenommen' : 'Abgelehnt')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 
   @override
@@ -75,6 +169,29 @@ class _ShiftsTabState extends State<ShiftsTab> {
         ),
       );
     }
+    return Column(
+      children: [
+        TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(text: 'Meine Schichten'),
+            Tab(text: 'Tausch'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabs,
+            children: [
+              _buildAssignmentsList(),
+              _buildSwapsList(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAssignmentsList() {
     if (_assignments.isEmpty) {
       return RefreshIndicator(
         onRefresh: _load,
@@ -95,7 +212,6 @@ class _ShiftsTabState extends State<ShiftsTab> {
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (context, i) {
           final a = _assignments[i];
-          final status = (a['status'] as String?) ?? 'scheduled';
           final site = (a['site'] as String?)?.trim() ?? '';
           final notes = (a['notes'] as String?)?.trim() ?? '';
           final sub = '${_fmt(a['endTime'] as String?)}${site.isNotEmpty ? ' · $site' : ''}'
@@ -104,11 +220,69 @@ class _ShiftsTabState extends State<ShiftsTab> {
             child: ListTile(
               title: Text(_fmt(a['startTime'] as String?)),
               subtitle: Text(sub),
-              trailing: Chip(
-                label: Text(status, style: const TextStyle(fontSize: 11)),
-                visualDensity: VisualDensity.compact,
+              trailing: IconButton(
+                icon: const Icon(Icons.swap_horiz),
+                tooltip: 'Tauschen',
+                onPressed: () => _proposeSwap(a),
               ),
               isThreeLine: notes.isNotEmpty,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSwapsList() {
+    if (_swaps.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 80),
+            Center(child: Text('Keine offenen Tausch-Anfragen')),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: _swaps.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, i) {
+          final s = _swaps[i];
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text((s['fromWorker'] as String?) ?? 'Kollege', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text('${_fmt(s['startTime'] as String?)} – ${_fmt(s['endTime'] as String?)}'),
+                  if ((s['site'] as String?)?.isNotEmpty == true)
+                    Text(s['site'] as String, style: Theme.of(context).textTheme.bodySmall),
+                  if ((s['reason'] as String?)?.isNotEmpty == true)
+                    Text(s['reason'] as String, style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      FilledButton(
+                        onPressed: () => _respondSwap(s['id'] as String, 'accepted'),
+                        child: const Text('Annehmen'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: () => _respondSwap(s['id'] as String, 'rejected'),
+                        child: const Text('Ablehnen'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         },

@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker.css?v=20260513k" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <style>
     :root {
       --foreman-primary: #0f4c5c;
@@ -549,16 +550,17 @@
       <div class="health-grid">
         <div class="chart-container">
           <div class="chart-title" data-i18n="foremanTrendsTitle">Arbeitszeit-Trends (7 Tage)</div>
-          <div class="chart-placeholder">📊 Chart wird geladen...</div>
+          <canvas id="trendsChart" height="120"></canvas>
         </div>
         <div class="chart-container">
           <div class="chart-title" data-i18n="foremanDocHealthTitle">Dokumenten-Health</div>
-          <div class="chart-placeholder">📄 Chart wird geladen...</div>
+          <canvas id="docHealthChart" height="120"></canvas>
         </div>
       </div>
 
       <div class="chart-container">
         <div class="chart-title" data-i18n="foremanPunctualityTitle">Pünktlichkeits-Report</div>
+        <p id="punctualityHint" class="muted small"></p>
         <table class="foreman-table" id="punctualityTable">
           <thead>
             <tr>
@@ -793,46 +795,56 @@
       container.innerHTML = `<div class="team-grid">${html}</div>`;
     }
 
-    function renderMiniBarChart(container, series, labels) {
-      if (!container || !series?.length) {
-        container.innerHTML = '<span class="muted">Keine Daten</span>';
-        return;
-      }
-      const max = Math.max(...series, 1);
-      const w = 280;
-      const h = 80;
-      const barW = Math.floor(w / series.length) - 4;
-      const bars = series.map((v, i) => {
-        const bh = Math.round((v / max) * (h - 20));
-        const x = 8 + i * (barW + 4);
-        return `<rect x="${x}" y="${h - bh - 8}" width="${barW}" height="${bh}" fill="#5eead4" rx="3"/>
-          <text x="${x + barW/2}" y="${h}" text-anchor="middle" font-size="9" fill="#94a3b8">${(labels[i] || "").slice(5)}</text>`;
-      }).join('');
-      container.innerHTML = `<svg width="${w}" height="${h + 12}" viewBox="0 0 ${w} ${h + 12}">${bars}</svg>`;
+    let trendsChartInst = null;
+    let docHealthChartInst = null;
+
+    function renderLineChart(canvasId, labels, values, label, existing) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || typeof Chart === 'undefined') return null;
+      if (existing) existing.destroy();
+      if (!values?.length) return null;
+      return new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data: values,
+            backgroundColor: 'rgba(94, 234, 212, 0.55)',
+            borderColor: '#5eead4',
+            borderWidth: 1,
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.15)' } },
+            x: { ticks: { color: '#94a3b8', maxRotation: 0 }, grid: { display: false } },
+          },
+        },
+      });
     }
 
     // ─ Analytics ──────────────────────────────────────────────────────────────────
     async function loadAnalytics() {
       try {
         const trends = await fetchAPI('/analytics/worker-trends');
-        const trendEl = document.querySelector('#analytics .chart-container:nth-child(1) .chart-placeholder');
         const trendRows = trends?.daily || trends?.days || trends?.trends || [];
         const vals = trendRows.map((d) => d.checkins ?? d.activeWorkers ?? d.count ?? 0);
-        const labs = trendRows.map((d) => d.date || d.day || '');
-        if (!vals.length) {
-          trendEl.innerHTML = '<span class="muted">Keine Check-in-Daten (7 Tage)</span>';
-        } else {
-          renderMiniBarChart(trendEl, vals, labs);
-        }
+        const labs = trendRows.map((d) => (d.date || d.day || '').slice(5));
+        trendsChartInst = renderLineChart('trendsChart', labs, vals, 'Check-ins', trendsChartInst);
 
         const docHealth = await fetchAPI('/analytics/document-health');
-        const docEl = document.querySelector('#analytics .chart-container:nth-child(2) .chart-placeholder');
         const docVals = [docHealth?.valid ?? 0, docHealth?.expiring ?? 0, docHealth?.expired ?? 0, docHealth?.missing ?? 0];
-        if (!docVals.some((n) => n > 0)) {
-          docEl.innerHTML = '<span class="muted">Keine Dokumente erfasst</span>';
-        } else {
-          renderMiniBarChart(docEl, docVals, ['OK', 'Läuft ab', 'Abgel.', 'Fehlt']);
-        }
+        docHealthChartInst = renderLineChart(
+          'docHealthChart',
+          ['OK', 'Läuft ab', 'Abgel.', 'Fehlt'],
+          docVals,
+          'Dokumente',
+          docHealthChartInst,
+        );
 
         const punctuality = await fetchAPI('/analytics/punctuality-report');
         renderPunctuality(punctuality);
@@ -842,6 +854,12 @@
     }
 
     function renderPunctuality(data) {
+      const hint = document.getElementById('punctualityHint');
+      if (hint) {
+        hint.textContent = data?.workStartTime
+          ? `Soll-Check-in ab ${data.workStartTime} · Pünktlichkeit ${data.punctualityRate ?? 0}%`
+          : '';
+      }
       const tbody = document.getElementById('punctualityTableBody');
       
       if (!data.lateWorkers || data.lateWorkers.length === 0) {
