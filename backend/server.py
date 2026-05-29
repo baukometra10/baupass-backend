@@ -9538,6 +9538,16 @@ def create_company():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def demo_seed():
+    from backend.app.core.enterprise_mode import demo_features_allowed
+
+    if not demo_features_allowed():
+        return jsonify(
+            {
+                "error": "demo_disabled",
+                "message": "Demo-Daten sind in der Produktionsumgebung deaktiviert. Setze BAUPASS_ALLOW_DEMO=1 nur für Staging.",
+            }
+        ), 403
+
     payload = request.get_json(silent=True) or {}
     company_id = payload.get("companyId") or g.current_user.get("company_id")
     mode = (payload.get("mode") or "replace").strip().lower()
@@ -14197,22 +14207,60 @@ def compliance_reports_get():
         """,
     ).fetchone()
 
-    # Document compliance
+    # Document compliance — workers without any document on file
     workers_missing_docs = db.execute(
         """
-        SELECT COUNT(DISTINCT w.id) as cnt
-        FROM workers w
-        LEFT JOIN worker_documents wd ON w.id = wd.worker_id AND wd.created_at > datetime('now', '-90 days')
-        WHERE w.company_id = ? AND w.deleted_at IS NULL AND wd.id IS NULL
+        SELECT COUNT(*) AS cnt FROM workers w
+        WHERE w.company_id = ? AND w.deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM worker_documents wd WHERE wd.worker_id = w.id)
         """,
-        (company_id,)
+        (company_id,),
     ).fetchone()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    expired_docs = db.execute(
+        """
+        SELECT COUNT(*) AS cnt FROM worker_documents wd
+        JOIN workers w ON w.id = wd.worker_id
+        WHERE w.company_id = ? AND w.deleted_at IS NULL
+          AND wd.expiry_date IS NOT NULL AND wd.expiry_date != '' AND wd.expiry_date < ?
+        """,
+        (company_id, today),
+    ).fetchone()
+
+    open_critical = db.execute(
+        """
+        SELECT COUNT(*) AS cnt FROM security_alerts
+        WHERE company_id = ? AND status = 'open' AND LOWER(severity) IN ('critical', 'high')
+        """,
+        (company_id,),
+    ).fetchone()
+
+    total_workers = db.execute(
+        "SELECT COUNT(*) AS cnt FROM workers WHERE company_id = ? AND deleted_at IS NULL",
+        (company_id,),
+    ).fetchone()["cnt"] or 0
+    total = max(1, int(total_workers))
+    overtime_n = int(workers_with_overtime["cnt"] or 0)
+    missing_n = int(workers_missing_docs["cnt"] or 0)
+    expired_n = int(expired_docs["cnt"] or 0)
+    alerts_n = int(open_critical["cnt"] or 0)
+
+    score = 100
+    score -= min(25, round((missing_n / total) * 25))
+    score -= min(20, overtime_n * 3)
+    score -= min(20, min(expired_n, 20))
+    score -= min(25, alerts_n * 5)
+    compliance_score = max(0, min(100, int(score)))
 
     return jsonify({
         "reportDate": now_iso(),
-        "workersWithOvertime": workers_with_overtime["cnt"] or 0,
-        "workersMissingDocs": workers_missing_docs["cnt"] or 0,
-        "complianceScore": 85,  # Placeholder
+        "totalWorkers": total_workers,
+        "workersWithOvertime": overtime_n,
+        "workersMissingDocs": missing_n,
+        "expiredDocuments": expired_n,
+        "openSecurityAlerts": alerts_n,
+        "complianceScore": compliance_score,
     })
 
 
@@ -22312,8 +22360,18 @@ def api_health():
                 not in {"0", "false", "no"},
                 "runtime": app.extensions.get("runtime_summary", {}),
             },
+            "enterprise": _enterprise_health_flags(),
         }
     ), (200 if db_ok else 503)
+
+
+def _enterprise_health_flags():
+    try:
+        from backend.app.core.enterprise_mode import enterprise_runtime_flags
+
+        return enterprise_runtime_flags()
+    except Exception:
+        return {"demoAllowed": False, "copilotConfigured": False}
 
 
 @app.get("/api/health/live")

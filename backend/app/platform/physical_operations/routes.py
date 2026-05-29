@@ -64,7 +64,7 @@ def register_physical_operations(flask_app) -> None:
                     "9_autonomous": _autonomous_summary(db, cid),
                     "10_workforce_graph": build_workforce_graph(db, cid),
                     "11_identity": build_identity_hub(db, cid),
-                    "12_copilot": {"configured": True, "endpoint": "POST /api/ops-os/copilot"},
+                    "12_copilot": _copilot_layer_summary(),
                 },
             }
         )
@@ -94,6 +94,14 @@ def register_physical_operations(flask_app) -> None:
             (cid,),
         ).fetchone()
         return {"enabledRules": int((rows["c"] if rows else 0) or 0), "api": "/api/automation/rules"}
+
+    def _copilot_layer_summary():
+        from backend.app.core.enterprise_mode import copilot_configured
+
+        return {
+            "configured": copilot_configured(),
+            "endpoint": "POST /api/ops-os/copilot",
+        }
 
     @ops_os_bp.get("/ops-os/digital-twin")
     @require_auth

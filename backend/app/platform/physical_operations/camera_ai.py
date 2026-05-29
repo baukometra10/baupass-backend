@@ -14,7 +14,8 @@ def analyze_camera_event(company_id: int, payload: dict[str, Any]) -> dict[str, 
     worker_id = payload.get("worker_id")
     ppe = payload.get("ppe")
     zone = str(payload.get("zone") or payload.get("restricted_zone") or "")
-    confidence = float(payload.get("confidence") or 0.75)
+    conf_raw = payload.get("confidence")
+    confidence = float(conf_raw) if conf_raw is not None and str(conf_raw).strip() != "" else None
     ppe_compliant = None
     zone_violation = 0
     alerts = []

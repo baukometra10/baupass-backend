@@ -38,7 +38,17 @@ def collect_setup_status() -> dict[str, Any]:
         },
         "smtp": bool((os.getenv("SMTP_HOST") or "").strip() and (os.getenv("SMTP_PASSWORD") or "").strip()),
         "readyScore": _score(redis_url),
+        "enterprise": _enterprise_block(),
     }
+
+
+def _enterprise_block() -> dict[str, Any]:
+    try:
+        from backend.app.core.enterprise_mode import enterprise_runtime_flags
+
+        return enterprise_runtime_flags()
+    except Exception:
+        return {"demoAllowed": False, "copilotConfigured": False}
 
 
 def _score(redis_url: str) -> dict[str, Any]:

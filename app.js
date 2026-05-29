@@ -1,5 +1,19 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
 window.__BAUPASS_UI_BUILD = "20260528f";
+window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
+
+async function loadEnterpriseFlags() {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { credentials: "include" });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.enterprise && typeof data.enterprise === "object") {
+      window.__baupassEnterprise = data.enterprise;
+    }
+  } catch {
+    // keep defaults
+  }
+}
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
@@ -18303,10 +18317,11 @@ function ensureInvoiceDefaults() {
 function updateTopbarActionsState(loggedIn) {
   const role = getCurrentUser()?.role || "";
   const canWrite = !isSupportReadOnlyMode();
-  const canSeed = (role === "superadmin" || role === "company-admin") && canWrite;
+  const demoAllowed = window.__baupassEnterprise?.demoAllowed !== false;
+  const canSeed = (role === "superadmin" || role === "company-admin") && canWrite && demoAllowed;
 
   if (elements.seedDataButton) {
-    elements.seedDataButton.style.display = loggedIn ? "inline-flex" : "none";
+    elements.seedDataButton.style.display = loggedIn && demoAllowed ? "inline-flex" : "none";
     elements.seedDataButton.disabled = !canSeed;
     elements.seedDataButton.title = canSeed ? "" : runtimeText("adminOnlyTooltip");
   }
@@ -28373,6 +28388,10 @@ async function exportState(options = {}) {
 }
 
 async function loadDemoData() {
+  if (window.__baupassEnterprise?.demoAllowed === false) {
+    showToast("Demo-Daten sind in der Produktionsumgebung deaktiviert (Enterprise-Modus).");
+    return;
+  }
   if (!userCanManageWorkers()) {
     showToast(runtimeText("demoAdminOnly"));
     return;
@@ -30963,6 +30982,7 @@ warnStaleControlAssets();
 (async () => {
   const bootLoader = document.getElementById("appBootLoader");
   try {
+    await loadEnterpriseFlags();
     await loadPublicBranding();
     await loadAllData();
     if (state.currentUser?.role === "superadmin") {

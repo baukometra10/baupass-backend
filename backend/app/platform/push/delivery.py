@@ -66,8 +66,14 @@ def deliver_worker_push(
 
             webpush, _ = _load_pywebpush_client()
             vapid_private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
-            vapid_email = os.getenv("VAPID_EMAIL", "mailto:admin@example.com").strip()
-            if callable(webpush) and vapid_private_key:
+            vapid_email = (
+                os.getenv("VAPID_EMAIL")
+                or os.getenv("BAUPASS_CONTACT_EMAIL")
+                or ""
+            ).strip()
+            if not vapid_email:
+                vapid_email = ""
+            if callable(webpush) and vapid_private_key and vapid_email:
                 from .deeplinks import push_data_payload
 
                 payload = push_data_payload(tag=tag, worker_id=str(worker_id))

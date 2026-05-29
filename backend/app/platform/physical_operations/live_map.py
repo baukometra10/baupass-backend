@@ -1,17 +1,9 @@
 """Live ops map — geofences, on-site workers, gates, open alerts."""
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
-from ._common import list_on_site_workers, today_prefix
-
-
-def _offset(lat: float, lng: float, seed: str) -> tuple[float, float]:
-    """Spread markers that share the same coordinates."""
-    h = int(hashlib.md5(seed.encode()).hexdigest()[:8], 16)
-    angle = (h % 360) * 0.0174533
-    return lat + 0.00025 * (h % 5) * (1 if h % 2 else -1), lng + 0.00035 * ((h >> 4) % 5) * (1 if (h >> 8) % 2 else -1)
+from ._common import geofence_site_index, list_on_site_workers, resolve_map_coordinates, today_prefix
 
 
 def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
@@ -31,40 +23,31 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    site_coords: dict[str, tuple[float, float]] = {}
-    for g in geofences:
-        if g.get("latitude") is not None and g.get("longitude") is not None:
-            site_coords[str(g.get("site_name") or "")] = (float(g["latitude"]), float(g["longitude"]))
+    site_coords = geofence_site_index(db, cid)
 
     workers: list[dict[str, Any]] = []
     for w in list_on_site_workers(db, cid, today):
-        lat = w.get("site_latitude")
-        lng = w.get("site_longitude")
-        try:
-            if lat is not None and lng is not None:
-                lat, lng = float(lat), float(lng)
-            else:
-                site = str(w.get("site") or "")
-                if site in site_coords:
-                    lat, lng = site_coords[site]
-                elif geofences:
-                    lat, lng = float(geofences[0]["latitude"]), float(geofences[0]["longitude"])
-                else:
-                    continue
-            lat, lng = _offset(lat, lng, str(w.get("id") or ""))
-            workers.append(
-                {
-                    "id": w.get("id"),
-                    "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
-                    "site": w.get("site"),
-                    "gate": w.get("gate"),
-                    "lastAccess": w.get("last_access"),
-                    "lat": lat,
-                    "lng": lng,
-                }
-            )
-        except (TypeError, ValueError):
+        coords = resolve_map_coordinates(
+            db,
+            cid,
+            lat=w.get("site_latitude"),
+            lng=w.get("site_longitude"),
+            site=str(w.get("site") or ""),
+            seed=str(w.get("id") or ""),
+        )
+        if not coords:
             continue
+        workers.append(
+            {
+                "id": w.get("id"),
+                "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
+                "site": w.get("site"),
+                "gate": w.get("gate"),
+                "lastAccess": w.get("last_access"),
+                "lat": coords["lat"],
+                "lng": coords["lng"],
+            }
+        )
 
     gates: list[dict[str, Any]] = []
     try:
@@ -80,11 +63,14 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
             """,
             (cid, f"{today}%"),
         ).fetchall()
-        base_lat, base_lng = (geofences[0]["latitude"], geofences[0]["longitude"]) if geofences else (52.52, 13.405)
-        for i, r in enumerate(rows):
-            gate = r["gate"] or f"Gate {i+1}"
-            lat, lng = _offset(float(base_lat), float(base_lng), gate)
-            gates.append({"name": gate, "lat": lat, "lng": lng, "lastAt": r["last_at"]})
+        for r in rows:
+            gate = r["gate"] or "Gate"
+            coords = resolve_map_coordinates(db, cid, site=gate, seed=gate)
+            if not coords:
+                continue
+            gates.append(
+                {"name": gate, "lat": coords["lat"], "lng": coords["lng"], "lastAt": r["last_at"]}
+            )
     except Exception:
         pass
 
@@ -103,7 +89,7 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    center = {"lat": 52.52, "lng": 13.405}
+    center = None
     if geofences:
         center = {"lat": float(geofences[0]["latitude"]), "lng": float(geofences[0]["longitude"])}
 
@@ -111,6 +97,7 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         "companyId": cid,
         "date": today,
         "center": center,
+        "mapConfigured": bool(geofences),
         "geofences": geofences,
         "workersOnSite": workers,
         "gates": gates,

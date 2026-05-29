@@ -121,7 +121,8 @@ def build_operations_inbox(
             today = datetime.utcnow().strftime("%Y-%m-%d")
             rows = db.execute(
                 """
-                SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, w.first_name, w.last_name
+                SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, wd.created_at,
+                       w.first_name, w.last_name
                 FROM worker_documents wd
                 JOIN workers w ON w.id = wd.worker_id
                 WHERE w.company_id = ?
@@ -144,7 +145,7 @@ def build_operations_inbox(
                         "message": f"{name}: {r['doc_type']} bis {r['expiry_date']}",
                         "companyId": cid,
                         "workerId": r["worker_id"],
-                        "createdAt": _now_iso(),
+                        "createdAt": r["created_at"] or r["expiry_date"] or _now_iso(),
                         "status": "open",
                         "actions": [
                             {
@@ -171,7 +172,7 @@ def build_operations_inbox(
             rows = db.execute(
                 """
                 SELECT lr.id, lr.worker_id, lr.type, lr.start_date, lr.end_date, lr.status,
-                       w.first_name, w.last_name
+                       lr.created_at, w.first_name, w.last_name
                 FROM leave_requests lr
                 JOIN workers w ON w.id = lr.worker_id
                 WHERE w.company_id = ? AND lr.status IN ('pending', 'ausstehend')
@@ -191,7 +192,7 @@ def build_operations_inbox(
                         "message": f"{name}: {r['type']} {r['start_date']} – {r['end_date']}",
                         "companyId": cid,
                         "workerId": r["worker_id"],
-                        "createdAt": _now_iso(),
+                        "createdAt": r["created_at"] or _now_iso(),
                         "status": "open",
                         "actions": [
                             {

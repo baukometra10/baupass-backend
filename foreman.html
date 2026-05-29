@@ -819,13 +819,20 @@
         const trendRows = trends?.daily || trends?.days || trends?.trends || [];
         const vals = trendRows.map((d) => d.checkins ?? d.activeWorkers ?? d.count ?? 0);
         const labs = trendRows.map((d) => d.date || d.day || '');
-        renderMiniBarChart(trendEl, vals.length ? vals : [0,0,0,0,0,0,0], labs.length ? labs : ['Mo','Di','Mi','Do','Fr','Sa','So']);
+        if (!vals.length) {
+          trendEl.innerHTML = '<span class="muted">Keine Check-in-Daten (7 Tage)</span>';
+        } else {
+          renderMiniBarChart(trendEl, vals, labs);
+        }
 
         const docHealth = await fetchAPI('/analytics/document-health');
         const docEl = document.querySelector('#analytics .chart-container:nth-child(2) .chart-placeholder');
-        renderMiniBarChart(docEl,
-          [docHealth?.valid ?? 0, docHealth?.expiring ?? 0, docHealth?.expired ?? 0, docHealth?.missing ?? 0],
-          ['OK', 'Läuft ab', 'Abgel.', 'Fehlt']);
+        const docVals = [docHealth?.valid ?? 0, docHealth?.expiring ?? 0, docHealth?.expired ?? 0, docHealth?.missing ?? 0];
+        if (!docVals.some((n) => n > 0)) {
+          docEl.innerHTML = '<span class="muted">Keine Dokumente erfasst</span>';
+        } else {
+          renderMiniBarChart(docEl, docVals, ['OK', 'Läuft ab', 'Abgel.', 'Fehlt']);
+        }
 
         const punctuality = await fetchAPI('/analytics/punctuality-report');
         renderPunctuality(punctuality);

@@ -3,10 +3,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._common import count_on_site, list_on_site_workers, today_prefix
+from ._common import (
+    count_on_site,
+    geofence_site_index,
+    list_on_site_workers,
+    resolve_map_coordinates,
+    today_prefix,
+)
 
 
-def _gate_positions(db, company_id: int) -> list[dict]:
+def _gate_positions(db, company_id: str) -> list[dict]:
     rows = db.execute(
         """
         SELECT COALESCE(NULLIF(TRIM(al.gate), ''), 'Gate') AS gate_id,
@@ -21,22 +27,27 @@ def _gate_positions(db, company_id: int) -> list[dict]:
         """,
         (company_id,),
     ).fetchall()
+    gf = geofence_site_index(db, company_id)
     gates = []
-    for i, r in enumerate(rows):
-        gates.append(
-            {
-                "id": r["gate_id"],
-                "label": r["gate_id"],
-                "type": "gate",
-                "events24h": int(r["events_24h"] or 0),
-                "lastEvent": r["last_event"],
-                "map": {"x": 20 + (i % 5) * 18, "y": 15 + (i // 5) * 22},
-            }
-        )
+    for r in rows:
+        gate = r["gate_id"]
+        item: dict[str, Any] = {
+            "id": gate,
+            "label": gate,
+            "type": "gate",
+            "events24h": int(r["events_24h"] or 0),
+            "lastEvent": r["last_event"],
+        }
+        coords = resolve_map_coordinates(db, company_id, site=gate, seed=gate)
+        if not coords and gf:
+            coords = resolve_map_coordinates(db, company_id, seed=gate)
+        if coords:
+            item["map"] = coords
+        gates.append(item)
     return gates
 
 
-def _equipment(db, company_id: int) -> list[dict]:
+def _equipment(db, company_id: str) -> list[dict]:
     try:
         rows = db.execute(
             "SELECT * FROM site_equipment WHERE company_id = ? AND status = 'active'",
@@ -45,17 +56,23 @@ def _equipment(db, company_id: int) -> list[dict]:
     except Exception:
         return []
     out = []
-    for i, r in enumerate(rows):
+    for r in rows:
         item = dict(r)
-        if item.get("latitude") is None:
-            item["map"] = {"x": 60 + (i % 4) * 10, "y": 70 + (i // 4) * 8}
-        else:
-            item["map"] = {"lat": item["latitude"], "lng": item["longitude"]}
+        coords = resolve_map_coordinates(
+            db,
+            company_id,
+            lat=item.get("latitude"),
+            lng=item.get("longitude"),
+            site=str(item.get("site") or item.get("name") or ""),
+            seed=str(item.get("id") or ""),
+        )
+        if coords:
+            item["map"] = coords
         out.append(item)
     return out
 
 
-def _hazards(db, company_id: int) -> list[dict]:
+def _hazards(db, company_id: str) -> list[dict]:
     hazards: list[dict] = []
     try:
         rows = db.execute(
@@ -84,25 +101,33 @@ def _hazards(db, company_id: int) -> list[dict]:
     return hazards
 
 
-def build_digital_twin(db, company_id: int) -> dict[str, Any]:
+def build_digital_twin(db, company_id: str) -> dict[str, Any]:
     today = today_prefix()
     on_site = list_on_site_workers(db, company_id, today)
     workers_entities = []
-    for i, w in enumerate(on_site):
+    for w in on_site:
         site = (w.get("site") or "").strip()
-        workers_entities.append(
-            {
-                "id": w["id"],
-                "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
-                "site": site,
-                "gate": w.get("gate"),
-                "lastAccess": w.get("last_access"),
-                "badgeId": w.get("badge_id"),
-                "status": w.get("status"),
-                "map": {"x": 30 + (i % 6) * 12, "y": 40 + (i // 6) * 10},
-                "movement": "on_site",
-            }
+        ent: dict[str, Any] = {
+            "id": w["id"],
+            "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
+            "site": site,
+            "gate": w.get("gate"),
+            "lastAccess": w.get("last_access"),
+            "badgeId": w.get("badge_id"),
+            "status": w.get("status"),
+            "movement": "on_site",
+        }
+        coords = resolve_map_coordinates(
+            db,
+            company_id,
+            lat=w.get("site_latitude"),
+            lng=w.get("site_longitude"),
+            site=site,
+            seed=str(w.get("id") or ""),
         )
+        if coords:
+            ent["map"] = coords
+        workers_entities.append(ent)
     recent = db.execute(
         """
         SELECT al.worker_id, al.direction, al.gate, al.timestamp,

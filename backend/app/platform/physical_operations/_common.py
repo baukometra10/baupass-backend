@@ -1,6 +1,7 @@
 """Shared helpers for Physical Operations OS."""
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -56,6 +57,69 @@ def count_on_site(db, company_id: str, today: str | None = None) -> int:
         (cid, f"{today}%", f"{today}%"),
     ).fetchone()
     return int((row["c"] if row else 0) or 0)
+
+
+def geo_offset(lat: float, lng: float, seed: str) -> tuple[float, float]:
+    """Spread markers that share the same coordinates."""
+    h = int(hashlib.md5(seed.encode()).hexdigest()[:8], 16)
+    return (
+        lat + 0.00025 * (h % 5) * (1 if h % 2 else -1),
+        lng + 0.00035 * ((h >> 4) % 5) * (1 if (h >> 8) % 2 else -1),
+    )
+
+
+def geofence_site_index(db, company_id: str) -> dict[str, dict[str, Any]]:
+    cid = _cid_param(company_id)
+    out: dict[str, dict[str, Any]] = {}
+    try:
+        rows = db.execute(
+            """
+            SELECT site_name, latitude, longitude, radius_meters
+            FROM geofences WHERE company_id = ? AND active = 1
+            """,
+            (cid,),
+        ).fetchall()
+        for r in rows:
+            name = str(r["site_name"] or "").strip()
+            if name and r["latitude"] is not None and r["longitude"] is not None:
+                out[name] = dict(r)
+    except Exception:
+        pass
+    return out
+
+
+def resolve_map_coordinates(
+    db,
+    company_id: str,
+    *,
+    lat: Any = None,
+    lng: Any = None,
+    site: str = "",
+    seed: str = "",
+) -> dict[str, float] | None:
+    """Real lat/lng from worker site, geofence name, or company geofences — no synthetic grid."""
+    try:
+        if lat is not None and lng is not None:
+            la, ln = float(lat), float(lng)
+            if seed:
+                la, ln = geo_offset(la, ln, seed)
+            return {"lat": la, "lng": ln}
+    except (TypeError, ValueError):
+        pass
+    idx = geofence_site_index(db, company_id)
+    site_key = (site or "").strip()
+    if site_key and site_key in idx:
+        la, ln = float(idx[site_key]["latitude"]), float(idx[site_key]["longitude"])
+        if seed:
+            la, ln = geo_offset(la, ln, seed)
+        return {"lat": la, "lng": ln}
+    if idx:
+        first = next(iter(idx.values()))
+        la, ln = float(first["latitude"]), float(first["longitude"])
+        if seed:
+            la, ln = geo_offset(la, ln, seed)
+        return {"lat": la, "lng": ln}
+    return None
 
 
 def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[dict]:
