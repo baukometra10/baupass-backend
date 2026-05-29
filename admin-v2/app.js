@@ -900,6 +900,40 @@ function renderTable(container, rows, columns) {
   container.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+let inboxSourceFilter = "";
+
+function inboxApiQuery(baseQ) {
+  const params = new URLSearchParams((baseQ || "").replace(/^\?/, ""));
+  if (inboxSourceFilter) params.set("source", inboxSourceFilter);
+  const s = params.toString();
+  return s ? `?${s}` : "";
+}
+
+function renderInboxFilters(bySource = {}) {
+  const bar = $("inboxFilters");
+  if (!bar) return;
+  const chips = [
+    { id: "", label: "Alle" },
+    { id: "security", label: `Security (${bySource.security ?? 0})` },
+    { id: "leave", label: `Urlaub (${bySource.leave ?? 0})` },
+    { id: "document", label: `Dokumente (${bySource.document ?? 0})` },
+    { id: "system", label: `System (${bySource.system ?? 0})` },
+  ];
+  bar.classList.remove("hidden");
+  bar.innerHTML = chips
+    .map(
+      (c) =>
+        `<button type="button" class="inbox-filter-chip${inboxSourceFilter === c.id ? " active" : ""}" data-source="${c.id}">${c.label}</button>`,
+    )
+    .join("");
+  bar.querySelectorAll(".inbox-filter-chip").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      inboxSourceFilter = btn.dataset.source || "";
+      await loadInbox();
+    });
+  });
+}
+
 async function loadInbox() {
   const el = $("inboxList");
   const countsEl = $("inboxCounts");
@@ -907,11 +941,13 @@ async function loadInbox() {
   if (getUser().role === "superadmin" && !q) {
     el.innerHTML = '<p class="muted">اختر شركة من القائمة أعلاه.</p>';
     countsEl.innerHTML = "";
+    $("inboxFilters")?.classList.add("hidden");
     return;
   }
   el.innerHTML = '<p class="muted">جاري التحميل…</p>';
+  const iq = inboxApiQuery(q);
   const [data, pushSt] = await Promise.all([
-    api(`/api/inbox${q}`),
+    api(`/api/inbox${iq || q}`),
     api("/api/platform/push/status").catch(() => null),
   ]);
   const liveHint = $("inboxLiveHint");
@@ -920,15 +956,17 @@ async function loadInbox() {
   if (pushEl && pushSt) {
     const ready = pushSt.anyChannelReady;
     pushEl.classList.remove("hidden");
+    const mode = pushSt.fcmMode === "http_v1" ? "FCM v1" : pushSt.fcmMode === "legacy" ? "FCM legacy" : "";
     pushEl.innerHTML = ready
-      ? `Hybrid Push (FCM): ${pushSt.workersWithPush ?? 0} MA · ${pushSt.registeredDevices ?? 0} Geräte${
-          pushSt.fcmConfigured ? "" : " · FCM_SERVER_KEY fehlt"
-        }${pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} Legacy-PWA` : ""}`
-      : "FCM nicht konfiguriert — FCM_SERVER_KEY auf Railway setzen (Flutter Hybrid-App).";
+      ? `Hybrid Push: ${pushSt.workersWithPush ?? 0} MA · ${pushSt.registeredDevices ?? 0} Geräte${mode ? ` · ${mode}` : ""}${
+          pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} PWA` : ""
+        }`
+      : "FCM nicht konfiguriert — FCM_SERVER_KEY oder FCM_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID.";
   } else if (pushEl) {
     pushEl.classList.add("hidden");
   }
   const c = data.counts || {};
+  renderInboxFilters(c.bySource || {});
   updateInboxTabBadge(c.open, c.critical);
   countsEl.innerHTML = `
     <div class="card"><span class="muted">Offen</span><strong>${c.open ?? 0}</strong></div>
@@ -1002,7 +1040,7 @@ async function loadInbox() {
   });
   async function runInboxBulk(action, extra = {}) {
     const cid = q.replace("?company_id=", "");
-    const res = await api(`/api/inbox/bulk${q}`, {
+    const res = await api(`/api/inbox/bulk${iq || q}`, {
       method: "POST",
       body: JSON.stringify({ action, company_id: cid || undefined, ...extra }),
     });

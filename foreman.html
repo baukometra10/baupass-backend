@@ -851,14 +851,39 @@
     }
 
     // ─ Shifts ─────────────────────────────────────────────────────────────────────
+    function renderShiftsTable(assignments) {
+      const tbody = document.getElementById('shiftsTableBody');
+      if (!assignments?.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">Keine anstehenden Schichten</td></tr>';
+        return;
+      }
+      tbody.innerHTML = assignments
+        .map(
+          (s) => `
+        <tr>
+          <td>${s.workerName || s.workerId}</td>
+          <td>${(s.startTime || '').slice(0, 16)}</td>
+          <td>${(s.endTime || '').slice(0, 16)}</td>
+          <td>${s.site || '—'}</td>
+          <td>${s.status || 'scheduled'}</td>
+        </tr>`,
+        )
+        .join('');
+    }
+
     async function loadShifts() {
       try {
-        // Load team for select
-        const teamData = await fetchAPI('/foreman/team-status');
+        const [teamData, shifts] = await Promise.all([
+          fetchAPI('/foreman/team-status'),
+          fetchAPI('/foreman/shift-assignments'),
+        ]);
         populateWorkerSelect('shiftWorkerSelect', teamData.team);
         populateWorkerSelect('alertWorkerSelect', teamData.team);
+        renderShiftsTable(shifts.assignments || []);
       } catch (error) {
         console.error('Failed to load shifts:', error);
+        document.getElementById('shiftsTableBody').innerHTML =
+          `<tr><td colspan="5">${error.message}</td></tr>`;
       }
     }
 
@@ -886,12 +911,18 @@
       }
 
       try {
-        await fetchAPI('/shift/assignments', {
+        const res = await fetchAPI('/shift/assignments', {
           method: 'POST',
           body: JSON.stringify({ workerId, startTime, endTime, site, notes }),
         });
-        alert('Schicht zugewiesen!');
+        const d = res.pushDelivery || {};
+        alert(
+          d.pushSent
+            ? `Schicht gespeichert · Hybrid Push an MA (${d.pushSent})`
+            : 'Schicht gespeichert (kein FCM-Token beim MA).',
+        );
         document.getElementById('shiftNotes').value = '';
+        await loadShifts();
       } catch (error) {
         alert(`Fehler: ${error.message}`);
       }

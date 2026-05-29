@@ -21,12 +21,14 @@ def register_inbox_blueprint(flask_app) -> None:
             company_id = str(request.args.get("company_id") or company_id or "").strip() or None
         limit = min(max(int(request.args.get("limit", "80")), 1), 200)
         include_resolved = request.args.get("include_resolved", "").lower() in {"1", "true", "yes"}
+        source_filter = str(request.args.get("source") or "").strip() or None
         dash = build_operations_inbox(
             get_db(),
             company_id,
             role=role,
             limit=limit,
             include_resolved=include_resolved,
+            source_filter=source_filter,
         )
         return jsonify(dash)
 

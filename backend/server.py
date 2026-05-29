@@ -13502,7 +13502,60 @@ def shift_create_assignment():
     )
     db.commit()
 
-    return jsonify({"ok": True, "assignmentId": assign_id})
+    push_delivery = {"pushSent": 0}
+    try:
+        from backend.app.platform.push.automation import push_to_worker
+
+        push_delivery = push_to_worker(
+            db,
+            worker_id,
+            "Neue Schicht",
+            f"{start_time[:16]} – {end_time[:16]}{(' · ' + site) if site else ''}",
+            tag="attendance-reminder",
+            company_id=user["company_id"],
+        )
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "assignmentId": assign_id, "pushDelivery": push_delivery})
+
+
+@app.get("/api/foreman/shift-assignments")
+@require_admin_session
+def foreman_shift_assignments():
+    """Foreman: anstehende Schichten der Firma."""
+    db = get_db()
+    user = g.admin_user
+    company_id = user["company_id"]
+    rows = db.execute(
+        """
+        SELECT sa.id, sa.worker_id, sa.site, sa.start_time, sa.end_time, sa.status, sa.notes,
+               w.first_name, w.last_name, w.badge_id
+        FROM shift_assignments sa
+        JOIN workers w ON w.id = sa.worker_id
+        WHERE sa.company_id = ? AND sa.status != 'cancelled'
+          AND sa.end_time >= datetime('now', '-1 day')
+        ORDER BY sa.start_time ASC
+        LIMIT 80
+        """,
+        (company_id,),
+    ).fetchall()
+    assignments = []
+    for r in rows:
+        assignments.append(
+            {
+                "id": r["id"],
+                "workerId": r["worker_id"],
+                "workerName": f"{r['first_name']} {r['last_name']}".strip(),
+                "badgeId": r["badge_id"],
+                "site": r["site"],
+                "startTime": r["start_time"],
+                "endTime": r["end_time"],
+                "status": r["status"],
+                "notes": r["notes"],
+            }
+        )
+    return jsonify({"assignments": assignments, "total": len(assignments)})
 
 
 @app.get("/api/shift/swaps")
