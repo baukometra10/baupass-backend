@@ -52,7 +52,7 @@ def fetch_visitor_rows(db, company_id: str | None, *, limit: int = 150) -> list[
         SELECT first_name, last_name, visitor_company, visit_purpose, host_name, valid_until, site
         FROM workers
         WHERE deleted_at IS NULL
-          AND lower(COALESCE(worker_type, '')) IN ('visitor', 'besucher')
+          AND lower(COALESCE(worker_type, '')) = 'visitor'
           AND lower(COALESCE(status, '')) = 'aktiv'
     """
     if company_id:
