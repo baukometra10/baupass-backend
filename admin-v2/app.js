@@ -194,16 +194,28 @@ function formatPushDelivery(res) {
 }
 
 function showActionToast(message, isError) {
-  const el = document.getElementById("inboxToast");
+  const el =
+    document.getElementById("globalToast") ||
+    document.getElementById("inboxToast");
   if (!el) {
     alert(message);
     return;
   }
+  const baseClass = el.id === "globalToast" ? "global-toast" : "inbox-toast";
   el.textContent = message;
-  el.className = isError ? "inbox-toast err" : "inbox-toast ok";
+  el.className = isError ? `${baseClass} err` : `${baseClass} ok`;
   el.classList.remove("hidden");
   clearTimeout(showActionToast._t);
   showActionToast._t = setTimeout(() => el.classList.add("hidden"), 4500);
+}
+
+function activeCompanyId() {
+  const user = getUser();
+  const stored = localStorage.getItem(COMPANY_KEY) || "";
+  if (user.role === "superadmin") {
+    return stored;
+  }
+  return stored || user.company_id || "";
 }
 
 let adminRealtimeStop = null;
@@ -378,47 +390,100 @@ async function loadPlatformBanner() {
   }
 }
 
+function bindWorkTimesPanelOnce(host) {
+  if (!host || host.dataset.workTimesBound === "1") {
+    return;
+  }
+  host.dataset.workTimesBound = "1";
+  host.addEventListener("submit", async (ev) => {
+    const form = ev.target;
+    if (!form || form.id !== "workTimesForm") {
+      return;
+    }
+    ev.preventDefault();
+    const companyId = host.dataset.companyId || "";
+    const cfg = host._workTimesCfg || {};
+    const feedback = host.querySelector("#workTimesFeedback");
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const fd = new FormData(form);
+    const toHm = (v) => String(v || "").trim().slice(0, 5);
+    if (!companyId) {
+      if (feedback) {
+        feedback.textContent = t("workTimes.pickCompany");
+        feedback.className = "work-times-feedback err";
+      }
+      showActionToast(t("workTimes.pickCompany"), true);
+      return;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = t("common.sending");
+    }
+    if (feedback) {
+      feedback.textContent = "";
+      feedback.className = "work-times-feedback hidden";
+    }
+    try {
+      const saved = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
+        method: "PUT",
+        body: JSON.stringify({
+          workStartTime: toHm(fd.get("workStartTime")),
+          workEndTime: toHm(fd.get("workEndTime")),
+          accessMode: cfg.accessMode || "gate",
+          siteGeofenceRadiusMeters: cfg.siteGeofenceRadiusMeters,
+          siteAutoCheckin: cfg.siteAutoCheckin,
+          siteAutoLogoutOnLeave: cfg.siteAutoLogoutOnLeave,
+        }),
+      });
+      host._workTimesCfg = { ...cfg, ...saved };
+      const msg = t("workTimes.saved");
+      if (feedback) {
+        feedback.textContent = msg;
+        feedback.className = "work-times-feedback ok";
+      }
+      showActionToast(msg, false);
+      await loadCompanyWorkTimesForm(companyId);
+    } catch (e) {
+      const errMsg = e.message || t("common.error");
+      if (feedback) {
+        feedback.textContent = errMsg;
+        feedback.className = "work-times-feedback err";
+      }
+      showActionToast(errMsg, true);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = t("workTimes.save");
+      }
+    }
+  });
+}
+
 async function loadCompanyWorkTimesForm(companyId) {
   const host = $("workTimesPanel");
   if (!host) return;
+  bindWorkTimesPanelOnce(host);
   if (!companyId) {
+    host.dataset.companyId = "";
+    host._workTimesCfg = {};
     host.innerHTML = `<p class="muted small">${t("workTimes.pickCompany")}</p>`;
     return;
   }
+  host.dataset.companyId = companyId;
   try {
     const cfg = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`);
+    host._workTimesCfg = cfg;
     const start = (cfg.workStartTime || "08:00").slice(0, 5);
     const end = (cfg.workEndTime || "17:00").slice(0, 5);
     host.innerHTML = `
       <h3>${t("workTimes.title")}</h3>
       <p class="muted small">${t("workTimes.hint")}</p>
+      <p id="workTimesFeedback" class="work-times-feedback hidden" role="status"></p>
       <form id="workTimesForm" class="tool-form">
         <label>${t("workTimes.start")} <input name="workStartTime" type="time" value="${start}" /></label>
         <label>${t("workTimes.end")} <input name="workEndTime" type="time" value="${end}" /></label>
         <button type="submit">${t("workTimes.save")}</button>
       </form>`;
-    $("workTimesForm")?.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(ev.target);
-      const toHm = (v) => String(v || "").trim().slice(0, 5);
-      try {
-        await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
-          method: "PUT",
-          body: JSON.stringify({
-            workStartTime: toHm(fd.get("workStartTime")),
-            workEndTime: toHm(fd.get("workEndTime")),
-            accessMode: cfg.accessMode,
-            siteGeofenceRadiusMeters: cfg.siteGeofenceRadiusMeters,
-            siteAutoCheckin: cfg.siteAutoCheckin,
-            siteAutoLogoutOnLeave: cfg.siteAutoLogoutOnLeave,
-          }),
-        });
-        showActionToast(t("workTimes.saved"), false);
-        await loadCompanyWorkTimesForm(companyId);
-      } catch (e) {
-        showActionToast(e.message || t("common.error"), true);
-      }
-    });
   } catch (e) {
     host.innerHTML = `<p class="error">${e.message}</p>`;
   }
@@ -427,7 +492,7 @@ async function loadCompanyWorkTimesForm(companyId) {
 async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
-  const cid = localStorage.getItem(COMPANY_KEY) || getUser().company_id || "";
+  const cid = activeCompanyId();
   try {
     const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist] = await Promise.all([
       api("/api/platform/capabilities"),

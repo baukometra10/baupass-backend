@@ -323,6 +323,48 @@ main {
   font-size: 0.85rem;
 }
 
+.global-toast {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 40;
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.global-toast.ok {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #a7f3d0;
+}
+
+.global-toast.err {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.work-times-feedback {
+  margin: 0.35rem 0 0.65rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.work-times-feedback.ok {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #6ee7b7;
+}
+
+.work-times-feedback.err {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
 .inbox-filters {
   display: flex;
   flex-wrap: wrap;
