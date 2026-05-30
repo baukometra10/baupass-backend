@@ -48,13 +48,30 @@ def authorize_rtsp_bridge_request(request, db) -> tuple[dict[str, Any] | None, s
 def _enrich_face_match(db, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     data = dict(payload)
     worker_id = str(data.get("worker_id") or data.get("workerId") or "").strip()
+    snapshot_b64 = str(
+        data.get("image_base64") or data.get("snapshot_base64") or data.get("photo_base64") or ""
+    ).strip()
     if worker_id:
         row = db.execute(
             "SELECT id, photo_data FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
             (worker_id, company_id),
         ).fetchone()
         data["worker_id"] = worker_id
-        data["face_match"] = bool(row and str(row["photo_data"] or "").strip())
+        photo = str(row["photo_data"] or "").strip() if row else ""
+        if snapshot_b64 and photo:
+            try:
+                from backend.app.platform.physical_operations.azure_face import verify_worker_snapshot
+
+                azure_match = verify_worker_snapshot(photo, snapshot_b64)
+                if azure_match is not None:
+                    data["face_match"] = azure_match
+                    data["face_match_source"] = "azure"
+                    return data
+            except Exception:
+                pass
+        data["face_match"] = bool(row and photo)
+        if data["face_match"]:
+            data["face_match_source"] = "worker_photo"
     elif "face_match" not in data:
         data["face_match"] = None
     return data

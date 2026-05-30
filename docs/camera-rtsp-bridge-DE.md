@@ -22,6 +22,7 @@
   "camera_id": "cam-gate-north",
   "event_type": "motion",
   "worker_id": "w-xyz",
+  "image_base64": "<JPEG base64 optional>",
   "ppe": false,
   "zone": "Zone A",
   "in_restricted_zone": true,
@@ -29,7 +30,20 @@
 }
 ```
 
-`worker_id` + vorhandenes Foto → `face_match` wird gesetzt (Stub bis Azure Face / lokales Modell).
+**Gesicht:** Mit `worker_id` + Worker-Foto → Stub `face_match`. Mit `image_base64` + Azure:
+
+- `BAUPASS_AZURE_FACE_ENDPOINT` (z. B. `https://….cognitiveservices.azure.com`)
+- `BAUPASS_AZURE_FACE_KEY`
+- optional `BAUPASS_AZURE_FACE_MIN_CONFIDENCE` (Standard `0.5`)
+
+## Demo-Agent
+
+```bash
+set BAUPASS_API_URL=https://baupass-production.up.railway.app
+set BAUPASS_RTSP_BRIDGE_TOKEN=…
+set BAUPASS_COMPANY_ID=cmp-…
+python scripts/rtsp_camera_agent.py --once
+```
 
 ## Railway
 

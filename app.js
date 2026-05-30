@@ -3589,6 +3589,37 @@ const UI_TRANSLATIONS = {
     monthlyInvoiceAutoSendLabel: "إرسال الفاتورة الشهرية تلقائيًا",
     monthlyInvoiceRunDayLabel: "يوم التنفيذ في الشهر",
     monthlyInvoiceDueDaysLabel: "مدة سداد الفاتورة الشهرية (أيام)",
+    imapPlusAliasWarning: "ملاحظة: على GMX/Web.de البريد التلقائي لمستندات الشركات معطّل. أنشئ alias أو صندوقاً حقيقياً لكل عنوان شركة أو استخدم catch-all.",
+    loginSecurityTitle: "تنبيه أمني",
+    loginSecurityHint: "تم رصد 3 محاولات تسجيل دخول فاشلة.",
+    loginSecurityCallPrefix: "يرجى الاتصال بالمسؤول فوراً على:",
+    loginSecurityFooter: "بعد التحقق يمكن إعادة تعيين كلمة المرور.",
+    btnWorkerFiltersReset: "إعادة ضبط الفلاتر",
+    invoiceHistoryLoadMore: "تحميل المزيد",
+    invoicePaymentNotePrompt: "ملاحظة الدفع (اختياري) — مثال: تحويل بنكي، SEPA، نقد:",
+    invoiceDunningStageLabel: "تذكير {stage}",
+    invoicePaymentNoteLabel: "الدفع:",
+    dashExpiringMore: "+ {count} أخرى في المستندات",
+    readinessEyebrow: "المنتج",
+    readinessH3: "المحفظة وتطبيق العامل",
+    readinessAppleWallet: "Apple Wallet",
+    readinessGoogleWallet: "Google Wallet",
+    readinessSmtp: "البريد (OTP/الفواتير)",
+    readinessRedis: "Redis (مهام/حد المعدل)",
+    readinessDbBackups: "نسخ SQLite",
+    readinessWorkerInstall: "رابط تثبيت تطبيق العامل",
+    readinessCopyInstall: "نسخ الرابط",
+    readinessInstallCopied: "تم نسخ رابط التثبيت.",
+    readinessStatusOk: "جاهز",
+    readinessStatusWarn: "غير متوفر",
+    alertSuperadminSetupEmail: "أدخل بريدك الإلكتروني واضغط تسجيل الدخول مرة أخرى. ستصلك رسالة OTP.",
+    loginSetupEmailLabel: "البريد لـ OTP (مرة واحدة، المشرف العام)",
+    loginSetupEmailPlaceholder: "you@example.com",
+    cameraEventWorker: "عامل",
+    cameraEventFaceOk: "مطابقة وجه",
+    cameraEventFaceNo: "لا مطابقة",
+    cameraEventPpeMissing: "معدات سلامة ناقصة",
+    cameraEventZoneAlert: "منطقة محظورة",
   },
   fr: {
     authEyebrow: "Page de connexion",
@@ -15855,7 +15886,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531h");
+    params.push("v=20260531i");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -17704,13 +17735,30 @@ async function loadCameraEvents() {
       return;
     }
     list.innerHTML = events
-      .map((ev) => `
+      .map((ev) => {
+        let payload = {};
+        try {
+          payload = typeof ev.payload_json === "string" ? JSON.parse(ev.payload_json) : (ev.payload_json || {});
+        } catch {
+          payload = {};
+        }
+        const face = payload.face_match;
+        const faceTag = face === true
+          ? `<span class="helper-text helper-text-ok">${escapeHtml(uiT("cameraEventFaceOk"))}</span>`
+          : face === false
+            ? `<span class="helper-text helper-text-warning">${escapeHtml(uiT("cameraEventFaceNo"))}</span>`
+            : "";
+        const workerLine = ev.worker_id
+          ? ` · ${escapeHtml(uiT("cameraEventWorker"))}: ${escapeHtml(ev.worker_id)}`
+          : "";
+        return `
         <article class="card-item" style="margin-bottom:6px;">
           <strong>${escapeHtml(ev.event_type || "event")}</strong>
           <span class="meta-text"> · ${escapeHtml(ev.camera_id || "-")}</span>
-          <p class="helper-text">${escapeHtml(ev.created_at || "")}${ev.worker_id ? ` · Worker: ${escapeHtml(ev.worker_id)}` : ""}</p>
-        </article>
-      `)
+          ${faceTag ? ` ${faceTag}` : ""}
+          <p class="helper-text">${escapeHtml(ev.created_at || "")}${workerLine}</p>
+        </article>`;
+      })
       .join("");
   } catch {
     list.innerHTML = "";

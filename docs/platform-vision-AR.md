@@ -101,7 +101,7 @@
 1. تسجيل `camera_id` لكل موقع.
 2. `POST /api/integrations/cameras/rtsp-ingest` (جسر RTSP) أو `POST /api/integrations/security-cameras/events`.
 3. عرض الأحداث في **Geräte → Kamera-KI** (`GET /api/integrations/cameras/events`).
-4. مطابقة الوجه: Stub عبر `worker_id` + صورة العامل؛ لاحقاً Azure Face / موديل محلي (`docs/camera-rtsp-bridge-DE.md`).
+4. مطابقة الوجه: Stub أو Azure Face (`image_base64` + `BAUPASS_AZURE_FACE_*`) — `scripts/rtsp_camera_agent.py` للاختبار.
 
 ---
 
