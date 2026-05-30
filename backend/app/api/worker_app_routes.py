@@ -33,6 +33,7 @@ WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/leave-requests/<req_id>/send-email", "worker_send_leave_request_email", ["POST"]),
     ("/my-timesheets", "worker_app_my_timesheets", ["GET"]),
     ("/my-documents", "worker_app_my_documents", ["GET"]),
+    ("/my-documents/<doc_id>/download", "worker_app_my_document_download", ["GET"]),
     ("/company-admins", "worker_get_company_admins", ["GET"]),
     ("/site-presence", "worker_app_site_presence", ["POST"]),
     ("/site-leave", "worker_app_site_leave", ["POST"]),

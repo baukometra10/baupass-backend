@@ -5719,6 +5719,21 @@ def _load_pywebpush_client():
     return getattr(module, "webpush", None), getattr(module, "WebPushException", Exception)
 
 
+def _notify_worker_payroll_document(db, worker_id: str, filename: str) -> None:
+    """Push + in-app: neue Lohnabrechnung für Mitarbeiter."""
+    label = filename or "Lohnabrechnung"
+    try:
+        _send_push_to_worker(
+            db,
+            worker_id,
+            "Neue Lohnabrechnung",
+            f"{label} ist in der Mitarbeiter-App verfügbar.",
+            tag="payroll-document",
+        )
+    except Exception:
+        pass
+
+
 def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
     """Web Push (PWA) + native FCM. Returns total deliveries."""
     from backend.app.platform.push.delivery import deliver_worker_push
@@ -22600,14 +22615,14 @@ def list_system_alerts():
 # DOKUMENTE-POSTFACH: IMAP-Polling + API
 # ─────────────────────────────────────────────────────────────────
 
-ALLOWED_DOC_TYPES = {
-    "mindestlohnnachweis",
-    "personalausweis",
-    "sozialversicherungsnachweis",
-    "arbeitserlaubnis",
-    "gesundheitszeugnis",
-    "sonstiges",
-}
+from backend.app.platform.worker_documents import (
+    ALLOWED_WORKER_DOC_TYPES as ALLOWED_DOC_TYPES,
+    WORKER_PAYROLL_DOC_TYPES,
+    doc_category,
+    doc_type_label,
+    is_payroll_doc_type,
+    normalize_doc_type,
+)
 DOC_TYPES_WITH_REQUIRED_EXPIRY = {
     "personalausweis",
     "arbeitserlaubnis",
@@ -23543,7 +23558,7 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
     """Hängt einen E-Mail-Anhang an einen Mitarbeiter und speichert die Datei."""
     payload = request.get_json(silent=True) or {}
     worker_id = clean_text_input(payload.get("workerId", ""), max_len=64)
-    doc_type = clean_text_input(payload.get("docType", ""), max_len=64).lower()
+    doc_type = normalize_doc_type(clean_text_input(payload.get("docType", ""), max_len=64))
     notes = clean_text_input(payload.get("notes", ""), max_len=500)
 
     if not worker_id:
@@ -23648,6 +23663,9 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
 
     db.commit()
 
+    if is_payroll_doc_type(doc_type):
+        _notify_worker_payroll_document(db, worker_id, safe_name)
+
     log_audit(
         "worker.document_added",
         f"Dokument '{doc_type}' ({att['filename']}) von {inbox_row['from_addr']} wurde Mitarbeiter {worker['badge_id']} zugewiesen",
@@ -23687,7 +23705,7 @@ def list_worker_documents(worker_id):
 @require_roles("superadmin", "company-admin", "turnstile")
 def upload_worker_document(worker_id):
     """Direkt-Upload eines Dokuments vom PC für einen Mitarbeiter."""
-    doc_type = clean_text_input(request.form.get("docType", ""), max_len=64).lower()
+    doc_type = normalize_doc_type(clean_text_input(request.form.get("docType", ""), max_len=64))
     notes = clean_text_input(request.form.get("notes", ""), max_len=500)
     expiry_date, expiry_error, expiry_message = validate_document_expiry_date(doc_type, request.form.get("expiryDate", ""))
 
@@ -23755,6 +23773,9 @@ def upload_worker_document(worker_id):
     )
     unlock_worker_if_documents_valid(db, worker, actor=g.current_user)
     db.commit()
+
+    if is_payroll_doc_type(doc_type):
+        _notify_worker_payroll_document(db, worker_id, safe_name)
 
     log_audit(
         "worker.document_uploaded",
@@ -25283,11 +25304,53 @@ def worker_app_my_documents():
     plan_value = get_company_plan(db, worker["company_id"])
     if not company_has_feature(plan_value, "document_upload"):
         return feature_not_available_response("document_upload", plan_value)
+    lang = str(request.args.get("lang") or "de")[:2]
     rows = db.execute(
-        "SELECT doc_type, filename, file_size, created_at, notes, expiry_date FROM worker_documents WHERE worker_id = ? ORDER BY created_at DESC",
+        """
+        SELECT id, doc_type, filename, file_size, created_at, notes, expiry_date
+        FROM worker_documents
+        WHERE worker_id = ?
+        ORDER BY created_at DESC
+        """,
         (worker["id"],),
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    payload = []
+    for row in rows:
+        dtype = str(row["doc_type"] or "")
+        item = dict(row)
+        item["doc_type"] = normalize_doc_type(dtype)
+        item["label"] = doc_type_label(item["doc_type"], lang)
+        item["category"] = doc_category(item["doc_type"])
+        item["isPayroll"] = is_payroll_doc_type(item["doc_type"])
+        item["canDownload"] = True
+        payload.append(item)
+    payload.sort(key=lambda x: (0 if x.get("isPayroll") else 1, x.get("created_at") or ""), reverse=True)
+    return jsonify(payload)
+
+
+@require_worker_session
+def worker_app_my_document_download(doc_id):
+    db = get_db()
+    worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
+    doc = db.execute(
+        "SELECT * FROM worker_documents WHERE id = ? AND worker_id = ?",
+        (doc_id, worker["id"]),
+    ).fetchone()
+    if not doc:
+        return jsonify({"error": "document_not_found"}), 404
+    file_path = BASE_DIR / doc["file_path"]
+    if not file_path.exists():
+        return jsonify({"error": "file_not_found"}), 404
+    from flask import send_file
+
+    return send_file(
+        str(file_path),
+        as_attachment=True,
+        download_name=doc["filename"] or "dokument.pdf",
+    )
 
 
 @require_worker_session

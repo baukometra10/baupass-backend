@@ -30,8 +30,18 @@
       lang ||
       global.localStorage?.getItem("baupass-ui-lang") ||
       global.localStorage?.getItem("baupass-admin-v2-lang") ||
+      global.localStorage?.getItem("baupass-worker-lang") ||
       "de";
     return String(stored).slice(0, 2);
+  }
+
+  function resolveSpeechLang(options) {
+    const uiLang = resolveLang(options?.lang);
+    if (options?.multilingual === false) {
+      return LANG_MAP[uiLang] || "de-DE";
+    }
+    const browser = String(global.navigator?.language || "").trim();
+    return LANG_MAP[uiLang] || browser || "de-DE";
   }
 
   function actionLabel(action, lang) {
@@ -226,6 +236,7 @@
     enhanceComposer(options);
 
     const lang = resolveLang(options.lang);
+    const speechLang = resolveSpeechLang(options);
     const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
     if (!SpeechRecognition || !global.isSecureContext) {
       btnEl.disabled = true;
@@ -242,9 +253,10 @@
         return;
       }
       recognition = new SpeechRecognition();
-      recognition.lang = LANG_MAP[lang] || "de-DE";
+      recognition.lang = speechLang;
       recognition.continuous = false;
       recognition.interimResults = Boolean(options.interimResults !== false);
+      recognition.maxAlternatives = 1;
       recognition.onstart = () => {
         listening = true;
         setListeningState(btnEl, true);
@@ -269,6 +281,7 @@
         if (!text) return;
         inputEl.value = text;
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dataset.bpVoiceInput = "1";
         if (!finalText) return;
         if (typeof options.onTranscript === "function") {
           options.onTranscript(finalText);
@@ -290,5 +303,6 @@
     executeBaupassAction,
     actionLabel,
     resolveLang,
+    resolveSpeechLang,
   };
 })(window);

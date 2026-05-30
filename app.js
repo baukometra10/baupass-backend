@@ -407,6 +407,8 @@ const UI_TRANSLATIONS = {
     docTypeSozialversicherungsnachweis: "Sozialversicherungsnachweis",
     docTypeArbeitserlaubnis: "Arbeitserlaubnis",
     docTypeGesundheitszeugnis: "Gesundheitszeugnis",
+    docTypeLohnabrechnung: "Lohnabrechnung",
+    docTypeGehaltsabrechnung: "Gehaltsabrechnung",
     docTypeSonstiges: "Sonstiges",
     workerDocsHeading: "Gespeicherte Dokumente",
     workerDocsEmpty: "Keine Dokumente hinterlegt.",
@@ -1254,6 +1256,8 @@ const UI_TRANSLATIONS = {
     docTypeSozialversicherungsnachweis: "Social security certificate",
     docTypeArbeitserlaubnis: "Work permit",
     docTypeGesundheitszeugnis: "Health certificate",
+    docTypeLohnabrechnung: "Payslip",
+    docTypeGehaltsabrechnung: "Salary statement",
     docTypeSonstiges: "Other",
     workerDocsHeading: "Stored Documents",
     workerDocsEmpty: "No documents on file.",
@@ -3142,6 +3146,8 @@ const UI_TRANSLATIONS = {
     docTypeSozialversicherungsnachweis: "شهادة الضمان الاجتماعي",
     docTypeArbeitserlaubnis: "تصريح عمل",
     docTypeGesundheitszeugnis: "شهادة صحية",
+    docTypeLohnabrechnung: "كشف الراتب",
+    docTypeGehaltsabrechnung: "كشف الراتب",
     docTypeSonstiges: "أخرى",
     workerDocsHeading: "المستندات المحفوظة",
     workerDocsEmpty: "لا توجد مستندات.",
@@ -15794,7 +15800,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260530a");
+    params.push("v=20260530b");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -16495,6 +16501,8 @@ async function openInboxMailDetail(inboxId, cardEl) {
     sozialversicherungsnachweis: "Sozialversicherungsnachweis",
     arbeitserlaubnis: "Arbeitserlaubnis",
     gesundheitszeugnis: "Gesundheitszeugnis",
+    lohnabrechnung: "Lohnabrechnung",
+    gehaltsabrechnung: "Gehaltsabrechnung",
     sonstiges: "Sonstiges",
   };
 
@@ -22937,7 +22945,7 @@ function renderWorkerDocuments(docs, workerId, container) {
   const canUpload = ["superadmin", "company-admin", "turnstile"].includes(role);
   const ALL_DOC_TYPES = [
     "mindestlohnnachweis", "personalausweis", "sozialversicherungsnachweis",
-    "arbeitserlaubnis", "gesundheitszeugnis", "sonstiges"
+    "arbeitserlaubnis", "gesundheitszeugnis", "lohnabrechnung", "gehaltsabrechnung", "sonstiges",
   ];
   const DOC_TYPES_REQUIRE_EXPIRY = new Set(["personalausweis", "arbeitserlaubnis", "gesundheitszeugnis"]);
 

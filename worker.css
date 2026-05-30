@@ -2886,6 +2886,48 @@ body {
 .worker-ai-form.bp-ai-form-enhanced .worker-ai-legacy-send {
   display: none;
 }
+
+.doc-payroll-banner {
+  background: linear-gradient(135deg, rgba(15, 76, 92, 0.12), rgba(244, 196, 0, 0.18));
+  border: 1px solid rgba(15, 76, 92, 0.25);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.82rem;
+}
+.doc-payroll-banner strong { color: #0f4c5c; }
+.doc-payroll-item {
+  border-inline-start: 3px solid #0f4c5c;
+  background: rgba(244, 196, 0, 0.08);
+}
+.doc-type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+.doc-payroll-pill {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #0f4c5c;
+  color: #fff;
+  white-space: nowrap;
+}
+.doc-download-btn {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #0f4c5c;
+  background: #fff;
+  color: #0f4c5c;
+  cursor: pointer;
+  font-weight: 600;
+}
 .worker-ai-action-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
 .worker-ai-action-btn {
   font-size: 0.75rem;

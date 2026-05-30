@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260529e";
+const WORKER_BUILD_TAG = "20260530b";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -5778,11 +5778,35 @@ async function loadMyTimesheets() {
 // ── FEATURE: DOCUMENTS (Meine Dokumente) ──
 // ═════════════════════════════════════════════════════════════════════
 
+function workerDocTypeLabel(doc) {
+  if (doc?.label) return doc.label;
+  const raw = String(doc?.doc_type || "").trim().toLowerCase();
+  const key = `docType${raw.charAt(0).toUpperCase()}${raw.slice(1)}`;
+  return t(key) || raw.replace(/_/g, " ");
+}
+
+async function downloadWorkerDocument(docId, filename) {
+  const response = await fetch(`${API_BASE}/my-documents/${encodeURIComponent(docId)}/download`, {
+    headers: { Authorization: `Bearer ${workerToken}` },
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename || "dokument.pdf";
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 async function loadMyDocuments() {
   if (!workerToken || !elements.documentsList) return;
   elements.documentsList.innerHTML = `<p class="muted-info">${t("documentsLoading")}</p>`;
   try {
-    const rows = await fetchJson(`${API_BASE}/my-documents`, {
+    const lang = getWorkerLang();
+    const rows = await fetchJson(`${API_BASE}/my-documents?lang=${encodeURIComponent(lang)}`, {
       headers: { Authorization: `Bearer ${workerToken}` }
     });
     lastDocumentRows = Array.isArray(rows) ? rows : [];
@@ -5827,9 +5851,22 @@ async function loadMyDocuments() {
       return aType < bType ? -1 : 1;
     });
 
-    const visibleRows = documentsCompactExpanded ? sortedRows : sortedRows.slice(0, 2);
-    const docsHiddenCount = Math.max(0, rows.length - visibleRows.length);
+    const payrollRows = sortedRows.filter((doc) => doc.isPayroll || doc.category === "payroll");
+    const otherRows = sortedRows.filter((doc) => !payrollRows.includes(doc));
+    const listSource = [...payrollRows, ...otherRows];
+    const visibleRows = documentsCompactExpanded ? listSource : listSource.slice(0, 4);
+    const docsHiddenCount = Math.max(0, listSource.length - visibleRows.length);
+
+    let payrollBanner = "";
+    if (payrollRows.length > 0) {
+      payrollBanner = `<div class="doc-payroll-banner">
+        <strong>${t("documentsPayrollTitle")}</strong>
+        <span>${payrollRows.length} · ${t("documentsPayrollNew")}</span>
+      </div>`;
+    }
+
     const docsMarkup = visibleRows.map((doc) => {
+      const isPayroll = Boolean(doc.isPayroll || doc.category === "payroll");
       const isExpired = doc.expiry_date && doc.expiry_date < today;
       const expiryTs = doc.expiry_date ? new Date(`${doc.expiry_date}T23:59:59`).getTime() : Number.NaN;
       const dayDiff = Number.isNaN(expiryTs) ? null : Math.ceil((expiryTs - Date.now()) / 86400000);
@@ -5844,12 +5881,21 @@ async function loadMyDocuments() {
       const statusClass = doc.expiry_date
         ? (isExpired ? "doc-expired" : "doc-ok")
         : "doc-no-expiry";
-      return `<div class="document-item ${statusClass}">
-        <div class="doc-type">${escapeHtmlBasic(doc.doc_type?.replace(/_/g, " ") || "–")}</div>
+      const received = (doc.created_at || "").slice(0, 10);
+      const downloadBtn = doc.id && doc.canDownload !== false
+        ? `<button type="button" class="doc-download-btn" data-doc-id="${escapeHtmlBasic(doc.id)}" data-doc-name="${escapeHtmlBasic(doc.filename || "dokument.pdf")}">${t("documentsDownload")}</button>`
+        : "";
+      return `<div class="document-item ${statusClass}${isPayroll ? " doc-payroll-item" : ""}">
+        <div class="doc-type-row">
+          <div class="doc-type">${escapeHtmlBasic(workerDocTypeLabel(doc))}</div>
+          ${isPayroll ? `<span class="doc-payroll-pill">${t("documentsPayrollTitle")}</span>` : ""}
+        </div>
         <div class="doc-meta">
+          ${received ? `<span>${t("documentsReceived")}: ${formatDate(received)}</span>` : ""}
           ${doc.expiry_date ? `<span>${t("documentsExpiry")}: ${formatDate(doc.expiry_date)}</span>` : ""}
           <span class="doc-status-badge ${statusClass}">${statusLabel}${expiryDeltaLabel ? ` · ${expiryDeltaLabel}` : ""}</span>
         </div>
+        ${downloadBtn}
       </div>`;
     }).join("");
 
@@ -5857,7 +5903,22 @@ async function loadMyDocuments() {
       ? `<button id="documentsCompactToggleBtn" class="ghost small-btn compact-list-toggle" type="button">${documentsCompactExpanded ? t("compactShowLess") : `${t("compactShowMore")} (+${docsHiddenCount})`}</button>`
       : "";
 
-    elements.documentsList.innerHTML = warningBanner + docsMarkup + toggleMarkup;
+    elements.documentsList.innerHTML = payrollBanner + warningBanner + docsMarkup + toggleMarkup;
+
+    elements.documentsList.querySelectorAll(".doc-download-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const docId = btn.getAttribute("data-doc-id");
+        const docName = btn.getAttribute("data-doc-name") || "dokument.pdf";
+        btn.disabled = true;
+        try {
+          await downloadWorkerDocument(docId, docName);
+        } catch (error) {
+          showWorkerNotice(formatWorkerApiError(error));
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
 
     const toggleBtn = document.querySelector("#documentsCompactToggleBtn");
     if (toggleBtn) {

@@ -302,3 +302,50 @@
 .worker-ai-form.bp-ai-form-enhanced .worker-ai-legacy-send {
   display: none;
 }
+
+/* Voice-origin user bubble hint (chat log) */
+.msg-user.bp-ai-voice-msg,
+.worker-ai-msg-user.bp-ai-voice-msg {
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.msg-user.bp-ai-voice-msg::after,
+.worker-ai-msg-user.bp-ai-voice-msg::after {
+  content: "🎙";
+  margin-inline-start: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+/* Light theme (Control Pass / worker light mode) */
+html[data-theme="light"] .bp-ai-composer,
+.worker-ai-card .bp-ai-composer {
+  --bp-composer-bg: #ffffff;
+  --bp-composer-border: #d1d5db;
+  --bp-composer-focus: #0f4c5c;
+}
+
+html[data-theme="light"] .bp-ai-mic {
+  color: #64748b;
+}
+
+html[data-theme="light"] .bp-ai-mic:hover:not(:disabled) {
+  background: rgba(15, 76, 92, 0.08);
+  color: #0f4c5c;
+}
+
+html[data-theme="light"] .bp-ai-send {
+  background: #0f4c5c;
+  color: #fff;
+}
+
+html[data-theme="light"] .bp-ai-composer-hint {
+  color: #64748b;
+}
+
+@media (prefers-color-scheme: light) {
+  body.ops-app:not(.force-dark) .bp-ai-composer {
+    --bp-composer-bg: #f8fafc;
+    --bp-composer-border: #cbd5e1;
+  }
+}
