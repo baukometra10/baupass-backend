@@ -5,7 +5,7 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-from typing import Tuple
+from typing import Any, Tuple
 
 
 def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
@@ -40,6 +40,61 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
     )
 
 
+def send_attachments_email(
+    *,
+    to: str,
+    subject: str,
+    body_text: str,
+    attachments: list[dict[str, Any]],
+) -> Tuple[bool, str]:
+    """Send email with one or more attachments (no PDF required)."""
+    if not attachments:
+        return False, "Keine Anhänge."
+    host, port, user, password, use_tls, sender, sender_name = _smtp_config()
+    if not host:
+        return False, "SMTP nicht konfiguriert (Einstellungen oder Railway Variables)."
+
+    msg = EmailMessage()
+    msg["Subject"] = subject[:200]
+    msg["From"] = f"{sender_name} <{sender}>"
+    msg["To"] = to.strip()
+    plain = (body_text or "").strip()
+    msg.set_content(plain)
+    html = plain.replace("\n", "<br>\n")
+    msg.add_alternative(
+        f"<html><body style='font-family:sans-serif;line-height:1.5'>{html}</body></html>",
+        subtype="html",
+    )
+    for att in attachments:
+        data = att.get("data")
+        if not data:
+            continue
+        msg.add_attachment(
+            data,
+            maintype=str(att.get("maintype") or "application"),
+            subtype=str(att.get("subtype") or "octet-stream"),
+            filename=str(att.get("filename") or "attachment.bin")[:120],
+        )
+
+    try:
+        timeout = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "12")))
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=timeout) as smtp:
+                if user:
+                    smtp.login(user, password)
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=timeout) as smtp:
+                if use_tls:
+                    smtp.starttls()
+                if user:
+                    smtp.login(user, password)
+                smtp.send_message(msg)
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)[:300]
+
+
 def send_pdf_report_email(
     *,
     to: str,
@@ -47,6 +102,7 @@ def send_pdf_report_email(
     body_text: str,
     pdf_bytes: bytes,
     filename: str = "baupass-report.pdf",
+    extra_attachments: list[dict[str, Any]] | None = None,
 ) -> Tuple[bool, str]:
     host, port, user, password, use_tls, sender, sender_name = _smtp_config()
     if not host:
@@ -69,6 +125,16 @@ def send_pdf_report_email(
         subtype="pdf",
         filename=filename[:120],
     )
+    for att in extra_attachments or []:
+        data = att.get("data")
+        if not data:
+            continue
+        msg.add_attachment(
+            data,
+            maintype=str(att.get("maintype") or "application"),
+            subtype=str(att.get("subtype") or "octet-stream"),
+            filename=str(att.get("filename") or "attachment.bin")[:120],
+        )
 
     try:
         timeout = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "12")))

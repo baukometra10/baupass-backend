@@ -15800,7 +15800,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531d");
+    params.push("v=20260531e");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -19135,11 +19135,26 @@ async function sendReportingPdfByEmail() {
     showToast("Bitte gültige E-Mail eingeben.");
     return;
   }
-  await apiRequest(`${API_BASE}/api/reporting/email-pdf`, {
+  const result = await apiRequest(`${API_BASE}/api/reporting/email-pdf`, {
+    method: "POST",
+    body: { email, attachDatevCsv: true },
+  });
+  const datevHint = result?.datevCsvAttached ? " (+ DATEV-CSV)" : "";
+  showToast(`PDF-Bericht wurde per E-Mail gesendet${datevHint}.`);
+}
+
+async function sendReportingDatevCsvByEmail() {
+  const email = window.prompt("E-Mail für DATEV-Lohn-CSV:", String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim());
+  if (email === null) return;
+  if (!email.includes("@")) {
+    showToast("Bitte gültige E-Mail eingeben.");
+    return;
+  }
+  await apiRequest(`${API_BASE}/api/reporting/email-datev-csv`, {
     method: "POST",
     body: { email },
   });
-  showToast("PDF-Bericht wurde per E-Mail gesendet.");
+  showToast("DATEV-CSV wurde per E-Mail gesendet.");
 }
 
 function bindReportingEmailPdfButton() {
@@ -19150,6 +19165,22 @@ function bindReportingEmailPdfButton() {
     btn.disabled = true;
     try {
       await sendReportingPdfByEmail();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function bindReportingEmailDatevButton() {
+  const btn = document.querySelector("#reportingEmailDatevBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await sendReportingDatevCsvByEmail();
     } catch (error) {
       showToast(uiT("alertGenericError").replace("{error}", error.message));
     } finally {
@@ -29880,6 +29911,7 @@ if (accessCsvButton) {
 
 bindDocumentInboxControls();
 bindReportingEmailPdfButton();
+bindReportingEmailDatevButton();
 bindReportingDailyPdfRunButton();
 
 const invoiceRefreshButton = document.querySelector("#invoiceRefreshButton");

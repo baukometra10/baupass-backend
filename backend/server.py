@@ -3418,6 +3418,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN branding_accent_color TEXT NOT NULL DEFAULT ''")
     if "branding_logo_data" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN branding_logo_data TEXT NOT NULL DEFAULT ''")
+    if "report_timezone" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN report_timezone TEXT NOT NULL DEFAULT ''")
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
         cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage1_days INTEGER NOT NULL DEFAULT 7")
@@ -6924,6 +6926,7 @@ def run_worker_session_cleanup_cycle_once():
 check_doc_expiry_warnings = None
 send_daily_summary_email = None
 send_daily_ops_pdf_reports = None
+run_scheduled_ops_pdf_reports = None
 send_worker_expiry_reminders = None
 send_document_expiry_notifications = None
 send_document_expiry_fcm_pushes = None
@@ -7456,19 +7459,24 @@ def start_background_jobs():
             pass
 
     def send_daily_ops_pdf_reports():
-        """Daily PDF operations report per company (company-admin inboxes)."""
+        """Legacy hook: full daily cycle no longer sends PDFs (see report scheduler)."""
+        return None
+
+    def run_scheduled_ops_pdf_reports():
+        """Timezone-aware 08:00 PDF (+ optional DATEV CSV) per company."""
         try:
             with app.app_context():
                 from backend.app.platform.reports.daily_delivery import deliver_daily_ops_pdfs
 
-                deliver_daily_ops_pdfs(get_db())
+                deliver_daily_ops_pdfs(get_db(), force=False)
         except Exception as exc:
-            print(f"[baupass] WARNING: daily ops PDF reports failed: {exc}", flush=True)
+            print(f"[baupass] WARNING: scheduled ops PDF reports failed: {exc}", flush=True)
 
     # Expose nested helpers for RQ bridge path.
     globals()["check_doc_expiry_warnings"] = check_doc_expiry_warnings
     globals()["send_daily_summary_email"] = send_daily_summary_email
     globals()["send_daily_ops_pdf_reports"] = send_daily_ops_pdf_reports
+    globals()["run_scheduled_ops_pdf_reports"] = run_scheduled_ops_pdf_reports
     globals()["send_worker_expiry_reminders"] = send_worker_expiry_reminders
     globals()["send_document_expiry_notifications"] = send_document_expiry_notifications
 
@@ -7512,6 +7520,19 @@ def start_background_jobs():
             time.sleep(86400)  # 24 Stunden warten
             run_daily_jobs_cycle_once()
 
+    def report_scheduler_loop():
+        """Every N minutes: send ops PDF at local 08:00 per company timezone."""
+        from backend.app.platform.reports.schedule import report_scheduler_interval_seconds
+
+        interval = report_scheduler_interval_seconds()
+        while True:
+            try:
+                if callable(run_scheduled_ops_pdf_reports):
+                    run_scheduled_ops_pdf_reports()
+            except Exception as exc:
+                print(f"[baupass] WARNING: report scheduler tick failed: {exc}", flush=True)
+            time.sleep(interval)
+
     if daily_jobs_mode == "rq":
         try:
             from backend.app.tasks.legacy_runtime import bootstrap_legacy_daily_jobs_scheduler
@@ -7524,6 +7545,8 @@ def start_background_jobs():
             threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()  # baupass:allow-inline-thread
     else:
         threading.Thread(target=daily_job_loop, name="baupass-daily-jobs", daemon=True).start()  # baupass:allow-inline-thread
+
+    threading.Thread(target=report_scheduler_loop, name="baupass-report-scheduler", daemon=True).start()  # baupass:allow-inline-thread
 
     def worker_session_cleanup_loop():
         while True:
@@ -15317,6 +15340,18 @@ def update_company(company_id):
         branding_logo_data = normalize_branding_logo_data(
             company["branding_logo_data"] if "branding_logo_data" in company_keys else ""
         )
+    if "reportTimezone" in payload or "report_timezone" in payload:
+        report_timezone = clean_text_input(
+            payload.get("reportTimezone", payload.get("report_timezone", "")),
+            max_len=64,
+        )
+        if report_timezone:
+            try:
+                ZoneInfo(report_timezone)
+            except Exception:
+                return jsonify({"error": "invalid_timezone", "message": "Ungültige Zeitzone (IANA)."}), 400
+    else:
+        report_timezone = str(company["report_timezone"] if "report_timezone" in company_keys else "")
 
     current_document_email = normalize_email_address(company["document_email"] or "")
     duplicate_customer_no = db.execute(
@@ -15350,7 +15385,8 @@ def update_company(company_id):
         SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?,
             billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?,
             plan = ?, status = ?, trial_ends_at = ?, invoice_email_lang = ?,
-            portal_display_name = ?, branding_accent_color = ?, branding_logo_data = ?
+            portal_display_name = ?, branding_accent_color = ?, branding_logo_data = ?,
+            report_timezone = ?
         WHERE id = ?
         """,
         (
@@ -15370,6 +15406,7 @@ def update_company(company_id):
             portal_display_name,
             branding_accent_color,
             branding_logo_data,
+            report_timezone,
             company_id,
         ),
     )
@@ -17228,12 +17265,24 @@ def reporting_email_pdf():
         ),
         max_len=4000,
     )
+    extra_attachments = []
+    attach_datev = payload.get("attachDatevCsv", True)
+    if attach_datev is not False and str(attach_datev).lower() not in {"0", "false", "no"}:
+        from backend.app.platform.reports.datev_attachment import build_datev_csv_attachment
+
+        company_id = str(user.get("company_id") or "").strip()
+        if company_id:
+            datev_att = build_datev_csv_attachment(db, company_id)
+            if datev_att:
+                extra_attachments.append(datev_att)
+
     ok, err = send_pdf_report_email(
         to=recipient,
         subject=subject,
         body_text=body,
         pdf_bytes=pdf_bytes,
         filename=filename,
+        extra_attachments=extra_attachments,
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -17245,7 +17294,70 @@ def reporting_email_pdf():
         company_id=user.get("company_id"),
         actor=user,
     )
-    return jsonify({"ok": True, "recipient": recipient, "filename": filename, "guidanceCount": len(guidance)})
+    return jsonify(
+        {
+            "ok": True,
+            "recipient": recipient,
+            "filename": filename,
+            "guidanceCount": len(guidance),
+            "datevCsvAttached": len(extra_attachments) > 0,
+        }
+    )
+
+
+@app.post("/api/reporting/email-datev-csv")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reporting_email_datev_csv():
+    from backend.app.platform.reports.datev_attachment import build_datev_csv_attachment
+    from backend.app.platform.reports.email_delivery import send_attachments_email
+
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    user = g.current_user
+    company_id = str(user.get("company_id") or payload.get("companyId") or "").strip()
+    if user["role"] != "superadmin" and not company_id:
+        return jsonify({"error": "missing_company"}), 400
+    if user["role"] == "superadmin" and payload.get("companyId"):
+        company_id = str(payload.get("companyId")).strip()
+
+    if not company_id:
+        return jsonify({"error": "missing_company"}), 400
+
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email"}), 400
+
+    period = clean_text_input(payload.get("period", ""), max_len=7)
+    datev_att = build_datev_csv_attachment(db, company_id, period=period)
+    if not datev_att:
+        return jsonify({"error": "no_payroll_data", "message": "Keine DATEV-Exportdaten für diese Firma."}), 404
+
+    period_label = period or datetime.now(timezone.utc).strftime("%Y-%m")
+    subject = clean_text_input(payload.get("subject", f"BauPass DATEV Lohn-CSV {period_label}"), max_len=200)
+    body = clean_text_input(
+        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label}.\n\nBauPass"),
+        max_len=4000,
+    )
+    ok, err = send_attachments_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        attachments=[datev_att],
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.datev_csv_emailed",
+        f"DATEV-CSV an {recipient}",
+        target_type="company",
+        target_id=company_id,
+        company_id=company_id,
+        actor=user,
+    )
+    db.commit()
+    return jsonify({"ok": True, "recipient": recipient, "filename": datev_att["filename"]})
 
 
 @app.post("/api/reporting/daily-pdf/run")
@@ -17256,7 +17368,7 @@ def reporting_daily_pdf_run():
     from backend.app.platform.reports.daily_delivery import deliver_daily_ops_pdfs
 
     db = get_db()
-    result = deliver_daily_ops_pdfs(db)
+    result = deliver_daily_ops_pdfs(db, force=True)
     log_audit(
         "reporting.daily_pdf_manual",
         f"Manueller Tages-PDF-Lauf: sent={result.get('sent', 0)} skipped={result.get('skipped', 0)}",

@@ -29,7 +29,9 @@
 | كاميرا / أحداث أمن (Webhook API) | ✅ `security-cameras/events` |
 | قارئ بصمة / HCE / NFC | ✅ |
 | PostgreSQL + Docker + Railway | ✅ |
-| تقرير PDF بالبريد + إرشادات تشغيل | ✅ جديد: `/api/reporting/email-pdf`, `/api/ops/guidance` |
+| تقرير PDF بالبريد + إرشادات تشغيل | ✅ `/api/reporting/email-pdf`, `/api/ops/guidance`, DATEV-CSV مرفق |
+| جدولة 08:00 حسب المنطقة | ✅ `BAUPASS_TIMEZONE` / `companies.report_timezone`, فحص كل 15 دقيقة |
+| DATEV-CSV بالبريد | ✅ `/api/reporting/email-datev-csv` + زر في لوحة Reporting |
 
 ---
 
