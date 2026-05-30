@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260530b";
+const WORKER_BUILD_TAG = "20260531a";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -195,10 +195,36 @@ function getWorkerCardBrandTitle(companyPreset) {
 }
 
 /** Firmen-Branding auf der Mitarbeiter-Karte (Preset aus Admin/Firma, nicht Rechnung). */
-function applyWorkerCompanyBranding({ companyPreset } = {}) {
+function applyWorkerCompanyBranding({
+  companyPreset,
+  portalDisplayName,
+  brandingAccentColor,
+  brandingLogoData,
+} = {}) {
   const preset = normalizeCompanyBrandingPreset(companyPreset);
   document.body.setAttribute("data-branding-preset", preset);
-  applyWorkerBrandLabels(getWorkerCardBrandTitle(preset));
+  const customTitle = String(portalDisplayName || "").trim();
+  applyWorkerBrandLabels(customTitle || getWorkerCardBrandTitle(preset));
+
+  const accent = String(brandingAccentColor || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(accent)) {
+    document.documentElement.style.setProperty("--worker-card-accent", accent);
+    document.documentElement.style.setProperty("--accent", accent);
+  } else {
+    document.documentElement.style.removeProperty("--worker-card-accent");
+  }
+
+  const logoMark = document.querySelector(".stb-logo-mark");
+  if (logoMark) {
+    const logoSrc = String(brandingLogoData || "").trim();
+    if (logoSrc) {
+      logoMark.innerHTML = `<img src="${logoSrc.replace(/"/g, "&quot;")}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />`;
+    } else if (!logoMark.dataset.defaultHtml) {
+      logoMark.dataset.defaultHtml = logoMark.innerHTML;
+    } else if (logoMark.dataset.defaultHtml) {
+      logoMark.innerHTML = logoMark.dataset.defaultHtml;
+    }
+  }
 
   document.querySelectorAll(".wallet-card").forEach((card) => {
     card.classList.remove("preset-construction", "preset-industry", "preset-premium", "branding-custom");
@@ -206,7 +232,11 @@ function applyWorkerCompanyBranding({ companyPreset } = {}) {
     card.style.removeProperty("--worker-card-primary");
     card.style.removeProperty("--worker-card-primary-dark");
     card.style.removeProperty("--worker-card-primary-light");
-    card.style.removeProperty("--worker-card-accent");
+    if (!/^#[0-9a-f]{6}$/i.test(accent)) {
+      card.style.removeProperty("--worker-card-accent");
+    } else {
+      card.style.setProperty("--worker-card-accent", accent);
+    }
   });
 }
 
@@ -2650,7 +2680,12 @@ function renderWorker(payload) {
     initializePassLockProtection();
   }
 
-  applyWorkerCompanyBranding({ companyPreset });
+  applyWorkerCompanyBranding({
+    companyPreset,
+    portalDisplayName: company.portalDisplayName || company.portal_display_name,
+    brandingAccentColor: company.brandingAccentColor || company.branding_accent_color,
+    brandingLogoData: company.brandingLogoData || company.branding_logo_data,
+  });
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");

@@ -549,6 +549,24 @@ def register_enterprise_routes(flask_app):
         period = (request.args.get("period") or "").strip()[:7]
         return jsonify(preview(get_db(), _company_id(), period=period))
 
+    @enterprise_bp.get("/integrations/payroll/datev-csv")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def payroll_datev_csv():
+        from flask import make_response
+
+        from backend.server import get_db
+        from .payroll_adapter import build_datev_payroll_csv
+
+        period = (request.args.get("period") or "").strip()[:7]
+        company_id = _company_id()
+        csv_text = build_datev_payroll_csv(get_db(), company_id, period=period)
+        filename = f"datev-lohn-{company_id}-{period or 'gesamt'}.csv"
+        response = make_response(csv_text)
+        response.headers["Content-Type"] = "text/csv; charset=utf-8"
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
     @enterprise_bp.get("/integrations/sap/export-preview")
     @require_auth
     @require_roles("superadmin", "company-admin")

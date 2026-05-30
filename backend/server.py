@@ -31,7 +31,7 @@ from email.utils import getaddresses
 from urllib.parse import quote, urlencode, urlsplit, unquote_to_bytes
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
-from flask import Flask, jsonify, request, send_from_directory, send_file, g, Response, redirect, has_request_context
+from flask import Flask, jsonify, request, send_from_directory, send_file, g, Response, redirect, has_request_context, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography import x509
@@ -3412,6 +3412,12 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN billing_street TEXT NOT NULL DEFAULT ''")
     if "billing_zip_city" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN billing_zip_city TEXT NOT NULL DEFAULT ''")
+    if "portal_display_name" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN portal_display_name TEXT NOT NULL DEFAULT ''")
+    if "branding_accent_color" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN branding_accent_color TEXT NOT NULL DEFAULT ''")
+    if "branding_logo_data" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN branding_logo_data TEXT NOT NULL DEFAULT ''")
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
         cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage1_days INTEGER NOT NULL DEFAULT 7")
@@ -12611,6 +12617,7 @@ def worker_app_me():
             "company": {
                 "name": company["name"] if company else "",
                 "brandingPreset": normalize_branding_preset(company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"),
+                **(company_white_label_from_row(company) if company else company_white_label_from_row(None)),
                 "accessMode": site_access["accessMode"],
                 "workStartTime": work_start or site_access["workStartTime"],
                 "workEndTime": work_end or site_access["workEndTime"],
@@ -15238,6 +15245,32 @@ def update_company(company_id):
     if company_invoice_email_lang not in ("de", "en", "fr", "tr", "ar", "es", "it", "pl"):
         company_invoice_email_lang = "de"
 
+    company_keys = company.keys() if hasattr(company, "keys") else []
+    if "portalDisplayName" in payload or "portal_display_name" in payload:
+        portal_display_name = normalize_portal_display_name(
+            payload.get("portalDisplayName", payload.get("portal_display_name", ""))
+        )
+    else:
+        portal_display_name = normalize_portal_display_name(
+            company["portal_display_name"] if "portal_display_name" in company_keys else ""
+        )
+    if "brandingAccentColor" in payload or "branding_accent_color" in payload:
+        branding_accent_color = normalize_branding_accent(
+            payload.get("brandingAccentColor", payload.get("branding_accent_color", ""))
+        )
+    else:
+        branding_accent_color = normalize_branding_accent(
+            company["branding_accent_color"] if "branding_accent_color" in company_keys else ""
+        )
+    if "brandingLogoData" in payload or "branding_logo_data" in payload:
+        branding_logo_data = normalize_branding_logo_data(
+            payload.get("brandingLogoData", payload.get("branding_logo_data", ""))
+        )
+    else:
+        branding_logo_data = normalize_branding_logo_data(
+            company["branding_logo_data"] if "branding_logo_data" in company_keys else ""
+        )
+
     current_document_email = normalize_email_address(company["document_email"] or "")
     duplicate_customer_no = db.execute(
         "SELECT id, name FROM companies WHERE id != ? AND COALESCE(customer_number, '') = ? LIMIT 1",
@@ -15265,7 +15298,14 @@ def update_company(company_id):
             }), 409
 
     db.execute(
-        "UPDATE companies SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?, billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?, plan = ?, status = ?, trial_ends_at = ?, invoice_email_lang = ? WHERE id = ?",
+        """
+        UPDATE companies
+        SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?,
+            billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?,
+            plan = ?, status = ?, trial_ends_at = ?, invoice_email_lang = ?,
+            portal_display_name = ?, branding_accent_color = ?, branding_logo_data = ?
+        WHERE id = ?
+        """,
         (
             company_name,
             company_customer_number,
@@ -15280,6 +15320,9 @@ def update_company(company_id):
             company_status,
             company_trial_ends_at,
             company_invoice_email_lang,
+            portal_display_name,
+            branding_accent_color,
+            branding_logo_data,
             company_id,
         ),
     )
@@ -22623,6 +22666,13 @@ from backend.app.platform.worker_documents import (
     is_payroll_doc_type,
     normalize_doc_type,
 )
+from backend.app.platform.payroll_inbox import enrich_inbox_attachments
+from backend.app.platform.company_branding import (
+    company_white_label_from_row,
+    normalize_branding_accent,
+    normalize_branding_logo_data,
+    normalize_portal_display_name,
+)
 DOC_TYPES_WITH_REQUIRED_EXPIRY = {
     "personalausweis",
     "arbeitserlaubnis",
@@ -23353,7 +23403,13 @@ def list_document_inbox():
             (inbox_id,),
         ).fetchall()
         entry = dict(row)
-        entry["attachments"] = [dict(a) for a in attachments]
+        body_text = str(row["body_text"] or "") if "body_text" in row.keys() else ""
+        entry["attachments"] = enrich_inbox_attachments(
+            [dict(a) for a in attachments],
+            subject=str(row["subject"] or ""),
+            from_addr=str(row["from_addr"] or ""),
+            body_text=body_text,
+        )
         if row["matched_company_id"]:
             company = db.execute(
                 "SELECT id, name, document_email FROM companies WHERE id = ?",
@@ -23365,6 +23421,31 @@ def list_document_inbox():
         result.append(entry)
 
     return jsonify(result)
+
+
+@app.get("/api/documents/payroll/datev-export")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def export_payroll_datev_csv():
+    period = (request.args.get("period") or "").strip()[:7]
+    db = get_db()
+    if g.current_user["role"] == "superadmin":
+        company_id = clean_text_input(request.args.get("companyId", ""), max_len=64)
+        if not company_id:
+            return jsonify({"error": "missing_company_id"}), 400
+    else:
+        company_id = str(g.current_user.get("company_id") or "")
+    if not company_id:
+        return jsonify({"error": "missing_company_id"}), 400
+
+    from backend.app.platform.enterprise.payroll_adapter import build_datev_payroll_csv
+
+    csv_text = build_datev_payroll_csv(db, company_id, period=period)
+    filename = f"datev-lohn-{company_id}-{period or 'gesamt'}.csv"
+    response = make_response(csv_text)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @app.post("/api/documents/inbox/<inbox_id>/dismiss")
@@ -23393,7 +23474,13 @@ def mark_inbox_email_read(inbox_id):
     ).fetchall()
     entry = dict(row)
     entry["is_read"] = 1
-    entry["attachments"] = [dict(a) for a in attachments]
+    body_text = str(row["body_text"] or "") if "body_text" in row.keys() else ""
+    entry["attachments"] = enrich_inbox_attachments(
+        [dict(a) for a in attachments],
+        subject=str(row["subject"] or ""),
+        from_addr=str(row["from_addr"] or ""),
+        body_text=body_text,
+    )
     if row["matched_company_id"]:
         company = db.execute("SELECT name FROM companies WHERE id = ?", (row["matched_company_id"],)).fetchone()
         if company:

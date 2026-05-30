@@ -15800,7 +15800,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260530b");
+    params.push("v=20260531a");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -16544,9 +16544,14 @@ async function openInboxMailDetail(inboxId, cardEl) {
             `<option value="${escapeHtml(w.id)}">${escapeHtml(`${w.firstName || ""} ${w.lastName || ""}`.trim() || w.id)}</option>`
           ).join("");
 
+          const suggestedType = String(att.suggestedDocType || att.suggested_doc_type || "").trim();
+          const suggestConf = String(att.suggestConfidence || att.suggest_confidence || "").trim();
           const docTypeOptions = Object.entries(DOC_TYPE_LABELS).map(([val, label]) =>
-            `<option value="${escapeHtml(val)}">${escapeHtml(label)}</option>`
+            `<option value="${escapeHtml(val)}"${suggestedType && val === suggestedType ? " selected" : ""}>${escapeHtml(label)}</option>`
           ).join("");
+          const suggestHint = suggestedType && !isAssigned
+            ? `<p class="helper-text" style="margin:4px 0 0;font-size:0.75em;color:var(--accent,#c78652);">Lohn-Erkennung: ${escapeHtml(DOC_TYPE_LABELS[suggestedType] || suggestedType)}${suggestConf === "high" ? " (hohe Sicherheit)" : ""}</p>`
+            : "";
 
           return `<div class="doc-inbox-att-row" data-att-id="${escapeHtml(String(att.id || ""))}" style="padding:10px 0;border-bottom:1px solid var(--line,rgba(0,0,0,0.08));">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -16570,6 +16575,7 @@ async function openInboxMailDetail(inboxId, cardEl) {
                 </select>
                 <button type="button" class="att-assign-btn" style="font-size:0.82em;padding:5px 14px;border-radius:6px;background:var(--accent,#c78652);color:#fff;border:none;cursor:pointer;white-space:nowrap;">${escapeHtml(runtimeText("docAssignButton"))}</button>
               </div>
+              ${suggestHint}
             `}
           </div>`;
         }).join("")
@@ -16790,6 +16796,22 @@ function bindDocumentInboxControls() {
       await rematchDocumentInboxLinks(rematchButton);
     });
     rematchButton.dataset.bound = "1";
+  }
+
+  const datevButton = document.querySelector("#docInboxDatevExportBtn");
+  if (datevButton && !datevButton.dataset.bound) {
+    datevButton.addEventListener("click", async () => {
+      datevButton.disabled = true;
+      try {
+        await downloadPayrollDatevCsv();
+        showToast("DATEV-CSV wurde heruntergeladen.");
+      } catch (error) {
+        showToast(uiT("alertGenericError").replace("{error}", error.message));
+      } finally {
+        datevButton.disabled = false;
+      }
+    });
+    datevButton.dataset.bound = "1";
   }
 
   if (copyButton && !copyButton.dataset.bound) {
@@ -19867,6 +19889,18 @@ function renderCompanyList() {
             <span class="helper-text" data-company-branding-preview-label="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBrandingPreviewLabel"))}: ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</span>
             <span class="helper-text" data-company-branding-dirty="${escapeHtml(companyId)}"></span>
           </div>
+          <div class="meta-box" style="margin-top:6px;">
+            <p><strong>White-Label (Miete)</strong></p>
+            <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;">
+              <input type="text" data-company-portal-name="${escapeHtml(companyId)}" placeholder="Portal-Titel z. B. Meier Bau" maxlength="80" value="${escapeAttr(company.portalDisplayName || company.portal_display_name || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:160px;" />
+              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr((company.brandingAccentColor || company.branding_accent_color || "#c78652").match(/^#[0-9a-f]{6}$/i) ? (company.brandingAccentColor || company.branding_accent_color) : "#c78652")}" ${canDeleteAny && !deleted ? "" : "disabled"} title="Akzentfarbe" />
+              <label class="ghost-button small-button" style="cursor:pointer;margin:0;">
+                Logo
+                <input type="file" data-company-logo-file="${escapeHtml(companyId)}" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden ${canDeleteAny && !deleted ? "" : "disabled"} />
+              </label>
+            </div>
+            <p class="helper-text">Worker-App und Portal zeigen Titel, Farbe und optional Logo der Firma.</p>
+          </div>
           ${turnstileMarkup}
           <div class="meta-box">
             <p><strong>${escapeHtml(runtimeText("companyLatestRepairsTitle"))}</strong></p>
@@ -20783,6 +20817,18 @@ function bindCompanyRowActions() {
       }
       const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
       const brandingPreset = normalizeCompanyBrandingPresetValue(presetSelect?.value || "construction");
+      const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
+      const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
+      const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
+      let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
+      if (logoInput?.files?.[0]) {
+        brandingLogoData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(new Error("logo_read_failed"));
+          reader.readAsDataURL(logoInput.files[0]);
+        });
+      }
       try {
         await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
           method: "PUT",
@@ -20793,6 +20839,9 @@ function bindCompanyRowActions() {
             documentEmail: getCompanyDocumentEmail(company),
             accessHost: company.accessHost || company.access_host || "",
             brandingPreset,
+            portalDisplayName: String(portalNameInput?.value || "").trim(),
+            brandingAccentColor: String(accentInput?.value || "").trim(),
+            brandingLogoData,
             plan: company.plan,
             status: company.status,
             invoiceEmailLang: company.invoiceEmailLang || "de",
@@ -21083,6 +21132,33 @@ function getCompanyBrandingPresetLabel(preset) {
     return "Premium";
   }
   return "Bau";
+}
+
+function getCompanyWhiteLabel(company) {
+  if (!company) {
+    return { portalDisplayName: "", brandingAccentColor: "", brandingLogoData: "" };
+  }
+  return {
+    portalDisplayName: String(company.portalDisplayName || company.portal_display_name || "").trim(),
+    brandingAccentColor: String(company.brandingAccentColor || company.branding_accent_color || "").trim(),
+    brandingLogoData: String(company.brandingLogoData || company.branding_logo_data || "").trim(),
+  };
+}
+
+function applyCompanyWhiteLabelStyles(company) {
+  const wl = getCompanyWhiteLabel(company);
+  const root = document.documentElement;
+  if (/^#[0-9a-f]{6}$/i.test(wl.brandingAccentColor)) {
+    root.style.setProperty("--company-accent", wl.brandingAccentColor);
+    root.style.setProperty("--accent", wl.brandingAccentColor);
+  } else {
+    root.style.removeProperty("--company-accent");
+  }
+  if (wl.portalDisplayName) {
+    document.body.setAttribute("data-portal-display-name", wl.portalDisplayName);
+  } else {
+    document.body.removeAttribute("data-portal-display-name");
+  }
 }
 
 // ── Rechnungsadresse-Modal ────────────────────────────────────────────────
@@ -21601,12 +21677,52 @@ function applyActiveCompanyBrandingPreset() {
   if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
     const previewCompany = state.companies.find((entry) => String(entry?.id || "") === String(superadminUiPreviewCompanyId || ""));
     document.body.setAttribute("data-branding-preset", getCompanyBrandingPreset(previewCompany));
+    applyCompanyWhiteLabelStyles(previewCompany);
     return;
   }
   const companyId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
   const activeCompany = companyId ? state.companies.find((entry) => String(entry?.id || "") === companyId) : null;
   const activePreset = role === "superadmin" ? "construction" : getCompanyBrandingPreset(activeCompany);
   document.body.setAttribute("data-branding-preset", activePreset);
+  if (role !== "superadmin") {
+    applyCompanyWhiteLabelStyles(activeCompany);
+  } else {
+    applyCompanyWhiteLabelStyles(null);
+  }
+}
+
+async function downloadPayrollDatevCsv() {
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  let companyId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
+  if (role === "superadmin") {
+    companyId = String(superadminUiPreviewCompanyId || "").trim();
+    if (!companyId && Array.isArray(state.companies) && state.companies.length) {
+      companyId = String(state.companies[0].id || "").trim();
+    }
+    if (!companyId) {
+      showToast("Bitte zuerst eine Firma in der Vorschau wählen.");
+      return;
+    }
+  }
+  const period = window.prompt("Abrechnungszeitraum (YYYY-MM, leer = gesamt):", new Date().toISOString().slice(0, 7));
+  if (period === null) return;
+  const periodParam = String(period || "").trim();
+  const url = `${API_BASE}/api/documents/payroll/datev-export?companyId=${encodeURIComponent(companyId)}&period=${encodeURIComponent(periodParam)}`;
+  const sessionToken = token || loadStoredSessionToken();
+  const response = await fetch(url, {
+    credentials: "include",
+    headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {},
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || err.error || `HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `datev-lohn-${companyId}-${periodParam || "gesamt"}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function suggestCompanyDocumentEmail(companyName) {
