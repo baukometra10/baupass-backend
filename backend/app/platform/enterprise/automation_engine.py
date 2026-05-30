@@ -195,6 +195,45 @@ def _execute_action(db, company_id: int, rule_id: str, action: dict, context: di
         except Exception:
             pass
         result = {"status": "ok", "reportGenerated": True, "published": bool(publish_event)}
+    elif action_type == "email_ops_report_pdf":
+        from backend.app.platform.reports.email_delivery import send_pdf_report_email
+        from backend.app.platform.reports.guidance import build_operational_guidance
+        from backend.app.platform.reports.pdf_reports import build_operations_report_pdf
+        from backend.server import _operations_snapshot_for_user
+
+        recipient = str(action.get("email") or context.get("admin_email") or "").strip()
+        if not recipient:
+            admin = db.execute(
+                """
+                SELECT email FROM users
+                WHERE company_id = ? AND role = 'company-admin' AND COALESCE(email, '') != ''
+                ORDER BY username LIMIT 1
+                """,
+                (str(company_id),),
+            ).fetchone()
+            recipient = str(admin["email"] if admin else "").strip()
+        if not recipient:
+            result = {"status": "skipped", "reason": "no_recipient_email"}
+        else:
+            snapshot = _operations_snapshot_for_user(
+                db,
+                {"role": "company-admin", "company_id": str(company_id), "email": recipient},
+            )
+            guidance = build_operational_guidance(snapshot)
+            company = db.execute("SELECT name FROM companies WHERE id = ?", (str(company_id),)).fetchone()
+            pdf_bytes = build_operations_report_pdf(
+                title="BauPass Operations Report",
+                company_name=company["name"] if company else "BauPass",
+                snapshot=snapshot,
+                guidance=guidance,
+            )
+            ok, err = send_pdf_report_email(
+                to=recipient,
+                subject=str(action.get("subject") or "BauPass Automationsbericht"),
+                body_text=str(action.get("body") or "Automatischer Betriebsbericht (PDF im Anhang)."),
+                pdf_bytes=pdf_bytes,
+            )
+            result = {"status": "ok" if ok else "error", "recipient": recipient, "error": err}
     return result
 
 

@@ -15800,7 +15800,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531b");
+    params.push("v=20260531c");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -19039,6 +19039,65 @@ async function renderCustomerReviews() {
   }
 }
 
+async function loadReportingGuidance() {
+  const container = document.querySelector("#reportingGuidanceList");
+  if (!container) return;
+  const role = String(getEffectiveUiRole() || "").toLowerCase();
+  if (role !== "superadmin" && role !== "company-admin") {
+    container.innerHTML = "";
+    return;
+  }
+  try {
+    const data = await apiRequest(`${API_BASE}/api/ops/guidance`);
+    const items = Array.isArray(data?.guidance) ? data.guidance : [];
+    if (!items.length) {
+      container.innerHTML = "";
+      return;
+    }
+    container.innerHTML = `
+      <p class="helper-text" style="font-weight:700;margin-bottom:6px;">KI-Empfehlungen / Guidance</p>
+      ${items.map((item) => `
+        <article class="card-item" style="margin-bottom:6px;border-left:3px solid ${item.priority === "critical" || item.priority === "high" ? "var(--accent,#c78652)" : "var(--line,#ccc)"};">
+          <strong>${escapeHtml(item.titleDe || item.titleAr || item.code || "")}</strong>
+          <p class="helper-text">${escapeHtml(item.detailDe || item.detailAr || "")}</p>
+        </article>
+      `).join("")}
+    `;
+  } catch {
+    container.innerHTML = "";
+  }
+}
+
+async function sendReportingPdfByEmail() {
+  const email = window.prompt("E-Mail für PDF-Bericht:", String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim());
+  if (email === null) return;
+  if (!email.includes("@")) {
+    showToast("Bitte gültige E-Mail eingeben.");
+    return;
+  }
+  await apiRequest(`${API_BASE}/api/reporting/email-pdf`, {
+    method: "POST",
+    body: { email },
+  });
+  showToast("PDF-Bericht wurde per E-Mail gesendet.");
+}
+
+function bindReportingEmailPdfButton() {
+  const btn = document.querySelector("#reportingEmailPdfBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await sendReportingPdfByEmail();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 function renderReportingPanels() {
   const summaryGrid = elements.reportingSummaryGrid;
   const topOverdueList = elements.reportingTopOverdueList;
@@ -19089,6 +19148,8 @@ function renderReportingPanels() {
     accessPanel.hidden = false;
     accessPanel.style.display = "";
   }
+
+  void loadReportingGuidance();
 
   summaryGrid.innerHTML = "";
   topOverdueList.innerHTML = "";
@@ -29757,6 +29818,7 @@ if (accessCsvButton) {
 }
 
 bindDocumentInboxControls();
+bindReportingEmailPdfButton();
 
 const invoiceRefreshButton = document.querySelector("#invoiceRefreshButton");
 if (invoiceRefreshButton) {

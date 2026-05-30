@@ -6923,6 +6923,7 @@ def run_worker_session_cleanup_cycle_once():
 # Late-bound helper callables assigned during start_background_jobs initialization.
 check_doc_expiry_warnings = None
 send_daily_summary_email = None
+send_daily_ops_pdf_reports = None
 send_worker_expiry_reminders = None
 send_document_expiry_notifications = None
 send_document_expiry_fcm_pushes = None
@@ -6949,6 +6950,9 @@ def run_daily_jobs_cycle_once():
                 )
         if callable(send_daily_summary_email):
             send_daily_summary_email()
+
+        if callable(send_daily_ops_pdf_reports):
+            send_daily_ops_pdf_reports()
 
         if callable(send_worker_expiry_reminders):
             send_worker_expiry_reminders()
@@ -7451,9 +7455,20 @@ def start_background_jobs():
         except Exception:
             pass
 
+    def send_daily_ops_pdf_reports():
+        """Daily PDF operations report per company (company-admin inboxes)."""
+        try:
+            with app.app_context():
+                from backend.app.platform.reports.daily_delivery import deliver_daily_ops_pdfs
+
+                deliver_daily_ops_pdfs(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: daily ops PDF reports failed: {exc}", flush=True)
+
     # Expose nested helpers for RQ bridge path.
     globals()["check_doc_expiry_warnings"] = check_doc_expiry_warnings
     globals()["send_daily_summary_email"] = send_daily_summary_email
+    globals()["send_daily_ops_pdf_reports"] = send_daily_ops_pdf_reports
     globals()["send_worker_expiry_reminders"] = send_worker_expiry_reminders
     globals()["send_document_expiry_notifications"] = send_document_expiry_notifications
 
@@ -17091,6 +17106,156 @@ def reporting_summary():
             "generatedAt": generated_at,
         }
     )
+
+
+def _operations_snapshot_for_user(db, user) -> dict:
+    """Live ops + optional KPIs for PDF reports and guidance."""
+    company_id = str(user.get("company_id") or "").strip()
+    role = str(user.get("role") or "company-admin")
+    snapshot: dict = {"generatedAt": now_iso()}
+    if company_id:
+        from backend.app.platform.physical_operations.copilot import build_copilot_context
+
+        snapshot.update(build_copilot_context(db, company_id, role=role))
+        company = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+        snapshot["companyName"] = company["name"] if company else ""
+        access_rows = db.execute(
+            """
+            SELECT DATE(access_logs.timestamp) AS day,
+                   SUM(CASE WHEN access_logs.direction = 'check-in' THEN 1 ELSE 0 END) AS check_in,
+                   SUM(CASE WHEN access_logs.direction = 'check-out' THEN 1 ELSE 0 END) AS check_out
+            FROM access_logs
+            JOIN workers ON workers.id = access_logs.worker_id
+            WHERE workers.company_id = ?
+              AND DATE(access_logs.timestamp) >= DATE('now', '-6 day')
+            GROUP BY DATE(access_logs.timestamp)
+            ORDER BY day ASC
+            """,
+            (company_id,),
+        ).fetchall()
+        access_map = {row["day"]: row for row in access_rows}
+        access_daily = []
+        for day_offset in range(6, -1, -1):
+            day = (datetime.now(timezone.utc).date() - timedelta(days=day_offset)).isoformat()
+            source = access_map.get(day)
+            access_daily.append(
+                {
+                    "day": day,
+                    "checkIn": int(source["check_in"] or 0) if source else 0,
+                    "checkOut": int(source["check_out"] or 0) if source else 0,
+                }
+            )
+        snapshot["accessDaily"] = access_daily
+    if role == "superadmin":
+        overdue_row = db.execute(
+            """
+            SELECT COUNT(*) AS invoice_count, COALESCE(SUM(total_amount), 0) AS total_value
+            FROM invoices
+            WHERE paid_at IS NULL AND due_date IS NOT NULL AND DATE(due_date) < DATE('now')
+            """
+        ).fetchone()
+        snapshot["kpis"] = {
+            "overdueInvoiceCount": int(overdue_row["invoice_count"] or 0),
+            "overdueTotal": float(overdue_row["total_value"] or 0),
+            "lockedCompanies": int(
+                db.execute(
+                    "SELECT COUNT(*) AS c FROM companies WHERE deleted_at IS NULL AND status = 'gesperrt'"
+                ).fetchone()["c"]
+                or 0
+            ),
+        }
+    return snapshot
+
+
+@app.get("/api/ops/guidance")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def operations_guidance():
+    from backend.app.platform.reports.guidance import build_operational_guidance
+
+    db = get_db()
+    snapshot = _operations_snapshot_for_user(db, g.current_user)
+    guidance = build_operational_guidance(snapshot)
+    return jsonify({"ok": True, "guidance": guidance, "generatedAt": snapshot.get("generatedAt")})
+
+
+@app.post("/api/reporting/email-pdf")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reporting_email_pdf():
+    from backend.app.platform.reports.email_delivery import send_pdf_report_email
+    from backend.app.platform.reports.guidance import build_operational_guidance
+    from backend.app.platform.reports.pdf_reports import build_operations_report_pdf
+
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    user = g.current_user
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email", "message": "Bitte E-Mail in den Einstellungen hinterlegen."}), 400
+
+    snapshot = _operations_snapshot_for_user(db, user)
+    guidance = build_operational_guidance(snapshot)
+    company_name = str(snapshot.get("companyName") or "")
+    if not company_name and user.get("company_id"):
+        row = db.execute("SELECT name FROM companies WHERE id = ?", (user["company_id"],)).fetchone()
+        company_name = row["name"] if row else "BauPass"
+
+    pdf_bytes = build_operations_report_pdf(
+        title="BauPass Operations Report",
+        company_name=company_name or "BauPass",
+        snapshot=snapshot,
+        guidance=guidance,
+    )
+    period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"baupass-report-{period}.pdf"
+    subject = clean_text_input(payload.get("subject", f"BauPass Bericht {period}"), max_len=200)
+    body = clean_text_input(
+        payload.get(
+            "body",
+            "Anbei finden Sie Ihren aktuellen BauPass-Betriebsbericht als PDF.\n\nMit freundlichen Grüßen\nBauPass",
+        ),
+        max_len=4000,
+    )
+    ok, err = send_pdf_report_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.pdf_emailed",
+        f"Operations-PDF an {recipient} gesendet",
+        target_type="user",
+        target_id=user["id"],
+        company_id=user.get("company_id"),
+        actor=user,
+    )
+    return jsonify({"ok": True, "recipient": recipient, "filename": filename, "guidanceCount": len(guidance)})
+
+
+@app.post("/api/reporting/daily-pdf/run")
+@require_auth
+@require_roles("superadmin")
+def reporting_daily_pdf_run():
+    """Manually trigger daily operations PDF delivery (same job as nightly cycle)."""
+    from backend.app.platform.reports.daily_delivery import deliver_daily_ops_pdfs
+
+    db = get_db()
+    result = deliver_daily_ops_pdfs(db)
+    log_audit(
+        "reporting.daily_pdf_manual",
+        f"Manueller Tages-PDF-Lauf: sent={result.get('sent', 0)} skipped={result.get('skipped', 0)}",
+        target_type="system",
+        target_id="daily_ops_pdf",
+        actor=g.current_user,
+    )
+    db.commit()
+    return jsonify(result)
 
 
 @app.get("/api/access-logs/day-close-check")
