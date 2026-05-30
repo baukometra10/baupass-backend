@@ -15800,7 +15800,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531c");
+    params.push("v=20260531d");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -19039,6 +19039,32 @@ async function renderCustomerReviews() {
   }
 }
 
+function renderHrComplianceSummary(hr) {
+  if (!hr || typeof hr !== "object" || !Object.keys(hr).length) {
+    return "";
+  }
+  const rows = [
+    ["Mitarbeiter", hr.workersTotal],
+    ["Pflichtdok. fehlend", hr.workersMissingRequiredDocs],
+    ["Dok. abgelaufen", hr.workersWithExpiredDocs],
+    ["Läuft in 14 Tagen ab", hr.workersExpiringDocs14d],
+    ["Lohn-PDFs (Monat)", hr.payrollDocsThisMonth],
+    ["Posteingang ungelesen", hr.inboxUnread],
+    ["DATEV", hr.datevConnected ? "verbunden" : "offen"],
+  ];
+  return `
+    <p class="helper-text" style="font-weight:700;margin:10px 0 6px;">Lohn & Compliance</p>
+    <div class="list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;">
+      ${rows.map(([label, value]) => `
+        <article class="card-item" style="padding:8px;">
+          <p class="helper-text">${escapeHtml(label)}</p>
+          <strong>${escapeHtml(String(value ?? "—"))}</strong>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
 async function loadReportingGuidance() {
   const container = document.querySelector("#reportingGuidanceList");
   if (!container) return;
@@ -19050,12 +19076,14 @@ async function loadReportingGuidance() {
   try {
     const data = await apiRequest(`${API_BASE}/api/ops/guidance`);
     const items = Array.isArray(data?.guidance) ? data.guidance : [];
-    if (!items.length) {
+    const hrBlock = renderHrComplianceSummary(data?.hrCompliance);
+    if (!items.length && !hrBlock) {
       container.innerHTML = "";
       return;
     }
     container.innerHTML = `
-      <p class="helper-text" style="font-weight:700;margin-bottom:6px;">KI-Empfehlungen / Guidance</p>
+      ${hrBlock}
+      ${items.length ? `<p class="helper-text" style="font-weight:700;margin-bottom:6px;">KI-Empfehlungen / Guidance</p>` : ""}
       ${items.map((item) => `
         <article class="card-item" style="margin-bottom:6px;border-left:3px solid ${item.priority === "critical" || item.priority === "high" ? "var(--accent,#c78652)" : "var(--line,#ccc)"};">
           <strong>${escapeHtml(item.titleDe || item.titleAr || item.code || "")}</strong>
@@ -19066,6 +19094,38 @@ async function loadReportingGuidance() {
   } catch {
     container.innerHTML = "";
   }
+}
+
+async function runDailyOpsPdfReportsNow() {
+  if (!window.confirm("Tages-PDF an alle Firmen-Admins jetzt senden? (Bereits gesendete Firmen heute werden übersprungen.)")) {
+    return;
+  }
+  const result = await apiRequest(`${API_BASE}/api/reporting/daily-pdf/run`, { method: "POST" });
+  const sent = Number(result?.sent || 0);
+  const skipped = Number(result?.skipped || 0);
+  const errs = Array.isArray(result?.errors) ? result.errors.length : 0;
+  showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errs ? `, ${errs} Fehler` : ""}.`);
+}
+
+function bindReportingDailyPdfRunButton() {
+  const btn = document.querySelector("#reportingDailyPdfRunBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  const actualRole = String(getCurrentUser()?.role || "").toLowerCase();
+  const isSuperadmin = actualRole === "superadmin";
+  btn.hidden = !isSuperadmin;
+  btn.style.display = isSuperadmin ? "" : "none";
+  if (!isSuperadmin) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await runDailyOpsPdfReportsNow();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }
 
 async function sendReportingPdfByEmail() {
@@ -19150,6 +19210,7 @@ function renderReportingPanels() {
   }
 
   void loadReportingGuidance();
+  bindReportingDailyPdfRunButton();
 
   summaryGrid.innerHTML = "";
   topOverdueList.innerHTML = "";
@@ -29819,6 +29880,7 @@ if (accessCsvButton) {
 
 bindDocumentInboxControls();
 bindReportingEmailPdfButton();
+bindReportingDailyPdfRunButton();
 
 const invoiceRefreshButton = document.querySelector("#invoiceRefreshButton");
 if (invoiceRefreshButton) {

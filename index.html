@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531c";
+        const buildTag = "20260531d";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -333,6 +333,11 @@
                 <p class="eyebrow" data-ui-i18n="reportingEyebrow">Reporting</p>
                 <h3 data-ui-i18n="reportingH3">Zahlung und Sperrstatus</h3>
               </div>
+            </div>
+            <div class="panel-actions" style="margin-bottom:8px;">
+              <button id="reportingDailyPdfRunBtn" type="button" class="ghost-button small-button" data-superadmin-only hidden>
+                Tages-PDF jetzt senden
+              </button>
             </div>
             <div id="reportingSummaryGrid" class="list"></div>
             <div id="reportingTopOverdueList" class="list"></div>
@@ -1969,7 +1974,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531c"></script>
+  <script src="./app.js?v=20260531d"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

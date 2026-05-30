@@ -56,6 +56,19 @@ def build_operations_report_pdf(
                 if val is not None:
                     line(f"  {label}: {val}")
 
+    hr = snapshot.get("hrCompliance") or {}
+    if hr:
+        line("Lohn & Compliance", bold=True, size=11)
+        line(f"  Mitarbeiter gesamt: {hr.get('workersTotal', 0)}", size=9)
+        line(f"  Pflichtdokumente fehlend/abgelaufen: {hr.get('workersMissingRequiredDocs', 0)}", size=9)
+        line(f"  Abgelaufene Dokumente (Mitarbeiter): {hr.get('workersWithExpiredDocs', 0)}", size=9)
+        line(f"  Läuft in 14 Tagen ab: {hr.get('workersExpiringDocs14d', 0)}", size=9)
+        line(f"  Lohnabrechnungen ({hr.get('period', '-')}): {hr.get('payrollDocsThisMonth', 0)}", size=9)
+        line(f"  Posteingang ungelesen: {hr.get('inboxUnread', 0)}", size=9)
+        datev_ok = "ja" if hr.get("datevConnected") else "nein"
+        line(f"  DATEV verbunden: {datev_ok}", size=9)
+        y -= 2 * mm
+
     access = snapshot.get("accessDaily") or []
     if access:
         line("Zutritte (7 Tage)", bold=True, size=11)

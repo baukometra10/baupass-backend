@@ -38,6 +38,91 @@ def build_operational_guidance(snapshot: dict[str, Any]) -> list[dict[str, Any]]
             }
         )
 
+    hr = snapshot.get("hrCompliance") or {}
+    missing_req = int(hr.get("workersMissingRequiredDocs") or 0)
+    if missing_req > 0:
+        items.append(
+            {
+                "priority": "high",
+                "code": "missing_required_docs",
+                "titleDe": "Pflichtdokumente fehlen oder abgelaufen",
+                "titleAr": "مستندات إلزامية ناقصة أو منتهية",
+                "detailDe": f"{missing_req} Mitarbeiter mit fehlenden/abgelaufenen Pflichtdokumenten.",
+                "detailAr": f"{missing_req} عامل لديه مستندات إلزامية ناقصة أو منتهية.",
+                "action": "open_workers",
+            }
+        )
+
+    expired_hr = int(hr.get("workersWithExpiredDocs") or 0)
+    if expired_hr > 0:
+        items.append(
+            {
+                "priority": "high",
+                "code": "expired_compliance_docs",
+                "titleDe": "Abgelaufene Dokumente (Compliance)",
+                "titleAr": "مستندات منتهية (امتثال)",
+                "detailDe": f"{expired_hr} Mitarbeiter mit abgelaufenen Dokumenten.",
+                "detailAr": f"{expired_hr} عامل لديه مستندات منتهية الصلاحية.",
+                "action": "open_documents",
+            }
+        )
+
+    expiring_hr = int(hr.get("workersExpiringDocs14d") or 0)
+    if expiring_hr > 0:
+        items.append(
+            {
+                "priority": "medium",
+                "code": "expiring_compliance_docs",
+                "titleDe": "Dokumente laufen in 14 Tagen ab",
+                "titleAr": "مستندات تنتهي خلال 14 يوماً",
+                "detailDe": f"{expiring_hr} Mitarbeiter — Erinnerung senden.",
+                "detailAr": f"{expiring_hr} عامل — أرسل تذكيراً.",
+                "action": "open_documents",
+            }
+        )
+
+    payroll_month = int(hr.get("payrollDocsThisMonth") or 0)
+    workers_total = int(hr.get("workersTotal") or 0)
+    if workers_total > 0 and payroll_month == 0:
+        items.append(
+            {
+                "priority": "medium",
+                "code": "no_payroll_this_month",
+                "titleDe": "Keine Lohnabrechnung diesen Monat",
+                "titleAr": "لا كشوف رواتب لهذا الشهر",
+                "detailDe": "Noch keine Lohn-/Gehaltsabrechnungen hochgeladen.",
+                "detailAr": "لم يُرفع أي كشف راتب بعد لهذا الشهر.",
+                "action": "open_payroll",
+            }
+        )
+
+    inbox_unread = int(hr.get("inboxUnread") or 0)
+    if inbox_unread > 0:
+        items.append(
+            {
+                "priority": "info",
+                "code": "inbox_unread",
+                "titleDe": "Ungelesene Dokumenten-E-Mails",
+                "titleAr": "رسائل مستندات غير مقروءة",
+                "detailDe": f"{inbox_unread} Nachricht(en) im Posteingang.",
+                "detailAr": f"{inbox_unread} رسالة في صندوق الوارد.",
+                "action": "open_inbox",
+            }
+        )
+
+    if hr and not hr.get("datevConnected"):
+        items.append(
+            {
+                "priority": "info",
+                "code": "datev_not_connected",
+                "titleDe": "DATEV noch nicht verbunden",
+                "titleAr": "DATEV غير متصل",
+                "detailDe": "Optional: DATEV OAuth in Integrationen einrichten.",
+                "detailAr": "اختياري: اربط DATEV من قسم التكاملات.",
+                "action": "open_integrations",
+            }
+        )
+
     workers_on_site = int(snapshot.get("workersOnSite") or kpis.get("workersOnSite") or 0)
     sec = snapshot.get("security") or {}
     open_findings = int(sec.get("openFindings") or len(sec.get("findings") or []))

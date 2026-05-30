@@ -17146,6 +17146,9 @@ def _operations_snapshot_for_user(db, user) -> dict:
                 }
             )
         snapshot["accessDaily"] = access_daily
+        from backend.app.platform.reports.hr_snapshot import build_hr_compliance_snapshot
+
+        snapshot["hrCompliance"] = build_hr_compliance_snapshot(db, company_id)
     if role == "superadmin":
         overdue_row = db.execute(
             """
@@ -17176,7 +17179,14 @@ def operations_guidance():
     db = get_db()
     snapshot = _operations_snapshot_for_user(db, g.current_user)
     guidance = build_operational_guidance(snapshot)
-    return jsonify({"ok": True, "guidance": guidance, "generatedAt": snapshot.get("generatedAt")})
+    return jsonify(
+        {
+            "ok": True,
+            "guidance": guidance,
+            "hrCompliance": snapshot.get("hrCompliance") or {},
+            "generatedAt": snapshot.get("generatedAt"),
+        }
+    )
 
 
 @app.post("/api/reporting/email-pdf")
