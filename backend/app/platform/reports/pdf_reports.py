@@ -83,6 +83,12 @@ def build_operations_report_pdf(
         line("Sicherheit", bold=True, size=11)
         line(f"  Offene Findings: {sec.get('openFindings', len(sec.get('findings') or []))}", size=9)
 
+    layers = snapshot.get("enterpriseLayers") or {}
+    if layers:
+        line("Enterprise (6 Layers)", bold=True, size=11)
+        for layer_name, summary in layers.items():
+            line(f"  {layer_name}: {summary}", size=8)
+
     if guidance:
         line("Empfohlene Maßnahmen / Guidance", bold=True, size=11)
         for item in guidance[:12]:

@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531e";
+        const buildTag = "20260531g";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -366,6 +366,7 @@
               <button id="reportingEmailPdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailPdfBtn">PDF per E-Mail</button>
               <button id="reportingEmailDatevBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailDatevBtn">DATEV-CSV per E-Mail</button>
               <button id="reportingEmailInvoicesPdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailInvoicesBtn">Rechnungen-PDF</button>
+              <button id="reportingEmailEnterprisePdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailEnterpriseBtn">Enterprise-PDF</button>
             </div>
             <div id="reportingAccessDaily" class="list"></div>
             <div id="reportingGuidanceList" class="list" style="margin-top:10px;"></div>
@@ -432,6 +433,7 @@
         <div class="enterprise-embed-shell">
           <div class="enterprise-embed-toolbar">
             <span class="enterprise-embed-title" data-ui-i18n="navEnterpriseHub">Enterprise-Hub</span>
+            <button type="button" id="enterpriseHubEmailPdfBtn" class="ghost-button small-button" data-ui-i18n="reportingEmailEnterpriseBtn">Enterprise-PDF</button>
             <a id="enterpriseHubExternalLink" href="/enterprise-hub.html" target="_blank" rel="noopener noreferrer" class="ghost-button small-button" data-ui-i18n="enterpriseEmbedOpenTab">In neuem Tab öffnen</a>
           </div>
           <iframe id="enterpriseHubFrame" class="enterprise-embed-frame" title="Enterprise Hub" loading="lazy"></iframe>
@@ -442,6 +444,7 @@
         <div class="enterprise-embed-shell">
           <div class="enterprise-embed-toolbar">
             <span class="enterprise-embed-title" data-ui-i18n="navOpsCenter">Ops-Zentrale</span>
+            <button type="button" id="opsCenterEmailPdfBtn" class="ghost-button small-button" data-ui-i18n="reportingEmailEnterpriseBtn">Enterprise-PDF</button>
             <a id="opsCenterExternalLink" href="/ops-command-center.html" target="_blank" rel="noopener noreferrer" class="ghost-button small-button" data-ui-i18n="enterpriseEmbedOpenTab">In neuem Tab öffnen</a>
           </div>
           <iframe id="opsCenterFrame" class="enterprise-embed-frame" title="Operations center" loading="lazy"></iframe>
@@ -1995,7 +1998,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531f"></script>
+  <script src="./app.js?v=20260531g"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

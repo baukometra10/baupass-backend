@@ -68,7 +68,7 @@
 | تذكير دفع | ✅ | ✅ |
 | تقرير تشغيل (Ops) | ✅ جديد | ✅ زر «PDF per E-Mail» |
 | تصدير شركات / مستندات | جزئي | قيد التوحيد |
-| Enterprise / Ops Center | JSON | → PDF في المرحلة 2 |
+| Enterprise / Ops Center | ✅ 6 طبقات + تشغيل | `POST /api/reporting/email-enterprise-pdf` |
 
 **API:** `POST /api/reporting/email-pdf` — يتطلب SMTP في الإعدادات أو Railway.
 

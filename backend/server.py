@@ -17487,6 +17487,89 @@ def reporting_email_companies_pdf():
     return jsonify({"ok": True, "recipient": recipient, "filename": filename})
 
 
+@app.post("/api/reporting/email-enterprise-pdf")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reporting_email_enterprise_pdf():
+    from backend.app.platform.reports.email_delivery import send_pdf_report_email
+    from backend.app.platform.reports.enterprise_report import build_enterprise_ops_pdf
+
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    user = g.current_user
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email"}), 400
+
+    company_id = str(user.get("company_id") or payload.get("companyId") or "").strip()
+    if user["role"] != "superadmin" and not company_id:
+        return jsonify({"error": "missing_company"}), 400
+    if user["role"] == "superadmin" and payload.get("companyId"):
+        company_id = str(payload.get("companyId")).strip()
+    if not company_id:
+        return jsonify({"error": "missing_company", "message": "companyId erforderlich für Enterprise-PDF."}), 400
+
+    row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+    company_name = row["name"] if row else "BauPass"
+    role = str(user.get("role") or "company-admin")
+
+    pdf_bytes = build_enterprise_ops_pdf(
+        db,
+        company_id=company_id,
+        company_name=str(company_name or ""),
+        role=role,
+    )
+    period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"baupass-enterprise-{company_id}-{period}.pdf"
+    subject = clean_text_input(
+        payload.get("subject", f"BauPass Enterprise-Bericht {period}"),
+        max_len=200,
+    )
+    body = clean_text_input(
+        payload.get(
+            "body",
+            "Anbei der Enterprise- und Operations-Bericht (6 Ebenen, KPIs, Lohn/Compliance, Guidance).\n\nBauPass",
+        ),
+        max_len=4000,
+    )
+    extra = []
+    if payload.get("attachDatevCsv", True) is not False:
+        from backend.app.platform.reports.datev_attachment import build_datev_csv_attachment
+
+        datev_att = build_datev_csv_attachment(db, company_id)
+        if datev_att:
+            extra.append(datev_att)
+
+    ok, err = send_pdf_report_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+        extra_attachments=extra,
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.enterprise_pdf_emailed",
+        f"Enterprise-PDF an {recipient}",
+        target_type="company",
+        target_id=company_id,
+        company_id=company_id,
+        actor=user,
+    )
+    db.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "recipient": recipient,
+            "filename": filename,
+            "datevCsvAttached": len(extra) > 0,
+        }
+    )
+
+
 @app.post("/api/device/signature/capture")
 def device_signature_capture():
     """Capture compliance signature from USB pad agent or registered IoT device."""

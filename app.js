@@ -382,6 +382,12 @@ const UI_TRANSLATIONS = {
     reportingEmailInvoicesBtn: "Rechnungen-PDF",
     reportingEmailCompaniesBtn: "Firmen-PDF per E-Mail",
     reportingDailyPdfBtn: "Tages-PDF jetzt senden",
+    reportingEmailEnterpriseBtn: "Enterprise-PDF per E-Mail",
+    reportingEmailSentOk: "Bericht wurde per E-Mail gesendet.",
+    dashExpiringEyebrow: "Compliance",
+    dashExpiringH3: "Bald ablaufende Dokumente",
+    dashExpiringOpenDocs: "Alle Dokumente",
+    dashExpiringEmpty: "Keine ablaufenden Dokumente in den naechsten 30 Tagen.",
     labelReportTimezone: "Berichts-Zeitzone (08:00 Uhr)",
     reportTimezonePlaceholder: "Europe/Berlin",
     reportTimezoneHint: "IANA, z. B. Europe/Berlin, Asia/Dubai. Leer = Plattform-Standard.",
@@ -2816,6 +2822,12 @@ const UI_TRANSLATIONS = {
     reportingEmailInvoicesBtn: "PDF الفواتير",
     reportingEmailCompaniesBtn: "PDF الشركات بالبريد",
     reportingDailyPdfBtn: "إرسال PDF اليومي الآن",
+    reportingEmailEnterpriseBtn: "PDF المؤسسة بالبريد",
+    reportingEmailSentOk: "تم إرسال التقرير بالبريد.",
+    dashExpiringEyebrow: "الامتثال",
+    dashExpiringH3: "مستندات تنتهي قريباً",
+    dashExpiringOpenDocs: "كل المستندات",
+    dashExpiringEmpty: "لا مستندات تنتهي خلال 30 يوماً.",
     labelReportTimezone: "منطقة التقارير (08:00)",
     reportTimezonePlaceholder: "Asia/Dubai",
     reportTimezoneHint: "IANA — اتركه فارغاً لاستخدام إعداد المنصة.",
@@ -15828,7 +15840,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531f");
+    params.push("v=20260531g");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -19180,6 +19192,22 @@ async function runDailyOpsPdfReportsNow() {
   showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errs ? `, ${errs} Fehler` : ""}.`);
 }
 
+function bindReportingEmailEnterpriseButton(selector = "#reportingEmailEnterprisePdfBtn") {
+  const btn = document.querySelector(selector);
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await sendReportingEnterprisePdfByEmail();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 function bindReportingEmailInvoicesButton() {
   const btn = document.querySelector("#reportingEmailInvoicesPdfBtn");
   if (!btn || btn.dataset.bound === "1") return;
@@ -19258,18 +19286,36 @@ async function sendReportingPdfByEmail() {
     body: { email, attachDatevCsv: true },
   });
   const datevHint = result?.datevCsvAttached ? " (+ DATEV-CSV)" : "";
-  showToast(`PDF-Bericht wurde per E-Mail gesendet${datevHint}.`);
+  showToast(`${uiT("reportingEmailSentOk")}${datevHint}`);
+}
+
+async function sendReportingEnterprisePdfByEmail() {
+  const email = window.prompt(`${uiT("reportingEmailEnterpriseBtn")}:`, String(getCurrentUser()?.email || "").trim());
+  if (email === null) return;
+  if (!email.includes("@")) {
+    showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
+    return;
+  }
+  const user = getCurrentUser();
+  const body = { email, attachDatevCsv: true };
+  if (user?.role === "superadmin") {
+    const previewId = String(state.superadminPreviewCompanyId || "").trim();
+    if (previewId) body.companyId = previewId;
+  }
+  const result = await apiRequest(`${API_BASE}/api/reporting/email-enterprise-pdf`, { method: "POST", body });
+  const datevHint = result?.datevCsvAttached ? " + DATEV" : "";
+  showToast(`${uiT("reportingEmailSentOk")}${datevHint}`);
 }
 
 async function sendReportingInvoicesPdfByEmail() {
-  const email = window.prompt(uiT("reportingEmailPdfBtn") + ":", String(getCurrentUser()?.email || "").trim());
+  const email = window.prompt(uiT("reportingEmailInvoicesBtn") + ":", String(getCurrentUser()?.email || "").trim());
   if (email === null) return;
   if (!email.includes("@")) {
     showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
     return;
   }
   await apiRequest(`${API_BASE}/api/reporting/email-invoices-pdf`, { method: "POST", body: { email } });
-  showToast("OK");
+  showToast(uiT("reportingEmailSentOk"));
 }
 
 async function sendReportingCompaniesPdfByEmail() {
@@ -19294,7 +19340,7 @@ async function sendReportingDatevCsvByEmail() {
     method: "POST",
     body: { email },
   });
-  showToast("DATEV-CSV wurde per E-Mail gesendet.");
+  showToast(uiT("reportingEmailSentOk"));
 }
 
 function bindReportingEmailPdfButton() {
@@ -30059,6 +30105,9 @@ bindDocumentInboxControls();
 bindReportingEmailPdfButton();
 bindReportingEmailDatevButton();
 bindReportingEmailInvoicesButton();
+bindReportingEmailEnterpriseButton("#reportingEmailEnterprisePdfBtn");
+bindReportingEmailEnterpriseButton("#enterpriseHubEmailPdfBtn");
+bindReportingEmailEnterpriseButton("#opsCenterEmailPdfBtn");
 bindReportingEmailCompaniesButton();
 bindReportingDailyPdfRunButton();
 bindDecisionsTodayPanel();
