@@ -85,6 +85,33 @@ def sync_payroll(config: dict[str, str], company_id: int | None = None) -> dict[
         return {"ok": True, "provider": "payroll", "probe": probe, "exportPreviewError": str(exc)}
 
 
+def sync_datev(config: dict[str, str], company_id: str | int | None = None) -> dict[str, Any]:
+    from .datev_client import datev_env_configured, datev_status_from_config
+
+    status = datev_status_from_config(config)
+    if not datev_env_configured():
+        return {"ok": False, "provider": "datev", "error": "datev_env_not_configured"}
+    if not status.get("connected"):
+        return {"ok": False, "provider": "datev", "error": "datev_not_connected", "status": status}
+    if company_id is None:
+        return {"ok": True, "provider": "datev", "status": status}
+    try:
+        from backend.server import get_db
+        from .payroll_adapter import build_datev_payroll_csv, payroll_export_preview
+
+        preview = payroll_export_preview(get_db(), str(company_id))
+        csv_preview = build_datev_payroll_csv(get_db(), str(company_id))[:400]
+        return {
+            "ok": True,
+            "provider": "datev",
+            "status": status,
+            "payrollPreview": preview,
+            "csvPreviewLines": csv_preview.count("\n") + 1,
+        }
+    except Exception as exc:
+        return {"ok": True, "provider": "datev", "status": status, "syncError": str(exc)}
+
+
 def sync_provider(provider: str, config: dict[str, str], *, company_id: str | int | None = None) -> dict[str, Any]:
     provider = (provider or "").strip().lower()
     if provider == "microsoft365":
@@ -93,6 +120,8 @@ def sync_provider(provider: str, config: dict[str, str], *, company_id: str | in
         return sync_google_workspace(config)
     if provider == "payroll":
         return sync_payroll(config, company_id=company_id)
+    if provider == "datev":
+        return sync_datev(config, company_id=company_id)
     if provider == "sap":
         from .integrations import provider_connectivity
         from .erp_adapters import sap_export_preview

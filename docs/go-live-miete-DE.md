@@ -20,45 +20,33 @@ Kurz-Checkliste, damit ihr die Plattform an andere Bauunternehmen vermieten kön
 
 1. **Dokumenten-E-Mail** (IMAP) in den Einstellungen konfigurieren.
 2. Eingehende PDFs im Posteingang einem Mitarbeiter zuordnen.
-3. Dokumenttyp **Lohnabrechnung** (oder **Gehaltsabrechnung**) wählen — der Posteingang schlägt den Typ bei DATEV-/Lohn-Stichwörtern automatisch vor.
-4. Der Mitarbeiter sieht die Abrechnung unter **Dokumente** in der App, kann **PDF öffnen**, und erhält optional eine **Push-Benachrichtigung**.
+3. Dokumenttyp **Lohnabrechnung** — Vorschlag per Stichwörter **und** PDF-Text (OCR/pypdf).
+4. Mitarbeiter: **Dokumente** in der App, **Glocke** für Benachrichtigungen (Server + Push).
 
-Alternativ: Direkt-Upload am Mitarbeiterprofil (Dokumente → Upload).
+**DATEV**
 
-**DATEV-Handoff:** Im Posteingang **DATEV-CSV** exportieren (`GET /api/documents/payroll/datev-export`) — Stunden/Check-ins + zugeordnete Abrechnungen pro Mitarbeiter.
+- **DATEV-CSV** im Posteingang (Stunden + Abrechnungen).
+- **DATEV verbinden** (OAuth): Railway-Env setzen:
+  - `DATEV_CLIENT_ID`
+  - `DATEV_CLIENT_SECRET`
+  - `DATEV_REDIRECT_URI` → `https://<host>/api/integrations/datev/oauth/callback`
+- Status: `GET /api/integrations/datev/status`
 
 ## 4. White-Label pro Firma
 
-Unter **Firmen → Design speichern**:
-
-- **Portal-Titel** (ersetzt BauPass/ControlPass-Anzeige in der Worker-App)
-- **Akzentfarbe** (CSS `--accent`)
-- **Logo** (PNG/JPG/WebP, Data-URL)
-
-Plan **Enterprise** für volles White-Label laut Feature-Matrix.
+Unter **Firmen → Design speichern**: Portal-Titel, Akzentfarbe, Logo.
 
 ## 5. KI & Enterprise
 
 - Plan **Professional+** für Enterprise-Navigation, Ops, BauPass KI.
-- OpenAI/API-Key nur in Railway/Server-Umgebung, nie im Frontend.
-- Sprache: UI DE/EN/AR; Spracheingabe nutzt Browser-Sprache + UI-Sprache.
+- OpenAI/API-Key nur in Railway/Server-Umgebung.
 
 ## 6. Technischer Betrieb
 
 - Deploy: Railway `baupass-production` (Git `main`).
-- Cache-Busting: `?v=20260531a` nach Releases.
+- Cache-Busting: `?v=20260531b` nach Releases.
 - Health: `GET /api/health`
-- Backups: DB + `DOCS_UPLOAD_DIR` regelmäßig sichern.
 
 ## 7. Vertraglich / Support
 
-- SLA und Support-Kanal definieren (E-Mail/Telefon).
-- AV-Vertrag / DSGVO: Auftragsverarbeitung, Speicherort EU.
-- Onboarding: 1× Admin-Schulung, Worker-App QR/Link verteilen.
-
-## Noch sinnvolle Erweiterungen (nach Go-Live)
-
-- DATEV LODAS Live-API (OAuth) statt CSV-Export
-- OCR-Klassifikation für gescannte Lohn-PDFs ohne Stichwörter
-- Mehrsprachige Worker-App (TR/PL/FR vollständig)
-- Eigene Domain pro Mandant (`access_host`)
+- AV-Vertrag / DSGVO, Onboarding-Schulung, Worker-QR verteilen.

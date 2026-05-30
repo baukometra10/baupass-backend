@@ -343,7 +343,7 @@ def register_enterprise_routes(flask_app):
     def integrations_connect(provider: str):
         from backend.server import get_db
 
-        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle"):
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle", "datev"):
             return jsonify({"error": "unknown_provider"}), 400
         data = request.get_json(silent=True) or {}
         from .integration_oauth import merge_oauth_config
@@ -386,7 +386,7 @@ def register_enterprise_routes(flask_app):
         from .integrations import provider_connectivity
         from backend.server import get_db
 
-        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle"):
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle", "datev"):
             return jsonify({"error": "unknown_provider"}), 400
         cid = _company_id()
 
@@ -548,6 +548,36 @@ def register_enterprise_routes(flask_app):
 
         period = (request.args.get("period") or "").strip()[:7]
         return jsonify(preview(get_db(), _company_id(), period=period))
+
+    @enterprise_bp.get("/integrations/datev/status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def datev_integration_status():
+        from backend.server import get_db
+        from .datev_client import datev_env_configured, datev_status_from_config
+
+        db = get_db()
+        cid = _company_id()
+        row = db.execute(
+            "SELECT config_json, status FROM integration_connections WHERE company_id = ? AND provider = ?",
+            (cid, "datev"),
+        ).fetchone()
+        cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+        status = datev_status_from_config(cfg)
+        status["connectionStatus"] = (row["status"] if row else "") or "disconnected"
+        status["envConfigured"] = datev_env_configured()
+        return jsonify(status)
+
+    @enterprise_bp.get("/integrations/datev/oauth/start")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def datev_oauth_start():
+        from .datev_client import build_datev_authorize_url
+
+        payload = build_datev_authorize_url(company_id=_company_id())
+        if not payload.get("ok"):
+            return jsonify(payload), 400
+        return jsonify(payload)
 
     @enterprise_bp.get("/integrations/payroll/datev-csv")
     @require_auth

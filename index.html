@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531a";
+        const buildTag = "20260531b";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -1142,6 +1142,8 @@
                 <button id="docInboxRefreshBtn" type="button" class="ghost-button doc-inbox-btn" data-ui-i18n="btnDocInboxRefresh">Aktualisieren</button>
                 <button id="docInboxSyncBtn" type="button" class="ghost-button doc-inbox-btn" data-ui-i18n="btnDocInboxSync">System-Eingang abrufen</button>
                 <button id="docInboxRematchBtn" type="button" class="ghost-button doc-inbox-btn" data-ui-i18n="btnDocInboxRematch">Neu zuordnen</button>
+                <button id="docInboxDatevExportBtn" type="button" class="ghost-button doc-inbox-btn">DATEV-CSV</button>
+                <button id="docInboxDatevConnectBtn" type="button" class="ghost-button doc-inbox-btn">DATEV verbinden</button>
               </div>
             </div>
             <div class="meta-box">
@@ -1965,7 +1967,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531a"></script>
+  <script src="./app.js?v=20260531b"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

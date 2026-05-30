@@ -5725,6 +5725,38 @@ def _load_pywebpush_client():
     return getattr(module, "webpush", None), getattr(module, "WebPushException", Exception)
 
 
+def _create_worker_notification(
+    db,
+    worker_id: str,
+    notif_type: str,
+    title: str,
+    message: str,
+    *,
+    action_url: str = "",
+) -> str | None:
+    worker = db.execute("SELECT company_id FROM workers WHERE id = ?", (worker_id,)).fetchone()
+    if not worker:
+        return None
+    notif_id = f"notif-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO notifications (id, worker_id, company_id, type, title, message, action_url, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            notif_id,
+            worker_id,
+            worker["company_id"],
+            notif_type,
+            title[:200],
+            message[:1000],
+            (action_url or "")[:500],
+            now_iso(),
+        ),
+    )
+    return notif_id
+
+
 def _notify_worker_payroll_document(db, worker_id: str, filename: str) -> None:
     """Push + in-app: neue Lohnabrechnung für Mitarbeiter."""
     label = filename or "Lohnabrechnung"
@@ -22666,7 +22698,7 @@ from backend.app.platform.worker_documents import (
     is_payroll_doc_type,
     normalize_doc_type,
 )
-from backend.app.platform.payroll_inbox import enrich_inbox_attachments
+from backend.app.platform.payroll_inbox import enrich_inbox_attachments, enrich_inbox_attachments_with_pdf_scan
 from backend.app.platform.company_branding import (
     company_white_label_from_row,
     normalize_branding_accent,
@@ -23475,8 +23507,10 @@ def mark_inbox_email_read(inbox_id):
     entry = dict(row)
     entry["is_read"] = 1
     body_text = str(row["body_text"] or "") if "body_text" in row.keys() else ""
-    entry["attachments"] = enrich_inbox_attachments(
+    entry["attachments"] = enrich_inbox_attachments_with_pdf_scan(
+        db,
         [dict(a) for a in attachments],
+        inbox_id,
         subject=str(row["subject"] or ""),
         from_addr=str(row["from_addr"] or ""),
         body_text=body_text,
@@ -23486,6 +23520,61 @@ def mark_inbox_email_read(inbox_id):
         if company:
             entry["matched_company_name"] = company["name"]
     return jsonify(entry)
+
+
+@app.get("/api/integrations/datev/oauth/callback")
+def datev_oauth_callback():
+    """DATEV OAuth redirect — stores tokens on integration_connections."""
+    code = (request.args.get("code") or "").strip()
+    state = (request.args.get("state") or "").strip()
+    if not code or not state or ":" not in state:
+        return jsonify({"error": "invalid_callback"}), 400
+    company_id = state.split(":", 1)[0].strip()
+    if not company_id:
+        return jsonify({"error": "invalid_state"}), 400
+
+    from backend.app.platform.enterprise.datev_client import exchange_datev_code
+    from backend.app.platform.enterprise.integration_oauth import merge_oauth_config
+
+    token_result = exchange_datev_code(code)
+    if not token_result.get("ok"):
+        return jsonify(token_result), 400
+
+    db = get_db()
+    tokens = token_result.get("tokens") or {}
+    oauth_payload = {
+        "access_token": tokens.get("access_token"),
+        "refresh_token": tokens.get("refresh_token"),
+        "expires_in": tokens.get("expires_in"),
+        "token_type": tokens.get("token_type"),
+        "scope": tokens.get("scope"),
+        "obtained_at": tokens.get("obtained_at"),
+    }
+    config = merge_oauth_config({}, oauth_payload)
+    existing = db.execute(
+        "SELECT id FROM integration_connections WHERE company_id = ? AND provider = ?",
+        (company_id, "datev"),
+    ).fetchone()
+    if existing:
+        db.execute(
+            """
+            UPDATE integration_connections
+            SET status = 'connected', config_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(config), now_iso(), existing["id"]),
+        )
+    else:
+        iid = f"int-{secrets.token_hex(8)}"
+        db.execute(
+            """
+            INSERT INTO integration_connections (id, company_id, provider, status, config_json, created_at, updated_at)
+            VALUES (?, ?, 'datev', 'connected', ?, ?, ?)
+            """,
+            (iid, company_id, json.dumps(config), now_iso(), now_iso()),
+        )
+    db.commit()
+    return redirect("/index.html#admin?datev=connected")
 
 
 @app.post("/api/documents/inbox/<inbox_id>/reply")
@@ -23748,6 +23837,17 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
 
     unlock_worker_if_documents_valid(db, worker, actor=g.current_user)
 
+    if is_payroll_doc_type(doc_type):
+        label = safe_name or "Lohnabrechnung"
+        _create_worker_notification(
+            db,
+            worker_id,
+            "payroll_document",
+            "Neue Lohnabrechnung",
+            f"{label} ist unter Dokumente verfügbar.",
+            action_url="documents",
+        )
+
     db.commit()
 
     if is_payroll_doc_type(doc_type):
@@ -23859,6 +23959,15 @@ def upload_worker_document(worker_id):
         ),
     )
     unlock_worker_if_documents_valid(db, worker, actor=g.current_user)
+    if is_payroll_doc_type(doc_type):
+        _create_worker_notification(
+            db,
+            worker_id,
+            "payroll_document",
+            "Neue Lohnabrechnung",
+            f"{safe_name or 'Lohnabrechnung'} ist unter Dokumente verfügbar.",
+            action_url="documents",
+        )
     db.commit()
 
     if is_payroll_doc_type(doc_type):

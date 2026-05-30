@@ -25,10 +25,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260524a" />
-  <link rel="stylesheet" href="./worker.css?v=20260531a" />
-  <link rel="stylesheet" href="./ai-voice-ui.css?v=20260531a" />
+  <link rel="stylesheet" href="./worker.css?v=20260531b" />
+  <link rel="stylesheet" href="./ai-voice-ui.css?v=20260531b" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
   <link rel="stylesheet" href="./worker-login.css?v=20260524a" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260524a" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
   <script>
     (function markLocalDev() {
       const host = window.location.hostname;
@@ -92,6 +93,13 @@
             <div id="connectionBanner" class="stb-connection-dot online" title="Online"></div>
             <span id="connectionStatusLabel" class="stb-connection-label" data-i18n="online">Online</span>
           </div>
+          <button id="notificationCenterBtn" class="stb-icon-btn notification-center-btn" type="button" aria-label="Benachrichtigungen" title="Benachrichtigungen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"/>
+              <path d="M10 20a2 2 0 004 0"/>
+            </svg>
+            <span id="notificationBadge" class="notification-badge hidden" aria-hidden="true">0</span>
+          </button>
           <button id="forceRefreshButton" class="stb-icon-btn" type="button" aria-label="Aktualisieren" data-i18n="forceRefreshBtn" data-i18n-attr="aria-label">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 019-9 9 9 0 016.36 2.64L21 8"/>
@@ -125,6 +133,18 @@
         <span id="pulseFlowMeta" data-i18n="pulseFlowWebMode">Web mode</span>
       </div>
     </header>
+
+    <div id="notificationCenterPanel" class="notification-center-panel hidden" role="dialog" aria-modal="true" aria-labelledby="notificationCenterTitle">
+      <div class="notification-center-sheet">
+        <div class="notification-center-head">
+          <h2 id="notificationCenterTitle" data-i18n="notificationsCenterTitle">Benachrichtigungen</h2>
+          <button id="notificationCenterClose" type="button" class="ghost small-btn" aria-label="Schließen">×</button>
+        </div>
+        <div id="notificationCenterList" class="notification-center-list">
+          <p class="muted-info" data-i18n="notificationsLoading">Lade…</p>
+        </div>
+      </div>
+    </div>
 
     <section id="loginCard" class="card login-card login-sparkasse">
       <!-- Sparkasse-Style: Minimal Header -->
@@ -1015,7 +1035,7 @@
   </div>
 
   <script src="./worker-i18n.js?v=20260524a"></script>
-  <script src="./ai-voice-ui.js?v=20260531a"></script>
-  <script src="./worker-app.js?v=20260531a"></script>
+  <script src="./ai-voice-ui.js?v=20260531b"></script>
+  <script src="./worker-app.js?v=20260531b"></script>
 </body>
 </html>

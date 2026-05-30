@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260531a";
+const WORKER_BUILD_TAG = "20260531b";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -506,6 +506,127 @@ function markNotificationAsRead(notifId) {
   }
 }
 
+async function fetchServerNotifications() {
+  if (!workerToken) return [];
+  try {
+    const data = await fetchJson(`${API_ROOT}/notifications`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
+    return Array.isArray(data?.notifications) ? data.notifications : [];
+  } catch (err) {
+    console.warn("[notifications] server fetch failed:", err?.message || err);
+    return [];
+  }
+}
+
+async function markServerNotificationRead(notifId) {
+  if (!workerToken || !notifId) return;
+  try {
+    await fetchJson(`${API_ROOT}/notifications/${encodeURIComponent(notifId)}/mark-read`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${workerToken}` },
+      body: {},
+    });
+  } catch (err) {
+    console.warn("[notifications] mark-read failed:", err?.message || err);
+  }
+}
+
+function updateNotificationBadge(count) {
+  const badge = elements.notificationBadge;
+  if (!badge) return;
+  const unread = Math.max(0, Number(count) || 0);
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+    badge.classList.remove("hidden");
+  } else {
+    badge.textContent = "0";
+    badge.classList.add("hidden");
+  }
+}
+
+function formatNotificationTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    return new Date(raw).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return raw;
+  }
+}
+
+function renderNotificationCenterList(items) {
+  const list = elements.notificationCenterList;
+  if (!list) return;
+  if (!items.length) {
+    list.innerHTML = `<p class="muted-info">${escapeHtmlBasic(t("notificationsEmpty"))}</p>`;
+    return;
+  }
+  list.innerHTML = items
+    .map((item) => {
+      const unread = !item.isRead && !item.read;
+      const title = String(item.title || "").trim() || t("notificationsDefaultTitle");
+      const message = String(item.message || item.body || "").trim();
+      const createdAt = formatNotificationTimestamp(item.createdAt || item.timestamp);
+      const actionUrl = String(item.actionUrl || "").trim().toLowerCase();
+      return `
+        <button type="button" class="notification-center-item${unread ? " unread" : ""}" data-notif-id="${escapeHtmlBasic(String(item.id || ""))}" data-notif-action="${escapeHtmlBasic(actionUrl)}">
+          <span class="notification-center-item-title">${escapeHtmlBasic(title)}</span>
+          ${message ? `<span class="notification-center-item-body">${escapeHtmlBasic(message)}</span>` : ""}
+          ${createdAt ? `<span class="notification-center-item-time">${escapeHtmlBasic(createdAt)}</span>` : ""}
+        </button>
+      `;
+    })
+    .join("");
+  list.querySelectorAll(".notification-center-item").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const notifId = btn.getAttribute("data-notif-id") || "";
+      const action = btn.getAttribute("data-notif-action") || "";
+      if (notifId.startsWith("notif-")) {
+        await markServerNotificationRead(notifId);
+      } else {
+        markNotificationAsRead(notifId);
+      }
+      closeNotificationCenter();
+      if (action === "documents") {
+        switchToTab("documents");
+        void loadMyDocuments();
+      }
+      void refreshWorkerNotificationCenter({ silent: true });
+    });
+  });
+}
+
+function openNotificationCenter() {
+  const panel = elements.notificationCenterPanel;
+  if (!panel) return;
+  panel.classList.remove("hidden");
+  void refreshWorkerNotificationCenter();
+}
+
+function closeNotificationCenter() {
+  elements.notificationCenterPanel?.classList.add("hidden");
+}
+
+async function refreshWorkerNotificationCenter(options = {}) {
+  const serverItems = await fetchServerNotifications();
+  const localItems = getNotificationHistory().map((entry) => ({
+    id: entry.id,
+    type: entry.type,
+    title: entry.title,
+    message: entry.body || entry.message,
+    isRead: Boolean(entry.read),
+    createdAt: entry.timestamp,
+    actionUrl: "",
+  }));
+  const merged = [...serverItems, ...localItems].slice(0, 50);
+  const unreadCount = merged.filter((item) => !item.isRead && !item.read).length;
+  updateNotificationBadge(unreadCount);
+  if (!options.silent || !elements.notificationCenterPanel?.classList.contains("hidden")) {
+    renderNotificationCenterList(merged);
+  }
+}
+
 // ─ OFFLINE SYNC CONFLICT DETECTION & RESOLUTION ────────────────────────────
 const SYNC_CONFLICTS_KEY = "baupass-sync-conflicts";
 
@@ -927,6 +1048,11 @@ const elements = {
   notificationPermissionBtn: document.querySelector("#notificationPermissionBtn"),
   enableNotificationsBtn: document.querySelector("#enableNotificationsBtn"),
   notificationBanner: document.querySelector("#notificationBanner"),
+  notificationCenterBtn: document.querySelector("#notificationCenterBtn"),
+  notificationCenterPanel: document.querySelector("#notificationCenterPanel"),
+  notificationCenterList: document.querySelector("#notificationCenterList"),
+  notificationCenterClose: document.querySelector("#notificationCenterClose"),
+  notificationBadge: document.querySelector("#notificationBadge"),
   leaveRequestCard: document.querySelector("#leaveRequestCard"),
   leaveRequestForm: document.querySelector("#leaveRequestForm"),
   leaveRequestFormWrapper: document.querySelector("#leaveRequestFormWrapper"),
@@ -1797,6 +1923,22 @@ function bindEvents() {
   
   if (elements.enableNotificationsBtn) {
     elements.enableNotificationsBtn.addEventListener("click", requestNotificationPermission);
+  }
+
+  if (elements.notificationCenterBtn) {
+    elements.notificationCenterBtn.addEventListener("click", () => {
+      openNotificationCenter();
+    });
+  }
+  if (elements.notificationCenterClose) {
+    elements.notificationCenterClose.addEventListener("click", closeNotificationCenter);
+  }
+  if (elements.notificationCenterPanel) {
+    elements.notificationCenterPanel.addEventListener("click", (event) => {
+      if (event.target === elements.notificationCenterPanel) {
+        closeNotificationCenter();
+      }
+    });
   }
   
   if (elements.leaveRequestToggleBtn) {
@@ -2717,6 +2859,7 @@ function renderWorker(payload) {
     elements.workerStatus.dataset.status = normalizedStatus;
   }
   updateWorkerNextStepPanel({ worker, companyPreset, isVisitor });
+  void refreshWorkerNotificationCenter({ silent: true });
   updateSmartWorkHub(payload, lastTimesheetRows);
   applySiteAccessUi(payload);
   if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";

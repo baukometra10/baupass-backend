@@ -15800,7 +15800,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531a");
+    params.push("v=20260531b");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -16549,8 +16549,10 @@ async function openInboxMailDetail(inboxId, cardEl) {
           const docTypeOptions = Object.entries(DOC_TYPE_LABELS).map(([val, label]) =>
             `<option value="${escapeHtml(val)}"${suggestedType && val === suggestedType ? " selected" : ""}>${escapeHtml(label)}</option>`
           ).join("");
+          const suggestReason = String(att.suggestReason || att.suggest_reason || "");
+          const ocrLabel = suggestReason.startsWith("pdf_") ? " · PDF-Text" : "";
           const suggestHint = suggestedType && !isAssigned
-            ? `<p class="helper-text" style="margin:4px 0 0;font-size:0.75em;color:var(--accent,#c78652);">Lohn-Erkennung: ${escapeHtml(DOC_TYPE_LABELS[suggestedType] || suggestedType)}${suggestConf === "high" ? " (hohe Sicherheit)" : ""}</p>`
+            ? `<p class="helper-text" style="margin:4px 0 0;font-size:0.75em;color:var(--accent,#c78652);">Lohn-Erkennung: ${escapeHtml(DOC_TYPE_LABELS[suggestedType] || suggestedType)}${suggestConf === "high" ? " (hohe Sicherheit)" : ""}${ocrLabel}</p>`
             : "";
 
           return `<div class="doc-inbox-att-row" data-att-id="${escapeHtml(String(att.id || ""))}" style="padding:10px 0;border-bottom:1px solid var(--line,rgba(0,0,0,0.08));">
@@ -16812,6 +16814,21 @@ function bindDocumentInboxControls() {
       }
     });
     datevButton.dataset.bound = "1";
+  }
+
+  const datevConnectButton = document.querySelector("#docInboxDatevConnectBtn");
+  if (datevConnectButton && !datevConnectButton.dataset.bound) {
+    datevConnectButton.addEventListener("click", async () => {
+      datevConnectButton.disabled = true;
+      try {
+        await startDatevOAuthConnect();
+      } catch (error) {
+        showToast(uiT("alertGenericError").replace("{error}", error.message));
+      } finally {
+        datevConnectButton.disabled = false;
+      }
+    });
+    datevConnectButton.dataset.bound = "1";
   }
 
   if (copyButton && !copyButton.dataset.bound) {
@@ -21689,6 +21706,15 @@ function applyActiveCompanyBrandingPreset() {
   } else {
     applyCompanyWhiteLabelStyles(null);
   }
+}
+
+async function startDatevOAuthConnect() {
+  const data = await apiRequest(`${API_BASE}/api/integrations/datev/oauth/start`);
+  const url = String(data?.authorizeUrl || "").trim();
+  if (!url) {
+    throw new Error(data?.error || "DATEV OAuth nicht verfügbar");
+  }
+  window.location.href = url;
 }
 
 async function downloadPayrollDatevCsv() {
