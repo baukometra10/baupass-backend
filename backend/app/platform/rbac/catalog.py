@@ -25,6 +25,13 @@ ENTERPRISE_ROLES: list[dict[str, Any]] = [
         "status": "planned",
     },
     {
+        "id": "department_manager",
+        "legacy": ["company-admin"],
+        "labels": {"de": "Abteilungsleitung", "en": "Department manager", "ar": "مدير الإدارة"},
+        "scope": "department",
+        "status": "planned",
+    },
+    {
         "id": "site_manager",
         "legacy": ["company-admin"],
         "labels": {"de": "Standort-Leitung", "en": "Site manager", "ar": "مدير الموقع"},
@@ -81,4 +88,17 @@ def rbac_catalog(lang: str = "de") -> dict[str, Any]:
                 "status": r.get("status", "active"),
             }
         )
-    return {"roles": roles, "sso": {"oidc": "active", "saml": "planned", "keycloak": "planned", "ad_ldap": "planned"}}
+    return {
+        "roles": roles,
+        "sso": {
+            "catalogPath": "/api/auth/sso/catalog",
+            "oidc": "active",
+            "entra": "active",
+            "google": "active",
+            "keycloak": "available",
+            "saml": "scaffold",
+            "ad_ldap": "federation",
+        },
+        "permissionModel": "planned",
+        "notes": "Enterprise roles are catalogued; enforcement extends legacy require_roles() incrementally.",
+    }

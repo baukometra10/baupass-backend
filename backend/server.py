@@ -17020,7 +17020,6 @@ def access_summary():
     )
 
 
-@app.get("/api/reporting/summary")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_summary():
@@ -17266,7 +17265,6 @@ def operations_guidance():
     )
 
 
-@app.post("/api/reporting/email-pdf")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_email_pdf():
@@ -17345,7 +17343,6 @@ def reporting_email_pdf():
     )
 
 
-@app.post("/api/reporting/email-datev-csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_email_datev_csv():
@@ -17400,7 +17397,6 @@ def reporting_email_datev_csv():
     return jsonify({"ok": True, "recipient": recipient, "filename": datev_att["filename"]})
 
 
-@app.post("/api/reporting/daily-pdf/run")
 @require_auth
 @require_roles("superadmin")
 def reporting_daily_pdf_run():
@@ -17420,7 +17416,6 @@ def reporting_daily_pdf_run():
     return jsonify(result)
 
 
-@app.post("/api/reporting/email-invoices-pdf")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_email_invoices_pdf():
@@ -17475,7 +17470,6 @@ def reporting_email_invoices_pdf():
     return jsonify({"ok": True, "recipient": recipient, "filename": filename})
 
 
-@app.post("/api/reporting/email-companies-pdf")
 @require_auth
 @require_roles("superadmin")
 def reporting_email_companies_pdf():
@@ -17515,7 +17509,6 @@ def reporting_email_companies_pdf():
     return jsonify({"ok": True, "recipient": recipient, "filename": filename})
 
 
-@app.post("/api/reporting/email-enterprise-pdf")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_email_enterprise_pdf():
@@ -17598,7 +17591,6 @@ def reporting_email_enterprise_pdf():
     )
 
 
-@app.post("/api/reporting/email-incidents-visits-pdf")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_email_incidents_visits_pdf():

@@ -66,6 +66,7 @@
 
 ## 6. مراجع
 
+- [`docs/enterprise-roadmap-2026-AR.md`](./enterprise-roadmap-2026-AR.md) — الخطة الشاملة (20 بنداً)
 - `docs/platform-vision-AR.md`
 - `docs/engineering/stability-charter-AR.md`
 - `docs/engineering/server-decomposition-roadmap.md`

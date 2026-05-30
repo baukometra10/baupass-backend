@@ -9,6 +9,8 @@
 | [disaster-recovery-AR.md](./disaster-recovery-AR.md) | التعافي من الكوارث والنسخ الاحتياطي |
 | [data-classification-AR.md](./data-classification-AR.md) | تصنيف البيانات والاحتفاظ |
 | [sso-roadmap-AR.md](./sso-roadmap-AR.md) | SAML 2.0, OIDC, Entra, Keycloak, AD |
+| [security-architecture-AR.md](./security-architecture-AR.md) | طبقات الأمن ومخطط الثقة |
+| [iso27001-readiness-AR.md](./iso27001-readiness-AR.md) | خريطة ضوابط ISO 27001 |
 
 ## ما هو موجود في المنصة اليوم
 

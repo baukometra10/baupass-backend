@@ -45,7 +45,7 @@ POST /api/logout
 |--------|----------|--------|
 | sector terminology | `backend/app/platform/sector/` | ✅ blueprint |
 | rbac catalog | `backend/app/platform/rbac/` | ✅ blueprint (catalog only) |
-| reporting PDF/email | `server.py` + `platform/reports/` | next extraction target — see `docs/engineering/server-decomposition-roadmap.md` |
+| reporting PDF/email | `domains/reporting/routes.py` → handlers in `server.py` | routes migrated; move SQL next |
 
 | Domain | Routes in server.py | Extracted |
 |--------|---------------------|-----------|

@@ -1,6 +1,6 @@
 # BauPass Control
 
-Serverbasierter MVP fuer digitale Baustellen-Ausweise mit Fotoaufnahme, Mitarbeiterverwaltung und Check-in/Check-out am Drehkreuz.
+Enterprise-Plattform fuer digitale Identitaet, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfaehig (Bau, Industrie, Logistik, Luftfahrt, Sicherheit, oeffentlicher Sektor, Behoerden).
 
 ## Enthaltene Funktionen
 
@@ -37,7 +37,7 @@ Serverbasierter MVP fuer digitale Baustellen-Ausweise mit Fotoaufnahme, Mitarbei
 - Mitarbeiter-App als installierbare Web-App unter `/worker.html` mit digitalem Ausweis
 - Datenexport als JSON fuer Backups, Nachweise oder spaetere Migration in ein Backend
 
-## So startest du den MVP
+## So startest du die Plattform lokal
 
 1. Python 3.11+ installieren (falls noch nicht vorhanden).
 2. Im Projektordner eine virtuelle Umgebung erstellen und aktivieren.

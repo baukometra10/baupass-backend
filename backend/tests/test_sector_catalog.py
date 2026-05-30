@@ -40,7 +40,7 @@ class SectorCatalogTests(unittest.TestCase):
 
     def test_all_sectors_public_count(self):
         sectors = all_sectors_public()
-        self.assertGreaterEqual(len(sectors), 6)
+        self.assertGreaterEqual(len(sectors), 7)
         ids = {s["id"] for s in sectors}
         self.assertIn("government", ids)
 

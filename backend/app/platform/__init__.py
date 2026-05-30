@@ -97,6 +97,27 @@ def register_platform_blueprints(flask_app: Flask) -> None:
         ).register_google_auth_routes(flask_app),
     )
     _step(
+        "keycloak_sso",
+        lambda: __import__(
+            "backend.app.platform.auth.keycloak_oidc",
+            fromlist=["register_keycloak_auth_routes"],
+        ).register_keycloak_auth_routes(flask_app),
+    )
+    _step(
+        "saml_sso",
+        lambda: __import__(
+            "backend.app.platform.auth.saml_sp",
+            fromlist=["register_saml_auth_routes"],
+        ).register_saml_auth_routes(flask_app),
+    )
+    _step(
+        "sso_catalog",
+        lambda: __import__(
+            "backend.app.platform.auth.sso_catalog",
+            fromlist=["register_sso_catalog_routes"],
+        ).register_sso_catalog_routes(flask_app),
+    )
+    _step(
         "sector",
         lambda: __import__(
             "backend.app.platform.sector.routes",

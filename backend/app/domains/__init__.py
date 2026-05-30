@@ -24,6 +24,7 @@ def register_domain_blueprints(flask_app: Flask) -> None:
         ("notifications", "backend.app.domains.notifications.routes", "register_notifications_blueprint"),
         ("admin", "backend.app.domains.admin.routes", "register_admin_blueprint"),
         ("onboarding", "backend.app.domains.onboarding.routes", "register_onboarding_blueprint"),
+        ("reporting", "backend.app.domains.reporting.routes", "register_reporting_blueprint"),
     )
     for name, module_path, fn_name in modules:
         try:

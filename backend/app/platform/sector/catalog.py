@@ -9,6 +9,7 @@ VALID_SECTORS = frozenset(
         "construction",
         "manufacturing",
         "logistics",
+        "aviation",
         "security",
         "public_sector",
         "government",
@@ -29,6 +30,8 @@ def normalize_operating_sector(value: str | None) -> str:
         return "public_sector"
     if key in {"gov", "ministry", "behoerde", "behörde"}:
         return "government"
+    if key in {"airport", "aviation", "flughafen", "terminal"}:
+        return "aviation"
     return DEFAULT_SECTOR
 
 
@@ -53,6 +56,15 @@ SECTOR_META: dict[str, dict[str, Any]] = {
             "Identität, Zutritt und Compliance am Werk",
             "Identity, access and compliance at the plant",
             "الهوية والدخول والامتثال في المنشأة الصناعية",
+        ),
+    },
+    "aviation": {
+        "id": "aviation",
+        "labels": _t("Luftfahrt & Flughafen", "Aviation & airport", "الطيران والمطارات"),
+        "productLine": _t(
+            "Zutritt, Badges und Compliance am Terminal",
+            "Terminal access, badges and compliance",
+            "الدخول والشارات والامتثال في المطار",
         ),
     },
     "logistics": {
@@ -122,6 +134,19 @@ SECTOR_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
         "accessFormH3": _t("Schicht-Zutritt", "Shift access", "دخول الوردية"),
         "badgeH3": _t("Ausweis-Vorschau", "ID preview", "معاينة الهوية"),
     },
+    "aviation": {
+        "topbarHeading": _t(
+            "Terminal-Zutritt & Identität",
+            "Terminal access & identity",
+            "دخول المطار والهوية",
+        ),
+        "navWorkers": _t("Berechtigte", "Authorized staff", "الموظفون المصرّح لهم"),
+        "workersListH3": _t("Registrierte Berechtigte", "Registered authorizees", "المصرّح لهم"),
+        "labelSite": _t("Terminal / Zone", "Terminal / zone", "المبنى / المنطقة"),
+        "labelFirm": _t("Betreiber / Zeugfirma", "Operator / contractor", "المشغّل / المقاول"),
+        "accessFormH3": _t("Zutrittsereignis", "Access event", "حدث الدخول"),
+        "badgeH3": _t("Airside-Pass", "Airside pass", "تصريح المنطقة المحظورة"),
+    },
     "logistics": {
         "topbarHeading": _t(
             "Hub-Zutritt & Personal",
@@ -189,6 +214,12 @@ OPERATION_TEMPLATES: dict[str, dict[str, Any]] = {
         "features": ["shifts", "ppe_checklist", "machine_zones", "overtime_export"],
         "defaultRoles": ["site_manager", "compliance_officer", "company_admin"],
         "complianceFocus": ["shift_hours", "training", "lockout_tagout"],
+    },
+    "aviation": {
+        "id": "aviation-terminal",
+        "features": ["airside_zones", "temp_badges", "escort_visitors", "security_screening_log"],
+        "defaultRoles": ["security_officer", "site_manager", "compliance_officer"],
+        "complianceFocus": ["icao", "avsec", "escort_policy"],
     },
     "logistics": {
         "id": "logistics-hub",

@@ -8,8 +8,10 @@
 | Microsoft Entra ID | ✅ | `docs/sso-entra-AR.md` |
 | Google Workspace | ✅ | `docs/sso-google-AR.md` |
 | SAML 2.0 | 📋 مخطَّط | IdP-initiated + SP metadata |
-| Keycloak | 📋 مخطَّط | OIDC أولاً ثم SAML |
-| Active Directory (LDAP) | 📋 مخطَّط | عبر Entra Connect أو Keycloak federation |
+| Keycloak / Generic OIDC | 🟡 | `BAUPASS_KEYCLOAK_ISSUER`, `BAUPASS_KEYCLOAK_CLIENT_ID`, … — `/api/auth/keycloak/*` |
+| SAML 2.0 | 🟡 scaffold | `BAUPASS_SAML_*` — metadata + ACS placeholder |
+| Active Directory | 🟡 | عبر Entra Connect أو Keycloak LDAP |
+| كتالوج موحّد | ✅ | `GET /api/auth/sso/catalog` |
 
 ## متطلبات مؤسسية شائعة
 
