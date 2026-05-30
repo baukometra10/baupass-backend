@@ -157,6 +157,23 @@ def register_entra_auth_routes(flask_app: Flask) -> None:
             db.commit()
 
         run_db_write_with_retry(_persist)
+
+        try:
+            from backend.app.platform.rbac.enforcement import apply_entra_group_roles
+
+            groups_resp = _http_get_json(
+                "https://graph.microsoft.com/v1.0/me/memberOf?$select=id",
+                {"Authorization": f"Bearer {access_token}"},
+            )
+            group_ids = [
+                str(gobj.get("id") or "")
+                for gobj in (groups_resp.get("value") or [])
+                if gobj.get("id")
+            ]
+            apply_entra_group_roles(db, str(user["id"]), str(user["company_id"] or "") or None, group_ids)
+        except Exception:
+            pass
+
         log_audit(
             "login.success",
             f"Entra SSO login for {user['username']}",

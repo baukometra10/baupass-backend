@@ -18,8 +18,18 @@ spec:
         {{- include "baupass.labels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
+      {{- if .Values.podSecurity.runAsNonRoot }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      {{- end }}
       containers:
         - name: api
+          {{- if .Values.podSecurity.readOnlyRootFilesystem }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

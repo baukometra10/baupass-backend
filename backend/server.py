@@ -3428,6 +3428,79 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN report_timezone TEXT NOT NULL DEFAULT ''")
     if "operating_sector" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN operating_sector TEXT NOT NULL DEFAULT 'construction'")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS enterprise_role_assignments (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            company_id TEXT,
+            role_id TEXT NOT NULL,
+            scope_type TEXT NOT NULL DEFAULT 'company',
+            scope_id TEXT,
+            source TEXT NOT NULL DEFAULT 'manual',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS entra_group_role_mappings (
+            id TEXT PRIMARY KEY,
+            company_id TEXT,
+            entra_group_id TEXT NOT NULL,
+            entra_group_name TEXT NOT NULL DEFAULT '',
+            enterprise_role_id TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS company_retention_policies (
+            company_id TEXT PRIMARY KEY,
+            access_log_days INTEGER NOT NULL DEFAULT 2555,
+            audit_log_days INTEGER NOT NULL DEFAULT 2555,
+            document_days INTEGER NOT NULL DEFAULT 365,
+            worker_profile_days INTEGER NOT NULL DEFAULT 2555,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS legal_holds (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            active INTEGER NOT NULL DEFAULT 1,
+            created_by TEXT,
+            created_at TEXT NOT NULL,
+            released_at TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scheduled_report_jobs (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            report_type TEXT NOT NULL,
+            recipients_json TEXT NOT NULL DEFAULT '[]',
+            local_hour INTEGER NOT NULL DEFAULT 8,
+            timezone TEXT NOT NULL DEFAULT 'Europe/Berlin',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            attach_datev INTEGER NOT NULL DEFAULT 0,
+            last_sent_day TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
         cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage1_days INTEGER NOT NULL DEFAULT 7")
@@ -4283,6 +4356,17 @@ def require_auth(handler):
 
         if is_read_only_support_session(session) and not is_read_only_support_request_allowed():
             return jsonify({"error": "support_session_read_only"}), 403
+
+        try:
+            from backend.app.platform.rbac.enforcement import is_auditor_read_only, user_permissions
+
+            g.enterprise_permissions = user_permissions(db, user_payload)
+            if is_auditor_read_only(db, user_payload) and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                allowed_write = {"/api/logout", "/api/v2/auth/revoke", "/api/me/heartbeat"}
+                if request.path not in allowed_write:
+                    return jsonify({"error": "auditor_read_only"}), 403
+        except Exception:
+            g.enterprise_permissions = set()
 
         try:
             from backend.app.platform.security.session_devices import session_device_allowed, touch_session_device
@@ -7474,9 +7558,9 @@ def start_background_jobs():
         """Timezone-aware 08:00 PDF (+ optional DATEV CSV) per company."""
         try:
             with app.app_context():
-                from backend.app.platform.reports.daily_delivery import deliver_daily_ops_pdfs
+                from backend.app.platform.reports.scheduled_runner import run_scheduled_reports
 
-                deliver_daily_ops_pdfs(get_db(), force=False)
+                run_scheduled_reports(get_db(), force=False)
         except Exception as exc:
             print(f"[baupass] WARNING: scheduled ops PDF reports failed: {exc}", flush=True)
 
@@ -17401,10 +17485,10 @@ def reporting_email_datev_csv():
 @require_roles("superadmin")
 def reporting_daily_pdf_run():
     """Manually trigger daily operations PDF delivery (same job as nightly cycle)."""
-    from backend.app.platform.reports.daily_delivery import deliver_daily_ops_pdfs
+    from backend.app.platform.reports.scheduled_runner import run_scheduled_reports
 
     db = get_db()
-    result = deliver_daily_ops_pdfs(db, force=True)
+    result = run_scheduled_reports(db, force=True)
     log_audit(
         "reporting.daily_pdf_manual",
         f"Manueller Tages-PDF-Lauf: sent={result.get('sent', 0)} skipped={result.get('skipped', 0)}",
@@ -17589,6 +17673,65 @@ def reporting_email_enterprise_pdf():
             "datevCsvAttached": len(extra) > 0,
         }
     )
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reporting_email_executive_pdf():
+    from backend.app.platform.reports.email_delivery import send_pdf_report_email
+    from backend.app.platform.reports.executive_report import build_executive_summary_pdf
+    from backend.app.platform.reports.guidance import build_operational_guidance
+    from backend.app.platform.rbac.enforcement import has_permission
+
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    user = g.current_user
+    if not has_permission(db, user, "reports.send") and user.get("role") != "superadmin":
+        return jsonify({"error": "forbidden"}), 403
+
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email"}), 400
+
+    company_id = str(user.get("company_id") or payload.get("companyId") or "").strip()
+    if user["role"] == "superadmin" and payload.get("companyId"):
+        company_id = str(payload.get("companyId")).strip()
+    if not company_id:
+        return jsonify({"error": "missing_company"}), 400
+
+    row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+    company_name = row["name"] if row else "BauPass"
+    snapshot = _operations_snapshot_for_user(db, user)
+    snapshot["guidance"] = build_operational_guidance(snapshot)
+
+    pdf_bytes = build_executive_summary_pdf(company_name=str(company_name or ""), snapshot=snapshot)
+    period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"baupass-executive-{period}.pdf"
+    subject = clean_text_input(payload.get("subject", f"BauPass Executive Summary {period}"), max_len=200)
+    body = clean_text_input(
+        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary).\n\nBauPass"),
+        max_len=4000,
+    )
+    ok, err = send_pdf_report_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.executive_pdf_emailed",
+        f"Executive-PDF an {recipient}",
+        target_type="company",
+        target_id=company_id,
+        company_id=company_id,
+        actor=user,
+    )
+    db.commit()
+    return jsonify({"ok": True, "recipient": recipient, "filename": filename})
 
 
 @require_auth

@@ -131,3 +131,17 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_rbac_blueprint"],
         ).register_rbac_blueprint(flask_app),
     )
+    _step(
+        "rbac_assignments",
+        lambda: __import__(
+            "backend.app.platform.rbac.assignment_routes",
+            fromlist=["register_rbac_assignment_blueprint"],
+        ).register_rbac_assignment_blueprint(flask_app),
+    )
+    _step(
+        "governance",
+        lambda: __import__(
+            "backend.app.platform.governance.routes",
+            fromlist=["register_governance_blueprint"],
+        ).register_governance_blueprint(flask_app),
+    )

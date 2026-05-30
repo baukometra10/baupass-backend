@@ -1,0 +1,41 @@
+# Government / air-gapped overlay — use: helm upgrade -f values.yaml -f values-government.yaml
+replicaCount: 1
+
+api:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
+worker:
+  enabled: true
+  replicas: 1
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+networkPolicy:
+  enabled: true
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+
+podSecurity:
+  runAsNonRoot: true
+  readOnlyRootFilesystem: false
+
+env:
+  BAUPASS_PLATFORM_ENABLED: "1"
+  BAUPASS_DAILY_OPS_PDF: "1"
+  BAUPASS_IMMUTABLE_AUDIT: "1"
+  BAUPASS_SSO_STATE_REDIS: "0"
+  BAUPASS_AIR_GAPPED: "1"

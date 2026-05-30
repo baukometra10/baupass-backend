@@ -38,6 +38,14 @@ autoscaling:
 
 existingSecret: baupass-secrets
 
+networkPolicy:
+  enabled: false
+  egress: []
+
+podSecurity:
+  runAsNonRoot: false
+  readOnlyRootFilesystem: false
+
 env:
   BAUPASS_PLATFORM_ENABLED: "1"
   BAUPASS_DAILY_OPS_PDF: "1"

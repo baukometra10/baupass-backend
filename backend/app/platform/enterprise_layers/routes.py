@@ -81,26 +81,46 @@ def register_enterprise_layers(flask_app) -> None:
 
     @enterprise_layers_bp.get("/enterprise/security/siem-export")
     @require_auth
-    @require_roles("superadmin")
+    @require_roles("superadmin", "company-admin")
     def siem_export():
-        limit = min(500, max(1, int(request.args.get("limit", "100"))))
-        rows = get_db().execute(
-            """
-            SELECT id, event_type, actor_user_id, company_id, message, created_at
-            FROM audit_logs
-            ORDER BY created_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-        events = [dict(r) for r in rows]
-        return jsonify(
-            {
-                "format": "baupass_siem_v1",
-                "count": len(events),
-                "events": events,
-            }
-        )
+        from backend.app.platform.enterprise_layers.siem_export import export_siem_payload
+        from backend.app.platform.rbac.enforcement import has_permission
+
+        user = g.current_user
+        db = get_db()
+        if user.get("role") != "superadmin" and not has_permission(db, user, "security.export"):
+            if not has_permission(db, user, "audit.read"):
+                return jsonify({"error": "forbidden"}), 403
+
+        company_id = None
+        if user.get("role") != "superadmin":
+            company_id = str(user.get("company_id") or "")
+        elif request.args.get("company_id"):
+            company_id = str(request.args.get("company_id")).strip()
+
+        limit = int(request.args.get("limit", "200"))
+        source = str(request.args.get("source", "both")).strip().lower()
+        fmt = str(request.args.get("format", "json")).strip().lower()
+        payload = export_siem_payload(db, company_id=company_id, limit=limit, source=source, fmt=fmt)
+        if fmt == "cef":
+            return "\n".join(payload.get("lines") or []), 200, {"Content-Type": "text/plain; charset=utf-8"}
+        return jsonify(payload)
+
+    @enterprise_layers_bp.get("/enterprise/security/audit-chain/verify")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def verify_audit_chain():
+        from backend.app.audit.immutable import verify_immutable_audit_chain
+        from backend.app.platform.rbac.enforcement import has_permission
+
+        if g.current_user.get("role") != "superadmin" and not has_permission(
+            get_db(), g.current_user, "audit.read"
+        ):
+            return jsonify({"error": "forbidden"}), 403
+        limit = request.args.get("limit")
+        lim = int(limit) if limit else None
+        result = verify_immutable_audit_chain(get_db(), limit=lim)
+        return jsonify(result)
 
     @enterprise_layers_bp.post("/integrations/security-cameras/events")
     @require_auth

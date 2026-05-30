@@ -1,0 +1,30 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "baupass.fullname" . }}-api
+  labels:
+    {{- include "baupass.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "baupass.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.port }}
+  egress:
+    {{- range .Values.networkPolicy.egress }}
+    - ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+        {{- end }}
+    {{- end }}
+{{- end }}

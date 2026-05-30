@@ -11,3 +11,8 @@ app.kubernetes.io/name: {{ include "baupass.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{- end }}
+
+{{- define "baupass.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "baupass.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

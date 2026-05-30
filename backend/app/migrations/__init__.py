@@ -715,6 +715,81 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="019",
+        name="enterprise_governance_rbac",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS enterprise_role_assignments (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                company_id TEXT,
+                role_id TEXT NOT NULL,
+                scope_type TEXT NOT NULL DEFAULT 'company',
+                scope_id TEXT,
+                source TEXT NOT NULL DEFAULT 'manual',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_era_user ON enterprise_role_assignments(user_id);
+            CREATE INDEX IF NOT EXISTS idx_era_company_role ON enterprise_role_assignments(company_id, role_id);
+
+            CREATE TABLE IF NOT EXISTS entra_group_role_mappings (
+                id TEXT PRIMARY KEY,
+                company_id TEXT,
+                entra_group_id TEXT NOT NULL,
+                entra_group_name TEXT NOT NULL DEFAULT '',
+                enterprise_role_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_entra_group_role
+                ON entra_group_role_mappings(company_id, entra_group_id, enterprise_role_id);
+
+            CREATE TABLE IF NOT EXISTS company_retention_policies (
+                company_id TEXT PRIMARY KEY,
+                access_log_days INTEGER NOT NULL DEFAULT 2555,
+                audit_log_days INTEGER NOT NULL DEFAULT 2555,
+                document_days INTEGER NOT NULL DEFAULT 365,
+                worker_profile_days INTEGER NOT NULL DEFAULT 2555,
+                updated_at TEXT NOT NULL,
+                updated_by TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS legal_holds (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
+                active INTEGER NOT NULL DEFAULT 1,
+                created_by TEXT,
+                created_at TEXT NOT NULL,
+                released_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_legal_holds_company ON legal_holds(company_id, active);
+
+            CREATE TABLE IF NOT EXISTS scheduled_report_jobs (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                report_type TEXT NOT NULL,
+                recipients_json TEXT NOT NULL DEFAULT '[]',
+                local_hour INTEGER NOT NULL DEFAULT 8,
+                timezone TEXT NOT NULL DEFAULT 'Europe/Berlin',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                attach_datev INTEGER NOT NULL DEFAULT 0,
+                last_sent_day TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_sched_reports_company ON scheduled_report_jobs(company_id, enabled);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS scheduled_report_jobs;
+            DROP TABLE IF EXISTS legal_holds;
+            DROP TABLE IF EXISTS company_retention_policies;
+            DROP TABLE IF EXISTS entra_group_role_mappings;
+            DROP TABLE IF EXISTS enterprise_role_assignments;
+        """,
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""
