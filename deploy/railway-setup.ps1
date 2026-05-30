@@ -41,7 +41,7 @@ function Ensure-RailwayLink {
     }
     Write-Host ""
     Write-Host "=== Projekt waehlen ===" -ForegroundColor Cyan
-    Write-Host "Waehlen: Ihr Workspace -> baupass-control -> Service web"
+    Write-Host "Waehlen: Ihr Workspace -> baupass-production -> Service web"
     railway link
     if ($LASTEXITCODE -ne 0) {
         throw "railway link fehlgeschlagen."
@@ -57,8 +57,8 @@ function Start-RailwayDeploy {
     }
     Write-Host ""
     Write-Host "Deploy gestartet. In 3-8 Min pruefen:" -ForegroundColor Green
-    Write-Host "  https://baupass-control.up.railway.app/api/health"
-    Write-Host "  https://baupass-control.up.railway.app/worker-build.json"
+    Write-Host "  https://baupass-production.up.railway.app/api/health"
+    Write-Host "  https://baupass-production.up.railway.app/worker-build.json"
 }
 
 Test-RailwayCli

@@ -32,7 +32,7 @@ railway up --detach
 ```
 
 - `railway login` → Browser, einloggen  
-- `railway link` → baupass-control → Service **web**  
+- `railway link` → **baupass-production** → Service **web**  
 - **Nicht** `railway whoami` mit einer UUID testen
 
 ---

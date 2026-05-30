@@ -2019,7 +2019,7 @@ async function loadDeploymentMonthBar() {
     renderDeploymentMonthStatus(deploymentMonthState.batch);
     const ready = deploymentMonthState.readyCount ?? 0;
     const total = deploymentMonthState.totalWorkers ?? 0;
-    $("deploymentMonthStats").textContent = `${ready}/${total} ${t("deployment.confirmSend").toLowerCase()}`;
+    $("deploymentMonthStats").textContent = t("deployment.monthStats", { ready, total });
   } catch (e) {
     deploymentMonthState = null;
     $("deploymentMonthStats").textContent = e.message;

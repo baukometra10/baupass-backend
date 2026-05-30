@@ -14,11 +14,12 @@ Im Cursor-Terminal nacheinander:
   railway up --detach
 
 Bei railway login: Browser oeffnet sich -> einloggen.
-Bei railway link: Workspace -> baupass-control -> Service "web"
+Bei railway link: Workspace -> baupass-production -> Service "web"
 
 Pruefen:
-  https://baupass-control.up.railway.app/api/health
-  https://baupass-control.up.railway.app/worker-build.json
+  https://baupass-production.up.railway.app/api/health
+  https://baupass-production.up.railway.app/worker-build.json
+  powershell -ExecutionPolicy Bypass -File .\deploy\railway-cli-status.ps1
 
 
 Methode B - Account Token (nur wenn Methode A nicht geht)

@@ -948,7 +948,7 @@ h2 {
   top: 0;
   align-self: flex-start;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .sidebar-brand {
@@ -980,6 +980,9 @@ h2 {
   flex-direction: column;
   gap: 0.35rem;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 0.25rem;
 }
 
 .nav-group {
@@ -1015,12 +1018,14 @@ h2 {
 }
 
 .sidebar-footer {
+  flex-shrink: 0;
   margin-top: auto;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  background: inherit;
 }
 
 .nav-cmd-btn {
