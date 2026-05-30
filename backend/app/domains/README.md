@@ -41,6 +41,12 @@ POST /api/logout
 
 ## Current status
 
+| Module | Location | Status |
+|--------|----------|--------|
+| sector terminology | `backend/app/platform/sector/` | ✅ blueprint |
+| rbac catalog | `backend/app/platform/rbac/` | ✅ blueprint (catalog only) |
+| reporting PDF/email | `server.py` + `platform/reports/` | next extraction target — see `docs/engineering/server-decomposition-roadmap.md` |
+
 | Domain | Routes in server.py | Extracted |
 |--------|---------------------|-----------|
 | auth | ~15 | scaffold only |

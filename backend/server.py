@@ -1384,6 +1384,12 @@ def normalize_branding_preset(value):
     return preset if preset in {"construction", "industry", "premium"} else "construction"
 
 
+def normalize_operating_sector(value):
+    from backend.app.platform.sector.catalog import normalize_operating_sector as _norm
+
+    return _norm(value)
+
+
 def slugify_company_alias(value):
     normalized = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower())
     normalized = normalized.strip("-")
@@ -3420,6 +3426,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN branding_logo_data TEXT NOT NULL DEFAULT ''")
     if "report_timezone" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN report_timezone TEXT NOT NULL DEFAULT ''")
+    if "operating_sector" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN operating_sector TEXT NOT NULL DEFAULT 'construction'")
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
         cur.execute("ALTER TABLE settings ADD COLUMN dunning_stage1_days INTEGER NOT NULL DEFAULT 7")
@@ -9560,12 +9568,16 @@ def create_company():
             ZoneInfo(report_timezone)
         except Exception:
             return jsonify({"error": "invalid_timezone", "message": "Ungültige Zeitzone (IANA)."}), 400
+    operating_sector = normalize_operating_sector(
+        payload.get("operatingSector", payload.get("operating_sector", "construction"))
+    )
     db.execute(
         """
         INSERT INTO companies (
             id, name, customer_number, contact, billing_email, document_email, access_host,
-            branding_preset, plan, status, trial_ends_at, invoice_email_lang, report_timezone
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            branding_preset, plan, status, trial_ends_at, invoice_email_lang, report_timezone,
+            operating_sector
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             company_id,
@@ -9581,6 +9593,7 @@ def create_company():
             trial_ends_at,
             invoice_email_lang,
             report_timezone,
+            operating_sector,
         ),
     )
 
@@ -12235,6 +12248,11 @@ def normalize_work_time_value(value):
     normalized = str(value or "").strip()
     if not normalized:
         return ""
+    # Browsers often send HH:MM:SS from <input type="time">; store HH:MM only.
+    if len(normalized) >= 8 and normalized[2] == ":" and normalized[5] == ":":
+        normalized = normalized[:5]
+    elif len(normalized) > 5:
+        normalized = normalized[:5]
     if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", normalized):
         raise ValueError("invalid_work_time")
     return normalized
@@ -15365,6 +15383,15 @@ def update_company(company_id):
     else:
         report_timezone = str(company["report_timezone"] if "report_timezone" in company_keys else "")
 
+    if "operatingSector" in payload or "operating_sector" in payload:
+        operating_sector = normalize_operating_sector(
+            payload.get("operatingSector", payload.get("operating_sector", ""))
+        )
+    else:
+        operating_sector = normalize_operating_sector(
+            company["operating_sector"] if "operating_sector" in company_keys else "construction"
+        )
+
     current_document_email = normalize_email_address(company["document_email"] or "")
     duplicate_customer_no = db.execute(
         "SELECT id, name FROM companies WHERE id != ? AND COALESCE(customer_number, '') = ? LIMIT 1",
@@ -15398,7 +15425,7 @@ def update_company(company_id):
             billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?,
             plan = ?, status = ?, trial_ends_at = ?, invoice_email_lang = ?,
             portal_display_name = ?, branding_accent_color = ?, branding_logo_data = ?,
-            report_timezone = ?
+            report_timezone = ?, operating_sector = ?
         WHERE id = ?
         """,
         (
@@ -15419,6 +15446,7 @@ def update_company(company_id):
             branding_accent_color,
             branding_logo_data,
             report_timezone,
+            operating_sector,
             company_id,
         ),
     )

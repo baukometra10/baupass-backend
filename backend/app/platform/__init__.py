@@ -96,3 +96,17 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_google_auth_routes"],
         ).register_google_auth_routes(flask_app),
     )
+    _step(
+        "sector",
+        lambda: __import__(
+            "backend.app.platform.sector.routes",
+            fromlist=["register_sector_blueprint"],
+        ).register_sector_blueprint(flask_app),
+    )
+    _step(
+        "rbac_catalog",
+        lambda: __import__(
+            "backend.app.platform.rbac.routes",
+            fromlist=["register_rbac_blueprint"],
+        ).register_rbac_blueprint(flask_app),
+    )

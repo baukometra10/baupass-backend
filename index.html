@@ -1708,6 +1708,17 @@
                 </select>
               </label>
               <label>
+                <span data-ui-i18n="labelOperatingSector">Betriebssektor</span>
+                <select id="companyOperatingSector">
+                  <option value="construction" data-ui-i18n="optSectorConstruction">Bau</option>
+                  <option value="manufacturing" data-ui-i18n="optSectorManufacturing">Industrie</option>
+                  <option value="logistics" data-ui-i18n="optSectorLogistics">Logistik</option>
+                  <option value="security" data-ui-i18n="optSectorSecurity">Sicherheit</option>
+                  <option value="public_sector" data-ui-i18n="optSectorPublic">Öffentlicher Sektor</option>
+                  <option value="government" data-ui-i18n="optSectorGovernment">Behörden</option>
+                </select>
+              </label>
+              <label>
                 <span data-ui-i18n="labelBrandingPreset">Branding-Preset</span>
                 <select id="companyBrandingPreset">
                   <option value="construction" data-ui-i18n="optBrandingConstruction">Bau</option>
@@ -2012,7 +2023,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531k"></script>
+  <script src="./app.js?v=20260531l"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

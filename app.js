@@ -279,7 +279,14 @@ const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
     authTitle: "Sicher in Control Pass anmelden",
-    authCopy: "Super-Admin behält die Systemhoheit. Firmen-Admins sehen nur ihre Firma. Der Drehkreuz-Login bekommt einen schnellen Zutrittsmodus.",
+    authCopy: "Enterprise Identity, Zutrittskontrolle und Compliance — für Mandanten, Standorte und Zutrittspunkte.",
+    labelOperatingSector: "Betriebssektor",
+    optSectorConstruction: "Bau",
+    optSectorManufacturing: "Industrie",
+    optSectorLogistics: "Logistik",
+    optSectorSecurity: "Sicherheit",
+    optSectorPublic: "Öffentlicher Sektor",
+    optSectorGovernment: "Behörden",
     authPlatform: "Plattform",
     authOperator: "Betreiber",
     authTurnstile: "Drehkreuz-Endpunkt",
@@ -1191,7 +1198,14 @@ const UI_TRANSLATIONS = {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
     authTitle: "Secure Sign-in to Control Pass",
-    authCopy: "Super admin keeps full system control. Company admins only see their own company. Turnstile login gets a fast access mode.",
+    authCopy: "Enterprise identity, operational control and compliance — for tenants, sites and access endpoints.",
+    labelOperatingSector: "Operating sector",
+    optSectorConstruction: "Construction",
+    optSectorManufacturing: "Manufacturing",
+    optSectorLogistics: "Logistics",
+    optSectorSecurity: "Security",
+    optSectorPublic: "Public sector",
+    optSectorGovernment: "Government",
     authPlatform: "Platform",
     authOperator: "Operator",
     authTurnstile: "Turnstile Endpoint",
@@ -2777,7 +2791,14 @@ const UI_TRANSLATIONS = {
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
     authTitle: "تسجيل دخول آمن إلى Control Pass",
-    authCopy: "يمتلك المشرف العام التحكم الكامل بالنظام. مديرو الشركات يرون شركتهم فقط. تسجيل دخول البوابة الدوّارة يوفر وضع وصول سريع.",
+    authCopy: "منصة الهوية المؤسسية والتحكم التشغيلي والامتثال — للمشرف العام ومدير المستأجر ونقاط الدخول.",
+    labelOperatingSector: "القطاع التشغيلي",
+    optSectorConstruction: "البناء",
+    optSectorManufacturing: "الصناعة",
+    optSectorLogistics: "اللوجستيات",
+    optSectorSecurity: "الأمن",
+    optSectorPublic: "القطاع العام / البلديات",
+    optSectorGovernment: "الحكومة / الوزارات",
     authPlatform: "المنصة",
     authOperator: "المشغّل",
     authTurnstile: "نقطة نهاية البوابة",
@@ -6832,8 +6853,37 @@ function getStoredUiLang() {
   return normalizeUiLang(window.localStorage.getItem(UI_LANG_STORAGE_KEY));
 }
 
+async function loadSectorTerminology() {
+  if (!token || !API_BASE) {
+    window.__baupassSector = { sector: "construction", terms: {}, productLine: "" };
+    return;
+  }
+  try {
+    let url = `${API_BASE}/api/platform/sector-config?lang=${encodeURIComponent(getStoredUiLang())}`;
+    if (superadminUiPreviewCompanyId) {
+      url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+    }
+    const data = await apiRequest(url);
+    window.__baupassSector = {
+      sector: data.sector || "construction",
+      label: data.label || "",
+      productLine: data.productLine || "",
+      terms: data.terms || {},
+      template: data.template || {},
+    };
+    const topHeading = document.querySelector(".topbar h1, .topbar-heading, [data-ui-i18n='topbarHeading']");
+    if (topHeading && data.productLine && getStoredUiLang() !== "de") {
+      topHeading.setAttribute("title", data.productLine);
+    }
+  } catch {
+    window.__baupassSector = { sector: "construction", terms: {}, productLine: "" };
+  }
+}
+
 function uiT(key) {
   const lang = getStoredUiLang();
+  const sectorTerm = window.__baupassSector?.terms?.[key];
+  if (sectorTerm) return sectorTerm;
   const fromPack = UI_TRANSLATIONS[lang]?.[key];
   if (fromPack) return fromPack;
   const fromRuntime = getRuntimeUiTextsCached()[key];
@@ -7579,6 +7629,9 @@ function setUiLang(lang) {
   if (typeof renderOperationsSnapshot === "function") renderOperationsSnapshot();
   if (typeof renderDashboardExpiringDocs === "function") renderDashboardExpiringDocs();
   if (typeof applyRuntimeUiTexts === "function") applyRuntimeUiTexts();
+  if (typeof loadSectorTerminology === "function") {
+    loadSectorTerminology().catch(() => {});
+  }
 }
 
 function initUiLanguageControl() {
@@ -21401,6 +21454,12 @@ function bindCompanyRowActions() {
             brandingPreset,
             portalDisplayName: String(portalNameInput?.value || "").trim(),
             reportTimezone: String(tzInput?.value || "").trim(),
+            operatingSector: String(
+              card.querySelector("[data-company-operating-sector]")?.value
+                || company.operating_sector
+                || company.operatingSector
+                || "construction",
+            ).trim(),
             brandingAccentColor: String(accentInput?.value || "").trim(),
             brandingLogoData,
             plan: company.plan,
@@ -26209,6 +26268,7 @@ async function handleCompanySubmit(event) {
         turnstileCount: Number(document.querySelector("#companyTurnstileCount")?.value || 1),
         invoiceEmailLang: (document.querySelector("#companyInvoiceEmailLang")?.value || "de"),
         reportTimezone: String(document.querySelector("#companyReportTimezone")?.value || "").trim(),
+        operatingSector: String(document.querySelector("#companyOperatingSector")?.value || "construction").trim(),
       }
     });
 
@@ -30146,11 +30206,12 @@ if (accessForm) {
       }
       workTimeSaveBtn.disabled = true;
       try {
+        const toHm = (v) => String(v || "").trim().slice(0, 5);
         await apiRequest(`${API_BASE}/api/companies/${companyId}/work-times`, {
           method: "PUT",
           body: {
-            workStartTime: workStartInput?.value || "",
-            workEndTime: workEndInput?.value || "",
+            workStartTime: toHm(workStartInput?.value),
+            workEndTime: toHm(workEndInput?.value),
             accessMode: accessModeInput?.value || "gate",
             siteGeofenceRadiusMeters: Number(siteRadiusInput?.value || 20),
             siteAutoCheckin: true,
@@ -31958,6 +32019,7 @@ warnStaleControlAssets();
     await loadEnterpriseFlags();
     await loadPublicBranding();
     await loadAllData();
+    await loadSectorTerminology();
     if (state.currentUser?.role === "superadmin") {
       await refreshSystemStatus().catch(() => {});
     }

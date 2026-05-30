@@ -393,26 +393,31 @@ async function loadCompanyWorkTimesForm(companyId) {
       <h3>${t("workTimes.title")}</h3>
       <p class="muted small">${t("workTimes.hint")}</p>
       <form id="workTimesForm" class="tool-form">
-        <label>${t("workTimes.start")} <input name="workStartTime" type="time" value="${start}" required /></label>
+        <label>${t("workTimes.start")} <input name="workStartTime" type="time" value="${start}" /></label>
         <label>${t("workTimes.end")} <input name="workEndTime" type="time" value="${end}" /></label>
         <button type="submit">${t("workTimes.save")}</button>
       </form>`;
     $("workTimesForm")?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.target);
-      await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
-        method: "PUT",
-        body: JSON.stringify({
-          workStartTime: fd.get("workStartTime"),
-          workEndTime: fd.get("workEndTime"),
-          accessMode: cfg.accessMode,
-          siteGeofenceRadiusMeters: cfg.siteGeofenceRadiusMeters,
-          siteAutoCheckin: cfg.siteAutoCheckin,
-          siteAutoLogoutOnLeave: cfg.siteAutoLogoutOnLeave,
-        }),
-      });
-      showActionToast(t("workTimes.saved"), false);
-      await loadCompanyWorkTimesForm(companyId);
+      const toHm = (v) => String(v || "").trim().slice(0, 5);
+      try {
+        await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
+          method: "PUT",
+          body: JSON.stringify({
+            workStartTime: toHm(fd.get("workStartTime")),
+            workEndTime: toHm(fd.get("workEndTime")),
+            accessMode: cfg.accessMode,
+            siteGeofenceRadiusMeters: cfg.siteGeofenceRadiusMeters,
+            siteAutoCheckin: cfg.siteAutoCheckin,
+            siteAutoLogoutOnLeave: cfg.siteAutoLogoutOnLeave,
+          }),
+        });
+        showActionToast(t("workTimes.saved"), false);
+        await loadCompanyWorkTimesForm(companyId);
+      } catch (e) {
+        showActionToast(e.message || t("common.error"), true);
+      }
     });
   } catch (e) {
     host.innerHTML = `<p class="error">${e.message}</p>`;
