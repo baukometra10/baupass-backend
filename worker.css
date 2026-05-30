@@ -2883,14 +2883,9 @@ body {
   padding: 0.5rem;
   font-family: inherit;
 }
-.worker-ai-voice-btn {
-  width: 2.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--line, #d1d5db);
-  background: var(--surface, #fff);
-  cursor: pointer;
+.worker-ai-form.bp-ai-form-enhanced .worker-ai-legacy-send {
+  display: none;
 }
-.worker-ai-voice-btn.listening { background: #fee2e2; border-color: #f87171; }
 .worker-ai-action-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
 .worker-ai-action-btn {
   font-size: 0.75rem;

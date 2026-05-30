@@ -1,0 +1,304 @@
+/**
+ * BauPass KI — ChatGPT-style composer & voice control
+ */
+.bp-ai-composer-wrap {
+  padding: 0.5rem 0.65rem 0.35rem;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.12));
+}
+
+.bp-ai-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.85rem;
+  border-radius: 1.625rem;
+  border: 1px solid var(--bp-composer-border, rgba(255, 255, 255, 0.14));
+  background: var(--bp-composer-bg, #1a2332);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.2),
+    0 8px 28px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bp-ai-composer:focus-within {
+  border-color: var(--bp-composer-focus, #38bdf8);
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.22),
+    0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.bp-ai-composer textarea,
+.bp-ai-composer .bp-ai-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 1.5rem;
+  max-height: 9rem;
+  margin: 0;
+  padding: 0.35rem 0;
+  border: none;
+  background: transparent;
+  color: var(--text, #f3f4f6);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+}
+
+.bp-ai-composer textarea::placeholder {
+  color: var(--muted, #94a3b8);
+  opacity: 0.9;
+}
+
+.bp-ai-composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  padding-bottom: 0.1rem;
+}
+
+.bp-ai-mic {
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted, #94a3b8);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.bp-ai-mic:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text, #f3f4f6);
+}
+
+.bp-ai-mic:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.bp-ai-mic:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.bp-ai-mic-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: block;
+}
+
+.bp-ai-mic-wave {
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 1rem;
+}
+
+.bp-ai-mic-wave span {
+  display: block;
+  width: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: bp-ai-wave 0.75s ease-in-out infinite;
+}
+
+.bp-ai-mic-wave span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.bp-ai-mic-wave span:nth-child(2) { height: 11px; animation-delay: 0.12s; }
+.bp-ai-mic-wave span:nth-child(3) { height: 7px; animation-delay: 0.24s; }
+.bp-ai-mic-wave span:nth-child(4) { height: 12px; animation-delay: 0.08s; }
+
+@keyframes bp-ai-wave {
+  0%, 100% { transform: scaleY(0.45); opacity: 0.65; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+.bp-ai-mic.listening {
+  background: #ef4444;
+  color: #fff;
+}
+
+.bp-ai-mic.listening::before,
+.bp-ai-mic.listening::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(239, 68, 68, 0.5);
+  pointer-events: none;
+  animation: bp-ai-mic-ring 1.5s ease-out infinite;
+}
+
+.bp-ai-mic.listening::after {
+  animation-delay: 0.5s;
+}
+
+@keyframes bp-ai-mic-ring {
+  0% { transform: scale(1); opacity: 0.75; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+.bp-ai-mic.listening .bp-ai-mic-icon {
+  display: none;
+}
+
+.bp-ai-mic.listening .bp-ai-mic-wave {
+  display: flex;
+}
+
+.bp-ai-send {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--text, #f3f4f6);
+  color: var(--bg, #0b1220);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.18s ease, transform 0.12s ease, background 0.18s ease;
+}
+
+.bp-ai-send:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.bp-ai-send:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.bp-ai-send:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.bp-ai-send-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: block;
+}
+
+.bp-ai-composer-hint {
+  margin: 0.4rem 0.85rem 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted, #94a3b8);
+  text-align: center;
+}
+
+.bp-ai-tools-panel {
+  margin: 0.35rem 0.65rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.bp-ai-tools-panel summary {
+  cursor: pointer;
+  color: var(--muted, #94a3b8);
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  list-style: none;
+  user-select: none;
+}
+
+.bp-ai-tools-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.bp-ai-tools-panel summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.bp-ai-tools-panel[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.bp-ai-tools-panel .bp-ai-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.45rem 0.25rem 0.15rem;
+}
+
+.bp-ai-tools-panel button.secondary {
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  background: #14202c;
+  color: var(--text, #f3f4f6);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* Worker app (light cards) */
+.worker-ai-card .bp-ai-composer {
+  --bp-composer-bg: #fff;
+  --bp-composer-border: #d1d5db;
+  --bp-composer-focus: #0f4c5c;
+  box-shadow: 0 2px 12px rgba(15, 76, 92, 0.08);
+}
+
+.worker-ai-card .bp-ai-composer textarea {
+  color: #0f172a;
+}
+
+.worker-ai-card .bp-ai-composer textarea::placeholder {
+  color: #64748b;
+}
+
+.worker-ai-card .bp-ai-mic:hover:not(:disabled) {
+  background: rgba(15, 76, 92, 0.08);
+  color: #0f4c5c;
+}
+
+.worker-ai-card .bp-ai-send {
+  background: #0f4c5c;
+  color: #fff;
+}
+
+.worker-ai-card .bp-ai-composer-hint {
+  color: #64748b;
+}
+
+/* Enterprise hub sidebar */
+.ai-panel .bp-ai-composer-wrap {
+  padding: 0.5rem 0.65rem;
+}
+
+.ai-panel .bp-ai-form-legacy-send {
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent, #5eead4);
+  color: #0b1118;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-form.bp-ai-form-enhanced .ai-form-row:not(.bp-ai-composer) {
+  display: none;
+}
+
+.ai-form.bp-ai-form-enhanced > .ai-send-btn,
+.ai-form.bp-ai-form-enhanced .ai-form-legacy-send {
+  display: none;
+}
+
+.worker-ai-form.bp-ai-form-enhanced .worker-ai-legacy-send {
+  display: none;
+}

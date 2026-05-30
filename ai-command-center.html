@@ -6,6 +6,7 @@
   <title>BauPass — KI Command Center</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/ops-shell.css" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -95,24 +96,9 @@
     .msg-user { background: #1e3a5f; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
     .msg-bot { background: #152228; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
     .msg-meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; }
-    .chat-form { padding: 0.65rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.4rem; }
-    .chat-form textarea {
-      min-height: 72px;
-      max-height: 120px;
-      resize: none;
-      padding: 0.5rem;
-      border-radius: 8px;
-      border: 1px solid var(--border); background: #0a1016; color: var(--text); font-family: inherit;
-    }
+    .chat-form { padding: 0; border-top: none; display: flex; flex-direction: column; gap: 0; flex-shrink: 0; }
     .chat-form .input-row { display: flex; gap: 0.4rem; align-items: stretch; }
-    .chat-form .input-row textarea { flex: 1; }
-    .ai-voice-btn {
-      flex-shrink: 0; width: 2.75rem; border-radius: 8px; border: 1px solid var(--border);
-      background: #0f1419; color: var(--accent); cursor: pointer; font-size: 1.1rem;
-    }
-    .ai-voice-btn.listening { background: #7f1d1d; color: #fecaca; }
-    .chat-form .row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .chat-form button, .toolbar button {
+    .toolbar button {
       padding: 0.45rem 0.75rem; border-radius: 8px; border: none; cursor: pointer;
       background: var(--accent); color: #061018; font-weight: 700; font-size: 0.8rem;
     }
@@ -202,15 +188,18 @@
       <div class="chip-row" id="quickPrompts" style="padding:0 0.65rem"></div>
       <form class="chat-form" id="chatForm">
         <div class="input-row">
-          <textarea id="question" placeholder="Frage stellen…"></textarea>
-          <button type="button" id="aiVoiceBtn" class="ai-voice-btn" title="Sprechen" aria-label="Mikrofon">🎤</button>
+          <textarea id="question" rows="1" placeholder="Frage stellen…"></textarea>
+          <button type="button" id="aiVoiceBtn" aria-label="Spracheingabe"></button>
+          <button type="submit" id="sendBtn" aria-label="Senden"></button>
         </div>
-        <div class="row">
-          <button type="submit" id="sendBtn">Senden</button>
-          <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
-          <button type="button" class="secondary" id="emailBriefingBtn">Briefing mailen</button>
-          <button type="button" class="secondary" id="webhookBriefingBtn">Slack/Teams</button>
-        </div>
+        <details class="bp-ai-tools-panel">
+          <summary id="toolsPanelSummary">Tools &amp; Briefings</summary>
+          <div class="bp-ai-tools-row">
+            <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
+            <button type="button" class="secondary" id="emailBriefingBtn">Briefing mailen</button>
+            <button type="button" class="secondary" id="webhookBriefingBtn">Slack/Teams</button>
+          </div>
+        </details>
       </form>
     </main>
 
@@ -229,7 +218,7 @@
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260529f"></script>
-  <script src="/ai-voice-ui.js?v=20260529f"></script>
+  <script src="/ai-voice-ui.js?v=20260530a"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -406,7 +395,10 @@
     document.getElementById("sessionsTitle").textContent = t("sessions");
     document.getElementById("insightsTitle").textContent = t("insights");
     document.getElementById("newChatBtn").textContent = t("newChat");
-    document.getElementById("sendBtn").textContent = t("send");
+    const toolsSummary = document.getElementById("toolsPanelSummary");
+    if (toolsSummary) {
+      toolsSummary.textContent = LANG === "ar" ? "أدوات وملخصات" : (LANG === "en" ? "Tools & briefings" : "Tools & Briefings");
+    }
     document.getElementById("briefingBtn").textContent = t("briefing");
     document.getElementById("emailBriefingBtn").textContent = t("emailBriefing");
     document.getElementById("webhookBriefingBtn").textContent = t("webhookBriefing");
@@ -844,7 +836,14 @@
           window.BaupassAiUi.bindVoiceInput({
             inputId: "question",
             buttonId: "aiVoiceBtn",
+            sendId: "sendBtn",
+            formId: "chatForm",
             lang: LANG,
+            hintText: LANG === "ar"
+              ? "BauPass KI — صوت أو نص. تحقق من القرارات المهمة."
+              : (LANG === "en"
+                ? "BauPass AI — voice or text. Verify important decisions."
+                : "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen."),
           });
         }
         const sel = document.getElementById("companySelect");

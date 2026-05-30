@@ -15794,7 +15794,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260529e");
+    params.push("v=20260530a");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);

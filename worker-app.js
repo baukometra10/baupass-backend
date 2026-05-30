@@ -1838,6 +1838,8 @@ function bindEvents() {
     globalThis.BaupassAiUi.bindVoiceInput({
       inputId: "workerAiQuestion",
       buttonId: "workerAiVoiceBtn",
+      sendId: "workerAiSendBtn",
+      formId: "workerAiForm",
       lang: getWorkerLang(),
       onTranscript: () => void submitWorkerAiQuestion(),
     });
