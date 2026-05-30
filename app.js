@@ -310,6 +310,8 @@ const UI_TRANSLATIONS = {
     supportModeReadOnlyLine: "Support-Modus aktiv: Nur lesen.",
     supportReadOnlyShort: "Support-Modus: nur lesen.",
     loginButton: "Anmelden",
+    entraLoginBtn: "Mit Microsoft anmelden",
+    alertEntraLoginFailed: "Microsoft-Anmeldung fehlgeschlagen: {error}",
     demoAccessTitle: "Demo-Zugänge",
     demoSuperAdmin: "Super-Admin: superadmin / 1234",
     demoCompanyAdmin: "Firmen-Admin: firma / 1234",
@@ -404,6 +406,33 @@ const UI_TRANSLATIONS = {
     navAdminV2: "Betrieb v2",
     navAiCopilot: "KI-Assistent",
     navIntegrations: "Integrationen",
+    cameraEventWorker: "Mitarbeiter",
+    cameraEventFaceOk: "Gesichtserkennung",
+    cameraEventFaceNo: "Keine Uebereinstimmung",
+    cameraEventPpeMissing: "PSA fehlt",
+    cameraEventZoneAlert: "Sperrzone",
+    workerHoursModalTitle: "Arbeitsstunden",
+    workerHoursMonthLabel: "Monat",
+    workerHoursLoadBtn: "Laden",
+    workerHoursLoading: "Lade Daten…",
+    workerHoursEmpty: "Keine Eintraege fuer diesen Monat.",
+    workerHoursError: "Fehler beim Laden.",
+    workerHoursColName: "Name",
+    workerHoursColBadge: "Badge-ID",
+    workerHoursColRole: "Funktion",
+    workerHoursColDays: "Tage",
+    workerHoursColHours: "Stunden",
+    workerHoursColTimeline: "Verlauf",
+    workerHoursDetailBtn: "Details",
+    workerTimelineTitle: "Zeitverlauf",
+    workerTimelineCheckIn: "Eingang",
+    workerTimelineCheckOut: "Ausgang",
+    workerTimelineGate: "Drehkreuz",
+    workerTimelineDuration: "Dauer",
+    workerTimelineStillOnSite: "Noch vor Ort",
+    workerTimelineMonthTotal: "Monatssumme",
+    entraLoginBtn: "Mit Microsoft anmelden",
+    alertEntraLoginFailed: "Microsoft-Anmeldung fehlgeschlagen: {error}",
     navDocuments: "Dokumente",
     docInboxEyebrow: "Posteingang",
     docInboxH3: "Eingehende Dokumente per Mail",
@@ -1190,6 +1219,8 @@ const UI_TRANSLATIONS = {
     supportModeReadOnlyLine: "Support mode active: Read-only.",
     supportReadOnlyShort: "Support mode: read-only.",
     loginButton: "Sign in",
+    entraLoginBtn: "Sign in with Microsoft",
+    alertEntraLoginFailed: "Microsoft sign-in failed: {error}",
     demoAccessTitle: "Demo Accounts",
     demoSuperAdmin: "Super Admin: superadmin / 1234",
     demoCompanyAdmin: "Company Admin: firma / 1234",
@@ -2815,6 +2846,32 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
     enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
+    appTitle: "Control Pass",
+    navEnterpriseSection: "المؤسسة",
+    navAiCopilot: "مساعد الذكاء الاصطناعي",
+    navIntegrations: "التكاملات",
+    workerHoursModalTitle: "ساعات العمل",
+    workerHoursMonthLabel: "الشهر",
+    workerHoursLoadBtn: "تحميل الساعات",
+    workerHoursLoading: "جارٍ التحميل…",
+    workerHoursEmpty: "لا توجد بيانات لهذا الشهر.",
+    workerHoursError: "تعذّر تحميل الساعات.",
+    workerHoursColName: "الاسم",
+    workerHoursColBadge: "رقم الشارة",
+    workerHoursColRole: "الدور",
+    workerHoursColDays: "أيام",
+    workerHoursColHours: "ساعات",
+    workerHoursColTimeline: "الجدول الزمني",
+    workerHoursDetailBtn: "تفاصيل",
+    workerTimelineTitle: "الجدول الزمني",
+    workerTimelineCheckIn: "دخول",
+    workerTimelineCheckOut: "خروج",
+    workerTimelineGate: "البوابة",
+    workerTimelineDuration: "المدة",
+    workerTimelineStillOnSite: "لا يزال في الموقع",
+    workerTimelineMonthTotal: "إجمالي الشهر",
+    entraLoginBtn: "تسجيل الدخول عبر Microsoft",
+    alertEntraLoginFailed: "فشل تسجيل الدخول عبر Microsoft: {error}",
     reportingEyebrow: "التقارير",
     reportingH3: "حالة الدفع والتجميد",
     decisionsEyebrow: "اليوم",
@@ -15886,7 +15943,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531i");
+    params.push("v=20260531j");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -29638,9 +29695,47 @@ window.addEventListener("message", (event) => {
   }
 });
 
+async function initEntraLoginUi() {
+  const btn = document.getElementById("entraLoginBtn");
+  const params = new URLSearchParams(window.location.search);
+  const entraError = params.get("entra_error");
+  if (entraError) {
+    showToast(uiT("alertEntraLoginFailed").replace("{error}", entraError.replace(/_/g, " ")), "error", 7000);
+    params.delete("entra_error");
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+    window.history.replaceState({}, "", clean);
+  }
+  if (params.get("entra_ok") === "1") {
+    params.delete("entra_ok");
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+    window.history.replaceState({}, "", clean);
+    try {
+      await restoreSessionFromBootstrap();
+      refreshAll();
+    } catch {
+      // cookie/session not ready yet — bootstrap runs in main loader
+    }
+  }
+  if (!btn || !API_BASE) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/entra/status`, { credentials: "include" });
+    if (!res.ok) return;
+    const status = await res.json();
+    if (!status?.configured) return;
+    btn.style.display = "";
+    btn.textContent = uiT("entraLoginBtn");
+    btn.addEventListener("click", () => {
+      window.location.href = `${API_BASE}/api/auth/entra/start`;
+    });
+  } catch {
+    // Entra SSO optional
+  }
+}
+
 if (elements.loginForm) {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
 }
+void initEntraLoginUi();
 
 if (elements.authOverlay) {
   elements.authOverlay.addEventListener("click", (event) => {

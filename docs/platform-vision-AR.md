@@ -50,11 +50,12 @@
 - PDF بالبريد: تشغيل، فواتير، شركات (سوبرأدمن)، DATEV-CSV.
 - جسر توقيع: `POST /api/device/signature/capture` (انظر `docs/device-signature-bridge-DE.md`).
 
-### 3.3 قادم
+### 3.3 مكتمل / قادم
 
-- ربط تقارير الزيارات/الحوادث/Enterprise JSON بنفس PDF الموحّد.
-- واجهة عربية كاملة لكل الوحدات (ليس Reporting فقط).
-- RTSP كاميرا + Face match.
+- ✅ واجهة عربية لـ Control Pass (~870 مفتاح، فجوات متبقية فقط في i18n-packs).
+- ✅ RTSP + Azure Face اختياري + وكيل `scripts/rtsp_camera_agent.py`.
+- ✅ SSO Entra (`docs/sso-entra-AR.md`) + Helm (`docs/private-cloud-helm-AR.md`).
+- قادم: ربط تقارير الزيارات/الحوادث بنفس PDF الموحّد.
 
 ---
 

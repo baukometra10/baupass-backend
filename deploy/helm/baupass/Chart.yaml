@@ -1,0 +1,6 @@
+apiVersion: v2
+name: baupass
+description: BauPass Control Pass API (private cloud / AKS)
+type: application
+version: 0.1.0
+appVersion: "2026.05"

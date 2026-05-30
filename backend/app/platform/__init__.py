@@ -82,3 +82,10 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_push_blueprint"],
         ).register_push_blueprint(flask_app),
     )
+    _step(
+        "entra_sso",
+        lambda: __import__(
+            "backend.app.platform.auth.entra_oidc",
+            fromlist=["register_entra_auth_routes"],
+        ).register_entra_auth_routes(flask_app),
+    )

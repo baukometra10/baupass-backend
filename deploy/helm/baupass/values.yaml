@@ -1,0 +1,43 @@
+image:
+  repository: baupass
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+api:
+  port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+worker:
+  enabled: true
+  replicas: 1
+  command: ["python", "-m", "backend.app.tasks.worker"]
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  host: baupass.example.com
+  tls: false
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 70
+
+existingSecret: baupass-secrets
+
+env:
+  BAUPASS_PLATFORM_ENABLED: "1"
+  BAUPASS_DAILY_OPS_PDF: "1"

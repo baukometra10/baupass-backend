@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531i";
+        const buildTag = "20260531j";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -155,6 +155,7 @@
           </select>
         </label>
         <button type="submit" class="primary-button" data-ui-i18n="loginButton">Anmelden</button>
+        <button type="button" id="entraLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="entraLoginBtn">Mit Microsoft anmelden</button>
         <button id="loginResetPasswordButton" type="button" class="ghost-button" data-ui-i18n="loginForgotPassword">Passwort vergessen</button>
       </form>
 
@@ -2009,7 +2010,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531i"></script>
+  <script src="./app.js?v=20260531j"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
