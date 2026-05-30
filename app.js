@@ -371,6 +371,20 @@ const UI_TRANSLATIONS = {
     reportingNoAccessDataLast7Days: "Keine Zutrittsdaten fuer die letzten 7 Tage.",
     reportingCheckin: "Check-in",
     reportingCheckout: "Check-out",
+    decisionsEyebrow: "Heute",
+    decisionsH3: "Entscheidungen des Tages",
+    decisionsRefreshBtn: "Aktualisieren",
+    decisionsEmpty: "Keine offenen Empfehlungen — System stabil.",
+    reportingGuidanceTitle: "Empfohlene Massnahmen",
+    reportingHrComplianceTitle: "Lohn & Compliance",
+    reportingEmailPdfBtn: "PDF per E-Mail",
+    reportingEmailDatevBtn: "DATEV-CSV per E-Mail",
+    reportingEmailInvoicesBtn: "Rechnungen-PDF",
+    reportingEmailCompaniesBtn: "Firmen-PDF per E-Mail",
+    reportingDailyPdfBtn: "Tages-PDF jetzt senden",
+    labelReportTimezone: "Berichts-Zeitzone (08:00 Uhr)",
+    reportTimezonePlaceholder: "Europe/Berlin",
+    reportTimezoneHint: "IANA, z. B. Europe/Berlin, Asia/Dubai. Leer = Plattform-Standard.",
     navEnterpriseSection: "Enterprise",
     navBaupassAi: "BauPass KI",
     navEnterpriseHub: "Enterprise-Hub",
@@ -2791,6 +2805,20 @@ const UI_TRANSLATIONS = {
     enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
     reportingEyebrow: "التقارير",
     reportingH3: "حالة الدفع والتجميد",
+    decisionsEyebrow: "اليوم",
+    decisionsH3: "قرارات اليوم",
+    decisionsRefreshBtn: "تحديث",
+    decisionsEmpty: "لا توصيات مفتوحة — الوضع مستقر.",
+    reportingGuidanceTitle: "توصيات التشغيل",
+    reportingHrComplianceTitle: "الرواتب والامتثال",
+    reportingEmailPdfBtn: "PDF بالبريد",
+    reportingEmailDatevBtn: "DATEV-CSV بالبريد",
+    reportingEmailInvoicesBtn: "PDF الفواتير",
+    reportingEmailCompaniesBtn: "PDF الشركات بالبريد",
+    reportingDailyPdfBtn: "إرسال PDF اليومي الآن",
+    labelReportTimezone: "منطقة التقارير (08:00)",
+    reportTimezonePlaceholder: "Asia/Dubai",
+    reportTimezoneHint: "IANA — اتركه فارغاً لاستخدام إعداد المنصة.",
     accessWeekEyebrow: "7 أيام",
     accessWeekH3: "الدخول يومياً",
     recentEyebrow: "النشاط الأخير",
@@ -15800,7 +15828,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531e");
+    params.push("v=20260531f");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -19039,21 +19067,34 @@ async function renderCustomerReviews() {
   }
 }
 
+function guidanceLocalizedText(item, field) {
+  const lang = String(typeof getStoredUiLang === "function" ? getStoredUiLang() : "de").toLowerCase();
+  if (field === "title") {
+    if (lang === "ar" && item.titleAr) return item.titleAr;
+    return item.titleDe || item.titleAr || item.code || "";
+  }
+  if (field === "detail") {
+    if (lang === "ar" && item.detailAr) return item.detailAr;
+    return item.detailDe || item.detailAr || "";
+  }
+  return item[field] || "";
+}
+
 function renderHrComplianceSummary(hr) {
   if (!hr || typeof hr !== "object" || !Object.keys(hr).length) {
     return "";
   }
   const rows = [
-    ["Mitarbeiter", hr.workersTotal],
-    ["Pflichtdok. fehlend", hr.workersMissingRequiredDocs],
-    ["Dok. abgelaufen", hr.workersWithExpiredDocs],
-    ["Läuft in 14 Tagen ab", hr.workersExpiringDocs14d],
-    ["Lohn-PDFs (Monat)", hr.payrollDocsThisMonth],
-    ["Posteingang ungelesen", hr.inboxUnread],
-    ["DATEV", hr.datevConnected ? "verbunden" : "offen"],
+    [uiT("workersListH3") || "Mitarbeiter", hr.workersTotal],
+    ["Pflichtdok.", hr.workersMissingRequiredDocs],
+    [uiT("dashExpiringH3") || "Ablauf", hr.workersWithExpiredDocs],
+    ["14d", hr.workersExpiringDocs14d],
+    ["Lohn", hr.payrollDocsThisMonth],
+    [uiT("docInboxEyebrow") || "Posteingang", hr.inboxUnread],
+    ["DATEV", hr.datevConnected ? "OK" : "—"],
   ];
   return `
-    <p class="helper-text" style="font-weight:700;margin:10px 0 6px;">Lohn & Compliance</p>
+    <p class="helper-text" style="font-weight:700;margin:10px 0 6px;">${escapeHtml(uiT("reportingHrComplianceTitle"))}</p>
     <div class="list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;">
       ${rows.map(([label, value]) => `
         <article class="card-item" style="padding:8px;">
@@ -19083,14 +19124,46 @@ async function loadReportingGuidance() {
     }
     container.innerHTML = `
       ${hrBlock}
-      ${items.length ? `<p class="helper-text" style="font-weight:700;margin-bottom:6px;">KI-Empfehlungen / Guidance</p>` : ""}
+      ${items.length ? `<p class="helper-text" style="font-weight:700;margin-bottom:6px;">${escapeHtml(uiT("reportingGuidanceTitle"))}</p>` : ""}
       ${items.map((item) => `
         <article class="card-item" style="margin-bottom:6px;border-left:3px solid ${item.priority === "critical" || item.priority === "high" ? "var(--accent,#c78652)" : "var(--line,#ccc)"};">
-          <strong>${escapeHtml(item.titleDe || item.titleAr || item.code || "")}</strong>
-          <p class="helper-text">${escapeHtml(item.detailDe || item.detailAr || "")}</p>
+          <strong>${escapeHtml(guidanceLocalizedText(item, "title"))}</strong>
+          <p class="helper-text">${escapeHtml(guidanceLocalizedText(item, "detail"))}</p>
         </article>
       `).join("")}
     `;
+  } catch {
+    container.innerHTML = "";
+  }
+}
+
+async function loadDecisionsTodayPanel() {
+  const container = document.querySelector("#decisionsTodayList");
+  if (!container) return;
+  const role = String(getEffectiveUiRole() || "").toLowerCase();
+  if (role !== "superadmin" && role !== "company-admin") {
+    container.innerHTML = "";
+    return;
+  }
+  try {
+    const data = await apiRequest(`${API_BASE}/api/ops/guidance`);
+    const items = Array.isArray(data?.guidance) ? data.guidance : [];
+    const critical = items.filter((i) => ["critical", "high"].includes(String(i.priority || "")));
+    const rest = items.filter((i) => !["critical", "high"].includes(String(i.priority || "")));
+    const ordered = [...critical, ...rest].slice(0, 8);
+    if (!ordered.length) {
+      container.innerHTML = `<p class="helper-text">${escapeHtml(uiT("decisionsEmpty"))}</p>`;
+      return;
+    }
+    container.innerHTML = ordered.map((item) => `
+      <article class="card-item" style="margin-bottom:8px;border-left:4px solid ${item.priority === "critical" ? "#b42318" : item.priority === "high" ? "var(--accent,#c78652)" : "var(--line,#ccc)"};">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+          <strong>${escapeHtml(guidanceLocalizedText(item, "title"))}</strong>
+          <span class="meta-text">${escapeHtml(String(item.priority || "info").toUpperCase())}</span>
+        </div>
+        <p class="helper-text">${escapeHtml(guidanceLocalizedText(item, "detail"))}</p>
+      </article>
+    `).join("");
   } catch {
     container.innerHTML = "";
   }
@@ -19105,6 +19178,51 @@ async function runDailyOpsPdfReportsNow() {
   const skipped = Number(result?.skipped || 0);
   const errs = Array.isArray(result?.errors) ? result.errors.length : 0;
   showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errs ? `, ${errs} Fehler` : ""}.`);
+}
+
+function bindReportingEmailInvoicesButton() {
+  const btn = document.querySelector("#reportingEmailInvoicesPdfBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await sendReportingInvoicesPdfByEmail();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function bindReportingEmailCompaniesButton() {
+  const btn = document.querySelector("#reportingEmailCompaniesPdfBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  const isSuperadmin = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin";
+  btn.hidden = !isSuperadmin;
+  btn.style.display = isSuperadmin ? "" : "none";
+  if (!isSuperadmin) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await sendReportingCompaniesPdfByEmail();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function bindDecisionsTodayPanel() {
+  const btn = document.querySelector("#decisionsTodayRefreshBtn");
+  if (btn && btn.dataset.bound !== "1") {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => void loadDecisionsTodayPanel());
+  }
+  void loadDecisionsTodayPanel();
 }
 
 function bindReportingDailyPdfRunButton() {
@@ -19141,6 +19259,28 @@ async function sendReportingPdfByEmail() {
   });
   const datevHint = result?.datevCsvAttached ? " (+ DATEV-CSV)" : "";
   showToast(`PDF-Bericht wurde per E-Mail gesendet${datevHint}.`);
+}
+
+async function sendReportingInvoicesPdfByEmail() {
+  const email = window.prompt(uiT("reportingEmailPdfBtn") + ":", String(getCurrentUser()?.email || "").trim());
+  if (email === null) return;
+  if (!email.includes("@")) {
+    showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
+    return;
+  }
+  await apiRequest(`${API_BASE}/api/reporting/email-invoices-pdf`, { method: "POST", body: { email } });
+  showToast("OK");
+}
+
+async function sendReportingCompaniesPdfByEmail() {
+  const email = window.prompt(uiT("reportingEmailCompaniesBtn") + ":", String(getCurrentUser()?.email || "").trim());
+  if (email === null) return;
+  if (!email.includes("@")) {
+    showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
+    return;
+  }
+  await apiRequest(`${API_BASE}/api/reporting/email-companies-pdf`, { method: "POST", body: { email } });
+  showToast("OK");
 }
 
 async function sendReportingDatevCsvByEmail() {
@@ -19241,7 +19381,9 @@ function renderReportingPanels() {
   }
 
   void loadReportingGuidance();
+  void loadDecisionsTodayPanel();
   bindReportingDailyPdfRunButton();
+  bindReportingEmailCompaniesButton();
 
   summaryGrid.innerHTML = "";
   topOverdueList.innerHTML = "";
@@ -20063,6 +20205,7 @@ function renderCompanyList() {
             <p><strong>White-Label (Miete)</strong></p>
             <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;">
               <input type="text" data-company-portal-name="${escapeHtml(companyId)}" placeholder="Portal-Titel z. B. Meier Bau" maxlength="80" value="${escapeAttr(company.portalDisplayName || company.portal_display_name || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:160px;" />
+              <input type="text" data-company-report-timezone="${escapeHtml(companyId)}" placeholder="${escapeAttr(uiT("reportTimezonePlaceholder"))}" maxlength="64" value="${escapeAttr(company.reportTimezone || company.report_timezone || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:140px;" title="${escapeAttr(uiT("labelReportTimezone"))}" />
               <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr((company.brandingAccentColor || company.branding_accent_color || "#c78652").match(/^#[0-9a-f]{6}$/i) ? (company.brandingAccentColor || company.branding_accent_color) : "#c78652")}" ${canDeleteAny && !deleted ? "" : "disabled"} title="Akzentfarbe" />
               <label class="ghost-button small-button" style="cursor:pointer;margin:0;">
                 Logo
@@ -20988,6 +21131,7 @@ function bindCompanyRowActions() {
       const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
       const brandingPreset = normalizeCompanyBrandingPresetValue(presetSelect?.value || "construction");
       const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
+      const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
       const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
       const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
       let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
@@ -21010,6 +21154,7 @@ function bindCompanyRowActions() {
             accessHost: company.accessHost || company.access_host || "",
             brandingPreset,
             portalDisplayName: String(portalNameInput?.value || "").trim(),
+            reportTimezone: String(tzInput?.value || "").trim(),
             brandingAccentColor: String(accentInput?.value || "").trim(),
             brandingLogoData,
             plan: company.plan,
@@ -25817,6 +25962,7 @@ async function handleCompanySubmit(event) {
         turnstilePassword: (document.querySelector("#companyTurnstilePassword")?.value || "").trim() || undefined,
         turnstileCount: Number(document.querySelector("#companyTurnstileCount")?.value || 1),
         invoiceEmailLang: (document.querySelector("#companyInvoiceEmailLang")?.value || "de"),
+        reportTimezone: String(document.querySelector("#companyReportTimezone")?.value || "").trim(),
       }
     });
 
@@ -29912,7 +30058,10 @@ if (accessCsvButton) {
 bindDocumentInboxControls();
 bindReportingEmailPdfButton();
 bindReportingEmailDatevButton();
+bindReportingEmailInvoicesButton();
+bindReportingEmailCompaniesButton();
 bindReportingDailyPdfRunButton();
+bindDecisionsTodayPanel();
 
 const invoiceRefreshButton = document.querySelector("#invoiceRefreshButton");
 if (invoiceRefreshButton) {

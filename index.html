@@ -326,6 +326,17 @@
           <div id="dashboardExpiringDocsPanel" class="list"></div>
         </article>
 
+        <article class="panel" id="decisionsTodayPanel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-ui-i18n="decisionsEyebrow">Heute</p>
+              <h3 data-ui-i18n="decisionsH3">Entscheidungen des Tages</h3>
+            </div>
+            <button type="button" id="decisionsTodayRefreshBtn" class="ghost-button small-button" data-ui-i18n="decisionsRefreshBtn">Aktualisieren</button>
+          </div>
+          <div id="decisionsTodayList" class="list"></div>
+        </article>
+
         <div class="panel-grid two-columns" id="reportingPanels">
           <article class="panel" id="reportingPaymentPanel" data-superadmin-only hidden>
             <div class="panel-heading">
@@ -335,8 +346,11 @@
               </div>
             </div>
             <div class="panel-actions" style="margin-bottom:8px;">
-              <button id="reportingDailyPdfRunBtn" type="button" class="ghost-button small-button" data-superadmin-only hidden>
+              <button id="reportingDailyPdfRunBtn" type="button" class="ghost-button small-button" data-superadmin-only hidden data-ui-i18n="reportingDailyPdfBtn">
                 Tages-PDF jetzt senden
+              </button>
+              <button id="reportingEmailCompaniesPdfBtn" type="button" class="ghost-button small-button" data-superadmin-only hidden data-ui-i18n="reportingEmailCompaniesBtn">
+                Firmen-PDF per E-Mail
               </button>
             </div>
             <div id="reportingSummaryGrid" class="list"></div>
@@ -349,8 +363,9 @@
                 <p class="eyebrow" data-ui-i18n="accessWeekEyebrow">7 Tage</p>
                 <h3 data-ui-i18n="accessWeekH3">Zutritte pro Tag</h3>
               </div>
-              <button id="reportingEmailPdfBtn" type="button" class="ghost-button small-button">PDF per E-Mail</button>
-              <button id="reportingEmailDatevBtn" type="button" class="ghost-button small-button">DATEV-CSV per E-Mail</button>
+              <button id="reportingEmailPdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailPdfBtn">PDF per E-Mail</button>
+              <button id="reportingEmailDatevBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailDatevBtn">DATEV-CSV per E-Mail</button>
+              <button id="reportingEmailInvoicesPdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailInvoicesBtn">Rechnungen-PDF</button>
             </div>
             <div id="reportingAccessDaily" class="list"></div>
             <div id="reportingGuidanceList" class="list" style="margin-top:10px;"></div>
@@ -1705,6 +1720,11 @@
                 <input id="companyTrialEndsAt" type="date" />
               </label>
               <label>
+                <span data-ui-i18n="labelReportTimezone">Berichts-Zeitzone (08:00 Uhr)</span>
+                <input id="companyReportTimezone" type="text" placeholder="Europe/Berlin" data-ui-i18n="reportTimezonePlaceholder" data-ui-i18n-attr="placeholder" />
+              </label>
+              <p class="helper-text full-width" data-ui-i18n="reportTimezoneHint">IANA, z. B. Europe/Berlin, Asia/Dubai. Leer = Plattform-Standard.</p>
+              <label>
                 <span data-ui-i18n="labelCompanyAdminPassword">Admin-Startpasswort</span>
                 <input id="companyAdminPassword" type="password" placeholder="z.B. Sicher!2025" autocomplete="new-password" data-ui-i18n="companyAdminPasswordPlaceholder" data-ui-i18n-attr="placeholder" />
               </label>
@@ -1975,7 +1995,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531e"></script>
+  <script src="./app.js?v=20260531f"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

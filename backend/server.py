@@ -9554,8 +9554,19 @@ def create_company():
     invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", "de") or "de", max_len=8)
     if invoice_email_lang not in ("de", "en", "fr"):
         invoice_email_lang = "de"
+    report_timezone = clean_text_input(payload.get("reportTimezone", payload.get("report_timezone", "")), max_len=64)
+    if report_timezone:
+        try:
+            ZoneInfo(report_timezone)
+        except Exception:
+            return jsonify({"error": "invalid_timezone", "message": "Ungültige Zeitzone (IANA)."}), 400
     db.execute(
-        "INSERT INTO companies (id, name, customer_number, contact, billing_email, document_email, access_host, branding_preset, plan, status, trial_ends_at, invoice_email_lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        """
+        INSERT INTO companies (
+            id, name, customer_number, contact, billing_email, document_email, access_host,
+            branding_preset, plan, status, trial_ends_at, invoice_email_lang, report_timezone
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
         (
             company_id,
             company_name,
@@ -9569,6 +9580,7 @@ def create_company():
             company_status,
             trial_ends_at,
             invoice_email_lang,
+            report_timezone,
         ),
     )
 
@@ -17378,6 +17390,160 @@ def reporting_daily_pdf_run():
     )
     db.commit()
     return jsonify(result)
+
+
+@app.post("/api/reporting/email-invoices-pdf")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reporting_email_invoices_pdf():
+    from backend.app.platform.reports.email_delivery import send_pdf_report_email
+    from backend.app.platform.reports.invoice_report import build_invoices_report_pdf
+
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    user = g.current_user
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email"}), 400
+
+    company_id = str(user.get("company_id") or payload.get("companyId") or "").strip() or None
+    if user["role"] != "superadmin" and not company_id:
+        return jsonify({"error": "missing_company"}), 400
+    if user["role"] == "superadmin" and payload.get("companyId"):
+        company_id = str(payload.get("companyId")).strip()
+
+    company_name = ""
+    if company_id:
+        row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+        company_name = row["name"] if row else ""
+
+    pdf_bytes = build_invoices_report_pdf(db, company_id=company_id, company_name=company_name)
+    period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"baupass-invoices-{period}.pdf"
+    subject = clean_text_input(payload.get("subject", f"BauPass Rechnungsübersicht {period}"), max_len=200)
+    body = clean_text_input(
+        payload.get("body", "Anbei die Rechnungsübersicht als PDF.\n\nBauPass"),
+        max_len=4000,
+    )
+    ok, err = send_pdf_report_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.invoices_pdf_emailed",
+        f"Rechnungs-PDF an {recipient}",
+        target_type="company",
+        target_id=company_id or "all",
+        company_id=company_id,
+        actor=user,
+    )
+    db.commit()
+    return jsonify({"ok": True, "recipient": recipient, "filename": filename})
+
+
+@app.post("/api/reporting/email-companies-pdf")
+@require_auth
+@require_roles("superadmin")
+def reporting_email_companies_pdf():
+    from backend.app.platform.reports.companies_report import build_companies_document_email_pdf
+    from backend.app.platform.reports.email_delivery import send_pdf_report_email
+
+    payload = request.get_json(silent=True) or {}
+    user = g.current_user
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email"}), 400
+
+    db = get_db()
+    pdf_bytes = build_companies_document_email_pdf(db)
+    period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"baupass-companies-{period}.pdf"
+    subject = clean_text_input(payload.get("subject", f"BauPass Firmenübersicht {period}"), max_len=200)
+    body = clean_text_input(payload.get("body", "Anbei die Firmen-Dokument-E-Mail-Übersicht.\n\nBauPass"), max_len=4000)
+    ok, err = send_pdf_report_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.companies_pdf_emailed",
+        f"Firmen-PDF an {recipient}",
+        target_type="system",
+        target_id="companies_export",
+        actor=user,
+    )
+    db.commit()
+    return jsonify({"ok": True, "recipient": recipient, "filename": filename})
+
+
+@app.post("/api/device/signature/capture")
+def device_signature_capture():
+    """Capture compliance signature from USB pad agent or registered IoT device."""
+    from backend.app.platform.device.signature_bridge import authorize_device_signature_request
+
+    db = get_db()
+    actor, scope_company_id, err_code = authorize_device_signature_request(request, db)
+    if err_code:
+        token = get_auth_token_from_request()
+        if not token:
+            return jsonify({"error": "unauthorized"}), 401
+        session = db.execute("SELECT user_id FROM sessions WHERE token = ?", (token,)).fetchone()
+        if not session:
+            return jsonify({"error": "unauthorized"}), 401
+        user = db.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+        if not user or str(user["role"] or "") not in {"superadmin", "company-admin"}:
+            return jsonify({"error": "unauthorized"}), 401
+        actor = row_to_dict(user)
+        scope_company_id = str(actor.get("company_id") or "").strip() or None
+        if actor.get("role") == "superadmin":
+            scope_company_id = None
+
+    payload = request.get_json(silent=True) or {}
+    worker_id = clean_id_input(payload.get("workerId") or payload.get("worker_id"))
+    if not worker_id:
+        return jsonify({"error": "missing_worker_id"}), 400
+
+    worker = db.execute("SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if scope_company_id and str(worker["company_id"]) != str(scope_company_id):
+        return jsonify({"error": "forbidden_company"}), 403
+
+    device_id = clean_text_input(payload.get("deviceId", payload.get("device_id", "")), max_len=80)
+    try:
+        _persist_worker_compliance_fields(
+            db,
+            worker_id,
+            {
+                "complianceSignatureData": payload.get("signatureData", payload.get("signature_data")),
+                "clearComplianceSignature": bool(payload.get("clearSignature")),
+            },
+            actor,
+        )
+    except ValueError as exc:
+        return jsonify({"error": "invalid_signature", "message": str(exc)}), 400
+
+    db.commit()
+    log_audit(
+        "worker.compliance_signature_device",
+        f"Unterschrift via Gerät {device_id or 'bridge'} für {worker_id}",
+        target_type="worker",
+        target_id=worker_id,
+        company_id=str(worker["company_id"]),
+        actor=actor,
+    )
+    return jsonify({"ok": True, "workerId": worker_id, "deviceId": device_id})
 
 
 @app.get("/api/access-logs/day-close-check")

@@ -43,11 +43,18 @@
 2. **إرشادات (Guidance)** — `/api/ops/guidance`: توصيات بالعربية/الألمانية (فواتير، أمان، طوارئ، Check-out).
 3. **ذكاء اصطناعي (Copilot)** — سؤال/جواب + تلخيص يومي + إجراءات (بريد، Slack، Push).
 
-### 3.2 التطوير القادم (أولوية عالية)
+### 3.2 مكتمل مؤخراً
 
-- جدولة يومية: **08:00** تقرير PDF تلقائي لكل `company-admin`.
-- لوحة «قرارات اليوم» في Control Pass (عربي كامل).
-- ربط كل تقرير في المنصة بـ **PDF موحّد** (فواتير، زيارات، حوادث، امتثال).
+- جدولة **08:00** + `report_timezone` لكل شركة.
+- لوحة **قرارات اليوم** + إرشادات عربية/ألمانية حسب لغة الواجهة.
+- PDF بالبريد: تشغيل، فواتير، شركات (سوبرأدمن)، DATEV-CSV.
+- جسر توقيع: `POST /api/device/signature/capture` (انظر `docs/device-signature-bridge-DE.md`).
+
+### 3.3 قادم
+
+- ربط تقارير الزيارات/الحوادث/Enterprise JSON بنفس PDF الموحّد.
+- واجهة عربية كاملة لكل الوحدات (ليس Reporting فقط).
+- RTSP كاميرا + Face match.
 
 ---
 
@@ -73,7 +80,7 @@
 
 **الجاهزية للجهاز الخارجي:**
 
-1. جهاز توقيع USB/Tablet يرسل `POST /api/device/signature` (مقترح) أو WebSocket محلي.
+1. جهاز توقيع USB/Tablet يرسل `POST /api/device/signature/capture` (موثّق في `device-signature-bridge-DE.md`).
 2. Agent على PC المكتب ينقل التوقيع إلى API المنصة.
 3. ربط التوقيع بـ `worker_id` + `captured_at` + `device_id` للتدقيق.
 
