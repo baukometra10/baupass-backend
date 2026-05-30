@@ -382,6 +382,12 @@ const UI_TRANSLATIONS = {
     reportingEmailInvoicesBtn: "Rechnungen-PDF",
     reportingEmailCompaniesBtn: "Firmen-PDF per E-Mail",
     reportingDailyPdfBtn: "Tages-PDF jetzt senden",
+    invoiceBadgeNew: "Neu",
+    camerasEyebrow: "Kameras",
+    camerasH3: "Kamera-KI & RTSP-Bridge",
+    camerasHint: "Lokaler RTSP-Agent oder Webhook an /api/integrations/cameras/rtsp-ingest",
+    camerasEventsEmpty: "Noch keine Kamera-Ereignisse.",
+    camerasRefreshBtn: "Ereignisse aktualisieren",
     reportingEmailEnterpriseBtn: "Enterprise-PDF per E-Mail",
     reportingEmailSentOk: "Bericht wurde per E-Mail gesendet.",
     dashExpiringEyebrow: "Compliance",
@@ -2822,6 +2828,15 @@ const UI_TRANSLATIONS = {
     reportingEmailInvoicesBtn: "PDF الفواتير",
     reportingEmailCompaniesBtn: "PDF الشركات بالبريد",
     reportingDailyPdfBtn: "إرسال PDF اليومي الآن",
+    invoiceExportCsvBtn: "تصدير الفواتير CSV",
+    invoiceExportFilteredCsvBtn: "CSV مفلتر",
+    invoiceBadgeNew: "جديد",
+    btnSimulateCurrentMonth: "محاكاة الشهر الحالي",
+    camerasEyebrow: "الكاميرات",
+    camerasH3: "ذكاء الكاميرا و RTSP",
+    camerasHint: "اربط جسر RTSP المحلي أو أرسل أحداثاً إلى /api/integrations/cameras/rtsp-ingest و /api/integrations/security-cameras/events.",
+    camerasEventsEmpty: "لا أحداث كاميرا بعد.",
+    camerasRefreshBtn: "تحديث الأحداث",
     reportingEmailEnterpriseBtn: "PDF المؤسسة بالبريد",
     reportingEmailSentOk: "تم إرسال التقرير بالبريد.",
     dashExpiringEyebrow: "الامتثال",
@@ -15840,7 +15855,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531g");
+    params.push("v=20260531h");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -17663,8 +17678,42 @@ async function loadDevices() {
     const data = await apiRequest(`${API_BASE}/api/admin/devices`);
     state.devices = Array.isArray(data) ? data : (data.devices || []);
     renderDevices();
+    await loadCameraEvents();
   } catch (e) {
     console.warn("loadDevices failed", e);
+  }
+}
+
+async function loadCameraEvents() {
+  const list = document.querySelector("#cameraEventsList");
+  if (!list) return;
+  const role = String(getCurrentUser()?.role || "");
+  if (!["superadmin", "company-admin"].includes(role)) {
+    list.innerHTML = "";
+    return;
+  }
+  try {
+    let url = `${API_BASE}/api/integrations/cameras/events?limit=25`;
+    if (role === "superadmin" && superadminUiPreviewCompanyId) {
+      url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+    }
+    const data = await apiRequest(url);
+    const events = Array.isArray(data?.events) ? data.events : [];
+    if (!events.length) {
+      list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasEventsEmpty"))}</p>`;
+      return;
+    }
+    list.innerHTML = events
+      .map((ev) => `
+        <article class="card-item" style="margin-bottom:6px;">
+          <strong>${escapeHtml(ev.event_type || "event")}</strong>
+          <span class="meta-text"> · ${escapeHtml(ev.camera_id || "-")}</span>
+          <p class="helper-text">${escapeHtml(ev.created_at || "")}${ev.worker_id ? ` · Worker: ${escapeHtml(ev.worker_id)}` : ""}</p>
+        </article>
+      `)
+      .join("");
+  } catch {
+    list.innerHTML = "";
   }
 }
 
@@ -17708,6 +17757,13 @@ async function deleteDevice(id) {
   }
 }
 
+const camerasEventsRefreshBtn = document.querySelector("#camerasEventsRefreshBtn");
+if (camerasEventsRefreshBtn) {
+  camerasEventsRefreshBtn.addEventListener("click", () => {
+    void loadCameraEvents();
+  });
+}
+
 // Wire device form (delegated, called once on page load)
 (function wireDeviceForm() {
   const form = document.getElementById("deviceForm");
@@ -17732,6 +17788,7 @@ async function deleteDevice(id) {
       }
       form.reset();
       await loadDevices();
+      await loadCameraEvents();
     } catch (err) {
       showToast(uiT("alertGenericError").replace("{error}", err.message || err), "error", 3600);
     }
@@ -26761,11 +26818,11 @@ function renderInvoiceManagementList() {
   const rows = invoices
     .map((inv) => {
       const statusLabel = {
-        draft: "Entwurf",
-        sent: "Versendet",
-        overdue: "Überfällig",
-        bezahlt: "Bezahlt",
-        send_failed: "Fehler"
+        draft: uiT("optDraft"),
+        sent: uiT("optSent"),
+        overdue: uiT("optOverdue"),
+        bezahlt: uiT("optPaid"),
+        send_failed: uiT("optFailed")
       }[inv.status] || inv.status;
 
       const statusKey = String(inv.status || "draft").toLowerCase();
@@ -26791,7 +26848,7 @@ function renderInvoiceManagementList() {
       const canViewHistory = getCurrentUser()?.role === "superadmin";
       const canDownloadReminder = !isPaid && ["sent", "overdue"].includes(statusKey) && getCurrentUser()?.role === "superadmin";
       const justPaidClass = state.invoiceJustPaidId && state.invoiceJustPaidId === inv.id ? " invoice-status-just-paid" : "";
-      const newBadge = state.invoiceNewIds?.[inv.id] ? '<span class="invoice-new-badge">Neu</span>' : "";
+      const newBadge = state.invoiceNewIds?.[inv.id] ? `<span class="invoice-new-badge">${escapeHtml(uiT("invoiceBadgeNew"))}</span>` : "";
       const dunningStage = Number(inv.reminder_stage || 0);
       const dunningBadge = dunningStage > 0
         ? `<span class="invoice-dunning-badge dunning-stage-${dunningStage}">${escapeHtml(uiT("invoiceDunningStageLabel").replace("{stage}", dunningStage))}</span>`

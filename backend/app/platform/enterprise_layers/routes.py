@@ -111,6 +111,65 @@ def register_enterprise_layers(flask_app) -> None:
         data = request.get_json(silent=True) or {}
         return jsonify(ingest_camera_event(get_db(), _cid(), data))
 
+    @enterprise_layers_bp.post("/integrations/cameras/rtsp-ingest")
+    def camera_rtsp_ingest():
+        """RTSP/NVR local bridge — token, device key, or admin session."""
+        from backend.app.platform.physical_operations.rtsp_bridge import (
+            authorize_rtsp_bridge_request,
+            ingest_rtsp_camera_event,
+        )
+
+        db = get_db()
+        actor, scope_company_id, err_code = authorize_rtsp_bridge_request(request, db)
+        if err_code:
+            from backend.server import get_auth_token_from_request, row_to_dict
+
+            token = get_auth_token_from_request()
+            if not token:
+                return jsonify({"error": "unauthorized"}), 401
+            session = db.execute("SELECT user_id FROM sessions WHERE token = ?", (token,)).fetchone()
+            if not session:
+                return jsonify({"error": "unauthorized"}), 401
+            user = db.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+            if not user or str(user["role"] or "") not in {"superadmin", "company-admin", "turnstile"}:
+                return jsonify({"error": "unauthorized"}), 401
+            actor = row_to_dict(user)
+            scope_company_id = str(actor.get("company_id") or "").strip() or None
+            if actor.get("role") == "superadmin":
+                scope_company_id = str(request.headers.get("X-BauPass-Company-Id") or request.args.get("company_id") or "").strip() or scope_company_id
+
+        payload = request.get_json(silent=True) or {}
+        company_id = str(payload.get("companyId") or payload.get("company_id") or scope_company_id or _cid() or "").strip()
+        if not company_id:
+            return jsonify({"error": "missing_company_id"}), 400
+        if scope_company_id and str(company_id) != str(scope_company_id):
+            return jsonify({"error": "forbidden_company"}), 403
+
+        result = ingest_rtsp_camera_event(db, company_id, payload)
+        if not result.get("ok", True):
+            return jsonify(result), 400
+        return jsonify(result)
+
+    @enterprise_layers_bp.get("/integrations/cameras/events")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def list_camera_events():
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        limit = min(100, max(1, int(request.args.get("limit", "30"))))
+        rows = get_db().execute(
+            """
+            SELECT id, camera_id, event_type, worker_id, confidence, ppe_compliant, zone_violation, created_at
+            FROM camera_ai_events
+            WHERE company_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (cid, limit),
+        ).fetchall()
+        return jsonify({"events": [dict(r) for r in rows]})
+
     @enterprise_layers_bp.post("/integrations/biometric/events")
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")

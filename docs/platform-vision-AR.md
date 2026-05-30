@@ -98,9 +98,10 @@
 
 **عند توصيل الكاميرا:**
 
-1. تسجيل `camera_id` لكل موقع في الإعدادات.
-2. إرسال لقطة أو حدث إلى الـ API (Webhook أو RTSP Bridge صغير).
-3. مطابقة الوجه مع `workers.photo_data` (مرحلة 2: Azure Face / موديل محلي على السحابة الخاصة).
+1. تسجيل `camera_id` لكل موقع.
+2. `POST /api/integrations/cameras/rtsp-ingest` (جسر RTSP) أو `POST /api/integrations/security-cameras/events`.
+3. عرض الأحداث في **Geräte → Kamera-KI** (`GET /api/integrations/cameras/events`).
+4. مطابقة الوجه: Stub عبر `worker_id` + صورة العامل؛ لاحقاً Azure Face / موديل محلي (`docs/camera-rtsp-bridge-DE.md`).
 
 ---
 

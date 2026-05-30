@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531g";
+        const buildTag = "20260531h";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -1153,6 +1153,17 @@
             <div id="deviceApiKeyResult" class="device-apikey-result hidden"></div>
           </article>
         </div>
+        <article class="panel" style="margin-top:16px;">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-ui-i18n="camerasEyebrow">Kameras</p>
+              <h3 data-ui-i18n="camerasH3">Kamera-KI &amp; RTSP-Bridge</h3>
+            </div>
+            <button type="button" id="camerasEventsRefreshBtn" class="ghost-button small-button" data-ui-i18n="camerasRefreshBtn">Ereignisse aktualisieren</button>
+          </div>
+          <p class="helper-text" data-ui-i18n="camerasHint">Lokaler RTSP-Agent oder Webhook an <code>/api/integrations/cameras/rtsp-ingest</code> (Header: <code>X-BauPass-Rtsp-Token</code> oder <code>X-Device-API-Key</code>).</p>
+          <div id="cameraEventsList" class="list"></div>
+        </article>
       </section>
 
       <section class="view" data-view="documents">
@@ -1998,7 +2009,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531g"></script>
+  <script src="./app.js?v=20260531h"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
