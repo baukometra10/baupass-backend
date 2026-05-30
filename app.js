@@ -16020,7 +16020,10 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531k");
+    params.push("v=20260531ai1");
+  }
+  if (item.path.includes("/admin-v2/")) {
+    params.push("tab=platform");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -16054,6 +16057,24 @@ function loadEnterpriseEmbed(viewName) {
   const iframe = document.getElementById(meta.frameId);
   if (iframe && iframe.getAttribute("src") !== url) {
     iframe.setAttribute("src", url);
+  }
+  if (iframe && token) {
+    const syncToken = () => {
+      try {
+        iframe.contentWindow?.postMessage(
+          {
+            type: "baupass-sync-token",
+            token,
+            companyId: getEffectiveUiCompanyId(),
+          },
+          window.location.origin,
+        );
+      } catch {
+        // ignore cross-origin until loaded
+      }
+    };
+    iframe.addEventListener("load", syncToken, { once: false });
+    syncToken();
   }
   const external = document.getElementById(meta.externalLinkId);
   if (external) {

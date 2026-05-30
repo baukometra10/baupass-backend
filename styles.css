@@ -450,14 +450,17 @@ select {
 .view-embed.active {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
+  height: calc(100vh - 5.5rem);
 }
 
 .enterprise-embed-shell {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: calc(100vh - 7rem);
+  min-height: 0;
+  height: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius-md, 12px);
   overflow: hidden;
@@ -486,7 +489,8 @@ select {
 .enterprise-embed-frame {
   flex: 1;
   width: 100%;
-  min-height: 64vh;
+  min-height: 0;
+  height: 100%;
   border: none;
   background: var(--surface-2, #0d131a);
 }
@@ -496,9 +500,7 @@ body.embed-mode #hubHeader {
   display: none !important;
 }
 
-body.embed-mode.admin-v2-embed #loginView .small,
-body.embed-mode.admin-v2-embed #logoutBtn,
-body.embed-mode.admin-v2-embed .tabs button[data-tab="enterprise"] {
+body.embed-mode.admin-v2-embed #loginView .small {
   display: none !important;
 }
 

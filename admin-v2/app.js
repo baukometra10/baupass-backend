@@ -33,12 +33,22 @@ async function tryEmbedSessionFromControlPass() {
     const qsCid = new URLSearchParams(location.search).get("company_id") || "";
     if (qsCid && String(data.user?.role || "") === "superadmin") {
       localStorage.setItem(COMPANY_KEY, qsCid);
+    } else if (data.user?.preview_company_id && String(data.user?.role || "") === "superadmin") {
+      localStorage.setItem(COMPANY_KEY, data.user.preview_company_id);
     } else if (data.user?.company_id) {
       localStorage.setItem(COMPANY_KEY, data.user.company_id);
     }
     return true;
   } catch {
     return false;
+  }
+}
+
+function applyEmbedStartupTab() {
+  if (!isEmbedMode()) return;
+  const tab = new URLSearchParams(location.search).get("tab");
+  if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
+    switchToTab(tab);
   }
 }
 let pendingIntegrationProvider = null;
@@ -2283,6 +2293,7 @@ async function bootSession() {
   try {
     await api("/api/v2/auth/session");
     showDashboard();
+    applyEmbedStartupTab();
     await loadCompanies();
     await loadPlatformBanner();
     await refreshActiveTab();
@@ -2315,6 +2326,7 @@ $("loginBtn").addEventListener("click", async () => {
       localStorage.setItem(COMPANY_KEY, payload.user.company_id);
     }
     showDashboard();
+    applyEmbedStartupTab();
     await loadCompanies();
     await loadPlatformBanner();
     await refreshActiveTab();

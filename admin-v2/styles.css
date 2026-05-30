@@ -1395,3 +1395,27 @@ html[dir="rtl"] .app-sidebar {
   height: 1.1rem;
   margin-top: 0.15rem;
 }
+
+body.embed-mode.admin-v2-embed {
+  min-height: 100%;
+  overflow: auto;
+}
+
+body.embed-mode.admin-v2-embed #dashboardView {
+  min-height: 100vh;
+}
+
+body.embed-mode.admin-v2-embed .app-shell {
+  min-height: 100vh;
+}
+
+body.embed-mode.admin-v2-embed .app-main {
+  max-height: none;
+  overflow: visible;
+}
+
+body.embed-mode.admin-v2-embed .app-sidebar {
+  height: auto;
+  min-height: 100vh;
+  position: sticky;
+}

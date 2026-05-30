@@ -146,6 +146,9 @@
     .cap .locked-badge { color: #f87171; }
     .err-box { background: #3f1d1d; border: 1px solid #7f1d1d; padding: 1rem; border-radius: 10px; margin: 1rem; }
     .hidden { display: none !important; }
+    body.embed-mode { min-height: 100%; overflow: auto; }
+    body.embed-mode .layout { max-width: none; padding: 0.5rem 0.75rem 1rem; }
+    body.embed-mode .ai-panel { max-height: none; position: relative; top: auto; min-height: 280px; }
   </style>
 </head>
 <body>
@@ -217,7 +220,7 @@
     </aside>
   </div>
 
-  <script src="/embed-helpers.js?v=20260529f"></script>
+  <script src="/embed-helpers.js?v=20260531ai1"></script>
   <script src="/ai-voice-ui.js?v=20260530a"></script>
   <script>
     const SURFACE_COLORS = {
@@ -407,7 +410,10 @@
     let currentUserRole = "";
 
     async function api(path, opts) {
-      const res = await fetch(path, { credentials: "include", ...opts });
+      const headers = window.BaupassAuth
+        ? window.BaupassAuth.authHeaders(opts?.headers || {})
+        : (opts?.headers || {});
+      const res = await fetch(path, { credentials: "include", ...opts, headers });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) throw new Error("auth");
       if (!res.ok) {
@@ -749,9 +755,10 @@
 
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
-      if (params.get("embed") === "1") {
+      if (params.get("embed") === "1" || window.BaupassEmbed?.isEmbedMode?.()) {
         document.getElementById("hubHeader")?.classList.add("hidden");
-        document.body.style.minHeight = "auto";
+        document.body.classList.add("embed-mode");
+        document.body.style.minHeight = "100%";
       }
     })();
 
@@ -919,13 +926,20 @@
     applyStaticI18n();
     (async () => {
       try {
-        const boot = await api("/api/session/bootstrap");
+        const boot = window.BaupassAuth?.bootstrapSession
+          ? await window.BaupassAuth.bootstrapSession()
+          : await api("/api/session/bootstrap");
+        if (boot?.authenticated === false || !boot?.user?.role) throw new Error("auth");
         currentUserRole = boot?.user?.role || "";
         if (currentUserRole === "company-admin" && boot?.user?.company_id) {
           selectedCompanyId = boot.user.company_id;
         }
-        if (currentUserRole === "superadmin" && boot?.user?.preview_company_id && !selectedCompanyId) {
-          selectedCompanyId = boot.user.preview_company_id;
+        if (currentUserRole === "superadmin") {
+          const qsCid = new URLSearchParams(location.search).get("company_id") || "";
+          if (qsCid) selectedCompanyId = qsCid;
+          else if (boot?.user?.preview_company_id && !selectedCompanyId) {
+            selectedCompanyId = boot.user.preview_company_id;
+          }
         }
       } catch {
         currentUserRole = "";

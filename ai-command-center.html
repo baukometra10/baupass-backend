@@ -55,13 +55,38 @@
       align-self: stretch;
     }
     @media (max-width: 1200px) {
-      .shell {
+      .shell:not(.embed-shell) {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 140px) minmax(0, 1fr) minmax(0, 200px);
       }
-      .side { order: 1; }
-      .chat { order: 2; }
-      .insights { order: 3; }
+      .shell:not(.embed-shell) .side { order: 1; }
+      .shell:not(.embed-shell) .chat { order: 2; }
+      .shell:not(.embed-shell) .insights { order: 3; }
+    }
+    body.embed-mode {
+      height: 100%;
+      overflow: hidden;
+    }
+    body.embed-mode header.ops-header {
+      padding: 0.45rem 0.75rem;
+    }
+    body.embed-mode header.ops-header h1 {
+      font-size: 0.95rem;
+    }
+    body.embed-mode header.ops-header .nav a:not(.embed-keep) {
+      display: none;
+    }
+    body.embed-mode .shell.embed-shell {
+      grid-template-columns: 170px minmax(0, 1fr) 240px;
+      grid-template-rows: minmax(0, 1fr);
+      padding: 0.5rem;
+      gap: 0.5rem;
+    }
+    @media (max-width: 900px) {
+      body.embed-mode .shell.embed-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(88px, auto) minmax(320px, 1fr) minmax(140px, auto);
+      }
     }
     .panel {
       background: var(--panel);
@@ -173,7 +198,7 @@
     · <a href="/index.html">Control Pass</a>
   </div>
 
-  <div class="shell hidden" id="shell">
+  <div class="shell hidden embed-shell" id="shell">
     <aside class="panel side">
       <h2 id="sessionsTitle">Chats</h2>
       <div class="toolbar" style="padding:0.5rem;display:flex;gap:0.35rem">
@@ -217,14 +242,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="/embed-helpers.js?v=20260529f"></script>
+  <script src="/embed-helpers.js?v=20260531ai1"></script>
   <script src="/ai-voice-ui.js?v=20260530b"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
-      if (params.get("embed") === "1") {
+      if (params.get("embed") === "1" || window.BaupassEmbed?.isEmbedMode?.()) {
         document.body.classList.add("embed-mode");
-        document.querySelector("header.ops-header nav")?.remove();
       }
       if (window.BaupassEmbed) {
         window.BaupassEmbed.wireEmbedNav("header.ops-header nav a[href^='/']");
@@ -405,12 +429,30 @@
     document.getElementById("question").placeholder = t("placeholder");
 
     function authHeaders(extra = {}) {
+      if (window.BaupassAuth) return window.BaupassAuth.authHeaders(extra);
       const headers = { ...extra };
-      const token = (localStorage.getItem("baupass-control-token") || "").trim();
-      if (token && !headers.Authorization) {
-        headers.Authorization = `Bearer ${token}`;
-      }
+      const token = (localStorage.getItem("baupass-control-token") || localStorage.getItem("baupass-admin-v2-token") || "").trim();
+      if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
       return headers;
+    }
+
+    function showAuthError() {
+      document.getElementById("authErr")?.classList.remove("hidden");
+      document.getElementById("shell")?.classList.add("hidden");
+    }
+
+    function showApp() {
+      document.getElementById("authErr")?.classList.add("hidden");
+      document.getElementById("shell")?.classList.remove("hidden");
+    }
+
+    async function bootstrapSession() {
+      if (window.BaupassAuth?.bootstrapSession) {
+        return window.BaupassAuth.bootstrapSession();
+      }
+      const data = await api("/api/session/bootstrap");
+      if (data?.authenticated === false || !data?.user?.role) throw new Error("auth");
+      return data;
     }
 
     async function api(path, opts = {}) {
@@ -646,7 +688,7 @@
         const res = await fetch("/api/ai/query/stream", {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({
             question: q, company_id: selectedCompanyId, agent_id: activeAgent,
             session_id: sessionId, lang: LANG,
@@ -827,14 +869,19 @@
 
     (async () => {
       try {
-        const bootData = await api("/api/session/bootstrap");
+        const bootData = await bootstrapSession();
         currentRole = bootData?.user?.role || "";
-        if (currentRole === "company-admin") selectedCompanyId = bootData.user.company_id || selectedCompanyId;
-        if (currentRole === "superadmin" && bootData?.user?.preview_company_id && !selectedCompanyId) {
-          selectedCompanyId = bootData.user.preview_company_id;
+        if (currentRole === "company-admin") {
+          selectedCompanyId = bootData.user.company_id || selectedCompanyId;
         }
-        document.getElementById("authErr").classList.add("hidden");
-        document.getElementById("shell").classList.remove("hidden");
+        if (currentRole === "superadmin") {
+          if (bootData?.user?.preview_company_id && !selectedCompanyId) {
+            selectedCompanyId = bootData.user.preview_company_id;
+          }
+          const qsCid = new URLSearchParams(location.search).get("company_id") || "";
+          if (qsCid) selectedCompanyId = qsCid;
+        }
+        showApp();
         await loadCompanies();
         if (window.BaupassAiUi) {
           window.BaupassAiUi.bindVoiceInput({
@@ -851,14 +898,14 @@
           });
         }
         const sel = document.getElementById("companySelect");
-        if (sel) sel.onchange = () => { startInsightsRealtime(); loadInsights().catch(() => {}); };
+        if (sel) sel.onchange = () => { startInsightsRealtime(); loadInsights().catch(() => {}); boot().catch(() => {}); };
         await boot();
         const autoQ = new URLSearchParams(location.search).get("autoprompt");
         if (autoQ) {
           try { await submitQuestion(decodeURIComponent(autoQ)); } catch { /* ignore */ }
         }
       } catch {
-        document.getElementById("authErr").classList.remove("hidden");
+        showAuthError();
         const errText = document.getElementById("authErrText");
         if (errText) errText.textContent = t("auth");
         const loginLink = document.getElementById("authLoginLink");
