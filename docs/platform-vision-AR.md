@@ -54,8 +54,9 @@
 
 - ✅ واجهة عربية لـ Control Pass (~870 مفتاح، فجوات متبقية فقط في i18n-packs).
 - ✅ RTSP + Azure Face اختياري + وكيل `scripts/rtsp_camera_agent.py`.
-- ✅ SSO Entra (`docs/sso-entra-AR.md`) + Helm (`docs/private-cloud-helm-AR.md`).
-- قادم: ربط تقارير الزيارات/الحوادث بنفس PDF الموحّد.
+- ✅ SSO Entra + Google (`docs/sso-entra-AR.md`, `docs/sso-google-AR.md`) + Helm.
+- ✅ PDF الحوادث والزوار: `POST /api/reporting/email-incidents-visits-pdf`.
+- ✅ تطبيق العامل: `worker-i18n-ar-overrides.js` (عربي كامل للوحة Work Hub والحوادث).
 
 ---
 

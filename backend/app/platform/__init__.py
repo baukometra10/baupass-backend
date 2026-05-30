@@ -89,3 +89,10 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_entra_auth_routes"],
         ).register_entra_auth_routes(flask_app),
     )
+    _step(
+        "google_sso",
+        lambda: __import__(
+            "backend.app.platform.auth.google_oidc",
+            fromlist=["register_google_auth_routes"],
+        ).register_google_auth_routes(flask_app),
+    )

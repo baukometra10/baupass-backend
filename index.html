@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531j";
+        const buildTag = "20260531k";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -156,6 +156,7 @@
         </label>
         <button type="submit" class="primary-button" data-ui-i18n="loginButton">Anmelden</button>
         <button type="button" id="entraLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="entraLoginBtn">Mit Microsoft anmelden</button>
+        <button type="button" id="googleLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="googleLoginBtn">Mit Google anmelden</button>
         <button id="loginResetPasswordButton" type="button" class="ghost-button" data-ui-i18n="loginForgotPassword">Passwort vergessen</button>
       </form>
 
@@ -368,6 +369,7 @@
               <button id="reportingEmailDatevBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailDatevBtn">DATEV-CSV per E-Mail</button>
               <button id="reportingEmailInvoicesPdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailInvoicesBtn">Rechnungen-PDF</button>
               <button id="reportingEmailEnterprisePdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailEnterpriseBtn">Enterprise-PDF</button>
+              <button id="reportingEmailIncidentsVisitsPdfBtn" type="button" class="ghost-button small-button" data-ui-i18n="reportingEmailIncidentsVisitsBtn">Havarien & Besucher-PDF</button>
             </div>
             <div id="reportingAccessDaily" class="list"></div>
             <div id="reportingGuidanceList" class="list" style="margin-top:10px;"></div>
@@ -2010,7 +2012,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531j"></script>
+  <script src="./app.js?v=20260531k"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

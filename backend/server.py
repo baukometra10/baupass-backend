@@ -17570,6 +17570,67 @@ def reporting_email_enterprise_pdf():
     )
 
 
+@app.post("/api/reporting/email-incidents-visits-pdf")
+@require_auth
+@require_roles("superadmin", "company-admin")
+def reporting_email_incidents_visits_pdf():
+    from backend.app.platform.reports.email_delivery import send_pdf_report_email
+    from backend.app.platform.reports.incidents_visits_report import build_incidents_visits_pdf
+
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    user = g.current_user
+    user_keys = user.keys() if hasattr(user, "keys") else []
+    recipient = clean_text_input(payload.get("email", user["email"] if "email" in user_keys else ""), max_len=160)
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "missing_recipient_email"}), 400
+
+    company_id = str(user.get("company_id") or payload.get("companyId") or "").strip()
+    if user["role"] != "superadmin" and not company_id:
+        return jsonify({"error": "missing_company"}), 400
+    if user["role"] == "superadmin" and payload.get("companyId"):
+        company_id = str(payload.get("companyId")).strip()
+
+    company_name = "BauPass"
+    if company_id:
+        row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+        company_name = row["name"] if row else company_name
+
+    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "BauPass"))
+    period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"baupass-incidents-visitors-{period}.pdf"
+    subject = clean_text_input(
+        payload.get("subject", f"BauPass Incidents & Visitors {period}"),
+        max_len=200,
+    )
+    body = clean_text_input(
+        payload.get(
+            "body",
+            "Anbei: PDF mit Sicherheitsvorfaellen / Incidents und aktiven Besuchern auf der Baustelle.\n\nBauPass",
+        ),
+        max_len=4000,
+    )
+    ok, err = send_pdf_report_email(
+        to=recipient,
+        subject=subject,
+        body_text=body,
+        pdf_bytes=pdf_bytes,
+        filename=filename,
+    )
+    if not ok:
+        return jsonify({"error": "email_send_failed", "detail": err}), 500
+    log_audit(
+        "reporting.incidents_visits_pdf_emailed",
+        f"Incidents/Visitors-PDF an {recipient}",
+        target_type="company",
+        target_id=company_id or None,
+        company_id=company_id or user.get("company_id"),
+        actor=user,
+    )
+    db.commit()
+    return jsonify({"ok": True, "recipient": recipient, "filename": filename})
+
+
 @app.post("/api/device/signature/capture")
 def device_signature_capture():
     """Capture compliance signature from USB pad agent or registered IoT device."""

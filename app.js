@@ -433,6 +433,9 @@ const UI_TRANSLATIONS = {
     workerTimelineMonthTotal: "Monatssumme",
     entraLoginBtn: "Mit Microsoft anmelden",
     alertEntraLoginFailed: "Microsoft-Anmeldung fehlgeschlagen: {error}",
+    googleLoginBtn: "Mit Google anmelden",
+    alertGoogleLoginFailed: "Google-Anmeldung fehlgeschlagen: {error}",
+    reportingEmailIncidentsVisitsBtn: "Havarien & Besucher-PDF",
     navDocuments: "Dokumente",
     docInboxEyebrow: "Posteingang",
     docInboxH3: "Eingehende Dokumente per Mail",
@@ -1221,6 +1224,9 @@ const UI_TRANSLATIONS = {
     loginButton: "Sign in",
     entraLoginBtn: "Sign in with Microsoft",
     alertEntraLoginFailed: "Microsoft sign-in failed: {error}",
+    googleLoginBtn: "Sign in with Google",
+    alertGoogleLoginFailed: "Google sign-in failed: {error}",
+    reportingEmailIncidentsVisitsBtn: "Incidents & visitors PDF",
     demoAccessTitle: "Demo Accounts",
     demoSuperAdmin: "Super Admin: superadmin / 1234",
     demoCompanyAdmin: "Company Admin: firma / 1234",
@@ -2872,6 +2878,9 @@ const UI_TRANSLATIONS = {
     workerTimelineMonthTotal: "إجمالي الشهر",
     entraLoginBtn: "تسجيل الدخول عبر Microsoft",
     alertEntraLoginFailed: "فشل تسجيل الدخول عبر Microsoft: {error}",
+    googleLoginBtn: "تسجيل الدخول عبر Google",
+    alertGoogleLoginFailed: "فشل تسجيل الدخول عبر Google: {error}",
+    reportingEmailIncidentsVisitsBtn: "PDF الحوادث والزوار",
     reportingEyebrow: "التقارير",
     reportingH3: "حالة الدفع والتجميد",
     decisionsEyebrow: "اليوم",
@@ -15943,7 +15952,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531j");
+    params.push("v=20260531k");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -19513,6 +19522,35 @@ function bindReportingEmailPdfButton() {
     btn.disabled = true;
     try {
       await sendReportingPdfByEmail();
+    } catch (error) {
+      showToast(uiT("alertGenericError").replace("{error}", error.message));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function bindReportingEmailIncidentsVisitsButton() {
+  const btn = document.querySelector("#reportingEmailIncidentsVisitsPdfBtn");
+  if (!btn || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      const email = window.prompt(
+        "E-Mail:",
+        String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim(),
+      );
+      if (email === null) return;
+      if (!email.includes("@")) {
+        showToast("Bitte gültige E-Mail eingeben.");
+        return;
+      }
+      await apiRequest(`${API_BASE}/api/reporting/email-incidents-visits-pdf`, {
+        method: "POST",
+        body: { email },
+      });
+      showToast(uiT("reportingEmailSentOk"));
     } catch (error) {
       showToast(uiT("alertGenericError").replace("{error}", error.message));
     } finally {
@@ -29695,18 +29733,20 @@ window.addEventListener("message", (event) => {
   }
 });
 
-async function initEntraLoginUi() {
-  const btn = document.getElementById("entraLoginBtn");
+async function initSsoLoginUi() {
   const params = new URLSearchParams(window.location.search);
-  const entraError = params.get("entra_error");
-  if (entraError) {
-    showToast(uiT("alertEntraLoginFailed").replace("{error}", entraError.replace(/_/g, " ")), "error", 7000);
+  const ssoError = params.get("entra_error") || params.get("google_error");
+  if (ssoError) {
+    const msgKey = params.get("google_error") ? "alertGoogleLoginFailed" : "alertEntraLoginFailed";
+    showToast(uiT(msgKey).replace("{error}", ssoError.replace(/_/g, " ")), "error", 7000);
     params.delete("entra_error");
+    params.delete("google_error");
     const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
     window.history.replaceState({}, "", clean);
   }
-  if (params.get("entra_ok") === "1") {
+  if (params.get("entra_ok") === "1" || params.get("google_ok") === "1") {
     params.delete("entra_ok");
+    params.delete("google_ok");
     const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
     window.history.replaceState({}, "", clean);
     try {
@@ -29716,26 +29756,43 @@ async function initEntraLoginUi() {
       // cookie/session not ready yet — bootstrap runs in main loader
     }
   }
-  if (!btn || !API_BASE) return;
+  if (!API_BASE) return;
+  const entraBtn = document.getElementById("entraLoginBtn");
+  const googleBtn = document.getElementById("googleLoginBtn");
   try {
-    const res = await fetch(`${API_BASE}/api/auth/entra/status`, { credentials: "include" });
-    if (!res.ok) return;
-    const status = await res.json();
-    if (!status?.configured) return;
-    btn.style.display = "";
-    btn.textContent = uiT("entraLoginBtn");
-    btn.addEventListener("click", () => {
-      window.location.href = `${API_BASE}/api/auth/entra/start`;
-    });
+    const [entraRes, googleRes] = await Promise.all([
+      fetch(`${API_BASE}/api/auth/entra/status`, { credentials: "include" }).catch(() => null),
+      fetch(`${API_BASE}/api/auth/google/status`, { credentials: "include" }).catch(() => null),
+    ]);
+    if (entraBtn && entraRes?.ok) {
+      const status = await entraRes.json();
+      if (status?.configured) {
+        entraBtn.style.display = "";
+        entraBtn.textContent = uiT("entraLoginBtn");
+        entraBtn.addEventListener("click", () => {
+          window.location.href = `${API_BASE}/api/auth/entra/start`;
+        });
+      }
+    }
+    if (googleBtn && googleRes?.ok) {
+      const status = await googleRes.json();
+      if (status?.configured) {
+        googleBtn.style.display = "";
+        googleBtn.textContent = uiT("googleLoginBtn");
+        googleBtn.addEventListener("click", () => {
+          window.location.href = `${API_BASE}/api/auth/google/start`;
+        });
+      }
+    }
   } catch {
-    // Entra SSO optional
+    // SSO optional
   }
 }
 
 if (elements.loginForm) {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
 }
-void initEntraLoginUi();
+void initSsoLoginUi();
 
 if (elements.authOverlay) {
   elements.authOverlay.addEventListener("click", (event) => {
