@@ -131,6 +131,13 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Smart Automation Layer",
             "titleAr": "الأتمتة الذكية",
             "items": [
+                _item(
+                    "deployment_plan",
+                    "Monthly deployment PDF",
+                    "خطة توزيع شهرية PDF",
+                    "api",
+                    apis=["GET /api/workforce/deployment-plan", "POST /api/workforce/deployment-plan/pdf"],
+                ),
                 _item("workflows", "Workflow Automation", "أتمتة سير العمل", "api", apis=["GET /api/automation/rules"]),
                 _item("auto_expiry", "Auto Expiry Alerts", "تنبيهات انتهاء", "legacy", apis=["GET /api/system/alerts"], ui="/index.html"),
                 _item("dunning", "Auto Invoice / Dunning", "تذكير الفواتير", "api", note="خلفية — Redis يحسّنها"),

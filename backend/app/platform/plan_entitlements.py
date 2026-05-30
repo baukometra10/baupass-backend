@@ -63,6 +63,8 @@ CATALOG_MIN_PLAN: dict[str, str] = {
     "worker_profiles": "tageskarte",
     "worker_documents": "starter",
     "scheduling": "professional",
+    "deployment_plan": "professional",
+    "deployment_plan_bulk": "enterprise",
     "presence_tracking": "professional",
     "workforce_reporting": "professional",
     "worker_notifications": "starter",

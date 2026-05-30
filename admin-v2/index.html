@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f4c5c" />
   <title>BauPass Admin v2</title>
-  <link rel="stylesheet" href="styles.css?v=20260531worktimes1" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <link rel="stylesheet" href="styles.css?v=20260528deploy2" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
   <div id="app">
@@ -46,46 +46,78 @@
     </section>
 
     <section id="dashboardView" class="hidden">
-      <header class="topbar">
-        <div>
-          <h1 id="brandTitle" data-i18n="app.title">BauPass Admin</h1>
-          <p id="userLine" class="muted"></p>
-        </div>
-        <div class="topbar-actions">
-          <label class="lang-row lang-row-compact">
-            <span data-i18n="lang" class="muted small">Sprache</span>
-            <select id="langSelectDash" data-lang-select>
-              <option value="de">DE</option>
-              <option value="en">EN</option>
-              <option value="ar">AR</option>
-            </select>
-          </label>
-          <label id="companyPickerWrap" class="company-picker hidden">
-            <span class="muted small" data-i18n="common.company">Firma</span>
-            <select id="companyPicker"></select>
-          </label>
-          <button id="refreshBtn" type="button" data-i18n="common.refresh">Aktualisieren</button>
-          <button id="logoutBtn" type="button" class="ghost" data-i18n="common.logout">Abmelden</button>
-        </div>
-      </header>
+      <div class="app-shell">
+        <aside class="app-sidebar" id="appSidebar" aria-label="Navigation">
+          <div class="sidebar-brand">
+            <span class="sidebar-logo" aria-hidden="true">BP</span>
+            <div>
+              <strong id="sidebarBrandTitle" data-i18n="app.title">BauPass Admin</strong>
+              <p id="sidebarUserLine" class="muted small"></p>
+            </div>
+          </div>
+          <nav class="sidebar-nav">
+            <div class="nav-group">
+              <span class="nav-group-label" data-i18n="nav.group.start">Start</span>
+              <button type="button" data-tab="overview" class="tab nav-item active" data-i18n="tab.overview">Übersicht</button>
+              <button type="button" data-tab="inbox" class="tab nav-item" id="tabInboxBtn">
+                <span data-i18n="tab.inbox">Posteingang</span>
+                <span id="inboxTabBadge" class="tab-badge hidden"></span>
+              </button>
+              <button type="button" data-tab="copilot" class="tab nav-item" data-i18n="tab.copilot">Copilot</button>
+            </div>
+            <div class="nav-group">
+              <span class="nav-group-label" data-i18n="nav.group.people">Personal</span>
+              <button type="button" data-tab="workers" class="tab nav-item" data-i18n="tab.workers">Mitarbeiter</button>
+              <button type="button" data-tab="access" class="tab nav-item" data-i18n="tab.access">Anwesenheit</button>
+              <button type="button" data-tab="mobile" class="tab nav-item" data-i18n="tab.mobile">Worker-App</button>
+            </div>
+            <div class="nav-group">
+              <span class="nav-group-label" data-i18n="nav.group.ops">Betrieb</span>
+              <button type="button" data-tab="operations" class="tab nav-item" data-i18n="tab.operations">Betrieb</button>
+              <button type="button" data-tab="tools" class="tab nav-item" data-i18n="tab.tools">Tools</button>
+              <button type="button" data-tab="platform" class="tab nav-item" data-i18n="tab.platform">Plattform</button>
+            </div>
+            <div class="nav-group">
+              <span class="nav-group-label" data-i18n="nav.group.enterprise">Enterprise</span>
+              <button type="button" data-tab="enterprise" class="tab nav-item nav-item-enterprise" data-i18n="tab.enterprise">Enterprise</button>
+            </div>
+          </nav>
+          <div class="sidebar-footer">
+            <button type="button" id="openCommandPaletteBtn" class="ghost nav-cmd-btn" data-i18n="cmd.open">Schnellsuche (Ctrl+K)</button>
+            <a href="/index.html" class="sidebar-legacy-link" data-i18n="common.legacyDashboard">Vollständiges Dashboard</a>
+          </div>
+        </aside>
 
-      <div id="platformBanner" class="platform-banner hidden"></div>
-      <div id="globalToast" class="global-toast hidden" role="status" aria-live="polite"></div>
+        <div class="app-main">
+          <header class="topbar topbar-compact">
+            <div class="topbar-title-wrap">
+              <h1 id="brandTitle" class="page-title" data-i18n="tab.overview">Übersicht</h1>
+              <p id="userLine" class="muted small"></p>
+            </div>
+            <div class="topbar-actions">
+              <button type="button" id="openCommandPaletteBtnTop" class="ghost cmd-kbd-btn" title="Ctrl+K" aria-label="Schnellsuche">⌘K</button>
+              <label class="lang-row lang-row-compact">
+                <span data-i18n="lang" class="muted small">Sprache</span>
+                <select id="langSelectDash" data-lang-select>
+                  <option value="de">DE</option>
+                  <option value="en">EN</option>
+                  <option value="ar">AR</option>
+                </select>
+              </label>
+              <label id="companyPickerWrap" class="company-picker hidden">
+                <span class="muted small" data-i18n="common.company">Firma</span>
+                <select id="companyPicker"></select>
+              </label>
+              <button id="refreshBtn" type="button" data-i18n="common.refresh">Aktualisieren</button>
+              <button id="logoutBtn" type="button" class="ghost" data-i18n="common.logout">Abmelden</button>
+            </div>
+          </header>
 
-      <nav class="tabs">
-        <button type="button" data-tab="overview" class="tab active" data-i18n="tab.overview">Übersicht</button>
-        <button type="button" data-tab="inbox" class="tab" id="tabInboxBtn"><span data-i18n="tab.inbox">Posteingang</span> <span id="inboxTabBadge" class="tab-badge hidden"></span></button>
-        <button type="button" data-tab="copilot" class="tab" data-i18n="tab.copilot">Copilot</button>
-        <button type="button" data-tab="enterprise" class="tab" style="color:#fbbf24;font-weight:700" data-i18n="tab.enterprise">Enterprise</button>
-        <button type="button" data-tab="workers" class="tab" data-i18n="tab.workers">Mitarbeiter</button>
-        <button type="button" data-tab="access" class="tab" data-i18n="tab.access">Anwesenheit</button>
-        <button type="button" data-tab="mobile" class="tab" data-i18n="tab.mobile">Worker-App</button>
-        <button type="button" data-tab="operations" class="tab" data-i18n="tab.operations">Betrieb</button>
-        <button type="button" data-tab="tools" class="tab" data-i18n="tab.tools">Tools</button>
-        <button type="button" data-tab="platform" class="tab" data-i18n="tab.platform">Plattform</button>
-      </nav>
+          <div id="platformBanner" class="platform-banner hidden"></div>
+          <div id="globalToast" class="global-toast hidden" role="status" aria-live="polite"></div>
+          <div id="overviewQuickBar" class="overview-quick-bar hidden" role="navigation" aria-label="Schnellzugriff"></div>
 
-      <main>
+          <main class="app-content">
         <div id="tab-enterprise" class="tab-panel hidden">
           <p class="muted small" data-i18n="section.enterprise.desc">Enterprise layers</p>
           <iframe id="enterpriseFrame" title="Enterprise hub" src="/enterprise-hub.html?embed=1" style="width:100%;min-height:72vh;border:1px solid var(--border);border-radius:12px;background:#0b1118"></iframe>
@@ -122,6 +154,22 @@
         </div>
         <div id="tab-workers" class="tab-panel hidden">
           <p class="muted small" data-i18n="section.workers.hint">NFC hint</p>
+          <div id="deploymentMonthBar" class="deployment-month-bar hidden">
+            <div class="deployment-month-bar-head">
+              <label>
+                <span class="muted small" data-i18n="deployment.companyMonth">Monatsplan</span>
+                <input type="month" id="deploymentCompanyMonth" />
+              </label>
+              <span id="deploymentMonthStatus" class="deployment-status-badge">—</span>
+            </div>
+            <p id="deploymentMonthHint" class="muted small" data-i18n="deployment.monthHint">Pläne werden gespeichert. Versand nur nach Ihrer Bestätigung.</p>
+            <div class="deployment-month-actions">
+              <button type="button" id="deploymentPrepareNextBtn" class="ghost" data-i18n="deployment.prepareNext">Nächsten Monat vorbereiten</button>
+              <button type="button" id="deploymentConfirmSendBtn" data-i18n="deployment.confirmSend">Versand bestätigen</button>
+              <button type="button" id="deploymentReopenMonthBtn" class="ghost hidden" data-i18n="deployment.reopenEdit">Bearbeitung freigeben</button>
+            </div>
+            <p id="deploymentMonthStats" class="muted small"></p>
+          </div>
           <div id="workersTable" class="table-wrap"></div>
         </div>
         <div id="tab-access" class="tab-panel hidden">
@@ -150,8 +198,31 @@
           <p class="muted small" data-i18n="section.platform.hint">Platform hint</p>
           <div id="platformPanel" class="stack-panel"></div>
         </div>
-      </main>
+          </main>
+        </div>
+
+        <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+          <button type="button" class="tab mobile-nav-item active" data-tab="overview" data-i18n="tab.overview">Übersicht</button>
+          <button type="button" class="tab mobile-nav-item" data-tab="inbox">
+            <span data-i18n="tab.inbox">Posteingang</span>
+            <span id="inboxMobileBadge" class="tab-badge hidden"></span>
+          </button>
+          <button type="button" class="tab mobile-nav-item" data-tab="workers" data-i18n="tab.workers">Team</button>
+          <button type="button" class="tab mobile-nav-item" data-tab="access" data-i18n="tab.access">Anw.</button>
+          <button type="button" class="tab mobile-nav-item" data-tab="operations" data-i18n="tab.operations">Betrieb</button>
+        </nav>
+      </div>
     </section>
+  </div>
+
+  <div id="commandPalette" class="command-palette hidden" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle">
+    <div class="command-palette-backdrop" data-cmd-close tabindex="-1"></div>
+    <div class="command-palette-panel" role="document">
+      <p id="commandPaletteTitle" class="command-palette-title" data-i18n="cmd.title">Schnellnavigation</p>
+      <input id="commandPaletteInput" type="search" class="command-palette-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="cmd.placeholder" />
+      <ul id="commandPaletteList" class="command-palette-list" role="listbox"></ul>
+      <p class="muted small command-palette-hint" data-i18n="cmd.hint">↑↓ auswählen · Enter öffnen · Esc schließen</p>
+    </div>
   </div>
 
   <div id="integrationModal" class="modal hidden" role="dialog" aria-modal="true">
@@ -178,6 +249,45 @@
     </div>
   </div>
 
+  <div id="deploymentConfirmModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2 data-i18n="deployment.confirmTitle">Versand bestätigen</h2>
+      <p class="muted small" data-i18n="deployment.confirmDesc">Einsatzpläne werden an alle Mitarbeiter mit ausreichend ausgefüllten Tagen gesendet (E-Mail + Push). Bitte zuvor prüfen und ggf. anpassen.</p>
+      <p id="deploymentConfirmStats" class="muted small"></p>
+      <label class="deployment-confirm-check">
+        <input type="checkbox" id="deploymentConfirmCheckbox" />
+        <span data-i18n="deployment.confirmCheck">Ich habe die Pläne geprüft und bestätige den Versand.</span>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="deploymentConfirmSubmitBtn" data-i18n="deployment.confirmSendNow">Jetzt an alle senden</button>
+        <button type="button" id="deploymentConfirmCancelBtn" class="ghost" data-i18n="common.close">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="deploymentModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card deployment-modal-card">
+      <h2 id="deploymentModalTitle" data-i18n="deployment.title">Einsatzplan</h2>
+      <p id="deploymentModalWorker" class="muted"></p>
+      <div class="deployment-toolbar">
+        <label>
+          <span class="muted small" data-i18n="deployment.month">Monat</span>
+          <input type="month" id="deploymentMonth" />
+        </label>
+        <button type="button" id="deploymentFromShifts" class="ghost" data-i18n="deployment.fromShifts">Aus Schichten</button>
+        <button type="button" id="deploymentRotation" class="ghost" data-i18n="deployment.rotation">Rotation</button>
+      </div>
+      <p class="muted small" data-i18n="deployment.hint">Pro Tag den Einsatzort eintragen — PDF für den Mitarbeiter.</p>
+      <div id="deploymentDaysList" class="deployment-days-list"></div>
+      <div class="modal-actions">
+        <button type="button" id="deploymentSaveBtn" data-i18n="common.save">Speichern</button>
+        <button type="button" id="deploymentPdfBtn" data-i18n="deployment.pdf">PDF</button>
+        <button type="button" id="deploymentSendBtn" class="ghost" data-i18n="deployment.send">An MA senden</button>
+        <button type="button" id="deploymentCloseBtn" class="ghost" data-i18n="common.close">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <h2 data-i18n="join.title">Worker app</h2>
@@ -195,8 +305,8 @@
     </div>
   </div>
 
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260531worktimes1" type="module"></script>
+  <script src="app.js?v=20260528deploy2" type="module"></script>
 </body>
 </html>

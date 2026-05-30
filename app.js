@@ -336,6 +336,10 @@ const UI_TRANSLATIONS = {
     sidebarCardTitle: "Vermietungsmodus",
     sidebarCardStrong: "Multi-Firma f\u00e4hig",
     sidebarCardDesc: "Jede Baufirma verwaltet ihr Team getrennt. Super-Admin beh\u00e4lt Systemkontrolle.",
+    navGroupDaily: "Tagesbetrieb",
+    navGroupCompliance: "Compliance & System",
+    navAdminV2: "Admin v2 — Schnellbetrieb",
+    topbarMore: "Mehr",
     navDashboard: "Dashboard",
     navWorkers: "Mitarbeiter",
     navBadge: "Ausweis",
@@ -1259,6 +1263,10 @@ const UI_TRANSLATIONS = {
     sidebarCardTitle: "Rental Mode",
     sidebarCardStrong: "Multi-Company Ready",
     sidebarCardDesc: "Each construction company manages its team separately. Super admin retains system control.",
+    navGroupDaily: "Daily operations",
+    navGroupCompliance: "Compliance & system",
+    navAdminV2: "Admin v2 — quick ops",
+    topbarMore: "More",
     navDashboard: "Dashboard",
     navWorkers: "Workers",
     navBadge: "Badge",
@@ -2845,6 +2853,10 @@ const UI_TRANSLATIONS = {
     sidebarCardTitle: "وضع التأجير",
     sidebarCardStrong: "دعم متعدد الشركات",
     sidebarCardDesc: "تدير كل شركة بناء فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+    navGroupDaily: "التشغيل اليومي",
+    navGroupCompliance: "الامتثال والنظام",
+    navAdminV2: "Admin v2 — تشغيل سريع",
+    topbarMore: "المزيد",
     navDashboard: "لوحة التحكم",
     navWorkers: "العمال",
     navBadge: "بطاقة الهوية",
@@ -17845,6 +17857,10 @@ async function loadCameraEvents() {
     list.innerHTML = "";
     return;
   }
+  if (role === "superadmin" && !superadminUiPreviewCompanyId) {
+    list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasEventsEmpty"))}</p>`;
+    return;
+  }
   try {
     let url = `${API_BASE}/api/integrations/cameras/events?limit=25`;
     if (role === "superadmin" && superadminUiPreviewCompanyId) {
@@ -20508,7 +20524,7 @@ function renderCompanyList() {
             <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;">
               <input type="text" data-company-portal-name="${escapeHtml(companyId)}" placeholder="Portal-Titel z. B. Meier Bau" maxlength="80" value="${escapeAttr(company.portalDisplayName || company.portal_display_name || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:160px;" />
               <input type="text" data-company-report-timezone="${escapeHtml(companyId)}" placeholder="${escapeAttr(uiT("reportTimezonePlaceholder"))}" maxlength="64" value="${escapeAttr(company.reportTimezone || company.report_timezone || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:140px;" title="${escapeAttr(uiT("labelReportTimezone"))}" />
-              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr((company.brandingAccentColor || company.branding_accent_color || "#c78652").match(/^#[0-9a-f]{6}$/i) ? (company.brandingAccentColor || company.branding_accent_color) : "#c78652")}" ${canDeleteAny && !deleted ? "" : "disabled"} title="Akzentfarbe" />
+              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="Akzentfarbe" />
               <label class="ghost-button small-button" style="cursor:pointer;margin:0;">
                 Logo
                 <input type="file" data-company-logo-file="${escapeHtml(companyId)}" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden ${canDeleteAny && !deleted ? "" : "disabled"} />
@@ -20605,6 +20621,13 @@ function renderCompanyList() {
 
   bindCompanyHistoryControls();
   bindCompanyRowActions();
+  elements.companyList.querySelectorAll('input[type="color"][data-company-accent-color]').forEach((input) => {
+    const companyId = String(input.getAttribute("data-company-accent-color") || "").trim();
+    const company = state.companies.find((entry) => entry.id === companyId);
+    if (company) {
+      input.value = companyAccentColorInputValue(company);
+    }
+  });
 }
 
 function filterRepairHistoryByWindow(entries) {
@@ -21463,7 +21486,7 @@ function bindCompanyRowActions() {
                 || company.operatingSector
                 || "construction",
             ).trim(),
-            brandingAccentColor: String(accentInput?.value || "").trim(),
+            brandingAccentColor: normalizeHexColor(accentInput?.value, "#c78652"),
             brandingLogoData,
             plan: company.plan,
             status: company.status,
@@ -26200,6 +26223,13 @@ function normalizeHexColor(value, fallback) {
     return candidate;
   }
   return fallback;
+}
+
+function companyAccentColorInputValue(company) {
+  return normalizeHexColor(
+    company?.brandingAccentColor || company?.branding_accent_color,
+    "#c78652",
+  );
 }
 
 function sanitizeInvoiceLogoSrc(value) {

@@ -3500,6 +3500,55 @@ def init_db():
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS company_autopilot_settings (
+            company_id TEXT PRIMARY KEY,
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL,
+            updated_by TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS worker_deployment_days (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            work_date TEXT NOT NULL,
+            location_label TEXT NOT NULL,
+            shift_start TEXT NOT NULL DEFAULT '',
+            shift_end TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'manual',
+            updated_at TEXT NOT NULL,
+            UNIQUE(company_id, worker_id, work_date)
+        )
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wdd_company_month ON worker_deployment_days(company_id, worker_id, work_date)"
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS deployment_month_batches (
+            company_id TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            month INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'draft',
+            prepared_at TEXT,
+            prepared_source TEXT,
+            confirmed_by TEXT,
+            confirmed_at TEXT,
+            sent_at TEXT,
+            last_edited_at TEXT,
+            send_summary_json TEXT NOT NULL DEFAULT '{}',
+            awaiting_confirm INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (company_id, year, month)
+        )
+        """
+    )
 
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
@@ -7057,6 +7106,16 @@ def run_daily_jobs_cycle_once():
 
         if callable(send_document_expiry_fcm_pushes):
             send_document_expiry_fcm_pushes()
+
+        autopilot_result = {"ok": False}
+        try:
+            with app.app_context():
+                from backend.app.platform.autopilot.runner import run_autopilot_cycle
+
+                autopilot_result = run_autopilot_cycle(get_db())
+        except Exception as autopilot_exc:
+            autopilot_result = {"ok": False, "error": str(autopilot_exc)}
+
         backup_result = {"ok": False}
         try:
             backup_path, backup_meta = create_sqlite_database_backup()
@@ -7071,7 +7130,12 @@ def run_daily_jobs_cycle_once():
                 )
         except Exception as backup_exc:
             backup_result = {"ok": False, "error": str(backup_exc)}
-        return {"ok": True, "monthly": monthly_result, "databaseBackup": backup_result}
+        return {
+            "ok": True,
+            "monthly": monthly_result,
+            "autopilot": autopilot_result,
+            "databaseBackup": backup_result,
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

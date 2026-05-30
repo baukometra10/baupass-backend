@@ -790,6 +790,72 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="020",
+        name="company_autopilot_settings",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS company_autopilot_settings (
+                company_id TEXT PRIMARY KEY,
+                settings_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL,
+                updated_by TEXT
+            );
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS company_autopilot_settings;
+        """,
+    ),
+
+    Migration(
+        version="021",
+        name="worker_deployment_days",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS worker_deployment_days (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                work_date TEXT NOT NULL,
+                location_label TEXT NOT NULL,
+                shift_start TEXT NOT NULL DEFAULT '',
+                shift_end TEXT NOT NULL DEFAULT '',
+                notes TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'manual',
+                updated_at TEXT NOT NULL,
+                UNIQUE(company_id, worker_id, work_date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_wdd_company_month
+                ON worker_deployment_days(company_id, worker_id, work_date);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS worker_deployment_days;
+        """,
+    ),
+
+    Migration(
+        version="022",
+        name="deployment_month_batches",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS deployment_month_batches (
+                company_id TEXT NOT NULL,
+                year INTEGER NOT NULL,
+                month INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'draft',
+                prepared_at TEXT,
+                prepared_source TEXT,
+                confirmed_by TEXT,
+                confirmed_at TEXT,
+                sent_at TEXT,
+                last_edited_at TEXT,
+                send_summary_json TEXT NOT NULL DEFAULT '{}',
+                awaiting_confirm INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (company_id, year, month)
+            );
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS deployment_month_batches;
+        """,
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""

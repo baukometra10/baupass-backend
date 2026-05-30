@@ -106,8 +106,15 @@ function showDashboard() {
   $("loginView").classList.add("hidden");
   $("dashboardView").classList.remove("hidden");
   const user = getUser();
-  $("userLine").textContent = `${user.username || ""} · ${user.role || ""}`;
+  const line = `${user.username || ""} · ${user.role || ""}`;
+  $("userLine").textContent = line;
+  const sideLine = $("sidebarUserLine");
+  if (sideLine) sideLine.textContent = line;
   setupCompanyPicker(user);
+  bindTabNavigation();
+  initCommandPalette();
+  bindDeploymentModalOnce();
+  bindDeploymentMonthBarOnce();
 }
 
 function setupCompanyPicker(user) {
@@ -230,26 +237,30 @@ function shouldRefreshOnEvent(evt) {
   return /inbox|security|leave|access|push|emergency|alert|document/i.test(t);
 }
 
-function updateInboxTabBadge(open, critical) {
-  const b = $("inboxTabBadge");
-  if (!b) return;
+function paintInboxBadge(el, open, critical) {
+  if (!el) return;
   const n = Number(open) || 0;
   const crit = Number(critical) || 0;
   if (n <= 0) {
-    b.classList.add("hidden");
-    b.classList.remove("critical");
-    b.textContent = "";
+    el.classList.add("hidden");
+    el.classList.remove("critical");
+    el.textContent = "";
     return;
   }
-  b.classList.remove("hidden");
-  const wasCritical = b.classList.contains("critical");
-  b.classList.toggle("critical", crit > 0);
-  b.textContent = crit > 0 ? `${n}!` : String(n);
+  el.classList.remove("hidden");
+  const wasCritical = el.classList.contains("critical");
+  el.classList.toggle("critical", crit > 0);
+  el.textContent = crit > 0 ? `${n}!` : String(n);
   if (crit > 0 && !wasCritical) {
-    b.classList.remove("badge-pulse-once");
-    void b.offsetWidth;
-    b.classList.add("badge-pulse-once");
+    el.classList.remove("badge-pulse-once");
+    void el.offsetWidth;
+    el.classList.add("badge-pulse-once");
   }
+}
+
+function updateInboxTabBadge(open, critical) {
+  paintInboxBadge($("inboxTabBadge"), open, critical);
+  paintInboxBadge($("inboxMobileBadge"), open, critical);
 }
 
 async function refreshInboxBadgeOnly() {
@@ -316,14 +327,188 @@ function syncEnterpriseFrame() {
   frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
 }
 
+const TAB_TITLE_KEYS = {
+  overview: "tab.overview",
+  inbox: "tab.inbox",
+  copilot: "tab.copilot",
+  enterprise: "tab.enterprise",
+  workers: "tab.workers",
+  access: "tab.access",
+  mobile: "tab.mobile",
+  operations: "tab.operations",
+  tools: "tab.tools",
+  platform: "tab.platform",
+};
+
+const COMMAND_NAV = [
+  { tab: "overview", titleKey: "tab.overview", groupKey: "nav.group.start" },
+  { tab: "inbox", titleKey: "tab.inbox", groupKey: "nav.group.start" },
+  { tab: "copilot", titleKey: "tab.copilot", groupKey: "nav.group.start" },
+  { tab: "workers", titleKey: "tab.workers", groupKey: "nav.group.people" },
+  { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
+  { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
+  { tab: "operations", titleKey: "tab.operations", groupKey: "nav.group.ops" },
+  { tab: "tools", titleKey: "tab.tools", groupKey: "nav.group.ops" },
+  { tab: "platform", titleKey: "tab.platform", groupKey: "nav.group.ops" },
+  { tab: "enterprise", titleKey: "tab.enterprise", groupKey: "nav.group.enterprise" },
+  { href: "/index.html", titleKey: "common.legacyDashboard", groupKey: "nav.group.ops" },
+  { href: "/enterprise-hub.html", titleKey: "common.enterpriseHub", groupKey: "nav.group.enterprise" },
+];
+
+let commandPaletteIndex = 0;
+let commandPaletteFiltered = [];
+
+function bindTabNavigation() {
+  document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
+    if (btn.dataset.tabNavBound === "1") return;
+    btn.dataset.tabNavBound = "1";
+    btn.addEventListener("click", () => {
+      switchToTab(btn.dataset.tab);
+      refreshActiveTab().catch((e) => alert(e.message));
+    });
+  });
+}
+
 function switchToTab(tabId) {
-  document.querySelectorAll(".tab").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tabId);
+  document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
+    const on = btn.dataset.tab === tabId;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-current", on ? "page" : "false");
   });
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("hidden", panel.id !== `tab-${tabId}`);
   });
+  const titleKey = TAB_TITLE_KEYS[tabId] || "app.title";
+  const titleEl = $("brandTitle");
+  if (titleEl) {
+    titleEl.textContent = t(titleKey);
+    titleEl.setAttribute("data-i18n", titleKey);
+  }
+  $("overviewQuickBar")?.classList.toggle("hidden", tabId !== "overview");
+  const content = document.querySelector(".app-content");
+  if (content) content.scrollTop = 0;
+  window.scrollTo(0, 0);
   if (tabId === "enterprise") syncEnterpriseFrame();
+}
+
+function renderOverviewQuickBar() {
+  const bar = $("overviewQuickBar");
+  if (!bar) return;
+  const items = [
+    { tab: "inbox", label: t("overview.quick.inbox"), icon: "📥" },
+    { tab: "workers", label: t("overview.quick.workers"), icon: "👷" },
+    { tab: "access", label: t("overview.quick.access"), icon: "✓" },
+    { tab: "copilot", label: t("overview.quick.copilot"), icon: "✦" },
+  ];
+  bar.innerHTML = items
+    .map(
+      (item) =>
+        `<button type="button" class="quick-bar-btn" data-goto-tab="${item.tab}"><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span></button>`,
+    )
+    .join("");
+  bar.querySelectorAll("[data-goto-tab]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      switchToTab(btn.getAttribute("data-goto-tab"));
+      await refreshActiveTab();
+    });
+  });
+}
+
+function openCommandPalette() {
+  const pal = $("commandPalette");
+  if (!pal) return;
+  pal.classList.remove("hidden");
+  commandPaletteIndex = 0;
+  renderCommandPaletteList(($("commandPaletteInput")?.value || "").trim());
+  const input = $("commandPaletteInput");
+  if (input) {
+    input.value = "";
+    setTimeout(() => input.focus(), 0);
+  }
+}
+
+function closeCommandPalette() {
+  $("commandPalette")?.classList.add("hidden");
+}
+
+function renderCommandPaletteList(query) {
+  const list = $("commandPaletteList");
+  if (!list) return;
+  const q = query.toLowerCase();
+  commandPaletteFiltered = COMMAND_NAV.filter((item) => {
+    const title = t(item.titleKey).toLowerCase();
+    const group = t(item.groupKey || "").toLowerCase();
+    if (!q) return true;
+    return title.includes(q) || group.includes(q) || (item.tab || "").includes(q);
+  });
+  if (commandPaletteIndex >= commandPaletteFiltered.length) {
+    commandPaletteIndex = Math.max(0, commandPaletteFiltered.length - 1);
+  }
+  list.innerHTML = commandPaletteFiltered
+    .map((item, i) => {
+      const title = t(item.titleKey);
+      const group = t(item.groupKey || "");
+      const active = i === commandPaletteIndex ? " command-item-active" : "";
+      if (item.href) {
+        return `<li><a class="command-item${active}" href="${item.href}" data-cmd-idx="${i}"><span>${title}</span><span class="muted small">${group}</span></a></li>`;
+      }
+      return `<li><button type="button" class="command-item${active}" data-cmd-tab="${item.tab}" data-cmd-idx="${i}"><span>${title}</span><span class="muted small">${group}</span></button></li>`;
+    })
+    .join("");
+  list.querySelectorAll("[data-cmd-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      switchToTab(btn.getAttribute("data-cmd-tab"));
+      closeCommandPalette();
+      refreshActiveTab().catch((e) => alert(e.message));
+    });
+  });
+}
+
+function initCommandPalette() {
+  if (initCommandPalette._done) return;
+  initCommandPalette._done = true;
+  $("openCommandPaletteBtn")?.addEventListener("click", openCommandPalette);
+  $("openCommandPaletteBtnTop")?.addEventListener("click", openCommandPalette);
+  $("commandPalette")?.querySelectorAll("[data-cmd-close]").forEach((el) => {
+    el.addEventListener("click", closeCommandPalette);
+  });
+  $("commandPaletteInput")?.addEventListener("input", (e) => {
+    commandPaletteIndex = 0;
+    renderCommandPaletteList(e.target.value.trim());
+  });
+  $("commandPaletteInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      commandPaletteIndex = Math.min(commandPaletteIndex + 1, commandPaletteFiltered.length - 1);
+      renderCommandPaletteList(e.target.value.trim());
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      commandPaletteIndex = Math.max(commandPaletteIndex - 1, 0);
+      renderCommandPaletteList(e.target.value.trim());
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const item = commandPaletteFiltered[commandPaletteIndex];
+      if (!item) return;
+      if (item.href) {
+        window.location.href = item.href;
+        return;
+      }
+      switchToTab(item.tab);
+      closeCommandPalette();
+      refreshActiveTab().catch((err) => alert(err.message));
+    } else if (e.key === "Escape") {
+      closeCommandPalette();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      if ($("dashboardView")?.classList.contains("hidden")) return;
+      openCommandPalette();
+    } else if (e.key === "Escape" && !$("commandPalette")?.classList.contains("hidden")) {
+      closeCommandPalette();
+    }
+  });
 }
 
 function renderQuickLinks() {
@@ -489,12 +674,233 @@ async function loadCompanyWorkTimesForm(companyId) {
   }
 }
 
+const AUTOPILOT_KEYS = [
+  "autoAckInfoAlerts",
+  "autoNotifyDocExpiry",
+  "autoDailySecurityScan",
+  "autoSeedAutomationRules",
+  "autoEnsureScheduledReport",
+  "autoInboxBulkDocPush",
+  "autoInboxAckLowSecurity",
+];
+
+const AUTOPILOT_LABEL_KEYS = {
+  autoAckInfoAlerts: "autopilot.ackInfo",
+  autoNotifyDocExpiry: "autopilot.docPush",
+  autoDailySecurityScan: "autopilot.security",
+  autoSeedAutomationRules: "autopilot.rules",
+  autoEnsureScheduledReport: "autopilot.report",
+  autoInboxBulkDocPush: "autopilot.inboxDoc",
+  autoInboxAckLowSecurity: "autopilot.inboxSec",
+  autoPrepareNextMonthDeployment: "autopilot.prepareNext",
+};
+
+let deploymentModalWorkerId = null;
+let deploymentMonthState = null;
+let deploymentModalDays = [];
+
+function deploymentMonthParts() {
+  const raw = $("deploymentMonth")?.value || "";
+  const [y, m] = raw.split("-").map((x) => parseInt(x, 10));
+  if (!y || !m) {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }
+  return { year: y, month: m };
+}
+
+function renderDeploymentDaysList() {
+  const host = $("deploymentDaysList");
+  if (!host) return;
+  host.innerHTML = deploymentModalDays
+    .map(
+      (d, i) => `
+      <label class="deployment-day-row${d.isWeekend ? " weekend" : ""}">
+        <span class="deployment-day-meta">${d.date.slice(8, 10)}. · ${d.weekday}</span>
+        <input type="text" data-dep-idx="${i}" value="${(d.location || "").replace(/"/g, "&quot;")}" placeholder="z.B. Berlin, Straße …" />
+      </label>`,
+    )
+    .join("");
+}
+
+async function openDeploymentModal(workerId, workerName) {
+  deploymentModalWorkerId = workerId;
+  $("deploymentModalWorker").textContent = workerName;
+  const now = new Date();
+  $("deploymentMonth").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  $("deploymentModal").classList.remove("hidden");
+  await reloadDeploymentPlan();
+}
+
+async function reloadDeploymentPlan() {
+  const q = companyQuery();
+  const { year, month } = deploymentMonthParts();
+  if (!deploymentModalWorkerId) return;
+  try {
+    const data = await api(
+      `/api/workforce/deployment-plan${q}${q ? "&" : "?"}worker_id=${encodeURIComponent(deploymentModalWorkerId)}&year=${year}&month=${month}&lang=${getLang().slice(0, 2)}`,
+    );
+    deploymentModalDays = data.days || [];
+    if (!data.capabilities?.pdf) {
+      $("deploymentPdfBtn")?.setAttribute("title", t("deployment.needPro"));
+    }
+    const mb = data.monthBatch || {};
+    const sendHint =
+      mb.status === "sent" && !mb.awaitingConfirm
+        ? ` (${t("deployment.statusSent")})`
+        : ` (${t("deployment.statusAwaiting")})`;
+    $("deploymentSendBtn")?.setAttribute("title", t("deployment.monthHint") + sendHint);
+    renderDeploymentDaysList();
+  } catch (e) {
+    deploymentModalDays = [];
+    renderDeploymentDaysList();
+    showActionToast(e.message, true);
+  }
+}
+
+async function saveDeploymentPlan() {
+  const q = companyQuery();
+  const { year, month } = deploymentMonthParts();
+  $("deploymentDaysList").querySelectorAll("input[data-dep-idx]").forEach((inp) => {
+    const i = parseInt(inp.getAttribute("data-dep-idx"), 10);
+    if (deploymentModalDays[i]) deploymentModalDays[i].location = inp.value.trim();
+  });
+  const days = deploymentModalDays.map((d) => ({
+    date: d.date,
+    location: d.location,
+    notes: d.notes || "",
+    shiftStart: d.shiftStart,
+    shiftEnd: d.shiftEnd,
+  }));
+  await api(`/api/workforce/deployment-plan${q}`, {
+    method: "PUT",
+    body: JSON.stringify({ workerId: deploymentModalWorkerId, year, month, days }),
+  });
+  showActionToast(t("deployment.saved"), false);
+  await loadDeploymentMonthBar().catch(() => {});
+}
+
+async function downloadDeploymentPdf() {
+  const q = companyQuery();
+  const { year, month } = deploymentMonthParts();
+  await saveDeploymentPlan();
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(`/api/workforce/deployment-plan/pdf${q}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      workerId: deploymentModalWorkerId,
+      year,
+      month,
+      lang: getLang().slice(0, 2),
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error || res.statusText);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `einsatzplan-${deploymentModalWorkerId}-${year}-${month}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function bindDeploymentModalOnce() {
+  if (bindDeploymentModalOnce._done) return;
+  bindDeploymentModalOnce._done = true;
+  $("deploymentMonth")?.addEventListener("change", () => reloadDeploymentPlan().catch((e) => showActionToast(e.message, true)));
+  $("deploymentCloseBtn")?.addEventListener("click", () => $("deploymentModal").classList.add("hidden"));
+  $("deploymentModal")?.addEventListener("click", (e) => {
+    if (e.target?.id === "deploymentModal") $("deploymentModal").classList.add("hidden");
+  });
+  $("deploymentSaveBtn")?.addEventListener("click", () => saveDeploymentPlan().catch((e) => showActionToast(e.message, true)));
+  $("deploymentPdfBtn")?.addEventListener("click", () => downloadDeploymentPdf().catch((e) => showActionToast(e.message, true)));
+  $("deploymentSendBtn")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    const { year, month } = deploymentMonthParts();
+    await saveDeploymentPlan();
+    const res = await api(`/api/workforce/deployment-plan/distribute${q}`, {
+      method: "POST",
+      body: JSON.stringify({ workerId: deploymentModalWorkerId, year, month, lang: getLang().slice(0, 2) }),
+    });
+    showActionToast(res.ok ? t("deployment.send") + " ✓" : res.emailError || t("common.error"), !res.ok);
+  });
+  $("deploymentFromShifts")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    const { year, month } = deploymentMonthParts();
+    await api(`/api/workforce/deployment-plan/from-shifts${q}`, {
+      method: "POST",
+      body: JSON.stringify({ workerId: deploymentModalWorkerId, year, month }),
+    });
+    await reloadDeploymentPlan();
+    showActionToast(t("deployment.fromShifts") + " ✓", false);
+  });
+  $("deploymentRotation")?.addEventListener("click", async () => {
+    const raw = prompt(
+      "Orte (kommagetrennt), z.B.\nBerlin Mitte, Alexanderplatz, Potsdam",
+      "Berlin Mitte, Alexanderplatz, Potsdam",
+    );
+    if (!raw) return;
+    const locations = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const q = companyQuery();
+    const { year, month } = deploymentMonthParts();
+    await api(`/api/workforce/deployment-plan/rotation${q}`, {
+      method: "POST",
+      body: JSON.stringify({ workerId: deploymentModalWorkerId, year, month, locations, skipWeekends: true }),
+    });
+    await reloadDeploymentPlan();
+    showActionToast(t("deployment.rotation") + " ✓", false);
+  });
+}
+
+function bindAutopilotPanel(host, settings) {
+  if (!host) return;
+  AUTOPILOT_KEYS.forEach((key) => {
+    const el = host.querySelector(`[data-autopilot-key="${key}"]`);
+    if (el) el.checked = !!settings[key];
+  });
+  host.querySelector("#autopilotSaveBtn")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    const patch = {};
+    AUTOPILOT_KEYS.forEach((key) => {
+      const el = host.querySelector(`[data-autopilot-key="${key}"]`);
+      if (el) patch[key] = !!el.checked;
+    });
+    try {
+      await api(`/api/platform/autopilot/settings${q}`, {
+        method: "PATCH",
+        body: JSON.stringify({ settings: patch }),
+      });
+      showActionToast(t("autopilot.saved"), false);
+    } catch (e) {
+      showActionToast(e.message, true);
+    }
+  });
+  host.querySelector("#autopilotRunBtn")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    try {
+      const res = await api(`/api/platform/autopilot/run${q}`, { method: "POST", body: "{}" });
+      const tot = res.totals || res;
+      const msg = `${t("autopilot.ran")} ${JSON.stringify(tot).slice(0, 120)}`;
+      showActionToast(msg, false);
+    } catch (e) {
+      showActionToast(e.message, true);
+    }
+  });
+}
+
 async function loadPlatform() {
   const panel = $("platformPanel");
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   const cid = activeCompanyId();
   try {
-    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist] = await Promise.all([
+    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist, autopilot] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
@@ -504,7 +910,18 @@ async function loadPlatform() {
       fetch("/api/platform/setup-status").then((r) => r.json()).catch(() => null),
       api("/api/platform/push/status").catch(() => null),
       api("/api/v2/mobile/distribution").catch(() => null),
+      cid
+        ? api(`/api/platform/autopilot/settings${companyQuery()}`).catch(() => ({ settings: {} }))
+        : Promise.resolve({ settings: {} }),
     ]);
+    const ap = autopilot?.settings || {};
+    const autopilotToggles = AUTOPILOT_KEYS.map(
+      (key) => `
+        <label class="autopilot-toggle">
+          <input type="checkbox" data-autopilot-key="${key}" ${ap[key] !== false ? "checked" : ""} />
+          <span>${t(AUTOPILOT_LABEL_KEYS[key])}</span>
+        </label>`,
+    ).join("");
     const setupLines = (setup?.readyScore?.missing || [])
       .map((m) => `<li class="miss">○ ${m}</li>`)
       .join("");
@@ -520,6 +937,19 @@ async function loadPlatform() {
       .join("");
     panel.innerHTML = `
       <div class="panel-block" id="workTimesPanel"></div>
+      ${
+        cid
+          ? `<div class="panel-block autopilot-panel" id="autopilotPanel">
+        <h3>${t("autopilot.title")}</h3>
+        <p class="muted small">${t("autopilot.desc")}</p>
+        <div class="autopilot-toggles">${autopilotToggles}</div>
+        <div class="autopilot-actions">
+          <button type="button" id="autopilotSaveBtn">${t("common.save")}</button>
+          <button type="button" class="ghost" id="autopilotRunBtn">${t("autopilot.runNow")}</button>
+        </div>
+      </div>`
+          : `<p class="muted small panel-block">${t("common.selectCompany")}</p>`
+      }
       <div class="panel-block">${setupOk}</div>
       <div class="panel-block">
         <h3>${t("platform.globalMaturity")} <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
@@ -581,6 +1011,7 @@ async function loadPlatform() {
       </div>
     `;
     await loadCompanyWorkTimesForm(cid);
+    bindAutopilotPanel($("autopilotPanel"), ap);
     panel.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
       switchToTab("mobile");
       refreshActiveTab();
@@ -1372,6 +1803,8 @@ async function loadInbox() {
 }
 
 async function loadOverview() {
+  renderOverviewQuickBar();
+  $("overviewQuickBar")?.classList.remove("hidden");
   renderQuickLinks();
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
@@ -1535,12 +1968,139 @@ async function assignNfc(workerId, inputEl) {
   await loadWorkers();
 }
 
+function companyDeploymentMonthParts() {
+  const raw = $("deploymentCompanyMonth")?.value || "";
+  const [y, m] = raw.split("-").map((x) => parseInt(x, 10));
+  if (!y || !m) {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }
+  return { year: y, month: m };
+}
+
+function renderDeploymentMonthStatus(batch) {
+  const el = $("deploymentMonthStatus");
+  if (!el) return;
+  const st = batch?.status || "draft";
+  const awaiting = batch?.awaitingConfirm;
+  let label = t("deployment.statusDraft");
+  let cls = "deployment-status-badge draft";
+  if (st === "sent" && !awaiting) {
+    label = t("deployment.statusSent");
+    cls = "deployment-status-badge sent";
+  } else if (awaiting || st === "draft") {
+    label = t("deployment.statusAwaiting");
+    cls = "deployment-status-badge awaiting";
+  }
+  el.textContent = label;
+  el.className = cls;
+  $("deploymentReopenMonthBtn")?.classList.toggle("hidden", st !== "sent" || awaiting);
+  $("deploymentConfirmSendBtn")?.classList.toggle("hidden", st === "sent" && !awaiting);
+}
+
+async function loadDeploymentMonthBar() {
+  const bar = $("deploymentMonthBar");
+  const q = companyQuery();
+  if (!bar) return;
+  if (getUser().role === "superadmin" && !q) {
+    bar.classList.add("hidden");
+    return;
+  }
+  bar.classList.remove("hidden");
+  const now = new Date();
+  if (!$("deploymentCompanyMonth").value) {
+    $("deploymentCompanyMonth").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const { year, month } = companyDeploymentMonthParts();
+  try {
+    deploymentMonthState = await api(
+      `/api/workforce/deployment-month${q}${q ? "&" : "?"}year=${year}&month=${month}`,
+    );
+    renderDeploymentMonthStatus(deploymentMonthState.batch);
+    const ready = deploymentMonthState.readyCount ?? 0;
+    const total = deploymentMonthState.totalWorkers ?? 0;
+    $("deploymentMonthStats").textContent = `${ready}/${total} ${t("deployment.confirmSend").toLowerCase()}`;
+  } catch (e) {
+    deploymentMonthState = null;
+    $("deploymentMonthStats").textContent = e.message;
+  }
+}
+
+function bindDeploymentMonthBarOnce() {
+  if (bindDeploymentMonthBarOnce._done) return;
+  bindDeploymentMonthBarOnce._done = true;
+  $("deploymentCompanyMonth")?.addEventListener("change", () =>
+    loadDeploymentMonthBar().catch((e) => showActionToast(e.message, true)),
+  );
+  $("deploymentPrepareNextBtn")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    const res = await api(`/api/workforce/deployment-month/prepare-next${q}`, {
+      method: "POST",
+      body: JSON.stringify({ useAutopilotLogic: true }),
+    });
+    showActionToast(t("deployment.preparedOk"), false);
+    await loadDeploymentMonthBar();
+    if (res.year && res.month) {
+      $("deploymentCompanyMonth").value = `${res.year}-${String(res.month).padStart(2, "0")}`;
+      await loadDeploymentMonthBar();
+    }
+  });
+  $("deploymentReopenMonthBtn")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    const { year, month } = companyDeploymentMonthParts();
+    await api(`/api/workforce/deployment-month/reopen${q}`, {
+      method: "POST",
+      body: JSON.stringify({ year, month }),
+    });
+    await loadDeploymentMonthBar();
+    showActionToast(t("deployment.reopenEdit") + " ✓", false);
+  });
+  $("deploymentConfirmSendBtn")?.addEventListener("click", () => {
+    const ready = deploymentMonthState?.readyCount ?? 0;
+    $("deploymentConfirmStats").textContent = `${ready} ${t("deployment.confirmSendNow")}`;
+    $("deploymentConfirmCheckbox").checked = false;
+    $("deploymentConfirmModal").classList.remove("hidden");
+  });
+  $("deploymentConfirmCancelBtn")?.addEventListener("click", () =>
+    $("deploymentConfirmModal").classList.add("hidden"),
+  );
+  $("deploymentConfirmModal")?.addEventListener("click", (e) => {
+    if (e.target?.id === "deploymentConfirmModal") $("deploymentConfirmModal").classList.add("hidden");
+  });
+  $("deploymentConfirmSubmitBtn")?.addEventListener("click", async () => {
+    if (!$("deploymentConfirmCheckbox").checked) {
+      showActionToast(t("deployment.confirmCheck"), true);
+      return;
+    }
+    const q = companyQuery();
+    const { year, month } = companyDeploymentMonthParts();
+    const res = await api(`/api/workforce/deployment-month/confirm-send${q}`, {
+      method: "POST",
+      body: JSON.stringify({
+        year,
+        month,
+        confirmSend: true,
+        lang: getLang().slice(0, 2),
+      }),
+    });
+    $("deploymentConfirmModal").classList.add("hidden");
+    if (!res.ok) {
+      showActionToast(res.error || t("common.error"), true);
+      return;
+    }
+    showActionToast(`${t("deployment.sentOk")} (${res.sent})`, false);
+    await loadDeploymentMonthBar();
+  });
+}
+
 async function loadWorkers() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
     $("workersTable").innerHTML = `<p class="muted" style="padding:1rem">${t("common.selectCompany")}</p>`;
+    $("deploymentMonthBar")?.classList.add("hidden");
     return;
   }
+  await loadDeploymentMonthBar();
   const data = await api(`/api/v2/workers${q}`);
   const rows = data.workers || [];
   const container = $("workersTable");
@@ -1570,6 +2130,8 @@ async function loadWorkers() {
           <button type="button" class="btn-link" data-save-nfc="${id}">${t("common.save")}</button>
         </td>
         <td>
+          <button type="button" class="btn-link" data-deployment-plan="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("deployment.planBtn")}</button>
+          ·
           <button type="button" class="btn-link" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.joinQr")}</button>
         </td>
       </tr>`;
@@ -1588,6 +2150,13 @@ async function loadWorkers() {
       const wid = btn.getAttribute("data-join-app");
       const wname = btn.getAttribute("data-worker-name") || wid;
       showWorkerJoin(wid, wname).catch((e) => alert(e.message || e));
+    });
+  });
+  container.querySelectorAll("[data-deployment-plan]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const wid = btn.getAttribute("data-deployment-plan");
+      const wname = btn.getAttribute("data-worker-name") || wid;
+      openDeploymentModal(wid, wname).catch((e) => showActionToast(e.message, true));
     });
   });
 }
@@ -1770,15 +2339,7 @@ $("logoutBtn").addEventListener("click", async () => {
 
 $("refreshBtn").addEventListener("click", () => refreshActiveTab().catch((e) => alert(e.message)));
 
-document.querySelectorAll(".tab").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    btn.classList.add("active");
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
-    $(`tab-${btn.dataset.tab}`).classList.remove("hidden");
-    refreshActiveTab().catch((e) => alert(e.message));
-  });
-});
+bindTabNavigation();
 
 $("integrationWizardForm")?.addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -1826,9 +2387,17 @@ function bindLangSelect(sel) {
 bindLangSelect($("langSelect"));
 bindLangSelect($("langSelectDash"));
 window.addEventListener("baupass-admin-lang", () => {
-  if (!$("dashboardView").classList.contains("hidden")) {
-    refreshActiveTab().catch(() => {});
+  if ($("dashboardView").classList.contains("hidden")) return;
+  const tab = document.querySelector(".tab.active")?.dataset?.tab;
+  if (tab && TAB_TITLE_KEYS[tab]) {
+    const titleEl = $("brandTitle");
+    if (titleEl) {
+      titleEl.textContent = t(TAB_TITLE_KEYS[tab]);
+      titleEl.setAttribute("data-i18n", TAB_TITLE_KEYS[tab]);
+    }
   }
+  if (tab === "overview") renderOverviewQuickBar();
+  refreshActiveTab().catch(() => {});
 });
 applyI18n();
 

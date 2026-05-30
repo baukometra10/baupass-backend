@@ -176,7 +176,7 @@ def register_enterprise_layers(flask_app) -> None:
     def list_camera_events():
         cid = _cid()
         if not cid:
-            return jsonify({"error": "company_id_required"}), 400
+            return jsonify({"events": [], "hint": "company_id_required"})
         limit = min(100, max(1, int(request.args.get("limit", "30"))))
         rows = get_db().execute(
             """

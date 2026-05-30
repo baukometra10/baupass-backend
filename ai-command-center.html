@@ -215,7 +215,7 @@
     </aside>
   </div>
 
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260529f"></script>
   <script src="/ai-voice-ui.js?v=20260530b"></script>
@@ -779,6 +779,10 @@
     };
 
     async function runAnalysis(topic) {
+      if (!selectedCompanyId && currentRole === "superadmin") {
+        appendMsg("bot", t("needCompany"));
+        return;
+      }
       appendMsg("user", `[${topic}]`);
       const thinking = document.createElement("div");
       thinking.className = "msg-bot";

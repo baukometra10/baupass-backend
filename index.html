@@ -51,7 +51,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=20260531a" />
+    <link rel="stylesheet" href="./styles.css?v=20260527ux1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -222,23 +222,27 @@
         <h1 data-ui-i18n="appTitle">Control Pass</h1>
         <p class="sidebar-copy" data-ui-i18n="sidebarCopy">Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.</p>
       </div>
-      <nav class="nav">
+      <nav class="nav" aria-label="Hauptnavigation">
+        <p class="nav-section-label" data-ui-i18n="navGroupDaily">Tagesbetrieb</p>
         <button class="nav-link active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
         <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
         <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
-        <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
+        <p class="nav-section-label" data-ui-i18n="navGroupCompliance">Compliance &amp; System</p>
         <button class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
+        <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
         <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Enterprise"></div>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
         <button class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
+        <a class="nav-link nav-link-external" href="/admin-v2/" data-ui-i18n="navAdminV2">Admin v2 (schnell)</a>
       </nav>
       <div class="sidebar-card">
         <p class="sidebar-card-label" data-ui-i18n="sidebarCardTitle">Vermietungsmodus</p>
         <strong data-ui-i18n="sidebarCardStrong">Multi-Firma fähig</strong>
         <span data-ui-i18n="sidebarCardDesc">Jede Baufirma verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.</span>
       </div>
+      <a class="sidebar-admin-v2-link" href="/admin-v2/" data-ui-i18n="navAdminV2">Admin v2 — Schnellbetrieb</a>
     </aside>
 
     <main class="content">
@@ -250,9 +254,14 @@
         <div class="topbar-actions">
           <span id="topbarSupportReadOnlyBadge" class="support-readonly-badge hidden" aria-live="polite" aria-hidden="true"></span>
           <button id="systemThemeToggleButton" class="ghost-button" type="button" title="Aktuell Weiß. Klicken für Dunkel.">Fensterfarbe: Weiß</button>
-          <button id="seedDataButton" class="ghost-button" data-ui-i18n="btnSeedData">Demo-Daten einspielen</button>
-          <button id="exportButton" class="primary-button" data-ui-i18n="btnExport">System exportieren</button>
-          <button id="importButton" class="ghost-button" data-ui-i18n="btnImport">System importieren</button>
+          <details class="topbar-more-menu">
+            <summary class="ghost-button" data-ui-i18n="topbarMore">Mehr</summary>
+            <div class="topbar-more-panel" role="group">
+              <button id="seedDataButton" class="ghost-button" type="button" data-ui-i18n="btnSeedData">Demo-Daten einspielen</button>
+              <button id="exportButton" class="primary-button" type="button" data-ui-i18n="btnExport">System exportieren</button>
+              <button id="importButton" class="ghost-button" type="button" data-ui-i18n="btnImport">System importieren</button>
+            </div>
+          </details>
           <button id="logoutButton" class="ghost-button" data-ui-i18n="btnLogout">Sicher abmelden</button>
         </div>
       </header>
@@ -276,11 +285,19 @@
       <section class="view active view-dashboard" data-view="dashboard">
         <div class="dashboard-stack">
         <div id="sessionCard" class="session-card"></div>
+        <nav class="dashboard-quick-nav" aria-label="Schnellzugriff">
+          <button type="button" class="quick-nav-tile nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="leave" data-ui-i18n="navLeave">Urlaub</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
+          <a class="quick-nav-tile quick-nav-tile-accent" href="/admin-v2/" data-ui-i18n="navAdminV2">Admin v2</a>
+        </nav>
         <div class="hero-panel">
           <div>
             <p class="eyebrow" data-ui-i18n="dashEyebrow">Enterprise Control Pass</p>
             <h3 data-ui-i18n="dashHeading">Digitale Ausweise mit Foto, Badge-ID und Check-in am Drehkreuz</h3>
-            <p data-ui-i18n="dashSubtext">Der Prototyp ist bereits für Vermietung an Baufirmen gedacht: Firmenverwaltung, Mitarbeiter-Stammdaten, lokale Zutrittslogs, Export und Systemkonfiguration.</p>
+            <p data-ui-i18n="dashSubtext">Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfähig für Behörden und Unternehmen.</p>
           </div>
           <div class="hero-badges">
             <span data-ui-i18n="dashBadge1">Fotoaufnahme</span>
@@ -1981,6 +1998,13 @@
         <div id="dashboardWorkerDetail" class="dashboard-worker-detail"></div>
       </div>
     </main>
+    <nav class="mobile-shell-nav" aria-label="Mobile navigation">
+      <button type="button" class="nav-link mobile-shell-nav-item" data-view="dashboard" data-ui-i18n="navDashboard">Home</button>
+      <button type="button" class="nav-link mobile-shell-nav-item" data-view="workers" data-ui-i18n="navWorkers">Team</button>
+      <button type="button" class="nav-link mobile-shell-nav-item" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
+      <button type="button" class="nav-link mobile-shell-nav-item" data-view="documents" data-ui-i18n="navDocuments">Docs</button>
+      <button type="button" class="nav-link mobile-shell-nav-item" data-view="invoices" data-ui-i18n="navInvoices">Rechn.</button>
+    </nav>
   </div>
 
   <div id="accessFeedbackOverlay" class="access-feedback-overlay hidden" aria-live="polite">
@@ -2024,7 +2048,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531m"></script>
+  <script src="./app.js?v=20260527ux1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -10,12 +10,26 @@ def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _sla_meta(created_at: str, severity: str) -> dict[str, Any]:
+def _coerce_iso_timestamp(value: Any) -> str:
+    """Normalize DB timestamps (TEXT or datetime) for parsing and sorting."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        dt = value
+        if dt.tzinfo is None:
+            return dt.replace(microsecond=0).isoformat() + "Z"
+        return dt.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat() + "Z"
+    return str(value).strip()
+
+
+def _sla_meta(created_at: Any, severity: str) -> dict[str, Any]:
     sla_hours = {"critical": 4, "high": 24, "medium": 48}.get((severity or "").lower(), 72)
     try:
-        raw = (created_at or "").replace("Z", "+00:00")
+        raw = _coerce_iso_timestamp(created_at).replace("Z", "+00:00")
         created = datetime.fromisoformat(raw)
-    except ValueError:
+        if created.tzinfo is not None:
+            created = created.astimezone(timezone.utc).replace(tzinfo=None)
+    except (ValueError, TypeError, AttributeError):
         created = datetime.utcnow()
     due = created + timedelta(hours=sla_hours)
     now = datetime.utcnow()
@@ -31,7 +45,7 @@ def _sla_meta(created_at: str, severity: str) -> dict[str, Any]:
 def _item_with_sla(item: dict[str, Any]) -> dict[str, Any]:
     if item.get("status") != "open":
         return item
-    meta = _sla_meta(str(item.get("createdAt") or ""), str(item.get("severity") or "medium"))
+    meta = _sla_meta(item.get("createdAt"), str(item.get("severity") or "medium"))
     item.update(meta)
     return item
 
@@ -76,7 +90,7 @@ def build_operations_inbox(
                     "message": r["title"] or "",
                     "companyId": row_cid,
                     "workerId": r["worker_id"],
-                    "createdAt": r["created_at"],
+                    "createdAt": _coerce_iso_timestamp(r["created_at"]),
                     "status": "open",
                     "actions": [
                         {"type": "resolve", "action": "resolve_security_alert", "params": {"alert_id": r["id"]}},
@@ -129,7 +143,7 @@ def build_operations_inbox(
                     "title": r["code"] or "system",
                     "message": r["message"] or "",
                     "companyId": cid or None,
-                    "createdAt": r["created_at"],
+                    "createdAt": _coerce_iso_timestamp(r["created_at"]),
                     "status": "resolved" if r["resolved_at"] else "open",
                     "actions": [
                         {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
@@ -171,7 +185,9 @@ def build_operations_inbox(
                         "message": f"{name}: {r['doc_type']} bis {r['expiry_date']}",
                         "companyId": cid,
                         "workerId": r["worker_id"],
-                        "createdAt": r["created_at"] or r["expiry_date"] or _now_iso(),
+                        "createdAt": _coerce_iso_timestamp(r["created_at"])
+                        or _coerce_iso_timestamp(r["expiry_date"])
+                        or _now_iso(),
                         "status": "open",
                         "actions": [
                             {
@@ -218,7 +234,7 @@ def build_operations_inbox(
                         "message": f"{name}: {r['type']} {r['start_date']} – {r['end_date']}",
                         "companyId": cid,
                         "workerId": r["worker_id"],
-                        "createdAt": r["created_at"] or _now_iso(),
+                        "createdAt": _coerce_iso_timestamp(r["created_at"]) or _now_iso(),
                         "status": "open",
                         "actions": [
                             {
@@ -245,7 +261,7 @@ def build_operations_inbox(
         key=lambda x: (
             _severity_rank(x.get("severity", "low")),
             0 if x.get("slaStatus") == "overdue" else 1 if x.get("slaStatus") == "due_soon" else 2,
-            x.get("createdAt") or "",
+            _coerce_iso_timestamp(x.get("createdAt")),
         )
     )
 
