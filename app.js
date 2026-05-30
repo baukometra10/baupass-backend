@@ -19299,7 +19299,7 @@ async function sendReportingEnterprisePdfByEmail() {
   const user = getCurrentUser();
   const body = { email, attachDatevCsv: true };
   if (user?.role === "superadmin") {
-    const previewId = String(state.superadminPreviewCompanyId || "").trim();
+    const previewId = String(superadminUiPreviewCompanyId || "").trim();
     if (previewId) body.companyId = previewId;
   }
   const result = await apiRequest(`${API_BASE}/api/reporting/email-enterprise-pdf`, { method: "POST", body });
