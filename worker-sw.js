@@ -131,13 +131,18 @@ self.addEventListener("push", (event) => {
     data = { title: "BauPass", body: event.data ? event.data.text() : "" };
   }
   const title = data.title || "BauPass";
+  const tag = data.tag || "baupass-notification";
+  let defaultUrl = data.url || "/worker-install.html?launch=1";
+  if (tag === "deployment-plan") {
+    defaultUrl = "/emp-app.html#einsatzplan";
+  }
   const options = {
     body: data.body || "",
-    tag: data.tag || "baupass-notification",
+    tag,
     icon: "/worker-icon-192-20260511f.png",
     badge: "/worker-icon-192-20260511f.png",
     vibrate: [200, 100, 200],
-    data: { url: data.url || "/worker-install.html?launch=1" },
+    data: { url: defaultUrl },
     actions: data.actions || []
   };
   event.waitUntil(self.registration.showNotification(title, options));

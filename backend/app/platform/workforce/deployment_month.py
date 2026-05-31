@@ -355,6 +355,22 @@ def send_worker_plan(
             pdf_bytes=pdf_bytes,
             filename=f"einsatzplan-{year}-{month:02d}.pdf",
         )
+    document_id = None
+    try:
+        from .deployment_worker import persist_worker_deployment_pdf
+
+        document_id = persist_worker_deployment_pdf(
+            db,
+            company_id=str(company_id),
+            worker_id=str(worker_id),
+            year=year,
+            month=month,
+            pdf_bytes=pdf_bytes,
+            lang=lang,
+        )
+    except Exception:
+        pass
+
     push_sent = 0
     try:
         from backend.app.platform.push.automation import push_to_worker
@@ -371,11 +387,13 @@ def send_worker_plan(
     except Exception:
         pass
     return {
-        "ok": ok or push_sent > 0,
+        "ok": ok or push_sent > 0 or bool(document_id),
         "workerId": worker_id,
         "email": to_email or None,
+        "emailSent": ok,
         "emailError": err,
         "pushSent": push_sent,
+        "documentId": document_id,
     }
 
 

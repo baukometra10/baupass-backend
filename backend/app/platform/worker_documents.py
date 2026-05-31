@@ -57,6 +57,11 @@ DOC_TYPE_LABELS: dict[str, dict[str, str]] = {
         "en": "Other",
         "ar": "أخرى",
     },
+    "einsatzplan": {
+        "de": "Einsatzplan",
+        "en": "Deployment plan",
+        "ar": "خطة التوزيع",
+    },
 }
 
 
@@ -80,7 +85,12 @@ def doc_type_label(doc_type: str, lang: str = "de") -> str:
 
 
 def doc_category(doc_type: str) -> str:
-    return "payroll" if normalize_doc_type(doc_type) in WORKER_PAYROLL_DOC_TYPES else "compliance"
+    key = normalize_doc_type(doc_type)
+    if key in WORKER_PAYROLL_DOC_TYPES:
+        return "payroll"
+    if key == "einsatzplan":
+        return "schedule"
+    return "compliance"
 
 
 def is_payroll_doc_type(doc_type: str) -> bool:

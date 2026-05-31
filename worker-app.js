@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260531b";
+const WORKER_BUILD_TAG = "20260601a";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -591,6 +591,8 @@ function renderNotificationCenterList(items) {
       if (action === "documents") {
         switchToTab("documents");
         void loadMyDocuments();
+      } else if (action === "deployment-plan" || action === "deployment_plan" || action === "einsatzplan") {
+        void openWorkerDeploymentPlanScreen();
       }
       void refreshWorkerNotificationCenter({ silent: true });
     });
@@ -1099,6 +1101,12 @@ const elements = {
   companyModeFeatureList: document.querySelector("#companyModeFeatureList"),
   documentsCard: document.querySelector("#documentsCard"),
   documentsList: document.querySelector("#documentsList"),
+  deploymentPlanCard: document.querySelector("#deploymentPlanCard"),
+  deploymentPlanList: document.querySelector("#deploymentPlanList"),
+  deploymentPlanMonthSelect: document.querySelector("#deploymentPlanMonthSelect"),
+  deploymentPlanMeta: document.querySelector("#deploymentPlanMeta"),
+  deploymentPlanPdfBtn: document.querySelector("#deploymentPlanPdfBtn"),
+  deploymentPlanPrintBtn: document.querySelector("#deploymentPlanPrintBtn"),
   workerAiCard: document.querySelector("#workerAiCard"),
   workerAiLog: document.querySelector("#workerAiLog"),
   workerAiForm: document.querySelector("#workerAiForm"),
@@ -1417,6 +1425,7 @@ function showOnlyWorkerFeaturePanel(panelId) {
     "leaveRequestCard",
     "timesheetCard",
     "documentsCard",
+    "deploymentPlanCard",
     "incidentCard",
     "notificationBanner",
   ];
@@ -1478,6 +1487,7 @@ function getWorkerPageTitle(targetId) {
   if (targetId === "incidentCard") return t("incidentTitle");
   if (targetId === "timesheetCard") return t("timesheetCardTitle");
   if (targetId === "documentsCard") return t("documentsTitle");
+  if (targetId === "deploymentPlanCard") return t("deploymentPlanTitle");
   return t("workerPageDefault");
 }
 
@@ -1493,6 +1503,7 @@ function getWorkerPageSections() {
     elements.incidentCard,
     elements.timesheetCard,
     elements.documentsCard,
+    elements.deploymentPlanCard,
   ].filter(Boolean);
 }
 
@@ -1977,12 +1988,32 @@ function bindEvents() {
       btn.addEventListener("click", () => {
         const targetId = btn.getAttribute("data-worker-page-target") || "";
         if (!targetId) return;
+        if (targetId === "deploymentPlanCard") {
+          void openWorkerDeploymentPlanScreen();
+          return;
+        }
         applyWorkerPageView(targetId);
         const target = document.getElementById(targetId);
         if (target) {
           target.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
+    });
+  }
+
+  if (elements.deploymentPlanMonthSelect) {
+    elements.deploymentPlanMonthSelect.addEventListener("change", () => {
+      void loadDeploymentPlan();
+    });
+  }
+  if (elements.deploymentPlanPdfBtn) {
+    elements.deploymentPlanPdfBtn.addEventListener("click", () => {
+      void openDeploymentPlanPdf(false);
+    });
+  }
+  if (elements.deploymentPlanPrintBtn) {
+    elements.deploymentPlanPrintBtn.addEventListener("click", () => {
+      void openDeploymentPlanPdf(true);
     });
   }
 
@@ -3090,6 +3121,7 @@ function renderWorker(payload) {
   // Plan-Feature-Gates
   const planFeatures = payload.planFeatures || {};
   applyWorkerPlanNavState(planFeatures);
+  applyWorkerDeploymentMenuState(planFeatures);
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
   // Show voice control for workers. If API is unavailable, fallback input is used.
@@ -3173,7 +3205,12 @@ function renderWorker(payload) {
   if (isWorkerCardInstallEntry()) {
     document.body.classList.add("worker-card-install");
   }
-  switchToTab("home");
+  const launchHash = (window.location.hash || "").toLowerCase();
+  if (!isVisitor && (launchHash === "#einsatzplan" || launchHash === "#deployment")) {
+    void openWorkerDeploymentPlanScreen();
+  } else {
+    switchToTab("home");
+  }
 }
 
 function showLogin() {
@@ -4637,11 +4674,20 @@ function workerPlanAllowsFeature(featureKey) {
   return Boolean(features[featureKey]);
 }
 
+function applyWorkerDeploymentMenuState(planFeatures = {}) {
+  const allowed = Boolean(planFeatures?.deployment_plan);
+  document.querySelectorAll(".worker-menu-btn-deployment, [data-worker-page-target='deploymentPlanCard']").forEach((btn) => {
+    btn.classList.toggle("hidden", !allowed);
+    btn.toggleAttribute("disabled", !allowed);
+  });
+}
+
 function planFeatureBlockedMessage(featureKey) {
   const labels = {
     worker_hours_report: "Arbeitsstunden",
     document_upload: "Dokumente",
     leave_management: "Urlaubsanträge",
+    deployment_plan: "Einsatzplan",
   };
   const label = labels[featureKey] || "Diese Funktion";
   return `${label} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.`;
@@ -5479,6 +5525,7 @@ function enforceUiVisibilityGuard() {
     "leaveRequestCard",
     "timesheetCard",
     "documentsCard",
+    "deploymentPlanCard",
     "workerBottomNav",
     "topPanel",
     "workerMenuCard",
@@ -5583,6 +5630,7 @@ function switchToTab(tabName) {
     "leaveRequestCard",
     "timesheetCard",
     "documentsCard",
+    "deploymentPlanCard",
     "workerDashboard",
     "homeCompactInfo"
   ];
@@ -5704,11 +5752,24 @@ function initBottomTabNavigation() {
     "#home": "home",
     "#urlaub": "vacation",
     "#stunden": "timesheet",
-    "#docs": "documents"
+    "#docs": "documents",
+    "#einsatzplan": "deployment",
+    "#deployment": "deployment",
   };
 
   const syncFromHash = () => {
-    const targetTab = hashToTab[(window.location.hash || "").toLowerCase()] || "home";
+    const hash = (window.location.hash || "").toLowerCase();
+    if (hash === "#einsatzplan" || hash === "#deployment") {
+      switchToTab("home");
+      void openWorkerDeploymentPlanScreen();
+      return;
+    }
+    const targetTab = hashToTab[hash] || "home";
+    if (targetTab === "deployment") {
+      switchToTab("home");
+      void openWorkerDeploymentPlanScreen();
+      return;
+    }
     switchToTab(targetTab);
   };
 
@@ -5949,6 +6010,220 @@ async function loadMyTimesheets() {
     lastTimesheetRows = [];
     updateSmartWorkHub(lastWorkerPayload, []);
     console.warn("Could not load timesheets:", error);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ── FEATURE: DEPLOYMENT PLAN (Einsatzplan / Monatsplan) ──
+// ═════════════════════════════════════════════════════════════════════
+
+let deploymentPlanViewYear = null;
+let deploymentPlanViewMonth = null;
+
+function monthLabelFromParts(year, month, lang) {
+  try {
+    return new Date(year, month - 1, 1).toLocaleDateString(lang || getWorkerLang(), {
+      month: "long",
+      year: "numeric",
+    });
+  } catch {
+    return `${month.toString().padStart(2, "0")}/${year}`;
+  }
+}
+
+function parseDeploymentMonthValue(value) {
+  const raw = String(value || "").trim();
+  const match = /^(\d{4})-(\d{2})$/.exec(raw);
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]) };
+}
+
+function populateDeploymentMonthSelect(months, selectedYear, selectedMonth) {
+  const select = elements.deploymentPlanMonthSelect;
+  if (!select) return;
+  const lang = getWorkerLang();
+  const options = Array.isArray(months) ? months : [];
+  if (!options.length) {
+    const now = new Date();
+    options.push({ year: now.getFullYear(), month: now.getMonth() + 1 });
+  }
+  select.innerHTML = options
+    .map((item) => {
+      const year = Number(item.year);
+      const month = Number(item.month);
+      const value = `${year}-${String(month).padStart(2, "0")}`;
+      const label = monthLabelFromParts(year, month, lang);
+      const selected = year === selectedYear && month === selectedMonth ? " selected" : "";
+      return `<option value="${escapeHtmlBasic(value)}"${selected}>${escapeHtmlBasic(label)}</option>`;
+    })
+    .join("");
+}
+
+async function openWorkerDeploymentPlanScreen(year = null, month = null) {
+  if (!workerToken) {
+    showWorkerNotice("Bitte zuerst mit Badge-ID und PIN anmelden.");
+    return;
+  }
+  if (!workerPlanAllowsFeature("deployment_plan")) {
+    showWorkerNotice(planFeatureBlockedMessage("deployment_plan"));
+    return;
+  }
+  const now = new Date();
+  deploymentPlanViewYear = year || deploymentPlanViewYear || now.getFullYear();
+  deploymentPlanViewMonth = month || deploymentPlanViewMonth || now.getMonth() + 1;
+  switchToTab("home");
+  ensureWorkerFeatureHubVisible();
+  showOnlyWorkerFeaturePanel("deploymentPlanCard");
+  applyWorkerPageView("deploymentPlanCard");
+  const card = elements.deploymentPlanCard || document.getElementById("deploymentPlanCard");
+  if (card) {
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (window.location.hash !== "#einsatzplan") {
+    history.replaceState(null, "", "#einsatzplan");
+  }
+  await loadDeploymentPlan();
+}
+
+async function loadDeploymentPlan() {
+  if (!workerToken || !elements.deploymentPlanList) return;
+  if (!workerPlanAllowsFeature("deployment_plan")) {
+    renderWorkerListMessage(elements.deploymentPlanList, planFeatureBlockedMessage("deployment_plan"), "error");
+    return;
+  }
+
+  const select = elements.deploymentPlanMonthSelect;
+  if (select?.value) {
+    const parsed = parseDeploymentMonthValue(select.value);
+    if (parsed) {
+      deploymentPlanViewYear = parsed.year;
+      deploymentPlanViewMonth = parsed.month;
+    }
+  }
+  const year = deploymentPlanViewYear || new Date().getFullYear();
+  const month = deploymentPlanViewMonth || new Date().getMonth() + 1;
+  const lang = getWorkerLang();
+
+  elements.deploymentPlanList.innerHTML = `<p class="muted-info">${t("deploymentPlanLoading")}</p>`;
+  if (elements.deploymentPlanMeta) elements.deploymentPlanMeta.textContent = "";
+
+  try {
+    const data = await fetchJson(
+      `${API_BASE}/deployment-plan?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&lang=${encodeURIComponent(lang)}`,
+      { headers: { Authorization: `Bearer ${workerToken}` } }
+    );
+
+    const months = Array.isArray(data?.months) ? data.months : [];
+    populateDeploymentMonthSelect(months, year, month);
+
+    if (!data?.ok || !data?.published) {
+      const message =
+        data?.error === "plan_not_published"
+          ? t("deploymentPlanNotPublished")
+          : t("deploymentPlanEmpty");
+      elements.deploymentPlanList.innerHTML = `<p class="muted-info">${escapeHtmlBasic(message)}</p>`;
+      if (elements.deploymentPlanPdfBtn) elements.deploymentPlanPdfBtn.disabled = true;
+      if (elements.deploymentPlanPrintBtn) elements.deploymentPlanPrintBtn.disabled = true;
+      return;
+    }
+
+    if (elements.deploymentPlanPdfBtn) elements.deploymentPlanPdfBtn.disabled = false;
+    if (elements.deploymentPlanPrintBtn) elements.deploymentPlanPrintBtn.disabled = false;
+
+    const sentAt = data.sentAt ? formatNotificationTimestamp(data.sentAt) : "";
+    const scheduled = Number(data.scheduledDayCount || 0);
+    const metaParts = [
+      tf("deploymentPlanScheduledDays", { count: scheduled }),
+      sentAt ? tf("deploymentPlanSentAt", { date: sentAt }) : "",
+    ].filter(Boolean);
+    if (elements.deploymentPlanMeta) {
+      elements.deploymentPlanMeta.textContent = metaParts.join(" · ");
+    }
+
+    const days = Array.isArray(data.days) ? data.days : [];
+    const rows = days
+      .filter((day) => String(day.location || "").trim() || !day.isWeekend)
+      .map((day) => {
+        const location = String(day.location || "").trim();
+        const shiftStart = String(day.shiftStart || "").trim();
+        const shiftEnd = String(day.shiftEnd || "").trim();
+        const notes = String(day.notes || "").trim();
+        const timeText =
+          shiftStart && shiftEnd
+            ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
+            : shiftStart || shiftEnd || "";
+        const dateParts = String(day.date || "").split("-");
+        const dayNum = dateParts[2] || day.date;
+        const classes = [
+          "deployment-plan-day",
+          day.isWeekend ? "is-weekend" : "",
+          location ? "has-assignment" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return `
+          <article class="${classes}">
+            <div>
+              <div class="deployment-plan-day-date">${escapeHtmlBasic(dayNum)}</div>
+              <div class="deployment-plan-day-weekday">${escapeHtmlBasic(day.weekday || "")}</div>
+            </div>
+            <div>
+              <div class="deployment-plan-day-location">${escapeHtmlBasic(location || t("deploymentPlanNoLocation"))}</div>
+              ${timeText ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
+              ${notes ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
+            </div>
+          </article>
+        `;
+      });
+
+    elements.deploymentPlanList.innerHTML = rows.length
+      ? rows.join("")
+      : `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanEmpty"))}</p>`;
+  } catch (error) {
+    renderWorkerListMessage(elements.deploymentPlanList, formatWorkerApiError(error), "error");
+    if (elements.deploymentPlanPdfBtn) elements.deploymentPlanPdfBtn.disabled = true;
+    if (elements.deploymentPlanPrintBtn) elements.deploymentPlanPrintBtn.disabled = true;
+  }
+}
+
+async function openDeploymentPlanPdf(shouldPrint = false) {
+  if (!workerToken) return;
+  const year = deploymentPlanViewYear || new Date().getFullYear();
+  const month = deploymentPlanViewMonth || new Date().getMonth() + 1;
+  const lang = getWorkerLang();
+  try {
+    const response = await fetch(
+      `${API_BASE}/deployment-plan/pdf?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&lang=${encodeURIComponent(lang)}`,
+      { headers: { Authorization: `Bearer ${workerToken}` } }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    if (shouldPrint) {
+      const frame = document.createElement("iframe");
+      frame.className = "hidden-control";
+      frame.src = url;
+      document.body.appendChild(frame);
+      frame.onload = () => {
+        try {
+          frame.contentWindow?.focus();
+          frame.contentWindow?.print();
+        } catch {
+          window.open(url, "_blank", "noopener");
+        }
+        setTimeout(() => {
+          frame.remove();
+          URL.revokeObjectURL(url);
+        }, 60000);
+      };
+      return;
+    }
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch (error) {
+    showWorkerNotice(formatWorkerApiError(error));
   }
 }
 

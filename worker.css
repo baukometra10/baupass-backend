@@ -3242,6 +3242,88 @@ body {
   gap: 14px;
 }
 
+.deployment-plan-card {
+  display: grid;
+  gap: 12px;
+}
+
+.deployment-plan-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.deployment-plan-month-label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.deployment-plan-month-select {
+  min-width: 11rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--card);
+  color: inherit;
+}
+
+.deployment-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deployment-plan-list {
+  display: grid;
+  gap: 6px;
+}
+
+.deployment-plan-day {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, auto) 1fr;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--card);
+}
+
+.deployment-plan-day.is-weekend {
+  opacity: 0.72;
+}
+
+.deployment-plan-day.has-assignment {
+  border-color: rgba(31, 111, 235, 0.35);
+}
+
+.deployment-plan-day-date {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.deployment-plan-day-weekday {
+  font-size: 0.78rem;
+  color: var(--muted, #64748b);
+}
+
+.deployment-plan-day-location {
+  font-weight: 600;
+}
+
+.deployment-plan-day-time,
+.deployment-plan-day-notes {
+  grid-column: 2;
+  font-size: 0.82rem;
+  color: var(--muted, #64748b);
+}
+
+.worker-menu-btn-deployment.hidden {
+  display: none !important;
+}
+
 .documents-list {
   display: grid;
   gap: 0;

@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260524a" />
-  <link rel="stylesheet" href="./worker.css?v=20260531b" />
+  <link rel="stylesheet" href="./worker.css?v=20260601a" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260531b" />
   <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
   <link rel="stylesheet" href="./worker-login.css?v=20260524a" />
@@ -633,6 +633,20 @@
               <span class="worker-menu-label" data-i18n="incidentTitle">Vorfall melden</span>
             </button>
 
+            <!-- Einsatzplan -->
+            <button type="button" class="worker-menu-btn worker-menu-btn-deployment" data-worker-page-target="deploymentPlanCard">
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <rect x="8" y="10" width="32" height="30" rx="3" stroke="currentColor" stroke-width="2"/>
+                  <path d="M8 18h32" stroke="currentColor" stroke-width="2"/>
+                  <path d="M16 8v6M32 8v6" stroke="#f4c400" stroke-width="2" stroke-linecap="round"/>
+                  <circle cx="18" cy="28" r="2" fill="#f4c400"/>
+                  <circle cx="30" cy="34" r="2" fill="#f4c400"/>
+                </svg>
+              </span>
+              <span class="worker-menu-label" data-i18n="deploymentPlanTitle">Mein Einsatzplan</span>
+            </button>
+
             <!-- Dokumente -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="documentsCard">
               <span class="worker-menu-icon" aria-hidden="true">
@@ -916,6 +930,28 @@
           <div id="incidentList" class="leave-request-list" style="margin-top: 1rem;"></div>
         </div>
 
+        <!-- Einsatzplan / Monatsplan -->
+        <div id="deploymentPlanCard" class="below-card deployment-plan-card hidden">
+          <div class="section-head compact-head">
+            <p class="section-kicker" data-i18n="deploymentPlanKicker">Einsatzplanung</p>
+            <h3 data-i18n="deploymentPlanTitle">Mein Einsatzplan</h3>
+          </div>
+          <div class="deployment-plan-toolbar">
+            <label class="deployment-plan-month-label">
+              <span data-i18n="deploymentPlanMonthLabel">Monat</span>
+              <select id="deploymentPlanMonthSelect" class="deployment-plan-month-select" aria-label="Monat wählen"></select>
+            </label>
+            <div class="deployment-plan-actions">
+              <button type="button" id="deploymentPlanPdfBtn" class="ghost small-btn" data-i18n="deploymentPlanOpenPdf">PDF öffnen</button>
+              <button type="button" id="deploymentPlanPrintBtn" class="primary small-btn" data-i18n="deploymentPlanPrint">Drucken</button>
+            </div>
+          </div>
+          <p id="deploymentPlanMeta" class="muted-info deployment-plan-meta"></p>
+          <div id="deploymentPlanList" class="deployment-plan-list">
+            <p class="muted-info" data-i18n="deploymentPlanLoading">Lade Einsatzplan…</p>
+          </div>
+        </div>
+
         <!-- Dokumente -->
         <div id="documentsCard" class="below-card documents-card hidden">
           <div class="section-head compact-head">
@@ -1037,6 +1073,6 @@
   <script src="./worker-i18n.js?v=20260531k"></script>
   <script src="./worker-i18n-ar-overrides.js?v=20260531k"></script>
   <script src="./ai-voice-ui.js?v=20260531b"></script>
-  <script src="./worker-app.js?v=20260531b"></script>
+  <script src="./worker-app.js?v=20260601a"></script>
 </body>
 </html>

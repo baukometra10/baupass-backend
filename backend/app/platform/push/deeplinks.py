@@ -11,6 +11,7 @@ _TAG_ROUTES: dict[str, str] = {
     "foreman-alert": "baupass://app/profile",
     "ops-notify": "baupass://app/profile",
     "ai-briefing": "baupass://app/ai",
+    "deployment-plan": "baupass://app/deployment",
     "notification": "baupass://app/profile",
 }
 

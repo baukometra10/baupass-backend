@@ -26315,6 +26315,72 @@ def get_company_plan_features(company_id):
     })
 
 
+# ── Mitarbeiter-App: Einsatzplan (Monatsplan) ───────────────────────────────
+
+@require_worker_session
+def worker_app_deployment_plan():
+    from datetime import date as _date
+
+    from backend.app.platform.workforce.deployment_worker import worker_deployment_plan_payload
+
+    db = get_db()
+    worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "deployment_plan"):
+        return feature_not_available_response("deployment_plan", plan_value)
+    lang = str(request.args.get("lang") or "de")[:2]
+    today = _date.today()
+    try:
+        year = int(request.args.get("year") or today.year)
+        month = int(request.args.get("month") or today.month)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid_month"}), 400
+    if month < 1 or month > 12:
+        return jsonify({"error": "invalid_month"}), 400
+    payload = worker_deployment_plan_payload(
+        db, worker=worker, year=year, month=month, lang=lang
+    )
+    if not payload.get("ok"):
+        return jsonify(payload), 404
+    return jsonify(payload)
+
+
+@require_worker_session
+def worker_app_deployment_plan_pdf():
+    from datetime import date as _date
+
+    from backend.app.platform.workforce.deployment_worker import build_worker_deployment_pdf_bytes
+    from flask import send_file
+    import io
+
+    db = get_db()
+    worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "deployment_plan"):
+        return feature_not_available_response("deployment_plan", plan_value)
+    lang = str(request.args.get("lang") or "de")[:2]
+    today = _date.today()
+    try:
+        year = int(request.args.get("year") or today.year)
+        month = int(request.args.get("month") or today.month)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid_month"}), 400
+    if month < 1 or month > 12:
+        return jsonify({"error": "invalid_month"}), 400
+    pdf_bytes = build_worker_deployment_pdf_bytes(
+        db, worker=worker, year=year, month=month, lang=lang
+    )
+    if not pdf_bytes:
+        return jsonify({"error": "plan_not_available"}), 404
+    filename = f"einsatzplan-{year:04d}-{month:02d}.pdf"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=False,
+        download_name=filename,
+    )
+
+
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
 
 @require_worker_session
