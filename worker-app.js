@@ -2016,6 +2016,7 @@ function bindEvents() {
       void openDeploymentPlanPdf(true);
     });
   }
+  bindDeploymentPlanInteractions();
 
   if (elements.workerPageBackButton) {
     elements.workerPageBackButton.addEventListener("click", () => {
@@ -6020,6 +6021,180 @@ async function loadMyTimesheets() {
 
 let deploymentPlanViewYear = null;
 let deploymentPlanViewMonth = null;
+let deploymentDeclinePendingDate = "";
+let deploymentPlanCachedDays = [];
+
+function deploymentDayIso(day) {
+  return String(day?.date || "").slice(0, 10);
+}
+
+function deploymentDayHasAssignment(day) {
+  return Boolean(String(day?.location || "").trim());
+}
+
+function deploymentDayIsDeclinable(day) {
+  if (!deploymentDayHasAssignment(day)) return false;
+  if (String(day?.workerResponse || "") === "declined") return false;
+  const iso = deploymentDayIso(day);
+  if (!iso) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(target.getTime())) return false;
+  return target >= today;
+}
+
+function deploymentDayIsDeclined(day) {
+  return String(day?.workerResponse || "") === "declined" || Boolean(day?.isDeclined);
+}
+
+async function postDeploymentDayResponse(date, action, reason = "") {
+  return fetchJson(`${API_BASE}/deployment-plan/day-response`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${workerToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ date, action, reason }),
+  });
+}
+
+function openDeploymentDeclineModal(day) {
+  const modal = document.getElementById("deploymentDeclineModal");
+  const dateEl = document.getElementById("deploymentDeclineModalDate");
+  const reasonEl = document.getElementById("deploymentDeclineReason");
+  if (!modal || !dateEl) return;
+  deploymentDeclinePendingDate = deploymentDayIso(day);
+  const label = [day.weekday, deploymentDayIso(day)].filter(Boolean).join(" · ");
+  dateEl.textContent = label;
+  if (reasonEl) {
+    reasonEl.value = "";
+    reasonEl.placeholder = t("deploymentPlanDeclineReasonPh");
+  }
+  modal.classList.remove("hidden");
+}
+
+function closeDeploymentDeclineModal() {
+  deploymentDeclinePendingDate = "";
+  document.getElementById("deploymentDeclineModal")?.classList.add("hidden");
+}
+
+function renderDeploymentPlanDayRow(day) {
+  const location = String(day.location || "").trim();
+  const shiftStart = String(day.shiftStart || "").trim();
+  const shiftEnd = String(day.shiftEnd || "").trim();
+  const notes = String(day.notes || "").trim();
+  const declineReason = String(day.declineReason || "").trim();
+  const timeText =
+    shiftStart && shiftEnd
+      ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
+      : shiftStart || shiftEnd || "";
+  const dateParts = deploymentDayIso(day).split("-");
+  const dayNum = dateParts[2] || day.date;
+  const declined = deploymentDayIsDeclined(day);
+  const declinable = deploymentDayIsDeclinable(day);
+  const classes = [
+    "deployment-plan-day",
+    day.isWeekend ? "is-weekend" : "",
+    location ? "has-assignment" : "",
+    declined ? "is-declined" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  let actionsHtml = "";
+  if (declined) {
+    actionsHtml = `
+      <div class="deployment-plan-day-actions">
+        <button type="button" class="ghost small-btn" data-dep-undo="${escapeHtmlBasic(deploymentDayIso(day))}">${escapeHtmlBasic(t("deploymentPlanUndoDeclineBtn"))}</button>
+      </div>`;
+  } else if (declinable) {
+    actionsHtml = `
+      <div class="deployment-plan-day-actions">
+        <button type="button" class="ghost small-btn" data-dep-decline="${escapeHtmlBasic(deploymentDayIso(day))}">${escapeHtmlBasic(t("deploymentPlanDeclineBtn"))}</button>
+      </div>`;
+  }
+
+  const statusHtml = declined
+    ? `<div class="deployment-plan-day-status">${escapeHtmlBasic(t("deploymentPlanDeclinedBadge"))}${
+        declineReason
+          ? ` · ${escapeHtmlBasic(tf("deploymentPlanDeclineReasonShow", { reason: declineReason }))}`
+          : ""
+      }</div>`
+    : "";
+
+  return `
+    <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}">
+      <div>
+        <div class="deployment-plan-day-date">${escapeHtmlBasic(dayNum)}</div>
+        <div class="deployment-plan-day-weekday">${escapeHtmlBasic(day.weekday || "")}</div>
+      </div>
+      <div>
+        <div class="deployment-plan-day-location">${escapeHtmlBasic(location || t("deploymentPlanNoLocation"))}</div>
+        ${timeText ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
+        ${notes ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
+        ${statusHtml}
+      </div>
+      ${actionsHtml}
+    </article>
+  `;
+}
+
+function bindDeploymentPlanInteractions() {
+  const list = elements.deploymentPlanList;
+  if (!list || bindDeploymentPlanInteractions._done) return;
+  bindDeploymentPlanInteractions._done = true;
+
+  list.addEventListener("click", (event) => {
+    const declineBtn = event.target.closest("[data-dep-decline]");
+    const undoBtn = event.target.closest("[data-dep-undo]");
+    if (declineBtn) {
+      const iso = declineBtn.getAttribute("data-dep-decline") || "";
+      const day =
+        deploymentPlanCachedDays.find((entry) => deploymentDayIso(entry) === iso) || {
+          date: iso,
+          weekday: "",
+        };
+      openDeploymentDeclineModal(day);
+      return;
+    }
+    if (undoBtn) {
+      const iso = undoBtn.getAttribute("data-dep-undo") || "";
+      if (!iso) return;
+      void (async () => {
+        try {
+          await postDeploymentDayResponse(iso, "undo");
+          showWorkerNotice(t("deploymentPlanUndoDone"));
+          await loadDeploymentPlan();
+          void refreshHomeDeploymentTeaser().catch(() => {});
+        } catch (error) {
+          showWorkerNotice(formatWorkerApiError(error));
+        }
+      })();
+    }
+  });
+
+  document.getElementById("deploymentDeclineCancel")?.addEventListener("click", closeDeploymentDeclineModal);
+  document.getElementById("deploymentDeclineModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "deploymentDeclineModal") closeDeploymentDeclineModal();
+  });
+  document.getElementById("deploymentDeclineConfirm")?.addEventListener("click", () => {
+    const iso = deploymentDeclinePendingDate;
+    if (!iso) return;
+    const reason = String(document.getElementById("deploymentDeclineReason")?.value || "").trim();
+    void (async () => {
+      try {
+        await postDeploymentDayResponse(iso, "decline", reason);
+        closeDeploymentDeclineModal();
+        showWorkerNotice(t("deploymentPlanDeclineDone"));
+        await loadDeploymentPlan();
+        void refreshHomeDeploymentTeaser().catch(() => {});
+      } catch (error) {
+        showWorkerNotice(formatWorkerApiError(error));
+      }
+    })();
+  });
+}
 
 function monthLabelFromParts(year, month, lang) {
   try {
@@ -6116,7 +6291,12 @@ async function refreshHomeDeploymentTeaser() {
     const location = String(today?.location || "").trim();
     const shiftStart = String(today?.shiftStart || "").trim();
     const shiftEnd = String(today?.shiftEnd || "").trim();
-    if (!location && !shiftStart && !shiftEnd) {
+    const declinedToday = today && deploymentDayIsDeclined(today);
+    teaser.classList.toggle("is-declined", Boolean(declinedToday));
+    if (declinedToday) {
+      titleEl.textContent = t("deploymentPlanHomeDeclined");
+      metaEl.textContent = t("deploymentPlanHomeOpen");
+    } else if (!location && !shiftStart && !shiftEnd) {
       titleEl.textContent = t("deploymentPlanHomeFree");
       metaEl.textContent = today?.weekday || "";
     } else {
@@ -6180,8 +6360,10 @@ async function loadDeploymentPlan() {
 
     const sentAt = data.sentAt ? formatNotificationTimestamp(data.sentAt) : "";
     const scheduled = Number(data.scheduledDayCount || 0);
+    const declined = Number(data.declinedDayCount || 0);
     const metaParts = [
       tf("deploymentPlanScheduledDays", { count: scheduled }),
+      declined > 0 ? tf("deploymentPlanDeclinedDays", { count: declined }) : "",
       sentAt ? tf("deploymentPlanSentAt", { date: sentAt }) : "",
     ].filter(Boolean);
     if (elements.deploymentPlanMeta) {
@@ -6189,40 +6371,10 @@ async function loadDeploymentPlan() {
     }
 
     const days = Array.isArray(data.days) ? data.days : [];
+    deploymentPlanCachedDays = days;
     const rows = days
-      .filter((day) => String(day.location || "").trim() || !day.isWeekend)
-      .map((day) => {
-        const location = String(day.location || "").trim();
-        const shiftStart = String(day.shiftStart || "").trim();
-        const shiftEnd = String(day.shiftEnd || "").trim();
-        const notes = String(day.notes || "").trim();
-        const timeText =
-          shiftStart && shiftEnd
-            ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
-            : shiftStart || shiftEnd || "";
-        const dateParts = String(day.date || "").split("-");
-        const dayNum = dateParts[2] || day.date;
-        const classes = [
-          "deployment-plan-day",
-          day.isWeekend ? "is-weekend" : "",
-          location ? "has-assignment" : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-        return `
-          <article class="${classes}">
-            <div>
-              <div class="deployment-plan-day-date">${escapeHtmlBasic(dayNum)}</div>
-              <div class="deployment-plan-day-weekday">${escapeHtmlBasic(day.weekday || "")}</div>
-            </div>
-            <div>
-              <div class="deployment-plan-day-location">${escapeHtmlBasic(location || t("deploymentPlanNoLocation"))}</div>
-              ${timeText ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
-              ${notes ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
-            </div>
-          </article>
-        `;
-      });
+      .filter((day) => deploymentDayHasAssignment(day) || deploymentDayIsDeclined(day) || !day.isWeekend)
+      .map((day) => renderDeploymentPlanDayRow(day));
 
     elements.deploymentPlanList.innerHTML = rows.length
       ? rows.join("")

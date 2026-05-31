@@ -1044,9 +1044,14 @@ function renderDeploymentDaysList() {
       const notes = escapeAttr(d.notes || "");
       const start = escapeAttr(isoToTimeInput(d.shiftStart));
       const end = escapeAttr(isoToTimeInput(d.shiftEnd));
+      const declined =
+        String(d.workerResponse || "") === "declined" || Boolean(d.isDeclined);
+      const declineHint = declined
+        ? `<span class="deployment-day-declined" title="${escapeAttr(d.declineReason || "")}">${escapeAttr(t("deployment.workerDeclined"))}</span>`
+        : "";
       return `
-      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}" data-dep-idx="${i}" role="row">
-        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span></span>
+      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}" data-dep-idx="${i}" role="row">
+        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}</span>
         <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(t("deployment.locationPh"))}" aria-label="${escapeAttr(t("deployment.colLocation"))} ${d.date}" />
         <input type="time" data-dep-field="start" value="${start}" aria-label="${escapeAttr(t("deployment.colStart"))} ${d.date}" />
         <input type="time" data-dep-field="end" value="${end}" aria-label="${escapeAttr(t("deployment.colEnd"))} ${d.date}" />

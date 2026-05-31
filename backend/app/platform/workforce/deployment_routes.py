@@ -55,7 +55,12 @@ def register_workforce_blueprint(flask_app) -> None:
         ).fetchone()
         if not w:
             return jsonify({"error": "worker_not_found"}), 404
+        from .deployment_responses import attach_responses_to_days, count_declined_days, list_responses_for_month
+
         days = build_month_calendar(db, company_id=cid, worker_id=worker_id, year=year, month=month, lang=lang)
+        responses = list_responses_for_month(db, company_id=cid, worker_id=worker_id, year=year, month=month)
+        days = attach_responses_to_days(days, responses)
+        declined_count = count_declined_days(days)
         plan = get_company_plan(db, cid) if g.current_user.get("role") != "superadmin" else "enterprise"
         from .deployment_month import get_month_batch
 
@@ -69,6 +74,7 @@ def register_workforce_blueprint(flask_app) -> None:
                 "year": year,
                 "month": month,
                 "days": days,
+                "declinedDayCount": declined_count,
                 "monthBatch": month_batch,
                 "capabilities": {
                     "pdf": plan_includes(plan, min_plan_for_capability("deployment_plan")),

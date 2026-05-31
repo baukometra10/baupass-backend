@@ -1559,6 +1559,21 @@ html[dir="rtl"] .app-sidebar {
   color: var(--accent-hover);
 }
 
+.deployment-day-declined {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+}
+
+.deployment-day-row.worker-declined {
+  outline: 1px solid rgba(251, 191, 36, 0.35);
+}
+
 @media (max-width: 720px) {
   .deployment-days-header {
     display: none;

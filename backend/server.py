@@ -4893,7 +4893,6 @@ def get_worker_wallet_google_redirect(pass_object_id):
     return redirect(add_to_wallet_url, code=302)
 
 
-@app.get("/api/admin/wallet/runtime-status")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_wallet_runtime_status():
@@ -8128,7 +8127,6 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
     return auto_closed
 
 
-@app.get("/api/public/branding")
 def public_branding():
     """Oeffentlicher Endpunkt fuer Branding-Informationen (kein Login noetig)."""
     try:
@@ -8151,7 +8149,6 @@ def public_branding():
         return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": ""})
 
 
-@app.get("/api/phone-test")
 def phone_test_api():
         return jsonify(
                 {
@@ -8164,7 +8161,6 @@ def phone_test_api():
         )
 
 
-@app.get("/phone-test")
 def phone_test_page():
         host = html.escape(request.host or "")
         remote_addr = html.escape(request.remote_addr or "")
@@ -8319,54 +8315,6 @@ def _get_worker_build_info():
     return info
 
 
-@app.get("/api/qr.png")
-def qr_png():
-    data = (request.args.get("data") or "").strip()
-    if not data:
-        return jsonify({"error": "missing_data"}), 400
-
-    try:
-        size = int(request.args.get("size") or 280)
-    except ValueError:
-        size = 280
-    size = max(120, min(size, 1024))
-
-    qr = qrcode.QRCode(border=1, box_size=10)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-    img = img.resize((size, size))
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    return Response(buffer.getvalue(), mimetype="image/png")
-
-
-@app.get("/api/qr")
-def qr_data_url():
-    data = (request.args.get("data") or "").strip()
-    if not data:
-        return jsonify({"error": "missing_data"}), 400
-
-    try:
-        size = int(request.args.get("size") or 280)
-    except ValueError:
-        size = 280
-    size = max(120, min(size, 1024))
-
-    qr = qrcode.QRCode(border=1, box_size=10)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-    img = img.resize((size, size))
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    encoded = buffer.getvalue().hex()
-    # hex-to-bytes on client is simple and avoids binary transport issues in JSON.
-    return jsonify({"pngHex": encoded})
-
-
 def login():
     from backend.app.domains.auth.login_flow import perform_login
 
@@ -8448,7 +8396,6 @@ def session_bootstrap():
     return jsonify({"authenticated": True, "token": token, "user": serialize_user(user)})
 
 
-@app.get("/api/system/status")
 @require_auth
 @require_roles("superadmin")
 def system_status():
@@ -8565,7 +8512,6 @@ def system_status():
     )
 
 
-@app.get("/api/system/runtime-check")
 @require_auth
 @require_roles("superadmin")
 def system_runtime_check():
@@ -8573,7 +8519,6 @@ def system_runtime_check():
     return jsonify({"ok": True, "serverTime": now_iso(), **diagnostics})
 
 
-@app.post("/api/system/recover-admin")
 def system_recover_admin():
     configured_secret = (os.getenv("BAUPASS_RECOVERY_SECRET") or "").strip()
     if not configured_secret:
@@ -8610,7 +8555,6 @@ def system_recover_admin():
     return jsonify({"ok": True, "username": username, "role": user["role"]})
 
 
-@app.post("/api/superadmin/preview-session")
 @require_auth
 @require_roles("superadmin")
 def set_superadmin_preview_session():
@@ -8637,7 +8581,6 @@ def set_superadmin_preview_session():
         return jsonify({"ok": True, "preview_company_id": None})
 
 
-@app.post("/api/system/repair")
 @require_auth
 @require_roles("superadmin")
 def system_repair():
@@ -8652,7 +8595,6 @@ def system_repair():
     return jsonify({"ok": True})
 
 
-@app.post("/api/me/heartbeat")
 def heartbeat():
     token = get_auth_token_from_request()
     if not token:
@@ -8748,7 +8690,6 @@ def emergency_disable_twofa():
     return jsonify({"ok": True, "username": username})
 
 
-@app.put("/api/me/email")
 @require_auth
 def update_me_email():
     payload = request.get_json(silent=True) or {}
@@ -8761,7 +8702,6 @@ def update_me_email():
     return jsonify({"ok": True, "email": email})
 
 
-@app.get("/api/settings")
 @require_auth
 def get_settings():
     row = get_db().execute("SELECT * FROM settings WHERE id = 1").fetchone()
@@ -8827,7 +8767,6 @@ def get_settings():
     )
 
 
-@app.post("/api/settings/smtp-test")
 @require_auth
 @require_roles("superadmin")
 def smtp_test():
@@ -8923,7 +8862,6 @@ def smtp_test():
         })
 
 
-@app.post("/api/settings/smtp-diagnose")
 @require_auth
 @require_roles("superadmin")
 def smtp_diagnose():
@@ -8955,7 +8893,6 @@ def smtp_diagnose():
     return jsonify(result), status_code
 
 
-@app.post("/api/settings/resend-test")
 @require_auth
 @require_roles("superadmin")
 def resend_test():
@@ -9089,7 +9026,6 @@ def resend_test():
     })
 
 
-@app.put("/api/settings")
 @require_auth
 @require_roles("superadmin")
 def update_settings():
@@ -9222,7 +9158,6 @@ def update_settings():
     return get_settings()
 
 
-@app.get("/api/companies")
 @require_auth
 def list_companies():
     include_deleted = request.args.get("includeDeleted", "0") == "1"
@@ -9236,7 +9171,6 @@ def list_companies():
     return jsonify([row_to_dict(row) for row in rows])
 
 
-@app.get("/api/companies/document-emails/export")
 @require_auth
 @require_roles("superadmin")
 def export_company_document_emails_csv():
@@ -9318,7 +9252,6 @@ def export_company_document_emails_csv():
     )
 
 
-@app.get("/api/subcompanies")
 @require_auth
 def list_subcompanies():
     try:
@@ -9353,7 +9286,6 @@ def list_subcompanies():
         return {"error": "Fehler beim Laden von Subcompanies", "details": str(e)}, 400
 
 
-@app.post("/api/subcompanies")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_subcompany():
@@ -9407,7 +9339,6 @@ def create_subcompany():
     return jsonify(row_to_dict(row)), 201
 
 
-@app.post("/api/companies")
 @require_auth
 @require_roles("superadmin")
 def create_company():
@@ -9592,7 +9523,6 @@ def create_company():
     )
 
 
-@app.post("/api/demo-seed")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def demo_seed():
@@ -10788,7 +10718,6 @@ def _operations_company_filter_sql(user, alias="w"):
     return f" AND {alias}.company_id = ?", [user.get("company_id")]
 
 
-@app.get("/api/operations/snapshot")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def operations_snapshot():
@@ -11002,7 +10931,6 @@ def download_worker_akte_pdf(worker_id):
     )
 
 
-@app.post("/api/admin/database/backup")
 @require_auth
 @require_roles("superadmin")
 def admin_create_database_backup():
@@ -11020,7 +10948,6 @@ def admin_create_database_backup():
         return jsonify({"error": "backup_failed", "detail": str(exc)}), 500
 
 
-@app.get("/api/admin/database/backups")
 @require_auth
 @require_roles("superadmin")
 def admin_list_database_backups():
@@ -12346,7 +12273,6 @@ def _qr_png_response(payload_text):
     return Response(buf.getvalue(), mimetype="image/png", headers={"Cache-Control": "no-store"})
 
 
-@app.get("/worker-join-config.json")
 def worker_join_config_public():
     """Public distribution URLs for join.html (hybrid Flutter app first)."""
     from backend.app.domains.workers.mobile_distribution import build_mobile_distribution
@@ -12366,21 +12292,11 @@ def worker_join_config_public():
     )
 
 
-@app.get("/api/worker-app/mobile-setup")
 def worker_app_mobile_setup_public():
     """Public checklist: Railway env keys for hybrid worker app (iPhone/Android). No secrets."""
     from backend.app.platform.mobile_worker_setup import collect_worker_mobile_setup
 
     return jsonify(collect_worker_mobile_setup())
-
-
-@app.get("/api/qr.png")
-@require_auth
-def admin_qr_png():
-    data = (request.args.get("data") or "").strip()
-    if not data or len(data) > 2048:
-        return jsonify({"error": "invalid_qr_data"}), 400
-    return _qr_png_response(data)
 
 
 @require_auth
@@ -13133,7 +13049,6 @@ def worker_app_logout():
 # PHASE 1: FOREMAN/SUPERVISOR HUB
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/foreman/team-status")
 @require_admin_session
 def foreman_team_status():
     """Foreman-View: Live-Status aller Mitarbeiter des Teams."""
@@ -13192,7 +13107,6 @@ def foreman_team_status():
     return jsonify({"team": team_data, "total": len(team_data)})
 
 
-@app.get("/api/foreman/crew-health")
 @require_admin_session
 def foreman_crew_health():
     """Crew-Health-Score: Durchschnittliche Metriken des Teams."""
@@ -13239,7 +13153,6 @@ def foreman_crew_health():
     })
 
 
-@app.get("/api/foreman/tomorrow-forecast")
 @require_admin_session
 def foreman_tomorrow_forecast():
     """Vorarbeiter: Personalprognose für den nächsten Arbeitstag."""
@@ -13252,7 +13165,6 @@ def foreman_tomorrow_forecast():
     return jsonify(build_tomorrow_forecast(get_db(), company_id))
 
 
-@app.post("/api/foreman/send-alert")
 @require_admin_session
 def foreman_send_alert():
     """Foreman sendet Alert an einen Mitarbeiter."""
@@ -13314,7 +13226,6 @@ def foreman_send_alert():
     })
 
 
-@app.get("/api/foreman/recent-notifications")
 @require_admin_session
 def foreman_recent_notifications():
     """Letzte Foreman/Admin Alerts an Mitarbeiter (Firma)."""
@@ -13355,7 +13266,6 @@ def foreman_recent_notifications():
 # PHASE 2: ANALYTICS & INSIGHTS DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/analytics/worker-trends")
 @require_admin_session
 def analytics_worker_trends():
     """Arbeitszeit-Trends: Durchschnittliche Schichtten pro Woche."""
@@ -13404,7 +13314,6 @@ def analytics_worker_trends():
     return jsonify({"trends": result, "daily": daily, "days": daily})
 
 
-@app.get("/api/analytics/document-health")
 @require_admin_session
 def analytics_document_health():
     """Doku-Health: Score pro Dokumenttyp."""
@@ -13501,7 +13410,6 @@ def _company_work_start_hm(db, company_id: str) -> tuple[int, int, str]:
     return hour, minute, f"{hour:02d}:{minute:02d}:00"
 
 
-@app.get("/api/analytics/punctuality-report")
 @require_admin_session
 def analytics_punctuality_report():
     """Pünktlichkeits-Report: Verspätungen vs. firmen-Arbeitsbeginn."""
@@ -13584,7 +13492,6 @@ def analytics_punctuality_report():
 # PHASE 3: SHIFT & SCHEDULE MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/shift/assignments")
 @require_worker_session
 def shift_get_assignments():
     """Mitarbeiter: Seine Schicht-Zuweisungen auflisten."""
@@ -13618,7 +13525,6 @@ def shift_get_assignments():
     return jsonify({"assignments": result})
 
 
-@app.post("/api/shift/assignments")
 @require_admin_session
 def shift_create_assignment():
     """Admin: Neue Schicht-Zuweisung erstellen."""
@@ -13667,7 +13573,6 @@ def shift_create_assignment():
     return jsonify({"ok": True, "assignmentId": assign_id, "pushDelivery": push_delivery})
 
 
-@app.get("/api/foreman/shift-assignments")
 @require_admin_session
 def foreman_shift_assignments():
     """Foreman: anstehende Schichten der Firma."""
@@ -13705,7 +13610,6 @@ def foreman_shift_assignments():
     return jsonify({"assignments": assignments, "total": len(assignments)})
 
 
-@app.get("/api/shift/coworkers")
 @require_worker_session
 def shift_coworkers():
     """Mitarbeiter: Kollegen derselben Firma (für Schicht-Tausch)."""
@@ -13736,7 +13640,6 @@ def shift_coworkers():
     )
 
 
-@app.get("/api/shift/swaps")
 @require_worker_session
 def shift_get_swaps():
     """Mitarbeiter: Seine offenen Swap-Anfragen."""
@@ -13781,7 +13684,6 @@ def shift_get_swaps():
     return jsonify({"swaps": result})
 
 
-@app.post("/api/shift/propose-swap")
 @require_worker_session
 def shift_propose_swap():
     """Mitarbeiter: Schicht-Tausch mit anderem Mitarbeiter vorschlagen."""
@@ -13832,7 +13734,6 @@ def shift_propose_swap():
     return jsonify({"ok": True, "swapId": swap_id, "pushDelivery": push_delivery})
 
 
-@app.post("/api/shift/respond-swap/<swap_id>")
 @require_worker_session
 def shift_respond_swap(swap_id):
     """Mitarbeiter: Auf Swap-Anfrage antworten."""
@@ -13883,7 +13784,6 @@ def shift_respond_swap(swap_id):
 # PHASE 4: NOTIFICATIONS & ALERTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/notifications")
 @require_worker_session
 def notifications_get():
     """Mitarbeiter: Seinen Benachrichtigungs-Verlauf abrufen."""
@@ -13916,7 +13816,6 @@ def notifications_get():
     return jsonify({"notifications": result})
 
 
-@app.post("/api/notifications/<notif_id>/mark-read")
 @require_worker_session
 def notifications_mark_read(notif_id):
     """Mitarbeiter: Benachrichtigung als gelesen markieren."""
@@ -13933,7 +13832,6 @@ def notifications_mark_read(notif_id):
     return jsonify({"ok": True})
 
 
-@app.delete("/api/notifications/<notif_id>")
 @require_worker_session
 def notifications_delete(notif_id):
     """Mitarbeiter: Benachrichtigung löschen."""
@@ -13954,7 +13852,6 @@ def notifications_delete(notif_id):
 # PHASE 5: OFFLINE SYNC & CONFLICT RESOLUTION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/sync/conflicts")
 @require_worker_session
 def sync_get_conflicts():
     """Mitarbeiter: Seine ungelösten Sync-Konflikte abrufen."""
@@ -13992,7 +13889,6 @@ def sync_get_conflicts():
     return jsonify({"conflicts": result})
 
 
-@app.post("/api/sync/resolve/<conflict_id>")
 @require_worker_session
 def sync_resolve_conflict(conflict_id):
     """Mitarbeiter: Sync-Konflikt auflösen."""
@@ -14029,7 +13925,6 @@ def sync_resolve_conflict(conflict_id):
 # PHASE 3A: ANALYTICS COMPLETION (CSV/PDF EXPORT)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/analytics/export/csv")
 @require_admin_session
 def analytics_export_csv():
     """Export analytics report as CSV."""
@@ -14065,7 +13960,6 @@ def analytics_export_csv():
     return response
 
 
-@app.get("/api/analytics/export/summary")
 @require_admin_session
 def analytics_export_summary():
     """Export summary JSON report."""
@@ -14112,7 +14006,6 @@ def analytics_export_summary():
 # PHASE 3B: COMMUNICATION & WORKFLOWS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.post("/api/messages")
 @require_worker_session
 def messages_send():
     """Worker: Send message to another worker or supervisor."""
@@ -14146,7 +14039,6 @@ def messages_send():
     return jsonify({"ok": True, "messageId": msg_id, "threadId": thread_id})
 
 
-@app.get("/api/messages")
 @require_worker_session
 def messages_get():
     """Worker: Retrieve messages."""
@@ -14181,7 +14073,6 @@ def messages_get():
     return jsonify({"messages": result})
 
 
-@app.post("/api/messages/<msg_id>/mark-read")
 @require_worker_session
 def messages_mark_read(msg_id):
     """Worker: Mark message as read."""
@@ -14198,7 +14089,6 @@ def messages_mark_read(msg_id):
     return jsonify({"ok": True})
 
 
-@app.get("/api/incidents")
 @require_worker_session
 def incidents_get():
     """Worker/Supervisor: Get incidents."""
@@ -14220,7 +14110,6 @@ def incidents_get():
     return jsonify({"incidents": result})
 
 
-@app.post("/api/incidents")
 @require_worker_session
 def incidents_report():
     """Worker: Report an incident."""
@@ -14259,7 +14148,6 @@ def incidents_report():
     return jsonify({"ok": True, "incidentId": incident_id})
 
 
-@app.post("/api/incidents/<incident_id>/assign")
 @require_admin_session
 def incidents_assign(incident_id):
     """Supervisor: Assign incident to user."""
@@ -14282,7 +14170,6 @@ def incidents_assign(incident_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/incidents/<incident_id>/resolve")
 @require_admin_session
 def incidents_resolve(incident_id):
     """Supervisor: Resolve incident."""
@@ -14309,7 +14196,6 @@ def incidents_resolve(incident_id):
 # PHASE 3D: SECURITY & COMPLIANCE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.get("/api/audit-trail")
 @require_admin_session
 def audit_trail_get():
     """Admin: View company audit trail."""
@@ -14332,7 +14218,6 @@ def audit_trail_get():
     return jsonify({"auditEvents": result})
 
 
-@app.get("/api/compliance-reports")
 @require_admin_session
 def compliance_reports_get():
     """Admin: Generate compliance report."""
@@ -14414,7 +14299,6 @@ def compliance_reports_get():
     })
 
 
-@app.post("/api/roles")
 @require_admin_session
 def roles_create():
     """Admin: Create new role."""
@@ -14442,7 +14326,6 @@ def roles_create():
     return jsonify({"ok": True, "roleId": role_id})
 
 
-@app.get("/api/roles")
 @require_admin_session
 def roles_get():
     """Admin: List roles."""
@@ -14467,7 +14350,6 @@ def roles_get():
     return jsonify({"roles": result})
 
 
-@app.post("/api/role-assignments")
 @require_admin_session
 def role_assignments_create():
     """Admin: Assign role to user."""
@@ -14498,7 +14380,6 @@ def role_assignments_create():
 # PHASE 3E: MOBILE FEATURES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.post("/api/device/register")
 @require_worker_session
 def device_register():
     """Worker: Register device for biometric auth & push."""
@@ -14583,7 +14464,6 @@ def worker_app_push_register():
     return jsonify({"ok": True, "deviceId": bound_device_id or None})
 
 
-@app.get("/api/worker-app/push/status")
 @require_worker_session
 def worker_app_push_status():
     """Push channel availability (for worker app profile UI)."""
@@ -14592,7 +14472,6 @@ def worker_app_push_status():
     return jsonify(push_platform_status())
 
 
-@app.post("/api/device/biometric-auth")
 def device_biometric_auth():
     """Public: Authenticate with biometric (device-signed)."""
     payload = request.get_json(silent=True) or {}
@@ -14633,7 +14512,6 @@ def device_biometric_auth():
     return jsonify({"ok": True, "authToken": auth_token})
 
 
-@app.get("/api/geofences")
 @require_worker_session
 def geofences_get():
     """Worker: Get geofences for location-based features."""
@@ -14653,7 +14531,6 @@ def geofences_get():
     return jsonify({"geofences": result})
 
 
-@app.post("/api/media-evidence")
 @require_worker_session
 def media_evidence_upload():
     """Worker: Upload photo/evidence to incident."""
@@ -14690,7 +14567,6 @@ def media_evidence_upload():
     return jsonify({"ok": True, "mediaId": media_id})
 
 
-@app.get("/api/media-evidence/<incident_id>")
 @require_worker_session
 def media_evidence_get(incident_id):
     """Worker: Get evidence for incident."""
@@ -15197,7 +15073,6 @@ def worker_app_verify_pin():
     return jsonify({"valid": valid})
 
 
-@app.put("/api/companies/<company_id>")
 @require_auth
 @require_roles("superadmin")
 def update_company(company_id):
@@ -15349,7 +15224,6 @@ def update_company(company_id):
     return jsonify({"ok": True})
 
 
-@app.get("/api/companies/<company_id>/mail-settings")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_company_mail_settings_endpoint(company_id):
@@ -15361,7 +15235,6 @@ def get_company_mail_settings_endpoint(company_id):
     return jsonify(_sanitize_company_mail_settings_for_response(settings))
 
 
-@app.post("/api/companies/<company_id>/mail-settings")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_company_mail_settings_endpoint(company_id):
@@ -15411,7 +15284,6 @@ def create_company_mail_settings_endpoint(company_id):
     return jsonify(_sanitize_company_mail_settings_for_response(created)), 201
 
 
-@app.put("/api/companies/<company_id>/mail-settings")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def update_company_mail_settings_endpoint(company_id):
@@ -15489,7 +15361,6 @@ def update_company_mail_settings_endpoint(company_id):
     return jsonify(_sanitize_company_mail_settings_for_response(updated))
 
 
-@app.post("/api/companies/<company_id>/mail-settings/test-inbound")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def test_company_mail_inbound_endpoint(company_id):
@@ -15575,7 +15446,6 @@ def test_company_mail_inbound_endpoint(company_id):
     return jsonify({"ok": False, "error": f"{error_text}{hint}", "tried": tried}), 200
 
 
-@app.post("/api/companies/<company_id>/mail-settings/test-outbound")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def test_company_mail_outbound_endpoint(company_id):
@@ -15654,7 +15524,6 @@ def test_company_mail_outbound_endpoint(company_id):
     return jsonify({"ok": False, "error": "smtp_diagnostic_failed", "diagnostics": diag_result}), 200
 
 
-@app.get("/api/companies/<company_id>/work-times")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def get_company_work_times(company_id):
@@ -15670,7 +15539,6 @@ def get_company_work_times(company_id):
     return jsonify({"ok": True, "companyId": company_id, **cfg})
 
 
-@app.put("/api/companies/<company_id>/work-times")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def update_company_work_times(company_id):
@@ -15733,7 +15601,6 @@ def update_company_work_times(company_id):
     )
 
 
-@app.post("/api/documents/inbox/rematch-company-links")
 @require_auth
 @require_roles("superadmin")
 def rematch_document_inbox_links():
@@ -15743,7 +15610,6 @@ def rematch_document_inbox_links():
     return jsonify({"ok": True, "matchedCount": count})
 
 
-@app.post("/api/documents/inbox/<inbox_id>/match-company")
 @require_auth
 @require_roles("superadmin")
 def set_document_inbox_company_match(inbox_id):
@@ -15767,7 +15633,6 @@ def set_document_inbox_company_match(inbox_id):
     return jsonify({"ok": True})
 
 
-@app.delete("/api/companies/<company_id>")
 @require_auth
 @require_roles("superadmin")
 def delete_company(company_id):
@@ -15813,7 +15678,6 @@ def delete_company(company_id):
     return jsonify({"ok": True, "force": force})
 
 
-@app.put("/api/companies/<company_id>/admin-security")
 @require_auth
 @require_roles("superadmin")
 def set_company_admin_security(company_id):
@@ -15843,7 +15707,6 @@ def set_company_admin_security(company_id):
     return jsonify({"ok": True, "username": admin_user["username"], "email": email, "twofa_enabled": enable_2fa})
 
 
-@app.get("/api/companies/<company_id>/admin-security")
 @require_auth
 @require_roles("superadmin")
 def get_company_admin_security(company_id):
@@ -15862,7 +15725,6 @@ def get_company_admin_security(company_id):
     })
 
 
-@app.post("/api/companies/<company_id>/set-admin-password")
 @require_auth
 @require_roles("superadmin")
 def set_company_admin_password(company_id):
@@ -15895,7 +15757,6 @@ def set_company_admin_password(company_id):
     return jsonify({"ok": True, "username": admin_user["username"]})
 
 
-@app.post("/api/companies/<company_id>/add-turnstile")
 @require_auth
 @require_roles("superadmin")
 def add_company_turnstile(company_id):
@@ -15945,7 +15806,6 @@ def add_company_turnstile(company_id):
 
 # ── Drehkreuz-User Verwaltung ──────────────────────────────────────────────
 
-@app.get("/api/companies/<company_id>/turnstiles")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_company_turnstiles(company_id):
@@ -15974,7 +15834,6 @@ def list_company_turnstiles(company_id):
     ])
 
 
-@app.post("/api/companies/<company_id>/turnstiles/<user_id>/reset-password")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reset_turnstile_password(company_id, user_id):
@@ -15999,7 +15858,6 @@ def reset_turnstile_password(company_id, user_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/companies/<company_id>/turnstiles/<user_id>/rotate-api-key")
 @require_auth
 @require_roles("superadmin")
 def rotate_turnstile_api_key(company_id, user_id):
@@ -16025,7 +15883,6 @@ def rotate_turnstile_api_key(company_id, user_id):
     return jsonify({"ok": True, "apiKey": api_key})
 
 
-@app.post("/api/companies/<company_id>/turnstiles/<user_id>/toggle-active")
 @require_auth
 @require_roles("superadmin")
 def toggle_turnstile_active(company_id, user_id):
@@ -16053,7 +15910,6 @@ def toggle_turnstile_active(company_id, user_id):
 
 REQUIRED_DOC_TYPES = ["mindestlohnnachweis", "personalausweis"]
 
-@app.get("/api/compliance/overview")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def compliance_overview():
@@ -16127,7 +15983,6 @@ def compliance_overview():
     return jsonify(result)
 
 
-@app.get("/api/compliance/expiring-docs")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def compliance_expiring_docs():
@@ -16565,7 +16420,6 @@ def apply_password_reset(raw_token):
     return jsonify({"ok": True})
 
 
-@app.post("/api/companies/<company_id>/repair")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def repair_company(company_id):
@@ -16619,7 +16473,6 @@ def repair_company(company_id):
     return jsonify({"ok": True, "fixed": fixed})
 
 
-@app.post("/api/companies/<company_id>/restore")
 @require_auth
 @require_roles("superadmin")
 def restore_company(company_id):
@@ -17130,7 +16983,6 @@ def _operations_snapshot_for_user(db, user) -> dict:
     return snapshot
 
 
-@app.get("/api/ops/guidance")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def operations_guidance():
@@ -17594,7 +17446,6 @@ def reporting_email_incidents_visits_pdf():
     return jsonify({"ok": True, "recipient": recipient, "filename": filename})
 
 
-@app.post("/api/device/signature/capture")
 def device_signature_capture():
     """Capture compliance signature from USB pad agent or registered IoT device."""
     from backend.app.platform.device.signature_bridge import authorize_device_signature_request
@@ -18564,7 +18415,6 @@ def set_worker_identity_token_status(worker_id):
     )
 
 
-@app.post("/api/scan")
 def unified_scan():
     provided_key = (request.headers.get("X-Gate-Key") or "").strip()
     if not provided_key:
@@ -18810,7 +18660,6 @@ def unified_scan():
     ), 201
 
 
-@app.get("/api/admin/device-events/dead-letters")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_device_event_dead_letters():
@@ -18907,7 +18756,6 @@ def list_device_event_dead_letters():
     )
 
 
-@app.get("/api/admin/device-events/dead-letters/export.csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def export_device_event_dead_letters_csv():
@@ -18992,7 +18840,6 @@ def export_device_event_dead_letters_csv():
     )
 
 
-@app.get("/api/admin/device-events/dead-letters/stats")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def dead_letter_stats():
@@ -19080,7 +18927,6 @@ def dead_letter_stats():
     )
 
 
-@app.post("/api/admin/device-events/dead-letters/<event_uid>/reprocess")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reprocess_device_event_dead_letter(event_uid):
@@ -19156,7 +19002,6 @@ def reprocess_device_event_dead_letter(event_uid):
     ), 200
 
 
-@app.post("/api/admin/device-events/dead-letters/<event_uid>/resolve")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def resolve_device_event_dead_letter(event_uid):
@@ -19201,7 +19046,6 @@ def resolve_device_event_dead_letter(event_uid):
     return jsonify({"ok": True, "eventUid": str(event_uid or ""), "resolvedAt": now_iso()})
 
 
-@app.get("/api/admin/device-events/dead-letters/<event_uid>")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_device_event_dead_letter(event_uid):
@@ -21022,7 +20866,6 @@ def get_invoice_ops_metrics(db):
 
 # ─── Kundenbewertungen ────────────────────────────────────────────────────────
 
-@app.put("/api/companies/<company_id>/review-access")
 @require_auth
 @require_roles("superadmin")
 def toggle_company_review_access(company_id):
@@ -21044,7 +20887,6 @@ def toggle_company_review_access(company_id):
     return jsonify({"review_enabled": new_state, "review_token": token if new_state else ""})
 
 
-@app.get("/api/public/review")
 def get_review_form_info():
     """Gibt Firmenname zurück wenn Token gültig und Bewertung aktiviert ist."""
     token = (request.args.get("token") or "").strip()
@@ -21060,7 +20902,6 @@ def get_review_form_info():
     return jsonify({"company_name": row["name"], "company_id": row["id"]})
 
 
-@app.post("/api/public/review/submit")
 def submit_review():
     """Nimmt eine Kundenbewertung entgegen."""
     data = request.get_json(force=True, silent=True) or {}
@@ -21090,7 +20931,6 @@ def submit_review():
     return jsonify({"ok": True})
 
 
-@app.get("/api/reviews")
 @require_auth
 @require_roles("superadmin")
 def list_reviews():
@@ -22368,7 +22208,6 @@ def invoice_reminder_letter_pdf(invoice_id):
     )
 
 
-@app.get("/api/documents/expiring")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_expiring_documents():
@@ -22441,7 +22280,6 @@ def list_expiring_documents():
     return jsonify({"count": len(result), "daysWindow": days, "items": result})
 
 
-@app.get("/api/audit-logs")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_audit_logs():
@@ -22503,7 +22341,6 @@ def list_audit_logs():
     })
 
 
-@app.get("/api/audit-logs/export.csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def export_audit_csv():
@@ -22569,7 +22406,6 @@ def export_audit_csv():
     )
 
 
-@app.get("/api/export")
 @require_auth
 def export_payload():
     db = get_db()
@@ -22734,7 +22570,6 @@ def export_payload():
     )
 
 
-@app.post("/api/import")
 @require_auth
 @require_roles("superadmin", "company-admin")
 @require_rate_limit("import")
@@ -23045,7 +22880,6 @@ def _runtime_database_ping() -> tuple[bool, str]:
         return False, str(exc)
 
 
-@app.get("/api/health")
 def api_health():
     db_ok, db_error = _runtime_database_ping()
 
@@ -23152,12 +22986,10 @@ def _enterprise_health_flags():
         return {"demoAllowed": False, "copilotConfigured": False}
 
 
-@app.get("/api/health/live")
 def api_health_live():
     return jsonify({"status": "alive", "startedAt": APP_STARTED_AT.replace(microsecond=0).isoformat() + "Z"})
 
 
-@app.get("/api/health/ready")
 def api_health_ready():
     try:
         from backend.app.health.readiness import collect_readiness
@@ -23170,7 +23002,6 @@ def api_health_ready():
         return jsonify({"status": "not_ready", "error": str(exc)}), 503
 
 
-@app.get("/api/health/queues")
 def api_health_queues():
     try:
         from backend.app.health.readiness import _queue_status
@@ -23180,7 +23011,6 @@ def api_health_queues():
         return jsonify({"ok": False, "error": str(exc)}), 503
 
 
-@app.get("/api/health/dr")
 def api_health_dr():
     try:
         from backend.app.health.dr_status import collect_dr_status
@@ -23192,7 +23022,6 @@ def api_health_dr():
         return jsonify({"status": "error", "ok": False, "error": str(exc)}), 503
 
 
-@app.get("/api/system-alerts")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_system_alerts():
@@ -23904,7 +23733,6 @@ def _start_imap_thread():
 
 # ── Dokumente-Inbox API ──────────────────────────────────────────
 
-@app.post("/api/documents/imap/trigger")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def trigger_imap_poll():
@@ -23922,7 +23750,6 @@ def trigger_imap_poll():
         return jsonify({"error": str(exc)}), 500
 
 
-@app.get("/api/documents/inbox")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def list_document_inbox():
@@ -23983,7 +23810,6 @@ def list_document_inbox():
     return jsonify(result)
 
 
-@app.get("/api/documents/payroll/datev-export")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def export_payroll_datev_csv():
@@ -24008,7 +23834,6 @@ def export_payroll_datev_csv():
     return response
 
 
-@app.post("/api/documents/inbox/<inbox_id>/dismiss")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def dismiss_inbox_email(inbox_id):
@@ -24018,7 +23843,6 @@ def dismiss_inbox_email(inbox_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/documents/inbox/<inbox_id>/mark-read")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def mark_inbox_email_read(inbox_id):
@@ -24050,7 +23874,6 @@ def mark_inbox_email_read(inbox_id):
     return jsonify(entry)
 
 
-@app.get("/api/integrations/datev/oauth/callback")
 def datev_oauth_callback():
     """DATEV OAuth redirect — stores tokens on integration_connections."""
     code = (request.args.get("code") or "").strip()
@@ -24105,7 +23928,6 @@ def datev_oauth_callback():
     return redirect("/index.html#admin?datev=connected")
 
 
-@app.post("/api/documents/inbox/<inbox_id>/reply")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reply_to_inbox_email(inbox_id):
@@ -24255,7 +24077,6 @@ def reply_to_inbox_email(inbox_id):
     return jsonify({"ok": True, "provider": provider or "api"})
 
 
-@app.post("/api/documents/inbox/<inbox_id>/attachments/<attachment_id>/assign")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def assign_attachment_to_worker(inbox_id, attachment_id):
@@ -24566,7 +24387,6 @@ def delete_worker_document(worker_id, doc_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/settings/otp-test")
 @require_auth
 @require_roles("superadmin")
 def otp_test_send():
@@ -24635,7 +24455,6 @@ def otp_test_send():
 # IMAP-Settings GET/PATCH (in allgemeine Settings integriert)
 # Wird über /api/settings mit den übrigen Feldern gespeichert.
 # Zusätzliches Endpoint um IMAP zu testen:
-@app.post("/api/settings/imap/test")
 @require_auth
 @require_roles("superadmin")
 def test_imap_connection():
@@ -24732,7 +24551,6 @@ def test_imap_connection():
     return jsonify({"ok": False, "error": f"{detail}{hint}", "tried": tried_info, "hint": f"Versucht: {tried_str}"}), 200
 
 
-@app.post("/api/settings/imap/list-folders")
 @require_auth
 @require_roles("superadmin")
 def list_imap_folders():
@@ -24819,7 +24637,6 @@ def list_imap_folders():
         return jsonify({"ok": False, "error": str(exc)}), 200
 
 
-@app.get("/api/debug/imap-settings")
 @require_auth
 @require_roles("superadmin")
 def debug_imap_settings():
@@ -24838,8 +24655,6 @@ def debug_imap_settings():
     })
 
 
-@app.get("/enterprise")
-@app.get("/enterprise/")
 def enterprise_hub_entry():
     """Enterprise hub — 16 layers, plan matrix, AI assistant."""
     target = BASE_DIR / "enterprise-hub.html"
@@ -24850,8 +24665,6 @@ def enterprise_hub_entry():
     return jsonify({"error": "not_found"}), 404
 
 
-@app.get("/admin")
-@app.get("/admin/")
 def admin_v2_entry():
     """Modern operations dashboard (visible enterprise features)."""
     target = BASE_DIR / "admin-v2" / "index.html"
@@ -24860,12 +24673,10 @@ def admin_v2_entry():
     return send_from_directory(BASE_DIR, "index.html")
 
 
-@app.get("/")
 def root():
     return send_from_directory(BASE_DIR, "index.html")
 
 
-@app.get("/worker.html")
 def worker_entry_redirect():
     """QR entry handoff page; its JS clears stale PWA runtime before opening emp-app."""
     response = send_from_directory(BASE_DIR, "worker.html")
@@ -24875,7 +24686,6 @@ def worker_entry_redirect():
     return response
 
 
-@app.get("/review.html")
 def review_page():
     return send_from_directory(BASE_DIR, "review.html")
 
@@ -24897,7 +24707,6 @@ def _build_worker_icon_svg(icon_size: int) -> str:
     return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{icon_size}\" height=\"{icon_size}\" viewBox=\"0 0 512 512\">\n  <defs>\n    <linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">\n      <stop offset=\"0%\" stop-color=\"#c78652\" />\n      <stop offset=\"100%\" stop-color=\"#8a5230\" />\n    </linearGradient>\n  </defs>\n  <rect width=\"512\" height=\"512\" rx=\"118\" fill=\"url(#bg)\" />\n  <text x=\"256\" y=\"330\" text-anchor=\"middle\" font-family=\"'Segoe UI', Arial, sans-serif\" font-size=\"192\" font-weight=\"800\" letter-spacing=\"4\" fill=\"#f6efe2\">BP</text>\n</svg>"""
 
 
-@app.get("/worker-icon-<int:icon_size>.svg")
 def worker_icon_svg(icon_size: int):
     if icon_size not in (192, 512):
         return jsonify({"error": "not_found"}), 404
@@ -24907,7 +24716,6 @@ def worker_icon_svg(icon_size: int):
     return response
 
 
-@app.get("/worker-icon-<int:icon_size>.png")
 def worker_icon_png(icon_size: int):
     if icon_size not in (192, 512):
         return jsonify({"error": "not_found"}), 404
@@ -24920,7 +24728,6 @@ def worker_icon_png(icon_size: int):
     return response
 
 
-@app.get("/<path:path>")
 def static_proxy(path):
     target = BASE_DIR / path
     if target.exists() and target.is_file():
@@ -24977,7 +24784,6 @@ def _serialize_device(row, now_value=None):
     }
 
 
-@app.get("/api/admin/devices")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_devices():
@@ -24990,7 +24796,6 @@ def list_devices():
     return jsonify({"devices": [_serialize_device(r) for r in rows]})
 
 
-@app.get("/api/admin/devices/health-summary")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def device_health_summary():
@@ -25062,7 +24867,6 @@ def device_health_summary():
     )
 
 
-@app.post("/api/admin/devices")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_device():
@@ -25087,7 +24891,6 @@ def create_device():
     return jsonify({"ok": True, "device": {"id": device_id, "name": name, "location": location, "deviceType": device_type, "protocol": protocol, "apiKey": raw_key, "online": False}})
 
 
-@app.delete("/api/admin/devices/<device_id>")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def delete_device(device_id):
@@ -25103,7 +24906,6 @@ def delete_device(device_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/device/heartbeat")
 def device_heartbeat():
     """OSDP Smart-Box ruft diesen Endpoint regelmaessig auf um Online-Status zu signalisieren."""
     raw_key = (request.headers.get("X-Device-API-Key") or "").strip()
@@ -25245,7 +25047,6 @@ def worker_push_subscribe():
     return jsonify({"ok": True})
 
 
-@app.post("/api/push/trigger-checkout-reminders")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def trigger_checkout_reminders():
@@ -25680,7 +25481,6 @@ def review_leave_request(req_id):
     return jsonify({"ok": True})
 
 
-@app.get("/api/leave-requests/<req_id>/export.pdf")
 @require_auth
 def export_leave_request_pdf(req_id):
     user = g.current_user
@@ -25793,7 +25593,6 @@ def worker_app_my_timesheets():
 
 # ── Company-Admin: Arbeitsstunden-Uebersicht pro Mitarbeiter/Monat ────────
 
-@app.get("/api/companies/<company_id>/worker-hours-summary")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def company_worker_hours_summary(company_id):
@@ -25884,7 +25683,6 @@ def company_worker_hours_summary(company_id):
 
 # ── Company-Admin: Stundendetails pro Mitarbeiter ─────────────────────────
 
-@app.get("/api/companies/<company_id>/workers/<worker_id>/timeline")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def company_worker_timeline(company_id, worker_id):
@@ -25989,7 +25787,6 @@ def company_worker_timeline(company_id, worker_id):
 
 # ── Company Plan-Features Endpoint ────────────────────────────────────────
 
-@app.get("/api/companies/<company_id>/plan-features")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_company_plan_features(company_id):
@@ -26079,6 +25876,60 @@ def worker_app_deployment_plan_pdf():
         as_attachment=False,
         download_name=filename,
     )
+
+
+@require_worker_session
+def worker_app_deployment_plan_day_response():
+    from backend.app.platform.workforce.deployment_responses import set_worker_day_response
+
+    db = get_db()
+    worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "deployment_plan"):
+        return feature_not_available_response("deployment_plan", plan_value)
+
+    payload = request.get_json(silent=True) or {}
+    work_date = str(payload.get("date") or payload.get("workDate") or "").strip()
+    action = str(payload.get("action") or "").strip()
+    reason = str(payload.get("reason") or "").strip()
+
+    result, err = set_worker_day_response(
+        db,
+        company_id=str(worker["company_id"]),
+        worker_id=str(worker["id"]),
+        work_date=work_date,
+        action=action,
+        reason=reason,
+    )
+    if err:
+        body, status = err
+        return jsonify(body), status
+
+    location = ""
+    try:
+        row = db.execute(
+            """
+            SELECT location_label FROM worker_deployment_days
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            """,
+            (str(worker["company_id"]), str(worker["id"]), result["date"]),
+        ).fetchone()
+        if row:
+            location = str(row["location_label"] or "")
+    except Exception:
+        pass
+
+    worker_name = f"{worker['first_name']} {worker['last_name']}".strip()
+    if str(action or "").strip().lower() == "decline":
+        log_audit(
+            "deployment.day_declined",
+            f"Mitarbeiter {worker_name} hat Einsatz am {result['date']} abgelehnt ({location})",
+            target_type="worker",
+            target_id=str(worker["id"]),
+            company_id=str(worker["company_id"]),
+            actor={"role": "worker", "id": str(worker["id"]), "name": worker_name},
+        )
+    return jsonify(result)
 
 
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
@@ -26344,7 +26195,6 @@ def gate_heartbeat():
 DEVICE_OFFLINE_THRESHOLD_SECONDS = 300   # 5 minutes without heartbeat → offline
 
 
-@app.get("/api/admin/gate-devices")
 @require_auth
 def admin_gate_devices():
     current_user = g.current_user

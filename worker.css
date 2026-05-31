@@ -3342,6 +3342,12 @@ body {
 
 .deployment-plan-day.has-assignment {
   border-color: rgba(31, 111, 235, 0.35);
+  grid-template-columns: minmax(4.5rem, auto) 1fr auto;
+}
+
+.deployment-plan-day.has-assignment .deployment-plan-day-actions {
+  grid-column: 3;
+  grid-row: 1 / span 5;
 }
 
 .deployment-plan-day-date {
@@ -3363,6 +3369,80 @@ body {
   grid-column: 2;
   font-size: 0.82rem;
   color: var(--muted, #64748b);
+}
+
+.deployment-plan-day.is-declined {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.deployment-plan-day-status {
+  grid-column: 2;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.deployment-plan-day-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.deployment-plan-day-actions .ghost.small-btn {
+  white-space: nowrap;
+}
+
+.deployment-decline-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.deployment-decline-modal.hidden {
+  display: none;
+}
+
+.deployment-decline-sheet {
+  width: min(100%, 420px);
+  background: #fff;
+  border-radius: 16px 16px 12px 12px;
+  padding: 1rem 1rem 1.25rem;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2);
+}
+
+.deployment-decline-reason-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.deployment-decline-reason {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.deployment-decline-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.home-deployment-teaser.is-declined {
+  border-color: #f59e0b;
 }
 
 .worker-menu-btn-deployment.hidden {

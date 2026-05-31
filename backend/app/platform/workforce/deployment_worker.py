@@ -132,10 +132,15 @@ def worker_deployment_plan_payload(
             "days": [],
             "months": list_published_months(db, company_id),
         }
+    from .deployment_responses import attach_responses_to_days, count_declined_days, list_responses_for_month
+
     days = build_month_calendar(
         db, company_id=company_id, worker_id=worker_id, year=year, month=month, lang=lang
     )
+    responses = list_responses_for_month(db, company_id=company_id, worker_id=worker_id, year=year, month=month)
+    days = attach_responses_to_days(days, responses)
     scheduled = [d for d in days if str(d.get("location") or "").strip()]
+    declined_count = count_declined_days(days)
     batch = get_month_batch(db, company_id, year, month)
     doc = db.execute(
         """
@@ -153,6 +158,7 @@ def worker_deployment_plan_payload(
         "sentAt": batch.get("sentAt"),
         "days": days,
         "scheduledDayCount": len(scheduled),
+        "declinedDayCount": declined_count,
         "documentId": doc["id"] if doc else None,
         "months": list_published_months(db, company_id),
         "companyName": _company_name(db, company_id),

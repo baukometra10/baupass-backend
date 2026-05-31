@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260524a" />
-  <link rel="stylesheet" href="./worker.css?v=20260601a" />
+  <link rel="stylesheet" href="./worker.css?v=20260602a" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260531b" />
   <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
   <link rel="stylesheet" href="./worker-login.css?v=20260524a" />
@@ -959,6 +959,21 @@
           </div>
         </div>
 
+        <div id="deploymentDeclineModal" class="deployment-decline-modal hidden" role="dialog" aria-modal="true" aria-labelledby="deploymentDeclineModalTitle">
+          <div class="deployment-decline-sheet">
+            <h4 id="deploymentDeclineModalTitle" data-i18n="deploymentPlanDeclineTitle">Einsatztag ablehnen</h4>
+            <p id="deploymentDeclineModalDate" class="muted-info"></p>
+            <label class="deployment-decline-reason-label">
+              <span data-i18n="deploymentPlanDeclineReasonLabel">Grund (optional)</span>
+              <textarea id="deploymentDeclineReason" class="deployment-decline-reason" rows="3" maxlength="500" placeholder=""></textarea>
+            </label>
+            <div class="deployment-decline-actions">
+              <button type="button" id="deploymentDeclineCancel" class="ghost small-btn" data-i18n="deploymentPlanDeclineCancel">Abbrechen</button>
+              <button type="button" id="deploymentDeclineConfirm" class="primary small-btn" data-i18n="deploymentPlanDeclineConfirm">Ablehnung senden</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Dokumente -->
         <div id="documentsCard" class="below-card documents-card hidden">
           <div class="section-head compact-head">
@@ -1080,6 +1095,6 @@
   <script src="./worker-i18n.js?v=20260531k"></script>
   <script src="./worker-i18n-ar-overrides.js?v=20260531k"></script>
   <script src="./ai-voice-ui.js?v=20260531b"></script>
-  <script src="./worker-app.js?v=20260601b"></script>
+  <script src="./worker-app.js?v=20260602a"></script>
 </body>
 </html>

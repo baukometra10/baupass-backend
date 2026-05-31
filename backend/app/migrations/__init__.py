@@ -856,6 +856,28 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
+        version="023",
+        name="worker_deployment_day_responses",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS worker_deployment_day_responses (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                work_date TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'declined',
+                reason TEXT NOT NULL DEFAULT '',
+                responded_at TEXT NOT NULL,
+                UNIQUE(company_id, worker_id, work_date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_wddr_company_worker_date
+                ON worker_deployment_day_responses(company_id, worker_id, work_date);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS worker_deployment_day_responses;
+        """,
+    ),
+
+    Migration(
         version="011",
         name="worker_compliance_indexes",
         up_sql="""
