@@ -138,8 +138,16 @@
     .monatsplan-hero li { margin-bottom: 0.35rem; }
     .monatsplan-hero .hero-actions {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 0.5rem;
+    }
+    .monatsplan-hero .monatsplan-open-hint {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--muted, #8fa0b0);
+      max-width: 36rem;
+      line-height: 1.35;
     }
     .monatsplan-hero .hero-btn-primary {
       padding: 0.55rem 1rem;
@@ -161,10 +169,15 @@
       font-size: 0.85rem;
       text-decoration: none;
     }
-    .playbook-links a.playbook-link-deployment {
+    .playbook-links .playbook-link-deployment {
       border-color: rgba(94, 234, 212, 0.5);
       background: rgba(15, 76, 92, 0.35);
       font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .playbook-links .playbook-link-deployment:hover {
+      background: rgba(94, 234, 212, 0.22);
     }
     .role-playbook {
       background: linear-gradient(135deg, #152535, #1a3040);
@@ -633,7 +646,7 @@
           const detail = w.detail ? `<span style="display:block;font-size:0.7rem;color:var(--muted)">${w.detail}</span>` : "";
           return `<div class="playbook-widget${sev}"><span>${w.label}</span><strong>${w.value ?? "—"}</strong>${detail}</div>`;
         }).join("");
-        const depLink = `<a href="#" class="playbook-link-deployment" data-hub-go-deployment="1">${t("monatsplanLinkLabel")}</a>`;
+        const depLink = `<button type="button" class="playbook-link-deployment" data-hub-go-deployment="1">${t("monatsplanLinkLabel")}</button>`;
         const links = depLink + (dash.quickLinks || []).map((l) => {
           const href = appendCompanyToUrl(l.url || "#");
           return `<a href="${href}">${l.label}</a>`;
@@ -646,10 +659,6 @@
           <div class="playbook-widgets">${widgets || ""}</div>${forecastLine}
           <div class="playbook-links">${links}</div>`;
         el.classList.remove("hidden");
-        el.querySelector("[data-hub-go-deployment]")?.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          goToDeploymentPlanView();
-        });
       } catch {
         el.classList.add("hidden");
         el.innerHTML = "";
@@ -657,15 +666,41 @@
     }
 
     function goToDeploymentPlanView() {
-      if (window.BaupassEmbed?.isEmbedMode?.()) {
+      const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
+      if (window.BaupassEmbed?.navigateFromEmbed) {
+        window.BaupassEmbed.navigateFromEmbed("/index.html?view=deployment-plan", params);
+        return;
+      }
+      if (window.self !== window.top) {
         try {
-          window.parent?.postMessage({ type: "baupass-navigate", view: "deployment-plan" }, location.origin);
+          window.parent?.postMessage(
+            { type: "baupass-navigate", view: "deployment-plan" },
+            location.origin,
+          );
         } catch {
           // ignore
         }
         return;
       }
-      window.location.href = "/index.html?view=deployment-plan";
+      const u = new URL("/index.html", location.origin);
+      u.searchParams.set("view", "deployment-plan");
+      Object.keys(params).forEach((key) => {
+        const val = params[key];
+        if (val != null && String(val).trim() !== "") {
+          u.searchParams.set(key, String(val).trim());
+        }
+      });
+      window.location.href = u.pathname + u.search + u.hash;
+    }
+
+    function wireDeploymentPlanNavigation() {
+      document.addEventListener("click", (ev) => {
+        const trigger = ev.target.closest("[data-hub-go-deployment]");
+        if (!trigger) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        goToDeploymentPlanView();
+      });
     }
 
     function renderMonatsplanHero() {
@@ -686,9 +721,9 @@
         </ol>
         <div class="hero-actions">
           <button type="button" class="hero-btn-primary" data-hub-go-deployment="1">${t("monatsplanOpen")}</button>
+          <p class="monatsplan-open-hint">${t("monatsplanOpenHint")}</p>
         </div>`;
       el.classList.remove("hidden");
-      el.querySelector("[data-hub-go-deployment]")?.addEventListener("click", () => goToDeploymentPlanView());
     }
 
     function renderStats(stats, labels) {
@@ -911,6 +946,8 @@
     function hubCompanyParams() {
       return selectedCompanyId ? { company_id: selectedCompanyId } : {};
     }
+
+    wireDeploymentPlanNavigation();
 
     (function initEmbed() {
       const params = new URLSearchParams(location.search);

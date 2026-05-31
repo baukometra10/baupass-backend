@@ -346,6 +346,7 @@ const UI_TRANSLATIONS = {
     deploymentPlanEyebrow: "Workforce",
     deploymentPlanTitle: "Einsatzplan — Monatsplanung",
     deploymentPlanDesc: "Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.",
+    deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
     deploymentStep1Title: "1. Monat wählen",
     deploymentStep1Desc: "Oben «Monatsplan Firma» — ggf. «Nächsten Monat vorbereiten».",
     deploymentStep2Title: "2. Pläne ausfüllen",
@@ -1326,6 +1327,7 @@ const UI_TRANSLATIONS = {
     deploymentPlanEyebrow: "Workforce",
     deploymentPlanTitle: "Deployment plan — monthly",
     deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
+    deploymentPlanLockedToast: "Deployment plan requires Professional plan or higher.",
     deploymentStep1Title: "1. Pick month",
     deploymentStep1Desc: "Use «Company month» — or «Prepare next month».",
     deploymentStep2Title: "2. Fill plans",
@@ -29998,11 +30000,20 @@ window.addEventListener("message", (event) => {
     return;
   }
   const view = String(event.data.view || "").trim();
-  if (view && getAllowedViewsForRole(getEffectiveUiRole()).includes(view)) {
+  const allowedViews = getAllowedViewsForRole(getEffectiveUiRole());
+  if (view && allowedViews.includes(view)) {
     if (view === "enterprise-hub" && event.data.url && String(event.data.url).includes("#ai-panel")) {
       pendingEnterpriseEmbedItemId = "ai-copilot";
     }
     setView(view);
+    return;
+  }
+  if (view === "deployment-plan" && !allowedViews.includes(view)) {
+    showToast(
+      uiT("deploymentPlanLockedToast") || "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
+      "error",
+      7000,
+    );
     return;
   }
   if (event.data.url && typeof event.data.url === "string") {
