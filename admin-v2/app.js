@@ -309,7 +309,15 @@ async function api(path, options = {}) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    data = { error: "invalid_json" };
+    const snippet = text.replace(/\s+/g, " ").trim().slice(0, 100);
+    data = {
+      error: "invalid_json",
+      message:
+        res.status === 404 || res.status === 405
+          ? "API-Endpunkt nicht erreichbar (Server-Update ausstehend?). Bitte Seite neu laden oder Support kontaktieren."
+          : `Unerwartete Server-Antwort (HTTP ${res.status}).`,
+      detail: snippet,
+    };
   }
   if (!res.ok) {
     const code = String(data.error || "").toLowerCase();
