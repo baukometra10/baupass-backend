@@ -1055,7 +1055,13 @@ async function openDeploymentModal(workerId, workerName) {
   const now = new Date();
   $("deploymentMonth").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   $("deploymentModal").classList.remove("hidden");
+  const scrollHost = $("deploymentModalScroll");
+  if (scrollHost) {
+    scrollHost.scrollTop = 0;
+    window.setTimeout(() => scrollHost.focus({ preventScroll: true }), 50);
+  }
   await reloadDeploymentPlan();
+  if (scrollHost) scrollHost.scrollTop = 0;
 }
 
 async function reloadDeploymentPlan() {

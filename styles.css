@@ -8243,13 +8243,88 @@ body.theme-black .invoice-toolbar-refresh:active {
   white-space: nowrap;
 }
 
-.deployment-modal-card {
+.admin-modal-card.deployment-modal-card {
   width: min(920px, 96vw);
   max-width: 96vw;
-  max-height: min(92vh, 900px);
+  height: min(92vh, 880px);
+  max-height: min(92vh, 880px);
+  padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  gap: 0;
+}
+
+.deployment-modal-header {
+  flex-shrink: 0;
+  padding: 1.1rem 1.35rem 0.65rem;
+  border-bottom: 1px solid var(--border, #2a3848);
+}
+
+.deployment-modal-header .admin-modal-title {
+  margin: 0 0 0.25rem;
+}
+
+.deployment-modal-worker {
+  margin: 0 0 0.65rem;
+  font-weight: 600;
+}
+
+.deployment-quick-details {
+  margin-top: 0.45rem;
+  border: 1px solid var(--border, #2a3848);
+  border-radius: 10px;
+  background: rgba(15, 76, 92, 0.15);
+}
+
+.deployment-quick-details summary {
+  cursor: pointer;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-hover, #5eead4);
+  list-style: none;
+}
+
+.deployment-quick-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.deployment-quick-details[open] summary {
+  border-bottom: 1px solid var(--border, #2a3848);
+}
+
+.deployment-quick-details .deployment-bulk-bar {
+  margin: 0;
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.deployment-modal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 1.25rem 0.75rem;
+}
+
+.deployment-scroll-hint {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(94, 234, 212, 0.12);
+  color: var(--accent-hover, #5eead4);
+  font-size: 0.78rem;
+}
+
+.deployment-modal-footer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid var(--border, #2a3848);
+  background: var(--panel, #121a24);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .deployment-toolbar,
@@ -8276,18 +8351,18 @@ body.theme-black .invoice-toolbar-refresh:active {
 }
 
 .deployment-days-list {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 160px;
-  max-height: min(48vh, 440px);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin: 0.5rem 0;
-  padding: 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.15rem 0.5rem;
   border: 1px solid var(--border, #2a3848);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.12);
+  overflow: visible;
+  min-height: auto;
+  max-height: none;
+  flex: none;
 }
 
 .deployment-days-header,

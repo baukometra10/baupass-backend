@@ -855,10 +855,20 @@ h2 {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.65);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  overflow: hidden;
+}
+
+#deploymentModal.modal {
+  touch-action: none;
+}
+
+#deploymentModal .deployment-modal-scroll {
+  touch-action: pan-y;
 }
 
 .modal-card {
@@ -1385,29 +1395,109 @@ html[dir="rtl"] .app-sidebar {
   min-width: 120px;
 }
 
-.deployment-modal-card {
-  width: min(920px, 96vw);
-  max-width: 96vw;
-  max-height: min(92vh, 900px);
-  overflow: hidden;
+.modal-card.deployment-modal-card {
   display: flex;
   flex-direction: column;
+  width: min(920px, 96vw);
+  max-width: 96vw;
+  height: min(92vh, 880px);
+  max-height: min(92vh, 880px);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.deployment-modal-header {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.deployment-modal-header h2 {
+  margin: 0 0 0.25rem;
+}
+
+.deployment-modal-worker {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.deployment-quick-details {
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.deployment-quick-details summary {
+  cursor: pointer;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  list-style: none;
+}
+
+.deployment-quick-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.deployment-quick-details[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.deployment-quick-details .deployment-bulk-bar {
+  margin: 0;
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.deployment-modal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 1.25rem 0.75rem;
+}
+
+.deployment-scroll-hint {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(94, 234, 212, 0.1);
+  color: var(--accent);
+  font-size: 0.78rem;
+}
+
+.deployment-modal-footer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.75rem 1.25rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.deployment-modal-footer .primary,
+.deployment-modal-footer #deploymentSaveBtn {
+  font-weight: 700;
 }
 
 .deployment-days-list {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 200px;
-  max-height: min(52vh, 480px);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin: 0.5rem 0;
-  padding-right: 0.25rem;
+  margin: 0;
+  padding: 0.35rem 0.15rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.5rem;
   background: rgba(0, 0, 0, 0.15);
+  overflow: visible;
+  min-height: auto;
+  max-height: none;
+  flex: none;
 }
 
 .deployment-days-header,

@@ -186,6 +186,11 @@
     const companyMonth = $("cpDeploymentCompanyMonth")?.value;
     if (companyMonth) $("cpDeploymentMonth").value = companyMonth;
     $("cpDeploymentModal")?.classList.remove("hidden");
+    const scrollHost = $("cpDeploymentModalScroll");
+    if (scrollHost) {
+      scrollHost.scrollTop = 0;
+      window.setTimeout(() => scrollHost.focus({ preventScroll: true }), 50);
+    }
     await reloadModalPlan();
   }
 

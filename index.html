@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531shell14";
+        const buildTag = "20260531shell15";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,8 +51,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell14" />
-    <link rel="stylesheet" href="./styles.css?v=20260531shell14" />
+    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell15" />
+    <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -2106,8 +2106,8 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./deployment-plan-ui.js?v=20260531shell14"></script>
-  <script src="./app.js?v=20260531shell14"></script>
+  <script src="./deployment-plan-ui.js?v=20260531shell15"></script>
+  <script src="./app.js?v=20260531shell15"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
@@ -2126,33 +2126,39 @@
     })();
   </script>
 
-  <div id="cpDeploymentModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true">
+  <div id="cpDeploymentModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cpDeploymentModalTitle">
     <div class="admin-modal-card deployment-modal-card">
-      <h3 class="admin-modal-title" data-ui-i18n="deploymentModalTitle">Einsatzplan bearbeiten</h3>
-      <p id="cpDeploymentModalWorker" class="muted"></p>
-      <div class="deployment-toolbar">
-        <label>
-          <span class="muted small" data-ui-i18n="deploymentMonth">Monat</span>
-          <input type="month" id="cpDeploymentMonth" />
-        </label>
-        <button type="button" id="cpDeploymentFromShifts" class="ghost-button" data-ui-i18n="deploymentFromShifts">Aus Schichten</button>
-        <button type="button" id="cpDeploymentRotation" class="ghost-button" data-ui-i18n="deploymentRotation">Rotation</button>
+      <header class="deployment-modal-header">
+        <h3 id="cpDeploymentModalTitle" class="admin-modal-title" data-ui-i18n="deploymentModalTitle">Einsatzplan bearbeiten</h3>
+        <p id="cpDeploymentModalWorker" class="deployment-modal-worker muted"></p>
+        <div class="deployment-toolbar">
+          <label>
+            <span class="muted small" data-ui-i18n="deploymentMonth">Monat</span>
+            <input type="month" id="cpDeploymentMonth" />
+          </label>
+          <button type="button" id="cpDeploymentFromShifts" class="ghost-button" data-ui-i18n="deploymentFromShifts">Aus Schichten</button>
+          <button type="button" id="cpDeploymentRotation" class="ghost-button" data-ui-i18n="deploymentRotation">Rotation</button>
+        </div>
+        <details class="deployment-quick-details">
+          <summary data-ui-i18n="deploymentBulkSummary">Schnell ausfüllen (optional)</summary>
+          <div class="deployment-bulk-bar">
+            <input type="text" id="cpDeploymentBulkLocation" placeholder="Einsatzort" data-ui-i18n-placeholder="deploymentLocationPh" />
+            <input type="time" id="cpDeploymentBulkStart" aria-label="Von" />
+            <input type="time" id="cpDeploymentBulkEnd" aria-label="Bis" />
+            <button type="button" id="cpDeploymentBulkWeekdays" class="ghost-button" data-ui-i18n="deploymentBulkApplyWeekdays">Auf Werktage</button>
+            <button type="button" id="cpDeploymentBulkClearWeekends" class="ghost-button" data-ui-i18n="deploymentBulkClearWeekends">Wochenenden leeren</button>
+          </div>
+        </details>
+      </header>
+      <div class="deployment-modal-scroll" id="cpDeploymentModalScroll" tabindex="0">
+        <p class="deployment-scroll-hint muted small" data-ui-i18n="deploymentScrollHint">↓ Alle Tage — hier scrollen und eintragen</p>
+        <div id="cpDeploymentDaysList" class="deployment-days-list"></div>
       </div>
-      <div class="deployment-bulk-bar">
-        <span class="muted small" data-ui-i18n="deploymentBulkTitle">Schnell für alle Werktage</span>
-        <input type="text" id="cpDeploymentBulkLocation" placeholder="Einsatzort" data-ui-i18n-placeholder="deploymentLocationPh" />
-        <input type="time" id="cpDeploymentBulkStart" aria-label="Von" />
-        <input type="time" id="cpDeploymentBulkEnd" aria-label="Bis" />
-        <button type="button" id="cpDeploymentBulkWeekdays" class="ghost-button" data-ui-i18n="deploymentBulkApplyWeekdays">Auf Werktage</button>
-        <button type="button" id="cpDeploymentBulkClearWeekends" class="ghost-button" data-ui-i18n="deploymentBulkClearWeekends">Wochenenden leeren</button>
-      </div>
-      <p class="muted small" data-ui-i18n="deploymentHint">Tag, Ort, Von–Bis, Hinweis — dann Speichern.</p>
-      <div id="cpDeploymentDaysList" class="deployment-days-list"></div>
-      <div class="admin-modal-actions">
+      <footer class="admin-modal-actions deployment-modal-footer">
         <button type="button" id="cpDeploymentSaveBtn" class="primary-button" data-ui-i18n="deploymentSave">Speichern</button>
         <button type="button" id="cpDeploymentPdfBtn" class="ghost-button" data-ui-i18n="deploymentPdf">PDF</button>
         <button type="button" id="cpDeploymentModalClose" class="ghost-button" data-ui-i18n="deploymentClose">Schließen</button>
-      </div>
+      </footer>
     </div>
   </div>
 
