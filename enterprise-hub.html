@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — مركز المؤسسة (16 طبقة)</title>
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell10" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
   <style>
     :root {
@@ -116,6 +116,56 @@
       background: linear-gradient(135deg, #1a3a4a, #141c28); border: 1px solid var(--border);
       border-radius: 12px; padding: 1rem; margin-bottom: 1rem;
     }
+    .monatsplan-hero {
+      background: linear-gradient(135deg, #0f4c5c, #1a3040);
+      border: 1px solid rgba(94, 234, 212, 0.35);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 0.75rem;
+    }
+    .monatsplan-hero h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: var(--accent);
+    }
+    .monatsplan-hero ol {
+      margin: 0 0 0.75rem;
+      padding-left: 1.2rem;
+      font-size: 0.82rem;
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .monatsplan-hero li { margin-bottom: 0.35rem; }
+    .monatsplan-hero .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .monatsplan-hero .hero-btn-primary {
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #0b1118;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .monatsplan-hero .hero-btn-ghost {
+      padding: 0.55rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.85rem;
+      text-decoration: none;
+    }
+    .playbook-links a.playbook-link-deployment {
+      border-color: rgba(94, 234, 212, 0.5);
+      background: rgba(15, 76, 92, 0.35);
+      font-weight: 700;
+    }
     .role-playbook {
       background: linear-gradient(135deg, #152535, #1a3040);
       border: 1px solid var(--border);
@@ -158,21 +208,45 @@
       max-width: none;
     }
     body.embed-mode #mainLayout.embed-layout-split {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
-      grid-template-rows: 1fr;
-      gap: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
     }
     body.embed-mode .ai-panel,
     body.embed-mode .ai-panel.embed-panel-fixed {
-      max-height: none !important;
-      height: 100% !important;
-      min-height: 0 !important;
-      position: relative !important;
-      top: auto !important;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      display: none !important;
+    }
+    body.embed-mode .monatsplan-hero {
+      flex-shrink: 0;
+    }
+    body.embed-mode .plan-banner {
+      padding: 0.65rem 0.85rem;
+      margin-bottom: 0.5rem;
+    }
+    body.embed-mode .plan-matrix {
+      display: none;
+    }
+    body.embed-mode .role-playbook {
+      padding: 0.65rem 0.85rem;
+      margin-bottom: 0.5rem;
+    }
+    body.embed-mode #stats {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
+    body.embed-mode #stats .stat {
+      flex: 0 0 auto;
+      min-width: 4.5rem;
+    }
+    body.embed-mode #layers,
+    body.embed-mode .toolbar {
+      display: none;
+    }
+    body.embed-mode #maturity {
+      display: none;
     }
     body.embed-mode #mainLayout.embed-layout-split > section,
     body.embed-mode #mainLayout.embed-layout-split > aside {
@@ -220,6 +294,7 @@
   <div class="layout" id="mainLayout">
     <section class="hub-main-col">
       <div id="planBanner" class="plan-banner hidden"></div>
+      <div id="monatsplanHero" class="monatsplan-hero hidden"></div>
       <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
       <div id="stats" class="stats"></div>
@@ -322,6 +397,13 @@
         previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
         companySelect: "Firma (Tarif-Vorschau)",
         allCompanies: "— Superadmin (Firma wählen) —",
+        monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
+        monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
+        monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
+        monatsplanStep3: "Status «bereit» prüfen",
+        monatsplanStep4: "«Versand bestätigen» — PDF/E-Mail + Push an alle",
+        monatsplanOpen: "Monatsplan jetzt öffnen",
+        monatsplanLinkLabel: "📋 Monatsplan / Einsatzplan",
         rolePlaybook: "Ihr Einsatz-Playbook",
         rolePickCompany: "Firma wählen für Live-KPIs.",
         navAdminV2: "Admin v2",
@@ -551,7 +633,8 @@
           const detail = w.detail ? `<span style="display:block;font-size:0.7rem;color:var(--muted)">${w.detail}</span>` : "";
           return `<div class="playbook-widget${sev}"><span>${w.label}</span><strong>${w.value ?? "—"}</strong>${detail}</div>`;
         }).join("");
-        const links = (dash.quickLinks || []).map((l) => {
+        const depLink = `<a href="#" class="playbook-link-deployment" data-hub-go-deployment="1">${t("monatsplanLinkLabel")}</a>`;
+        const links = depLink + (dash.quickLinks || []).map((l) => {
           const href = appendCompanyToUrl(l.url || "#");
           return `<a href="${href}">${l.label}</a>`;
         }).join("");
@@ -563,10 +646,49 @@
           <div class="playbook-widgets">${widgets || ""}</div>${forecastLine}
           <div class="playbook-links">${links}</div>`;
         el.classList.remove("hidden");
+        el.querySelector("[data-hub-go-deployment]")?.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          goToDeploymentPlanView();
+        });
       } catch {
         el.classList.add("hidden");
         el.innerHTML = "";
       }
+    }
+
+    function goToDeploymentPlanView() {
+      if (window.BaupassEmbed?.isEmbedMode?.()) {
+        try {
+          window.parent?.postMessage({ type: "baupass-navigate", view: "deployment-plan" }, location.origin);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      window.location.href = "/index.html?view=deployment-plan";
+    }
+
+    function renderMonatsplanHero() {
+      const el = document.getElementById("monatsplanHero");
+      if (!el) return;
+      const embed = new URLSearchParams(location.search).get("embed") === "1" || window.BaupassEmbed?.isEmbedMode?.();
+      if (!embed) {
+        el.classList.add("hidden");
+        return;
+      }
+      el.innerHTML = `
+        <h3>${t("monatsplanTitle")}</h3>
+        <ol>
+          <li>${t("monatsplanStep1")}</li>
+          <li>${t("monatsplanStep2")}</li>
+          <li>${t("monatsplanStep3")}</li>
+          <li>${t("monatsplanStep4")}</li>
+        </ol>
+        <div class="hero-actions">
+          <button type="button" class="hero-btn-primary" data-hub-go-deployment="1">${t("monatsplanOpen")}</button>
+        </div>`;
+      el.classList.remove("hidden");
+      el.querySelector("[data-hub-go-deployment]")?.addEventListener("click", () => goToDeploymentPlanView());
     }
 
     function renderStats(stats, labels) {
@@ -758,6 +880,7 @@
         document.getElementById("previewNote").classList.toggle("hidden", !isPreview);
         renderPlanBanner(cat);
         await loadRolePlaybook(isPreview);
+        renderMonatsplanHero();
         renderStats(cat.stats, cat.surfaceLabels);
         renderLayers();
         wireHubEmbedNav();
@@ -795,9 +918,10 @@
         document.documentElement.classList.add("embed-document");
         document.getElementById("hubHeader")?.classList.add("hidden");
         document.body.classList.add("embed-mode");
-        document.getElementById("mainLayout")?.classList.add("embed-layout-split");
+        document.getElementById("mainLayout")?.classList.remove("embed-layout-split");
         document.querySelector(".hub-main-col")?.classList.add("embed-scroll-main");
         document.body.style.minHeight = "100%";
+        renderMonatsplanHero();
       }
     })();
 

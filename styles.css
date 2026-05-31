@@ -473,6 +473,37 @@ select {
   font-weight: 700;
 }
 
+.nav-link-deployment-plan {
+  border-color: rgba(94, 234, 212, 0.45);
+  background: rgba(15, 76, 92, 0.2);
+  font-weight: 700;
+}
+
+.deployment-steps {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.1rem 1rem 2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  background: rgba(15, 76, 92, 0.1);
+  list-style: decimal;
+}
+
+.deployment-steps li {
+  margin-bottom: 0.65rem;
+  padding-left: 0.25rem;
+}
+
+.deployment-steps li strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--text, #1a2e3a);
+}
+
+.deployment-steps li span {
+  font-size: 0.9rem;
+  color: var(--muted, #5a6a78);
+}
+
 .nav-link-enterprise-quick {
   border: 1px dashed rgba(94, 234, 212, 0.45) !important;
   color: #7dd3fc !important;

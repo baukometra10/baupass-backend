@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531shell9";
+        const buildTag = "20260531shell10";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,8 +51,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell9" />
-    <link rel="stylesheet" href="./styles.css?v=20260531shell9" />
+    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell10" />
+    <link rel="stylesheet" href="./styles.css?v=20260531shell10" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -227,7 +227,7 @@
         <p class="nav-section-label" data-ui-i18n="navGroupDaily">Tagesbetrieb</p>
         <button class="nav-link active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
-        <button class="nav-link" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
+        <button class="nav-link nav-link-deployment-plan" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
         <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
         <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
@@ -803,9 +803,27 @@
             <div>
               <p class="eyebrow" data-ui-i18n="deploymentPlanEyebrow">Workforce</p>
               <h3 data-ui-i18n="deploymentPlanTitle">Einsatzplan — Monatsplanung</h3>
-              <p class="muted small" data-ui-i18n="deploymentPlanDesc">Pro Mitarbeiter Tag, Einsatzort und Uhrzeit pflegen — ohne Betrieb-v2-Embed.</p>
+              <p class="muted small" data-ui-i18n="deploymentPlanDesc">Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.</p>
             </div>
           </div>
+          <ol class="deployment-steps" aria-label="Anleitung Monatsplan">
+            <li>
+              <strong data-ui-i18n="deploymentStep1Title">1. Monat wählen</strong>
+              <span data-ui-i18n="deploymentStep1Desc">Oben «Monatsplan Firma» — ggf. «Nächsten Monat vorbereiten».</span>
+            </li>
+            <li>
+              <strong data-ui-i18n="deploymentStep2Title">2. Pläne ausfüllen</strong>
+              <span data-ui-i18n="deploymentStep2Desc">Bei jedem Mitarbeiter «Bearbeiten» — Tag, Einsatzort, Von–Bis, Speichern.</span>
+            </li>
+            <li>
+              <strong data-ui-i18n="deploymentStep3Title">3. Prüfen</strong>
+              <span data-ui-i18n="deploymentStep3Desc">Status «bereit» — PDF optional pro Person testen.</span>
+            </li>
+            <li>
+              <strong data-ui-i18n="deploymentStep4Title">4. Versand</strong>
+              <span data-ui-i18n="deploymentStep4Desc">«Versand bestätigen» — E-Mail + Push an alle fertigen Pläne.</span>
+            </li>
+          </ol>
           <div id="cpDeploymentMonthBar" class="deployment-month-bar hidden">
             <div class="deployment-month-bar-head">
               <label>
@@ -2082,8 +2100,8 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./deployment-plan-ui.js?v=20260531shell9"></script>
-  <script src="./app.js?v=20260531shell9"></script>
+  <script src="./deployment-plan-ui.js?v=20260531shell10"></script>
+  <script src="./app.js?v=20260531shell10"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

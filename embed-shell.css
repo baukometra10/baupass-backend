@@ -212,6 +212,13 @@ html.embed-document body.embed-mode #mainLayout.embed-layout-split {
   min-height: 0;
 }
 
+html.embed-document body.embed-mode .hub-main-col.embed-scroll-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 html.embed-document body.embed-mode .ai-panel.embed-panel-fixed {
   max-height: none !important;
   height: 100% !important;

@@ -345,7 +345,15 @@ const UI_TRANSLATIONS = {
     navDeploymentPlan: "Einsatzplan",
     deploymentPlanEyebrow: "Workforce",
     deploymentPlanTitle: "Einsatzplan — Monatsplanung",
-    deploymentPlanDesc: "Pro Mitarbeiter Tag, Einsatzort und Uhrzeit pflegen — direkt im Firmenportal.",
+    deploymentPlanDesc: "Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.",
+    deploymentStep1Title: "1. Monat wählen",
+    deploymentStep1Desc: "Oben «Monatsplan Firma» — ggf. «Nächsten Monat vorbereiten».",
+    deploymentStep2Title: "2. Pläne ausfüllen",
+    deploymentStep2Desc: "Bei jedem Mitarbeiter «Bearbeiten» — Tag, Ort, Von–Bis, dann Speichern.",
+    deploymentStep3Title: "3. Prüfen",
+    deploymentStep3Desc: "Status «bereit» — optional PDF pro Person testen.",
+    deploymentStep4Title: "4. Versand",
+    deploymentStep4Desc: "«Versand bestätigen» — E-Mail + Push an alle fertigen Pläne.",
     deploymentSelectCompany: "Bitte zuerst eine Firma in der Admin-Leiste auswählen (Superadmin).",
     deploymentColWorker: "Mitarbeiter",
     deploymentColDay: "Tag",
@@ -1317,7 +1325,15 @@ const UI_TRANSLATIONS = {
     navDeploymentPlan: "Deployment plan",
     deploymentPlanEyebrow: "Workforce",
     deploymentPlanTitle: "Deployment plan — monthly",
-    deploymentPlanDesc: "Edit day, site and time per worker — in the company portal.",
+    deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
+    deploymentStep1Title: "1. Pick month",
+    deploymentStep1Desc: "Use «Company month» — or «Prepare next month».",
+    deploymentStep2Title: "2. Fill plans",
+    deploymentStep2Desc: "«Edit» per worker — day, site, times, then Save.",
+    deploymentStep3Title: "3. Review",
+    deploymentStep3Desc: "Status «ready» — optional PDF per worker.",
+    deploymentStep4Title: "4. Send",
+    deploymentStep4Desc: "«Confirm send» — email + push to all ready plans.",
     deploymentSelectCompany: "Select a company first (superadmin).",
     deploymentColWorker: "Worker",
     deploymentColDay: "Day",
@@ -16124,7 +16140,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531shell9");
+    params.push("v=20260531shell10");
   }
   if (item.path.includes("/admin-v2/")) {
     params.push("tab=workers");
