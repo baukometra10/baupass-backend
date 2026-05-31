@@ -25911,6 +25911,22 @@ def worker_app_deployment_plan_day_response():
             company_id=str(worker["company_id"]),
             actor={"role": "worker", "id": str(worker["id"]), "name": worker_name},
         )
+        try:
+            from backend.app.platform.notifications.company_mitteilung import (
+                notify_company_deployment_day_declined,
+            )
+
+            notify_company_deployment_day_declined(
+                db,
+                company_id=str(worker["company_id"]),
+                worker_id=str(worker["id"]),
+                worker_name=worker_name,
+                work_date=str(result.get("date") or work_date),
+                location=location,
+                reason=str(result.get("declineReason") or reason),
+            )
+        except Exception:
+            pass
     return jsonify(result)
 
 
