@@ -25819,8 +25819,6 @@ def worker_app_deployment_plan():
     payload = worker_deployment_plan_payload(
         db, worker=worker, year=year, month=month, lang=lang
     )
-    if not payload.get("ok"):
-        return jsonify(payload), 404
     return jsonify(payload)
 
 

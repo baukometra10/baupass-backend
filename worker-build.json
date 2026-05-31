@@ -1,5 +1,5 @@
 {
-  "build": "20260602b",
+  "build": "20260603a",
   "kind": "hybrid_flutter",
   "entry": "/join.html",
   "launcher": "/join.html?launch=1",

@@ -14,6 +14,100 @@ def month_plan_published(db, company_id: str, year: int, month: int) -> bool:
     return str(batch.get("status") or "").lower() == "sent"
 
 
+def worker_has_distributed_plan(db, worker_id: str, year: int, month: int) -> bool:
+    """True after admin «An MA senden» (PDF + Mitteilung), even if month batch is still draft."""
+    marker = _deployment_doc_marker(year, month)
+    try:
+        row = db.execute(
+            """
+            SELECT 1 FROM worker_documents
+            WHERE worker_id = ? AND doc_type = 'einsatzplan' AND notes = ?
+            LIMIT 1
+            """,
+            (str(worker_id), marker),
+        ).fetchone()
+        return bool(row)
+    except Exception:
+        return False
+
+
+def worker_month_has_assignments(
+    db, *, company_id: str, worker_id: str, year: int, month: int, lang: str = "de"
+) -> bool:
+    days = build_month_calendar(
+        db, company_id=str(company_id), worker_id=str(worker_id), year=year, month=month, lang=lang
+    )
+    return any(str(d.get("location") or "").strip() for d in days)
+
+
+def worker_month_published_for_worker(
+    db, *, company_id: str, worker_id: str, year: int, month: int
+) -> bool:
+    if month_plan_published(db, str(company_id), year, month):
+        return True
+    return worker_has_distributed_plan(db, str(worker_id), year, month)
+
+
+def list_worker_plan_months(
+    db, *, company_id: str, worker_id: str, limit: int = 18
+) -> list[dict[str, Any]]:
+    """Months visible in the worker app: company-wide send, per-worker send, or saved assignments."""
+    seen: set[tuple[int, int]] = set()
+    out: list[dict[str, Any]] = []
+
+    def _add(year: int, month: int, sent_at: str | None = None) -> None:
+        key = (int(year), int(month))
+        if key in seen:
+            return
+        seen.add(key)
+        out.append({"year": key[0], "month": key[1], "sentAt": sent_at})
+
+    for item in list_published_months(db, str(company_id), limit=limit):
+        _add(int(item["year"]), int(item["month"]), item.get("sentAt"))
+
+    try:
+        rows = db.execute(
+            """
+            SELECT DISTINCT CAST(substr(notes, 12, 4) AS INTEGER) AS y,
+                   CAST(substr(notes, 17, 2) AS INTEGER) AS m,
+                   MAX(created_at) AS sent_at
+            FROM worker_documents
+            WHERE worker_id = ? AND company_id = ? AND doc_type = 'einsatzplan'
+              AND notes LIKE 'deployment:____-__'
+            GROUP BY y, m
+            ORDER BY y DESC, m DESC
+            LIMIT ?
+            """,
+            (str(worker_id), str(company_id), int(limit)),
+        ).fetchall()
+        for row in rows:
+            if row["y"] and row["m"]:
+                _add(int(row["y"]), int(row["m"]), row["sent_at"])
+    except Exception:
+        pass
+
+    try:
+        rows = db.execute(
+            """
+            SELECT DISTINCT CAST(substr(work_date, 1, 4) AS INTEGER) AS y,
+                   CAST(substr(work_date, 6, 2) AS INTEGER) AS m
+            FROM worker_deployment_days
+            WHERE company_id = ? AND worker_id = ? AND location_label != ''
+            ORDER BY y DESC, m DESC
+            LIMIT ?
+            """,
+            (str(company_id), str(worker_id), int(limit)),
+        ).fetchall()
+        for row in rows:
+            if row["y"] and row["m"]:
+                _add(int(row["y"]), int(row["m"]))
+    except Exception:
+        pass
+
+    out.sort(key=lambda x: (x["year"], x["month"]), reverse=True)
+    return out[: int(limit)]
+
+
 def list_published_months(db, company_id: str, *, limit: int = 18) -> list[dict[str, Any]]:
     try:
         rows = db.execute(
@@ -115,17 +209,11 @@ def worker_deployment_plan_payload(
 ) -> dict[str, Any]:
     company_id = str(worker["company_id"])
     worker_id = str(worker["id"])
-    published = month_plan_published(db, company_id, year, month)
-    if not published:
-        return {
-            "ok": False,
-            "error": "plan_not_published",
-            "year": year,
-            "month": month,
-            "published": False,
-            "days": [],
-            "months": list_published_months(db, company_id),
-        }
+    company_published = month_plan_published(db, company_id, year, month)
+    worker_published = worker_month_published_for_worker(
+        db, company_id=company_id, worker_id=worker_id, year=year, month=month
+    )
+    published = worker_published
     from .deployment_responses import attach_responses_to_days, count_declined_days, list_responses_for_month
 
     days = build_month_calendar(
@@ -134,6 +222,25 @@ def worker_deployment_plan_payload(
     responses = list_responses_for_month(db, company_id=company_id, worker_id=worker_id, year=year, month=month)
     days = attach_responses_to_days(days, responses)
     scheduled = [d for d in days if str(d.get("location") or "").strip()]
+    has_assignments = bool(scheduled)
+    visible = published or has_assignments
+    months = list_worker_plan_months(db, company_id=company_id, worker_id=worker_id)
+    if not visible:
+        return {
+            "ok": True,
+            "published": False,
+            "companyPublished": company_published,
+            "visible": False,
+            "error": "no_plan",
+            "year": year,
+            "month": month,
+            "days": days,
+            "scheduledDayCount": 0,
+            "declinedDayCount": 0,
+            "months": months,
+            "companyName": _company_name(db, company_id),
+            "workerName": f"{worker['first_name']} {worker['last_name']}".strip(),
+        }
     declined_count = count_declined_days(days)
     batch = get_month_batch(db, company_id, year, month)
     doc = db.execute(
@@ -144,17 +251,22 @@ def worker_deployment_plan_payload(
         """,
         (worker_id, _deployment_doc_marker(year, month)),
     ).fetchone()
+    sent_at = batch.get("sentAt") if company_published else None
+    if not sent_at and doc:
+        sent_at = doc["created_at"]
     return {
         "ok": True,
-        "published": True,
+        "published": published,
+        "companyPublished": company_published,
+        "visible": True,
         "year": year,
         "month": month,
-        "sentAt": batch.get("sentAt"),
+        "sentAt": sent_at,
         "days": days,
         "scheduledDayCount": len(scheduled),
         "declinedDayCount": declined_count,
         "documentId": doc["id"] if doc else None,
-        "months": list_published_months(db, company_id),
+        "months": months,
         "companyName": _company_name(db, company_id),
         "workerName": f"{worker['first_name']} {worker['last_name']}".strip(),
     }
@@ -171,7 +283,10 @@ def build_worker_deployment_pdf_bytes(
     from .deployment_pdf import build_deployment_plan_pdf
 
     company_id = str(worker["company_id"])
-    if not month_plan_published(db, company_id, year, month):
+    worker_id = str(worker["id"])
+    if not worker_month_published_for_worker(
+        db, company_id=company_id, worker_id=worker_id, year=year, month=month
+    ):
         return None
     days = build_month_calendar(
         db, company_id=company_id, worker_id=str(worker["id"]), year=year, month=month, lang=lang

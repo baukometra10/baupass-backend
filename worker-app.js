@@ -4710,9 +4710,20 @@ function workerPlanAllowsFeature(featureKey) {
 function applyWorkerDeploymentMenuState(planFeatures = {}) {
   const allowed = Boolean(planFeatures?.deployment_plan);
   document.querySelectorAll(".worker-menu-btn-deployment, [data-worker-page-target='deploymentPlanCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", !allowed);
+    btn.classList.remove("hidden");
+    btn.classList.toggle("worker-menu-btn-locked", !allowed);
     btn.toggleAttribute("disabled", !allowed);
+    btn.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed) {
+      btn.title = planFeatureBlockedMessage("deployment_plan");
+    } else {
+      btn.removeAttribute("title");
+    }
   });
+  const teaser = document.getElementById("homeDeploymentTeaser");
+  if (teaser) {
+    teaser.classList.toggle("worker-menu-btn-locked", !allowed);
+  }
 }
 
 function planFeatureBlockedMessage(featureKey) {
@@ -6056,6 +6067,7 @@ let deploymentPlanViewYear = null;
 let deploymentPlanViewMonth = null;
 let deploymentDeclinePendingDate = "";
 let deploymentPlanCachedDays = [];
+let deploymentPlanPublished = false;
 
 function deploymentDayIso(day) {
   return String(day?.date || "").slice(0, 10);
@@ -6066,6 +6078,7 @@ function deploymentDayHasAssignment(day) {
 }
 
 function deploymentDayIsDeclinable(day) {
+  if (!deploymentPlanPublished) return false;
   if (!deploymentDayHasAssignment(day)) return false;
   if (String(day?.workerResponse || "") === "declined") return false;
   const iso = deploymentDayIso(day);
@@ -6313,14 +6326,32 @@ async function refreshHomeDeploymentTeaser() {
       `${API_BASE}/deployment-plan?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&lang=${encodeURIComponent(lang)}`,
       { headers: { Authorization: `Bearer ${workerToken}` } },
     );
-    if (!data?.ok || !data?.published) {
-      titleEl.textContent = t("deploymentPlanHomeUnpublished");
-      metaEl.textContent = t("deploymentPlanHomeOpen");
-      teaser.classList.remove("hidden");
+    if (!data?.ok || data?.visible === false) {
+      teaser.classList.add("hidden");
       return;
     }
     const days = Array.isArray(data.days) ? data.days : [];
     const today = days.find((day) => String(day.date || "").slice(0, 10) === todayIso);
+    if (!data?.published) {
+      const location = String(today?.location || "").trim();
+      const shiftStart = String(today?.shiftStart || "").trim();
+      const shiftEnd = String(today?.shiftEnd || "").trim();
+      if (location || shiftStart || shiftEnd) {
+        titleEl.textContent = location || t("deploymentPlanNoLocation");
+        const timeText =
+          shiftStart && shiftEnd
+            ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
+            : shiftStart || shiftEnd || "";
+        metaEl.textContent = [today?.weekday || "", timeText, t("deploymentPlanDraftShort")]
+          .filter(Boolean)
+          .join(" · ");
+      } else {
+        titleEl.textContent = t("deploymentPlanHomeDraft");
+        metaEl.textContent = t("deploymentPlanHomeOpen");
+      }
+      teaser.classList.remove("hidden");
+      return;
+    }
     const location = String(today?.location || "").trim();
     const shiftStart = String(today?.shiftStart || "").trim();
     const shiftEnd = String(today?.shiftEnd || "").trim();
@@ -6377,24 +6408,32 @@ async function loadDeploymentPlan() {
     const months = Array.isArray(data?.months) ? data.months : [];
     populateDeploymentMonthSelect(months, year, month);
 
-    if (!data?.ok || !data?.published) {
+    deploymentPlanPublished = Boolean(data?.published);
+
+    if (!data?.ok || data?.visible === false) {
       const message =
-        data?.error === "plan_not_published"
-          ? t("deploymentPlanNotPublished")
-          : t("deploymentPlanEmpty");
+        data?.error === "no_plan" ? t("deploymentPlanEmpty") : t("deploymentPlanEmpty");
       elements.deploymentPlanList.innerHTML = `<p class="muted-info">${escapeHtmlBasic(message)}</p>`;
+      if (elements.deploymentPlanMeta) {
+        elements.deploymentPlanMeta.textContent = "";
+      }
       if (elements.deploymentPlanPdfBtn) elements.deploymentPlanPdfBtn.disabled = true;
       if (elements.deploymentPlanPrintBtn) elements.deploymentPlanPrintBtn.disabled = true;
       return;
     }
 
-    if (elements.deploymentPlanPdfBtn) elements.deploymentPlanPdfBtn.disabled = false;
-    if (elements.deploymentPlanPrintBtn) elements.deploymentPlanPrintBtn.disabled = false;
+    if (elements.deploymentPlanPdfBtn) {
+      elements.deploymentPlanPdfBtn.disabled = !deploymentPlanPublished;
+    }
+    if (elements.deploymentPlanPrintBtn) {
+      elements.deploymentPlanPrintBtn.disabled = !deploymentPlanPublished;
+    }
 
     const sentAt = data.sentAt ? formatNotificationTimestamp(data.sentAt) : "";
     const scheduled = Number(data.scheduledDayCount || 0);
     const declined = Number(data.declinedDayCount || 0);
     const metaParts = [
+      !deploymentPlanPublished ? t("deploymentPlanDraftBanner") : "",
       tf("deploymentPlanScheduledDays", { count: scheduled }),
       declined > 0 ? tf("deploymentPlanDeclinedDays", { count: declined }) : "",
       sentAt ? tf("deploymentPlanSentAt", { date: sentAt }) : "",

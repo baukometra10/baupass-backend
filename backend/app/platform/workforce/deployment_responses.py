@@ -80,14 +80,20 @@ def set_worker_day_response(
     Returns (payload, error_response) where error_response is (flask_response, status).
     """
     from .deployment_store import list_deployment_days
-    from .deployment_worker import month_plan_published
+    from .deployment_worker import worker_month_published_for_worker
 
     parsed = _parse_work_date(work_date)
     if not parsed:
         return None, ({"error": "invalid_date"}, 400)
 
     year, month = parsed.year, parsed.month
-    if not month_plan_published(db, str(company_id), year, month):
+    if not worker_month_published_for_worker(
+        db,
+        company_id=str(company_id),
+        worker_id=str(worker_id),
+        year=year,
+        month=month,
+    ):
         return None, ({"error": "plan_not_published"}, 403)
 
     today = date.today()
