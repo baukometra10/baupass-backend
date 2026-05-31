@@ -16020,7 +16020,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531shell4");
+    params.push("v=20260531shell5");
   }
   if (item.path.includes("/admin-v2/")) {
     params.push("tab=workers");

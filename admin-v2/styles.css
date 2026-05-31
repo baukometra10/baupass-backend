@@ -1480,15 +1480,64 @@ body.embed-mode.admin-v2-embed .app-shell {
 }
 
 body.embed-mode.admin-v2-embed .app-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   max-height: none;
   overflow: hidden;
 }
 
 body.embed-mode.admin-v2-embed .app-sidebar {
-  height: 100%;
+  display: none;
+}
+
+body.embed-mode.admin-v2-embed .app-content {
+  flex: 1;
   min-height: 0;
-  position: relative;
-  top: auto;
+}
+
+body.embed-mode.admin-v2-embed .command-palette {
+  z-index: 2147483000;
+}
+
+.embed-quick-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.embed-quick-nav-btn {
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.embed-quick-nav-btn.primary {
+  border-color: var(--accent-hover);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.embed-quick-nav-btn:hover {
+  border-color: var(--accent-hover);
+}
+
+#deploymentMonthBar.deployment-highlight {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius);
+  transition: outline-color 0.2s;
 }
 
 body.embed-mode.admin-v2-embed #tab-enterprise.tab-panel:not(.hidden) {

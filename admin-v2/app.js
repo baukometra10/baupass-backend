@@ -55,6 +55,108 @@ function applyStartupTab() {
   if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
     switchToTab(tab);
   }
+  if (params.get("einsatzplan") === "1" || params.get("focus") === "deployment") {
+    switchToTab("workers");
+  }
+}
+
+async function applyStartupTabAfterLoad() {
+  applyStartupTab();
+  const params = new URLSearchParams(location.search);
+  if (params.get("einsatzplan") === "1" || params.get("focus") === "deployment") {
+    try {
+      await refreshActiveTab();
+      await focusDeploymentSection();
+    } catch (err) {
+      notifyTabError(err);
+    }
+  }
+}
+
+async function focusDeploymentSection() {
+  const bar = $("deploymentMonthBar");
+  if (!bar) return;
+  if (bar.classList.contains("hidden")) {
+    showActionToast(t("common.selectCompany"), true);
+    return;
+  }
+  bar.classList.remove("hidden");
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const scrollHost = document.querySelector(".app-content");
+  if (scrollHost) {
+    const hostRect = scrollHost.getBoundingClientRect();
+    const barRect = bar.getBoundingClientRect();
+    const delta = barRect.top - hostRect.top + scrollHost.scrollTop - 16;
+    scrollHost.scrollTo({ top: Math.max(0, delta), behavior: "smooth" });
+  } else {
+    bar.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  bar.classList.add("deployment-highlight");
+  setTimeout(() => bar.classList.remove("deployment-highlight"), 2600);
+}
+
+async function activateCommandItem(item) {
+  if (!item) return;
+  closeCommandPalette();
+  if (item.href) {
+    if (isEmbedMode()) {
+      window.open(item.href, "_blank", "noopener");
+    } else {
+      window.location.href = item.href;
+    }
+    return;
+  }
+  const tab = item.tab;
+  if (!tab) return;
+  switchToTab(tab);
+  try {
+    await refreshActiveTab();
+    if (item.focusDeployment) {
+      await focusDeploymentSection();
+    }
+  } catch (err) {
+    notifyTabError(err);
+  }
+}
+
+function ensureEmbedQuickNav() {
+  if (!isEmbedMode()) return;
+  const main = document.querySelector(".app-main");
+  if (!main || document.getElementById("embedQuickNav")) return;
+  const nav = document.createElement("nav");
+  nav.id = "embedQuickNav";
+  nav.className = "embed-quick-nav";
+  nav.setAttribute("aria-label", "Schnellzugriff Embed");
+  const items = [
+    { tab: "workers", label: t("deployment.planBtn"), primary: true },
+    { tab: "inbox", label: t("tab.inbox") },
+    { tab: "overview", label: t("tab.overview") },
+  ];
+  nav.innerHTML = items
+    .map(
+      (item) =>
+        `<button type="button" class="embed-quick-nav-btn${item.primary ? " primary" : ""}" data-embed-tab="${item.tab}"${item.primary ? ' data-embed-deployment="1"' : ""}>${item.label}</button>`,
+    )
+    .join("");
+  const content = document.querySelector(".app-content");
+  if (content) {
+    main.insertBefore(nav, content);
+  } else {
+    main.prepend(nav);
+  }
+  nav.querySelectorAll("[data-embed-tab]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      switchToTab(btn.getAttribute("data-embed-tab"));
+      try {
+        await refreshActiveTab();
+        if (btn.getAttribute("data-embed-deployment") === "1") {
+          await focusDeploymentSection();
+        }
+      } catch (err) {
+        notifyTabError(err);
+      }
+    });
+  });
 }
 
 function isAuthError(err) {
@@ -202,6 +304,7 @@ function showDashboard() {
   initCommandPalette();
   bindDeploymentModalOnce();
   bindDeploymentMonthBarOnce();
+  ensureEmbedQuickNav();
 }
 
 function setupCompanyPicker(user) {
@@ -436,7 +539,8 @@ const COMMAND_NAV = [
     tab: "workers",
     titleKey: "deployment.planBtn",
     groupKey: "nav.group.people",
-    searchTerms: "einsatzplan monatsplan deployment plan pdf",
+    searchTerms: "einsatzplan monatsplan deployment plan pdf monat",
+    focusDeployment: true,
   },
   { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
   { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
@@ -509,9 +613,13 @@ function renderOverviewQuickBar() {
   bar.querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       switchToTab(btn.getAttribute("data-goto-tab"));
-      await refreshActiveTab().catch(notifyTabError);
-      if (btn.getAttribute("data-highlight") === "deployment") {
-        $("deploymentMonthBar")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      try {
+        await refreshActiveTab();
+        if (btn.getAttribute("data-highlight") === "deployment") {
+          await focusDeploymentSection();
+        }
+      } catch (err) {
+        notifyTabError(err);
       }
     });
   });
@@ -559,11 +667,11 @@ function renderCommandPaletteList(query) {
       return `<li><button type="button" class="command-item${active}" data-cmd-tab="${item.tab}" data-cmd-idx="${i}"><span>${title}</span><span class="muted small">${group}</span></button></li>`;
     })
     .join("");
-  list.querySelectorAll("[data-cmd-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      switchToTab(btn.getAttribute("data-cmd-tab"));
-      closeCommandPalette();
-      refreshActiveTab().catch(notifyTabError);
+  list.querySelectorAll("[data-cmd-idx]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const idx = parseInt(el.getAttribute("data-cmd-idx"), 10);
+      activateCommandItem(commandPaletteFiltered[idx]).catch(notifyTabError);
     });
   });
 }
@@ -581,6 +689,7 @@ function initCommandPalette() {
     renderCommandPaletteList(e.target.value.trim());
   });
   $("commandPaletteInput")?.addEventListener("keydown", (e) => {
+    e.stopPropagation();
     if (e.key === "ArrowDown") {
       e.preventDefault();
       commandPaletteIndex = Math.min(commandPaletteIndex + 1, commandPaletteFiltered.length - 1);
@@ -592,27 +701,28 @@ function initCommandPalette() {
     } else if (e.key === "Enter") {
       e.preventDefault();
       const item = commandPaletteFiltered[commandPaletteIndex];
-      if (!item) return;
-      if (item.href) {
-        window.location.href = item.href;
-        return;
-      }
-      switchToTab(item.tab);
-      closeCommandPalette();
-      refreshActiveTab().catch(notifyTabError);
+      activateCommandItem(item).catch(notifyTabError);
     } else if (e.key === "Escape") {
-      closeCommandPalette();
-    }
-  });
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
-      if ($("dashboardView")?.classList.contains("hidden")) return;
-      openCommandPalette();
-    } else if (e.key === "Escape" && !$("commandPalette")?.classList.contains("hidden")) {
       closeCommandPalette();
     }
   });
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        e.stopPropagation();
+        if ($("dashboardView")?.classList.contains("hidden")) return;
+        openCommandPalette();
+      } else if (e.key === "Escape" && !$("commandPalette")?.classList.contains("hidden")) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeCommandPalette();
+      }
+    },
+    true,
+  );
 }
 
 function renderQuickLinks() {
@@ -2402,10 +2512,13 @@ async function bootSession() {
       localStorage.setItem(COMPANY_KEY, data.user.company_id);
     }
     showDashboard();
-    applyStartupTab();
+    await applyStartupTabAfterLoad();
     await loadCompanies();
     await loadPlatformBanner();
-    await refreshActiveTab();
+    const params = new URLSearchParams(location.search);
+    if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
+      await refreshActiveTab();
+    }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
   } catch (e) {
@@ -2434,10 +2547,13 @@ $("loginBtn").addEventListener("click", async () => {
       localStorage.setItem(COMPANY_KEY, payload.user.company_id);
     }
     showDashboard();
-    applyStartupTab();
+    await applyStartupTabAfterLoad();
     await loadCompanies();
     await loadPlatformBanner();
-    await refreshActiveTab();
+    const params = new URLSearchParams(location.search);
+    if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
+      await refreshActiveTab();
+    }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
   } catch (e) {
