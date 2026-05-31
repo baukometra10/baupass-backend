@@ -16020,10 +16020,10 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531shell2");
+    params.push("v=20260531shell3");
   }
   if (item.path.includes("/admin-v2/")) {
-    params.push("tab=platform");
+    params.push("tab=workers");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);

@@ -46,12 +46,76 @@ async function tryEmbedSessionFromControlPass() {
 }
 
 function applyEmbedStartupTab() {
-  if (!isEmbedMode()) return;
-  const tab = new URLSearchParams(location.search).get("tab");
+  applyStartupTab();
+}
+
+function applyStartupTab() {
+  const params = new URLSearchParams(location.search);
+  const tab = params.get("tab");
   if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
     switchToTab(tab);
   }
 }
+
+function isAuthError(err) {
+  const code = String(err?.data?.error || err?.message || "").toLowerCase();
+  return (
+    err?.status === 401 ||
+    err?.auth === true ||
+    ["invalid_session", "session_expired", "unauthorized"].includes(code)
+  );
+}
+
+function clearSessionAndShowLogin(message) {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  showLogin();
+  const errEl = $("loginError");
+  if (errEl && message) {
+    errEl.textContent = message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function probeSessionToken(token) {
+  if (!token) return false;
+  try {
+    const res = await fetch(`${apiBase()}/api/v2/auth/session`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function adoptControlPassTokenIfValid() {
+  const controlToken = (localStorage.getItem(CONTROL_TOKEN_KEY) || "").trim();
+  if (!controlToken) return false;
+  if (!(await probeSessionToken(controlToken))) return false;
+  localStorage.setItem(TOKEN_KEY, controlToken);
+  return true;
+}
+
+function notifyTabError(err) {
+  if (isAuthError(err)) return;
+  showActionToast(err?.message || String(err), true);
+}
+
+window.addEventListener("message", (event) => {
+  if (!event?.data || event.origin !== window.location.origin) return;
+  if (event.data.type !== "baupass-sync-token" || !event.data.token) return;
+  const token = String(event.data.token).trim();
+  if (!token) return;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(CONTROL_TOKEN_KEY, token);
+  if (event.data.companyId && getUser().role === "superadmin") {
+    localStorage.setItem(COMPANY_KEY, String(event.data.companyId));
+  }
+  if ($("dashboardView")?.classList.contains("hidden")) {
+    bootSession().catch(() => {});
+  }
+});
 let pendingIntegrationProvider = null;
 
 function getUser() {
@@ -96,6 +160,18 @@ async function api(path, options = {}) {
     data = { error: "invalid_json" };
   }
   if (!res.ok) {
+    const code = String(data.error || "").toLowerCase();
+    if (
+      res.status === 401 &&
+      ["invalid_session", "session_expired", "unauthorized"].includes(code)
+    ) {
+      clearSessionAndShowLogin(t("login.sessionExpired"));
+      const err = new Error(t("login.sessionExpired"));
+      err.status = 401;
+      err.auth = true;
+      err.data = data;
+      throw err;
+    }
     const err = new Error(data.message || data.error || res.statusText);
     err.status = res.status;
     err.data = data;
@@ -140,7 +216,7 @@ function setupCompanyPicker(user) {
     localStorage.setItem(COMPANY_KEY, select.value);
     syncEnterpriseFrame();
     startAdminRealtime().catch(() => {});
-    refreshActiveTab().catch((e) => alert(e.message));
+    refreshActiveTab().catch(notifyTabError);
     if (document.querySelector(".tab.active")?.dataset?.tab === "platform") {
       loadCompanyWorkTimesForm(select.value).catch(() => {});
     }
@@ -356,6 +432,12 @@ const COMMAND_NAV = [
   { tab: "inbox", titleKey: "tab.inbox", groupKey: "nav.group.start" },
   { tab: "copilot", titleKey: "tab.copilot", groupKey: "nav.group.start" },
   { tab: "workers", titleKey: "tab.workers", groupKey: "nav.group.people" },
+  {
+    tab: "workers",
+    titleKey: "deployment.planBtn",
+    groupKey: "nav.group.people",
+    searchTerms: "einsatzplan monatsplan deployment plan pdf",
+  },
   { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
   { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
   { tab: "operations", titleKey: "tab.operations", groupKey: "nav.group.ops" },
@@ -375,7 +457,7 @@ function bindTabNavigation() {
     btn.dataset.tabNavBound = "1";
     btn.addEventListener("click", () => {
       switchToTab(btn.dataset.tab);
-      refreshActiveTab().catch((e) => alert(e.message));
+      refreshActiveTab().catch(notifyTabError);
     });
   });
 }
@@ -413,19 +495,23 @@ function renderOverviewQuickBar() {
   const items = [
     { tab: "inbox", label: t("overview.quick.inbox"), icon: "📥" },
     { tab: "workers", label: t("overview.quick.workers"), icon: "👷" },
+    { tab: "workers", label: t("deployment.planBtn"), icon: "📋", highlight: "deployment" },
     { tab: "access", label: t("overview.quick.access"), icon: "✓" },
     { tab: "copilot", label: t("overview.quick.copilot"), icon: "✦" },
   ];
   bar.innerHTML = items
     .map(
       (item) =>
-        `<button type="button" class="quick-bar-btn" data-goto-tab="${item.tab}"><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span></button>`,
+        `<button type="button" class="quick-bar-btn" data-goto-tab="${item.tab}"${item.highlight ? ` data-highlight="${item.highlight}"` : ""}><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span></button>`,
     )
     .join("");
   bar.querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       switchToTab(btn.getAttribute("data-goto-tab"));
-      await refreshActiveTab();
+      await refreshActiveTab().catch(notifyTabError);
+      if (btn.getAttribute("data-highlight") === "deployment") {
+        $("deploymentMonthBar")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     });
   });
 }
@@ -454,8 +540,9 @@ function renderCommandPaletteList(query) {
   commandPaletteFiltered = COMMAND_NAV.filter((item) => {
     const title = t(item.titleKey).toLowerCase();
     const group = t(item.groupKey || "").toLowerCase();
+    const extra = String(item.searchTerms || "").toLowerCase();
     if (!q) return true;
-    return title.includes(q) || group.includes(q) || (item.tab || "").includes(q);
+    return title.includes(q) || group.includes(q) || extra.includes(q) || (item.tab || "").includes(q);
   });
   if (commandPaletteIndex >= commandPaletteFiltered.length) {
     commandPaletteIndex = Math.max(0, commandPaletteFiltered.length - 1);
@@ -475,7 +562,7 @@ function renderCommandPaletteList(query) {
     btn.addEventListener("click", () => {
       switchToTab(btn.getAttribute("data-cmd-tab"));
       closeCommandPalette();
-      refreshActiveTab().catch((e) => alert(e.message));
+      refreshActiveTab().catch(notifyTabError);
     });
   });
 }
@@ -511,7 +598,7 @@ function initCommandPalette() {
       }
       switchToTab(item.tab);
       closeCommandPalette();
-      refreshActiveTab().catch((err) => alert(err.message));
+      refreshActiveTab().catch(notifyTabError);
     } else if (e.key === "Escape") {
       closeCommandPalette();
     }
@@ -2291,24 +2378,38 @@ async function bootSession() {
   if (isEmbedMode()) {
     await tryEmbedSessionFromControlPass();
   }
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token || forceLoginForm) {
+  let token = (localStorage.getItem(TOKEN_KEY) || "").trim();
+  if (forceLoginForm) {
     showLogin();
     return;
   }
+  if (!token || !(await probeSessionToken(token))) {
+    const adopted = await adoptControlPassTokenIfValid();
+    if (adopted) {
+      token = localStorage.getItem(TOKEN_KEY);
+    }
+  }
+  if (!token || !(await probeSessionToken(token))) {
+    clearSessionAndShowLogin(
+      token ? t("login.sessionExpired") : "",
+    );
+    return;
+  }
   try {
-    await api("/api/v2/auth/session");
+    const data = await api("/api/v2/auth/session");
+    if (data.user?.company_id && !localStorage.getItem(COMPANY_KEY)) {
+      localStorage.setItem(COMPANY_KEY, data.user.company_id);
+    }
     showDashboard();
-    applyEmbedStartupTab();
+    applyStartupTab();
     await loadCompanies();
     await loadPlatformBanner();
     await refreshActiveTab();
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
-  } catch {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    showLogin();
+  } catch (e) {
+    if (isAuthError(e)) return;
+    clearSessionAndShowLogin(t("login.sessionExpired"));
   }
 }
 
@@ -2332,7 +2433,7 @@ $("loginBtn").addEventListener("click", async () => {
       localStorage.setItem(COMPANY_KEY, payload.user.company_id);
     }
     showDashboard();
-    applyEmbedStartupTab();
+    applyStartupTab();
     await loadCompanies();
     await loadPlatformBanner();
     await refreshActiveTab();
@@ -2355,7 +2456,7 @@ $("logoutBtn").addEventListener("click", async () => {
   showLogin();
 });
 
-$("refreshBtn").addEventListener("click", () => refreshActiveTab().catch((e) => alert(e.message)));
+$("refreshBtn").addEventListener("click", () => refreshActiveTab().catch(notifyTabError));
 
 bindTabNavigation();
 
