@@ -80,14 +80,14 @@ def set_worker_day_response(
     Returns (payload, error_response) where error_response is (flask_response, status).
     """
     from .deployment_store import list_deployment_days
-    from .deployment_worker import worker_month_published_for_worker
+    from .deployment_worker import worker_can_respond_to_deployment_month
 
     parsed = _parse_work_date(work_date)
     if not parsed:
         return None, ({"error": "invalid_date"}, 400)
 
     year, month = parsed.year, parsed.month
-    if not worker_month_published_for_worker(
+    if not worker_can_respond_to_deployment_month(
         db,
         company_id=str(company_id),
         worker_id=str(worker_id),

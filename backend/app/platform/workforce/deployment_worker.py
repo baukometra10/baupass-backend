@@ -48,6 +48,24 @@ def worker_month_published_for_worker(
     return worker_has_distributed_plan(db, str(worker_id), year, month)
 
 
+def worker_can_respond_to_deployment_month(
+    db, *, company_id: str, worker_id: str, year: int, month: int, lang: str = "de"
+) -> bool:
+    """Allow decline/undo when the month was sent to the worker or has saved assignments."""
+    if worker_month_published_for_worker(
+        db, company_id=str(company_id), worker_id=str(worker_id), year=year, month=month
+    ):
+        return True
+    return worker_month_has_assignments(
+        db,
+        company_id=str(company_id),
+        worker_id=str(worker_id),
+        year=year,
+        month=month,
+        lang=lang,
+    )
+
+
 def list_worker_plan_months(
     db, *, company_id: str, worker_id: str, limit: int = 18
 ) -> list[dict[str, Any]]:
@@ -214,6 +232,14 @@ def worker_deployment_plan_payload(
         db, company_id=company_id, worker_id=worker_id, year=year, month=month
     )
     published = worker_published
+    can_respond = worker_can_respond_to_deployment_month(
+        db,
+        company_id=company_id,
+        worker_id=worker_id,
+        year=year,
+        month=month,
+        lang=lang,
+    )
     from .deployment_responses import attach_responses_to_days, count_declined_days, list_responses_for_month
 
     days = build_month_calendar(
@@ -229,6 +255,7 @@ def worker_deployment_plan_payload(
         return {
             "ok": True,
             "published": False,
+            "canRespond": False,
             "companyPublished": company_published,
             "visible": False,
             "error": "no_plan",
@@ -257,6 +284,7 @@ def worker_deployment_plan_payload(
     return {
         "ok": True,
         "published": published,
+        "canRespond": can_respond,
         "companyPublished": company_published,
         "visible": True,
         "year": year,

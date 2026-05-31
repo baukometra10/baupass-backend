@@ -3342,12 +3342,14 @@ body {
 
 .deployment-plan-day.has-assignment {
   border-color: rgba(31, 111, 235, 0.35);
-  grid-template-columns: minmax(4.5rem, auto) 1fr auto;
+  grid-template-columns: minmax(4.5rem, auto) 1fr;
 }
 
 .deployment-plan-day.has-assignment .deployment-plan-day-actions {
-  grid-column: 3;
-  grid-row: 1 / span 5;
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 .deployment-plan-day-date {
@@ -6850,7 +6852,12 @@ body {
   background: #ffffff;
   border-bottom: 1px solid var(--corp-border);
   box-shadow: 0 1px 4px rgba(11, 38, 80, 0.08);
-  padding: 0 16px;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 0
+    max(16px, env(safe-area-inset-left, 0px));
+}
+
+body.worker-loaded .app-shell {
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
 }
 
 @media (prefers-color-scheme: dark) {

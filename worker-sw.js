@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260603b";
+const WORKER_BUILD = "20260603c";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -155,15 +155,20 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || "/worker-install.html?launch=1";
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windowClients) => {
       for (const client of windowClients) {
-        if ((client.url.includes("/emp-app") || client.url.includes("/worker")) && "focus" in client) {
-          return client.focus();
+        if (client.url.includes("/emp-app") || client.url.includes("/worker")) {
+          if ("focus" in client) {
+            await client.focus();
+          }
+          client.postMessage({ type: "NAVIGATE_WORKER_APP", url: absoluteUrl });
+          return;
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(absoluteUrl);
       }
     })
   );

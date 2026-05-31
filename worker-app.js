@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260603b";
+const WORKER_BUILD_TAG = "20260603c";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -2425,6 +2425,12 @@ function registerWorkerSw() {
       .catch(() => {});
   }
   
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "NAVIGATE_WORKER_APP") {
+      navigateWorkerAppFromNotification(event.data.url);
+    }
+  });
+
   navigator.serviceWorker.register(`./worker-sw.js?v=${WORKER_BUILD_TAG}`).then((registration) => {
     registration.update().catch(() => {});
 
@@ -2659,6 +2665,7 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
 
     // ── Schutzlogik: Session-Inaktivitäts-Monitor starten ──
     initializeSessionInactivityProtection();
+    void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
     if (error.code === "access_token_already_used") {
       localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
@@ -2770,6 +2777,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
 
     // ── Schutzlogik: Session-Inaktivitäts-Monitor starten ──
     initializeSessionInactivityProtection();
+    void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
     if (!navigator.onLine || !error.code) {
       const restoreResult = await tryOfflineBadgeLogin(normalizedBadgeId, normalizedBadgePin, locationPayload);
@@ -3238,6 +3246,10 @@ function renderWorker(payload) {
   if (isWorkerCardInstallEntry()) {
     document.body.classList.add("worker-card-install");
   }
+  if (!isVisitor) {
+    void ensureWorkerPushNotifications({ promptIfNeeded: false });
+  }
+
   const launchHash = (window.location.hash || "").toLowerCase();
   if (!isVisitor && (launchHash === "#einsatzplan" || launchHash === "#deployment")) {
     void openWorkerDeploymentPlanScreen();
@@ -4947,70 +4959,125 @@ function applyTheme(theme) {
 // ═════════════════════════════════════════════════════════════════════
 
 async function requestNotificationPermission() {
+  await ensureWorkerPushNotifications({ promptIfNeeded: true, showSuccessNotice: true });
+}
+
+async function ensureWorkerPushNotifications({
+  promptIfNeeded = false,
+  showSuccessNotice = false,
+} = {}) {
+  if (!workerToken) return;
   if (!("Notification" in window)) {
-    showWorkerNotice(t("browserPushNotSupported"));
+    if (showSuccessNotice) {
+      showWorkerNotice(t("browserPushNotSupported"));
+    }
     return;
   }
-  
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return;
+  }
+
+  if (Notification.permission === "denied") {
+    if (elements.notificationBanner) {
+      elements.notificationBanner.classList.remove("hidden");
+    }
+    return;
+  }
+
+  if (Notification.permission === "default") {
+    if (!promptIfNeeded) {
+      if (elements.notificationBanner) {
+        elements.notificationBanner.classList.remove("hidden");
+      }
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      if (elements.notificationBanner) {
+        elements.notificationBanner.classList.remove("hidden");
+      }
+      return;
+    }
+  }
+
   if (Notification.permission === "granted") {
-    showWorkerNotice(t("notificationsAlreadyEnabled"));
-    await subscribePushNotifications();
-    return;
-  }
-  
-  const permission = await Notification.requestPermission();
-  if (permission === "granted") {
-    showWorkerNotice(t("notificationsEnabled"));
-    await subscribePushNotifications();
     if (elements.notificationBanner) {
       elements.notificationBanner.classList.add("hidden");
     }
+    if (showSuccessNotice) {
+      showWorkerNotice(t("notificationsEnabled"));
+    }
+    await subscribePushNotifications();
   }
 }
 
 async function subscribePushNotifications() {
   try {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (!workerToken || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       return;
     }
-    
+
     const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    
-    if (subscription) {
-      return;
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      const vapidKeyRes = await fetchJson(`${API_BASE}/push-vapid-key`);
+      const vapidPublicKey = vapidKeyRes.vapidPublicKey;
+
+      if (!vapidPublicKey) {
+        console.warn("No VAPID public key from server");
+        return;
+      }
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
     }
-    
-    const vapidKeyRes = await fetchJson(`${API_BASE}/push-vapid-key`);
-    const vapidPublicKey = vapidKeyRes.vapidPublicKey;
-    
-    if (!vapidPublicKey) {
-      console.warn("No VAPID public key from server");
-      return;
-    }
-    
-    const newSubscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-    });
-    
+
     await fetchJson(`${API_BASE}/push-subscribe`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${workerToken}`
+        Authorization: `Bearer ${workerToken}`,
       },
       body: JSON.stringify({
-        endpoint: newSubscription.endpoint,
-        p256dh: arrayBufferToBase64(newSubscription.getKey("p256dh")),
-        auth: arrayBufferToBase64(newSubscription.getKey("auth"))
-      })
+        endpoint: subscription.endpoint,
+        p256dh: arrayBufferToBase64(subscription.getKey("p256dh")),
+        auth: arrayBufferToBase64(subscription.getKey("auth")),
+      }),
     });
-    
+
     console.log("✓ Push subscription registered");
   } catch (error) {
     console.error("Push subscription failed:", error);
   }
+}
+
+function navigateWorkerAppFromNotification(targetUrl) {
+  const raw = String(targetUrl || "").trim();
+  if (!raw) return;
+  let hash = "";
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    hash = (parsed.hash || "").toLowerCase();
+  } catch {
+    const hashIndex = raw.indexOf("#");
+    hash = hashIndex >= 0 ? raw.slice(hashIndex).toLowerCase() : "";
+  }
+  if (hash === "#einsatzplan" || hash === "#deployment") {
+    void openWorkerDeploymentPlanScreen();
+    return;
+  }
+  if (hash === "#documents" || hash === "#docs") {
+    switchToTab("documents");
+    return;
+  }
+  if (hash === "#leave" || hash === "#urlaub") {
+    switchToTab("vacation");
+    return;
+  }
+  switchToTab("home");
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -6070,6 +6137,7 @@ let deploymentPlanViewMonth = null;
 let deploymentDeclinePendingDate = "";
 let deploymentPlanCachedDays = [];
 let deploymentPlanPublished = false;
+let deploymentPlanCanRespond = false;
 
 function deploymentDayIso(day) {
   return String(day?.date || "").slice(0, 10);
@@ -6080,7 +6148,7 @@ function deploymentDayHasAssignment(day) {
 }
 
 function deploymentDayIsDeclinable(day) {
-  if (!deploymentPlanPublished) return false;
+  if (!deploymentPlanCanRespond) return false;
   if (!deploymentDayHasAssignment(day)) return false;
   if (String(day?.workerResponse || "") === "declined") return false;
   const iso = deploymentDayIso(day);
@@ -6411,6 +6479,10 @@ async function loadDeploymentPlan() {
     populateDeploymentMonthSelect(months, year, month);
 
     deploymentPlanPublished = Boolean(data?.published);
+    deploymentPlanCanRespond =
+      Boolean(data?.canRespond) ||
+      deploymentPlanPublished ||
+      (Boolean(data?.visible) && Number(data?.scheduledDayCount || 0) > 0);
 
     if (!data?.ok || data?.visible === false) {
       const message =
@@ -6435,7 +6507,8 @@ async function loadDeploymentPlan() {
     const scheduled = Number(data.scheduledDayCount || 0);
     const declined = Number(data.declinedDayCount || 0);
     const metaParts = [
-      !deploymentPlanPublished ? t("deploymentPlanDraftBanner") : "",
+      !deploymentPlanPublished && deploymentPlanCanRespond ? t("deploymentPlanDraftBanner") : "",
+      !deploymentPlanPublished && !deploymentPlanCanRespond ? t("deploymentPlanNotPublished") : "",
       tf("deploymentPlanScheduledDays", { count: scheduled }),
       declined > 0 ? tf("deploymentPlanDeclinedDays", { count: declined }) : "",
       sentAt ? tf("deploymentPlanSentAt", { date: sentAt }) : "",

@@ -173,8 +173,8 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
     return day['workerResponse'] == 'declined' || day['isDeclined'] == true;
   }
 
-  bool _canDecline(Map<String, dynamic> day, bool published) {
-    if (!published || !_dayHasAssignment(day) || _isDeclined(day)) return false;
+  bool _canDecline(Map<String, dynamic> day, bool canRespond) {
+    if (!canRespond || !_dayHasAssignment(day) || _isDeclined(day)) return false;
     final iso = (day['date'] as String? ?? '').substring(0, 10);
     final parsed = DateTime.tryParse(iso);
     if (parsed == null) return false;
@@ -200,6 +200,9 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
     }
 
     final published = _plan?['published'] == true;
+    final canRespond = _plan?['canRespond'] == true ||
+        published ||
+        (_plan?['visible'] != false && ((_plan?['scheduledDayCount'] as num?)?.toInt() ?? 0) > 0);
     final visible = _plan?['visible'] != false;
     final days = (_plan?['days'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
 
@@ -242,13 +245,13 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                 child: Text('Für diesen Monat liegt noch kein Plan vor. Ihr Arbeitgeber muss den Monatsplan speichern oder senden.'),
               ),
             )
-          else if (!published)
+          else if (!published && canRespond)
             Card(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: const Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'Entwurf: Sie sehen bereits Ihre geplanten Tage. Ablehnen ist möglich, sobald die Firma den Plan freigegeben hat.',
+                  'Entwurf: Geplante Tage können Sie bereits ablehnen. Das PDF folgt nach Freigabe durch die Firma.',
                 ),
               ),
             ),
@@ -287,7 +290,7 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                           onPressed: () => _undoDecline(iso),
                           child: const Text('Zurück'),
                         )
-                      : (_canDecline(day, published)
+                      : (_canDecline(day, canRespond)
                           ? TextButton(
                               onPressed: () => _declineDay(day),
                               child: const Text('Kann nicht'),
