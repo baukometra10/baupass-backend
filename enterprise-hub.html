@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — مركز المؤسسة (16 طبقة)</title>
   <link rel="stylesheet" href="/design-tokens.css" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell1" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
   <style>
     :root {
@@ -146,9 +147,30 @@
     .cap .locked-badge { color: #f87171; }
     .err-box { background: #3f1d1d; border: 1px solid #7f1d1d; padding: 1rem; border-radius: 10px; margin: 1rem; }
     .hidden { display: none !important; }
-    body.embed-mode { min-height: 100%; overflow: auto; }
-    body.embed-mode .layout { max-width: none; padding: 0.5rem 0.75rem 1rem; }
-    body.embed-mode .ai-panel { max-height: none; position: relative; top: auto; min-height: 280px; }
+    body.embed-mode { min-height: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+    body.embed-mode #mainLayout.layout {
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      max-height: 100%;
+      overflow: hidden;
+      padding: 0.5rem 0.65rem 0.65rem;
+      max-width: none;
+    }
+    body.embed-mode #mainLayout.embed-layout-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+      grid-template-rows: 1fr;
+      gap: 0.65rem;
+    }
+    body.embed-mode .ai-panel {
+      max-height: none;
+      height: 100%;
+      min-height: 0;
+      position: relative;
+      top: auto;
+    }
+    body.embed-mode .ai-form-legacy-send { display: none; }
   </style>
 </head>
 <body>
@@ -182,7 +204,7 @@
   </div>
 
   <div class="layout" id="mainLayout">
-    <section>
+    <section class="hub-main-col">
       <div id="planBanner" class="plan-banner hidden"></div>
       <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
@@ -200,7 +222,7 @@
       <div id="layers"></div>
     </section>
 
-    <aside class="ai-panel">
+    <aside class="ai-panel embed-panel-fixed">
       <h2>مساعد BauPass (AI)</h2>
       <div id="aiStatus" style="padding:0 0.75rem;font-size:0.78rem;color:var(--muted)"></div>
       <div class="ai-toolbar">
@@ -208,8 +230,8 @@
         <a href="/ai-command-center.html" id="aiCenterLink" style="font-size:0.72rem;padding:0.25rem 0.5rem;border-radius:6px;border:1px solid var(--border);text-decoration:none;color:var(--accent)"></a>
       </div>
       <div id="aiPrompts"></div>
-      <div id="aiLog"></div>
-      <form class="ai-form" id="aiForm">
+      <div id="aiLog" class="embed-scroll-main"></div>
+      <form class="ai-form embed-panel-footer" id="aiForm">
         <div class="ai-form-row">
           <textarea id="aiQuestion" rows="1" placeholder="اسأل بلغة طبيعية: كم موظف على الموقع؟ ما تنبيهات الأمن؟"></textarea>
           <button type="button" id="aiVoiceBtn" aria-label="Spracheingabe"></button>
@@ -220,7 +242,7 @@
     </aside>
   </div>
 
-  <script src="/embed-helpers.js?v=20260531ai1"></script>
+  <script src="/embed-helpers.js?v=20260531shell1"></script>
   <script src="/ai-voice-ui.js?v=20260530a"></script>
   <script>
     const SURFACE_COLORS = {
@@ -756,8 +778,11 @@
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
       if (params.get("embed") === "1" || window.BaupassEmbed?.isEmbedMode?.()) {
+        document.documentElement.classList.add("embed-document");
         document.getElementById("hubHeader")?.classList.add("hidden");
         document.body.classList.add("embed-mode");
+        document.getElementById("mainLayout")?.classList.add("embed-layout-split");
+        document.querySelector(".hub-main-col")?.classList.add("embed-scroll-main");
         document.body.style.minHeight = "100%";
       }
     })();

@@ -1,0 +1,279 @@
+/**
+ * Unified embed + app-shell layout (Control Pass parent + iframe children).
+ * One viewport, one scroll region per surface — no nested scroll chaos.
+ */
+
+/* Logged-in Control Pass: lock page scroll; views scroll internally */
+body:not(.auth-locked) {
+  overflow: hidden;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+/* ── Control Pass: main column is a flex stack ── */
+.shell {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding: 14px 18px 16px !important;
+}
+
+.content .topbar {
+  position: sticky;
+  top: 0;
+  left: auto;
+  right: auto;
+  flex-shrink: 0;
+  z-index: 40;
+  margin: 0 0 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+}
+
+.content.has-embed-view {
+  padding-bottom: 12px !important;
+}
+
+/* Standard pages: scroll inside active view only */
+.content .view {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content .view.active:not(.view-embed) {
+  display: block !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+/* Enterprise embeds: fill remaining height, iframe scrolls internally */
+.content .view.view-embed.active {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: auto !important;
+  overflow: hidden;
+}
+
+.enterprise-embed-shell {
+  flex: 1;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(94, 234, 212, 0.14);
+  background: linear-gradient(165deg, #0e151d 0%, #0a1016 100%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.enterprise-embed-toolbar {
+  padding: 0.55rem 0.9rem;
+  gap: 0.5rem;
+  background: rgba(15, 23, 32, 0.92);
+  border-bottom: 1px solid rgba(94, 234, 212, 0.12);
+}
+
+.enterprise-embed-title {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: #5eead4;
+  opacity: 1;
+}
+
+.enterprise-embed-toolbar .ghost-button,
+.enterprise-embed-toolbar .primary-button {
+  padding: 0.4rem 0.75rem !important;
+  font-size: 0.76rem !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #e2e8f0 !important;
+}
+
+.enterprise-embed-toolbar .ghost-button:hover {
+  background: rgba(94, 234, 212, 0.12) !important;
+  border-color: rgba(94, 234, 212, 0.35) !important;
+}
+
+.enterprise-embed-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #0a1016;
+}
+
+/* ── Iframe children (enterprise-hub, ai-command-center, admin-v2) ── */
+html.embed-document,
+html.embed-document body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.embed-mode {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a1016;
+}
+
+body.embed-mode .embed-scroll-main {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.embed-mode .embed-panel-fixed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body.embed-mode .embed-panel-fixed .embed-scroll-main {
+  flex: 1;
+}
+
+body.embed-mode .embed-panel-footer {
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.embed-mode .embed-panel-fixed > h2,
+body.embed-mode .embed-panel-fixed > #aiStatus,
+body.embed-mode .embed-panel-fixed > .ai-toolbar,
+body.embed-mode .embed-panel-fixed > #aiPrompts {
+  flex-shrink: 0;
+}
+
+body.embed-mode .embed-panel-fixed #aiLog {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Admin v2 inside Control Pass iframe */
+html.embed-document body.embed-mode.admin-v2-embed {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.embed-document body.embed-mode.admin-v2-embed #dashboardView {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+html.embed-document body.embed-mode.admin-v2-embed .app-shell {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+
+html.embed-document body.embed-mode.admin-v2-embed .app-sidebar {
+  height: 100%;
+  align-self: stretch;
+  position: relative;
+  top: auto;
+}
+
+html.embed-document body.embed-mode.admin-v2-embed .app-main {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+
+html.embed-document body.embed-mode.admin-v2-embed .app-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+html.embed-document body.ops-app.embed-mode {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+html.embed-document body.ops-app.embed-mode .ops-header {
+  flex-shrink: 0;
+  position: relative;
+  top: auto;
+}
+
+html.embed-document body.ops-app.embed-mode main {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1100px) {
+  body.embed-mode .embed-layout-split {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+  }
+
+  body.embed-mode .embed-panel-fixed {
+    max-height: 42vh;
+  }
+}
+
+@media (max-width: 900px) {
+  body:not(.auth-locked) {
+    overflow: auto;
+    height: auto;
+    max-height: none;
+  }
+
+  .shell {
+    grid-template-columns: 1fr !important;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .content {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .content .view.view-embed.active {
+    min-height: 70vh;
+  }
+
+  .enterprise-embed-shell {
+    min-height: 68vh;
+  }
+}

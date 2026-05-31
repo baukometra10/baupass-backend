@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — Ops Command Center</title>
   <link rel="stylesheet" href="/design-tokens.css" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell1" />
   <link rel="stylesheet" href="/ops-shell.css" />
   <style>
     main { padding: 1rem 1.5rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
@@ -210,6 +211,7 @@
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
       if (params.get("embed") === "1") {
+        document.documentElement.classList.add("embed-document");
         document.body.classList.add("embed-mode");
         document.querySelector(".ops-header .ops-nav")?.remove();
         document.querySelector("header .ops-nav")?.remove();

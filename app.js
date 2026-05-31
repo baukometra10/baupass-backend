@@ -16020,7 +16020,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531ai1");
+    params.push("v=20260531shell1");
   }
   if (item.path.includes("/admin-v2/")) {
     params.push("tab=platform");
@@ -16258,6 +16258,8 @@ function setView(viewName) {
   if (ENTERPRISE_EMBED_META[targetView]) {
     loadEnterpriseEmbed(targetView);
   }
+
+  document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));
 }
 
 function stopInvoiceAutoRefresh() {

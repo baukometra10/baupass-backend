@@ -15,6 +15,7 @@ async function tryEmbedSessionFromControlPass() {
   if (!isEmbedMode()) {
     return false;
   }
+  document.documentElement.classList.add("embed-document");
   document.body.classList.add("embed-mode", "admin-v2-embed");
   const parentToken = (localStorage.getItem(CONTROL_TOKEN_KEY) || "").trim();
   if (!parentToken) {

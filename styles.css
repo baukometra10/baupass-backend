@@ -448,11 +448,36 @@ select {
 }
 
 .view-embed.active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  height: calc(100vh - 5.5rem);
+}
+
+.content.has-embed-view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.content.has-embed-view .view-embed.active {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.enterprise-embed-toolbar .ghost-button,
+.enterprise-embed-toolbar .primary-button {
+  overflow: visible;
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.enterprise-embed-toolbar .ghost-button::after,
+.enterprise-embed-toolbar .primary-button::after {
+  display: none;
 }
 
 .enterprise-embed-shell {
@@ -509,7 +534,10 @@ body.embed-mode.admin-v2-embed {
 }
 
 body.embed-mode.admin-v2-embed #app {
-  min-height: auto;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .dashboard-stack {
@@ -673,8 +701,8 @@ body.embed-mode.admin-v2-embed #app {
 }
 
 .content {
-  padding: 22px 24px;
-  padding-top: calc(22px + 96px);
+  padding: 14px 18px 16px;
+  padding-top: 14px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -1589,24 +1617,21 @@ textarea.invoice-field-valid {
 }
 
 .topbar {
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 280px;
-  right: 0;
+  left: auto;
+  right: auto;
   z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  margin: 0;
+  margin: 0 0 12px;
   padding: 12px 22px;
-  border-radius: 0;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.72);
-  border-top: none;
-  border-left: none;
-  border-right: none;
   box-shadow: 0 14px 30px rgba(35, 24, 14, 0.08);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -1855,7 +1880,7 @@ textarea.invoice-field-valid {
   animation: fade-up 260ms ease;
 }
 
-.view.active {
+.view.active:not(.view-embed) {
   display: block;
 }
 
@@ -7041,7 +7066,8 @@ body.theme-black .dashboard-compliance-panel .dashboard-compliance-subhead h4 {
 
 /* ── View fade-in transition ──────────────────────────────────────── */
 .view { display: none; animation: fadeInView .18s ease; }
-.view.active { display: block; }
+.view.active:not(.view-embed) { display: block; }
+.view.view-embed.active { display: flex !important; flex-direction: column; }
 @keyframes fadeInView { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ── Admin Modal (Leave Reject) ──────────────────────────────────── */
