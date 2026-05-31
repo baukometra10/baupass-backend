@@ -8122,6 +8122,7 @@ const ENTERPRISE_EMBED_META = {
 };
 
 let pendingEnterpriseEmbedItemId = null;
+let pendingAdminV2EinsatzplanFocus = false;
 let enterpriseNavDelegationBound = false;
 
 const PLAN_FEATURES = {
@@ -16164,6 +16165,63 @@ function buildEnterpriseEmbedUrl(item) {
   }
 }
 
+function scheduleAdminV2EinsatzplanFocus() {
+  const iframe = document.getElementById("adminV2Frame");
+  if (!iframe) {
+    return;
+  }
+  const send = () => {
+    try {
+      iframe.contentWindow?.postMessage(
+        {
+          type: "baupass-focus-einsatzplan",
+          companyId: getEffectiveUiCompanyId(),
+        },
+        window.location.origin,
+      );
+    } catch {
+      // iframe not ready
+    }
+  };
+  send();
+  iframe.addEventListener("load", send, { once: true });
+  window.setTimeout(send, 500);
+  window.setTimeout(send, 1500);
+}
+
+function requestEinsatzplanEditor() {
+  const allowed = getAllowedViewsForRole(getEffectiveUiRole());
+  if (!canUseDeploymentPlan()) {
+    showToast(
+      uiT("deploymentPlanLockedToast") || "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
+      "error",
+      7000,
+    );
+    return;
+  }
+  if (allowed.includes("admin-v2")) {
+    pendingAdminV2EinsatzplanFocus = true;
+    pendingEnterpriseEmbedItemId = "admin-v2";
+    setView("admin-v2");
+    scheduleAdminV2EinsatzplanFocus();
+    return;
+  }
+  if (allowed.includes("deployment-plan")) {
+    setView("deployment-plan");
+    if (globalThis.BaupassDeploymentPlan?.refresh) {
+      globalThis.BaupassDeploymentPlan.refresh().catch((err) => {
+        showToast(err?.message || String(err), "error", 6000);
+      });
+    }
+    return;
+  }
+  showToast(
+    uiT("deploymentPlanLockedToast") || "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
+    "error",
+    7000,
+  );
+}
+
 function loadEnterpriseEmbed(viewName) {
   const meta = ENTERPRISE_EMBED_META[viewName];
   if (!meta) {
@@ -16176,13 +16234,24 @@ function loadEnterpriseEmbed(viewName) {
   if (!item) {
     return;
   }
-  const url = buildEnterpriseEmbedUrl(item);
+  let url = buildEnterpriseEmbedUrl(item);
+  if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {
+    try {
+      const u = new URL(url, window.location.origin);
+      u.searchParams.set("tab", "workers");
+      u.searchParams.set("einsatzplan", "1");
+      url = u.href;
+    } catch {
+      // keep buildEnterpriseEmbedUrl result
+    }
+  }
   const iframe = document.getElementById(meta.frameId);
   if (!iframe) {
     return;
   }
   const prevSrc = iframe.getAttribute("src") || "";
-  if (!prevSrc || prevSrc !== url) {
+  const forceReload = viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus;
+  if (!prevSrc || prevSrc !== url || forceReload) {
     iframe.setAttribute("src", url);
   }
   if (iframe && token) {
@@ -16199,9 +16268,16 @@ function loadEnterpriseEmbed(viewName) {
       } catch {
         // ignore cross-origin until loaded
       }
+      if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {
+        scheduleAdminV2EinsatzplanFocus();
+      }
     };
     iframe.addEventListener("load", syncToken, { once: false });
     syncToken();
+  }
+  if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {
+    scheduleAdminV2EinsatzplanFocus();
+    pendingAdminV2EinsatzplanFocus = false;
   }
   const external = document.getElementById(meta.externalLinkId);
   if (external) {
@@ -16350,6 +16426,10 @@ function stopDashboardPoll() {
 }
 
 function setView(viewName) {
+  if (viewName === "deployment-plan") {
+    requestEinsatzplanEditor();
+    return;
+  }
   const role = getEffectiveUiRole();
   const allowedViews = getAllowedViewsForRole(role);
   const targetView = allowedViews.includes(viewName) ? viewName : getDefaultViewForRole(role);
@@ -29982,7 +30062,12 @@ function applyDeepLinkViewFromUrl() {
   if (!token) {
     return;
   }
-  const view = new URLSearchParams(window.location.search).get("view");
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get("view");
+  if (params.get("einsatzplan") === "1" || view === "deployment-plan") {
+    requestEinsatzplanEditor();
+    return;
+  }
   if (!view) {
     return;
   }
@@ -30001,11 +30086,33 @@ window.addEventListener("message", (event) => {
   }
   const view = String(event.data.view || "").trim();
   const allowedViews = getAllowedViewsForRole(getEffectiveUiRole());
+  if (view === "deployment-plan" || event.data.focusEinsatzplan) {
+    requestEinsatzplanEditor();
+    return;
+  }
   if (view && allowedViews.includes(view)) {
     if (view === "enterprise-hub" && event.data.url && String(event.data.url).includes("#ai-panel")) {
       pendingEnterpriseEmbedItemId = "ai-copilot";
     }
+    if (view === "admin-v2" && event.data.focusEinsatzplan) {
+      pendingAdminV2EinsatzplanFocus = true;
+      pendingEnterpriseEmbedItemId = "admin-v2";
+    }
+    if (event.data.companyId) {
+      const cid = String(event.data.companyId).trim();
+      if (cid && getEffectiveUiRole() === "superadmin") {
+        superadminUiPreviewCompanyId = cid;
+        try {
+          localStorage.setItem("baupass-preview-company-id", cid);
+        } catch {
+          // ignore
+        }
+      }
+    }
     setView(view);
+    if (view === "admin-v2" && event.data.focusEinsatzplan) {
+      scheduleAdminV2EinsatzplanFocus();
+    }
     return;
   }
   if (view === "deployment-plan" && !allowedViews.includes(view)) {

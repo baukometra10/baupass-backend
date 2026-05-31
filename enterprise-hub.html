@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — مركز المؤسسة (16 طبقة)</title>
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell10" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell12" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
   <style>
     :root {
@@ -416,7 +416,8 @@
         monatsplanStep3: "Status «bereit» prüfen",
         monatsplanStep4: "«Versand bestätigen» — PDF/E-Mail + Push an alle",
         monatsplanOpen: "Monatsplan jetzt öffnen",
-        monatsplanLinkLabel: "📋 Monatsplan / Einsatzplan",
+        monatsplanOpenHint: "Öffnet Betrieb v2 → Team: Monatsplan wählen, dann bei einem Mitarbeiter «Einsatzplan» bearbeiten.",
+        monatsplanLinkLabel: "📋 Monatsplan öffnen",
         rolePlaybook: "Ihr Einsatz-Playbook",
         rolePickCompany: "Firma wählen für Live-KPIs.",
         navAdminV2: "Admin v2",
@@ -667,14 +668,16 @@
 
     function goToDeploymentPlanView() {
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
-      if (window.BaupassEmbed?.navigateFromEmbed) {
-        window.BaupassEmbed.navigateFromEmbed("/index.html?view=deployment-plan", params);
-        return;
-      }
+      const companyId = params.company_id || params.companyId || "";
       if (window.self !== window.top) {
         try {
           window.parent?.postMessage(
-            { type: "baupass-navigate", view: "deployment-plan" },
+            {
+              type: "baupass-navigate",
+              view: "admin-v2",
+              focusEinsatzplan: true,
+              companyId,
+            },
             location.origin,
           );
         } catch {
@@ -683,7 +686,8 @@
         return;
       }
       const u = new URL("/index.html", location.origin);
-      u.searchParams.set("view", "deployment-plan");
+      u.searchParams.set("view", "admin-v2");
+      u.searchParams.set("einsatzplan", "1");
       Object.keys(params).forEach((key) => {
         const val = params[key];
         if (val != null && String(val).trim() !== "") {

@@ -231,12 +231,11 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (event.data.type === "baupass-focus-einsatzplan") {
-    if ($("dashboardView")?.classList.contains("hidden")) return;
     applyParentCompanyId(event.data.companyId);
-    activateCommandItem({
-      tab: "workers",
-      focusDeployment: true,
-    }).catch(notifyTabError);
+    pendingEinsatzplanFocus = true;
+    if (!tryFocusEinsatzplanFromParent()) {
+      bootSession().catch(() => {});
+    }
     return;
   }
   if (event.data.type !== "baupass-sync-token" || !event.data.token) return;
@@ -257,6 +256,19 @@ window.addEventListener("message", (event) => {
   }
 });
 let pendingIntegrationProvider = null;
+let pendingEinsatzplanFocus = false;
+
+function tryFocusEinsatzplanFromParent() {
+  if ($("dashboardView")?.classList.contains("hidden")) {
+    return false;
+  }
+  pendingEinsatzplanFocus = false;
+  activateCommandItem({
+    tab: "workers",
+    focusDeployment: true,
+  }).catch(notifyTabError);
+  return true;
+}
 
 function getUser() {
   try {
@@ -2635,6 +2647,9 @@ async function bootSession() {
     }
     showDashboard();
     await applyStartupTabAfterLoad();
+    if (pendingEinsatzplanFocus) {
+      tryFocusEinsatzplanFromParent();
+    }
     await loadCompanies();
     await loadPlatformBanner();
     const params = new URLSearchParams(location.search);
