@@ -5899,17 +5899,12 @@ def _create_worker_notification(
     return notif_id
 
 
-def _notify_worker_payroll_document(db, worker_id: str, filename: str) -> None:
-    """Push + in-app: neue Lohnabrechnung für Mitarbeiter."""
-    label = filename or "Lohnabrechnung"
+def _notify_worker_payroll_document(db, worker_id: str, filename: str, *, doc_type: str = "lohnabrechnung") -> None:
+    """In-app Mitteilung + Push für neue Lohnabrechnung (Legacy-Wrapper)."""
     try:
-        _send_push_to_worker(
-            db,
-            worker_id,
-            "Neue Lohnabrechnung",
-            f"{label} ist in der Mitarbeiter-App verfügbar.",
-            tag="payroll-document",
-        )
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_new_document
+
+        notify_worker_new_document(db, worker_id, doc_type=doc_type, filename=filename or "")
     except Exception:
         pass
 
@@ -24186,21 +24181,14 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
 
     unlock_worker_if_documents_valid(db, worker, actor=g.current_user)
 
-    if is_payroll_doc_type(doc_type):
-        label = safe_name or "Lohnabrechnung"
-        _create_worker_notification(
-            db,
-            worker_id,
-            "payroll_document",
-            "Neue Lohnabrechnung",
-            f"{label} ist unter Dokumente verfügbar.",
-            action_url="documents",
-        )
+    try:
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_new_document
+
+        notify_worker_new_document(db, worker_id, doc_type=doc_type, filename=safe_name)
+    except Exception:
+        pass
 
     db.commit()
-
-    if is_payroll_doc_type(doc_type):
-        _notify_worker_payroll_document(db, worker_id, safe_name)
 
     log_audit(
         "worker.document_added",
@@ -24306,19 +24294,13 @@ def upload_worker_document(worker_id):
         ),
     )
     unlock_worker_if_documents_valid(db, worker, actor=g.current_user)
-    if is_payroll_doc_type(doc_type):
-        _create_worker_notification(
-            db,
-            worker_id,
-            "payroll_document",
-            "Neue Lohnabrechnung",
-            f"{safe_name or 'Lohnabrechnung'} ist unter Dokumente verfügbar.",
-            action_url="documents",
-        )
-    db.commit()
+    try:
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_new_document
 
-    if is_payroll_doc_type(doc_type):
-        _notify_worker_payroll_document(db, worker_id, safe_name)
+        notify_worker_new_document(db, worker_id, doc_type=doc_type, filename=safe_name)
+    except Exception:
+        pass
+    db.commit()
 
     log_audit(
         "worker.document_uploaded",

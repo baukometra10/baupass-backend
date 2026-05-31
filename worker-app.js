@@ -588,12 +588,7 @@ function renderNotificationCenterList(items) {
         markNotificationAsRead(notifId);
       }
       closeNotificationCenter();
-      if (action === "documents") {
-        switchToTab("documents");
-        void loadMyDocuments();
-      } else if (action === "deployment-plan" || action === "deployment_plan" || action === "einsatzplan") {
-        void openWorkerDeploymentPlanScreen();
-      }
+      openWorkerNotificationTarget(action);
       void refreshWorkerNotificationCenter({ silent: true });
     });
   });
@@ -610,6 +605,31 @@ function closeNotificationCenter() {
   elements.notificationCenterPanel?.classList.add("hidden");
 }
 
+let workerNotificationGreeted = false;
+
+function openWorkerNotificationTarget(action) {
+  const raw = String(action || "").trim().toLowerCase();
+  if (!raw) return;
+  if (
+    raw === "documents" ||
+    raw === "payroll_document" ||
+    raw === "worker_document" ||
+    raw.includes("document")
+  ) {
+    switchToTab("documents");
+    void loadMyDocuments();
+    return;
+  }
+  if (raw === "deployment-plan" || raw === "deployment_plan" || raw === "einsatzplan") {
+    void openWorkerDeploymentPlanScreen();
+    return;
+  }
+  if (raw === "leave" || raw === "leave_request" || raw.includes("leave")) {
+    switchToTab("vacation");
+    if (workerToken) void loadLeaveRequests();
+  }
+}
+
 async function refreshWorkerNotificationCenter(options = {}) {
   const serverItems = await fetchServerNotifications();
   const localItems = getNotificationHistory().map((entry) => ({
@@ -624,6 +644,17 @@ async function refreshWorkerNotificationCenter(options = {}) {
   const merged = [...serverItems, ...localItems].slice(0, 50);
   const unreadCount = merged.filter((item) => !item.isRead && !item.read).length;
   updateNotificationBadge(unreadCount);
+  if (
+    options.notifyNew &&
+    !workerNotificationGreeted &&
+    unreadCount > 0 &&
+    workerToken
+  ) {
+    workerNotificationGreeted = true;
+    const firstUnread = merged.find((item) => !item.isRead && !item.read);
+    const title = String(firstUnread?.title || "").trim() || t("notificationsDefaultTitle");
+    showWorkerNotice(tf("notificationsNewArrival", { title }));
+  }
   if (!options.silent || !elements.notificationCenterPanel?.classList.contains("hidden")) {
     renderNotificationCenterList(merged);
   }
@@ -2891,7 +2922,7 @@ function renderWorker(payload) {
     elements.workerStatus.dataset.status = normalizedStatus;
   }
   updateWorkerNextStepPanel({ worker, companyPreset, isVisitor });
-  void refreshWorkerNotificationCenter({ silent: true });
+  void refreshWorkerNotificationCenter({ silent: true, notifyNew: true });
   updateSmartWorkHub(payload, lastTimesheetRows);
   applySiteAccessUi(payload);
   if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";
@@ -5753,8 +5784,10 @@ function initBottomTabNavigation() {
   const hashToTab = {
     "#home": "home",
     "#urlaub": "vacation",
+    "#leave": "vacation",
     "#stunden": "timesheet",
     "#docs": "documents",
+    "#documents": "documents",
     "#einsatzplan": "deployment",
     "#deployment": "deployment",
   };

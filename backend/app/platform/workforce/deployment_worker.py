@@ -49,7 +49,8 @@ def persist_worker_deployment_pdf(
     lang: str = "de",
 ) -> str | None:
     """Store monthly Einsatzplan PDF in worker_documents (replaces prior month copy)."""
-    from backend.server import DOCS_UPLOAD_DIR, _create_worker_notification, _stored_file_path, now_iso
+    from backend.app.platform.notifications.worker_mitteilung import notify_worker_deployment_plan
+    from backend.server import DOCS_UPLOAD_DIR, _stored_file_path, now_iso
 
     marker = _deployment_doc_marker(year, month)
     old_rows = db.execute(
@@ -100,14 +101,7 @@ def persist_worker_deployment_pdf(
             marker,
         ),
     )
-    _create_worker_notification(
-        db,
-        str(worker_id),
-        "deployment_plan",
-        "Einsatzplan",
-        f"Ihr Einsatzplan für {month_label} ist in der App verfügbar.",
-        action_url="deployment-plan",
-    )
+    notify_worker_deployment_plan(db, str(worker_id), year=int(year), month=int(month))
     return doc_id
 
 

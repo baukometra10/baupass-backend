@@ -50,16 +50,25 @@ def push_leave_submitted(
     end_date: str,
 ) -> dict[str, Any]:
     """Confirm submission to worker; refresh admin inbox."""
-    delivery = push_to_worker(
-        db,
-        worker_id,
-        "Antrag eingereicht",
-        f"{req_type_label} {start_date}–{end_date} — wird geprüft.",
-        tag="leave-request-status",
-        company_id=company_id,
-        notify_admin_inbox=True,
-        inbox_source="leave_submitted",
-    )
+    title = "Antrag eingereicht"
+    body = f"{req_type_label} {start_date}–{end_date} — wird geprüft."
+    delivery: dict[str, Any] = {"pushSent": 0}
+    try:
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+
+        delivery = notify_worker_mitteilung(
+            db,
+            worker_id,
+            notif_type="leave_request",
+            title=title,
+            message=body,
+            action_url="leave",
+            push_tag="leave-request-status",
+        )
+    except Exception:
+        pass
+    if company_id:
+        _notify_inbox(company_id, source="leave_submitted")
     return delivery
 
 
@@ -85,16 +94,25 @@ def push_leave_decision(
     body = f"{req_type_label} {row['start_date']}–{row['end_date']}"
     if review_note:
         body += f" — {review_note[:80]}"
-    return push_to_worker(
-        db,
-        row["worker_id"],
-        f"Antrag {label}",
-        body,
-        tag=tag,
-        company_id=row["company_id"],
-        notify_admin_inbox=True,
-        inbox_source="leave_decision",
-    )
+    title = f"Antrag {label}"
+    delivery: dict[str, Any] = {"pushSent": 0}
+    try:
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+
+        delivery = notify_worker_mitteilung(
+            db,
+            row["worker_id"],
+            notif_type="leave_request",
+            title=title,
+            message=body,
+            action_url="leave",
+            push_tag=tag,
+        )
+    except Exception:
+        pass
+    if row["company_id"]:
+        _notify_inbox(row["company_id"], source="leave_decision")
+    return delivery
 
 
 def push_security_alert(

@@ -374,28 +374,13 @@ def send_worker_plan(
     except Exception:
         pass
 
-    push_sent = 0
-    try:
-        from backend.app.platform.push.automation import push_to_worker
-
-        delivery = push_to_worker(
-            db,
-            worker_id,
-            "Einsatzplan",
-            f"Ihr Einsatzplan {month:02d}/{year} wurde veröffentlicht.",
-            tag="deployment-plan",
-            company_id=str(company_id),
-        )
-        push_sent = int(delivery.get("pushSent") or 0)
-    except Exception:
-        pass
     return {
-        "ok": ok or push_sent > 0 or bool(document_id),
+        "ok": ok or bool(document_id),
         "workerId": worker_id,
         "email": to_email or None,
         "emailSent": ok,
         "emailError": err,
-        "pushSent": push_sent,
+        "pushSent": 1 if document_id else 0,
         "documentId": document_id,
     }
 

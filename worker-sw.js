@@ -135,6 +135,10 @@ self.addEventListener("push", (event) => {
   let defaultUrl = data.url || "/worker-install.html?launch=1";
   if (tag === "deployment-plan") {
     defaultUrl = "/emp-app.html#einsatzplan";
+  } else if (tag === "payroll-document" || tag === "worker-document") {
+    defaultUrl = "/emp-app.html#documents";
+  } else if (tag === "leave-request-status" || tag === "leave-approved" || tag === "leave-denied") {
+    defaultUrl = "/emp-app.html#leave";
   }
   const options = {
     body: data.body || "",
