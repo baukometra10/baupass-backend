@@ -32,7 +32,7 @@ async function tryEmbedSessionFromControlPass() {
     localStorage.setItem(TOKEN_KEY, parentToken);
     localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
     const qsCid = new URLSearchParams(location.search).get("company_id") || "";
-    if (qsCid && String(data.user?.role || "") === "superadmin") {
+    if (qsCid) {
       localStorage.setItem(COMPANY_KEY, qsCid);
     } else if (data.user?.preview_company_id && String(data.user?.role || "") === "superadmin") {
       localStorage.setItem(COMPANY_KEY, data.user.preview_company_id);
@@ -110,10 +110,12 @@ async function activateCommandItem(item) {
   if (!tab) return;
   switchToTab(tab);
   try {
-    await refreshActiveTab();
     if (item.focusDeployment) {
+      await loadWorkers();
       await focusDeploymentSection();
+      return;
     }
+    await refreshActiveTab();
   } catch (err) {
     notifyTabError(err);
   }
@@ -204,18 +206,50 @@ function notifyTabError(err) {
   showActionToast(err?.message || String(err), true);
 }
 
+function applyParentCompanyId(companyId) {
+  const cid = String(companyId || "").trim();
+  if (!cid) return;
+  localStorage.setItem(COMPANY_KEY, cid);
+  const select = $("companyPicker");
+  if (select && select.options.length) {
+    const has = Array.from(select.options).some((o) => o.value === cid);
+    if (has) select.value = cid;
+  }
+}
+
 window.addEventListener("message", (event) => {
   if (!event?.data || event.origin !== window.location.origin) return;
+  if (event.data.type === "baupass-open-command-palette") {
+    if (!$("dashboardView")?.classList.contains("hidden")) {
+      applyParentCompanyId(event.data.companyId);
+      openCommandPalette();
+    }
+    return;
+  }
+  if (event.data.type === "baupass-focus-einsatzplan") {
+    if ($("dashboardView")?.classList.contains("hidden")) return;
+    applyParentCompanyId(event.data.companyId);
+    activateCommandItem({
+      tab: "workers",
+      focusDeployment: true,
+    }).catch(notifyTabError);
+    return;
+  }
   if (event.data.type !== "baupass-sync-token" || !event.data.token) return;
   const token = String(event.data.token).trim();
   if (!token) return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(CONTROL_TOKEN_KEY, token);
-  if (event.data.companyId && getUser().role === "superadmin") {
-    localStorage.setItem(COMPANY_KEY, String(event.data.companyId));
+  if (event.data.companyId) {
+    applyParentCompanyId(event.data.companyId);
   }
   if ($("dashboardView")?.classList.contains("hidden")) {
     bootSession().catch(() => {});
+    return;
+  }
+  const activeTab = document.querySelector(".tab.active")?.dataset?.tab;
+  if (activeTab) {
+    refreshActiveTab().catch(() => {});
   }
 });
 let pendingIntegrationProvider = null;
@@ -629,6 +663,8 @@ function openCommandPalette() {
   const pal = $("commandPalette");
   if (!pal) return;
   pal.classList.remove("hidden");
+  pal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("command-palette-open");
   commandPaletteIndex = 0;
   renderCommandPaletteList(($("commandPaletteInput")?.value || "").trim());
   const input = $("commandPaletteInput");
@@ -639,7 +675,11 @@ function openCommandPalette() {
 }
 
 function closeCommandPalette() {
-  $("commandPalette")?.classList.add("hidden");
+  const pal = $("commandPalette");
+  if (!pal) return;
+  pal.classList.add("hidden");
+  pal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("command-palette-open");
 }
 
 function renderCommandPaletteList(query) {

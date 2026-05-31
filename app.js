@@ -8002,7 +8002,7 @@ const ENTERPRISE_NAV_ITEMS = [
   { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navBaupassAi", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
-  { id: "admin-v2", view: "admin-v2", path: "/admin-v2/index.html", labelKey: "navAdminV2", minPlan: "starter", version: true, embed: true },
+  { id: "admin-v2", view: "admin-v2", path: "/admin-v2/index.html", labelKey: "navAdminV2", minPlan: "starter", queryCompany: true, version: true, embed: true },
   { id: "ai-copilot", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, hash: "#ai-panel", version: true, embed: true },
 ];
 
@@ -16020,10 +16020,11 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531shell5");
+    params.push("v=20260531shell6");
   }
   if (item.path.includes("/admin-v2/")) {
     params.push("tab=workers");
+    params.push("einsatzplan=1");
   }
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
@@ -29882,6 +29883,30 @@ window.addEventListener("message", (event) => {
     window.open(event.data.url, "_blank", "noopener,noreferrer");
   }
 });
+
+document.addEventListener(
+  "keydown",
+  (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    if (getCurrentViewName() !== "admin-v2") return;
+    const iframe = document.getElementById("adminV2Frame");
+    if (!iframe?.contentWindow) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      iframe.contentWindow.postMessage(
+        {
+          type: "baupass-open-command-palette",
+          companyId: getEffectiveUiCompanyId(),
+        },
+        window.location.origin,
+      );
+    } catch {
+      // iframe not ready
+    }
+  },
+  true,
+);
 
 async function initSsoLoginUi() {
   const params = new URLSearchParams(window.location.search);

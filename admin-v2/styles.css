@@ -19,6 +19,10 @@
   box-sizing: border-box;
 }
 
+.hidden {
+  display: none !important;
+}
+
 html {
   overflow-x: hidden;
   max-width: 100%;
@@ -1182,7 +1186,7 @@ h2 {
   display: none;
 }
 
-.command-palette {
+.command-palette:not(.hidden) {
   position: fixed;
   inset: 0;
   z-index: 10000;
@@ -1190,6 +1194,12 @@ h2 {
   align-items: flex-start;
   justify-content: center;
   padding: 12vh 1rem 1rem;
+  pointer-events: auto;
+}
+
+.command-palette.hidden {
+  display: none !important;
+  pointer-events: none;
 }
 
 .command-palette-backdrop {
@@ -1491,6 +1501,34 @@ body.embed-mode.admin-v2-embed .app-main {
 
 body.embed-mode.admin-v2-embed .app-sidebar {
   display: none;
+}
+
+body.embed-mode.admin-v2-embed #companyPickerWrap:not(.hidden) {
+  display: flex;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+body.embed-mode.admin-v2-embed .topbar-compact {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+body.embed-mode.admin-v2-embed .mobile-bottom-nav {
+  display: flex;
+  position: sticky;
+  bottom: 0;
+  z-index: 800;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom, 0));
+  gap: 0.15rem;
+  justify-content: space-around;
+  flex-shrink: 0;
+}
+
+body.command-palette-open {
+  overflow: hidden;
 }
 
 body.embed-mode.admin-v2-embed .app-content {
