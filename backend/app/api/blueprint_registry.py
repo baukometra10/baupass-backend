@@ -47,6 +47,7 @@ def register_modular_blueprints(flask_app: Flask) -> None:
 
         register_shift_blueprint(app)
 
+    # worker_app + shift before domains; domains/http must stay last inside register_domain_blueprints
     for name, fn in (
         ("worker_app", _worker_app),
         ("shift", _shift),

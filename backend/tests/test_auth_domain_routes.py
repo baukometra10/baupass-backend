@@ -24,6 +24,10 @@ class AuthDomainRoutesTest(unittest.TestCase):
     def test_login_route_registered(self):
         self.assertIn("/api/login", self.rules)
 
+    def test_me_heartbeat_and_email_registered(self):
+        self.assertIn("/api/me/heartbeat", self.rules)
+        self.assertIn("/api/me/email", self.rules)
+
     def test_twofa_routes_registered(self):
         self.assertIn("/api/me/2fa", self.rules)
         self.assertIn("/api/me/2fa/activate", self.rules)

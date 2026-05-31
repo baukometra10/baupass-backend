@@ -11,6 +11,8 @@
 | [sso-roadmap-AR.md](./sso-roadmap-AR.md) | SAML 2.0, OIDC, Entra, Keycloak, AD |
 | [security-architecture-AR.md](./security-architecture-AR.md) | طبقات الأمن ومخطط الثقة |
 | [iso27001-readiness-AR.md](./iso27001-readiness-AR.md) | خريطة ضوابط ISO 27001 |
+| [penetration-testing-AR.md](./penetration-testing-AR.md) | اختبار الاختراق — نطاق وتكرار |
+| [business-continuity-AR.md](./business-continuity-AR.md) | استمرارية الأعمال (BCP) |
 
 ## ما هو موجود في المنصة اليوم
 

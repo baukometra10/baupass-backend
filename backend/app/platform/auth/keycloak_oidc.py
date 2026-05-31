@@ -10,9 +10,6 @@ from typing import Any
 
 from flask import Flask, jsonify, redirect, request
 
-_OIDC_STATE: dict[str, float] = {}
-
-
 def keycloak_config() -> dict[str, str] | None:
     issuer = (os.getenv("BAUPASS_KEYCLOAK_ISSUER") or os.getenv("BAUPASS_OIDC_ISSUER") or "").strip().rstrip("/")
     client_id = (os.getenv("BAUPASS_KEYCLOAK_CLIENT_ID") or os.getenv("BAUPASS_OIDC_CLIENT_ID") or "").strip()
@@ -74,8 +71,9 @@ def register_keycloak_auth_routes(flask_app: Flask) -> None:
         if not cfg:
             return jsonify({"ok": False, "error": "keycloak_not_configured"}), 503
         endpoints = _oidc_endpoints(cfg)
-        state = secrets.token_urlsafe(24)
-        _OIDC_STATE[state] = 1.0
+        from .sso_state import issue_oidc_state
+
+        state = issue_oidc_state()
         params = {
             "client_id": cfg["client_id"],
             "response_type": "code",
@@ -108,9 +106,10 @@ def register_keycloak_auth_routes(flask_app: Flask) -> None:
 
         code = (request.args.get("code") or "").strip()
         state = (request.args.get("state") or "").strip()
-        if not code or state not in _OIDC_STATE:
+        from .sso_state import consume_oidc_state
+
+        if not code or not consume_oidc_state(state):
             return redirect(f"{_app_redirect_url()}/?keycloak_error=invalid_state")
-        _OIDC_STATE.pop(state, None)
 
         endpoints = _oidc_endpoints(cfg)
         token_payload = _http_form_post(

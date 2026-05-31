@@ -1,0 +1,37 @@
+# Dependencies & virtual envs (hundreds of MB, thousands of files)
+node_modules/
+.venv/
+.venv311/
+venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Build & distribution artifacts
+dist/
+mobile/build/
+mobile/.dart_tool/
+mobile/.pub-cache/
+*.exe
+*.zip
+
+# Git internals
+.git/
+
+# Local databases & uploads
+backend/*.db
+backend/*.db-wal
+backend/*.db-shm
+backend/uploads/
+backend/e2e-doc-uploads-hardened/
+
+# Test & CI artifacts
+test-results/
+playwright-report/
+build-apk-log.zip
+ci-log.zip
+
+# Wallet secrets
+backend/wallet/

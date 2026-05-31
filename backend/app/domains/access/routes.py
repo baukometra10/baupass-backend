@@ -24,11 +24,13 @@ def _register_core_access_routes() -> None:
         gate_ops_metrics,
         gate_tap,
         gate_tap_batch,
+        geofences_get,
         list_access_logs,
         list_latest_access_logs,
     )
 
     rules = (
+        ("/geofences", geofences_get, ("GET",)),
         ("/access-logs", list_access_logs, ("GET",)),
         ("/access-logs/latest", list_latest_access_logs, ("GET",)),
         ("/access-logs/export.csv", export_access_csv, ("GET",)),
@@ -73,6 +75,6 @@ def register_access_blueprint(flask_app: Flask) -> None:
     flask_app.register_blueprint(access_core_bp, url_prefix="/api")
     flask_app.register_blueprint(access_v2_bp, url_prefix="/api/v2")
     print(
-        "[baupass] domain/access: access-logs*, gates/* + v2 live/zones",
+        "[baupass] domain/access: geofences, access-logs*, gates/* + v2 live/zones",
         flush=True,
     )

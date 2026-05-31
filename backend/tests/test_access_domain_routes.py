@@ -10,6 +10,9 @@ class AccessDomainRoutesTest(unittest.TestCase):
     def setUp(self):
         self.rules = {rule.rule: rule.endpoint for rule in app.url_map.iter_rules()}
 
+    def test_geofences_route(self):
+        self.assertIn("/api/geofences", self.rules)
+
     def test_access_logs_route(self):
         self.assertIn("/api/access-logs", self.rules)
 

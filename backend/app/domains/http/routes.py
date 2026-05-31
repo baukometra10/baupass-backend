@@ -1,0 +1,53 @@
+"""
+HTTP surface — HTML entrypoints and static assets.
+
+Registered without /api prefix. Catch-all static route must remain last.
+"""
+from __future__ import annotations
+
+from flask import Blueprint, Flask
+
+from .._routes import mount_rules
+
+http_bp = Blueprint("http_static", __name__)
+
+
+def _register_http_routes() -> None:
+    from backend.server import (
+        admin_v2_entry,
+        enterprise_hub_entry,
+        phone_test_page,
+        review_page,
+        root,
+        static_proxy,
+        worker_entry_redirect,
+        worker_icon_png,
+        worker_icon_svg,
+        worker_join_config_public,
+    )
+
+    mount_rules(
+        http_bp,
+        (
+            ("/", root, ("GET",)),
+            ("/enterprise", enterprise_hub_entry, ("GET",)),
+            ("/enterprise/", enterprise_hub_entry, ("GET",)),
+            ("/admin", admin_v2_entry, ("GET",)),
+            ("/admin/", admin_v2_entry, ("GET",)),
+            ("/worker.html", worker_entry_redirect, ("GET",)),
+            ("/review.html", review_page, ("GET",)),
+            ("/worker-join-config.json", worker_join_config_public, ("GET",)),
+            ("/phone-test", phone_test_page, ("GET",)),
+            ("/worker-icon-<int:icon_size>.svg", worker_icon_svg, ("GET",)),
+            ("/worker-icon-<int:icon_size>.png", worker_icon_png, ("GET",)),
+            ("/<path:path>", static_proxy, ("GET",)),
+        ),
+    )
+
+
+def register_http_blueprint(flask_app: Flask) -> None:
+    if "http_static" in flask_app.blueprints:
+        return
+    _register_http_routes()
+    flask_app.register_blueprint(http_bp)
+    print("[baupass] domain/http: SPA + static (registered last)", flush=True)

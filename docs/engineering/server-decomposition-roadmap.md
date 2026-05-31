@@ -15,13 +15,16 @@ See `backend/app/domains/README.md`:
 
 | Phase | Domain / module | Routes (examples) | Effort |
 |-------|-----------------|-------------------|--------|
-| 0 | Already extracted | `platform/*`, `worker_app`, domains scaffold | done |
+| 0 | Already extracted | `platform/*`, `worker_app`, `shift_api`, domains | done |
+| 7 | `domains/*` + `registry.py` | All `/api/*` on blueprints; `http/` for SPA/static; QR unified | routes ✅ |
+| 8 | Extract SQL | Move handler bodies → `service.py` / `repository.py` | next |
 | 1 | `platform/sector` + `platform/rbac` | `/api/platform/sectors`, `sector-config`, `rbac/catalog` | done |
 | 2 | `domains/reporting/` | **8 routes** wired via blueprint; logic still in `server.py` handlers | in progress |
-| 3 | `domains/auth/` | login, logout, 2FA, SSO callbacks (thin wrappers) | high |
-| 4 | `domains/access/` | gates, visitors, access logs | high |
-| 5 | `domains/workers/` | CRUD, documents, leave | very high |
-| 6 | `domains/billing/` | invoices, plans, Stripe | high |
+| 3 | `domains/auth/` | **login, logout, bootstrap, me, /me/2fa*, password-reset** on blueprint; SSO callbacks in platform | high — extract SQL to service next |
+| 4 | `domains/access/` | **access-logs, gates/tap** on blueprint; export, geofences, ingest next | high |
+| 4b | `domains/companies/` | **كل `/api/companies/*`** (routes ✅) | medium — extract SQL next |
+| 5 | `domains/workers/` | **كل `/api/workers/*`** على blueprint (routes ✅) | medium — extract SQL to service next |
+| 6 | `domains/billing/` | invoices (routes ✅), plans, Stripe | medium — extract SQL to service next |
 
 ## First concrete slice (phase 2)
 

@@ -11,9 +11,6 @@ from typing import Any
 
 from flask import Flask, jsonify, redirect, request
 
-_OIDC_STATE: dict[str, float] = {}
-
-
 def google_config() -> dict[str, str] | None:
     client_id = (os.getenv("BAUPASS_GOOGLE_CLIENT_ID") or "").strip()
     client_secret = (os.getenv("BAUPASS_GOOGLE_CLIENT_SECRET") or "").strip()
@@ -56,8 +53,9 @@ def register_google_auth_routes(flask_app: Flask) -> None:
         cfg = google_config()
         if not cfg:
             return jsonify({"ok": False, "error": "google_not_configured"}), 503
-        state = secrets.token_urlsafe(24)
-        _OIDC_STATE[state] = 1.0
+        from .sso_state import issue_oidc_state
+
+        state = issue_oidc_state()
         params = {
             "client_id": cfg["client_id"],
             "response_type": "code",
@@ -93,9 +91,10 @@ def register_google_auth_routes(flask_app: Flask) -> None:
 
         code = (request.args.get("code") or "").strip()
         state = (request.args.get("state") or "").strip()
-        if not code or state not in _OIDC_STATE:
+        from .sso_state import consume_oidc_state
+
+        if not code or not consume_oidc_state(state):
             return redirect(f"{_app_redirect_url()}/?google_error=invalid_state")
-        _OIDC_STATE.pop(state, None)
 
         try:
             token_resp = _http_form_post(

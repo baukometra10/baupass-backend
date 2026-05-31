@@ -47,7 +47,7 @@ def register_sso_catalog_routes(flask_app: Flask) -> None:
                 "id": "saml",
                 "protocol": "saml2",
                 "label": "SAML 2.0",
-                "status": "scaffold" if saml else "planned",
+                "status": "active" if saml else "planned",
                 "loginPath": "/api/auth/saml/start" if saml else None,
             },
             {
@@ -63,6 +63,9 @@ def register_sso_catalog_routes(flask_app: Flask) -> None:
             {
                 "providers": providers,
                 "recommendedOrder": ["entra", "keycloak", "saml", "google"],
-                "redisStateRecommended": os.getenv("BAUPASS_SSO_STATE_REDIS", "").strip() == "1",
+                "redisStateRecommended": bool(
+                    os.getenv("REDIS_URL", "").strip()
+                    or os.getenv("BAUPASS_SSO_STATE_REDIS", "").strip().lower() in {"1", "true", "yes"}
+                ),
             }
         )

@@ -1,56 +1,74 @@
 # BauPass Domain Modules
 
-Clean Architecture layout for splitting `backend/server.py` into bounded contexts.
+`backend/server.py` keeps **handler implementations** during migration; **all HTTP routing** lives in domain blueprints.
 
-## Structure
-
-```
-domains/
-  auth/           # Login, sessions, 2FA, RBAC decorators
-  workers/        # Worker CRUD, documents, leave, timesheets
-  access/         # Gates, geofences, access logs, visitors
-  billing/        # Plans, invoices, dunning, approvals
-  notifications/  # Email, push, IMAP, system alerts
-  admin/          # v2 dashboard aggregates for admin-v2 SPA
-```
-
-Each domain follows:
-
-| Layer | File | Responsibility |
-|-------|------|----------------|
-| Routes | `routes.py` | Flask blueprint — HTTP only, no SQL |
-| Service | `service.py` | Business rules, orchestration |
-| Repository | `repository.py` | SQL / data access (extends `BaseRepository`) |
-
-## Migration rules
-
-1. **One route at a time** — move from `server.py` to domain `routes.py`.
-2. **Delegate first** — service calls legacy `server.py` helpers until logic is extracted.
-3. **No duplicate URLs** — remove the old `@app.route` only after the blueprint route is tested.
-4. **Tests required** — add or extend `backend/tests/` for each moved endpoint.
-5. **Register in** `backend/app/api/blueprint_registry.py`.
-
-## Example flow
+## Layout
 
 ```
-POST /api/logout
-  → domains/auth/routes.py::logout()
-  → domains/auth/service.py::AuthService.logout(token)
-  → domains/auth/repository.py::SessionRepository.revoke(token)
+backend/app/domains/
+  registry.py       # Canonical registration order (single source of truth)
+  __init__.py       # register_domain_blueprints()
+  _routes.py        # mount_rules() helper
+  shared.py         # company_id_from_user(), forbidden_company()
+  http/             # SPA + static (no /api prefix) — registered LAST
+  runtime/          # health, system, public, QR
+    qr_views.py     # Unified GET /api/qr.png (public + session)
+  auth/             # login, sessions, 2FA
+  settings/         # global SMTP/IMAP
+  rbac/             # legacy roles + audit-trail
+  companies/        # tenants, subcompanies, mail-settings
+  workers/          # worker CRUD, documents
+  onboarding/       # v2 onboarding only
+  access/           # gates, access-logs, geofences
+  devices/          # device register, scan, heartbeat
+  workforce/        # foreman, analytics, sync
+  operations/       # incidents, messages, snapshot
+  compliance/       # compliance overview
+  documents/        # inbox, IMAP
+  billing/          # invoices
+  reporting/        # PDF/email reports
+  notifications/    # worker notifications, system-alerts
+  admin/            # admin devices, audit-logs, export/import
 ```
 
-## Current status
+## Registration order (`registry.py`)
 
-| Module | Location | Status |
-|--------|----------|--------|
-| sector terminology | `backend/app/platform/sector/` | ✅ blueprint |
-| rbac catalog | `backend/app/platform/rbac/` | ✅ blueprint (catalog only) |
-| reporting PDF/email | `domains/reporting/routes.py` → handlers in `server.py` | routes migrated; move SQL next |
+| Category | Domains |
+|----------|---------|
+| foundation | auth, runtime, settings, rbac |
+| tenant | companies, workers, onboarding |
+| operations | access, devices, workforce, operations, compliance |
+| backoffice | documents, billing, reporting, notifications, admin |
+| static | **http** (must be last — catch-all static proxy) |
 
-| Domain | Routes in server.py | Extracted |
-|--------|---------------------|-----------|
-| auth | ~15 | scaffold only |
-| workers | ~25 | worker-app shim |
-| access | ~20 | none |
-| billing | ~18 | none |
-| notifications | ~12 | none |
+Also registered via `blueprint_registry.py` (not domains):
+
+- `shift_api` — `/api/shift/*`
+- `worker_app` — `/api/worker-app/*`
+- `platform/*` — enterprise, AI, inbox v2, SSO, sector, …
+
+## Per-domain pattern
+
+| File | Role |
+|------|------|
+| `routes.py` | `{name}_core_bp` + optional `{name}_v2_bp`; `mount_rules()` |
+| `service.py` | Business logic (extract SQL from server handlers here) |
+| `repository.py` | Optional data access |
+
+## Rules
+
+1. **No** `@app.route("/api/...")` in `server.py` — only blueprint `add_url_rule`.
+2. Handlers in `server.py` keep `@require_auth` / `@require_roles` until moved into services.
+3. One URL → one registrar; duplicates break tests (`test_domains_registry.py`).
+4. New domain: add package, `register_*_blueprint`, append to `registry.py`, add tests.
+
+## Status
+
+| Area | Routes | Handler logic |
+|------|--------|---------------|
+| All `/api/*` business routes | ✅ blueprints | 🟡 still in `server.py` |
+| `/api/qr*` | ✅ `runtime/qr_views.py` | ✅ unified |
+| HTML/static | ✅ `http/` | 🟡 handlers in `server.py` |
+| SSO state | ✅ `platform/auth/sso_state.py` | ✅ |
+
+Next step: move SQL from handlers into domain `service.py` / `repository.py` one bounded context at a time.

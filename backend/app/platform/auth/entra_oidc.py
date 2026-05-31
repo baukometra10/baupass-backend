@@ -12,9 +12,6 @@ from typing import Any
 from flask import Flask, jsonify, redirect, request
 
 # state -> marker in-memory (single-instance); use Redis for multi-replica if needed
-_OIDC_STATE: dict[str, float] = {}
-
-
 def entra_config() -> dict[str, str] | None:
     tenant = (os.getenv("BAUPASS_ENTRA_TENANT_ID") or os.getenv("AZURE_TENANT_ID") or "").strip()
     client_id = (os.getenv("BAUPASS_ENTRA_CLIENT_ID") or os.getenv("AZURE_CLIENT_ID") or "").strip()
@@ -64,8 +61,9 @@ def register_entra_auth_routes(flask_app: Flask) -> None:
         cfg = entra_config()
         if not cfg:
             return jsonify({"ok": False, "error": "entra_not_configured"}), 503
-        state = secrets.token_urlsafe(24)
-        _OIDC_STATE[state] = 1.0
+        from .sso_state import issue_oidc_state
+
+        state = issue_oidc_state()
         params = {
             "client_id": cfg["client_id"],
             "response_type": "code",
@@ -103,9 +101,10 @@ def register_entra_auth_routes(flask_app: Flask) -> None:
 
         code = (request.args.get("code") or "").strip()
         state = (request.args.get("state") or "").strip()
-        if not code or state not in _OIDC_STATE:
+        from .sso_state import consume_oidc_state
+
+        if not code or not consume_oidc_state(state):
             return redirect(f"{_app_redirect_url()}/?entra_error=invalid_state")
-        _OIDC_STATE.pop(state, None)
 
         token_url = f"https://login.microsoftonline.com/{cfg['tenant']}/oauth2/v2.0/token"
         try:

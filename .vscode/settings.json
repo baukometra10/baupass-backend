@@ -1,3 +1,26 @@
 {
-
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/.venv311/**": true,
+    "**/__pycache__/**": true,
+    "**/dist/**": true,
+    "**/mobile/build/**": true,
+    "**/mobile/.dart_tool/**": true,
+    "**/.git/objects/**": true,
+    "**/backend/uploads/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/.venv311": true,
+    "**/__pycache__": true,
+    "**/dist": true,
+    "**/mobile/build": true,
+    "**/.git": true
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  }
 }

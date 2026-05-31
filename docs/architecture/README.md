@@ -20,6 +20,9 @@ backend/
 
 ## Runbooks
 
+- [runbooks-AR.md](../operations/runbooks-AR.md) — فهرس التشغيل
 - `docs/enterprise-backup-restore-runbook.md`
 - `docs/postgres-cutover-runbook.md`
 - `docs/private-cloud-helm-AR.md`
+- `docs/governance/tenant-isolation-AR.md`
+- `docs/operations/change-release-management-AR.md`
