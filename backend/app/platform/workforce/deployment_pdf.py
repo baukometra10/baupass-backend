@@ -74,7 +74,7 @@ def build_deployment_plan_pdf(
     branding: dict[str, Any] | None = None,
 ) -> bytes:
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -84,13 +84,14 @@ def build_deployment_plan_pdf(
     title = TITLE.get(lang_key, TITLE["de"])
 
     buffer = io.BytesIO()
+    page_size = landscape(A4)
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-        topMargin=12 * mm,
-        bottomMargin=14 * mm,
+        pagesize=page_size,
+        leftMargin=8 * mm,
+        rightMargin=8 * mm,
+        topMargin=6 * mm,
+        bottomMargin=8 * mm,
         title=f"Einsatzplan {worker_name} {month_label} {year}",
     )
     from .deployment_branding import logo_image_flowable
@@ -104,17 +105,11 @@ def build_deployment_plan_pdf(
     sector_label = str(brand.get("sectorLabel") or "").strip()
     weekend_bg = colors.HexColor("#f0f4f8")
 
-    header_style = ParagraphStyle(
-        "BpHeader",
-        parent=styles["Heading1"],
-        fontSize=20,
-        textColor=colors.white,
-        spaceAfter=4,
-    )
     sub_style = ParagraphStyle(
         "BpSub",
         parent=styles["Normal"],
-        fontSize=10,
+        fontSize=8.5,
+        leading=10,
         textColor=colors.HexColor("#d0e8ef"),
     )
 
@@ -126,7 +121,7 @@ def build_deployment_plan_pdf(
     meta_lines.extend(
         [
             f"{title}",
-            f"<font size='14'><b>{worker_name}</b></font>",
+            f"<font size='11'><b>{worker_name}</b></font>",
         ]
     )
     if badge_id:
@@ -140,7 +135,7 @@ def build_deployment_plan_pdf(
     if logo_img:
         header_table = Table(
             [[logo_img, Paragraph("<br/>".join(meta_lines), sub_style)]],
-            colWidths=[42 * mm, doc.width - 42 * mm],
+            colWidths=[28 * mm, doc.width - 28 * mm],
         )
         header_table.setStyle(
             TableStyle(
@@ -161,8 +156,8 @@ def build_deployment_plan_pdf(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), accent),
                 ("BOX", (0, 0), (-1, -1), 0, accent),
-                ("TOPPADDING", (0, 0), (-1, -1), 14),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
                 ("LEFTPADDING", (0, 0), (-1, -1), 12),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 12),
             ]
@@ -191,30 +186,36 @@ def build_deployment_plan_pdf(
             [
                 str(day.get("date") or "")[8:10] + "." + str(day.get("date") or "")[5:7] + ".",
                 str(day.get("weekday") or "")[:12],
-                loc[:48],
-                time_cell[:14],
-                str(day.get("notes") or "")[:36],
+                loc[:42],
+                time_cell[:12],
+                str(day.get("notes") or "")[:28],
             ]
         )
         if day.get("isWeekend"):
             row_styles.append(("BACKGROUND", (0, i), (-1, i), weekend_bg))
 
-    col_widths = [22 * mm, 28 * mm, 68 * mm, 22 * mm, doc.width - 22 * mm - 28 * mm - 68 * mm - 22 * mm]
+    col_date = 16 * mm
+    col_day = 22 * mm
+    col_time = 18 * mm
+    col_note = 32 * mm
+    col_loc = doc.width - col_date - col_day - col_time - col_note
+    col_widths = [col_date, col_day, col_loc, col_time, col_note]
     data_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     style_commands = [
         ("BACKGROUND", (0, 0), (-1, 0), accent_light),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 9),
-        ("FONTSIZE", (0, 1), (-1, -1), 8.5),
+        ("FONTSIZE", (0, 0), (-1, 0), 7),
+        ("FONTSIZE", (0, 1), (-1, -1), 6.5),
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#c5d0da")),
+        ("GRID", (0, 0), (-1, -1), 0.2, colors.HexColor("#c5d0da")),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafbfc")]),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
     ]
     style_commands.extend(row_styles)
     data_table.setStyle(TableStyle(style_commands))
@@ -227,9 +228,9 @@ def build_deployment_plan_pdf(
     }
     story = [
         header_table,
-        Spacer(1, 8 * mm),
+        Spacer(1, 3 * mm),
         data_table,
-        Spacer(1, 6 * mm),
+        Spacer(1, 2 * mm),
         Paragraph(footer_text.get(lang_key, footer_text["de"]), footer),
     ]
     if plan_tier == "enterprise":

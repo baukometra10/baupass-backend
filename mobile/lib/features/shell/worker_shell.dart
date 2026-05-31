@@ -72,7 +72,10 @@ class WorkerShellState extends State<WorkerShell> {
   }
 
   void navigateTo(WorkerAppRoute route) {
-    setState(() => _index = route.tabIndex.clamp(0, 3));
+    setState(() {
+      _index = route.tabIndex.clamp(0, 3);
+      _tasksSubTab = route.tasksSubTab.clamp(0, 3);
+    });
     if (route.openAi && mounted) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -134,7 +137,13 @@ class WorkerShellState extends State<WorkerShell> {
         digitalCard: widget.digitalCard,
         workerCache: widget.workerCache,
         ai: widget.ai,
+        tasks: widget.tasks,
         onOpenAttendance: () => setState(() => _index = 1),
+        onOpenTasks: () => setState(() => _index = 2),
+        onOpenDeploymentPlan: () => setState(() {
+          _index = 2;
+          _tasksSubTab = 0;
+        }),
       ),
       AttendanceScreen(
         session: widget.session,

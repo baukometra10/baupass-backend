@@ -9,11 +9,13 @@ class DocumentsTab extends StatefulWidget {
     required this.session,
     required this.tasks,
     required this.enabled,
+    this.onOpenDeploymentPlan,
   });
 
   final WorkerSession session;
   final TasksRepository tasks;
   final bool enabled;
+  final VoidCallback? onOpenDeploymentPlan;
 
   @override
   State<DocumentsTab> createState() => _DocumentsTabState();
@@ -100,6 +102,19 @@ class _DocumentsTabState extends State<DocumentsTab> {
           : ListView(
               padding: const EdgeInsets.all(12),
               children: [
+                if (widget.onOpenDeploymentPlan != null)
+                  Card(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: ListTile(
+                      leading: const Icon(Icons.calendar_month),
+                      title: const Text('Monatsplan in der App'),
+                      subtitle: const Text(
+                        'Tage ansehen, ablehnen — nicht nur PDF herunterladen.',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: widget.onOpenDeploymentPlan,
+                    ),
+                  ),
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -107,18 +122,26 @@ class _DocumentsTabState extends State<DocumentsTab> {
                   ),
                 ..._items.map((row) {
                   final expiry = row['expiry_date'] as String?;
+                  final docType = (row['doc_type'] as String? ?? '').toLowerCase();
+                  final isPlan = docType == 'einsatzplan';
                   return Card(
                     child: ListTile(
-                      leading: const Icon(Icons.description_outlined),
+                      leading: Icon(isPlan ? Icons.event_note : Icons.description_outlined),
                       title: Text(row['filename'] as String? ?? row['doc_type'] as String? ?? 'Document'),
                       subtitle: Text(
                         [
                           row['doc_type'],
-                          if (row['created_at'] != null) 'Uploaded: ${row['created_at']}',
-                          if (expiry != null && expiry.isNotEmpty) 'Expires: $expiry',
+                          if (row['created_at'] != null) 'Hochgeladen: ${row['created_at']}',
+                          if (expiry != null && expiry.isNotEmpty) 'Läuft ab: $expiry',
                         ].whereType<String>().join(' · '),
                       ),
                       isThreeLine: true,
+                      trailing: isPlan && widget.onOpenDeploymentPlan != null
+                          ? TextButton(
+                              onPressed: widget.onOpenDeploymentPlan,
+                              child: const Text('Öffnen'),
+                            )
+                          : null,
                     ),
                   );
                 }),

@@ -5,6 +5,7 @@ import '../../core/plan_features.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
+import 'deployment_plan_tab.dart';
 import 'documents_tab.dart';
 import 'leave_requests_tab.dart';
 import 'shifts_tab.dart';
@@ -37,9 +38,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabs = TabController(
-      length: 3,
+      length: 4,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 2),
+      initialIndex: widget.initialTab.clamp(0, 3),
     );
     _loadProfile();
   }
@@ -65,23 +66,31 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final leaveOk = planHasFeature(_profile, 'leave_management');
     final docsOk = planHasFeature(_profile, 'document_upload');
+    final planOk = planHasFeature(_profile, 'deployment_plan');
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tasks'),
+        title: const Text('Aufgaben'),
         automaticallyImplyLeading: false,
         bottom: TabBar(
           controller: _tabs,
+          isScrollable: true,
           tabs: const [
-            Tab(text: 'Leave'),
-            Tab(text: 'Documents'),
-            Tab(text: 'Shifts'),
+            Tab(text: 'Einsatzplan'),
+            Tab(text: 'Urlaub'),
+            Tab(text: 'Dokumente'),
+            Tab(text: 'Schichten'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
         children: [
+          DeploymentPlanTab(
+            session: widget.session,
+            tasks: widget.tasks,
+            enabled: planOk,
+          ),
           LeaveRequestsTab(
             session: widget.session,
             tasks: widget.tasks,
@@ -92,6 +101,11 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             session: widget.session,
             tasks: widget.tasks,
             enabled: docsOk,
+            onOpenDeploymentPlan: planOk
+                ? () {
+                    _tabs.animateTo(0);
+                  }
+                : null,
           ),
           ShiftsTab(session: widget.session, tasks: widget.tasks),
         ],

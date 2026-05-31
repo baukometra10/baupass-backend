@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -25,6 +26,8 @@ class ApiClient {
   final http.Client _http;
   final String _baseUrl;
   SessionExpiredCallback? onSessionExpired;
+
+  String get baseUrl => _baseUrl;
 
   Map<String, String> _headers({
     String? bearerToken,
@@ -150,6 +153,27 @@ class ApiClient {
       );
     }
     return decoded;
+  }
+
+  Future<Uint8List> getBytes(
+    String path, {
+    String? bearerToken,
+    String? deviceId,
+  }) async {
+    final uri = Uri.parse(path.startsWith('http') ? path : '$_baseUrl$path');
+    final http.Response response;
+    try {
+      response = await _http.get(
+        uri,
+        headers: _headers(bearerToken: bearerToken, deviceId: deviceId),
+      );
+    } on Exception catch (e) {
+      throw ApiException(0, 'network_error', e.toString());
+    }
+    if (response.statusCode >= 400) {
+      throw ApiException(response.statusCode, 'http_${response.statusCode}');
+    }
+    return Uint8List.fromList(response.bodyBytes);
   }
 
   void close() => _http.close();

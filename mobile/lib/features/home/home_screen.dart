@@ -7,8 +7,10 @@ import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/digital_card_repository.dart';
 import '../ai/worker_ai_screen.dart';
+import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../notifications/notifications_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -18,7 +20,10 @@ class HomeScreen extends StatefulWidget {
     required this.digitalCard,
     required this.workerCache,
     required this.ai,
+    required this.tasks,
     required this.onOpenAttendance,
+    this.onOpenTasks,
+    this.onOpenDeploymentPlan,
   });
 
   final WorkerSession session;
@@ -26,7 +31,10 @@ class HomeScreen extends StatefulWidget {
   final DigitalCardRepository digitalCard;
   final WorkerCache workerCache;
   final AiAssistantService ai;
+  final TasksRepository tasks;
   final VoidCallback onOpenAttendance;
+  final VoidCallback? onOpenTasks;
+  final VoidCallback? onOpenDeploymentPlan;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -36,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _profile;
   DynamicQrPayload? _dynamicQr;
   Timer? _qrTimer;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
@@ -56,10 +65,41 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() => _profile = me);
       await _refreshQr();
+      await _refreshNotifications();
     } catch (_) {
       final cached = await widget.workerCache.loadProfile();
       if (mounted) setState(() => _profile = cached);
     }
+  }
+
+  Future<void> _refreshNotifications() async {
+    try {
+      final rows = await widget.tasks.listNotifications(widget.session);
+      if (!mounted) return;
+      setState(() {
+        _unreadNotifications = rows.where((r) => r['isRead'] != true).length;
+      });
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _openNotifications() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => NotificationsSheet(
+        session: widget.session,
+        tasks: widget.tasks,
+        onOpenDeployment: () {
+          widget.onOpenDeploymentPlan?.call();
+          widget.onOpenTasks?.call();
+        },
+        onOpenDocuments: () {
+          widget.onOpenTasks?.call();
+        },
+      ),
+    ).then((_) => _refreshNotifications());
   }
 
   Future<void> _refreshQr() async {
@@ -88,6 +128,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('BauPass'),
         actions: [
+          IconButton(
+            tooltip: 'Mitteilungen',
+            icon: Badge(
+              isLabelVisible: _unreadNotifications > 0,
+              label: Text('$_unreadNotifications'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            onPressed: _openNotifications,
+          ),
           IconButton(
             tooltip: 'KI Assistent',
             icon: const Icon(Icons.smart_toy_outlined),
@@ -147,6 +196,14 @@ class _HomeScreenState extends State<HomeScreen> {
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
             ),
             const SizedBox(height: 8),
+            if (widget.onOpenDeploymentPlan != null)
+              FilledButton.tonalIcon(
+                onPressed: widget.onOpenDeploymentPlan,
+                icon: const Icon(Icons.event_note),
+                label: const Text('Mein Einsatzplan'),
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              ),
+            if (widget.onOpenDeploymentPlan != null) const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.of(context).push(

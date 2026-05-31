@@ -22,10 +22,16 @@ class DeepLinkService {
         return const WorkerAppRoute(tabIndex: 1);
       case 'tasks':
       case 'leave':
-        return const WorkerAppRoute(tabIndex: 2);
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 1);
+      case 'deployment':
+      case 'deployment-plan':
+      case 'einsatzplan':
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 0);
+      case 'documents':
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 2);
       case 'shifts':
       case 'shift':
-        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 2);
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 3);
       case 'profile':
         return const WorkerAppRoute(tabIndex: 3);
       default:

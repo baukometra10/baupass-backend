@@ -37,6 +37,8 @@ WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/deployment-plan", "worker_app_deployment_plan", ["GET"]),
     ("/deployment-plan/pdf", "worker_app_deployment_plan_pdf", ["GET"]),
     ("/deployment-plan/day-response", "worker_app_deployment_plan_day_response", ["POST"]),
+    ("/notifications", "notifications_get", ["GET"]),
+    ("/notifications/<notif_id>/mark-read", "notifications_mark_read", ["POST"]),
     ("/company-admins", "worker_get_company_admins", ["GET"]),
     ("/site-presence", "worker_app_site_presence", ["POST"]),
     ("/site-leave", "worker_app_site_leave", ["POST"]),

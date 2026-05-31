@@ -1,3 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../core/api_client.dart';
 import '../core/session_store.dart';
 
@@ -115,5 +121,80 @@ class TasksRepository {
       bearerToken: session.bearer,
       deviceId: session.deviceId,
     );
+  }
+
+  Future<Map<String, dynamic>> fetchDeploymentPlan({
+    required WorkerSession session,
+    required int year,
+    required int month,
+    String lang = 'de',
+  }) {
+    return _api.getJson(
+      '/api/worker-app/deployment-plan?year=$year&month=$month&lang=$lang',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+  }
+
+  Future<Uint8List> fetchDeploymentPlanPdf({
+    required WorkerSession session,
+    required int year,
+    required int month,
+    String lang = 'de',
+  }) async {
+    final uri = Uri.parse(
+      '${_api.baseUrl}/api/worker-app/deployment-plan/pdf?year=$year&month=$month&lang=$lang',
+    );
+    final response = await _api.getBytes(
+      uri.toString(),
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    return response;
+  }
+
+  Future<Map<String, dynamic>> postDeploymentDayResponse({
+    required WorkerSession session,
+    required String date,
+    required String action,
+    String reason = '',
+  }) {
+    return _api.postJson(
+      '/api/worker-app/deployment-plan/day-response',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{
+        'date': date,
+        'action': action,
+        if (reason.isNotEmpty) 'reason': reason,
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> listNotifications(WorkerSession session) async {
+    final data = await _api.getJson(
+      '/api/worker-app/notifications',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final raw = data['notifications'];
+    if (raw is! List) return [];
+    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<void> markNotificationRead(WorkerSession session, String notifId) async {
+    await _api.postJson(
+      '/api/worker-app/notifications/$notifId/mark-read',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{},
+    );
+  }
+
+  Future<void> saveAndOpenPdf(Uint8List bytes, {required String filename}) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$filename');
+    await file.writeAsBytes(bytes, flush: true);
+    await OpenFile.open(file.path);
   }
 }

@@ -15,13 +15,17 @@ class PushNavigation {
       }
     }
     switch (data['tag']) {
+      case 'deployment-plan':
+      case 'deployment_plan':
+      case 'einsatzplan':
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 0);
       case 'leave-request-status':
       case 'leave-approved':
       case 'leave-denied':
       case 'document-expiry':
-        return const WorkerAppRoute(tabIndex: 2);
-      case 'attendance-reminder':
         return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 2);
+      case 'attendance-reminder':
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 3);
       case 'site-checkin':
         return const WorkerAppRoute(tabIndex: 1);
       case 'ai-briefing':

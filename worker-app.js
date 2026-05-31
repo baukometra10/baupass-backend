@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260601b";
+const WORKER_BUILD_TAG = "20260603b";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -509,7 +509,7 @@ function markNotificationAsRead(notifId) {
 async function fetchServerNotifications() {
   if (!workerToken) return [];
   try {
-    const data = await fetchJson(`${API_ROOT}/notifications`, {
+    const data = await fetchJson(`${API_BASE}/notifications`, {
       headers: { Authorization: `Bearer ${workerToken}` },
     });
     return Array.isArray(data?.notifications) ? data.notifications : [];
@@ -522,7 +522,7 @@ async function fetchServerNotifications() {
 async function markServerNotificationRead(notifId) {
   if (!workerToken || !notifId) return;
   try {
-    await fetchJson(`${API_ROOT}/notifications/${encodeURIComponent(notifId)}/mark-read`, {
+    await fetchJson(`${API_BASE}/notifications/${encodeURIComponent(notifId)}/mark-read`, {
       method: "POST",
       headers: { Authorization: `Bearer ${workerToken}` },
       body: {},
@@ -4704,12 +4704,14 @@ function workerPlanAllowsFeature(featureKey) {
   if (!featureKey) return true;
   const features = lastWorkerPayload?.planFeatures;
   if (!features || typeof features !== "object") return true;
+  if (featureKey === "deployment_plan" && features[featureKey] === undefined) return true;
+  if (features[featureKey] === false) return false;
   return Boolean(features[featureKey]);
 }
 
 function applyWorkerDeploymentMenuState(planFeatures = {}) {
-  const allowed = Boolean(planFeatures?.deployment_plan);
-  document.querySelectorAll(".worker-menu-btn-deployment, [data-worker-page-target='deploymentPlanCard']").forEach((btn) => {
+  const allowed = planFeatures?.deployment_plan !== false;
+  document.querySelectorAll(".worker-menu-btn-deployment, [data-worker-page-target='deploymentPlanCard'], #homeDeploymentTeaser").forEach((btn) => {
     btn.classList.remove("hidden");
     btn.classList.toggle("worker-menu-btn-locked", !allowed);
     btn.toggleAttribute("disabled", !allowed);
@@ -6607,6 +6609,11 @@ async function loadMyDocuments() {
         ? (isExpired ? "doc-expired" : "doc-ok")
         : "doc-no-expiry";
       const received = (doc.created_at || "").slice(0, 10);
+      const docType = String(doc.doc_type || "").trim().toLowerCase();
+      const isEinsatzplan = docType === "einsatzplan";
+      const openPlanBtn = isEinsatzplan
+        ? `<button type="button" class="doc-open-plan-btn ghost small-btn" data-open-einsatzplan="1">${t("deploymentPlanOpenInApp")}</button>`
+        : "";
       const downloadBtn = doc.id && doc.canDownload !== false
         ? `<button type="button" class="doc-download-btn" data-doc-id="${escapeHtmlBasic(doc.id)}" data-doc-name="${escapeHtmlBasic(doc.filename || "dokument.pdf")}">${t("documentsDownload")}</button>`
         : "";
@@ -6620,7 +6627,7 @@ async function loadMyDocuments() {
           ${doc.expiry_date ? `<span>${t("documentsExpiry")}: ${formatDate(doc.expiry_date)}</span>` : ""}
           <span class="doc-status-badge ${statusClass}">${statusLabel}${expiryDeltaLabel ? ` · ${expiryDeltaLabel}` : ""}</span>
         </div>
-        ${downloadBtn}
+        <div class="doc-actions-row">${openPlanBtn}${downloadBtn}</div>
       </div>`;
     }).join("");
 
@@ -6629,6 +6636,12 @@ async function loadMyDocuments() {
       : "";
 
     elements.documentsList.innerHTML = payrollBanner + warningBanner + docsMarkup + toggleMarkup;
+
+    elements.documentsList.querySelectorAll("[data-open-einsatzplan]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        void openWorkerDeploymentPlanScreen();
+      });
+    });
 
     elements.documentsList.querySelectorAll(".doc-download-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
