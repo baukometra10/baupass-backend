@@ -1,5 +1,5 @@
 import { applyI18n, getLang, setLang, t } from "./i18n.js";
-import { mountGeofenceMap } from "./geofence-map.js";
+import { mountGeofenceMapWhenReady } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
 const TOKEN_KEY = "baupass-admin-v2-token";
@@ -334,7 +334,7 @@ function syncEnterpriseFrame() {
   if (!frame) return;
   const q = companyQuery();
   const cid = q ? q.replace(/^\?company_id=/, "") : "";
-  const base = "/enterprise-hub.html?embed=1";
+  const base = "/enterprise-hub.html?embed=1&v=20260531shell2";
   frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
 }
 
@@ -400,6 +400,11 @@ function switchToTab(tabId) {
   if (content) content.scrollTop = 0;
   window.scrollTo(0, 0);
   if (tabId === "enterprise") syncEnterpriseFrame();
+  if (tabId === "tools") {
+    requestAnimationFrame(() => {
+      document.getElementById("geofenceMap")?._baupassLeafletMap?._baupassInvalidate?.();
+    });
+  }
 }
 
 function renderOverviewQuickBar() {
@@ -1473,7 +1478,7 @@ async function loadTools() {
     const gfForm = $("geofenceForm");
     const latIn = gfForm.querySelector('[name="latitude"]');
     const lngIn = gfForm.querySelector('[name="longitude"]');
-    mountGeofenceMap($("geofenceMap"), latIn, lngIn, gfRows);
+    mountGeofenceMapWhenReady($("geofenceMap"), latIn, lngIn, gfRows);
     $("geofenceForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.target);

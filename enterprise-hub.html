@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — مركز المؤسسة (16 طبقة)</title>
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell1" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
   <style>
     :root {
@@ -163,12 +163,26 @@
       grid-template-rows: 1fr;
       gap: 0.65rem;
     }
-    body.embed-mode .ai-panel {
-      max-height: none;
-      height: 100%;
+    body.embed-mode .ai-panel,
+    body.embed-mode .ai-panel.embed-panel-fixed {
+      max-height: none !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      position: relative !important;
+      top: auto !important;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    body.embed-mode #mainLayout.embed-layout-split > section,
+    body.embed-mode #mainLayout.embed-layout-split > aside {
       min-height: 0;
-      position: relative;
-      top: auto;
+      min-width: 0;
+    }
+    body.embed-mode #aiLog.embed-scroll-main {
+      min-height: 0 !important;
+      flex: 1 1 auto;
+      overflow-y: auto;
     }
     body.embed-mode .ai-form-legacy-send { display: none; }
   </style>
@@ -242,7 +256,7 @@
     </aside>
   </div>
 
-  <script src="/embed-helpers.js?v=20260531shell1"></script>
+  <script src="/embed-helpers.js?v=20260531shell2"></script>
   <script src="/ai-voice-ui.js?v=20260530a"></script>
   <script>
     const SURFACE_COLORS = {

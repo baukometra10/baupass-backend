@@ -412,15 +412,26 @@ select {
   overflow-y: auto;
   padding-right: 4px;
   align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(15, 23, 32, 0.5);
 }
 
 .nav::-webkit-scrollbar {
   width: 6px;
 }
 
+.nav::-webkit-scrollbar-track {
+  background: rgba(15, 23, 32, 0.55);
+  border-radius: 999px;
+}
+
 .nav::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
+}
+
+.nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .nav-enterprise-mount {
@@ -2207,6 +2218,13 @@ select:focus {
   color: var(--button-text, var(--text));
   background: var(--button-bg, var(--surface-strong));
   border: 1px solid var(--button-border, var(--line));
+}
+
+.topbar .ghost-button::after,
+.topbar .primary-button::after,
+.enterprise-embed-toolbar .ghost-button::after,
+.enterprise-embed-toolbar .primary-button::after {
+  display: none;
 }
 
 .primary-button::after,

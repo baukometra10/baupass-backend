@@ -141,6 +141,46 @@ body.embed-mode .embed-scroll-main {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(94, 234, 212, 0.35) rgba(10, 16, 22, 0.8);
+}
+
+body.embed-mode .embed-scroll-main::-webkit-scrollbar {
+  width: 6px;
+}
+
+body.embed-mode .embed-scroll-main::-webkit-scrollbar-track {
+  background: rgba(10, 16, 22, 0.85);
+  border-radius: 6px;
+}
+
+body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb {
+  background: rgba(94, 234, 212, 0.32);
+  border-radius: 6px;
+}
+
+body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.5);
+}
+
+/* Custom scrollbars on main content column (Control Pass views) */
+.content .view.active:not(.view-embed) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(42, 113, 119, 0.45) rgba(246, 239, 226, 0.5);
+}
+
+.content .view.active:not(.view-embed)::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content .view.active:not(.view-embed)::-webkit-scrollbar-track {
+  background: rgba(246, 239, 226, 0.45);
+  border-radius: 8px;
+}
+
+.content .view.active:not(.view-embed)::-webkit-scrollbar-thumb {
+  background: rgba(42, 113, 119, 0.4);
+  border-radius: 8px;
 }
 
 body.embed-mode .embed-panel-fixed {
@@ -158,6 +198,21 @@ body.embed-mode .embed-panel-fixed .embed-scroll-main {
 body.embed-mode .embed-panel-footer {
   flex-shrink: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Enterprise Hub inside Control Pass iframe — 100vh bug fix */
+html.embed-document body.embed-mode #mainLayout.embed-layout-split {
+  height: 100%;
+  min-height: 0;
+}
+
+html.embed-document body.embed-mode .ai-panel.embed-panel-fixed {
+  max-height: none !important;
+  height: 100% !important;
+}
+
+html.embed-document body.embed-mode #aiLog.embed-scroll-main {
+  min-height: 0 !important;
 }
 
 body.embed-mode .embed-panel-fixed > h2,
