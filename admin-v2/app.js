@@ -130,14 +130,16 @@ function ensureEmbedQuickNav() {
   nav.className = "embed-quick-nav";
   nav.setAttribute("aria-label", "Schnellzugriff Embed");
   const items = [
-    { tab: "workers", label: t("deployment.planBtn"), primary: true },
+    { tab: "workers", label: t("deployment.planBtn"), primary: true, deployment: true },
+    { tab: "workers", label: t("tab.workers") },
+    { tab: "access", label: t("tab.access") },
     { tab: "inbox", label: t("tab.inbox") },
     { tab: "overview", label: t("tab.overview") },
   ];
   nav.innerHTML = items
     .map(
       (item) =>
-        `<button type="button" class="embed-quick-nav-btn${item.primary ? " primary" : ""}" data-embed-tab="${item.tab}"${item.primary ? ' data-embed-deployment="1"' : ""}>${item.label}</button>`,
+        `<button type="button" class="embed-quick-nav-btn${item.primary ? " primary" : ""}" data-embed-tab="${item.tab}"${item.deployment ? ' data-embed-deployment="1"' : ""}>${item.label}</button>`,
     )
     .join("");
   const content = document.querySelector(".app-content");
@@ -150,9 +152,11 @@ function ensureEmbedQuickNav() {
     btn.addEventListener("click", async () => {
       switchToTab(btn.getAttribute("data-embed-tab"));
       try {
-        await refreshActiveTab();
         if (btn.getAttribute("data-embed-deployment") === "1") {
+          await loadWorkers();
           await focusDeploymentSection();
+        } else {
+          await refreshActiveTab();
         }
       } catch (err) {
         notifyTabError(err);
