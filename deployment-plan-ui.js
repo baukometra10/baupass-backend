@@ -107,6 +107,7 @@
         <span>${ui("deploymentColStart")}</span>
         <span>${ui("deploymentColEnd")}</span>
         <span>${ui("deploymentColNotes")}</span>
+        <span></span>
       </div>`;
     const rows = modalDays
       .map((d, i) => {
@@ -121,10 +122,23 @@
         <input type="time" data-dep-field="start" value="${start}" />
         <input type="time" data-dep-field="end" value="${end}" />
         <input type="text" data-dep-field="notes" value="${notes}" placeholder="${escapeAttr(ui("deploymentNotesPh"))}" />
+        <button type="button" class="ghost-button deployment-day-clear" data-dep-clear="${i}">${ui("deploymentClearDay")}</button>
       </div>`;
       })
       .join("");
     host.innerHTML = header + rows;
+    host.querySelectorAll("[data-dep-clear]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = parseInt(btn.getAttribute("data-dep-clear"), 10);
+        const d = modalDays[i];
+        if (!d) return;
+        d.location = "";
+        d.shiftStart = "";
+        d.shiftEnd = "";
+        d.notes = "";
+        renderModalDaysList();
+      });
+    });
   }
 
   function applyBulkWeekdays() {
@@ -293,7 +307,7 @@
           return `<tr>
             <td>${escapeAttr(name)}</td>
             <td><span class="deployment-ready-pill${w.ready ? " ok" : ""}">${ready}</span></td>
-            <td><button type="button" class="ghost-button small-button" data-cp-dep-edit="${escapeAttr(wid)}" data-cp-dep-name="${escapeAttr(name)}">${ui("deploymentEditBtn")}</button></td>
+            <td><button type="button" class="primary-button small-button" data-cp-dep-edit="${escapeAttr(wid)}" data-cp-dep-name="${escapeAttr(name)}">${ui("deploymentEditBtn")}</button></td>
           </tr>`;
         })
         .join("");
@@ -308,6 +322,10 @@
     } catch (e) {
       host.innerHTML = `<p class="error">${escapeAttr(e.message)}</p>`;
     }
+  }
+
+  function scrollToWorkers() {
+    $("cpDeploymentWorkersSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function refreshView() {
@@ -396,6 +414,6 @@
     });
   }
 
-  global.BaupassDeploymentPlan = { refresh: refreshView, bindOnce };
+  global.BaupassDeploymentPlan = { refresh: refreshView, scrollToWorkers, bindOnce };
   bindOnce();
 })(window);

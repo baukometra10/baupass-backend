@@ -168,12 +168,14 @@ def register_workforce_blueprint(flask_app) -> None:
         ).fetchone()
         if not w:
             return jsonify({"error": "worker_not_found"}), 404
-        company = db.execute("SELECT name FROM companies WHERE id = ?", (cid,)).fetchone()
+        from .deployment_branding import resolve_company_pdf_branding
+
+        branding = resolve_company_pdf_branding(db, cid)
         days = build_month_calendar(db, company_id=cid, worker_id=worker_id, year=year, month=month, lang=lang)
         plan = get_company_plan(db, cid)
         tier = "enterprise" if plan_includes(plan, "enterprise") else "professional"
         pdf_bytes = build_deployment_plan_pdf(
-            company_name=company["name"] if company else "BauPass",
+            company_name=branding.get("companyName") or "BauPass",
             worker_name=f"{w['first_name']} {w['last_name']}".strip(),
             badge_id=w["badge_id"],
             year=year,
@@ -181,6 +183,7 @@ def register_workforce_blueprint(flask_app) -> None:
             days=days,
             lang=lang,
             plan_tier=tier,
+            branding=branding,
         )
         fname = f"einsatzplan-{worker_id}-{year}-{month:02d}.pdf"
         return Response(
@@ -209,7 +212,9 @@ def register_workforce_blueprint(flask_app) -> None:
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
         db = get_db()
-        company = db.execute("SELECT name FROM companies WHERE id = ?", (cid,)).fetchone()
+        from .deployment_branding import resolve_company_pdf_branding
+
+        branding = resolve_company_pdf_branding(db, cid)
         if worker_ids:
             ids = [str(x).strip() for x in worker_ids if str(x).strip()]
         else:
@@ -241,7 +246,7 @@ def register_workforce_blueprint(flask_app) -> None:
                 if not any(str(d.get("location") or "").strip() for d in days):
                     continue
                 pdf_bytes = build_deployment_plan_pdf(
-                    company_name=company["name"] if company else "BauPass",
+                    company_name=branding.get("companyName") or "BauPass",
                     worker_name=f"{w['first_name']} {w['last_name']}".strip(),
                     badge_id=w["badge_id"],
                     year=year,
@@ -249,6 +254,7 @@ def register_workforce_blueprint(flask_app) -> None:
                     days=days,
                     lang=lang,
                     plan_tier="enterprise",
+                    branding=branding,
                 )
                 safe = f"{w['last_name']}_{w['first_name']}_{wid}".replace(" ", "_")[:60]
                 zf.writestr(f"einsatzplan-{year}-{month:02d}-{safe}.pdf", pdf_bytes)

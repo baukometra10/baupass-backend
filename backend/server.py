@@ -8367,237 +8367,12 @@ def qr_data_url():
     return jsonify({"pngHex": encoded})
 
 
-@app.post("/api/login")
 def login():
-    def login_error(code, status_code=200, **extra):
-        payload = {"ok": False, "error": code}
-        payload.update(extra)
-        return jsonify(payload), status_code
+    from backend.app.domains.auth.login_flow import perform_login
 
-    from backend.app.db.schema_errors import guard_core_schema
-
-    blocked = guard_core_schema(ok_field=True)
-    if blocked is not None:
-        return blocked
-
-    throttle_key = build_login_throttle_key()
-    allowed, retry_after = can_attempt_login(throttle_key)
-    if not allowed:
-        return login_error("too_many_attempts", 429, retryAfterSeconds=retry_after)
-
-    payload = request.get_json(silent=True) or {}
-    username = (payload.get("username") or "").strip().lower()
-    password = payload.get("password") or ""
-    otp_code = (payload.get("otpCode") or "").strip()
-    login_scope = (payload.get("loginScope") or "auto").strip().lower()
-    support_company_id = (payload.get("supportCompanyId") or "").strip()
-    support_actor_name = (payload.get("supportActorName") or "").strip()
-
-    try:
-        db = get_db()
-        user = db.execute("SELECT * FROM users WHERE lower(username) = ?", (username,)).fetchone()
-    except Exception as exc:
-        try:
-            from backend.app.db.pg_bootstrap import is_schema_error
-            from backend.app.db.schema_errors import database_not_ready_response
-
-            if is_schema_error(exc):
-                return database_not_ready_response(ok_field=True)
-        except ImportError:
-            pass
-        raise
-
-    if not user or not check_password_hash(user["password_hash"], password):
-        register_login_failure(throttle_key)
-        log_audit("login.failed", f"Fehlgeschlagener Login fuer {username or 'unbekannt'}")
-        return login_error("invalid_credentials")
-
-    required_role_by_scope = {
-        "server-admin": "superadmin",
-        "company-admin": "company-admin",
-        "turnstile": "turnstile",
-    }
-    required_role = required_role_by_scope.get(login_scope)
-    if required_role and user["role"] != required_role:
-        register_login_failure(throttle_key)
-        log_audit("login.failed", f"Login-Typ passt nicht zu {username or 'unbekannt'}")
-        return login_error("login_scope_mismatch")
-
-    twofa_enabled = int(user["twofa_enabled"]) == 1
-    turnstile_auto_2fa = user["role"] == "turnstile"
-    if REQUIRE_SUPERADMIN_2FA and user["role"] == "superadmin" and not twofa_enabled:
-        user_keys = set(user.keys()) if hasattr(user, "keys") else set()
-        user_email = (user["email"] if "email" in user_keys else "").strip().lower()
-        setup_email = clean_text_input(payload.get("setupEmail") or "", max_len=200).strip().lower()
-        if setup_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", setup_email):
-            return login_error("invalid_setup_email", message="Bitte eine gueltige E-Mail-Adresse eingeben.")
-        target_email = setup_email or user_email
-        if target_email:
-            def _bootstrap_superadmin_twofa():
-                db.execute(
-                    "UPDATE users SET email = ?, twofa_enabled = 1 WHERE id = ?",
-                    (target_email, user["id"]),
-                )
-                db.commit()
-
-            run_db_write_with_retry(_bootstrap_superadmin_twofa)
-            user = db.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
-            twofa_enabled = True
-            log_audit(
-                "security.superadmin_2fa_bootstrapped",
-                f"Superadmin 2FA (E-Mail-OTP) beim Login vorbereitet: {username}",
-                target_type="user",
-                target_id=user["id"],
-            )
-        else:
-            return login_error(
-                "superadmin_setup_email_required",
-                message="Superadmin: Bitte E-Mail fuer OTP eingeben und erneut anmelden (einmalige Einrichtung).",
-            )
-    if twofa_enabled and not turnstile_auto_2fa:
-        user_keys = set(user.keys()) if hasattr(user, "keys") else set()
-        user_email = (user["email"] if "email" in user_keys else "").strip()
-
-        if not otp_code:
-            # Step 1: credentials correct – send OTP via email
-            if user_email:
-                # 60-second cooldown: if a valid OTP was sent less than 60 seconds ago, don't send a new one
-                cooldown_threshold = (datetime.now(timezone.utc) + timedelta(seconds=540)).isoformat()  # expires_at > now+9min → sent within last 60s
-                recent_otp = db.execute(
-                    "SELECT id FROM otp_codes WHERE user_id = ? AND expires_at > ?",
-                    (user["id"], cooldown_threshold)
-                ).fetchone()
-                if recent_otp:
-                    clear_login_failures(throttle_key)
-                    return login_error("otp_sent")
-
-                otp = str(secrets.randbelow(900000) + 100000)
-                otp_id = secrets.token_urlsafe(16)
-                expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-                def _persist_otp_code():
-                    db.execute("DELETE FROM otp_codes WHERE user_id = ?", (user["id"],))
-                    db.execute(
-                        "INSERT INTO otp_codes (id, user_id, code, expires_at) VALUES (?,?,?,?)",
-                        (otp_id, user["id"], otp, expires)
-                    )
-                    db.commit()
-
-                run_db_write_with_retry(_persist_otp_code)
-                sent = _send_otp_email_to_user(db, user, otp)
-                if not sent:
-                    # E-Mail-Versand fehlgeschlagen → Code im Server-Log ausgeben als Notfall-Fallback
-                    app.logger.warning(
-                        f"[OTP-FALLBACK] Kein SMTP konfiguriert oder Versand fehlgeschlagen – "
-                        f"OTP fuer Benutzer '{user['username']}': {otp}"
-                    )
-                # Return "otp_sent" – NOT a login failure (credentials were valid)
-                clear_login_failures(throttle_key)
-                return login_error("otp_sent")
-            else:
-                # No email configured: fall back to TOTP prompt
-                register_login_failure(throttle_key)
-                return login_error("otp_required")
-        else:
-            # Step 2: verify submitted OTP
-            now_str = datetime.now(timezone.utc).isoformat()
-            otp_row = db.execute(
-                "SELECT id FROM otp_codes WHERE user_id = ? AND code = ? AND expires_at > ?",
-                (user["id"], otp_code, now_str)
-            ).fetchone()
-            if otp_row:
-                db.execute("DELETE FROM otp_codes WHERE user_id = ?", (user["id"],))
-                db.commit()
-            else:
-                # Fallback: try TOTP (authenticator app)
-                secret = (user["twofa_secret"] or "").strip()
-                if not (secret and pyotp.TOTP(secret).verify(otp_code, valid_window=1)):
-                    register_login_failure(throttle_key)
-                    return login_error("otp_invalid")
-
-    if not is_tenant_host_valid(db, row_to_dict(user)):
-        register_login_failure(throttle_key)
-        return login_error("forbidden_tenant_host")
-
-    if user["role"] != "superadmin":
-        company_error = get_company_access_error(db, user["company_id"])
-        if company_error:
-            log_audit("login.blocked", f"Login fuer {user['username']} wegen Firmensperre blockiert", target_type="company", target_id=user["company_id"])
-            return login_error(company_error["error"], companyStatus=company_error["companyStatus"], companyName=company_error["companyName"], message=company_error.get("message", ""))
-
-    support_read_only = 0
-    support_company_name = ""
-    if support_company_id:
-        if user["role"] != "company-admin" or user["company_id"] != support_company_id:
-            register_login_failure(throttle_key)
-            return login_error("support_company_mismatch")
-        company_row = db.execute("SELECT id, name FROM companies WHERE id = ?", (support_company_id,)).fetchone()
-        if not company_row:
-            register_login_failure(throttle_key)
-            return login_error("company_not_found")
-        support_read_only = 1
-        support_company_name = company_row["name"] or ""
-
-    clear_login_failures(throttle_key)
-
-    token = secrets.token_urlsafe(24)
-    def _persist_login_session():
-        db.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
-        try:
-            db.execute(
-                """
-                INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (token, user["id"], expiry_iso(), support_read_only, support_company_name, support_actor_name),
-            )
-        except sqlite3.OperationalError as exc:
-            message = str(exc).lower()
-            legacy_schema = (
-                "no such column" in message
-                or "has no column named support_read_only" in message
-                or "has no column named support_company_name" in message
-                or "has no column named support_actor_name" in message
-            )
-            if not legacy_schema:
-                raise
-            # Backward compatibility for environments with an older sessions table.
-            db.execute(
-                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-                (token, user["id"], expiry_iso()),
-            )
-        db.commit()
-
-    run_db_write_with_retry(_persist_login_session)
-
-    try:
-        from backend.app.platform.security.session_devices import register_session_device
-
-        register_session_device(db, token=token, user_id=user["id"], req=request)
-    except Exception:
-        pass
-
-    login_message = f"Benutzer {user['username']} angemeldet"
-    if support_read_only:
-        actor_label = support_actor_name or "Support"
-        login_message = f"Support-Login fuer {support_company_name or user['username']} gestartet durch {actor_label} (nur lesen)"
-    log_audit("login.success", login_message, target_type="user", target_id=user["id"], actor=row_to_dict(user), company_id=user["company_id"])
-
-    response_user = row_to_dict(user)
-    response_user["support_read_only"] = bool(support_read_only)
-    response_user["support_company_name"] = support_company_name
-    response_user["support_actor_name"] = support_actor_name
-    response = jsonify({"ok": True, "token": token, "user": serialize_user(response_user)})
-    response.set_cookie(
-        SESSION_COOKIE_NAME,
-        token,
-        httponly=True,
-        samesite="None" if should_use_cross_site_cookie() else "Lax",
-        secure=is_request_secure(),
-    )
-    return response
+    return perform_login()
 
 
-@app.post("/api/logout")
 @require_auth
 def logout():
     from backend.app.domains.auth.service import AuthService
@@ -8608,13 +8383,11 @@ def logout():
     return response
 
 
-@app.get("/api/me")
 @require_auth
 def me():
     return jsonify({"user": serialize_user(g.current_user)})
 
 
-@app.get("/api/session/bootstrap")
 def session_bootstrap():
     from backend.app.db.schema_errors import guard_core_schema
 
@@ -8900,7 +8673,6 @@ def heartbeat():
     return jsonify({"ok": True, "active": True})
 
 
-@app.post("/api/me/password")
 @require_auth
 def change_password():
     payload = request.get_json(silent=True) or {}
@@ -8922,13 +8694,11 @@ def change_password():
     return jsonify({"ok": True})
 
 
-@app.get("/api/me/2fa")
 @require_auth
 def get_twofa_status():
     return jsonify({"enabled": int(g.current_user["twofa_enabled"]) == 1})
 
 
-@app.post("/api/me/2fa/activate")
 @require_auth
 def activate_twofa():
     db = get_db()
@@ -8944,7 +8714,6 @@ def activate_twofa():
     return jsonify({"ok": True})
 
 
-@app.post("/api/me/2fa/disable")
 @require_auth
 def disable_twofa():
     db = get_db()
@@ -8954,7 +8723,6 @@ def disable_twofa():
     return jsonify({"ok": True})
 
 
-@app.post("/api/emergency/disable-2fa")
 def emergency_disable_twofa():
     """Emergency endpoint: disable 2FA for a user using a server-side secret token."""
     emergency_token = os.getenv("BAUPASS_EMERGENCY_TOKEN", "").strip()
@@ -10049,7 +9817,6 @@ def demo_seed():
     )
 
 
-@app.get("/api/workers")
 @require_auth
 def list_workers():
     try:
@@ -10073,7 +9840,6 @@ def list_workers():
         return {"error": "Fehler beim Laden von Mitarbeitern", "details": str(e)}, 400
 
 
-@app.get("/api/workers/current-visitors")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def get_current_visitors():
@@ -10117,7 +9883,6 @@ def get_current_visitors():
     return jsonify(result)
 
 
-@app.post("/api/workers/import-csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def import_workers_csv():
@@ -10245,7 +10010,6 @@ def import_workers_csv():
     })
 
 
-@app.get("/api/workers/export.csv")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def export_workers_csv():
@@ -10325,7 +10089,6 @@ def export_workers_csv():
     )
 
 
-@app.get("/api/workers/export.pdf")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def export_workers_pdf():
@@ -10455,7 +10218,6 @@ def export_workers_pdf():
     )
 
 
-@app.get("/api/workers/attendance.pdf")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def export_attendance_pdf():
@@ -10593,7 +10355,6 @@ def export_attendance_pdf():
     )
 
 
-@app.post("/api/workers")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_worker():
@@ -10766,7 +10527,6 @@ def _persist_worker_compliance_fields(db, worker_id, payload, actor, is_new=Fals
         db.execute("UPDATE workers SET id_handover_at = ? WHERE id = ?", (handover_value, worker_id))
 
 
-@app.put("/api/workers/<worker_id>")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def update_worker(worker_id):
@@ -10964,7 +10724,6 @@ def update_worker(worker_id):
     return jsonify({"ok": True})
 
 
-@app.delete("/api/workers/<worker_id>")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def delete_worker(worker_id):
@@ -10982,7 +10741,6 @@ def delete_worker(worker_id):
     return jsonify({"ok": True})
 
 
-@app.get("/api/workers/<worker_id>/compliance-signature")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_compliance_signature(worker_id):
@@ -11001,7 +10759,6 @@ def get_worker_compliance_signature(worker_id):
     })
 
 
-@app.put("/api/workers/<worker_id>/compliance-signature")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def put_worker_compliance_signature(worker_id):
@@ -11170,7 +10927,6 @@ def _operations_snapshot_with_db(db):
     })
 
 
-@app.get("/api/workers/<worker_id>/akte.pdf")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def download_worker_akte_pdf(worker_id):
@@ -11285,7 +11041,6 @@ def admin_list_database_backups():
     return jsonify({"items": items, "retentionDays": BACKUP_RETENTION_DAYS})
 
 
-@app.patch("/api/workers/bulk-status")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def bulk_update_worker_status():
@@ -11312,7 +11067,6 @@ def bulk_update_worker_status():
     return jsonify({"ok": True, "updated": updated})
 
 
-@app.post("/api/workers/bulk-delete")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def bulk_delete_workers():
@@ -11336,7 +11090,6 @@ def bulk_delete_workers():
     return jsonify({"ok": True, "deleted": deleted})
 
 
-@app.post("/api/workers/<worker_id>/restore")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def restore_worker(worker_id):
@@ -11354,7 +11107,6 @@ def restore_worker(worker_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/workers/<worker_id>/lock")
 @require_auth
 def set_worker_lock(worker_id):
     role = g.current_user.get("role")
@@ -11383,7 +11135,6 @@ def set_worker_lock(worker_id):
     return jsonify({"ok": True, "status": status})
 
 
-@app.post("/api/workers/<worker_id>/reset-pin")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def reset_worker_pin(worker_id):
@@ -11422,7 +11173,6 @@ def reset_worker_pin(worker_id):
     return jsonify({"ok": True})
 
 
-@app.get("/api/workers/<worker_id>/hce-devices")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_worker_hce_devices(worker_id):
@@ -11462,7 +11212,6 @@ def list_worker_hce_devices(worker_id):
     return jsonify({"workerId": worker_id, "devices": devices})
 
 
-@app.post("/api/workers/<worker_id>/hce-devices/<device_id>/revoke")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def revoke_worker_hce_device(worker_id, device_id):
@@ -11499,7 +11248,6 @@ def revoke_worker_hce_device(worker_id, device_id):
     return jsonify({"ok": True, "status": "revoked", "deviceId": normalized_device_id})
 
 
-@app.post("/api/workers/<worker_id>/hce-devices/<device_id>/activate")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def activate_worker_hce_device(worker_id, device_id):
@@ -12555,7 +12303,6 @@ def validate_worker_bound_device_or_raise(db, worker_id, session_token):
     return jsonify({"error": error_code, "message": messages.get(error_code, error_code)}), 403
 
 
-@app.get("/api/workers/<worker_id>/app-access")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_app_access(worker_id):
@@ -12571,7 +12318,6 @@ def get_worker_app_access(worker_id):
     return jsonify(payload)
 
 
-@app.post("/api/workers/<worker_id>/app-access")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_worker_app_access(worker_id):
@@ -12637,7 +12383,6 @@ def admin_qr_png():
     return _qr_png_response(data)
 
 
-@app.get("/api/workers/<worker_id>/qr.png")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def worker_badge_qr(worker_id):
@@ -16478,7 +16223,6 @@ def compliance_expiring_docs():
 
 # ── Worker-Statistiken ────────────────────────────────────────────────────────
 
-@app.get("/api/workers/stats")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def worker_stats():
@@ -16544,7 +16288,6 @@ def worker_stats():
 
 # ── Worker-Foto Validierung ───────────────────────────────────────────────────
 
-@app.post("/api/workers/validate-photo")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def validate_worker_photo():
@@ -16638,7 +16381,6 @@ def validate_worker_photo():
 
 # ── Passwort-Reset per E-Mail ──────────────────────────────────────────────
 
-@app.post("/api/auth/request-password-reset")
 @require_rate_limit("password_reset")
 def request_password_reset():
     payload = request.get_json(silent=True) or {}
@@ -16798,7 +16540,6 @@ def request_password_reset():
     return jsonify({"ok": True})
 
 
-@app.post("/api/auth/reset-password/<raw_token>")
 def apply_password_reset(raw_token):
     payload = request.get_json(silent=True) or {}
     new_password = (payload.get("password") or "").strip()
@@ -16893,7 +16634,6 @@ def restore_company(company_id):
     return jsonify({"ok": True})
 
 
-@app.get("/api/access-logs")
 @require_auth
 def list_access_logs():
     db = get_db()
@@ -16935,7 +16675,6 @@ def list_access_logs():
     )
 
 
-@app.get("/api/access-logs/latest")
 @require_auth
 def list_latest_access_logs():
     db = get_db()
@@ -16978,7 +16717,6 @@ def list_latest_access_logs():
     )
 
 
-@app.get("/api/invoices/access-line-items")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def invoice_access_line_items():
@@ -17037,7 +16775,6 @@ def invoice_access_line_items():
     return jsonify({"items": items})
 
 
-@app.get("/api/access-logs/export.csv")
 @require_auth
 def export_access_csv():
     auto_close_open_entries_after_midnight(get_db())
@@ -17120,7 +16857,6 @@ def export_access_csv():
     )
 
 
-@app.get("/api/access-logs/summary")
 @require_auth
 def access_summary():
     auto_close_expired_visitor_entries(get_db())
@@ -17917,7 +17653,6 @@ def device_signature_capture():
     return jsonify({"ok": True, "workerId": worker_id, "deviceId": device_id})
 
 
-@app.get("/api/access-logs/day-close-check")
 @require_auth
 def access_day_close_check():
     auto_close_expired_visitor_entries(get_db())
@@ -17996,7 +17731,6 @@ def access_day_close_check():
     )
 
 
-@app.post("/api/access-logs/day-close-ack")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def acknowledge_day_close():
@@ -18056,7 +17790,6 @@ def acknowledge_day_close():
     return jsonify({"ok": True, "id": ack_id, "openCount": len(open_entries), "date": date_value})
 
 
-@app.post("/api/access-logs")
 @require_auth
 def create_access_log():
     run_access_maintenance_if_due(get_db())
@@ -18452,7 +18185,6 @@ def _percentile_ms(values, percentile):
     return int(samples[rank])
 
 
-@app.get("/api/gates/ops-metrics")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def gate_ops_metrics():
@@ -18599,7 +18331,6 @@ def gate_ops_metrics():
     )
 
 
-@app.post("/api/gates/tap")
 def gate_tap():
     provided_key = (request.headers.get("X-Gate-Key") or "").strip()
     if not provided_key:
@@ -18630,7 +18361,6 @@ def gate_tap():
     return response, status
 
 
-@app.post("/api/gates/tap/batch")
 def gate_tap_batch():
     provided_key = (request.headers.get("X-Gate-Key") or "").strip()
     if not provided_key:
@@ -18716,7 +18446,6 @@ def gate_tap_batch():
     return response, 200
 
 
-@app.get("/api/workers/<worker_id>/identity-token")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_identity_token(worker_id):
@@ -18746,7 +18475,6 @@ def get_worker_identity_token(worker_id):
     )
 
 
-@app.post("/api/workers/<worker_id>/identity-token")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_or_rotate_worker_identity_token(worker_id):
@@ -18787,7 +18515,6 @@ def create_or_rotate_worker_identity_token(worker_id):
     )
 
 
-@app.post("/api/workers/<worker_id>/identity-token/status")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def set_worker_identity_token_status(worker_id):
@@ -21375,7 +21102,6 @@ def list_reviews():
     return jsonify([dict(r) for r in rows])
 
 
-@app.get("/api/invoices/export.csv")
 @require_auth
 @require_roles("superadmin")
 def export_all_invoices_csv():
@@ -21420,7 +21146,6 @@ def export_all_invoices_csv():
     )
 
 
-@app.get("/api/invoices")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_invoices():
@@ -21493,7 +21218,6 @@ def list_invoices():
     return jsonify([row_to_dict(row) for row in rows])
 
 
-@app.get("/api/invoices/ops-metrics")
 @require_auth
 @require_roles("superadmin")
 def get_invoice_ops_metrics_endpoint():
@@ -21501,7 +21225,6 @@ def get_invoice_ops_metrics_endpoint():
     return jsonify(get_invoice_ops_metrics(db))
 
 
-@app.get("/api/invoices/monthly-cycle-status")
 @require_auth
 @require_roles("superadmin")
 def get_monthly_invoice_cycle_status_endpoint():
@@ -21509,7 +21232,6 @@ def get_monthly_invoice_cycle_status_endpoint():
     return jsonify(get_monthly_invoice_cycle_status(db))
 
 
-@app.get("/api/invoices/dead-letters")
 @require_auth
 @require_roles("superadmin")
 def list_invoice_dead_letters():
@@ -21537,7 +21259,6 @@ def get_next_numeric_invoice_number(db, company_id=None, min_width=6):
     return str(next_seq).zfill(width)
 
 
-@app.get("/api/invoices/next-number")
 @require_auth
 @require_roles("superadmin")
 def get_next_invoice_number():
@@ -21548,7 +21269,6 @@ def get_next_invoice_number():
     return jsonify({"nextNumber": next_num})
 
 
-@app.post("/api/invoices/send")
 @require_auth
 @require_roles("superadmin")
 def send_invoice():
@@ -21718,7 +21438,6 @@ def send_invoice():
     return jsonify({"invoice": result, "sent": sent_ok, "error": error_message if not sent_ok else ""})
 
 
-@app.post("/api/invoices/<invoice_id>/retry-send")
 @require_auth
 @require_roles("superadmin")
 def retry_send_invoice(invoice_id):
@@ -21739,7 +21458,6 @@ def retry_send_invoice(invoice_id):
     return jsonify({"invoice": updated, "sent": sent_ok, "error": error_message if not sent_ok else ""})
 
 
-@app.get("/api/invoices/<invoice_id>/attempts")
 @require_auth
 @require_roles("superadmin")
 def get_invoice_send_attempts(invoice_id):
@@ -21761,7 +21479,6 @@ def get_invoice_send_attempts(invoice_id):
     return jsonify({"invoiceId": invoice_id, "attempts": [row_to_dict(row) for row in rows]})
 
 
-@app.put("/api/invoices/<invoice_id>/dead-letter/resolve")
 @require_auth
 @require_roles("superadmin")
 def resolve_invoice_dead_letter(invoice_id):
@@ -21789,7 +21506,6 @@ def resolve_invoice_dead_letter(invoice_id):
     return jsonify({"ok": True, "approvalRequested": True, "approvalId": approval_id, "invoiceId": invoice_id}), 202
 
 
-@app.post("/api/invoices/retry-send-bulk")
 @require_auth
 @require_roles("superadmin")
 def retry_send_invoices_bulk():
@@ -21810,7 +21526,6 @@ def retry_send_invoices_bulk():
     return jsonify({"ok": True, "approvalRequested": True, "approvalId": approval_id, "requested": len(cleaned_ids)}), 202
 
 
-@app.get("/api/invoices/approvals/pending")
 @require_auth
 @require_roles("superadmin")
 def list_pending_invoice_approvals_endpoint():
@@ -21821,7 +21536,6 @@ def list_pending_invoice_approvals_endpoint():
     return jsonify(list_pending_operation_approvals(db, limit=limit, action_type=action_type, max_age_minutes=max_age_minutes))
 
 
-@app.post("/api/invoices/approvals/<approval_id>/decision")
 @require_auth
 @require_roles("superadmin")
 def decide_invoice_approval(approval_id):
@@ -21926,7 +21640,6 @@ def decide_invoice_approval(approval_id):
 
 # ── 4-Augen: Foto-Override-Freigaben ─────────────────────────────────────────
 
-@app.get("/api/workers/photo-override-approvals/pending")
 @require_auth
 @require_roles("superadmin")
 def list_pending_photo_override_approvals():
@@ -21962,7 +21675,6 @@ def list_pending_photo_override_approvals():
     return jsonify(result)
 
 
-@app.post("/api/workers/photo-override-approvals/<approval_id>/decision")
 @require_auth
 @require_roles("superadmin")
 def decide_photo_override_approval(approval_id):
@@ -22043,7 +21755,6 @@ def decide_photo_override_approval(approval_id):
     return jsonify({"ok": True, "approvalId": approval_id, "status": "approved", "execution": execution_result})
 
 
-@app.get("/api/invoices/retry-queue/export.csv")
 @require_auth
 @require_roles("superadmin")
 def export_invoice_retry_queue_csv():
@@ -22115,7 +21826,6 @@ def export_invoice_retry_queue_csv():
     )
 
 
-@app.get("/api/invoices/incidents/export.csv")
 @require_auth
 @require_roles("superadmin")
 def export_invoice_incidents_csv():
@@ -22269,7 +21979,6 @@ def export_invoice_incidents_csv():
     )
 
 
-@app.put("/api/invoices/<invoice_id>/pay")
 @require_auth
 @require_roles("superadmin")
 def mark_invoice_paid(invoice_id):
@@ -22332,7 +22041,6 @@ def mark_invoice_paid(invoice_id):
     return jsonify({"invoice": row_to_dict(result)})
 
 
-@app.post("/api/invoices/bulk-mark-paid")
 @require_auth
 @require_roles("superadmin")
 def bulk_mark_invoices_paid():
@@ -22362,7 +22070,6 @@ def bulk_mark_invoices_paid():
     return jsonify({"ok": True, "updated": updated})
 
 
-@app.post("/api/invoices/trigger-dunning")
 @require_auth
 @require_roles("superadmin")
 def trigger_dunning_run():
@@ -22375,7 +22082,6 @@ def trigger_dunning_run():
         return jsonify({"error": "dunning_failed", "message": str(exc)}), 500
 
 
-@app.post("/api/invoices/trigger-monthly-cycle")
 @require_auth
 @require_roles("superadmin")
 def trigger_monthly_invoice_cycle_endpoint():
@@ -22388,7 +22094,6 @@ def trigger_monthly_invoice_cycle_endpoint():
         return jsonify({"error": "monthly_invoice_cycle_failed", "message": str(exc)}), 500
 
 
-@app.post("/api/invoices/simulate-monthly-cycle")
 @require_auth
 @require_roles("superadmin")
 def simulate_monthly_invoice_cycle_endpoint():
@@ -22407,7 +22112,6 @@ def simulate_monthly_invoice_cycle_endpoint():
         return jsonify({"error": "simulate_monthly_cycle_failed", "message": str(exc)}), 500
 
 
-@app.get("/api/invoices/<invoice_id>/reminder-letter.pdf")
 @require_auth
 @require_roles("superadmin")
 def invoice_reminder_letter_pdf(invoice_id):
@@ -24690,7 +24394,6 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
 
 # ── Mitarbeiter-Dokumente API ────────────────────────────────────
 
-@app.get("/api/workers/<worker_id>/documents")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def list_worker_documents(worker_id):
@@ -24711,7 +24414,6 @@ def list_worker_documents(worker_id):
     return jsonify([dict(r) for r in rows])
 
 
-@app.post("/api/workers/<worker_id>/documents/upload")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def upload_worker_document(worker_id):
@@ -24806,7 +24508,6 @@ def upload_worker_document(worker_id):
     return jsonify({"ok": True, "documentId": doc_id})
 
 
-@app.get("/api/workers/<worker_id>/documents/<doc_id>/download")
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def download_worker_document(worker_id, doc_id):
@@ -24834,7 +24535,6 @@ def download_worker_document(worker_id, doc_id):
     return send_file(str(file_path), as_attachment=True, download_name=doc["filename"])
 
 
-@app.delete("/api/workers/<worker_id>/documents/<doc_id>")
 @require_auth
 @require_roles("superadmin", "company-admin")
 def delete_worker_document(worker_id, doc_id):
@@ -26576,7 +26276,6 @@ def worker_send_leave_request_email(req_id):
 #  Device Heartbeat & Health Monitoring   (Enterprise Point 17)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.post("/api/gates/heartbeat")
 def gate_heartbeat():
     """Gate devices call this periodically to signal they are online.
 
@@ -26795,7 +26494,6 @@ def log_conflict_resolution(db, worker_id: str, original_dir: str, resolved_dir:
 EMERGENCY_CACHE_MAX_AGE_SECONDS = 900     # client should refresh every 15 min
 
 
-@app.get("/api/gates/emergency-token-cache")
 def gate_emergency_token_cache():
     """Return a compact token-validation snapshot for offline emergency use.
 
@@ -26901,7 +26599,6 @@ def gate_emergency_token_cache():
 #           automatically based on payload fields, or forced via the optional
 #           "reader_type" field in the payload.
 
-@app.post("/api/gates/ingest")
 def gate_ingest():
     """Universal reader-push endpoint with automatic adapter selection."""
     provided_key = (request.headers.get("X-Gate-Key") or "").strip()

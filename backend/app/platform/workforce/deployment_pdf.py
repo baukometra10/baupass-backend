@@ -71,6 +71,7 @@ def build_deployment_plan_pdf(
     days: list[dict[str, Any]],
     lang: str = "de",
     plan_tier: str = "professional",
+    branding: dict[str, Any] | None = None,
 ) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -92,10 +93,15 @@ def build_deployment_plan_pdf(
         bottomMargin=14 * mm,
         title=f"Einsatzplan {worker_name} {month_label} {year}",
     )
+    from .deployment_branding import logo_image_flowable
+
+    brand = branding or {}
     styles = getSampleStyleSheet()
-    accent = colors.HexColor("#0f4c5c")
-    accent_light = colors.HexColor("#1a8aad")
+    accent = colors.HexColor(str(brand.get("accent") or "#0f4c5c"))
+    accent_light = colors.HexColor(str(brand.get("accentLight") or "#1a8aad"))
     muted = colors.HexColor("#5a6a78")
+    display_company = str(brand.get("companyName") or company_name or "BauPass")
+    sector_label = str(brand.get("sectorLabel") or "").strip()
     weekend_bg = colors.HexColor("#f0f4f8")
 
     header_style = ParagraphStyle(
@@ -113,10 +119,16 @@ def build_deployment_plan_pdf(
     )
 
     meta_lines = [
-        f"<b>{company_name or 'BauPass'}</b>",
-        f"{title}",
-        f"<font size='14'><b>{worker_name}</b></font>",
+        f"<b>{display_company}</b>",
     ]
+    if sector_label:
+        meta_lines.append(f"<font size='9'>{sector_label}</font>")
+    meta_lines.extend(
+        [
+            f"{title}",
+            f"<font size='14'><b>{worker_name}</b></font>",
+        ]
+    )
     if badge_id:
         meta_lines.append(f"Badge: {badge_id}")
     meta_lines.append(f"<font color='#b8d4de'>{month_label} {year}</font>")
@@ -124,10 +136,26 @@ def build_deployment_plan_pdf(
         f"<font size='8'>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</font>"
     )
 
-    header_table = Table(
-        [[Paragraph("<br/>".join(meta_lines), sub_style)]],
-        colWidths=[doc.width],
-    )
+    logo_img = logo_image_flowable(str(brand.get("logoData") or ""))
+    if logo_img:
+        header_table = Table(
+            [[logo_img, Paragraph("<br/>".join(meta_lines), sub_style)]],
+            colWidths=[42 * mm, doc.width - 42 * mm],
+        )
+        header_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (0, 0), 4),
+                    ("RIGHTPADDING", (0, 0), (0, 0), 10),
+                ]
+            )
+        )
+    else:
+        header_table = Table(
+            [[Paragraph("<br/>".join(meta_lines), sub_style)]],
+            colWidths=[doc.width],
+        )
     header_table.setStyle(
         TableStyle(
             [

@@ -178,9 +178,11 @@ def build_worker_deployment_pdf_bytes(
     )
     if not any(str(d.get("location") or "").strip() for d in days):
         return None
-    company = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+    from .deployment_branding import resolve_company_pdf_branding
+
+    branding = resolve_company_pdf_branding(db, str(company_id))
     return build_deployment_plan_pdf(
-        company_name=company["name"] if company else "BauPass",
+        company_name=branding.get("companyName") or "BauPass",
         worker_name=f"{worker['first_name']} {worker['last_name']}".strip(),
         badge_id=worker["badge_id"],
         year=year,
@@ -188,6 +190,7 @@ def build_worker_deployment_pdf_bytes(
         days=days,
         lang=lang,
         plan_tier="professional",
+        branding=branding,
     )
 
 

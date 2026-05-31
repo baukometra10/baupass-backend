@@ -8215,8 +8215,32 @@ body.theme-black .invoice-toolbar-refresh:active {
   color: #86efac;
 }
 
+.deployment-workers-section {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 2px solid rgba(94, 234, 212, 0.35);
+}
+
+.deployment-workers-section-head h4 {
+  margin: 0 0 0.35rem;
+  font-size: 1.12rem;
+  color: var(--text, #1a2e3a);
+}
+
 .deployment-worker-list-wrap {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  min-height: 12rem;
+}
+
+.deployment-worker-table .primary-button.small-button {
+  min-width: 7.5rem;
+  font-weight: 700;
+}
+
+.deployment-day-clear {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.45rem;
+  white-space: nowrap;
 }
 
 .deployment-modal-card {
@@ -8269,7 +8293,7 @@ body.theme-black .invoice-toolbar-refresh:active {
 .deployment-days-header,
 .deployment-day-row {
   display: grid;
-  grid-template-columns: 4.25rem minmax(120px, 1.5fr) 5rem 5rem minmax(72px, 1fr);
+  grid-template-columns: 4.25rem minmax(120px, 1.5fr) 5rem 5rem minmax(72px, 1fr) auto;
   gap: 0.4rem;
   align-items: center;
   font-size: 0.85rem;

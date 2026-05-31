@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BauPass — مركز المؤسسة (16 طبقة)</title>
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell12" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell14" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
   <style>
     :root {
@@ -232,6 +232,18 @@
     }
     body.embed-mode .monatsplan-hero {
       flex-shrink: 0;
+      border: 2px solid rgba(94, 234, 212, 0.45);
+      box-shadow: 0 8px 28px rgba(15, 76, 92, 0.35);
+    }
+    body.embed-mode .monatsplan-hero .hero-btn-primary {
+      font-size: 1rem;
+      padding: 0.65rem 1.2rem;
+    }
+    .monatsplan-open-hint {
+      margin: 0.5rem 0 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+      max-width: 42rem;
     }
     body.embed-mode .plan-banner {
       padding: 0.65rem 0.85rem;
@@ -416,7 +428,8 @@
         monatsplanStep3: "Status «bereit» prüfen",
         monatsplanStep4: "«Versand bestätigen» — PDF/E-Mail + Push an alle",
         monatsplanOpen: "Monatsplan jetzt öffnen",
-        monatsplanOpenHint: "Öffnet Betrieb v2 → Team: Monatsplan wählen, dann bei einem Mitarbeiter «Einsatzplan» bearbeiten.",
+        monatsplanOpenHint: "Öffnet den Einsatzplan im Control Pass (nicht im Hub). Monat wählen → «Bearbeiten» pro Mitarbeiter → Speichern → Versand. Anmeldung erforderlich.",
+        monatsplanPreviewLogin: "Anmeldung erforderlich — bitte im Control Pass anmelden, dann erneut «Monatsplan öffnen».",
         monatsplanLinkLabel: "📋 Monatsplan öffnen",
         rolePlaybook: "Ihr Einsatz-Playbook",
         rolePickCompany: "Firma wählen für Live-KPIs.",
@@ -666,16 +679,73 @@
       }
     }
 
-    function goToDeploymentPlanView() {
+    let hubPreviewMode = false;
+
+    async function hubHasSession() {
+      if (currentUserRole) return true;
+      try {
+        if (window.BaupassAuth?.bootstrapSession) {
+          const boot = await window.BaupassAuth.bootstrapSession();
+          currentUserRole = boot?.user?.role || "";
+          if (currentUserRole === "company-admin" && boot?.user?.company_id) {
+            selectedCompanyId = boot.user.company_id;
+          }
+          return Boolean(currentUserRole);
+        }
+        const boot = await api("/api/session/bootstrap");
+        if (boot?.authenticated && boot?.user?.role) {
+          currentUserRole = boot.user.role;
+          return true;
+        }
+      } catch {
+        // not signed in
+      }
+      return false;
+    }
+
+    async function goToDeploymentPlanView() {
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || "";
+      if (hubPreviewMode && !(await hubHasSession())) {
+        if (window.self !== window.top) {
+          try {
+            window.parent?.postMessage(
+              { type: "baupass-require-login", reason: "deployment-plan", companyId },
+              location.origin,
+            );
+          } catch {
+            // ignore
+          }
+        } else {
+          const u = new URL("/index.html", location.origin);
+          u.searchParams.set("view", "deployment-plan");
+          window.location.href = u.pathname + u.search;
+        }
+        return;
+      }
+      if (!(await hubHasSession())) {
+        if (window.self !== window.top) {
+          try {
+            window.parent?.postMessage(
+              { type: "baupass-require-login", reason: "deployment-plan", companyId },
+              location.origin,
+            );
+          } catch {
+            // ignore
+          }
+        } else {
+          const u = new URL("/index.html", location.origin);
+          u.searchParams.set("view", "deployment-plan");
+          window.location.href = u.pathname + u.search;
+        }
+        return;
+      }
       if (window.self !== window.top) {
         try {
           window.parent?.postMessage(
             {
               type: "baupass-navigate",
-              view: "admin-v2",
-              focusEinsatzplan: true,
+              view: "deployment-plan",
               companyId,
             },
             location.origin,
@@ -686,8 +756,7 @@
         return;
       }
       const u = new URL("/index.html", location.origin);
-      u.searchParams.set("view", "admin-v2");
-      u.searchParams.set("einsatzplan", "1");
+      u.searchParams.set("view", "deployment-plan");
       Object.keys(params).forEach((key) => {
         const val = params[key];
         if (val != null && String(val).trim() !== "") {
@@ -703,7 +772,9 @@
         if (!trigger) return;
         ev.preventDefault();
         ev.stopPropagation();
-        goToDeploymentPlanView();
+        goToDeploymentPlanView().catch(() => {
+          alert(t("monatsplanPreviewLogin"));
+        });
       });
     }
 
@@ -909,6 +980,7 @@
       try {
         const cat = await fetchCatalog();
         const isPreview = !!cat._previewMode || cat.preview;
+        hubPreviewMode = isPreview;
         const [caps, aiSt] = await Promise.all([
           isPreview ? null : api("/api/platform/capabilities").catch(() => null),
           isPreview ? { configured: false } : api("/api/ai/status").catch(() => ({ configured: false })),

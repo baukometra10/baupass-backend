@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260601a";
+const WORKER_BUILD_TAG = "20260601b";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -3122,6 +3122,7 @@ function renderWorker(payload) {
   const planFeatures = payload.planFeatures || {};
   applyWorkerPlanNavState(planFeatures);
   applyWorkerDeploymentMenuState(planFeatures);
+  void refreshHomeDeploymentTeaser().catch(() => {});
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
   // Show voice control for workers. If API is unavailable, fallback input is used.
@@ -6083,6 +6084,53 @@ async function openWorkerDeploymentPlanScreen(year = null, month = null) {
     history.replaceState(null, "", "#einsatzplan");
   }
   await loadDeploymentPlan();
+}
+
+async function refreshHomeDeploymentTeaser() {
+  const teaser = document.getElementById("homeDeploymentTeaser");
+  const titleEl = document.getElementById("homeDeploymentTeaserTitle");
+  const metaEl = document.getElementById("homeDeploymentTeaserMeta");
+  if (!teaser || !titleEl || !metaEl) return;
+  if (!workerToken || !workerPlanAllowsFeature("deployment_plan")) {
+    teaser.classList.add("hidden");
+    return;
+  }
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const todayIso = `${year}-${String(month).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const lang = getWorkerLang();
+  try {
+    const data = await fetchJson(
+      `${API_BASE}/deployment-plan?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&lang=${encodeURIComponent(lang)}`,
+      { headers: { Authorization: `Bearer ${workerToken}` } },
+    );
+    if (!data?.ok || !data?.published) {
+      titleEl.textContent = t("deploymentPlanHomeUnpublished");
+      metaEl.textContent = t("deploymentPlanHomeOpen");
+      teaser.classList.remove("hidden");
+      return;
+    }
+    const days = Array.isArray(data.days) ? data.days : [];
+    const today = days.find((day) => String(day.date || "").slice(0, 10) === todayIso);
+    const location = String(today?.location || "").trim();
+    const shiftStart = String(today?.shiftStart || "").trim();
+    const shiftEnd = String(today?.shiftEnd || "").trim();
+    if (!location && !shiftStart && !shiftEnd) {
+      titleEl.textContent = t("deploymentPlanHomeFree");
+      metaEl.textContent = today?.weekday || "";
+    } else {
+      titleEl.textContent = location || t("deploymentPlanNoLocation");
+      const timeText =
+        shiftStart && shiftEnd
+          ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
+          : shiftStart || shiftEnd || "";
+      metaEl.textContent = [today?.weekday || "", timeText].filter(Boolean).join(" · ");
+    }
+    teaser.classList.remove("hidden");
+  } catch {
+    teaser.classList.add("hidden");
+  }
 }
 
 async function loadDeploymentPlan() {

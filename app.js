@@ -347,6 +347,9 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Einsatzplan — Monatsplanung",
     deploymentPlanDesc: "Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.",
     deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
+    deploymentPlanLoginRequired: "Bitte zuerst im Control Pass anmelden — danach öffnet sich der Einsatzplan-Editor.",
+    loginMissingFields: "Bitte Benutzername und Passwort eingeben.",
+    loginAlreadyActive: "Sie sind bereits angemeldet als {user} ({role}). Zum Wechseln bitte zuerst abmelden.",
     deploymentStep1Title: "1. Monat wählen",
     deploymentStep1Desc: "Oben «Monatsplan Firma» — ggf. «Nächsten Monat vorbereiten».",
     deploymentStep2Title: "2. Pläne ausfüllen",
@@ -365,6 +368,9 @@ const UI_TRANSLATIONS = {
     deploymentLocationPh: "z. B. Baustelle, Adresse",
     deploymentNotesPh: "optional",
     deploymentEditBtn: "Bearbeiten",
+    deploymentWorkersHeading: "Schritt 2 — Pläne pro Mitarbeiter",
+    deploymentWorkersHint: "Klicken Sie bei jedem Namen auf «Bearbeiten», um Einsatzorte und Zeiten einzutragen, zu ändern oder zu löschen.",
+    deploymentClearDay: "Leeren",
     deploymentReady: "Bereit",
     deploymentNotReady: "Unvollständig",
     deploymentNoWorkers: "Keine Mitarbeiter in dieser Firma.",
@@ -1328,6 +1334,9 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Deployment plan — monthly",
     deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
     deploymentPlanLockedToast: "Deployment plan requires Professional plan or higher.",
+    deploymentPlanLoginRequired: "Please sign in to Control Pass first — then the deployment plan editor opens.",
+    loginMissingFields: "Please enter username and password.",
+    loginAlreadyActive: "You are already signed in as {user} ({role}). Sign out first to switch accounts.",
     deploymentStep1Title: "1. Pick month",
     deploymentStep1Desc: "Use «Company month» — or «Prepare next month».",
     deploymentStep2Title: "2. Fill plans",
@@ -1346,6 +1355,9 @@ const UI_TRANSLATIONS = {
     deploymentLocationPh: "e.g. site address",
     deploymentNotesPh: "optional",
     deploymentEditBtn: "Edit",
+    deploymentWorkersHeading: "Step 2 — Plans per worker",
+    deploymentWorkersHint: "Click «Edit» next to each name to set, change, or clear sites and times.",
+    deploymentClearDay: "Clear",
     deploymentReady: "Ready",
     deploymentNotReady: "Incomplete",
     deploymentNoWorkers: "No workers in this company.",
@@ -16189,7 +16201,36 @@ function scheduleAdminV2EinsatzplanFocus() {
   window.setTimeout(send, 1500);
 }
 
+function broadcastSessionToEmbeds() {
+  if (!token) {
+    return;
+  }
+  const message = {
+    type: "baupass-sync-token",
+    token,
+    companyId: getEffectiveUiCompanyId(),
+  };
+  Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
+    const frame = document.getElementById(meta.frameId);
+    try {
+      frame?.contentWindow?.postMessage(message, window.location.origin);
+    } catch {
+      // iframe not ready
+    }
+  });
+}
+
 function requestEinsatzplanEditor() {
+  if (!token || !state.currentUser) {
+    refreshAll();
+    showToast(
+      uiT("deploymentPlanLoginRequired") || "Bitte zuerst anmelden.",
+      "error",
+      8000,
+    );
+    focusLoginInput({ force: true });
+    return;
+  }
   const allowed = getAllowedViewsForRole(getEffectiveUiRole());
   if (!canUseDeploymentPlan()) {
     showToast(
@@ -16199,20 +16240,27 @@ function requestEinsatzplanEditor() {
     );
     return;
   }
+  if (allowed.includes("deployment-plan")) {
+    setView("deployment-plan");
+    broadcastSessionToEmbeds();
+    const afterLoad = () => {
+      globalThis.BaupassDeploymentPlan?.scrollToWorkers?.();
+    };
+    if (globalThis.BaupassDeploymentPlan?.refresh) {
+      globalThis.BaupassDeploymentPlan.refresh().then(afterLoad).catch((err) => {
+        showToast(err?.message || String(err), "error", 6000);
+        afterLoad();
+      });
+    } else {
+      window.setTimeout(afterLoad, 200);
+    }
+    return;
+  }
   if (allowed.includes("admin-v2")) {
     pendingAdminV2EinsatzplanFocus = true;
     pendingEnterpriseEmbedItemId = "admin-v2";
     setView("admin-v2");
     scheduleAdminV2EinsatzplanFocus();
-    return;
-  }
-  if (allowed.includes("deployment-plan")) {
-    setView("deployment-plan");
-    if (globalThis.BaupassDeploymentPlan?.refresh) {
-      globalThis.BaupassDeploymentPlan.refresh().catch((err) => {
-        showToast(err?.message || String(err), "error", 6000);
-      });
-    }
     return;
   }
   showToast(
@@ -16256,6 +16304,7 @@ function loadEnterpriseEmbed(viewName) {
   }
   if (iframe && token) {
     const syncToken = () => {
+      broadcastSessionToEmbeds();
       try {
         iframe.contentWindow?.postMessage(
           {
@@ -16426,10 +16475,6 @@ function stopDashboardPoll() {
 }
 
 function setView(viewName) {
-  if (viewName === "deployment-plan") {
-    requestEinsatzplanEditor();
-    return;
-  }
   const role = getEffectiveUiRole();
   const allowedViews = getAllowedViewsForRole(role);
   const targetView = allowedViews.includes(viewName) ? viewName : getDefaultViewForRole(role);
@@ -17613,7 +17658,10 @@ function refreshAll() {
 
   if (loggedIn && elements.sessionCard) {
     const texts = getRuntimeUiTexts();
-    const role = getRoleLabel(state.currentUser?.role || "");
+    const actualRole = String(state.currentUser?.role || "").toLowerCase();
+    const role = getRoleLabel(
+      isSuperadminCompanyPreviewMode() ? `${actualRole} → ${getRoleLabel("company-admin")}` : actualRole,
+    );
     const user = state.currentUser?.username || "-";
     const supportModeMarkup = isSupportReadOnlyMode()
       ? `<br /><strong>${escapeHtml(uiT("supportModeLabel"))}</strong> ${escapeHtml(uiT("supportReadOnlyFor"))} ${escapeHtml(state.currentUser?.support_company_name || uiT("supportCompanyFallback"))}${state.currentUser?.support_actor_name ? ` | ${escapeHtml(uiT("supportStartedBy"))} ${escapeHtml(state.currentUser.support_actor_name)}` : ""}`
@@ -17682,6 +17730,9 @@ function refreshAll() {
   applySupportReadOnlyUiState();
   renderEnterpriseNavMenu();
   applyDeepLinkViewFromUrl();
+  if (loggedIn) {
+    broadcastSessionToEmbeds();
+  }
 }
 
 // ── Login Greeting ──────────────────────────────────────────────────────────
@@ -28212,6 +28263,29 @@ async function handleLoginSubmit(event) {
 
   const supportContext = state.supportLoginContext || loadSupportLoginContext();
   const loginScope = elements.loginScope?.value || "auto";
+  const username = elements.loginUsername.value.trim();
+  const password = elements.loginPassword.value;
+
+  if (!username || !String(password).trim()) {
+    showToast(uiT("loginMissingFields") || "Bitte Benutzername und Passwort eingeben.", "error", 5000);
+    return;
+  }
+
+  if (token && state.currentUser && !state.loginOtpPending) {
+    const activeUser = state.currentUser.username || "-";
+    const activeRole = getRoleLabel(state.currentUser.role || "");
+    const typedUser = username.toLowerCase();
+    if (typedUser && typedUser !== String(activeUser).toLowerCase()) {
+      showToast(
+        (uiT("loginAlreadyActive") || "Bereits angemeldet.")
+          .replace("{user}", activeUser)
+          .replace("{role}", activeRole),
+        "info",
+        7000,
+      );
+      return;
+    }
+  }
 
   loginSubmitInFlight = true;
   if (elements.loginForm) {
@@ -28222,8 +28296,8 @@ async function handleLoginSubmit(event) {
       auth: false,
       method: "POST",
       body: {
-        username: elements.loginUsername.value.trim(),
-        password: elements.loginPassword.value,
+        username,
+        password,
         // Only send OTP in step 2
         otpCode: state.loginOtpPending ? elements.loginOtpCode.value.trim() : "",
         setupEmail: state.loginSetupEmailPending
@@ -28248,6 +28322,7 @@ async function handleLoginSubmit(event) {
     token = payload.token;
     persistSessionToken(token);
     state.currentUser = payload.user;
+    broadcastSessionToEmbeds();
     clearSupportLoginContext();
     state.supportLoginContext = null;
     elements.loginForm.reset();
@@ -28360,6 +28435,8 @@ async function handleLoginSubmit(event) {
     }
     if (error.message === "invalid_credentials") {
       registerLoginFailure(error.message);
+      clearSession();
+      elements.loginPassword.value = "";
       if (!isLoginBlockedLocally()) {
         showToast(uiT("alertInvalidCredentials"), "error");
       }
@@ -30030,7 +30107,11 @@ window.addEventListener("beforeunload", stopCamera);
 if (elements.navLinks.length) {
   elements.navLinks.forEach((link) => {
     link.addEventListener("click", (event) => {
-      if (!token) return;
+      if (!token) {
+        refreshAll();
+        focusLoginInput({ force: true });
+        return;
+      }
       const view = link.dataset.view;
       if (!view) return;
       event.preventDefault();
@@ -30048,7 +30129,12 @@ function bindShellNavigationDelegation() {
     const trigger = event.target.closest(
       ".nav-link[data-view], .quick-nav-tile[data-view], .sidebar-admin-v2-link[data-view]",
     );
-    if (!trigger || !token) return;
+    if (!trigger) return;
+    if (!token) {
+      refreshAll();
+      focusLoginInput({ force: true });
+      return;
+    }
     event.preventDefault();
     setView(trigger.dataset.view || "dashboard");
   });
@@ -30081,7 +30167,27 @@ window.addEventListener("message", (event) => {
   if (!event?.data || event.origin !== window.location.origin) {
     return;
   }
-  if (event.data.type !== "baupass-navigate" || !token) {
+  if (event.data.type === "baupass-require-login") {
+    refreshAll();
+    showToast(
+      uiT("deploymentPlanLoginRequired") || "Bitte zuerst anmelden.",
+      "error",
+      8000,
+    );
+    focusLoginInput({ force: true });
+    return;
+  }
+  if (event.data.type !== "baupass-navigate") {
+    return;
+  }
+  if (!token) {
+    refreshAll();
+    showToast(
+      uiT("deploymentPlanLoginRequired") || "Bitte zuerst anmelden.",
+      "error",
+      8000,
+    );
+    focusLoginInput({ force: true });
     return;
   }
   const view = String(event.data.view || "").trim();

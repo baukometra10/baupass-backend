@@ -334,9 +334,11 @@ def send_worker_plan(
     days = build_month_calendar(db, company_id=company_id, worker_id=worker_id, year=year, month=month, lang=lang)
     if not any(str(d.get("location") or "").strip() for d in days):
         return {"ok": False, "error": "no_locations", "workerId": worker_id}
-    company = db.execute("SELECT name FROM companies WHERE id = ?", (str(company_id),)).fetchone()
+    from .deployment_branding import resolve_company_pdf_branding
+
+    branding = resolve_company_pdf_branding(db, str(company_id))
     pdf_bytes = build_deployment_plan_pdf(
-        company_name=company["name"] if company else "BauPass",
+        company_name=branding.get("companyName") or "BauPass",
         worker_name=f"{w['first_name']} {w['last_name']}".strip(),
         badge_id=w["badge_id"],
         year=year,
@@ -344,6 +346,7 @@ def send_worker_plan(
         days=days,
         lang=lang,
         plan_tier="professional",
+        branding=branding,
     )
     to_email = str(w["contact_email"] or "").strip()
     ok, err = False, "no_email"

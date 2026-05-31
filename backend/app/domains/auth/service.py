@@ -12,6 +12,12 @@ from typing import Any
 class AuthService:
     """Authentication and session lifecycle."""
 
+    def login(self):
+        """POST /api/login — see login_flow.perform_login."""
+        from .login_flow import perform_login
+
+        return perform_login()
+
     def logout(self, token: str, current_user: dict[str, Any]) -> dict[str, Any]:
         """Revoke session and write audit log (delegates to legacy helpers)."""
         import backend.server as srv
