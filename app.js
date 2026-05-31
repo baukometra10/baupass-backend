@@ -342,6 +342,51 @@ const UI_TRANSLATIONS = {
     topbarMore: "Mehr",
     navDashboard: "Dashboard",
     navWorkers: "Mitarbeiter",
+    navDeploymentPlan: "Einsatzplan",
+    deploymentPlanEyebrow: "Workforce",
+    deploymentPlanTitle: "Einsatzplan — Monatsplanung",
+    deploymentPlanDesc: "Pro Mitarbeiter Tag, Einsatzort und Uhrzeit pflegen — direkt im Firmenportal.",
+    deploymentSelectCompany: "Bitte zuerst eine Firma in der Admin-Leiste auswählen (Superadmin).",
+    deploymentColWorker: "Mitarbeiter",
+    deploymentColDay: "Tag",
+    deploymentColLocation: "Einsatzort",
+    deploymentColStart: "Von",
+    deploymentColEnd: "Bis",
+    deploymentColNotes: "Hinweis",
+    deploymentLocationPh: "z. B. Baustelle, Adresse",
+    deploymentNotesPh: "optional",
+    deploymentEditBtn: "Bearbeiten",
+    deploymentReady: "Bereit",
+    deploymentNotReady: "Unvollständig",
+    deploymentNoWorkers: "Keine Mitarbeiter in dieser Firma.",
+    deploymentModalTitle: "Einsatzplan bearbeiten",
+    deploymentMonth: "Monat",
+    deploymentCompanyMonth: "Monatsplan Firma",
+    deploymentMonthHint: "Pläne bleiben gespeichert. Versand nur nach Ihrer Bestätigung.",
+    deploymentPrepareNext: "Nächsten Monat vorbereiten",
+    deploymentConfirmSend: "Versand bestätigen",
+    deploymentReopenEdit: "Erneut bearbeiten",
+    deploymentSaved: "Einsatzplan gespeichert.",
+    deploymentFromShifts: "Aus Schichten",
+    deploymentFromShiftsOk: "Aus Schichten übernommen.",
+    deploymentRotation: "Rotation",
+    deploymentRotationPrompt: "Orte kommagetrennt (z. B. Berlin, Potsdam, Dresden):",
+    deploymentPdf: "PDF herunterladen",
+    deploymentSave: "Speichern",
+    deploymentClose: "Schließen",
+    deploymentHint: "Pro Tag Ort und Uhrzeit — danach Speichern.",
+    deploymentBulkTitle: "Schnell für alle Werktage",
+    deploymentBulkApplyWeekdays: "Auf Werktage anwenden",
+    deploymentBulkClearWeekends: "Wochenenden leeren",
+    deploymentBulkApplied: "Werktage befüllt.",
+    deploymentStatusDraft: "Entwurf",
+    deploymentStatusAwaiting: "Prüfung nötig",
+    deploymentStatusSent: "Versendet",
+    deploymentMonthStats: "{ready}/{total} Pläne bereit",
+    deploymentPreparedOk: "Monat vorbereitet.",
+    deploymentReopenOk: "Monat wieder offen.",
+    deploymentSentOk: "Monatspläne versendet.",
+    deploymentConfirmSendPrompt: "Alle fertigen Einsatzpläne jetzt an die Mitarbeiter senden? Bitte vorher prüfen.",
     navBadge: "Ausweis",
     navAccess: "Zutritt",
     navInvoices: "Rechnungen",
@@ -1269,6 +1314,51 @@ const UI_TRANSLATIONS = {
     topbarMore: "More",
     navDashboard: "Dashboard",
     navWorkers: "Workers",
+    navDeploymentPlan: "Deployment plan",
+    deploymentPlanEyebrow: "Workforce",
+    deploymentPlanTitle: "Deployment plan — monthly",
+    deploymentPlanDesc: "Edit day, site and time per worker — in the company portal.",
+    deploymentSelectCompany: "Select a company first (superadmin).",
+    deploymentColWorker: "Worker",
+    deploymentColDay: "Day",
+    deploymentColLocation: "Site",
+    deploymentColStart: "From",
+    deploymentColEnd: "To",
+    deploymentColNotes: "Note",
+    deploymentLocationPh: "e.g. site address",
+    deploymentNotesPh: "optional",
+    deploymentEditBtn: "Edit",
+    deploymentReady: "Ready",
+    deploymentNotReady: "Incomplete",
+    deploymentNoWorkers: "No workers in this company.",
+    deploymentModalTitle: "Edit deployment plan",
+    deploymentMonth: "Month",
+    deploymentCompanyMonth: "Company month",
+    deploymentMonthHint: "Plans are stored. Send only after you confirm.",
+    deploymentPrepareNext: "Prepare next month",
+    deploymentConfirmSend: "Confirm send",
+    deploymentReopenEdit: "Edit again",
+    deploymentSaved: "Deployment plan saved.",
+    deploymentFromShifts: "From shifts",
+    deploymentFromShiftsOk: "Imported from shifts.",
+    deploymentRotation: "Rotation",
+    deploymentRotationPrompt: "Sites comma-separated:",
+    deploymentPdf: "Download PDF",
+    deploymentSave: "Save",
+    deploymentClose: "Close",
+    deploymentHint: "Site and time per day — then save.",
+    deploymentBulkTitle: "Quick fill weekdays",
+    deploymentBulkApplyWeekdays: "Apply to weekdays",
+    deploymentBulkClearWeekends: "Clear weekends",
+    deploymentBulkApplied: "Weekdays filled.",
+    deploymentStatusDraft: "Draft",
+    deploymentStatusAwaiting: "Review needed",
+    deploymentStatusSent: "Sent",
+    deploymentMonthStats: "{ready}/{total} plans ready",
+    deploymentPreparedOk: "Month prepared.",
+    deploymentReopenOk: "Month reopened.",
+    deploymentSentOk: "Monthly plans sent.",
+    deploymentConfirmSendPrompt: "Send all ready plans to workers now?",
     navBadge: "Badge",
     navAccess: "Access",
     navInvoices: "Invoices",
@@ -15968,6 +16058,17 @@ function getDefaultViewForRole(role) {
   return "dashboard";
 }
 
+function canUseDeploymentPlan() {
+  const role = String(getEffectiveUiRole() || "").toLowerCase();
+  if (role === "turnstile") {
+    return false;
+  }
+  if (role === "superadmin") {
+    return true;
+  }
+  return (PLAN_RANK[getCompanyPlan(getEffectiveUiCompanyId())] || 0) >= PLAN_RANK.professional;
+}
+
 function getAllowedViewsForRole(role) {
   const normalized = String(role || "").toLowerCase();
   let allowed = ["dashboard"];
@@ -15996,7 +16097,10 @@ function getAllowedViewsForRole(role) {
     const embedViews = getEnterpriseEmbedViews();
     allowed = [...new Set([...allowed, ...embedViews])];
   }
-  return allowed;
+  if (canUseDeploymentPlan()) {
+    allowed.push("deployment-plan");
+  }
+  return [...new Set(allowed)];
 }
 
 function getEnterpriseEmbedViews() {
@@ -16020,7 +16124,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531shell8");
+    params.push("v=20260531shell9");
   }
   if (item.path.includes("/admin-v2/")) {
     params.push("tab=workers");
@@ -16267,6 +16371,12 @@ function setView(viewName) {
 
   if (ENTERPRISE_EMBED_META[targetView]) {
     loadEnterpriseEmbed(targetView);
+  }
+
+  if (targetView === "deployment-plan" && globalThis.BaupassDeploymentPlan?.refresh) {
+    globalThis.BaupassDeploymentPlan.refresh().catch((err) => {
+      showToast(err?.message || String(err), "error", 6000);
+    });
   }
 
   document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f4c5c" />
   <title>BauPass Admin v2</title>
-  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell8" />
-  <link rel="stylesheet" href="styles.css?v=20260531shell8" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell9" />
+  <link rel="stylesheet" href="styles.css?v=20260531shell9" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -279,6 +279,14 @@
         <button type="button" id="deploymentFromShifts" class="ghost" data-i18n="deployment.fromShifts">Aus Schichten</button>
         <button type="button" id="deploymentRotation" class="ghost" data-i18n="deployment.rotation">Rotation</button>
       </div>
+      <div class="deployment-bulk-bar">
+        <span class="muted small" data-i18n="deployment.bulkTitle">Schnell für alle Werktage</span>
+        <input type="text" id="deploymentBulkLocation" data-i18n-placeholder="deployment.locationPh" />
+        <input type="time" id="deploymentBulkStart" aria-label="Von" />
+        <input type="time" id="deploymentBulkEnd" aria-label="Bis" />
+        <button type="button" id="deploymentBulkWeekdays" class="ghost" data-i18n="deployment.bulkWeekdays">Auf Werktage</button>
+        <button type="button" id="deploymentBulkClearWeekends" class="ghost" data-i18n="deployment.bulkClearWeekends">Wochenenden leeren</button>
+      </div>
       <p class="muted small" data-i18n="deployment.hint">Pro Tag: Einsatzort, Uhrzeit (Von–Bis) und optional Hinweis.</p>
       <div id="deploymentDaysList" class="deployment-days-list" role="grid" aria-label="Monatsplan"></div>
       <div class="modal-actions">
@@ -307,9 +315,9 @@
     </div>
   </div>
 
-  <script src="/embed-helpers.js?v=20260531shell8"></script>
+  <script src="/embed-helpers.js?v=20260531shell9"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260531shell8" type="module"></script>
+  <script src="app.js?v=20260531shell9" type="module"></script>
 </body>
 </html>

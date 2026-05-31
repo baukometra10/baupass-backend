@@ -1152,6 +1152,31 @@ function bindDeploymentModalOnce() {
     await reloadDeploymentPlan();
     showActionToast(t("deployment.fromShifts") + " ✓", false);
   });
+  $("deploymentBulkWeekdays")?.addEventListener("click", () => {
+    readDeploymentDaysFromForm();
+    const loc = $("deploymentBulkLocation")?.value.trim() || "";
+    const start = $("deploymentBulkStart")?.value || "";
+    const end = $("deploymentBulkEnd")?.value || "";
+    deploymentModalDays.forEach((d) => {
+      if (d.isWeekend) return;
+      if (loc) d.location = loc;
+      if (start) d.shiftStart = timeInputToIso(d.date, start);
+      if (end) d.shiftEnd = timeInputToIso(d.date, end);
+    });
+    renderDeploymentDaysList();
+    showActionToast(t("deployment.bulkApplied"), false);
+  });
+  $("deploymentBulkClearWeekends")?.addEventListener("click", () => {
+    readDeploymentDaysFromForm();
+    deploymentModalDays.forEach((d) => {
+      if (!d.isWeekend) return;
+      d.location = "";
+      d.shiftStart = "";
+      d.shiftEnd = "";
+      d.notes = "";
+    });
+    renderDeploymentDaysList();
+  });
   $("deploymentRotation")?.addEventListener("click", async () => {
     const raw = prompt(
       "Orte (kommagetrennt), z.B.\nBerlin Mitte, Alexanderplatz, Potsdam",

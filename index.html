@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531shell8";
+        const buildTag = "20260531shell9";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,8 +51,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell8" />
-    <link rel="stylesheet" href="./styles.css?v=20260531shell8" />
+    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell9" />
+    <link rel="stylesheet" href="./styles.css?v=20260531shell9" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -227,6 +227,7 @@
         <p class="nav-section-label" data-ui-i18n="navGroupDaily">Tagesbetrieb</p>
         <button class="nav-link active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
+        <button class="nav-link" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
         <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
         <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
@@ -288,6 +289,7 @@
         <div id="sessionCard" class="session-card"></div>
         <nav class="dashboard-quick-nav" aria-label="Schnellzugriff">
           <button type="button" class="quick-nav-tile nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="leave" data-ui-i18n="navLeave">Urlaub</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
@@ -793,6 +795,35 @@
           <input id="photoSharpen" type="range" min="0" max="2" step="0.01" value="0.28" disabled>
           <span id="photoSharpenValue">Normal</span>
         </div>
+      </section>
+
+      <section class="view" data-view="deployment-plan">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-ui-i18n="deploymentPlanEyebrow">Workforce</p>
+              <h3 data-ui-i18n="deploymentPlanTitle">Einsatzplan — Monatsplanung</h3>
+              <p class="muted small" data-ui-i18n="deploymentPlanDesc">Pro Mitarbeiter Tag, Einsatzort und Uhrzeit pflegen — ohne Betrieb-v2-Embed.</p>
+            </div>
+          </div>
+          <div id="cpDeploymentMonthBar" class="deployment-month-bar hidden">
+            <div class="deployment-month-bar-head">
+              <label>
+                <span class="muted small" data-ui-i18n="deploymentCompanyMonth">Monatsplan Firma</span>
+                <input type="month" id="cpDeploymentCompanyMonth" />
+              </label>
+              <span id="cpDeploymentMonthStatus" class="deployment-status-badge">—</span>
+            </div>
+            <p class="muted small" data-ui-i18n="deploymentMonthHint">Pläne bleiben gespeichert. Versand nur nach Bestätigung.</p>
+            <div class="deployment-month-actions">
+              <button type="button" id="cpDeploymentPrepareNextBtn" class="ghost-button" data-ui-i18n="deploymentPrepareNext">Nächsten Monat vorbereiten</button>
+              <button type="button" id="cpDeploymentConfirmSendBtn" class="primary-button" data-ui-i18n="deploymentConfirmSend">Versand bestätigen</button>
+              <button type="button" id="cpDeploymentReopenMonthBtn" class="ghost-button hidden" data-ui-i18n="deploymentReopenEdit">Erneut bearbeiten</button>
+            </div>
+            <p id="cpDeploymentMonthStats" class="muted small"></p>
+          </div>
+          <div id="cpDeploymentWorkerList" class="table-wrap deployment-worker-list-wrap"></div>
+        </article>
       </section>
 
       <section class="view" data-view="badge">
@@ -2051,7 +2082,8 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531shell8"></script>
+  <script src="./deployment-plan-ui.js?v=20260531shell9"></script>
+  <script src="./app.js?v=20260531shell9"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
@@ -2069,6 +2101,36 @@
       }).catch(function() {});
     })();
   </script>
+
+  <div id="cpDeploymentModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="admin-modal-card deployment-modal-card">
+      <h3 class="admin-modal-title" data-ui-i18n="deploymentModalTitle">Einsatzplan bearbeiten</h3>
+      <p id="cpDeploymentModalWorker" class="muted"></p>
+      <div class="deployment-toolbar">
+        <label>
+          <span class="muted small" data-ui-i18n="deploymentMonth">Monat</span>
+          <input type="month" id="cpDeploymentMonth" />
+        </label>
+        <button type="button" id="cpDeploymentFromShifts" class="ghost-button" data-ui-i18n="deploymentFromShifts">Aus Schichten</button>
+        <button type="button" id="cpDeploymentRotation" class="ghost-button" data-ui-i18n="deploymentRotation">Rotation</button>
+      </div>
+      <div class="deployment-bulk-bar">
+        <span class="muted small" data-ui-i18n="deploymentBulkTitle">Schnell für alle Werktage</span>
+        <input type="text" id="cpDeploymentBulkLocation" placeholder="Einsatzort" data-ui-i18n-placeholder="deploymentLocationPh" />
+        <input type="time" id="cpDeploymentBulkStart" aria-label="Von" />
+        <input type="time" id="cpDeploymentBulkEnd" aria-label="Bis" />
+        <button type="button" id="cpDeploymentBulkWeekdays" class="ghost-button" data-ui-i18n="deploymentBulkApplyWeekdays">Auf Werktage</button>
+        <button type="button" id="cpDeploymentBulkClearWeekends" class="ghost-button" data-ui-i18n="deploymentBulkClearWeekends">Wochenenden leeren</button>
+      </div>
+      <p class="muted small" data-ui-i18n="deploymentHint">Tag, Ort, Von–Bis, Hinweis — dann Speichern.</p>
+      <div id="cpDeploymentDaysList" class="deployment-days-list"></div>
+      <div class="admin-modal-actions">
+        <button type="button" id="cpDeploymentSaveBtn" class="primary-button" data-ui-i18n="deploymentSave">Speichern</button>
+        <button type="button" id="cpDeploymentPdfBtn" class="ghost-button" data-ui-i18n="deploymentPdf">PDF</button>
+        <button type="button" id="cpDeploymentModalClose" class="ghost-button" data-ui-i18n="deploymentClose">Schließen</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Manual Entry Modal -->
   <div id="manualEntryModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="manualEntryModalTitle">

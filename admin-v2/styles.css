@@ -1360,12 +1360,18 @@ html[dir="rtl"] .app-sidebar {
   gap: 0.5rem;
 }
 
-.deployment-toolbar {
+.deployment-toolbar,
+.deployment-bulk-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
   margin-bottom: 0.5rem;
+}
+
+.deployment-bulk-bar input[type="text"] {
+  flex: 1 1 140px;
+  min-width: 120px;
 }
 
 .deployment-modal-card {
