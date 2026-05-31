@@ -17,8 +17,17 @@ export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
   const lat = parseFloat(latInput?.value) || 52.52;
   const lng = parseFloat(lngInput?.value) || 13.405;
   containerEl.innerHTML = "";
+  containerEl.style.width = "100%";
+  containerEl.style.height = "280px";
+  containerEl.style.minHeight = "280px";
+  containerEl.style.position = "relative";
+  containerEl.style.overflow = "hidden";
 
-  const map = window.L.map(containerEl, { preferCanvas: true }).setView([lat, lng], 14);
+  const map = window.L.map(containerEl, {
+    preferCanvas: false,
+    zoomControl: true,
+  }).setView([lat, lng], 14);
+
   window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "© OpenStreetMap",
@@ -50,10 +59,11 @@ export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
   containerEl._baupassLeafletMap = map;
   map._baupassInvalidate = invalidate;
 
-  requestAnimationFrame(invalidate);
-  setTimeout(invalidate, 0);
-  setTimeout(invalidate, 200);
-  setTimeout(invalidate, 500);
+  map.whenReady(() => {
+    invalidate();
+    setTimeout(invalidate, 50);
+    setTimeout(invalidate, 300);
+  });
 
   if (typeof ResizeObserver !== "undefined") {
     const ro = new ResizeObserver(() => invalidate());
@@ -81,14 +91,20 @@ export function mountGeofenceMapWhenReady(containerEl, latInput, lngInput, zones
   let attempts = 0;
   const tryMount = () => {
     const rect = containerEl.getBoundingClientRect();
-    if (rect.width > 48 && rect.height > 48) {
+    const visible = rect.width > 48 && rect.height > 48 && containerEl.offsetParent !== null;
+    if (visible) {
       return mountGeofenceMap(containerEl, latInput, lngInput, zones);
     }
-    if (++attempts < 80) {
+    if (++attempts < 120) {
       requestAnimationFrame(tryMount);
     }
     return null;
   };
   tryMount();
   return containerEl._baupassLeafletMap || null;
+}
+
+export function refreshGeofenceMap() {
+  const map = document.getElementById("geofenceMap")?._baupassLeafletMap;
+  map?._baupassInvalidate?.();
 }

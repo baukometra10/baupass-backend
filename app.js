@@ -16020,7 +16020,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260531shell3");
+    params.push("v=20260531shell4");
   }
   if (item.path.includes("/admin-v2/")) {
     params.push("tab=workers");
@@ -16055,7 +16055,11 @@ function loadEnterpriseEmbed(viewName) {
   }
   const url = buildEnterpriseEmbedUrl(item);
   const iframe = document.getElementById(meta.frameId);
-  if (iframe && iframe.getAttribute("src") !== url) {
+  if (!iframe) {
+    return;
+  }
+  const prevSrc = iframe.getAttribute("src") || "";
+  if (!prevSrc || prevSrc !== url) {
     iframe.setAttribute("src", url);
   }
   if (iframe && token) {
@@ -16151,7 +16155,12 @@ function renderEnterpriseNavMenu() {
 
   mount.classList.remove("hidden");
   const planLabel = getPlanLabel(getCompanyPlan(cid));
-  let html = `<p class="nav-section-label">${escapeHtml(uiT("navEnterpriseSection"))} · ${escapeHtml(planLabel)}</p>`;
+  const sectionLabel = uiT("navEnterpriseSection");
+  const planSuffix =
+    planLabel && planLabel.toLowerCase() !== sectionLabel.toLowerCase()
+      ? ` <span class="nav-plan-pill">${escapeHtml(planLabel)}</span>`
+      : "";
+  let html = `<p class="nav-section-label">${escapeHtml(sectionLabel)}${planSuffix}</p>`;
   items.forEach((item) => {
     const view = item.view || "";
     const embedItem = item.id !== view ? item.id : "";
@@ -25376,10 +25385,15 @@ async function saveAndTestBrevo() {
     resultEl.style.color = "#16a34a";
   } else {
     const detail = data?.detail ? ` → ${data.detail}` : "";
+    const detailStr = String(data?.detail || detail || "");
+    const ipHint =
+      /unrecognised ip|unauthorized/i.test(detailStr) || /152\.55\.176\.191/.test(detailStr)
+        ? " — Railway-IP bei Brevo freigeben: https://app.brevo.com/security/authorised_ips (152.55.176.191)"
+        : "";
     resultEl.textContent = `✗ ${runtimeTextTemplate("brevoTestFailed", {
       error: data?.error || runtimeText("invoiceErrorLabel"),
-      detail
-    })}`;
+      detail,
+    })}${ipHint}`;
     resultEl.style.color = "#dc2626";
   }
 }
@@ -29806,12 +29820,32 @@ window.addEventListener("beforeunload", stopCamera);
 
 if (elements.navLinks.length) {
   elements.navLinks.forEach((link) => {
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (event) => {
       if (!token) return;
-      setView(link.dataset.view || "dashboard");
+      const view = link.dataset.view;
+      if (!view) return;
+      event.preventDefault();
+      setView(view);
     });
   });
 }
+
+function bindShellNavigationDelegation() {
+  if (bindShellNavigationDelegation._done) return;
+  bindShellNavigationDelegation._done = true;
+  const shell = document.getElementById("mainShell");
+  if (!shell) return;
+  shell.addEventListener("click", (event) => {
+    const trigger = event.target.closest(
+      ".nav-link[data-view], .quick-nav-tile[data-view], .sidebar-admin-v2-link[data-view]",
+    );
+    if (!trigger || !token) return;
+    event.preventDefault();
+    setView(trigger.dataset.view || "dashboard");
+  });
+}
+
+bindShellNavigationDelegation();
 
 ensureEnterpriseNavDelegation();
 

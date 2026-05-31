@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531shell2";
+        const buildTag = "20260531shell4";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -51,8 +51,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell2" />
-    <link rel="stylesheet" href="./styles.css?v=20260531shell2" />
+    <link rel="stylesheet" href="./embed-shell.css?v=20260531shell4" />
+    <link rel="stylesheet" href="./styles.css?v=20260531shell4" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -236,14 +236,14 @@
         <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Enterprise"></div>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
         <button class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
-        <a class="nav-link nav-link-external" href="/admin-v2/" data-ui-i18n="navAdminV2">Admin v2 (schnell)</a>
+        <button type="button" class="nav-link nav-link-enterprise-quick" data-view="admin-v2" data-ui-i18n="navAdminV2">Betrieb v2</button>
       </nav>
       <div class="sidebar-card">
         <p class="sidebar-card-label" data-ui-i18n="sidebarCardTitle">Vermietungsmodus</p>
         <strong data-ui-i18n="sidebarCardStrong">Multi-Firma fähig</strong>
         <span data-ui-i18n="sidebarCardDesc">Jede Baufirma verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.</span>
       </div>
-      <a class="sidebar-admin-v2-link" href="/admin-v2/?tab=workers" data-ui-i18n="navAdminV2">Admin v2 — Schnellbetrieb</a>
+      <button type="button" class="sidebar-admin-v2-link nav-link" data-view="admin-v2" data-ui-i18n="navAdminV2">Betrieb v2</button>
     </aside>
 
     <main class="content">
@@ -292,7 +292,7 @@
           <button type="button" class="quick-nav-tile nav-link" data-view="leave" data-ui-i18n="navLeave">Urlaub</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
-          <a class="quick-nav-tile quick-nav-tile-accent" href="/admin-v2/" data-ui-i18n="navAdminV2">Admin v2</a>
+          <button type="button" class="quick-nav-tile quick-nav-tile-accent nav-link" data-view="admin-v2" data-ui-i18n="navAdminV2">Betrieb v2</button>
         </nav>
         <div class="hero-panel">
           <div>
@@ -1550,6 +1550,8 @@
                 </div>
                 <small style="display:block;margin-top:6px;color:#6b7280;font-size:0.8rem;">
                   Brevo-Key findest du unter <strong>brevo.com → SMTP &amp; API → API Keys</strong>. Beginnt mit <code>xkeysib-</code>.
+                  Bei Railway-Hosting die IP <code>152.55.176.191</code> unter
+                  <a href="https://app.brevo.com/security/authorised_ips" target="_blank" rel="noopener">Brevo → Authorized IPs</a> eintragen.
                 </small>
               </label>
 
@@ -2049,7 +2051,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./app.js?v=20260531shell2"></script>
+  <script src="./app.js?v=20260531shell4"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

@@ -1,5 +1,5 @@
 import { applyI18n, getLang, setLang, t } from "./i18n.js";
-import { mountGeofenceMapWhenReady } from "./geofence-map.js";
+import { mountGeofenceMapWhenReady, refreshGeofenceMap } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
 const TOKEN_KEY = "baupass-admin-v2-token";
@@ -484,7 +484,8 @@ function switchToTab(tabId) {
   if (tabId === "enterprise") syncEnterpriseFrame();
   if (tabId === "tools") {
     requestAnimationFrame(() => {
-      document.getElementById("geofenceMap")?._baupassLeafletMap?._baupassInvalidate?.();
+      refreshGeofenceMap();
+      setTimeout(refreshGeofenceMap, 350);
     });
   }
 }
