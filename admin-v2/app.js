@@ -310,12 +310,13 @@ async function api(path, options = {}) {
     data = text ? JSON.parse(text) : {};
   } catch {
     const snippet = text.replace(/\s+/g, " ").trim().slice(0, 100);
+    const pathHint = String(path || "").split("?")[0];
     data = {
       error: "invalid_json",
       message:
         res.status === 404 || res.status === 405
-          ? "API-Endpunkt nicht erreichbar (Server-Update ausstehend?). Bitte Seite neu laden oder Support kontaktieren."
-          : `Unerwartete Server-Antwort (HTTP ${res.status}).`,
+          ? `API nicht erreichbar (${pathHint}, HTTP ${res.status}). Bitte Seite neu laden — ggf. läuft noch ein Server-Update.`
+          : `Unerwartete Server-Antwort (${pathHint}, HTTP ${res.status}).`,
       detail: snippet,
     };
   }
