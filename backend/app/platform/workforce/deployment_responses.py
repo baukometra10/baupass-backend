@@ -1,6 +1,7 @@
 """Worker responses to scheduled deployment days (decline / undo)."""
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any
@@ -8,6 +9,39 @@ from typing import Any
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+
+
+def _business_today() -> date:
+    try:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(os.getenv("BAUPASS_BUSINESS_TZ", "Europe/Berlin"))
+        return datetime.now(tz).date()
+    except Exception:
+        return datetime.now(timezone.utc).date()
+
+
+def ensure_worker_deployment_day_responses_table(db) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS worker_deployment_day_responses (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            work_date TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'declined',
+            reason TEXT NOT NULL DEFAULT '',
+            responded_at TEXT NOT NULL,
+            UNIQUE(company_id, worker_id, work_date)
+        )
+        """
+    )
+    db.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_wddr_company_worker_date
+        ON worker_deployment_day_responses(company_id, worker_id, work_date)
+        """
+    )
 
 
 def list_responses_for_month(
@@ -79,8 +113,10 @@ def set_worker_day_response(
     action: decline | undo
     Returns (payload, error_response) where error_response is (flask_response, status).
     """
-    from .deployment_store import list_deployment_days
+    from .deployment_store import build_month_calendar, list_deployment_days
     from .deployment_worker import worker_can_respond_to_deployment_month
+
+    ensure_worker_deployment_day_responses_table(db)
 
     parsed = _parse_work_date(work_date)
     if not parsed:
@@ -96,15 +132,27 @@ def set_worker_day_response(
     ):
         return None, ({"error": "plan_not_published"}, 403)
 
-    today = date.today()
+    today = _business_today()
     if parsed < today:
         return None, ({"error": "past_day_not_allowed"}, 400)
 
+    work_iso = parsed.isoformat()
     stored = list_deployment_days(
         db, company_id=str(company_id), worker_id=str(worker_id), year=year, month=month
     )
-    day_row = next((r for r in stored if str(r.get("work_date")) == parsed.isoformat()), None)
-    if not day_row or not str(day_row.get("location_label") or "").strip():
+    day_row = next((r for r in stored if str(r.get("work_date") or "")[:10] == work_iso), None)
+    location = str(day_row.get("location_label") or "").strip() if day_row else ""
+    if not location:
+        calendar_days = build_month_calendar(
+            db,
+            company_id=str(company_id),
+            worker_id=str(worker_id),
+            year=year,
+            month=month,
+        )
+        cal_day = next((d for d in calendar_days if str(d.get("date") or "")[:10] == work_iso), None)
+        location = str((cal_day or {}).get("location") or "").strip()
+    if not location:
         return None, ({"error": "no_assignment_for_day"}, 400)
 
     action_norm = str(action or "").strip().lower()
@@ -130,19 +178,22 @@ def set_worker_day_response(
     reason_clean = str(reason or "").strip()[:500]
     row_id = f"wdr-{uuid.uuid4().hex[:12]}"
     now = _now_iso()
-    db.execute(
-        """
-        INSERT INTO worker_deployment_day_responses
-            (id, company_id, worker_id, work_date, status, reason, responded_at)
-        VALUES (?, ?, ?, ?, 'declined', ?, ?)
-        ON CONFLICT(company_id, worker_id, work_date) DO UPDATE SET
-            status = 'declined',
-            reason = excluded.reason,
-            responded_at = excluded.responded_at
-        """,
-        (row_id, str(company_id), str(worker_id), parsed.isoformat(), reason_clean, now),
-    )
-    db.commit()
+    try:
+        db.execute(
+            """
+            INSERT INTO worker_deployment_day_responses
+                (id, company_id, worker_id, work_date, status, reason, responded_at)
+            VALUES (?, ?, ?, ?, 'declined', ?, ?)
+            ON CONFLICT(company_id, worker_id, work_date) DO UPDATE SET
+                status = 'declined',
+                reason = excluded.reason,
+                responded_at = excluded.responded_at
+            """,
+            (row_id, str(company_id), str(worker_id), work_iso, reason_clean, now),
+        )
+        db.commit()
+    except Exception as exc:
+        return None, ({"error": "decline_save_failed", "message": str(exc)[:200]}, 500)
     return {
         "ok": True,
         "date": parsed.isoformat(),

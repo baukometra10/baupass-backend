@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260603d";
+const WORKER_BUILD_TAG = "20260603e";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -4788,7 +4788,32 @@ function formatWorkerApiError(error) {
   if (isWorkerSessionAuthError(code)) {
     return t("sessionExpired");
   }
+  if (code === "plan_not_published") {
+    return t("deploymentPlanDeclineErrNotPublished");
+  }
+  if (code === "no_assignment_for_day") {
+    return t("deploymentPlanDeclineErrNoAssignment");
+  }
+  if (code === "past_day_not_allowed") {
+    return t("deploymentPlanDeclineErrPastDay");
+  }
+  if (code === "decline_save_failed") {
+    return t("deploymentPlanDeclineErrSave");
+  }
   return String(error?.message || "Daten konnten nicht geladen werden.");
+}
+
+function setDeploymentDeclineModalError(message) {
+  const el = document.getElementById("deploymentDeclineError");
+  if (!el) return;
+  const text = String(message || "").trim();
+  if (!text) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = text;
+  el.classList.remove("hidden");
 }
 
 function renderWorkerListMessage(listEl, message, type = "info") {
@@ -4962,6 +4987,25 @@ async function requestNotificationPermission() {
   await ensureWorkerPushNotifications({ promptIfNeeded: true, showSuccessNotice: true });
 }
 
+async function refreshPushSetupBanner() {
+  if (!elements.notificationBanner || !workerToken) return;
+  try {
+    const vapidKeyRes = await fetchJson(`${API_BASE}/push-vapid-key`);
+    const hasVapid = Boolean(
+      String(vapidKeyRes.vapidPublicKey || vapidKeyRes.publicKey || "").trim(),
+    );
+    if (!hasVapid && Notification.permission !== "denied") {
+      const hint = document.querySelector("#notificationBanner span");
+      if (hint) {
+        hint.textContent = t("notificationBannerPushNotReady");
+      }
+      elements.notificationBanner.classList.remove("hidden");
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function ensureWorkerPushNotifications({
   promptIfNeeded = false,
   showSuccessNotice = false,
@@ -4983,6 +5027,8 @@ async function ensureWorkerPushNotifications({
     }
     return;
   }
+
+  await refreshPushSetupBanner();
 
   if (Notification.permission === "default") {
     if (!promptIfNeeded) {
@@ -6185,6 +6231,7 @@ function openDeploymentDeclineModal(day) {
   const dateEl = document.getElementById("deploymentDeclineModalDate");
   const reasonEl = document.getElementById("deploymentDeclineReason");
   if (!modal || !dateEl) return;
+  setDeploymentDeclineModalError("");
   deploymentDeclinePendingDate = deploymentDayIso(day);
   const label = [day.weekday, deploymentDayIso(day)].filter(Boolean).join(" · ");
   dateEl.textContent = label;
@@ -6197,6 +6244,12 @@ function openDeploymentDeclineModal(day) {
 
 function closeDeploymentDeclineModal() {
   deploymentDeclinePendingDate = "";
+  setDeploymentDeclineModalError("");
+  const confirmBtn = document.getElementById("deploymentDeclineConfirm");
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.removeAttribute("aria-busy");
+  }
   document.getElementById("deploymentDeclineModal")?.classList.add("hidden");
 }
 
@@ -6303,7 +6356,13 @@ function bindDeploymentPlanInteractions() {
     const iso = deploymentDeclinePendingDate;
     if (!iso) return;
     const reason = String(document.getElementById("deploymentDeclineReason")?.value || "").trim();
+    const confirmBtn = document.getElementById("deploymentDeclineConfirm");
     void (async () => {
+      setDeploymentDeclineModalError("");
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.setAttribute("aria-busy", "true");
+      }
       try {
         await postDeploymentDayResponse(iso, "decline", reason);
         closeDeploymentDeclineModal();
@@ -6311,7 +6370,14 @@ function bindDeploymentPlanInteractions() {
         await loadDeploymentPlan();
         void refreshHomeDeploymentTeaser().catch(() => {});
       } catch (error) {
-        showWorkerNotice(formatWorkerApiError(error));
+        const message = formatWorkerApiError(error);
+        setDeploymentDeclineModalError(message);
+        showWorkerNotice(message);
+      } finally {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.removeAttribute("aria-busy");
+        }
       }
     })();
   });
