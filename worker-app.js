@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260603c";
+const WORKER_BUILD_TAG = "20260603d";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -5022,10 +5022,15 @@ async function subscribePushNotifications() {
 
     if (!subscription) {
       const vapidKeyRes = await fetchJson(`${API_BASE}/push-vapid-key`);
-      const vapidPublicKey = vapidKeyRes.vapidPublicKey;
+      const vapidPublicKey = String(
+        vapidKeyRes.vapidPublicKey || vapidKeyRes.publicKey || "",
+      ).trim();
 
       if (!vapidPublicKey) {
-        console.warn("No VAPID public key from server");
+        console.warn("No VAPID public key from server — set VAPID_PUBLIC_KEY on Railway");
+        if (elements.notificationBanner) {
+          elements.notificationBanner.classList.remove("hidden");
+        }
         return;
       }
 
