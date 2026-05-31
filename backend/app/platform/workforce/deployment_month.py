@@ -167,12 +167,27 @@ def worker_month_summary(db, company_id: str, year: int, month: int) -> list[dic
         """,
         (str(company_id),),
     ).fetchall()
+    from .deployment_responses import (
+        attach_responses_to_days,
+        count_declined_days,
+        list_responses_for_month,
+    )
+    from .deployment_store import build_month_calendar
+
     out = []
     for w in rows:
         wid = str(w["id"])
         days = list_deployment_days(db, company_id=company_id, worker_id=wid, year=year, month=month)
         filled = sum(1 for d in days if str(d.get("location_label") or "").strip())
         last = calendar.monthrange(year, month)[1]
+        cal_days = build_month_calendar(
+            db, company_id=company_id, worker_id=wid, year=year, month=month, lang="de"
+        )
+        responses = list_responses_for_month(
+            db, company_id=company_id, worker_id=wid, year=year, month=month
+        )
+        cal_days = attach_responses_to_days(cal_days, responses)
+        declined_count = count_declined_days(cal_days)
         out.append(
             {
                 "workerId": wid,
@@ -180,6 +195,8 @@ def worker_month_summary(db, company_id: str, year: int, month: int) -> list[dic
                 "badgeId": w["badge_id"],
                 "daysFilled": filled,
                 "daysInMonth": last,
+                "declinedDayCount": declined_count,
+                "hasDeclines": declined_count > 0,
                 "ready": filled >= max(1, int(last * 0.5)),
             }
         )

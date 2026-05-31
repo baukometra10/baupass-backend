@@ -8415,6 +8415,74 @@ body.theme-black .invoice-toolbar-refresh:active {
   color: var(--accent-hover, #22a8d4);
 }
 
+.deployment-day-declined {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.22);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.deployment-day-row.worker-declined {
+  box-shadow: inset 3px 0 0 #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.deployment-worker-decline-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.deployment-worker-table tr.has-worker-declines td:first-child {
+  font-weight: 700;
+}
+
+.deployment-declines-banner {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.deployment-declines-banner-title {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.deployment-declines-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.deployment-modal-declined-meta {
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.deployment-modal-declined-meta.hidden {
+  display: none;
+}
+
 #cpDeploymentModal.admin-modal-overlay {
   z-index: 1200;
 }

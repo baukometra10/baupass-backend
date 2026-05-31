@@ -317,6 +317,12 @@ def register_workforce_blueprint(flask_app) -> None:
         batch = get_month_batch(db, cid, year, month)
         workers = worker_month_summary(db, cid, year, month)
         ready_count = sum(1 for w in workers if w.get("ready"))
+        declined_day_count = sum(int(w.get("declinedDayCount") or 0) for w in workers)
+        from .deployment_responses import list_company_declines_for_month
+
+        recent_declines = list_company_declines_for_month(
+            db, company_id=cid, year=year, month=month, limit=30
+        )
         return jsonify(
             {
                 "companyId": cid,
@@ -326,6 +332,8 @@ def register_workforce_blueprint(flask_app) -> None:
                 "workers": workers,
                 "readyCount": ready_count,
                 "totalWorkers": len(workers),
+                "declinedDayCount": declined_day_count,
+                "recentDeclines": recent_declines,
             }
         )
 

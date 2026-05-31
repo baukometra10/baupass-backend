@@ -97,6 +97,41 @@
     });
   }
 
+  function renderDeclinesBanner(state) {
+    const bar = $("cpDeploymentMonthBar");
+    if (!bar) return;
+    let banner = $("cpDeploymentDeclinesBanner");
+    const count = Number(state?.declinedDayCount || 0);
+    if (!count) {
+      banner?.remove();
+      return;
+    }
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "cpDeploymentDeclinesBanner";
+      banner.className = "deployment-declines-banner";
+      banner.setAttribute("role", "alert");
+      bar.insertAdjacentElement("afterend", banner);
+    }
+    const items = (state.recentDeclines || [])
+      .slice(0, 8)
+      .map((item) => {
+        const name = escapeAttr(item.workerName || item.workerId || "—");
+        const date = escapeAttr(String(item.workDate || "").slice(0, 10));
+        const loc = escapeAttr(item.location || "—");
+        const reason = escapeAttr(item.reason || "");
+        const reasonPart = reason ? ` — ${reason}` : "";
+        return `<li><strong>${name}</strong> · ${date} · ${loc}${reasonPart}</li>`;
+      })
+      .join("");
+    banner.innerHTML = `
+      <div class="deployment-declines-banner-inner">
+        <p class="deployment-declines-banner-title">${escapeAttr(ui("deploymentDeclinesBannerTitle"))}</p>
+        <p class="muted small">${escapeAttr(ui("deploymentDeclinesBannerHint"))}</p>
+        <ul class="deployment-declines-list">${items}</ul>
+      </div>`;
+  }
+
   function renderModalDaysList() {
     const host = $("cpDeploymentDaysList");
     if (!host) return;
@@ -115,9 +150,14 @@
         const notes = escapeAttr(d.notes || "");
         const start = escapeAttr(isoToTimeInput(d.shiftStart));
         const end = escapeAttr(isoToTimeInput(d.shiftEnd));
+        const declined =
+          String(d.workerResponse || "") === "declined" || Boolean(d.isDeclined);
+        const declineHint = declined
+          ? `<span class="deployment-day-declined" title="${escapeAttr(d.declineReason || "")}">${escapeAttr(ui("deploymentWorkerDeclined"))}</span>`
+          : "";
         return `
-      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}" data-dep-idx="${i}" role="row">
-        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span></span>
+      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}" data-dep-idx="${i}" role="row">
+        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}</span>
         <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(ui("deploymentLocationPh"))}" />
         <input type="time" data-dep-field="start" value="${start}" />
         <input type="time" data-dep-field="end" value="${end}" />
@@ -176,6 +216,17 @@
       `/api/workforce/deployment-plan${q}${q ? "&" : "?"}worker_id=${encodeURIComponent(modalWorkerId)}&year=${year}&month=${month}&lang=${lang()}`,
     );
     modalDays = data.days || [];
+    const declined = Number(data.declinedDayCount || 0);
+    const metaEl = $("cpDeploymentModalDeclinedMeta");
+    if (metaEl) {
+      if (declined > 0) {
+        metaEl.textContent = ui("deploymentModalDeclinedDays").replace("{count}", String(declined));
+        metaEl.classList.remove("hidden");
+      } else {
+        metaEl.textContent = "";
+        metaEl.classList.add("hidden");
+      }
+    }
     renderModalDaysList();
   }
 
@@ -276,11 +327,17 @@
     try {
       monthState = await api(`/api/workforce/deployment-month${q}${q ? "&" : "?"}year=${year}&month=${month}`);
       renderMonthStatus(monthState.batch);
+      renderDeclinesBanner(monthState);
       const stats = $("cpDeploymentMonthStats");
       if (stats) {
-        stats.textContent = ui("deploymentMonthStats")
+        let text = ui("deploymentMonthStats")
           .replace("{ready}", String(monthState.readyCount ?? 0))
           .replace("{total}", String(monthState.totalWorkers ?? 0));
+        const declined = Number(monthState.declinedDayCount || 0);
+        if (declined > 0) {
+          text += ui("deploymentMonthStatsDeclines").replace("{count}", String(declined));
+        }
+        stats.textContent = text;
       }
     } catch (e) {
       $("cpDeploymentMonthStats").textContent = e.message || String(e);
@@ -303,15 +360,24 @@
         host.innerHTML = `<p class="muted">${ui("deploymentNoWorkers")}</p>`;
         return;
       }
-      const head = `<tr><th>${ui("deploymentColWorker")}</th><th>Status</th><th></th></tr>`;
+      const head = `<tr><th>${ui("deploymentColWorker")}</th><th>Status</th><th>${ui("deploymentColDeclines")}</th><th></th></tr>`;
       const body = workers
         .map((w) => {
           const name = `${w.firstName || w.first_name || ""} ${w.lastName || w.last_name || ""}`.trim() || w.workerId || w.id;
           const ready = w.ready ? ui("deploymentReady") : ui("deploymentNotReady");
           const wid = w.workerId || w.id;
-          return `<tr>
+          const declined = Number(w.declinedDayCount || 0);
+          const declineCell =
+            declined > 0
+              ? `<span class="deployment-worker-decline-pill">${escapeAttr(
+                  ui("deploymentWorkerHasDeclines").replace("{count}", String(declined)),
+                )}</span>`
+              : `<span class="muted">—</span>`;
+          const statusCell = `<span class="deployment-ready-pill${w.ready ? " ok" : ""}">${ready}</span>`;
+          return `<tr${declined > 0 ? ' class="has-worker-declines"' : ""}>
             <td>${escapeAttr(name)}</td>
-            <td><span class="deployment-ready-pill${w.ready ? " ok" : ""}">${ready}</span></td>
+            <td>${statusCell}</td>
+            <td>${declineCell}</td>
             <td><button type="button" class="primary-button small-button" data-cp-dep-edit="${escapeAttr(wid)}" data-cp-dep-name="${escapeAttr(name)}">${ui("deploymentEditBtn")}</button></td>
           </tr>`;
         })

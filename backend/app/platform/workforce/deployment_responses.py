@@ -92,6 +92,53 @@ def count_declined_days(days: list[dict[str, Any]]) -> int:
     return sum(1 for d in days if d.get("isDeclined") or d.get("workerResponse") == "declined")
 
 
+def list_company_declines_for_month(
+    db,
+    *,
+    company_id: str,
+    year: int,
+    month: int,
+    limit: int = 30,
+) -> list[dict[str, Any]]:
+    from .deployment_store import month_bounds
+
+    start, end = month_bounds(year, month)
+    try:
+        rows = db.execute(
+            """
+            SELECT r.work_date, r.reason, r.responded_at,
+                   w.id AS worker_id, w.first_name, w.last_name, w.badge_id,
+                   d.location_label
+            FROM worker_deployment_day_responses r
+            JOIN workers w ON w.id = r.worker_id AND w.company_id = r.company_id
+            LEFT JOIN worker_deployment_days d
+              ON d.company_id = r.company_id AND d.worker_id = r.worker_id
+             AND d.work_date = r.work_date
+            WHERE r.company_id = ? AND r.status = 'declined'
+              AND r.work_date >= ? AND r.work_date <= ?
+            ORDER BY r.responded_at DESC
+            LIMIT ?
+            """,
+            (str(company_id), start, end, int(limit)),
+        ).fetchall()
+    except Exception:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        out.append(
+            {
+                "workerId": str(row["worker_id"]),
+                "workerName": f"{row['first_name']} {row['last_name']}".strip(),
+                "badgeId": row["badge_id"],
+                "workDate": str(row["work_date"]),
+                "location": str(row["location_label"] or "").strip(),
+                "reason": str(row["reason"] or "").strip(),
+                "respondedAt": row["responded_at"],
+            }
+        )
+    return out
+
+
 def _parse_work_date(work_date: str) -> date | None:
     raw = str(work_date or "").strip()[:10]
     try:

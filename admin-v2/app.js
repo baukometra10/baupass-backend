@@ -1087,6 +1087,17 @@ async function reloadDeploymentPlan() {
       `/api/workforce/deployment-plan${q}${q ? "&" : "?"}worker_id=${encodeURIComponent(deploymentModalWorkerId)}&year=${year}&month=${month}&lang=${getLang().slice(0, 2)}`,
     );
     deploymentModalDays = data.days || [];
+    const declined = Number(data.declinedDayCount || 0);
+    const metaEl = document.getElementById("deploymentModalDeclinedMeta");
+    if (metaEl) {
+      if (declined > 0) {
+        metaEl.textContent = t("deployment.modalDeclinedDays", { count: declined });
+        metaEl.classList.remove("hidden");
+      } else {
+        metaEl.textContent = "";
+        metaEl.classList.add("hidden");
+      }
+    }
     if (!data.capabilities?.pdf) {
       $("deploymentPdfBtn")?.setAttribute("title", t("deployment.needPro"));
     }
@@ -2366,6 +2377,41 @@ function renderDeploymentMonthStatus(batch) {
   $("deploymentConfirmSendBtn")?.classList.toggle("hidden", st === "sent" && !awaiting);
 }
 
+function renderDeploymentDeclinesBanner(state) {
+  const bar = $("deploymentMonthBar");
+  if (!bar) return;
+  let banner = document.getElementById("deploymentDeclinesBanner");
+  const count = Number(state?.declinedDayCount || 0);
+  if (!count) {
+    banner?.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "deploymentDeclinesBanner";
+    banner.className = "deployment-declines-banner";
+    banner.setAttribute("role", "alert");
+    bar.insertAdjacentElement("afterend", banner);
+  }
+  const items = (state.recentDeclines || [])
+    .slice(0, 8)
+    .map((item) => {
+      const name = escapeAttr(item.workerName || item.workerId || "—");
+      const date = escapeAttr(String(item.workDate || "").slice(0, 10));
+      const loc = escapeAttr(item.location || "—");
+      const reason = escapeAttr(item.reason || "");
+      const reasonPart = reason ? ` — ${reason}` : "";
+      return `<li><strong>${name}</strong> · ${date} · ${loc}${reasonPart}</li>`;
+    })
+    .join("");
+  banner.innerHTML = `
+    <div class="deployment-declines-banner-inner">
+      <p class="deployment-declines-banner-title">${escapeAttr(t("deployment.declinesBannerTitle"))}</p>
+      <p class="muted small">${escapeAttr(t("deployment.declinesBannerHint"))}</p>
+      <ul class="deployment-declines-list">${items}</ul>
+    </div>`;
+}
+
 async function loadDeploymentMonthBar() {
   const bar = $("deploymentMonthBar");
   const q = companyQuery();
@@ -2387,7 +2433,13 @@ async function loadDeploymentMonthBar() {
     renderDeploymentMonthStatus(deploymentMonthState.batch);
     const ready = deploymentMonthState.readyCount ?? 0;
     const total = deploymentMonthState.totalWorkers ?? 0;
-    $("deploymentMonthStats").textContent = t("deployment.monthStats", { ready, total });
+    let statsText = t("deployment.monthStats", { ready, total });
+    const declined = Number(deploymentMonthState.declinedDayCount || 0);
+    if (declined > 0 && t("deployment.monthStatsDeclines")) {
+      statsText += t("deployment.monthStatsDeclines", { count: declined });
+    }
+    $("deploymentMonthStats").textContent = statsText;
+    renderDeploymentDeclinesBanner(deploymentMonthState);
   } catch (e) {
     deploymentMonthState = null;
     $("deploymentMonthStats").textContent = e.message;
