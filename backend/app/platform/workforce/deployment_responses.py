@@ -241,6 +241,33 @@ def set_worker_day_response(
         db.commit()
     except Exception as exc:
         return None, ({"error": "decline_save_failed", "message": str(exc)[:200]}, 500)
+
+    try:
+        worker_row = db.execute(
+            "SELECT first_name, last_name FROM workers WHERE id = ? AND company_id = ?",
+            (str(worker_id), str(company_id)),
+        ).fetchone()
+        worker_name = (
+            f"{worker_row['first_name']} {worker_row['last_name']}".strip()
+            if worker_row
+            else str(worker_id)
+        )
+        from backend.app.platform.notifications.company_mitteilung import (
+            notify_company_deployment_day_declined,
+        )
+
+        notify_company_deployment_day_declined(
+            db,
+            company_id=str(company_id),
+            worker_id=str(worker_id),
+            worker_name=worker_name,
+            work_date=work_iso,
+            location=location,
+            reason=reason_clean,
+        )
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "date": parsed.isoformat(),

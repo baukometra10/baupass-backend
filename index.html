@@ -287,6 +287,7 @@
       <section class="view active view-dashboard" data-view="dashboard">
         <div class="dashboard-stack">
         <div id="sessionCard" class="session-card"></div>
+        <div id="dashboardDeploymentDeclinesBanner" class="deployment-declines-banner hidden" role="alert" aria-live="polite"></div>
         <nav class="dashboard-quick-nav" aria-label="Schnellzugriff">
           <button type="button" class="quick-nav-tile nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
@@ -840,6 +841,7 @@
             </div>
             <p id="cpDeploymentMonthStats" class="muted small"></p>
           </div>
+          <div id="cpDeploymentDeclinesBanner" class="deployment-declines-banner hidden" role="alert" aria-live="polite"></div>
           <div id="cpDeploymentWorkersSection" class="deployment-workers-section">
             <div class="deployment-workers-section-head">
               <h4 data-ui-i18n="deploymentWorkersHeading">Schritt 2 — Pläne pro Mitarbeiter</h4>
@@ -2106,7 +2108,7 @@
     })();
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
-  <script src="./deployment-plan-ui.js?v=20260603f"></script>
+  <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./app.js?v=20260531shell15"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>

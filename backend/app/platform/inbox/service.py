@@ -135,24 +135,95 @@ def build_operations_inbox(
             if cid and details and cid not in details and f'"companyId": "{cid}"' not in details:
                 if role != "superadmin":
                     continue
+            code = str(r["code"] or "")
+            title_map = {
+                "deployment_worker_declined": "Einsatz abgelehnt",
+            }
             items.append(
                 {
                     "id": f"sys:{r['id']}",
                     "source": "system",
                     "severity": r["severity"] or "info",
-                    "title": r["code"] or "system",
+                    "title": title_map.get(code, code or "system"),
                     "message": r["message"] or "",
                     "companyId": cid or None,
                     "createdAt": _coerce_iso_timestamp(r["created_at"]),
                     "status": "resolved" if r["resolved_at"] else "open",
                     "actions": [
                         {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
+                        *(
+                            [
+                                {
+                                    "type": "navigate",
+                                    "url": "/index.html?view=deployment-plan",
+                                    "label": "Einsatzplan",
+                                }
+                            ]
+                            if code == "deployment_worker_declined"
+                            else []
+                        ),
                         {"type": "navigate", "url": "/admin-v2/index.html", "label": "Admin v2"},
                     ],
                 }
             )
     except Exception:
         pass
+
+    # Worker declined deployment days (Einsatzplan)
+    if cid:
+        try:
+            from datetime import datetime
+
+            from backend.app.platform.workforce.deployment_responses import list_company_declines_for_month
+
+            now = datetime.utcnow()
+            seen_decline: set[str] = set()
+            for offset in (0, 1):
+                m = now.month + offset
+                y = now.year
+                if m > 12:
+                    m -= 12
+                    y += 1
+                declines = list_company_declines_for_month(
+                    db, company_id=cid, year=y, month=m, limit=25
+                )
+                for dec in declines:
+                    key = f"{dec.get('workerId')}:{dec.get('workDate')}"
+                    if key in seen_decline:
+                        continue
+                    seen_decline.add(key)
+                    reason = str(dec.get("reason") or "").strip()
+                    loc = str(dec.get("location") or "").strip() or "—"
+                    msg = f"{dec.get('workerName') or 'Mitarbeiter'} · {dec.get('workDate')} · {loc}"
+                    if reason:
+                        msg += f" · Grund: {reason}"
+                    items.append(
+                        {
+                            "id": f"depdecl:{key}",
+                            "source": "deployment",
+                            "severity": "high",
+                            "title": "Einsatz abgelehnt",
+                            "message": msg[:500],
+                            "companyId": cid,
+                            "workerId": dec.get("workerId"),
+                            "createdAt": _coerce_iso_timestamp(dec.get("respondedAt")) or _now_iso(),
+                            "status": "open",
+                            "actions": [
+                                {
+                                    "type": "navigate",
+                                    "url": "/index.html?view=deployment-plan",
+                                    "label": "Einsatzplan öffnen",
+                                },
+                                {
+                                    "type": "navigate",
+                                    "url": "/enterprise-hub.html",
+                                    "label": "Betrieb-Portal",
+                                },
+                            ],
+                        }
+                    )
+        except Exception:
+            pass
 
     # Documents expiring in 14 days (company scoped)
     if cid:

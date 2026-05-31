@@ -6,6 +6,26 @@
   let modalDays = [];
   let monthState = null;
   let bound = false;
+  let autoRefreshTimer = null;
+
+  function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+      window.clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    autoRefreshTimer = window.setInterval(() => {
+      const view = document.querySelector('.view[data-view="deployment-plan"].active');
+      if (!view || !global.token) {
+        stopAutoRefresh();
+        return;
+      }
+      refreshView().catch(() => {});
+    }, 20000);
+  }
 
   function $(id) {
     return document.getElementById(id);
@@ -98,20 +118,13 @@
   }
 
   function renderDeclinesBanner(state) {
-    const bar = $("cpDeploymentMonthBar");
-    if (!bar) return;
-    let banner = $("cpDeploymentDeclinesBanner");
+    const banner = $("cpDeploymentDeclinesBanner");
+    if (!banner) return;
     const count = Number(state?.declinedDayCount || 0);
     if (!count) {
-      banner?.remove();
+      banner.classList.add("hidden");
+      banner.innerHTML = "";
       return;
-    }
-    if (!banner) {
-      banner = document.createElement("div");
-      banner.id = "cpDeploymentDeclinesBanner";
-      banner.className = "deployment-declines-banner";
-      banner.setAttribute("role", "alert");
-      bar.insertAdjacentElement("afterend", banner);
     }
     const items = (state.recentDeclines || [])
       .slice(0, 8)
@@ -130,6 +143,7 @@
         <p class="muted small">${escapeAttr(ui("deploymentDeclinesBannerHint"))}</p>
         <ul class="deployment-declines-list">${items}</ul>
       </div>`;
+    banner.classList.remove("hidden");
   }
 
   function renderModalDaysList() {
@@ -485,6 +499,12 @@
     });
   }
 
-  global.BaupassDeploymentPlan = { refresh: refreshView, scrollToWorkers, bindOnce };
+  global.BaupassDeploymentPlan = {
+    refresh: refreshView,
+    scrollToWorkers,
+    bindOnce,
+    startAutoRefresh,
+    stopAutoRefresh,
+  };
   bindOnce();
 })(window);

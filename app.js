@@ -16465,6 +16465,64 @@ function openEnterpriseView(viewName, embedItemId) {
 
 let dashboardPollTimer = null;
 
+function renderDeploymentDeclinesBannerEl(bannerEl, state) {
+  if (!bannerEl) return;
+  const count = Number(state?.declinedDayCount || 0);
+  if (!count) {
+    bannerEl.classList.add("hidden");
+    bannerEl.innerHTML = "";
+    return;
+  }
+  const items = (state.recentDeclines || [])
+    .slice(0, 6)
+    .map((item) => {
+      const name = escapeHtml(String(item.workerName || item.workerId || "—"));
+      const date = escapeHtml(String(item.workDate || "").slice(0, 10));
+      const loc = escapeHtml(String(item.location || "—"));
+      const reason = escapeHtml(String(item.reason || "").trim());
+      return `<li><strong>${name}</strong> · ${date} · ${loc}${reason ? ` — ${reason}` : ""}</li>`;
+    })
+    .join("");
+  bannerEl.innerHTML = `
+    <div class="deployment-declines-banner-inner">
+      <p class="deployment-declines-banner-title">${escapeHtml(uiT("deploymentDeclinesBannerTitle") || "Mitarbeiter haben Einsatztage abgelehnt")}</p>
+      <p class="muted small">${escapeHtml(uiT("deploymentDeclinesBannerHint") || "")}</p>
+      <ul class="deployment-declines-list">${items}</ul>
+      <button type="button" class="primary-button small-button" data-view="deployment-plan">${escapeHtml(uiT("navDeploymentPlan") || "Einsatzplan")}</button>
+    </div>`;
+  bannerEl.classList.remove("hidden");
+  bannerEl.querySelector("[data-view='deployment-plan']")?.addEventListener("click", () => setView("deployment-plan"));
+}
+
+async function refreshDashboardDeploymentDeclines() {
+  const banner = document.getElementById("dashboardDeploymentDeclinesBanner");
+  if (!banner || !token) return;
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (!["company-admin", "superadmin"].includes(role)) {
+    banner.classList.add("hidden");
+    return;
+  }
+  if (role === "superadmin" && !getEffectiveUiCompanyId()) {
+    banner.classList.add("hidden");
+    return;
+  }
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const q =
+    role === "superadmin" && getEffectiveUiCompanyId()
+      ? `?company_id=${encodeURIComponent(getEffectiveUiCompanyId())}`
+      : "";
+  try {
+    const state = await apiRequest(
+      `${API_BASE}/api/workforce/deployment-month${q}${q ? "&" : "?"}year=${year}&month=${month}`,
+    );
+    renderDeploymentDeclinesBannerEl(banner, state);
+  } catch {
+    banner.classList.add("hidden");
+  }
+}
+
 function startDashboardPoll() {
   if (dashboardPollTimer) return;
   dashboardPollTimer = window.setInterval(async () => {
@@ -16484,6 +16542,7 @@ function startDashboardPoll() {
       renderRecentAccess();
       renderStats();
       renderDashboardPorterLivePanel();
+      void refreshDashboardDeploymentDeclines();
     } catch (_) { /* silent */ }
   }, 60_000);
 }
@@ -16538,6 +16597,13 @@ function setView(viewName) {
     globalThis.BaupassDeploymentPlan.refresh().catch((err) => {
       showToast(err?.message || String(err), "error", 6000);
     });
+    globalThis.BaupassDeploymentPlan.startAutoRefresh?.();
+  } else {
+    globalThis.BaupassDeploymentPlan?.stopAutoRefresh?.();
+  }
+
+  if (targetView === "dashboard") {
+    void refreshDashboardDeploymentDeclines();
   }
 
   document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));
