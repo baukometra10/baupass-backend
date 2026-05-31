@@ -1360,15 +1360,6 @@ html[dir="rtl"] .app-sidebar {
   gap: 0.5rem;
 }
 
-.deployment-modal-card {
-  max-width: 520px;
-  width: 96vw;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
 .deployment-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1377,44 +1368,127 @@ html[dir="rtl"] .app-sidebar {
   margin-bottom: 0.5rem;
 }
 
+.deployment-modal-card {
+  width: min(920px, 96vw);
+  max-width: 96vw;
+  max-height: min(92vh, 900px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .deployment-days-list {
   flex: 1;
   overflow-y: auto;
-  max-height: 50vh;
+  min-height: 200px;
+  max-height: min(52vh, 480px);
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
   margin: 0.5rem 0;
   padding-right: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.15);
 }
 
+.deployment-days-header,
 .deployment-day-row {
   display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: 0.5rem;
+  grid-template-columns: 4.25rem minmax(140px, 1.6fr) 5.25rem 5.25rem minmax(90px, 1fr);
+  gap: 0.4rem;
   align-items: center;
   font-size: 0.85rem;
 }
 
-.deployment-day-row.weekend {
-  opacity: 0.85;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
-  padding: 0.2rem;
+.deployment-days-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.35rem 0.15rem;
+  margin-bottom: 0.15rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 
-.deployment-day-row input {
+.deployment-day-row.weekend {
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 0.15rem 0.1rem;
+}
+
+.deployment-day-row input[type="text"],
+.deployment-day-row input[type="time"] {
   width: 100%;
-  padding: 0.45rem 0.55rem;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: #0d131a;
   color: var(--text);
+  font-size: 0.82rem;
+}
+
+.deployment-day-row input[type="time"] {
+  padding: 0.35rem 0.35rem;
 }
 
 .deployment-day-meta {
   color: var(--muted);
   font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.deployment-weekday {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--accent-hover);
+}
+
+@media (max-width: 720px) {
+  .deployment-days-header {
+    display: none;
+  }
+
+  .deployment-day-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "day day"
+      "loc loc"
+      "start end"
+      "notes notes";
+    padding: 0.5rem 0.35rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .deployment-day-meta {
+    grid-area: day;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .deployment-day-row input[data-dep-field="location"] {
+    grid-area: loc;
+  }
+
+  .deployment-day-row input[data-dep-field="start"] {
+    grid-area: start;
+  }
+
+  .deployment-day-row input[data-dep-field="end"] {
+    grid-area: end;
+  }
+
+  .deployment-day-row input[data-dep-field="notes"] {
+    grid-area: notes;
+  }
 }
 
 .deployment-month-bar {

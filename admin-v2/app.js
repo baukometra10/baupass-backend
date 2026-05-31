@@ -967,18 +967,74 @@ function deploymentMonthParts() {
   return { year: y, month: m };
 }
 
+function isoToTimeInput(iso) {
+  const s = String(iso || "").trim();
+  if (!s) return "";
+  if (s.length >= 16 && s.includes("T")) return s.slice(11, 16);
+  if (/^\d{1,2}:\d{2}/.test(s)) return s.slice(0, 5);
+  return "";
+}
+
+function timeInputToIso(dateStr, hhmm) {
+  const date = String(dateStr || "").trim().slice(0, 10);
+  const t = String(hhmm || "").trim();
+  if (!date || !t) return "";
+  const parts = t.split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return "";
+  return `${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+}
+
+function escapeAttr(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
+function readDeploymentDaysFromForm() {
+  const host = $("deploymentDaysList");
+  if (!host) return;
+  host.querySelectorAll(".deployment-day-row[data-dep-idx]").forEach((row) => {
+    const i = parseInt(row.getAttribute("data-dep-idx"), 10);
+    const d = deploymentModalDays[i];
+    if (!d) return;
+    d.location = row.querySelector('[data-dep-field="location"]')?.value.trim() || "";
+    d.shiftStart = timeInputToIso(d.date, row.querySelector('[data-dep-field="start"]')?.value);
+    d.shiftEnd = timeInputToIso(d.date, row.querySelector('[data-dep-field="end"]')?.value);
+    d.notes = row.querySelector('[data-dep-field="notes"]')?.value.trim() || "";
+  });
+}
+
 function renderDeploymentDaysList() {
   const host = $("deploymentDaysList");
   if (!host) return;
-  host.innerHTML = deploymentModalDays
-    .map(
-      (d, i) => `
-      <label class="deployment-day-row${d.isWeekend ? " weekend" : ""}">
-        <span class="deployment-day-meta">${d.date.slice(8, 10)}. · ${d.weekday}</span>
-        <input type="text" data-dep-idx="${i}" value="${(d.location || "").replace(/"/g, "&quot;")}" placeholder="z.B. Berlin, Straße …" />
-      </label>`,
-    )
+  const header = `
+    <div class="deployment-days-header" role="row">
+      <span>${t("deployment.colDay")}</span>
+      <span>${t("deployment.colLocation")}</span>
+      <span>${t("deployment.colStart")}</span>
+      <span>${t("deployment.colEnd")}</span>
+      <span>${t("deployment.colNotes")}</span>
+    </div>`;
+  const rows = deploymentModalDays
+    .map((d, i) => {
+      const loc = escapeAttr(d.location || "");
+      const notes = escapeAttr(d.notes || "");
+      const start = escapeAttr(isoToTimeInput(d.shiftStart));
+      const end = escapeAttr(isoToTimeInput(d.shiftEnd));
+      return `
+      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}" data-dep-idx="${i}" role="row">
+        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span></span>
+        <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(t("deployment.locationPh"))}" aria-label="${escapeAttr(t("deployment.colLocation"))} ${d.date}" />
+        <input type="time" data-dep-field="start" value="${start}" aria-label="${escapeAttr(t("deployment.colStart"))} ${d.date}" />
+        <input type="time" data-dep-field="end" value="${end}" aria-label="${escapeAttr(t("deployment.colEnd"))} ${d.date}" />
+        <input type="text" data-dep-field="notes" value="${notes}" placeholder="${escapeAttr(t("deployment.notesPh"))}" aria-label="${escapeAttr(t("deployment.colNotes"))} ${d.date}" />
+      </div>`;
+    })
     .join("");
+  host.innerHTML = header + rows;
 }
 
 async function openDeploymentModal(workerId, workerName) {
@@ -1019,10 +1075,7 @@ async function reloadDeploymentPlan() {
 async function saveDeploymentPlan() {
   const q = companyQuery();
   const { year, month } = deploymentMonthParts();
-  $("deploymentDaysList").querySelectorAll("input[data-dep-idx]").forEach((inp) => {
-    const i = parseInt(inp.getAttribute("data-dep-idx"), 10);
-    if (deploymentModalDays[i]) deploymentModalDays[i].location = inp.value.trim();
-  });
+  readDeploymentDaysFromForm();
   const days = deploymentModalDays.map((d) => ({
     date: d.date,
     location: d.location,
