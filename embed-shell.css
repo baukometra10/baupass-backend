@@ -215,8 +215,19 @@ html.embed-document body.embed-mode #mainLayout.embed-layout-split {
 html.embed-document body.embed-mode .hub-main-col.embed-scroll-main {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  max-width: none;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+html.embed-document body.embed-mode #mainLayout.layout {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: unset !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 html.embed-document body.embed-mode .ai-panel.embed-panel-fixed {
