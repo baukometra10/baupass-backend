@@ -1,0 +1,59 @@
+/* BauPass — eine Plattform: Control Pass + Betrieb + Enterprise (ein Shell-Gefühl) */
+
+.content.has-embed-view {
+  padding-top: 0;
+}
+
+.content.has-embed-view .enterprise-embed-toolbar {
+  display: none;
+}
+
+.content.has-embed-view .enterprise-embed-shell {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.content.has-embed-view .enterprise-embed-frame-wrap {
+  border-radius: 0;
+}
+
+.dashboard-quick-nav {
+  display: none !important;
+}
+
+.view-dashboard .hero-panel {
+  display: none;
+}
+
+.view-dashboard .enterprise-hub-promo,
+.view-dashboard .panel:has(#enterpriseHubPromo) {
+  display: none;
+}
+
+.sidebar .sidebar-copy {
+  display: none;
+}
+
+.sidebar-card {
+  display: none;
+}
+
+.nav-link-betrieb.active,
+#enterpriseNavMount .nav-link.active {
+  background: rgba(94, 234, 212, 0.14);
+  border-color: rgba(94, 234, 212, 0.35);
+  color: #f0fdfa;
+}
+
+body[data-active-view] .topbar-copy h2 {
+  transition: color 0.15s ease;
+}
+
+body[data-active-view="admin-v2"] .content,
+body[data-active-view="enterprise-hub"] .content,
+body[data-active-view="ai-assistant"] .content,
+body[data-active-view="ops-center"] .content {
+  background: #0a1016;
+}

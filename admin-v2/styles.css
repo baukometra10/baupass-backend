@@ -23,6 +23,24 @@
   display: none !important;
 }
 
+/* Embedded in BauPass shell: no nested Enterprise hub (parent sidebar) */
+body.admin-v2-embed .nav-group:has(.nav-item-enterprise),
+body.admin-v2-embed #tab-enterprise {
+  display: none !important;
+}
+
+body.admin-v2-embed .sidebar-legacy-link {
+  display: none !important;
+}
+
+body.admin-v2-embed .app-sidebar {
+  width: 220px;
+}
+
+body.admin-v2-embed .embed-quick-nav {
+  display: none !important;
+}
+
 html {
   overflow-x: hidden;
   max-width: 100%;
@@ -1570,6 +1588,13 @@ html[dir="rtl"] .app-sidebar {
   background: rgba(251, 191, 36, 0.15);
 }
 
+.deployment-decline-reason {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text, #e2e8f0);
+}
+
 .deployment-day-row.worker-declined {
   outline: 1px solid rgba(251, 191, 36, 0.35);
 }
@@ -1593,6 +1618,110 @@ html[dir="rtl"] .app-sidebar {
   padding-left: 1.1rem;
   font-size: 0.85rem;
   line-height: 1.45;
+}
+
+.deployment-decline-clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0.2rem 0.35rem;
+  margin-left: -0.35rem;
+}
+
+.deployment-decline-clickable:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.worker-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.worker-action-btn {
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  font-family: inherit;
+}
+
+.worker-action-btn-primary {
+  background: linear-gradient(135deg, #0f4c5c, #14b8a6);
+  color: #fff;
+  border-color: transparent;
+}
+
+.worker-action-btn-ghost {
+  background: transparent;
+  color: var(--accent-hover, #5eead4);
+}
+
+.join-modal-card {
+  max-width: 420px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(94, 234, 212, 0.25);
+}
+
+.join-modal-header {
+  padding: 1.1rem 1.25rem 0.65rem;
+  background: linear-gradient(160deg, rgba(15, 76, 92, 0.55), transparent);
+}
+
+.join-modal-kicker {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-hover, #5eead4);
+}
+
+.join-modal-worker {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.join-modal-hint {
+  padding: 0 1.25rem;
+  margin: 0 0 0.65rem;
+}
+
+.join-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 1.25rem 0.75rem;
+}
+
+.join-qr-wrap img {
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.join-modal-expires {
+  padding: 0 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+.join-link-label {
+  display: block;
+  padding: 0 1.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.join-link-input {
+  margin: 0 1.25rem 1rem;
+  width: calc(100% - 2.5rem);
+}
+
+.join-modal-actions {
+  padding: 0 1.25rem 1.15rem;
+  gap: 0.5rem;
 }
 
 .deployment-modal-declined-meta {

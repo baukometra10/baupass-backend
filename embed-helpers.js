@@ -80,12 +80,130 @@
     });
   }
 
+  function ensureEmbedFallback(shell, frame, title) {
+    let fb = shell.querySelector(".embed-frame-fallback");
+    if (fb) return fb;
+    fb = document.createElement("div");
+    fb.className = "embed-frame-fallback hidden";
+    fb.setAttribute("role", "alert");
+    fb.innerHTML = `
+      <div class="embed-frame-fallback-card">
+        <p class="embed-frame-fallback-eyebrow">BauPass</p>
+        <h3 class="embed-frame-fallback-title">${title || "Modul"}</h3>
+        <p class="embed-frame-fallback-msg" data-embed-fallback-msg>
+          Verbindung zum Server fehlgeschlagen. Bitte prüfen Sie, ob die Anwendung auf Railway läuft, oder öffnen Sie das Modul im Vollbild.
+        </p>
+        <div class="embed-frame-fallback-actions">
+          <button type="button" class="primary-button" data-embed-retry>Erneut laden</button>
+          <a class="ghost-button" data-embed-open target="_blank" rel="noopener noreferrer">Im Vollbild öffnen</a>
+        </div>
+      </div>`;
+    shell.appendChild(fb);
+    return fb;
+  }
+
+  function bindEnterpriseIframe(frameId, options = {}) {
+    const frame = global.document.getElementById(frameId);
+    const shell = frame?.closest(".enterprise-embed-shell");
+    if (!frame || !shell) return;
+    if (frame.dataset.embedBound === "1") {
+      const url = options.openUrl || frame.getAttribute("src") || "";
+      if (url && frame.getAttribute("src") !== url) {
+        frame.__baupassEmbedLoad?.(url);
+      }
+      return;
+    }
+    frame.dataset.embedBound = "1";
+
+    const title = options.title || frame.getAttribute("title") || "Modul";
+    const fallback = ensureEmbedFallback(shell, frame, title);
+    const msgEl = fallback.querySelector("[data-embed-fallback-msg]");
+    const openLink = fallback.querySelector("[data-embed-open]");
+    const retryBtnFixed = fallback.querySelector("[data-embed-retry]");
+
+    let pendingUrl = options.openUrl || frame.getAttribute("src") || "";
+
+    const showFallback = (reason) => {
+      frame.classList.add("is-hidden");
+      fallback.classList.remove("hidden");
+      if (msgEl) {
+        if (reason === "timeout") {
+          msgEl.textContent =
+            "Das Modul antwortet nicht (Timeout). Railway-Deployment prüfen oder Vollbild öffnen.";
+        } else {
+          msgEl.textContent =
+            "Die eingebettete Oberfläche konnte nicht geladen werden (Verbindung abgelehnt oder Server offline).";
+        }
+      }
+      if (openLink && pendingUrl) openLink.href = pendingUrl;
+    };
+
+    const hideFallback = () => {
+      fallback.classList.add("hidden");
+      frame.classList.remove("is-hidden");
+    };
+
+    const probeLoaded = () => {
+      try {
+        const win = frame.contentWindow;
+        if (!win) return false;
+        const href = win.location?.href || "";
+        if (!href || href === "about:blank") return false;
+        const doc = win.document;
+        if (!doc?.body) return false;
+        const text = (doc.body.innerText || "").toLowerCase();
+        if (text.includes("verbindung abgelehnt") || text.includes("refused to connect")) {
+          return false;
+        }
+        return doc.body.childElementCount > 0;
+      } catch {
+        return true;
+      }
+    };
+
+    const armLoadWatch = () => {
+      hideFallback();
+      let settled = false;
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        global.clearTimeout(timer);
+        if (ok) hideFallback();
+        else showFallback("error");
+      };
+      const timer = global.setTimeout(() => finish(probeLoaded()), 10000);
+      const onLoad = () => {
+        global.setTimeout(() => finish(probeLoaded()), 400);
+      };
+      frame.addEventListener("load", onLoad, { once: true });
+    };
+
+    const loadUrl = (url) => {
+      pendingUrl = url || pendingUrl;
+      if (openLink && pendingUrl) openLink.href = pendingUrl;
+      if (!pendingUrl) return;
+      armLoadWatch();
+      frame.setAttribute("src", pendingUrl);
+    };
+
+    retryBtnFixed?.addEventListener("click", () => loadUrl(pendingUrl));
+    frame.__baupassEmbedLoad = loadUrl;
+    if (pendingUrl) {
+      if (frame.getAttribute("src") !== pendingUrl) {
+        loadUrl(pendingUrl);
+      } else {
+        armLoadWatch();
+      }
+    }
+  }
+
   global.BaupassEmbed = {
     isEmbedMode,
     withEmbed,
     viewFromHref,
     navigateFromEmbed,
     wireEmbedNav,
+    bindEnterpriseIframe,
   };
 
   const TOKEN_KEYS = ["baupass-control-token", "baupass-admin-v2-token"];

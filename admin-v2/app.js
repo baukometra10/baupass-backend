@@ -123,6 +123,8 @@ async function activateCommandItem(item) {
 
 function ensureEmbedQuickNav() {
   if (!isEmbedMode()) return;
+  /* Parent BauPass sidebar owns navigation — no duplicate quick bar in embed */
+  return;
   const main = document.querySelector(".app-main");
   if (!main || document.getElementById("embedQuickNav")) return;
   const nav = document.createElement("nav");
@@ -233,6 +235,8 @@ window.addEventListener("message", (event) => {
   if (event.data.type === "baupass-focus-einsatzplan") {
     applyParentCompanyId(event.data.companyId);
     pendingEinsatzplanFocus = true;
+    pendingDeploymentWorkerId = String(event.data.workerId || "").trim() || null;
+    pendingDeploymentWorkerName = String(event.data.workerName || "").trim() || null;
     if (!tryFocusEinsatzplanFromParent()) {
       bootSession().catch(() => {});
     }
@@ -257,16 +261,33 @@ window.addEventListener("message", (event) => {
 });
 let pendingIntegrationProvider = null;
 let pendingEinsatzplanFocus = false;
+let pendingDeploymentWorkerId = null;
+let pendingDeploymentWorkerName = null;
 
 function tryFocusEinsatzplanFromParent() {
   if ($("dashboardView")?.classList.contains("hidden")) {
     return false;
   }
   pendingEinsatzplanFocus = false;
+  const workerId = pendingDeploymentWorkerId;
+  const workerName = pendingDeploymentWorkerName;
+  pendingDeploymentWorkerId = null;
+  pendingDeploymentWorkerName = null;
   activateCommandItem({
     tab: "workers",
     focusDeployment: true,
-  }).catch(notifyTabError);
+  })
+    .then(async () => {
+      if (!workerId) return;
+      const list = Array.isArray(window.__adminV2WorkersCache) ? window.__adminV2WorkersCache : [];
+      const w = list.find((entry) => String(entry.id || entry.workerId || "") === String(workerId));
+      const name =
+        workerName ||
+        `${w?.firstName || w?.first_name || ""} ${w?.lastName || w?.last_name || ""}`.trim() ||
+        workerId;
+      await openDeploymentModal(workerId, name);
+    })
+    .catch(notifyTabError);
   return true;
 }
 
@@ -1047,12 +1068,19 @@ function renderDeploymentDaysList() {
       const end = escapeAttr(isoToTimeInput(d.shiftEnd));
       const declined =
         String(d.workerResponse || "") === "declined" || Boolean(d.isDeclined);
+      const reasonText = String(d.declineReason || "").trim();
       const declineHint = declined
-        ? `<span class="deployment-day-declined" title="${escapeAttr(d.declineReason || "")}">${escapeAttr(t("deployment.workerDeclined"))}</span>`
+        ? `<span class="deployment-day-declined">${escapeAttr(t("deployment.workerDeclined"))}</span>`
         : "";
+      const declineReasonBlock =
+        declined && reasonText
+          ? `<p class="deployment-decline-reason"><strong>${escapeAttr(t("deployment.declineReasonLabel"))}:</strong> ${escapeAttr(reasonText)}</p>`
+          : declined
+            ? `<p class="deployment-decline-reason muted small">${escapeAttr(t("deployment.workerDeclined"))} — ${escapeAttr(t("deployment.noDeclineReason"))}</p>`
+            : "";
       return `
       <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}" data-dep-idx="${i}" role="row">
-        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}</span>
+        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}${declineReasonBlock}</span>
         <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(t("deployment.locationPh"))}" aria-label="${escapeAttr(t("deployment.colLocation"))} ${d.date}" />
         <input type="time" data-dep-field="start" value="${start}" aria-label="${escapeAttr(t("deployment.colStart"))} ${d.date}" />
         <input type="time" data-dep-field="end" value="${end}" aria-label="${escapeAttr(t("deployment.colEnd"))} ${d.date}" />
@@ -2051,8 +2079,23 @@ async function loadInbox() {
             return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${t("inbox.done")}</button>`;
           if (a.type === "execute" && a.action)
             return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
-          if (a.type === "navigate")
-            return `<a class="btn-link" href="${a.url}${q}">${a.label || t("inbox.openAction")}</a>`;
+          if (a.type === "navigate") {
+            const label = a.label || t("inbox.openAction");
+            const isDeployment =
+              String(it.id || "").startsWith("depdecl:") ||
+              String(a.url || "").includes("deployment-plan") ||
+              String(a.url || "").includes("einsatzplan");
+            if (isDeployment && it.workerId) {
+              const workerName = String(it.message || "")
+                .split("·")[0]
+                .trim();
+              return `<button type="button" class="btn-link inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeAttr(label)}</button>`;
+            }
+            if (window.parent !== window && String(a.url || "").startsWith("/")) {
+              return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(String(a.url))}">${escapeAttr(label)}</button>`;
+            }
+            return `<a class="btn-link" href="${a.url}${q}">${label}</a>`;
+          }
           if (a.type === "prompt")
             return `<a class="btn-link" href="/ai-command-center.html${q}&autoprompt=${encodeURIComponent(a.prompt || "")}">KI</a>`;
           return "";
@@ -2066,6 +2109,41 @@ async function loadInbox() {
         <td>${acts}</td></tr>`;
     })
     .join("")}</tbody></table>`;
+  el.querySelectorAll(".inbox-nav-deployment").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const workerId = String(btn.dataset.workerId || "").trim();
+      const workerName = String(btn.dataset.workerName || "").trim();
+      if (!workerId) return;
+      try {
+        switchToTab("workers");
+        await loadWorkers();
+        await openDeploymentModal(workerId, workerName || workerId);
+      } catch (e) {
+        showActionToast(e.message, true);
+      }
+    });
+  });
+  el.querySelectorAll(".inbox-nav-parent").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const raw = String(btn.dataset.navUrl || "").trim();
+      if (!raw) return;
+      try {
+        const u = new URL(raw, window.location.origin);
+        const view = u.searchParams.get("view") || "";
+        window.parent.postMessage(
+          {
+            type: "baupass-navigate",
+            view,
+            focusEinsatzplan: u.searchParams.get("einsatzplan") === "1",
+            url: u.pathname + u.search + u.hash,
+          },
+          window.location.origin,
+        );
+      } catch (e) {
+        showActionToast(e.message, true);
+      }
+    });
+  });
   el.querySelectorAll(".inbox-resolve").forEach((btn) => {
     btn.addEventListener("click", async () => {
       try {
@@ -2410,6 +2488,15 @@ function renderDeploymentDeclinesBanner(state) {
       <p class="muted small">${escapeAttr(t("deployment.declinesBannerHint"))}</p>
       <ul class="deployment-declines-list">${items}</ul>
     </div>`;
+  banner.querySelectorAll(".deployment-declines-list li").forEach((li, idx) => {
+    const item = (state.recentDeclines || []).slice(0, 8)[idx];
+    if (!item?.workerId) return;
+    li.classList.add("deployment-decline-clickable");
+    li.addEventListener("click", () => {
+      const wname = String(item.workerName || item.workerId || "").trim();
+      openDeploymentModal(item.workerId, wname).catch((e) => showActionToast(e.message, true));
+    });
+  });
 }
 
 async function loadDeploymentMonthBar() {
@@ -2523,6 +2610,7 @@ async function loadWorkers() {
   await loadDeploymentMonthBar();
   const data = await api(`/api/v2/workers${q}`);
   const rows = data.workers || [];
+  window.__adminV2WorkersCache = rows;
   const container = $("workersTable");
   if (!rows.length) {
     container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noWorkers")}</p>`;
@@ -2549,10 +2637,11 @@ async function loadWorkers() {
           <input class="nfc-input" type="text" placeholder="UID" value="${current}" data-worker-id="${id}" />
           <button type="button" class="btn-link" data-save-nfc="${id}">${t("common.save")}</button>
         </td>
-        <td>
-          <button type="button" class="btn-link" data-deployment-plan="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("deployment.planBtn")}</button>
-          ·
-          <button type="button" class="btn-link" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.joinQr")}</button>
+        <td class="worker-action-cell">
+          <div class="worker-action-group">
+            <button type="button" class="worker-action-btn worker-action-btn-primary" data-deployment-plan="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("deployment.planBtn")}</button>
+            <button type="button" class="worker-action-btn worker-action-btn-ghost" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.joinQr")}</button>
+          </div>
         </td>
       </tr>`;
     })

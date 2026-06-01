@@ -305,19 +305,23 @@
     </div>
   </div>
 
-  <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-card">
-      <h2 data-i18n="join.title">Worker app</h2>
-      <p id="joinModalName" class="muted"></p>
-      <p class="muted small" data-i18n="join.hint">QR hint</p>
+  <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="joinModalTitle">
+    <div class="modal-card join-modal-card">
+      <header class="join-modal-header">
+        <p class="join-modal-kicker" data-i18n="join.kicker">Mitarbeiter-App</p>
+        <h2 id="joinModalTitle" data-i18n="join.title">Worker-App aktivieren</h2>
+        <p id="joinModalName" class="join-modal-worker"></p>
+      </header>
+      <p class="muted small join-modal-hint" data-i18n="join.hint">QR hint</p>
       <div class="join-qr-wrap">
-        <img id="joinQrImg" alt="QR" width="240" height="240" />
+        <img id="joinQrImg" alt="QR" width="220" height="220" />
       </div>
-      <p id="joinExpires" class="muted small"></p>
+      <p id="joinExpires" class="join-modal-expires muted small"></p>
+      <label class="join-link-label muted small" data-i18n="join.linkLabel">Aktivierungslink</label>
       <input id="joinLinkInput" type="text" readonly class="join-link-input" />
-      <div class="modal-actions">
-        <button type="button" id="joinCopyBtn" data-i18n="common.copy">Copy</button>
-        <button type="button" id="joinCloseBtn" class="ghost" data-i18n="common.close">Close</button>
+      <div class="modal-actions join-modal-actions">
+        <button type="button" id="joinCopyBtn" class="primary" data-i18n="common.copy">Link kopieren</button>
+        <button type="button" id="joinCloseBtn" class="ghost" data-i18n="common.close">Schließen</button>
       </div>
     </div>
   </div>

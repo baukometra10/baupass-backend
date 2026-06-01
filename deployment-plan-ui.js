@@ -144,6 +144,18 @@
         <ul class="deployment-declines-list">${items}</ul>
       </div>`;
     banner.classList.remove("hidden");
+    const declines = (state.recentDeclines || []).slice(0, 8);
+    banner.querySelectorAll(".deployment-declines-list li").forEach((li, idx) => {
+      const item = declines[idx];
+      if (!item?.workerId) return;
+      li.classList.add("deployment-decline-clickable");
+      li.addEventListener("click", () => {
+        const wname = String(item.workerName || item.workerId || "").trim();
+        openWorkerModal(item.workerId, wname).catch((e) =>
+          global.showToast?.(e.message, "error", 6000),
+        );
+      });
+    });
   }
 
   function renderModalDaysList() {
@@ -166,12 +178,17 @@
         const end = escapeAttr(isoToTimeInput(d.shiftEnd));
         const declined =
           String(d.workerResponse || "") === "declined" || Boolean(d.isDeclined);
+        const reasonText = String(d.declineReason || "").trim();
         const declineHint = declined
-          ? `<span class="deployment-day-declined" title="${escapeAttr(d.declineReason || "")}">${escapeAttr(ui("deploymentWorkerDeclined"))}</span>`
+          ? `<span class="deployment-day-declined">${escapeAttr(ui("deploymentWorkerDeclined"))}</span>`
           : "";
+        const declineReasonBlock =
+          declined && reasonText
+            ? `<p class="deployment-decline-reason"><strong>${escapeAttr(ui("deploymentDeclineReasonLabel"))}:</strong> ${escapeAttr(reasonText)}</p>`
+            : "";
         return `
       <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}" data-dep-idx="${i}" role="row">
-        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}</span>
+        <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}${declineReasonBlock}</span>
         <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(ui("deploymentLocationPh"))}" />
         <input type="time" data-dep-field="start" value="${start}" />
         <input type="time" data-dep-field="end" value="${end}" />
@@ -502,6 +519,10 @@
   global.BaupassDeploymentPlan = {
     refresh: refreshView,
     scrollToWorkers,
+    openWorker: (workerId, workerName) =>
+      openWorkerModal(workerId, workerName || "").catch((e) =>
+        global.showToast?.(e.message, "error", 6000),
+      ),
     bindOnce,
     startAutoRefresh,
     stopAutoRefresh,

@@ -266,10 +266,46 @@
       max-width: none;
     }
     body.embed-mode #mainLayout.embed-layout-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.65rem;
+    }
+    body.embed-mode .hub-main-col {
       display: flex;
       flex-direction: column;
-      grid-template-columns: 1fr;
-      gap: 0.5rem;
+      gap: 0.55rem;
+      min-width: 0;
+      overflow-y: auto;
+    }
+    body.embed-mode #hubEmbedTop {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.6rem;
+      width: 100%;
+    }
+    body.embed-mode #hubQuickNav {
+      display: none !important;
+    }
+    body.embed-mode #stats.hub-embed-stats {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0.4rem;
+      overflow-x: auto;
+      margin-bottom: 0;
+      padding-bottom: 0.2rem;
+    }
+    body.embed-mode #stats.hub-embed-stats .stat {
+      flex: 0 0 auto;
+      min-width: 5.2rem;
+    }
+    body.embed-mode .monatsplan-steps-compact {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    body.embed-mode .monatsplan-hero .hero-btn-primary {
+      width: 100%;
     }
     body.embed-mode .ai-panel,
     body.embed-mode .ai-panel.embed-panel-fixed {
@@ -360,7 +396,7 @@
       </div>
       <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
-      <div id="stats" class="stats"></div>
+      <div id="stats" class="stats hub-embed-stats"></div>
       <div class="toolbar">
         <select id="companySelect" class="hidden" style="min-width:200px;padding:0.5rem;border-radius:8px;border:1px solid var(--border);background:#0f1419;color:var(--text)"></select>
         <input id="search" type="search" placeholder="" />
@@ -954,17 +990,18 @@
         el.classList.add("hidden");
         return;
       }
+      const steps =
+        HUB_LANG === "ar"
+          ? "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال"
+          : HUB_LANG === "en"
+            ? "1) Pick month 2) Edit worker 3) Review status 4) Confirm send"
+            : "1) Monat wählen 2) Mitarbeiter bearbeiten 3) Status prüfen 4) Versand bestätigen";
       el.innerHTML = `
         <h3>${t("monatsplanTitle")}</h3>
-        <ol>
-          <li>${t("monatsplanStep1")}</li>
-          <li>${t("monatsplanStep2")}</li>
-          <li>${t("monatsplanStep3")}</li>
-          <li>${t("monatsplanStep4")}</li>
-        </ol>
+        <p class="monatsplan-steps-compact">${steps}</p>
         <div class="hero-actions">
           <button type="button" class="hero-btn-primary" data-hub-go-deployment="1">${t("monatsplanOpen")}</button>
-          <p class="monatsplan-open-hint">${t("monatsplanOpenHint")}</p>
+          <p class="monatsplan-open-hint">${embed ? "" : t("monatsplanOpenHint")}</p>
         </div>`;
       el.classList.remove("hidden");
     }
@@ -1199,6 +1236,7 @@
       document.documentElement.classList.add("embed-document");
       document.getElementById("hubHeader")?.classList.add("hidden");
       document.body.classList.add("embed-mode");
+      document.getElementById("mainLayout")?.classList.add("embed-layout-split");
       document.querySelector(".hub-main-col")?.classList.add("embed-scroll-main");
       document.body.style.minHeight = "100%";
       renderHubQuickNav();

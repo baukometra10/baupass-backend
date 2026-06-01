@@ -327,11 +327,25 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop-App",
     desktopInstallHint: "Dieses Portal kann auf dem Computer wie ein Programm installiert werden.",
     desktopInstallButton: "Auf diesem Computer installieren",
-    appTitle: "Control Pass",
+    appTitle: "BauPass",
+    navBetrieb: "Betrieb",
+    topbarHeadingDashboard: "Übersicht — Ausweise, Zutritt & Betrieb",
+    topbarHeadingWorkers: "Mitarbeiter verwalten",
+    topbarHeadingBadge: "Digitale Ausweise",
+    topbarHeadingAccess: "Zutritt & Check-in",
+    topbarHeadingLeave: "Urlaubsanträge",
+    topbarHeadingDocuments: "Dokumente & Compliance",
+    topbarHeadingDevices: "Geräte & Drehkreuz",
+    topbarHeadingInvoices: "Rechnungen",
+    topbarHeadingAdmin: "System & Mandanten",
+    topbarHeadingBetrieb: "Betrieb — Posteingang, Schichten & Workforce",
+    topbarHeadingAi: "BauPass KI — Assistent",
+    topbarHeadingHub: "Funktionen & Integrationen",
+    topbarHeadingOps: "Ops-Zentrale",
     alertInstallUnavailable: "Die Installation ist in diesem Browser gerade nicht direkt verfuegbar. In Chrome oder Edge kannst du im Browser-Menue 'App installieren' waehlen.",
     alertSessionExpired: "Sitzung abgelaufen. Bitte neu anmelden.",
     // Shell
-    sidebarEyebrow: "Firmenportal",
+    sidebarEyebrow: "BauPass Plattform",
     sidebarCopy: "Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.",
     sidebarCardTitle: "Vermietungsmodus",
     sidebarCardStrong: "Multi-Firma f\u00e4hig",
@@ -439,7 +453,7 @@ const UI_TRANSLATIONS = {
     platformHealthDegraded: "Eingeschränkt",
     platformHealthProbeApi: "API",
     platformHealthProbeReady: "Bereit",
-    platformHealthProbeAdminV2: "Betrieb v2",
+    platformHealthProbeAdminV2: "Betrieb",
     platformHealthProbeHub: "Enterprise-Hub",
     platformHealthProbeOps: "Ops-Zentrale",
     platformHealthProbeDb: "Datenbank",
@@ -518,11 +532,11 @@ const UI_TRANSLATIONS = {
     labelReportTimezone: "Berichts-Zeitzone (08:00 Uhr)",
     reportTimezonePlaceholder: "Europe/Berlin",
     reportTimezoneHint: "IANA, z. B. Europe/Berlin, Asia/Dubai. Leer = Plattform-Standard.",
-    navEnterpriseSection: "Enterprise",
+    navEnterpriseSection: "KI & Integration",
     navBaupassAi: "BauPass KI",
-    navEnterpriseHub: "Enterprise-Hub",
+    navEnterpriseHub: "Funktionen & Tarife",
     navOpsCenter: "Ops-Zentrale",
-    navAdminV2: "Betrieb v2",
+    navAdminV2: "Betrieb",
     navAiCopilot: "KI-Assistent",
     navIntegrations: "Integrationen",
     cameraEventWorker: "Mitarbeiter",
@@ -1361,7 +1375,13 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop App",
     desktopInstallHint: "This portal can be installed on your computer like a native app.",
     desktopInstallButton: "Install on this computer",
-    appTitle: "Control Pass",
+    appTitle: "BauPass",
+    navBetrieb: "Operations",
+    topbarHeadingDashboard: "Overview — badges, access & operations",
+    topbarHeadingBetrieb: "Operations — inbox, shifts & workforce",
+    topbarHeadingAi: "BauPass AI — assistant",
+    topbarHeadingHub: "Features & integrations",
+    topbarHeadingOps: "Ops center",
     alertInstallUnavailable: "Installation is not directly available in this browser right now. In Chrome or Edge, choose 'Install app' from the browser menu.",
     alertSessionExpired: "Session expired. Please sign in again.",
     // Shell
@@ -1372,7 +1392,8 @@ const UI_TRANSLATIONS = {
     sidebarCardDesc: "Each construction company manages its team separately. Super admin retains system control.",
     navGroupDaily: "Daily operations",
     navGroupCompliance: "Compliance & system",
-    navAdminV2: "Admin v2 — quick ops",
+    navAdminV2: "Operations",
+    navEnterpriseSection: "AI & integrations",
     topbarMore: "More",
     navDashboard: "Dashboard",
     navWorkers: "Workers",
@@ -3060,13 +3081,19 @@ const UI_TRANSLATIONS = {
     navBaupassAi: "BauPass KI",
     navEnterpriseHub: "مركز المؤسسة",
     navOpsCenter: "مركز العمليات",
-    navAdminV2: "التشغيل v2",
+    navAdminV2: "التشغيل",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
     enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
-    appTitle: "Control Pass",
-    navEnterpriseSection: "المؤسسة",
+    appTitle: "BauPass",
+    navBetrieb: "التشغيل",
+    navEnterpriseSection: "الذكاء والتكامل",
+    topbarHeadingDashboard: "نظرة عامة — البطاقات والدخول والتشغيل",
+    topbarHeadingBetrieb: "التشغيل — البريد والورديات والقوى العاملة",
+    topbarHeadingAi: "BauPass KI — المساعد",
+    topbarHeadingHub: "الوظائف والتكاملات",
+    topbarHeadingOps: "مركز العمليات",
     navAiCopilot: "مساعد الذكاء الاصطناعي",
     navIntegrations: "التكاملات",
     workerHoursModalTitle: "ساعات العمل",
@@ -8191,13 +8218,41 @@ const PLAN_WORKER_FREE_INCLUDED = {
 
 const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
 /** Enterprise sidebar (under Dokumente) — in-app embed views, filtered by plan */
+/** Betrieb (admin-v2) lives in Tagesbetrieb sidebar — not duplicated under Enterprise */
+const ADMIN_V2_EMBED_ITEM = {
+  id: "admin-v2",
+  view: "admin-v2",
+  path: "/admin-v2/index.html",
+  labelKey: "navBetrieb",
+  minPlan: "starter",
+  queryCompany: true,
+  version: true,
+  embed: true,
+};
+
 const ENTERPRISE_NAV_ITEMS = [
   { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navBaupassAi", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
-  { id: "admin-v2", view: "admin-v2", path: "/admin-v2/index.html", labelKey: "navAdminV2", minPlan: "starter", queryCompany: true, version: true, embed: true },
   { id: "ai-copilot", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, hash: "#ai-panel", version: true, embed: true },
 ];
+
+const PLATFORM_VIEW_CHROME = {
+  dashboard: { eyebrow: "topbarEyebrow", heading: "topbarHeadingDashboard" },
+  workers: { eyebrow: "navWorkers", heading: "topbarHeadingWorkers" },
+  "deployment-plan": { eyebrow: "navDeploymentPlan", heading: "deploymentPlanTitle" },
+  badge: { eyebrow: "navBadge", heading: "topbarHeadingBadge" },
+  access: { eyebrow: "navAccess", heading: "topbarHeadingAccess" },
+  leave: { eyebrow: "navLeave", heading: "topbarHeadingLeave" },
+  documents: { eyebrow: "navDocuments", heading: "topbarHeadingDocuments" },
+  devices: { eyebrow: "navDevices", heading: "topbarHeadingDevices" },
+  invoices: { eyebrow: "navInvoices", heading: "topbarHeadingInvoices" },
+  admin: { eyebrow: "navAdmin", heading: "topbarHeadingAdmin" },
+  "admin-v2": { eyebrow: "navBetrieb", heading: "topbarHeadingBetrieb" },
+  "ai-assistant": { eyebrow: "navBaupassAi", heading: "topbarHeadingAi" },
+  "enterprise-hub": { eyebrow: "navEnterpriseHub", heading: "topbarHeadingHub" },
+  "ops-center": { eyebrow: "navOpsCenter", heading: "topbarHeadingOps" },
+};
 
 const ENTERPRISE_EMBED_META = {
   "ai-assistant": { frameId: "aiAssistantFrame", externalLinkId: "aiAssistantExternalLink", defaultItemId: "ai-assistant" },
@@ -16214,9 +16269,39 @@ function getEnterpriseEmbedViews() {
   if (role === "turnstile") {
     return [];
   }
-  return [...new Set(
-    ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional")).map((item) => item.view)
-  )];
+  const views = ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional")).map(
+    (item) => item.view,
+  );
+  if (companyMeetsMinPlan(ADMIN_V2_EMBED_ITEM.minPlan || "starter")) {
+    views.push("admin-v2");
+  }
+  return [...new Set(views)];
+}
+
+function syncPlatformNavLinks() {
+  const allowed = getAllowedViewsForRole(getEffectiveUiRole());
+  const betrieb = document.getElementById("navBetriebLink");
+  if (betrieb) {
+    const show = allowed.includes("admin-v2");
+    betrieb.classList.toggle("hidden", !show);
+    betrieb.setAttribute("aria-hidden", show ? "false" : "true");
+  }
+  document.querySelectorAll(".nav-link-betrieb").forEach((link) => {
+    link.classList.toggle("active", getCurrentViewName() === "admin-v2");
+  });
+}
+
+function updateShellChrome(viewName) {
+  const chrome = PLATFORM_VIEW_CHROME[viewName] || PLATFORM_VIEW_CHROME.dashboard;
+  const eyebrowEl = document.getElementById("topbarEyebrowEl");
+  const headingEl = document.getElementById("topbarHeadingEl");
+  if (eyebrowEl) {
+    eyebrowEl.textContent = uiT(chrome.eyebrow);
+  }
+  if (headingEl) {
+    headingEl.textContent = uiT(chrome.heading);
+  }
+  document.body.dataset.activeView = viewName || "dashboard";
 }
 
 function buildEnterpriseEmbedUrl(item) {
@@ -16366,8 +16451,10 @@ function loadEnterpriseEmbed(viewName) {
   }
   const itemId = pendingEnterpriseEmbedItemId || meta.defaultItemId;
   pendingEnterpriseEmbedItemId = null;
-  const item = ENTERPRISE_NAV_ITEMS.find((entry) => entry.id === itemId)
-    || ENTERPRISE_NAV_ITEMS.find((entry) => entry.view === viewName);
+  const item =
+    ENTERPRISE_NAV_ITEMS.find((entry) => entry.id === itemId) ||
+    (viewName === "admin-v2" || itemId === "admin-v2" ? ADMIN_V2_EMBED_ITEM : null) ||
+    ENTERPRISE_NAV_ITEMS.find((entry) => entry.view === viewName);
   if (!item) {
     return;
   }
@@ -16488,21 +16575,15 @@ function renderEnterpriseNavMenu() {
   const cid = getEffectiveUiCompanyId();
   const items = ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional"));
 
+  syncPlatformNavLinks();
+
   if (!items.length) {
     mount.innerHTML = "";
     mount.classList.add("hidden");
-    document.querySelectorAll(".quick-nav-tile[data-view='admin-v2']").forEach((el) => {
-      el.classList.remove("hidden");
-      el.setAttribute("aria-hidden", "false");
-    });
     return;
   }
 
   mount.classList.remove("hidden");
-  document.querySelectorAll(".quick-nav-tile[data-view='admin-v2']").forEach((el) => {
-    el.classList.add("hidden");
-    el.setAttribute("aria-hidden", "true");
-  });
   const planLabel = getPlanLabel(getCompanyPlan(cid));
   const sectionLabel = uiT("navEnterpriseSection");
   const planSuffix =
@@ -16812,6 +16893,8 @@ function setView(viewName) {
   }
 
   document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));
+  updateShellChrome(targetView);
+  syncPlatformNavLinks();
 }
 
 function stopInvoiceAutoRefresh() {

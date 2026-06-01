@@ -74,8 +74,13 @@ def register_security_middleware(app: Flask) -> None:
 
     @app.after_request
     def _add_security_headers(response: Response) -> Response:
-        # Security headers الأساسية
-        for header, value in _SECURITY_HEADERS.items():
+        # Security headers — X-Frame-Options/CSP framing set in server.apply_security_headers
+        skip_framing = {
+            k: v
+            for k, v in _SECURITY_HEADERS.items()
+            if k not in ("X-Frame-Options",)
+        }
+        for header, value in skip_framing.items():
             response.headers.setdefault(header, value)
 
         # HSTS: فقط على HTTPS
@@ -84,7 +89,11 @@ def register_security_middleware(app: Flask) -> None:
 
         # CSP
         if not response.headers.get("Content-Security-Policy"):
-            response.headers["Content-Security-Policy"] = _build_csp()
+            path = (request.path or "").lower()
+            csp = _build_csp()
+            if path.endswith(".html") or path.startswith("/admin-v2/"):
+                csp = csp.replace("frame-src 'none'", "frame-src 'self'")
+            response.headers["Content-Security-Policy"] = csp
 
         # إخفاء معلومات الـ server
         response.headers.pop("Server", None)

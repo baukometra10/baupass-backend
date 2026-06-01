@@ -116,6 +116,67 @@ body:not(.auth-locked) {
   border-color: rgba(94, 234, 212, 0.35) !important;
 }
 
+.enterprise-embed-frame.is-hidden {
+  visibility: hidden;
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.embed-frame-fallback {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: radial-gradient(ellipse at 50% 0%, rgba(15, 76, 92, 0.35), transparent 70%);
+}
+
+.embed-frame-fallback.hidden {
+  display: none;
+}
+
+.embed-frame-fallback-card {
+  max-width: 420px;
+  text-align: center;
+  padding: 1.75rem 1.5rem;
+  border-radius: 16px;
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  background: rgba(14, 21, 29, 0.92);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.embed-frame-fallback-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(94, 234, 212, 0.85);
+}
+
+.embed-frame-fallback-title {
+  margin: 0 0 0.65rem;
+  font-size: 1.15rem;
+  color: #e8eef4;
+}
+
+.embed-frame-fallback-msg {
+  margin: 0 0 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.embed-frame-fallback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
 .enterprise-embed-frame {
   flex: 1;
   min-height: 0;

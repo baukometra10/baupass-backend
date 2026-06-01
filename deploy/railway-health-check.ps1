@@ -40,11 +40,23 @@ if ($health) {
 }
 
 $ready = Test-Endpoint "/api/health/ready"
-if ($ready -and $ready.status -ne "ready") {
+if ($ready -and $ready.ready -eq $false) {
     Write-Host "  WARNING: service not fully ready" -ForegroundColor Yellow
 }
 
 Test-Endpoint "/api/health/live" | Out-Null
+
+$platform = Test-Endpoint "/api/health/platform"
+if ($platform) {
+    $st = $platform.status
+    Write-Host "  Platform status: $st" -ForegroundColor $(if ($st -eq "ok") { "Green" } else { "Yellow" })
+    foreach ($probe in @($platform.probes)) {
+        $color = if ($probe.ok) { "Green" } else { "Red" }
+        Write-Host ('    {0}: {1} ({2} ms)' -f $probe.id, $probe.detail, $probe.latencyMs) -ForegroundColor $color
+    }
+} else {
+    Write-Host "  Platform health: not deployed yet (push latest code + redeploy)" -ForegroundColor Yellow
+}
 Test-Endpoint "/api/health/queues" | Out-Null
 $dr = Test-Endpoint "/api/health/dr"
 if ($dr -and -not $dr.ok) {

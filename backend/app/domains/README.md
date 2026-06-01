@@ -66,7 +66,9 @@ Also registered via `blueprint_registry.py` (not domains):
 
 | Area | Routes | Handler logic |
 |------|--------|---------------|
-| All `/api/*` business routes | ✅ blueprints | 🟡 still in `server.py` |
+| All `/api/*` business routes | ✅ blueprints | 🟡 mostly `server.py` |
+| **companies** — alle `/api/companies/*` Handler | ✅ | ✅ `service.py` + `repository.py` |
+| **workers** — CRUD, docs, import/export, HCE, app-access, identity (+ v2) | ✅ | ✅ Kern in `service.py`; QR/Foto/`akte.pdf` noch `server.py` |
 | `/api/qr*` | ✅ `runtime/qr_views.py` | ✅ unified |
 | HTML/static | ✅ `http/` | 🟡 handlers in `server.py` |
 | SSO state | ✅ `platform/auth/sso_state.py` | ✅ |

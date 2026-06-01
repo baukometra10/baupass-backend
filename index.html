@@ -55,10 +55,11 @@
     <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
+    <link rel="stylesheet" href="./platform-unified.css?v=20260603uni1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
-    <div class="desktop-titlebar-brand">Control Pass</div>
+    <div class="desktop-titlebar-brand">BauPass</div>
     <div class="desktop-titlebar-spacer"></div>
     <div class="desktop-titlebar-actions">
       <button id="desktopMinimizeBtn" class="desktop-titlebar-btn" type="button" aria-label="Verkleinern" title="Verkleinern"><svg width="10" height="1" viewBox="0 0 10 1" aria-hidden="true"><line x1="0" y1="0.5" x2="10" y2="0.5" stroke="currentColor" stroke-width="1"/></svg></button>
@@ -230,13 +231,14 @@
         <button class="nav-link active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
         <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
         <button class="nav-link nav-link-deployment-plan" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
+        <button type="button" id="navBetriebLink" class="nav-link nav-link-betrieb hidden" data-view="admin-v2" data-ui-i18n="navBetrieb">Betrieb</button>
         <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
         <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
         <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
         <p class="nav-section-label" data-ui-i18n="navGroupCompliance">Compliance &amp; System</p>
         <button class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
         <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
-        <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Enterprise"></div>
+        <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Plattform"></div>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
         <button class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
       </nav>
@@ -250,8 +252,8 @@
     <main class="content">
       <header class="topbar">
         <div class="topbar-copy">
-          <p class="eyebrow" data-ui-i18n="topbarEyebrow">Systemstatus</p>
-          <h2 data-ui-i18n="topbarHeading">Mitarbeiter-Ausweise und Zutritt</h2>
+          <p class="eyebrow" id="topbarEyebrowEl" data-ui-i18n="topbarEyebrow">Systemstatus</p>
+          <h2 id="topbarHeadingEl" data-ui-i18n="topbarHeading">Mitarbeiter-Ausweise und Zutritt</h2>
         </div>
         <div class="topbar-actions">
           <span id="topbarSupportReadOnlyBadge" class="support-readonly-badge hidden" aria-live="polite" aria-hidden="true"></span>
@@ -2162,7 +2164,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603shell1"></script>
-  <script src="./app.js?v=20260531shell15"></script>
+  <script src="./app.js?v=20260603uni1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

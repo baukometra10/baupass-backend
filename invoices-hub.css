@@ -1,0 +1,328 @@
+/**
+ * Rechnungen — Microsoft Fluent / Business Central inspired hub
+ */
+
+.view[data-view="invoices"] {
+  --ms-bg: #faf9f8;
+  --ms-surface: #ffffff;
+  --ms-border: #edebe9;
+  --ms-text: #242424;
+  --ms-muted: #605e5c;
+  --ms-accent: #0078d4;
+  --ms-accent-hover: #106ebe;
+  --ms-header: #f3f2f1;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+body.theme-black .view[data-view="invoices"] {
+  --ms-bg: #1a1f26;
+  --ms-surface: #252b33;
+  --ms-border: #3d4550;
+  --ms-text: #f3f2f1;
+  --ms-muted: #a19f9d;
+  --ms-accent: #4da3ff;
+  --ms-accent-hover: #6eb3ff;
+  --ms-header: #2d333b;
+}
+
+.ms-invoices-hub {
+  background: var(--ms-bg);
+  border-radius: 8px;
+  border: 1px solid var(--ms-border);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.ms-invoices-hub-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--ms-surface);
+  border-bottom: 1px solid var(--ms-border);
+}
+
+.ms-invoices-hub-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ms-text);
+}
+
+.ms-invoices-hub-header .eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.75rem;
+  color: var(--ms-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ms-invoices-hub-desc {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ms-muted);
+  max-width: 42rem;
+  line-height: 1.4;
+}
+
+.ms-invoices-command {
+  padding: 0.65rem 1rem;
+  background: var(--ms-header);
+  border-bottom: 1px solid var(--ms-border);
+}
+
+.ms-invoices-command .invoice-toolbar,
+.ms-invoices-command .invoice-quick-filters {
+  margin: 0;
+  gap: 0.4rem;
+}
+
+.ms-invoices-command .invoice-filter-input,
+.ms-invoices-command .invoice-filter-select {
+  background: var(--ms-surface);
+  border: 1px solid var(--ms-border);
+  border-radius: 4px;
+  color: var(--ms-text);
+  font-size: 0.875rem;
+  min-height: 32px;
+}
+
+.ms-invoices-command .ghost-button,
+.ms-invoices-command .primary-button,
+.ms-invoices-command .quick-filter-btn {
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  min-height: 32px;
+}
+
+.ms-invoices-command .quick-filter-btn.active,
+.ms-invoices-command .quick-filter-btn:hover {
+  background: rgba(0, 120, 212, 0.12);
+  border-color: var(--ms-accent);
+  color: var(--ms-accent);
+}
+
+.ms-invoices-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-bottom: 1px solid var(--ms-border);
+  background: var(--ms-surface);
+}
+
+@media (max-width: 900px) {
+  .ms-invoices-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.ms-invoices-kpi-row .invoice-kpi-card {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--ms-border);
+  border-bottom: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ms-invoices-kpi-row .invoice-kpi-card:last-child {
+  border-right: none;
+}
+
+.ms-invoices-kpi-row .invoice-kpi-card .eyebrow {
+  font-size: 0.72rem;
+  color: var(--ms-muted);
+  margin-bottom: 0.15rem;
+}
+
+.ms-invoices-kpi-row .invoice-kpi-card strong {
+  font-size: 1.35rem;
+  color: var(--ms-text);
+}
+
+.ms-invoices-table-wrap {
+  overflow: auto;
+  max-height: min(62vh, 720px);
+  background: var(--ms-surface);
+}
+
+.ms-invoices-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.ms-invoices-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--ms-header);
+}
+
+.ms-invoices-table th {
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  font-weight: 600;
+  color: var(--ms-muted);
+  border-bottom: 1px solid var(--ms-border);
+  white-space: nowrap;
+}
+
+.ms-invoices-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--ms-border);
+  color: var(--ms-text);
+  vertical-align: middle;
+}
+
+.ms-invoices-table tbody tr {
+  transition: background 0.1s;
+}
+
+.ms-invoices-table tbody tr:hover {
+  background: rgba(0, 120, 212, 0.06);
+}
+
+.ms-invoices-table tbody tr.invoice-row-just-paid {
+  background: rgba(16, 124, 16, 0.1);
+}
+
+.ms-invoices-table .col-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ms-invoices-table .col-actions {
+  white-space: nowrap;
+}
+
+.ms-invoice-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ms-invoice-pill-draft {
+  background: #edebe9;
+  color: #323130;
+}
+
+.ms-invoice-pill-sent {
+  background: #deecf9;
+  color: #004578;
+}
+
+.ms-invoice-pill-overdue {
+  background: #fde7e9;
+  color: #a4262c;
+}
+
+.ms-invoice-pill-bezahlt {
+  background: #dff6dd;
+  color: #107c10;
+}
+
+.ms-invoice-pill-send_failed {
+  background: #fed9cc;
+  color: #8a3707;
+}
+
+body.theme-black .ms-invoice-pill-draft {
+  background: #3d4550;
+  color: #f3f2f1;
+}
+
+body.theme-black .ms-invoice-pill-sent {
+  background: rgba(77, 163, 255, 0.2);
+  color: #9cd3ff;
+}
+
+body.theme-black .ms-invoice-pill-overdue {
+  background: rgba(164, 38, 44, 0.25);
+  color: #f4a4a8;
+}
+
+body.theme-black .ms-invoice-pill-bezahlt {
+  background: rgba(16, 124, 16, 0.25);
+  color: #92c47a;
+}
+
+body.theme-black .ms-invoice-pill-send_failed {
+  background: rgba(138, 55, 7, 0.3);
+  color: #ffc4a8;
+}
+
+.ms-invoice-action-btn {
+  border: 1px solid var(--ms-border);
+  background: var(--ms-surface);
+  color: var(--ms-accent);
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-right: 0.25rem;
+  font-family: inherit;
+}
+
+.ms-invoice-action-btn:hover {
+  background: rgba(0, 120, 212, 0.08);
+  border-color: var(--ms-accent);
+}
+
+.ms-invoice-action-btn-primary {
+  background: var(--ms-accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+.ms-invoice-action-btn-primary:hover {
+  background: var(--ms-accent-hover);
+}
+
+.ms-invoices-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--ms-muted);
+  background: var(--ms-surface);
+}
+
+.ms-invoice-preview-modal .ms-preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--ms-header, #f3f2f1);
+  border-bottom: 1px solid var(--ms-border, #edebe9);
+}
+
+.ms-invoice-preview-modal .ms-preview-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--ms-header, #f3f2f1);
+  border-top: 1px solid var(--ms-border, #edebe9);
+}
+
+.ms-invoices-table-host .invoice-history-expand-row td {
+  background: var(--ms-header);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ms-border);
+}
+
+.view[data-view="invoices"] .meta-box {
+  display: none;
+}
+
+.view[data-view="invoices"] > .panel-grid > .panel.full-width > .panel-heading:first-of-type,
+.view[data-view="invoices"] > .panel-grid > .panel.full-width > .divider:first-of-type {
+  display: none;
+}
