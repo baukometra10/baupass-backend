@@ -433,36 +433,56 @@ def register_enterprise_routes(flask_app):
         result = _sync_job(cid, provider)
         return jsonify({"queued": False, "provider": provider, "completed": True, "result": result})
 
-    # ── Stripe billing ────────────────────────────────────────────────────────
+    # ── Stripe billing (legacy /api paths — delegate to billing domain) ───────
     @enterprise_bp.post("/billing/stripe/checkout-session")
     @require_auth
     @require_roles("superadmin", "company-admin")
     def stripe_checkout():
-        key = os.getenv("STRIPE_SECRET_KEY", "").strip()
-        if not key:
+        from backend.app.domains.billing import stripe_service
+        from backend.server import get_db
+
+        if not stripe_service.stripe_configured():
             return jsonify({"error": "stripe_not_configured", "hint": "Set STRIPE_SECRET_KEY"}), 503
+        cid = _company_id()
+        if not cid:
+            return jsonify({"error": "forbidden_company"}), 403
         data = request.get_json(silent=True) or {}
-        payload = {
-            "mode": "subscription",
-            "success_url": data.get("success_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
-            "cancel_url": data.get("cancel_url", os.getenv("PUBLIC_BASE_URL", "") + "/"),
-            "line_items[0][price]": data.get("price_id", ""),
-            "line_items[0][quantity]": "1",
-        }
         try:
-            body = _post_form_with_retry("https://api.stripe.com/v1/checkout/sessions", payload, key, timeout_s=30)
-            return jsonify(body)
+            result = stripe_service.create_checkout_session(
+                get_db(),
+                cid,
+                plan=str(data.get("plan") or "starter"),
+                annual=bool(data.get("annual")),
+                success_url=str(data.get("success_url") or ""),
+                cancel_url=str(data.get("cancel_url") or ""),
+            )
+            return jsonify(result)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         except RuntimeError as exc:
             return jsonify({"error": "stripe_upstream_failed", "detail": str(exc)}), 502
 
     @enterprise_bp.post("/billing/stripe/webhook")
     def stripe_webhook():
-        from backend.app.platform.events.bus import publish_event
+        from backend.app.domains.billing import stripe_service
+        from backend.server import get_db
 
-        payload = request.get_json(silent=True) or {}
-        event_type = str(payload.get("type", "stripe.event"))
-        publish_event(event_type, None, payload)
-        return jsonify({"received": True})
+        payload_raw = request.get_data() or b""
+        sig = request.headers.get("Stripe-Signature") or ""
+        if stripe_service._webhook_secret():
+            if not stripe_service.verify_webhook_signature(payload_raw, sig):
+                return jsonify({"error": "invalid_signature"}), 400
+        try:
+            event = request.get_json(silent=True) or {}
+            if not event and payload_raw:
+                event = json.loads(payload_raw.decode("utf-8"))
+        except Exception:
+            return jsonify({"error": "invalid_payload"}), 400
+        try:
+            result = stripe_service.handle_webhook_event(get_db(), event)
+            return jsonify({"received": True, **result})
+        except Exception as exc:
+            return jsonify({"error": "webhook_processing_failed", "detail": str(exc)}), 500
 
     # ── Plugin marketplace ────────────────────────────────────────────────────
     @enterprise_bp.get("/marketplace/plugins")
@@ -798,9 +818,15 @@ def register_enterprise_routes(flask_app):
         plan = get_company_plan(db, cid) if cid else "starter"
         if role == "superadmin" and request.args.get("plan"):
             plan = normalize_company_plan(request.args.get("plan"))
+        from backend.app.domains.billing import stripe_service
+
         payload = apply_plan_to_catalog(catalog, plan)
         payload["planComparison"] = build_plan_comparison_matrix(catalog)
         payload["resolvedCompanyId"] = cid or ""
+        payload["billing"] = {
+            "stripeConfigured": stripe_service.stripe_configured(),
+            "selfServeCheckout": stripe_service.stripe_configured() and role == "company-admin",
+        }
         return jsonify(payload)
 
     @enterprise_bp.get("/platform/entitlements")

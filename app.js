@@ -352,6 +352,11 @@ const UI_TRANSLATIONS = {
     sidebarCardDesc: "Jede Baufirma verwaltet ihr Team getrennt. Super-Admin beh\u00e4lt Systemkontrolle.",
     navGroupDaily: "Tagesbetrieb",
     navGroupCompliance: "Compliance & System",
+    navDrawerTeam: "Team & Ausweise",
+    navDrawerCompliance: "Dokumente & Geräte",
+    navDrawerPlatform: "Plattform & KI",
+    navDrawerAdmin: "Verwaltung",
+    dashboardQuickNavLabel: "Schnellzugriff",
     navAdminV2: "Admin v2 — Schnellbetrieb",
     topbarMore: "Mehr",
     navDashboard: "Dashboard",
@@ -999,6 +1004,11 @@ const UI_TRANSLATIONS = {
     billingRevenueMrr: "Geschätzter MRR (netto)",
     billingRevenueOpen: "Offene Forderungen",
     billingRevenuePaid: "Bezahlte Rechnungen",
+    billingTrialEnds: "Testphase bis",
+    billingTrialEligible: "{days} Tage kostenlos beim ersten Abo",
+    billingTrialing: "Stripe-Testphase aktiv",
+    billingBootstrapBtn: "Stripe-Produkte anlegen",
+    billingBootstrapOk: "Stripe-Katalog erstellt — env vars in Konsole/Railway eintragen",
     invoiceOpsEyebrow: "Operations",
     invoiceOpsH3: "Versand-SLA und Fehlerlage",
     invoiceSendEyebrow: "Versand",
@@ -1027,9 +1037,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Bau",
     optBrandingIndustry: "Industrie",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     navDevices: "Geräte",
     devicesEyebrow: "Hardware",
     devicesH3: "Smart-Boxen und OSDP-Geräte",
@@ -1418,6 +1428,11 @@ const UI_TRANSLATIONS = {
     sidebarCardDesc: "Each construction company manages its team separately. Super admin retains system control.",
     navGroupDaily: "Daily operations",
     navGroupCompliance: "Compliance & system",
+    navDrawerTeam: "Team & badges",
+    navDrawerCompliance: "Documents & devices",
+    navDrawerPlatform: "Platform & AI",
+    navDrawerAdmin: "Administration",
+    dashboardQuickNavLabel: "Quick access",
     navAdminV2: "Operations",
     navEnterpriseSection: "AI & integrations",
     topbarMore: "More",
@@ -2003,6 +2018,11 @@ const UI_TRANSLATIONS = {
     billingRevenueMrr: "Estimated MRR (net)",
     billingRevenueOpen: "Open receivables",
     billingRevenuePaid: "Paid invoices",
+    billingTrialEnds: "Trial until",
+    billingTrialEligible: "{days} days free on first subscription",
+    billingTrialing: "Stripe trial active",
+    billingBootstrapBtn: "Create Stripe products",
+    billingBootstrapOk: "Stripe catalog created — add env vars to Railway",
     invoiceOpsEyebrow: "Operations",
     invoiceOpsH3: "Delivery SLA and error status",
     invoiceSendEyebrow: "Delivery",
@@ -2031,9 +2051,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construction",
     optBrandingIndustry: "Industry",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "Access granted",
     badgePinHint: "Badge login in the worker app only works with Badge-ID and this PIN. When editing you can set a new PIN here.",
     badgePinPlaceholder: "4 to 8 digits",
@@ -2807,9 +2827,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Insaat",
     optBrandingIndustry: "Sanayi",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "Giriş onaylandı",
     badgePinHint: "Mitarbeiter uygulamasında rozet girişi yalnızca Badge-ID ve bu PIN ile çalışır. Düzenlerken buradan yeni bir PIN ayarlayabilirsiniz.",
     badgePinPlaceholder: "4 ila 8 rakam",
@@ -3097,6 +3117,11 @@ const UI_TRANSLATIONS = {
     sidebarCardDesc: "تدير كل شركة بناء فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
     navGroupDaily: "التشغيل اليومي",
     navGroupCompliance: "الامتثال والنظام",
+    navDrawerTeam: "الفريق والبطاقات",
+    navDrawerCompliance: "المستندات والأجهزة",
+    navDrawerPlatform: "المنصة والذكاء الاصطناعي",
+    navDrawerAdmin: "الإدارة",
+    dashboardQuickNavLabel: "وصول سريع",
     navAdminV2: "Admin v2 — تشغيل سريع",
     topbarMore: "المزيد",
     navDashboard: "لوحة التحكم",
@@ -3703,9 +3728,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "إنشاءات",
     optBrandingIndustry: "صناعة",
     optBrandingPremium: "مميز",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "تم تسجيل الدخول",
     badgePinHint: "تسجيل الدخول بالبطاقة في تطبيق العمال يعمل فقط بـ Badge-ID وهذا الرمز السري. عند التعديل يمكنك تعيين رمز سري جديد هنا.",
     badgePinPlaceholder: "4 إلى 8 أرقام",
@@ -4533,9 +4558,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construction",
     optBrandingIndustry: "Industrie",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "Accès accordé",
     badgePinHint: "La connexion par badge dans l'application travailleur ne fonctionne qu'avec le Badge-ID et ce code PIN. En modifiant, vous pouvez définir un nouveau code PIN ici.",
     badgePinPlaceholder: "4 à 8 chiffres",
@@ -5312,9 +5337,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construcción",
     optBrandingIndustry: "Industria",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "Acceso registrado",
     badgePinHint: "El inicio de sesión por badge en la app del trabajador solo funciona con el Badge-ID y este PIN. Al editar puedes establecer un nuevo PIN aquí.",
     badgePinPlaceholder: "4 a 8 dígitos",
@@ -6083,9 +6108,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Costruzioni",
     optBrandingIndustry: "Industria",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "Accesso registrato",
     badgePinHint: "Il login con badge nell'app lavoratori funziona solo con Badge-ID e questo PIN. In modifica puoi impostare un nuovo PIN qui.",
     badgePinPlaceholder: "da 4 a 8 cifre",
@@ -6862,9 +6887,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Budownictwo",
     optBrandingIndustry: "Przemysl",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (149 EUR/Monat)",
-    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
-    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
+    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
     accessFeedbackCheckin: "Wejście zarejestrowane",
     badgePinHint: "Logowanie przez badge w aplikacji pracowników działa tylko z Badge-ID i tym kodem PIN. Podczas edycji możesz tu ustawić nowy PIN.",
     badgePinPlaceholder: "4 do 8 cyfr",
@@ -8306,6 +8331,9 @@ const ENTERPRISE_EMBED_META = {
 
 let pendingEnterpriseEmbedItemId = null;
 let pendingAdminV2EinsatzplanFocus = false;
+let pendingFocusBilling = false;
+let pendingFocusCompanies = false;
+let pendingHubUpgradePlan = "";
 let pendingDeploymentOpenWorkerId = null;
 let pendingDeploymentOpenWorkerName = null;
 let enterpriseNavDelegationBound = false;
@@ -16337,11 +16365,35 @@ function getEnterpriseEmbedViews() {
   return [...new Set(views)];
 }
 
+const SIDEBAR_DRAWER_VIEWS = {
+  navDrawerTeam: ["workers", "badge", "leave"],
+  navDrawerCompliance: ["documents", "devices"],
+  navDrawerAdmin: ["invoices", "admin"],
+};
+
+function syncSidebarDrawerOpenState(activeView) {
+  const view = String(activeView || "").trim();
+  document.querySelectorAll(".nav-drawer").forEach((drawer) => {
+    drawer.removeAttribute("open");
+  });
+  for (const [drawerId, views] of Object.entries(SIDEBAR_DRAWER_VIEWS)) {
+    if (views.includes(view)) {
+      document.getElementById(drawerId)?.setAttribute("open", "");
+      return;
+    }
+  }
+  const platformViews = getEnterpriseEmbedViews();
+  if (platformViews.includes(view)) {
+    document.getElementById("navDrawerPlatform")?.setAttribute("open", "");
+  }
+}
+
 function syncPlatformNavLinks() {
-  const allowed = getAllowedViewsForRole(getEffectiveUiRole());
+  const allowed = new Set(getAllowedViewsForRole(getEffectiveUiRole()));
+  const activeView = getCurrentViewName();
   const betrieb = document.getElementById("navBetriebLink");
   if (betrieb) {
-    const show = allowed.includes("admin-v2");
+    const show = allowed.has("admin-v2");
     betrieb.classList.toggle("hidden", !show);
     betrieb.setAttribute("aria-hidden", show ? "false" : "true");
   }
@@ -16351,8 +16403,36 @@ function syncPlatformNavLinks() {
     el.setAttribute("aria-hidden", hideLegacyDeployment ? "true" : "false");
   });
   document.querySelectorAll(".nav-link-betrieb").forEach((link) => {
-    link.classList.toggle("active", getCurrentViewName() === "admin-v2");
+    link.classList.toggle("active", activeView === "admin-v2");
   });
+  document.querySelectorAll(".sidebar-nav .nav-link[data-view]").forEach((link) => {
+    const view = link.dataset.view || "";
+    const show = allowed.has(view);
+    link.classList.toggle("hidden", !show);
+    link.style.display = show ? "" : "none";
+  });
+  for (const [drawerId, views] of Object.entries(SIDEBAR_DRAWER_VIEWS)) {
+    const drawer = document.getElementById(drawerId);
+    if (!drawer) continue;
+    const showDrawer = views.some((v) => allowed.has(v));
+    drawer.classList.toggle("hidden", !showDrawer);
+    drawer.setAttribute("aria-hidden", showDrawer ? "false" : "true");
+  }
+  const platformDrawer = document.getElementById("navDrawerPlatform");
+  const enterpriseMount = document.getElementById("enterpriseNavMount");
+  const showPlatform = Boolean(enterpriseMount?.querySelector(".nav-link[data-view]"));
+  if (platformDrawer) {
+    platformDrawer.classList.toggle("hidden", !showPlatform);
+    platformDrawer.setAttribute("aria-hidden", showPlatform ? "false" : "true");
+  }
+  document.querySelectorAll(".dashboard-quick-nav .quick-nav-tile[data-view]").forEach((tile) => {
+    const view = tile.dataset.view || "";
+    const show = allowed.has(view);
+    tile.classList.toggle("hidden", !show);
+    tile.style.display = show ? "" : "none";
+  });
+  elements.navLinks = Array.from(document.querySelectorAll(".nav-link[data-view]"));
+  syncSidebarDrawerOpenState(activeView);
 }
 
 function updateShellChrome(viewName) {
@@ -16366,6 +16446,11 @@ function updateShellChrome(viewName) {
     headingEl.textContent = uiT(chrome.heading);
   }
   document.body.dataset.activeView = viewName || "dashboard";
+  const embedSection = document.querySelector(`[data-view="${viewName}"].view-embed`);
+  const embedTitle = embedSection?.querySelector(".enterprise-embed-title");
+  if (embedTitle) {
+    embedTitle.textContent = uiT(chrome.eyebrow);
+  }
 }
 
 function buildEnterpriseEmbedUrl(item) {
@@ -16662,9 +16747,9 @@ function renderEnterpriseNavMenu() {
   const sectionLabel = uiT("navEnterpriseSection");
   const planSuffix =
     planLabel && planLabel.toLowerCase() !== sectionLabel.toLowerCase()
-      ? ` <span class="nav-plan-pill">${escapeHtml(planLabel)}</span>`
+      ? ` <span class="nav-plan-pill" title="${escapeHtml(sectionLabel)}">${escapeHtml(planLabel)}</span>`
       : "";
-  let html = `<p class="nav-section-label">${escapeHtml(sectionLabel)}${planSuffix}</p>`;
+  let html = planSuffix ? `<p class="nav-enterprise-plan-hint muted small">${escapeHtml(sectionLabel)}${planSuffix}</p>` : "";
   items.forEach((item) => {
     const view = item.view || "";
     const embedItem = item.id !== view ? item.id : "";
@@ -16973,6 +17058,58 @@ function setView(viewName) {
   document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));
   updateShellChrome(targetView);
   syncPlatformNavLinks();
+  scheduleHubUpgradeFocus(targetView);
+}
+
+function scheduleHubUpgradeFocus(targetView) {
+  if (!pendingFocusBilling && !pendingFocusCompanies) {
+    return;
+  }
+  const wantBilling = pendingFocusBilling && targetView === "invoices";
+  const wantCompanies = pendingFocusCompanies && targetView === "admin";
+  if (!wantBilling && !wantCompanies) {
+    return;
+  }
+  requestAnimationFrame(() => {
+    if (wantBilling) {
+      pendingFocusBilling = false;
+      void loadBillingOverview({ silent: true }).then(() => {
+        document.getElementById("billingSubscriptionPortal")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        const plan = String(pendingHubUpgradePlan || "").trim().toLowerCase();
+        pendingHubUpgradePlan = "";
+        if (plan && state.billingOverview?.stripe?.configured) {
+          void startBillingCheckout(plan, false);
+        }
+      });
+    }
+    if (wantCompanies) {
+      pendingFocusCompanies = false;
+      pendingHubUpgradePlan = "";
+      document.getElementById("companyList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+}
+
+async function tryHubUpgradeCheckout(plan) {
+  const normalized = String(plan || "").trim().toLowerCase();
+  if (!normalized || !token) {
+    return false;
+  }
+  if (!["starter", "professional", "enterprise", "tageskarte"].includes(normalized)) {
+    return false;
+  }
+  try {
+    await loadBillingOverview({ silent: true });
+    if (!state.billingOverview?.stripe?.configured) {
+      showToast(runtimeText("billingStripeUnavailable") || "Online-Zahlung ist gerade nicht verfügbar.", "error", 7000);
+      return false;
+    }
+    await startBillingCheckout(normalized, false);
+    return true;
+  } catch (error) {
+    showToast(runtimeTextTemplate("billingCheckoutFailed", { error: error.message || String(error) }), "error", 8000);
+    return false;
+  }
 }
 
 function stopInvoiceAutoRefresh() {
@@ -23087,10 +23224,10 @@ async function openCompanyPlanModal(companyId, company) {
   if (existingModal) existingModal.remove();
 
   const PLANS = [
-    { key: "tageskarte", label: "Besucherkarte",  price: "19 €/Monat",         perWorker: null,      color: "#6b7280" },
-    { key: "starter",    label: "Starter",         price: "149 €/Monat",        perWorker: null,      color: "#0369a1" },
-    { key: "professional", label: "Professional",  price: "999 €/Monat",        perWorker: "2,50 €",  color: "#7c3aed" },
-    { key: "enterprise", label: "Enterprise",      price: "2.490 €/Monat",      perWorker: "3,00 €",  color: "#b45309" },
+    { key: "tageskarte", label: "Besucherkarte",  price: "29 €/Tag",           perWorker: null,      color: "#6b7280" },
+    { key: "starter",    label: "Starter",         price: "69 €/Monat",         perWorker: "5,99 €",  color: "#0369a1" },
+    { key: "professional", label: "Professional",  price: "249 €/Monat",        perWorker: "7,50 €",  color: "#7c3aed" },
+    { key: "enterprise", label: "Enterprise",      price: "599 €/Monat",        perWorker: "9,50 €",  color: "#b45309" },
   ];
 
   // Feature labels (DE) aligned with PLAN_FEATURES keys
@@ -27602,6 +27739,33 @@ function updateCompanyTrialEndsAtVisibility() {
   }
 }
 
+async function bootstrapStripeCatalog() {
+  if (!(await showConfirmDialog(runtimeText("billingBootstrapBtn") + "?"))) {
+    return;
+  }
+  try {
+    const result = await apiRequest(`${API_BASE}/api/v2/billing/stripe/bootstrap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dryRun: false }),
+    });
+    const envLines = Object.entries(result?.env || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n");
+    showSecretDialog(
+      runtimeText("billingBootstrapBtn"),
+      envLines || JSON.stringify(result, null, 2),
+      {
+        intro: runtimeText("billingBootstrapOk"),
+        copyLabel: "Railway env",
+        copyValue: envLines,
+      }
+    );
+  } catch (error) {
+    showToast(String(error.message || error), "error", 4000);
+  }
+}
+
 async function loadBillingOverview(options = {}) {
   const { silent = false } = options;
   const portal = document.querySelector("#billingSubscriptionPortal");
@@ -27650,17 +27814,31 @@ function renderBillingPortal(overview) {
   const workers = overview.workers || {};
   const open = overview.openInvoices || {};
   const stripe = overview.stripe || {};
+  const trial = overview.trial || {};
   const quoteTotal = Number(workers.totalNetEur || 0);
+  const trialLine = trial.isTrialing && trial.endsAt
+    ? `<p class="meta-text billing-trial-active">${escapeHtml(runtimeText("billingTrialing"))}: ${escapeHtml(formatTimestamp(trial.endsAt))}</p>`
+    : trial.eligibleForCheckoutTrial && Number(trial.checkoutTrialDays || 0) > 0
+      ? `<p class="meta-text billing-trial-offer">${escapeHtml(runtimeTextTemplate("billingTrialEligible", { days: trial.checkoutTrialDays }))}</p>`
+      : trial.endsAt
+        ? `<p class="meta-text">${escapeHtml(runtimeText("billingTrialEnds"))}: ${escapeHtml(formatTimestamp(trial.endsAt))}</p>`
+        : "";
+  const isSuperadmin = getCurrentUser()?.role === "superadmin";
   currentEl.innerHTML = `
     <article class="summary-block billing-plan-current">
       <p class="eyebrow">${escapeHtml(runtimeText("billingPortalCurrentPlan"))}</p>
       <h4>${escapeHtml(String(plan).toUpperCase())}</h4>
+      ${trialLine}
       <p class="meta-text">${escapeHtml(runtimeText("billingPortalWorkers"))}: <strong>${Number(workers.active || workers.workerCount || 0)}</strong></p>
       <p class="meta-text">${escapeHtml(runtimeText("billingPortalMonthlyNet"))}: <strong>${formatCurrency(quoteTotal)}</strong></p>
       <p class="meta-text">${escapeHtml(runtimeText("billingPortalOpenInvoices"))}: <strong>${Number(open.count || 0)}</strong> · ${formatCurrency(Number(open.totalEur || 0))}</p>
       <p class="meta-text">Stripe: ${stripe.configured ? escapeHtml(stripe.subscriptionStatus || "—") : escapeHtml(runtimeText("billingStripeUnavailable"))}</p>
+      ${isSuperadmin ? `<button type="button" class="ghost-button small-button" id="billingStripeBootstrapBtn">${escapeHtml(runtimeText("billingBootstrapBtn"))}</button>` : ""}
     </article>
   `;
+  document.querySelector("#billingStripeBootstrapBtn")?.addEventListener("click", () => {
+    void bootstrapStripeCatalog();
+  });
   const pricingPlans = overview.pricing?.plans || [];
   gridEl.innerHTML = pricingPlans
     .filter((item) => String(item.plan) !== "tageskarte")
@@ -31228,6 +31406,10 @@ function bindShellNavigationDelegation() {
       return;
     }
     event.preventDefault();
+    if (trigger.dataset.quickEinsatzplan === "1" || trigger.getAttribute("data-quick-einsatzplan") === "1") {
+      requestEinsatzplanEditor();
+      return;
+    }
     setView(trigger.dataset.view || "dashboard");
   });
 }
@@ -31287,12 +31469,27 @@ function applyDeepLinkViewFromUrl() {
     requestEinsatzplanEditor();
     return;
   }
+  const upgradePlan = String(params.get("upgrade_plan") || "").trim().toLowerCase();
+  if (params.get("billing") === "1") {
+    pendingFocusBilling = true;
+    if (upgradePlan) pendingHubUpgradePlan = upgradePlan;
+  }
   if (!view) {
+    if (pendingFocusBilling) {
+      const billingViews = getAllowedViewsForRole(getEffectiveUiRole());
+      if (billingViews.includes("invoices")) {
+        setView("invoices");
+      } else if (upgradePlan) {
+        void tryHubUpgradeCheckout(upgradePlan);
+      }
+    }
     return;
   }
   const allowed = getAllowedViewsForRole(getEffectiveUiRole());
   if (allowed.includes(view)) {
     setView(view);
+  } else if (upgradePlan) {
+    void tryHubUpgradeCheckout(upgradePlan);
   }
 }
 
@@ -31310,6 +31507,20 @@ window.addEventListener("message", (event) => {
     focusLoginInput({ force: true });
     return;
   }
+  if (event.data.type === "baupass-upgrade-checkout") {
+    if (!token) {
+      refreshAll();
+      showToast(
+        uiT("deploymentPlanLoginRequired") || "Bitte zuerst anmelden.",
+        "error",
+        8000,
+      );
+      focusLoginInput({ force: true });
+      return;
+    }
+    void tryHubUpgradeCheckout(event.data.plan);
+    return;
+  }
   if (event.data.type !== "baupass-navigate") {
     return;
   }
@@ -31325,6 +31536,14 @@ window.addEventListener("message", (event) => {
   }
   const view = String(event.data.view || "").trim();
   const allowedViews = getAllowedViewsForRole(getEffectiveUiRole());
+  const upgradePlan = String(event.data.hubUpgradePlan || "").trim().toLowerCase();
+  if (event.data.focusBilling) {
+    pendingFocusBilling = true;
+    if (upgradePlan) pendingHubUpgradePlan = upgradePlan;
+  }
+  if (event.data.focusCompanies) {
+    pendingFocusCompanies = true;
+  }
   if (view === "deployment-plan" || event.data.focusEinsatzplan) {
     requestEinsatzplanEditor({
       workerId: event.data.workerId,
@@ -31355,6 +31574,10 @@ window.addEventListener("message", (event) => {
     if (view === "admin-v2" && event.data.focusEinsatzplan) {
       scheduleAdminV2EinsatzplanFocus();
     }
+    return;
+  }
+  if (upgradePlan && String(getEffectiveUiRole() || "").toLowerCase() === "company-admin") {
+    void tryHubUpgradeCheckout(upgradePlan);
     return;
   }
   if (view === "deployment-plan" && !allowedViews.includes(view)) {
@@ -32039,6 +32262,33 @@ if (invoiceRefreshButton) {
     renderInvoiceManagementList();
   });
 }
+
+const billingPortalRefreshBtn = document.querySelector("#billingPortalRefreshBtn");
+if (billingPortalRefreshBtn) {
+  billingPortalRefreshBtn.addEventListener("click", () => {
+    void loadBillingOverview();
+  });
+}
+
+const billingStripePortalBtn = document.querySelector("#billingStripePortalBtn");
+if (billingStripePortalBtn) {
+  billingStripePortalBtn.addEventListener("click", () => {
+    void openBillingStripePortal();
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const upgradeBtn = event.target.closest(".billing-upgrade-btn");
+  if (!upgradeBtn || upgradeBtn.disabled) {
+    return;
+  }
+  const plan = String(upgradeBtn.dataset.billingPlan || "").trim();
+  if (!plan) {
+    return;
+  }
+  const annual = String(upgradeBtn.dataset.billingAnnual || "0") === "1";
+  void startBillingCheckout(plan, annual);
+});
 
 const invoiceExportCsvBtn = document.querySelector("#invoiceExportCsvBtn");
 const invoiceExportFilteredCsvBtn = document.querySelector("#invoiceExportFilteredCsvBtn");

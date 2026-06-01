@@ -589,13 +589,16 @@
         planUpgradeCtaAdmin: "Tarif & Firma (Admin)",
         planUpgradeCtaProfessional: "Professional anfragen",
         planUpgradeCtaEnterprise: "Enterprise anfragen",
+        planUpgradeCtaCheckoutPro: "Professional buchen",
+        planUpgradeCtaCheckoutEnt: "Enterprise buchen",
+        planUpgradeCtaMail: "Upgrade per E-Mail",
         monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
         monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
         monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
         monatsplanStep3: "Status «bereit» prüfen",
         monatsplanStep4: "«Versand bestätigen» — PDF/E-Mail + Push an alle",
         monatsplanOpen: "Monatsplan jetzt öffnen",
-        monatsplanOpenHint: "Öffnet den Einsatzplan im Control Pass (nicht im Hub). Monat wählen → «Bearbeiten» pro Mitarbeiter → Speichern → Versand. Anmeldung erforderlich.",
+        monatsplanOpenHint: "Öffnet den Monatsplan in Betrieb. Monat wählen → pro Mitarbeiter bearbeiten → Versand bestätigen.",
         monatsplanPreviewLogin: "Anmeldung erforderlich — bitte im Control Pass anmelden, dann erneut «Monatsplan öffnen».",
         monatsplanLinkLabel: "📋 Monatsplan öffnen",
         rolePlaybook: "Ihr Einsatz-Playbook",
@@ -608,16 +611,16 @@
         quickNavTitle: "Plattform — Schnellzugriff",
         quickWorkers: "Mitarbeiter",
         quickWorkersDesc: "Team & Ausweise",
-        quickDeployment: "Einsatzplan",
-        quickDeploymentDesc: "Monatsplan senden",
-        quickAdminV2: "Betrieb v2",
+        quickMonatsplan: "Monatsplan",
+        quickMonatsplanDesc: "Betrieb — Team & Versand",
+        quickAdminV2: "Betrieb",
         quickAdminV2Desc: "Tagesbetrieb",
         quickAccess: "Zutritt",
         quickAccessDesc: "Anwesenheit & Logs",
         quickDocuments: "Dokumente",
         quickDocumentsDesc: "Posteingang & Ablage",
-        quickAi: "BauPass KI",
-        quickAiDesc: "Assistent & Briefing",
+        quickAi: "Assistent",
+        quickAiDesc: "Sprache, Text & Briefing",
         quickDashboard: "Dashboard",
         quickDashboardDesc: "Control Pass Start",
       },
@@ -667,6 +670,9 @@
         planUpgradeCtaAdmin: "Plan & company (Admin)",
         planUpgradeCtaProfessional: "Request Professional",
         planUpgradeCtaEnterprise: "Request Enterprise",
+        planUpgradeCtaCheckoutPro: "Buy Professional",
+        planUpgradeCtaCheckoutEnt: "Buy Enterprise",
+        planUpgradeCtaMail: "Request upgrade by email",
         rolePlaybook: "Your operations playbook",
         rolePickCompany: "Select a company for live KPIs.",
         navAdminV2: "Admin v2",
@@ -677,16 +683,16 @@
         quickNavTitle: "Platform — quick access",
         quickWorkers: "Workers",
         quickWorkersDesc: "Team & badges",
-        quickDeployment: "Deployment plan",
-        quickDeploymentDesc: "Publish monthly plan",
-        quickAdminV2: "Operations v2",
+        quickMonatsplan: "Monthly plan",
+        quickMonatsplanDesc: "Operations — team & send",
+        quickAdminV2: "Operations",
         quickAdminV2Desc: "Daily operations",
         quickAccess: "Access",
         quickAccessDesc: "Attendance & logs",
         quickDocuments: "Documents",
         quickDocumentsDesc: "Inbox & files",
-        quickAi: "BauPass AI",
-        quickAiDesc: "Assistant & briefing",
+        quickAi: "Assistant",
+        quickAiDesc: "Voice, text & briefing",
         quickDashboard: "Dashboard",
         quickDashboardDesc: "Control Pass home",
       },
@@ -747,16 +753,16 @@
         quickNavTitle: "المنصة — وصول سريع",
         quickWorkers: "الموظفون",
         quickWorkersDesc: "الفريق والبطاقات",
-        quickDeployment: "خطة التوزيع",
-        quickDeploymentDesc: "نشر الخطة الشهرية",
-        quickAdminV2: "التشغيل v2",
+        quickMonatsplan: "الخطة الشهرية",
+        quickMonatsplanDesc: "التشغيل — الفريق والإرسال",
+        quickAdminV2: "التشغيل",
         quickAdminV2Desc: "التشغيل اليومي",
         quickAccess: "الدخول",
         quickAccessDesc: "الحضور والسجلات",
         quickDocuments: "المستندات",
         quickDocumentsDesc: "البريد والملفات",
-        quickAi: "ذكاء BauPass",
-        quickAiDesc: "المساعد والملخص",
+        quickAi: "المساعد",
+        quickAiDesc: "صوت، نص وملخص",
         quickDashboard: "لوحة التحكم",
         quickDashboardDesc: "بداية Control Pass",
       },
@@ -773,6 +779,7 @@
       return (PLAN_LABELS[HUB_LANG] || PLAN_LABELS.de)[plan] || plan;
     }
     let catalog = null;
+    let hubBilling = { stripeConfigured: false, selfServeCheckout: false };
     let filterSurface = "";
     let filterEntitlement = "enabled";
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
@@ -834,12 +841,43 @@
       el.textContent = msg;
     }
 
+    function hubOpenUpgradeAdmin(opts = {}) {
+      const targetPlan = String(opts.targetPlan || opts.plan || "").trim().toLowerCase();
+      const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
+      const companyId = params.company_id || params.companyId || "";
+      const role = String(currentUserRole || "").toLowerCase();
+      const isCompanyAdmin = role === "company-admin";
+      const view = isCompanyAdmin ? "invoices" : "admin";
+      const payload = {
+        type: "baupass-navigate",
+        view,
+        companyId,
+        focusBilling: isCompanyAdmin,
+        focusCompanies: !isCompanyAdmin,
+        hubUpgradePlan: targetPlan,
+      };
+      if (window.self !== window.top) {
+        try {
+          window.parent?.postMessage(payload, location.origin);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      const u = new URL("/index.html", location.origin);
+      u.searchParams.set("view", view);
+      if (targetPlan) u.searchParams.set("upgrade_plan", targetPlan);
+      if (companyId) u.searchParams.set("company_id", companyId);
+      if (isCompanyAdmin) u.searchParams.set("billing", "1");
+      window.location.href = u.pathname + u.search;
+    }
+
     function hubNavigateToView(view, extra = {}) {
       const v = String(view || "").trim();
       if (!v) return;
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || "";
-      if (v === "deployment-plan" || v === "admin-v2") {
+      if (v === "deployment-plan" || (v === "admin-v2" && extra.focusEinsatzplan)) {
         goToDeploymentPlanView().catch(() => {
           alert(t("monatsplanPreviewLogin"));
         });
@@ -896,8 +934,7 @@
       const tiles = [
         { view: "dashboard", label: t("quickDashboard"), desc: t("quickDashboardDesc") },
         { view: "workers", label: t("quickWorkers"), desc: t("quickWorkersDesc") },
-        { view: "deployment-plan", label: t("quickDeployment"), desc: t("quickDeploymentDesc"), accent: true },
-        { view: "admin-v2", label: t("quickAdminV2"), desc: t("quickAdminV2Desc"), accent: true },
+        { view: "admin-v2", label: t("quickMonatsplan"), desc: t("quickMonatsplanDesc"), accent: true, focusEinsatzplan: true },
         { view: "access", label: t("quickAccess"), desc: t("quickAccessDesc") },
         { view: "documents", label: t("quickDocuments"), desc: t("quickDocumentsDesc") },
         { view: "ai-assistant", label: t("quickAi"), desc: t("quickAiDesc") },
@@ -908,7 +945,7 @@
           ${tiles
             .map(
               (tile) => `
-            <button type="button" class="hub-quick-tile${tile.accent ? " is-accent" : ""}" data-hub-view="${tile.view}">
+            <button type="button" class="hub-quick-tile${tile.accent ? " is-accent" : ""}" data-hub-view="${tile.view}"${tile.focusEinsatzplan ? ' data-hub-focus-einsatzplan="1"' : ""}>
               <strong>${tile.label}</strong>
               <span>${tile.desc}</span>
             </button>`,
@@ -918,7 +955,9 @@
       el.classList.remove("hidden");
       el.querySelectorAll("[data-hub-view]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          hubNavigateToView(btn.getAttribute("data-hub-view") || "");
+          hubNavigateToView(btn.getAttribute("data-hub-view") || "", {
+            focusEinsatzplan: btn.getAttribute("data-hub-focus-einsatzplan") === "1",
+          });
         });
       });
     }
@@ -1072,7 +1111,8 @@
           }
         } else {
           const u = new URL("/index.html", location.origin);
-          u.searchParams.set("view", "deployment-plan");
+          u.searchParams.set("view", "admin-v2");
+          u.searchParams.set("einsatzplan", "1");
           window.location.href = u.pathname + u.search;
         }
         return;
@@ -1089,7 +1129,8 @@
           }
         } else {
           const u = new URL("/index.html", location.origin);
-          u.searchParams.set("view", "deployment-plan");
+          u.searchParams.set("view", "admin-v2");
+          u.searchParams.set("einsatzplan", "1");
           window.location.href = u.pathname + u.search;
         }
         return;
@@ -1111,7 +1152,8 @@
         return;
       }
       const u = new URL("/index.html", location.origin);
-      u.searchParams.set("view", "deployment-plan");
+      u.searchParams.set("view", "admin-v2");
+      u.searchParams.set("einsatzplan", "1");
       Object.keys(params).forEach((key) => {
         const val = params[key];
         if (val != null && String(val).trim() !== "") {
@@ -1119,6 +1161,66 @@
         }
       });
       window.location.href = u.pathname + u.search + u.hash;
+    }
+
+    function hubUpgradeMailto(planKey) {
+      const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
+      const companyId = params.company_id || params.companyId || selectedCompanyId || "";
+      const plan = String(planKey || "professional").trim();
+      const subject = encodeURIComponent(`BauPass Tarif-Upgrade: ${plan}`);
+      const body = encodeURIComponent(
+        `Gewünschter Tarif: ${plan}\nFirma-ID: ${companyId || "—"}\n\nBitte kontaktieren Sie uns für ein Angebot.`,
+      );
+      window.location.href = `mailto:support@baupass.de?subject=${subject}&body=${body}`;
+    }
+
+    function hubCanSelfServeCheckout() {
+      return Boolean(hubBilling.selfServeCheckout) && String(currentUserRole || "").toLowerCase() === "company-admin";
+    }
+
+    function hubRequestStripeCheckout(planKey) {
+      const plan = String(planKey || "professional").trim().toLowerCase();
+      const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
+      const companyId = params.company_id || params.companyId || "";
+      if (window.self !== window.top) {
+        try {
+          window.parent?.postMessage(
+            { type: "baupass-upgrade-checkout", plan, companyId },
+            location.origin,
+          );
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      hubOpenUpgradeAdmin({ targetPlan: plan });
+    }
+
+    function hubHandlePlanUpgrade(target) {
+      if (target === "admin") {
+        hubOpenUpgradeAdmin();
+        return;
+      }
+      if (target === "mail") {
+        hubUpgradeMailto(catalog?.entitlements?.plan || "professional");
+        return;
+      }
+      if (target === "professional" || target === "enterprise") {
+        if (hubCanSelfServeCheckout()) {
+          hubRequestStripeCheckout(target);
+          return;
+        }
+        if (String(currentUserRole || "").toLowerCase() === "company-admin") {
+          hubOpenUpgradeAdmin({ targetPlan: target });
+          return;
+        }
+        hubUpgradeMailto(target);
+        return;
+      }
+      document.getElementById("filterPlan").value = "locked";
+      filterEntitlement = "locked";
+      renderLayers();
+      hubOpenUpgradeAdmin({ targetPlan: target });
     }
 
     function wireDeploymentPlanNavigation() {
@@ -1236,26 +1338,29 @@
       }
       const plan = String(ent.plan || "starter");
       const msg = t("planUpgradeBanner").replace("{locked}", String(locked));
+      const selfServe = hubCanSelfServeCheckout();
       const ctas = [];
-      ctas.push(`<button type="button" data-hub-upgrade="admin">${t("planUpgradeCtaAdmin")}</button>`);
+      const role = String(currentUserRole || "").toLowerCase();
+      if (role !== "company-admin") {
+        ctas.push(`<button type="button" data-hub-upgrade="admin">${t("planUpgradeCtaAdmin")}</button>`);
+      }
       if (plan !== "professional" && plan !== "enterprise") {
-        ctas.push(`<button type="button" data-hub-upgrade="professional">${t("planUpgradeCtaProfessional")}</button>`);
+        ctas.push(
+          `<button type="button" data-hub-upgrade="professional">${selfServe ? t("planUpgradeCtaCheckoutPro") : t("planUpgradeCtaProfessional")}</button>`,
+        );
       }
       if (plan !== "enterprise") {
-        ctas.push(`<button type="button" data-hub-upgrade="enterprise">${t("planUpgradeCtaEnterprise")}</button>`);
+        ctas.push(
+          `<button type="button" data-hub-upgrade="enterprise">${selfServe ? t("planUpgradeCtaCheckoutEnt") : t("planUpgradeCtaEnterprise")}</button>`,
+        );
+      }
+      if (!selfServe) {
+        ctas.push(`<button type="button" class="ghost-button" data-hub-upgrade="mail">${t("planUpgradeCtaMail")}</button>`);
       }
       el.innerHTML = `${msg}<div class="plan-upgrade-cta-row">${ctas.join("")}</div>`;
       el.querySelectorAll("[data-hub-upgrade]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const target = btn.getAttribute("data-hub-upgrade");
-          if (target === "admin") {
-            hubOpenUpgradeAdmin();
-            return;
-          }
-          document.getElementById("filterPlan").value = "locked";
-          filterEntitlement = "locked";
-          renderLayers();
-          hubOpenUpgradeAdmin();
+          hubHandlePlanUpgrade(btn.getAttribute("data-hub-upgrade") || "");
         });
       });
       el.classList.remove("hidden");
@@ -1302,15 +1407,29 @@
               ? "Contact your admin to upgrade the plan."
               : "Bitte Admin kontaktieren für Tarif-Upgrade (Professional / Enterprise).";
         actions.appendChild(hint);
-        const adminBtn = document.createElement("button");
-        adminBtn.type = "button";
-        adminBtn.className = "primary-button";
-        adminBtn.textContent = t("planUpgradeCtaAdmin");
-        adminBtn.addEventListener("click", () => {
-          closeCapDetail();
-          hubOpenUpgradeAdmin();
-        });
-        actions.appendChild(adminBtn);
+        const minPlan = String(it.minPlan || "professional").toLowerCase();
+        if (hubCanSelfServeCheckout() && (minPlan === "professional" || minPlan === "enterprise")) {
+          const checkoutBtn = document.createElement("button");
+          checkoutBtn.type = "button";
+          checkoutBtn.className = "primary-button";
+          checkoutBtn.textContent =
+            minPlan === "enterprise" ? t("planUpgradeCtaCheckoutEnt") : t("planUpgradeCtaCheckoutPro");
+          checkoutBtn.addEventListener("click", () => {
+            closeCapDetail();
+            hubRequestStripeCheckout(minPlan);
+          });
+          actions.appendChild(checkoutBtn);
+        } else {
+          const adminBtn = document.createElement("button");
+          adminBtn.type = "button";
+          adminBtn.className = "primary-button";
+          adminBtn.textContent = t("planUpgradeCtaAdmin");
+          adminBtn.addEventListener("click", () => {
+            closeCapDetail();
+            hubOpenUpgradeAdmin({ targetPlan: minPlan });
+          });
+          actions.appendChild(adminBtn);
+        }
       } else if (it.ui) {
         const btn = document.createElement("button");
         btn.type = "button";
@@ -1474,6 +1593,7 @@
           isPreview ? { configured: false } : api("/api/ai/status").catch(() => ({ configured: false })),
         ]);
         catalog = cat;
+        hubBilling = cat.billing || { stripeConfigured: false, selfServeCheckout: false };
         document.getElementById("authErr").classList.add("hidden");
         document.getElementById("mainLayout").classList.remove("hidden");
         document.getElementById("previewNote").classList.toggle("hidden", !isPreview);
@@ -1524,6 +1644,10 @@
       document.querySelector(".hub-main-col")?.classList.add("embed-scroll-main");
       document.body.style.minHeight = "100%";
       document.querySelector(".toolbar")?.classList.add("hub-embed-toolbar");
+      const embedToolbar = document.querySelector(".hub-embed-toolbar");
+      if (embedToolbar) {
+        embedToolbar.setAttribute("aria-label", t("title"));
+      }
       document.getElementById("layers")?.classList.add("hub-embed-layers");
       renderHubQuickNav();
       renderMonatsplanHero();

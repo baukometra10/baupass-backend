@@ -1,0 +1,50 @@
+name: platform-e2e-smoke
+
+on:
+  push:
+    paths:
+      - backend/**
+      - tests/e2e/**
+      - playwright.config.js
+      - .github/workflows/platform-e2e-smoke.yml
+  pull_request:
+    paths:
+      - backend/**
+      - tests/e2e/**
+      - playwright.config.js
+      - .github/workflows/platform-e2e-smoke.yml
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        run: |
+          npm ci 2>/dev/null || npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run platform smoke
+        env:
+          BAUPASS_ENV: testing
+          BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
+          BAUPASS_ENABLE_IMAP_POLLER: "0"
+          BAUPASS_SKIP_IMAP_POLL: "1"
+        run: npx playwright test tests/e2e/platform-smoke.spec.js

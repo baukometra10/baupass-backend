@@ -427,28 +427,11 @@ LOGIN_LOCK_MINUTES = max(1, int(os.getenv("BAUPASS_LOGIN_LOCK_MINUTES", "10")))
 SESSION_COOKIE_NAME = "baupass_session"
 failed_login_attempts = {}
 
-PLAN_NET_PRICE_EUR = {
-    "tageskarte": 19.0,
-    "starter": 149.0,
-    "professional": 999.0,
-    "enterprise": 2490.0,
-}
-
-# Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0.0 = alle inkludiert).
-PLAN_WORKER_PRICE_EUR = {
-    "tageskarte": 0.0,
-    "starter": 0.0,
-    "professional": 2.50,
-    "enterprise": 3.00,
-}
-
-# Anzahl Mitarbeiter, die im Basispreis enthalten sind (0 = kein Freikontigent).
-PLAN_WORKER_FREE_INCLUDED = {
-    "tageskarte": 0,
-    "starter": 0,
-    "professional": 10,
-    "enterprise": 10,
-}
+from backend.app.platform.pricing import (
+    PLAN_NET_PRICE_EUR,
+    PLAN_WORKER_FREE_INCLUDED,
+    PLAN_WORKER_PRICE_EUR,
+)
 
 # ── Plan-Feature-Matrix ────────────────────────────────────────────────────
 # Definiert welche Features ab welcher Plan-Stufe verfuegbar sind.
@@ -3429,6 +3412,34 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN report_timezone TEXT NOT NULL DEFAULT ''")
     if "operating_sector" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN operating_sector TEXT NOT NULL DEFAULT 'construction'")
+    if "stripe_customer_id" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''")
+    if "stripe_subscription_id" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN stripe_subscription_id TEXT NOT NULL DEFAULT ''")
+    if "stripe_subscription_status" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN stripe_subscription_status TEXT NOT NULL DEFAULT ''")
+    if "billing_cycle" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN billing_cycle TEXT NOT NULL DEFAULT 'monthly'")
+
+    invoice_columns_stripe = [row[1] for row in cur.execute("PRAGMA table_info(invoices)").fetchall()]
+    if "stripe_payment_link_id" not in invoice_columns_stripe:
+        cur.execute("ALTER TABLE invoices ADD COLUMN stripe_payment_link_id TEXT NOT NULL DEFAULT ''")
+    if "stripe_payment_link_url" not in invoice_columns_stripe:
+        cur.execute("ALTER TABLE invoices ADD COLUMN stripe_payment_link_url TEXT NOT NULL DEFAULT ''")
+    if "stripe_checkout_session_id" not in invoice_columns_stripe:
+        cur.execute("ALTER TABLE invoices ADD COLUMN stripe_checkout_session_id TEXT NOT NULL DEFAULT ''")
+    if "stripe_payment_intent_id" not in invoice_columns_stripe:
+        cur.execute("ALTER TABLE invoices ADD COLUMN stripe_payment_intent_id TEXT NOT NULL DEFAULT ''")
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS stripe_billing_events (
+            id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            processed_at TEXT NOT NULL
+        )
+        """
+    )
 
     cur.execute(
         """

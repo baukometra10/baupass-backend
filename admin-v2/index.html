@@ -166,6 +166,7 @@
             </div>
             <p id="deploymentMonthHint" class="muted small" data-i18n="deployment.monthHint">Pläne werden gespeichert. Versand nur nach Ihrer Bestätigung.</p>
             <div class="deployment-month-actions">
+              <button type="button" id="deploymentBrandingPdfBtn" class="ghost" data-i18n="deployment.brandingPdfPreview">Logo-PDF (Vorschau)</button>
               <button type="button" id="deploymentPrepareNextBtn" class="ghost" data-i18n="deployment.prepareNext">Nächsten Monat vorbereiten</button>
               <button type="button" id="deploymentConfirmSendBtn" data-i18n="deployment.confirmSend">Versand bestätigen</button>
               <button type="button" id="deploymentReopenMonthBtn" class="ghost hidden" data-i18n="deployment.reopenEdit">Bearbeitung freigeben</button>
@@ -302,6 +303,20 @@
         <button type="button" id="deploymentPdfBtn" class="ghost" data-i18n="deployment.pdf">PDF</button>
         <button type="button" id="deploymentSendBtn" class="ghost" data-i18n="deployment.send">An MA senden</button>
         <button type="button" id="deploymentCloseBtn" class="ghost" data-i18n="common.close">Schließen</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="deploymentBrandingPdfModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deploymentBrandingPdfTitle">
+    <div class="modal-card deployment-pdf-preview-card">
+      <header class="deployment-modal-header">
+        <h2 id="deploymentBrandingPdfTitle" data-i18n="deployment.brandingPdfPreviewTitle">Einsatzplan — Logo-Vorschau</h2>
+        <p class="muted small" data-i18n="deployment.brandingPdfPreviewHint">Beispiel-PDF mit Firmenlogo (Hochformat, eine Seite). Logo/Farben ändern: Control Pass → Admin → Firmen.</p>
+      </header>
+      <iframe id="deploymentBrandingPdfFrame" class="deployment-pdf-preview-frame" title="Einsatzplan Logo-Vorschau"></iframe>
+      <footer class="modal-actions">
+        <button type="button" id="deploymentBrandingPdfPrintBtn" class="ghost" data-i18n="deployment.pdfPrint">Drucken</button>
+        <button type="button" id="deploymentBrandingPdfCloseBtn" class="ghost" data-i18n="common.close">Schließen</button>
       </footer>
     </div>
   </div>

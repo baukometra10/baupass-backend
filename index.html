@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
-    <link rel="stylesheet" href="./platform-unified.css?v=20260601roadmap1" />
+    <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -231,21 +231,37 @@
         <select id="superadminSidebarCompanySelect" class="sidebar-company-picker-select"></select>
         <p class="sidebar-company-picker-hint muted small" data-ui-i18n="sidebarCompanyPreviewHint">Für Live-KPIs, Playbook und KI.</p>
       </div>
-      <nav class="nav" aria-label="Hauptnavigation">
+      <nav class="nav sidebar-nav" aria-label="Hauptnavigation">
         <p class="nav-section-label" data-ui-i18n="navGroupDaily">Tagesbetrieb</p>
-        <button class="nav-link active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
-        <button class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
-        <button class="nav-link nav-link-deployment-plan" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
-        <button type="button" id="navBetriebLink" class="nav-link nav-link-betrieb hidden" data-view="admin-v2" data-ui-i18n="navBetrieb">Betrieb</button>
-        <button class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
-        <button class="nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
-        <button class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
-        <p class="nav-section-label" data-ui-i18n="navGroupCompliance">Compliance &amp; System</p>
-        <button class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
-        <button class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
-        <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Plattform"></div>
-        <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
-        <button class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
+        <button type="button" class="nav-link nav-link-primary active" data-view="dashboard" data-ui-i18n="navDashboard">Dashboard</button>
+        <button type="button" id="navBetriebLink" class="nav-link nav-link-betrieb nav-link-primary hidden" data-view="admin-v2" data-ui-i18n="navBetrieb">Betrieb</button>
+        <button type="button" class="nav-link nav-link-primary" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
+        <details class="nav-drawer" id="navDrawerTeam">
+          <summary class="nav-drawer-summary" data-ui-i18n="navDrawerTeam">Team &amp; Ausweise</summary>
+          <div class="nav-drawer-body">
+            <button type="button" class="nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
+            <button type="button" class="nav-link" data-view="badge" data-ui-i18n="navBadge">Ausweis</button>
+            <button type="button" class="nav-link" data-view="leave" id="navLeaveBtn"><span data-ui-i18n="navLeave">Urlaubsanträge</span> <span id="leavePendingBadge" class="nav-badge hidden"></span></button>
+          </div>
+        </details>
+        <details class="nav-drawer" id="navDrawerCompliance">
+          <summary class="nav-drawer-summary" data-ui-i18n="navDrawerCompliance">Dokumente &amp; Geräte</summary>
+          <div class="nav-drawer-body">
+            <button type="button" class="nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
+            <button type="button" class="nav-link" data-view="devices" data-ui-i18n="navDevices">Geräte</button>
+          </div>
+        </details>
+        <details class="nav-drawer" id="navDrawerPlatform">
+          <summary class="nav-drawer-summary" data-ui-i18n="navDrawerPlatform">Plattform &amp; KI</summary>
+          <div class="nav-drawer-body nav-enterprise-mount" id="enterpriseNavMount" aria-label="Plattform"></div>
+        </details>
+        <details class="nav-drawer" id="navDrawerAdmin">
+          <summary class="nav-drawer-summary" data-ui-i18n="navDrawerAdmin">Verwaltung</summary>
+          <div class="nav-drawer-body">
+            <button type="button" class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
+            <button type="button" class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
+          </div>
+        </details>
       </nav>
       <div class="sidebar-card">
         <p class="sidebar-card-label" data-ui-i18n="sidebarCardTitle">Vermietungsmodus</p>
@@ -308,14 +324,14 @@
           <p id="platformHealthFoot" class="platform-health-foot muted small"></p>
         </article>
         <div id="dashboardDeploymentDeclinesBanner" class="deployment-declines-banner hidden" role="alert" aria-live="polite"></div>
-        <nav class="dashboard-quick-nav" aria-label="Schnellzugriff">
+        <nav class="dashboard-quick-nav" aria-label="Schnellzugriff" data-ui-i18n="dashboardQuickNavLabel">
+          <button type="button" class="quick-nav-tile quick-nav-tile-accent nav-link" data-view="admin-v2" data-quick-einsatzplan="1" data-ui-i18n="navBetrieb">Betrieb · Einsatzplan</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
-          <button type="button" class="quick-nav-tile nav-link" data-view="deployment-plan" data-ui-i18n="navDeploymentPlan">Einsatzplan</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="access" data-ui-i18n="navAccess">Zutritt</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="leave" data-ui-i18n="navLeave">Urlaub</button>
           <button type="button" class="quick-nav-tile nav-link" data-view="documents" data-ui-i18n="navDocuments">Dokumente</button>
-          <button type="button" class="quick-nav-tile nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
-          <button type="button" class="quick-nav-tile quick-nav-tile-accent nav-link" data-view="admin-v2" data-ui-i18n="navAdminV2">Betrieb v2</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="enterprise-hub" data-ui-i18n="navEnterpriseHub">Funktionen</button>
+          <button type="button" class="quick-nav-tile nav-link" data-view="ai-assistant" data-ui-i18n="navAiCopilot">KI</button>
         </nav>
         <div class="hero-panel">
           <div>
@@ -2187,7 +2203,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260601prio1"></script>
+  <script src="./app.js?v=20260601sidebar1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

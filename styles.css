@@ -3653,6 +3653,40 @@ body.theme-black .doc-inbox-unread {
   background: linear-gradient(145deg, rgba(255, 250, 244, 0.95), rgba(255, 238, 222, 0.82));
 }
 
+.billing-subscription-portal {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(127, 48, 24, 0.12);
+}
+
+.billing-current-plan-card {
+  margin: 0.75rem 0 1rem;
+}
+
+.billing-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.billing-plan-card-current {
+  outline: 2px solid rgba(15, 76, 92, 0.35);
+}
+
+.billing-revenue-metrics {
+  margin-top: 1rem;
+}
+
+.billing-trial-offer {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.billing-trial-active {
+  color: #b45309;
+  font-weight: 600;
+}
+
 .retry-queue-item {
   border: 1px solid rgba(127, 48, 24, 0.2);
   background: linear-gradient(145deg, rgba(255, 251, 247, 0.95), rgba(255, 240, 228, 0.86));

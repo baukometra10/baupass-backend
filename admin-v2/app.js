@@ -1163,6 +1163,49 @@ async function saveDeploymentPlan() {
 }
 
 let deploymentPdfPreviewObjectUrl = "";
+let deploymentBrandingPdfPreviewUrl = "";
+
+async function fetchDeploymentBrandingPdfBlob() {
+  const q = companyQuery();
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(`/api/workforce/deployment-plan/pdf/branding-preview${q}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ lang: getLang().slice(0, 2) }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error || res.statusText);
+  }
+  return res.blob();
+}
+
+function closeDeploymentBrandingPdfPreview() {
+  const modal = $("deploymentBrandingPdfModal");
+  const frame = $("deploymentBrandingPdfFrame");
+  if (modal) modal.classList.add("hidden");
+  if (frame) frame.removeAttribute("src");
+  if (deploymentBrandingPdfPreviewUrl) {
+    URL.revokeObjectURL(deploymentBrandingPdfPreviewUrl);
+    deploymentBrandingPdfPreviewUrl = "";
+  }
+}
+
+async function previewDeploymentBrandingPdf() {
+  const modal = $("deploymentBrandingPdfModal");
+  const frame = $("deploymentBrandingPdfFrame");
+  if (!modal || !frame) return;
+  const blob = await fetchDeploymentBrandingPdfBlob();
+  if (deploymentBrandingPdfPreviewUrl) {
+    URL.revokeObjectURL(deploymentBrandingPdfPreviewUrl);
+  }
+  deploymentBrandingPdfPreviewUrl = URL.createObjectURL(blob);
+  frame.src = deploymentBrandingPdfPreviewUrl;
+  modal.classList.remove("hidden");
+}
 
 async function fetchDeploymentPdfBlob() {
   const q = companyQuery();
@@ -1198,6 +1241,43 @@ function closeDeploymentPdfPreview() {
     URL.revokeObjectURL(deploymentPdfPreviewObjectUrl);
     deploymentPdfPreviewObjectUrl = "";
   }
+}
+
+async function previewCompanyBrandingPdf() {
+  const cid = activeCompanyId();
+  if (!cid) {
+    showActionToast(t("common.selectCompany"), true);
+    return;
+  }
+  const modal = $("deploymentPdfPreviewModal");
+  const frame = $("deploymentPdfPreviewFrame");
+  if (!modal || !frame) {
+    showActionToast(t("common.error"), true);
+    return;
+  }
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(
+    `/api/workforce/deployment-plan/pdf/branding-preview?company_id=${encodeURIComponent(cid)}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ lang: getLang().slice(0, 2) }),
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error || res.statusText);
+  }
+  const blob = await res.blob();
+  if (deploymentPdfPreviewObjectUrl) {
+    URL.revokeObjectURL(deploymentPdfPreviewObjectUrl);
+  }
+  deploymentPdfPreviewObjectUrl = URL.createObjectURL(blob);
+  frame.src = deploymentPdfPreviewObjectUrl;
+  modal.classList.remove("hidden");
 }
 
 async function previewDeploymentPdf() {
@@ -1439,6 +1519,15 @@ async function loadPlatform() {
       </div>`
           : ""
       }
+      ${
+        cid
+          ? `<div class="panel-block">
+        <h3>${t("platform.brandingPdfTitle")}</h3>
+        <p class="muted small">${t("platform.brandingPdfHint")}</p>
+        <button type="button" class="ghost" id="platformBrandingPdfBtn">${t("platform.brandingPdfBtn")}</button>
+      </div>`
+          : ""
+      }
       <div class="panel-block">
         <h3>${t("platform.aiAssistant")} ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
         <p class="muted small">${t("platform.aiRequires")}</p>
@@ -1475,6 +1564,9 @@ async function loadPlatform() {
       switchToTab("mobile");
       refreshActiveTab();
     });
+    panel.querySelector("#platformBrandingPdfBtn")?.addEventListener("click", () =>
+      previewCompanyBrandingPdf().catch((e) => showActionToast(e.message, true)),
+    );
     $("aiQuickForm")?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const q = ev.target.question.value.trim();
@@ -2625,6 +2717,22 @@ function bindDeploymentMonthBarOnce() {
   );
   $("deploymentConfirmModal")?.addEventListener("click", (e) => {
     if (e.target?.id === "deploymentConfirmModal") $("deploymentConfirmModal").classList.add("hidden");
+  });
+  $("deploymentBrandingPdfBtn")?.addEventListener("click", () =>
+    previewDeploymentBrandingPdf().catch((e) => showActionToast(e.message, true)),
+  );
+  $("deploymentBrandingPdfCloseBtn")?.addEventListener("click", closeDeploymentBrandingPdfPreview);
+  $("deploymentBrandingPdfModal")?.addEventListener("click", (e) => {
+    if (e.target?.id === "deploymentBrandingPdfModal") closeDeploymentBrandingPdfPreview();
+  });
+  $("deploymentBrandingPdfPrintBtn")?.addEventListener("click", () => {
+    const frame = $("deploymentBrandingPdfFrame");
+    try {
+      frame?.contentWindow?.focus();
+      frame?.contentWindow?.print();
+    } catch {
+      showActionToast(t("common.error"), true);
+    }
   });
   $("deploymentConfirmSubmitBtn")?.addEventListener("click", async () => {
     if (!$("deploymentConfirmCheckbox").checked) {

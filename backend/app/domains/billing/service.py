@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .repository import BillingRepository
+from . import stripe_service
 
 
 class BillingService:
@@ -9,12 +10,7 @@ class BillingService:
         self.repo = BillingRepository()
 
     def subscription_overview(self, db, company_id: str) -> dict:
-        from backend.server import get_company_plan, get_plan_features
+        return stripe_service.subscription_overview(db, company_id)
 
-        plan = get_company_plan(db, company_id)
-        return {
-            "plan": plan,
-            "features": get_plan_features(plan),
-            "invoices": self.repo.invoice_summary(db, company_id),
-            "recent": self.repo.recent_invoices(db, company_id),
-        }
+    def revenue_metrics(self, db) -> dict:
+        return stripe_service.revenue_metrics(db)
