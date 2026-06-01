@@ -353,9 +353,42 @@
       padding: 0.65rem 0.85rem;
       margin-bottom: 0.5rem;
     }
-    body.embed-mode #layers,
-    body.embed-mode .toolbar {
-      display: none;
+    body.embed-mode .toolbar.hub-embed-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0 0.35rem;
+      flex-shrink: 0;
+    }
+    body.embed-mode .toolbar.hub-embed-toolbar #search {
+      flex: 1;
+      min-width: 8rem;
+    }
+    body.embed-mode #embedLayersHint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0 0 0.35rem;
+      line-height: 1.35;
+    }
+    body.embed-mode #layers.hub-embed-layers {
+      display: block;
+      flex: 1;
+      min-height: 10rem;
+      padding-bottom: 0.5rem;
+    }
+    body.embed-mode #layers.hub-embed-layers .layer {
+      margin-bottom: 0.4rem;
+    }
+    body.embed-mode #layers.hub-embed-layers .cap-grid {
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 0.45rem;
+    }
+    body.embed-mode #layers.hub-embed-layers .cap {
+      padding: 0.55rem 0.6rem;
+    }
+    body.embed-mode #layers.hub-embed-layers .cap h4 {
+      font-size: 0.82rem;
     }
     body.embed-mode #maturity {
       display: none;
@@ -413,7 +446,8 @@
       <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
       <div id="stats" class="stats hub-embed-stats"></div>
-      <div class="toolbar">
+      <p id="embedLayersHint" class="hidden" aria-live="polite"></p>
+      <div class="toolbar hub-embed-toolbar">
         <select id="companySelect" class="hidden" style="min-width:200px;padding:0.5rem;border-radius:8px;border:1px solid var(--border);background:#0f1419;color:var(--text)"></select>
         <input id="search" type="search" placeholder="" />
         <select id="filterPlan">
@@ -423,7 +457,7 @@
         </select>
         <label><input type="checkbox" id="openAll" /> <span id="openAllLabel"></span></label>
       </div>
-      <div id="layers"></div>
+      <div id="layers" class="hub-embed-layers"></div>
       <div id="capDetailPanel" class="cap-detail-panel hidden" aria-hidden="true" role="dialog" aria-labelledby="capDetailTitle">
         <div class="cap-detail-card">
           <button type="button" class="cap-detail-close" id="capDetailClose" aria-label="Close">&times;</button>
@@ -521,6 +555,8 @@
         previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
         companySelect: "Firma (Tarif-Vorschau)",
         allCompanies: "— Superadmin (Firma wählen) —",
+        embedLayersHint: "Kategorie oben antippen — die Funktionen erscheinen unten. Ebene aufklappen oder Karte öffnen.",
+        embedPickCompany: "Firma in der Leiste wählen für Live-KPIs und Playbook",
         monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
         monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
         monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
@@ -593,6 +629,8 @@
         previewMaturity: "Public preview — sign in for production metrics.",
         companySelect: "Company (plan preview)",
         allCompanies: "— Superadmin: pick company —",
+        embedLayersHint: "Tap a category above — features appear below. Expand a layer or open a card.",
+        embedPickCompany: "Pick a company in the toolbar for live KPIs and playbook",
         rolePlaybook: "Your operations playbook",
         rolePickCompany: "Select a company for live KPIs.",
         navAdminV2: "Admin v2",
@@ -657,6 +695,8 @@
         previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
         companySelect: "الشركة (معاينة الخطة)",
         allCompanies: "— المشرف: اختر شركة —",
+        embedLayersHint: "اضغط فئة أعلاه — تظهر الوظائف بالأسفل. افتح طبقة أو بطاقة.",
+        embedPickCompany: "اختر شركة من الشريط لـ KPI والدليل التشغيلي",
         rolePlaybook: "دليل التشغيل الخاص بك",
         rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
         navAdminV2: "لوحة v2",
@@ -736,6 +776,22 @@
 
     function isHubEmbedMode() {
       return new URLSearchParams(location.search).get("embed") === "1" || window.BaupassEmbed?.isEmbedMode?.();
+    }
+
+    function updateEmbedLayersHint() {
+      const el = document.getElementById("embedLayersHint");
+      if (!el) return;
+      if (!isHubEmbedMode()) {
+        el.classList.add("hidden");
+        el.textContent = "";
+        return;
+      }
+      el.classList.remove("hidden");
+      let msg = t("embedLayersHint");
+      if (currentUserRole === "superadmin" && !selectedCompanyId) {
+        msg = `${t("embedPickCompany")} · ${msg}`;
+      }
+      el.textContent = msg;
     }
 
     function hubNavigateToView(view, extra = {}) {
@@ -863,6 +919,7 @@
         const el = document.getElementById(id);
         if (el) el.textContent = t(key);
       });
+      updateEmbedLayersHint();
       const hubLangLabel = document.getElementById("hubLangLabel");
       if (hubLangLabel) hubLangLabel.textContent = t("hubLang");
       const hubLangSelect = document.getElementById("hubLangSelect");
@@ -1080,6 +1137,12 @@
           filterSurface = s.dataset.surface || "";
           renderLayers();
           renderStats(stats, labels);
+          const layers = document.getElementById("layers");
+          if (layers && isHubEmbedMode()) {
+            requestAnimationFrame(() => {
+              layers.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            });
+          }
         });
       });
     }
@@ -1297,6 +1360,7 @@
           if (selectedCompanyId) url.searchParams.set("company_id", selectedCompanyId);
           else url.searchParams.delete("company_id");
           history.replaceState({}, "", url);
+          updateEmbedLayersHint();
           loadCatalog();
         };
       } catch {
@@ -1323,6 +1387,7 @@
         renderHubQuickNav();
         renderStats(cat.stats, cat.surfaceLabels);
         renderLayers();
+        updateEmbedLayersHint();
         wireHubEmbedNav();
         const m = document.getElementById("maturity");
         if (caps) {
@@ -1362,9 +1427,27 @@
       document.getElementById("mainLayout")?.classList.add("embed-layout-split");
       document.querySelector(".hub-main-col")?.classList.add("embed-scroll-main");
       document.body.style.minHeight = "100%";
+      document.querySelector(".toolbar")?.classList.add("hub-embed-toolbar");
+      document.getElementById("layers")?.classList.add("hub-embed-layers");
       renderHubQuickNav();
       renderMonatsplanHero();
+      updateEmbedLayersHint();
     })();
+
+    window.addEventListener("message", (event) => {
+      if (!event?.data || event.origin !== location.origin) return;
+      if (event.data.type !== "baupass-sync-token") return;
+      if (event.data.token) {
+        window.BaupassAuth?.persistSessionToken?.(event.data.token);
+      }
+      const cid = String(event.data.companyId || "").trim();
+      if (!cid || currentUserRole !== "superadmin" || cid === selectedCompanyId) return;
+      selectedCompanyId = cid;
+      const sel = document.getElementById("companySelect");
+      if (sel) sel.value = cid;
+      updateEmbedLayersHint();
+      loadCatalog().catch(() => {});
+    });
 
     function wireHubEmbedNav() {
       if (!window.BaupassEmbed) return;
