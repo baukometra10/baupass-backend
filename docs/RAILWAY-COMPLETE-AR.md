@@ -54,9 +54,12 @@ BAUPASS_AI_MODEL=gpt-4o-mini
 
 ```powershell
 $env:PUBLIC_BASE_URL = "https://baupass-production.up.railway.app"
+powershell -ExecutionPolicy Bypass -File .\deploy\verify-production-deploy.ps1
 powershell -ExecutionPolicy Bypass -File .\deploy\railway-complete-setup.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\field-test.ps1
 ```
+
+نشر تلقائي + أسرار GitHub Actions: **docs/railway-auto-deploy-AR.md**
 
 أو API مباشرة: `GET /api/platform/setup-status` — يعرض ما ينقص من المتغيرات.
 

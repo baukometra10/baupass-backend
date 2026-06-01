@@ -73,9 +73,9 @@ railway logs --lines 50 2>&1
 
 if (-not $SkipHealth) {
     Write-Host ""
-    Write-Host "=== Production Health ===" -ForegroundColor Cyan
+    Write-Host "=== Production Deploy + Health ===" -ForegroundColor Cyan
     $env:PUBLIC_BASE_URL = $ProductionUrl
-    & (Join-Path $PSScriptRoot "railway-health-check.ps1")
+    & (Join-Path $PSScriptRoot "verify-production-deploy.ps1") -BaseUrl $ProductionUrl
 }
 
 Write-Host ""
