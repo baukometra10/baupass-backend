@@ -72,7 +72,7 @@ def resolve_company_pdf_branding(db, company_id: str) -> dict[str, Any]:
     }
 
 
-def logo_image_flowable(logo_data: str, *, max_height_mm: float = 14.0):
+def logo_image_flowable(logo_data: str, *, max_height_mm: float = 18.0):
     """Reportlab Image from data-URL or None."""
     raw = str(logo_data or "").strip()
     if not raw.lower().startswith("data:image/"):
