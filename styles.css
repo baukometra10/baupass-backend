@@ -7206,6 +7206,22 @@ body.theme-black .dashboard-compliance-panel .dashboard-compliance-subhead h4 {
 .admin-modal-title { margin: 0 0 6px; font-size: 17px; font-weight: 700; }
 .admin-modal-desc { margin: 0 0 14px; font-size: 13px; color: var(--text-secondary, #666); }
 .admin-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+.admin-modal-card.company-branding-pdf-card {
+  width: min(920px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.company-branding-pdf-frame {
+  width: 100%;
+  min-height: 58vh;
+  flex: 1;
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 8px;
+  background: #fff;
+}
 .btn-danger-solid { background: #c62828 !important; color: #fff !important; border-color: #c62828 !important; }
 .btn-danger-solid:hover { background: #b71c1c !important; }
 

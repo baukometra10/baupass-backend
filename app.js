@@ -361,6 +361,9 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Einsatzplan — Monatsplanung",
     deploymentPlanDesc: "Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.",
     deploymentOpenBetrieb: "Einsatzplan in Betrieb öffnen",
+    companyBrandingPdfPreviewTitle: "Einsatzplan — Logo-Vorschau",
+    companyBrandingPdfPreviewHint: "Beispiel-PDF mit aktuellem Logo und Farben (Hochformat, eine Seite).",
+    deploymentPdfPrint: "Drucken",
     deploymentPlanBetriebHint: "Der vollständige Editor (Monat, Mitarbeiter, PDF, Versand) liegt unter Betrieb — nicht nur diese Kurzanleitung.",
     deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
     deploymentPlanLoginRequired: "Bitte zuerst im Control Pass anmelden — danach öffnet sich der Einsatzplan-Editor.",
@@ -978,6 +981,24 @@ const UI_TRANSLATIONS = {
     legalFallbackEmpty: "Kein Text hinterlegt.",
     invoiceMgmtTitle: "Rechnungs-Management",
     invoiceMgmtCopy: "Zeige offene und bezahlte Rechnungen an. Markiere Rechnungen als bezahlt um Firmensperrungen automatisch aufzuheben. Alle Aktivitäten werden im Audit-Log protokolliert.",
+    billingPortalEyebrow: "Abonnement",
+    billingPortalTitle: "Plan & Online-Zahlung",
+    billingPortalCopy: "Tarif wählen, Rechnungen online bezahlen, Zahlungsmethoden im Stripe-Portal verwalten.",
+    billingPortalManageBtn: "Zahlungsmethoden & Abo",
+    billingPortalCurrentPlan: "Aktueller Plan",
+    billingPortalWorkers: "Aktive Mitarbeiter",
+    billingPortalMonthlyNet: "Monatlich netto (geschätzt)",
+    billingPortalOpenInvoices: "Offene Rechnungen",
+    billingPortalUpgradeBtn: "Upgrade",
+    billingPortalAnnualBtn: "Jährlich (-17%)",
+    billingPayOnlineBtn: "Online bezahlen",
+    billingStripeUnavailable: "Online-Zahlung ist derzeit nicht konfiguriert.",
+    billingCheckoutFailed: "Checkout fehlgeschlagen: {error}",
+    billingPortalFailed: "Portal konnte nicht geöffnet werden: {error}",
+    billingPaymentLinkFailed: "Zahlungslink fehlgeschlagen: {error}",
+    billingRevenueMrr: "Geschätzter MRR (netto)",
+    billingRevenueOpen: "Offene Forderungen",
+    billingRevenuePaid: "Bezahlte Rechnungen",
     invoiceOpsEyebrow: "Operations",
     invoiceOpsH3: "Versand-SLA und Fehlerlage",
     invoiceSendEyebrow: "Versand",
@@ -1042,7 +1063,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Monatlich pro Standort",
     optPlanPerWorker: "Pro Mitarbeiter",
     optPlanFlatCompany: "Pauschal pro Firma",
-    optPlanDayPassPrice: "Besucherkarte (19 EUR/Tag)",
+    optPlanDayPassPrice: "Besucherkarte (29 EUR/Tag)",
     btnDocInboxRematch: "Neu zuordnen",
     accessFeedbackCheckin: "Zutritt gebucht",
     manualEntryBtn: "Manueller Einlass",
@@ -1700,7 +1721,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Monthly per site",
     optPlanPerWorker: "Per worker",
     optPlanFlatCompany: "Flat rate per company",
-    optPlanDayPassPrice: "Visitor card (19 EUR/day)",
+    optPlanDayPassPrice: "Visitor card (29 EUR/day)",
     btnDocInboxRematch: "Re-assign",
     manualEntryBtn: "Manual Entry",
     manualEntryTitle: "Manual entry without card / phone",
@@ -1964,6 +1985,24 @@ const UI_TRANSLATIONS = {
     legalFallbackEmpty: "No text available.",
     invoiceMgmtTitle: "Invoice management",
     invoiceMgmtCopy: "View open and paid invoices. Mark invoices as paid to automatically lift company locks. All activities are logged in the audit log.",
+    billingPortalEyebrow: "Subscription",
+    billingPortalTitle: "Plan & online payment",
+    billingPortalCopy: "Choose a plan, pay invoices online, manage payment methods in Stripe portal.",
+    billingPortalManageBtn: "Payment methods & subscription",
+    billingPortalCurrentPlan: "Current plan",
+    billingPortalWorkers: "Active workers",
+    billingPortalMonthlyNet: "Monthly net (estimated)",
+    billingPortalOpenInvoices: "Open invoices",
+    billingPortalUpgradeBtn: "Upgrade",
+    billingPortalAnnualBtn: "Annual (-17%)",
+    billingPayOnlineBtn: "Pay online",
+    billingStripeUnavailable: "Online payment is not configured yet.",
+    billingCheckoutFailed: "Checkout failed: {error}",
+    billingPortalFailed: "Could not open portal: {error}",
+    billingPaymentLinkFailed: "Payment link failed: {error}",
+    billingRevenueMrr: "Estimated MRR (net)",
+    billingRevenueOpen: "Open receivables",
+    billingRevenuePaid: "Paid invoices",
     invoiceOpsEyebrow: "Operations",
     invoiceOpsH3: "Delivery SLA and error status",
     invoiceSendEyebrow: "Delivery",
@@ -2732,7 +2771,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Aylık şantiye başına",
     optPlanPerWorker: "Çalışan başına",
     optPlanFlatCompany: "Firma başına sabit",
-    optPlanDayPassPrice: "Ziyaretçi kartı (19 EUR/gün)",
+    optPlanDayPassPrice: "Ziyaretçi kartı (29 EUR/gün)",
     loginForgotPassword: "Sifremi unuttum",
     legalImpressum: "Yasal bilgilendirme",
     legalPrivacy: "Gizlilik",
@@ -3628,7 +3667,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "شهرياً لكل موقع",
     optPlanPerWorker: "لكل عامل",
     optPlanFlatCompany: "ثابت لكل شركة",
-    optPlanDayPassPrice: "بطاقة زائر (19 EUR/يوم)",
+    optPlanDayPassPrice: "بطاقة زائر (29 EUR/يوم)",
     loginForgotPassword: "نسيت كلمة المرور",
     legalImpressum: "البيانات القانونية",
     legalPrivacy: "الخصوصية",
@@ -4458,7 +4497,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Mensuel par chantier",
     optPlanPerWorker: "Par travailleur",
     optPlanFlatCompany: "Forfait par entreprise",
-    optPlanDayPassPrice: "Carte visiteur (19 EUR/jour)",
+    optPlanDayPassPrice: "Carte visiteur (29 EUR/jour)",
     loginForgotPassword: "Mot de passe oublié",
     legalImpressum: "Mentions légales",
     legalPrivacy: "Confidentialité",
@@ -5237,7 +5276,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Mensual por obra",
     optPlanPerWorker: "Por trabajador",
     optPlanFlatCompany: "Tarifa plana por empresa",
-    optPlanDayPassPrice: "Tarjeta de visitante (19 EUR/día)",
+    optPlanDayPassPrice: "Tarjeta de visitante (29 EUR/día)",
     loginForgotPassword: "Olvidé la contraseña",
     legalImpressum: "Aviso legal",
     legalPrivacy: "Privacidad",
@@ -6787,7 +6826,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Miesięcznie za budowę",
     optPlanPerWorker: "Na pracownika",
     optPlanFlatCompany: "Ryczałt za firmę",
-    optPlanDayPassPrice: "Karta gościa (19 EUR/dzień)",
+    optPlanDayPassPrice: "Karta gościa (29 EUR/dzień)",
     loginForgotPassword: "Nie pamietam hasla",
     legalImpressum: "Informacje prawne",
     legalPrivacy: "Prywatnosc",
@@ -9215,8 +9254,11 @@ function getRuntimeUiTexts() {
     companyBrandingOptionConstruction: "Construction",
     companyBrandingOptionIndustry: "Industry",
     companyBrandingOptionPremium: "Premium",
-    companyBrandingSaveBtn: "Save design",
-    companyBrandingResetBtn: "Reset",
+      companyBrandingSaveBtn: "Save design",
+      companyBrandingResetBtn: "Reset",
+      companyBrandingPdfPreviewBtn: "Deployment PDF (logo preview)",
+      companyBrandingPdfPreviewTitle: "Deployment plan — logo preview",
+      companyBrandingPdfPreviewHint: "Sample PDF with current logo and colors (portrait, one page).",
     companySectionSettings: "Settings",
     companyBtnCustomerNumber: "🔢 Customer no.",
     companyBtnDocEmail: "📧 Doc. email",
@@ -10059,6 +10101,10 @@ function getRuntimeUiTexts() {
       companyBrandingOptionPremium: "Premium",
       companyBrandingSaveBtn: "Design speichern",
       companyBrandingResetBtn: "Zuruecksetzen",
+      companyBrandingPdfPreviewBtn: "Einsatzplan-PDF (Logo-Vorschau)",
+      companyBrandingPdfPreviewTitle: "Einsatzplan — Logo-Vorschau",
+      companyBrandingPdfPreviewHint: "Beispiel-PDF mit aktuellem Logo und Farben (Hochformat, eine Seite).",
+      deploymentPdfPrint: "Drucken",
       companySectionSettings: "Einstellungen",
       companyBtnCustomerNumber: "🔢 Kundennummer",
       companyBtnDocEmail: "📧 Dokument-Mail",
@@ -16234,6 +16280,15 @@ function canUseDeploymentPlan() {
   return (PLAN_RANK[getCompanyPlan(getEffectiveUiCompanyId())] || 0) >= PLAN_RANK.professional;
 }
 
+/** Einsatzplan-Editor lebt in Betrieb (admin-v2), wenn verfügbar. */
+function preferBetriebDeployment() {
+  const role = String(getEffectiveUiRole() || "").toLowerCase();
+  if (!["superadmin", "company-admin"].includes(role)) {
+    return false;
+  }
+  return companyMeetsMinPlan(ADMIN_V2_EMBED_ITEM.minPlan || "starter");
+}
+
 function getAllowedViewsForRole(role) {
   const normalized = String(role || "").toLowerCase();
   let allowed = ["dashboard"];
@@ -16262,7 +16317,7 @@ function getAllowedViewsForRole(role) {
     const embedViews = getEnterpriseEmbedViews();
     allowed = [...new Set([...allowed, ...embedViews])];
   }
-  if (canUseDeploymentPlan()) {
+  if (canUseDeploymentPlan() && !preferBetriebDeployment()) {
     allowed.push("deployment-plan");
   }
   return [...new Set(allowed)];
@@ -16290,6 +16345,11 @@ function syncPlatformNavLinks() {
     betrieb.classList.toggle("hidden", !show);
     betrieb.setAttribute("aria-hidden", show ? "false" : "true");
   }
+  const hideLegacyDeployment = preferBetriebDeployment();
+  document.querySelectorAll(".nav-link-deployment-plan, .quick-nav-tile[data-view='deployment-plan']").forEach((el) => {
+    el.classList.toggle("hidden", hideLegacyDeployment);
+    el.setAttribute("aria-hidden", hideLegacyDeployment ? "true" : "false");
+  });
   document.querySelectorAll(".nav-link-betrieb").forEach((link) => {
     link.classList.toggle("active", getCurrentViewName() === "admin-v2");
   });
@@ -16319,7 +16379,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260601roadmap1");
+    params.push("v=20260601prio1");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
@@ -16850,6 +16910,10 @@ function stopDashboardPoll() {
 }
 
 function setView(viewName) {
+  if (viewName === "deployment-plan" && preferBetriebDeployment()) {
+    requestEinsatzplanEditor();
+    return;
+  }
   const role = getEffectiveUiRole();
   const allowedViews = getAllowedViewsForRole(role);
   const targetView = allowedViews.includes(viewName) ? viewName : getDefaultViewForRole(role);
@@ -19764,6 +19828,115 @@ function updateTopbarActionsState(loggedIn) {
   }
 }
 
+let companyBrandingPdfPreviewUrl = "";
+
+async function persistCompanyBrandingFromCard(companyId) {
+  const company = state.companies.find((entry) => entry.id === companyId);
+  if (!company) {
+    throw new Error(runtimeText("companyListEmpty"));
+  }
+  const card = elements.companyList?.querySelector(`[data-company-branding-save="${companyId}"]`)?.closest(".card-item");
+  const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
+  const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
+  const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
+  const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
+  const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
+  let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
+  if (logoInput?.files?.[0]) {
+    brandingLogoData = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("logo_read_failed"));
+      reader.readAsDataURL(logoInput.files[0]);
+    });
+  }
+  await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+    method: "PUT",
+    body: {
+      name: company.name,
+      contact: company.contact,
+      billingEmail: getCompanyBillingEmail(company),
+      documentEmail: getCompanyDocumentEmail(company),
+      accessHost: company.accessHost || company.access_host || "",
+      brandingPreset: normalizeCompanyBrandingPresetValue(presetSelect?.value || "construction"),
+      portalDisplayName: String(portalNameInput?.value || "").trim(),
+      reportTimezone: String(tzInput?.value || "").trim(),
+      operatingSector: String(
+        card?.querySelector("[data-company-operating-sector]")?.value
+          || company.operating_sector
+          || company.operatingSector
+          || "construction",
+      ).trim(),
+      brandingAccentColor: normalizeHexColor(accentInput?.value, "#c78652"),
+      brandingLogoData,
+      plan: company.plan,
+      status: company.status,
+      invoiceEmailLang: company.invoiceEmailLang || "de",
+    },
+  });
+  await loadAllData();
+  return brandingLogoData;
+}
+
+async function openCompanyBrandingPdfPreview(companyId) {
+  if (!token) {
+    showToast(uiT("deploymentPlanLoginRequired") || "Bitte anmelden.", "error", 6000);
+    return;
+  }
+  const modal = document.getElementById("companyBrandingPdfModal");
+  const frame = document.getElementById("companyBrandingPdfFrame");
+  if (!modal || !frame) {
+    return;
+  }
+  try {
+    await persistCompanyBrandingFromCard(companyId);
+    const role = String(getCurrentUser()?.role || "").toLowerCase();
+    const params = new URLSearchParams();
+    if (role === "superadmin") {
+      params.set("company_id", companyId);
+    }
+    const q = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API_BASE}/api/workforce/deployment-plan/pdf/branding-preview${q}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        lang: (localStorage.getItem(UI_LANG_STORAGE_KEY) || "de").slice(0, 2),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || res.statusText);
+    }
+    const blob = await res.blob();
+    if (companyBrandingPdfPreviewUrl) {
+      URL.revokeObjectURL(companyBrandingPdfPreviewUrl);
+    }
+    companyBrandingPdfPreviewUrl = URL.createObjectURL(blob);
+    frame.src = companyBrandingPdfPreviewUrl;
+    modal.classList.remove("hidden");
+  } catch (error) {
+    showToast(error.message || String(error), "error", 6000);
+  }
+}
+
+function closeCompanyBrandingPdfModal() {
+  const modal = document.getElementById("companyBrandingPdfModal");
+  const frame = document.getElementById("companyBrandingPdfFrame");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+  if (frame) {
+    frame.removeAttribute("src");
+  }
+  if (companyBrandingPdfPreviewUrl) {
+    URL.revokeObjectURL(companyBrandingPdfPreviewUrl);
+    companyBrandingPdfPreviewUrl = "";
+  }
+}
+
 async function clearSuperadminPreviewMode({ refresh = true } = {}) {
   superadminUiPreviewCompanyId = "";
   companyBrandingPreviewOverride = "";
@@ -21545,8 +21718,9 @@ function renderCompanyList() {
                 Logo
                 <input type="file" data-company-logo-file="${escapeHtml(companyId)}" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden ${canDeleteAny && !deleted ? "" : "disabled"} />
               </label>
+              <button type="button" class="ghost-button small-button" data-company-branding-pdf-preview="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingPdfPreviewBtn"))}</button>
             </div>
-            <p class="helper-text">Worker-App und Portal zeigen Titel, Farbe und optional Logo der Firma.</p>
+            <p class="helper-text">Worker-App und Portal zeigen Titel, Farbe und optional Logo der Firma. PDF-Vorschau zeigt den Einsatzplan mit Logo.</p>
           </div>
           ${turnstileMarkup}
           <div class="meta-box">
@@ -22459,6 +22633,15 @@ function bindCompanyRowActions() {
 
       companyBrandingPreviewOverride = savedPreset;
       applyActiveCompanyBrandingPreset();
+      return;
+    }
+
+    const brandingPdfPreviewButton = event.target.closest("[data-company-branding-pdf-preview]");
+    if (brandingPdfPreviewButton && !brandingPdfPreviewButton.disabled && elements.companyList.contains(brandingPdfPreviewButton)) {
+      const companyId = brandingPdfPreviewButton.dataset.companyBrandingPdfPreview;
+      if (companyId) {
+        openCompanyBrandingPdfPreview(companyId).catch((err) => showToast(err.message, "error", 6000));
+      }
       return;
     }
 
@@ -27419,6 +27602,173 @@ function updateCompanyTrialEndsAtVisibility() {
   }
 }
 
+async function loadBillingOverview(options = {}) {
+  const { silent = false } = options;
+  const portal = document.querySelector("#billingSubscriptionPortal");
+  if (!portal || !token) {
+    return;
+  }
+  const role = getCurrentUser()?.role || "";
+  const companyId = getCurrentUser()?.company_id || "";
+  if (role !== "superadmin" && role !== "company-admin") {
+    portal.classList.add("hidden");
+    return;
+  }
+  if (role === "company-admin" && !companyId) {
+    portal.classList.add("hidden");
+    return;
+  }
+  try {
+    const overview = await apiRequest(`${API_BASE}/api/v2/billing/overview`);
+    state.billingOverview = overview;
+    portal.classList.remove("hidden");
+    renderBillingPortal(overview);
+    if (role === "superadmin") {
+      try {
+        const metrics = await apiRequest(`${API_BASE}/api/v2/billing/revenue-metrics`);
+        state.billingRevenueMetrics = metrics;
+        renderBillingRevenueMetrics(metrics);
+      } catch (_metricsErr) {
+        /* optional */
+      }
+    }
+  } catch (error) {
+    if (!silent) {
+      console.error("billing overview failed:", error);
+    }
+    portal.classList.add("hidden");
+  }
+}
+
+function renderBillingPortal(overview) {
+  const currentEl = document.querySelector("#billingCurrentPlanCard");
+  const gridEl = document.querySelector("#billingPlanUpgradeGrid");
+  if (!currentEl || !gridEl || !overview) {
+    return;
+  }
+  const plan = String(overview.plan || "starter");
+  const workers = overview.workers || {};
+  const open = overview.openInvoices || {};
+  const stripe = overview.stripe || {};
+  const quoteTotal = Number(workers.totalNetEur || 0);
+  currentEl.innerHTML = `
+    <article class="summary-block billing-plan-current">
+      <p class="eyebrow">${escapeHtml(runtimeText("billingPortalCurrentPlan"))}</p>
+      <h4>${escapeHtml(String(plan).toUpperCase())}</h4>
+      <p class="meta-text">${escapeHtml(runtimeText("billingPortalWorkers"))}: <strong>${Number(workers.active || workers.workerCount || 0)}</strong></p>
+      <p class="meta-text">${escapeHtml(runtimeText("billingPortalMonthlyNet"))}: <strong>${formatCurrency(quoteTotal)}</strong></p>
+      <p class="meta-text">${escapeHtml(runtimeText("billingPortalOpenInvoices"))}: <strong>${Number(open.count || 0)}</strong> · ${formatCurrency(Number(open.totalEur || 0))}</p>
+      <p class="meta-text">Stripe: ${stripe.configured ? escapeHtml(stripe.subscriptionStatus || "—") : escapeHtml(runtimeText("billingStripeUnavailable"))}</p>
+    </article>
+  `;
+  const pricingPlans = overview.pricing?.plans || [];
+  gridEl.innerHTML = pricingPlans
+    .filter((item) => String(item.plan) !== "tageskarte")
+    .map((item) => {
+      const p = String(item.plan || "");
+      const isCurrent = p === plan;
+      const price = Number(item.priceEur || 0);
+      const included = Number(item.workersIncluded || 0);
+      const overage = Number(item.workerOverageEur || 0);
+      return `
+        <article class="summary-block billing-plan-card${isCurrent ? " billing-plan-card-current" : ""}">
+          <p class="eyebrow">${escapeHtml(item.label || p)}</p>
+          <h4>${price} €<small> / ${escapeHtml(item.priceUnit === "day" ? "Tag" : "Monat")}</small></h4>
+          <p class="meta-text">${included} MA inkl. · +${overage} €/MA</p>
+          <p class="meta-text">${escapeHtml(item.taglineDe || item.taglineEn || "")}</p>
+          <div class="button-row">
+            <button type="button" class="primary-button small-button billing-upgrade-btn" data-billing-plan="${escapeHtml(p)}" data-billing-annual="0" ${isCurrent ? "disabled" : ""}>${escapeHtml(runtimeText("billingPortalUpgradeBtn"))}</button>
+            <button type="button" class="ghost-button small-button billing-upgrade-btn" data-billing-plan="${escapeHtml(p)}" data-billing-annual="1" ${isCurrent ? "disabled" : ""}>${escapeHtml(runtimeText("billingPortalAnnualBtn"))}</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderBillingRevenueMetrics(metrics) {
+  const el = document.querySelector("#billingRevenueMetrics");
+  if (!el || !metrics) {
+    return;
+  }
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <div class="summary-grid three-col-mini">
+      <article class="summary-block"><p class="eyebrow">${escapeHtml(runtimeText("billingRevenueMrr"))}</p><strong>${formatCurrency(Number(metrics.estimatedMrrNetEur || 0))}</strong></article>
+      <article class="summary-block"><p class="eyebrow">${escapeHtml(runtimeText("billingRevenueOpen"))}</p><strong>${formatCurrency(Number(metrics.openInvoices?.totalEur || 0))}</strong></article>
+      <article class="summary-block"><p class="eyebrow">${escapeHtml(runtimeText("billingRevenuePaid"))}</p><strong>${formatCurrency(Number(metrics.paidInvoices?.totalEur || 0))}</strong></article>
+    </div>
+  `;
+}
+
+async function startBillingCheckout(plan, annual = false) {
+  if (!state.billingOverview?.stripe?.configured) {
+    showToast(runtimeText("billingStripeUnavailable"));
+    return;
+  }
+  try {
+    const returnBase = `${window.location.origin}${window.location.pathname}`;
+    const result = await apiRequest(`${API_BASE}/api/v2/billing/stripe/checkout-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        plan,
+        annual: Boolean(annual),
+        success_url: `${returnBase}?billing=success&plan=${encodeURIComponent(plan)}`,
+        cancel_url: `${returnBase}?billing=cancel`,
+      }),
+    });
+    if (result?.url) {
+      window.location.href = result.url;
+      return;
+    }
+    showToast(runtimeTextTemplate("billingCheckoutFailed", { error: result?.error || "unknown" }));
+  } catch (error) {
+    showToast(runtimeTextTemplate("billingCheckoutFailed", { error: error.message || String(error) }));
+  }
+}
+
+async function openBillingStripePortal() {
+  if (!state.billingOverview?.stripe?.configured) {
+    showToast(runtimeText("billingStripeUnavailable"));
+    return;
+  }
+  try {
+    const returnBase = `${window.location.origin}${window.location.pathname}?billing=portal`;
+    const result = await apiRequest(`${API_BASE}/api/v2/billing/stripe/portal-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ return_url: returnBase }),
+    });
+    if (result?.url) {
+      window.location.href = result.url;
+      return;
+    }
+    showToast(runtimeTextTemplate("billingPortalFailed", { error: result?.error || "unknown" }));
+  } catch (error) {
+    showToast(runtimeTextTemplate("billingPortalFailed", { error: error.message || String(error) }));
+  }
+}
+
+async function createInvoicePaymentLink(invoiceId) {
+  if (!state.billingOverview?.stripe?.configured) {
+    showToast(runtimeText("billingStripeUnavailable"));
+    return;
+  }
+  try {
+    const result = await apiRequest(`${API_BASE}/api/v2/billing/invoices/${encodeURIComponent(invoiceId)}/payment-link`, {
+      method: "POST",
+    });
+    if (result?.url) {
+      window.open(result.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    showToast(runtimeTextTemplate("billingPaymentLinkFailed", { error: result?.error || "unknown" }));
+  } catch (error) {
+    showToast(runtimeTextTemplate("billingPaymentLinkFailed", { error: error.message || String(error) }));
+  }
+}
+
 async function loadAndRenderInvoices(options = {}) {
   const { silent = false, q } = options;
   try {
@@ -27469,6 +27819,7 @@ async function loadAndRenderInvoices(options = {}) {
     });
 
     renderInvoiceManagementList();
+    await loadBillingOverview({ silent: true });
   } catch (error) {
     if (!silent) {
       console.error("Failed to load invoices:", error);
@@ -28084,6 +28435,10 @@ function renderInvoiceManagementList() {
 
       const statusKey = String(inv.status || "draft").toLowerCase();
       const isPaid = inv.status === "bezahlt" || Boolean(inv.paid_at);
+      const canPayOnline =
+        !isPaid &&
+        state.billingOverview?.stripe?.configured &&
+        (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
       const canMarkPaid =
         !isPaid &&
         (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
@@ -28112,6 +28467,9 @@ function renderInvoiceManagementList() {
 
       const actions = [
         `<button type="button" class="ms-invoice-action-btn invoice-preview-btn" data-invoice-preview-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoicePreviewBtn"))}</button>`,
+        canPayOnline
+          ? `<button type="button" class="ms-invoice-action-btn ms-invoice-action-btn-primary invoice-pay-online" data-invoice-pay-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("billingPayOnlineBtn"))}</button>`
+          : "",
         canMarkPaid
           ? `<button type="button" class="ms-invoice-action-btn ms-invoice-action-btn-primary invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceMarkPaidBtn"))}</button>`
           : "",
@@ -28187,6 +28545,16 @@ function renderInvoiceManagementList() {
       } catch (error) {
         showToast(uiT("alertGenericError").replace("{error}", error.message), "error", 3600);
       }
+    });
+  });
+
+  container.querySelectorAll("[data-invoice-pay-id]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const invoiceId = String(event.target.dataset.invoicePayId || "").trim();
+      if (!invoiceId) {
+        return;
+      }
+      await createInvoicePaymentLink(invoiceId);
     });
   });
 
@@ -30868,6 +31236,22 @@ bindShellNavigationDelegation();
 
 document.getElementById("cpDeploymentOpenBetriebBtn")?.addEventListener("click", () => {
   requestEinsatzplanEditor();
+});
+
+document.getElementById("companyBrandingPdfCloseBtn")?.addEventListener("click", closeCompanyBrandingPdfModal);
+document.getElementById("companyBrandingPdfModal")?.addEventListener("click", (event) => {
+  if (event.target?.id === "companyBrandingPdfModal") {
+    closeCompanyBrandingPdfModal();
+  }
+});
+document.getElementById("companyBrandingPdfPrintBtn")?.addEventListener("click", () => {
+  const frame = document.getElementById("companyBrandingPdfFrame");
+  try {
+    frame?.contentWindow?.focus();
+    frame?.contentWindow?.print();
+  } catch {
+    showToast(runtimeText("commonError") || "Fehler", "error", 4000);
+  }
 });
 
 globalThis.requestEinsatzplanEditor = requestEinsatzplanEditor;

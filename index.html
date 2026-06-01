@@ -1039,6 +1039,22 @@
               </div>
             </div>
             <div class="ms-invoices-hub">
+            <section id="billingSubscriptionPortal" class="billing-subscription-portal hidden">
+              <header class="ms-invoices-hub-header">
+                <div>
+                  <p class="eyebrow" data-ui-i18n="billingPortalEyebrow">Abonnement & Zahlungen</p>
+                  <h3 data-ui-i18n="billingPortalTitle">Ihr Plan und Online-Zahlung</h3>
+                  <p class="ms-invoices-hub-desc" data-ui-i18n="billingPortalCopy">Plan verwalten, Rechnungen online bezahlen und Stripe-Kundenportal öffnen.</p>
+                </div>
+                <div class="button-row">
+                  <button type="button" class="ghost-button" id="billingPortalRefreshBtn" data-ui-i18n="btnRefreshList">Aktualisieren</button>
+                  <button type="button" class="ghost-button" id="billingStripePortalBtn" data-ui-i18n="billingPortalManageBtn">Zahlungsmethoden verwalten</button>
+                </div>
+              </header>
+              <div id="billingCurrentPlanCard" class="billing-current-plan-card"></div>
+              <div id="billingPlanUpgradeGrid" class="billing-plan-grid"></div>
+              <div id="billingRevenueMetrics" class="billing-revenue-metrics hidden"></div>
+            </section>
             <header class="ms-invoices-hub-header">
               <div>
                 <p class="eyebrow" data-ui-i18n="invoiceMgmtTitle">Rechnungs-Management</p>
@@ -2171,7 +2187,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260601roadmap1"></script>
+  <script src="./app.js?v=20260601prio1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
@@ -2189,6 +2205,18 @@
       }).catch(function() {});
     })();
   </script>
+
+  <div id="companyBrandingPdfModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="companyBrandingPdfTitle">
+    <div class="admin-modal-card company-branding-pdf-card">
+      <h3 class="admin-modal-title" id="companyBrandingPdfTitle" data-ui-i18n="companyBrandingPdfPreviewTitle">Einsatzplan — Logo-Vorschau</h3>
+      <p class="admin-modal-desc" data-ui-i18n="companyBrandingPdfPreviewHint">Beispiel-PDF mit aktuellem Logo und Farben (Hochformat, eine Seite).</p>
+      <iframe id="companyBrandingPdfFrame" class="company-branding-pdf-frame" title="Einsatzplan Logo-Vorschau"></iframe>
+      <div class="admin-modal-actions">
+        <button type="button" class="ghost-button" id="companyBrandingPdfPrintBtn" data-ui-i18n="deploymentPdfPrint">Drucken</button>
+        <button type="button" class="ghost-button" id="companyBrandingPdfCloseBtn" data-ui-i18n="legalCloseTitle">Schließen</button>
+      </div>
+    </div>
+  </div>
 
   <div id="cpDeploymentModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cpDeploymentModalTitle">
     <div class="admin-modal-card deployment-modal-card">

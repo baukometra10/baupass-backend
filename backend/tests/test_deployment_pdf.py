@@ -5,7 +5,10 @@ import calendar
 import re
 from datetime import date
 
-from backend.app.platform.workforce.deployment_pdf import build_deployment_plan_pdf
+from backend.app.platform.workforce.deployment_pdf import (
+    branding_preview_sample_days,
+    build_deployment_plan_pdf,
+)
 
 
 def _sample_days(year: int, month: int) -> list[dict]:
@@ -54,3 +57,9 @@ def test_deployment_pdf_portrait_single_page():
     assert height > width, f"expected portrait, got {width}x{height}"
     assert 580 < width < 610
     assert 830 < height < 860
+
+
+def test_branding_preview_sample_days_has_entries():
+    days = branding_preview_sample_days(2026, 6, "de")
+    assert len(days) >= 28
+    assert any(str(d.get("location") or "").strip() for d in days)

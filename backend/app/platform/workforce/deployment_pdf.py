@@ -297,3 +297,33 @@ def build_deployment_plan_pdf(
 
     doc.build([KeepTogether(story_parts)])
     return buffer.getvalue()
+
+
+def branding_preview_sample_days(year: int, month: int, lang: str = "de") -> list[dict[str, Any]]:
+    """Demo month grid for company branding PDF preview (no DB)."""
+    weekday_names = {
+        "de": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
+        "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "ar": ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"],
+    }
+    lang_key = (lang or "de")[:2]
+    names = weekday_names.get(lang_key, weekday_names["de"])
+    locations = ["Baustelle Nord", "Baustelle Süd", "Werkhof", "Montagehalle"]
+    last = calendar.monthrange(year, month)[1]
+    out: list[dict[str, Any]] = []
+    for day_num in range(1, last + 1):
+        d = date(year, month, day_num)
+        loc = locations[day_num % len(locations)] if day_num % 6 != 0 else ""
+        out.append(
+            {
+                "date": d.isoformat(),
+                "weekday": names[d.weekday()],
+                "weekdayIndex": d.weekday(),
+                "location": loc,
+                "shiftStart": "07:00" if loc else "",
+                "shiftEnd": "16:00" if loc else "",
+                "notes": "",
+                "isWeekend": d.weekday() >= 5,
+            }
+        )
+    return out

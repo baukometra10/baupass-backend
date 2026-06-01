@@ -262,6 +262,22 @@
       line-height: 1.4;
     }
     .plan-upgrade-banner strong { color: #fca5a5; }
+    .plan-upgrade-cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.45rem;
+    }
+    .plan-upgrade-cta-row button {
+      font-size: 0.75rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid rgba(94, 234, 212, 0.45);
+      background: rgba(15, 76, 92, 0.35);
+      color: #e0f2f1;
+      cursor: pointer;
+    }
+    .plan-upgrade-cta-row button:hover { background: rgba(26, 138, 173, 0.45); }
     .cap:not(.locked):hover { border-color: rgba(34, 168, 212, 0.45); background: #121c28; }
     .cap-detail-panel {
       position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center;
@@ -570,6 +586,9 @@
         embedLayersHint: "Kategorie oben antippen — die Funktionen erscheinen unten. Ebene aufklappen oder Karte öffnen.",
         embedPickCompany: "Firma in der Leiste wählen für Live-KPIs und Playbook",
         planUpgradeBanner: "<strong>{locked}</strong> Funktionen sind in Ihrem Tarif gesperrt. Karte antippen für Details — Filter «Upgrade nötig».",
+        planUpgradeCtaAdmin: "Tarif & Firma (Admin)",
+        planUpgradeCtaProfessional: "Professional anfragen",
+        planUpgradeCtaEnterprise: "Enterprise anfragen",
         monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
         monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
         monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
@@ -645,6 +664,9 @@
         embedLayersHint: "Tap a category above — features appear below. Expand a layer or open a card.",
         embedPickCompany: "Pick a company in the toolbar for live KPIs and playbook",
         planUpgradeBanner: "<strong>{locked}</strong> features need an upgrade. Tap a card for details — filter «Upgrade needed».",
+        planUpgradeCtaAdmin: "Plan & company (Admin)",
+        planUpgradeCtaProfessional: "Request Professional",
+        planUpgradeCtaEnterprise: "Request Enterprise",
         rolePlaybook: "Your operations playbook",
         rolePickCompany: "Select a company for live KPIs.",
         navAdminV2: "Admin v2",
@@ -712,6 +734,9 @@
         embedLayersHint: "اضغط فئة أعلاه — تظهر الوظائف بالأسفل. افتح طبقة أو بطاقة.",
         embedPickCompany: "اختر شركة من الشريط لـ KPI والدليل التشغيلي",
         planUpgradeBanner: "<strong>{locked}</strong> وظائف تحتاج ترقية. اضغط البطاقة للتفاصيل.",
+        planUpgradeCtaAdmin: "الخطة والشركة (المشرف)",
+        planUpgradeCtaProfessional: "Professional",
+        planUpgradeCtaEnterprise: "Enterprise",
         rolePlaybook: "دليل التشغيل الخاص بك",
         rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
         navAdminV2: "لوحة v2",
@@ -1209,8 +1234,30 @@
         el.innerHTML = "";
         return;
       }
+      const plan = String(ent.plan || "starter");
       const msg = t("planUpgradeBanner").replace("{locked}", String(locked));
-      el.innerHTML = msg;
+      const ctas = [];
+      ctas.push(`<button type="button" data-hub-upgrade="admin">${t("planUpgradeCtaAdmin")}</button>`);
+      if (plan !== "professional" && plan !== "enterprise") {
+        ctas.push(`<button type="button" data-hub-upgrade="professional">${t("planUpgradeCtaProfessional")}</button>`);
+      }
+      if (plan !== "enterprise") {
+        ctas.push(`<button type="button" data-hub-upgrade="enterprise">${t("planUpgradeCtaEnterprise")}</button>`);
+      }
+      el.innerHTML = `${msg}<div class="plan-upgrade-cta-row">${ctas.join("")}</div>`;
+      el.querySelectorAll("[data-hub-upgrade]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-hub-upgrade");
+          if (target === "admin") {
+            hubOpenUpgradeAdmin();
+            return;
+          }
+          document.getElementById("filterPlan").value = "locked";
+          filterEntitlement = "locked";
+          renderLayers();
+          hubOpenUpgradeAdmin();
+        });
+      });
       el.classList.remove("hidden");
     }
 
@@ -1255,6 +1302,15 @@
               ? "Contact your admin to upgrade the plan."
               : "Bitte Admin kontaktieren für Tarif-Upgrade (Professional / Enterprise).";
         actions.appendChild(hint);
+        const adminBtn = document.createElement("button");
+        adminBtn.type = "button";
+        adminBtn.className = "primary-button";
+        adminBtn.textContent = t("planUpgradeCtaAdmin");
+        adminBtn.addEventListener("click", () => {
+          closeCapDetail();
+          hubOpenUpgradeAdmin();
+        });
+        actions.appendChild(adminBtn);
       } else if (it.ui) {
         const btn = document.createElement("button");
         btn.type = "button";

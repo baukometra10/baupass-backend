@@ -38,6 +38,11 @@ fix_porter_keys.py
 # Node dependencies
 node_modules/
 
+# Local CI / build log dumps (do not commit)
+build-apk-log.zip
+ci-log.zip
+*-log.zip
+
 # Playwright / local test artifacts
 test-results/
 playwright-report/

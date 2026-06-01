@@ -198,6 +198,50 @@ def register_workforce_blueprint(flask_app) -> None:
             headers={"Content-Disposition": f'attachment; filename="{fname}"'},
         )
 
+    @workforce_bp.post("/workforce/deployment-plan/pdf/branding-preview")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def deployment_branding_preview_pdf():
+        from .deployment_branding import resolve_company_pdf_branding
+        from .deployment_pdf import branding_preview_sample_days, build_deployment_plan_pdf
+
+        cid = _company_id()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        body = request.get_json(silent=True) or {}
+        try:
+            year = int(body.get("year") or request.args.get("year") or datetime.utcnow().year)
+            month = int(body.get("month") or request.args.get("month") or datetime.utcnow().month)
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid_year_month"}), 400
+        lang = str(body.get("lang") or request.args.get("lang") or "de")[:2]
+        db = get_db()
+        branding = resolve_company_pdf_branding(db, cid)
+        plan = get_company_plan(db, cid)
+        tier = "enterprise" if plan_includes(plan, "enterprise") else "professional"
+        days = branding_preview_sample_days(year, month, lang)
+        worker_label = {
+            "de": "Muster · Einsatzplan-Vorschau",
+            "en": "Sample · plan preview",
+            "ar": "معاينة · خطة توزيع",
+        }.get(lang[:2], "Muster · Einsatzplan-Vorschau")
+        pdf_bytes = build_deployment_plan_pdf(
+            company_name=branding.get("companyName") or "BauPass",
+            worker_name=worker_label,
+            badge_id="VORSCHAU",
+            year=year,
+            month=month,
+            days=days,
+            lang=lang,
+            plan_tier=tier,
+            branding=branding,
+        )
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={"Content-Disposition": 'inline; filename="einsatzplan-branding-preview.pdf"'},
+        )
+
     @workforce_bp.post("/workforce/deployment-plan/bulk-pdf")
     @require_auth
     @require_roles("superadmin", "company-admin")
