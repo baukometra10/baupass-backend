@@ -59,6 +59,16 @@ Set `BAUPASS_STRIPE_TRIAL_DAYS=0` to disable. Trial end syncs to `companies.tria
 | POST | `/api/billing/stripe/webhook` | Stripe events (legacy path) |
 | POST | `/api/v2/billing/stripe/webhook` | Stripe events (v2 path) |
 
+## UI (Enterprise-Hub & Control Pass)
+
+When `STRIPE_SECRET_KEY` is set, `GET /api/platform/enterprise-catalog` includes `billing.stripeConfigured` and `billing.selfServeCheckout` (company-admin only).
+
+- **Company-admin:** Hub buttons «Professional buchen» / «Enterprise buchen» start Stripe Checkout via parent shell.
+- **Superadmin:** «Tarif & Firma (Admin)» opens Admin → companies (plan assignment).
+- **Without Stripe:** Hub falls back to mailto / Rechnungen block.
+
+Local Python: use **3.12** (see `.python-version`). E2E: `npx playwright test tests/e2e/platform-smoke.spec.js`.
+
 ## Webhook URL
 
 `https://YOUR-SERVICE.up.railway.app/api/billing/stripe/webhook`

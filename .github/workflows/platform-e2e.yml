@@ -1,0 +1,59 @@
+name: platform-e2e
+
+on:
+  push:
+    paths:
+      - "tests/e2e/**"
+      - "playwright.config.js"
+      - "package.json"
+      - "package-lock.json"
+      - "backend/**"
+      - "app.js"
+      - "index.html"
+      - "enterprise-hub.html"
+      - "admin-v2/**"
+      - ".github/workflows/platform-e2e.yml"
+  pull_request:
+    paths:
+      - "tests/e2e/**"
+      - "playwright.config.js"
+      - "package.json"
+      - "package-lock.json"
+      - "backend/**"
+      - "app.js"
+      - "index.html"
+      - "enterprise-hub.html"
+      - "admin-v2/**"
+      - ".github/workflows/platform-e2e.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Platform smoke (API)
+        run: npx playwright test tests/e2e/platform-smoke.spec.js

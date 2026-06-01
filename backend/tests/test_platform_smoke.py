@@ -30,6 +30,16 @@ def test_enterprise_catalog_preview(client_and_db):
     assert data.get("preview") is True
 
 
+def test_enterprise_catalog_includes_billing_flags(client_and_db):
+    client, _ = client_and_db
+    h = _superadmin_headers(client)
+    r = client.get("/api/platform/enterprise-catalog", headers=h)
+    assert r.status_code == 200
+    billing = r.get_json().get("billing") or {}
+    assert "stripeConfigured" in billing
+    assert billing.get("selfServeCheckout") is False
+
+
 def test_setup_status_public(client_and_db):
     client, _ = client_and_db
     r = client.get("/api/platform/setup-status")

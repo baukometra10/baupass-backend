@@ -53,7 +53,7 @@ test.describe('Platform smoke', () => {
   });
 
   test('health, enterprise catalog, branding PDF preview', async ({ request }) => {
-    const health = await request.get('/api/health');
+    const health = await request.get('/api/health/live');
     expect(health.ok()).toBeTruthy();
 
     const platformHealth = await request.get('/api/health/platform');
