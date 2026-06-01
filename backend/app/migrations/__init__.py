@@ -899,4 +899,35 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="012",
+        name="site_cameras_registry",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS site_cameras (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                location TEXT NOT NULL DEFAULT '',
+                rtsp_url TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'unknown',
+                last_seen_at TEXT,
+                last_snapshot_at TEXT,
+                last_snapshot_b64 TEXT NOT NULL DEFAULT '',
+                health_error TEXT NOT NULL DEFAULT '',
+                offline_alert_sent_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_site_cameras_company
+                ON site_cameras(company_id, name COLLATE NOCASE);
+            CREATE INDEX IF NOT EXISTS idx_site_cameras_last_seen
+                ON site_cameras(company_id, last_seen_at DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_site_cameras_last_seen;
+            DROP INDEX IF EXISTS idx_site_cameras_company;
+            DROP TABLE IF EXISTS site_cameras;
+        """,
+    ),
+
 ]

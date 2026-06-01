@@ -84,7 +84,16 @@ def register_physical_operations(flask_app) -> None:
                 "SELECT COUNT(*) AS c FROM camera_ai_events WHERE company_id = ? AND created_at >= datetime('now', '-24 hours')",
                 (cid,),
             ).fetchone()
-            return {"events24h": int(c["c"] or 0)}
+            events24h = int(c["c"] or 0)
+            cam_rows = db.execute(
+                "SELECT last_seen_at FROM site_cameras WHERE company_id = ?",
+                (cid,),
+            ).fetchall()
+            from backend.app.platform.physical_operations.camera_registry import camera_is_online
+
+            online = sum(1 for r in cam_rows if camera_is_online(str(r["last_seen_at"] or "")))
+            total = len(cam_rows)
+            return {"events24h": events24h, "camerasTotal": total, "camerasOnline": online}
         except Exception:
             return {"events24h": 0}
 

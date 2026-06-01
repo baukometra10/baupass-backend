@@ -1714,6 +1714,7 @@ def apply_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' https:; "
+        "frame-src 'self'; "
         "object-src 'none'; "
         "base-uri 'self'; "
         f"frame-ancestors {frame_ancestors}"
@@ -3547,6 +3548,26 @@ def init_db():
             awaiting_confirm INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (company_id, year, month)
         )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS worker_deployment_day_responses (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            work_date TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'declined',
+            reason TEXT NOT NULL DEFAULT '',
+            responded_at TEXT NOT NULL,
+            UNIQUE(company_id, worker_id, work_date)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_wddr_company_worker_date
+        ON worker_deployment_day_responses(company_id, worker_id, work_date)
         """
     )
 
@@ -7101,6 +7122,15 @@ def run_daily_jobs_cycle_once():
         if callable(send_document_expiry_fcm_pushes):
             send_document_expiry_fcm_pushes()
 
+        camera_digest_result = {"ok": False}
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.camera_digest_job import run_camera_nightly_digest
+
+                camera_digest_result = run_camera_nightly_digest(get_db())
+        except Exception as digest_exc:
+            camera_digest_result = {"ok": False, "error": str(digest_exc)}
+
         autopilot_result = {"ok": False}
         try:
             with app.app_context():
@@ -7129,6 +7159,7 @@ def run_daily_jobs_cycle_once():
             "monthly": monthly_result,
             "autopilot": autopilot_result,
             "databaseBackup": backup_result,
+            "cameraDigest": camera_digest_result,
         }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
@@ -7642,6 +7673,24 @@ def start_background_jobs():
             pass
 
     globals()["send_document_expiry_fcm_pushes"] = send_document_expiry_fcm_pushes
+
+    def run_camera_health_checks():
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.camera_health_job import run_camera_health_check
+
+                return run_camera_health_check(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: camera health check failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc)}
+
+    def camera_health_loop():
+        interval = max(60, int(os.getenv("BAUPASS_CAMERA_HEALTH_SECONDS", "120")))
+        while True:
+            run_camera_health_checks()
+            time.sleep(interval)
+
+    threading.Thread(target=camera_health_loop, name="baupass-camera-health", daemon=True).start()  # baupass:allow-inline-thread
 
     # Expiry-Check beim Start einmal ausführen, danach täglich (non-fatal on PG/SQLite errors)
     try:
@@ -9155,135 +9204,56 @@ def update_settings():
 
 @require_auth
 def list_companies():
-    include_deleted = request.args.get("includeDeleted", "0") == "1"
-    clause, params = visible_company_clause(g.current_user)
-    if include_deleted:
-        where = clause
-    else:
-        where = f"{clause}{' AND' if clause else ' WHERE'} deleted_at IS NULL"
+    from backend.app.domains.companies.service import CompaniesService
 
-    rows = get_db().execute(f"SELECT * FROM companies{where} ORDER BY name", params).fetchall()
-    return jsonify([row_to_dict(row) for row in rows])
+    include_deleted = request.args.get("includeDeleted", "0") == "1"
+    preview_id = getattr(g, "preview_company_id", "") or ""
+    items = CompaniesService().list_companies(
+        get_db(),
+        g.current_user,
+        include_deleted=include_deleted,
+        preview_company_id=preview_id,
+    )
+    return jsonify(items)
 
 
 @require_auth
 @require_roles("superadmin")
 def export_company_document_emails_csv():
-    db = get_db()
-    rows = db.execute(
-        """
-        SELECT
-            c.id,
-            c.name,
-            c.contact,
-            c.billing_email,
-            c.document_email,
-            c.status,
-            c.deleted_at,
-            MAX(e.received_at) AS last_inbox_activity_at,
-            SUM(CASE WHEN e.dismissed = 0 THEN 1 ELSE 0 END) AS open_inbox_count,
-            SUM(CASE WHEN e.dismissed = 0 AND e.matched_company_id IS NULL AND lower(e.to_addr) = lower(c.document_email) THEN 1 ELSE 0 END) AS unresolved_inbox_count
-        FROM companies c
-        LEFT JOIN email_inbox e ON (e.matched_company_id = c.id OR lower(e.to_addr) = lower(c.document_email))
-        GROUP BY c.id, c.name, c.contact, c.billing_email, c.document_email, c.status, c.deleted_at
-        ORDER BY name
-        """
-    ).fetchall()
+    from backend.app.domains.companies.service import CompaniesService
 
-    try:
-        from reportlab.lib.pagesizes import A4, landscape
-        from reportlab.pdfgen import canvas as rl_canvas
-    except Exception:
-        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
-
-    buffer = io.BytesIO()
-    pw, ph = landscape(A4)
-    pdf = rl_canvas.Canvas(buffer, pagesize=landscape(A4))
-    col_x = [36, 186, 326, 402, 512, 640, 688, 736]
-    headers = ["Firma", "Dokument-Email", "Status", "Rechnungs-Email", "Letzter Eingang", "Offen", "Ungelöst", "Gelöscht"]
-
-    def draw_doc_email_hdr(y):
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(36, y, "BauPass - Firmen Dokument-E-Mails")
-        y -= 14
-        pdf.setFont("Helvetica", 8)
-        pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
-        y -= 16
-        pdf.setFont("Helvetica-Bold", 7)
-        for i, h in enumerate(headers):
-            pdf.drawString(col_x[i], y, h)
-        y -= 8
-        pdf.line(36, y, pw - 36, y)
-        y -= 10
-        return y
-
-    y = ph - 36
-    y = draw_doc_email_hdr(y)
-    pdf.setFont("Helvetica", 7)
-    for row in rows:
-        if y < 48:
-            pdf.showPage()
-            y = ph - 36
-            y = draw_doc_email_hdr(y)
-            pdf.setFont("Helvetica", 7)
-        pdf.drawString(col_x[0], y, str(row["name"] or "")[:24])
-        pdf.drawString(col_x[1], y, str(row["document_email"] or "")[:24])
-        pdf.drawString(col_x[2], y, str(row["status"] or "")[:12])
-        pdf.drawString(col_x[3], y, str(row["billing_email"] or "")[:24])
-        pdf.drawString(col_x[4], y, str(row["last_inbox_activity_at"] or "")[:18])
-        pdf.drawString(col_x[5], y, str(int(row["open_inbox_count"] or 0)))
-        pdf.drawString(col_x[6], y, str(int(row["unresolved_inbox_count"] or 0)))
-        pdf.drawString(col_x[7], y, "Ja" if row["deleted_at"] else "Nein")
-        y -= 11
-    if not rows:
-        pdf.drawString(36, y, "Keine Firmen gefunden.")
-    pdf.save()
-    buffer.seek(0)
-    filename = f"firmen-dokument-emails-{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    result = CompaniesService().build_document_emails_pdf(get_db())
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
     return Response(
-        buffer.getvalue(),
+        result["pdf_bytes"],
         mimetype="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{result["filename"]}"'},
     )
 
 
 @require_auth
 def list_subcompanies():
-    try:
-        include_deleted = request.args.get("includeDeleted", "0") == "1"
-        requested_company_id = (request.args.get("companyId") or "").strip()
-        user = g.current_user
+    from backend.app.domains.companies.service import CompaniesService
 
-        conditions = []
-        params = []
-
-        if user["role"] == "superadmin":
-            if requested_company_id:
-                plan_value = get_company_plan(get_db(), requested_company_id)
-                if not company_has_feature(plan_value, "subcompanies"):
-                    return feature_not_available_response("subcompanies", plan_value)
-                conditions.append("company_id = ?")
-                params.append(requested_company_id)
-        else:
-            plan_value = get_company_plan(get_db(), user.get("company_id"))
-            if not company_has_feature(plan_value, "subcompanies"):
-                return feature_not_available_response("subcompanies", plan_value)
-            conditions.append("company_id = ?")
-            params.append(user.get("company_id"))
-
-        if not include_deleted:
-            conditions.append("deleted_at IS NULL")
-
-        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        rows = get_db().execute(f"SELECT * FROM subcompanies{where_clause} ORDER BY name", params).fetchall()
-        return jsonify([row_to_dict(row) for row in rows])
-    except Exception as e:
-        return {"error": "Fehler beim Laden von Subcompanies", "details": str(e)}, 400
+    include_deleted = request.args.get("includeDeleted", "0") == "1"
+    requested_company_id = (request.args.get("companyId") or "").strip()
+    result = CompaniesService().list_subcompanies(
+        get_db(),
+        g.current_user,
+        include_deleted=include_deleted,
+        requested_company_id=requested_company_id,
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["items"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_subcompany():
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
     user = g.current_user
     try:
@@ -9293,229 +9263,48 @@ def create_subcompany():
     name = clean_text_input(payload.get("name") or "", max_len=120)
     contact = clean_text_input(payload.get("contact") or "", max_len=180)
 
-    if not company_id:
-        return jsonify({"error": "missing_company"}), 400
-    if user["role"] != "superadmin" and company_id != user.get("company_id"):
-        return jsonify({"error": "forbidden_company"}), 403
-    if not name:
-        return jsonify({"error": "missing_name"}), 400
-
-    db = get_db()
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company or company["deleted_at"]:
-        return jsonify({"error": "company_not_available"}), 400
-    plan_value = normalize_company_plan(company["plan"])
-    if not company_has_feature(plan_value, "subcompanies"):
-        return feature_not_available_response("subcompanies", plan_value)
-
-    existing = db.execute(
-        "SELECT * FROM subcompanies WHERE company_id = ? AND lower(name) = lower(?) AND deleted_at IS NULL",
-        (company_id, name),
-    ).fetchone()
-    if existing:
-        return jsonify({"error": "subcompany_exists"}), 400
-
-    subcompany_id = f"sub-{secrets.token_hex(6)}"
-    db.execute(
-        "INSERT INTO subcompanies (id, company_id, name, contact, status, deleted_at) VALUES (?, ?, ?, ?, ?, NULL)",
-        (subcompany_id, company_id, name, contact, "aktiv"),
-    )
-    db.commit()
-    log_audit(
-        "subcompany.created",
-        f"Subunternehmen {name} wurde angelegt",
-        target_type="subcompany",
-        target_id=subcompany_id,
+    result = CompaniesService().create_subcompany(
+        get_db(),
+        user,
         company_id=company_id,
-        actor=user,
+        name=name,
+        contact=contact,
     )
-
-    row = db.execute("SELECT * FROM subcompanies WHERE id = ?", (subcompany_id,)).fetchone()
-    return jsonify(row_to_dict(row)), 201
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.pop("audit", None)
+    if audit:
+        log_audit(
+            "subcompany.created",
+            f"Subunternehmen {audit['name']} wurde angelegt",
+            target_type="subcompany",
+            target_id=audit["subcompany_id"],
+            company_id=audit["company_id"],
+            actor=user,
+        )
+    return jsonify(result["item"]), result.get("status", 201)
 
 
 @require_auth
 @require_roles("superadmin")
 def create_company():
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
-    company_id = f"cmp-{secrets.token_hex(6)}"
-    turnstile_endpoint = clean_text_input(payload.get("turnstileEndpoint", ""), max_len=320)
-    company_name = clean_text_input(payload.get("name", "Neue Firma"), max_len=120) or "Neue Firma"
-    company_contact = clean_text_input(payload.get("contact", ""), max_len=180)
-    company_customer_number = sanitize_customer_number(payload.get("customerNumber", ""), max_len=12)
-    billing_email = clean_text_input(payload.get("billingEmail", ""), max_len=160)
-    document_email = clean_text_input(payload.get("documentEmail", ""), max_len=160)
-    if not document_email:
-        document_email = suggest_company_document_email(company_name)
-    document_email = normalize_email_address(document_email)
-    access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or "").strip().lower(), max_len=180)
-    branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset"))
-    company_status = clean_text_input(payload.get("status", "aktiv"), max_len=32) or "aktiv"
-    trial_ends_at = normalize_company_trial_end(payload.get("trialEndsAt") or payload.get("trial_ends_at"))
-    if company_status == "test" and not trial_ends_at:
-        trial_ends_at = default_company_trial_end_iso()
-    if company_status != "test":
-        trial_ends_at = ""
-    admin_password = (payload.get("adminPassword") or "").strip() or "1234"
-    turnstile_password = (payload.get("turnstilePassword") or "").strip() or admin_password
-    try:
-        turnstile_count = int(payload.get("turnstileCount", 1) or 1)
-    except (TypeError, ValueError):
-        return jsonify({"error": "invalid_turnstile_count", "message": "Anzahl Drehkreuze muss eine Zahl sein."}), 400
-
-    if turnstile_count < 1 or turnstile_count > 20:
-        return jsonify({"error": "invalid_turnstile_count", "message": "Anzahl Drehkreuze muss zwischen 1 und 20 liegen."}), 400
-
-    if len(admin_password) < 4:
-        return jsonify({"error": "password_too_short", "message": "Passwort muss mindestens 4 Zeichen haben."}), 400
-    if len(turnstile_password) < 4:
-        return jsonify({"error": "turnstile_password_too_short", "message": "Drehkreuz-Passwort muss mindestens 4 Zeichen haben."}), 400
-
-    db = get_db()
-    if not company_customer_number:
-        company_customer_number = get_next_customer_number(db)
-    duplicate_customer_no = db.execute(
-        "SELECT id, name FROM companies WHERE COALESCE(customer_number, '') = ? LIMIT 1",
-        (company_customer_number,),
-    ).fetchone()
-    if duplicate_customer_no:
-        return jsonify({
-            "error": "duplicate_customer_number",
-            "message": "Diese Kundennummer ist bereits vergeben.",
-            "conflictCompanyId": duplicate_customer_no["id"],
-            "conflictCompanyName": duplicate_customer_no["name"],
-        }), 409
-
-    if document_email:
-        duplicate_company = db.execute(
-            "SELECT id, name FROM companies WHERE deleted_at IS NULL AND lower(document_email) = ? LIMIT 1",
-            (document_email,),
-        ).fetchone()
-        if duplicate_company:
-            return jsonify({
-                "error": "duplicate_document_email",
-                "message": "Diese Dokument-E-Mail ist bereits einer anderen Firma zugeordnet.",
-                "conflictCompanyId": duplicate_company["id"],
-                "conflictCompanyName": duplicate_company["name"],
-            }), 409
-
-    if turnstile_endpoint:
-        db.execute("UPDATE settings SET turnstile_endpoint = ? WHERE id = 1", (turnstile_endpoint,))
-    invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", "de") or "de", max_len=8)
-    if invoice_email_lang not in ("de", "en", "fr"):
-        invoice_email_lang = "de"
-    report_timezone = clean_text_input(payload.get("reportTimezone", payload.get("report_timezone", "")), max_len=64)
-    if report_timezone:
-        try:
-            ZoneInfo(report_timezone)
-        except Exception:
-            return jsonify({"error": "invalid_timezone", "message": "Ungültige Zeitzone (IANA)."}), 400
-    operating_sector = normalize_operating_sector(
-        payload.get("operatingSector", payload.get("operating_sector", "construction"))
-    )
-    db.execute(
-        """
-        INSERT INTO companies (
-            id, name, customer_number, contact, billing_email, document_email, access_host,
-            branding_preset, plan, status, trial_ends_at, invoice_email_lang, report_timezone,
-            operating_sector
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            company_id,
-            company_name,
-            company_customer_number,
-            company_contact,
-            billing_email,
-            document_email,
-            access_host,
-            branding_preset,
-            normalize_company_plan(payload.get("plan", "starter")),
-            company_status,
-            trial_ends_at,
-            invoice_email_lang,
-            report_timezone,
-            operating_sector,
-        ),
-    )
-
-    username_base = "".join(c for c in company_name.lower() if c.isalnum())[:12] or "firma"
-    username = username_base
-    suffix = 1
-    while db.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-        username = f"{username_base}{suffix}"
-        suffix += 1
-
-    db.execute(
-        "INSERT INTO users (id, username, password_hash, name, role, company_id) VALUES (?, ?, ?, ?, ?, ?)",
-        (
-            f"usr-{secrets.token_hex(6)}",
-            username,
-            generate_password_hash(admin_password),
-            f"{company_name} Admin",
-            "company-admin",
-            company_id,
-        ),
-    )
-
-    turnstile_credentials = []
-    for index in range(turnstile_count):
-        if turnstile_count == 1:
-            turnstile_username_base = f"{username_base}gate"
-            turnstile_display_name = f"{company_name} Drehkreuz"
-        else:
-            turnstile_username_base = f"{username_base}gate{index + 1}"
-            turnstile_display_name = f"{company_name} Drehkreuz {index + 1}"
-
-        turnstile_username = turnstile_username_base
-        turnstile_suffix = 1
-        while db.execute("SELECT 1 FROM users WHERE username = ?", (turnstile_username,)).fetchone():
-            turnstile_username = f"{turnstile_username_base}{turnstile_suffix}"
-            turnstile_suffix += 1
-
-        turnstile_api_key = create_turnstile_api_key()
-        db.execute(
-            "INSERT INTO users (id, username, password_hash, name, role, company_id, api_key_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                f"usr-{secrets.token_hex(6)}",
-                turnstile_username,
-                generate_password_hash(turnstile_password),
-                turnstile_display_name,
-                "turnstile",
-                company_id,
-                hash_turnstile_api_key(turnstile_api_key),
-            ),
+    result = CompaniesService().create_company(get_db(), payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.created",
+            f"Firma {audit['company_name']} wurde angelegt",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
         )
-        turnstile_credentials.append(
-            {
-                "username": turnstile_username,
-                "password": turnstile_password,
-                "apiKey": turnstile_api_key,
-            }
-        )
-
-    db.commit()
-    log_audit("company.created", f"Firma {company_name} wurde angelegt", target_type="company", target_id=company_id, company_id=company_id, actor=g.current_user)
-
-    row = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    return (
-        jsonify(
-            {
-                "company": row_to_dict(row),
-                "adminCredentials": {
-                    "username": username,
-                    "password": admin_password,
-                },
-                "turnstileCredentials": {
-                    "username": turnstile_credentials[0]["username"],
-                    "password": turnstile_credentials[0]["password"],
-                    "apiKey": turnstile_credentials[0]["apiKey"],
-                },
-                "turnstileCredentialsList": turnstile_credentials,
-            }
-        ),
-        201,
-    )
+    return jsonify(result["body"]), result.get("status", 201)
 
 
 @require_auth
@@ -9744,657 +9533,125 @@ def demo_seed():
 
 @require_auth
 def list_workers():
-    try:
-        db = get_db()
-        include_deleted = request.args.get("includeDeleted", "0") == "1"
-        try:
-            lock_workers_with_expired_documents(db)
-        except Exception:
-            pass
-        clause, params = visible_worker_clause(g.current_user)
-        where = clause if include_deleted else f"{clause}{' AND' if clause else ' WHERE'} deleted_at IS NULL"
-        rows = db.execute(f"SELECT * FROM workers{where} ORDER BY last_name, first_name", params).fetchall()
+    from backend.app.domains.workers.service import WorkersService
 
-        serialized = []
-        for row in rows:
-            item = serialize_worker_record(row)
-            item.update(get_worker_lock_metadata(db, row))
-            serialized.append(item)
-        return jsonify(serialized)
-    except Exception as e:
-        return {"error": "Fehler beim Laden von Mitarbeitern", "details": str(e)}, 400
+    include_deleted = request.args.get("includeDeleted", "0") == "1"
+    result = WorkersService().list_workers(
+        get_db(), g.current_user, include_deleted=include_deleted
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def get_current_visitors():
-    """Gibt Besucher zurück die sich aktuell auf dem Gelände befinden (visit_end_at in der Zukunft)."""
-    db = get_db()
-    user = g.current_user
-    company_filter = "" if user["role"] == "superadmin" else f" AND w.company_id = '{user.get('company_id', '')}'"
-    now_str = datetime.utcnow().isoformat()
-    rows = db.execute(
-        f"""SELECT w.id, w.first_name, w.last_name, w.badge_id, w.visitor_company,
-                   w.visit_purpose, w.host_name, w.visit_end_at, w.status
-            FROM workers w
-            WHERE w.worker_type = 'visitor'
-              AND w.deleted_at IS NULL
-              AND (w.visit_end_at = '' OR w.visit_end_at > ?)
-              AND w.status != 'gesperrt'
-              {company_filter}
-            ORDER BY w.visit_end_at ASC""",
-        (now_str,)
-    ).fetchall()
-    result = []
-    for r in rows:
-        expires_at = r["visit_end_at"] or ""
-        minutes_left = None
-        if expires_at:
-            try:
-                delta = datetime.fromisoformat(expires_at) - datetime.utcnow()
-                minutes_left = int(delta.total_seconds() / 60)
-            except Exception:
-                pass
-        result.append({
-            "id": r["id"],
-            "name": f"{r['first_name']} {r['last_name']}",
-            "badge_id": r["badge_id"],
-            "visitor_company": r["visitor_company"],
-            "visit_purpose": r["visit_purpose"],
-            "host_name": r["host_name"],
-            "visit_end_at": expires_at,
-            "minutes_left": minutes_left,
-        })
-    return jsonify(result)
+    from backend.app.domains.workers.service import WorkersService
+
+    result = WorkersService().get_current_visitors(get_db(), g.current_user)
+    return jsonify(result["body"])
+
+
+def _workers_file_response(result: dict):
+    """Return Flask Response from WorkersService export result."""
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    resp = result["response"]
+    return Response(resp["data"], mimetype=resp["mimetype"], headers=resp["headers"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def import_workers_csv():
-    """Bulk-import workers from a CSV file.
-    Expected columns (case-insensitive):
-    vorname, nachname, firma, versicherungsnr, typ, rolle, baustelle, gueltig_bis
-    Returns a summary: created, skipped, errors.
-    """
+    """Bulk-import workers from a CSV file."""
+    from backend.app.domains.workers.service import WorkersService
+
     if "file" not in request.files:
         return jsonify({"error": "no_file"}), 400
     uploaded_file = request.files["file"]
     if not uploaded_file.filename or not uploaded_file.filename.lower().endswith(".csv"):
         return jsonify({"error": "invalid_file_type", "message": "Nur CSV-Dateien erlaubt."}), 400
 
-    db = get_db()
-    # Read CSV safely
-    raw_bytes = uploaded_file.read(2 * 1024 * 1024)  # max 2 MB
-    try:
-        raw_text = raw_bytes.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raw_text = raw_bytes.decode("latin-1", errors="replace")
-
-    reader = csv.DictReader(io.StringIO(raw_text), delimiter=None)
-    # Try to detect delimiter (csv.Sniffer)
-    try:
-        sample = raw_text[:2048]
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;|\t")
-        reader = csv.DictReader(io.StringIO(raw_text), dialect=dialect)
-    except csv.Error:
-        reader = csv.DictReader(io.StringIO(raw_text))
-
-    # Normalize header names
-    def _col(row, *candidates):
-        for key in row:
-            norm = key.strip().lower().replace(" ", "_").replace("-", "_").replace("ä","ae").replace("ö","oe").replace("ü","ue").replace("ß","ss")
-            if norm in candidates:
-                return str(row[key] or "").strip()
-        return ""
-
-    created = []
-    skipped = []
-    errors = []
-
-    # Pre-load companies for name->id lookup
-    all_companies = {str(r["name"]).strip().lower(): str(r["id"]) for r in db.execute("SELECT id, name FROM companies WHERE deleted_at IS NULL").fetchall()}
-
-    for row_num, row in enumerate(reader, start=2):
-        try:
-            first_name = _col(row, "vorname", "first_name", "firstname")
-            last_name = _col(row, "nachname", "last_name", "lastname", "name")
-            if not first_name or not last_name:
-                skipped.append({"row": row_num, "reason": "Vor- oder Nachname fehlt"})
-                continue
-
-            company_name_raw = _col(row, "firma", "company", "unternehmen", "company_name")
-            company_id = all_companies.get(company_name_raw.lower(), "")
-            if not company_id:
-                # Try partial match
-                for cn, cid in all_companies.items():
-                    if company_name_raw.lower() in cn or cn in company_name_raw.lower():
-                        company_id = cid
-                        break
-            if not company_id:
-                if g.current_user["role"] == "company-admin":
-                    company_id = g.current_user.get("company_id", "")
-                else:
-                    skipped.append({"row": row_num, "reason": f"Firma '{company_name_raw}' nicht gefunden"})
-                    continue
-
-            if g.current_user["role"] == "company-admin" and company_id != g.current_user.get("company_id"):
-                skipped.append({"row": row_num, "reason": "Firma nicht erlaubt"})
-                continue
-
-            insurance_number = _col(row, "versicherungsnr", "insurance_number", "sozialversicherungsnr", "svnr")
-            worker_type_raw = _col(row, "typ", "type", "worker_type").lower()
-            worker_type = "worker" if worker_type_raw not in ("visitor", "besucher") else "visitor"
-            role_value = _col(row, "rolle", "role", "position") or "Mitarbeiter"
-            site_value = _col(row, "baustelle", "site", "standort") or ""
-            valid_until_raw = _col(row, "gueltig_bis", "gueltigbis", "valid_until", "validuntil", "ablaufdatum")
-            # Normalize date
-            valid_until_value = None
-            if valid_until_raw:
-                # Try DD.MM.YYYY and YYYY-MM-DD
-                for fmt in ("%d.%m.%Y", "%Y-%m-%d", "%d/%m/%Y"):
-                    try:
-                        from datetime import datetime as _dt
-                        parsed = _dt.strptime(valid_until_raw, fmt)
-                        valid_until_value = parsed.strftime("%Y-%m-%dT23:59:00")
-                        break
-                    except ValueError:
-                        continue
-
-            worker_id = f"wrk-{secrets.token_hex(6)}"
-            # Generate unique badge_id
-            badge_id_value = str(row_num).zfill(6)
-            existing_badge = db.execute("SELECT id FROM workers WHERE badge_id = ?", (badge_id_value,)).fetchone()
-            if existing_badge:
-                badge_id_value = secrets.token_hex(4)
-
-            db.execute(
-                """
-                INSERT INTO workers (
-                    id, company_id, subcompany_id, first_name, last_name, insurance_number,
-                    worker_type, role, site, valid_until, visitor_company, visit_purpose,
-                    host_name, visit_end_at, status, photo_data, badge_id, badge_id_lookup, badge_pin_hash,
-                    physical_card_id, deleted_at
-                ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, 'active', '', ?, ?, '', '', NULL)
-                """,
-                (worker_id, company_id, first_name, last_name, insurance_number,
-                 worker_type, role_value, site_value, valid_until_value, badge_id_value, normalize_badge_id(badge_id_value)),
-            )
-            created.append({"row": row_num, "name": f"{first_name} {last_name}", "id": worker_id})
-        except Exception as exc:
-            errors.append({"row": row_num, "reason": str(exc)[:200]})
-
-    if created:
-        db.commit()
-        log_audit("workers.bulk_imported", f"{len(created)} Mitarbeiter per CSV importiert", actor=g.current_user)
-
-    return jsonify({
-        "created": len(created),
-        "skipped": len(skipped),
-        "errors": len(errors),
-        "details": {"created": created[:50], "skipped": skipped[:50], "errors": errors[:50]},
-    })
+    raw_bytes = uploaded_file.read(2 * 1024 * 1024)
+    result = WorkersService().import_workers_csv(get_db(), g.current_user, raw_bytes)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit")
+    if audit and audit.get("created_count"):
+        log_audit(
+            "workers.bulk_imported",
+            f"{audit['created_count']} Mitarbeiter per CSV importiert",
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def export_workers_csv():
+    from backend.app.domains.workers.service import WorkersService
+
     include_deleted = request.args.get("includeDeleted", "0") == "1"
-    where_clause, params = visible_worker_clause(g.current_user, prefix="workers.")
-    if not include_deleted:
-        where_clause = f"{where_clause}{' AND' if where_clause else ' WHERE'} workers.deleted_at IS NULL"
-
-    rows = get_db().execute(
-        f"""
-        SELECT workers.*, companies.name AS company_name, subcompanies.name AS subcompany_name
-        FROM workers
-        JOIN companies ON companies.id = workers.company_id
-        LEFT JOIN subcompanies ON subcompanies.id = workers.subcompany_id
-        {where_clause}
-        ORDER BY workers.last_name, workers.first_name
-        """,
-        params,
-    ).fetchall()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "id",
-            "company_id",
-            "company_name",
-            "subcompany_id",
-            "subcompany_name",
-            "first_name",
-            "last_name",
-            "worker_type",
-            "insurance_number",
-            "role",
-            "site",
-            "valid_until",
-            "visitor_company",
-            "visit_purpose",
-            "host_name",
-            "visit_end_at",
-            "status",
-            "badge_id",
-            "physical_card_id",
-            "deleted_at",
-        ]
+    result = WorkersService().export_workers_csv(
+        get_db(), g.current_user, include_deleted=include_deleted
     )
-    for row in rows:
-        writer.writerow(
-            [
-                row["id"],
-                row["company_id"],
-                row["company_name"],
-                row["subcompany_id"],
-                row["subcompany_name"],
-                row["first_name"],
-                row["last_name"],
-                row["worker_type"],
-                row["insurance_number"],
-                row["role"],
-                row["site"],
-                row["valid_until"],
-                row["visitor_company"],
-                row["visit_purpose"],
-                row["host_name"],
-                row["visit_end_at"],
-                row["status"],
-                row["badge_id"],
-                row["physical_card_id"],
-                row["deleted_at"],
-            ]
-        )
-
-    return Response(
-        output.getvalue(),
-        mimetype="application/octet-stream",
-        headers={"Content-Disposition": 'attachment; filename="mitarbeiterliste.csv"'},
-    )
+    return _workers_file_response(result)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def export_workers_pdf():
-    include_deleted = request.args.get("includeDeleted", "0") == "1"
-    include_photos = request.args.get("includePhotos", "0") == "1"
-    period = (request.args.get("period") or "all").strip().lower()
-    date_param = (request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip()
+    from backend.app.domains.workers.service import WorkersService
 
-    # Validate date_param to prevent injection
-    try:
-        period_date = datetime.strptime(date_param, "%Y-%m-%d").date()
-    except ValueError:
-        period_date = datetime.now().date()
-
-    db = get_db()
-    where_clause, params = visible_worker_clause(g.current_user, prefix="workers.")
-    if not include_deleted:
-        where_clause = f"{where_clause}{' AND' if where_clause else ' WHERE'} workers.deleted_at IS NULL"
-
-    period_label = ""
-    if period == "day":
-        day_str = period_date.isoformat()
-        where_clause = f"{where_clause}{' AND' if where_clause else ' WHERE'} workers.id IN (SELECT DISTINCT worker_id FROM access_logs WHERE date(timestamp) = ?)"
-        params = list(params) + [day_str]
-        period_label = f" | Tag: {day_str}"
-    elif period == "week":
-        week_start = (period_date - timedelta(days=period_date.weekday())).isoformat()
-        week_end = (period_date - timedelta(days=period_date.weekday()) + timedelta(days=6)).isoformat()
-        where_clause = f"{where_clause}{' AND' if where_clause else ' WHERE'} workers.id IN (SELECT DISTINCT worker_id FROM access_logs WHERE date(timestamp) >= ? AND date(timestamp) <= ?)"
-        params = list(params) + [week_start, week_end]
-        period_label = f" | Woche: {week_start} – {week_end}"
-
-    rows = db.execute(
-        f"""
-        SELECT workers.id, workers.first_name, workers.last_name, workers.status,
-               workers.photo_data, workers.badge_id, workers.site,
-               companies.name AS company_name, subcompanies.name AS subcompany_name
-        FROM workers
-        JOIN companies ON companies.id = workers.company_id
-        LEFT JOIN subcompanies ON subcompanies.id = workers.subcompany_id
-        {where_clause}
-        ORDER BY workers.last_name, workers.first_name
-        """,
-        params,
-    ).fetchall()
-
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas as rl_canvas
-        from reportlab.lib.utils import ImageReader
-    except Exception:
-        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
-
-    buffer = io.BytesIO()
-    page_width, page_height = A4
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
-
-    row_height = 44 if include_photos else 13
-    photo_size = 36
-
-    def draw_worker_page_header(y):
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(36, y, "BauPass - Mitarbeiterliste")
-        y -= 16
-        pdf.setFont("Helvetica", 9)
-        pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}{period_label} | {len(rows)} Mitarbeiter")
-        y -= 20
-        pdf.setFont("Helvetica-Bold", 9)
-        x_name = 36 + (photo_size + 6 if include_photos else 0)
-        pdf.drawString(x_name, y, "Name")
-        pdf.drawString(x_name + 170, y, "Firma")
-        pdf.drawString(x_name + 310, y, "Subunternehmen")
-        pdf.drawString(x_name + 430, y, "Status")
-        y -= 10
-        pdf.line(36, y, page_width - 36, y)
-        y -= 12
-        return y
-
-    y = page_height - 42
-    y = draw_worker_page_header(y)
-    pdf.setFont("Helvetica", 9)
-
-    for row in rows:
-        if y < (row_height + 12):
-            pdf.showPage()
-            y = page_height - 42
-            y = draw_worker_page_header(y)
-            pdf.setFont("Helvetica", 9)
-
-        x_text = 36
-        if include_photos:
-            photo_bytes = None
-            pd = row["photo_data"] or ""
-            if pd.startswith("data:image/") and "," in pd:
-                try:
-                    b64 = pd.split(",", 1)[1]
-                    photo_bytes = base64.b64decode(b64.strip())
-                except Exception:
-                    photo_bytes = None
-            if photo_bytes:
-                try:
-                    img_buf = io.BytesIO(photo_bytes)
-                    img_reader = ImageReader(img_buf)
-                    pdf.drawImage(img_reader, 36, y - photo_size + 4, width=photo_size, height=photo_size, preserveAspectRatio=True, mask="auto")
-                except Exception:
-                    pass
-            x_text = 36 + photo_size + 6
-
-        text_y = y - (photo_size // 2 - 4 if include_photos else 0)
-        full_name = f"{(row['last_name'] or '').strip()}, {(row['first_name'] or '').strip()}".strip(", ")
-        pdf.drawString(x_text, text_y, full_name[:28])
-        pdf.drawString(x_text + 170, text_y, str(row["company_name"] or "-")[:22])
-        pdf.drawString(x_text + 310, text_y, str(row["subcompany_name"] or "-")[:18])
-        pdf.drawString(x_text + 430, text_y, str(row["status"] or "-")[:10])
-        y -= row_height
-
-    if not rows:
-        pdf.drawString(36, y, "Keine Mitarbeiter gefunden.")
-
-    pdf.save()
-    buffer.seek(0)
-    filename = f"mitarbeiterliste-{datetime.now().strftime('%Y-%m-%d')}.pdf"
-    return Response(
-        buffer.getvalue(),
-        mimetype="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    result = WorkersService().export_workers_pdf(
+        get_db(),
+        g.current_user,
+        include_deleted=request.args.get("includeDeleted", "0") == "1",
+        include_photos=request.args.get("includePhotos", "0") == "1",
+        period=(request.args.get("period") or "all").strip().lower(),
+        date_param=(request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip(),
     )
+    return _workers_file_response(result)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def export_attendance_pdf():
     """Anwesenheitsliste als PDF – alle Mitarbeiter mit offenem Check-in."""
+    from backend.app.domains.workers.service import WorkersService
+
     date_param = (request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip()
-    try:
-        datetime.strptime(date_param, "%Y-%m-%d")
-    except ValueError:
-        date_param = datetime.now().strftime("%Y-%m-%d")
-
-    db = get_db()
-    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
-    platform_label = str(settings["platform_name"] or "BauPass").strip() if settings else "BauPass"
-
-    # Get the latest access log entry per worker for today
-    clause, params = visible_worker_clause(g.current_user, prefix="w.")
-    rows = db.execute(
-        f"""
-        SELECT w.id AS worker_id, w.first_name, w.last_name, w.badge_id,
-               al.direction, al.gate, al.timestamp,
-               c.name AS company_name
-        FROM workers w
-        JOIN (
-            SELECT worker_id, MAX(timestamp) AS latest_ts
-            FROM access_logs
-            WHERE DATE(timestamp) = ?
-            GROUP BY worker_id
-        ) latest ON latest.worker_id = w.id
-        JOIN access_logs al ON al.worker_id = w.id AND al.timestamp = latest.latest_ts
-        JOIN companies c ON c.id = w.company_id
-        {clause}
-        WHERE w.deleted_at IS NULL
-        ORDER BY al.timestamp DESC
-        """,
-        [date_param] + list(params),
-    ).fetchall()
-
-    now_dt = datetime.now(timezone.utc)
-    open_entries = build_open_entries_from_rows(rows, now_dt)
-
-    # Add company_name for each entry
-    worker_id_to_company = {row["worker_id"]: row["company_name"] for row in rows}
-
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas as rl_canvas
-        from reportlab.lib import colors as rl_colors
-    except Exception:
-        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
-
-    buffer = io.BytesIO()
-    page_width, page_height = A4
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
-    primary_color = str(settings["invoice_primary_color"] or "#0f4c5c").strip() if settings else "#0f4c5c"
-
-    def hex_to_rgb(h):
-        h = h.lstrip("#")
-        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
-
-    try:
-        pr, pg, pb = hex_to_rgb(primary_color)
-    except Exception:
-        pr, pg, pb = 0.059, 0.298, 0.361
-
-    row_height = 16
-
-    def draw_header(y):
-        # Header band
-        pdf.setFillColorRGB(pr, pg, pb)
-        pdf.rect(0, page_height - 56, page_width, 56, fill=1, stroke=0)
-        pdf.setFillColorRGB(1, 1, 1)
-        pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(36, page_height - 28, f"{platform_label} – Anwesenheitsliste")
-        pdf.setFont("Helvetica", 9)
-        pdf.drawString(36, page_height - 44, f"Datum: {date_param}  |  Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}  |  {len(open_entries)} aktive Eintritte")
-
-        y = page_height - 72
-        pdf.setFillColorRGB(0.95, 0.95, 0.95)
-        pdf.rect(36, y - 2, page_width - 72, row_height, fill=1, stroke=0)
-        pdf.setFillColorRGB(pr, pg, pb)
-        pdf.setFont("Helvetica-Bold", 8)
-        pdf.drawString(40, y + 2, "Name")
-        pdf.drawString(180, y + 2, "Firma")
-        pdf.drawString(310, y + 2, "Badge-ID")
-        pdf.drawString(390, y + 2, "Eintritt (UTC)")
-        pdf.drawString(490, y + 2, "Tor")
-        pdf.drawString(550, y + 2, "Dauer (Min)")
-        return y - row_height - 4
-
-    y = draw_header(page_height)
-    pdf.setFont("Helvetica", 8)
-    pdf.setFillColorRGB(0.1, 0.1, 0.1)
-
-    severity_colors = {
-        "green": (0.1, 0.6, 0.3),
-        "yellow": (0.8, 0.55, 0.0),
-        "red": (0.75, 0.1, 0.1),
-    }
-
-    for entry in open_entries:
-        if y < 40:
-            pdf.showPage()
-            y = draw_header(page_height)
-            pdf.setFont("Helvetica", 8)
-            pdf.setFillColorRGB(0.1, 0.1, 0.1)
-
-        sr, sg, sb = severity_colors.get(entry.get("severity", "green"), (0.1, 0.6, 0.3))
-        pdf.setFillColorRGB(sr, sg, sb)
-        pdf.circle(38, y + 5, 3, fill=1, stroke=0)
-        pdf.setFillColorRGB(0.1, 0.1, 0.1)
-
-        pdf.drawString(44, y + 2, str(entry.get("name", ""))[:26])
-        company_name = worker_id_to_company.get(entry.get("workerId", ""), "")
-        pdf.drawString(184, y + 2, str(company_name)[:20])
-        pdf.drawString(314, y + 2, str(entry.get("badgeId", ""))[:14])
-        ts = str(entry.get("timestamp", ""))[:16]
-        pdf.drawString(394, y + 2, ts)
-        pdf.drawString(494, y + 2, str(entry.get("gate", ""))[:12])
-        pdf.drawString(554, y + 2, str(entry.get("openMinutes", "")))
-
-        y -= row_height
-
-    if not open_entries:
-        pdf.setFont("Helvetica", 10)
-        pdf.setFillColorRGB(0.4, 0.4, 0.4)
-        pdf.drawString(36, y + 20, "Keine aktiven Eintritte für dieses Datum.")
-
-    pdf.save()
-    buffer.seek(0)
-    filename = f"anwesenheitsliste-{date_param}.pdf"
-    return Response(
-        buffer.getvalue(),
-        mimetype="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    result = WorkersService().export_attendance_pdf(
+        get_db(), g.current_user, date_param=date_param
     )
+    return _workers_file_response(result)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_worker():
+    from backend.app.domains.workers.service import WorkersService
+
     payload = request.get_json(silent=True) or {}
-    user = g.current_user
-    try:
-        company_id = clean_id_input(payload.get("companyId") or user.get("company_id"))
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-    db = get_db()
-
-    if user["role"] != "superadmin" and company_id != user.get("company_id"):
-        return jsonify({"error": "forbidden_company"}), 403
-
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company or company["deleted_at"]:
-        return jsonify({"error": "company_not_available"}), 400
-
-    try:
-        subcompany_id = resolve_subcompany_id(db, company_id, payload.get("subcompanyId"))
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-
-    try:
-        photo_data = sanitize_photo_data(payload.get("photoData"), required=True)
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-
-    worker_type = normalize_worker_type(payload.get("workerType"))
-    visitor_company = clean_text_input(payload.get("visitorCompany") or "", max_len=120)
-    visit_purpose = clean_text_input(payload.get("visitPurpose") or "", max_len=200)
-    host_name = clean_text_input(payload.get("hostName") or "", max_len=120)
-    visit_end_at = parse_datetime_local_to_utc_iso(payload.get("visitEndAt"))
-
-    if worker_type == "visitor":
-        if not visit_purpose:
-            return jsonify({"error": "visit_purpose_required"}), 400
-        if not visitor_company:
-            return jsonify({"error": "visitor_company_required"}), 400
-        if not host_name:
-            return jsonify({"error": "host_name_required"}), 400
-        if not visit_end_at:
-            return jsonify({"error": "visit_end_required"}), 400
-
-    badge_pin_hash = ""
-    if worker_type != "visitor":
-        try:
-            badge_pin = validate_badge_pin_or_raise(payload.get("badgePin"))
-        except ValueError as error:
-            return jsonify({"error": str(error), "message": "Badge-PIN muss aus 4 bis 8 Ziffern bestehen."}), 400
-        badge_pin_hash = generate_password_hash(badge_pin)
-
-    physical_card_id = normalize_physical_card_id(payload.get("physicalCardId"))
-    try:
-        ensure_unique_physical_card_id_or_raise(db, physical_card_id)
-    except ValueError as error:
-        return jsonify({"error": str(error), "message": "Diese Karten-ID ist bereits einem anderen Mitarbeiter zugeordnet."}), 409
-
-    first_name = clean_text_input(payload.get("firstName", ""), max_len=80)
-    last_name = clean_text_input(payload.get("lastName", ""), max_len=80)
-    insurance_number = clean_text_input(payload.get("insuranceNumber", ""), max_len=64)
-    role_value = clean_text_input(payload.get("role", ""), max_len=120)
-    site_value = clean_text_input(payload.get("site", ""), max_len=120)
-    valid_until_value = clean_text_input(payload.get("validUntil", ""), max_len=32)
-    status_value = clean_text_input(payload.get("status", "aktiv"), max_len=32) or "aktiv"
-    badge_id_value = normalize_badge_id(clean_text_input(payload.get("badgeId", f"{'VS' if worker_type == 'visitor' else 'BP'}-{secrets.token_hex(3).upper()}"), max_len=64))
-
-    worker_id = f"wrk-{secrets.token_hex(6)}"
-    try:
-        base_upload_root = DOCS_UPLOAD_DIR.resolve()
-        worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
-        if worker_doc_dir != base_upload_root and base_upload_root not in worker_doc_dir.parents:
-            raise ValueError("invalid_worker_doc_path")
-        worker_doc_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        return jsonify({"error": "worker_doc_folder_create_failed", "detail": str(exc)}), 500
-
-    db.execute(
-        """
-        INSERT INTO workers (
-            id, company_id, subcompany_id, first_name, last_name, insurance_number, worker_type, role, site, valid_until, visitor_company, visit_purpose, host_name, visit_end_at, status, photo_data, badge_id, badge_id_lookup, badge_pin_hash, physical_card_id, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            worker_id,
-            company_id,
-            subcompany_id,
-            first_name,
-            last_name,
-            insurance_number if worker_type != "visitor" else "",
-            worker_type,
-            role_value if worker_type != "visitor" else (role_value or "Besucher"),
-            site_value,
-            valid_until_value,
-            visitor_company,
-            visit_purpose,
-            host_name,
-            visit_end_at,
-            status_value,
-            photo_data,
-            badge_id_value,
-            normalize_badge_id(badge_id_value),
-            badge_pin_hash,
-            physical_card_id,
-            None,
-        ),
-    )
-    try:
-        _persist_worker_compliance_fields(db, worker_id, payload, g.current_user, is_new=True)
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-    db.commit()
-    log_audit("worker.created", f"Mitarbeiter {first_name} {last_name} erstellt", target_type="worker", target_id=worker_id, company_id=company_id, actor=g.current_user)
-    row = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    return jsonify(serialize_worker_record(row)), 201
+    result = WorkersService().create_worker(get_db(), g.current_user, payload)
+    if "error" in result:
+        err = result["error"]
+        status = result.get("status", 400)
+        if isinstance(err, dict) and "message" in err:
+            return jsonify(err), status
+        return jsonify(err), status
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "worker.created",
+            f"Mitarbeiter {audit['name']} erstellt",
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"]), result.get("status", 201)
 
 
 def _persist_worker_compliance_fields(db, worker_id, payload, actor, is_new=False):
@@ -10455,256 +9712,83 @@ def _persist_worker_compliance_fields(db, worker_id, payload, actor, is_new=Fals
 @require_auth
 @require_roles("superadmin", "company-admin")
 def update_worker(worker_id):
+    from backend.app.domains.workers.service import WorkersService
+
     payload = request.get_json(silent=True) or {}
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-
-    if worker["deleted_at"]:
-        return jsonify({"error": "worker_deleted"}), 400
-
-    photo_override_requested = bool(payload.get("photoMatchOverride"))
-    photo_similarity_raw = payload.get("photoMatchSimilarity")
-    photo_override_reason = clean_text_input(payload.get("photoMatchOverrideReason") or "", max_len=240)
-    photo_similarity = None
-    if photo_similarity_raw is not None and str(photo_similarity_raw).strip() != "":
-        try:
-            photo_similarity = float(photo_similarity_raw)
-        except (TypeError, ValueError):
-            return jsonify({"error": "invalid_photo_match_similarity"}), 400
-        if photo_similarity < 0 or photo_similarity > 1:
-            return jsonify({"error": "invalid_photo_match_similarity"}), 400
-
-    if photo_override_requested and g.current_user["role"] != "superadmin":
-        return jsonify({"error": "photo_override_forbidden"}), 403
-    if photo_override_requested and len(photo_override_reason) < 8:
-        return jsonify({"error": "photo_override_reason_required"}), 400
-
-    # 4-Augen: photo override requires second superadmin – validate everything first,
-    # then store in operation_approvals and return 202 instead of saving immediately.
-    # The actual DB write happens in execute_approved_operation after approval.
-    _photo_override_needs_approval = photo_override_requested
-
-    try:
-        next_company_id = clean_id_input(payload.get("companyId", worker["company_id"]))
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-    if g.current_user["role"] != "superadmin" and next_company_id != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_company"}), 403
-
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (next_company_id,)).fetchone()
-    if not company or company["deleted_at"]:
-        return jsonify({"error": "company_not_available"}), 400
-
-    try:
-        subcompany_id = resolve_subcompany_id(db, next_company_id, payload.get("subcompanyId", worker["subcompany_id"]))
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-
-    try:
-        updated_photo_data = sanitize_photo_data(payload.get("photoData", worker["photo_data"]), required=True)
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-
-    next_physical_card_id = normalize_physical_card_id(payload.get("physicalCardId", worker["physical_card_id"]))
-    try:
-        ensure_unique_physical_card_id_or_raise(db, next_physical_card_id, worker_id_to_exclude=worker_id)
-    except ValueError as error:
-        return jsonify({"error": str(error), "message": "Diese Karten-ID ist bereits einem anderen Mitarbeiter zugeordnet."}), 409
-
-    worker_type = normalize_worker_type(payload.get("workerType", worker["worker_type"]))
-    visitor_company = clean_text_input(payload.get("visitorCompany", worker["visitor_company"]) or "", max_len=120)
-    visit_purpose = clean_text_input(payload.get("visitPurpose", worker["visit_purpose"]) or "", max_len=200)
-    host_name = clean_text_input(payload.get("hostName", worker["host_name"]) or "", max_len=120)
-    visit_end_at = parse_datetime_local_to_utc_iso(payload.get("visitEndAt", worker["visit_end_at"])) if payload.get("visitEndAt", worker["visit_end_at"]) else ""
-    if worker_type == "visitor":
-        if not visit_purpose:
-            return jsonify({"error": "visit_purpose_required"}), 400
-        if not visitor_company:
-            return jsonify({"error": "visitor_company_required"}), 400
-        if not host_name:
-            return jsonify({"error": "host_name_required"}), 400
-        if not visit_end_at:
-            return jsonify({"error": "visit_end_required"}), 400
-
-    next_badge_pin_hash = worker["badge_pin_hash"] or ""
-    raw_badge_pin = payload.get("badgePin")
-    if worker_type != "visitor" and raw_badge_pin is not None:
-        normalized_candidate_pin = normalize_badge_pin(raw_badge_pin)
-        if normalized_candidate_pin:
-            try:
-                validated_pin = validate_badge_pin_or_raise(normalized_candidate_pin)
-            except ValueError as error:
-                return jsonify({"error": str(error), "message": "Badge-PIN muss aus 4 bis 8 Ziffern bestehen."}), 400
-            next_badge_pin_hash = generate_password_hash(validated_pin)
-        elif not next_badge_pin_hash:
-            return jsonify({"error": "badge_pin_required", "message": "Bitte eine Badge-PIN fuer diesen Mitarbeiter setzen."}), 400
-    if worker_type != "visitor" and not next_badge_pin_hash:
-        return jsonify({"error": "badge_pin_required", "message": "Bitte eine Badge-PIN fuer diesen Mitarbeiter setzen."}), 400
-
-    next_first_name = clean_text_input(payload.get("firstName", worker["first_name"]), max_len=80)
-    next_last_name = clean_text_input(payload.get("lastName", worker["last_name"]), max_len=80)
-    next_insurance_number = clean_text_input(payload.get("insuranceNumber", worker["insurance_number"]), max_len=64)
-    next_role = clean_text_input(payload.get("role", worker["role"]), max_len=120)
-    next_site = clean_text_input(payload.get("site", worker["site"]), max_len=120)
-    next_valid_until = clean_text_input(payload.get("validUntil", worker["valid_until"]), max_len=32)
-    next_status = clean_text_input(payload.get("status", worker["status"]), max_len=32) or worker["status"]
-
-    # --- 4-Augen: if photo changed under an override, store a pending approval
-    #     and return 202. The second superadmin executes the actual write.
-    if _photo_override_needs_approval and updated_photo_data != (worker["photo_data"] or ""):
-        approval_payload = {
-            "workerId": worker_id,
-            "companyId": next_company_id,
-            "subcompanyId": subcompany_id,
-            "firstName": next_first_name,
-            "lastName": next_last_name,
-            "insuranceNumber": next_insurance_number if worker_type != "visitor" else "",
-            "workerType": worker_type,
-            "role": next_role if worker_type != "visitor" else (next_role or visitor_company or "Besucher"),
-            "site": next_site,
-            "validUntil": next_valid_until,
-            "visitorCompany": visitor_company,
-            "visitPurpose": visit_purpose,
-            "hostName": host_name,
-            "visitEndAt": visit_end_at,
-            "status": next_status,
-            "photoData": updated_photo_data,
-            "badgePinHash": next_badge_pin_hash if worker_type != "visitor" else "",
-            "physicalCardId": next_physical_card_id,
-            "photoMatchOverrideReason": photo_override_reason,
-            "photoMatchSimilarity": photo_similarity,
-        }
-        approval_id = create_operation_approval(
-            db,
-            action_type="worker.photo_override",
-            payload=approval_payload,
-            actor=g.current_user,
-            target_type="worker",
-            target_id=worker_id,
-            company_id=next_company_id,
-        )
-        return jsonify({
-            "ok": True,
-            "approvalRequested": True,
-            "approvalId": approval_id,
-            "message": "Foto-Override erfordert eine zweite Superadmin-Freigabe.",
-        }), 202
-
-    try:
-        _persist_worker_compliance_fields(db, worker_id, payload, g.current_user, is_new=False)
-    except ValueError as error:
-        code = str(error)
-        if code in ("signature_required", "signature_too_large", "invalid_signature_data"):
-            return jsonify({"error": code}), 400
-        return jsonify({"error": code}), 400
-
-    db.execute(
-        """
-        UPDATE workers
-        SET company_id = ?, subcompany_id = ?, first_name = ?, last_name = ?, insurance_number = ?, worker_type = ?, role = ?, site = ?, valid_until = ?, visitor_company = ?, visit_purpose = ?, host_name = ?, visit_end_at = ?, status = ?, photo_data = ?, badge_pin_hash = ?, physical_card_id = ?, contact_email = ?, leave_balance = ?
-        WHERE id = ?
-        """,
-        (
-            next_company_id,
-            subcompany_id,
-            next_first_name,
-            next_last_name,
-            next_insurance_number if worker_type != "visitor" else "",
-            worker_type,
-            next_role if worker_type != "visitor" else (next_role or visitor_company or "Besucher"),
-            next_site,
-            next_valid_until,
-            visitor_company,
-            visit_purpose,
-            host_name,
-            visit_end_at,
-            next_status,
-            updated_photo_data,
-            next_badge_pin_hash if worker_type != "visitor" else "",
-            next_physical_card_id,
-            clean_text_input(payload.get("contactEmail", worker["contact_email"] or "") or "", max_len=200),
-            max(0, int(payload.get("leaveBalance", worker["leave_balance"] if worker["leave_balance"] is not None else 30))),
-            worker_id,
-        ),
-    )
-    db.commit()
-
-    if photo_override_requested and updated_photo_data != (worker["photo_data"] or ""):
-        similarity_label = f"{photo_similarity * 100:.1f}%" if isinstance(photo_similarity, float) else "n/a"
+    result = WorkersService().update_worker(get_db(), g.current_user, worker_id, payload)
+    if "error" in result:
+        err = result["error"]
+        status = result.get("status", 400)
+        if isinstance(err, dict) and "message" in err:
+            return jsonify(err), status
+        return jsonify(err), status
+    photo_audit = result.get("photo_override_audit")
+    if photo_audit:
         log_audit(
             "security.worker_photo_override",
-            f"Foto-Override fuer Mitarbeiter {worker_id} bestaetigt (Aehnlichkeit: {similarity_label}, Grund: {photo_override_reason})",
+            photo_audit["message"],
             target_type="worker",
-            target_id=worker_id,
-            company_id=worker["company_id"],
+            target_id=photo_audit["worker_id"],
+            company_id=photo_audit.get("company_id"),
             actor=g.current_user,
         )
-
-    log_audit("worker.updated", f"Mitarbeiter {worker_id} aktualisiert", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
-    return jsonify({"ok": True})
+    audit = result.get("audit")
+    if audit:
+        log_audit(
+            "worker.updated",
+            f"Mitarbeiter {audit['worker_id']} aktualisiert",
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"]), result.get("status", 200)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def delete_worker(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
+    from backend.app.domains.workers.service import WorkersService
 
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-
-    db.execute("UPDATE workers SET deleted_at = ? WHERE id = ?", (now_iso(), worker_id))
-    db.commit()
-    log_audit("worker.deleted", f"Mitarbeiter {worker_id} geloescht", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
-    return jsonify({"ok": True})
+    result = WorkersService().delete_worker(get_db(), g.current_user, worker_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "worker.deleted",
+            f"Mitarbeiter {audit['worker_id']} geloescht",
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_compliance_signature(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    return jsonify({
-        "workerId": worker_id,
-        "signatureData": worker["compliance_signature_data"] or "",
-        "signatureAt": worker["compliance_signature_at"] or "",
-        "capturedByUserId": worker["compliance_signature_captured_by"] or "",
-        "idHandoverAt": worker["id_handover_at"] or "",
-    })
+    from backend.app.domains.workers.service import WorkersService
+
+    result = WorkersService().get_compliance_signature(get_db(), g.current_user, worker_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def put_worker_compliance_signature(worker_id):
+    from backend.app.domains.workers.service import WorkersService
+
     payload = request.get_json(silent=True) or {}
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    if worker["deleted_at"]:
-        return jsonify({"error": "worker_deleted"}), 400
-    try:
-        _persist_worker_compliance_fields(db, worker_id, payload, g.current_user, is_new=False)
-    except ValueError as error:
-        code = str(error)
-        return jsonify({"error": code}), 400
-    db.commit()
-    row = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    meta = _worker_compliance_signature_meta(row)
-    return jsonify({"ok": True, **meta, "signatureData": row["compliance_signature_data"] or ""})
+    result = WorkersService().put_compliance_signature(
+        get_db(), g.current_user, worker_id, payload
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 def _operations_company_filter_sql(user, alias="w"):
@@ -10966,243 +10050,177 @@ def admin_list_database_backups():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def bulk_update_worker_status():
+    from backend.app.domains.workers.service import WorkersService
+
     payload = request.get_json(silent=True) or {}
-    ids = payload.get("ids", [])
-    status = payload.get("status", "")
-    if not isinstance(ids, list) or not ids:
-        return jsonify({"error": "missing_ids"}), 400
-    if status not in ("aktiv", "inaktiv", "gesperrt"):
-        return jsonify({"error": "invalid_status"}), 400
-    ids = [str(i) for i in ids if isinstance(i, str) and i.strip()][:200]
-    db = get_db()
-    updated = 0
-    for worker_id in ids:
-        worker = db.execute("SELECT id, company_id, deleted_at FROM workers WHERE id = ?", (worker_id,)).fetchone()
-        if not worker or worker["deleted_at"]:
-            continue
-        if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-            continue
-        db.execute("UPDATE workers SET status = ? WHERE id = ?", (status, worker_id))
-        updated += 1
-    db.commit()
-    log_audit("workers.bulk_status", f"{updated} Mitarbeiter Status auf '{status}' gesetzt", actor=g.current_user)
-    return jsonify({"ok": True, "updated": updated})
+    result = WorkersService().bulk_update_status(
+        get_db(),
+        g.current_user,
+        ids=payload.get("ids", []),
+        status=payload.get("status", ""),
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    log_audit(
+        "workers.bulk_status",
+        f"{audit.get('updated', 0)} Mitarbeiter Status auf '{audit.get('status', '')}' gesetzt",
+        actor=g.current_user,
+    )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def bulk_delete_workers():
+    from backend.app.domains.workers.service import WorkersService
+
     payload = request.get_json(silent=True) or {}
-    ids = payload.get("ids", [])
-    if not isinstance(ids, list) or not ids:
-        return jsonify({"error": "missing_ids"}), 400
-    ids = [str(i) for i in ids if isinstance(i, str) and i.strip()][:200]
-    db = get_db()
-    deleted = 0
-    for worker_id in ids:
-        worker = db.execute("SELECT id, company_id, deleted_at FROM workers WHERE id = ?", (worker_id,)).fetchone()
-        if not worker or worker["deleted_at"]:
-            continue
-        if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-            continue
-        db.execute("UPDATE workers SET deleted_at = ? WHERE id = ?", (now_iso(), worker_id))
-        deleted += 1
-    db.commit()
-    log_audit("workers.bulk_deleted", f"{deleted} Mitarbeiter gelöscht", actor=g.current_user)
-    return jsonify({"ok": True, "deleted": deleted})
+    result = WorkersService().bulk_delete_workers(
+        get_db(), g.current_user, ids=payload.get("ids", [])
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    log_audit(
+        "workers.bulk_deleted",
+        f"{audit.get('deleted', 0)} Mitarbeiter gelöscht",
+        actor=g.current_user,
+    )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def restore_worker(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
+    from backend.app.domains.workers.service import WorkersService
 
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-
-    db.execute("UPDATE workers SET deleted_at = NULL WHERE id = ?", (worker_id,))
-    db.commit()
-    log_audit("worker.restored", f"Mitarbeiter {worker_id} wiederhergestellt", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
-    return jsonify({"ok": True})
+    result = WorkersService().restore_worker(get_db(), g.current_user, worker_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "worker.restored",
+            f"Mitarbeiter {audit['worker_id']} wiederhergestellt",
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 def set_worker_lock(worker_id):
-    role = g.current_user.get("role")
-    if role not in ("superadmin", "company-admin", "turnstile"):
-        return jsonify({"error": "forbidden"}), 403
+    from backend.app.domains.workers.service import WorkersService
 
     payload = request.get_json(silent=True) or {}
-    status = str(payload.get("status", "")).strip().lower()
-    if status not in ("gesperrt", "aktiv"):
-        return jsonify({"error": "invalid_status"}), 400
-
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if worker["deleted_at"]:
-        return jsonify({"error": "worker_deleted"}), 400
-
-    if role != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-
-    db.execute("UPDATE workers SET status = ? WHERE id = ?", (status, worker_id))
-    db.commit()
-    action = "worker.locked" if status == "gesperrt" else "worker.unlocked"
-    log_audit(action, f"Mitarbeiter {worker_id} -> {status}", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
-    return jsonify({"ok": True, "status": status})
+    result = WorkersService().set_worker_lock(
+        get_db(), g.current_user, worker_id, status=payload.get("status", "")
+    )
+    if "error" in result:
+        err = result["error"]
+        status = result.get("status", 400)
+        if isinstance(err, dict) and "message" in err:
+            return jsonify(err), status
+        return jsonify(err), status
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            audit["action"],
+            f"Mitarbeiter {audit['worker_id']} -> {audit['status']}",
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def reset_worker_pin(worker_id):
+    from backend.app.domains.workers.service import WorkersService
+
     payload = request.get_json(silent=True) or {}
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    if g.current_user["role"] != "superadmin":
-        _pin_plan = get_company_plan(db, worker["company_id"])
-        if not company_has_feature(_pin_plan, "nfc_badges"):
-            return feature_not_available_response("nfc_badges", _pin_plan)
-    if worker["deleted_at"]:
-        return jsonify({"error": "worker_deleted"}), 400
-    if worker["badge_id"].upper().startswith("VS"):
-        return jsonify({"error": "visitor_no_pin", "message": "Besucher haben keine Badge-PIN."}), 400
-
-    raw_pin = normalize_badge_pin(payload.get("newPin", ""))
-    if not raw_pin:
-        return jsonify({"error": "missing_pin", "message": "Bitte eine neue PIN angeben."}), 400
-    try:
-        validated_pin = validate_badge_pin_or_raise(raw_pin)
-    except ValueError as error:
-        return jsonify({"error": "invalid_pin", "message": str(error)}), 400
-
-    new_hash = generate_password_hash(validated_pin)
-    db.execute("UPDATE workers SET badge_pin_hash = ? WHERE id = ?", (new_hash, worker_id))
-    db.commit()
-    log_audit(
-        "worker.pin_reset",
-        f"Badge-PIN fuer {worker['first_name']} {worker['last_name']} (Badge {worker['badge_id']}) wurde zurueckgesetzt",
-        target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user
+    result = WorkersService().reset_worker_pin(
+        get_db(), g.current_user, worker_id, new_pin=payload.get("newPin", "")
     )
-    return jsonify({"ok": True})
+    if "error" in result:
+        err = result["error"]
+        status = result.get("status", 400)
+        if isinstance(err, dict) and "message" in err:
+            return jsonify(err), status
+        return jsonify(err), status
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "worker.pin_reset",
+            audit["message"],
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_worker_hce_devices(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
+    from backend.app.domains.workers.service import WorkersService
 
-    rows = db.execute(
-        """
-        SELECT id, device_id, platform, app_version, status, trust_version, signature_algo, created_at, last_seen_at, device_public_key
-        FROM hce_device_trust
-        WHERE worker_id = ?
-        ORDER BY created_at DESC
-        """,
-        (worker_id,),
-    ).fetchall()
-
-    devices = []
-    for row in rows:
-        devices.append(
-            {
-                "id": row["id"],
-                "deviceId": row["device_id"],
-                "platform": row["platform"],
-                "appVersion": row["app_version"],
-                "status": row["status"],
-                "trustVersion": int(row["trust_version"] or 1),
-                "signatureAlgo": row["signature_algo"] or "",
-                "hasPublicKey": bool(row["device_public_key"]),
-                "createdAt": row["created_at"],
-                "lastSeenAt": row["last_seen_at"],
-            }
-        )
-    return jsonify({"workerId": worker_id, "devices": devices})
+    result = WorkersService().list_hce_devices(get_db(), g.current_user, worker_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def revoke_worker_hce_device(worker_id, device_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
+    from backend.app.domains.workers.service import WorkersService
 
-    try:
-        normalized_device_id = clean_id_input(device_id, max_len=80)
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-
-    row = db.execute(
-        "SELECT * FROM hce_device_trust WHERE worker_id = ? AND device_id = ? LIMIT 1",
-        (worker_id, normalized_device_id),
-    ).fetchone()
-    if not row:
-        return jsonify({"error": "hce_device_not_found"}), 404
-
-    db.execute("UPDATE hce_device_trust SET status = 'revoked' WHERE id = ?", (row["id"],))
-    db.execute("DELETE FROM hce_device_nonces WHERE device_id = ?", (normalized_device_id,))
-    db.commit()
-    log_audit(
-        "hce.device_revoked",
-        f"HCE-Geraet {normalized_device_id} fuer Worker {worker_id} gesperrt",
-        target_type="worker",
-        target_id=worker_id,
-        company_id=worker["company_id"],
-        actor=g.current_user,
+    result = WorkersService().revoke_hce_device(
+        get_db(), g.current_user, worker_id, device_id
     )
-    return jsonify({"ok": True, "status": "revoked", "deviceId": normalized_device_id})
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            audit["action"],
+            audit["message"],
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def activate_worker_hce_device(worker_id, device_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
+    from backend.app.domains.workers.service import WorkersService
 
-    try:
-        normalized_device_id = clean_id_input(device_id, max_len=80)
-    except ValueError as error:
-        return jsonify({"error": str(error)}), 400
-
-    row = db.execute(
-        "SELECT * FROM hce_device_trust WHERE worker_id = ? AND device_id = ? LIMIT 1",
-        (worker_id, normalized_device_id),
-    ).fetchone()
-    if not row:
-        return jsonify({"error": "hce_device_not_found"}), 404
-
-    db.execute("UPDATE hce_device_trust SET status = 'active', last_seen_at = ? WHERE id = ?", (now_iso(), row["id"]))
-    db.commit()
-    log_audit(
-        "hce.device_activated",
-        f"HCE-Geraet {normalized_device_id} fuer Worker {worker_id} reaktiviert",
-        target_type="worker",
-        target_id=worker_id,
-        company_id=worker["company_id"],
-        actor=g.current_user,
+    result = WorkersService().activate_hce_device(
+        get_db(), g.current_user, worker_id, device_id
     )
-    return jsonify({"ok": True, "status": "active", "deviceId": normalized_device_id})
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            audit["action"],
+            audit["message"],
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 def build_worker_app_access_payload(db, worker_id, actor_user):
@@ -12228,33 +11246,37 @@ def validate_worker_bound_device_or_raise(db, worker_id, session_token):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_app_access(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT company_id FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if worker:
-        plan_value = get_company_plan(db, worker["company_id"])
-        if not company_has_feature(plan_value, "worker_app"):
-            return feature_not_available_response("worker_app", plan_value)
-    payload, error_response = build_worker_app_access_payload(db, worker_id, g.current_user)
-    if error_response:
-        return error_response
-    return jsonify(payload)
+    from backend.app.domains.workers.service import WorkersService
+
+    result = WorkersService().get_worker_app_access(get_db(), g.current_user, worker_id)
+    if "error_response" in result:
+        return result["error_response"]
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_worker_app_access(worker_id):
-    db = get_db()
-    worker_plan_row = db.execute("SELECT company_id FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if worker_plan_row:
-        plan_value = get_company_plan(db, worker_plan_row["company_id"])
-        if not company_has_feature(plan_value, "worker_app"):
-            return feature_not_available_response("worker_app", plan_value)
-    payload, error_response = build_worker_app_access_payload(db, worker_id, g.current_user)
-    if error_response:
-        return error_response
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    log_audit("worker.app_access_created", f"Mitarbeiter-App-Link fuer {worker_id} erzeugt", target_type="worker", target_id=worker_id, company_id=worker["company_id"], actor=g.current_user)
-    return jsonify(payload)
+    from backend.app.domains.workers.service import WorkersService
+
+    result = WorkersService().create_worker_app_access(get_db(), g.current_user, worker_id)
+    if "error_response" in result:
+        return result["error_response"]
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "worker.app_access_created",
+            f"Mitarbeiter-App-Link fuer {audit['worker_id']} erzeugt",
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 def _qr_png_response(payload_text):
@@ -15071,529 +14093,134 @@ def worker_app_verify_pin():
 @require_auth
 @require_roles("superadmin")
 def update_company(company_id):
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
-    db = get_db()
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-
-    company_name = clean_text_input(payload.get("name", company["name"]), max_len=120)
-    company_customer_number = sanitize_customer_number(
-        payload.get("customerNumber", company["customer_number"] if "customer_number" in company.keys() else ""),
-        max_len=12,
-    )
-    if not company_customer_number:
-        company_customer_number = sanitize_customer_number(company["customer_number"] if "customer_number" in company.keys() else "", max_len=12)
-    if not company_customer_number:
-        company_customer_number = get_next_customer_number(db)
-    company_contact = clean_text_input(payload.get("contact", company["contact"]), max_len=180)
-    company_billing_email = clean_text_input(payload.get("billingEmail", company["billing_email"]), max_len=160)
-    company_billing_street = clean_text_input(payload.get("billingStreet", company["billing_street"] if "billing_street" in company.keys() else ""), max_len=200)
-    company_billing_zip_city = clean_text_input(payload.get("billingZipCity", company["billing_zip_city"] if "billing_zip_city" in company.keys() else ""), max_len=120)
-    company_document_email = clean_text_input(payload.get("documentEmail", company["document_email"]), max_len=160)
-    if not company_document_email:
-        company_document_email = suggest_company_document_email(company_name)
-    company_document_email = normalize_email_address(company_document_email)
-    company_access_host = clean_text_input((payload.get("accessHost") or payload.get("access_host") or company["access_host"]), max_len=180)
-    company_branding_preset = normalize_branding_preset(payload.get("brandingPreset") or payload.get("branding_preset") or company["branding_preset"])
-    company_status = clean_text_input(payload.get("status", company["status"]), max_len=32) or company["status"]
-    company_trial_ends_at = normalize_company_trial_end(
-        payload.get("trialEndsAt", payload.get("trial_ends_at", company["trial_ends_at"] if "trial_ends_at" in company.keys() else ""))
-    )
-    if company_status == "test" and not company_trial_ends_at:
-        company_trial_ends_at = normalize_company_trial_end(company["trial_ends_at"] if "trial_ends_at" in company.keys() else "") or default_company_trial_end_iso()
-    if company_status != "test":
-        company_trial_ends_at = ""
-    company_invoice_email_lang = clean_text_input(payload.get("invoiceEmailLang", company["invoice_email_lang"] if "invoice_email_lang" in company.keys() else "de") or "de", max_len=8)
-    if company_invoice_email_lang not in ("de", "en", "fr", "tr", "ar", "es", "it", "pl"):
-        company_invoice_email_lang = "de"
-
-    company_keys = company.keys() if hasattr(company, "keys") else []
-    if "portalDisplayName" in payload or "portal_display_name" in payload:
-        portal_display_name = normalize_portal_display_name(
-            payload.get("portalDisplayName", payload.get("portal_display_name", ""))
+    result = CompaniesService().update_company(get_db(), company_id, payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.updated",
+            f"Firma {audit['company_id']} aktualisiert",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
         )
-    else:
-        portal_display_name = normalize_portal_display_name(
-            company["portal_display_name"] if "portal_display_name" in company_keys else ""
-        )
-    if "brandingAccentColor" in payload or "branding_accent_color" in payload:
-        branding_accent_color = normalize_branding_accent(
-            payload.get("brandingAccentColor", payload.get("branding_accent_color", ""))
-        )
-    else:
-        branding_accent_color = normalize_branding_accent(
-            company["branding_accent_color"] if "branding_accent_color" in company_keys else ""
-        )
-    if "brandingLogoData" in payload or "branding_logo_data" in payload:
-        branding_logo_data = normalize_branding_logo_data(
-            payload.get("brandingLogoData", payload.get("branding_logo_data", ""))
-        )
-    else:
-        branding_logo_data = normalize_branding_logo_data(
-            company["branding_logo_data"] if "branding_logo_data" in company_keys else ""
-        )
-    if "reportTimezone" in payload or "report_timezone" in payload:
-        report_timezone = clean_text_input(
-            payload.get("reportTimezone", payload.get("report_timezone", "")),
-            max_len=64,
-        )
-        if report_timezone:
-            try:
-                ZoneInfo(report_timezone)
-            except Exception:
-                return jsonify({"error": "invalid_timezone", "message": "Ungültige Zeitzone (IANA)."}), 400
-    else:
-        report_timezone = str(company["report_timezone"] if "report_timezone" in company_keys else "")
-
-    if "operatingSector" in payload or "operating_sector" in payload:
-        operating_sector = normalize_operating_sector(
-            payload.get("operatingSector", payload.get("operating_sector", ""))
-        )
-    else:
-        operating_sector = normalize_operating_sector(
-            company["operating_sector"] if "operating_sector" in company_keys else "construction"
-        )
-
-    current_document_email = normalize_email_address(company["document_email"] or "")
-    duplicate_customer_no = db.execute(
-        "SELECT id, name FROM companies WHERE id != ? AND COALESCE(customer_number, '') = ? LIMIT 1",
-        (company_id, company_customer_number),
-    ).fetchone()
-    if duplicate_customer_no:
-        return jsonify({
-            "error": "duplicate_customer_number",
-            "message": "Diese Kundennummer ist bereits vergeben.",
-            "conflictCompanyId": duplicate_customer_no["id"],
-            "conflictCompanyName": duplicate_customer_no["name"],
-        }), 409
-
-    if company_document_email and company_document_email != current_document_email:
-        duplicate_company = db.execute(
-            "SELECT id, name FROM companies WHERE deleted_at IS NULL AND id != ? AND lower(document_email) = ? LIMIT 1",
-            (company_id, company_document_email),
-        ).fetchone()
-        if duplicate_company:
-            return jsonify({
-                "error": "duplicate_document_email",
-                "message": "Diese Dokument-E-Mail ist bereits einer anderen Firma zugeordnet.",
-                "conflictCompanyId": duplicate_company["id"],
-                "conflictCompanyName": duplicate_company["name"],
-            }), 409
-
-    db.execute(
-        """
-        UPDATE companies
-        SET name = ?, customer_number = ?, contact = ?, billing_email = ?, billing_street = ?,
-            billing_zip_city = ?, document_email = ?, access_host = ?, branding_preset = ?,
-            plan = ?, status = ?, trial_ends_at = ?, invoice_email_lang = ?,
-            portal_display_name = ?, branding_accent_color = ?, branding_logo_data = ?,
-            report_timezone = ?, operating_sector = ?
-        WHERE id = ?
-        """,
-        (
-            company_name,
-            company_customer_number,
-            company_contact,
-            company_billing_email,
-            company_billing_street,
-            company_billing_zip_city,
-            company_document_email,
-            company_access_host,
-            company_branding_preset,
-            payload.get("plan", company["plan"]),
-            company_status,
-            company_trial_ends_at,
-            company_invoice_email_lang,
-            portal_display_name,
-            branding_accent_color,
-            branding_logo_data,
-            report_timezone,
-            operating_sector,
-            company_id,
-        ),
-    )
-    rematch_inbox_company_links(db, company_id=company_id)
-    db.commit()
-    log_audit("company.updated", f"Firma {company_id} aktualisiert", target_type="company", target_id=company_id, company_id=company_id, actor=g.current_user)
-    return jsonify({"ok": True})
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_company_mail_settings_endpoint(company_id):
-    db = get_db()
-    _, error_response = _assert_company_mail_access(db, company_id)
-    if error_response:
-        return error_response
-    settings = get_company_mail_settings(db, company_id)
-    return jsonify(_sanitize_company_mail_settings_for_response(settings))
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().get_mail_settings(get_db(), g.current_user, company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_company_mail_settings_endpoint(company_id):
-    db = get_db()
-    _, error_response = _assert_company_mail_access(db, company_id)
-    if error_response:
-        return error_response
-
-    existing = db.execute("SELECT * FROM company_mail_settings WHERE company_id = ?", (company_id,)).fetchone()
-    if existing:
-        return jsonify({"error": "mail_settings_already_exists"}), 409
+    from backend.app.domains.companies.service import CompaniesService
 
     payload = request.get_json(silent=True) or {}
-    values = _company_mail_payload_to_db_values(payload, company_id)
-    now_value = now_iso()
-    db.execute(
-        """
-        INSERT INTO company_mail_settings (
-            company_id, mail_provider,
-            imap_host, imap_port, imap_username, imap_password, imap_use_tls,
-            smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
-            brevo_api_key, sender_email, sender_name,
-            last_test_inbound, last_test_outbound, test_inbound_status, test_outbound_status,
-            created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            values["company_id"], values["mail_provider"],
-            values["imap_host"], values["imap_port"], values["imap_username"], values["imap_password"], values["imap_use_tls"],
-            values["smtp_host"], values["smtp_port"], values["smtp_username"], values["smtp_password"], values["smtp_use_tls"],
-            values["brevo_api_key"], values["sender_email"], values["sender_name"],
-            values["last_test_inbound"], values["last_test_outbound"], values["test_inbound_status"], values["test_outbound_status"],
-            now_value, now_value,
-        ),
-    )
-    db.commit()
-    log_audit(
-        "company.mail_settings.created",
-        f"Mail-Einstellungen fuer Firma {company_id} wurden erstellt",
-        target_type="company",
-        target_id=company_id,
-        company_id=company_id,
-        actor=g.current_user,
-    )
-
-    created = get_company_mail_settings(db, company_id)
-    return jsonify(_sanitize_company_mail_settings_for_response(created)), 201
+    result = CompaniesService().create_mail_settings(get_db(), g.current_user, company_id, payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.mail_settings.created",
+            f"Mail-Einstellungen fuer Firma {audit['company_id']} wurden erstellt",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"]), result.get("status", 201)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def update_company_mail_settings_endpoint(company_id):
-    db = get_db()
-    _, error_response = _assert_company_mail_access(db, company_id)
-    if error_response:
-        return error_response
+    from backend.app.domains.companies.service import CompaniesService
 
     payload = request.get_json(silent=True) or {}
-    existing = db.execute("SELECT * FROM company_mail_settings WHERE company_id = ?", (company_id,)).fetchone()
-    existing_values = dict(existing) if existing else _get_default_mail_settings(company_id)
-    if existing and existing_values.get("imap_password"):
-        existing_values["imap_password"] = decrypt_mail_credential(existing_values["imap_password"], company_id)
-    if existing and existing_values.get("smtp_password"):
-        existing_values["smtp_password"] = decrypt_mail_credential(existing_values["smtp_password"], company_id)
-    if existing and existing_values.get("brevo_api_key"):
-        existing_values["brevo_api_key"] = decrypt_mail_credential(existing_values["brevo_api_key"], company_id)
-
-    values = _company_mail_payload_to_db_values(payload, company_id, current=existing_values)
-    now_value = now_iso()
-
-    if existing:
-        db.execute(
-            """
-            UPDATE company_mail_settings
-            SET mail_provider = ?,
-                imap_host = ?, imap_port = ?, imap_username = ?, imap_password = ?, imap_use_tls = ?,
-                smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?, smtp_use_tls = ?,
-                brevo_api_key = ?, sender_email = ?, sender_name = ?,
-                updated_at = ?
-            WHERE company_id = ?
-            """,
-            (
-                values["mail_provider"],
-                values["imap_host"], values["imap_port"], values["imap_username"], values["imap_password"], values["imap_use_tls"],
-                values["smtp_host"], values["smtp_port"], values["smtp_username"], values["smtp_password"], values["smtp_use_tls"],
-                values["brevo_api_key"], values["sender_email"], values["sender_name"],
-                now_value,
-                company_id,
-            ),
+    result = CompaniesService().update_mail_settings(get_db(), g.current_user, company_id, payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.mail_settings.updated",
+            f"Mail-Einstellungen fuer Firma {audit['company_id']} wurden aktualisiert",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
         )
-    else:
-        db.execute(
-            """
-            INSERT INTO company_mail_settings (
-                company_id, mail_provider,
-                imap_host, imap_port, imap_username, imap_password, imap_use_tls,
-                smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
-                brevo_api_key, sender_email, sender_name,
-                last_test_inbound, last_test_outbound, test_inbound_status, test_outbound_status,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                values["company_id"], values["mail_provider"],
-                values["imap_host"], values["imap_port"], values["imap_username"], values["imap_password"], values["imap_use_tls"],
-                values["smtp_host"], values["smtp_port"], values["smtp_username"], values["smtp_password"], values["smtp_use_tls"],
-                values["brevo_api_key"], values["sender_email"], values["sender_name"],
-                values["last_test_inbound"], values["last_test_outbound"], values["test_inbound_status"], values["test_outbound_status"],
-                now_value, now_value,
-            ),
-        )
-
-    db.commit()
-    log_audit(
-        "company.mail_settings.updated",
-        f"Mail-Einstellungen fuer Firma {company_id} wurden aktualisiert",
-        target_type="company",
-        target_id=company_id,
-        company_id=company_id,
-        actor=g.current_user,
-    )
-
-    updated = get_company_mail_settings(db, company_id)
-    return jsonify(_sanitize_company_mail_settings_for_response(updated))
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def test_company_mail_inbound_endpoint(company_id):
-    import imaplib
-    import socket
+    from backend.app.domains.companies.service import CompaniesService
 
-    db = get_db()
-    _, error_response = _assert_company_mail_access(db, company_id)
-    if error_response:
-        return error_response
-
-    settings = get_company_mail_settings(db, company_id)
-    host = str(settings.get("imap_host") or "").strip()
-    port = int(settings.get("imap_port") or 993)
-    username = str(settings.get("imap_username") or "").strip()
-    password = str(settings.get("imap_password") or "")
-    use_tls = int(settings.get("imap_use_tls") or 0) == 1
-
-    missing = []
-    if not host:
-        missing.append("imapHost")
-    if not username:
-        missing.append("imapUsername")
-    if not password:
-        missing.append("imapPassword")
-    if missing:
-        return jsonify({"ok": False, "error": "imap_not_configured", "missingFields": missing}), 400
-
-    attempts = [(use_tls, port)]
-    if use_tls and port == 993:
-        attempts.append((False, 143))
-    elif not use_tls and port == 143:
-        attempts.append((True, 993))
-
-    tried = []
-    conn = None
-    last_exc = None
-    for attempt_tls, attempt_port in attempts:
-        tried.append(f"{'SSL' if attempt_tls else 'STARTTLS'}/{attempt_port}")
-        try:
-            if attempt_tls:
-                conn = imaplib.IMAP4_SSL(host, attempt_port, timeout=15)
-            else:
-                conn = imaplib.IMAP4(host, attempt_port, timeout=15)
-                conn.starttls()
-            auth_method = _imap_login_with_fallback(conn, username, password)
-            conn.logout()
-            db.execute(
-                "UPDATE company_mail_settings SET test_inbound_status = ?, last_test_inbound = ?, updated_at = ? WHERE company_id = ?",
-                ("ok", now_iso(), now_iso(), company_id),
-            )
-            db.commit()
-            return jsonify({
-                "ok": True,
-                "message": f"IMAP Verbindung erfolgreich ({'SSL' if attempt_tls else 'STARTTLS'}:{attempt_port}, Auth: {auth_method})",
-                "tried": tried,
-            })
-        except (socket.timeout, TimeoutError, ConnectionRefusedError, OSError) as exc:
-            last_exc = exc
-            try:
-                if conn is not None:
-                    conn.logout()
-            except Exception:
-                pass
-            conn = None
-        except Exception as exc:
-            last_exc = exc
-            try:
-                if conn is not None:
-                    conn.logout()
-            except Exception:
-                pass
-            conn = None
-            break
-
-    error_text = str(last_exc or "IMAP test failed")
-    hint = _imap_auth_hint(host, error_text)
-    db.execute(
-        "UPDATE company_mail_settings SET test_inbound_status = ?, last_test_inbound = ?, updated_at = ? WHERE company_id = ?",
-        ("failed", now_iso(), now_iso(), company_id),
-    )
-    db.commit()
-    return jsonify({"ok": False, "error": f"{error_text}{hint}", "tried": tried}), 200
+    result = CompaniesService().test_mail_inbound(get_db(), g.current_user, company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"]), result.get("status", 200)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def test_company_mail_outbound_endpoint(company_id):
-    db = get_db()
-    _, error_response = _assert_company_mail_access(db, company_id)
-    if error_response:
-        return error_response
+    from backend.app.domains.companies.service import CompaniesService
 
-    settings = get_company_mail_settings(db, company_id)
-    smtp_sender_email = str(settings.get("sender_email") or "").strip()
-    smtp_sender_name = str(settings.get("sender_name") or "BauPass").strip() or "BauPass"
-    smtp_host = str(settings.get("smtp_host") or "").strip()
-    smtp_port = int(settings.get("smtp_port") or 587)
-    smtp_use_tls = int(settings.get("smtp_use_tls") or 0)
-    smtp_username = str(settings.get("smtp_username") or "").strip()
-    smtp_password = str(settings.get("smtp_password") or "")
-    brevo_api_key = _normalize_api_token(settings.get("brevo_api_key") or "")
-
-    if brevo_api_key:
-        recipient = (str((request.get_json(silent=True) or {}).get("recipient") or "").strip() or
-                     str(g.current_user.get("email") or "").strip() or
-                     smtp_sender_email)
-        if not recipient:
-            return jsonify({"ok": False, "error": "missing_recipient"}), 400
-        if not _is_valid_brevo_api_key(brevo_api_key):
-            db.execute(
-                "UPDATE company_mail_settings SET test_outbound_status = ?, last_test_outbound = ?, updated_at = ? WHERE company_id = ?",
-                ("failed", now_iso(), now_iso(), company_id),
-            )
-            db.commit()
-            return jsonify({"ok": False, "error": "brevo_invalid_api_key_format"}), 200
-
-        ok, err = _send_via_brevo(
-            subject="BauPass Company Mail Test",
-            sender_email=smtp_sender_email,
-            sender_name=smtp_sender_name,
-            recipient=recipient,
-            text_body="Company outbound mail test via Brevo successful.",
-            html_body="<p>Company outbound mail test via <strong>Brevo</strong> successful.</p>",
-            api_key=brevo_api_key,
-        )
-        db.execute(
-            "UPDATE company_mail_settings SET test_outbound_status = ?, last_test_outbound = ?, updated_at = ? WHERE company_id = ?",
-            ("ok" if ok else "failed", now_iso(), now_iso(), company_id),
-        )
-        db.commit()
-        if ok:
-            return jsonify({"ok": True, "delivery": "brevo", "recipient": recipient})
-        return jsonify({"ok": False, "error": str(err or "brevo_send_failed"), "delivery": "brevo"}), 200
-
-    smtp_settings = {
-        "smtp_host": smtp_host,
-        "smtp_port": smtp_port,
-        "smtp_use_tls": smtp_use_tls,
-        "smtp_username": smtp_username,
-        "smtp_password": smtp_password,
-        "smtp_sender_email": smtp_sender_email,
-    }
-    missing = []
-    if not smtp_host:
-        missing.append("smtpHost")
-    if not smtp_sender_email:
-        missing.append("senderEmail")
-    if missing:
-        return jsonify({"ok": False, "error": "smtp_not_configured", "missingFields": missing}), 400
-
-    diag_result = _run_smtp_diagnostics(smtp_settings)
-    db.execute(
-        "UPDATE company_mail_settings SET test_outbound_status = ?, last_test_outbound = ?, updated_at = ? WHERE company_id = ?",
-        ("ok" if diag_result.get("ok") else "failed", now_iso(), now_iso(), company_id),
-    )
-    db.commit()
-
-    if diag_result.get("ok"):
-        return jsonify({"ok": True, "delivery": "smtp", "diagnostics": diag_result})
-    return jsonify({"ok": False, "error": "smtp_diagnostic_failed", "diagnostics": diag_result}), 200
+    payload = request.get_json(silent=True) or {}
+    result = CompaniesService().test_mail_outbound(get_db(), g.current_user, company_id, payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"]), result.get("status", 200)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def get_company_work_times(company_id):
-    db = get_db()
-    company = db.execute("SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-    user = g.current_user
-    user_role = str(user.get("role") or "").strip().lower()
-    if user_role != "superadmin" and str(user.get("company_id") or "") != str(company_id):
-        return jsonify({"error": "forbidden_company"}), 403
-    cfg = get_company_site_access_config(db, company_id)
-    return jsonify({"ok": True, "companyId": company_id, **cfg})
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().get_work_times(get_db(), g.current_user, company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def update_company_work_times(company_id):
-    db = get_db()
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-
-    user = g.current_user
-    user_role = str(user.get("role") or "").strip().lower()
-    if user_role != "superadmin" and str(user.get("company_id") or "") != str(company_id):
-        return jsonify({"error": "forbidden_company"}), 403
+    from backend.app.domains.companies.service import CompaniesService
 
     payload = request.get_json(silent=True) or {}
-    try:
-        work_start_time = normalize_work_time_value(payload.get("workStartTime"))
-        work_end_time = normalize_work_time_value(payload.get("workEndTime"))
-    except ValueError:
-        return jsonify({"error": "invalid_work_time"}), 400
-
-    access_mode = normalize_company_access_mode(payload.get("accessMode"))
-    site_radius = normalize_site_geofence_radius_meters(
-        payload.get("siteGeofenceRadiusMeters"),
-        access_mode,
-    )
-    site_auto_checkin = 1 if payload.get("siteAutoCheckin", True) in (True, 1, "1", "true", "yes") else 0
-    site_auto_logout = 1 if payload.get("siteAutoLogoutOnLeave", True) in (True, 1, "1", "true", "yes") else 0
-
-    db.execute(
-        """
-        UPDATE companies
-        SET work_start_time = ?, work_end_time = ?, access_mode = ?,
-            site_geofence_radius_meters = ?, site_auto_checkin = ?, site_auto_logout_on_leave = ?
-        WHERE id = ?
-        """,
-        (work_start_time, work_end_time, access_mode, site_radius, site_auto_checkin, site_auto_logout, company_id),
-    )
-    db.commit()
-
-    log_audit(
-        "company.work_times.updated",
-        f"Firmeneinstellungen (Zeiten/Standort-Modus) fuer {company_id} aktualisiert",
-        target_type="company",
-        target_id=company_id,
-        company_id=company_id,
-        actor=user,
-    )
-
-    return jsonify(
-        {
-            "ok": True,
-            "companyId": company_id,
-            "workStartTime": work_start_time,
-            "workEndTime": work_end_time,
-            "accessMode": access_mode,
-            "siteGeofenceRadiusMeters": site_radius,
-            "siteAutoCheckin": bool(site_auto_checkin),
-            "siteAutoLogoutOnLeave": bool(site_auto_logout),
-        }
-    )
+    result = CompaniesService().update_work_times(get_db(), g.current_user, company_id, payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.work_times.updated",
+            f"Firmeneinstellungen (Zeiten/Standort-Modus) fuer {audit['company_id']} aktualisiert",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
@@ -15631,172 +14258,110 @@ def set_document_inbox_company_match(inbox_id):
 @require_auth
 @require_roles("superadmin")
 def delete_company(company_id):
-    if company_id == "cmp-default":
-        return jsonify({"error": "default_company_protected"}), 400
+    from backend.app.domains.companies.service import CompaniesService
 
-    db = get_db()
     force = request.args.get("force", "0") == "1"
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-
-    count = db.execute("SELECT COUNT(*) AS c FROM workers WHERE company_id = ? AND deleted_at IS NULL", (company_id,)).fetchone()["c"]
-    if count > 0 and not force:
-        return jsonify({"error": "company_has_workers"}), 400
-
-    if force:
-        now = now_iso()
-        worker_rows = db.execute("SELECT id FROM workers WHERE company_id = ?", (company_id,)).fetchall()
-        worker_ids = [row["id"] for row in worker_rows]
-
-        db.execute("UPDATE workers SET deleted_at = ?, status = 'gesperrt' WHERE company_id = ?", (now, company_id))
-        db.execute("UPDATE subcompanies SET deleted_at = ?, status = 'pausiert' WHERE company_id = ?", (now, company_id))
-        db.execute("UPDATE companies SET deleted_at = ?, status = ? WHERE id = ?", (now, "pausiert", company_id))
-        db.execute("DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", (company_id,))
-
-        if worker_ids:
-            placeholders = ",".join(["?"] * len(worker_ids))
-            db.execute(f"DELETE FROM worker_app_tokens WHERE worker_id IN ({placeholders})", worker_ids)
-            db.execute(f"DELETE FROM worker_app_sessions WHERE worker_id IN ({placeholders})", worker_ids)
-    else:
-        db.execute("UPDATE companies SET deleted_at = ?, status = ? WHERE id = ?", (now_iso(), "pausiert", company_id))
-
-    db.commit()
-    log_audit(
-        "company.deleted",
-        f"Firma {company_id} gelöscht{' (force)' if force else ''}",
-        target_type="company",
-        target_id=company_id,
-        company_id=company_id,
-        actor=g.current_user,
-    )
-    return jsonify({"ok": True, "force": force})
+    result = CompaniesService().delete_company(get_db(), company_id, force=force)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        suffix = " (force)" if audit.get("force") else ""
+        log_audit(
+            "company.deleted",
+            f"Firma {audit['company_id']} gelöscht{suffix}",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def set_company_admin_security(company_id):
-    """Superadmin sets OTP email and enables/disables 2FA for a company's admin user."""
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
-    email = (payload.get("email") or "").strip().lower()
-    enable_2fa = bool(payload.get("enable2fa", False))
-    if email and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
-        return jsonify({"error": "invalid_email"}), 400
-    db = get_db()
-    admin_user = db.execute(
-        "SELECT id, username, email, twofa_enabled FROM users WHERE company_id = ? AND role = 'company-admin' LIMIT 1",
-        (company_id,)
-    ).fetchone()
-    if not admin_user:
-        return jsonify({"error": "admin_not_found"}), 404
-    db.execute(
-        "UPDATE users SET email = ?, twofa_enabled = ? WHERE id = ?",
-        (email, 1 if enable_2fa else 0, admin_user["id"])
+    result = CompaniesService().set_admin_security(
+        get_db(),
+        company_id,
+        email=(payload.get("email") or "").strip().lower(),
+        enable_2fa=bool(payload.get("enable2fa", False)),
     )
-    if not enable_2fa:
-        db.execute("DELETE FROM otp_codes WHERE user_id = ?", (admin_user["id"],))
-    db.commit()
-    log_audit("security.admin_otp_updated",
-              f"OTP-Einstellungen fuer Admin '{admin_user['username']}' der Firma {company_id} aktualisiert",
-              target_type="user", target_id=admin_user["id"], actor=g.current_user)
-    return jsonify({"ok": True, "username": admin_user["username"], "email": email, "twofa_enabled": enable_2fa})
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "security.admin_otp_updated",
+            f"OTP-Einstellungen fuer Admin '{audit['username']}' der Firma {audit['company_id']} aktualisiert",
+            target_type="user",
+            target_id=audit["user_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def get_company_admin_security(company_id):
-    """Get OTP/2FA status of a company's admin user."""
-    db = get_db()
-    admin_user = db.execute(
-        "SELECT username, email, twofa_enabled FROM users WHERE company_id = ? AND role = 'company-admin' LIMIT 1",
-        (company_id,)
-    ).fetchone()
-    if not admin_user:
-        return jsonify({"error": "admin_not_found"}), 404
-    return jsonify({
-        "username": admin_user["username"],
-        "email": admin_user["email"] or "",
-        "twofa_enabled": bool(int(admin_user["twofa_enabled"] or 0))
-    })
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().get_admin_security(get_db(), company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def set_company_admin_password(company_id):
-    """Superadmin setzt das Passwort des Firmen-Admins direkt (ohne E-Mail)."""
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
     new_password = (payload.get("newPassword") or "").strip()
-    if len(new_password) < 8:
-        return jsonify({"ok": False, "error": "password_too_short"}), 400
-
-    db = get_db()
-    admin_user = db.execute(
-        "SELECT id, username FROM users WHERE company_id = ? AND role = 'company-admin' LIMIT 1",
-        (company_id,)
-    ).fetchone()
-    if not admin_user:
-        return jsonify({"ok": False, "error": "admin_not_found"}), 404
-
-    db.execute(
-        "UPDATE users SET password_hash = ? WHERE id = ?",
-        (generate_password_hash(new_password), admin_user["id"])
+    result = CompaniesService().set_admin_password(
+        get_db(), company_id, new_password=new_password
     )
-    db.execute("DELETE FROM sessions WHERE user_id = ?", (admin_user["id"],))
-    db.commit()
-    log_audit(
-        "superadmin.set_company_admin_password",
-        f"Superadmin setzte Passwort fuer Company-Admin {admin_user['username']} (Firma {company_id})",
-        target_type="user",
-        target_id=admin_user["id"],
-    )
-    return jsonify({"ok": True, "username": admin_user["username"]})
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    status = result.get("status", 200)
+    if status >= 400:
+        return jsonify(result["body"]), status
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "superadmin.set_company_admin_password",
+            f"Superadmin setzte Passwort fuer Company-Admin {audit['username']} (Firma {audit['company_id']})",
+            target_type="user",
+            target_id=audit["user_id"],
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def add_company_turnstile(company_id):
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
-    db = get_db()
-
-    company = db.execute("SELECT * FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-
     password = (payload.get("password") or "").strip()
-    if len(password) < 4:
-        return jsonify({"error": "password_too_short", "message": "Passwort muss mindestens 4 Zeichen haben."}), 400
-
-    # Zähle vorhandene Drehkreuze dieser Firma
-    existing_count = db.execute(
-        "SELECT COUNT(*) AS c FROM users WHERE company_id = ? AND role = 'turnstile'",
-        (company_id,),
-    ).fetchone()["c"]
-
-    username_base_raw = "".join(c for c in company["name"].lower() if c.isalnum())[:12] or "gate"
-    username_base = f"{username_base_raw}gate{existing_count + 1}"
-    username = username_base
-    suffix = 1
-    while db.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-        username = f"{username_base}{suffix}"
-        suffix += 1
-
-    display_name = f"{company['name']} Drehkreuz {existing_count + 1}"
-    user_id = f"usr-{secrets.token_hex(6)}"
-    api_key = create_turnstile_api_key()
-    db.execute(
-        "INSERT INTO users (id, username, password_hash, name, role, company_id, api_key_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (user_id, username, generate_password_hash(password), display_name, "turnstile", company_id, hash_turnstile_api_key(api_key)),
-    )
-    db.commit()
-    log_audit(
-        "company.turnstile_added",
-        f"Drehkreuz-Zugang '{username}' für Firma {company['name']} angelegt",
-        target_type="company",
-        target_id=company_id,
-        company_id=company_id,
-        actor=g.current_user,
-    )
-    return jsonify({"ok": True, "username": username, "password": password, "apiKey": api_key}), 201
+    result = CompaniesService().add_turnstile(get_db(), company_id, password=password)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.turnstile_added",
+            f"Drehkreuz-Zugang '{audit['username']}' für Firma {audit['company_name']} angelegt",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"]), result.get("status", 201)
 
 
 # ── Drehkreuz-User Verwaltung ──────────────────────────────────────────────
@@ -15804,101 +14369,80 @@ def add_company_turnstile(company_id):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_company_turnstiles(company_id):
-    user = g.current_user
-    # Company-Admins duerfen nur ihre eigene Firma einsehen
-    if user["role"] == "company-admin" and user.get("company_id") != company_id:
-        return jsonify({"error": "forbidden"}), 403
-    db = get_db()
-    company = db.execute("SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-    rows = db.execute(
-        """SELECT u.id, u.username, u.name, u.is_active,
-                  CASE WHEN COALESCE(u.api_key_hash, '') != '' THEN 1 ELSE 0 END AS has_api_key,
-                  MAX(s.last_seen) AS last_seen
-           FROM users u
-           LEFT JOIN sessions s ON s.user_id = u.id
-           WHERE u.company_id = ? AND u.role = 'turnstile'
-           GROUP BY u.id ORDER BY u.name""",
-        (company_id,),
-    ).fetchall()
-    return jsonify([
-        {"id": r["id"], "username": r["username"], "name": r["name"],
-         "isActive": int(r["is_active"] or 1) == 1, "lastSeen": r["last_seen"], "hasApiKey": int(r["has_api_key"] or 0) == 1}
-        for r in rows
-    ])
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().list_turnstiles(get_db(), g.current_user, company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reset_turnstile_password(company_id, user_id):
-    # Company-Admins duerfen nur ihre eigene Firma verwalten
-    if g.current_user["role"] == "company-admin" and g.current_user.get("company_id") != company_id:
-        return jsonify({"error": "forbidden"}), 403
+    from backend.app.domains.companies.service import CompaniesService
+
     payload = request.get_json(silent=True) or {}
     password = (payload.get("password") or "").strip()
-    if len(password) < 4:
-        return jsonify({"error": "password_too_short"}), 400
-    db = get_db()
-    user = db.execute(
-        "SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'turnstile'",
-        (user_id, company_id),
-    ).fetchone()
-    if not user:
-        return jsonify({"error": "user_not_found"}), 404
-    db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(password), user_id))
-    db.commit()
-    log_audit("security.turnstile_password_reset", f"Passwort für Drehkreuz '{user['username']}' zurückgesetzt",
-              target_type="user", target_id=user_id, company_id=company_id, actor=g.current_user)
-    return jsonify({"ok": True})
+    result = CompaniesService().reset_turnstile_password(
+        get_db(), g.current_user, company_id, user_id, password=password
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "security.turnstile_password_reset",
+            f"Passwort für Drehkreuz '{audit['username']}' zurückgesetzt",
+            target_type="user",
+            target_id=audit["user_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def rotate_turnstile_api_key(company_id, user_id):
-    db = get_db()
-    user = db.execute(
-        "SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'turnstile'",
-        (user_id, company_id),
-    ).fetchone()
-    if not user:
-        return jsonify({"error": "user_not_found"}), 404
+    from backend.app.domains.companies.service import CompaniesService
 
-    api_key = create_turnstile_api_key()
-    db.execute("UPDATE users SET api_key_hash = ? WHERE id = ?", (hash_turnstile_api_key(api_key), user_id))
-    db.commit()
-    log_audit(
-        "security.turnstile_api_key_rotated",
-        f"API-Key für Drehkreuz '{user['username']}' rotiert",
-        target_type="user",
-        target_id=user_id,
-        company_id=company_id,
-        actor=g.current_user,
-    )
-    return jsonify({"ok": True, "apiKey": api_key})
+    result = CompaniesService().rotate_turnstile_api_key(get_db(), company_id, user_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "security.turnstile_api_key_rotated",
+            f"API-Key für Drehkreuz '{audit['username']}' rotiert",
+            target_type="user",
+            target_id=audit["user_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def toggle_turnstile_active(company_id, user_id):
-    db = get_db()
-    user = db.execute(
-        "SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'turnstile'",
-        (user_id, company_id),
-    ).fetchone()
-    if not user:
-        return jsonify({"error": "user_not_found"}), 404
-    new_active = 0 if int(user["is_active"] or 1) == 1 else 1
-    db.execute("UPDATE users SET is_active = ? WHERE id = ?", (new_active, user_id))
-    if new_active == 0:
-        db.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
-    db.commit()
-    log_audit(
-        "security.turnstile_toggled",
-        f"Drehkreuz '{user['username']}' {'deaktiviert' if not new_active else 'aktiviert'}",
-        target_type="user", target_id=user_id, company_id=company_id, actor=g.current_user,
-    )
-    return jsonify({"ok": True, "isActive": new_active == 1})
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().toggle_turnstile_active(get_db(), company_id, user_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        state = "aktiviert" if audit.get("is_active") else "deaktiviert"
+        log_audit(
+            "security.turnstile_toggled",
+            f"Drehkreuz '{audit['username']}' {state}",
+            target_type="user",
+            target_id=audit["user_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 # ── Compliance-Übersicht ───────────────────────────────────────────────────
@@ -16076,64 +14620,10 @@ def compliance_expiring_docs():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def worker_stats():
-    """Statistiken ueber Mitarbeiter: Status-Verteilung, Top-Baustellen, Tore, Check-In-Stunden."""
-    user = g.current_user
-    db = get_db()
-    company_filter = ""
-    params: list = []
-    access_filter = ""
-    access_params: list = []
-    if user["role"] != "superadmin":
-        cid = user.get("company_id")
-        company_filter = "AND w.company_id = ?"
-        params.append(cid)
-        access_filter = "AND w.company_id = ?"
-        access_params.append(cid)
+    from backend.app.domains.workers.service import WorkersService
 
-    status_rows = db.execute(
-        f"SELECT COALESCE(status,'unbekannt') AS status, COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL {company_filter} GROUP BY status ORDER BY cnt DESC",
-        params,
-    ).fetchall()
-
-    site_rows = db.execute(
-        f"SELECT site, COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL AND TRIM(COALESCE(site,'')) != '' {company_filter} GROUP BY site ORDER BY cnt DESC LIMIT 10",
-        params,
-    ).fetchall()
-
-    type_rows = db.execute(
-        f"SELECT COALESCE(worker_type,'worker') AS worker_type, COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL {company_filter} GROUP BY worker_type",
-        params,
-    ).fetchall()
-
-    total_count = db.execute(
-        f"SELECT COUNT(*) AS cnt FROM workers w WHERE w.deleted_at IS NULL {company_filter}",
-        params,
-    ).fetchone()["cnt"]
-
-    gate_rows = db.execute(
-        f"""SELECT COALESCE(NULLIF(TRIM(al.gate),''), 'Unbekannt') AS gate, COUNT(*) AS cnt
-            FROM access_logs al JOIN workers w ON w.id = al.worker_id
-            WHERE DATE(al.timestamp) >= DATE('now', '-30 day') {access_filter}
-            GROUP BY gate ORDER BY cnt DESC LIMIT 10""",
-        access_params,
-    ).fetchall()
-
-    hour_rows = db.execute(
-        f"""SELECT CAST(strftime('%H', al.timestamp) AS INTEGER) AS hour, COUNT(*) AS cnt
-            FROM access_logs al JOIN workers w ON w.id = al.worker_id
-            WHERE al.direction = 'check-in' AND DATE(al.timestamp) >= DATE('now', '-30 day') {access_filter}
-            GROUP BY hour ORDER BY hour ASC""",
-        access_params,
-    ).fetchall()
-
-    return jsonify({
-        "totalWorkers": total_count,
-        "byStatus": [{"status": r["status"], "count": r["cnt"]} for r in status_rows],
-        "bySite": [{"site": r["site"] or "Keine Baustelle", "count": r["cnt"]} for r in site_rows],
-        "byGate": [{"gate": r["gate"], "count": r["cnt"]} for r in gate_rows],
-        "checkInsByHour": [{"hour": r["hour"], "count": r["cnt"]} for r in hour_rows],
-        "byType": [{"type": r["worker_type"], "count": r["cnt"]} for r in type_rows],
-    })
+    result = WorkersService().worker_stats(get_db(), g.current_user)
+    return jsonify(result["body"])
 
 
 # ── Worker-Foto Validierung ───────────────────────────────────────────────────
@@ -16418,68 +14908,43 @@ def apply_password_reset(raw_token):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def repair_company(company_id):
-    user = g.current_user
-    db = get_db()
-    if user["role"] != "superadmin" and user.get("company_id") != company_id:
-        return jsonify({"error": "forbidden"}), 403
+    from backend.app.domains.companies.service import CompaniesService
 
-    now = now_iso()
-    workers = db.execute("SELECT id FROM workers WHERE company_id = ?", (company_id,)).fetchall()
-    worker_ids = [w["id"] for w in workers]
-    fixed = []
-
-    expired_tokens = 0
-    expired_sessions = 0
-    for wid in worker_ids:
-        r = db.execute("DELETE FROM worker_app_tokens WHERE worker_id = ? AND expires_at < ?", (wid, now))
-        expired_tokens += r.rowcount
-        r = db.execute("DELETE FROM worker_app_sessions WHERE worker_id = ? AND expires_at < ?", (wid, now))
-        expired_sessions += r.rowcount
-
-    if expired_tokens:
-        fixed.append(f"{expired_tokens} abgelaufene App-Tokens entfernt")
-    if expired_sessions:
-        fixed.append(f"{expired_sessions} abgelaufene App-Sitzungen entfernt")
-
-    no_badge = db.execute(
-        "SELECT id FROM workers WHERE company_id = ? AND (badge_id IS NULL OR badge_id = '') AND deleted_at IS NULL",
-        (company_id,)
-    ).fetchall()
-    for w in no_badge:
-        generated_badge_id = f"BP-{w['id'][-6:].upper()}"
-        db.execute("UPDATE workers SET badge_id = ?, badge_id_lookup = ? WHERE id = ?", (generated_badge_id, normalize_badge_id(generated_badge_id), w["id"]))
-    if no_badge:
-        fixed.append(f"{len(no_badge)} fehlende Ausweisnummern ergaenzt")
-
-    bad_status = db.execute(
-        "SELECT id FROM workers WHERE company_id = ? AND status NOT IN ('aktiv','gesperrt','abgelaufen') AND deleted_at IS NULL",
-        (company_id,)
-    ).fetchall()
-    for w in bad_status:
-        db.execute("UPDATE workers SET status = 'aktiv' WHERE id = ?", (w["id"],))
-    if bad_status:
-        fixed.append(f"{len(bad_status)} ungueltige Mitarbeiter-Status korrigiert")
-
-    if not fixed:
-        fixed.append("Keine Probleme gefunden - System ist in Ordnung")
-
-    db.commit()
-    log_audit("company.repair", f"Firma-Diagnose: {'; '.join(fixed)}", actor=user, target_type="company", target_id=company_id)
-    return jsonify({"ok": True, "fixed": fixed})
+    result = CompaniesService().repair_company(get_db(), g.current_user, company_id)
+    if "error" in result:
+        err = result["error"]
+        return (jsonify(err), result.get("status", 400)) if isinstance(err, dict) else (jsonify({"error": err}), result.get("status", 400))
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.repair",
+            f"Firma-Diagnose: {audit.get('message', '')}",
+            actor=g.current_user,
+            target_type="company",
+            target_id=audit["company_id"],
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin")
 def restore_company(company_id):
-    db = get_db()
-    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
+    from backend.app.domains.companies.service import CompaniesService
 
-    db.execute("UPDATE companies SET deleted_at = NULL, status = ? WHERE id = ?", ("aktiv", company_id))
-    db.commit()
-    log_audit("company.restored", f"Firma {company_id} wiederhergestellt", target_type="company", target_id=company_id, company_id=company_id, actor=g.current_user)
-    return jsonify({"ok": True})
+    result = CompaniesService().restore_company(get_db(), company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.restored",
+            f"Firma {audit['company_id']} wiederhergestellt",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
@@ -18295,119 +16760,66 @@ def gate_tap_batch():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_worker_identity_token(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and g.current_user.get("company_id") != worker["company_id"]:
-        return jsonify({"error": "forbidden_company_scope"}), 403
+    from backend.app.domains.workers.service import WorkersService
 
-    row = _get_worker_identity_token(db, worker_id)
-    if not row:
-        return jsonify({"workerId": worker_id, "configured": False})
-
-    return jsonify(
-        {
-            "workerId": worker_id,
-            "configured": True,
-            "status": str(row["status"] or ""),
-            "tokenHint": str(row["token_hint"] or ""),
-            "issuedAt": str(row["issued_at"] or ""),
-            "expiresAt": str(row["expires_at"] or ""),
-            "lastUsedAt": str(row["last_used_at"] or ""),
-            "lastDeviceId": str(row["last_device_id"] or ""),
-            "lastSource": str(row["last_source"] or ""),
-        }
-    )
+    result = WorkersService().get_worker_identity_token(get_db(), g.current_user, worker_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def create_or_rotate_worker_identity_token(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and g.current_user.get("company_id") != worker["company_id"]:
-        return jsonify({"error": "forbidden_company_scope"}), 403
+    from backend.app.domains.workers.service import WorkersService
 
     payload = request.get_json(silent=True) or {}
-    rotate = bool(payload.get("rotate", False))
-    result = issue_worker_identity_token(db, worker, rotate=rotate)
-    db.commit()
-
-    action = "worker.identity_token_rotated" if result["rotated"] else "worker.identity_token_created"
-    log_audit(
-        action,
-        f"Unified identity token fuer Worker {worker_id} {'rotiert' if result['rotated'] else 'erstellt'}",
-        target_type="worker",
-        target_id=worker_id,
-        company_id=worker["company_id"],
-        actor=g.current_user,
+    result = WorkersService().create_or_rotate_worker_identity_token(
+        get_db(),
+        g.current_user,
+        worker_id,
+        rotate=bool(payload.get("rotate", False)),
     )
-    return jsonify(
-        {
-            "workerId": worker_id,
-            "created": bool(result["created"]),
-            "rotated": bool(result["rotated"]),
-            "status": result["status"],
-            "token": result["token"],
-            "tokenHint": result["tokenHint"],
-            "issuedAt": result["issuedAt"],
-            "expiresAt": result["expiresAt"],
-            "lastUsedAt": result["lastUsedAt"],
-            "ttlDays": IDENTITY_TOKEN_TTL_DAYS,
-        }
-    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            audit["action"],
+            audit["message"],
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def set_worker_identity_token_status(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and g.current_user.get("company_id") != worker["company_id"]:
-        return jsonify({"error": "forbidden_company_scope"}), 403
-
-    token_row = _get_worker_identity_token(db, worker_id)
-    if not token_row:
-        return jsonify({"error": "identity_token_not_configured"}), 404
+    from backend.app.domains.workers.service import WorkersService
 
     payload = request.get_json(silent=True) or {}
-    status_value = str(payload.get("status") or "").strip().lower()
-    if status_value not in {"active", "revoked"}:
-        return jsonify({"error": "invalid_status", "allowed": ["active", "revoked"]}), 400
-
-    db.execute(
-        "UPDATE worker_identity_tokens SET status = ? WHERE id = ?",
-        (status_value, token_row["id"]),
+    result = WorkersService().set_worker_identity_token_status(
+        get_db(),
+        g.current_user,
+        worker_id,
+        status=str(payload.get("status") or ""),
     )
-    db.commit()
-
-    log_audit(
-        "worker.identity_token_status_changed",
-        f"Unified identity token fuer Worker {worker_id} auf {status_value} gesetzt",
-        target_type="worker",
-        target_id=worker_id,
-        company_id=worker["company_id"],
-        actor=g.current_user,
-    )
-
-    refreshed = _get_worker_identity_token(db, worker_id)
-    return jsonify(
-        {
-            "workerId": worker_id,
-            "status": str(refreshed["status"] or ""),
-            "tokenHint": str(refreshed["token_hint"] or ""),
-            "issuedAt": str(refreshed["issued_at"] or ""),
-            "expiresAt": str(refreshed["expires_at"] or ""),
-            "lastUsedAt": str(refreshed["last_used_at"] or ""),
-            "lastDeviceId": str(refreshed["last_device_id"] or ""),
-            "lastSource": str(refreshed["last_source"] or ""),
-        }
-    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            audit["action"],
+            audit["message"],
+            target_type="worker",
+            target_id=audit["worker_id"],
+            company_id=audit.get("company_id"),
+            actor=g.current_user,
+        )
+    return jsonify(result["body"])
 
 
 def unified_scan():
@@ -20864,22 +19276,13 @@ def get_invoice_ops_metrics(db):
 @require_auth
 @require_roles("superadmin")
 def toggle_company_review_access(company_id):
-    """Aktiviert oder deaktiviert die Bewertungsseite für eine Firma."""
-    db = get_db()
-    company = db.execute("SELECT id, name, review_enabled FROM companies WHERE id = ?", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "Firma nicht gefunden"}), 404
-    new_state = 0 if int(company["review_enabled"] or 0) else 1
-    token = ""
-    if new_state:
-        import uuid as _uuid
-        token = str(_uuid.uuid4()).replace("-", "")
-    db.execute(
-        "UPDATE companies SET review_enabled = ?, review_token = ? WHERE id = ?",
-        (new_state, token, company_id)
-    )
-    db.commit()
-    return jsonify({"review_enabled": new_state, "review_token": token if new_state else ""})
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().toggle_review_access(get_db(), company_id)
+    if "error" in result:
+        err = result["error"]
+        return (jsonify({"error": err}), result.get("status", 404)) if isinstance(err, str) else (jsonify(err), result.get("status", 404))
+    return jsonify(result["body"])
 
 
 def get_review_form_info():
@@ -24206,167 +22609,76 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def list_worker_documents(worker_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    plan_value = get_company_plan(db, worker["company_id"])
-    if not company_has_feature(plan_value, "document_upload"):
-        return feature_not_available_response("document_upload", plan_value)
+    from backend.app.domains.workers.service import WorkersService
 
-    rows = db.execute(
-        "SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date FROM worker_documents WHERE worker_id = ? ORDER BY created_at DESC",
-        (worker_id,),
-    ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    result = WorkersService().list_worker_documents(get_db(), g.current_user, worker_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def upload_worker_document(worker_id):
     """Direkt-Upload eines Dokuments vom PC für einen Mitarbeiter."""
-    doc_type = normalize_doc_type(clean_text_input(request.form.get("docType", ""), max_len=64))
-    notes = clean_text_input(request.form.get("notes", ""), max_len=500)
-    expiry_date, expiry_error, expiry_message = validate_document_expiry_date(doc_type, request.form.get("expiryDate", ""))
-
-    if doc_type not in ALLOWED_DOC_TYPES:
-        return jsonify({"error": "invalid_doc_type", "allowed": sorted(ALLOWED_DOC_TYPES)}), 400
-    if expiry_error:
-        return jsonify({"error": expiry_error, "message": expiry_message}), 400
+    from backend.app.domains.workers.service import WorkersService
 
     uploaded_file = request.files.get("file")
-    if not uploaded_file or not uploaded_file.filename:
-        return jsonify({"error": "missing_file"}), 400
-
-    mime = (uploaded_file.mimetype or "").lower().split(";")[0].strip()
-    if mime not in ALLOWED_UPLOAD_MIMETYPES:
-        return jsonify({"error": "invalid_file_type"}), 400
-
-    file_data = uploaded_file.read()
-    if not file_data:
-        return jsonify({"error": "empty_file", "message": "Die Datei ist leer."}), 400
-    if len(file_data) > MAX_IMAP_ATTACHMENT_BYTES:
-        return jsonify({"error": "file_too_large", "maxBytes": MAX_IMAP_ATTACHMENT_BYTES}), 400
-
-    safe_name = _sanitize_attachment_filename(uploaded_file.filename)
-
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    plan_value = get_company_plan(db, worker["company_id"])
-    if not company_has_feature(plan_value, "document_upload"):
-        return feature_not_available_response("document_upload", plan_value)
-
-    base_upload_root = DOCS_UPLOAD_DIR.resolve()
-    worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
-    if worker_doc_dir != base_upload_root and base_upload_root not in worker_doc_dir.parents:
-        return jsonify({"error": "invalid_storage_path"}), 400
-    try:
-        worker_doc_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        return jsonify({"error": "storage_error", "detail": str(exc)}), 500
-
-    ts = utc_now().strftime("%Y%m%d_%H%M%S")
-    file_path = (worker_doc_dir / f"{doc_type}_{ts}_{safe_name}").resolve()
-    if worker_doc_dir not in file_path.parents:
-        return jsonify({"error": "invalid_target_path"}), 400
-
-    try:
-        file_path.write_bytes(file_data)
-    except Exception as exc:
-        return jsonify({"error": "write_error", "detail": str(exc)}), 500
-
-    stored_path = _stored_file_path(file_path)
-    doc_id = f"doc-{secrets.token_hex(8)}"
-    db.execute(
-        """INSERT INTO worker_documents
-           (id, worker_id, company_id, doc_type, filename, file_path, file_size, source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            doc_id, worker_id, worker["company_id"], doc_type, safe_name,
-            stored_path, len(file_data), "", None,
-            g.current_user["id"], now_iso(), notes, expiry_date,
-        ),
+    result = WorkersService().upload_worker_document(
+        get_db(),
+        g.current_user,
+        worker_id,
+        doc_type_raw=request.form.get("docType", ""),
+        notes_raw=request.form.get("notes", ""),
+        expiry_date_raw=request.form.get("expiryDate", ""),
+        filename=uploaded_file.filename if uploaded_file else None,
+        mimetype=(uploaded_file.mimetype or "") if uploaded_file else "",
+        file_data=uploaded_file.read() if uploaded_file else b"",
     )
-    unlock_worker_if_documents_valid(db, worker, actor=g.current_user)
-    try:
-        from backend.app.platform.notifications.worker_mitteilung import notify_worker_new_document
-
-        notify_worker_new_document(db, worker_id, doc_type=doc_type, filename=safe_name)
-    except Exception:
-        pass
-    db.commit()
-
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
     log_audit(
         "worker.document_uploaded",
-        f"Dokument '{doc_type}' ({safe_name}) direkt hochgeladen für Mitarbeiter {worker['badge_id']}",
-        target_type="worker", target_id=worker_id,
-        company_id=worker["company_id"], actor=g.current_user,
+        (
+            f"Dokument '{audit.get('doc_type')}' ({audit.get('filename')}) "
+            f"direkt hochgeladen für Mitarbeiter {audit.get('badge_id')}"
+        ),
+        target_type="worker",
+        target_id=audit.get("worker_id"),
+        company_id=audit.get("company_id"),
+        actor=g.current_user,
     )
-    return jsonify({"ok": True, "documentId": doc_id})
+    return jsonify(result["body"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
 def download_worker_document(worker_id, doc_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    plan_value = get_company_plan(db, worker["company_id"])
-    if not company_has_feature(plan_value, "document_upload"):
-        return feature_not_available_response("document_upload", plan_value)
-
-    doc = db.execute(
-        "SELECT * FROM worker_documents WHERE id = ? AND worker_id = ?", (doc_id, worker_id)
-    ).fetchone()
-    if not doc:
-        return jsonify({"error": "document_not_found"}), 404
-
-    file_path = BASE_DIR / doc["file_path"]
-    if not file_path.exists():
-        return jsonify({"error": "file_not_found"}), 404
-
     from flask import send_file
-    return send_file(str(file_path), as_attachment=True, download_name=doc["filename"])
+
+    from backend.app.domains.workers.service import WorkersService
+
+    result = WorkersService().download_worker_document(
+        get_db(), g.current_user, worker_id, doc_id
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    sf = result["send_file"]
+    return send_file(sf["path"], as_attachment=True, download_name=sf["download_name"])
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def delete_worker_document(worker_id, doc_id):
-    db = get_db()
-    worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
-        return jsonify({"error": "forbidden_worker"}), 403
-    plan_value = get_company_plan(db, worker["company_id"])
-    if not company_has_feature(plan_value, "document_upload"):
-        return feature_not_available_response("document_upload", plan_value)
+    from backend.app.domains.workers.service import WorkersService
 
-    doc = db.execute(
-        "SELECT * FROM worker_documents WHERE id = ? AND worker_id = ?", (doc_id, worker_id)
-    ).fetchone()
-    if not doc:
-        return jsonify({"error": "document_not_found"}), 404
-
-    file_path = BASE_DIR / doc["file_path"]
-    try:
-        if file_path.exists():
-            file_path.unlink()
-    except Exception:
-        pass
-
-    db.execute("DELETE FROM worker_documents WHERE id = ?", (doc_id,))
-    db.commit()
-    return jsonify({"ok": True})
+    result = WorkersService().delete_worker_document(
+        get_db(), g.current_user, worker_id, doc_id
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 @require_auth
@@ -24998,7 +23310,7 @@ def export_audit_logs():
 # ── Push-Benachrichtigungen (VAPID) ──────────────────────────────────
 def get_vapid_public_key():
     key = os.getenv("VAPID_PUBLIC_KEY", "").strip()
-    return jsonify({"publicKey": key or None})
+    return jsonify({"publicKey": key or None, "vapidPublicKey": key or None})
 
 
 @require_worker_session
@@ -25465,96 +23777,21 @@ def review_leave_request(req_id):
 
 @require_auth
 def export_leave_request_pdf(req_id):
-    user = g.current_user
-    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
-        return jsonify({"error": "forbidden"}), 403
+    from io import BytesIO
 
-    db = get_db()
-    row = db.execute(
-        """
-        SELECT lr.*, w.first_name, w.last_name, w.badge_id,
-               reviewer.username AS reviewer_username
-        FROM leave_requests lr
-        JOIN workers w ON w.id = lr.worker_id
-        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by_user_id
-        WHERE lr.id = ?
-        """,
-        (req_id,),
-    ).fetchone()
-    if not row:
-        return jsonify({"error": "not_found"}), 404
+    from backend.app.domains.workers.service import WorkersService
 
-    if user["role"] != "superadmin" and row["company_id"] != user.get("company_id"):
-        return jsonify({"error": "forbidden"}), 403
-
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas as rl_canvas
-    except Exception:
-        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
-
-    data = row_to_dict(row)
-    worker_name = f"{data.get('first_name', '')} {data.get('last_name', '')}".strip() or data.get("worker_id", "-")
-    type_label = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiges"}.get(data.get("type"), data.get("type") or "-")
-
-    buffer = io.BytesIO()
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
-    page_width, page_height = A4
-    y = page_height - 48
-
-    pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(40, y, "BauPass - Urlaubsantrag")
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(40, y, f"Exportiert: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
-
-    y -= 24
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Antragsdaten")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-
-    lines = [
-        f"ID: {data.get('id', '-')}",
-        f"Mitarbeiter: {worker_name}",
-        f"Badge-ID: {data.get('badge_id', '-')}",
-        f"Art: {type_label}",
-        f"Zeitraum: {data.get('start_date', '-')} bis {data.get('end_date', '-')}",
-        f"Arbeitstage: {int(data.get('days_count') or 0)}",
-        f"Status: {data.get('status', '-')}",
-        f"Eingereicht am: {data.get('created_at', '-')}",
-        f"Bearbeitet von: {data.get('reviewer_username') or '-'}",
-        f"Bearbeitet am: {data.get('reviewed_at') or '-'}",
-    ]
-    for line in lines:
-        pdf.drawString(40, y, line)
-        y -= 14
-
-    note = (data.get("note") or "").strip() or "-"
-    review_note = (data.get("review_note") or "").strip() or "-"
-
-    y -= 8
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Notiz")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    for chunk in textwrap.wrap(note, width=95)[:10]:
-        pdf.drawString(40, y, chunk)
-        y -= 13
-
-    y -= 6
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Entscheidungsnotiz")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    for chunk in textwrap.wrap(review_note, width=95)[:10]:
-        pdf.drawString(40, y, chunk)
-        y -= 13
-
-    pdf.save()
-    buffer.seek(0)
-    filename = f"urlaubsantrag-{str(req_id)[:24]}.pdf"
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
+    result = WorkersService().export_leave_request_pdf(get_db(), g.current_user, req_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    resp = result["response"]
+    filename = resp["headers"]["Content-Disposition"].split('filename="', 1)[-1].rstrip('"')
+    return send_file(
+        BytesIO(resp["data"]),
+        mimetype=resp["mimetype"],
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 # ── Mitarbeiter-App: eigene Stundennachweise ────────────────────────────────
@@ -25578,89 +23815,17 @@ def worker_app_my_timesheets():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def company_worker_hours_summary(company_id):
-    """
-    Liefert fuer jeden Mitarbeiter die monatliche Arbeitsstunden-Summe.
-    Query-Parameter: month=YYYY-MM (Standard: aktueller Monat)
-    """
-    from datetime import datetime as _dt
-    db = get_db()
-    user = g.current_user
-    if user["role"] != "superadmin" and user.get("company_id") != company_id:
-        return jsonify({"error": "forbidden"}), 403
-    company = db.execute("SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-    plan_value = get_company_plan(db, company_id)
-    if not company_has_feature(plan_value, "worker_hours_report"):
-        return feature_not_available_response("worker_hours_report", plan_value)
+    from backend.app.domains.companies.service import CompaniesService
 
-    month_param = (request.args.get("month") or "").strip()
-    if month_param and len(month_param) == 7 and "-" in month_param:
-        month_prefix = month_param  # "YYYY-MM"
-    else:
-        month_prefix = _dt.now().strftime("%Y-%m")
-
-    # Alle check-in / check-out des Monats fuer diese Firma
-    rows = db.execute(
-        """
-        SELECT al.worker_id, al.direction, al.timestamp,
-               w.first_name, w.last_name, w.badge_id, w.role AS worker_role
-        FROM access_logs al
-        JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ?
-          AND w.deleted_at IS NULL
-          AND w.worker_type = 'worker'
-          AND al.timestamp LIKE ?
-        ORDER BY al.worker_id, al.timestamp
-        """,
-        (company_id, f"{month_prefix}%"),
-    ).fetchall()
-
-    # Stunden pro Mitarbeiter berechnen: check-in -> naechstes check-out (selber Tag)
-    from collections import defaultdict
-    worker_data = defaultdict(lambda: {"firstName": "", "lastName": "", "badgeId": "", "role": "", "totalMinutes": 0, "daysWorked": set()})
-    by_worker = defaultdict(list)
-    for r in rows:
-        by_worker[r["worker_id"]].append(dict(r))
-        d = worker_data[r["worker_id"]]
-        d["firstName"] = r["first_name"] or ""
-        d["lastName"] = r["last_name"] or ""
-        d["badgeId"] = r["badge_id"] or ""
-        d["role"] = r["worker_role"] or ""
-
-    for wid, events in by_worker.items():
-        pending_checkin = None
-        for ev in events:
-            if ev["direction"] == "check-in":
-                pending_checkin = ev["timestamp"]
-            elif ev["direction"] == "check-out" and pending_checkin:
-                try:
-                    from datetime import datetime as _dt2
-                    t_in  = _dt2.fromisoformat(pending_checkin[:19])
-                    t_out = _dt2.fromisoformat(ev["timestamp"][:19])
-                    diff  = int((t_out - t_in).total_seconds() / 60)
-                    if 0 < diff < 1440:  # max 24h pro Einheit
-                        worker_data[wid]["totalMinutes"] += diff
-                        worker_data[wid]["daysWorked"].add(pending_checkin[:10])
-                except Exception:
-                    pass
-                pending_checkin = None
-
-    result = []
-    for wid, d in worker_data.items():
-        total_h = round(d["totalMinutes"] / 60, 1)
-        result.append({
-            "workerId": wid,
-            "firstName": d["firstName"],
-            "lastName": d["lastName"],
-            "badgeId": d["badgeId"],
-            "role": d["role"],
-            "totalHours": total_h,
-            "daysWorked": len(d["daysWorked"]),
-        })
-
-    result.sort(key=lambda x: (x["lastName"] or "").lower())
-    return jsonify({"month": month_prefix, "workers": result})
+    result = CompaniesService().worker_hours_summary(
+        get_db(),
+        g.current_user,
+        company_id,
+        month_param=(request.args.get("month") or "").strip(),
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 # ── Company-Admin: Stundendetails pro Mitarbeiter ─────────────────────────
@@ -25668,103 +23833,18 @@ def company_worker_hours_summary(company_id):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def company_worker_timeline(company_id, worker_id):
-    """
-    Liefert alle Zutrittsereignisse (check-in/check-out) fuer einen einzelnen
-    Mitarbeiter fuer den gewaehlten Monat, als tagesweise gruppierte Timeline.
-    Query-Parameter: month=YYYY-MM (Standard: aktueller Monat)
-    """
-    from datetime import datetime as _dt
-    db = get_db()
-    user = g.current_user
-    if user["role"] != "superadmin" and user.get("company_id") != company_id:
-        return jsonify({"error": "forbidden"}), 403
+    from backend.app.domains.companies.service import CompaniesService
 
-    plan_value = get_company_plan(db, company_id)
-    if not company_has_feature(plan_value, "worker_hours_report"):
-        return feature_not_available_response("worker_hours_report", plan_value)
-
-    # Verify worker belongs to company
-    worker = db.execute(
-        "SELECT id, first_name, last_name, badge_id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
-        (worker_id, company_id),
-    ).fetchone()
-    if not worker:
-        return jsonify({"error": "worker_not_found"}), 404
-
-    month_param = (request.args.get("month") or "").strip()
-    if month_param and len(month_param) == 7 and "-" in month_param:
-        month_prefix = month_param
-    else:
-        month_prefix = _dt.now().strftime("%Y-%m")
-
-    rows = db.execute(
-        """
-        SELECT direction, gate, note, timestamp
-        FROM access_logs
-        WHERE worker_id = ?
-          AND timestamp LIKE ?
-        ORDER BY timestamp ASC
-        """,
-        (worker_id, f"{month_prefix}%"),
-    ).fetchall()
-
-    # Group by day and pair check-in / check-out
-    from collections import defaultdict, OrderedDict
-    by_day = OrderedDict()
-    for r in rows:
-        day = r["timestamp"][:10]
-        if day not in by_day:
-            by_day[day] = []
-        by_day[day].append({"direction": r["direction"], "gate": r["gate"] or "", "note": r["note"] or "", "timestamp": r["timestamp"]})
-
-    days = []
-    for day, events in by_day.items():
-        # Pair sessions
-        sessions = []
-        pending_in = None
-        day_minutes = 0
-        for ev in events:
-            if ev["direction"] == "check-in":
-                pending_in = ev
-            elif ev["direction"] == "check-out":
-                duration = None
-                if pending_in:
-                    try:
-                        t_in  = _dt.fromisoformat(pending_in["timestamp"][:19])
-                        t_out = _dt.fromisoformat(ev["timestamp"][:19])
-                        diff  = int((t_out - t_in).total_seconds() / 60)
-                        if 0 < diff < 1440:
-                            duration = diff
-                            day_minutes += diff
-                    except Exception:
-                        pass
-                sessions.append({
-                    "checkIn":  pending_in["timestamp"] if pending_in else None,
-                    "checkOut": ev["timestamp"],
-                    "gateIn":   pending_in["gate"] if pending_in else "",
-                    "gateOut":  ev["gate"],
-                    "durationMinutes": duration,
-                })
-                pending_in = None
-        # Unclosed check-in (still on-site)
-        if pending_in:
-            sessions.append({
-                "checkIn":  pending_in["timestamp"],
-                "checkOut": None,
-                "gateIn":   pending_in["gate"],
-                "gateOut":  "",
-                "durationMinutes": None,
-            })
-        days.append({"date": day, "sessions": sessions, "dayMinutes": day_minutes})
-
-    return jsonify({
-        "month": month_prefix,
-        "workerId": worker_id,
-        "firstName": worker["first_name"] or "",
-        "lastName": worker["last_name"] or "",
-        "badgeId": worker["badge_id"] or "",
-        "days": days,
-    })
+    result = CompaniesService().worker_timeline(
+        get_db(),
+        g.current_user,
+        company_id,
+        worker_id,
+        month_param=(request.args.get("month") or "").strip(),
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 # ── Company Plan-Features Endpoint ────────────────────────────────────────
@@ -25772,26 +23852,12 @@ def company_worker_timeline(company_id, worker_id):
 @require_auth
 @require_roles("superadmin", "company-admin")
 def get_company_plan_features(company_id):
-    """Gibt die verfuegbaren Features fuer die Plan-Stufe der Firma zurueck."""
-    db = get_db()
-    user = g.current_user
-    if user["role"] != "superadmin" and user.get("company_id") != company_id:
-        return jsonify({"error": "forbidden"}), 403
-    company = db.execute("SELECT plan FROM companies WHERE id = ? AND deleted_at IS NULL", (company_id,)).fetchone()
-    if not company:
-        return jsonify({"error": "company_not_found"}), 404
-    plan = str(company["plan"] or "starter").strip().lower()
-    return jsonify({
-        "plan": plan,
-        "features": get_plan_features(plan),
-        "planRank": PLAN_RANK.get(plan, 1),
-        "availablePlans": [
-            {"key": "tageskarte", "labelDe": "Tageskarte", "priceEur": 19.0, "rank": 0},
-            {"key": "starter", "labelDe": "Start", "priceEur": 49.0, "workerPriceEur": 1.50, "rank": 1},
-            {"key": "professional", "labelDe": "Professional", "priceEur": 99.0, "workerPriceEur": 2.50, "rank": 2},
-            {"key": "enterprise", "labelDe": "Enterprise", "priceEur": 199.0, "workerPriceEur": 0.0, "rank": 3},
-        ],
-    })
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().get_plan_features(get_db(), g.current_user, company_id)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    return jsonify(result["body"])
 
 
 # ── Mitarbeiter-App: Einsatzplan (Monatsplan) ───────────────────────────────

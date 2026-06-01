@@ -42,9 +42,32 @@ def analyze_camera_event(company_id: int, payload: dict[str, Any]) -> dict[str, 
 
 
 def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    from .camera_registry import touch_camera_heartbeat
+
+    company_id_str = str(company_id)
+    camera_id = str(payload.get("camera_id") or "unknown")
+    created_at = now_iso()
+    is_heartbeat_only = bool(payload.get("heartbeat")) and not payload.get("event_type")
+
+    touch_camera_heartbeat(
+        db,
+        company_id_str,
+        camera_id,
+        payload=payload,
+        snapshot_b64=str(
+            payload.get("image_base64") or payload.get("snapshot_base64") or payload.get("photo_base64") or ""
+        ),
+        health_error=str(payload.get("health_error") or payload.get("error") or ""),
+    )
+
+    if is_heartbeat_only:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event("camera.heartbeat", company_id_str, {"camera_id": camera_id})
+        return {"id": None, "heartbeat": True, "camera_id": camera_id}
+
     analysis = analyze_camera_event(company_id, payload)
     eid = f"cam-{uuid.uuid4().hex[:12]}"
-    camera_id = str(payload.get("camera_id") or "unknown")
     try:
         db.execute(
             """
@@ -55,7 +78,7 @@ def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[st
             """,
             (
                 eid,
-                company_id,
+                company_id_str,
                 camera_id,
                 analysis["event_type"],
                 analysis.get("worker_id"),
@@ -63,28 +86,53 @@ def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[st
                 analysis.get("ppe_compliant"),
                 analysis.get("zone_violation") or 0,
                 json.dumps({**payload, "analysis": analysis}),
-                now_iso(),
+                created_at,
             ),
         )
         db.commit()
     except Exception:
         pass
-    if analysis.get("alerts"):
-        from .security_engine import _persist_alert
 
-        for a in analysis["alerts"]:
-            _persist_alert(
+    if analysis.get("alerts"):
+        try:
+            from .camera_notifications import notify_camera_violation
+
+            cam_row = db.execute(
+                "SELECT name, location FROM site_cameras WHERE company_id = ? AND id = ?",
+                (company_id_str, camera_id),
+            ).fetchone()
+            notify_camera_violation(
                 db,
-                company_id,
-                {
-                    "alert_type": a["type"],
-                    "severity": a["severity"],
-                    "title": a["message"],
-                    "worker_id": analysis.get("worker_id"),
-                    "details": {"camera_id": camera_id, "event_id": eid},
-                },
+                company_id=company_id_str,
+                event_id=eid,
+                camera_id=camera_id,
+                camera_name=str(cam_row["name"] if cam_row else camera_id),
+                location=str(cam_row["location"] if cam_row else payload.get("location") or ""),
+                event_type=analysis["event_type"],
+                created_at=created_at,
+                analysis=analysis,
+                snapshot_b64=str(
+                    payload.get("image_base64") or payload.get("snapshot_base64") or ""
+                ),
+                worker_id=analysis.get("worker_id"),
             )
+        except Exception:
+            from .security_engine import _persist_alert
+
+            for a in analysis["alerts"]:
+                _persist_alert(
+                    db,
+                    company_id,
+                    {
+                        "alert_type": a["type"],
+                        "severity": a["severity"],
+                        "title": a["message"],
+                        "worker_id": analysis.get("worker_id"),
+                        "details": {"camera_id": camera_id, "event_id": eid},
+                    },
+                )
+
     from backend.app.platform.events.bus import publish_event
 
-    publish_event("camera.ai.event", company_id, {"event_id": eid, "analysis": analysis})
+    publish_event("camera.ai.event", company_id_str, {"event_id": eid, "analysis": analysis})
     return {"id": eid, "analysis": analysis}

@@ -49,6 +49,12 @@ def collect_setup_status() -> dict[str, Any]:
             "stripeWebhook": bool((os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()),
         },
         "smtp": bool((os.getenv("SMTP_HOST") or "").strip() and (os.getenv("SMTP_PASSWORD") or "").strip()),
+        "cameras": {
+            "rtspBridgeToken": bool((os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN") or "").strip()),
+            "healthCheck": str(os.getenv("BAUPASS_CAMERA_HEALTH_CHECK", "1")).strip() not in {"0", "false", "off"},
+            "nightlyDigest": str(os.getenv("BAUPASS_CAMERA_NIGHTLY_DIGEST", "1")).strip() not in {"0", "false", "off"},
+            "docs": "docs/camera-rtsp-bridge-DE.md",
+        },
         "readyScore": _score(redis_url),
         "enterprise": _enterprise_block(),
     }

@@ -505,6 +505,10 @@ select {
 }
 
 .nav-link-enterprise-quick {
+  display: none !important;
+}
+
+.nav-link-enterprise-quick.legacy-visible {
   border: 1px dashed rgba(94, 234, 212, 0.45) !important;
   color: #7dd3fc !important;
   margin-top: 0.25rem;
@@ -8054,6 +8058,10 @@ body.theme-black .invoice-toolbar-refresh:active {
 }
 
 .sidebar-admin-v2-link {
+  display: none !important;
+}
+
+.sidebar-admin-v2-link.legacy-visible {
   display: block;
   width: 100%;
   margin-top: 0.75rem;
@@ -8425,6 +8433,22 @@ body.theme-black .invoice-toolbar-refresh:active {
   color: #92400e;
   background: rgba(245, 158, 11, 0.22);
   border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.deployment-decline-reason {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text, #1e293b);
+}
+
+.stat-card-clickable[data-view] {
+  cursor: pointer;
+}
+
+.stat-card-clickable[data-view]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 76, 92, 0.12);
 }
 
 .deployment-day-row.worker-declined {

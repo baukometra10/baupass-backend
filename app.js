@@ -384,6 +384,7 @@ const UI_TRANSLATIONS = {
     deploymentReopenEdit: "Erneut bearbeiten",
     deploymentSaved: "Einsatzplan gespeichert.",
     deploymentWorkerDeclined: "Abgelehnt",
+    deploymentDeclineReasonLabel: "Grund der Ablehnung",
     deploymentDeclinesBannerTitle: "Mitarbeiter haben Einsatztage abgelehnt",
     deploymentDeclinesBannerHint: "Bitte Plan prüfen und ggf. umplanen. Details beim Bearbeiten des Mitarbeiters.",
     deploymentMonthStatsDeclines: " · {count} Ablehnung(en)",
@@ -429,6 +430,27 @@ const UI_TRANSLATIONS = {
     dashBadge3: "Mandantenf\u00e4hig",
     dashOverviewEyebrow: "Bestand",
     dashOverviewH3: "Stammdaten & Status",
+    platformHealthEyebrow: "Plattform",
+    platformHealthH3: "Railway & Module",
+    platformHealthRefresh: "Aktualisieren",
+    platformHealthLoading: "Prüfe System…",
+    platformHealthOk: "Online",
+    platformHealthFail: "Offline",
+    platformHealthDegraded: "Eingeschränkt",
+    platformHealthProbeApi: "API",
+    platformHealthProbeReady: "Bereit",
+    platformHealthProbeAdminV2: "Betrieb v2",
+    platformHealthProbeHub: "Enterprise-Hub",
+    platformHealthProbeOps: "Ops-Zentrale",
+    platformHealthProbeDb: "Datenbank",
+    platformHealthFoot: "Zuletzt geprüft: {time} · {url}",
+    invoiceTableNumber: "Rechnung",
+    invoiceTableCompany: "Firma",
+    invoiceTableDate: "Datum",
+    invoiceTableDue: "Fällig",
+    invoiceTableAmount: "Betrag",
+    invoiceTableStatus: "Status",
+    invoiceTableActions: "Aktionen",
     enterpriseHubEyebrow: "Neu — Enterprise-Plattform",
     enterpriseHubTitle: "Enterprise-Hub: 16 Ebenen + Tarife + KI-Assistent",
     enterpriseHubDesc: "Alle gebauten Funktionen (Anwesenheit, Identit\u00e4t, Sicherheit, KI, Integrationen \u2026) an einem Ort \u2014 gefiltert nach Ihrem Tarif.",
@@ -470,7 +492,23 @@ const UI_TRANSLATIONS = {
     camerasH3: "Kamera-KI & RTSP-Bridge",
     camerasHint: "Lokaler RTSP-Agent oder Webhook an /api/integrations/cameras/rtsp-ingest",
     camerasEventsEmpty: "Noch keine Kamera-Ereignisse.",
-    camerasRefreshBtn: "Ereignisse aktualisieren",
+    camerasRefreshBtn: "Ereignisse",
+    camerasRefreshAllBtn: "Aktualisieren",
+    camerasListH4: "Registrierte Kameras",
+    camerasLiveH4: "Live-Snapshot",
+    camerasLiveHint: "Letztes Bild vom RTSP-Agent (aktualisiert alle 10 s).",
+    camerasLiveEmpty: "Kamera auswählen oder warten auf ersten Snapshot.",
+    camerasEventsH4: "Sicherheitsereignisse",
+    labelCameraName: "Name",
+    labelCameraLocation: "Standort",
+    labelCameraRtsp: "RTSP-URL (optional)",
+    btnCameraRegister: "Kamera registrieren",
+    cameraOnline: "Online",
+    cameraOffline: "Offline",
+    cameraUnknown: "Unbekannt",
+    cameraSelectLive: "Live anzeigen",
+    cameraDeleteConfirm: "Kamera wirklich löschen?",
+    cameraSummary: "{online}/{total} Kameras online",
     reportingEmailEnterpriseBtn: "Enterprise-PDF per E-Mail",
     reportingEmailSentOk: "Bericht wurde per E-Mail gesendet.",
     dashExpiringEyebrow: "Compliance",
@@ -1380,6 +1418,7 @@ const UI_TRANSLATIONS = {
     deploymentReopenEdit: "Edit again",
     deploymentSaved: "Deployment plan saved.",
     deploymentWorkerDeclined: "Declined",
+    deploymentDeclineReasonLabel: "Reason for decline",
     deploymentDeclinesBannerTitle: "Workers declined scheduled days",
     deploymentDeclinesBannerHint: "Review and adjust plans. Details when editing each worker.",
     deploymentMonthStatsDeclines: " · {count} decline(s)",
@@ -3076,7 +3115,23 @@ const UI_TRANSLATIONS = {
     camerasH3: "ذكاء الكاميرا و RTSP",
     camerasHint: "اربط جسر RTSP المحلي أو أرسل أحداثاً إلى /api/integrations/cameras/rtsp-ingest و /api/integrations/security-cameras/events.",
     camerasEventsEmpty: "لا أحداث كاميرا بعد.",
-    camerasRefreshBtn: "تحديث الأحداث",
+    camerasRefreshBtn: "الأحداث",
+    camerasRefreshAllBtn: "تحديث",
+    camerasListH4: "الكameras المسجّلة",
+    camerasLiveH4: "لقطة مباشرة",
+    camerasLiveHint: "آخر صورة من وكيل RTSP (تحديث كل 10 ثوانٍ).",
+    camerasLiveEmpty: "اختر كamera أو انتظر أول لقطة.",
+    camerasEventsH4: "أحداث الأمان",
+    labelCameraName: "الاسم",
+    labelCameraLocation: "الموقع",
+    labelCameraRtsp: "رابط RTSP (اختياري)",
+    btnCameraRegister: "تسجيل كamera",
+    cameraOnline: "متصل",
+    cameraOffline: "غير متصل",
+    cameraUnknown: "غير معروف",
+    cameraSelectLive: "عرض مباشر",
+    cameraDeleteConfirm: "حذف الكamera؟",
+    cameraSummary: "{online}/{total} كameras متصلة",
     reportingEmailEnterpriseBtn: "PDF المؤسسة بالبريد",
     reportingEmailSentOk: "تم إرسال التقرير بالبريد.",
     dashExpiringEyebrow: "الامتثال",
@@ -8153,6 +8208,8 @@ const ENTERPRISE_EMBED_META = {
 
 let pendingEnterpriseEmbedItemId = null;
 let pendingAdminV2EinsatzplanFocus = false;
+let pendingDeploymentOpenWorkerId = null;
+let pendingDeploymentOpenWorkerName = null;
 let enterpriseNavDelegationBound = false;
 
 const PLAN_FEATURES = {
@@ -16175,7 +16232,7 @@ function buildEnterpriseEmbedUrl(item) {
   if (item.version) {
     params.push("v=20260603hub1");
   }
-  if (item.path.includes("/admin-v2/")) {
+  if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
     params.push("einsatzplan=1");
   }
@@ -16200,12 +16257,16 @@ function scheduleAdminV2EinsatzplanFocus() {
   if (!iframe) {
     return;
   }
+  const workerId = pendingDeploymentOpenWorkerId;
+  const workerName = pendingDeploymentOpenWorkerName;
   const send = () => {
     try {
       iframe.contentWindow?.postMessage(
         {
           type: "baupass-focus-einsatzplan",
           companyId: getEffectiveUiCompanyId(),
+          workerId: workerId || undefined,
+          workerName: workerName || undefined,
         },
         window.location.origin,
       );
@@ -16238,7 +16299,9 @@ function broadcastSessionToEmbeds() {
   });
 }
 
-function requestEinsatzplanEditor() {
+function requestEinsatzplanEditor(options = {}) {
+  pendingDeploymentOpenWorkerId = String(options.workerId || "").trim() || null;
+  pendingDeploymentOpenWorkerName = String(options.workerName || "").trim() || null;
   if (!token || !state.currentUser) {
     refreshAll();
     showToast(
@@ -16262,6 +16325,14 @@ function requestEinsatzplanEditor() {
     setView("deployment-plan");
     broadcastSessionToEmbeds();
     const afterLoad = () => {
+      const wid = pendingDeploymentOpenWorkerId;
+      const wname = pendingDeploymentOpenWorkerName;
+      pendingDeploymentOpenWorkerId = null;
+      pendingDeploymentOpenWorkerName = null;
+      if (wid && globalThis.BaupassDeploymentPlan?.openWorker) {
+        globalThis.BaupassDeploymentPlan.openWorker(wid, wname || "");
+        return;
+      }
       globalThis.BaupassDeploymentPlan?.scrollToWorkers?.();
     };
     if (globalThis.BaupassDeploymentPlan?.refresh) {
@@ -16320,6 +16391,10 @@ function loadEnterpriseEmbed(viewName) {
   if (!prevSrc || prevSrc !== url || forceReload) {
     iframe.setAttribute("src", url);
   }
+  globalThis.BaupassEmbed?.bindEnterpriseIframe?.(meta.frameId, {
+    openUrl: url,
+    title: uiT(item.labelKey) || viewName,
+  });
   if (iframe && token) {
     const syncToken = () => {
       broadcastSessionToEmbeds();
@@ -16416,10 +16491,18 @@ function renderEnterpriseNavMenu() {
   if (!items.length) {
     mount.innerHTML = "";
     mount.classList.add("hidden");
+    document.querySelectorAll(".quick-nav-tile[data-view='admin-v2']").forEach((el) => {
+      el.classList.remove("hidden");
+      el.setAttribute("aria-hidden", "false");
+    });
     return;
   }
 
   mount.classList.remove("hidden");
+  document.querySelectorAll(".quick-nav-tile[data-view='admin-v2']").forEach((el) => {
+    el.classList.add("hidden");
+    el.setAttribute("aria-hidden", "true");
+  });
   const planLabel = getPlanLabel(getCompanyPlan(cid));
   const sectionLabel = uiT("navEnterpriseSection");
   const planSuffix =
@@ -16464,6 +16547,126 @@ function openEnterpriseView(viewName, embedItemId) {
 }
 
 let dashboardPollTimer = null;
+let platformHealthPollTimer = null;
+
+const PLATFORM_HEALTH_PROBE_LABELS = {
+  api: "platformHealthProbeApi",
+  ready: "platformHealthProbeReady",
+  admin_v2: "platformHealthProbeAdminV2",
+  enterprise_hub: "platformHealthProbeHub",
+  ops_center: "platformHealthProbeOps",
+};
+
+function canViewPlatformHealth() {
+  const role = String(getEffectiveUiRole() || "").toLowerCase();
+  return role === "superadmin" || role === "company-admin";
+}
+
+function renderPlatformHealthPanel(payload, errorMessage) {
+  const grid = document.getElementById("platformHealthGrid");
+  const foot = document.getElementById("platformHealthFoot");
+  const panel = document.getElementById("platformHealthPanel");
+  if (!grid || !panel) return;
+  if (!canViewPlatformHealth()) {
+    panel.hidden = true;
+    panel.setAttribute("aria-hidden", "true");
+    return;
+  }
+  panel.hidden = false;
+  panel.setAttribute("aria-hidden", "false");
+
+  if (errorMessage) {
+    grid.innerHTML = `<div class="platform-health-card is-fail" style="grid-column:1/-1">
+      <p class="platform-health-label">${escapeHtml(uiT("platformHealthH3") || "Plattform")}</p>
+      <p class="platform-health-value">${escapeHtml(uiT("platformHealthFail") || "Offline")}</p>
+      <p class="platform-health-detail">${escapeHtml(errorMessage)}</p>
+    </div>`;
+    if (foot) foot.textContent = "";
+    return;
+  }
+
+  const overall = String(payload?.status || "").toLowerCase();
+  const overallCls =
+    overall === "ok" ? "is-ok" : overall === "down" ? "is-fail" : "is-warn";
+  const overallLabel =
+    overall === "ok"
+      ? uiT("platformHealthOk")
+      : overall === "down"
+        ? uiT("platformHealthFail")
+        : uiT("platformHealthDegraded");
+
+  const cards = [];
+  cards.push(`
+    <div class="platform-health-card ${overallCls}">
+      <p class="platform-health-label">${escapeHtml(uiT("platformHealthEyebrow") || "Plattform")}</p>
+      <p class="platform-health-value">${escapeHtml(overallLabel || overall)}</p>
+      <p class="platform-health-detail">${escapeHtml(payload?.cloud?.provider || "")} · ${escapeHtml(payload?.cloud?.host || "")}</p>
+    </div>`);
+
+  const db = payload?.database || {};
+  const dbOk = String(db.status || "").toLowerCase() === "ok";
+  cards.push(`
+    <div class="platform-health-card ${dbOk ? "is-ok" : "is-fail"}">
+      <p class="platform-health-label">${escapeHtml(uiT("platformHealthProbeDb") || "Datenbank")}</p>
+      <p class="platform-health-value">${dbOk ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthFail") || "Fail")}</p>
+      <p class="platform-health-detail">${escapeHtml(String(db.backend || db.path || "").slice(0, 48))}</p>
+    </div>`);
+
+  (payload?.probes || []).forEach((probe) => {
+    const key = String(probe.id || "");
+    const labelKey = PLATFORM_HEALTH_PROBE_LABELS[key];
+    const label = labelKey ? uiT(labelKey) : key;
+    const ok = Boolean(probe.ok);
+    cards.push(`
+      <div class="platform-health-card ${ok ? "is-ok" : "is-fail"}">
+        <p class="platform-health-label">${escapeHtml(label || key)}</p>
+        <p class="platform-health-value">${ok ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthFail") || "Fail")}</p>
+        <p class="platform-health-detail">${escapeHtml(probe.detail || "")}${probe.latencyMs != null ? ` · ${probe.latencyMs} ms` : ""}</p>
+      </div>`);
+  });
+
+  grid.innerHTML = cards.join("");
+  if (foot && payload) {
+    const ts = payload.timestamp ? formatTimestamp(payload.timestamp) : "—";
+    const url = payload.cloud?.publicUrl || window.location.origin;
+    foot.textContent = (uiT("platformHealthFoot") || "Zuletzt: {time}")
+      .replace("{time}", ts)
+      .replace("{url}", url);
+  }
+}
+
+async function refreshPlatformHealth() {
+  if (!token || !canViewPlatformHealth()) return;
+  const grid = document.getElementById("platformHealthGrid");
+  if (grid) {
+    grid.innerHTML = `<p class="muted">${escapeHtml(uiT("platformHealthLoading") || "Prüfe…")}</p>`;
+  }
+  try {
+    const data = await apiRequest(`${API_BASE}/api/health/platform`);
+    renderPlatformHealthPanel(data);
+  } catch (error) {
+    renderPlatformHealthPanel(null, error?.message || String(error));
+  }
+}
+
+function startPlatformHealthPoll() {
+  if (platformHealthPollTimer || !canViewPlatformHealth()) return;
+  void refreshPlatformHealth();
+  platformHealthPollTimer = window.setInterval(() => {
+    if (getCurrentViewName() !== "dashboard") {
+      stopPlatformHealthPoll();
+      return;
+    }
+    void refreshPlatformHealth();
+  }, 90_000);
+}
+
+function stopPlatformHealthPoll() {
+  if (platformHealthPollTimer) {
+    window.clearInterval(platformHealthPollTimer);
+    platformHealthPollTimer = null;
+  }
+}
 
 function renderDeploymentDeclinesBannerEl(bannerEl, state) {
   if (!bannerEl) return;
@@ -16577,8 +16780,10 @@ function setView(viewName) {
 
   if (targetView === "dashboard") {
     startDashboardPoll();
+    startPlatformHealthPoll();
   } else {
     stopDashboardPoll();
+    stopPlatformHealthPoll();
   }
 
   if (targetView === "devices") {
@@ -17816,6 +18021,13 @@ function refreshAll() {
   applyDeepLinkViewFromUrl();
   if (loggedIn) {
     broadcastSessionToEmbeds();
+    if (getCurrentViewName() === "dashboard") {
+      startPlatformHealthPoll();
+    } else if (canViewPlatformHealth()) {
+      void refreshPlatformHealth();
+    }
+  } else {
+    stopPlatformHealthPoll();
   }
 }
 
@@ -18209,6 +18421,225 @@ function showLoginGreeting() {
   }, GREET_DISPLAY_MS);
 }
 
+// ── Camera Management ────────────────────────────────────────────────────────
+let _cameraLiveTimer = null;
+let _selectedCameraId = null;
+state.siteCameras = state.siteCameras || [];
+
+function _cameraEventsUrl() {
+  let url = `${API_BASE}/api/integrations/cameras/events?limit=25`;
+  const role = String(getCurrentUser()?.role || "");
+  if (role === "superadmin" && superadminUiPreviewCompanyId) {
+    url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+  }
+  return url;
+}
+
+function _camerasApiUrl(suffix = "") {
+  let url = `${API_BASE}/api/integrations/cameras${suffix}`;
+  const role = String(getCurrentUser()?.role || "");
+  if (role === "superadmin" && superadminUiPreviewCompanyId) {
+    const sep = url.includes("?") ? "&" : "?";
+    url += `${sep}company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+  }
+  return url;
+}
+
+async function loadSiteCameras() {
+  const role = String(getCurrentUser()?.role || "");
+  if (!["superadmin", "company-admin"].includes(role)) return;
+  if (role === "superadmin" && !superadminUiPreviewCompanyId) {
+    state.siteCameras = [];
+    renderSiteCameras();
+    return;
+  }
+  try {
+    const data = await apiRequest(_camerasApiUrl());
+    state.siteCameras = Array.isArray(data?.cameras) ? data.cameras : [];
+    renderSiteCameras(data?.summary);
+  } catch (e) {
+    console.warn("loadSiteCameras failed", e);
+  }
+}
+
+function renderSiteCameras(summary) {
+  const list = document.querySelector("#cameraList");
+  const bar = document.querySelector("#cameraSummaryBar");
+  const cameras = state.siteCameras || [];
+  if (bar) {
+    const total = summary?.total ?? cameras.length;
+    const online = summary?.online ?? cameras.filter((c) => c.online).length;
+    if (total > 0) {
+      bar.classList.remove("hidden");
+      bar.innerHTML = `<p style="margin:0;">${escapeHtml(uiT("cameraSummary").replace("{online}", online).replace("{total}", total))}</p>`;
+    } else {
+      bar.classList.add("hidden");
+      bar.innerHTML = "";
+    }
+  }
+  if (!list) return;
+  if (!cameras.length) {
+    list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasLiveEmpty"))}</p>`;
+    return;
+  }
+  list.innerHTML = cameras
+    .map((cam) => {
+      const dotClass = cam.online ? "device-dot online" : cam.lastSeenAt ? "device-dot offline" : "device-dot";
+      const statusLabel = cam.online
+        ? uiT("cameraOnline")
+        : cam.lastSeenAt
+          ? uiT("cameraOffline")
+          : uiT("cameraUnknown");
+      const selected = _selectedCameraId === cam.id ? " camera-row-selected" : "";
+      return `<div class="device-status-item${selected}" data-camera-id="${escapeHtml(cam.id)}">
+        <span class="${dotClass}"></span>
+        <span class="device-name">${escapeHtml(cam.name || cam.id)}</span>
+        <span class="device-meta">${escapeHtml(cam.location || "")}</span>
+        <span class="device-badge">${escapeHtml(statusLabel)}</span>
+        <button type="button" class="ghost-button small-button camera-live-btn" data-camera-id="${escapeHtml(cam.id)}">${escapeHtml(uiT("cameraSelectLive"))}</button>
+        <button type="button" class="ghost-button small-button camera-delete-btn" style="color:#dc2626;" data-camera-id="${escapeHtml(cam.id)}">✕</button>
+      </div>`;
+    })
+    .join("");
+  list.querySelectorAll(".camera-live-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      _selectedCameraId = btn.getAttribute("data-camera-id");
+      renderSiteCameras(summary);
+      refreshCameraLiveView();
+    });
+  });
+  list.querySelectorAll(".camera-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-camera-id");
+      if (!(await showConfirmDialog(uiT("cameraDeleteConfirm")))) return;
+      try {
+        await apiRequest(_camerasApiUrl(`/${encodeURIComponent(id)}`), { method: "DELETE" });
+        if (_selectedCameraId === id) _selectedCameraId = null;
+        await loadSiteCameras();
+        refreshCameraLiveView();
+      } catch (err) {
+        showToast(String(err?.message || err), "error");
+      }
+    });
+  });
+}
+
+async function refreshCameraLiveView() {
+  const img = document.querySelector("#cameraLiveImage");
+  const placeholder = document.querySelector("#cameraLivePlaceholder");
+  if (!img || !placeholder) return;
+  if (!_selectedCameraId) {
+    img.classList.add("hidden");
+    placeholder.classList.remove("hidden");
+    placeholder.textContent = uiT("camerasLiveEmpty");
+    return;
+  }
+  const role = String(getCurrentUser()?.role || "");
+  if (role === "superadmin" && !superadminUiPreviewCompanyId) return;
+  try {
+    let url = `${API_BASE}/api/integrations/cameras/${encodeURIComponent(_selectedCameraId)}/snapshot?format=jpeg&_=${Date.now()}`;
+    if (role === "superadmin" && superadminUiPreviewCompanyId) {
+      url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+    }
+    const resp = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!resp.ok) throw new Error("no_snapshot");
+    const blob = await resp.blob();
+    img.src = URL.createObjectURL(blob);
+    img.classList.remove("hidden");
+    placeholder.classList.add("hidden");
+  } catch {
+    img.classList.add("hidden");
+    placeholder.classList.remove("hidden");
+    placeholder.textContent = uiT("camerasLiveEmpty");
+  }
+}
+
+function startCameraLivePolling() {
+  stopCameraLivePolling();
+  _cameraLiveTimer = setInterval(() => {
+    if (_selectedCameraId) void refreshCameraLiveView();
+  }, 10000);
+}
+
+function stopCameraLivePolling() {
+  if (_cameraLiveTimer) {
+    clearInterval(_cameraLiveTimer);
+    _cameraLiveTimer = null;
+  }
+}
+
+async function loadCameraEvents() {
+  const list = document.querySelector("#cameraEventsList");
+  if (!list) return;
+  const role = String(getCurrentUser()?.role || "");
+  if (!["superadmin", "company-admin"].includes(role)) {
+    list.innerHTML = "";
+    return;
+  }
+  if (role === "superadmin" && !superadminUiPreviewCompanyId) {
+    list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasEventsEmpty"))}</p>`;
+    return;
+  }
+  try {
+    const data = await apiRequest(_cameraEventsUrl());
+    const events = Array.isArray(data?.events) ? data.events : [];
+    if (!events.length) {
+      list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasEventsEmpty"))}</p>`;
+      return;
+    }
+    list.innerHTML = events
+      .map((ev) => {
+        let payload = {};
+        try {
+          payload = typeof ev.payload_json === "string" ? JSON.parse(ev.payload_json) : (ev.payload_json || {});
+        } catch {
+          payload = {};
+        }
+        const analysis = payload.analysis || {};
+        const alerts = Array.isArray(analysis.alerts) ? analysis.alerts : [];
+        const face = payload.face_match;
+        const faceTag = face === true
+          ? `<span class="helper-text helper-text-ok">${escapeHtml(uiT("cameraEventFaceOk"))}</span>`
+          : face === false
+            ? `<span class="helper-text helper-text-warning">${escapeHtml(uiT("cameraEventFaceNo"))}</span>`
+            : "";
+        const alertTags = alerts
+          .slice(0, 2)
+          .map((a) => `<span class="helper-text helper-text-warning">${escapeHtml(a.message || a.type || "")}</span>`)
+          .join(" ");
+        const workerLine = ev.worker_id
+          ? ` · ${escapeHtml(uiT("cameraEventWorker"))}: ${escapeHtml(ev.worker_id)}`
+          : "";
+        const zoneTag = Number(ev.zone_violation) === 1
+          ? `<span class="helper-text helper-text-warning">${escapeHtml(uiT("cameraEventZoneAlert"))}</span>`
+          : "";
+        const ppeTag = ev.ppe_compliant === 0
+          ? `<span class="helper-text helper-text-warning">${escapeHtml(uiT("cameraEventPpeMissing"))}</span>`
+          : "";
+        return `
+        <article class="card-item" style="margin-bottom:6px;">
+          <strong>${escapeHtml(ev.event_type || "event")}</strong>
+          <span class="meta-text"> · ${escapeHtml(ev.camera_id || "-")}</span>
+          ${faceTag ? ` ${faceTag}` : ""}
+          ${ppeTag ? ` ${ppeTag}` : ""}
+          ${zoneTag ? ` ${zoneTag}` : ""}
+          ${alertTags ? ` ${alertTags}` : ""}
+          <p class="helper-text">${escapeHtml(ev.created_at || "")}${workerLine}</p>
+        </article>`;
+      })
+      .join("");
+  } catch {
+    list.innerHTML = "";
+  }
+}
+
+async function refreshCamerasPanel() {
+  await Promise.all([loadSiteCameras(), loadCameraEvents()]);
+}
+
 // ── Device Management ────────────────────────────────────────────────────────
 const _deviceRefreshTimers = {};
 
@@ -18219,7 +18650,7 @@ async function loadDevices() {
     const data = await apiRequest(`${API_BASE}/api/admin/devices`);
     state.devices = Array.isArray(data) ? data : (data.devices || []);
     renderDevices();
-    await loadCameraEvents();
+    await refreshCamerasPanel();
   } catch (e) {
     console.warn("loadDevices failed", e);
   }
@@ -18325,6 +18756,35 @@ if (camerasEventsRefreshBtn) {
     void loadCameraEvents();
   });
 }
+const camerasRefreshBtn = document.querySelector("#camerasRefreshBtn");
+if (camerasRefreshBtn) {
+  camerasRefreshBtn.addEventListener("click", () => {
+    void refreshCamerasPanel();
+  });
+}
+(function wireCameraRegisterForm() {
+  const form = document.getElementById("cameraRegisterForm");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = (document.getElementById("cameraName")?.value || "").trim();
+    const location = (document.getElementById("cameraLocation")?.value || "").trim();
+    const rtspUrl = (document.getElementById("cameraRtspUrl")?.value || "").trim();
+    if (!name) return;
+    try {
+      await apiRequest(_camerasApiUrl(), {
+        method: "POST",
+        body: { name, location, rtspUrl },
+      });
+      form.reset();
+      await loadSiteCameras();
+      showToast(uiT("btnCameraRegister") || "OK");
+    } catch (err) {
+      showToast(String(err?.message || err), "error");
+    }
+  });
+})();
+startCameraLivePolling();
 
 // Wire device form (delegated, called once on page load)
 (function wireDeviceForm() {
@@ -19499,22 +19959,23 @@ function renderStats() {
 
   // Stammdaten: keine Live-KPIs (Anwesenheit/Dokumente heute → Live-Betrieb + Compliance)
   const cards = [
-    ["👷", texts.statsWorkersTotal, totalWorkers, "#0f4c5c", "", false],
-    ["✅", texts.statsWorkersActive, activeWorkers, "#16a34a", isDarkTheme ? "" : "rgba(220,252,231,0.5)", false],
-    ["🚶", texts.statsVisitorsTotal, totalVisitors, "#7c3aed", isDarkTheme ? "" : "rgba(237,233,254,0.5)", false],
-    ["🏢", texts.statsCompanies, totalCompanies, "#0369a1", isDarkTheme ? "" : "rgba(224,242,254,0.5)", false],
-    ["🔒", runtimeText("statsLockedWorkers"), lockedWorkers, lockedWorkers > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : ""), lockedWorkers > 0],
+    ["👷", texts.statsWorkersTotal, totalWorkers, "#0f4c5c", "", false, "workers"],
+    ["✅", texts.statsWorkersActive, activeWorkers, "#16a34a", isDarkTheme ? "" : "rgba(220,252,231,0.5)", false, "workers"],
+    ["🚶", texts.statsVisitorsTotal, totalVisitors, "#7c3aed", isDarkTheme ? "" : "rgba(237,233,254,0.5)", false, "workers"],
+    ["🏢", texts.statsCompanies, totalCompanies, "#0369a1", isDarkTheme ? "" : "rgba(224,242,254,0.5)", false, "dashboard"],
+    ["🔒", runtimeText("statsLockedWorkers"), lockedWorkers, lockedWorkers > 0 ? "#dc2626" : "#6b7280", isDarkTheme ? "" : (lockedWorkers > 0 ? "rgba(254,226,226,0.5)" : ""), lockedWorkers > 0, "workers"],
   ];
 
   elements.statsGrid.dataset.dashboardBuild = `${window.__BAUPASS_UI_BUILD || "?"}-5`;
   elements.statsGrid.innerHTML = cards
-    .map(([icon, label, value, color, bg, isWarn]) => {
+    .map(([icon, label, value, color, bg, isWarn, navView]) => {
       const styleStr = [
         bg ? `background:${bg}` : "",
         isDarkTheme && color ? `border-color:${color}33` : "",
         color ? `--stat-accent:${color}` : "",
       ].filter(Boolean).join(";");
-      return `<article class="stat-card stat-card-v2${isWarn ? " stat-card-warn" : ""}" style="${styleStr}">
+      const viewAttr = navView ? ` data-view="${escapeHtml(navView)}" role="button" tabindex="0"` : "";
+      return `<article class="stat-card stat-card-v2 stat-card-clickable${isWarn ? " stat-card-warn" : ""}"${viewAttr} style="${styleStr}">
         <span class="stat-icon">${icon}</span>
         <p class="stat-label">${escapeHtml(label)}</p>
         <strong class="stat-value-v2" style="color:${color};">${escapeHtml(String(value))}</strong>
@@ -27424,7 +27885,7 @@ function renderInvoiceManagementList() {
   }
   
   if (!invoices.length) {
-    container.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("invoiceListEmpty"))}</div>`;
+    container.innerHTML = `<div class="ms-invoices-empty">${escapeHtml(runtimeText("invoiceListEmpty"))}</div>`;
     renderInvoiceRetryQueue(retryQueueContainer, allInvoices);
     renderInvoiceApprovalQueue();
     renderInvoiceDeadLetters();
@@ -27432,93 +27893,93 @@ function renderInvoiceManagementList() {
     return;
   }
 
-  const rows = invoices
+  const bodyRows = invoices
     .map((inv) => {
       const statusLabel = {
         draft: uiT("optDraft"),
         sent: uiT("optSent"),
         overdue: uiT("optOverdue"),
         bezahlt: uiT("optPaid"),
-        send_failed: uiT("optFailed")
+        send_failed: uiT("optFailed"),
       }[inv.status] || inv.status;
 
       const statusKey = String(inv.status || "draft").toLowerCase();
-      const statusIcon = {
-        draft: "&#9679;",
-        sent: "&#10148;",
-        overdue: "&#9888;",
-        bezahlt: "&#10003;",
-        send_failed: "&#10005;"
-      }[statusKey] || "&#9679;";
-
-      const statusClass = {
-        draft: "",
-        sent: "helper-text-info",
-        overdue: "helper-text-warning",
-        bezahlt: "helper-text-ok",
-        send_failed: "helper-text-warning"
-      }[inv.status] || "";
-
       const isPaid = inv.status === "bezahlt" || Boolean(inv.paid_at);
-      const canMarkPaid = !isPaid && (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
-      const canRetrySend = !isPaid && statusKey === "send_failed" && (getCurrentUser()?.role === "superadmin");
+      const canMarkPaid =
+        !isPaid &&
+        (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
+      const canRetrySend = !isPaid && statusKey === "send_failed" && getCurrentUser()?.role === "superadmin";
       const canViewHistory = getCurrentUser()?.role === "superadmin";
-      const canDownloadReminder = !isPaid && ["sent", "overdue"].includes(statusKey) && getCurrentUser()?.role === "superadmin";
-      const justPaidClass = state.invoiceJustPaidId && state.invoiceJustPaidId === inv.id ? " invoice-status-just-paid" : "";
-      const newBadge = state.invoiceNewIds?.[inv.id] ? `<span class="invoice-new-badge">${escapeHtml(uiT("invoiceBadgeNew"))}</span>` : "";
-      const dunningStage = Number(inv.reminder_stage || 0);
-      const dunningBadge = dunningStage > 0
-        ? `<span class="invoice-dunning-badge dunning-stage-${dunningStage}">${escapeHtml(uiT("invoiceDunningStageLabel").replace("{stage}", dunningStage))}</span>`
+      const canDownloadReminder =
+        !isPaid && ["sent", "overdue"].includes(statusKey) && getCurrentUser()?.role === "superadmin";
+      const justPaidClass =
+        state.invoiceJustPaidId && state.invoiceJustPaidId === inv.id ? " invoice-row-just-paid" : "";
+      const newBadge = state.invoiceNewIds?.[inv.id]
+        ? ` <span class="invoice-new-badge">${escapeHtml(uiT("invoiceBadgeNew"))}</span>`
         : "";
-      const maxRetryAttempts = 5;
-      const retryAttemptCount = Number(inv.send_attempt_count || 0);
-      const retryInfo = canRetrySend
-        ? `<p class="helper-text invoice-retry-meta">${escapeHtml(runtimeTextTemplate("invoiceAttemptLabel", { count: `${Math.max(1, retryAttemptCount)}/${maxRetryAttempts}` }))}${inv.next_retry_at ? ` • ${escapeHtml(runtimeText("invoiceRetryNextLabel"))}: ${formatTimestamp(inv.next_retry_at)}` : ""}</p>`
+      const dunningStage = Number(inv.reminder_stage || 0);
+      const dunningBadge =
+        dunningStage > 0
+          ? ` <span class="invoice-dunning-badge">M${dunningStage}</span>`
+          : "";
+      const errHint = inv.error_message
+        ? `<br /><span class="helper-text" title="${escapeAttr(inv.error_message)}">⚠</span>`
         : "";
       const historyExpanded = Boolean(state.invoiceHistoryExpandedById?.[inv.id]);
-      const historyLabel = historyExpanded ? runtimeText("invoiceHistoryHide") : runtimeText("invoiceHistoryShow");
-      const historyTimeline = canViewHistory ? renderInvoiceAttemptTimelineHtml(inv.id) : "";
+      const historyRow =
+        canViewHistory && historyExpanded
+          ? `<tr class="invoice-history-expand-row"><td colspan="8">${renderInvoiceAttemptTimelineHtml(inv.id)}</td></tr>`
+          : "";
 
-      return `
-        <article class="card-item invoice-management-item invoice-status-${escapeHtml(statusKey)}${justPaidClass}">
-          <label class="invoice-bulk-checkbox-label" title="${escapeHtml(runtimeText("invoiceSelectTitle"))}">
-            <input type="checkbox" class="invoice-bulk-cb" data-invoice-select-id="${escapeHtml(inv.id)}" />
-          </label>
-          <div class="invoice-management-head">
-            <div class="invoice-management-main">
-              <strong>${escapeHtml(inv.invoice_number || "RE-???")} ${newBadge} ${dunningBadge}</strong>
-              <p class="helper-text">${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</p>
-              <p class="meta-text">
-                ${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "-"} 
-                ${inv.paid_at ? ` • ${escapeHtml(runtimeText("invoicePaidAtLabel"))}: ${formatTimestamp(inv.paid_at)}` : ""}
-              </p>
-              ${inv.payment_note ? `<p class="helper-text" style="color:#2d7a2d;">💳 ${escapeHtml(inv.payment_note)}</p>` : ""}
-            </div>
-            <div class="invoice-management-side">
-              <p class="meta-text">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
-              <p class="helper-text ${statusClass}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: <span class="invoice-status-badge invoice-status-badge-${escapeHtml(statusKey)}"><span class="invoice-status-icon" aria-hidden="true">${statusIcon}</span><span>${statusLabel}</span></span></p>
-            </div>
-          </div>
+      const actions = [
+        `<button type="button" class="ms-invoice-action-btn invoice-preview-btn" data-invoice-preview-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoicePreviewBtn"))}</button>`,
+        canMarkPaid
+          ? `<button type="button" class="ms-invoice-action-btn ms-invoice-action-btn-primary invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceMarkPaidBtn"))}</button>`
+          : "",
+        canRetrySend
+          ? `<button type="button" class="ms-invoice-action-btn" data-invoice-retry-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceRetryBtn"))}</button>`
+          : "",
+        canViewHistory
+          ? `<button type="button" class="ms-invoice-action-btn" data-invoice-history-toggle-id="${escapeHtml(inv.id)}">Hist.</button>`
+          : "",
+        canDownloadReminder
+          ? `<button type="button" class="ms-invoice-action-btn" data-invoice-reminder-id="${escapeHtml(inv.id)}">PDF</button>`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("");
 
-          ${inv.due_date ? `<p class="helper-text">${escapeHtml(runtimeText("invoiceDueDateLabel"))}: ${formatTimestamp(inv.due_date)}</p>` : ""}
-          ${inv.auto_suspend_triggered_at ? `<p class="helper-text helper-text-warning">${escapeHtml(runtimeText("invoiceAutoSuspendedLabel"))}: ${formatTimestamp(inv.auto_suspend_triggered_at)}</p>` : ""}
-
-          <div class="button-row invoice-management-actions">
-            <button type="button" class="ghost-button invoice-preview-btn" data-invoice-preview-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoicePreviewBtn"))}</button>
-            ${canMarkPaid ? `<button type="button" class="ghost-button invoice-mark-paid" data-invoice-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceMarkPaidBtn"))}</button>` : ""}
-            ${canRetrySend ? `<button type="button" class="ghost-button" data-invoice-retry-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceRetryBtn"))}</button>` : ""}
-            ${canViewHistory ? `<button type="button" class="ghost-button" data-invoice-history-toggle-id="${escapeHtml(inv.id)}">${historyLabel}</button>` : ""}
-            ${canDownloadReminder ? `<button type="button" class="ghost-button" data-invoice-reminder-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceReminderDownloadBtn"))}</button>` : ""}
-            <span class="helper-text invoice-management-error">${inv.error_message ? `${escapeHtml(runtimeText("invoiceErrorLabel"))}: ${escapeHtml(inv.error_message)}` : ""}</span>
-          </div>
-          ${retryInfo}
-          ${historyTimeline}
-        </article>
-      `;
+      return `<tr class="invoice-status-${escapeHtml(statusKey)}${justPaidClass}" data-invoice-row-id="${escapeHtml(inv.id)}">
+        <td><input type="checkbox" class="invoice-bulk-cb" data-invoice-select-id="${escapeHtml(inv.id)}" aria-label="${escapeAttr(runtimeText("invoiceSelectTitle"))}" /></td>
+        <td><strong>${escapeHtml(inv.invoice_number || "RE-???")}</strong>${newBadge}${dunningBadge}${errHint}</td>
+        <td>${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</td>
+        <td>${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "—"}</td>
+        <td>${inv.due_date ? formatTimestamp(inv.due_date) : "—"}</td>
+        <td class="col-amount">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} €</td>
+        <td><span class="ms-invoice-pill ms-invoice-pill-${escapeHtml(statusKey)}">${escapeHtml(statusLabel)}</span></td>
+        <td class="col-actions">${actions}</td>
+      </tr>${historyRow}`;
     })
     .join("");
 
-  container.innerHTML = rows;
+  container.innerHTML = `
+    <div class="ms-invoices-table-wrap">
+      <table class="ms-invoices-table">
+        <thead>
+          <tr>
+            <th scope="col" style="width:2rem"></th>
+            <th scope="col">${escapeHtml(uiT("invoiceTableNumber") || "Rechnung")}</th>
+            <th scope="col">${escapeHtml(uiT("invoiceTableCompany") || "Firma")}</th>
+            <th scope="col">${escapeHtml(uiT("invoiceTableDate") || "Datum")}</th>
+            <th scope="col">${escapeHtml(uiT("invoiceTableDue") || "Fällig")}</th>
+            <th scope="col" class="col-amount">${escapeHtml(uiT("invoiceTableAmount") || "Betrag")}</th>
+            <th scope="col">${escapeHtml(uiT("invoiceTableStatus") || "Status")}</th>
+            <th scope="col">${escapeHtml(uiT("invoiceTableActions") || "Aktionen")}</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
 
   // Bind mark-paid buttons
   container.querySelectorAll("[data-invoice-id]").forEach(button => {
@@ -30211,7 +30672,7 @@ function bindShellNavigationDelegation() {
   if (!shell) return;
   shell.addEventListener("click", (event) => {
     const trigger = event.target.closest(
-      ".nav-link[data-view], .quick-nav-tile[data-view], .sidebar-admin-v2-link[data-view]",
+      ".nav-link[data-view], .quick-nav-tile[data-view], .sidebar-admin-v2-link[data-view], .stat-card-clickable[data-view]",
     );
     if (!trigger) return;
     if (!token) {
@@ -30277,7 +30738,10 @@ window.addEventListener("message", (event) => {
   const view = String(event.data.view || "").trim();
   const allowedViews = getAllowedViewsForRole(getEffectiveUiRole());
   if (view === "deployment-plan" || event.data.focusEinsatzplan) {
-    requestEinsatzplanEditor();
+    requestEinsatzplanEditor({
+      workerId: event.data.workerId,
+      workerName: event.data.workerName,
+    });
     return;
   }
   if (view && allowedViews.includes(view)) {
@@ -31641,6 +32105,15 @@ if (operationsSnapshotRefreshBtn) {
     operationsSnapshotRefreshBtn.disabled = true;
     await loadOperationsSnapshot();
     operationsSnapshotRefreshBtn.disabled = false;
+  });
+}
+
+const platformHealthRefreshBtn = document.querySelector("#platformHealthRefreshBtn");
+if (platformHealthRefreshBtn) {
+  platformHealthRefreshBtn.addEventListener("click", async () => {
+    platformHealthRefreshBtn.disabled = true;
+    await refreshPlatformHealth();
+    platformHealthRefreshBtn.disabled = false;
   });
 }
 

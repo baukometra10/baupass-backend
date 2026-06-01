@@ -180,7 +180,8 @@ def register_enterprise_layers(flask_app) -> None:
         limit = min(100, max(1, int(request.args.get("limit", "30"))))
         rows = get_db().execute(
             """
-            SELECT id, camera_id, event_type, worker_id, confidence, ppe_compliant, zone_violation, created_at
+            SELECT id, camera_id, event_type, worker_id, confidence, ppe_compliant,
+                   zone_violation, payload_json, created_at
             FROM camera_ai_events
             WHERE company_id = ?
             ORDER BY created_at DESC
@@ -189,6 +190,90 @@ def register_enterprise_layers(flask_app) -> None:
             (cid, limit),
         ).fetchall()
         return jsonify({"events": [dict(r) for r in rows]})
+
+    @enterprise_layers_bp.get("/integrations/cameras")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def list_site_cameras():
+        from backend.app.platform.physical_operations.camera_registry import list_cameras
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"cameras": [], "hint": "company_id_required"})
+        cameras = list_cameras(get_db(), cid)
+        online = sum(1 for c in cameras if c.get("online"))
+        return jsonify({"cameras": cameras, "summary": {"total": len(cameras), "online": online, "offline": len(cameras) - online}})
+
+    @enterprise_layers_bp.post("/integrations/cameras")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def create_site_camera():
+        from backend.app.platform.physical_operations.camera_registry import create_camera
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        try:
+            cam = create_camera(get_db(), cid, data)
+            return jsonify({"ok": True, "camera": cam}), 201
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    @enterprise_layers_bp.put("/integrations/cameras/<camera_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def update_site_camera(camera_id):
+        from backend.app.platform.physical_operations.camera_registry import update_camera
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        cam = update_camera(get_db(), cid, camera_id, data)
+        if not cam:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({"ok": True, "camera": cam})
+
+    @enterprise_layers_bp.delete("/integrations/cameras/<camera_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def delete_site_camera(camera_id):
+        from backend.app.platform.physical_operations.camera_registry import delete_camera
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        if not delete_camera(get_db(), cid, camera_id):
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({"ok": True})
+
+    @enterprise_layers_bp.get("/integrations/cameras/<camera_id>/snapshot")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def camera_live_snapshot(camera_id):
+        import base64
+
+        from flask import Response
+
+        from backend.app.platform.physical_operations.camera_registry import get_camera_snapshot_b64
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        fmt = str(request.args.get("format", "json") or "json").lower()
+        b64 = get_camera_snapshot_b64(get_db(), cid, camera_id)
+        if not b64:
+            return jsonify({"error": "no_snapshot", "cameraId": camera_id}), 404
+        if fmt == "jpeg" or fmt == "jpg":
+            try:
+                data = base64.b64decode(b64)
+                resp = Response(data, mimetype="image/jpeg")
+                resp.headers["Cache-Control"] = "no-store, max-age=0"
+                return resp
+            except Exception:
+                return jsonify({"error": "invalid_snapshot"}), 500
+        return jsonify({"cameraId": camera_id, "snapshotBase64": b64})
 
     @enterprise_layers_bp.post("/integrations/biometric/events")
     @require_auth

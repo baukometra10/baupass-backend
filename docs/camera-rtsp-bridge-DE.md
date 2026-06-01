@@ -4,6 +4,11 @@
 
 | Methode | Pfad | Zweck |
 |---------|------|--------|
+| GET | `/api/integrations/cameras` | Registrierte Kameras + Online-Status |
+| POST | `/api/integrations/cameras` | Kamera registrieren |
+| PUT | `/api/integrations/cameras/<id>` | Kamera bearbeiten |
+| DELETE | `/api/integrations/cameras/<id>` | Kamera löschen |
+| GET | `/api/integrations/cameras/<id>/snapshot` | Live-Snapshot (JSON oder `?format=jpeg`) |
 | POST | `/api/integrations/cameras/rtsp-ingest` | RTSP-Agent / NVR-Webhook |
 | POST | `/api/integrations/security-cameras/events` | Standard-Kamera-Event (Session) |
 | GET | `/api/integrations/cameras/events` | Letzte Ereignisse (UI) |
@@ -20,7 +25,10 @@
 {
   "companyId": "cmp-abc123",
   "camera_id": "cam-gate-north",
+  "camera_name": "Tor Nord",
+  "location": "Baustelle A",
   "event_type": "motion",
+  "heartbeat": false,
   "worker_id": "w-xyz",
   "image_base64": "<JPEG base64 optional>",
   "ppe": false,
@@ -30,9 +38,35 @@
 }
 ```
 
-**Gesicht:** Mit `worker_id` + Worker-Foto → Stub `face_match`. Mit `image_base64` + Azure:
+**Heartbeat only** (kein Ereignis, nur Online-Status + Snapshot):
 
-- `BAUPASS_AZURE_FACE_ENDPOINT` (z. B. `https://….cognitiveservices.azure.com`)
+```json
+{
+  "companyId": "cmp-abc123",
+  "camera_id": "cam-gate-north",
+  "heartbeat": true,
+  "image_base64": "<optional>"
+}
+```
+
+## Automatische Benachrichtigungen
+
+Bei Verstößen (PSA, Sperrzone, unbekannte Person, …):
+
+- Sicherheits-Alert in der Datenbank
+- Admin-Posteingang (Inbox)
+- E-Mail mit PDF-Anhang an Firmen-Admins
+
+**Offline-Erkennung:** Hintergrund-Job prüft alle ~120 s (`BAUPASS_CAMERA_HEALTH_SECONDS`).  
+Kein Heartbeat innerhalb von 180 s (`BAUPASS_CAMERA_ONLINE_THRESHOLD_SECONDS`) → E-Mail + Alert.
+
+**Nachtbericht:** Täglicher Job (`BAUPASS_CAMERA_NIGHTLY_DIGEST=1`) — PDF mit Vorfällen der letzten 12 h.
+
+## Gesichtserkennung
+
+Mit `worker_id` + Worker-Foto → Stub `face_match`. Mit `image_base64` + Azure:
+
+- `BAUPASS_AZURE_FACE_ENDPOINT`
 - `BAUPASS_AZURE_FACE_KEY`
 - optional `BAUPASS_AZURE_FACE_MIN_CONFIDENCE` (Standard `0.5`)
 
@@ -42,13 +76,31 @@
 set BAUPASS_API_URL=https://baupass-production.up.railway.app
 set BAUPASS_RTSP_BRIDGE_TOKEN=…
 set BAUPASS_COMPANY_ID=cmp-…
-python scripts/rtsp_camera_agent.py --once
+set BAUPASS_CAMERA_RTSP_URL=rtsp://192.168.1.50/stream1
+python scripts/rtsp_camera_agent.py --interval 60 --snapshot
 ```
 
-## Railway
+Heartbeat:
 
-- `BAUPASS_RTSP_BRIDGE_TOKEN` — geheimer Token für den lokalen RTSP-Agent
+```bash
+python scripts/rtsp_camera_agent.py --once --heartbeat --snapshot
+```
+
+## Railway / ENV
+
+| Variable | Standard | Bedeutung |
+|----------|----------|-----------|
+| `BAUPASS_RTSP_BRIDGE_TOKEN` | — | Geheimer Token für lokalen Agent |
+| `BAUPASS_CAMERA_HEALTH_SECONDS` | `120` | Intervall Offline-Prüfung |
+| `BAUPASS_CAMERA_ONLINE_THRESHOLD_SECONDS` | `180` | Online wenn Heartbeat jünger |
+| `BAUPASS_CAMERA_NIGHTLY_DIGEST` | `1` | Nachtbericht aktiv |
+| `BAUPASS_CAMERA_DIGEST_HOURS` | `12` | Zeitraum Nachtbericht |
 
 ## UI
 
 Control Pass → **Geräte** → Panel «Kamera-KI & RTSP-Bridge»
+
+- Kameras registrieren
+- Online/Offline-Status
+- Live-Snapshot (letztes Bild vom Agent)
+- Sicherheitsereignisse

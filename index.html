@@ -53,6 +53,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
     <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
+    <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
+    <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -237,14 +239,12 @@
         <div id="enterpriseNavMount" class="nav-enterprise-mount hidden" aria-label="Enterprise"></div>
         <button class="nav-link" data-view="invoices" data-ui-i18n="navInvoices">Rechnungen</button>
         <button class="nav-link" data-view="admin" data-ui-i18n="navAdmin">Admin</button>
-        <button type="button" class="nav-link nav-link-enterprise-quick" data-view="admin-v2" data-ui-i18n="navAdminV2">Betrieb v2</button>
       </nav>
       <div class="sidebar-card">
         <p class="sidebar-card-label" data-ui-i18n="sidebarCardTitle">Vermietungsmodus</p>
         <strong data-ui-i18n="sidebarCardStrong">Multi-Firma fähig</strong>
         <span data-ui-i18n="sidebarCardDesc">Jede Baufirma verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.</span>
       </div>
-      <button type="button" class="sidebar-admin-v2-link nav-link" data-view="admin-v2" data-ui-i18n="navAdminV2">Betrieb v2</button>
     </aside>
 
     <main class="content">
@@ -287,6 +287,19 @@
       <section class="view active view-dashboard" data-view="dashboard">
         <div class="dashboard-stack">
         <div id="sessionCard" class="session-card"></div>
+        <article class="panel platform-health-panel" id="platformHealthPanel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-ui-i18n="platformHealthEyebrow">Plattform</p>
+              <h3 data-ui-i18n="platformHealthH3">Railway &amp; Module</h3>
+            </div>
+            <button type="button" id="platformHealthRefreshBtn" class="ghost-button small-button" data-ui-i18n="platformHealthRefresh">Aktualisieren</button>
+          </div>
+          <div id="platformHealthGrid" class="platform-health-grid" role="status" aria-live="polite">
+            <p class="muted" data-ui-i18n="platformHealthLoading">Prüfe System…</p>
+          </div>
+          <p id="platformHealthFoot" class="platform-health-foot muted small"></p>
+        </article>
         <div id="dashboardDeploymentDeclinesBanner" class="deployment-declines-banner hidden" role="alert" aria-live="polite"></div>
         <nav class="dashboard-quick-nav" aria-label="Schnellzugriff">
           <button type="button" class="quick-nav-tile nav-link" data-view="workers" data-ui-i18n="navWorkers">Mitarbeiter</button>
@@ -1016,12 +1029,15 @@
                 <h3 data-ui-i18n="invListH3">Rechnungen und Zahlungsstatus</h3>
               </div>
             </div>
-            <div class="meta-box">
-              <p><strong data-ui-i18n="invoiceMgmtTitle">Rechnungs-Management</strong></p>
-              <p data-ui-i18n="invoiceMgmtCopy">Zeige offene und bezahlte Rechnungen an. Markiere Rechnungen als bezahlt um Firmensperrungen automatisch aufzuheben. Alle Aktivitäten werden im Audit-Log protokolliert.</p>
-            </div>
-            <div class="divider"></div>
-            
+            <div class="ms-invoices-hub">
+            <header class="ms-invoices-hub-header">
+              <div>
+                <p class="eyebrow" data-ui-i18n="invoiceMgmtTitle">Rechnungs-Management</p>
+                <h3 data-ui-i18n="invListH3">Rechnungen und Zahlungsstatus</h3>
+                <p class="ms-invoices-hub-desc" data-ui-i18n="invoiceMgmtCopy">Zeige offene und bezahlte Rechnungen an. Markiere Rechnungen als bezahlt um Firmensperrungen automatisch aufzuheben. Alle Aktivitäten werden im Audit-Log protokolliert.</p>
+              </div>
+            </header>
+            <div class="ms-invoices-command">
             <div class="button-row invoice-toolbar">
               <input id="invoiceFilterNumber" class="invoice-filter-input" type="text" placeholder="Nach Rechnungsnummer suchen..." data-ui-i18n="invoiceFilterNumberPlaceholder" data-ui-i18n-attr="placeholder" />
               <button type="button" class="ghost-button" id="invoiceSearchButton" data-ui-i18n="invoiceSearchBtn">Suchen</button>
@@ -1063,21 +1079,23 @@
               <button type="button" class="ghost-button" id="invoiceBulkCancel" data-ui-i18n="btnExportCancel">Abbrechen</button>
             </div>
 
-            <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid"></div>
-            <div id="monthlyInvoiceStatusGrid" class="list invoice-kpi-grid"></div>
+            </div>
+            <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid ms-invoices-kpi-row"></div>
+            <div id="monthlyInvoiceStatusGrid" class="list invoice-kpi-grid hidden"></div>
 
-            <div id="invoiceManagementList" class="list"></div>
+            <div id="invoiceManagementList" class="ms-invoices-table-host"></div>
 
-            <div id="invoicePdfPreviewModal" class="pdf-preview-modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1002; display: flex; flex-direction: column;">
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
+            <div id="invoicePdfPreviewModal" class="pdf-preview-modal ms-invoice-preview-modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1002; display: flex; flex-direction: column;">
+              <div class="ms-preview-toolbar">
                 <h3 style="margin: 0;" data-ui-i18n="invoicePdfPreviewTitle">Rechnungsvorschau</h3>
-                <button id="closePdfPreviewBtn" type="button" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                <button id="closePdfPreviewBtn" type="button" class="ghost-button" aria-label="Schließen">&times;</button>
               </div>
-              <iframe id="invoicePdfFrame" style="flex: 1; border: none;"></iframe>
-              <div style="display: flex; gap: 8px; padding: 12px; background: #f5f5f5; border-top: 1px solid #ddd;">
+              <iframe id="invoicePdfFrame" style="flex: 1; border: none; background: #fff;"></iframe>
+              <div class="ms-preview-footer">
                 <button id="downloadPdfPreviewBtn" type="button" class="primary-button" data-ui-i18n="btnDownloadPdf">Herunterladen</button>
-                <button id="closePdfPreviewBtn2" type="button" class="ghost-button" style="flex: 1;" data-ui-i18n="btnClosePdfPreview">Schließen</button>
+                <button id="closePdfPreviewBtn2" type="button" class="ghost-button" data-ui-i18n="btnClosePdfPreview">Schließen</button>
               </div>
+            </div>
             </div>
 
             <div class="divider"></div>
@@ -1237,9 +1255,43 @@
               <p class="eyebrow" data-ui-i18n="camerasEyebrow">Kameras</p>
               <h3 data-ui-i18n="camerasH3">Kamera-KI &amp; RTSP-Bridge</h3>
             </div>
-            <button type="button" id="camerasEventsRefreshBtn" class="ghost-button small-button" data-ui-i18n="camerasRefreshBtn">Ereignisse aktualisieren</button>
+            <div class="button-row">
+              <button type="button" id="camerasRefreshBtn" class="ghost-button small-button" data-ui-i18n="camerasRefreshAllBtn">Aktualisieren</button>
+              <button type="button" id="camerasEventsRefreshBtn" class="ghost-button small-button" data-ui-i18n="camerasRefreshBtn">Ereignisse</button>
+            </div>
           </div>
           <p class="helper-text" data-ui-i18n="camerasHint">Lokaler RTSP-Agent oder Webhook an <code>/api/integrations/cameras/rtsp-ingest</code> (Header: <code>X-BauPass-Rtsp-Token</code> oder <code>X-Device-API-Key</code>).</p>
+          <div id="cameraSummaryBar" class="meta-box hidden"></div>
+          <div class="panel-grid two-columns" style="margin-top:12px;">
+            <article class="panel" style="margin:0;">
+              <div class="panel-heading"><h4 data-ui-i18n="camerasListH4">Registrierte Kameras</h4></div>
+              <form id="cameraRegisterForm" class="form-grid" style="margin-bottom:12px;">
+                <label>
+                  <span data-ui-i18n="labelCameraName">Name</span>
+                  <input id="cameraName" type="text" placeholder="Tor Nord" required />
+                </label>
+                <label>
+                  <span data-ui-i18n="labelCameraLocation">Standort</span>
+                  <input id="cameraLocation" type="text" placeholder="Baustelle A" />
+                </label>
+                <label>
+                  <span data-ui-i18n="labelCameraRtsp">RTSP-URL (optional)</span>
+                  <input id="cameraRtspUrl" type="text" placeholder="rtsp://..." />
+                </label>
+                <button type="submit" class="primary-button full-width" data-ui-i18n="btnCameraRegister">Kamera registrieren</button>
+              </form>
+              <div id="cameraList" class="list"></div>
+            </article>
+            <article class="panel" style="margin:0;">
+              <div class="panel-heading"><h4 data-ui-i18n="camerasLiveH4">Live-Snapshot</h4></div>
+              <p class="helper-text" data-ui-i18n="camerasLiveHint">Letztes Bild vom RTSP-Agent (aktualisiert alle 10 s).</p>
+              <div id="cameraLiveView" class="camera-live-view">
+                <img id="cameraLiveImage" alt="" class="hidden" style="max-width:100%;border-radius:8px;" />
+                <p id="cameraLivePlaceholder" class="helper-text" data-ui-i18n="camerasLiveEmpty">Kamera auswählen oder warten auf ersten Snapshot.</p>
+              </div>
+            </article>
+          </div>
+          <div class="panel-heading" style="margin-top:16px;"><h4 data-ui-i18n="camerasEventsH4">Sicherheitsereignisse</h4></div>
           <div id="cameraEventsList" class="list"></div>
         </article>
       </section>
@@ -2109,6 +2161,7 @@
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
+  <script src="./embed-helpers.js?v=20260603shell1"></script>
   <script src="./app.js?v=20260531shell15"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
