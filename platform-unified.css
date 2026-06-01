@@ -27,6 +27,19 @@
   display: none;
 }
 
+.view-deployment-plan .deployment-steps-compact {
+  opacity: 0.85;
+  font-size: 0.9rem;
+}
+
+.view-deployment-plan .deployment-plan-hint {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  background: rgba(15, 76, 92, 0.15);
+}
+
 .view-dashboard .enterprise-hub-promo,
 .view-dashboard .panel:has(#enterpriseHubPromo) {
   display: none;

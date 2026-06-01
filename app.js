@@ -360,6 +360,8 @@ const UI_TRANSLATIONS = {
     deploymentPlanEyebrow: "Workforce",
     deploymentPlanTitle: "Einsatzplan — Monatsplanung",
     deploymentPlanDesc: "Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.",
+    deploymentOpenBetrieb: "Einsatzplan in Betrieb öffnen",
+    deploymentPlanBetriebHint: "Der vollständige Editor (Monat, Mitarbeiter, PDF, Versand) liegt unter Betrieb — nicht nur diese Kurzanleitung.",
     deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
     deploymentPlanLoginRequired: "Bitte zuerst im Control Pass anmelden — danach öffnet sich der Einsatzplan-Editor.",
     loginMissingFields: "Bitte Benutzername und Passwort eingeben.",
@@ -8234,7 +8236,7 @@ const ENTERPRISE_NAV_ITEMS = [
   { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navBaupassAi", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
-  { id: "ai-copilot", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, hash: "#ai-panel", version: true, embed: true },
+  { id: "ai-copilot", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, version: true, embed: true },
 ];
 
 const PLATFORM_VIEW_CHROME = {
@@ -16406,6 +16408,13 @@ function requestEinsatzplanEditor(options = {}) {
     );
     return;
   }
+  if (allowed.includes("admin-v2")) {
+    pendingAdminV2EinsatzplanFocus = true;
+    pendingEnterpriseEmbedItemId = "admin-v2";
+    setView("admin-v2");
+    scheduleAdminV2EinsatzplanFocus();
+    return;
+  }
   if (allowed.includes("deployment-plan")) {
     setView("deployment-plan");
     broadcastSessionToEmbeds();
@@ -16428,13 +16437,6 @@ function requestEinsatzplanEditor(options = {}) {
     } else {
       window.setTimeout(afterLoad, 200);
     }
-    return;
-  }
-  if (allowed.includes("admin-v2")) {
-    pendingAdminV2EinsatzplanFocus = true;
-    pendingEnterpriseEmbedItemId = "admin-v2";
-    setView("admin-v2");
-    scheduleAdminV2EinsatzplanFocus();
     return;
   }
   showToast(
@@ -30770,6 +30772,12 @@ function bindShellNavigationDelegation() {
 
 bindShellNavigationDelegation();
 
+document.getElementById("cpDeploymentOpenBetriebBtn")?.addEventListener("click", () => {
+  requestEinsatzplanEditor();
+});
+
+globalThis.requestEinsatzplanEditor = requestEinsatzplanEditor;
+
 ensureEnterpriseNavDelegation();
 
 function applyDeepLinkViewFromUrl() {
@@ -30777,7 +30785,26 @@ function applyDeepLinkViewFromUrl() {
     return;
   }
   const params = new URLSearchParams(window.location.search);
-  const view = params.get("view");
+  let view = params.get("view");
+  if (!view) {
+    const hash = (window.location.hash || "").replace(/^#/, "").trim();
+    const hashViews = {
+      workers: "workers",
+      access: "access",
+      leave: "leave",
+      admin: "admin",
+      devices: "devices",
+      invoices: "invoices",
+      documents: "documents",
+      badge: "badge",
+      dashboard: "dashboard",
+      einsatzplan: "deployment-plan",
+      "deployment-plan": "deployment-plan",
+    };
+    if (hash && hashViews[hash]) {
+      view = hashViews[hash];
+    }
+  }
   if (params.get("einsatzplan") === "1" || view === "deployment-plan") {
     requestEinsatzplanEditor();
     return;
@@ -30828,8 +30855,8 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (view && allowedViews.includes(view)) {
-    if (view === "enterprise-hub" && event.data.url && String(event.data.url).includes("#ai-panel")) {
-      pendingEnterpriseEmbedItemId = "ai-copilot";
+    if (view === "ai-assistant") {
+      pendingEnterpriseEmbedItemId = "ai-assistant";
     }
     if (view === "admin-v2" && event.data.focusEinsatzplan) {
       pendingAdminV2EinsatzplanFocus = true;

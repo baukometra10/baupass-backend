@@ -250,6 +250,22 @@
     .plan-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; font-size: 0.78rem; text-align: center; }
     .plan-card.current { outline: 2px solid var(--accent); }
     .cap.locked { opacity: 0.55; border-style: dashed; }
+    .cap:not(.locked) { cursor: pointer; }
+    .cap:not(.locked):hover { border-color: rgba(34, 168, 212, 0.45); background: #121c28; }
+    .cap-detail-panel {
+      position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center;
+      background: rgba(0, 0, 0, 0.55); padding: 1rem;
+    }
+    .cap-detail-panel.hidden { display: none !important; }
+    .cap-detail-card {
+      width: min(520px, 100%); max-height: 70vh; overflow: auto;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem;
+    }
+    .cap-detail-close {
+      float: right; border: none; background: transparent; color: var(--muted); font-size: 1.4rem; cursor: pointer;
+    }
+    .cap-detail-actions { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .cap-detail-actions .primary-button { font-size: 0.85rem; padding: 0.45rem 0.9rem; }
     .cap .plan-badge { font-size: 0.68rem; margin-right: 0.25rem; }
     .cap .enabled-badge { color: #4ade80; }
     .cap .locked-badge { color: #f87171; }
@@ -408,6 +424,15 @@
         <label><input type="checkbox" id="openAll" /> <span id="openAllLabel"></span></label>
       </div>
       <div id="layers"></div>
+      <div id="capDetailPanel" class="cap-detail-panel hidden" aria-hidden="true" role="dialog" aria-labelledby="capDetailTitle">
+        <div class="cap-detail-card">
+          <button type="button" class="cap-detail-close" id="capDetailClose" aria-label="Close">&times;</button>
+          <h3 id="capDetailTitle"></h3>
+          <p id="capDetailSub" class="muted small"></p>
+          <p id="capDetailNote" class="small"></p>
+          <div id="capDetailActions" class="cap-detail-actions"></div>
+        </div>
+      </div>
     </section>
 
     <aside class="ai-panel embed-panel-fixed">
@@ -710,10 +735,30 @@
       if (!v) return;
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || "";
-      if (v === "deployment-plan") {
+      if (v === "deployment-plan" || v === "admin-v2") {
         goToDeploymentPlanView().catch(() => {
           alert(t("monatsplanPreviewLogin"));
         });
+        return;
+      }
+      if (v === "ai-assistant") {
+        if (window.self !== window.top) {
+          try {
+            window.parent?.postMessage(
+              { type: "baupass-navigate", view: "ai-assistant", companyId },
+              location.origin,
+            );
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        const u = new URL("/ai-command-center.html", location.origin);
+        Object.keys(params).forEach((key) => {
+          const val = params[key];
+          if (val != null && String(val).trim() !== "") u.searchParams.set(key, String(val).trim());
+        });
+        window.location.href = u.pathname + u.search;
         return;
       }
       if (window.self !== window.top) {
@@ -949,7 +994,8 @@
           window.parent?.postMessage(
             {
               type: "baupass-navigate",
-              view: "deployment-plan",
+              view: "admin-v2",
+              focusEinsatzplan: true,
               companyId,
             },
             location.origin,
@@ -986,10 +1032,13 @@
       const el = document.getElementById("monatsplanHero");
       if (!el) return;
       const embed = isHubEmbedMode();
-      if (!embed) {
+      if (embed) {
         el.classList.add("hidden");
+        el.innerHTML = "";
         return;
       }
+      el.classList.add("hidden");
+      return;
       const steps =
         HUB_LANG === "ar"
           ? "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال"
@@ -1063,6 +1112,72 @@
       document.getElementById("planBanner").classList.remove("hidden");
     }
 
+    function findCatalogItem(itemId) {
+      if (!catalog?.layers || !itemId) return null;
+      for (const layer of catalog.layers) {
+        const hit = (layer.items || []).find((it) => it.id === itemId);
+        if (hit) return hit;
+      }
+      return null;
+    }
+
+    function closeCapDetail() {
+      const panel = document.getElementById("capDetailPanel");
+      if (!panel) return;
+      panel.classList.add("hidden");
+      panel.setAttribute("aria-hidden", "true");
+    }
+
+    function openCapDetail(itemId) {
+      const it = findCatalogItem(itemId);
+      const panel = document.getElementById("capDetailPanel");
+      if (!it || !panel) return;
+      const locked = it.enabled === false;
+      document.getElementById("capDetailTitle").textContent = itemLabel(it);
+      document.getElementById("capDetailSub").textContent =
+        HUB_LANG === "ar" ? it.label : (it.labelAr || it.label || "");
+      document.getElementById("capDetailNote").textContent = it.note || "";
+      const actions = document.getElementById("capDetailActions");
+      actions.innerHTML = "";
+      if (locked) {
+        const p = document.createElement("p");
+        p.className = "locked-badge badge";
+        p.textContent = `${t("capUpgrade")} ${planLabel(it.minPlan)}`;
+        actions.appendChild(p);
+      } else if (it.ui) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "primary-button";
+        btn.textContent = t("openUi");
+        btn.addEventListener("click", () => {
+          closeCapDetail();
+          if (window.BaupassEmbed) {
+            window.BaupassEmbed.navigateFromEmbed(it.ui, hubCompanyParams());
+          } else {
+            location.href = it.ui;
+          }
+        });
+        actions.appendChild(btn);
+      }
+      (it.apis || []).slice(0, 3).forEach((apiPath) => {
+        const tryBtn = document.createElement("button");
+        tryBtn.type = "button";
+        tryBtn.className = "ghost-button";
+        tryBtn.textContent = t("tryApi");
+        tryBtn.addEventListener("click", async () => {
+          try {
+            const data = await api(apiPath.split(" ").pop() || apiPath);
+            alert(JSON.stringify(data, null, 2).slice(0, 1200));
+          } catch (e) {
+            alert("API: " + e.message);
+          }
+        });
+        actions.appendChild(tryBtn);
+      });
+      panel.classList.remove("hidden");
+      panel.setAttribute("aria-hidden", "false");
+    }
+
     function renderLayers() {
       const q = (document.getElementById("search").value || "").trim().toLowerCase();
       const openAll = document.getElementById("openAll").checked;
@@ -1126,7 +1241,7 @@
         : `<span class="enabled-badge badge">${t("capAvailable")}</span>`;
       const secondary = HUB_LANG === "ar" ? it.label : (it.labelAr || "");
       return `
-        <div class="cap ${locked ? "locked" : ""}">
+        <div class="cap ${locked ? "locked" : ""}" data-item-id="${it.id}" data-cap-enabled="${locked ? "0" : "1"}">
           <h4>${itemLabel(it)}</h4>
           <div class="ar">${secondary}</div>
           ${planTag}${state}
@@ -1249,6 +1364,10 @@
       const aiLink = document.getElementById("aiCenterLink");
       if (aiLink) {
         aiLink.href = window.BaupassEmbed.withEmbed("/ai-command-center.html", hubCompanyParams());
+        aiLink.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          hubNavigateToView("ai-assistant");
+        });
       }
     }
 
@@ -1389,6 +1508,11 @@
     });
 
     document.getElementById("layers").addEventListener("click", async (ev) => {
+      const cap = ev.target.closest(".cap[data-item-id]");
+      if (cap && !ev.target.closest("a,button,[data-try]")) {
+        openCapDetail(cap.getAttribute("data-item-id"));
+        return;
+      }
       const btn = ev.target.closest("[data-try]");
       if (!btn) return;
       const path = btn.getAttribute("data-try");
@@ -1398,6 +1522,10 @@
       } catch (e) {
         alert("API: " + e.message);
       }
+    });
+    document.getElementById("capDetailClose")?.addEventListener("click", closeCapDetail);
+    document.getElementById("capDetailPanel")?.addEventListener("click", (ev) => {
+      if (ev.target.id === "capDetailPanel") closeCapDetail();
     });
 
     document.getElementById("hubLangSelect")?.addEventListener("change", (ev) => {

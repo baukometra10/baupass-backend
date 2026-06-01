@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
-    <link rel="stylesheet" href="./platform-unified.css?v=20260603uni1" />
+    <link rel="stylesheet" href="./platform-unified.css?v=20260603uni2" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -821,8 +821,10 @@
               <h3 data-ui-i18n="deploymentPlanTitle">Einsatzplan — Monatsplanung</h3>
               <p class="muted small" data-ui-i18n="deploymentPlanDesc">Monatsplan erstellen, prüfen und an alle Mitarbeiter senden.</p>
             </div>
+            <button type="button" id="cpDeploymentOpenBetriebBtn" class="primary-button" data-ui-i18n="deploymentOpenBetrieb">Einsatzplan in Betrieb öffnen</button>
           </div>
-          <ol class="deployment-steps" aria-label="Anleitung Monatsplan">
+          <p id="cpDeploymentPlanHint" class="muted small deployment-plan-hint" data-ui-i18n="deploymentPlanBetriebHint">Der vollständige Editor mit Monatsplan, PDF und Versand befindet sich unter Betrieb.</p>
+          <ol class="deployment-steps deployment-steps-compact" aria-label="Anleitung Monatsplan">
             <li>
               <strong data-ui-i18n="deploymentStep1Title">1. Monat wählen</strong>
               <span data-ui-i18n="deploymentStep1Desc">Oben «Monatsplan Firma» — ggf. «Nächsten Monat vorbereiten».</span>
@@ -2163,8 +2165,8 @@
   </script>
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
-  <script src="./embed-helpers.js?v=20260603shell1"></script>
-  <script src="./app.js?v=20260603uni1"></script>
+  <script src="./embed-helpers.js?v=20260603nav1"></script>
+  <script src="./app.js?v=20260603uni2"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

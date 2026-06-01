@@ -31,6 +31,20 @@
     }
   }
 
+  const INDEX_HASH_VIEWS = {
+    workers: "workers",
+    access: "access",
+    leave: "leave",
+    admin: "admin",
+    devices: "devices",
+    invoices: "invoices",
+    documents: "documents",
+    badge: "badge",
+    dashboard: "dashboard",
+    "deployment-plan": "deployment-plan",
+    einsatzplan: "deployment-plan",
+  };
+
   function viewFromHref(href) {
     try {
       const u = new URL(href, global.location.origin);
@@ -41,6 +55,10 @@
       if (p.includes("admin-v2")) return "admin-v2";
       const view = u.searchParams.get("view");
       if (view) return view;
+      if (p === "/" || p.endsWith("/index.html")) {
+        const hash = (u.hash || "").replace(/^#/, "").trim();
+        if (hash && INDEX_HASH_VIEWS[hash]) return INDEX_HASH_VIEWS[hash];
+      }
     } catch {
       // no-op
     }
@@ -51,8 +69,19 @@
     const url = withEmbed(href, extraParams);
     const view = viewFromHref(href);
     if (isEmbedMode() && global.parent && global.parent !== global && view) {
+      let focusEinsatzplan = false;
+      try {
+        const u = new URL(href, global.location.origin);
+        const p = u.pathname.toLowerCase();
+        focusEinsatzplan =
+          u.searchParams.get("einsatzplan") === "1" ||
+          (p.includes("admin-v2") && u.searchParams.get("tab") === "workers") ||
+          view === "deployment-plan";
+      } catch {
+        focusEinsatzplan = view === "deployment-plan";
+      }
       global.parent.postMessage(
-        { type: "baupass-navigate", view, url },
+        { type: "baupass-navigate", view, url, focusEinsatzplan },
         global.location.origin,
       );
       return;

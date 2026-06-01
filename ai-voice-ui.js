@@ -50,6 +50,9 @@
   }
 
   function parseViewFromUrl(url) {
+    if (global.BaupassEmbed?.viewFromHref) {
+      return global.BaupassEmbed.viewFromHref(url);
+    }
     try {
       const u = new URL(url, global.location.origin);
       const view = u.searchParams.get("view");
@@ -73,8 +76,20 @@
         return;
       }
       const view = parseViewFromUrl(url);
+      const focusEinsatzplan =
+        action.focusEinsatzplan === true ||
+        url.includes("einsatzplan=1") ||
+        url.includes("view=deployment-plan") ||
+        url.includes("#einsatzplan");
       if (global.parent && global.parent !== global) {
-        global.parent.postMessage({ type: "baupass-navigate", view, url }, global.location.origin);
+        if (global.BaupassEmbed?.navigateFromEmbed && view) {
+          global.BaupassEmbed.navigateFromEmbed(url);
+          return;
+        }
+        global.parent.postMessage(
+          { type: "baupass-navigate", view, url, focusEinsatzplan },
+          global.location.origin,
+        );
         return;
       }
       if (view && typeof global.parent?.setView === "function") {

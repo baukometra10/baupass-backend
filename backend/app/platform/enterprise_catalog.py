@@ -17,6 +17,11 @@ _SURFACE_LABELS = {
 }
 
 
+def _cp_view(view: str) -> str:
+    """Control Pass shell uses ?view= — not legacy #hash routes."""
+    return f"/index.html?view={view}"
+
+
 def _item(
     key: str,
     label: str,
@@ -46,19 +51,19 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Core Workforce Infrastructure",
             "titleAr": "البنية الأساسية للقوى العاملة",
             "items": [
-                _item("employees", "Employee Management", "إدارة الموظفين", "legacy", apis=["GET /api/workers"], ui="/index.html#workers"),
-                _item("workforce_mgmt", "Workforce Management", "إدارة القوى العاملة", "legacy", ui="/index.html"),
-                _item("attendance", "Attendance Management", "إدارة الحضور", "legacy", apis=["GET /api/access-logs"], ui="/index.html#access"),
+                _item("employees", "Employee Management", "إدارة الموظفين", "legacy", apis=["GET /api/workers"], ui=_cp_view("workers")),
+                _item("workforce_mgmt", "Workforce Management", "إدارة القوى العاملة", "legacy", ui=_cp_view("workers")),
+                _item("attendance", "Attendance Management", "إدارة الحضور", "legacy", apis=["GET /api/access-logs"], ui=_cp_view("access")),
                 _item("gps_attendance", "GPS Attendance", "حضور GPS", "worker", apis=["POST /api/worker-app/attendance/nfc"], ui="/admin-v2/index.html"),
                 _item("geofence_att", "Geofence Attendance", "حضور Geofence", "legacy", apis=["GET /api/geofences"], ui="/index.html"),
                 _item("smart_inout", "Smart Check-In / Out", "دخول/خروج ذكي", "worker", apis=["POST /api/scan"]),
                 _item("auto_checkin_loc", "Auto Check-In by Location", "دخول تلقائي بالموقع", "worker"),
                 _item("shifts", "Shift Management", "إدارة الورديات", "legacy", ui="/index.html"),
                 _item("shift_mgmt", "Advanced Shift Scheduling", "جدولة ورديات متقدمة", "legacy"),
-                _item("leave", "Leave Management", "الإجازات", "legacy", ui="/index.html#leave"),
-                _item("sick_leave", "Sick Leave Management", "إجازات مرضية", "legacy", ui="/index.html#leave"),
-                _item("worker_profiles", "Worker Profiles", "ملفات الموظف", "legacy", ui="/index.html#workers"),
-                _item("worker_documents", "Worker Documents", "مستندات الموظف", "legacy", ui="/index.html"),
+                _item("leave", "Leave Management", "الإجازات", "legacy", ui=_cp_view("leave")),
+                _item("sick_leave", "Sick Leave Management", "إجازات مرضية", "legacy", ui=_cp_view("leave")),
+                _item("worker_profiles", "Worker Profiles", "ملفات الموظف", "legacy", ui=_cp_view("workers")),
+                _item("worker_documents", "Worker Documents", "مستندات الموظف", "legacy", ui=_cp_view("documents")),
                 _item("timesheets", "Worker Timesheets", "سجلات الوقت", "legacy", apis=["GET /api/export/timesheets"]),
                 _item("scheduling", "Workforce Scheduling", "جدولة القوى العاملة", "legacy"),
                 _item("presence_tracking", "Worker Presence Tracking", "تتبع الحضور", "admin-v2", ui="/admin-v2/index.html"),
@@ -67,7 +72,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
                 _item("foreman_dashboard", "Foreman Dashboard", "لوحة المشرف", "legacy"),
                 _item("contractor_mgmt", "Contractor Management", "المقاولون", "legacy"),
                 _item("visitor", "Visitor Management", "الزوار", "legacy", ui="/index.html"),
-                _item("rbac", "RBAC System", "صلاحيات RBAC", "legacy", ui="/index.html#admin"),
+                _item("rbac", "RBAC System", "صلاحيات RBAC", "legacy", ui=_cp_view("admin")),
                 _item("workforce_roles", "Workforce Roles & Permissions", "أدوار القوى العاملة", "legacy"),
                 _item("multi_tenant", "Multi-Tenant Architecture", "تعدد المستأجرين", "legacy", apis=["GET /api/companies"]),
                 _item("multi_branch", "Multi-Branch Support", "فروع متعددة", "legacy"),
@@ -79,7 +84,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
                 _item("worker_dashboard", "Worker Dashboard", "لوحة الموظف", "worker", ui="/emp-app.html"),
                 _item("self_service", "Worker Self-Service Portal", "بوابة الخدمة الذاتية", "worker"),
                 _item("offline", "Offline Workforce Operations", "عمل دون اتصال", "worker"),
-                _item("access_logs_wf", "Workforce Access Logs", "سجلات وصول القوى العاملة", "legacy", ui="/index.html#access"),
+                _item("access_logs_wf", "Workforce Access Logs", "سجلات وصول القوى العاملة", "legacy", ui=_cp_view("access")),
                 _item("analytics_wf", "Workforce Analytics", "تحليلات القوى العاملة", "api", apis=["GET /api/v2/admin/overview"]),
                 _item("workforce_kpi", "Workforce KPI System", "مؤشرات الأداء", "api", apis=["GET /api/reporting/summary"]),
             ],
@@ -115,11 +120,11 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Access & Physical Security Layer",
             "titleAr": "التحكم بالدخول والأمن الفيزيائي",
             "items": [
-                _item("gates", "Gate Management", "إدارة البوابات", "legacy", apis=["POST /api/scan", "GET /api/gates"], ui="/index.html#devices"),
+                _item("gates", "Gate Management", "إدارة البوابات", "legacy", apis=["POST /api/scan", "GET /api/gates"], ui=_cp_view("devices")),
                 _item("turnstile", "Turnstile Integration", "التكامل مع البوابة الدوارة", "legacy", apis=["POST /api/scan"], ui="/index.html"),
                 _item("nfc_access", "NFC Access Control", "دخول NFC", "worker", apis=["POST /api/worker-app/attendance/nfc", "POST /api/scan"]),
                 _item("live_access", "Live Access Monitoring", "مراقبة دخول مباشرة", "admin-v2", apis=["GET /api/v2/access/live"], ui="/admin-v2/index.html"),
-                _item("access_logs", "Access Logs", "سجلات الدخول", "legacy", apis=["GET /api/access-logs/export.csv"], ui="/index.html#access"),
+                _item("access_logs", "Access Logs", "سجلات الدخول", "legacy", apis=["GET /api/access-logs/export.csv"], ui=_cp_view("access")),
                 _item("zones", "Smart Access Zones", "مناطق الدخول", "api", apis=["GET /api/enterprise/geofences/admin"]),
                 _item("emergency", "Emergency Lockdown", "إغلاق طوارئ", "api", apis=["GET /api/ops-os/emergency"]),
                 _item("cmd_center", "Live Gate Monitoring", "مركز البوابات", "hub", apis=["GET /api/ops-os/command-center"], ui="/ops-command-center.html"),
@@ -133,10 +138,11 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "items": [
                 _item(
                     "deployment_plan",
-                    "Monthly deployment PDF",
-                    "خطة توزيع شهرية PDF",
-                    "api",
+                    "Monthly deployment plan (Einsatzplan)",
+                    "خطة التوزيع الشهرية",
+                    "admin-v2",
                     apis=["GET /api/workforce/deployment-plan", "POST /api/workforce/deployment-plan/pdf"],
+                    ui="/admin-v2/index.html?tab=workers&einsatzplan=1",
                 ),
                 _item("workflows", "Workflow Automation", "أتمتة سير العمل", "api", apis=["GET /api/automation/rules"]),
                 _item("auto_expiry", "Auto Expiry Alerts", "تنبيهات انتهاء", "legacy", apis=["GET /api/system/alerts"], ui="/index.html"),
@@ -176,7 +182,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "titleAr": "الأمان والامتثال",
             "items": [
                 _item("zero_trust", "Zero Trust", "Zero Trust", "config", note="BAUPASS_ZERO_TRUST=1"),
-                _item("rbac_adv", "Advanced RBAC", "RBAC متقدم", "legacy", ui="/index.html#admin"),
+                _item("rbac_adv", "Advanced RBAC", "RBAC متقدم", "legacy", ui=_cp_view("admin")),
                 _item("audit", "Immutable Audit Trails", "سجل تدقيق", "legacy", apis=["GET /api/audit-logs"], ui="/index.html"),
                 _item("mfa", "MFA / 2FA", "مصادقة ثنائية", "legacy", apis=["POST /api/login"], ui="/index.html"),
                 _item("siem", "SIEM Export", "تصدير SIEM", "api", apis=["GET /api/enterprise/security/siem-export"]),
@@ -267,7 +273,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "items": [
                 _item("sdk", "SDK Infrastructure", "SDK", "api", ui="/sdk/baupass_client.py"),
                 _item("marketplace", "Integration Marketplace", "سوق التكاملات", "api", apis=["GET /api/marketplace/plugins"]),
-                _item("white_label", "White-Label", "علامة بيضاء", "legacy", ui="/index.html#admin"),
+                _item("white_label", "White-Label", "علامة بيضاء", "legacy", ui=_cp_view("admin")),
                 _item("public_api", "Public Developer APIs", "APIs عامة", "api", apis=["GET /api/v1/*"]),
             ],
         },
@@ -291,7 +297,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Enterprise SaaS & Business",
             "titleAr": "الأعمال والـ SaaS",
             "items": [
-                _item("billing", "Enterprise Billing", "الفوترة", "legacy", apis=["GET /api/invoices"], ui="/index.html#invoices"),
+                _item("billing", "Enterprise Billing", "الفوترة", "legacy", apis=["GET /api/invoices"], ui=_cp_view("invoices")),
                 _item("dunning_b", "Dunning Automation", "تحصيل آلي", "api", note="خلفية"),
                 _item("plans", "Multi-Plan SaaS", "خطط اشتراك", "legacy", ui="/index.html"),
             ],
