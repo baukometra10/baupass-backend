@@ -53,6 +53,40 @@
   display: none;
 }
 
+.sidebar-company-picker {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  background: rgba(15, 76, 92, 0.22);
+}
+
+.sidebar-company-picker-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  margin-bottom: 0.35rem;
+}
+
+.sidebar-company-picker-select {
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #0f1419;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+}
+
+.sidebar-company-picker-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .nav-link-betrieb.active,
 #enterpriseNavMount .nav-link.active {
   background: rgba(94, 234, 212, 0.14);

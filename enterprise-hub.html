@@ -249,8 +249,19 @@
     .plan-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin: 0.75rem 0; }
     .plan-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; font-size: 0.78rem; text-align: center; }
     .plan-card.current { outline: 2px solid var(--accent); }
-    .cap.locked { opacity: 0.55; border-style: dashed; }
+    .cap.locked { opacity: 0.72; border-style: dashed; cursor: pointer; }
+    .cap.locked:hover { opacity: 0.9; border-color: rgba(248, 113, 113, 0.45); }
     .cap:not(.locked) { cursor: pointer; }
+    .plan-upgrade-banner {
+      margin-bottom: 0.5rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      background: rgba(127, 29, 29, 0.18);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
+    .plan-upgrade-banner strong { color: #fca5a5; }
     .cap:not(.locked):hover { border-color: rgba(34, 168, 212, 0.45); background: #121c28; }
     .cap-detail-panel {
       position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center;
@@ -441,6 +452,7 @@
       <div id="hubQuickNav" class="hub-quick-nav hidden" aria-label="Schnellzugriff"></div>
       <div id="hubEmbedTop" class="hub-embed-top">
         <div id="planBanner" class="plan-banner hidden"></div>
+        <div id="planUpgradeBanner" class="plan-upgrade-banner hidden" role="status"></div>
         <div id="monatsplanHero" class="monatsplan-hero hidden"></div>
       </div>
       <div id="rolePlaybook" class="role-playbook hidden"></div>
@@ -557,6 +569,7 @@
         allCompanies: "— Superadmin (Firma wählen) —",
         embedLayersHint: "Kategorie oben antippen — die Funktionen erscheinen unten. Ebene aufklappen oder Karte öffnen.",
         embedPickCompany: "Firma in der Leiste wählen für Live-KPIs und Playbook",
+        planUpgradeBanner: "<strong>{locked}</strong> Funktionen sind in Ihrem Tarif gesperrt. Karte antippen für Details — Filter «Upgrade nötig».",
         monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
         monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
         monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
@@ -631,6 +644,7 @@
         allCompanies: "— Superadmin: pick company —",
         embedLayersHint: "Tap a category above — features appear below. Expand a layer or open a card.",
         embedPickCompany: "Pick a company in the toolbar for live KPIs and playbook",
+        planUpgradeBanner: "<strong>{locked}</strong> features need an upgrade. Tap a card for details — filter «Upgrade needed».",
         rolePlaybook: "Your operations playbook",
         rolePickCompany: "Select a company for live KPIs.",
         navAdminV2: "Admin v2",
@@ -697,6 +711,7 @@
         allCompanies: "— المشرف: اختر شركة —",
         embedLayersHint: "اضغط فئة أعلاه — تظهر الوظائف بالأسفل. افتح طبقة أو بطاقة.",
         embedPickCompany: "اختر شركة من الشريط لـ KPI والدليل التشغيلي",
+        planUpgradeBanner: "<strong>{locked}</strong> وظائف تحتاج ترقية. اضغط البطاقة للتفاصيل.",
         rolePlaybook: "دليل التشغيل الخاص بك",
         rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
         navAdminV2: "لوحة v2",
@@ -1181,6 +1196,22 @@
         <div class="plan-matrix">${comparison}</div>
         <p style="font-size:0.75rem;color:var(--muted);margin:0">${t("planMatrixFoot")}</p>`;
       document.getElementById("planBanner").classList.remove("hidden");
+      renderPlanUpgradeBanner(cat);
+    }
+
+    function renderPlanUpgradeBanner(cat) {
+      const el = document.getElementById("planUpgradeBanner");
+      if (!el) return;
+      const ent = cat.entitlements || {};
+      const locked = Number(ent.lockedCount || 0);
+      if (locked <= 0) {
+        el.classList.add("hidden");
+        el.innerHTML = "";
+        return;
+      }
+      const msg = t("planUpgradeBanner").replace("{locked}", String(locked));
+      el.innerHTML = msg;
+      el.classList.remove("hidden");
     }
 
     function findCatalogItem(itemId) {
@@ -1215,6 +1246,15 @@
         p.className = "locked-badge badge";
         p.textContent = `${t("capUpgrade")} ${planLabel(it.minPlan)}`;
         actions.appendChild(p);
+        const hint = document.createElement("p");
+        hint.className = "muted small";
+        hint.textContent =
+          HUB_LANG === "ar"
+            ? "تواصل مع المسؤول لترقية الباقة."
+            : HUB_LANG === "en"
+              ? "Contact your admin to upgrade the plan."
+              : "Bitte Admin kontaktieren für Tarif-Upgrade (Professional / Enterprise).";
+        actions.appendChild(hint);
       } else if (it.ui) {
         const btn = document.createElement("button");
         btn.type = "button";

@@ -298,9 +298,25 @@
       </div>
       <footer class="modal-actions deployment-modal-footer">
         <button type="button" id="deploymentSaveBtn" class="primary" data-i18n="common.save">Speichern</button>
+        <button type="button" id="deploymentPdfPreviewBtn" class="ghost" data-i18n="deployment.pdfPreview">PDF-Vorschau</button>
         <button type="button" id="deploymentPdfBtn" class="ghost" data-i18n="deployment.pdf">PDF</button>
         <button type="button" id="deploymentSendBtn" class="ghost" data-i18n="deployment.send">An MA senden</button>
         <button type="button" id="deploymentCloseBtn" class="ghost" data-i18n="common.close">Schließen</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="deploymentPdfPreviewModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deploymentPdfPreviewTitle">
+    <div class="modal-card deployment-pdf-preview-card">
+      <header class="deployment-modal-header">
+        <h2 id="deploymentPdfPreviewTitle" data-i18n="deployment.pdfPreviewTitle">Einsatzplan — Druckvorschau</h2>
+        <p class="muted small" data-i18n="deployment.pdfPreviewHint">So sieht der Mitarbeiter das PDF (Hochformat, eine Seite, mit Firmenlogo).</p>
+      </header>
+      <iframe id="deploymentPdfPreviewFrame" class="deployment-pdf-preview-frame" title="Einsatzplan PDF"></iframe>
+      <footer class="modal-actions">
+        <button type="button" id="deploymentPdfPreviewPrintBtn" class="ghost" data-i18n="deployment.pdfPrint">Drucken</button>
+        <button type="button" id="deploymentPdfPreviewDownloadBtn" class="primary" data-i18n="deployment.pdf">PDF herunterladen</button>
+        <button type="button" id="deploymentPdfPreviewCloseBtn" class="ghost" data-i18n="common.close">Schließen</button>
       </footer>
     </div>
   </div>

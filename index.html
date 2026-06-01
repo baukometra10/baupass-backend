@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
-    <link rel="stylesheet" href="./platform-unified.css?v=20260603uni2" />
+    <link rel="stylesheet" href="./platform-unified.css?v=20260601roadmap1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -225,6 +225,11 @@
         <p class="eyebrow" data-ui-i18n="sidebarEyebrow">Firmenportal</p>
         <h1 data-ui-i18n="appTitle">Control Pass</h1>
         <p class="sidebar-copy" data-ui-i18n="sidebarCopy">Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.</p>
+      </div>
+      <div id="superadminSidebarCompanyPicker" class="sidebar-company-picker hidden" aria-label="Firmenvorschau">
+        <label for="superadminSidebarCompanySelect" class="sidebar-company-picker-label" data-ui-i18n="sidebarCompanyPreviewLabel">Firma (Vorschau)</label>
+        <select id="superadminSidebarCompanySelect" class="sidebar-company-picker-select"></select>
+        <p class="sidebar-company-picker-hint muted small" data-ui-i18n="sidebarCompanyPreviewHint">Für Live-KPIs, Playbook und KI.</p>
       </div>
       <nav class="nav" aria-label="Hauptnavigation">
         <p class="nav-section-label" data-ui-i18n="navGroupDaily">Tagesbetrieb</p>
@@ -2166,7 +2171,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260603uni2"></script>
+  <script src="./app.js?v=20260601roadmap1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

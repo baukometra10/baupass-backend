@@ -1162,7 +1162,9 @@ async function saveDeploymentPlan() {
   await loadDeploymentMonthBar().catch(() => {});
 }
 
-async function downloadDeploymentPdf() {
+let deploymentPdfPreviewObjectUrl = "";
+
+async function fetchDeploymentPdfBlob() {
   const q = companyQuery();
   const { year, month } = deploymentMonthParts();
   await saveDeploymentPlan();
@@ -1184,7 +1186,38 @@ async function downloadDeploymentPdf() {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || err.error || res.statusText);
   }
-  const blob = await res.blob();
+  return res.blob();
+}
+
+function closeDeploymentPdfPreview() {
+  const modal = $("deploymentPdfPreviewModal");
+  const frame = $("deploymentPdfPreviewFrame");
+  if (modal) modal.classList.add("hidden");
+  if (frame) frame.removeAttribute("src");
+  if (deploymentPdfPreviewObjectUrl) {
+    URL.revokeObjectURL(deploymentPdfPreviewObjectUrl);
+    deploymentPdfPreviewObjectUrl = "";
+  }
+}
+
+async function previewDeploymentPdf() {
+  const modal = $("deploymentPdfPreviewModal");
+  const frame = $("deploymentPdfPreviewFrame");
+  if (!modal || !frame) {
+    return downloadDeploymentPdf();
+  }
+  const blob = await fetchDeploymentPdfBlob();
+  if (deploymentPdfPreviewObjectUrl) {
+    URL.revokeObjectURL(deploymentPdfPreviewObjectUrl);
+  }
+  deploymentPdfPreviewObjectUrl = URL.createObjectURL(blob);
+  frame.src = deploymentPdfPreviewObjectUrl;
+  modal.classList.remove("hidden");
+}
+
+async function downloadDeploymentPdf() {
+  const { year, month } = deploymentMonthParts();
+  const blob = await fetchDeploymentPdfBlob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -1202,7 +1235,26 @@ function bindDeploymentModalOnce() {
     if (e.target?.id === "deploymentModal") $("deploymentModal").classList.add("hidden");
   });
   $("deploymentSaveBtn")?.addEventListener("click", () => saveDeploymentPlan().catch((e) => showActionToast(e.message, true)));
+  $("deploymentPdfPreviewBtn")?.addEventListener("click", () =>
+    previewDeploymentPdf().catch((e) => showActionToast(e.message, true)),
+  );
   $("deploymentPdfBtn")?.addEventListener("click", () => downloadDeploymentPdf().catch((e) => showActionToast(e.message, true)));
+  $("deploymentPdfPreviewCloseBtn")?.addEventListener("click", closeDeploymentPdfPreview);
+  $("deploymentPdfPreviewModal")?.addEventListener("click", (e) => {
+    if (e.target?.id === "deploymentPdfPreviewModal") closeDeploymentPdfPreview();
+  });
+  $("deploymentPdfPreviewDownloadBtn")?.addEventListener("click", () =>
+    downloadDeploymentPdf().catch((e) => showActionToast(e.message, true)),
+  );
+  $("deploymentPdfPreviewPrintBtn")?.addEventListener("click", () => {
+    const frame = $("deploymentPdfPreviewFrame");
+    try {
+      frame?.contentWindow?.focus();
+      frame?.contentWindow?.print();
+    } catch {
+      showActionToast(t("common.error"), true);
+    }
+  });
   $("deploymentSendBtn")?.addEventListener("click", async () => {
     const q = companyQuery();
     const { year, month } = deploymentMonthParts();

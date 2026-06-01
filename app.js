@@ -340,7 +340,7 @@ const UI_TRANSLATIONS = {
     topbarHeadingAdmin: "System & Mandanten",
     topbarHeadingBetrieb: "Betrieb — Posteingang, Schichten & Workforce",
     topbarHeadingAi: "BauPass KI — Assistent",
-    topbarHeadingHub: "Funktionen & Integrationen",
+    topbarHeadingHub: "Funktionen & Tarife",
     topbarHeadingOps: "Ops-Zentrale",
     alertInstallUnavailable: "Die Installation ist in diesem Browser gerade nicht direkt verfuegbar. In Chrome oder Edge kannst du im Browser-Menue 'App installieren' waehlen.",
     alertSessionExpired: "Sitzung abgelaufen. Bitte neu anmelden.",
@@ -540,6 +540,9 @@ const UI_TRANSLATIONS = {
     navOpsCenter: "Ops-Zentrale",
     navAdminV2: "Betrieb",
     navAiCopilot: "KI-Assistent",
+    sidebarCompanyPreviewLabel: "Firma (Vorschau)",
+    sidebarCompanyPreviewHint: "Live-KPIs, Playbook und eingebettete Bereiche.",
+    sidebarCompanyPreviewNone: "— keine Firma —",
     navIntegrations: "Integrationen",
     cameraEventWorker: "Mitarbeiter",
     cameraEventFaceOk: "Gesichtserkennung",
@@ -8233,10 +8236,9 @@ const ADMIN_V2_EMBED_ITEM = {
 };
 
 const ENTERPRISE_NAV_ITEMS = [
-  { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navBaupassAi", minPlan: "professional", queryCompany: true, version: true, embed: true },
-  { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "professional", queryCompany: true, version: true, embed: true },
+  { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "starter", queryCompany: true, version: true, embed: true },
+  { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
-  { id: "ai-copilot", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, version: true, embed: true },
 ];
 
 const PLATFORM_VIEW_CHROME = {
@@ -16317,7 +16319,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260601layers1");
+    params.push("v=20260601roadmap1");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
@@ -16575,7 +16577,17 @@ function renderEnterpriseNavMenu() {
   }
 
   const cid = getEffectiveUiCompanyId();
-  const items = ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional"));
+  const seenViews = new Set();
+  const items = ENTERPRISE_NAV_ITEMS.filter((item) => companyMeetsMinPlan(item.minPlan || "professional")).filter(
+    (item) => {
+      const viewKey = item.view || item.id;
+      if (seenViews.has(viewKey)) {
+        return false;
+      }
+      seenViews.add(viewKey);
+      return true;
+    },
+  );
 
   syncPlatformNavLinks();
 
@@ -17015,10 +17027,20 @@ async function restoreSessionFromBootstrap() {
   }
   if (bootstrap?.user) {
     state.currentUser = bootstrap.user;
-    if (bootstrap.user.role === "superadmin" && bootstrap.user.preview_company_id) {
-      superadminUiPreviewCompanyId = bootstrap.user.preview_company_id;
-      const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
-      companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
+    if (bootstrap.user.role === "superadmin") {
+      let previewCid = String(bootstrap.user.preview_company_id || "").trim();
+      if (!previewCid) {
+        try {
+          previewCid = String(localStorage.getItem("baupass-preview-company-id") || "").trim();
+        } catch {
+          // ignore
+        }
+      }
+      if (previewCid) {
+        superadminUiPreviewCompanyId = previewCid;
+        const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
+        companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
+      }
     }
   }
   return bootstrap;
@@ -18027,6 +18049,7 @@ function refreshAll() {
   renderSuperadminPreviewTopbar(loggedIn);
   renderSuperadminSimulationBar(loggedIn);
   renderSuperadminPreviewSidebarStatus(loggedIn);
+  renderSuperadminSidebarCompanyPicker(loggedIn);
   renderSystemAlertBanner(loggedIn);
   renderSupportReadOnlyTopbarBadge(loggedIn);
 
@@ -19745,13 +19768,39 @@ async function clearSuperadminPreviewMode({ refresh = true } = {}) {
   superadminUiPreviewCompanyId = "";
   companyBrandingPreviewOverride = "";
   try {
+    localStorage.removeItem("baupass-preview-company-id");
+  } catch {
+    // ignore
+  }
+  try {
     await apiRequest(API_BASE + "/api/superadmin/preview-session", { method: "POST", body: { company_id: null } });
   } catch (e) {
     console.warn("[preview] Fehler beim Beenden der Vorschau-Session:", e);
   }
+  syncSuperadminCompanyPickerUi();
   if (refresh) {
     refreshAll();
+  } else {
+    broadcastSessionToEmbeds();
+    reloadActiveEnterpriseEmbed();
   }
+}
+
+function syncSuperadminCompanyPickerUi() {
+  const previewId = String(superadminUiPreviewCompanyId || "").trim();
+  document.querySelectorAll("#superadminSidebarCompanySelect, #superadminCompanyPreviewSelect").forEach((sel) => {
+    if (sel && sel.value !== previewId) {
+      sel.value = previewId;
+    }
+  });
+}
+
+function reloadActiveEnterpriseEmbed() {
+  const view = getCurrentViewName();
+  if (!ENTERPRISE_EMBED_META[view]) {
+    return;
+  }
+  loadEnterpriseEmbed(view);
 }
 
 async function setSuperadminPreviewCompany(companyId, { refresh = true } = {}) {
@@ -19763,12 +19812,21 @@ async function setSuperadminPreviewCompany(companyId, { refresh = true } = {}) {
     companyBrandingPreviewOverride = getCompanyBrandingPreset(company);
   }
   try {
+    localStorage.setItem("baupass-preview-company-id", selectedCompanyId);
+  } catch {
+    // ignore
+  }
+  try {
     await apiRequest(API_BASE + "/api/superadmin/preview-session", { method: "POST", body: { company_id: selectedCompanyId || null } });
   } catch (e) {
     console.warn("[preview] Fehler beim Setzen der Vorschau-Session:", e);
   }
+  syncSuperadminCompanyPickerUi();
   if (refresh) {
     refreshAll();
+  } else {
+    broadcastSessionToEmbeds();
+    reloadActiveEnterpriseEmbed();
   }
 }
 
@@ -19891,6 +19949,42 @@ function renderSuperadminSimulationBar(loggedIn) {
   }
   if (metaNode) {
     metaNode.textContent = `${runtimeText("companyViewLabel")}: ${previewCompanyName} (${previewPresetLabel})`;
+  }
+}
+
+let superadminSidebarPickerBound = false;
+
+function renderSuperadminSidebarCompanyPicker(loggedIn) {
+  const mount = document.getElementById("superadminSidebarCompanyPicker");
+  const select = document.getElementById("superadminSidebarCompanySelect");
+  if (!mount || !select) {
+    return;
+  }
+  const isSuperadmin = loggedIn && String(getCurrentUser()?.role || "").toLowerCase() === "superadmin";
+  if (!isSuperadmin) {
+    mount.classList.add("hidden");
+    return;
+  }
+  mount.classList.remove("hidden");
+  const previewId = String(superadminUiPreviewCompanyId || "").trim();
+  const options = (state.companies || [])
+    .filter((entry) => !entry.deleted_at)
+    .map(
+      (entry) =>
+        `<option value="${escapeHtml(entry.id)}" ${entry.id === previewId ? "selected" : ""}>${escapeHtml(entry.name || entry.id)}</option>`,
+    )
+    .join("");
+  select.innerHTML = `<option value="">${escapeHtml(uiT("sidebarCompanyPreviewNone"))}</option>${options}`;
+  if (!superadminSidebarPickerBound) {
+    superadminSidebarPickerBound = true;
+    select.addEventListener("change", () => {
+      const value = String(select.value || "").trim();
+      if (!value) {
+        clearSuperadminPreviewMode();
+        return;
+      }
+      setSuperadminPreviewCompany(value);
+    });
   }
 }
 

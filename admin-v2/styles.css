@@ -1739,6 +1739,22 @@ html[dir="rtl"] .app-sidebar {
   display: none;
 }
 
+.modal-card.deployment-pdf-preview-card {
+  width: min(920px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.deployment-pdf-preview-frame {
+  width: 100%;
+  min-height: 62vh;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
 @media (max-width: 720px) {
   .deployment-days-header {
     display: none;

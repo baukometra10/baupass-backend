@@ -47,27 +47,56 @@
   function startSse({ companyId, feedEl, onMode, onEvent }) {
     let url = "/api/ops-os/events/stream";
     if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-    const es = new EventSource(url, { withCredentials: true });
+    let es = null;
+    let stopped = false;
+    let retryMs = 2000;
     const buffer = [];
-    es.onmessage = (ev) => {
+
+    const connect = () => {
+      if (stopped) return;
+      es = new EventSource(url, { withCredentials: true });
+      es.onopen = () => {
+        retryMs = 2000;
+        onMode?.("sse");
+      };
+      es.onmessage = (ev) => {
+        try {
+          const p = JSON.parse(ev.data);
+          if (p.type !== "events" || !p.items?.length) return;
+          p.items.forEach((item) => {
+            buffer.unshift(item);
+            onEvent?.(item);
+          });
+          while (buffer.length > 30) buffer.pop();
+          renderFeed(feedEl, buffer);
+        } catch {
+          /* ignore */
+        }
+      };
+      es.onerror = () => {
+        try {
+          es.close();
+        } catch {
+          /* ignore */
+        }
+        if (stopped) return;
+        if (feedEl) {
+          feedEl.innerHTML = `<span class="muted small">SSE neu verbinden in ${Math.round(retryMs / 1000)}s…</span>`;
+        }
+        window.setTimeout(connect, retryMs);
+        retryMs = Math.min(retryMs * 1.5, 30000);
+      };
+    };
+
+    connect();
+    return () => {
+      stopped = true;
       try {
-        const p = JSON.parse(ev.data);
-        if (p.type !== "events" || !p.items?.length) return;
-        p.items.forEach((item) => {
-          buffer.unshift(item);
-          onEvent?.(item);
-        });
-        while (buffer.length > 30) buffer.pop();
-        renderFeed(feedEl, buffer);
+        es?.close();
       } catch {
         /* ignore */
       }
     };
-    es.onerror = () => {
-      if (feedEl) feedEl.innerHTML = '<span class="err">SSE getrennt — Seite neu laden</span>';
-    };
-    onMode?.("sse");
-    return () => es.close();
   }
 
   function startSocketIo({ companyId, feedEl, onMode, onEvent }) {
@@ -81,8 +110,11 @@
         path: "/socket.io",
         transports: ["polling", "websocket"],
         withCredentials: true,
-        reconnection: false,
-        timeout: 4000,
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1500,
+        reconnectionDelayMax: 8000,
+        timeout: 6000,
       });
       let stopped = false;
 
@@ -124,12 +156,19 @@
         }
       });
 
+      socket.io.on("reconnect_failed", () => {
+        if (!stopped) {
+          stop();
+          resolve(null);
+        }
+      });
+
       setTimeout(() => {
         if (!stopped && !socket.connected) {
           stop();
           resolve(null);
         }
-      }, 4000);
+      }, 6500);
     });
   }
 
