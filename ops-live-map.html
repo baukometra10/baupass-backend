@@ -55,7 +55,7 @@
       <div><span style="background:#fbbf24"></span> Gate (heute)</div>
     </div>
   </div>
-  <script src="/embed-helpers.js?v=20260529f"></script>
+  <script src="/embed-helpers.js?v=20260603nav1"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
@@ -64,7 +64,7 @@
       const params = new URLSearchParams(location.search);
       if (params.get("embed") === "1") {
         document.body.classList.add("embed-mode");
-        document.querySelector("header.ops-header nav")?.remove();
+        document.querySelectorAll("header.ops-header nav a").forEach((el) => el.remove());
       }
     })();
 
@@ -73,9 +73,13 @@
     let map, layers = { zones: [], workers: [], gates: [] };
 
     async function api(path) {
-      const r = await fetch(path, { credentials: "include" });
+      const headers = window.BaupassAuth
+        ? window.BaupassAuth.authHeaders({ Accept: "application/json" })
+        : { Accept: "application/json" };
+      const r = await fetch(path, { credentials: "include", headers });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || r.statusText);
+      if (r.status === 401) throw new Error("auth");
+      if (!r.ok) throw new Error(d.error || d.hint || r.statusText);
       return d;
     }
 
@@ -140,7 +144,9 @@
 
     async function boot() {
       try {
-        const boot = await api("/api/session/bootstrap");
+        const boot = window.BaupassAuth?.bootstrapSession
+          ? await window.BaupassAuth.bootstrapSession()
+          : await api("/api/session/bootstrap");
         const role = boot?.user?.role || "";
         if (role === "company-admin") companyId = boot.user.company_id || companyId;
         if (role === "superadmin") {
@@ -181,7 +187,9 @@
       }
     }
 
-    document.getElementById("refreshBtn").onclick = () => load().catch(e => alert(e.message));
+    document.getElementById("refreshBtn")?.addEventListener("click", () =>
+      load().catch((e) => alert(e.message)),
+    );
     boot();
   </script>
 </body>

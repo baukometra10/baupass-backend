@@ -113,7 +113,7 @@ def register_workers_blueprint(flask_app: Flask) -> None:
         cid = company_id_from_user()
         if not cid:
             return forbidden_company()
-        return jsonify({"workers": _service.list_workers(get_db(), cid)})
+        return jsonify({"workers": _service.list_workers_v2(get_db(), cid)})
 
     @workers_v2_bp.get("/workforce/tracking")
     @require_auth

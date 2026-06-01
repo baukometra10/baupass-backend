@@ -79,8 +79,10 @@
       const buffer = [];
       const socket = global.io({
         path: "/socket.io",
-        transports: ["websocket", "polling"],
+        transports: ["polling", "websocket"],
         withCredentials: true,
+        reconnection: false,
+        timeout: 4000,
       });
       let stopped = false;
 

@@ -698,12 +698,20 @@
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
     let currentUserRole = "";
 
-    async function api(path, opts) {
+    async function api(path, opts, retried) {
       const headers = window.BaupassAuth
         ? window.BaupassAuth.authHeaders(opts?.headers || {})
         : (opts?.headers || {});
       const res = await fetch(path, { credentials: "include", ...opts, headers });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && !retried && window.BaupassAuth?.bootstrapSession) {
+        try {
+          await window.BaupassAuth.bootstrapSession();
+          return api(path, opts, true);
+        } catch {
+          throw new Error("auth");
+        }
+      }
       if (res.status === 401) throw new Error("auth");
       if (!res.ok) {
         const err = new Error(data.error || res.statusText);

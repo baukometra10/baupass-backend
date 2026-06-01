@@ -641,8 +641,21 @@
     }
 
     async function loadSessions() {
-      const data = await api(`/api/ai/sessions?${companyQs()}`);
-      sessions = data.sessions || [];
+      if (!selectedCompanyId && currentRole === "superadmin") {
+        sessions = [];
+        renderSessions();
+        return;
+      }
+      try {
+        const data = await api(`/api/ai/sessions?${companyQs()}`);
+        sessions = data.sessions || [];
+      } catch (e) {
+        if (e.payload?.error === "company_required" || e.payload?.hint === "company_required") {
+          sessions = [];
+        } else {
+          throw e;
+        }
+      }
       renderSessions();
     }
 

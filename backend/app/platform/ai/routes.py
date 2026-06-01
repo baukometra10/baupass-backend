@@ -299,7 +299,13 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         if not company_id:
             company_id = str(request.args.get("company_id") or "").strip()
         if not company_id:
-            return jsonify({"error": "company_required"}), 400
+            return jsonify(
+                {
+                    "sessions": [],
+                    "companyId": "",
+                    "hint": "company_required",
+                }
+            )
         sessions = list_sessions(get_db(), company_id=company_id, user_id=_user_id())
         return jsonify({"sessions": sessions, "companyId": company_id})
 

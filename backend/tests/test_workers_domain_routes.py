@@ -29,6 +29,23 @@ class WorkersDomainRoutesTest(unittest.TestCase):
         res = self.client.get("/api/v2/workers")
         self.assertIn(res.status_code, (401, 403))
 
+    def test_v2_workers_list_returns_array(self):
+        login = self.client.post(
+            "/api/login",
+            json={"username": "firma", "password": "1234", "loginScope": "company-admin"},
+        )
+        if login.status_code != 200:
+            self.skipTest("demo login unavailable")
+        token = login.get_json().get("token")
+        res = self.client.get(
+            "/api/v2/workers",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(res.status_code, 200, res.get_data(as_text=True))
+        body = res.get_json()
+        self.assertIn("workers", body)
+        self.assertIsInstance(body["workers"], list)
+
     def test_no_duplicate_worker_route_methods(self):
         keys = []
         for rule in app.url_map.iter_rules():
