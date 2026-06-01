@@ -21400,6 +21400,13 @@ def api_health_ready():
         return jsonify({"status": "not_ready", "error": str(exc)}), 503
 
 
+def api_health_platform():
+    """Dashboard + Railway: probe API, embed HTML, and DB readiness."""
+    from backend.app.api.health_routes import platform_health
+
+    return platform_health()
+
+
 def api_health_queues():
     try:
         from backend.app.health.readiness import _queue_status

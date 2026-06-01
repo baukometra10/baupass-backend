@@ -14,6 +14,7 @@ def _register_core_runtime_routes() -> None:
         api_health,
         api_health_dr,
         api_health_live,
+        api_health_platform,
         api_health_queues,
         api_health_ready,
         demo_seed,
@@ -34,6 +35,7 @@ def _register_core_runtime_routes() -> None:
         (
             ("/health", api_health, ("GET",)),
             ("/health/live", api_health_live, ("GET",)),
+            ("/health/platform", api_health_platform, ("GET",)),
             ("/health/ready", api_health_ready, ("GET",)),
             ("/health/queues", api_health_queues, ("GET",)),
             ("/health/dr", api_health_dr, ("GET",)),
