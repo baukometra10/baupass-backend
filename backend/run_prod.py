@@ -71,8 +71,25 @@ if __name__ == "__main__":
             print(f"[baupass] Demo enterprise seed: {result}", flush=True)
         except Exception as exc:
             print(f"[baupass] WARNING: demo enterprise seed skipped: {exc}", flush=True)
-    if str(os.getenv("BAUPASS_ENV", "")).strip().lower() != "testing" and not (os.getenv("SENTRY_DSN") or "").strip():
+    is_testing = str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing"
+    if not is_testing and not (os.getenv("SENTRY_DSN") or "").strip():
         print("[baupass] TIP: Set SENTRY_DSN for production error tracking", flush=True)
+    if os.getenv("BAUPASS_PLATFORM_ENABLED", "1").strip().lower() not in {"0", "false", "no"}:
+        print(f"[baupass] Prometheus metrics available at http://{HOST}:{PORT}/metrics", flush=True)
+        print("[baupass] Observability status at /observability/status", flush=True)
+    if not is_testing:
+        audit_key = (os.getenv("BAUPASS_AUDIT_SIGNING_KEY") or "").strip()
+        if not audit_key or audit_key == "dev-insecure-audit-key":
+            print("[baupass] SECURITY WARNING: BAUPASS_AUDIT_SIGNING_KEY not set — audit trail uses insecure default key!", flush=True)
+        gate_key = (os.getenv("BAUPASS_GATE_API_KEY") or "").strip()
+        if not gate_key:
+            print("[baupass] SECURITY WARNING: BAUPASS_GATE_API_KEY not set — gate tap API is unauthenticated!", flush=True)
+        recovery_secret = (os.getenv("BAUPASS_RECOVERY_SECRET") or "").strip()
+        if not recovery_secret:
+            print("[baupass] SECURITY WARNING: BAUPASS_RECOVERY_SECRET not set — emergency recovery endpoint is disabled.", flush=True)
+        field_enc_key = (os.getenv("BAUPASS_FIELD_ENCRYPTION_KEY") or "").strip()
+        if not field_enc_key:
+            print("[baupass] TIP: Set BAUPASS_FIELD_ENCRYPTION_KEY for field-level document encryption.", flush=True)
     try:
         from backend.app.db.runtime import postgres_runtime_enabled
         from backend.app.database import postgres_preflight

@@ -23,8 +23,8 @@ logger = logging.getLogger("baupass.security")
 # ── Content Security Policy ───────────────────────────────────────────────────
 _CSP_DIRECTIVES = {
     "default-src":  ["'self'"],
-    "script-src":   ["'self'", "'strict-dynamic'"],
-    "style-src":    ["'self'", "'unsafe-inline'"],  # تقليله لاحقاً مع hashes
+    "script-src":   ["'self'", "'strict-dynamic'", "https://cdn.jsdelivr.net"],
+    "style-src":    ["'self'", "'unsafe-inline'"],
     "img-src":      ["'self'", "data:", "blob:"],
     "font-src":     ["'self'", "data:"],
     "connect-src":  ["'self'", "wss:", "ws:"],
