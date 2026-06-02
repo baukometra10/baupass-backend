@@ -196,13 +196,21 @@ def register_enterprise_layers(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def list_site_cameras():
         from backend.app.platform.physical_operations.camera_registry import list_cameras
+        import traceback
+        import logging
 
         cid = _cid()
         if not cid:
             return jsonify({"cameras": [], "hint": "company_id_required"})
-        cameras = list_cameras(get_db(), cid)
-        online = sum(1 for c in cameras if c.get("online"))
-        return jsonify({"cameras": cameras, "summary": {"total": len(cameras), "online": online, "offline": len(cameras) - online}})
+        
+        try:
+            cameras = list_cameras(get_db(), cid)
+            online = sum(1 for c in cameras if c.get("online"))
+            return jsonify({"cameras": cameras, "summary": {"total": len(cameras), "online": online, "offline": len(cameras) - online}})
+        except Exception as e:
+            error_msg = f"Failed to list cameras for company {cid}: {str(e)}"
+            logging.error(f"{error_msg}\n{traceback.format_exc()}")
+            return jsonify({"error": "database_error", "detail": error_msg}), 500
 
     @enterprise_layers_bp.post("/integrations/cameras")
     @require_auth

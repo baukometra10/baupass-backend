@@ -31,16 +31,22 @@ def init_socketio(flask_app) -> Any:
             flask_app,
             cors_allowed_origins=cors,
             async_mode="threading",
-            logger=False,
-            engineio_logger=False,
+            logger=True,
+            engineio_logger=True,
             ping_interval=max(10, ping_interval),
             ping_timeout=max(10, ping_timeout),
             max_http_buffer_size=max(100000, max_buffer),
+            http_compression=False,
+            manage_ack=True,
         )
 
         @socketio.on("connect")
         def on_connect():
-            emit("connected", {"ok": True})
+            try:
+                logger.debug(f"WebSocket client connected: {flask_request.remote_addr}")
+                emit("connected", {"ok": True})
+            except Exception as e:
+                logger.error(f"Connect handler error: {e}")
 
         def _session_company_id(data) -> tuple[str | None, str | None]:
             """Return (company_id, error) after optional session validation."""
@@ -84,34 +90,45 @@ def init_socketio(flask_app) -> Any:
 
         @socketio.on("subscribe")
         def on_subscribe(data):
-            company_id, session_error = _session_company_id(data)
-            if session_error:
-                emit("subscribed", {"ok": False, "error": session_error})
-                return
-            if not company_id:
-                company_id = str((data or {}).get("company_id", "")).strip()
-            require_key = os.getenv("BAUPASS_WEBSOCKET_REQUIRE_SUBSCRIBE_KEY", "0").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
-            provided_key = str((data or {}).get("subscribe_key", "")).strip()
-            expected_key = os.getenv("BAUPASS_WEBSOCKET_SUBSCRIBE_KEY", "").strip()
-            if require_key and (not expected_key or provided_key != expected_key):
-                emit("subscribed", {"ok": False, "error": "forbidden"})
-                return
-            cid = str(company_id or "").strip()
-            if cid and (len(cid) > 64 or not cid.replace("-", "").replace("_", "").isalnum()):
-                emit("subscribed", {"ok": False, "error": "invalid_company_id"})
-                return
-            if cid:
-                join_room(f"company:{cid}")
-            emit("subscribed", {"ok": True, "company_id": company_id})
+            try:
+                company_id, session_error = _session_company_id(data)
+                if session_error:
+                    logger.warning(f"Subscribe session error: {session_error}")
+                    emit("subscribed", {"ok": False, "error": session_error})
+                    return
+                if not company_id:
+                    company_id = str((data or {}).get("company_id", "")).strip()
+                require_key = os.getenv("BAUPASS_WEBSOCKET_REQUIRE_SUBSCRIBE_KEY", "0").strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+                provided_key = str((data or {}).get("subscribe_key", "")).strip()
+                expected_key = os.getenv("BAUPASS_WEBSOCKET_SUBSCRIBE_KEY", "").strip()
+                if require_key and (not expected_key or provided_key != expected_key):
+                    logger.warning("Subscribe key validation failed")
+                    emit("subscribed", {"ok": False, "error": "forbidden"})
+                    return
+                cid = str(company_id or "").strip()
+                if cid and (len(cid) > 64 or not cid.replace("-", "").replace("_", "").isalnum()):
+                    logger.warning(f"Invalid company_id format: {cid}")
+                    emit("subscribed", {"ok": False, "error": "invalid_company_id"})
+                    return
+                if cid:
+                    join_room(f"company:{cid}")
+                    logger.debug(f"Client subscribed to company:{cid}")
+                emit("subscribed", {"ok": True, "company_id": company_id})
+            except Exception as e:
+                logger.error(f"Subscribe handler error: {e}")
+                emit("subscribed", {"ok": False, "error": "internal_error"})
 
         @socketio.on("ping")
         def on_ping():
-            emit("pong", {})
+            try:
+                emit("pong", {})
+            except Exception as e:
+                logger.error(f"Ping handler error: {e}")
 
         flask_app.extensions["socketio"] = socketio
         _socketio_state.update(
@@ -128,6 +145,10 @@ def init_socketio(flask_app) -> Any:
     except ImportError:
         _socketio_state.update({"enabled": False, "reason": "flask_socketio_not_installed"})
         logger.warning("flask-socketio not installed — WebSocket disabled")
+        return None
+    except Exception as e:
+        _socketio_state.update({"enabled": False, "reason": f"initialization_error: {str(e)}"})
+        logger.error(f"WebSocket initialization failed: {e}")
         return None
 
 

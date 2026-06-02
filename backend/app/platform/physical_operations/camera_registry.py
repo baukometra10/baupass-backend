@@ -77,23 +77,33 @@ def serialize_camera(row) -> dict[str, Any]:
 
 
 def list_cameras(db, company_id: str) -> list[dict[str, Any]]:
-    rows = db.execute(
-        """
-        SELECT * FROM site_cameras
-        WHERE company_id = ?
-        ORDER BY name COLLATE NOCASE, id
-        """,
-        (str(company_id),),
-    ).fetchall()
-    return [serialize_camera(r) for r in rows]
+    try:
+        rows = db.execute(
+            """
+            SELECT * FROM site_cameras
+            WHERE company_id = ?
+            ORDER BY name COLLATE NOCASE, id
+            """,
+            (str(company_id),),
+        ).fetchall()
+        return [serialize_camera(r) for r in rows]
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to list cameras for company {company_id}: {e}")
+        raise
 
 
 def get_camera(db, company_id: str, camera_id: str) -> dict[str, Any] | None:
-    row = db.execute(
-        "SELECT * FROM site_cameras WHERE company_id = ? AND id = ?",
-        (str(company_id), str(camera_id)),
-    ).fetchone()
-    return serialize_camera(row) if row else None
+    try:
+        row = db.execute(
+            "SELECT * FROM site_cameras WHERE company_id = ? AND id = ?",
+            (str(company_id), str(camera_id)),
+        ).fetchone()
+        return serialize_camera(row) if row else None
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to get camera {camera_id} for company {company_id}: {e}")
+        raise
 
 
 def get_camera_snapshot_b64(db, company_id: str, camera_id: str) -> str | None:
@@ -108,64 +118,79 @@ def get_camera_snapshot_b64(db, company_id: str, camera_id: str) -> str | None:
 
 
 def create_camera(db, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    name = str(payload.get("name") or "").strip()
-    if not name:
-        raise ValueError("name_required")
-    cam_id = str(payload.get("id") or f"cam-{uuid.uuid4().hex[:10]}").strip()
-    ts = now_iso()
-    db.execute(
-        """
-        INSERT INTO site_cameras
-            (id, company_id, name, location, rtsp_url, status, last_seen_at,
-             last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
-             created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'unknown', NULL, NULL, '', '', NULL, ?, ?)
-        """,
-        (
-            cam_id,
-            str(company_id),
-            name,
-            str(payload.get("location") or "").strip(),
-            str(payload.get("rtspUrl") or payload.get("rtsp_url") or "").strip(),
-            ts,
-            ts,
-        ),
-    )
-    db.commit()
-    return get_camera(db, company_id, cam_id) or {"id": cam_id}
+    try:
+        name = str(payload.get("name") or "").strip()
+        if not name:
+            raise ValueError("name_required")
+        cam_id = str(payload.get("id") or f"cam-{uuid.uuid4().hex[:10]}").strip()
+        ts = now_iso()
+        db.execute(
+            """
+            INSERT INTO site_cameras
+                (id, company_id, name, location, rtsp_url, status, last_seen_at,
+                 last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
+                 created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'unknown', NULL, NULL, '', '', NULL, ?, ?)
+            """,
+            (
+                cam_id,
+                str(company_id),
+                name,
+                str(payload.get("location") or "").strip(),
+                str(payload.get("rtspUrl") or payload.get("rtsp_url") or "").strip(),
+                ts,
+                ts,
+            ),
+        )
+        db.commit()
+        return get_camera(db, company_id, cam_id) or {"id": cam_id}
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to create camera: {e}")
+        raise
 
 
 def update_camera(db, company_id: str, camera_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
-    row = db.execute(
-        "SELECT * FROM site_cameras WHERE company_id = ? AND id = ?",
-        (str(company_id), str(camera_id)),
-    ).fetchone()
-    if not row:
-        return None
-    name = str(payload.get("name") if "name" in payload else row["name"]).strip()
-    location = str(payload.get("location") if "location" in payload else row["location"] or "").strip()
-    rtsp_url = str(
-        payload.get("rtspUrl") if "rtspUrl" in payload else payload.get("rtsp_url", row["rtsp_url"] or "")
-    ).strip()
-    db.execute(
-        """
-        UPDATE site_cameras
-        SET name = ?, location = ?, rtsp_url = ?, updated_at = ?
-        WHERE company_id = ? AND id = ?
-        """,
-        (name, location, rtsp_url, now_iso(), str(company_id), str(camera_id)),
-    )
-    db.commit()
-    return get_camera(db, company_id, camera_id)
+    try:
+        row = db.execute(
+            "SELECT * FROM site_cameras WHERE company_id = ? AND id = ?",
+            (str(company_id), str(camera_id)),
+        ).fetchone()
+        if not row:
+            return None
+        name = str(payload.get("name") if "name" in payload else row["name"]).strip()
+        location = str(payload.get("location") if "location" in payload else row["location"] or "").strip()
+        rtsp_url = str(
+            payload.get("rtspUrl") if "rtspUrl" in payload else payload.get("rtsp_url", row["rtsp_url"] or "")
+        ).strip()
+        db.execute(
+            """
+            UPDATE site_cameras
+            SET name = ?, location = ?, rtsp_url = ?, updated_at = ?
+            WHERE company_id = ? AND id = ?
+            """,
+            (name, location, rtsp_url, now_iso(), str(company_id), str(camera_id)),
+        )
+        db.commit()
+        return get_camera(db, company_id, camera_id)
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to update camera {camera_id}: {e}")
+        raise
 
 
 def delete_camera(db, company_id: str, camera_id: str) -> bool:
-    cur = db.execute(
-        "DELETE FROM site_cameras WHERE company_id = ? AND id = ?",
-        (str(company_id), str(camera_id)),
-    )
-    db.commit()
-    return int(getattr(cur, "rowcount", 0) or 0) > 0
+    try:
+        cur = db.execute(
+            "DELETE FROM site_cameras WHERE company_id = ? AND id = ?",
+            (str(company_id), str(camera_id)),
+        )
+        db.commit()
+        return int(getattr(cur, "rowcount", 0) or 0) > 0
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to delete camera {camera_id}: {e}")
+        raise
 
 
 def touch_camera_heartbeat(
@@ -178,67 +203,73 @@ def touch_camera_heartbeat(
     health_error: str = "",
 ) -> dict[str, Any]:
     """Upsert camera row and refresh last_seen / optional snapshot."""
-    payload = payload or {}
-    cam_id = str(camera_id or payload.get("camera_id") or "unknown").strip() or "unknown"
-    company_id = str(company_id)
-    ts = now_iso()
-    name = str(payload.get("camera_name") or payload.get("name") or cam_id).strip() or cam_id
-    location = str(payload.get("location") or payload.get("site") or "").strip()
-    rtsp_url = str(payload.get("rtsp_url") or payload.get("rtspUrl") or "").strip()
-    snap = _trim_snapshot_b64(snapshot_b64 or payload.get("image_base64") or payload.get("snapshot_base64"))
-    row = db.execute(
-        "SELECT id, offline_alert_sent_at FROM site_cameras WHERE company_id = ? AND id = ?",
-        (company_id, cam_id),
-    ).fetchone()
-    if row:
-        was_offline = bool(str(row["offline_alert_sent_at"] or "").strip())
-        db.execute(
-            """
-            UPDATE site_cameras
-            SET last_seen_at = ?, status = 'online', health_error = ?,
-                offline_alert_sent_at = CASE WHEN ? != '' THEN NULL ELSE offline_alert_sent_at END,
-                last_snapshot_at = CASE WHEN ? != '' THEN ? ELSE last_snapshot_at END,
-                last_snapshot_b64 = CASE WHEN ? != '' THEN ? ELSE last_snapshot_b64 END,
-                updated_at = ?
-            WHERE company_id = ? AND id = ?
-            """,
-            (
-                ts,
-                str(health_error or "").strip()[:500],
-                snap,
-                snap,
-                ts,
-                snap,
-                snap,
-                ts,
-                company_id,
-                cam_id,
-            ),
-        )
-        if was_offline and snap:
-            pass  # recovery handled by health job clearing alert flag via NULL above
-    else:
-        db.execute(
-            """
-            INSERT INTO site_cameras
-                (id, company_id, name, location, rtsp_url, status, last_seen_at,
-                 last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
-                 created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'online', ?, ?, ?, ?, NULL, ?, ?)
-            """,
-            (
-                cam_id,
-                company_id,
-                name,
-                location,
-                rtsp_url,
-                ts,
-                ts if snap else None,
-                snap,
-                str(health_error or "").strip()[:500],
-                ts,
-                ts,
-            ),
-        )
-    db.commit()
-    return get_camera(db, company_id, cam_id) or {"id": cam_id, "online": True}
+    try:
+        import logging
+        payload = payload or {}
+        cam_id = str(camera_id or payload.get("camera_id") or "unknown").strip() or "unknown"
+        company_id = str(company_id)
+        ts = now_iso()
+        name = str(payload.get("camera_name") or payload.get("name") or cam_id).strip() or cam_id
+        location = str(payload.get("location") or payload.get("site") or "").strip()
+        rtsp_url = str(payload.get("rtsp_url") or payload.get("rtspUrl") or "").strip()
+        snap = _trim_snapshot_b64(snapshot_b64 or payload.get("image_base64") or payload.get("snapshot_base64"))
+        row = db.execute(
+            "SELECT id, offline_alert_sent_at FROM site_cameras WHERE company_id = ? AND id = ?",
+            (company_id, cam_id),
+        ).fetchone()
+        if row:
+            was_offline = bool(str(row["offline_alert_sent_at"] or "").strip())
+            db.execute(
+                """
+                UPDATE site_cameras
+                SET last_seen_at = ?, status = 'online', health_error = ?,
+                    offline_alert_sent_at = CASE WHEN ? != '' THEN NULL ELSE offline_alert_sent_at END,
+                    last_snapshot_at = CASE WHEN ? != '' THEN ? ELSE last_snapshot_at END,
+                    last_snapshot_b64 = CASE WHEN ? != '' THEN ? ELSE last_snapshot_b64 END,
+                    updated_at = ?
+                WHERE company_id = ? AND id = ?
+                """,
+                (
+                    ts,
+                    str(health_error or "").strip()[:500],
+                    snap,
+                    snap,
+                    ts,
+                    snap,
+                    snap,
+                    ts,
+                    company_id,
+                    cam_id,
+                ),
+            )
+            if was_offline and snap:
+                pass  # recovery handled by health job clearing alert flag via NULL above
+        else:
+            db.execute(
+                """
+                INSERT INTO site_cameras
+                    (id, company_id, name, location, rtsp_url, status, last_seen_at,
+                     last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'online', ?, ?, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    cam_id,
+                    company_id,
+                    name,
+                    location,
+                    rtsp_url,
+                    ts,
+                    ts if snap else None,
+                    snap,
+                    str(health_error or "").strip()[:500],
+                    ts,
+                    ts,
+                ),
+            )
+        db.commit()
+        return get_camera(db, company_id, cam_id) or {"id": cam_id, "online": True}
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to touch camera heartbeat for {camera_id}: {e}")
+        raise

@@ -106,69 +106,96 @@
         return;
       }
       const buffer = [];
-      const socket = global.io({
-        path: "/socket.io",
-        transports: ["polling", "websocket"],
-        withCredentials: true,
-        reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 1500,
-        reconnectionDelayMax: 8000,
-        timeout: 6000,
-      });
-      let stopped = false;
+      try {
+        const socket = global.io({
+          path: "/socket.io",
+          transports: ["websocket", "polling"],
+          withCredentials: true,
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          timeout: 10000,
+          query: { company_id: companyId || "" },
+          extraHeaders: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        let stopped = false;
 
-      const stop = () => {
-        stopped = true;
-        try {
-          socket.disconnect();
-        } catch {
-          /* ignore */
+        const stop = () => {
+          stopped = true;
+          try {
+            socket.disconnect();
+          } catch {
+            /* ignore */
+          }
+        };
+
+        socket.on("connect", () => {
+          try {
+            socket.emit("subscribe", { company_id: companyId || "" });
+          } catch (e) {
+            console.error("Subscribe emit failed:", e);
+            stop();
+            resolve(null);
+          }
+        });
+
+        socket.on("subscribed", (msg) => {
+          if (msg && msg.ok === false) {
+            console.warn("Subscribe failed:", msg.error);
+            stop();
+            resolve(null);
+            return;
+          }
+          onMode?.("websocket");
+          resolve(stop);
+        });
+
+        socket.on("platform_event", (evt) => {
+          if (stopped) return;
+          buffer.unshift(evt);
+          onEvent?.(evt);
+          while (buffer.length > 30) buffer.pop();
+          renderFeed(feedEl, buffer);
+        });
+
+        socket.on("connect_error", (error) => {
+          console.warn("WebSocket connect error:", error);
+          if (!stopped) {
+            stop();
+            resolve(null);
+          }
+        });
+
+        socket.on("disconnect", (reason) => {
+          if (!stopped && reason === "io server disconnect") {
+            console.warn("WebSocket disconnected by server:", reason);
+            stop();
+            resolve(null);
+          }
+        });
+
+        if (socket.io) {
+          socket.io.on("reconnect_failed", () => {
+            if (!stopped) {
+              console.warn("WebSocket reconnect failed");
+              stop();
+              resolve(null);
+            }
+          });
         }
-      };
 
-      socket.on("connect", () => {
-        socket.emit("subscribe", { company_id: companyId || "" });
-      });
-
-      socket.on("subscribed", (msg) => {
-        if (msg && msg.ok === false) {
-          stop();
-          resolve(null);
-          return;
-        }
-        onMode?.("websocket");
-        resolve(stop);
-      });
-
-      socket.on("platform_event", (evt) => {
-        if (stopped) return;
-        buffer.unshift(evt);
-        onEvent?.(evt);
-        while (buffer.length > 30) buffer.pop();
-        renderFeed(feedEl, buffer);
-      });
-
-      socket.on("connect_error", () => {
-        if (!stopped) {
-          stop();
-          resolve(null);
-        }
-      });
-
-      socket.io.on("reconnect_failed", () => {
-        if (!stopped) {
-          stop();
-          resolve(null);
-        }
-      });
-
-      setTimeout(() => {
-        if (!stopped && !socket.connected) {
-          stop();
-          resolve(null);
-        }
-      }, 6500);
+        setTimeout(() => {
+          if (!stopped && !socket.connected) {
+            console.warn("WebSocket connection timeout");
+            stop();
+            resolve(null);
+          }
+        }, 10500);
+      } catch (e) {
+        console.error("Socket.io initialization failed:", e);
+        resolve(null);
+      }
     });
   }
 
