@@ -11,6 +11,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from backend.app.config import ProductionConfig  # noqa: E402
 from backend.server import (  # noqa: E402
     app,
     check_and_apply_overdue_suspensions,
@@ -21,6 +22,22 @@ from backend.server import (  # noqa: E402
     init_db,
     run_invoice_dunning_cycle,
 )
+
+
+def _validate_production_config() -> None:
+    env_name = str(os.getenv("BAUPASS_ENV", "")).strip().lower()
+    if not env_name:
+        env_name = "production"
+        os.environ["BAUPASS_ENV"] = env_name
+        print("[baupass] BAUPASS_ENV not set; defaulting to production", flush=True)
+
+    if env_name not in {"production", "prod"}:
+        return
+    try:
+        ProductionConfig.validate()
+    except Exception as exc:
+        print(f"[baupass] PRODUCTION CONFIG VALIDATION FAILED: {exc}", flush=True)
+        sys.exit(1)
 
 
 HOST = os.getenv("HOST", "0.0.0.0")
@@ -55,6 +72,7 @@ def port_is_listening(host, port):
 
 
 if __name__ == "__main__":
+    _validate_production_config()
     run_dunning_on_boot = str(os.getenv("BAUPASS_RUN_DUNNING_ON_BOOT", "0")).strip().lower() in {
         "1",
         "true",

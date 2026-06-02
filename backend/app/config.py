@@ -14,8 +14,13 @@ from __future__ import annotations
 import os
 import secrets
 from pathlib import Path
+from urllib.parse import urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # workspace root
+
+
+def _env_flag_enabled(name: str, default: str = "0") -> bool:
+    return str(os.getenv(name, default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _require_env(key: str) -> str:
@@ -80,7 +85,7 @@ class BaseConfig:
     SESSION_COOKIE_SAMESITE: str = "Lax"
     PERMANENT_SESSION_LIFETIME_SECONDS: int = 8 * 3600  # 8 ساعات
     WTF_CSRF_ENABLED: bool = True
-    ENFORCE_HTTPS: bool = os.getenv("BAUPASS_ENFORCE_HTTPS", "1") in {"1", "true", "yes"}
+    ENFORCE_HTTPS: bool = _env_flag_enabled("BAUPASS_ENFORCE_HTTPS", "1")
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list = []  # override in subclasses
@@ -93,7 +98,7 @@ class BaseConfig:
 
     # ── Observability ─────────────────────────────────────────────────────────
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
-    STRUCTURED_LOGS: bool = os.getenv("BAUPASS_STRUCTURED_LOGS", "1") in {"1", "true", "yes"}
+    STRUCTURED_LOGS: bool = _env_flag_enabled("BAUPASS_STRUCTURED_LOGS", "1")
 
     # ── Object Storage ────────────────────────────────────────────────────────
     UPLOAD_BACKEND: str = os.getenv("UPLOAD_BACKEND", "local")  # "local" | "s3"
@@ -148,17 +153,25 @@ class ProductionConfig(BaseConfig):
     DEBUG = False
 
     @classmethod
+    def _resolve_public_base_url(cls) -> str:
+        return (
+            os.getenv("PUBLIC_BASE_URL", "")
+            or os.getenv("RENDER_EXTERNAL_URL", "")
+            or os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+        ).strip()
+
+    @classmethod
     def validate(cls) -> None:
         """تحقق من أن جميع المتغيرات الضرورية موجودة قبل بدء التشغيل."""
         errors = []
 
-        if not os.getenv("BAUPASS_SECRET_KEY"):
+        if not os.getenv("BAUPASS_SECRET_KEY", "").strip():
             errors.append("BAUPASS_SECRET_KEY is not set")
-        elif len(os.getenv("BAUPASS_SECRET_KEY", "")) < 32:
+        elif len(os.getenv("BAUPASS_SECRET_KEY", "").strip()) < 32:
             errors.append("BAUPASS_SECRET_KEY must be at least 32 characters")
 
         database_url = os.getenv("DATABASE_URL", "").strip()
-        allow_sqlite_prod = os.getenv("BAUPASS_ALLOW_SQLITE_PRODUCTION", "0") in {"1", "true", "yes"}
+        allow_sqlite_prod = _env_flag_enabled("BAUPASS_ALLOW_SQLITE_PRODUCTION", "0")
         if not database_url and not allow_sqlite_prod:
             errors.append(
                 "DATABASE_URL (PostgreSQL) is required in production. "
@@ -167,11 +180,26 @@ class ProductionConfig(BaseConfig):
         if database_url and not database_url.startswith("postgres"):
             errors.append("DATABASE_URL must point to PostgreSQL (postgres:// or postgresql://)")
 
-        audit_key = os.getenv("BAUPASS_AUDIT_SIGNING_KEY", "")
+        audit_key = os.getenv("BAUPASS_AUDIT_SIGNING_KEY", "").strip()
         if len(audit_key) < 32:
             errors.append("BAUPASS_AUDIT_SIGNING_KEY must be at least 32 characters")
 
-        if os.getenv("BAUPASS_ENFORCE_HTTPS", "1") not in {"1", "true", "yes"}:
+        public_base_url = cls._resolve_public_base_url()
+        if not public_base_url:
+            errors.append(
+                "PUBLIC_BASE_URL, RENDER_EXTERNAL_URL or RAILWAY_PUBLIC_DOMAIN must be set in production "
+                "so external links and worker app URLs resolve correctly."
+            )
+        else:
+            parsed = urlsplit(public_base_url)
+            if not parsed.scheme or not parsed.hostname:
+                errors.append("PUBLIC_BASE_URL must be a valid URL with scheme and hostname")
+            elif parsed.scheme not in {"http", "https"}:
+                errors.append("PUBLIC_BASE_URL must use https:// in production")
+            elif parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+                errors.append("PUBLIC_BASE_URL must use https:// in production for non-localhost domains")
+
+        if not _env_flag_enabled("BAUPASS_ENFORCE_HTTPS", "1"):
             errors.append("BAUPASS_ENFORCE_HTTPS must remain enabled in production")
 
         if errors:

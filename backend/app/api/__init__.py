@@ -28,11 +28,8 @@ from . import (  # noqa: F401, E402
     health_routes,
 )
 
-# TODO: أضف هنا عند نقل كل module من server.py:
-# from . import workers_routes
-# from . import companies_routes
-# from . import attendance_routes
-# from . import admin_routes
+# Future migration: add additional route modules here as handlers are moved from server.py.
+# Existing legacy bridge modules live under backend/app/api/worker_app_routes.py and backend/app/api/shift_routes.py.
 
 __all__ = [
     "auth_bp",

@@ -61,6 +61,7 @@ Enterprise-Plattform fuer digitale Identitaet, Zutrittskontrolle, Workforce, Com
 
 1. Abhaengigkeiten installieren: `pip install -r backend/requirements.txt`
 2. Backend nur intern starten, z. B. mit `HOST=127.0.0.1`, `PORT=8000` und `python backend/run_prod.py`
+   - `backend/run_prod.py` setzt `BAUPASS_ENV=production`, wenn die Variable nicht explizit gesetzt ist.
 3. Im Reverse Proxy eine echte HTTPS-Domain davor setzen, Vorlage: `deploy/nginx.conf.example`
 4. Backend-Linkbasis setzen: `PUBLIC_BASE_URL=https://baupass.example.com`
 5. Gate-Reader absichern: `BAUPASS_GATE_API_KEY=<starkes-geheimes-token>`
@@ -126,7 +127,8 @@ powershell -ExecutionPolicy Bypass -File .\deploy\windows-service-install.ps1 -H
 ```
 
 4. Nginx auf dem Reverse-Proxy-Server installieren und die Vorlage aus `deploy/nginx.conf.example` aktivieren.
-5. Zertifikat mit Let's Encrypt ausstellen, z. B. unter Ubuntu:
+5. `PUBLIC_BASE_URL` muss gesetzt sein, damit Worker-Links, QR-Codes und externe URLs korrekt erzeugt werden.
+6. Zertifikat mit Let's Encrypt ausstellen, z. B. unter Ubuntu:
 
 ```bash
 sudo apt update
