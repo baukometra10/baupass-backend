@@ -45,7 +45,7 @@
   }
 
   function startSse({ companyId, feedEl, onMode, onEvent }) {
-    let url = "/api/ops-os/events/stream";
+    let url = "/api/v1/stream/events";
     if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
     let es = null;
     let stopped = false;
