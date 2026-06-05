@@ -3,13 +3,17 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask
 
-from .._routes import mount_rules
+from .._routes import mount_rules_once, register_blueprint_once
 from .qr_views import api_qr_hex, api_qr_png
 
 runtime_core_bp = Blueprint("runtime_domain_core", __name__)
 
 
 def _register_core_runtime_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted
+
+    if routes_already_mounted("runtime"):
+        return
     from backend.server import (
         api_health,
         api_health_dr,
@@ -30,7 +34,8 @@ def _register_core_runtime_routes() -> None:
         system_status,
     )
 
-    mount_rules(
+    mount_rules_once(
+        "runtime_core",
         runtime_core_bp,
         (
             ("/health", api_health, ("GET",)),
@@ -58,5 +63,5 @@ def _register_core_runtime_routes() -> None:
 
 def register_runtime_blueprint(flask_app: Flask) -> None:
     _register_core_runtime_routes()
-    flask_app.register_blueprint(runtime_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, runtime_core_bp, url_prefix="/api")
     print("[baupass] domain/runtime: health, system, public, qr", flush=True)

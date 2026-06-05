@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask, jsonify, request
 
+from .._routes import register_blueprint_once
 from .service import OnboardingService
 
 onboarding_bp = Blueprint("onboarding_domain", __name__)
@@ -10,6 +11,9 @@ _service = OnboardingService()
 
 
 def register_onboarding_blueprint(flask_app: Flask) -> None:
+    if getattr(register_onboarding_blueprint, "_routes_defined", False):
+        register_blueprint_once(flask_app, onboarding_bp, url_prefix="/api/v2")
+        return
     from backend.server import require_auth, require_roles, get_db
 
     def _company_id() -> str:
@@ -51,4 +55,5 @@ def register_onboarding_blueprint(flask_app: Flask) -> None:
         cid = str(g.current_user.get("company_id") or "").strip()
         return jsonify({"workflows": _service.list_active(get_db(), cid)})
 
-    flask_app.register_blueprint(onboarding_bp, url_prefix="/api/v2")
+    register_blueprint_once(flask_app, onboarding_bp, url_prefix="/api/v2")
+    register_onboarding_blueprint._routes_defined = True

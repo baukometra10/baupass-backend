@@ -670,7 +670,7 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
-        version="012",
+        version="024",
         name="ai_chat_sessions",
         up_sql="""
             CREATE TABLE IF NOT EXISTS ai_chat_sessions (
@@ -900,7 +900,7 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
-        version="012",
+        version="025",
         name="site_cameras_registry",
         up_sql="""
             CREATE TABLE IF NOT EXISTS site_cameras (
@@ -931,3 +931,5 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
 ]
+
+ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

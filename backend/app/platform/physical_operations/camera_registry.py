@@ -14,6 +14,11 @@ CAMERA_ONLINE_THRESHOLD_SECONDS = max(
 CAMERA_SNAPSHOT_MAX_BYTES = max(50_000, int(os.getenv("BAUPASS_CAMERA_SNAPSHOT_MAX_BYTES", "350000")))
 
 
+def _table_missing_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "no such table" in msg or "does not exist" in msg
+
+
 def _parse_last_seen(last_seen: str) -> datetime | None:
     raw = str(last_seen or "").strip()
     if not raw:
@@ -77,15 +82,20 @@ def serialize_camera(row) -> dict[str, Any]:
 
 
 def list_cameras(db, company_id: str) -> list[dict[str, Any]]:
-    rows = db.execute(
-        """
-        SELECT * FROM site_cameras
-        WHERE company_id = ?
-        ORDER BY name COLLATE NOCASE, id
-        """,
-        (str(company_id),),
-    ).fetchall()
-    return [serialize_camera(r) for r in rows]
+    try:
+        rows = db.execute(
+            """
+            SELECT * FROM site_cameras
+            WHERE company_id = ?
+            ORDER BY name COLLATE NOCASE, id
+            """,
+            (str(company_id),),
+        ).fetchall()
+        return [serialize_camera(r) for r in rows]
+    except Exception as exc:
+        if _table_missing_error(exc):
+            return []
+        raise
 
 
 def get_camera(db, company_id: str, camera_id: str) -> dict[str, Any] | None:

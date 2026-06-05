@@ -7,6 +7,10 @@ rbac_core_bp = Blueprint("rbac_domain_core", __name__)
 
 
 def _register_core_rbac_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("rbac"):
+        return
     from backend.server import (
         audit_trail_get,
         role_assignments_create,
@@ -22,9 +26,10 @@ def _register_core_rbac_routes() -> None:
     )
     for path, view_func, methods in rules:
         rbac_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("rbac")
 
 
 def register_rbac_domain_blueprint(flask_app: Flask) -> None:
     _register_core_rbac_routes()
-    flask_app.register_blueprint(rbac_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, rbac_core_bp, url_prefix="/api")
     print("[baupass] domain/rbac: roles, role-assignments, audit-trail", flush=True)

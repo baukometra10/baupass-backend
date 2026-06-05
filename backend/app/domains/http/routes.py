@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask
 
-from .._routes import mount_rules
+from .._routes import mount_rules_once, register_blueprint_once
 
 http_bp = Blueprint("http_static", __name__)
 
@@ -26,7 +26,8 @@ def _register_http_routes() -> None:
         worker_join_config_public,
     )
 
-    mount_rules(
+    mount_rules_once(
+        "http_static",
         http_bp,
         (
             ("/", root, ("GET",)),
@@ -46,8 +47,6 @@ def _register_http_routes() -> None:
 
 
 def register_http_blueprint(flask_app: Flask) -> None:
-    if "http_static" in flask_app.blueprints:
-        return
     _register_http_routes()
-    flask_app.register_blueprint(http_bp)
+    register_blueprint_once(flask_app, http_bp)
     print("[baupass] domain/http: SPA + static (registered last)", flush=True)

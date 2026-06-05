@@ -7,6 +7,10 @@ workforce_core_bp = Blueprint("workforce_domain_core", __name__)
 
 
 def _register_core_workforce_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("workforce"):
+        return
     from backend.server import (
         analytics_document_health,
         analytics_export_csv,
@@ -38,9 +42,10 @@ def _register_core_workforce_routes() -> None:
     )
     for path, view_func, methods in rules:
         workforce_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("workforce")
 
 
 def register_workforce_blueprint(flask_app: Flask) -> None:
     _register_core_workforce_routes()
-    flask_app.register_blueprint(workforce_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, workforce_core_bp, url_prefix="/api")
     print("[baupass] domain/workforce: foreman, analytics, sync", flush=True)

@@ -208,8 +208,10 @@ def register_enterprise_layers(flask_app) -> None:
             online = sum(1 for c in cameras if c.get("online"))
             return jsonify({"cameras": cameras, "summary": {"total": len(cameras), "online": online, "offline": len(cameras) - online}})
         except Exception as e:
-            error_msg = f"Failed to list cameras for company {cid}: {str(e)}"
-            logging.error(f"{error_msg}\n{traceback.format_exc()}")
+            error_msg = str(e)
+            if "no such table" in error_msg.lower() or "does not exist" in error_msg.lower():
+                return jsonify({"cameras": [], "summary": {"total": 0, "online": 0, "offline": 0}, "hint": "migration_pending"})
+            logging.error(f"Failed to list cameras for company {cid}: {error_msg}\n{traceback.format_exc()}")
             return jsonify({"error": "database_error", "detail": error_msg}), 500
 
     @enterprise_layers_bp.post("/integrations/cameras")

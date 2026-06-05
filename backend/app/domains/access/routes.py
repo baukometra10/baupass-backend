@@ -12,6 +12,10 @@ _service = AccessService()
 
 
 def _register_core_access_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("access"):
+        return
     from backend.server import (
         access_day_close_check,
         access_summary,
@@ -47,6 +51,7 @@ def _register_core_access_routes() -> None:
     )
     for path, view_func, methods in rules:
         access_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("access")
 
 
 def register_access_blueprint(flask_app: Flask) -> None:
@@ -72,8 +77,8 @@ def register_access_blueprint(flask_app: Flask) -> None:
             return forbidden_company()
         return jsonify(_service.geofence_zones(get_db(), cid))
 
-    flask_app.register_blueprint(access_core_bp, url_prefix="/api")
-    flask_app.register_blueprint(access_v2_bp, url_prefix="/api/v2")
+    register_blueprint_once(flask_app, access_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, access_v2_bp, url_prefix="/api/v2")
     print(
         "[baupass] domain/access: geofences, access-logs*, gates/* + v2 live/zones",
         flush=True,

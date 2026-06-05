@@ -7,6 +7,10 @@ documents_core_bp = Blueprint("documents_domain_core", __name__)
 
 
 def _register_core_document_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("documents"):
+        return
     from backend.server import (
         assign_attachment_to_worker,
         datev_oauth_callback,
@@ -40,9 +44,10 @@ def _register_core_document_routes() -> None:
     )
     for path, view_func, methods in rules:
         documents_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("documents")
 
 
 def register_documents_blueprint(flask_app: Flask) -> None:
     _register_core_document_routes()
-    flask_app.register_blueprint(documents_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, documents_core_bp, url_prefix="/api")
     print("[baupass] domain/documents: inbox, imap, payroll export", flush=True)

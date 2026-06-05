@@ -13,6 +13,10 @@ _service = BillingService()
 
 
 def _register_core_billing_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted
+
+    if routes_already_mounted("billing"):
+        return
     from backend.server import (
         bulk_mark_invoices_paid,
         decide_invoice_approval,
@@ -64,6 +68,7 @@ def _register_core_billing_routes() -> None:
     )
     for path, view_func, methods in rules:
         billing_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("billing")
 
 
 def register_billing_blueprint(flask_app: Flask) -> None:
@@ -196,6 +201,6 @@ def register_billing_blueprint(flask_app: Flask) -> None:
         except Exception as exc:
             return jsonify({"error": "webhook_processing_failed", "detail": str(exc)}), 500
 
-    flask_app.register_blueprint(billing_core_bp, url_prefix="/api")
-    flask_app.register_blueprint(billing_v2_bp, url_prefix="/api/v2")
+    register_blueprint_once(flask_app, billing_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, billing_v2_bp, url_prefix="/api/v2")
     print("[baupass] domain/billing: /api/invoices/* + /api/v2/billing/* registered", flush=True)

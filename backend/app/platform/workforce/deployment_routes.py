@@ -9,6 +9,10 @@ workforce_bp = Blueprint("platform_workforce", __name__)
 
 
 def register_workforce_blueprint(flask_app) -> None:
+    if getattr(register_workforce_blueprint, "_routes_defined", False):
+        if "platform_workforce" not in flask_app.blueprints:
+            flask_app.register_blueprint(workforce_bp, url_prefix="/api")
+        return
     from backend.server import get_company_plan, get_db, require_auth, require_roles
     from backend.app.platform.plan_entitlements import min_plan_for_capability, plan_includes
     from backend.app.platform.plan_guard import require_plan_capability
@@ -455,3 +459,4 @@ def register_workforce_blueprint(flask_app) -> None:
         return jsonify(reopen_month(get_db(), cid, year, month))
 
     flask_app.register_blueprint(workforce_bp, url_prefix="/api")
+    register_workforce_blueprint._routes_defined = True

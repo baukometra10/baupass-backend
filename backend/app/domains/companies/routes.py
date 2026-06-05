@@ -7,6 +7,10 @@ companies_core_bp = Blueprint("companies_domain_core", __name__)
 
 
 def _register_core_company_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("companies"):
+        return
     from backend.server import (
         add_company_turnstile,
         company_worker_hours_summary,
@@ -94,9 +98,10 @@ def _register_core_company_routes() -> None:
     )
     for path, view_func, methods in rules:
         companies_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("companies")
 
 
 def register_companies_blueprint(flask_app: Flask) -> None:
     _register_core_company_routes()
-    flask_app.register_blueprint(companies_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, companies_core_bp, url_prefix="/api")
     print("[baupass] domain/companies: all /api/companies/* routes on companies_core_bp", flush=True)

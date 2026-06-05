@@ -11,6 +11,10 @@ _service = NotificationsService()
 
 
 def _register_core_notification_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("notifications"):
+        return
     from backend.server import (
         list_system_alerts,
         notifications_delete,
@@ -28,6 +32,7 @@ def _register_core_notification_routes() -> None:
     )
     for path, view_func, methods in rules:
         notifications_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("notifications")
 
 
 def register_notifications_blueprint(flask_app: Flask) -> None:
@@ -46,6 +51,6 @@ def register_notifications_blueprint(flask_app: Flask) -> None:
             return forbidden_company()
         return _service.inbox(get_db(), cid)
 
-    flask_app.register_blueprint(notifications_core_bp, url_prefix="/api")
-    flask_app.register_blueprint(notifications_v2_bp, url_prefix="/api/v2")
+    register_blueprint_once(flask_app, notifications_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, notifications_v2_bp, url_prefix="/api/v2")
     print("[baupass] domain/notifications: core + v2 routes registered", flush=True)

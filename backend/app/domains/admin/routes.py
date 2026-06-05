@@ -12,6 +12,10 @@ _service = AdminService()
 
 
 def _register_core_admin_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("admin"):
+        return
     from backend.server import (
         admin_create_database_backup,
         admin_gate_devices,
@@ -65,6 +69,7 @@ def _register_core_admin_routes() -> None:
     )
     for path, view_func, methods in rules:
         admin_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("admin")
 
 
 def register_admin_blueprint(flask_app: Flask) -> None:
@@ -82,6 +87,6 @@ def register_admin_blueprint(flask_app: Flask) -> None:
         today = utc_now().strftime("%Y-%m-%d")
         return jsonify(_service.overview(get_db(), cid, today))
 
-    flask_app.register_blueprint(admin_core_bp, url_prefix="/api")
-    flask_app.register_blueprint(admin_v2_bp, url_prefix="/api/v2")
+    register_blueprint_once(flask_app, admin_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, admin_v2_bp, url_prefix="/api/v2")
     print("[baupass] domain/admin: all /api/admin/* routes on admin_core_bp", flush=True)

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask, jsonify, request
 
-from .._routes import mount_rules
+from .._routes import mount_rules_once, register_blueprint_once, register_blueprint_once
 from ..shared import company_id_from_user, forbidden_company
 from .service import WorkersService
 
@@ -15,6 +15,10 @@ _service = WorkersService()
 
 
 def _register_core_worker_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted
+
+    if routes_already_mounted("workers"):
+        return
     from backend.server import (
         activate_worker_hce_device,
         bulk_delete_workers,
@@ -90,7 +94,7 @@ def _register_core_worker_routes() -> None:
         ("/workers/<worker_id>/documents/<doc_id>", delete_worker_document, ("DELETE",)),
         ("/leave-requests/<req_id>/export.pdf", export_leave_request_pdf, ("GET",)),
     )
-    mount_rules(workers_core_bp, rules)
+    mount_rules_once("workers", workers_core_bp, rules)
 
 
 def register_workers_blueprint(flask_app: Flask) -> None:
@@ -159,6 +163,6 @@ def register_workers_blueprint(flask_app: Flask) -> None:
 
         return jsonify(build_mobile_distribution(get_public_base_url()))
 
-    flask_app.register_blueprint(workers_core_bp, url_prefix="/api")
-    flask_app.register_blueprint(workers_v2_bp, url_prefix="/api/v2")
+    register_blueprint_once(flask_app, workers_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, workers_v2_bp, url_prefix="/api/v2")
     print("[baupass] domain/workers: all /api/workers/* routes on workers_core_bp", flush=True)

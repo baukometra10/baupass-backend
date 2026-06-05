@@ -18767,7 +18767,14 @@ async function loadSiteCameras() {
     state.siteCameras = Array.isArray(data?.cameras) ? data.cameras : [];
     renderSiteCameras(data?.summary);
   } catch (e) {
-    console.warn("loadSiteCameras failed", e);
+    if (Number(e?.status) === 401) {
+      return;
+    }
+    state.siteCameras = [];
+    renderSiteCameras({ total: 0, online: 0, offline: 0 });
+    if (Number(e?.status) !== 500) {
+      console.warn("loadSiteCameras failed", e);
+    }
   }
 }
 

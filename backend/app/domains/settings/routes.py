@@ -7,6 +7,10 @@ settings_core_bp = Blueprint("settings_domain_core", __name__)
 
 
 def _register_core_settings_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("settings"):
+        return
     from backend.server import (
         get_settings,
         list_imap_folders,
@@ -30,9 +34,10 @@ def _register_core_settings_routes() -> None:
     )
     for path, view_func, methods in rules:
         settings_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("settings")
 
 
 def register_settings_blueprint(flask_app: Flask) -> None:
     _register_core_settings_routes()
-    flask_app.register_blueprint(settings_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, settings_core_bp, url_prefix="/api")
     print("[baupass] domain/settings: global config routes", flush=True)

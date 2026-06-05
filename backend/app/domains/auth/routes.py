@@ -11,6 +11,10 @@ _service = AuthService()
 
 
 def _register_core_auth_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted
+
+    if routes_already_mounted("auth_core"):
+        return
     from backend.server import (
         activate_twofa,
         apply_password_reset,
@@ -46,6 +50,7 @@ def _register_core_auth_routes() -> None:
     )
     for path, view_func, methods in rules:
         auth_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("auth_core")
 
 
 def register_auth_blueprint(flask_app: Flask) -> None:
@@ -74,8 +79,10 @@ def register_auth_blueprint(flask_app: Flask) -> None:
         _service.logout(g.token, g.current_user)
         return jsonify({"ok": True})
 
-    flask_app.register_blueprint(auth_core_bp, url_prefix="/api")
-    flask_app.register_blueprint(auth_v2_bp, url_prefix="/api/v2")
+    from .._routes import register_blueprint_once
+
+    register_blueprint_once(flask_app, auth_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, auth_v2_bp, url_prefix="/api/v2")
     print(
         "[baupass] domain/auth: login, logout, bootstrap, me, 2fa, password-reset, emergency-2fa + v2",
         flush=True,

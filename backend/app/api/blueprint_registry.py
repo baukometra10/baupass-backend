@@ -25,6 +25,8 @@ def _register_safe(flask_app: Flask, name: str, registrar) -> dict[str, Any]:
 
 
 def register_modular_blueprints(flask_app: Flask) -> None:
+    if flask_app.extensions.get("modular_blueprints_registered"):
+        return
     results: list[dict[str, Any]] = []
 
     def _worker_app(app: Flask) -> None:
@@ -57,6 +59,7 @@ def register_modular_blueprints(flask_app: Flask) -> None:
         results.append(_register_safe(flask_app, name, fn))
 
     flask_app.extensions["modular_blueprints"] = results
+    flask_app.extensions["modular_blueprints_registered"] = True
     failed = [r for r in results if r.get("status") != "ok"]
     if failed:
         print(

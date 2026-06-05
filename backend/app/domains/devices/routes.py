@@ -10,6 +10,10 @@ devices_core_bp = Blueprint("devices_domain_core", __name__)
 
 
 def _register_core_device_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("devices"):
+        return
     from backend.server import (
         device_biometric_auth,
         device_heartbeat,
@@ -29,9 +33,10 @@ def _register_core_device_routes() -> None:
     )
     for path, view_func, methods in rules:
         devices_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("devices")
 
 
 def register_devices_blueprint(flask_app: Flask) -> None:
     _register_core_device_routes()
-    flask_app.register_blueprint(devices_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, devices_core_bp, url_prefix="/api")
     print("[baupass] domain/devices: register, heartbeat, scan, worker-app hooks", flush=True)

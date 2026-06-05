@@ -7,6 +7,10 @@ operations_core_bp = Blueprint("operations_domain_core", __name__)
 
 
 def _register_core_operations_routes() -> None:
+    from .._routes import mark_routes_mounted, routes_already_mounted, register_blueprint_once
+
+    if routes_already_mounted("operations"):
+        return
     from backend.server import (
         incidents_assign,
         incidents_get,
@@ -36,9 +40,10 @@ def _register_core_operations_routes() -> None:
     )
     for path, view_func, methods in rules:
         operations_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))
+    mark_routes_mounted("operations")
 
 
 def register_operations_blueprint(flask_app: Flask) -> None:
     _register_core_operations_routes()
-    flask_app.register_blueprint(operations_core_bp, url_prefix="/api")
+    register_blueprint_once(flask_app, operations_core_bp, url_prefix="/api")
     print("[baupass] domain/operations: snapshot, messages, incidents, media-evidence", flush=True)
