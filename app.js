@@ -15118,10 +15118,18 @@ function renderSupportReadOnlyTopbarBadge(loggedIn) {
   }
 }
 
+function resolveLoginScope() {
+  const supportContext = state.supportLoginContext || loadSupportLoginContext();
+  if (supportContext?.companyId) {
+    return "company-admin";
+  }
+  return "auto";
+}
+
 function updateLoginOtpVisibility() {
   const otpLabel = elements.loginOtpCode?.closest("label");
   const setupEmailLabel = document.getElementById("loginSetupEmailLabel");
-  const scope = String(elements.loginScope?.value || "auto").trim().toLowerCase();
+  const scope = resolveLoginScope();
   const hideForTurnstile = scope === "turnstile";
   const showSetupEmail = !hideForTurnstile && state.loginSetupEmailPending;
   const showOtp = !hideForTurnstile && state.loginOtpPending;
@@ -15167,9 +15175,6 @@ function syncSupportLoginUi() {
       elements.loginSupportNotice.innerHTML = "";
       elements.loginSupportNotice.style.display = "none";
     }
-  }
-  if (!token && context?.companyId && elements.loginScope) {
-    elements.loginScope.value = "company-admin";
   }
 }
 
@@ -16620,6 +16625,10 @@ function loadEnterpriseEmbed(viewName) {
   }
   const iframe = document.getElementById(meta.frameId);
   if (!iframe) {
+    return;
+  }
+  if (!token || !state.currentUser) {
+    iframe.removeAttribute("src");
     return;
   }
   const prevSrc = iframe.getAttribute("src") || "";
@@ -29539,7 +29548,7 @@ async function handleLoginSubmit(event) {
   }
 
   const supportContext = state.supportLoginContext || loadSupportLoginContext();
-  const loginScope = elements.loginScope?.value || "auto";
+  const loginScope = resolveLoginScope();
   const username = elements.loginUsername.value.trim();
   const password = elements.loginPassword.value;
 

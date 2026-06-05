@@ -6,13 +6,21 @@
   <meta name="theme-color" content="#0f4c5c" />
   <title>BauPass Admin v2</title>
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260605layout1" />
+  <link rel="stylesheet" href="styles.css?v=20260605options1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
   <div id="app">
-    <section id="loginView" class="panel login-panel">
+    <section id="sessionBootView" class="session-boot-view" aria-live="polite">
+      <span class="session-boot-spinner" aria-hidden="true"></span>
+      <p data-i18n="common.loading">Wird geladen…</p>
+    </section>
+    <section id="embedAuthView" class="embed-auth-view hidden" aria-live="polite">
+      <p class="embed-auth-title" data-i18n="login.embedRequiredTitle">Anmeldung über Control Pass</p>
+      <p class="muted small" data-i18n="login.embedRequired">Bitte zuerst im Control Pass anmelden. Betrieb öffnet sich automatisch nach erfolgreicher Anmeldung.</p>
+    </section>
+    <section id="loginView" class="panel login-panel hidden">
       <label class="lang-row">
         <span data-i18n="lang">Sprache</span>
         <select id="langSelect" data-lang-select>
@@ -30,13 +38,6 @@
       <label>
         <span data-i18n="login.pass">Passwort</span>
         <input id="password" type="password" autocomplete="current-password" />
-      </label>
-      <label>
-        <span data-i18n="login.scope">Kontotyp</span>
-        <select id="loginScope">
-          <option value="company-admin" data-i18n="login.scopeCompany">Firmen-Admin</option>
-          <option value="superadmin" data-i18n="login.scopeSuperadmin">Superadmin</option>
-        </select>
       </label>
       <button id="loginBtn" type="button" data-i18n="login.btn">Anmelden</button>
       <p id="loginError" class="error hidden"></p>
@@ -360,6 +361,6 @@
   <script src="/embed-helpers.js?v=20260531shell12"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260531shell15" type="module"></script>
+  <script src="app.js?v=20260605options1" type="module"></script>
 </body>
 </html>

@@ -231,7 +231,6 @@ test('ui access log load-more appends additional entries', async ({ page, reques
   await page.goto('/');
   await page.locator('#loginUsername').fill(companyAdminUsername);
   await page.locator('#loginPassword').fill(companyAdminPassword);
-  await page.locator('#loginScope').selectOption('company-admin');
   await page.locator('#loginForm button[type="submit"]').click();
 
   await expect(page.locator('#mainShell')).toBeVisible();
@@ -272,7 +271,6 @@ test('ui worker detail access actions keep dashboard and access context', async 
   await page.goto('/');
   await page.locator('#loginUsername').fill(companyAdminUsername);
   await page.locator('#loginPassword').fill(companyAdminPassword);
-  await page.locator('#loginScope').selectOption('company-admin');
   await page.locator('#loginForm button[type="submit"]').click();
 
   await expect(page.locator('#mainShell')).toBeVisible();
@@ -331,7 +329,6 @@ test('ui invoice preview renders server-side access line items', async ({ page, 
   await page.goto('/');
   await page.locator('#loginUsername').fill(superadminUsername);
   await page.locator('#loginPassword').fill(superadminPassword);
-  await page.locator('#loginScope').selectOption('server-admin');
   if (superadminOtp) {
     await page.locator('#loginOtpCode').fill(superadminOtp);
   }
@@ -383,7 +380,6 @@ test('ui invoice send shows smtp-not-configured fallback alert', async ({ page, 
   await page.goto('/');
   await page.locator('#loginUsername').fill(superadminUsername);
   await page.locator('#loginPassword').fill(superadminPassword);
-  await page.locator('#loginScope').selectOption('server-admin');
   if (superadminOtp) {
     await page.locator('#loginOtpCode').fill(superadminOtp);
   }
@@ -454,7 +450,6 @@ test('ui invoice send shows success alert when send succeeds', async ({ page, re
   await page.goto('/');
   await page.locator('#loginUsername').fill(superadminUsername);
   await page.locator('#loginPassword').fill(superadminPassword);
-  await page.locator('#loginScope').selectOption('server-admin');
   if (superadminOtp) {
     await page.locator('#loginOtpCode').fill(superadminOtp);
   }

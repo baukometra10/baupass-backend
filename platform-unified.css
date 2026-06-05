@@ -144,12 +144,24 @@
 
 .sidebar-company-picker-select {
   width: 100%;
+  min-height: 36px;
   padding: 0.45rem 0.5rem;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: #0f1419;
   color: #e2e8f0;
   font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+/* Einheitliche Select-Felder in Shell (Topbar, Auth, Sidebar) */
+.shell select:not([multiple]),
+.auth-panel select:not([multiple]) {
+  min-height: 38px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
+  border-radius: 10px;
 }
 
 .sidebar-company-picker-hint {

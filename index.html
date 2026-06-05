@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="./styles.css?v=20260605layout1" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
-    <link rel="stylesheet" href="./platform-unified.css?v=20260605layout1" />
+    <link rel="stylesheet" href="./platform-unified.css?v=20260605options1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -149,15 +149,9 @@
           <span data-ui-i18n="loginOtpLabel">OTP-Code (wenn 2FA aktiv)</span>
           <input id="loginOtpCode" type="text" placeholder="123456" data-ui-i18n="loginOtpPlaceholder" data-ui-i18n-attr="placeholder" />
         </label>
-        <label>
-          <span data-ui-i18n="loginScopeLabel">Zugangstyp</span>
-          <select id="loginScope">
-            <option value="auto" data-ui-i18n="loginScopeAuto">Automatisch</option>
-            <option value="server-admin" data-ui-i18n="loginScopeServerAdmin">Server-Admin</option>
-            <option value="company-admin" data-ui-i18n="loginScopeCompanyAdmin">Firmen-Admin</option>
-            <option value="turnstile" data-ui-i18n="loginScopeTurnstile">Drehkreuz</option>
-          </select>
-        </label>
+        <select id="loginScope" class="hidden" aria-hidden="true" tabindex="-1">
+          <option value="auto" selected>auto</option>
+        </select>
         <button type="submit" class="primary-button" data-ui-i18n="loginButton">Anmelden</button>
         <button type="button" id="entraLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="entraLoginBtn">Mit Microsoft anmelden</button>
         <button type="button" id="googleLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="googleLoginBtn">Mit Google anmelden</button>
@@ -2203,7 +2197,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260601sidebar1"></script>
+  <script src="./app.js?v=20260605options1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

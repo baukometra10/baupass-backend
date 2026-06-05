@@ -47,7 +47,6 @@ async function loginUi(page, { username, password }) {
   await page.goto('/');
   await page.fill('#loginUsername', username);
   await page.fill('#loginPassword', password);
-  await page.selectOption('#loginScope', 'server-admin');
   await page.locator('#loginForm button[type="submit"]').click();
   await expect(page.locator('#authOverlay')).toHaveAttribute('aria-hidden', 'true');
 }

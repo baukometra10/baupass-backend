@@ -64,7 +64,7 @@ test.describe('Platform smoke', () => {
     const loginPayload = await login(request, {
       username,
       password,
-      loginScope: 'admin',
+      loginScope: 'auto',
     });
     const headers = { Authorization: `Bearer ${loginPayload.token}` };
 

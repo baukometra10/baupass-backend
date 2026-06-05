@@ -299,7 +299,6 @@ test('ui flow: superadmin sets and clears preview mode from admin view', async (
   await page.goto('/');
   await page.locator('#loginUsername').fill(superadminUsername);
   await page.locator('#loginPassword').fill(superadminPassword);
-  await page.locator('#loginScope').selectOption('server-admin');
   if (otpCode) {
     await page.locator('#loginOtpCode').fill(otpCode);
   }

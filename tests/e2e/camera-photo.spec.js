@@ -59,7 +59,6 @@ async function loginUI(page, username, password) {
   await page.goto('/');
   await page.locator('#loginUsername').fill(username);
   await page.locator('#loginPassword').fill(password);
-  await page.locator('#loginScope').selectOption('company-admin');
   await page.locator('#loginForm button[type="submit"]').click();
   await page.waitForSelector('#mainShell', { timeout: 12_000 });
 }

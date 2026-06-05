@@ -83,6 +83,49 @@ a {
   min-height: 100dvh;
 }
 
+.session-boot-view,
+.embed-auth-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 100dvh;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--text);
+}
+
+.session-boot-view.hidden,
+.embed-auth-view.hidden {
+  display: none !important;
+}
+
+.session-boot-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: admin-v2-spin 0.8s linear infinite;
+}
+
+@keyframes admin-v2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.embed-auth-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+body.embed-mode.admin-v2-embed .login-panel {
+  display: none !important;
+}
+
 #app > #dashboardView:not(.hidden) {
   flex: 1;
   min-height: 0;
@@ -180,6 +223,15 @@ button.ghost {
 
 .company-picker select {
   min-width: 180px;
+  min-height: 36px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.topbar-actions select:not([multiple]),
+.company-picker select:not([multiple]) {
+  min-height: 36px;
 }
 
 .btn-link {
@@ -1887,13 +1939,32 @@ body.embed-mode.admin-v2-embed .mobile-bottom-nav {
 
 body.embed-mode.admin-v2-embed #companyPickerWrap:not(.hidden) {
   display: flex;
-  flex: 1 1 100%;
-  min-width: 0;
+  flex: 1 1 180px;
+  min-width: 150px;
+  max-width: 240px;
+}
+
+body.embed-mode.admin-v2-embed .company-picker select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
 }
 
 body.embed-mode.admin-v2-embed .topbar-compact {
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+body.embed-mode.admin-v2-embed .topbar-compact .topbar-actions {
+  align-items: center;
+}
+
+body.embed-mode.admin-v2-embed .topbar-actions select,
+body.embed-mode.admin-v2-embed .topbar-actions .lang-row-compact select {
+  min-height: 36px;
+  padding: 0.4rem 0.5rem;
 }
 
 body.command-palette-open {
@@ -1921,7 +1992,8 @@ body.embed-mode.admin-v2-embed .topbar-compact #userLine {
 body.embed-mode.admin-v2-embed .topbar-compact .topbar-actions {
   width: 100%;
   justify-content: flex-end;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 body.embed-mode.admin-v2-embed .topbar-compact .cmd-kbd-btn,

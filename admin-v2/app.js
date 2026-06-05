@@ -11,6 +11,11 @@ function isEmbedMode() {
   return new URLSearchParams(location.search).get("embed") === "1";
 }
 
+if (isEmbedMode()) {
+  document.documentElement.classList.add("embed-document");
+  document.body.classList.add("embed-mode", "admin-v2-embed");
+}
+
 async function tryEmbedSessionFromControlPass() {
   if (!isEmbedMode()) {
     return false;
@@ -176,9 +181,34 @@ function isAuthError(err) {
   );
 }
 
+function hideAllSessionViews() {
+  $("sessionBootView")?.classList.add("hidden");
+  $("embedAuthView")?.classList.add("hidden");
+  $("loginView")?.classList.add("hidden");
+  $("dashboardView")?.classList.add("hidden");
+}
+
+function showSessionBoot() {
+  hideAllSessionViews();
+  $("sessionBootView")?.classList.remove("hidden");
+}
+
+function showEmbedAuthRequired(message) {
+  hideAllSessionViews();
+  $("embedAuthView")?.classList.remove("hidden");
+  const msgEl = $("embedAuthView")?.querySelector("[data-i18n='login.embedRequired']");
+  if (msgEl && message) {
+    msgEl.textContent = message;
+  }
+}
+
 function clearSessionAndShowLogin(message) {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  if (isEmbedMode()) {
+    showEmbedAuthRequired(message || t("login.embedRequired"));
+    return;
+  }
   showLogin();
   const errEl = $("loginError");
   if (errEl && message) {
@@ -251,6 +281,7 @@ window.addEventListener("message", (event) => {
     applyParentCompanyId(event.data.companyId);
   }
   if ($("dashboardView")?.classList.contains("hidden")) {
+    showSessionBoot();
     bootSession().catch(() => {});
     return;
   }
@@ -367,12 +398,12 @@ function $(id) {
 }
 
 function showLogin() {
+  hideAllSessionViews();
   $("loginView").classList.remove("hidden");
-  $("dashboardView").classList.add("hidden");
 }
 
 function showDashboard() {
-  $("loginView").classList.add("hidden");
+  hideAllSessionViews();
   $("dashboardView").classList.remove("hidden");
   const user = getUser();
   const line = `${user.username || ""} · ${user.role || ""}`;
@@ -396,6 +427,9 @@ function setupCompanyPicker(user) {
   }
   wrap.classList.remove("hidden");
   select.onchange = () => {
+    if (!select.value) {
+      return;
+    }
     localStorage.setItem(COMPANY_KEY, select.value);
     syncEnterpriseFrame();
     startAdminRealtime().catch(() => {});
@@ -411,17 +445,26 @@ async function loadCompanies() {
   if (user.role !== "superadmin") {
     return;
   }
-  const companies = await api("/api/companies");
   const select = $("companyPicker");
+  if (!select) {
+    return;
+  }
+  select.innerHTML = `<option value="" disabled selected>${t("common.loading")}</option>`;
+  const companies = await api("/api/companies");
+  const rows = Array.isArray(companies) ? companies.filter((c) => c && !c.deleted_at) : [];
+  if (!rows.length) {
+    select.innerHTML = `<option value="" disabled selected>${t("common.selectCompany")}</option>`;
+    return;
+  }
   const saved = localStorage.getItem(COMPANY_KEY) || "";
-  select.innerHTML = companies
+  select.innerHTML = rows
     .map((c) => `<option value="${c.id}">${c.name || c.id}</option>`)
     .join("");
-  if (saved && companies.some((c) => c.id === saved)) {
+  if (saved && rows.some((c) => c.id === saved)) {
     select.value = saved;
-  } else if (companies.length) {
-    select.value = companies[0].id;
-    localStorage.setItem(COMPANY_KEY, companies[0].id);
+  } else {
+    select.value = rows[0].id;
+    localStorage.setItem(COMPANY_KEY, rows[0].id);
   }
 }
 
@@ -2921,7 +2964,16 @@ $("copilotForm")?.addEventListener("submit", async (e) => {
   }
 });
 
+function superadminNeedsCompany() {
+  const user = getUser();
+  return user.role === "superadmin" && !(localStorage.getItem(COMPANY_KEY) || "").trim();
+}
+
 async function refreshActiveTab() {
+  if (superadminNeedsCompany()) {
+    showActionToast(t("common.selectCompany"), true);
+    return;
+  }
   const active = document.querySelector(".tab.active");
   const tab = active?.dataset?.tab || "overview";
   if (tab === "inbox") {
@@ -2940,12 +2992,13 @@ async function refreshActiveTab() {
 }
 
 async function bootSession() {
+  showSessionBoot();
   const forceLoginForm = new URLSearchParams(location.search).get("login") === "1";
   if (isEmbedMode()) {
     await tryEmbedSessionFromControlPass();
   }
   let token = (localStorage.getItem(TOKEN_KEY) || "").trim();
-  if (forceLoginForm) {
+  if (forceLoginForm && !isEmbedMode()) {
     showLogin();
     return;
   }
@@ -2956,22 +3009,33 @@ async function bootSession() {
     }
   }
   if (!token || !(await probeSessionToken(token))) {
-    clearSessionAndShowLogin(
-      token ? t("login.sessionExpired") : "",
-    );
+    if (isEmbedMode()) {
+      showEmbedAuthRequired(
+        token ? t("login.sessionExpired") : t("login.embedRequired"),
+      );
+    } else {
+      clearSessionAndShowLogin(token ? t("login.sessionExpired") : "");
+    }
     return;
   }
   try {
     const data = await api("/api/v2/auth/session");
-    if (data.user?.company_id && !localStorage.getItem(COMPANY_KEY)) {
-      localStorage.setItem(COMPANY_KEY, data.user.company_id);
+    if (data.user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      if (data.user.company_id && !localStorage.getItem(COMPANY_KEY)) {
+        localStorage.setItem(COMPANY_KEY, data.user.company_id);
+      }
+    }
+    await loadCompanies();
+    const qsCid = new URLSearchParams(location.search).get("company_id") || "";
+    if (qsCid) {
+      applyParentCompanyId(qsCid);
     }
     showDashboard();
     await applyStartupTabAfterLoad();
     if (pendingEinsatzplanFocus) {
       tryFocusEinsatzplanFromParent();
     }
-    await loadCompanies();
     await loadPlatformBanner();
     const params = new URLSearchParams(location.search);
     if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
@@ -2993,7 +3057,7 @@ $("loginBtn").addEventListener("click", async () => {
       body: JSON.stringify({
         username: $("username").value.trim(),
         password: $("password").value,
-        loginScope: $("loginScope").value,
+        loginScope: "auto",
       }),
     });
     if (!payload.ok || !payload.token) {
@@ -3004,9 +3068,9 @@ $("loginBtn").addEventListener("click", async () => {
     if (payload.user?.company_id) {
       localStorage.setItem(COMPANY_KEY, payload.user.company_id);
     }
+    await loadCompanies();
     showDashboard();
     await applyStartupTabAfterLoad();
-    await loadCompanies();
     await loadPlatformBanner();
     const params = new URLSearchParams(location.search);
     if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
