@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260528f";
+window.__BAUPASS_UI_BUILD = "20260605a";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -22,9 +22,10 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://127.0.0.1:8443",
   "https://localhost:8443",
 ];
-// Only the canonical production API — old Railway hostnames cause CORS errors when tried as fallbacks.
+// Canonical production APIs — try these when same-origin POST returns 405 (static/split deploy).
 const REMOTE_API_BASE_FALLBACKS = [
   DEFAULT_RENDER_API_BASE,
+  "https://baupass-control.up.railway.app",
 ];
 
 function normalizeApiBase(value) {
@@ -104,7 +105,77 @@ function resolveApiBase() {
     return DEFAULT_RENDER_API_BASE;
   }
 
+  const host = window.location.hostname.toLowerCase();
+  if (host.endsWith(".pages.dev") || host.endsWith(".web.app")) {
+    return configuredValue || DEFAULT_RENDER_API_BASE;
+  }
+
   return "";
+}
+
+function buildApiUrl(path) {
+  const normalizedPath = String(path || "").trim();
+  if (/^https?:\/\//i.test(normalizedPath)) {
+    return normalizedPath;
+  }
+  const base = sanitizeApiBase(API_BASE) || window.location.origin.replace(/\/+$/, "");
+  return `${base}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
+}
+
+function apiFallbackCandidatesForRequest(url, { skipOrigin = false } = {}) {
+  const currentBase = sanitizeApiBase(API_BASE);
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(String(url || ""), window.location.origin);
+  } catch {
+    return [];
+  }
+  const requestPath = `${parsedUrl.pathname}${parsedUrl.search}`;
+  if (!requestPath.startsWith("/api/")) {
+    return [];
+  }
+
+  const originBase = window.location.origin.replace(/\/+$/, "");
+  const candidateBases = isLocalHostName(window.location.hostname)
+    ? [...LOCAL_API_BASE_FALLBACKS, ...REMOTE_API_BASE_FALLBACKS]
+    : [...REMOTE_API_BASE_FALLBACKS, ...(skipOrigin ? [] : [originBase])];
+
+  const fallbackOrder = [...candidateBases].sort((a, b) => {
+    const aHttps = a.startsWith("https://") ? 1 : 0;
+    const bHttps = b.startsWith("https://") ? 1 : 0;
+    if (isLocalHostName(window.location.hostname)) {
+      return aHttps - bHttps;
+    }
+    return window.location.protocol === "https:" ? bHttps - aHttps : aHttps - bHttps;
+  });
+
+  const candidates = [];
+  const seenBases = new Set();
+  for (const candidateBaseRaw of fallbackOrder) {
+    const candidateBase = sanitizeApiBase(candidateBaseRaw);
+    if (!candidateBase || candidateBase === currentBase || seenBases.has(candidateBase)) {
+      continue;
+    }
+    let parsedCandidate;
+    try {
+      parsedCandidate = new URL(candidateBase);
+    } catch {
+      continue;
+    }
+    if (window.location.protocol === "https:" && parsedCandidate.protocol !== "https:") {
+      continue;
+    }
+    seenBases.add(candidateBase);
+    candidates.push({
+      base: candidateBase,
+      url: `${candidateBase}${requestPath}`,
+    });
+  }
+  return candidates;
+}
+
+function resolveLocalApiFallbackRequests(url, options = {}) {
+  return apiFallbackCandidatesForRequest(url, options);
 }
 
 let API_BASE = resolveApiBase();
@@ -158,65 +229,45 @@ function switchApiBaseForSession(nextBase) {
   }
 }
 
-function resolveLocalApiFallbackRequests(url) {
-  const currentBase = sanitizeApiBase(API_BASE);
-  let currentHost = "";
-  if (currentBase) {
-    try {
-      currentHost = new URL(currentBase).hostname;
-    } catch {
-      currentHost = "";
+async function ensureControlPassApiBase() {
+  const configured = sanitizeApiBase(API_BASE);
+  const origin = window.location.origin.replace(/\/+$/, "");
+  const basesToTry = [];
+  if (configured) {
+    basesToTry.push(configured);
+  } else if (origin) {
+    basesToTry.push(origin);
+  }
+  REMOTE_API_BASE_FALLBACKS.forEach((base) => {
+    if (!basesToTry.includes(base)) {
+      basesToTry.push(base);
     }
-  }
-  let parsedUrl;
-  try {
-    parsedUrl = new URL(String(url || ""), window.location.origin);
-  } catch {
-    return [];
-  }
-  const requestPath = `${parsedUrl.pathname}${parsedUrl.search}`;
-  if (!requestPath.startsWith("/api/")) {
-    return [];
-  }
-
-  const candidateBases = isLocalHostName(window.location.hostname)
-    ? [...LOCAL_API_BASE_FALLBACKS, ...REMOTE_API_BASE_FALLBACKS]
-    : [window.location.origin, ...REMOTE_API_BASE_FALLBACKS];
-
-  const fallbackOrder = [...candidateBases].sort((a, b) => {
-    const aHttps = a.startsWith("https://") ? 1 : 0;
-    const bHttps = b.startsWith("https://") ? 1 : 0;
-    // On local hosts, prefer plain HTTP dev servers first (usually :8000).
-    if (isLocalHostName(window.location.hostname)) {
-      return aHttps - bHttps;
-    }
-    return window.location.protocol === "https:" ? bHttps - aHttps : aHttps - bHttps;
   });
 
-  const candidates = [];
-  const seenBases = new Set();
-  for (const candidateBaseRaw of fallbackOrder) {
-    const candidateBase = sanitizeApiBase(candidateBaseRaw);
-    if (!candidateBase || candidateBase === currentBase || seenBases.has(candidateBase)) {
-      continue;
-    }
-    let parsedCandidate;
+  for (const base of basesToTry) {
     try {
-      parsedCandidate = new URL(candidateBase);
+      const health = await fetch(`${base}/api/health`, { credentials: "include" });
+      if (!health.ok) {
+        continue;
+      }
+      const probe = await fetch(`${base}/api/companies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (probe.status === 405) {
+        continue;
+      }
+      if (base === origin && !configured) {
+        API_BASE = "";
+      } else if (base !== configured) {
+        switchApiBaseForSession(base);
+      }
+      return;
     } catch {
-      continue;
+      // try next candidate
     }
-    // Avoid CSP violations on HTTPS pages by skipping HTTP fallbacks.
-    if (window.location.protocol === "https:" && parsedCandidate.protocol !== "https:") {
-      continue;
-    }
-    seenBases.add(candidateBase);
-    candidates.push({
-      base: candidateBase,
-      url: `${candidateBase}${requestPath}`,
-    });
   }
-  return candidates;
 }
 
 function loadSupportLoginContext() {
@@ -1093,6 +1144,9 @@ const UI_TRANSLATIONS = {
     passwordSetDialogSubmit: "Passwort speichern",
     passwordSetDialogMismatch: "Passwörter stimmen nicht überein.",
     turnstilePasswordDialogTitle: "Drehkreuz-Passwort zurücksetzen",
+    alertCompanyCreate405: "Firma konnte nicht angelegt werden (405). API-Anfrage landet auf {target}. Das Backend akzeptiert POST dort nicht — prüfen Sie die API-URL oder warten Sie auf das Deploy.",
+    accountPasswordHint: "Hier ändern Sie Ihr persönliches Control-Pass-Login. Firmen-Admin-Passwörter setzen Sie in der Firmenliste (Button „Passwort setzen“).",
+    companyAdminStartPasswordHint: "Startpasswort für den Admin-Login der neuen Firma „{company}“.",
     btnDocInboxRematch: "Neu zuordnen",
     accessFeedbackCheckin: "Zutritt gebucht",
     manualEntryBtn: "Manueller Einlass",
@@ -1771,6 +1825,9 @@ const UI_TRANSLATIONS = {
     passwordSetDialogSubmit: "Save password",
     passwordSetDialogMismatch: "Passwords do not match.",
     turnstilePasswordDialogTitle: "Reset turnstile password",
+    alertCompanyCreate405: "Company could not be created (405). Request landed on {target}. The backend does not accept POST there — check the API URL or wait for deploy.",
+    accountPasswordHint: "Change your personal Control Pass login here. Set company admin passwords in the company list (\"Set password\" button).",
+    companyAdminStartPasswordHint: "Initial password for the new company admin login of \"{company}\".",
     btnDocInboxRematch: "Re-assign",
     manualEntryBtn: "Manual Entry",
     manualEntryTitle: "Manual entry without card / phone",
@@ -17383,6 +17440,7 @@ function startBackendStatusMonitor() {
 
 async function apiRequest(url, options = {}) {
   const { method = "GET", body, auth = true, retries = 1 } = options;
+  const requestUrl = buildApiUrl(url);
   if (auth && !token) {
     handleExpiredControlSession();
     throw new Error("session_expired");
@@ -17405,14 +17463,14 @@ async function apiRequest(url, options = {}) {
 
   let response;
   try {
-    response = await fetch(url, {
+    response = await fetch(requestUrl, {
       method,
       headers,
       credentials: "include",
       body: body === undefined ? undefined : JSON.stringify(body)
     });
   } catch {
-    const fallbacks = resolveLocalApiFallbackRequests(url);
+    const fallbacks = resolveLocalApiFallbackRequests(requestUrl);
     if (!fallbacks.length) {
       throw new Error("backend_unreachable");
     }
@@ -17446,8 +17504,9 @@ async function apiRequest(url, options = {}) {
       requestError.status = response.status;
       throw requestError;
     }
-    if ([502, 503, 504].includes(Number(response.status))) {
-      const fallbacks = resolveLocalApiFallbackRequests(url);
+    if ([405, 502, 503, 504].includes(Number(response.status))) {
+      const skipOrigin = response.status === 405 && normalizedMethod !== "GET";
+      const fallbacks = resolveLocalApiFallbackRequests(requestUrl, { skipOrigin });
       for (const fallback of fallbacks) {
         try {
           const fallbackResponse = await fetch(fallback.url, {
@@ -27801,7 +27860,7 @@ async function handleCompanySubmit(event) {
   }
 
   try {
-    const response = await apiRequest(API_BASE + "/api/companies", {
+    const response = await apiRequest(buildApiUrl("/api/companies"), {
       method: "POST",
       body: {
         turnstileEndpoint: companyTurnstileEndpoint || undefined,
@@ -27888,9 +27947,9 @@ async function handleCompanySubmit(event) {
   } catch (error) {
     if (error.message === "http_405" || error.code === "http_405") {
       showToast(
-        uiT("alertLoginHttp405").replace("{target}", `${API_BASE}/api/companies`),
+        runtimeText("alertCompanyCreate405").replace("{target}", buildApiUrl("/api/companies")),
         "error",
-        5200,
+        6000,
       );
       return;
     }
@@ -27905,6 +27964,20 @@ async function handleCompanySubmit(event) {
       return;
     }
     showToast(uiT("alertCompanyCreateFailed").replace("{error}", error.message));
+  }
+}
+
+function updateCompanyAdminPasswordHint() {
+  const hintEl = document.querySelector("#companyAdminPasswordHint");
+  const nameInput = document.querySelector("#companyName");
+  if (!hintEl) {
+    return;
+  }
+  const companyName = String(nameInput?.value || "").trim();
+  if (companyName) {
+    hintEl.textContent = runtimeText("companyAdminStartPasswordHint").replace("{company}", companyName);
+  } else {
+    hintEl.textContent = runtimeText("companyAdminStartPasswordHint").replace(" „{company}“", "").replace(' "{company}"', "");
   }
 }
 
@@ -29996,13 +30069,22 @@ async function handlePasswordChange(event) {
     showSupportReadOnlyAlert();
     return;
   }
-  const currentPassword = document.querySelector("#currentPassword").value;
-  const newPassword = document.querySelector("#newPassword").value;
+  const currentPassword = document.querySelector("#currentPassword")?.value || "";
+  const newPassword = document.querySelector("#newPassword")?.value || "";
+  const confirmPassword = document.querySelector("#confirmPassword")?.value || "";
+  if (newPassword.length < 8) {
+    showToast(runtimeText("companyAdminPasswordMinLength"), "error");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    showToast(runtimeText("passwordSetDialogMismatch"), "error");
+    return;
+  }
 
   try {
-    await apiRequest(API_BASE + "/api/me/password", {
+    await apiRequest(buildApiUrl("/api/me/password"), {
       method: "POST",
-      body: { currentPassword, newPassword }
+      body: { currentPassword, newPassword },
     });
     showToast(uiT("alertPasswordChanged"), "success");
     await handleLogout();
@@ -33341,8 +33423,10 @@ if (companyForm) {
         companyDocumentEmailInput.value = nextSuggestion;
         lastSuggestedValue = nextSuggestion;
       }
+      updateCompanyAdminPasswordHint();
     });
   }
+  updateCompanyAdminPasswordHint();
 }
 
 if (elements.desktopInstallButton) {
@@ -34263,6 +34347,7 @@ warnStaleControlAssets();
 (async () => {
   const bootLoader = document.getElementById("appBootLoader");
   try {
+    await ensureControlPassApiBase();
     await loadEnterpriseFlags();
     await loadPublicBranding();
     await loadPricingCatalog();

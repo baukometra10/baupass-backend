@@ -1921,6 +1921,7 @@
                 <span data-ui-i18n="labelCompanyAdminPassword">Admin-Startpasswort</span>
                 <input id="companyAdminPassword" type="password" placeholder="z.B. Sicher!2025" autocomplete="new-password" data-ui-i18n="companyAdminPasswordPlaceholder" data-ui-i18n-attr="placeholder" />
               </label>
+              <p id="companyAdminPasswordHint" class="helper-text full-width">Startpasswort für den Admin-Login der neuen Firma.</p>
               <label>
                 <span data-ui-i18n="turnstilePasswordLabel">Drehkreuz-Startpasswort</span>
                 <input id="companyTurnstilePassword" type="password" placeholder="z.B. Gate!2025" autocomplete="new-password" />
@@ -1942,13 +1943,18 @@
               </div>
             </div>
             <form id="passwordForm" class="form-grid compact-grid">
+              <p class="helper-text full-width" data-ui-i18n="accountPasswordHint">Hier ändern Sie Ihr persönliches Control-Pass-Login. Firmen-Admin-Passwörter setzen Sie in der Firmenliste (Button „Passwort setzen“).</p>
               <label>
                 <span data-ui-i18n="labelCurrentPassword">Aktuelles Passwort</span>
                 <input id="currentPassword" type="password" required autocomplete="off" />
               </label>
               <label>
                 <span data-ui-i18n="labelNewPassword">Neues Passwort</span>
-                <input id="newPassword" type="password" minlength="8" required autocomplete="off" />
+                <input id="newPassword" type="password" minlength="8" required autocomplete="new-password" />
+              </label>
+              <label>
+                <span data-ui-i18n="passwordSetDialogConfirmPassword">Passwort bestätigen</span>
+                <input id="confirmPassword" type="password" minlength="8" required autocomplete="new-password" />
               </label>
               <button type="submit" class="ghost-button full-width" data-ui-i18n="btnChangePassword">Passwort ändern</button>
             </form>
@@ -2197,7 +2203,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260605options1"></script>
+  <script src="./app.js?v=20260605a"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
