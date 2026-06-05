@@ -388,31 +388,47 @@ html.embed-document body.ops-app.embed-mode main {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   body:not(.auth-locked) {
-    overflow: auto;
-    height: auto;
-    max-height: none;
+    overflow: hidden;
+    height: 100dvh;
+    max-height: 100dvh;
   }
 
   .shell {
     grid-template-columns: 1fr !important;
-    height: auto;
-    max-height: none;
-    overflow: visible;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    height: auto !important;
+    max-height: min(42vh, 320px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .content {
+    min-height: 0;
     height: auto;
     max-height: none;
-    overflow: visible;
+    overflow: hidden;
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .content .view.active:not(.view-embed) {
+    padding-bottom: 0.5rem;
   }
 
   .content .view.view-embed.active {
-    min-height: 70vh;
+    min-height: 0;
+    flex: 1;
   }
 
   .enterprise-embed-shell {
-    min-height: 68vh;
+    min-height: 0;
+    flex: 1;
   }
 }

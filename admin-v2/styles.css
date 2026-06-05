@@ -1910,7 +1910,24 @@ body.embed-mode.admin-v2-embed .app-content {
 
 body.embed-mode.admin-v2-embed .topbar-compact {
   flex-shrink: 0;
-  padding: 0.6rem 1rem;
+  padding: 0.45rem 0.75rem;
+}
+
+body.embed-mode.admin-v2-embed .topbar-compact .page-title,
+body.embed-mode.admin-v2-embed .topbar-compact #userLine {
+  display: none;
+}
+
+body.embed-mode.admin-v2-embed .topbar-compact .topbar-actions {
+  width: 100%;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+body.embed-mode.admin-v2-embed .topbar-compact .cmd-kbd-btn,
+body.embed-mode.admin-v2-embed .topbar-compact #refreshBtn {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
 }
 
 body.embed-mode.admin-v2-embed #logoutBtn {
