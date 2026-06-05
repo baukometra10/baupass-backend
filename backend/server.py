@@ -327,7 +327,9 @@ _resend_key_cache: dict = {
     "brevo_from_email": "",
 }
 
-app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
+# Do not use static_url_path="" — Flask's built-in static route is GET-only and shadows
+# unregistered /api/* paths (GET 404, POST 405). Static assets are served via http blueprint.
+app = Flask(__name__, static_folder=None)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 REQUEST_ID_HEADER = "X-Request-Id"
@@ -21396,6 +21398,11 @@ def api_health():
             },
             "architecture": {
                 "modularBlueprints": app.extensions.get("modular_blueprints", []),
+                "domainBlueprints": app.extensions.get("domain_blueprints", []),
+                "apiRouteProbe": {
+                    "companiesGetPost": {"GET", "POST"}.issubset(_route_methods_for("/api/companies")),
+                    "settingsGet": "GET" in _route_methods_for("/api/settings"),
+                },
                 "platformEnabled": os.getenv("BAUPASS_PLATFORM_ENABLED", "1")
                 not in {"0", "false", "no"},
                 "runtime": app.extensions.get("runtime_summary", {}),
@@ -24612,15 +24619,89 @@ def gate_ingest():
     return jsonify({**response_payload, "readerType": adapter.reader_type}), status_code
 
 
+def _route_methods_for(path: str) -> set[str]:
+    methods: set[str] = set()
+    for rule in app.url_map.iter_rules():
+        if rule.rule == path:
+            methods.update(rule.methods - {"HEAD", "OPTIONS"})
+    return methods
+
+
+def _patch_api_route(path: str, view_func, methods: tuple[str, ...], endpoint: str) -> None:
+    if set(methods).issubset(_route_methods_for(path)):
+        return
+    app.add_url_rule(path, endpoint=endpoint, view_func=view_func, methods=list(methods))
+    print(f"[baupass] patched API route {list(methods)} {path}", flush=True)
+
+
+def _ensure_critical_api_routes() -> None:
+    """Safety net when domain blueprints fail — keeps Control Pass admin usable."""
+    if {"GET", "POST"}.issubset(_route_methods_for("/api/companies")) and "GET" in _route_methods_for("/api/settings"):
+        return
+
+    print("[baupass] WARNING: critical domain routes missing — applying direct route patches", flush=True)
+    _patch_api_route("/api/companies", companies_collection, ("GET", "POST"), "core_companies_collection")
+    _patch_api_route("/api/settings", get_settings, ("GET",), "core_settings_get")
+    _patch_api_route("/api/settings", update_settings, ("PUT",), "core_settings_put")
+    _patch_api_route("/api/subcompanies", list_subcompanies, ("GET",), "core_subcompanies_list")
+    _patch_api_route("/api/subcompanies", create_subcompany, ("POST",), "core_subcompanies_create")
+    _patch_api_route("/api/invoices", list_invoices, ("GET",), "core_invoices_list")
+    _patch_api_route("/api/access-logs", list_access_logs, ("GET",), "core_access_logs_list")
+    _patch_api_route("/api/access-logs/latest", list_latest_access_logs, ("GET",), "core_access_logs_latest")
+    _patch_api_route("/api/access-logs/summary", access_summary, ("GET",), "core_access_logs_summary")
+    _patch_api_route("/api/access-logs/day-close-check", access_day_close_check, ("GET",), "core_access_day_close")
+    _patch_api_route("/api/audit-logs", list_audit_logs, ("GET",), "core_audit_logs")
+    _patch_api_route("/api/admin/devices", list_devices, ("GET",), "core_admin_devices")
+    _patch_api_route("/api/compliance/overview", compliance_overview, ("GET",), "core_compliance_overview")
+    _patch_api_route("/api/compliance/expiring-docs", compliance_expiring_docs, ("GET",), "core_compliance_expiring")
+    _patch_api_route("/api/gates/ops-metrics", gate_ops_metrics, ("GET",), "core_gate_ops_metrics")
+    _patch_api_route("/api/operations/snapshot", operations_snapshot, ("GET",), "core_operations_snapshot")
+
+
+def _retry_failed_domain_blueprints() -> None:
+    from backend.app.domains._routes import clear_routes_mounted
+    from backend.app.domains.registry import DOMAIN_REGISTRARS
+
+    if {"GET", "POST"}.issubset(_route_methods_for("/api/companies")):
+        return
+
+    mount_keys = {
+        "settings": "settings",
+        "companies": "companies",
+        "access": "access",
+        "billing": "billing",
+        "compliance": "compliance",
+        "operations": "operations",
+        "admin": "admin",
+        "documents": "documents",
+        "rbac": "rbac",
+        "reporting": "reporting",
+    }
+    for entry in DOMAIN_REGISTRARS:
+        key = mount_keys.get(entry.name)
+        if not key:
+            continue
+        clear_routes_mounted(key)
+        try:
+            mod = __import__(entry.module, fromlist=[entry.registrar])
+            getattr(mod, entry.registrar)(app)
+            print(f"[baupass] retried domain blueprint: {entry.name}", flush=True)
+        except Exception as exc:
+            print(f"[baupass] domain retry failed ({entry.name}): {exc}", flush=True)
+
+
 try:
     from backend.app.api.blueprint_registry import register_modular_blueprints
 
     register_modular_blueprints(app)
+    _retry_failed_domain_blueprints()
+    _ensure_critical_api_routes()
 except Exception as _blueprint_exc:
     import traceback as _bp_tb
 
     print(f"[baupass] CRITICAL: blueprint registry failed: {_blueprint_exc}", flush=True)
     _bp_tb.print_exc()
+    _ensure_critical_api_routes()
 
 
 if __name__ == "__main__":

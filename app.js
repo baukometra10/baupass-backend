@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260605a";
+window.__BAUPASS_UI_BUILD = "20260605b";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -22,11 +22,15 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://127.0.0.1:8443",
   "https://localhost:8443",
 ];
-// Canonical production APIs — try these when same-origin POST returns 405 (static/split deploy).
+// Single canonical production API. Do not add other Railway hostnames — cross-origin CORS fails.
 const REMOTE_API_BASE_FALLBACKS = [
   DEFAULT_RENDER_API_BASE,
-  "https://baupass-control.up.railway.app",
 ];
+
+function isKnownProductionApiHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host.endsWith(".up.railway.app") || host.endsWith(".onrender.com");
+}
 
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -136,9 +140,12 @@ function apiFallbackCandidatesForRequest(url, { skipOrigin = false } = {}) {
   }
 
   const originBase = window.location.origin.replace(/\/+$/, "");
+  const onProductionHost = isKnownProductionApiHost(window.location.hostname);
   const candidateBases = isLocalHostName(window.location.hostname)
     ? [...LOCAL_API_BASE_FALLBACKS, ...REMOTE_API_BASE_FALLBACKS]
-    : [...REMOTE_API_BASE_FALLBACKS, ...(skipOrigin ? [] : [originBase])];
+    : onProductionHost
+      ? [...(skipOrigin ? [] : [originBase])]
+      : [...REMOTE_API_BASE_FALLBACKS, ...(skipOrigin ? [] : [originBase])];
 
   const fallbackOrder = [...candidateBases].sort((a, b) => {
     const aHttps = a.startsWith("https://") ? 1 : 0;
@@ -230,8 +237,19 @@ function switchApiBaseForSession(nextBase) {
 }
 
 async function ensureControlPassApiBase() {
-  const configured = sanitizeApiBase(API_BASE);
   const origin = window.location.origin.replace(/\/+$/, "");
+  if (isKnownProductionApiHost(window.location.hostname)) {
+    // Production serves API on same origin — never probe other Railway hosts (CORS).
+    API_BASE = "";
+    try {
+      window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  const configured = sanitizeApiBase(API_BASE);
   const basesToTry = [];
   if (configured) {
     basesToTry.push(configured);
@@ -255,7 +273,8 @@ async function ensureControlPassApiBase() {
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
-      if (probe.status === 405) {
+      // 401/403 = route exists; 404/405 = wrong host or broken API surface
+      if ([404, 405].includes(probe.status)) {
         continue;
       }
       if (base === origin && !configured) {

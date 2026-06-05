@@ -13,6 +13,10 @@ def routes_already_mounted(key: str) -> bool:
     return key in _ROUTES_MOUNTED
 
 
+def clear_routes_mounted(key: str) -> None:
+    _ROUTES_MOUNTED.discard(key)
+
+
 def mark_routes_mounted(key: str) -> None:
     _ROUTES_MOUNTED.add(key)
 
