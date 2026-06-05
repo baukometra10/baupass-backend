@@ -195,6 +195,51 @@ class CompaniesServiceTest(unittest.TestCase):
         row = self.conn.execute("SELECT name FROM companies WHERE id = ?", ("cmp-a",)).fetchone()
         self.assertEqual(row["name"], "Alpha Renamed")
 
+    @patch("backend.server.rematch_inbox_company_links")
+    def test_update_company_rejects_oversized_logo(self, _rematch):
+        self.conn.executescript(
+            """
+            DROP TABLE companies;
+            CREATE TABLE companies (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                plan TEXT,
+                deleted_at TEXT,
+                customer_number TEXT,
+                contact TEXT,
+                billing_email TEXT,
+                billing_street TEXT,
+                billing_zip_city TEXT,
+                document_email TEXT,
+                access_host TEXT,
+                branding_preset TEXT,
+                status TEXT,
+                trial_ends_at TEXT,
+                invoice_email_lang TEXT,
+                portal_display_name TEXT,
+                branding_accent_color TEXT,
+                branding_logo_data TEXT,
+                report_timezone TEXT,
+                operating_sector TEXT
+            );
+            INSERT INTO companies (
+                id, name, plan, deleted_at, customer_number, contact, billing_email,
+                billing_street, billing_zip_city, document_email, access_host,
+                branding_preset, status, trial_ends_at, invoice_email_lang,
+                portal_display_name, branding_accent_color, branding_logo_data,
+                report_timezone, operating_sector
+            ) VALUES (
+                'cmp-a', 'Alpha', 'enterprise', NULL, 'K001', '', '', '', '', '', '',
+                '', 'aktiv', '', 'de', '', '', '', '', 'construction'
+            );
+            """
+        )
+        self.conn.commit()
+        huge = "data:image/png;base64," + ("A" * 200_000)
+        result = self.svc.update_company(self.conn, "cmp-a", {"brandingLogoData": huge})
+        self.assertEqual(result["status"], 400)
+        self.assertEqual(result["error"]["error"], "logo_too_large")
+
     def test_update_company_not_found(self):
         result = self.svc.update_company(self.conn, "missing", {"name": "X"})
         self.assertEqual(result["status"], 404)

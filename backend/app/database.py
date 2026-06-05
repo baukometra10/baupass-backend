@@ -319,12 +319,23 @@ def get_database_health(config: Optional[dict[str, Any]] = None) -> dict[str, An
         with sqlite3.connect(str(db_path), timeout=5) as conn:
             conn.execute("SELECT 1").fetchone()
             db_size = db_path.stat().st_size if db_path.exists() else 0
+            companies_total = 0
+            companies_active = 0
+            try:
+                companies_total = int(conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0])
+                companies_active = int(
+                    conn.execute("SELECT COUNT(*) FROM companies WHERE deleted_at IS NULL").fetchone()[0]
+                )
+            except sqlite3.Error:
+                pass
         return {
             "backend": "sqlite",
             "enabled": True,
             "status": "ok",
             "path": str(db_path),
             "size_bytes": db_size,
+            "companies_total": companies_total,
+            "companies_active": companies_active,
         }
     except Exception as exc:
         return {"backend": "sqlite", "enabled": True, "status": "error", "error": str(exc)}

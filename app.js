@@ -8375,6 +8375,7 @@ const state = {
     turnstileEndpoint: ""
   },
   companies: [],
+  companiesLoadError: "",
   subcompanies: [],
   workers: [],
   accessLogs: [],
@@ -8668,6 +8669,11 @@ function getRuntimeUiTexts() {
     approvalApproveBtn: "Approve",
     approvalRejectBtn: "Reject",
     companyListEmpty: "No companies yet.",
+    companyListLoadFailed: "Could not load companies: {error}",
+    companyListEmptySuspicious: "No companies in the database. Check platform health on the dashboard or verify the DB volume is mounted.",
+    brandingLogoTooLarge: "Logo too large (max. approx. 130 KB).",
+    brandingLogoInvalidFormat: "Logo must be PNG, JPG, WebP, or a valid image URL.",
+    brandingLogoReadFailed: "Logo file could not be read.",
     companyRepairHistoryEmpty: "No repairs in the selected period.",
     turnstileAccountsTitle: "Turnstile accounts",
     turnstileDefaultName: "Turnstile",
@@ -9514,6 +9520,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "Freigeben",
       approvalRejectBtn: "Ablehnen",
       companyListEmpty: "Noch keine Firmen vorhanden.",
+      companyListLoadFailed: "Firmen konnten nicht geladen werden: {error}",
+      companyListEmptySuspicious: "Keine Firmen in der Datenbank. Prüfen Sie die Plattform-Gesundheit im Dashboard oder ob das DB-Volume persistent gemountet ist.",
+      brandingLogoTooLarge: "Logo zu groß (max. ca. 130 KB).",
+      brandingLogoInvalidFormat: "Logo muss PNG, JPG, WebP oder eine gültige Bild-URL sein.",
+      brandingLogoReadFailed: "Logo-Datei konnte nicht gelesen werden.",
       companyRepairHistoryEmpty: "Keine Reparaturen im gewaelten Zeitraum.",
       turnstileAccountsTitle: "Drehkreuz-Accounts",
       turnstileDefaultName: "Drehkreuz",
@@ -10351,6 +10362,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "Onayla",
       approvalRejectBtn: "Reddet",
       companyListEmpty: "Henüz şirket yok.",
+      companyListLoadFailed: "Şirketler yüklenemedi: {error}",
+      companyListEmptySuspicious: "Veritabanında şirket yok. Dashboard'daki platform sağlığını veya DB biriminin kalıcı bağlı olup olmadığını kontrol edin.",
+      brandingLogoTooLarge: "Logo çok büyük (yaklaşık 130 KB sınırı).",
+      brandingLogoInvalidFormat: "Logo PNG, JPG, WebP veya geçerli bir görsel URL olmalıdır.",
+      brandingLogoReadFailed: "Logo dosyası okunamadı.",
       companyRepairHistoryEmpty: "Seçilen dönemde onarım yok.",
       turnstileAccountsTitle: "Turnike hesapları",
       turnstileDefaultName: "Turnike",
@@ -11153,6 +11169,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "موافقة",
       approvalRejectBtn: "رفض",
       companyListEmpty: "لا توجد شركات بعد.",
+      companyListLoadFailed: "تعذر تحميل الشركات: {error}",
+      companyListEmptySuspicious: "لا توجد شركات في قاعدة البيانات. تحقق من صحة المنصة في لوحة التحكم أو من أن وحدة التخزين الدائمة للقاعدة مُفعّلة.",
+      brandingLogoTooLarge: "الشعار كبير جداً (الحد الأقصى تقريباً 130 كيلوبايت).",
+      brandingLogoInvalidFormat: "يجب أن يكون الشعار PNG أو JPG أو WebP أو رابط صورة صالح.",
+      brandingLogoReadFailed: "تعذر قراءة ملف الشعار.",
       companyRepairHistoryEmpty: "لا توجد إصلاحات في الفترة المحددة.",
       turnstileAccountsTitle: "حسابات البوابة الدوارة",
       turnstileDefaultName: "بوابة دوارة",
@@ -11955,6 +11976,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "Approuver",
       approvalRejectBtn: "Rejeter",
       companyListEmpty: "Aucune entreprise pour l'instant.",
+      companyListLoadFailed: "Impossible de charger les entreprises : {error}",
+      companyListEmptySuspicious: "Aucune entreprise dans la base. Vérifiez la santé de la plateforme ou le volume DB persistant.",
+      brandingLogoTooLarge: "Logo trop volumineux (max. env. 130 Ko).",
+      brandingLogoInvalidFormat: "Le logo doit être PNG, JPG, WebP ou une URL d'image valide.",
+      brandingLogoReadFailed: "Impossible de lire le fichier logo.",
       companyRepairHistoryEmpty: "Aucune réparation sur la période sélectionnée.",
       turnstileAccountsTitle: "Comptes de tourniquet",
       turnstileDefaultName: "Tourniquet",
@@ -12757,6 +12783,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "Aprobar",
       approvalRejectBtn: "Rechazar",
       companyListEmpty: "Aún no hay empresas.",
+      companyListLoadFailed: "No se pudieron cargar las empresas: {error}",
+      companyListEmptySuspicious: "No hay empresas en la base de datos. Revise la salud de la plataforma o el volumen persistente de la DB.",
+      brandingLogoTooLarge: "Logo demasiado grande (máx. aprox. 130 KB).",
+      brandingLogoInvalidFormat: "El logo debe ser PNG, JPG, WebP o una URL de imagen válida.",
+      brandingLogoReadFailed: "No se pudo leer el archivo del logo.",
       companyRepairHistoryEmpty: "No hay reparaciones en el período seleccionado.",
       turnstileAccountsTitle: "Cuentas de torniquete",
       turnstileDefaultName: "Torniquete",
@@ -13559,6 +13590,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "Approva",
       approvalRejectBtn: "Rifiuta",
       companyListEmpty: "Nessuna azienda ancora.",
+      companyListLoadFailed: "Impossibile caricare le aziende: {error}",
+      companyListEmptySuspicious: "Nessuna azienda nel database. Controlla lo stato della piattaforma o il volume DB persistente.",
+      brandingLogoTooLarge: "Logo troppo grande (max. ca. 130 KB).",
+      brandingLogoInvalidFormat: "Il logo deve essere PNG, JPG, WebP o un URL immagine valido.",
+      brandingLogoReadFailed: "Impossibile leggere il file del logo.",
       companyRepairHistoryEmpty: "Nessuna riparazione nel periodo selezionato.",
       turnstileAccountsTitle: "Account tornello",
       turnstileDefaultName: "Tornello",
@@ -14361,6 +14397,11 @@ function getRuntimeUiTexts() {
       approvalApproveBtn: "Zatwierdź",
       approvalRejectBtn: "Odrzuć",
       companyListEmpty: "Brak firm.",
+      companyListLoadFailed: "Nie udało się załadować firm: {error}",
+      companyListEmptySuspicious: "Brak firm w bazie. Sprawdź stan platformy lub trwały wolumen DB.",
+      brandingLogoTooLarge: "Logo jest za duże (maks. ok. 130 KB).",
+      brandingLogoInvalidFormat: "Logo musi być PNG, JPG, WebP lub prawidłowym adresem URL obrazu.",
+      brandingLogoReadFailed: "Nie udało się odczytać pliku logo.",
       companyRepairHistoryEmpty: "Brak napraw w wybranym okresie.",
       turnstileAccountsTitle: "Konta bramki obrotowej",
       turnstileDefaultName: "Bramka obrotowa",
@@ -18081,6 +18122,7 @@ async function loadAllData() {
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
   }
   if (companies.status === "fulfilled") {
+    state.companiesLoadError = "";
     state.companies = companies.value || [];
     // Branding-Override nach Laden der Unternehmen auflösen (bei wiederhergestellter Vorschau-Session)
     if (superadminUiPreviewCompanyId && !companyBrandingPreviewOverride) {
@@ -18088,6 +18130,14 @@ async function loadAllData() {
       if (previewCompany) {
         companyBrandingPreviewOverride = getCompanyBrandingPreset(previewCompany);
       }
+    }
+  } else {
+    const loadErr = companies.reason;
+    state.companiesLoadError = String(
+      loadErr?.payload?.message || loadErr?.message || loadErr?.code || "load_failed"
+    );
+    if (!Array.isArray(state.companies) || !state.companies.length) {
+      state.companies = [];
     }
   }
   if (subcompanies.status === "fulfilled") state.subcompanies = subcompanies.value || [];
@@ -19991,6 +20041,47 @@ function updateTopbarActionsState(loggedIn) {
 
 let companyBrandingPdfPreviewUrl = "";
 
+const BRANDING_LOGO_MAX_FILE_BYTES = 131072;
+const BRANDING_LOGO_MAX_DATA_URL_LEN = 180000;
+
+function validateBrandingLogoFile(file) {
+  if (!file) return null;
+  if (!String(file.type || "").startsWith("image/")) {
+    return "brandingLogoInvalidFormat";
+  }
+  if (Number(file.size || 0) > BRANDING_LOGO_MAX_FILE_BYTES) {
+    return "brandingLogoTooLarge";
+  }
+  return null;
+}
+
+function readBrandingLogoFile(file) {
+  const validationError = validateBrandingLogoFile(file);
+  if (validationError) {
+    return Promise.reject(new Error(runtimeText(validationError)));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (dataUrl.length > BRANDING_LOGO_MAX_DATA_URL_LEN) {
+        reject(new Error(runtimeText("brandingLogoTooLarge")));
+        return;
+      }
+      resolve(dataUrl);
+    };
+    reader.onerror = () => reject(new Error(runtimeText("brandingLogoReadFailed")));
+    reader.readAsDataURL(file);
+  });
+}
+
+function resolveBrandingSaveErrorMessage(error) {
+  const code = String(error?.code || error?.payload?.error || "").trim();
+  if (code === "logo_too_large") return runtimeText("brandingLogoTooLarge");
+  if (code === "logo_invalid_format") return runtimeText("brandingLogoInvalidFormat");
+  return String(error?.payload?.message || error?.message || code || "error");
+}
+
 async function persistCompanyBrandingFromCard(companyId) {
   const company = state.companies.find((entry) => entry.id === companyId);
   if (!company) {
@@ -20004,12 +20095,7 @@ async function persistCompanyBrandingFromCard(companyId) {
   const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
   let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
   if (logoInput?.files?.[0]) {
-    brandingLogoData = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("logo_read_failed"));
-      reader.readAsDataURL(logoInput.files[0]);
-    });
+    brandingLogoData = await readBrandingLogoFile(logoInput.files[0]);
   }
   await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
     method: "PUT",
@@ -21688,7 +21774,16 @@ async function renderPhotoOverrideApprovalPanel() {
 function renderCompanyList() {
   if (!elements.companyList) return;
   if (!state.companies.length) {
-    elements.companyList.innerHTML = `<div class="empty-state">${escapeHtml(runtimeText("companyListEmpty"))}</div>`;
+    if (state.companiesLoadError) {
+      elements.companyList.innerHTML = `<div class="empty-state"><p class="helper-text helper-text-warning">${escapeHtml(
+        runtimeText("companyListLoadFailed").replace("{error}", state.companiesLoadError)
+      )}</p></div>`;
+      return;
+    }
+    const emptyText = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin"
+      ? runtimeText("companyListEmptySuspicious")
+      : runtimeText("companyListEmpty");
+    elements.companyList.innerHTML = `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
     return;
   }
   const userRole = getEffectiveUiRole();
@@ -22819,14 +22914,10 @@ function bindCompanyRowActions() {
       const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
       const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
       const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
+      const card = brandingSaveButton.closest(".card-item");
       let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
       if (logoInput?.files?.[0]) {
-        brandingLogoData = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || ""));
-          reader.onerror = () => reject(new Error("logo_read_failed"));
-          reader.readAsDataURL(logoInput.files[0]);
-        });
+        brandingLogoData = await readBrandingLogoFile(logoInput.files[0]);
       }
       try {
         await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
@@ -22841,7 +22932,7 @@ function bindCompanyRowActions() {
             portalDisplayName: String(portalNameInput?.value || "").trim(),
             reportTimezone: String(tzInput?.value || "").trim(),
             operatingSector: String(
-              card.querySelector("[data-company-operating-sector]")?.value
+              card?.querySelector("[data-company-operating-sector]")?.value
                 || company.operating_sector
                 || company.operatingSector
                 || "construction",
@@ -22857,7 +22948,7 @@ function bindCompanyRowActions() {
         await loadAllData();
         refreshAll();
       } catch (error) {
-        showToast(uiT("alertBrandingPresetSaveFailed").replace("{error}", error.message));
+        showToast(uiT("alertBrandingPresetSaveFailed").replace("{error}", resolveBrandingSaveErrorMessage(error)));
       }
       return;
     }

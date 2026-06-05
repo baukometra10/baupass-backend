@@ -372,7 +372,6 @@ class CompaniesService:
             default_company_trial_end_iso,
             get_next_customer_number,
             normalize_branding_accent,
-            normalize_branding_logo_data,
             normalize_branding_preset,
             normalize_company_trial_end,
             normalize_email_address,
@@ -381,6 +380,7 @@ class CompaniesService:
             rematch_inbox_company_links,
             sanitize_customer_number,
             suggest_company_document_email,
+            validate_branding_logo_data,
         )
 
         company = self.companies.get_by_id(db, company_id)
@@ -451,11 +451,23 @@ class CompaniesService:
         else:
             branding_accent_color = normalize_branding_accent(company.get("branding_accent_color") or "")
         if "brandingLogoData" in payload or "branding_logo_data" in payload:
-            branding_logo_data = normalize_branding_logo_data(
+            branding_logo_data, logo_error = validate_branding_logo_data(
                 payload.get("brandingLogoData", payload.get("branding_logo_data", ""))
             )
+            if logo_error:
+                messages = {
+                    "logo_too_large": "Logo zu groß (max. ca. 130 KB als PNG/JPG).",
+                    "logo_invalid_format": "Logo muss ein Bild (PNG/JPG/WebP) oder eine gültige URL sein.",
+                }
+                return {
+                    "error": {
+                        "error": logo_error,
+                        "message": messages.get(logo_error, "Ungültiges Logo."),
+                    },
+                    "status": 400,
+                }
         else:
-            branding_logo_data = normalize_branding_logo_data(company.get("branding_logo_data") or "")
+            branding_logo_data, _logo_error = validate_branding_logo_data(company.get("branding_logo_data") or "")
         if "reportTimezone" in payload or "report_timezone" in payload:
             report_timezone = clean_text_input(
                 payload.get("reportTimezone", payload.get("report_timezone", "")),

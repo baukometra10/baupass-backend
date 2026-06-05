@@ -4465,7 +4465,18 @@ def require_auth(handler):
         g.current_user = user_payload
         g.token = token
         g.current_session = row_to_dict(session)
-        g.preview_company_id = user_payload["preview_company_id"] if user_payload.get("role") == "superadmin" else ""
+        preview_id = user_payload["preview_company_id"] if user_payload.get("role") == "superadmin" else ""
+        if preview_id:
+            preview_row = db.execute(
+                "SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL",
+                (preview_id,),
+            ).fetchone()
+            if not preview_row:
+                db.execute("UPDATE sessions SET preview_company_id = NULL WHERE token = ?", (token,))
+                db.commit()
+                preview_id = ""
+                user_payload["preview_company_id"] = ""
+        g.preview_company_id = preview_id
         return handler(*args, **kwargs)
 
     return wrapper
@@ -9218,12 +9229,12 @@ def list_companies():
     from backend.app.domains.companies.service import CompaniesService
 
     include_deleted = request.args.get("includeDeleted", "0") == "1"
-    preview_id = getattr(g, "preview_company_id", "") or ""
+    # Admin company management always lists all tenants; preview session must not hide firms.
     items = CompaniesService().list_companies(
         get_db(),
         g.current_user,
         include_deleted=include_deleted,
-        preview_company_id=preview_id,
+        preview_company_id="",
     )
     return jsonify(items)
 
@@ -21477,6 +21488,7 @@ from backend.app.platform.company_branding import (
     normalize_branding_accent,
     normalize_branding_logo_data,
     normalize_portal_display_name,
+    validate_branding_logo_data,
 )
 DOC_TYPES_WITH_REQUIRED_EXPIRY = {
     "personalausweis",
