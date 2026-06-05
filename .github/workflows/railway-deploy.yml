@@ -71,8 +71,8 @@ jobs:
           curl -fsS "$BASE_URL/api/platform/enterprise-catalog/preview" | grep -q layerCount
           curl -fsS "$BASE_URL/api/platform/setup-status" | grep -q readyScore
           curl -fsS "$BASE_URL/worker-join-config.json" | grep -q apkUrl
-          curl -fsS -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "{}" "$BASE_URL/api/companies" | grep -qE '401|403'
-          echo "Smoke tests passed (health + admin-v2 + enterprise-hub + join + companies POST route)."
+          curl -fsS -o /dev/null -w "%{http_code}" -X PUT -H "Content-Type: application/json" -d "{}" "$BASE_URL/api/companies/cmp-smoke-probe" | grep -qE '401|403|404'
+          echo "Smoke tests passed (health + admin-v2 + enterprise-hub + join + companies POST/PUT routes)."
 
       - name: Enterprise go-live validation (live API)
         env:

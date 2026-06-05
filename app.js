@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260605b";
+window.__BAUPASS_UI_BUILD = "20260605c";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -20209,7 +20209,7 @@ async function persistCompanyBrandingFromCard(companyId) {
   if (logoInput?.files?.[0]) {
     brandingLogoData = await readBrandingLogoFile(logoInput.files[0]);
   }
-  await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+  await apiRequest(buildApiUrl(`/api/companies/${companyId}`), {
     method: "PUT",
     body: {
       name: company.name,
@@ -20255,7 +20255,7 @@ async function openCompanyBrandingPdfPreview(companyId) {
       params.set("company_id", companyId);
     }
     const q = params.toString() ? `?${params.toString()}` : "";
-    const res = await fetch(`${API_BASE}/api/workforce/deployment-plan/pdf/branding-preview${q}`, {
+    const res = await fetch(buildApiUrl(`/api/workforce/deployment-plan/pdf/branding-preview${q}`), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -20267,7 +20267,10 @@ async function openCompanyBrandingPdfPreview(companyId) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || err.error || res.statusText);
+      if (res.status === 405) {
+        throw new Error(runtimeText("alertCompanyCreate405").replace("{target}", buildApiUrl("/api/workforce/deployment-plan/pdf/branding-preview")));
+      }
+      throw new Error(err.message || err.error || `http_${res.status}`);
     }
     const blob = await res.blob();
     if (companyBrandingPdfPreviewUrl) {
@@ -20277,7 +20280,10 @@ async function openCompanyBrandingPdfPreview(companyId) {
     frame.src = companyBrandingPdfPreviewUrl;
     modal.classList.remove("hidden");
   } catch (error) {
-    showToast(error.message || String(error), "error", 6000);
+    const message = error?.code === "http_405" || error?.message === "http_405"
+      ? runtimeText("alertCompanyCreate405").replace("{target}", buildApiUrl(`/api/companies/${companyId}`))
+      : (error.message || String(error));
+    showToast(message, "error", 6000);
   }
 }
 

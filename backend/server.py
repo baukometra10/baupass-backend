@@ -21401,7 +21401,10 @@ def api_health():
                 "domainBlueprints": app.extensions.get("domain_blueprints", []),
                 "apiRouteProbe": {
                     "companiesGetPost": {"GET", "POST"}.issubset(_route_methods_for("/api/companies")),
+                    "companiesPut": "PUT" in _route_methods_for("/api/companies/<company_id>"),
                     "settingsGet": "GET" in _route_methods_for("/api/settings"),
+                    "deploymentBrandingPreviewPost": "POST"
+                    in _route_methods_for("/api/workforce/deployment-plan/pdf/branding-preview"),
                 },
                 "platformEnabled": os.getenv("BAUPASS_PLATFORM_ENABLED", "1")
                 not in {"0", "false", "no"},
@@ -24636,11 +24639,35 @@ def _patch_api_route(path: str, view_func, methods: tuple[str, ...], endpoint: s
 
 def _ensure_critical_api_routes() -> None:
     """Safety net when domain blueprints fail — keeps Control Pass admin usable."""
-    if {"GET", "POST"}.issubset(_route_methods_for("/api/companies")) and "GET" in _route_methods_for("/api/settings"):
-        return
+    missing_core = not (
+        {"GET", "POST"}.issubset(_route_methods_for("/api/companies"))
+        and "PUT" in _route_methods_for("/api/companies/<company_id>")
+        and "GET" in _route_methods_for("/api/settings")
+    )
+    if missing_core:
+        print("[baupass] WARNING: critical domain routes missing — applying direct route patches", flush=True)
 
-    print("[baupass] WARNING: critical domain routes missing — applying direct route patches", flush=True)
     _patch_api_route("/api/companies", companies_collection, ("GET", "POST"), "core_companies_collection")
+    _patch_api_route("/api/companies/<company_id>", update_company, ("PUT",), "core_company_update")
+    _patch_api_route("/api/companies/<company_id>", delete_company, ("DELETE",), "core_company_delete")
+    _patch_api_route(
+        "/api/companies/<company_id>/set-admin-password",
+        set_company_admin_password,
+        ("POST",),
+        "core_company_set_admin_password",
+    )
+    _patch_api_route(
+        "/api/companies/<company_id>/plan-features",
+        get_company_plan_features,
+        ("GET",),
+        "core_company_plan_features",
+    )
+    _patch_api_route(
+        "/api/companies/<company_id>/turnstiles",
+        list_company_turnstiles,
+        ("GET",),
+        "core_company_turnstiles",
+    )
     _patch_api_route("/api/settings", get_settings, ("GET",), "core_settings_get")
     _patch_api_route("/api/settings", update_settings, ("PUT",), "core_settings_put")
     _patch_api_route("/api/subcompanies", list_subcompanies, ("GET",), "core_subcompanies_list")
@@ -24658,11 +24685,24 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/operations/snapshot", operations_snapshot, ("GET",), "core_operations_snapshot")
 
 
+def _ensure_platform_workforce_routes() -> None:
+    preview_path = "/api/workforce/deployment-plan/pdf/branding-preview"
+    if "POST" in _route_methods_for(preview_path):
+        return
+    try:
+        from backend.app.platform.workforce.deployment_routes import register_workforce_blueprint
+
+        register_workforce_blueprint(app)
+        print("[baupass] registered platform workforce deployment routes", flush=True)
+    except Exception as exc:
+        print(f"[baupass] platform workforce routes failed: {exc}", flush=True)
+
+
 def _retry_failed_domain_blueprints() -> None:
     from backend.app.domains._routes import clear_routes_mounted
     from backend.app.domains.registry import DOMAIN_REGISTRARS
 
-    if {"GET", "POST"}.issubset(_route_methods_for("/api/companies")):
+    if {"GET", "POST"}.issubset(_route_methods_for("/api/companies")) and "PUT" in _route_methods_for("/api/companies/<company_id>"):
         return
 
     mount_keys = {
@@ -24696,12 +24736,14 @@ try:
     register_modular_blueprints(app)
     _retry_failed_domain_blueprints()
     _ensure_critical_api_routes()
+    _ensure_platform_workforce_routes()
 except Exception as _blueprint_exc:
     import traceback as _bp_tb
 
     print(f"[baupass] CRITICAL: blueprint registry failed: {_blueprint_exc}", flush=True)
     _bp_tb.print_exc()
     _ensure_critical_api_routes()
+    _ensure_platform_workforce_routes()
 
 
 if __name__ == "__main__":
