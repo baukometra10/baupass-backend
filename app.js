@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260605c";
+window.__BAUPASS_UI_BUILD = "20260605d";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -20279,6 +20279,7 @@ async function openCompanyBrandingPdfPreview(companyId) {
     companyBrandingPdfPreviewUrl = URL.createObjectURL(blob);
     frame.src = companyBrandingPdfPreviewUrl;
     modal.classList.remove("hidden");
+    modal.dataset.open = "1";
   } catch (error) {
     const message = error?.code === "http_405" || error?.message === "http_405"
       ? runtimeText("alertCompanyCreate405").replace("{target}", buildApiUrl(`/api/companies/${companyId}`))
@@ -20292,6 +20293,7 @@ function closeCompanyBrandingPdfModal() {
   const frame = document.getElementById("companyBrandingPdfFrame");
   if (modal) {
     modal.classList.add("hidden");
+    delete modal.dataset.open;
   }
   if (frame) {
     frame.removeAttribute("src");
@@ -31801,19 +31803,39 @@ document.getElementById("cpDeploymentOpenBetriebBtn")?.addEventListener("click",
   requestEinsatzplanEditor();
 });
 
-document.getElementById("companyBrandingPdfCloseBtn")?.addEventListener("click", closeCompanyBrandingPdfModal);
-document.getElementById("companyBrandingPdfModal")?.addEventListener("click", (event) => {
-  if (event.target?.id === "companyBrandingPdfModal") {
+function bindCompanyBrandingPdfModalControls() {
+  document.getElementById("companyBrandingPdfCloseBtn")?.addEventListener("click", (event) => {
+    event.preventDefault();
     closeCompanyBrandingPdfModal();
+  });
+  document.getElementById("companyBrandingPdfModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "companyBrandingPdfModal") {
+      closeCompanyBrandingPdfModal();
+    }
+  });
+  document.getElementById("companyBrandingPdfPrintBtn")?.addEventListener("click", () => {
+    const frame = document.getElementById("companyBrandingPdfFrame");
+    try {
+      frame?.contentWindow?.focus();
+      frame?.contentWindow?.print();
+    } catch {
+      showToast(runtimeText("commonError") || "Fehler", "error", 4000);
+    }
+  });
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bindCompanyBrandingPdfModalControls);
+} else {
+  bindCompanyBrandingPdfModalControls();
+}
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") {
+    return;
   }
-});
-document.getElementById("companyBrandingPdfPrintBtn")?.addEventListener("click", () => {
-  const frame = document.getElementById("companyBrandingPdfFrame");
-  try {
-    frame?.contentWindow?.focus();
-    frame?.contentWindow?.print();
-  } catch {
-    showToast(runtimeText("commonError") || "Fehler", "error", 4000);
+  const modal = document.getElementById("companyBrandingPdfModal");
+  if (modal && !modal.classList.contains("hidden")) {
+    event.preventDefault();
+    closeCompanyBrandingPdfModal();
   }
 });
 

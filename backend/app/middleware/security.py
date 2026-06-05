@@ -92,7 +92,8 @@ def register_security_middleware(app: Flask) -> None:
             path = (request.path or "").lower()
             csp = _build_csp()
             if path.endswith(".html") or path.startswith("/admin-v2/"):
-                csp = csp.replace("frame-src 'none'", "frame-src 'self'")
+                csp = csp.replace("frame-src 'none'", "frame-src 'self' blob:")
+                csp = csp.replace("object-src 'none'", "object-src 'self' blob:")
             response.headers["Content-Security-Policy"] = csp
 
         # إخفاء معلومات الـ server

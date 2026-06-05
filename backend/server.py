@@ -1699,8 +1699,8 @@ def apply_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' https:; "
-        "frame-src 'self'; "
-        "object-src 'none'; "
+        "frame-src 'self' blob:; "
+        "object-src 'self' blob:; "
         "base-uri 'self'; "
         f"frame-ancestors {frame_ancestors}"
     )
@@ -24668,6 +24668,19 @@ def _ensure_critical_api_routes() -> None:
         ("GET",),
         "core_company_turnstiles",
     )
+    _patch_api_route(
+        "/api/companies/<company_id>/mail-settings",
+        get_company_mail_settings_endpoint,
+        ("GET",),
+        "core_company_mail_settings",
+    )
+    _patch_api_route(
+        "/api/companies/<company_id>/admin-security",
+        get_company_admin_security,
+        ("GET",),
+        "core_company_admin_security",
+    )
+    _patch_api_route("/api/ops/guidance", operations_guidance, ("GET",), "core_ops_guidance")
     _patch_api_route("/api/settings", get_settings, ("GET",), "core_settings_get")
     _patch_api_route("/api/settings", update_settings, ("PUT",), "core_settings_put")
     _patch_api_route("/api/subcompanies", list_subcompanies, ("GET",), "core_subcompanies_list")
