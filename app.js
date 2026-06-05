@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260605d";
+window.__BAUPASS_UI_BUILD = "20260605e";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -8354,6 +8354,7 @@ let accessFeedbackTimer = null;
 let accessAudioContext = null;
 let cameraStream = null;
 let backendStatusTimer = null;
+let liveAccessPollTimer = null;
 let heartbeatTimer = null;
 let selfieSegmenter = null;
 let sessionExpiryNoticeShown = false;
@@ -17198,6 +17199,12 @@ function setView(viewName) {
     stopPlatformHealthPoll();
   }
 
+  if (["dashboard", "access", "operations"].includes(targetView)) {
+    startLiveAccessPoll();
+  } else {
+    stopLiveAccessPoll();
+  }
+
   if (targetView === "devices") {
     loadDevices();
   }
@@ -17349,6 +17356,7 @@ function startInvoiceApprovalAutoRefresh() {
 }
 
 function clearSession() {
+  stopLiveAccessPoll();
   token = "";
   persistSessionToken("");
   state.currentUser = null;
@@ -17457,8 +17465,62 @@ function startBackendStatusMonitor() {
   }, 30 * 1000);
 }
 
+async function checkUiBuildFreshness() {
+  const expected = String(window.__BAUPASS_UI_BUILD || "").trim();
+  if (!expected) {
+    return;
+  }
+  try {
+    const response = await fetch(buildApiUrl("/api/public/branding"), { credentials: "include" });
+    if (!response.ok) {
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    const remoteBuild = String(payload?.uiBuild || payload?.architecture?.uiBuild || "").trim();
+    if (remoteBuild && remoteBuild !== expected) {
+      console.warn(`[ui-build] stale frontend ${expected}; server reports ${remoteBuild}`);
+      showToast(`Neue Version verfügbar (${remoteBuild}). Bitte Seite neu laden (Strg+Shift+R).`, "warning", 8000);
+    }
+  } catch {
+    // ignore offline
+  }
+}
+
+function stopLiveAccessPoll() {
+  if (liveAccessPollTimer) {
+    window.clearInterval(liveAccessPollTimer);
+    liveAccessPollTimer = null;
+  }
+}
+
+function startLiveAccessPoll() {
+  stopLiveAccessPoll();
+  if (!token || !["superadmin", "company-admin"].includes(String(state.currentUser?.role || ""))) {
+    return;
+  }
+  liveAccessPollTimer = window.setInterval(async () => {
+    const activeView = String(state.activeView || "");
+    if (!["dashboard", "access", "operations"].includes(activeView)) {
+      return;
+    }
+    try {
+      const latest = await apiRequest(`${API_BASE}/api/access-logs/latest`);
+      const latestAccessItems = Array.isArray(latest?.items) ? latest.items : [];
+      if (latestAccessItems.length) {
+        setLatestAccessSnapshot(latestAccessItems);
+        if (activeView === "access" || activeView === "dashboard") {
+          renderAccessLogs?.();
+          renderDashboard?.();
+        }
+      }
+    } catch {
+      // ignore transient poll errors
+    }
+  }, 15000);
+}
+
 async function apiRequest(url, options = {}) {
-  const { method = "GET", body, auth = true, retries = 1 } = options;
+  const { method = "GET", body, auth = true, retries = 1, allowNotFound = false } = options;
   const requestUrl = buildApiUrl(url);
   if (auth && !token) {
     handleExpiredControlSession();
@@ -17516,6 +17578,9 @@ async function apiRequest(url, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (allowNotFound && response.status === 404) {
+      return null;
+    }
     if (payload?.error === "database_not_ready") {
       const requestError = new Error("database_not_ready");
       requestError.code = "database_not_ready";
@@ -18176,6 +18241,31 @@ async function loadWorkerIdentityTokenStatuses(workersList) {
   state.identityTokenByWorker = nextState;
 }
 
+function resolveAdminCompanyIdsForExtras(companies = []) {
+  const role = String(state.currentUser?.role || "").toLowerCase();
+  const visible = (companies || []).filter((company) => !company.deleted_at);
+  if (role === "company-admin") {
+    const companyId = String(state.currentUser?.company_id || "").trim();
+    return companyId ? [companyId] : [];
+  }
+  if (role !== "superadmin") {
+    return [];
+  }
+  const ids = [];
+  const seen = new Set();
+  const pushId = (value) => {
+    const companyId = String(value || "").trim();
+    if (!companyId || seen.has(companyId)) {
+      return;
+    }
+    seen.add(companyId);
+    ids.push(companyId);
+  };
+  pushId(superadminUiPreviewCompanyId);
+  visible.slice(0, 12).forEach((company) => pushId(company.id));
+  return ids;
+}
+
 async function loadAllData() {
   // Ohne gespeicherten Token gibt es keine Session zum Bootstrappen.
   // So vermeiden wir unnoetige 401-Requests im ausgeloggten Zustand.
@@ -18340,21 +18430,22 @@ async function loadAllData() {
   state.companyAdminSecurity = {};
   state.companyMailSettings = {};
   if (companies.status === "fulfilled" && ["superadmin", "company-admin"].includes(String(state.currentUser?.role || ""))) {
-    const visibleCompanies = (companies.value || []).filter((company) => !company.deleted_at);
+    const extraCompanyIds = resolveAdminCompanyIdsForExtras(companies.value || []);
+    const extraCompanies = extraCompanyIds.map((id) => ({ id }));
     const [turnstileRequests, securityRequests, companyMailRequests] = await Promise.all([
       Promise.allSettled(
-        visibleCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/turnstiles`))
+        extraCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/turnstiles`, { allowNotFound: true }))
       ),
       state.currentUser?.role === "superadmin"
         ? Promise.allSettled(
-            visibleCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/admin-security`))
+            extraCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/admin-security`, { allowNotFound: true }))
           )
-        : Promise.resolve(visibleCompanies.map(() => ({ status: "skipped" }))),
+        : Promise.resolve(extraCompanies.map(() => ({ status: "skipped" }))),
       Promise.allSettled(
-        visibleCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/mail-settings`))
+        extraCompanies.map((company) => apiRequest(`${API_BASE}/api/companies/${company.id}/mail-settings`, { allowNotFound: true }))
       ),
     ]);
-    visibleCompanies.forEach((company, index) => {
+    extraCompanies.forEach((company, index) => {
       const result = turnstileRequests[index];
       state.companyTurnstiles[company.id] = result?.status === "fulfilled" && Array.isArray(result.value)
         ? result.value
@@ -20194,7 +20285,7 @@ function resolveBrandingSaveErrorMessage(error) {
   return String(error?.payload?.message || error?.message || code || "error");
 }
 
-async function persistCompanyBrandingFromCard(companyId) {
+async function collectBrandingPayloadFromCard(companyId) {
   const company = state.companies.find((entry) => entry.id === companyId);
   if (!company) {
     throw new Error(runtimeText("companyListEmpty"));
@@ -20202,13 +20293,43 @@ async function persistCompanyBrandingFromCard(companyId) {
   const card = elements.companyList?.querySelector(`[data-company-branding-save="${companyId}"]`)?.closest(".card-item");
   const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
   const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
-  const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
   const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
   const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
   let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
   if (logoInput?.files?.[0]) {
     brandingLogoData = await readBrandingLogoFile(logoInput.files[0]);
   }
+  const preset = normalizeCompanyBrandingPresetValue(presetSelect?.value || company.brandingPreset || company.branding_preset || "construction");
+  const accent = normalizeHexColor(accentInput?.value, company.brandingAccentColor || company.branding_accent_color || "#c78652");
+  const portalName = String(portalNameInput?.value || company.portalDisplayName || company.portal_display_name || company.name || "").trim();
+  const themeMap = {
+    construction: { accentLight: "#1a8aad", sectorLabel: "Bau & Handwerk" },
+    industry: { accentLight: "#2563eb", sectorLabel: "Industrie" },
+    premium: { accentLight: "#7c3aed", sectorLabel: "Premium" },
+  };
+  const theme = themeMap[preset] || themeMap.construction;
+  return {
+    companyName: portalName || company.name || "BauPass",
+    logoData: brandingLogoData,
+    accent,
+    accentLight: theme.accentLight,
+    preset,
+    sectorLabel: theme.sectorLabel,
+    card,
+  };
+}
+
+async function persistCompanyBrandingFromCard(companyId) {
+  const company = state.companies.find((entry) => entry.id === companyId);
+  if (!company) {
+    throw new Error(runtimeText("companyListEmpty"));
+  }
+  const payload = await collectBrandingPayloadFromCard(companyId);
+  const card = payload.card;
+  const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
+  const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
+  const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
+  const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
   await apiRequest(buildApiUrl(`/api/companies/${companyId}`), {
     method: "PUT",
     body: {
@@ -20227,17 +20348,17 @@ async function persistCompanyBrandingFromCard(companyId) {
           || "construction",
       ).trim(),
       brandingAccentColor: normalizeHexColor(accentInput?.value, "#c78652"),
-      brandingLogoData,
+      brandingLogoData: payload.logoData,
       plan: company.plan,
       status: company.status,
       invoiceEmailLang: company.invoiceEmailLang || "de",
     },
   });
   await loadAllData();
-  return brandingLogoData;
+  return payload.logoData;
 }
 
-async function openCompanyBrandingPdfPreview(companyId) {
+async function openCompanyBrandingPdfPreview(companyId, { persistFirst = true } = {}) {
   if (!token) {
     showToast(uiT("deploymentPlanLoginRequired") || "Bitte anmelden.", "error", 6000);
     return;
@@ -20248,7 +20369,12 @@ async function openCompanyBrandingPdfPreview(companyId) {
     return;
   }
   try {
-    await persistCompanyBrandingFromCard(companyId);
+    let brandingOverride = null;
+    if (persistFirst) {
+      await persistCompanyBrandingFromCard(companyId);
+    } else {
+      brandingOverride = await collectBrandingPayloadFromCard(companyId);
+    }
     const role = String(getCurrentUser()?.role || "").toLowerCase();
     const params = new URLSearchParams();
     if (role === "superadmin") {
@@ -20263,6 +20389,16 @@ async function openCompanyBrandingPdfPreview(companyId) {
       },
       body: JSON.stringify({
         lang: (localStorage.getItem(UI_LANG_STORAGE_KEY) || "de").slice(0, 2),
+        branding: brandingOverride
+          ? {
+              companyName: brandingOverride.companyName,
+              logoData: brandingOverride.logoData,
+              accent: brandingOverride.accent,
+              accentLight: brandingOverride.accentLight,
+              preset: brandingOverride.preset,
+              sectorLabel: brandingOverride.sectorLabel,
+            }
+          : undefined,
       }),
     });
     if (!res.ok) {
@@ -23022,7 +23158,7 @@ function bindCompanyRowActions() {
     if (brandingPdfPreviewButton && !brandingPdfPreviewButton.disabled && elements.companyList.contains(brandingPdfPreviewButton)) {
       const companyId = brandingPdfPreviewButton.dataset.companyBrandingPdfPreview;
       if (companyId) {
-        openCompanyBrandingPdfPreview(companyId).catch((err) => showToast(err.message, "error", 6000));
+        openCompanyBrandingPdfPreview(companyId, { persistFirst: false }).catch((err) => showToast(err.message, "error", 6000));
       }
       return;
     }
@@ -29885,6 +30021,8 @@ async function handleLoginSubmit(event) {
     updateLoginOtpVisibility();
     startHeartbeat();
     startBackendStatusMonitor();
+    checkUiBuildFreshness().catch(() => {});
+    startLiveAccessPoll();
     setView(getDefaultViewForRole(payload.user?.role));
     refreshAll();
 
@@ -31819,14 +31957,31 @@ function bindCompanyBrandingPdfModalControls() {
       frame?.contentWindow?.focus();
       frame?.contentWindow?.print();
     } catch {
+      if (companyBrandingPdfPreviewUrl) {
+        const popup = window.open(companyBrandingPdfPreviewUrl, "_blank", "noopener");
+        popup?.focus();
+        popup?.print?.();
+        return;
+      }
       showToast(runtimeText("commonError") || "Fehler", "error", 4000);
     }
   });
 }
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bindCompanyBrandingPdfModalControls);
-} else {
+function bindAdminModalControls() {
   bindCompanyBrandingPdfModalControls();
+  document.getElementById("leaveRejectCancelBtn")?.addEventListener("click", () => {
+    document.getElementById("leaveRejectModal")?.classList.add("hidden");
+  });
+  document.getElementById("leaveRejectModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "leaveRejectModal") {
+      document.getElementById("leaveRejectModal")?.classList.add("hidden");
+    }
+  });
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bindAdminModalControls);
+} else {
+  bindAdminModalControls();
 }
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
@@ -34405,6 +34560,8 @@ warnStaleControlAssets();
     }
     startHeartbeat();
     startBackendStatusMonitor();
+    checkUiBuildFreshness().catch(() => {});
+    startLiveAccessPoll();
   } catch {
     clearSession();
   } finally {

@@ -30,6 +30,17 @@ def _normalize_preset(value: str) -> str:
     return preset if preset in PRESET_THEMES else "construction"
 
 
+def merge_pdf_branding_override(base: dict[str, Any], override: dict[str, Any] | None) -> dict[str, Any]:
+    if not override:
+        return base
+    merged = dict(base)
+    for key in ("companyName", "logoData", "accent", "accentLight", "preset", "sectorLabel"):
+        value = override.get(key)
+        if value is not None and str(value).strip() != "":
+            merged[key] = value
+    return merged
+
+
 def resolve_company_pdf_branding(db, company_id: str) -> dict[str, Any]:
     """Logo + colors for deployment PDF header."""
     company = db.execute(

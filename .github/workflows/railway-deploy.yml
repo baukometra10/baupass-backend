@@ -64,6 +64,10 @@ jobs:
           curl -fsS "$BASE_URL/api/health/live"
           curl -fsS "$BASE_URL/api/health/ready" | grep -q ready
           curl -fsS "$BASE_URL/api/health"
+          curl -fsS "$BASE_URL/api/health" | grep -q '"apiRouteProbe"'
+          curl -fsS "$BASE_URL/api/health" | grep -q '"companies"'
+          curl -fsS "$BASE_URL/api/health" | grep -q '"mail-settings"'
+          curl -fsS "$BASE_URL/api/health" | grep -q '"ops_guidance"'
           curl -fsS "$BASE_URL/api/health/platform" | grep -q '"probes"'
           curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/admin-v2/index.html" | grep -q 200
           curl -fsS -o /dev/null -w "%{http_code}" "$BASE_URL/enterprise-hub.html" | grep -q 200

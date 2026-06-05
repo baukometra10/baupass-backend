@@ -118,5 +118,6 @@ jobs:
             echo "Set \`BAUPASS_WORKER_APK_URL\` to the Release URL above **or** your CDN/stable host."
             echo "Production base: \`https://baupass-production.up.railway.app\`"
             echo ""
-            echo "- Firebase secret: \`FIREBASE_GOOGLE_SERVICES_JSON\` (optional repo secret)"
+            echo "Update \`worker-build.json\` on deploy:"
+            echo '  {"build":"'${{ github.run_number }}'","apkUrl":"'"${APK_URL}"'","apiBase":"'"${API_URL}"'"}'
           } >> "$GITHUB_STEP_SUMMARY"

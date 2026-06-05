@@ -583,6 +583,7 @@ def _rate_limit_rule(env_name, default_max, window_seconds=60):
 REQUEST_RATE_LIMITS = {
     "import": {"max": 10, "window_seconds": 60},
     "login": _rate_limit_rule("BAUPASS_LOGIN_RATE_MAX", 120),
+    "company_create": _rate_limit_rule("BAUPASS_COMPANY_CREATE_RATE_MAX", 20),
     "worker_login": _rate_limit_rule("BAUPASS_WORKER_LOGIN_RATE_MAX", 60),
     "worker_api": {"max": 180, "window_seconds": 60},
     "worker_api_auth_fail": {"max": 25, "window_seconds": 60},
@@ -8203,7 +8204,7 @@ def public_branding():
             "SELECT platform_name, operator_name, invoice_primary_color, invoice_accent_color, invoice_logo_data, impressum_text, datenschutz_text FROM settings WHERE id = 1"
         ).fetchone()
         if not row:
-            return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": ""})
+            return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": "", "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()})
         return jsonify({
             "platformName": str(row["platform_name"] or "Control Pass"),
             "operatorName": str(row["operator_name"] or "Baukometra"),
@@ -8212,9 +8213,10 @@ def public_branding():
             "logoData": str(row["invoice_logo_data"] or ""),
             "impressumText": str(row["impressum_text"] or ""),
             "datenschutzText": str(row["datenschutz_text"] or ""),
+            "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip(),
         })
     except Exception:
-        return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": ""})
+        return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": "", "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()})
 
 
 def phone_test_api():
@@ -9319,6 +9321,7 @@ def create_subcompany():
 
 @require_auth
 @require_roles("superadmin")
+@require_rate_limit("company_create")
 def create_company():
     from backend.app.domains.companies.service import CompaniesService
 
@@ -21397,18 +21400,15 @@ def api_health():
                 "railwayGitCommit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip(),
             },
             "architecture": {
-                "modularBlueprints": app.extensions.get("modular_blueprints", []),
-                "domainBlueprints": app.extensions.get("domain_blueprints", []),
-                "apiRouteProbe": {
-                    "companiesGetPost": {"GET", "POST"}.issubset(_route_methods_for("/api/companies")),
-                    "companiesPut": "PUT" in _route_methods_for("/api/companies/<company_id>"),
-                    "settingsGet": "GET" in _route_methods_for("/api/settings"),
-                    "deploymentBrandingPreviewPost": "POST"
-                    in _route_methods_for("/api/workforce/deployment-plan/pdf/branding-preview"),
-                },
+                **(lambda: __import__("backend.app.health.route_probe", fromlist=["summarize_blueprint_status"]).summarize_blueprint_status(app))(),
+                "apiRouteProbe": __import__(
+                    "backend.app.health.route_probe",
+                    fromlist=["build_api_route_probe"],
+                ).build_api_route_probe(_route_methods_for),
                 "platformEnabled": os.getenv("BAUPASS_PLATFORM_ENABLED", "1")
                 not in {"0", "false", "no"},
                 "runtime": app.extensions.get("runtime_summary", {}),
+                "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip(),
             },
             "enterprise": _enterprise_health_flags(),
         }
@@ -24730,6 +24730,7 @@ def _retry_failed_domain_blueprints() -> None:
         "rbac": "rbac",
         "reporting": "reporting",
     }
+    retry_results: list[dict[str, str]] = []
     for entry in DOMAIN_REGISTRARS:
         key = mount_keys.get(entry.name)
         if not key:
@@ -24739,8 +24740,25 @@ def _retry_failed_domain_blueprints() -> None:
             mod = __import__(entry.module, fromlist=[entry.registrar])
             getattr(mod, entry.registrar)(app)
             print(f"[baupass] retried domain blueprint: {entry.name}", flush=True)
+            retry_results.append({"name": entry.name, "status": "ok", "category": entry.category})
         except Exception as exc:
             print(f"[baupass] domain retry failed ({entry.name}): {exc}", flush=True)
+            retry_results.append(
+                {"name": entry.name, "status": "error", "category": entry.category, "error": str(exc)}
+            )
+    app.extensions["domain_blueprint_retries"] = retry_results
+
+
+def _ensure_billing_v2_routes() -> None:
+    if "GET" in _route_methods_for("/api/v2/billing/pricing"):
+        return
+    try:
+        from backend.app.domains.billing.routes import register_billing_blueprint
+
+        register_billing_blueprint(app)
+        print("[baupass] registered billing v2 routes (fallback)", flush=True)
+    except Exception as exc:
+        print(f"[baupass] billing v2 routes failed: {exc}", flush=True)
 
 
 try:
@@ -24750,6 +24768,7 @@ try:
     _retry_failed_domain_blueprints()
     _ensure_critical_api_routes()
     _ensure_platform_workforce_routes()
+    _ensure_billing_v2_routes()
 except Exception as _blueprint_exc:
     import traceback as _bp_tb
 
@@ -24757,6 +24776,7 @@ except Exception as _blueprint_exc:
     _bp_tb.print_exc()
     _ensure_critical_api_routes()
     _ensure_platform_workforce_routes()
+    _ensure_billing_v2_routes()
 
 
 if __name__ == "__main__":

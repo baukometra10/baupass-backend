@@ -22,5 +22,5 @@ if ($ServiceId) {
 
 Write-Host ""
 Write-Host "Warten Sie 2-5 Minuten, dann pruefen:" -ForegroundColor Green
-Write-Host "  https://baupass-control.up.railway.app/worker-build.json"
-Write-Host "  https://baupass-control.up.railway.app/api/health"
+Write-Host "  https://baupass-production.up.railway.app/worker-build.json"
+Write-Host "  https://baupass-production.up.railway.app/api/health"

@@ -91,5 +91,16 @@ test.describe('Platform smoke', () => {
     const body = await pdf.body();
     expect(body.byteLength).toBeGreaterThan(500);
     expect(String.fromCharCode(...body.slice(0, 4))).toBe('%PDF');
+
+    const fullHealth = await request.get('/api/health');
+    expect(fullHealth.ok()).toBeTruthy();
+    const healthPayload = await fullHealth.json();
+    expect(healthPayload.architecture?.apiRouteProbe?.ok).toBeTruthy();
+
+    const putCompany = await request.put(`/api/companies/${encodeURIComponent(firstCompany.id)}`, {
+      headers,
+      data: { name: firstCompany.name || 'Test' },
+    });
+    expect([200, 400, 422]).toContain(putCompany.status());
   });
 });

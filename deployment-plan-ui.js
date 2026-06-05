@@ -527,5 +527,9 @@
     startAutoRefresh,
     stopAutoRefresh,
   };
-  bindOnce();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindOnce);
+  } else {
+    bindOnce();
+  }
 })(window);

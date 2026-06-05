@@ -16,8 +16,8 @@ railway up --detach
 if errorlevel 1 goto fehler
 echo.
 echo Fertig. Pruefen Sie:
-echo   https://baupass-control.up.railway.app/api/health
-echo   https://baupass-control.up.railway.app/worker-build.json
+echo   https://baupass-production.up.railway.app/api/health
+echo   https://baupass-production.up.railway.app/worker-build.json
 pause
 exit /b 0
 :fehler

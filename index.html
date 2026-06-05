@@ -17,10 +17,11 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531shell15";
+        const buildTag = "20260605e";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
+          const scriptBuild = "20260605e";
           const hasCurrentVersion = url.searchParams.get("v") === buildTag;
           const seenBuild = window.localStorage.getItem(storageKey);
           if (!hasCurrentVersion && seenBuild !== buildTag) {
@@ -30,6 +31,15 @@
             return;
           }
           window.localStorage.setItem(storageKey, buildTag);
+          fetch("/api/public/branding")
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (payload) {
+              if (!payload || !payload.uiBuild || !scriptBuild) return;
+              if (payload.uiBuild !== scriptBuild) {
+                console.warn("[ui-build] server", payload.uiBuild, "client", scriptBuild);
+              }
+            })
+            .catch(function () {});
           const host = window.location.hostname;
           if (host === "localhost" || host === "127.0.0.1") {
             try {
@@ -2203,7 +2213,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260605d"></script>
+  <script src="./app.js?v=20260605e"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

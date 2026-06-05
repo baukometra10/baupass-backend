@@ -59,6 +59,15 @@ def test_deployment_pdf_portrait_single_page():
     assert 830 < height < 860
 
 
+def test_merge_pdf_branding_override():
+    from backend.app.platform.workforce.deployment_branding import merge_pdf_branding_override
+
+    base = {"companyName": "Alt", "accent": "#111111", "logoData": ""}
+    merged = merge_pdf_branding_override(base, {"companyName": "Neu", "accent": "#abcdef"})
+    assert merged["companyName"] == "Neu"
+    assert merged["accent"] == "#abcdef"
+
+
 def test_branding_preview_sample_days_has_entries():
     days = branding_preview_sample_days(2026, 6, "de")
     assert len(days) >= 28

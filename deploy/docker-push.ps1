@@ -40,4 +40,4 @@ Write-Host "Fertig. In Railway eintragen:" -ForegroundColor Green
 Write-Host "  Image: $Image"
 Write-Host "  Settings -> Source -> Docker Image -> Deploy"
 Write-Host ""
-Write-Host "Variablen: PUBLIC_BASE_URL=https://baupass-control.up.railway.app"
+Write-Host "Variablen: PUBLIC_BASE_URL=https://baupass-production.up.railway.app"

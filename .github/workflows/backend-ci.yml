@@ -33,6 +33,13 @@ jobs:
       - name: Inline thread guard
         run: python backend/ops/check_no_inline_threads.py
 
+      - name: Critical API route probe
+        env:
+          BAUPASS_ENV: testing
+          BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
+          BAUPASS_SKIP_IMAP_POLL: "1"
+        run: python backend/ops/probe_api.py
+
       - name: Run tests
         env:
           BAUPASS_ENV: testing

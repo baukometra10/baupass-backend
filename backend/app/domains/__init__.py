@@ -17,18 +17,25 @@ logger = logging.getLogger("baupass.domains")
 
 def register_domain_blueprints(flask_app: Flask) -> None:
     """Register all domain blueprints in canonical order."""
-    results: list[tuple[str, str]] = []
+    results: list[dict[str, str]] = []
     for entry in DOMAIN_REGISTRARS:
         try:
             mod = __import__(entry.module, fromlist=[entry.registrar])
             getattr(mod, entry.registrar)(flask_app)
-            results.append((entry.name, "ok"))
+            results.append({"name": entry.name, "status": "ok", "category": entry.category})
         except Exception as exc:
             logger.exception("Domain blueprint failed: %s", entry.name)
             print(f"[baupass] WARNING: domain/{entry.name} skipped: {exc}", flush=True)
-            results.append((entry.name, f"error: {exc}"))
+            results.append(
+                {
+                    "name": entry.name,
+                    "status": "error",
+                    "category": entry.category,
+                    "error": str(exc),
+                }
+            )
 
-    failed = [name for name, status in results if status != "ok"]
+    failed = [item["name"] for item in results if item.get("status") != "ok"]
     if failed:
         print(
             f"[baupass] Domains: {len(results) - len(failed)}/{len(results)} registered; failed: {failed}",

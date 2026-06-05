@@ -221,6 +221,10 @@ def register_workforce_blueprint(flask_app) -> None:
         lang = str(body.get("lang") or request.args.get("lang") or "de")[:2]
         db = get_db()
         branding = resolve_company_pdf_branding(db, cid)
+        if isinstance(body.get("branding"), dict):
+            from .deployment_branding import merge_pdf_branding_override
+
+            branding = merge_pdf_branding_override(branding, body.get("branding"))
         plan = get_company_plan(db, cid)
         tier = "enterprise" if plan_includes(plan, "enterprise") else "professional"
         days = branding_preview_sample_days(year, month, lang)

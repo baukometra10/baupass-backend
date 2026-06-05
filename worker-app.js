@@ -7,6 +7,7 @@ const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
 ]);
+const PREFERRED_WORKER_API_HOST = "baupass-production.up.railway.app";
 const WORKER_PLAN_TAB_FEATURES = {
   vacation: "leave_management",
   timesheet: "worker_hours_report",
@@ -36,6 +37,12 @@ function sanitizeApiBase(value) {
     if (!localHosts.has(host)) {
       return "";
     }
+  }
+
+  const host = (parsed.hostname || "").toLowerCase();
+  if (RETIRED_WORKER_API_HOSTS.has(host)) {
+    parsed.hostname = PREFERRED_WORKER_API_HOST;
+    return parsed.toString().replace(/\/+$/, "");
   }
 
   return parsed.toString().replace(/\/+$/, "");

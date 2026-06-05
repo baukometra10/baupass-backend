@@ -33,6 +33,10 @@ Move production runtime from SQLite to PostgreSQL with connection pooling and sa
 5. Shadow traffic / smoke tests.
 6. Production switch.
 7. Monitor DB pool stats and error rates for 24h.
+8. Verify deploy gate:
+   - `python backend/ops/probe_api.py` exits 0
+   - `GET /api/health` → `architecture.apiRouteProbe.ok = true`
+   - `architecture.failedDomains` is empty
 
 ## Rollback
 1. Keep BAUPASS_ALLOW_SQLITE_PRODUCTION=1 ready for emergency fallback.

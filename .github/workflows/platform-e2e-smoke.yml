@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - backend/**
+      - app.js
+      - index.html
+      - deployment-plan-ui.js
       - tests/e2e/**
       - playwright.config.js
       - .github/workflows/platform-e2e-smoke.yml

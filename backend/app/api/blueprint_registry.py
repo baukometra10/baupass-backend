@@ -56,7 +56,9 @@ def register_modular_blueprints(flask_app: Flask) -> None:
         ("domains", _domains),
         ("platform", _platform),
     ):
-        results.append(_register_safe(flask_app, name, fn))
+        item = _register_safe(flask_app, name, fn)
+        item["category"] = "modular"
+        results.append(item)
 
     flask_app.extensions["modular_blueprints"] = results
     flask_app.extensions["modular_blueprints_registered"] = True
