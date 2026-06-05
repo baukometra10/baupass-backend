@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask
 
+from .._routes import register_blueprint_once
+
 settings_core_bp = Blueprint("settings_domain_core", __name__)
 
 

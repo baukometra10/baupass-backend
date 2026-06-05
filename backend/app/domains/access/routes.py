@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask, jsonify
 
+from .._routes import register_blueprint_once
 from ..shared import company_id_from_user, forbidden_company
 from .service import AccessService
 

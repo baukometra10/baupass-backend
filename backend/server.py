@@ -24715,7 +24715,18 @@ def _retry_failed_domain_blueprints() -> None:
     from backend.app.domains._routes import clear_routes_mounted
     from backend.app.domains.registry import DOMAIN_REGISTRARS
 
-    if {"GET", "POST"}.issubset(_route_methods_for("/api/companies")) and "PUT" in _route_methods_for("/api/companies/<company_id>"):
+    missing_targets: set[str] = set()
+    if not {"GET", "POST"}.issubset(_route_methods_for("/api/companies")):
+        missing_targets.update({"settings", "companies"})
+    if "GET" not in _route_methods_for("/api/v2/admin/overview"):
+        missing_targets.add("admin")
+    if "GET" not in _route_methods_for("/api/documents/inbox"):
+        missing_targets.add("documents")
+    if "GET" not in _route_methods_for("/api/v2/billing/pricing"):
+        missing_targets.add("billing")
+    if "GET" not in _route_methods_for("/api/ops-os/command-center"):
+        missing_targets.add("platform")
+    if not missing_targets:
         return
 
     mount_keys = {
@@ -24733,7 +24744,20 @@ def _retry_failed_domain_blueprints() -> None:
     retry_results: list[dict[str, str]] = []
     for entry in DOMAIN_REGISTRARS:
         key = mount_keys.get(entry.name)
-        if not key:
+        if entry.name == "platform" and "platform" in missing_targets:
+            try:
+                from backend.app.platform.physical_operations import register_physical_operations
+
+                register_physical_operations(app)
+                print("[baupass] retried platform physical_operations routes", flush=True)
+                retry_results.append({"name": "platform", "status": "ok", "category": "platform"})
+            except Exception as exc:
+                print(f"[baupass] platform retry failed: {exc}", flush=True)
+                retry_results.append({"name": "platform", "status": "error", "category": "platform", "error": str(exc)})
+            continue
+        if not key or key not in missing_targets:
+            continue
+        if entry.name == "reporting" and "reporting_domain" in app.blueprints:
             continue
         clear_routes_mounted(key)
         try:

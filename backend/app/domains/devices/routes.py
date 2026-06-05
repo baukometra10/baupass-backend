@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask
 
+from .._routes import register_blueprint_once
+
 devices_core_bp = Blueprint("devices_domain_core", __name__)
 
 

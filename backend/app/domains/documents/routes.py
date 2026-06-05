@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask
 
+from .._routes import register_blueprint_once
+
 documents_core_bp = Blueprint("documents_domain_core", __name__)
 
 

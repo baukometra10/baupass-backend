@@ -20,6 +20,9 @@ async function tryEmbedSessionFromControlPass() {
   if (!isEmbedMode()) {
     return false;
   }
+  if (tryEmbedSessionFromControlPass._cooldownUntil && Date.now() < tryEmbedSessionFromControlPass._cooldownUntil) {
+    return false;
+  }
   document.documentElement.classList.add("embed-document");
   document.body.classList.add("embed-mode", "admin-v2-embed");
   const parentToken = (localStorage.getItem(CONTROL_TOKEN_KEY) || "").trim();
@@ -29,8 +32,12 @@ async function tryEmbedSessionFromControlPass() {
   try {
     const res = await fetch(`${apiBase()}/api/v2/auth/session`, {
       headers: { Authorization: `Bearer ${parentToken}`, Accept: "application/json" },
+      cache: "no-store",
     });
     if (!res.ok) {
+      if (res.status >= 500) {
+        tryEmbedSessionFromControlPass._cooldownUntil = Date.now() + 30000;
+      }
       return false;
     }
     const data = await res.json();

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask, g, jsonify, request
 
+from .._routes import register_blueprint_once
 from ..shared import company_id_from_user, forbidden_company
 from .service import BillingService
 from . import stripe_service

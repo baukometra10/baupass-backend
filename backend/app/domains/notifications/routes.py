@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Flask
 
+from .._routes import register_blueprint_once
 from .service import NotificationsService
 
 notifications_core_bp = Blueprint("notifications_domain_core", __name__)

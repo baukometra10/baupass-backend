@@ -13,6 +13,9 @@ CRITICAL_API_ROUTES: tuple[tuple[str, frozenset[str]], ...] = (
     ("/api/ops/guidance", frozenset({"GET"})),
     ("/api/workforce/deployment-plan/pdf/branding-preview", frozenset({"POST"})),
     ("/api/v2/billing/pricing", frozenset({"GET"})),
+    ("/api/v2/admin/overview", frozenset({"GET"})),
+    ("/api/documents/inbox", frozenset({"GET"})),
+    ("/api/ops-os/command-center", frozenset({"GET"})),
     ("/api/ops-os/events/stream", frozenset({"GET"})),
 )
 

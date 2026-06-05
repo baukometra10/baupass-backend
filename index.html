@@ -17,11 +17,11 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260605e";
+        const buildTag = "20260605f";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
-          const scriptBuild = "20260605e";
+          const scriptBuild = "20260605f";
           const hasCurrentVersion = url.searchParams.get("v") === buildTag;
           const seenBuild = window.localStorage.getItem(storageKey);
           if (!hasCurrentVersion && seenBuild !== buildTag) {
@@ -2213,7 +2213,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260605e"></script>
+  <script src="./app.js?v=20260605f"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

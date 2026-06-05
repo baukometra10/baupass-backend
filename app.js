@@ -1,5 +1,5 @@
 // ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260605e";
+window.__BAUPASS_UI_BUILD = "20260605f";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {

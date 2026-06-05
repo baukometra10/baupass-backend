@@ -1,16 +1,12 @@
-const BUILD = "20260603a";
+const BUILD = "20260605f";
 const SHELL_CACHE = `baupass-control-shell-${BUILD}`;
 const RUNTIME_CACHE = `baupass-control-runtime-${BUILD}`;
 const SHELL_ASSETS = [
   "/",
   "/index.html",
   `/index.html?v=${BUILD}`,
-  "/app.js",
   `/app.js?v=${BUILD}`,
-  "/styles.css",
   `/styles.css?v=${BUILD}`,
-  "/desktop/renderer.js",
-  `/desktop/renderer.js?v=${BUILD}`,
   "/control-manifest.json",
   "/branding/baukometra-logo.svg",
   "/branding/baukometra-alt-logo.svg",
@@ -73,6 +69,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/")) {
+    return;
+  }
+
   const isSameOrigin = url.origin === self.location.origin;
   const isNavigation = request.mode === "navigate";
   const isCriticalShell = isSameOrigin && (
