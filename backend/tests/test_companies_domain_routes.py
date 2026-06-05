@@ -27,6 +27,17 @@ class CompaniesDomainRoutesTest(unittest.TestCase):
         ):
             self.assertIn(path, self.rules, msg=f"missing {path}")
 
+    def test_companies_collection_allows_post(self):
+        post_rule = next(
+            (
+                rule
+                for rule in app.url_map.iter_rules()
+                if rule.rule == "/api/companies" and "POST" in rule.methods
+            ),
+            None,
+        )
+        self.assertIsNotNone(post_rule)
+
 
 if __name__ == "__main__":
     unittest.main()

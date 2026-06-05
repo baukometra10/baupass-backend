@@ -9225,6 +9225,14 @@ def update_settings():
 
 
 @require_auth
+def companies_collection():
+    """GET list + POST create on one rule so Flask always exposes both methods."""
+    if request.method == "POST":
+        return create_company()
+    return list_companies()
+
+
+@require_auth
 def list_companies():
     from backend.app.domains.companies.service import CompaniesService
 

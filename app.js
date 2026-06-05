@@ -1078,6 +1078,21 @@ const UI_TRANSLATIONS = {
     optPlanPerWorker: "Pro Mitarbeiter",
     optPlanFlatCompany: "Pauschal pro Firma",
     optPlanDayPassPrice: "Besucherkarte (29 EUR/Tag)",
+    planPriceDaySuffix: "{price}/Tag",
+    planPriceMonthSuffix: "{price}/Monat",
+    planPriceMonthIncludedOnlySuffix: "{price}/Monat, {included} MA inkl.",
+    planPriceMonthIncludedSuffix: "{price}/Monat, {included} MA inkl., +{overage}/MA",
+    companyCreatePreviewBlocked: "Firma anlegen ist in der Firmenvorschau deaktiviert. Bitte Vorschau beenden.",
+    companyCreateReadOnlyBlocked: "Support-Sitzung ist schreibgeschützt — Firma kann nicht angelegt werden.",
+    passwordSetDialogTitle: "Neues Passwort setzen",
+    passwordSetDialogIntro: "Bitte vergeben Sie ein neues Passwort. Speichern Sie es sicher ab.",
+    passwordSetDialogCompany: "Firma",
+    passwordSetDialogUsername: "Benutzer",
+    passwordSetDialogNewPassword: "Neues Passwort",
+    passwordSetDialogConfirmPassword: "Passwort bestätigen",
+    passwordSetDialogSubmit: "Passwort speichern",
+    passwordSetDialogMismatch: "Passwörter stimmen nicht überein.",
+    turnstilePasswordDialogTitle: "Drehkreuz-Passwort zurücksetzen",
     btnDocInboxRematch: "Neu zuordnen",
     accessFeedbackCheckin: "Zutritt gebucht",
     manualEntryBtn: "Manueller Einlass",
@@ -1741,6 +1756,21 @@ const UI_TRANSLATIONS = {
     optPlanPerWorker: "Per worker",
     optPlanFlatCompany: "Flat rate per company",
     optPlanDayPassPrice: "Visitor card (29 EUR/day)",
+    planPriceDaySuffix: "{price}/day",
+    planPriceMonthSuffix: "{price}/month",
+    planPriceMonthIncludedOnlySuffix: "{price}/month, {included} workers incl.",
+    planPriceMonthIncludedSuffix: "{price}/month, {included} workers incl., +{overage}/worker",
+    companyCreatePreviewBlocked: "Company creation is disabled in company preview. Please exit preview mode.",
+    companyCreateReadOnlyBlocked: "Support session is read-only — cannot create a company.",
+    passwordSetDialogTitle: "Set new password",
+    passwordSetDialogIntro: "Choose a new password and store it securely.",
+    passwordSetDialogCompany: "Company",
+    passwordSetDialogUsername: "User",
+    passwordSetDialogNewPassword: "New password",
+    passwordSetDialogConfirmPassword: "Confirm password",
+    passwordSetDialogSubmit: "Save password",
+    passwordSetDialogMismatch: "Passwords do not match.",
+    turnstilePasswordDialogTitle: "Reset turnstile password",
     btnDocInboxRematch: "Re-assign",
     manualEntryBtn: "Manual Entry",
     manualEntryTitle: "Manual entry without card / phone",
@@ -6080,7 +6110,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Mensile per cantiere",
     optPlanPerWorker: "Per lavoratore",
     optPlanFlatCompany: "Forfait per azienda",
-    optPlanDayPassPrice: "Tessera visitatore (19 EUR/giorno)",
+    optPlanDayPassPrice: "Tessera visitatore (29 EUR/giorno)",
     loginForgotPassword: "Password dimenticata",
     legalImpressum: "Note legali",
     legalPrivacy: "Privacy",
@@ -7919,6 +7949,7 @@ function applyUiTranslations() {
 
   applyUiPlaceholders();
   applyRuntimeUiTexts();
+  populateCompanyPlanSelect();
 
   updateAuthLanguageControl(lang);
   const topbarSelect = document.querySelector("#uiLangTopbarSelect");
@@ -8270,27 +8301,29 @@ const PLAN_LABELS = {
   enterprise: "Enterprise"
 };
 
+const PLAN_ORDER = ["tageskarte", "starter", "professional", "enterprise"];
+
 const PLAN_NET_PRICE_EUR = {
-  tageskarte: 19,
-  starter: 149,
-  professional: 999,
-  enterprise: 2490,
+  tageskarte: 29,
+  starter: 69,
+  professional: 249,
+  enterprise: 599,
 };
 
 // Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0 = inklusive)
 const PLAN_WORKER_PRICE_EUR = {
   tageskarte: 0,
-  starter: 0,
-  professional: 2.5,
-  enterprise: 3.0,
+  starter: 5.99,
+  professional: 7.5,
+  enterprise: 9.5,
 };
 
 // Freikontigent inkludierter Mitarbeiter pro Plan (0 = alle zahlen)
 const PLAN_WORKER_FREE_INCLUDED = {
   tageskarte: 0,
-  starter: 0,
-  professional: 10,
-  enterprise: 10,
+  starter: 10,
+  professional: 25,
+  enterprise: 50,
 };
 
 const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
@@ -8376,6 +8409,7 @@ const state = {
   },
   companies: [],
   companiesLoadError: "",
+  pricingCatalog: null,
   subcompanies: [],
   workers: [],
   accessLogs: [],
@@ -9004,7 +9038,7 @@ function getRuntimeUiTexts() {
     companyAdminResetSent: "Reset link was sent to \"{username}\".",
     companyAdminPasswordPrompt: "New password for admin \"{username}\" of company \"{company}\":\n(Minimum 8 characters)",
     companyAdminPasswordMinLength: "The password must be at least 8 characters long.",
-    companyAdminPasswordSet: "Password for \"{username}\" was set.\nAll active sessions were terminated.",
+    companyAdminPasswordSet: "Password for admin \"{username}\" at company \"{company}\" was set.\nAll active sessions were terminated.",
     companyOtpPrompt: "OTP email for the admin of company \"{company}\":\n(leave empty = disable OTP)",
     companyOtpEnabledMessage: "OTP enabled.\nEmail: {email}\n\nThe admin will receive a code at this address on the next sign-in.",
     companyOtpDisabledMessage: "OTP disabled for the admin of company \"{company}\".",
@@ -9855,7 +9889,7 @@ function getRuntimeUiTexts() {
       companyAdminResetSent: "Reset-Link wurde an \"{username}\" gesendet.",
       companyAdminPasswordPrompt: "Neues Passwort fuer Admin \"{username}\" der Firma \"{company}\":\n(Mindestens 8 Zeichen)",
       companyAdminPasswordMinLength: "Das Passwort muss mindestens 8 Zeichen lang sein.",
-      companyAdminPasswordSet: "Passwort fuer \"{username}\" wurde gesetzt.\nAlle aktiven Sitzungen wurden beendet.",
+      companyAdminPasswordSet: "Passwort fuer Admin \"{username}\" der Firma \"{company}\" wurde gesetzt.\nAlle aktiven Sitzungen wurden beendet.",
       companyOtpPrompt: "OTP-E-Mail fuer Admin der Firma \"{company}\":\n(Leer lassen = OTP deaktivieren)",
       companyOtpEnabledMessage: "OTP aktiviert.\nE-Mail: {email}\n\nDer Admin erhaelt beim naechsten Login einen Code an diese Adresse.",
       companyOtpDisabledMessage: "OTP deaktiviert fuer Admin der Firma \"{company}\".",
@@ -22352,7 +22386,13 @@ function bindCompanyRowActions() {
         showToast(runtimeText("companyAdminMissing"), "error");
         return;
       }
-      const newPassword = window.prompt(runtimeTextTemplate("companyAdminPasswordPrompt", { username: sec.username, company: company.name }));
+      const newPassword = await showPasswordSetDialog({
+        title: runtimeText("passwordSetDialogTitle"),
+        intro: runtimeText("passwordSetDialogIntro"),
+        companyName: company.name,
+        username: sec.username,
+        minLength: 8,
+      });
       if (newPassword === null) return;
       if (newPassword.trim().length < 8) {
         showToast(runtimeText("companyAdminPasswordMinLength"), "error");
@@ -22364,7 +22404,7 @@ function bindCompanyRowActions() {
           method: "POST",
           body: { newPassword: newPassword.trim() },
         });
-        showToast(runtimeTextTemplate("companyAdminPasswordSet", { username: sec.username }), "success");
+        showToast(runtimeTextTemplate("companyAdminPasswordSet", { username: sec.username, company: company.name }), "success");
       } catch (err) {
         showToast(uiT("alertGenericError").replace("{error}", err.message), "error", 3600);
       } finally {
@@ -22995,7 +23035,16 @@ function bindCompanyRowActions() {
     if (resetTurnstileButton && elements.companyList.contains(resetTurnstileButton)) {
       const companyId = resetTurnstileButton.dataset.turnstileCompany;
       const userId = resetTurnstileButton.dataset.turnstileReset;
-      const password = window.prompt(uiT("promptTurnstilePasswordNew"), "");
+      const company = state.companies.find((entry) => entry.id === companyId);
+      const turnstileEntry = (state.companyTurnstiles?.[companyId] || []).find((entry) => entry.id === userId);
+      const password = await showPasswordSetDialog({
+        title: runtimeText("turnstilePasswordDialogTitle"),
+        intro: runtimeText("passwordSetDialogIntro"),
+        companyName: company?.name || companyId,
+        username: turnstileEntry?.username || turnstileEntry?.name || runtimeText("turnstileDefaultName"),
+        minLength: 4,
+        requireConfirm: true,
+      });
       if (password === null) return;
       if (password.trim().length < 4) {
         showToast(uiT("alertPasswordMinLength"));
@@ -23338,12 +23387,19 @@ async function openCompanyPlanModal(companyId, company) {
   const existingModal = document.getElementById("companyPlanModal");
   if (existingModal) existingModal.remove();
 
-  const PLANS = [
-    { key: "tageskarte", label: "Besucherkarte",  price: "29 €/Tag",           perWorker: null,      color: "#6b7280" },
-    { key: "starter",    label: "Starter",         price: "69 €/Monat",         perWorker: "5,99 €",  color: "#0369a1" },
-    { key: "professional", label: "Professional",  price: "249 €/Monat",        perWorker: "7,50 €",  color: "#7c3aed" },
-    { key: "enterprise", label: "Enterprise",      price: "599 €/Monat",        perWorker: "9,50 €",  color: "#b45309" },
-  ];
+  const PLANS = buildPlanCatalogEntries().map((entry) => ({
+    key: entry.key,
+    label: entry.label,
+    price: entry.price,
+    perWorker: entry.perWorker,
+    workersIncluded: entry.workersIncluded,
+    color: {
+      tageskarte: "#6b7280",
+      starter: "#0369a1",
+      professional: "#7c3aed",
+      enterprise: "#b45309",
+    }[entry.key] || "#6b7280",
+  }));
 
   // Feature labels (DE) aligned with PLAN_FEATURES keys
   const FEATURE_LABELS = {
@@ -23396,7 +23452,7 @@ async function openCompanyPlanModal(companyId, company) {
   const planCards = PLANS.map((p) => {
     const isCurrent = p.key === currentPlan;
     const perWorkerLine = p.perWorker
-      ? `<div style="font-size:11px;color:#777;margin-top:3px;">+ ${escapeHtml(p.perWorker)} pro MA (ab 11.)</div>`
+      ? `<div style="font-size:11px;color:#777;margin-top:3px;">+ ${escapeHtml(p.perWorker)} pro MA (ab ${Number(p.workersIncluded || 0) + 1}.)</div>`
       : `<div style="font-size:11px;color:#777;margin-top:3px;">alle Mitarbeiter inklusive</div>`;
     return `
       <label style="cursor:pointer;display:block;border:2px solid ${isCurrent ? p.color : "var(--border,#ccc)"};border-radius:8px;padding:10px 14px;background:${isCurrent ? "rgba(99,102,241,0.05)" : "transparent"};transition:border-color 0.15s;" class="plan-card-label">
@@ -27712,6 +27768,13 @@ function sanitizeInvoiceLogoSrc(value) {
 async function handleCompanySubmit(event) {
   event.preventDefault();
   if (!userCanManageSystem()) {
+    if (isSupportReadOnlyMode()) {
+      showToast(runtimeText("companyCreateReadOnlyBlocked"), "error", 5000);
+    } else if (isSuperadminCompanyPreviewMode()) {
+      showToast(runtimeText("companyCreatePreviewBlocked"), "error", 5000);
+    } else {
+      showToast(runtimeText("adminOnlyTooltip") || uiT("alertGenericError").replace("{error}", "forbidden"), "error", 4000);
+    }
     return;
   }
 
@@ -27823,6 +27886,14 @@ async function handleCompanySubmit(event) {
       );
     }
   } catch (error) {
+    if (error.message === "http_405" || error.code === "http_405") {
+      showToast(
+        uiT("alertLoginHttp405").replace("{target}", `${API_BASE}/api/companies`),
+        "error",
+        5200,
+      );
+      return;
+    }
     if (error.code === "duplicate_customer_number") {
       const conflictName = String(error?.payload?.conflictCompanyName || "andere Firma");
       showToast(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
@@ -31431,6 +31502,94 @@ function getPlanLabel(plan) {
   return PLAN_LABELS[normalized] || PLAN_LABELS.tageskarte;
 }
 
+function applyPricingCatalogToConstants(catalog) {
+  if (!catalog || !Array.isArray(catalog.plans)) {
+    return;
+  }
+  catalog.plans.forEach((entry) => {
+    const key = String(entry.plan || "").trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    if (entry.priceEur != null) {
+      PLAN_NET_PRICE_EUR[key] = Number(entry.priceEur);
+    }
+    if (entry.workersIncluded != null) {
+      PLAN_WORKER_FREE_INCLUDED[key] = Number(entry.workersIncluded);
+    }
+    if (entry.workerOverageEur != null) {
+      PLAN_WORKER_PRICE_EUR[key] = Number(entry.workerOverageEur);
+    }
+    if (entry.label) {
+      PLAN_LABELS[key] = String(entry.label);
+    }
+  });
+}
+
+function formatPlanPriceSuffix(planKey) {
+  const plan = String(planKey || "").trim().toLowerCase();
+  const priceText = formatCurrencyEur(getPlanNetPrice(plan)).replace(/\u00a0/g, " ");
+  if (plan === "tageskarte") {
+    return runtimeTextTemplate("planPriceDaySuffix", { price: priceText });
+  }
+  const included = Number(PLAN_WORKER_FREE_INCLUDED[plan] || 0);
+  const overageText = formatCurrencyEur(Number(PLAN_WORKER_PRICE_EUR[plan] || 0)).replace(/\u00a0/g, " ");
+  if (included > 0 && Number(PLAN_WORKER_PRICE_EUR[plan] || 0) > 0) {
+    return runtimeTextTemplate("planPriceMonthIncludedSuffix", {
+      price: priceText,
+      included,
+      overage: overageText,
+    });
+  }
+  if (included > 0) {
+    return runtimeTextTemplate("planPriceMonthIncludedOnlySuffix", { price: priceText, included });
+  }
+  return runtimeTextTemplate("planPriceMonthSuffix", { price: priceText });
+}
+
+function formatCompanyPlanOptionLabel(planKey) {
+  const plan = String(planKey || "").trim().toLowerCase();
+  return `${getPlanLabel(plan)} (${formatPlanPriceSuffix(plan)})`;
+}
+
+function buildPlanCatalogEntries() {
+  return PLAN_ORDER.map((planKey) => ({
+    key: planKey,
+    label: getPlanLabel(planKey),
+    price: formatPlanPriceSuffix(planKey),
+    perWorker: Number(PLAN_WORKER_PRICE_EUR[planKey] || 0) > 0
+      ? formatCurrencyEur(Number(PLAN_WORKER_PRICE_EUR[planKey])).replace(/\u00a0/g, " ")
+      : null,
+    workersIncluded: Number(PLAN_WORKER_FREE_INCLUDED[planKey] || 0),
+  }));
+}
+
+function populateCompanyPlanSelect() {
+  const select = document.querySelector("#companyPlan");
+  if (!select) {
+    return;
+  }
+  const previous = String(select.value || "tageskarte");
+  select.innerHTML = PLAN_ORDER.map((planKey) => {
+    const label = formatCompanyPlanOptionLabel(planKey);
+    return `<option value="${escapeHtml(planKey)}">${escapeHtml(label)}</option>`;
+  }).join("");
+  if (PLAN_ORDER.includes(previous)) {
+    select.value = previous;
+  }
+}
+
+async function loadPricingCatalog() {
+  try {
+    const catalog = await apiRequest(`${API_BASE}/api/v2/billing/pricing`, { auth: false });
+    state.pricingCatalog = catalog;
+    applyPricingCatalogToConstants(catalog);
+  } catch {
+    // keep defaults aligned with backend/app/platform/pricing.py
+  }
+  populateCompanyPlanSelect();
+}
+
 function formatDate(value) {
   if (!value) {
     return "-";
@@ -33890,6 +34049,80 @@ function showToast(message, type = "info", timeout = 2600) {
   el.dataset.timerId = String(timerId);
 }
 
+function showPasswordSetDialog(options = {}) {
+  const {
+    title = runtimeText("passwordSetDialogTitle"),
+    intro = runtimeText("passwordSetDialogIntro"),
+    companyName = "",
+    username = "",
+    minLength = 8,
+    requireConfirm = true,
+    submitLabel = runtimeText("passwordSetDialogSubmit"),
+  } = options;
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "worker-app-qr-overlay app-confirm-overlay";
+    overlay.innerHTML = `
+      <div class="worker-app-qr-card app-confirm-card" style="max-width:460px;width:min(460px,calc(100vw - 32px));">
+        <h3 style="margin:0 0 8px;font-size:18px;">${escapeHtml(title)}</h3>
+        <p class="helper-text" style="margin:0 0 12px;">${escapeHtml(intro)}</p>
+        ${companyName ? `<p style="margin:0 0 8px;"><strong>${escapeHtml(runtimeText("passwordSetDialogCompany"))}:</strong> ${escapeHtml(companyName)}</p>` : ""}
+        ${username ? `<p style="margin:0 0 12px;"><strong>${escapeHtml(runtimeText("passwordSetDialogUsername"))}:</strong> ${escapeHtml(username)}</p>` : ""}
+        <label style="display:block;margin-bottom:10px;">
+          <span style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">${escapeHtml(runtimeText("passwordSetDialogNewPassword"))}</span>
+          <input type="password" id="passwordSetDialogPrimary" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);" />
+        </label>
+        ${requireConfirm ? `
+        <label style="display:block;margin-bottom:10px;">
+          <span style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">${escapeHtml(runtimeText("passwordSetDialogConfirmPassword"))}</span>
+          <input type="password" id="passwordSetDialogConfirm" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);" />
+        </label>` : ""}
+        <div id="passwordSetDialogError" class="helper-text helper-text-warning" style="display:none;margin-bottom:8px;"></div>
+        <div class="button-row">
+          <button type="button" class="ghost-button" data-password-set-cancel>${escapeHtml(uiT("btnBulkCancel"))}</button>
+          <button type="button" class="primary-button" data-password-set-submit>${escapeHtml(submitLabel)}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const primaryInput = overlay.querySelector("#passwordSetDialogPrimary");
+    const confirmInput = overlay.querySelector("#passwordSetDialogConfirm");
+    const errorEl = overlay.querySelector("#passwordSetDialogError");
+    const close = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    overlay.querySelector("[data-password-set-cancel]").addEventListener("click", () => close(null));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        close(null);
+      }
+    });
+    overlay.querySelector("[data-password-set-submit]").addEventListener("click", () => {
+      const primary = String(primaryInput?.value || "").trim();
+      const confirm = String(confirmInput?.value || primary).trim();
+      if (primary.length < minLength) {
+        errorEl.textContent = minLength >= 8
+          ? runtimeText("companyAdminPasswordMinLength")
+          : uiT("alertPasswordMinLength");
+        errorEl.style.display = "block";
+        return;
+      }
+      if (requireConfirm && primary !== confirm) {
+        errorEl.textContent = runtimeText("passwordSetDialogMismatch");
+        errorEl.style.display = "block";
+        return;
+      }
+      close(primary);
+    });
+
+    primaryInput?.focus();
+  });
+}
+
 function showConfirmDialog(message) {
   return new Promise((resolve) => {
     if (typeof activeConfirmCloser === "function") {
@@ -34032,6 +34265,7 @@ warnStaleControlAssets();
   try {
     await loadEnterpriseFlags();
     await loadPublicBranding();
+    await loadPricingCatalog();
     await loadAllData();
     await loadSectorTerminology();
     if (state.currentUser?.role === "superadmin") {
