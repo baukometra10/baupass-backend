@@ -94,6 +94,22 @@ def register_billing_blueprint(flask_app: Flask) -> None:
 
         return jsonify(pricing_catalog())
 
+    @billing_v2_bp.get("/billing/stripe/setup-status")
+    @require_auth
+    @require_roles("superadmin")
+    def v2_stripe_setup_status():
+        from backend.app.platform.setup_status import collect_setup_status
+
+        status = collect_setup_status()
+        billing = status.get("billing") or {}
+        return jsonify(
+            {
+                "billing": billing,
+                "docs": "docs/stripe-live-setup.md",
+                "bootstrapEndpoint": "/api/v2/billing/stripe/bootstrap",
+            }
+        )
+
     @billing_v2_bp.get("/billing/revenue-metrics")
     @require_auth
     @require_roles("superadmin")

@@ -1009,6 +1009,10 @@ const UI_TRANSLATIONS = {
     billingTrialing: "Stripe-Testphase aktiv",
     billingBootstrapBtn: "Stripe-Produkte anlegen",
     billingBootstrapOk: "Stripe-Katalog erstellt — env vars in Konsole/Railway eintragen",
+    billingReturnSuccess: "Zahlung erfolgreich — Plan wird aktualisiert.",
+    billingReturnCancel: "Checkout abgebrochen.",
+    billingReturnInvoicePaid: "Rechnung bezahlt — Danke!",
+    billingReturnPortal: "Zahlungsportal geschlossen.",
     invoiceOpsEyebrow: "Operations",
     invoiceOpsH3: "Versand-SLA und Fehlerlage",
     invoiceSendEyebrow: "Versand",
@@ -2023,6 +2027,10 @@ const UI_TRANSLATIONS = {
     billingTrialing: "Stripe trial active",
     billingBootstrapBtn: "Create Stripe products",
     billingBootstrapOk: "Stripe catalog created — add env vars to Railway",
+    billingReturnSuccess: "Payment successful — your plan will update shortly.",
+    billingReturnCancel: "Checkout cancelled.",
+    billingReturnInvoicePaid: "Invoice paid — thank you!",
+    billingReturnPortal: "Payment portal closed.",
     invoiceOpsEyebrow: "Operations",
     invoiceOpsH3: "Delivery SLA and error status",
     invoiceSendEyebrow: "Delivery",
@@ -31456,7 +31464,46 @@ globalThis.requestEinsatzplanEditor = requestEinsatzplanEditor;
 
 ensureEnterpriseNavDelegation();
 
+function handleBillingReturnFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const billing = params.get("billing");
+  if (!billing) {
+    return;
+  }
+  const plan = String(params.get("plan") || "").trim().toLowerCase();
+  let message = "";
+  let toastType = "success";
+  if (billing === "success") {
+    message = runtimeTextTemplate("billingReturnSuccess", { plan: plan || "—" });
+    pendingFocusBilling = true;
+    if (plan) pendingHubUpgradePlan = plan;
+  } else if (billing === "cancel") {
+    message = runtimeText("billingReturnCancel");
+    toastType = "error";
+  } else if (billing === "invoice_paid") {
+    message = runtimeText("billingReturnInvoicePaid");
+  } else if (billing === "portal") {
+    message = runtimeText("billingReturnPortal");
+  }
+  params.delete("billing");
+  params.delete("plan");
+  const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash || ""}`;
+  window.history.replaceState({}, "", clean);
+  if (message) {
+    showToast(message, toastType, 6000);
+  }
+  if (token && (billing === "success" || billing === "invoice_paid" || billing === "portal")) {
+    void loadBillingOverview({ silent: true });
+    void loadAndRenderInvoices({ silent: true });
+    const allowed = getAllowedViewsForRole(getEffectiveUiRole());
+    if (allowed.includes("invoices")) {
+      setView("invoices");
+    }
+  }
+}
+
 function applyDeepLinkViewFromUrl() {
+  handleBillingReturnFromUrl();
   if (!token) {
     return;
   }

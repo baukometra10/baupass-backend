@@ -444,6 +444,13 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
             )
             handled = True
 
+    elif event_type == "payment_intent.succeeded":
+        meta = data_obj.get("metadata") or {}
+        invoice_id = str(meta.get("invoice_id") or meta.get("baupass_invoice_id") or "")
+        if invoice_id:
+            _mark_invoice_paid_from_stripe(db, invoice_id, payment_ref=str(data_obj.get("id") or ""))
+            handled = True
+
     _mark_event(db, event_id, event_type)
     db.commit()
     publish_event(event_type, None, event)

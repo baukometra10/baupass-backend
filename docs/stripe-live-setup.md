@@ -73,7 +73,16 @@ Local Python: use **3.12** (see `.python-version`). E2E: `npx playwright test te
 
 `https://YOUR-SERVICE.up.railway.app/api/billing/stripe/webhook`
 
-Enable events: `checkout.session.completed`, `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`.
+Enable events: `checkout.session.completed`, `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`, `payment_intent.succeeded`.
+
+## One-command Railway setup
+
+```powershell
+$env:STRIPE_SECRET_KEY = "sk_test_..."
+# After creating webhook in Stripe Dashboard:
+$env:STRIPE_WEBHOOK_SECRET = "whsec_..."
+powershell -ExecutionPolicy Bypass -File .\deploy\railway-stripe-setup.ps1
+```
 
 ## Test
 

@@ -183,6 +183,40 @@ def _check_env() -> dict[str, Any]:
             items[-1]["ok"] = False
             items[-1]["value_hint"] = "weak"
 
+    # ── Stripe billing ────────────────────────────────────────────────────
+    stripe_key = _present("STRIPE_SECRET_KEY")
+    add(
+        "STRIPE_SECRET_KEY",
+        ok=stripe_key,
+        severity="recommended",
+        hint="Stripe secret key (sk_test_ or sk_live_) for subscription checkout.",
+    )
+    add(
+        "STRIPE_WEBHOOK_SECRET",
+        ok=_present("STRIPE_WEBHOOK_SECRET"),
+        severity="recommended",
+        hint="Webhook signing secret (whsec_) — endpoint /api/billing/stripe/webhook",
+    )
+    try:
+        from backend.app.platform.pricing import resolve_stripe_price_id
+
+        for plan in ("starter", "professional", "enterprise"):
+            add(
+                f"STRIPE_PRICE_{plan.upper()}",
+                ok=bool(resolve_stripe_price_id(plan, annual=False)),
+                severity="recommended",
+                hint=f"Run: python backend/ops/setup_stripe_products.py",
+            )
+    except Exception:
+        pass
+    add(
+        "BAUPASS_STRIPE_TRIAL_DAYS",
+        ok=_present("BAUPASS_STRIPE_TRIAL_DAYS") or True,
+        severity="recommended",
+        hint="Checkout trial length in days (default 14). Set 0 to disable.",
+        value_hint=os.getenv("BAUPASS_STRIPE_TRIAL_DAYS", "14 (default)"),
+    )
+
     # ── Email ─────────────────────────────────────────────────────────────
     smtp_ok = _present("SMTP_HOST") and _present("SMTP_PASSWORD")
     add(

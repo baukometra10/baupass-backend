@@ -44,10 +44,7 @@ def collect_setup_status() -> dict[str, Any]:
             "sentry": bool((os.getenv("SENTRY_DSN") or "").strip()),
             "otel": str(os.getenv("BAUPASS_OTEL", "0")).strip() in {"1", "true", "yes"},
         },
-        "billing": {
-            "stripe": bool((os.getenv("STRIPE_SECRET_KEY") or "").strip()),
-            "stripeWebhook": bool((os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()),
-        },
+        "billing": _billing_block(),
         "smtp": bool((os.getenv("SMTP_HOST") or "").strip() and (os.getenv("SMTP_PASSWORD") or "").strip()),
         "cameras": {
             "rtspBridgeToken": bool((os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN") or "").strip()),
@@ -57,6 +54,34 @@ def collect_setup_status() -> dict[str, Any]:
         },
         "readyScore": _score(redis_url),
         "enterprise": _enterprise_block(),
+    }
+
+
+def _billing_block() -> dict[str, Any]:
+    from backend.app.platform.pricing import checkout_trial_days, resolve_stripe_price_id
+
+    base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    plans = ("starter", "professional", "enterprise")
+    price_ids = {
+        plan: {
+            "monthly": bool(resolve_stripe_price_id(plan, annual=False)),
+            "annual": bool(resolve_stripe_price_id(plan, annual=True)),
+        }
+        for plan in plans
+    }
+    prices_ok = all(v["monthly"] for v in price_ids.values())
+    secret_ok = bool((os.getenv("STRIPE_SECRET_KEY") or "").strip())
+    webhook_ok = bool((os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip())
+    return {
+        "stripe": secret_ok,
+        "stripeWebhook": webhook_ok,
+        "stripePricesConfigured": prices_ok,
+        "priceIds": price_ids,
+        "checkoutTrialDays": checkout_trial_days(),
+        "webhookUrl": f"{base}/api/billing/stripe/webhook" if base else "",
+        "bootstrapScript": "python backend/ops/setup_stripe_products.py",
+        "readyForCheckout": secret_ok and prices_ok,
+        "readyForWebhooks": secret_ok and webhook_ok,
     }
 
 
