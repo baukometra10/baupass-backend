@@ -16788,7 +16788,6 @@ function openEnterpriseView(viewName, embedItemId) {
 
 let dashboardPollTimer = null;
 let platformHealthPollTimer = null;
-let _opsLiveFeedStop = null;
 
 const PLATFORM_HEALTH_PROBE_LABELS = {
   api: "platformHealthProbeApi",
@@ -16909,35 +16908,6 @@ function stopPlatformHealthPoll() {
   }
 }
 
-function startOpsLiveFeed() {
-  if (_opsLiveFeedStop || typeof window.BauPassOpsRealtime === "undefined") return;
-  const feedEl = document.getElementById("liveEventsFeed");
-  const modeTag = document.getElementById("liveEventsModeTag");
-  if (!feedEl) return;
-  const companyId = state.user?.company_id ? String(state.user.company_id) : "";
-  window.BauPassOpsRealtime.start({
-    companyId,
-    feedEl,
-    onMode(mode) {
-      if (modeTag) modeTag.textContent = mode === "websocket" ? "● WebSocket" : "● SSE";
-    },
-    onEvent() {},
-  }).then((stopFn) => {
-    _opsLiveFeedStop = stopFn || null;
-  }).catch(() => {});
-}
-
-function stopOpsLiveFeed() {
-  if (_opsLiveFeedStop) {
-    try { _opsLiveFeedStop(); } catch (_) {}
-    _opsLiveFeedStop = null;
-  }
-  const feedEl = document.getElementById("liveEventsFeed");
-  if (feedEl) feedEl.innerHTML = "<span class='muted small'>Nicht verbunden.</span>";
-  const modeTag = document.getElementById("liveEventsModeTag");
-  if (modeTag) modeTag.textContent = "";
-}
-
 function renderDeploymentDeclinesBannerEl(bannerEl, state) {
   if (!bannerEl) return;
   const count = Number(state?.declinedDayCount || 0);
@@ -17055,11 +17025,9 @@ function setView(viewName) {
   if (targetView === "dashboard") {
     startDashboardPoll();
     startPlatformHealthPoll();
-    startOpsLiveFeed();
   } else {
     stopDashboardPoll();
     stopPlatformHealthPoll();
-    stopOpsLiveFeed();
   }
 
   if (targetView === "devices") {
@@ -18364,13 +18332,11 @@ function refreshAll() {
     broadcastSessionToEmbeds();
     if (getCurrentViewName() === "dashboard") {
       startPlatformHealthPoll();
-      startOpsLiveFeed();
     } else if (canViewPlatformHealth()) {
       void refreshPlatformHealth();
     }
   } else {
     stopPlatformHealthPoll();
-    stopOpsLiveFeed();
   }
 }
 

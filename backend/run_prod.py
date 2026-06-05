@@ -79,7 +79,14 @@ if __name__ == "__main__":
         "yes",
         "on",
     }
-    init_db()
+    run_backup_on_boot = str(os.getenv("BAUPASS_BACKUP_ON_BOOT", "0")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    # init_db() wird bereits beim Import von backend.server ausgeführt.
+
     if str(os.getenv("BAUPASS_SEED_DEMO_ENTERPRISE", "0")).strip().lower() in {"1", "true", "yes", "on"}:
         try:
             from backend.ops.seed_demo_enterprise import seed_demo_enterprise
@@ -138,24 +145,30 @@ if __name__ == "__main__":
         )
     else:
         print("[baupass] /data volume: exists=False (not mounted in this container)", flush=True)
-    with app.app_context():
-        db = get_db()
-        dunning_result = {
-            "remindersSent": 0,
-            "reminderFailures": 0,
-            "overdueUpdated": 0,
-        }
-        if run_dunning_on_boot:
-            # Optional on-boot dunning; disabled by default to avoid delaying bind/readiness on platforms like Railway.
+
+    dunning_result = {
+        "remindersSent": 0,
+        "reminderFailures": 0,
+        "overdueUpdated": 0,
+    }
+    suspended = []
+
+    try:
+        with app.app_context():
+            db = get_db()
+            if run_dunning_on_boot:
+                # Optional on-boot dunning; disabled by default to avoid delaying bind/readiness on platforms like Railway.
+                try:
+                    dunning_result = run_invoice_dunning_cycle(db)
+                except Exception as exc:
+                    print(f"[baupass] WARNING: on-boot dunning skipped: {exc}", flush=True)
             try:
-                dunning_result = run_invoice_dunning_cycle(db)
+                suspended = check_and_apply_overdue_suspensions(db)
             except Exception as exc:
-                print(f"[baupass] WARNING: on-boot dunning skipped: {exc}", flush=True)
-        suspended = []
-        try:
-            suspended = check_and_apply_overdue_suspensions(db)
-        except Exception as exc:
-            print(f"[baupass] WARNING: overdue suspension check skipped: {exc}", flush=True)
+                print(f"[baupass] WARNING: overdue suspension check skipped: {exc}", flush=True)
+    except Exception as exc:
+        print(f"[baupass] CRITICAL: Post-initialization tasks failed: {exc}", flush=True)
+
     if dunning_result.get("remindersSent") or dunning_result.get("reminderFailures") or dunning_result.get("overdueUpdated"):
         print(
             "[baupass] Dunning cycle: "
@@ -175,13 +188,9 @@ if __name__ == "__main__":
         f"sizeBytes={db_info.get('sizeBytes')}",
         flush=True,
     )
-    backup_on_boot = str(os.getenv("BAUPASS_BACKUP_ON_BOOT", "1")).strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    if backup_on_boot and db_info.get("persistent") and int(db_info.get("workersActive") or 0) > 0:
+    
+    # Backup only if explicitly requested or on persistent volumes with data
+    if run_backup_on_boot and db_info.get("persistent") and int(db_info.get("workersActive") or 0) > 0:
         try:
             backup_path, backup_meta = create_sqlite_database_backup()
             print(
