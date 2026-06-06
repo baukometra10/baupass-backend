@@ -7719,6 +7719,34 @@ def start_background_jobs():
 
     threading.Thread(target=camera_health_loop, name="baupass-camera-health", daemon=True).start()  # baupass:allow-inline-thread
 
+    def run_platform_guardian_once():
+        try:
+            with app.app_context():
+                from backend.app.platform.guardian.runner import guardian_enabled, run_guardian_cycle
+
+                if not guardian_enabled():
+                    return {"ok": True, "skipped": True}
+                host = (os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("PUBLIC_BASE_URL") or "").strip()
+                public_url = host if host.startswith("http") else (f"https://{host}" if host else "")
+                return run_guardian_cycle(app, host=host.replace("https://", "").replace("http://", ""), public_url=public_url)
+        except Exception as exc:
+            print(f"[baupass] WARNING: platform guardian failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc)}
+
+    def platform_guardian_loop():
+        from backend.app.platform.guardian.runner import guardian_enabled, guardian_interval_seconds
+
+        if not guardian_enabled():
+            return
+        interval = guardian_interval_seconds()
+        time.sleep(min(10, interval))
+        while True:
+            run_platform_guardian_once()
+            time.sleep(interval)
+
+    if os.getenv("BAUPASS_GUARDIAN_ENABLED", "1").strip().lower() not in {"0", "false", "no"}:
+        threading.Thread(target=platform_guardian_loop, name="baupass-platform-guardian", daemon=True).start()  # baupass:allow-inline-thread
+
     # Expiry-Check beim Start einmal ausführen, danach täglich (non-fatal on PG/SQLite errors)
     try:
         check_doc_expiry_warnings()

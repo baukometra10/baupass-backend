@@ -105,68 +105,15 @@ def liveness():
     return jsonify({"alive": True}), 200
 
 
-_UI_PROBE_PATHS = (
-    ("api", "/api/health/live"),
-    ("ready", "/api/health/ready"),
-    ("admin_v2", "/admin-v2/index.html?embed=1"),
-    ("enterprise_hub", "/enterprise-hub.html?embed=1"),
-    ("ops_center", "/ops-command-center.html?embed=1"),
-)
-
-
 @health_bp.get("/health/platform")
 def platform_health():
     """Embed + Railway readiness for Control Pass dashboard."""
-    probes = []
-    overall = "ok"
-    with current_app.test_client() as client:
-        for key, path in _UI_PROBE_PATHS:
-            started = time.monotonic()
-            try:
-                response = client.get(path, headers={"Accept": "text/html,application/json"})
-                ok = response.status_code < 400
-                detail = f"HTTP {response.status_code}"
-            except Exception as exc:
-                ok = False
-                detail = str(exc)[:120]
-            latency_ms = int((time.monotonic() - started) * 1000)
-            if not ok:
-                overall = "degraded" if overall == "ok" else overall
-                if key in ("api", "ready"):
-                    overall = "down"
-            probes.append(
-                {
-                    "id": key,
-                    "path": path,
-                    "ok": ok,
-                    "latencyMs": latency_ms,
-                    "detail": detail,
-                }
-            )
-
-    db_health = get_database_health()
-    ready = db_health.get("status") == "ok"
-    if not ready:
-        overall = "degraded" if overall != "down" else overall
+    from backend.app.health.platform_probe import collect_platform_health
 
     host = (request.host or "").strip()
-    cloud = {
-        "provider": "railway" if host.endswith(".up.railway.app") else "self-hosted",
-        "host": host,
-        "publicUrl": (os.getenv("PUBLIC_BASE_URL") or os.getenv("RAILWAY_PUBLIC_DOMAIN") or "").strip()
-        or request.url_root.rstrip("/"),
-    }
-
-    return jsonify(
-        {
-            "status": overall,
-            "ready": ready,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "cloud": cloud,
-            "database": db_health,
-            "probes": probes,
-        }
-    ), 200 if overall == "ok" else 503
+    payload = collect_platform_health(current_app._get_current_object(), host=host, public_url=request.url_root.rstrip("/"))
+    overall = str(payload.get("status") or "ok").lower()
+    return jsonify(payload), 200 if overall == "ok" else 503
 
 
 @health_bp.get("/health/queues")

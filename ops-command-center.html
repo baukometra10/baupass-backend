@@ -32,6 +32,20 @@
     .event-feed { max-height: 220px; overflow-y: auto; font-size: 0.78rem; }
     .event-line { padding: 0.35rem 0; border-bottom: 1px solid var(--border); color: var(--muted); }
     .event-line strong { color: var(--text); }
+    .guardian-card { grid-column: 1 / -1; border-color: var(--accent); }
+    .guardian-card.degraded { border-color: var(--warn); }
+    .guardian-card.down { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25); }
+    .guardian-head { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+    .guardian-status { font-size: 1.35rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+    .guardian-card.degraded .guardian-status { color: var(--warn); }
+    .guardian-card.down .guardian-status { color: var(--danger); }
+    .guardian-probes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.65rem; }
+    .guardian-probe {
+      font-size: 0.72rem; padding: 0.2rem 0.45rem; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .guardian-probe.ok { border-color: rgba(75, 227, 209, 0.35); color: var(--accent); }
+    .guardian-probe.fail { border-color: rgba(248, 113, 113, 0.45); color: var(--danger); }
   </style>
 </head>
 <body class="ops-app">
@@ -86,7 +100,38 @@
       grid.insertBefore(el, grid.querySelector(".card[style*='grid-column']") || grid.firstChild);
     }
 
-    function render(data, forecast) {
+    function renderGuardianCard(guardian) {
+      if (!guardian || !guardian.timestamp) return "";
+      const status = String(guardian.status || "unknown").toLowerCase();
+      const cls = status === "ok" ? "" : status === "down" ? "down" : "degraded";
+      const statusLabel = status === "ok" ? "OK" : status === "down" ? "Offline" : "Eingeschränkt";
+      const failed = Array.isArray(guardian.failedProbes) ? guardian.failedProbes : [];
+      const probes = Array.isArray(guardian.probes) ? guardian.probes : [];
+      const probeHtml = probes.map((p) => {
+        const ok = !!p.ok;
+        const label = p.id || "probe";
+        return `<span class="guardian-probe ${ok ? "ok" : "fail"}">${label}${p.latencyMs != null ? ` · ${p.latencyMs}ms` : ""}</span>`;
+      }).join("");
+      const host = (guardian.cloud && guardian.cloud.host) || "";
+      const checked = (guardian.timestamp || "").replace("T", " ").slice(0, 19);
+      const alertHint = failed.length
+        ? `Betroffen: ${failed.join(", ")}`
+        : (guardian.workersDegraded ? "Hintergrund-Worker fehlen" : "Alle Module grün");
+      return `
+        <div class="card guardian-card ${cls}">
+          <div class="guardian-head">
+            <div>
+              <div class="label">Platform Guardian</div>
+              <div class="guardian-status">${statusLabel}</div>
+              <div class="label" style="margin-top:0.35rem">${alertHint}</div>
+            </div>
+            <div class="label">${host ? host + "<br>" : ""}${checked} UTC</div>
+          </div>
+          <div class="guardian-probes">${probeHtml || '<span class="guardian-probe">—</span>'}</div>
+        </div>`;
+    }
+
+    function render(data, forecast, guardian) {
       lastPayload = data;
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
@@ -97,6 +142,7 @@
       const sec = t.openSecurityAlerts ?? 0;
 
       grid.innerHTML = `
+        ${renderGuardianCard(guardian)}
         <div class="card ops-card clickable" data-action="onsite" title="KI: Wer ist auf der Baustelle?">
           <div class="ops-label">Auf Baustelle</div><div class="ops-metric">${t.workersOnSite ?? 0}</div>
         </div>
@@ -173,18 +219,29 @@
       }
     }
 
+    async function loadGuardian() {
+      try {
+        const res = await fetch("/api/guardian/status", { credentials: "include" });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
     async function load() {
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const [res, forecast] = await Promise.all([
+        const [res, forecast, guardian] = await Promise.all([
           fetch(url, { credentials: "include" }),
           loadForecast(),
+          loadGuardian(),
         ]);
         if (!res.ok) throw new Error(res.status + " " + res.statusText);
-        render(await res.json(), forecast);
+        render(await res.json(), forecast, guardian);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">Bitte in Admin v2 anmelden, dann diese Seite öffnen. ${e.message}</p>`;

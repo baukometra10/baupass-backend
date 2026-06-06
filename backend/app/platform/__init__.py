@@ -153,6 +153,13 @@ def register_platform_blueprints(flask_app: Flask) -> None:
         ).register_autopilot_blueprint(flask_app),
     )
     _step(
+        "guardian",
+        lambda: __import__(
+            "backend.app.platform.guardian",
+            fromlist=["register_guardian_blueprint"],
+        ).register_guardian_blueprint(flask_app),
+    )
+    _step(
         "workforce",
         lambda: __import__(
             "backend.app.platform.workforce",
