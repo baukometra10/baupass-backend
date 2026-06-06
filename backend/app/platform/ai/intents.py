@@ -6,9 +6,23 @@ import re
 from typing import Any
 
 _CONTACT_PATTERNS = re.compile(
-    r"(kontakt|contact|hilfe|help|support|admin|hotline|telefon|phone|email|e-mail|"
+    r"(kontakt|contact|support|hotline|telefon|phone|e-mail|email|"
     r"erreichen|anrufen|zuständig|zustaendig|wer ist mein|meine daten|"
+    r"(?:ich brauche )?hilfe(?: bei)?(?: kontakt| support| beim admin)?|"
     r"اتصل|تواصل|مساعدة|دعم|مدير|بريد)",
+    re.I,
+)
+
+_ANALYTICAL_PATTERNS = re.compile(
+    r"\b(wer|wie viele|wieviele|warum|wann|welche|welcher|welches|"
+    r"ist|sind|hat|haben|gibt|liste|status|überblick|ueberblick|"
+    r"wer ist|wo ist|how many|who is|why|count|analyze|analysier)\b",
+    re.I,
+)
+
+_NAV_COMMAND_PATTERNS = re.compile(
+    r"\b(öffne|open|zeig(?:e)?(?: mir)?(?: die)? (?:seite|ansicht|übersicht|uebersicht)|"
+    r"geh(?:e)? zu|navigier|bring mich|wechsel(?:e)? zu|switch to|open the)\b",
     re.I,
 )
 
@@ -277,6 +291,10 @@ def try_intent_response(
                 }
 
     for pattern, url, labels in _NAV_RULES:
+        if not worker and _ANALYTICAL_PATTERNS.search(q):
+            continue
+        if not worker and not _NAV_COMMAND_PATTERNS.search(q):
+            continue
         if pattern.search(q):
             action = {
                 "id": f"nav_{pattern.pattern[:12]}",

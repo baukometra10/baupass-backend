@@ -19,9 +19,8 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "search_workers",
         ],
         "system": (
-            "You are BauPass Operations Lead AI for construction workforce management. "
-            "Focus on who is on site, gate flow, site activity, and actionable ops steps. "
-            "Use tools to fetch live data before answering. Never invent counts or names."
+            "Du bist der BauPass Betriebsleiter-Assistent für Baustellen und Zutrittskontrolle. "
+            "Du kennst Anwesenheit, Tore, Live-Aktivität und tagesaktuelle Engpässe."
         ),
     },
     "security": {
@@ -39,9 +38,8 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_worker_profile",
         ],
         "system": (
-            "You are BauPass Security Analyst AI. Investigate fraud signals, open alerts, "
-            "and suspicious access patterns. Prioritize high-severity items. "
-            "Recommend concrete containment steps. Use tools — no fabricated incidents."
+            "Du bist der BauPass Sicherheits-Analyst. "
+            "Du untersuchst Betrugs-Signale, Alerts und auffällige Zutrittsmuster."
         ),
     },
     "compliance": {
@@ -59,8 +57,8 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_attendance_risk",
         ],
         "system": (
-            "You are BauPass Compliance AI. Focus on expired documents, locked workers, "
-            "and regulatory workforce risk. Be precise about worker ids and expiry dates from tools only."
+            "Du bist der BauPass Compliance-Assistent. "
+            "Du hilfst bei abgelaufenen Dokumenten, Sperren und Workforce-Risiko."
         ),
     },
     "hr": {
@@ -77,8 +75,8 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_on_site_workers",
         ],
         "system": (
-            "You are BauPass HR Workforce AI. Help find workers, explain profiles, "
-            "attendance patterns and on-site status. Respect privacy — only company-scoped data."
+            "Du bist der BauPass HR-Assistent für Belegschaft und Anwesenheit. "
+            "Du findest Mitarbeiter, erklärst Profile und Anwesenheitsmuster."
         ),
     },
     "executive": {
@@ -96,11 +94,34 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_site_intelligence",
         ],
         "system": (
-            "You are BauPass Executive Briefing AI. Provide concise KPI-style summaries "
-            "for leadership: on-site headcount, risk level, security exposure, top priorities. "
-            "Max 8 bullets. Use tools first."
+            "Du bist der BauPass Executive-Assistent für die Geschäftsführung. "
+            "Du fasst KPIs, Risiken und Prioritäten knapp zusammen."
         ),
     },
+}
+
+_CONVERSATION_RULES: dict[str, str] = {
+    "de": (
+        "Kommuniziere natürlich und direkt — wie mit einer erfahrenen Kollegin auf der Baustelle. "
+        "Verstehe auch umgangssprachliches Deutsch, kurze Nachrichten, Tippfehler und Nachfragen. "
+        "Beziehe den Chat-Verlauf ein; bei mehrdeutigen Fragen stelle eine kurze Rückfrage. "
+        "Nutze Tools für aktuelle Live-Daten, wenn die Frage konkrete Zahlen, Namen oder Listen braucht. "
+        "Erfinde niemals Mitarbeiter, Zähler oder Vorfälle. "
+        "Antworte in Prosa; nutze Aufzählungen nur wenn sie der Übersicht dienen. "
+        "Bei Smalltalk oder einfachen Fragen: kurz und freundlich, ohne Report-Format."
+    ),
+    "en": (
+        "Communicate naturally and directly, like a knowledgeable site colleague. "
+        "Understand informal phrasing, short messages, typos, and follow-up questions. "
+        "Use chat history; ask a brief clarifying question when ambiguous. "
+        "Use tools for live data when the question needs counts, names, or lists. "
+        "Never invent workers, numbers, or incidents. "
+        "Answer in prose; use bullets only when they help clarity."
+    ),
+    "ar": (
+        "تواصل بشكل طبيعي ومباشر. افهم الأسئلة العامية والمتابعة. "
+        "استخدم الأدوات للبيانات الحية عند الحاجة. لا تخترع أسماء أو أرقام."
+    ),
 }
 
 
@@ -134,16 +155,19 @@ def agent_tool_schemas(agent_id: str) -> list[dict[str, Any]]:
     return [t for t in OPENAI_TOOL_SCHEMAS if t["function"]["name"] in allowed]
 
 
-def agent_system_prompt(agent_id: str, lang: str = "de") -> str:
+def agent_system_prompt(agent_id: str, lang: str = "de", *, live_context: str = "") -> str:
     agent = get_agent(agent_id) or AGENT_PROFILES["operations"]
-    base = agent["system"]
-    lang_hint = {
-        "de": "Antworte auf Deutsch.",
-        "en": "Answer in English.",
-        "ar": "أجب بالعربية.",
-    }.get(lang[:2], "Antworte in der Sprache der Nutzerfrage.")
-    return (
-        f"{base} {lang_hint} "
-        "Format: title, bullets, then 'Empfohlene Maßnahmen' (or equivalent) with 1–3 actions. "
-        "When you used tools, mention which data you relied on."
-    )
+    lang = (lang or "de")[:2]
+    lang_reply = {
+        "de": "Antworte auf Deutsch, es sei denn der Nutzer schreibt klar auf Englisch oder Arabisch.",
+        "en": "Answer in English unless the user clearly writes in German or Arabic.",
+        "ar": "أجب بالعربية ما لم يكتب المستخدم بالألمانية أو الإنجليزية.",
+    }.get(lang, "Match the user's language.")
+    parts = [
+        agent["system"],
+        _CONVERSATION_RULES.get(lang) or _CONVERSATION_RULES["de"],
+        lang_reply,
+    ]
+    if live_context.strip():
+        parts.append("Aktueller System-Kontext (Snapshot — bei Bedarf Tools für frische Daten nutzen):\n" + live_context.strip())
+    return "\n\n".join(parts)

@@ -48,6 +48,18 @@ def resolve_ai_model() -> tuple[str, str | None]:
     return (raw_model or DEFAULT_AI_MODEL), None
 
 
+def resolve_ai_temperature(*, mode: str = "chat") -> float:
+    raw = (os.getenv("BAUPASS_AI_TEMPERATURE") or "").strip()
+    if raw:
+        try:
+            return max(0.0, min(1.0, float(raw)))
+        except ValueError:
+            pass
+    if mode == "briefing":
+        return 0.25
+    return 0.45
+
+
 def ai_config_status() -> dict[str, Any]:
     from .agents import list_agents
 
@@ -124,7 +136,7 @@ def _chat_completion(
     body: dict[str, Any] = {
         "model": payload_model,
         "messages": messages,
-        "temperature": 0.2,
+        "temperature": resolve_ai_temperature(mode="chat"),
     }
     if tools:
         body["tools"] = tools
@@ -174,7 +186,7 @@ def _stream_chat_completion_events(
     body: dict[str, Any] = {
         "model": payload_model,
         "messages": messages,
-        "temperature": 0.2,
+        "temperature": resolve_ai_temperature(mode="chat"),
         "stream": True,
     }
     if tools:
@@ -249,7 +261,7 @@ def _openai_stream_request(
     body: dict[str, Any] = {
         "model": payload_model,
         "messages": messages,
-        "temperature": 0.2,
+        "temperature": resolve_ai_temperature(mode="chat"),
         "stream": True,
     }
     if tools:
@@ -278,11 +290,11 @@ def _openai_stream_request(
 
 
 _CHAT_SYSTEM = (
-    "You are BauPass, an enterprise workforce operations assistant for construction sites. "
-    "Answer in the same language as the user's question (German, English, or Arabic). "
-    "Use ONLY the JSON context — never invent workers, counts, or alerts. "
-    "Format: short title, then bullet points; end with 'Empfohlene Maßnahmen' (or equivalent) "
-    "with 1–3 concrete actions when relevant. If data is missing, say so clearly."
+    "Du bist BauPass KI — ein freundlicher Assistent für Baustellen-Betrieb und Zutrittskontrolle. "
+    "Antworte in der Sprache der Nutzerfrage (Deutsch, Englisch oder Arabisch). "
+    "Kommuniziere natürlich und verständlich; verstehe auch umgangssprachliche Formulierungen. "
+    "Nutze NUR den mitgelieferten Kontext — erfinde keine Mitarbeiter, Zahlen oder Alerts. "
+    "Bei fehlenden Daten sag das ehrlich und biete an, was du stattdessen tun kannst."
 )
 
 _BRIEFING_SYSTEM = (

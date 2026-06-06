@@ -29,7 +29,15 @@ def build_compact_context(db, company_id: str, role: str = "company-admin") -> d
     except Exception:
         pass
 
+    company_row = db.execute(
+        "SELECT name FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (company_id,),
+    ).fetchone()
+    company_name = (company_row["name"] if company_row else "") or company_id
+
     return {
+        "companyId": company_id,
+        "companyName": company_name,
         "date": full.get("date"),
         "workersOnSite": full.get("workersOnSite", 0),
         "onSiteNames": [
@@ -86,6 +94,69 @@ def infer_context_sources(ctx: dict[str, Any]) -> list[str]:
     if intel.get("risk", {}).get("level") in ("medium", "high"):
         sources.append("workforce_risk")
     return sources
+
+
+def format_live_context_block(ctx: dict[str, Any], *, lang: str = "de") -> str:
+    """Human-readable context block for LLM system prompts."""
+    lang = (lang or "de")[:2]
+    name = str(ctx.get("companyName") or ctx.get("companyId") or "—")
+    on_site = int(ctx.get("workersOnSite") or 0)
+    names = [n for n in (ctx.get("onSiteNames") or []) if n][:12]
+    sec = ctx.get("security") or {}
+    sec_n = int(sec.get("openFindings") or 0)
+    alerts_n = int(sec.get("openAlerts") or 0)
+    em = ctx.get("emergency") or {}
+    pending_leave = int(ctx.get("pendingLeave") or 0)
+    issues = ctx.get("operationalIssues") or []
+
+    if lang == "en":
+        lines = [
+            f"Company: {name}",
+            f"Date: {ctx.get('date') or '—'}",
+            f"On site now: {on_site}",
+        ]
+        if names:
+            lines.append("Names on site: " + ", ".join(names))
+        if sec_n or alerts_n:
+            lines.append(f"Open security findings: {sec_n}, alerts: {alerts_n}")
+        if em.get("active"):
+            lines.append(f"Active emergency: {em.get('summary') or 'yes'}")
+        if pending_leave:
+            lines.append(f"Pending leave requests: {pending_leave}")
+        if issues:
+            lines.append("Operational notes: " + "; ".join(str(i) for i in issues[:5]))
+        return "\n".join(lines)
+
+    if lang == "ar":
+        lines = [
+            f"الشركة: {name}",
+            f"التاريخ: {ctx.get('date') or '—'}",
+            f"على الموقع الآن: {on_site}",
+        ]
+        if names:
+            lines.append("أسماء على الموقع: " + "، ".join(names))
+        return "\n".join(lines)
+
+    lines = [
+        f"Firma: {name}",
+        f"Datum: {ctx.get('date') or '—'}",
+        f"Gerade auf der Baustelle: {on_site} Person(en)",
+    ]
+    if names:
+        lines.append("Namen vor Ort: " + ", ".join(names))
+    if sec_n or alerts_n:
+        lines.append(f"Offene Sicherheitsbefunde: {sec_n}, Alerts: {alerts_n}")
+    if em.get("active"):
+        lines.append(f"Aktiver Notfall: {em.get('summary') or 'ja'}")
+    if pending_leave:
+        lines.append(f"Offene Urlaubsanträge: {pending_leave}")
+    if issues:
+        lines.append("Baustellen-Hinweise: " + "; ".join(str(i) for i in issues[:5]))
+    intel = ctx.get("intelligence") or {}
+    risk = (intel.get("risk") or {}).get("level")
+    if risk:
+        lines.append(f"Workforce-Risiko: {risk}")
+    return "\n".join(lines)
 
 
 def suggested_prompts(ctx: dict[str, Any], lang: str = "de") -> list[dict[str, str]]:

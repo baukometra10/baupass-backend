@@ -46,6 +46,7 @@ def run_agent_query(
         agent = get_agent("operations")
 
     from .actions import suggest_actions
+    from .context_builder import format_live_context_block
     from .rag import search_knowledge
 
     ctx = build_compact_context(db, company_id, role)
@@ -55,27 +56,24 @@ def run_agent_query(
     tools = agent_tool_schemas(agent_id)
     model, config_warning = resolve_ai_model()
 
-    system = agent_system_prompt(agent_id, lang)
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system},
-        {
-            "role": "user",
-            "content": json.dumps(
-                {
-                    "company_id": company_id,
-                    "baseline_context": ctx,
-                    "rag_chunks": rag_chunks,
-                    "instruction": "Use tools for fresh data when the question needs specifics. Use rag_chunks for document context.",
-                },
-                ensure_ascii=False,
-            ),
-        },
-    ]
+    live_context = format_live_context_block(ctx, lang=lang)
+    if rag_chunks:
+        snippets = []
+        for chunk in rag_chunks[:4]:
+            title = str(chunk.get("title") or chunk.get("source") or "Dokument")
+            text = str(chunk.get("text") or chunk.get("content") or "")[:400]
+            if text.strip():
+                snippets.append(f"- {title}: {text.strip()}")
+        if snippets:
+            live_context += "\n\nRelevante Dokument-Auszüge:\n" + "\n".join(snippets)
+
+    system = agent_system_prompt(agent_id, lang, live_context=live_context)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     for h in (history or [])[-12:]:
-        role = h.get("role")
+        role_name = h.get("role")
         content = h.get("content")
-        if role in ("user", "assistant") and content:
-            messages.append({"role": role, "content": str(content)[:4000]})
+        if role_name in ("user", "assistant") and content:
+            messages.append({"role": role_name, "content": str(content)[:4000]})
 
     messages.append({"role": "user", "content": question})
 
@@ -168,6 +166,7 @@ def run_agent_query_stream(
         agent = get_agent("operations")
     agent_id = agent["id"]
     from .actions import suggest_actions
+    from .context_builder import format_live_context_block
     from .rag import search_knowledge
 
     ctx = build_compact_context(db, company_id, role)
@@ -176,23 +175,19 @@ def run_agent_query_stream(
         ctx["ragChunks"] = rag_chunks
     tools = agent_tool_schemas(agent_id)
     model, config_warning = resolve_ai_model()
-    system = agent_system_prompt(agent_id, lang)
+    live_context = format_live_context_block(ctx, lang=lang)
+    if rag_chunks:
+        snippets = []
+        for chunk in rag_chunks[:4]:
+            title = str(chunk.get("title") or chunk.get("source") or "Dokument")
+            text = str(chunk.get("text") or chunk.get("content") or "")[:400]
+            if text.strip():
+                snippets.append(f"- {title}: {text.strip()}")
+        if snippets:
+            live_context += "\n\nRelevante Dokument-Auszüge:\n" + "\n".join(snippets)
+    system = agent_system_prompt(agent_id, lang, live_context=live_context)
 
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system},
-        {
-            "role": "user",
-            "content": json.dumps(
-                {
-                    "company_id": company_id,
-                    "baseline_context": ctx,
-                    "rag_chunks": rag_chunks,
-                    "instruction": "Use tools for fresh data when needed.",
-                },
-                ensure_ascii=False,
-            ),
-        },
-    ]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     for h in (history or [])[-12:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):
             messages.append({"role": h["role"], "content": str(h["content"])[:4000]})

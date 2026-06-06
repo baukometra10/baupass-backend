@@ -747,6 +747,16 @@
       const statusEl = document.createElement("div");
       statusEl.className = "msg-meta";
       log.appendChild(statusEl);
+      const friendlyAiError = (err) => {
+        const hint = String(err?.hint || err?.error || "").trim();
+        if (!hint || hint === "company_required") return t("needCompany");
+        if (/openai|api.key|nicht konfiguriert/i.test(hint)) {
+          return LANG === "en"
+            ? "AI is not configured on the server yet. Please contact your administrator."
+            : "Die KI ist auf dem Server noch nicht eingerichtet. Bitte den Administrator kontaktieren.";
+        }
+        return hint;
+      };
       try {
         const res = await fetch("/api/ai/query/stream", {
           method: "POST",
@@ -767,7 +777,7 @@
         if (!res.ok) {
           dropThinking();
           const err = await res.json().catch(() => ({}));
-          botDiv.textContent = err.hint || err.error || res.statusText;
+          botDiv.textContent = friendlyAiError(err);
           return;
         }
         const reader = res.body.getReader();
