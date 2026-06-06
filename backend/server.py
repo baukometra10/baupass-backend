@@ -10329,16 +10329,47 @@ def normalize_site_geofence_radius_meters(value, access_mode="gate"):
 def get_company_site_access_row(db, company_id):
     if not company_id:
         return None
-    return db.execute(
-        """
+    full_sql = """
         SELECT access_mode, site_geofence_radius_meters, site_auto_checkin, site_auto_logout_on_leave,
                site_auto_proximity_login, work_start_time, work_end_time
         FROM companies
         WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
-        """,
-        (company_id,),
-    ).fetchone()
+        """
+    legacy_sql = """
+        SELECT access_mode, site_geofence_radius_meters, site_auto_checkin, site_auto_logout_on_leave,
+               work_start_time, work_end_time
+        FROM companies
+        WHERE id = ? AND deleted_at IS NULL
+        LIMIT 1
+        """
+    try:
+        return db.execute(full_sql, (company_id,)).fetchone()
+    except Exception as exc:
+        message = str(exc).lower()
+        if "no such column" not in message and "has no column named" not in message:
+            raise
+        return db.execute(legacy_sql, (company_id,)).fetchone()
+
+
+def worker_location_login_error_response(db, worker, exc):
+    if isinstance(exc, PermissionError):
+        distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
+        site_cfg = get_company_site_access_config(db, worker["company_id"])
+        max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+        return jsonify({
+            "error": "outside_site_radius",
+            "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
+        }), 403
+    error_code = str(exc)
+    if error_code == "worker_geolocation_required":
+        return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt am Standort anmelden."}), 400
+    if error_code == "site_location_unavailable":
+        return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden. Bitte Admin informieren."}), 403
+    return jsonify({
+        "error": error_code or "location_check_failed",
+        "message": "Standortpruefung fehlgeschlagen. Bitte erneut versuchen.",
+    }), 400
 
 
 def get_company_site_access_config(db, company_id):
@@ -10434,11 +10465,20 @@ def maybe_site_app_auto_checkin(db, worker):
     site_cfg = get_company_site_access_config(db, company_id)
     if site_cfg["accessMode"] != "site_app" or not site_cfg["siteAutoCheckin"]:
         return None
-    from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+    try:
+        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
 
-    attendance = worker_may_auto_attend_today(db, worker)
-    if not attendance.get("ok"):
-        return None
+        attendance = worker_may_auto_attend_today(db, worker)
+        if not attendance.get("ok"):
+            return None
+    except Exception:
+        app.logger.warning(
+            "attendance eligibility check failed for worker %s",
+            worker["id"],
+            exc_info=True,
+        )
+        if not is_company_workday_today():
+            return None
     if worker_has_open_checkin_today(db, worker["id"]):
         return None
     log_id = create_access_log_entry(
@@ -11211,7 +11251,15 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
 def create_worker_app_session(db, worker, device_payload=None):
     session_token = secrets.token_urlsafe(28)
     expires_at = resolve_worker_session_expiry_iso(worker)
-    site_coordinates = ensure_worker_site_coordinates(db, worker)
+    try:
+        site_coordinates = ensure_worker_site_coordinates(db, worker)
+    except Exception:
+        app.logger.warning(
+            "ensure_worker_site_coordinates failed for worker %s",
+            worker["id"],
+            exc_info=True,
+        )
+        site_coordinates = None
     db.execute(
         "INSERT INTO worker_app_sessions (token, worker_id, expires_at, bound_device_id) VALUES (?, ?, ?, ?)",
         (session_token, worker["id"], expires_at, ""),
@@ -11227,7 +11275,14 @@ def create_worker_app_session(db, worker, device_payload=None):
         "sessionExpiresAt": expires_at,
         "cardType": normalize_worker_type(worker["worker_type"]),
     }
-    session_data.update(enrich_worker_mobile_session(db, worker, session_token, expires_at, device_payload))
+    try:
+        session_data.update(enrich_worker_mobile_session(db, worker, session_token, expires_at, device_payload))
+    except Exception:
+        app.logger.warning(
+            "enrich_worker_mobile_session failed for worker %s",
+            worker["id"],
+            exc_info=True,
+        )
     return session_data
 
 
@@ -11501,34 +11556,28 @@ def worker_app_login():
 
     try:
         validate_worker_login_distance_or_raise(db, worker, payload)
-    except ValueError as exc:
-        error_code = str(exc)
-        if error_code == "worker_geolocation_required":
-            return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt am Standort anmelden."}), 400
-        if error_code == "site_location_unavailable":
-            return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden. Bitte Admin informieren."}), 403
-        raise
-    except PermissionError as exc:
-        distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
-        site_cfg = get_company_site_access_config(db, worker["company_id"])
-        max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
-        return jsonify({
-            "error": "outside_site_radius",
-            "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
-        }), 403
+    except (ValueError, PermissionError) as exc:
+        return worker_location_login_error_response(db, worker, exc)
 
-    session_data = create_worker_app_session(db, worker, device_payload=device_payload)
-    checkin_log_id = maybe_site_app_auto_checkin(db, worker)
-    if checkin_log_id:
-        session_data["autoCheckInLogId"] = checkin_log_id
-    login_type = "Besucher" if is_visitor else "Mitarbeiter"
-    log_audit(
-        "worker_app.login",
-        f"{login_type} {worker['first_name']} {worker['last_name']} (Badge {badge_id}) hat sich per Badge-ID angemeldet",
-        target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
-    )
-    db.commit()
-    return jsonify(session_data)
+    try:
+        session_data = create_worker_app_session(db, worker, device_payload=device_payload)
+        checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+        if checkin_log_id:
+            session_data["autoCheckInLogId"] = checkin_log_id
+        login_type = "Besucher" if is_visitor else "Mitarbeiter"
+        log_audit(
+            "worker_app.login",
+            f"{login_type} {worker['first_name']} {worker['last_name']} (Badge {badge_id}) hat sich per Badge-ID angemeldet",
+            target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
+        )
+        db.commit()
+        return jsonify(session_data)
+    except Exception:
+        app.logger.exception("worker_app_login failed for worker %s", worker["id"])
+        return jsonify({
+            "error": "login_server_error",
+            "message": "Anmeldung voruebergehend nicht moeglich. Bitte erneut versuchen.",
+        }), 500
 
 
 @require_rate_limit("worker_login")
@@ -11602,41 +11651,36 @@ def worker_app_proximity_login():
 
     try:
         validate_worker_login_distance_or_raise(db, worker, payload)
-    except ValueError as exc:
-        error_code = str(exc)
-        if error_code == "worker_geolocation_required":
-            return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt am Standort anmelden."}), 400
-        if error_code == "site_location_unavailable":
-            return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden."}), 403
-        raise
-    except PermissionError as exc:
-        distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
-        max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
-        return jsonify({
-            "error": "outside_site_radius",
-            "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
-        }), 403
+    except (ValueError, PermissionError) as exc:
+        return worker_location_login_error_response(db, worker, exc)
 
-    session_data = create_worker_app_session(db, worker, device_payload=device_payload)
-    session_data["proximityLogin"] = True
-    session_data["attendanceDayType"] = attendance.get("dayType")
-    if dwell_seconds is not None:
-        try:
-            session_data["proximityDwellSeconds"] = int(dwell_seconds)
-        except (TypeError, ValueError):
-            pass
-    checkin_log_id = maybe_site_app_auto_checkin(db, worker)
-    if checkin_log_id:
-        session_data["autoCheckInLogId"] = checkin_log_id
-    log_audit(
-        "worker_app.proximity_login",
-        f"Mitarbeiter {worker['first_name']} {worker['last_name']} (Badge {badge_id}) per Standort-Auto-Login angemeldet",
-        target_type="worker",
-        target_id=worker["id"],
-        company_id=worker["company_id"],
-    )
-    db.commit()
-    return jsonify(session_data)
+    try:
+        session_data = create_worker_app_session(db, worker, device_payload=device_payload)
+        session_data["proximityLogin"] = True
+        session_data["attendanceDayType"] = attendance.get("dayType")
+        if dwell_seconds is not None:
+            try:
+                session_data["proximityDwellSeconds"] = int(dwell_seconds)
+            except (TypeError, ValueError):
+                pass
+        checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+        if checkin_log_id:
+            session_data["autoCheckInLogId"] = checkin_log_id
+        log_audit(
+            "worker_app.proximity_login",
+            f"Mitarbeiter {worker['first_name']} {worker['last_name']} (Badge {badge_id}) per Standort-Auto-Login angemeldet",
+            target_type="worker",
+            target_id=worker["id"],
+            company_id=worker["company_id"],
+        )
+        db.commit()
+        return jsonify(session_data)
+    except Exception:
+        app.logger.exception("worker_app_proximity_login failed for worker %s", worker["id"])
+        return jsonify({
+            "error": "login_server_error",
+            "message": "Anmeldung voruebergehend nicht moeglich. Bitte erneut versuchen.",
+        }), 500
 
 
 @require_worker_session

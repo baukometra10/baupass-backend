@@ -4,6 +4,31 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from typing import Any
 
+_FREE_DEPLOYMENT_MARKERS = frozenset(
+    {
+        "frei",
+        "free",
+        "off",
+        "aus",
+        "-",
+        "–",
+        "—",
+        "x",
+        "urlaub",
+        "free day",
+        "kein einsatz",
+        "no assignment",
+        "off day",
+    }
+)
+
+
+def is_real_deployment_location(location: str | None) -> bool:
+    normalized = str(location or "").strip().lower()
+    if not normalized:
+        return False
+    return normalized not in _FREE_DEPLOYMENT_MARKERS
+
 
 def _parse_iso_date(value: str | None) -> date | None:
     raw = str(value or "").strip()[:10]
@@ -70,18 +95,17 @@ def worker_has_deployment_plan_usage(
     start, end = month_bounds(year, month)
     scheduled = db.execute(
         """
-        SELECT id FROM worker_deployment_days
+        SELECT location_label FROM worker_deployment_days
         WHERE company_id = ? AND worker_id = ?
           AND work_date >= ? AND work_date <= ?
           AND TRIM(COALESCE(location_label, '')) != ''
-        LIMIT 1
         """,
         (str(company_id), str(worker_id), start, end),
-    ).fetchone()
-    if scheduled:
+    ).fetchall()
+    if any(is_real_deployment_location(str(row["location_label"] or "")) for row in scheduled):
         return True
     try:
-        from .deployment_month import month_plan_published
+        from .deployment_worker import month_plan_published
 
         if month_plan_published(db, company_id, year, month):
             return True
@@ -169,7 +193,7 @@ def worker_may_auto_attend_today(
     shift_end = str((deployment_row or {}).get("shift_end") or "").strip()
 
     if plan_active:
-        if not location:
+        if not is_real_deployment_location(location):
             return {
                 "ok": False,
                 "reason": "not_scheduled_today",

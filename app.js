@@ -30163,6 +30163,14 @@ async function handleLoginSubmit(event) {
       showToast(runtimeText("loginResponseIncomplete"), "error", 3600);
       return;
     }
+    if (error.message === "login_server_error" || error.message === "internal_server_error" || error.message === "http_500") {
+      showToast(
+        uiT("alertLoginServerError") || "Server vorübergehend nicht erreichbar. Bitte in wenigen Sekunden erneut versuchen.",
+        "error",
+        6000,
+      );
+      return;
+    }
     showToast(uiT("alertLoginFailed").replace("{error}", error.message), "error", 4200);
   } finally {
     loginSubmitInFlight = false;

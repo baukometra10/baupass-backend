@@ -19,6 +19,19 @@ def perform_login():
         payload.update(extra)
         return jsonify(payload), status_code
 
+    try:
+        return _perform_login_core(srv, login_error)
+    except Exception:
+        srv.app.logger.exception("admin login failed unexpectedly")
+        return login_error(
+            "login_server_error",
+            500,
+            message="Anmeldung voruebergehend nicht moeglich. Bitte erneut versuchen.",
+        )
+
+
+def _perform_login_core(srv, login_error):
+    """Run POST /api/login; returns Flask response or (json, status)."""
     from backend.app.db.schema_errors import guard_core_schema
 
     blocked = guard_core_schema(ok_field=True)

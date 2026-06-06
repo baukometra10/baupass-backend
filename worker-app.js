@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260605h";
+const WORKER_BUILD_TAG = "20260606a";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 30000;
@@ -4865,6 +4865,9 @@ function workerLoginErrorMessage(error) {
   if (error.code === "on_approved_leave") {
     return t("proximityOnLeave");
   }
+  if (error.code === "login_server_error" || error.code === "internal_server_error") {
+    return t("loginServerError");
+  }
   if (isWorkerLoginNetworkError(error)) {
     return t("connError");
   }
@@ -6399,11 +6402,45 @@ function deploymentDayIso(day) {
   return String(day?.date || "").slice(0, 10);
 }
 
+function deploymentDayLocationValue(day) {
+  return String(day?.location || "").trim();
+}
+
+function deploymentDayIsExplicitFreeLocation(location) {
+  const normalized = String(location || "").trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  const freeMarkers = new Set([
+    "frei",
+    "free",
+    "off",
+    "aus",
+    "-",
+    "–",
+    "—",
+    "x",
+    "urlaub",
+    "free day",
+    "kein einsatz",
+    "no assignment",
+    "off day",
+  ]);
+  return freeMarkers.has(normalized);
+}
+
 function deploymentDayHasAssignment(day) {
-  return Boolean(String(day?.location || "").trim());
+  const location = deploymentDayLocationValue(day);
+  if (deploymentDayIsExplicitFreeLocation(location)) {
+    return false;
+  }
+  return Boolean(location);
 }
 
 function deploymentDayIsDeclinable(day) {
+  if (deploymentDayIsFree(day)) {
+    return false;
+  }
   if (!deploymentPlanCanRespond) return false;
   if (!deploymentDayHasAssignment(day)) return false;
   if (String(day?.workerResponse || "") === "declined") return false;
@@ -6466,7 +6503,7 @@ function deploymentDayIsFree(day) {
 }
 
 function renderDeploymentPlanDayRow(day) {
-  const location = String(day.location || "").trim();
+  const location = deploymentDayLocationValue(day);
   const shiftStart = String(day.shiftStart || "").trim();
   const shiftEnd = String(day.shiftEnd || "").trim();
   const notes = String(day.notes || "").trim();
@@ -6479,24 +6516,24 @@ function renderDeploymentPlanDayRow(day) {
   const dateParts = deploymentDayIso(day).split("-");
   const dayNum = dateParts[2] || day.date;
   const declined = deploymentDayIsDeclined(day);
-  const declinable = deploymentDayIsDeclinable(day);
+  const declinable = !isFreeDay && deploymentDayIsDeclinable(day);
   const classes = [
     "deployment-plan-day",
-    day.isWeekend ? "is-weekend" : "",
     isFreeDay ? "is-free" : "",
-    location ? "has-assignment" : "",
+    day.isWeekend && !isFreeDay ? "is-weekend" : "",
+    !isFreeDay && location ? "has-assignment" : "",
     declined ? "is-declined" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   let actionsHtml = "";
-  if (declined) {
+  if (!isFreeDay && declined) {
     actionsHtml = `
       <div class="deployment-plan-day-actions">
         <button type="button" class="ghost small-btn" data-dep-undo="${escapeHtmlBasic(deploymentDayIso(day))}">${escapeHtmlBasic(t("deploymentPlanUndoDeclineBtn"))}</button>
       </div>`;
-  } else if (declinable) {
+  } else if (!isFreeDay && declinable) {
     actionsHtml = `
       <div class="deployment-plan-day-actions">
         <button type="button" class="ghost small-btn" data-dep-decline="${escapeHtmlBasic(deploymentDayIso(day))}">${escapeHtmlBasic(t("deploymentPlanDeclineBtn"))}</button>
@@ -6711,7 +6748,7 @@ async function refreshHomeDeploymentTeaser() {
       teaser.classList.remove("hidden");
       return;
     }
-    const location = String(today?.location || "").trim();
+    const location = deploymentDayLocationValue(today || {});
     const shiftStart = String(today?.shiftStart || "").trim();
     const shiftEnd = String(today?.shiftEnd || "").trim();
     const declinedToday = today && deploymentDayIsDeclined(today);
@@ -6721,7 +6758,7 @@ async function refreshHomeDeploymentTeaser() {
     if (declinedToday) {
       titleEl.textContent = t("deploymentPlanHomeDeclined");
       metaEl.textContent = t("deploymentPlanHomeOpen");
-    } else if (!location && !shiftStart && !shiftEnd) {
+    } else if (freeToday) {
       titleEl.textContent = t("deploymentPlanHomeFree");
       metaEl.textContent = [today?.weekday || "", t("deploymentPlanDayFree")].filter(Boolean).join(" · ");
     } else {

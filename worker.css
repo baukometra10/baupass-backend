@@ -3336,22 +3336,33 @@ body {
   background: var(--card);
 }
 
-.deployment-plan-day.is-weekend {
+.deployment-plan-day.is-weekend:not(.is-free) {
   opacity: 0.72;
 }
 
 .deployment-plan-day.is-free {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.28);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.06));
+  border-color: rgba(16, 185, 129, 0.42);
+  border-left: 4px solid #10b981;
+  opacity: 1;
+}
+
+.deployment-plan-day.is-free .deployment-plan-day-date {
+  color: #0f766e;
 }
 
 .deployment-plan-day.is-free .deployment-plan-day-location {
   color: #0f766e;
   font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .deployment-plan-day.is-free .deployment-plan-day-weekday {
   color: #0f766e;
+}
+
+.deployment-plan-day.is-free .deployment-plan-day-actions {
+  display: none;
 }
 
 .deployment-plan-day.has-assignment {
