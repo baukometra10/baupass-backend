@@ -1,8 +1,10 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260605g";
+const WORKER_BUILD_TAG = "20260605h";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
+const PROXIMITY_LOGIN_POLL_MS = 30000;
+const PROXIMITY_LOGIN_DWELL_MS = 90000;
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
@@ -248,6 +250,7 @@ function applyWorkerCompanyBranding({
 }
 
 function finishWorkerLoginUi() {
+  stopProximityLoginWatcher();
   replaceWorkerHistoryAfterLogin();
   if (isWorkerCardInstallEntry()) {
     applyWorkerCardInstallView();
@@ -951,6 +954,10 @@ let offlineWorkerSessionActive = false;
 let siteGeofenceWatchTimer = null;
 let siteOffSiteStrikeCount = 0;
 let siteGeofenceLeaveInProgress = false;
+let proximityLoginWatchTimer = null;
+let proximityInsideSince = 0;
+let proximityLoginInProgress = false;
+let proximityLoginNoticeShownAt = 0;
 let pinLockEnabled = false; // Wird vom Backend gesetzt
 let isPassLocked = false; // Aktueller Status
 let lastPassInteractionAt = Date.now();
@@ -1717,6 +1724,7 @@ async function init() {
       if (pinWrapper && !isVisitorBadgeId(storedBadgeId)) pinWrapper.classList.remove("hidden");
     }
   }
+  startProximityLoginWatcher();
 }
 
 function applyDynamicManifestStartUrl(accessToken, platformName) {
@@ -4546,6 +4554,131 @@ function stopSiteGeofenceMonitor() {
   siteOffSiteStrikeCount = 0;
 }
 
+function getCachedWorkerSiteLocation() {
+  const cached = readStoredJson(WORKER_CACHED_PAYLOAD_KEY, null);
+  return cached?.worker?.siteLocation || null;
+}
+
+function getStoredBadgePinForProximity() {
+  try {
+    return normalizeBadgePinInput(sessionStorage.getItem("_wpf") || "");
+  } catch {
+    return "";
+  }
+}
+
+function stopProximityLoginWatcher() {
+  if (proximityLoginWatchTimer) {
+    clearInterval(proximityLoginWatchTimer);
+    proximityLoginWatchTimer = null;
+  }
+  proximityInsideSince = 0;
+  proximityLoginInProgress = false;
+}
+
+function startProximityLoginWatcher() {
+  stopProximityLoginWatcher();
+  if (workerToken || offlineWorkerSessionActive) {
+    return;
+  }
+  const badgeId = normalizeBadgeIdInput(localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "");
+  const badgePin = getStoredBadgePinForProximity();
+  if (!badgeId || isVisitorBadgeId(badgeId) || !badgePin || !navigator.geolocation) {
+    return;
+  }
+  void pollProximityLoginCandidate();
+  proximityLoginWatchTimer = setInterval(() => {
+    void pollProximityLoginCandidate();
+  }, PROXIMITY_LOGIN_POLL_MS);
+}
+
+async function pollProximityLoginCandidate() {
+  if (workerToken || proximityLoginInProgress || !navigator.onLine) {
+    return;
+  }
+  const badgeId = normalizeBadgeIdInput(localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "");
+  const badgePin = getStoredBadgePinForProximity();
+  if (!badgeId || !badgePin) {
+    stopProximityLoginWatcher();
+    return;
+  }
+
+  const locationPayload = await resolveLoginLocation();
+  if (!locationPayload) {
+    proximityInsideSince = 0;
+    return;
+  }
+
+  const siteLocation = getCachedWorkerSiteLocation();
+  if (siteLocation && typeof siteLocation.latitude === "number" && typeof siteLocation.longitude === "number") {
+    const distanceMeters = Math.round(
+      calculateDistanceMeters(
+        siteLocation.latitude,
+        siteLocation.longitude,
+        locationPayload.latitude,
+        locationPayload.longitude
+      )
+    );
+    const radius = Number(siteLocation.radiusMeters || 20);
+    if (distanceMeters > radius) {
+      proximityInsideSince = 0;
+      return;
+    }
+  }
+
+  const now = Date.now();
+  if (!proximityInsideSince) {
+    proximityInsideSince = now;
+    return;
+  }
+  if (now - proximityInsideSince < PROXIMITY_LOGIN_DWELL_MS) {
+    return;
+  }
+
+  proximityLoginInProgress = true;
+  try {
+    const payload = await fetchJson(`${API_BASE}/proximity-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        badgeId,
+        badgePin,
+        location: locationPayload,
+        dwellSeconds: Math.round((now - proximityInsideSince) / 1000),
+      }),
+    });
+    stopProximityLoginWatcher();
+    offlineWorkerSessionActive = false;
+    workerToken = payload.token;
+    localStorage.setItem(WORKER_TOKEN_KEY, workerToken);
+    localStorage.setItem(WORKER_BADGE_LOGIN_KEY, badgeId);
+    localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+    await loadWorkerData();
+    await persistOfflineBadgeProfile(badgeId, badgePin, payload);
+    finishWorkerLoginUi();
+    showWorkerNotice(payload.autoCheckInLogId ? t("proximityLoginCheckIn") : t("proximityLoginSuccess"));
+    initializeSessionInactivityProtection();
+    void ensureWorkerPushNotifications({ promptIfNeeded: false });
+  } catch (error) {
+    proximityInsideSince = 0;
+    const quietCodes = new Set([
+      "not_scheduled_today",
+      "on_approved_leave",
+      "deployment_declined",
+      "outside_shift_window",
+      "not_a_workday",
+      "proximity_login_disabled",
+      "outside_site_radius",
+      "worker_geolocation_required",
+    ]);
+    if (!quietCodes.has(error.code)) {
+      console.warn("[proximity-login]", error.code || error.message);
+    }
+  } finally {
+    proximityLoginInProgress = false;
+  }
+}
+
 function getSiteAccessFromPayload(payload = lastWorkerPayload) {
   const company = payload?.company || {};
   const siteAccess = payload?.siteAccess || {};
@@ -4555,6 +4688,7 @@ function getSiteAccessFromPayload(payload = lastWorkerPayload) {
   return {
     accessMode,
     siteApp: accessMode === "site_app",
+    autoProximityLogin: company.siteAutoProximityLogin !== false && siteAccess.siteAutoProximityLogin !== false,
     radiusMeters: Number(
       company.siteGeofenceRadiusMeters ||
         siteAccess.siteGeofenceRadiusMeters ||
@@ -4676,6 +4810,7 @@ function startSiteGeofenceMonitor(cfg) {
 
 function invalidateWorkerSession({ showNotice = true } = {}) {
   stopSiteGeofenceMonitor();
+  stopProximityLoginWatcher();
   localStorage.removeItem(WORKER_TOKEN_KEY);
   localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
   offlineWorkerSessionActive = false;
@@ -4685,6 +4820,7 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
     showWorkerNotice(t("sessionExpired"));
   }
   showLogin();
+  startProximityLoginWatcher();
 }
 
 function isWorkerLoginNetworkError(error) {
@@ -4722,6 +4858,12 @@ function workerLoginErrorMessage(error) {
   }
   if (error.code === "outside_site_radius") {
     return error.message || t("outsideSiteRadius");
+  }
+  if (error.code === "not_scheduled_today") {
+    return t("proximityNotScheduledToday");
+  }
+  if (error.code === "on_approved_leave") {
+    return t("proximityOnLeave");
   }
   if (isWorkerLoginNetworkError(error)) {
     return t("connError");
@@ -6316,12 +6458,20 @@ function closeDeploymentDeclineModal() {
   document.getElementById("deploymentDeclineModal")?.classList.add("hidden");
 }
 
+function deploymentDayIsFree(day) {
+  if (deploymentDayIsDeclined(day)) {
+    return false;
+  }
+  return !deploymentDayHasAssignment(day);
+}
+
 function renderDeploymentPlanDayRow(day) {
   const location = String(day.location || "").trim();
   const shiftStart = String(day.shiftStart || "").trim();
   const shiftEnd = String(day.shiftEnd || "").trim();
   const notes = String(day.notes || "").trim();
   const declineReason = String(day.declineReason || "").trim();
+  const isFreeDay = deploymentDayIsFree(day);
   const timeText =
     shiftStart && shiftEnd
       ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
@@ -6333,6 +6483,7 @@ function renderDeploymentPlanDayRow(day) {
   const classes = [
     "deployment-plan-day",
     day.isWeekend ? "is-weekend" : "",
+    isFreeDay ? "is-free" : "",
     location ? "has-assignment" : "",
     declined ? "is-declined" : "",
   ]
@@ -6360,6 +6511,10 @@ function renderDeploymentPlanDayRow(day) {
       }</div>`
     : "";
 
+  const locationLabel = isFreeDay
+    ? t("deploymentPlanDayFree")
+    : (location || t("deploymentPlanNoLocation"));
+
   return `
     <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}">
       <div>
@@ -6367,9 +6522,9 @@ function renderDeploymentPlanDayRow(day) {
         <div class="deployment-plan-day-weekday">${escapeHtmlBasic(day.weekday || "")}</div>
       </div>
       <div>
-        <div class="deployment-plan-day-location">${escapeHtmlBasic(location || t("deploymentPlanNoLocation"))}</div>
-        ${timeText ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
-        ${notes ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
+        <div class="deployment-plan-day-location">${escapeHtmlBasic(locationLabel)}</div>
+        ${timeText && !isFreeDay ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
+        ${notes && !isFreeDay ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
         ${statusHtml}
       </div>
       ${actionsHtml}
@@ -6560,13 +6715,15 @@ async function refreshHomeDeploymentTeaser() {
     const shiftStart = String(today?.shiftStart || "").trim();
     const shiftEnd = String(today?.shiftEnd || "").trim();
     const declinedToday = today && deploymentDayIsDeclined(today);
+    const freeToday = today && deploymentDayIsFree(today);
     teaser.classList.toggle("is-declined", Boolean(declinedToday));
+    teaser.classList.toggle("is-free", Boolean(freeToday));
     if (declinedToday) {
       titleEl.textContent = t("deploymentPlanHomeDeclined");
       metaEl.textContent = t("deploymentPlanHomeOpen");
     } else if (!location && !shiftStart && !shiftEnd) {
       titleEl.textContent = t("deploymentPlanHomeFree");
-      metaEl.textContent = today?.weekday || "";
+      metaEl.textContent = [today?.weekday || "", t("deploymentPlanDayFree")].filter(Boolean).join(" · ");
     } else {
       titleEl.textContent = location || t("deploymentPlanNoLocation");
       const timeText =

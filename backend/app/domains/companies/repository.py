@@ -80,12 +80,14 @@ class CompaniesRepository:
         site_geofence_radius_meters: int,
         site_auto_checkin: int,
         site_auto_logout_on_leave: int,
+        site_auto_proximity_login: int,
     ) -> None:
         db.execute(
             """
             UPDATE companies
             SET work_start_time = ?, work_end_time = ?, access_mode = ?,
-                site_geofence_radius_meters = ?, site_auto_checkin = ?, site_auto_logout_on_leave = ?
+                site_geofence_radius_meters = ?, site_auto_checkin = ?, site_auto_logout_on_leave = ?,
+                site_auto_proximity_login = ?
             WHERE id = ?
             """,
             (
@@ -95,6 +97,7 @@ class CompaniesRepository:
                 site_geofence_radius_meters,
                 site_auto_checkin,
                 site_auto_logout_on_leave,
+                site_auto_proximity_login,
                 company_id,
             ),
         )

@@ -3161,6 +3161,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN site_auto_checkin INTEGER NOT NULL DEFAULT 1")
     if "site_auto_logout_on_leave" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN site_auto_logout_on_leave INTEGER NOT NULL DEFAULT 1")
+    if "site_auto_proximity_login" not in company_columns:
+        cur.execute("ALTER TABLE companies ADD COLUMN site_auto_proximity_login INTEGER NOT NULL DEFAULT 1")
     if "branding_preset" not in company_columns:
         cur.execute("ALTER TABLE companies ADD COLUMN branding_preset TEXT NOT NULL DEFAULT 'construction'")
     if "customer_number" not in company_columns:
@@ -10330,7 +10332,7 @@ def get_company_site_access_row(db, company_id):
     return db.execute(
         """
         SELECT access_mode, site_geofence_radius_meters, site_auto_checkin, site_auto_logout_on_leave,
-               work_start_time, work_end_time
+               site_auto_proximity_login, work_start_time, work_end_time
         FROM companies
         WHERE id = ? AND deleted_at IS NULL
         LIMIT 1
@@ -10351,6 +10353,7 @@ def get_company_site_access_config(db, company_id):
         "siteGeofenceRadiusMeters": radius,
         "siteAutoCheckin": bool(int(row["site_auto_checkin"])) if row and "site_auto_checkin" in row.keys() else True,
         "siteAutoLogoutOnLeave": bool(int(row["site_auto_logout_on_leave"])) if row and "site_auto_logout_on_leave" in row.keys() else True,
+        "siteAutoProximityLogin": bool(int(row["site_auto_proximity_login"])) if row and "site_auto_proximity_login" in row.keys() else True,
         "workStartTime": str(row["work_start_time"] or "").strip() if row else "",
         "workEndTime": str(row["work_end_time"] or "").strip() if row else "",
     }
@@ -10431,7 +10434,10 @@ def maybe_site_app_auto_checkin(db, worker):
     site_cfg = get_company_site_access_config(db, company_id)
     if site_cfg["accessMode"] != "site_app" or not site_cfg["siteAutoCheckin"]:
         return None
-    if not is_company_workday_today():
+    from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+    attendance = worker_may_auto_attend_today(db, worker)
+    if not attendance.get("ok"):
         return None
     if worker_has_open_checkin_today(db, worker["id"]):
         return None
@@ -11525,6 +11531,114 @@ def worker_app_login():
     return jsonify(session_data)
 
 
+@require_rate_limit("worker_login")
+def worker_app_proximity_login():
+    """GPS proximity login — only when company enables it and worker is scheduled today."""
+    payload = request.get_json(silent=True) or {}
+    badge_id = normalize_badge_id(payload.get("badgeId"))
+    badge_pin = normalize_badge_pin(payload.get("badgePin"))
+    device_payload = payload.get("device") if isinstance(payload.get("device"), dict) else None
+    dwell_seconds = payload.get("dwellSeconds")
+    if not badge_id or not badge_pin:
+        return jsonify({"error": "missing_worker_app_credentials", "message": "Badge-ID und PIN erforderlich."}), 400
+
+    db = get_db()
+    deleted = purge_expired_worker_app_sessions(db)
+    if deleted > 0:
+        db.commit()
+
+    setting = db.execute("SELECT worker_app_enabled FROM settings WHERE id = 1").fetchone()
+    if setting and int(setting["worker_app_enabled"]) == 0:
+        return jsonify({"error": "worker_app_disabled", "message": "Die Mitarbeiter-App ist zurzeit nicht verfuegbar."}), 503
+
+    badge_matches = db.execute(
+        """
+        SELECT *
+        FROM workers
+        WHERE badge_id_lookup = ?
+          AND deleted_at IS NULL
+        ORDER BY id
+        LIMIT 2
+        """,
+        (badge_id,),
+    ).fetchall()
+    if not badge_matches:
+        return jsonify({"error": "invalid_badge_id", "message": "Badge-ID wurde nicht gefunden."}), 401
+    if len(badge_matches) > 1:
+        return jsonify({"error": "duplicate_badge_id", "message": "Badge-ID ist mehrfach vergeben."}), 409
+
+    worker = badge_matches[0]
+    if worker_visit_has_expired(worker):
+        return jsonify({"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}), 401
+    if not worker["badge_pin_hash"]:
+        return jsonify({"error": "badge_pin_not_configured", "message": "Fuer diese Karte ist noch keine Badge-PIN hinterlegt."}), 403
+    if not check_password_hash(worker["badge_pin_hash"], badge_pin):
+        return jsonify({"error": "invalid_badge_pin", "message": "Badge-ID oder PIN ist ungueltig."}), 401
+
+    company_error = get_company_access_error(db, worker["company_id"])
+    if company_error:
+        return jsonify(company_error), 403
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "worker_app"):
+        return feature_not_available_response("worker_app", plan_value)
+
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    if site_cfg["accessMode"] != "site_app":
+        return jsonify({"error": "proximity_login_disabled", "message": "Standort-Auto-Login ist fuer diese Firma nicht aktiv."}), 403
+    if not site_cfg.get("siteAutoProximityLogin"):
+        return jsonify({"error": "proximity_login_disabled", "message": "Standort-Auto-Login ist deaktiviert."}), 403
+
+    from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+    attendance = worker_may_auto_attend_today(db, worker)
+    if not attendance.get("ok"):
+        return jsonify(
+            {
+                "error": attendance.get("reason") or "not_scheduled_today",
+                "message": attendance.get("message") or "Heute keine automatische Anmeldung moeglich.",
+                "dayType": attendance.get("dayType"),
+            }
+        ), 403
+
+    try:
+        validate_worker_login_distance_or_raise(db, worker, payload)
+    except ValueError as exc:
+        error_code = str(exc)
+        if error_code == "worker_geolocation_required":
+            return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt am Standort anmelden."}), 400
+        if error_code == "site_location_unavailable":
+            return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden."}), 403
+        raise
+    except PermissionError as exc:
+        distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
+        max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+        return jsonify({
+            "error": "outside_site_radius",
+            "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
+        }), 403
+
+    session_data = create_worker_app_session(db, worker, device_payload=device_payload)
+    session_data["proximityLogin"] = True
+    session_data["attendanceDayType"] = attendance.get("dayType")
+    if dwell_seconds is not None:
+        try:
+            session_data["proximityDwellSeconds"] = int(dwell_seconds)
+        except (TypeError, ValueError):
+            pass
+    checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+    if checkin_log_id:
+        session_data["autoCheckInLogId"] = checkin_log_id
+    log_audit(
+        "worker_app.proximity_login",
+        f"Mitarbeiter {worker['first_name']} {worker['last_name']} (Badge {badge_id}) per Standort-Auto-Login angemeldet",
+        target_type="worker",
+        target_id=worker["id"],
+        company_id=worker["company_id"],
+    )
+    db.commit()
+    return jsonify(session_data)
+
+
 @require_worker_session
 def worker_app_me():
     db = get_db()
@@ -11584,6 +11698,7 @@ def worker_app_me():
                 "workEndTime": work_end or site_access["workEndTime"],
                 "siteGeofenceRadiusMeters": site_access["siteGeofenceRadiusMeters"],
                 "siteAutoLogoutOnLeave": site_access["siteAutoLogoutOnLeave"],
+                "siteAutoProximityLogin": site_access["siteAutoProximityLogin"],
             },
             "subcompany": {
                 "name": subcompany["name"] if subcompany else "",

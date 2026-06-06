@@ -32557,6 +32557,7 @@ if (accessForm) {
   const workTimeStatus = document.getElementById("manualEntryWorkTimeStatus");
   const accessModeInput = document.getElementById("manualEntryAccessMode");
   const siteRadiusInput = document.getElementById("manualEntrySiteRadius");
+  const siteAutoProximityInput = document.getElementById("manualEntrySiteAutoProximity");
   const contextHint = document.getElementById("manualEntryContextHint");
 
   if (!btn || !modal) return;
@@ -32574,6 +32575,7 @@ if (accessForm) {
   if (accessModeInput) {
     accessModeInput.addEventListener("change", () => {
       if (siteRadiusInput) siteRadiusInput.disabled = accessModeInput.value !== "site_app";
+      if (siteAutoProximityInput) siteAutoProximityInput.disabled = accessModeInput.value !== "site_app";
     });
   }
 
@@ -32608,6 +32610,11 @@ if (accessForm) {
     if (siteRadiusInput) {
       siteRadiusInput.value = String(company?.site_geofence_radius_meters || company?.siteGeofenceRadiusMeters || 20);
       siteRadiusInput.disabled = accessModeInput?.value !== "site_app";
+    }
+    if (siteAutoProximityInput) {
+      const enabled = company?.site_auto_proximity_login ?? company?.siteAutoProximityLogin;
+      siteAutoProximityInput.checked = enabled !== false && enabled !== 0 && enabled !== "0";
+      siteAutoProximityInput.disabled = accessModeInput?.value !== "site_app";
     }
 
     if (workTimeStatus) {
@@ -32647,6 +32654,7 @@ if (accessForm) {
             siteGeofenceRadiusMeters: Number(siteRadiusInput?.value || 20),
             siteAutoCheckin: true,
             siteAutoLogoutOnLeave: true,
+            siteAutoProximityLogin: Boolean(siteAutoProximityInput?.checked),
           },
         });
         // Update local state so UI reflects immediately
@@ -32660,6 +32668,8 @@ if (accessForm) {
           comp.accessMode = comp.access_mode;
           comp.site_geofence_radius_meters = Number(siteRadiusInput?.value || 20);
           comp.siteGeofenceRadiusMeters = comp.site_geofence_radius_meters;
+          comp.site_auto_proximity_login = siteAutoProximityInput?.checked ? 1 : 0;
+          comp.siteAutoProximityLogin = Boolean(siteAutoProximityInput?.checked);
         }
         if (feedbackEl) {
           feedbackEl.textContent = runtimeText("manualEntryWorkTimesSaved");

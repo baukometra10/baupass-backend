@@ -927,6 +927,11 @@ class CompaniesService:
             if payload.get("siteAutoLogoutOnLeave", True) in (True, 1, "1", "true", "yes")
             else 0
         )
+        site_auto_proximity = (
+            1
+            if payload.get("siteAutoProximityLogin", True) in (True, 1, "1", "true", "yes")
+            else 0
+        )
 
         self.companies.update_work_times(
             db,
@@ -937,6 +942,7 @@ class CompaniesService:
             site_geofence_radius_meters=site_radius,
             site_auto_checkin=site_auto_checkin,
             site_auto_logout_on_leave=site_auto_logout,
+            site_auto_proximity_login=site_auto_proximity,
         )
         db.commit()
         return {
@@ -949,6 +955,7 @@ class CompaniesService:
                 "siteGeofenceRadiusMeters": site_radius,
                 "siteAutoCheckin": bool(site_auto_checkin),
                 "siteAutoLogoutOnLeave": bool(site_auto_logout),
+                "siteAutoProximityLogin": bool(site_auto_proximity),
             },
             "audit": {"company_id": company_id},
         }

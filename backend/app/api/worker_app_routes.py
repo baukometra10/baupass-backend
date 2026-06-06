@@ -13,6 +13,7 @@ from flask import Blueprint
 # (url_suffix, handler attribute on legacy server module, HTTP methods)
 WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/login", "worker_app_login", ["POST"]),
+    ("/proximity-login", "worker_app_proximity_login", ["POST"]),
     ("/me", "worker_app_me", ["GET"]),
     ("/team-snapshot", "worker_app_team_snapshot", ["GET"]),
     ("/offline-events", "worker_app_sync_offline_events", ["POST"]),

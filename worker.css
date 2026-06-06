@@ -3340,6 +3340,20 @@ body {
   opacity: 0.72;
 }
 
+.deployment-plan-day.is-free {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.deployment-plan-day.is-free .deployment-plan-day-location {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.deployment-plan-day.is-free .deployment-plan-day-weekday {
+  color: #0f766e;
+}
+
 .deployment-plan-day.has-assignment {
   border-color: rgba(31, 111, 235, 0.35);
   grid-template-columns: minmax(4.5rem, auto) 1fr;
@@ -3460,6 +3474,11 @@ body {
 
 .home-deployment-teaser.is-declined {
   border-color: #f59e0b;
+}
+
+.home-deployment-teaser.is-free {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.08);
 }
 
 .worker-menu-btn-deployment.hidden {
