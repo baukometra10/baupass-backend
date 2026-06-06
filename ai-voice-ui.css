@@ -15,6 +15,9 @@
   border-radius: 1.625rem;
   border: 1px solid var(--bp-composer-border, rgba(255, 255, 255, 0.14));
   background: var(--bp-composer-bg, #1a2332);
+  --bp-composer-text: #f3f4f6;
+  --bp-composer-placeholder: #94a3b8;
+  --bp-composer-mic: #94a3b8;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.2),
     0 8px 28px rgba(0, 0, 0, 0.22);
@@ -38,16 +41,18 @@
   padding: 0.35rem 0;
   border: none;
   background: transparent;
-  color: var(--text, #f3f4f6);
+  color: var(--bp-composer-text, var(--text, #f3f4f6));
   font: inherit;
   font-size: 0.92rem;
   line-height: 1.45;
   resize: none;
   outline: none;
+  caret-color: var(--bp-composer-text, var(--text, #f3f4f6));
 }
 
-.bp-ai-composer textarea::placeholder {
-  color: var(--muted, #94a3b8);
+.bp-ai-composer textarea::placeholder,
+.bp-ai-composer .bp-ai-input::placeholder {
+  color: var(--bp-composer-placeholder, var(--muted, #94a3b8));
   opacity: 0.9;
 }
 
@@ -67,7 +72,7 @@
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--muted, #94a3b8);
+  color: var(--bp-composer-mic, var(--muted, #94a3b8));
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -248,15 +253,18 @@
   --bp-composer-bg: #fff;
   --bp-composer-border: #d1d5db;
   --bp-composer-focus: #0f4c5c;
+  --bp-composer-text: #0f172a;
+  --bp-composer-placeholder: #64748b;
+  --bp-composer-mic: #64748b;
   box-shadow: 0 2px 12px rgba(15, 76, 92, 0.08);
 }
 
 .worker-ai-card .bp-ai-composer textarea {
-  color: #0f172a;
+  color: var(--bp-composer-text);
 }
 
 .worker-ai-card .bp-ai-composer textarea::placeholder {
-  color: #64748b;
+  color: var(--bp-composer-placeholder);
 }
 
 .worker-ai-card .bp-ai-mic:hover:not(:disabled) {
@@ -323,10 +331,13 @@ html[data-theme="light"] .bp-ai-composer,
   --bp-composer-bg: #ffffff;
   --bp-composer-border: #d1d5db;
   --bp-composer-focus: #0f4c5c;
+  --bp-composer-text: #0f172a;
+  --bp-composer-placeholder: #64748b;
+  --bp-composer-mic: #64748b;
 }
 
 html[data-theme="light"] .bp-ai-mic {
-  color: #64748b;
+  color: var(--bp-composer-mic);
 }
 
 html[data-theme="light"] .bp-ai-mic:hover:not(:disabled) {
@@ -343,9 +354,17 @@ html[data-theme="light"] .bp-ai-composer-hint {
   color: #64748b;
 }
 
-@media (prefers-color-scheme: light) {
-  body.ops-app:not(.force-dark) .bp-ai-composer {
-    --bp-composer-bg: #f8fafc;
-    --bp-composer-border: #cbd5e1;
-  }
+/* Ops / Command Center stays dark — do not flip composer to light via OS preference */
+body.ops-app .bp-ai-composer {
+  --bp-composer-bg: #1a2332;
+  --bp-composer-border: rgba(255, 255, 255, 0.14);
+  --bp-composer-focus: #38bdf8;
+  --bp-composer-text: #f3f4f6;
+  --bp-composer-placeholder: #94a3b8;
+  --bp-composer-mic: #94a3b8;
+}
+
+body.ops-app .bp-ai-send {
+  background: var(--bp-composer-text);
+  color: var(--bp-composer-bg);
 }
