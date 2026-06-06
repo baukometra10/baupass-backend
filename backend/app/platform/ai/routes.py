@@ -364,23 +364,40 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("ai_assistant")
     def ai_session_delete(session_id: str):
-        from .sessions import ensure_ai_tables
+        from .sessions import delete_session
 
         company_id = _resolve_company_id_from_request()
         if not company_id:
             company_id = str(request.args.get("company_id") or "").strip()
-        db = get_db()
-        ensure_ai_tables(db)
-        db.execute(
-            "DELETE FROM ai_chat_messages WHERE session_id = ?",
-            (session_id,),
-        )
-        db.execute(
-            "DELETE FROM ai_chat_sessions WHERE id = ? AND company_id = ? AND user_id = ?",
-            (session_id, company_id, _user_id()),
-        )
-        db.commit()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        if not delete_session(
+            get_db(),
+            session_id,
+            company_id=company_id,
+            user_id=_user_id(),
+        ):
+            return jsonify({"error": "session_not_found"}), 404
         return jsonify({"deleted": session_id})
+
+    @ai_bp.delete("/ai/sessions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_sessions_delete_all():
+        from .sessions import delete_all_sessions
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        count = delete_all_sessions(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+        )
+        return jsonify({"deleted": True, "count": count})
 
     @ai_bp.post("/ai/query/stream")
     @require_auth

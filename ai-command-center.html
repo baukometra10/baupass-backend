@@ -136,6 +136,25 @@
     }
     .session-item.active { border-color: var(--accent); }
     .session-item small { display: block; color: var(--muted); font-size: 0.68rem; }
+    .session-row {
+      display: flex; align-items: stretch; gap: 0.25rem; margin-bottom: 0.35rem;
+    }
+    .session-row .session-item { flex: 1; margin-bottom: 0; min-width: 0; }
+    .session-row.active .session-item { border-color: var(--accent); }
+    .session-delete {
+      flex: 0 0 auto; width: 2rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #0c1218; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1;
+    }
+    .session-delete:hover { color: var(--danger); border-color: var(--danger); }
+    .chat-toolbar {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.45rem 0.65rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .chat-toolbar button.secondary {
+      padding: 0.35rem 0.65rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #1a2e3a; color: var(--text); cursor: pointer; font-size: 0.75rem;
+    }
+    .chat-toolbar button.secondary:hover { border-color: var(--danger); color: var(--danger); }
     .insight-card {
       border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.65rem; margin-bottom: 0.45rem;
       font-size: 0.78rem;
@@ -202,14 +221,18 @@
   <div class="shell hidden embed-shell" id="shell">
     <aside class="panel side">
       <h2 id="sessionsTitle">Chats</h2>
-      <div class="toolbar" style="padding:0.5rem;display:flex;gap:0.35rem">
+      <div class="toolbar" style="padding:0.5rem;display:flex;gap:0.35rem;flex-wrap:wrap">
         <button type="button" class="secondary" id="newChatBtn">+ Neu</button>
+        <button type="button" class="secondary" id="deleteAllChatsBtn">Alle löschen</button>
       </div>
       <div class="scroll" id="sessionList"></div>
     </aside>
 
     <main class="panel chat">
       <div class="agent-tabs" id="agentTabs"></div>
+      <div class="chat-toolbar">
+        <button type="button" class="secondary" id="clearChatBtn">Chat leeren</button>
+      </div>
       <div class="scroll" id="chatLog"></div>
       <div class="chip-row" id="quickPrompts" style="padding:0 0.65rem"></div>
       <form class="chat-form" id="chatForm">
@@ -271,6 +294,12 @@
         toolRunning: "Tool",
         nextActions: "Nächste Schritte", issues: "Baustellen-Hinweise",
         openOps: "Ops Live", refreshed: "Aktualisiert",
+        deleteChat: "Chat löschen", deleteAllChats: "Alle löschen", clearChat: "Chat leeren",
+        confirmDeleteChat: "Diesen Chat wirklich löschen?",
+        confirmDeleteAllChats: "Alle gespeicherten Chats wirklich löschen?",
+        confirmClearChat: "Aktuellen Chat wirklich leeren?",
+        chatDeleted: "Chat gelöscht.", allChatsDeleted: "Alle Chats gelöscht.", chatCleared: "Chat geleert.",
+        noChats: "Noch keine Chats.",
       },
       en: {
         title: "BauPass AI Command Center",
@@ -284,6 +313,12 @@
         toolRunning: "Tool",
         nextActions: "Next steps", issues: "Site notices",
         openOps: "Ops live", refreshed: "Updated",
+        deleteChat: "Delete chat", deleteAllChats: "Delete all", clearChat: "Clear chat",
+        confirmDeleteChat: "Delete this chat?",
+        confirmDeleteAllChats: "Delete all saved chats?",
+        confirmClearChat: "Clear the current chat?",
+        chatDeleted: "Chat deleted.", allChatsDeleted: "All chats deleted.", chatCleared: "Chat cleared.",
+        noChats: "No chats yet.",
       },
       ar: {
         title: "مركز قيادة AI — BauPass",
@@ -297,6 +332,12 @@
         toolRunning: "أداة",
         nextActions: "الخطوات التالية", issues: "ملاحظات الموقع",
         openOps: "عمليات مباشرة", refreshed: "تم التحديث",
+        deleteChat: "حذف المحادثة", deleteAllChats: "حذف الكل", clearChat: "مسح المحادثة",
+        confirmDeleteChat: "حذف هذه المحادثة؟",
+        confirmDeleteAllChats: "حذف جميع المحادثات المحفوظة؟",
+        confirmClearChat: "مسح المحادثة الحالية؟",
+        chatDeleted: "تم حذف المحادثة.", allChatsDeleted: "تم حذف جميع المحادثات.", chatCleared: "تم مسح المحادثة.",
+        noChats: "لا توجد محادثات بعد.",
       },
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
@@ -464,6 +505,10 @@
     document.getElementById("sessionsTitle").textContent = t("sessions");
     document.getElementById("insightsTitle").textContent = t("insights");
     document.getElementById("newChatBtn").textContent = t("newChat");
+    const deleteAllBtn = document.getElementById("deleteAllChatsBtn");
+    if (deleteAllBtn) deleteAllBtn.textContent = t("deleteAllChats");
+    const clearChatBtn = document.getElementById("clearChatBtn");
+    if (clearChatBtn) clearChatBtn.textContent = t("clearChat");
     const toolsSummary = document.getElementById("toolsPanelSummary");
     if (toolsSummary) {
       toolsSummary.textContent = LANG === "ar" ? "أدوات وملخصات" : (LANG === "en" ? "Tools & briefings" : "Tools & Briefings");
@@ -557,14 +602,73 @@
 
     function renderSessions() {
       const el = document.getElementById("sessionList");
+      if (!sessions.length) {
+        el.innerHTML = `<p class="status-line">${t("noChats")}</p>`;
+        return;
+      }
       el.innerHTML = sessions.map((s) =>
-        `<button type="button" class="session-item ${s.id === sessionId ? "active" : ""}" data-id="${s.id}">
-          <span>${s.title || s.id}</span><small>${s.agentId} · ${(s.updatedAt || "").slice(0, 16)}</small>
-        </button>`
-      ).join("") || `<p class="status-line">—</p>`;
+        `<div class="session-row ${s.id === sessionId ? "active" : ""}">
+          <button type="button" class="session-item" data-id="${s.id}">
+            <span>${escapeHtml(s.title || s.id)}</span><small>${escapeHtml(s.agentId)} · ${escapeHtml((s.updatedAt || "").slice(0, 16))}</small>
+          </button>
+          <button type="button" class="session-delete" data-id="${s.id}" title="${escapeHtml(t("deleteChat"))}" aria-label="${escapeHtml(t("deleteChat"))}">×</button>
+        </div>`
+      ).join("");
       el.querySelectorAll(".session-item").forEach((btn) => {
         btn.onclick = () => loadSession(btn.dataset.id);
       });
+      el.querySelectorAll(".session-delete").forEach((btn) => {
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          deleteSession(btn.dataset.id).catch((e) => showToast(e.payload?.hint || e.message));
+        };
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function deleteSession(id, { confirm = true } = {}) {
+      if (!id || companyRequiredForUi()) return;
+      if (confirm && !window.confirm(t("confirmDeleteChat"))) return;
+      await api(`/api/ai/sessions/${encodeURIComponent(id)}?${companyQs()}`, { method: "DELETE" });
+      if (sessionId === id) {
+        sessionId = "";
+        document.getElementById("chatLog").innerHTML = "";
+      }
+      await loadSessions();
+      showToast(t("chatDeleted"));
+    }
+
+    async function deleteAllSessions() {
+      if (companyRequiredForUi() || !sessions.length) return;
+      if (!window.confirm(t("confirmDeleteAllChats"))) return;
+      await api(`/api/ai/sessions?${companyQs()}`, { method: "DELETE" });
+      sessionId = "";
+      document.getElementById("chatLog").innerHTML = "";
+      await loadSessions();
+      showToast(t("allChatsDeleted"));
+    }
+
+    async function clearCurrentChat() {
+      if (companyRequiredForUi()) {
+        appendMsg("bot", t("needCompany"));
+        return;
+      }
+      const hasMessages = document.getElementById("chatLog")?.children?.length > 0;
+      if (!sessionId && !hasMessages) return;
+      if (!window.confirm(t("confirmClearChat"))) return;
+      if (sessionId) {
+        await deleteSession(sessionId, { confirm: false });
+      } else {
+        document.getElementById("chatLog").innerHTML = "";
+        showToast(t("chatCleared"));
+      }
     }
 
     function showToast(msg) {
@@ -926,6 +1030,8 @@
     };
     document.getElementById("briefingBtn").onclick = runBriefing;
     document.getElementById("newChatBtn").onclick = newSession;
+    document.getElementById("deleteAllChatsBtn").onclick = () => deleteAllSessions().catch((e) => showToast(e.payload?.hint || e.message));
+    document.getElementById("clearChatBtn").onclick = () => clearCurrentChat().catch((e) => showToast(e.payload?.hint || e.message));
     document.querySelectorAll("[data-topic]").forEach((btn) => {
       btn.onclick = () => runAnalysis(btn.dataset.topic);
     });

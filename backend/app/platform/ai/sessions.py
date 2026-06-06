@@ -175,6 +175,51 @@ def list_messages(db, session_id: str, *, limit: int = 80) -> list[dict]:
     return out
 
 
+def delete_session(
+    db,
+    session_id: str,
+    *,
+    company_id: str,
+    user_id: str,
+) -> bool:
+    ensure_ai_tables(db)
+    db.execute(
+        "DELETE FROM ai_chat_messages WHERE session_id = ?",
+        (session_id,),
+    )
+    cur = db.execute(
+        "DELETE FROM ai_chat_sessions WHERE id = ? AND company_id = ? AND user_id = ?",
+        (session_id, company_id, user_id),
+    )
+    db.commit()
+    return int(cur.rowcount or 0) > 0
+
+
+def delete_all_sessions(db, *, company_id: str, user_id: str) -> int:
+    ensure_ai_tables(db)
+    rows = db.execute(
+        """
+        SELECT id FROM ai_chat_sessions
+        WHERE company_id = ? AND user_id = ?
+        """,
+        (company_id, user_id),
+    ).fetchall()
+    session_ids = [r["id"] for r in rows]
+    if not session_ids:
+        return 0
+    placeholders = ",".join("?" * len(session_ids))
+    db.execute(
+        f"DELETE FROM ai_chat_messages WHERE session_id IN ({placeholders})",
+        tuple(session_ids),
+    )
+    db.execute(
+        "DELETE FROM ai_chat_sessions WHERE company_id = ? AND user_id = ?",
+        (company_id, user_id),
+    )
+    db.commit()
+    return len(session_ids)
+
+
 def touch_session_title(db, session_id: str, title: str) -> None:
     title = (title or "").strip()[:120]
     if not title:
