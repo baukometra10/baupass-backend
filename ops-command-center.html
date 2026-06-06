@@ -117,6 +117,18 @@
       const alertHint = failed.length
         ? `Betroffen: ${failed.join(", ")}`
         : (guardian.workersDegraded ? "Hintergrund-Worker fehlen" : "Alle Module grün");
+      const remediation = guardian.remediation || {};
+      const applied = remediation.appliedCount ?? 0;
+      const remediationHint = remediation.enabled
+        ? (applied > 0 ? `Auto-Reparatur: ${applied} Playbook(s)` : "Auto-Reparatur bereit")
+        : "";
+      const sec = guardian.security || {};
+      const secHint = sec.enabled
+        ? (sec.elevated
+          ? `Security: ${sec.failedLogins15m ?? 0} Fehl-Logins/15min (${String(sec.severity || "warn").toUpperCase()})`
+          : `Security: ${sec.failedLogins24h ?? 0} Fehl-Logins/24h · OK`)
+        : "";
+      const extraHints = [remediationHint, secHint].filter(Boolean).join(" · ");
       return `
         <div class="card guardian-card ${cls}">
           <div class="guardian-head">
@@ -124,6 +136,7 @@
               <div class="label">Platform Guardian</div>
               <div class="guardian-status">${statusLabel}</div>
               <div class="label" style="margin-top:0.35rem">${alertHint}</div>
+              ${extraHints ? `<div class="label" style="margin-top:0.25rem">${extraHints}</div>` : ""}
             </div>
             <div class="label">${host ? host + "<br>" : ""}${checked} UTC</div>
           </div>

@@ -13,6 +13,8 @@ from backend.app.health.platform_probe import collect_platform_health
 from backend.app.tasks import get_worker_heartbeat_stats
 
 from .notify import maybe_notify_guardian
+from .playbooks import run_playbooks
+from .security import maybe_raise_security_alert, scan_security
 
 _last_snapshot: dict[str, Any] = {
     "status": "unknown",
@@ -81,6 +83,36 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
     failed_probes = [p["id"] for p in platform.get("probes") or [] if not p.get("ok")]
     status = _merge_status(platform.get("status"), db_ok=db_ok, workers_degraded=bool(worker_check.get("degraded")))
 
+    dead_letter_total = 0
+    try:
+        from backend.app.tasks import get_dead_letter_stats
+
+        dead_letter_total = int((get_dead_letter_stats() or {}).get("total_events") or 0)
+    except Exception:
+        pass
+
+    remediation: dict[str, Any] = {"enabled": False, "actions": []}
+    security: dict[str, Any] = {"enabled": False, "elevated": False, "severity": "ok"}
+    security_alert: dict[str, Any] = {"sent": 0, "skipped": "not_run"}
+
+    if db_ok:
+        try:
+            from backend.server import get_db
+
+            db = get_db()
+            remediation = run_playbooks(
+                db,
+                db_ok=db_ok,
+                status=status,
+                workers_degraded=bool(worker_check.get("degraded")),
+                dead_letter_total=dead_letter_total,
+            )
+            security = scan_security(db)
+            security_alert = maybe_raise_security_alert(db, security)
+        except Exception as exc:
+            remediation = {"enabled": True, "error": str(exc)[:200], "actions": []}
+            security = {"enabled": True, "error": str(exc)[:200], "elevated": False, "severity": "ok"}
+
     snapshot: dict[str, Any] = {
         "status": status,
         "ready": bool(platform.get("ready")) and db_ok,
@@ -93,6 +125,10 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
         "failedProbes": failed_probes,
         "workers": worker_check.get("workers") or {},
         "workersDegraded": bool(worker_check.get("degraded")),
+        "deadLetterTotal": dead_letter_total,
+        "remediation": remediation,
+        "security": security,
+        "securityAlert": security_alert,
         "previousStatus": _previous_status,
     }
 

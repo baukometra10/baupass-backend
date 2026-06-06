@@ -1,7 +1,7 @@
 """Platform Guardian status and alerting."""
 from __future__ import annotations
 
-from backend.app.platform.guardian import notify, runner
+from backend.app.platform.guardian import notify, playbooks, runner, security
 
 
 def test_merge_status_prefers_down():
@@ -47,3 +47,42 @@ def test_notify_sends_on_degraded_transition(monkeypatch):
     assert result.get("sent") == 1
     assert calls
     assert "DEGRADED" in calls[0]["text"]
+
+
+def test_playbook_cooldown(monkeypatch):
+    playbooks.reset_playbook_state_for_tests()
+    monkeypatch.setenv("BAUPASS_GUARDIAN_REMEDIATION_COOLDOWN_SECONDS", "3600")
+
+    class _Db:
+        def execute(self, *_args, **_kwargs):
+            class _Cur:
+                rowcount = 0
+
+            return _Cur()
+
+        def commit(self):
+            return None
+
+    first = playbooks.cleanup_expired_sessions(_Db())
+    second = playbooks.cleanup_expired_sessions(_Db())
+    assert first.get("ok") is True
+    assert second.get("skipped") == "cooldown"
+
+
+def test_security_detects_login_spike():
+    class _Db:
+        def execute(self, sql, params):
+            class _Row:
+                def __init__(self, c):
+                    self._c = c
+
+                def __getitem__(self, key):
+                    return self._c
+
+            if "15" in str(params[0]):
+                return _Row(20)
+            return _Row(10)
+
+    report = security.scan_security(_Db())
+    assert report["elevated"] is True
+    assert report["failedLogins15m"] == 20
