@@ -1,6 +1,6 @@
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
-const WORKER_BUILD_TAG = "20260605f";
+const WORKER_BUILD_TAG = "20260605g";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -2786,13 +2786,15 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     initializeSessionInactivityProtection();
     void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
-    if (!navigator.onLine || !error.code) {
+    if (shouldAttemptOfflineWorkerLogin(error)) {
       const restoreResult = await tryOfflineBadgeLogin(normalizedBadgeId, normalizedBadgePin, locationPayload);
       if (restoreResult.restored) {
         return;
       }
       if (!silent) {
-        showWorkerNotice(restoreResult.message || `${t("loginFailed")}: ${t("offlineLoginFailed")}`);
+        const notice = restoreResult.message
+          || (isWorkerLoginNetworkError(error) ? `${t("loginFailed")}: ${t("offlineLoginFailed")}` : `${t("loginFailed")}: ${workerLoginErrorMessage(error)}`);
+        showWorkerNotice(notice);
       }
       return;
     }
@@ -2813,7 +2815,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       showWorkerNotice(t("siteLocationUnavailable"));
       return;
     }
-    showWorkerNotice(`${t("loginFailed")}: ${error.message}`);
+    showWorkerNotice(`${t("loginFailed")}: ${workerLoginErrorMessage(error)}`);
   }
 }
 
@@ -4685,8 +4687,58 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   showLogin();
 }
 
+function isWorkerLoginNetworkError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.code === "network_error" || error.code === "offline") {
+    return true;
+  }
+  if (!error.code && (error.name === "TypeError" || error.name === "AbortError")) {
+    return true;
+  }
+  return false;
+}
+
+function shouldAttemptOfflineWorkerLogin(error) {
+  return !navigator.onLine || isWorkerLoginNetworkError(error);
+}
+
+function workerLoginErrorMessage(error) {
+  if (!error) {
+    return t("loginFailed");
+  }
+  if (error.code === "invalid_badge_id") {
+    return t("badgeNotFound");
+  }
+  if (error.code === "invalid_badge_pin") {
+    return t("badgePinInvalid");
+  }
+  if (error.code === "badge_pin_not_configured") {
+    return t("badgePinNotConfigured");
+  }
+  if (error.code === "worker_geolocation_required") {
+    return t("geolocationRequired");
+  }
+  if (error.code === "outside_site_radius") {
+    return error.message || t("outsideSiteRadius");
+  }
+  if (isWorkerLoginNetworkError(error)) {
+    return t("connError");
+  }
+  return error.message || t("loginFailed");
+}
+
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (fetchError) {
+    const error = new Error(fetchError?.message || "Network error");
+    error.code = "network_error";
+    error.cause = fetchError;
+    throw error;
+  }
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     let code = "";
@@ -4697,6 +4749,10 @@ async function fetchJson(url, options = {}) {
       message = payload?.message || payload?.error || message;
     } catch {
       // ignore parse errors
+    }
+    if (!code && payload?.offline) {
+      code = "network_error";
+      message = t("connError");
     }
     const error = new Error(message);
     error.code = code;

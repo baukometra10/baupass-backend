@@ -35,9 +35,15 @@
             .then(function (response) { return response.ok ? response.json() : null; })
             .then(function (payload) {
               if (!payload || !payload.uiBuild || !scriptBuild) return;
-              if (payload.uiBuild !== scriptBuild) {
-                console.warn("[ui-build] server", payload.uiBuild, "client", scriptBuild);
-              }
+              if (payload.uiBuild === scriptBuild) return;
+              var datedBuildTag = /^20\d{6}[a-z0-9]?$/i;
+              var gitShaTag = /^[0-9a-f]{7,40}$/i;
+              var scriptIsDated = datedBuildTag.test(scriptBuild);
+              var serverIsDated = datedBuildTag.test(payload.uiBuild);
+              var scriptIsGitSha = gitShaTag.test(scriptBuild);
+              var serverIsGitSha = gitShaTag.test(payload.uiBuild);
+              if (scriptIsDated !== serverIsDated || scriptIsGitSha !== serverIsGitSha) return;
+              console.warn("[ui-build] server", payload.uiBuild, "client", scriptBuild);
             })
             .catch(function () {});
           const host = window.location.hostname;

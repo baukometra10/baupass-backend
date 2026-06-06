@@ -17477,10 +17477,20 @@ async function checkUiBuildFreshness() {
     }
     const payload = await response.json().catch(() => ({}));
     const remoteBuild = String(payload?.uiBuild || payload?.architecture?.uiBuild || "").trim();
-    if (remoteBuild && remoteBuild !== expected) {
-      console.warn(`[ui-build] stale frontend ${expected}; server reports ${remoteBuild}`);
-      showToast(`Neue Version verfügbar (${remoteBuild}). Bitte Seite neu laden (Strg+Shift+R).`, "warning", 8000);
+    if (!remoteBuild || remoteBuild === expected) {
+      return;
     }
+    const datedBuildTag = /^20\d{6}[a-z0-9]?$/i;
+    const gitShaTag = /^[0-9a-f]{7,40}$/i;
+    const expectedIsDated = datedBuildTag.test(expected);
+    const remoteIsDated = datedBuildTag.test(remoteBuild);
+    const expectedIsGitSha = gitShaTag.test(expected);
+    const remoteIsGitSha = gitShaTag.test(remoteBuild);
+    if (expectedIsDated !== remoteIsDated || expectedIsGitSha !== remoteIsGitSha) {
+      return;
+    }
+    console.warn(`[ui-build] stale frontend ${expected}; server reports ${remoteBuild}`);
+    showToast(`Neue Version verfügbar (${remoteBuild}). Bitte Seite neu laden (Strg+Shift+R).`, "warning", 8000);
   } catch {
     // ignore offline
   }
