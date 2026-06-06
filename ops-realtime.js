@@ -1,5 +1,5 @@
 /**
- * BauPass ops live feed — Socket.IO (preferred) with SSE fallback.
+ * BauPass ops live feed — Socket.IO when supported, otherwise silent HTTP polling.
  */
 (function (global) {
   function formatEventLine(evt) {
@@ -44,58 +44,60 @@
       .join("");
   }
 
-  function startSse({ companyId, feedEl, onMode, onEvent }) {
-    let url = "/api/v1/stream/events";
-    if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-    let es = null;
+  function startPolling({ companyId, feedEl, onMode, onEvent }) {
     let stopped = false;
-    let retryMs = 2000;
+    let timer = null;
+    let retryMs = 5000;
+    let sinceId = null;
+    const seen = new Set();
     const buffer = [];
 
-    const connect = () => {
-      if (stopped) return;
-      es = new EventSource(url, { withCredentials: true });
-      es.onopen = () => {
-        retryMs = 2000;
-        onMode?.("sse");
-      };
-      es.onmessage = (ev) => {
-        try {
-          const p = JSON.parse(ev.data);
-          if (p.type !== "events" || !p.items?.length) return;
-          p.items.forEach((item) => {
-            buffer.unshift(item);
-            onEvent?.(item);
-          });
-          while (buffer.length > 30) buffer.pop();
-          renderFeed(feedEl, buffer);
-        } catch {
-          /* ignore */
-        }
-      };
-      es.onerror = () => {
-        try {
-          es.close();
-        } catch {
-          /* ignore */
-        }
-        if (stopped) return;
-        if (feedEl) {
-          feedEl.innerHTML = `<span class="muted small">SSE neu verbinden in ${Math.round(retryMs / 1000)}s…</span>`;
-        }
-        window.setTimeout(connect, retryMs);
-        retryMs = Math.min(retryMs * 1.5, 30000);
-      };
+    const remember = (evt) => {
+      if (!evt?.id || seen.has(evt.id)) return false;
+      seen.add(evt.id);
+      if (seen.size > 300) {
+        seen.forEach((id) => {
+          if (seen.size <= 200) return;
+          seen.delete(id);
+        });
+      }
+      buffer.unshift(evt);
+      while (buffer.length > 30) buffer.pop();
+      onEvent?.(evt);
+      renderFeed(feedEl, buffer);
+      return true;
     };
 
-    connect();
+    const poll = async () => {
+      if (stopped) return;
+      let url = "/api/v1/events/recent?limit=25";
+      if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
+      if (sinceId) url += `&since_id=${encodeURIComponent(sinceId)}`;
+      try {
+        const response = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } });
+        if (!response.ok) {
+          timer = global.setTimeout(poll, retryMs);
+          retryMs = Math.min(Math.round(retryMs * 1.4), 60000);
+          return;
+        }
+        retryMs = 5000;
+        const payload = await response.json();
+        const events = Array.isArray(payload?.events) ? payload.events : [];
+        if (events.length) {
+          sinceId = events[events.length - 1].id || sinceId;
+          events.forEach(remember);
+        }
+        onMode?.("polling");
+      } catch {
+        /* silent retry */
+      }
+      if (!stopped) timer = global.setTimeout(poll, retryMs);
+    };
+
+    poll();
     return () => {
       stopped = true;
-      try {
-        es?.close();
-      } catch {
-        /* ignore */
-      }
+      if (timer) global.clearTimeout(timer);
     };
   }
 
@@ -106,96 +108,91 @@
         return;
       }
       const buffer = [];
-      try {
-        const socket = global.io({
-          path: "/socket.io",
-          transports: ["websocket", "polling"],
-          withCredentials: true,
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
-          timeout: 10000,
-          query: { company_id: companyId || "" },
-          extraHeaders: { "X-Requested-With": "XMLHttpRequest" },
-        });
-        let stopped = false;
+      let stopped = false;
+      let settled = false;
+      let socket = null;
 
-        const stop = () => {
+      const finish = (stopFn) => {
+        if (settled) return;
+        settled = true;
+        resolve(stopFn);
+      };
+
+      const stop = () => {
+        stopped = true;
+        try {
+          socket?.disconnect();
+        } catch {
+          /* ignore */
+        }
+      };
+
+      try {
+        socket = global.io({
+          path: "/socket.io",
+          transports: ["polling", "websocket"],
+          withCredentials: true,
+          reconnection: false,
+          timeout: 8000,
+          query: { company_id: companyId || "" },
+        });
+      } catch {
+        finish(null);
+        return;
+      }
+
+      socket.on("connect", () => {
+        try {
+          socket.emit("subscribe", { company_id: companyId || "" });
+        } catch {
+          stop();
+          finish(null);
+        }
+      });
+
+      socket.on("subscribed", (msg) => {
+        if (msg && msg.ok === false) {
+          stop();
+          finish(null);
+          return;
+        }
+        onMode?.("websocket");
+        finish(() => {
           stopped = true;
           try {
             socket.disconnect();
           } catch {
             /* ignore */
           }
-        };
-
-        socket.on("connect", () => {
-          try {
-            socket.emit("subscribe", { company_id: companyId || "" });
-          } catch (e) {
-            console.error("Subscribe emit failed:", e);
-            stop();
-            resolve(null);
-          }
         });
+      });
 
-        socket.on("subscribed", (msg) => {
-          if (msg && msg.ok === false) {
-            console.warn("Subscribe failed:", msg.error);
-            stop();
-            resolve(null);
-            return;
-          }
-          onMode?.("websocket");
-          resolve(stop);
-        });
+      socket.on("platform_event", (evt) => {
+        if (stopped) return;
+        buffer.unshift(evt);
+        onEvent?.(evt);
+        while (buffer.length > 30) buffer.pop();
+        renderFeed(feedEl, buffer);
+      });
 
-        socket.on("platform_event", (evt) => {
-          if (stopped) return;
-          buffer.unshift(evt);
-          onEvent?.(evt);
-          while (buffer.length > 30) buffer.pop();
-          renderFeed(feedEl, buffer);
-        });
+      socket.on("connect_error", () => {
+        stop();
+        finish(null);
+      });
 
-        socket.on("connect_error", (error) => {
-          console.warn("WebSocket connect error:", error);
-          if (!stopped) {
-            stop();
-            resolve(null);
-          }
-        });
-
-        socket.on("disconnect", (reason) => {
-          if (!stopped && reason === "io server disconnect") {
-            console.warn("WebSocket disconnected by server:", reason);
-            stop();
-            resolve(null);
-          }
-        });
-
-        if (socket.io) {
-          socket.io.on("reconnect_failed", () => {
-            if (!stopped) {
-              console.warn("WebSocket reconnect failed");
-              stop();
-              resolve(null);
-            }
-          });
+      socket.on("disconnect", () => {
+        if (!stopped && !settled) {
+          stop();
+          finish(null);
         }
+      });
 
-        setTimeout(() => {
-          if (!stopped && !socket.connected) {
-            console.warn("WebSocket connection timeout");
-            stop();
-            resolve(null);
-          }
-        }, 10500);
-      } catch (e) {
-        console.error("Socket.io initialization failed:", e);
-        resolve(null);
-      }
+      global.setTimeout(() => {
+        if (!stopped && !socket.connected) {
+          stop();
+          finish(null);
+        }
+      }, 8500);
     });
   }
 
@@ -204,14 +201,15 @@
       const st = await fetch("/api/v1/realtime/status", { credentials: "include" }).then((r) =>
         r.ok ? r.json() : null,
       );
-      if (st?.websocket?.enabled) {
+      const ws = st?.websocket;
+      if (ws?.enabled && ws?.supported !== false) {
         const stopWs = await startSocketIo({ companyId, feedEl, onMode, onEvent });
         if (stopWs) return stopWs;
       }
     } catch {
-      /* fallback */
+      /* polling fallback */
     }
-    return startSse({ companyId, feedEl, onMode, onEvent });
+    return startPolling({ companyId, feedEl, onMode, onEvent });
   }
 
   global.BauPassOpsRealtime = { start, formatEventLine, renderFeed };

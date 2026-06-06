@@ -1,8 +1,13 @@
+import os
 import socket
 import sys
-import os
 import logging
 from pathlib import Path
+
+# Waitress cannot upgrade HTTP to WebSocket — disable Socket.IO unless explicitly enabled.
+os.environ.setdefault("BAUPASS_SERVE_ENGINE", "waitress")
+if not os.getenv("BAUPASS_WEBSOCKET_ENABLED", "").strip():
+    os.environ["BAUPASS_WEBSOCKET_ENABLED"] = "0"
 
 from waitress import serve
 
