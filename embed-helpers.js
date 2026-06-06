@@ -236,6 +236,42 @@
   };
 
   const TOKEN_KEYS = ["baupass-control-token", "baupass-admin-v2-token"];
+  const COMPANY_STORAGE_KEYS = ["baupass-preview-company-id", "baupass-admin-v2-company"];
+
+  function readStoredCompanyId() {
+    for (const key of COMPANY_STORAGE_KEYS) {
+      try {
+        const val = (localStorage.getItem(key) || "").trim();
+        if (val) return val;
+      } catch {
+        // ignore
+      }
+    }
+    return "";
+  }
+
+  function resolveCompanyIdFromUser(user) {
+    const qs = (new URLSearchParams(global.location.search).get("company_id") || "").trim();
+    if (qs) return qs;
+    const role = String(user?.role || "");
+    if (role === "company-admin") {
+      return String(user?.company_id || "").trim() || readStoredCompanyId();
+    }
+    if (role === "superadmin") {
+      return String(user?.preview_company_id || "").trim() || readStoredCompanyId();
+    }
+    return String(user?.company_id || "").trim() || readStoredCompanyId();
+  }
+
+  function persistCompanyId(companyId) {
+    const cid = String(companyId || "").trim();
+    if (!cid) return;
+    try {
+      localStorage.setItem("baupass-preview-company-id", cid);
+    } catch {
+      // ignore
+    }
+  }
 
   function getSessionToken() {
     for (const key of TOKEN_KEYS) {
@@ -307,8 +343,15 @@
 
   window.addEventListener("message", (event) => {
     if (!event?.data || event.origin !== global.location.origin) return;
-    if (event.data.type === "baupass-sync-token" && event.data.token) {
-      persistSessionToken(event.data.token);
+    if (event.data.type === "baupass-sync-token") {
+      if (event.data.token) {
+        persistSessionToken(event.data.token);
+      }
+      const cid = String(event.data.companyId || "").trim();
+      if (cid) {
+        persistCompanyId(cid);
+        global.dispatchEvent(new CustomEvent("baupass-company-sync", { detail: { companyId: cid } }));
+      }
     }
   });
 
@@ -318,5 +361,8 @@
     authHeaders,
     fetchApi,
     bootstrapSession,
+    readStoredCompanyId,
+    resolveCompanyIdFromUser,
+    persistCompanyId,
   };
 })(window);

@@ -243,7 +243,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="/embed-helpers.js?v=20260531ai1"></script>
+  <script src="/embed-helpers.js?v=20260606ai1"></script>
   <script src="/ai-voice-ui.js?v=20260530b"></script>
   <script>
     (function initEmbed() {
@@ -308,11 +308,54 @@
 
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
     let currentRole = "";
+    let bootUser = null;
     let agents = [];
     let activeAgent = "operations";
     let sessionId = "";
     let sessions = [];
     let lastAnswerText = "";
+
+    function readStoredCompanyId() {
+      return window.BaupassAuth?.readStoredCompanyId?.() || "";
+    }
+
+    function resolveCompanyId(user) {
+      if (window.BaupassAuth?.resolveCompanyIdFromUser) {
+        return window.BaupassAuth.resolveCompanyIdFromUser(user || bootUser || {});
+      }
+      const qs = (new URLSearchParams(location.search).get("company_id") || "").trim();
+      if (qs) return qs;
+      const u = user || bootUser || {};
+      const role = String(u.role || currentRole || "");
+      if (role === "company-admin") {
+        return String(u.company_id || "").trim() || readStoredCompanyId();
+      }
+      if (role === "superadmin") {
+        return String(u.preview_company_id || "").trim() || readStoredCompanyId();
+      }
+      return String(u.company_id || "").trim() || readStoredCompanyId();
+    }
+
+    function syncSelectedCompanyId(user, { reload = false } = {}) {
+      const resolved = resolveCompanyId(user);
+      if (!resolved) return false;
+      const changed = resolved !== selectedCompanyId;
+      selectedCompanyId = resolved;
+      const sel = document.getElementById("companySelect");
+      if (sel && [...sel.options].some((o) => o.value === resolved)) {
+        sel.value = resolved;
+      }
+      if (changed && reload) {
+        boot().catch(() => {});
+        startInsightsRealtime();
+      }
+      return true;
+    }
+
+    function companyRequiredForUi() {
+      syncSelectedCompanyId(bootUser);
+      return currentRole === "superadmin" && !selectedCompanyId;
+    }
 
     function actionLabel(a) {
       const key = "label" + LANG.charAt(0).toUpperCase() + LANG.slice(1);
@@ -493,7 +536,12 @@
         sel.innerHTML = `<option value="">— Firma —</option>` +
           list.map((c) => `<option value="${c.id}" ${c.id === selectedCompanyId ? "selected" : ""}>${c.name}</option>`).join("");
         sel.classList.remove("hidden");
-        sel.onchange = () => { selectedCompanyId = sel.value; boot(); };
+        sel.onchange = () => {
+          selectedCompanyId = sel.value || "";
+          window.BaupassAuth?.persistCompanyId?.(selectedCompanyId);
+          startInsightsRealtime();
+          boot().catch(() => {});
+        };
       } catch { sel.classList.add("hidden"); }
     }
 
@@ -594,7 +642,7 @@
 
     let insightsTimer = null;
     async function loadInsights() {
-      if (!selectedCompanyId && currentRole === "superadmin") return;
+      if (companyRequiredForUi()) return;
       const data = await api(`/api/ai/insights?${companyQs()}`);
       renderInsights(data);
       const ts = new Date().toLocaleTimeString();
@@ -641,7 +689,7 @@
     }
 
     async function loadSessions() {
-      if (!selectedCompanyId && currentRole === "superadmin") {
+      if (companyRequiredForUi()) {
         sessions = [];
         renderSessions();
         return;
@@ -670,7 +718,7 @@
     }
 
     async function newSession() {
-      if (!selectedCompanyId && currentRole === "superadmin") { appendMsg("bot", t("needCompany")); return; }
+      if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
       const s = await api("/api/ai/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -682,7 +730,7 @@
     }
 
     async function submitQuestion(q) {
-      if (!selectedCompanyId && currentRole === "superadmin") { appendMsg("bot", t("needCompany")); return; }
+      if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
       if (!sessionId) await newSession();
       appendMsg("user", q);
       const log = document.getElementById("chatLog");
@@ -836,7 +884,7 @@
     };
 
     async function runAnalysis(topic) {
-      if (!selectedCompanyId && currentRole === "superadmin") {
+      if (companyRequiredForUi()) {
         appendMsg("bot", t("needCompany"));
         return;
       }
@@ -882,20 +930,18 @@
       startInsightsRealtime();
     }
 
+    window.addEventListener("baupass-company-sync", (event) => {
+      const cid = String(event?.detail?.companyId || "").trim();
+      if (!cid) return;
+      syncSelectedCompanyId({ ...bootUser, preview_company_id: cid, role: currentRole || "superadmin" }, { reload: true });
+    });
+
     (async () => {
       try {
         const bootData = await bootstrapSession();
-        currentRole = bootData?.user?.role || "";
-        if (currentRole === "company-admin") {
-          selectedCompanyId = bootData.user.company_id || selectedCompanyId;
-        }
-        if (currentRole === "superadmin") {
-          if (bootData?.user?.preview_company_id && !selectedCompanyId) {
-            selectedCompanyId = bootData.user.preview_company_id;
-          }
-          const qsCid = new URLSearchParams(location.search).get("company_id") || "";
-          if (qsCid) selectedCompanyId = qsCid;
-        }
+        bootUser = bootData?.user || null;
+        currentRole = bootUser?.role || "";
+        syncSelectedCompanyId(bootUser);
         showApp();
         await loadCompanies();
         if (window.BaupassAiUi) {
@@ -912,8 +958,6 @@
                 : "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen."),
           });
         }
-        const sel = document.getElementById("companySelect");
-        if (sel) sel.onchange = () => { startInsightsRealtime(); loadInsights().catch(() => {}); boot().catch(() => {}); };
         await boot();
         const autoQ = new URLSearchParams(location.search).get("autoprompt");
         if (autoQ) {
