@@ -2589,7 +2589,7 @@ body[data-branding-preset="premium"] {
 }
 
 .topbar {
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
 }
 
@@ -8127,6 +8127,10 @@ body.theme-black .invoice-toolbar-refresh:active {
 
 .topbar-more-menu {
   position: relative;
+}
+
+.topbar-more-menu[open] {
+  z-index: 210;
 }
 
 .topbar-more-menu summary {
