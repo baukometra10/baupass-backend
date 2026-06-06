@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import os
+import re
 import time
+import uuid
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 _last_security_alert_at: float = 0.0
@@ -26,6 +30,108 @@ def login_spike_threshold_24h() -> int:
 
 def security_alert_cooldown_seconds() -> int:
     return max(60, int(os.getenv("BAUPASS_GUARDIAN_SECURITY_ALERT_COOLDOWN_SECONDS", "600")))
+
+
+def ip_ban_threshold() -> int:
+    return max(3, int(os.getenv("BAUPASS_GUARDIAN_IP_BAN_THRESHOLD", "8")))
+
+
+def ip_ban_hours() -> int:
+    return max(1, int(os.getenv("BAUPASS_GUARDIAN_IP_BAN_HOURS", "2")))
+
+
+def _failed_login_ips(db, *, minutes: int = 15) -> dict[str, int]:
+    try:
+        rows = db.execute(
+            """
+            SELECT message FROM audit_logs
+            WHERE event_type = 'login.failed'
+              AND created_at >= datetime('now', ?)
+            """,
+            (f"-{max(1, minutes)} minutes",),
+        ).fetchall()
+    except Exception:
+        return {}
+    counts: Counter[str] = Counter()
+    pattern = re.compile(r"ip:([^\s\)]+)", re.I)
+    for row in rows:
+        match = pattern.search(str(row["message"] or ""))
+        if not match:
+            continue
+        ip = match.group(1).strip()
+        if ip and ip not in {"local", "unknown"}:
+            counts[ip] += 1
+    return dict(counts)
+
+
+def ban_abusive_ips(db, ip_counts: dict[str, int]) -> dict[str, Any]:
+    threshold = ip_ban_threshold()
+    hours = ip_ban_hours()
+    banned: list[str] = []
+    skipped = 0
+    now = datetime.now(timezone.utc)
+    expires = (now + timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%fZ")
+    banned_at = now.strftime("%Y-%m-%dT%H:%M:%fZ")
+    for ip, count in ip_counts.items():
+        if count < threshold:
+            continue
+        try:
+            existing = db.execute(
+                """
+                SELECT id FROM rate_limit_bans
+                WHERE ip_address = ? AND lifted_at IS NULL AND expires_at > ?
+                LIMIT 1
+                """,
+                (ip, banned_at),
+            ).fetchone()
+            if existing:
+                skipped += 1
+                continue
+            db.execute(
+                """
+                INSERT INTO rate_limit_bans (id, ip_address, reason, banned_at, expires_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"ban-{uuid.uuid4().hex[:12]}",
+                    ip,
+                    f"guardian_login_spike ({count} failures/{threshold}+)",
+                    banned_at,
+                    expires,
+                    "platform_guardian",
+                ),
+            )
+            banned.append(ip)
+        except Exception:
+            skipped += 1
+    if banned:
+        db.commit()
+    return {
+        "id": "ban_abusive_ips",
+        "ok": True,
+        "banned": banned,
+        "skipped": skipped,
+        "threshold": threshold,
+    }
+
+
+def is_ip_banned(db, ip: str) -> bool:
+    ip = (ip or "").strip()
+    if not ip or ip in {"local", "unknown"}:
+        return False
+    try:
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+        row = db.execute(
+            """
+            SELECT id FROM rate_limit_bans
+            WHERE ip_address = ? AND lifted_at IS NULL AND expires_at > ?
+            LIMIT 1
+            """,
+            (ip, now),
+        ).fetchone()
+        return row is not None
+    except Exception:
+        return False
 
 
 def reset_security_state_for_tests() -> None:
@@ -100,8 +206,12 @@ def scan_security(db) -> dict[str, Any]:
         severity = "ok"
 
     fixes: list[dict[str, Any]] = []
+    suspicious_ips: dict[str, int] = {}
     if security_remediation_enabled():
         fixes.append(clear_expired_login_locks())
+        if elevated:
+            suspicious_ips = _failed_login_ips(db, minutes=15)
+            fixes.append(ban_abusive_ips(db, suspicious_ips))
 
     return {
         "enabled": True,
@@ -112,6 +222,7 @@ def scan_security(db) -> dict[str, Any]:
         "threshold24h": threshold_24h,
         "elevated": elevated,
         "severity": severity,
+        "suspiciousIps": suspicious_ips,
         "fixes": fixes,
     }
 

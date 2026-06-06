@@ -536,6 +536,9 @@ const UI_TRANSLATIONS = {
     platformHealthProbeAdminV2: "Betrieb",
     platformHealthProbeHub: "Enterprise-Hub",
     platformHealthProbeOps: "Ops-Zentrale",
+    platformHealthProbeWorkers: "Hintergrund-Worker",
+    platformHealthProbeDeadLetter: "Dead-Letter-Queue",
+    platformHealthProbeInvoiceRetry: "Rechnungs-Retry",
     platformHealthProbeDb: "Datenbank",
     platformHealthFoot: "Zuletzt geprüft: {time} · {url}",
     invoiceTableNumber: "Rechnung",
@@ -16629,7 +16632,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260601prio1");
+    params.push("v=20260607guard1");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
@@ -16971,7 +16974,7 @@ function canViewPlatformHealth() {
   return role === "superadmin" || role === "company-admin";
 }
 
-function renderPlatformHealthPanel(payload, errorMessage) {
+function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
   const grid = document.getElementById("platformHealthGrid");
   const foot = document.getElementById("platformHealthFoot");
   const panel = document.getElementById("platformHealthPanel");
@@ -17034,6 +17037,39 @@ function renderPlatformHealthPanel(payload, errorMessage) {
       </div>`);
   });
 
+  const extras = opsExtras || {};
+  const workerCount = Number(extras.workers?.active ?? NaN);
+  if (Number.isFinite(workerCount)) {
+    const workerOk = workerCount > 0;
+    cards.push(`
+      <div class="platform-health-card ${workerOk ? "is-ok" : "is-warn"}">
+        <p class="platform-health-label">${escapeHtml(uiT("platformHealthProbeWorkers") || "Worker")}</p>
+        <p class="platform-health-value">${workerCount}</p>
+        <p class="platform-health-detail">${workerOk ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthDegraded") || "Degraded")}</p>
+      </div>`);
+  }
+  const dlTotal = Number(extras.deadLetter?.total_events ?? NaN);
+  if (Number.isFinite(dlTotal)) {
+    const dlOk = dlTotal === 0;
+    cards.push(`
+      <div class="platform-health-card ${dlOk ? "is-ok" : "is-warn"}">
+        <p class="platform-health-label">${escapeHtml(uiT("platformHealthProbeDeadLetter") || "Dead letter")}</p>
+        <p class="platform-health-value">${dlTotal}</p>
+        <p class="platform-health-detail">${dlOk ? "—" : "Queue events"}</p>
+      </div>`);
+  }
+  const invoiceRetry = Number(extras.invoiceOps?.criticalInvoiceRetries ?? NaN);
+  const invoiceDl = Number(extras.invoiceOps?.invoiceDeadLetters ?? NaN);
+  if (Number.isFinite(invoiceRetry) || Number.isFinite(invoiceDl)) {
+    const invoiceOk = (invoiceRetry || 0) === 0 && (invoiceDl || 0) === 0;
+    cards.push(`
+      <div class="platform-health-card ${invoiceOk ? "is-ok" : "is-warn"}">
+        <p class="platform-health-label">${escapeHtml(uiT("platformHealthProbeInvoiceRetry") || "Invoice retry")}</p>
+        <p class="platform-health-value">${invoiceRetry || 0} / ${invoiceDl || 0}</p>
+        <p class="platform-health-detail">kritisch / dead-letter</p>
+      </div>`);
+  }
+
   grid.innerHTML = cards.join("");
   if (foot && payload) {
     const ts = payload.timestamp ? formatTimestamp(payload.timestamp) : "—";
@@ -17051,8 +17087,16 @@ async function refreshPlatformHealth() {
     grid.innerHTML = `<p class="muted">${escapeHtml(uiT("platformHealthLoading") || "Prüfe…")}</p>`;
   }
   try {
-    const data = await apiRequest(`${API_BASE}/api/health/platform`);
-    renderPlatformHealthPanel(data);
+    const [data, queues, opsSummary] = await Promise.all([
+      apiRequest(`${API_BASE}/api/health/platform`),
+      apiRequest(`${API_BASE}/api/health/queues`).catch(() => null),
+      apiRequest(`${API_BASE}/api/guardian/ops-summary`).catch(() => null),
+    ]);
+    renderPlatformHealthPanel(data, null, {
+      workers: queues?.workers,
+      deadLetter: queues?.dead_letter,
+      invoiceOps: opsSummary,
+    });
   } catch (error) {
     renderPlatformHealthPanel(null, error?.message || String(error));
   }

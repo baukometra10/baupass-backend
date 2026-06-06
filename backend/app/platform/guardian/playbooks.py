@@ -30,8 +30,8 @@ def _mark_run(playbook_id: str) -> None:
     _playbook_last_run[playbook_id] = time.time()
 
 
-def cleanup_expired_sessions(db) -> dict[str, Any]:
-    if not _can_run("expired_sessions"):
+def cleanup_expired_sessions(db, *, force: bool = False) -> dict[str, Any]:
+    if not force and not _can_run("expired_sessions"):
         return {"id": "expired_sessions", "skipped": "cooldown"}
     try:
         from backend.server import now_iso
@@ -57,8 +57,8 @@ def cleanup_expired_sessions(db) -> dict[str, Any]:
         return {"id": "expired_sessions", "ok": False, "error": str(exc)[:200]}
 
 
-def ack_stale_info_alerts(db, *, after_hours: int = 24) -> dict[str, Any]:
-    if not _can_run("stale_info_alerts"):
+def ack_stale_info_alerts(db, *, after_hours: int = 24, force: bool = False) -> dict[str, Any]:
+    if not force and not _can_run("stale_info_alerts"):
         return {"id": "stale_info_alerts", "skipped": "cooldown"}
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=max(1, after_hours))).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -88,8 +88,8 @@ def ack_stale_info_alerts(db, *, after_hours: int = 24) -> dict[str, Any]:
         return {"id": "stale_info_alerts", "ok": False, "error": str(exc)[:200]}
 
 
-def trigger_worker_session_cleanup() -> dict[str, Any]:
-    if not _can_run("worker_session_cleanup"):
+def trigger_worker_session_cleanup(*, force: bool = False) -> dict[str, Any]:
+    if not force and not _can_run("worker_session_cleanup"):
         return {"id": "worker_session_cleanup", "skipped": "cooldown"}
     try:
         from backend.server import run_worker_session_cleanup_cycle_once
@@ -121,29 +121,30 @@ def run_playbooks(
     status: str,
     workers_degraded: bool,
     dead_letter_total: int = 0,
+    force: bool = False,
 ) -> dict[str, Any]:
-    if not remediation_enabled():
+    if not remediation_enabled() and not force:
         return {"enabled": False, "actions": []}
 
     actions: list[dict[str, Any]] = []
     if not db_ok:
         return {"enabled": True, "actions": actions, "skipped": "database_unhealthy"}
 
-    actions.append(cleanup_expired_sessions(db))
-    actions.append(trigger_worker_session_cleanup())
+    actions.append(cleanup_expired_sessions(db, force=force))
+    actions.append(trigger_worker_session_cleanup(force=force))
 
-    should_retry_invoices = (
+    should_retry_invoices = force or (
         not workers_degraded
         and (
             status in {"degraded", "down"}
             or dead_letter_total > 0
         )
     )
-    if should_retry_invoices:
-        actions.append(trigger_invoice_retry())
+    if should_retry_invoices and not workers_degraded:
+        actions.append(trigger_invoice_retry(force=force))
 
-    if status in {"degraded", "down"}:
-        actions.append(ack_stale_info_alerts(db))
+    if force or status in {"degraded", "down"}:
+        actions.append(ack_stale_info_alerts(db, force=force))
 
     applied = [a for a in actions if a.get("ok") and not a.get("skipped")]
-    return {"enabled": True, "actions": actions, "appliedCount": len(applied)}
+    return {"enabled": True, "actions": actions, "appliedCount": len(applied), "forced": force}

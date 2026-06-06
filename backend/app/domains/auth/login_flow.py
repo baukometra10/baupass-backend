@@ -30,6 +30,16 @@ def perform_login():
         )
 
 
+def _log_login_failed(srv, username: str, reason: str = "") -> None:
+    ip = srv.get_client_ip()
+    suffix = f" ip:{ip}" if ip else ""
+    detail = f" ({reason})" if reason else ""
+    srv.log_audit(
+        "login.failed",
+        f"Fehlgeschlagener Login fuer {username or 'unbekannt'}{suffix}{detail}",
+    )
+
+
 def _perform_login_core(srv, login_error):
     """Run POST /api/login; returns Flask response or (json, status)."""
     from backend.app.db.schema_errors import guard_core_schema
@@ -37,6 +47,19 @@ def _perform_login_core(srv, login_error):
     blocked = guard_core_schema(ok_field=True)
     if blocked is not None:
         return blocked
+
+    client_ip = srv.get_client_ip()
+    try:
+        from backend.app.platform.guardian.security import is_ip_banned
+
+        if is_ip_banned(srv.get_db(), client_ip):
+            return login_error(
+                "ip_blocked",
+                403,
+                message="Zugriff von dieser IP voruebergehend gesperrt.",
+            )
+    except Exception:
+        pass
 
     throttle_key = srv.build_login_throttle_key()
     allowed, retry_after = srv.can_attempt_login(throttle_key)
@@ -70,7 +93,7 @@ def _perform_login_core(srv, login_error):
 
     if not user:
         srv.register_login_failure(throttle_key)
-        srv.log_audit("login.failed", f"Fehlgeschlagener Login fuer {username or 'unbekannt'}")
+        _log_login_failed(srv, username)
         return login_error("invalid_credentials")
 
     stored_hash = str(user["password_hash"] or "").strip()
@@ -80,7 +103,7 @@ def _perform_login_core(srv, login_error):
     )
     if not hash_ok:
         srv.register_login_failure(throttle_key)
-        srv.log_audit("login.failed", f"Fehlgeschlagener Login fuer {username or 'unbekannt'}")
+        _log_login_failed(srv, username)
         return login_error("invalid_credentials")
 
     required_role_by_scope = {
@@ -91,7 +114,7 @@ def _perform_login_core(srv, login_error):
     required_role = required_role_by_scope.get(login_scope)
     if required_role and user["role"] != required_role:
         srv.register_login_failure(throttle_key)
-        srv.log_audit("login.failed", f"Login-Typ passt nicht zu {username or 'unbekannt'}")
+        _log_login_failed(srv, username, "scope_mismatch")
         return login_error("login_scope_mismatch")
 
     twofa_enabled = int(user["twofa_enabled"]) == 1

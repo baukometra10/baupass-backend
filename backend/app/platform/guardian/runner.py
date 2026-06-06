@@ -12,6 +12,7 @@ from backend.app.database import get_database_health
 from backend.app.health.platform_probe import collect_platform_health
 from backend.app.tasks import get_worker_heartbeat_stats
 
+from .history import append_history, get_history
 from .notify import maybe_notify_guardian
 from .playbooks import run_playbooks
 from .security import maybe_raise_security_alert, scan_security
@@ -176,5 +177,37 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
     _last_run_at = time.time()
     _last_snapshot.clear()
     _last_snapshot.update(snapshot)
+    append_history(snapshot)
     snapshot["ok"] = status == "ok"
     return snapshot
+
+
+def get_guardian_history(limit: int = 20) -> list[dict[str, Any]]:
+    return get_history(limit)
+
+
+def collect_ops_summary(db) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "invoiceDeadLetters": 0,
+        "criticalInvoiceRetries": 0,
+        "queueDeadLetterEvents": 0,
+        "activeWorkers": 0,
+    }
+    try:
+        from backend.server import get_critical_invoice_retry_summary, get_invoice_dead_letters
+
+        summary["invoiceDeadLetters"] = len(get_invoice_dead_letters(db) or [])
+        retry_summary = get_critical_invoice_retry_summary(db) or {}
+        summary["criticalInvoiceRetries"] = int(retry_summary.get("criticalCount") or 0)
+    except Exception:
+        pass
+    try:
+        from backend.app.tasks import get_dead_letter_stats, get_worker_heartbeat_stats
+
+        dl = get_dead_letter_stats() or {}
+        summary["queueDeadLetterEvents"] = int(dl.get("total_events") or 0)
+        workers = get_worker_heartbeat_stats() or {}
+        summary["activeWorkers"] = int(workers.get("active") or 0)
+    except Exception:
+        pass
+    return summary

@@ -231,6 +231,7 @@
     <main class="panel chat">
       <div class="agent-tabs" id="agentTabs"></div>
       <div class="chat-toolbar">
+        <button type="button" class="secondary" id="exportChatBtn">Chat exportieren</button>
         <button type="button" class="secondary" id="clearChatBtn">Chat leeren</button>
       </div>
       <div class="scroll" id="chatLog"></div>
@@ -266,7 +267,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="/embed-helpers.js?v=20260606ai1"></script>
+  <script src="/embed-helpers.js?v=20260607a"></script>
   <script src="/ai-voice-ui.js?v=20260530b"></script>
   <script>
     (function initEmbed() {
@@ -300,6 +301,7 @@
         confirmClearChat: "Aktuellen Chat wirklich leeren?",
         chatDeleted: "Chat gelöscht.", allChatsDeleted: "Alle Chats gelöscht.", chatCleared: "Chat geleert.",
         noChats: "Noch keine Chats.",
+        exportChat: "Chat exportieren", exportChatEmpty: "Kein Chat zum Exportieren.",
       },
       en: {
         title: "BauPass AI Command Center",
@@ -319,6 +321,7 @@
         confirmClearChat: "Clear the current chat?",
         chatDeleted: "Chat deleted.", allChatsDeleted: "All chats deleted.", chatCleared: "Chat cleared.",
         noChats: "No chats yet.",
+        exportChat: "Export chat", exportChatEmpty: "Nothing to export.",
       },
       ar: {
         title: "مركز قيادة AI — BauPass",
@@ -338,6 +341,7 @@
         confirmClearChat: "مسح المحادثة الحالية؟",
         chatDeleted: "تم حذف المحادثة.", allChatsDeleted: "تم حذف جميع المحادثات.", chatCleared: "تم مسح المحادثة.",
         noChats: "لا توجد محادثات بعد.",
+        exportChat: "تصدير المحادثة", exportChatEmpty: "لا يوجد محادثة للتصدير.",
       },
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
@@ -509,6 +513,8 @@
     if (deleteAllBtn) deleteAllBtn.textContent = t("deleteAllChats");
     const clearChatBtn = document.getElementById("clearChatBtn");
     if (clearChatBtn) clearChatBtn.textContent = t("clearChat");
+    const exportChatBtn = document.getElementById("exportChatBtn");
+    if (exportChatBtn) exportChatBtn.textContent = t("exportChat");
     const toolsSummary = document.getElementById("toolsPanelSummary");
     if (toolsSummary) {
       toolsSummary.textContent = LANG === "ar" ? "أدوات وملخصات" : (LANG === "en" ? "Tools & briefings" : "Tools & Briefings");
@@ -669,6 +675,39 @@
         document.getElementById("chatLog").innerHTML = "";
         showToast(t("chatCleared"));
       }
+    }
+
+    async function exportCurrentChat() {
+      const lines = [];
+      if (sessionId) {
+        try {
+          const data = await api(`/api/ai/sessions/${sessionId}?${companyQs()}`);
+          (data.messages || []).forEach((m) => {
+            const role = m.role === "user" ? "Du" : "KI";
+            lines.push(`**${role}:** ${m.content || ""}`);
+          });
+        } catch (e) {
+          showToast(e.payload?.hint || e.message);
+          return;
+        }
+      } else {
+        document.querySelectorAll("#chatLog > div").forEach((node) => {
+          const role = node.classList.contains("msg-user") ? "Du" : "KI";
+          lines.push(`**${role}:** ${node.textContent || ""}`);
+        });
+      }
+      if (!lines.length) {
+        showToast(t("exportChatEmpty"));
+        return;
+      }
+      const title = sessions.find((s) => s.id === sessionId)?.title || "BauPass-KI-Chat";
+      const body = `# ${title}\n\n${lines.join("\n\n")}\n`;
+      const blob = new Blob([body], { type: "text/markdown;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `baupass-ki-${new Date().toISOString().slice(0, 10)}.md`;
+      a.click();
+      URL.revokeObjectURL(a.href);
     }
 
     function showToast(msg) {
@@ -852,12 +891,21 @@
       statusEl.className = "msg-meta";
       log.appendChild(statusEl);
       const friendlyAiError = (err) => {
-        const hint = String(err?.hint || err?.error || "").trim();
+        const hint = String(err?.hint || err?.error || err?.message || "").trim();
         if (!hint || hint === "company_required") return t("needCompany");
-        if (/openai|api.key|nicht konfiguriert/i.test(hint)) {
+        if (/openai|api.key|nicht konfiguriert|not configured/i.test(hint)) {
           return LANG === "en"
-            ? "AI is not configured on the server yet. Please contact your administrator."
-            : "Die KI ist auf dem Server noch nicht eingerichtet. Bitte den Administrator kontaktieren.";
+            ? "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway."
+            : "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.";
+        }
+        if (/401|403|auth|anmeld|sign in/i.test(hint)) {
+          return LANG === "en" ? "Please sign in again." : "Bitte erneut anmelden.";
+        }
+        if (/429|rate|too many|limit/i.test(hint)) {
+          return LANG === "en" ? "Too many requests — please wait briefly." : "Zu viele Anfragen — bitte kurz warten.";
+        }
+        if (/network|fetch|failed to fetch/i.test(hint)) {
+          return LANG === "en" ? "Network error — check connection." : "Netzwerkfehler — Verbindung prüfen.";
         }
         return hint;
       };
@@ -1032,6 +1080,7 @@
     document.getElementById("newChatBtn").onclick = newSession;
     document.getElementById("deleteAllChatsBtn").onclick = () => deleteAllSessions().catch((e) => showToast(e.payload?.hint || e.message));
     document.getElementById("clearChatBtn").onclick = () => clearCurrentChat().catch((e) => showToast(e.payload?.hint || e.message));
+    document.getElementById("exportChatBtn").onclick = () => exportCurrentChat().catch((e) => showToast(e.payload?.hint || e.message));
     document.querySelectorAll("[data-topic]").forEach((btn) => {
       btn.onclick = () => runAnalysis(btn.dataset.topic);
     });

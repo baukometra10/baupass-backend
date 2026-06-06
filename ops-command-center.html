@@ -46,6 +46,16 @@
     }
     .guardian-probe.ok { border-color: rgba(75, 227, 209, 0.35); color: var(--accent); }
     .guardian-probe.fail { border-color: rgba(248, 113, 113, 0.45); color: var(--danger); }
+    .guardian-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.65rem; }
+    .guardian-actions button {
+      font-size: 0.75rem; padding: 0.35rem 0.65rem; border-radius: 8px;
+      border: 1px solid var(--border); background: #0c1218; color: var(--accent); cursor: pointer;
+    }
+    .guardian-ops { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
+    .guardian-ops span { font-size: 0.72rem; color: var(--muted); padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: 999px; }
+    .guardian-ops span.warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
+    .guardian-history { margin-top: 0.65rem; font-size: 0.72rem; color: var(--muted); max-height: 120px; overflow-y: auto; }
+    .guardian-history-row { padding: 0.2rem 0; border-bottom: 1px solid var(--border); }
   </style>
 </head>
 <body class="ops-app">
@@ -100,7 +110,7 @@
       grid.insertBefore(el, grid.querySelector(".card[style*='grid-column']") || grid.firstChild);
     }
 
-    function renderGuardianCard(guardian) {
+    function renderGuardianCard(guardian, history) {
       if (!guardian || !guardian.timestamp) return "";
       const status = String(guardian.status || "unknown").toLowerCase();
       const cls = status === "ok" ? "" : status === "down" ? "down" : "degraded";
@@ -129,8 +139,22 @@
           : `Security: ${sec.failedLogins24h ?? 0} Fehl-Logins/24h · OK`)
         : "";
       const extraHints = [remediationHint, secHint].filter(Boolean).join(" · ");
+      const ops = guardian.ops || {};
+      const opsHtml = `
+        <div class="guardian-ops">
+          <span class="${(ops.criticalInvoiceRetries || 0) > 0 ? "warn" : ""}">Rechnungs-Retry: ${ops.criticalInvoiceRetries ?? 0}</span>
+          <span class="${(ops.invoiceDeadLetters || 0) > 0 ? "warn" : ""}">Invoice DL: ${ops.invoiceDeadLetters ?? 0}</span>
+          <span class="${(ops.queueDeadLetterEvents || 0) > 0 ? "warn" : ""}">Queue DL: ${ops.queueDeadLetterEvents ?? 0}</span>
+          <span>Worker: ${ops.activeWorkers ?? 0}</span>
+        </div>`;
+      const historyHtml = (history || []).slice(0, 8).map((row) => {
+        const ts = String(row.timestamp || "").replace("T", " ").slice(0, 16);
+        const st = String(row.status || "?").toUpperCase();
+        const fixes = row.appliedCount ? ` · ${row.appliedCount} Fix` : "";
+        return `<div class="guardian-history-row">${ts} · ${st}${fixes}</div>`;
+      }).join("") || `<div class="guardian-history-row">—</div>`;
       return `
-        <div class="card guardian-card ${cls}">
+        <div class="card guardian-card ${cls}" id="guardianCard">
           <div class="guardian-head">
             <div>
               <div class="label">Platform Guardian</div>
@@ -141,10 +165,39 @@
             <div class="label">${host ? host + "<br>" : ""}${checked} UTC</div>
           </div>
           <div class="guardian-probes">${probeHtml || '<span class="guardian-probe">—</span>'}</div>
+          ${opsHtml}
+          <div class="guardian-actions">
+            <button type="button" id="guardianCheckBtn">Health-Check</button>
+            <button type="button" id="guardianRepairBtn">Jetzt reparieren</button>
+          </div>
+          <div class="guardian-history">${historyHtml}</div>
         </div>`;
     }
 
-    function render(data, forecast, guardian) {
+    function wireGuardianActions() {
+      document.getElementById("guardianCheckBtn")?.addEventListener("click", async () => {
+        try {
+          await fetch("/api/guardian/check", { method: "POST", credentials: "include" });
+          await load();
+        } catch (e) {
+          alert(e.message || "Check fehlgeschlagen");
+        }
+      });
+      document.getElementById("guardianRepairBtn")?.addEventListener("click", async () => {
+        if (!window.confirm("Guardian-Reparatur jetzt ausführen?")) return;
+        try {
+          const res = await fetch("/api/guardian/remediate", { method: "POST", credentials: "include" });
+          if (!res.ok) throw new Error(await res.text());
+          await load();
+        } catch (e) {
+          alert(e.message || "Reparatur fehlgeschlagen");
+        }
+      });
+    }
+
+    function render(data, forecast, guardianBundle) {
+      const guardian = guardianBundle?.status || guardianBundle;
+      const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
@@ -155,7 +208,7 @@
       const sec = t.openSecurityAlerts ?? 0;
 
       grid.innerHTML = `
-        ${renderGuardianCard(guardian)}
+        ${renderGuardianCard(guardian, guardianHistory)}
         <div class="card ops-card clickable" data-action="onsite" title="KI: Wer ist auf der Baustelle?">
           <div class="ops-label">Auf Baustelle</div><div class="ops-metric">${t.workersOnSite ?? 0}</div>
         </div>
@@ -215,6 +268,7 @@
         });
       });
       document.getElementById("refreshBtn")?.addEventListener("click", load);
+      wireGuardianActions();
       if (forecast) renderForecastCard(grid, forecast);
     }
 
@@ -232,13 +286,17 @@
       }
     }
 
-    async function loadGuardian() {
+    async function loadGuardianBundle() {
       try {
-        const res = await fetch("/api/guardian/status", { credentials: "include" });
-        if (!res.ok) return null;
-        return await res.json();
+        const [statusRes, historyRes] = await Promise.all([
+          fetch("/api/guardian/status", { credentials: "include" }),
+          fetch("/api/guardian/history?limit=20", { credentials: "include" }),
+        ]);
+        const status = statusRes.ok ? await statusRes.json() : null;
+        const historyPayload = historyRes.ok ? await historyRes.json() : {};
+        return { status, history: historyPayload.history || [] };
       } catch {
-        return null;
+        return { status: null, history: [] };
       }
     }
 
@@ -248,13 +306,13 @@
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const [res, forecast, guardian] = await Promise.all([
+        const [res, forecast, guardianBundle] = await Promise.all([
           fetch(url, { credentials: "include" }),
           loadForecast(),
-          loadGuardian(),
+          loadGuardianBundle(),
         ]);
         if (!res.ok) throw new Error(res.status + " " + res.statusText);
-        render(await res.json(), forecast, guardian);
+        render(await res.json(), forecast, guardianBundle);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">Bitte in Admin v2 anmelden, dann diese Seite öffnen. ${e.message}</p>`;

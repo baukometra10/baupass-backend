@@ -86,3 +86,14 @@ def test_security_detects_login_spike():
     report = security.scan_security(_Db())
     assert report["elevated"] is True
     assert report["failedLogins15m"] == 20
+
+
+def test_guardian_history_ring_buffer():
+    from backend.app.platform.guardian import history
+
+    history.reset_history_for_tests()
+    history.append_history({"timestamp": "t1", "status": "ok", "failedProbes": [], "remediation": {"appliedCount": 1}, "security": {}, "deadLetterTotal": 0})
+    history.append_history({"timestamp": "t2", "status": "degraded", "failedProbes": ["api"], "remediation": {"appliedCount": 0}, "security": {"elevated": True}, "deadLetterTotal": 2})
+    rows = history.get_history()
+    assert len(rows) == 2
+    assert rows[0]["status"] == "degraded"
