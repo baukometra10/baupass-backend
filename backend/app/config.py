@@ -60,6 +60,9 @@ class BaseConfig:
     REDIS_MAX_CONNECTIONS: int = 20
     REDIS_SOCKET_TIMEOUT: float = 3.0
     REDIS_RETRY_ON_TIMEOUT: bool = True
+    # When True, Redis failures are non-fatal: rate limiting and task queues
+    # fall back to in-memory / synchronous implementations automatically.
+    REDIS_OPTIONAL: bool = _env_flag_enabled("BAUPASS_REDIS_OPTIONAL", "1")
 
     # ── Rate Limiting ─────────────────────────────────────────────────────────
     # المفتاح يُبنى في Redis: ratelimit:{scope}:{key}
@@ -151,6 +154,14 @@ class TestingConfig(BaseConfig):
 
 class ProductionConfig(BaseConfig):
     DEBUG = False
+
+    # Persist SQLite to the Railway /data volume when no PostgreSQL is configured.
+    # The get_db_path() function in database.py also auto-detects /data, but
+    # setting SQLITE_PATH here makes the path explicit and avoids any ambiguity.
+    SQLITE_PATH: str = os.getenv(
+        "BAUPASS_DB_PATH",
+        "/data/baupass.db" if os.path.isdir("/data") else "",
+    ).strip()
 
     @classmethod
     def _resolve_public_base_url(cls) -> str:

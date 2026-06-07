@@ -27,11 +27,13 @@ def init_extensions(app: "Flask") -> None:
 def _init_redis(app: "Flask") -> None:
     """
     تهيئة Redis مع connection pool.
-    إذا Redis غير متاح: يُسجّل تحذيراً ويعمل بدونه (degraded mode).
+    إذا Redis غير متاح وكان REDIS_OPTIONAL=True (الافتراضي): يُسجّل تحذيراً
+    ويعمل بدونه (degraded mode) بدلاً من الانهيار.
     """
     global redis_client
 
     redis_url = app.config.get("REDIS_URL", "redis://localhost:6379/0")
+    redis_optional = app.config.get("REDIS_OPTIONAL", True)
 
     try:
         import redis
@@ -59,11 +61,20 @@ def _init_redis(app: "Flask") -> None:
         redis_client = None
 
     except Exception as exc:
-        logger.warning(
-            "Redis unavailable (%s). Rate limiting falls back to in-memory. "
-            "Set REDIS_URL or start Redis.",
-            exc,
-        )
+        if redis_optional:
+            logger.warning(
+                "Redis unavailable (%s) – running without Redis (REDIS_OPTIONAL=True). "
+                "Rate limiting falls back to in-memory; background tasks run synchronously. "
+                "Set REDIS_URL to enable distributed Redis features.",
+                exc,
+            )
+        else:
+            logger.error(
+                "Redis unavailable (%s) and REDIS_OPTIONAL=False. "
+                "Set BAUPASS_REDIS_OPTIONAL=1 to allow starting without Redis.",
+                exc,
+            )
+            raise
         redis_client = None
 
 
