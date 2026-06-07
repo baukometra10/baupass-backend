@@ -4335,6 +4335,12 @@ def log_audit(event_type, message, target_type=None, target_id=None, company_id=
         if "no such table" in str(exc).lower() or "audit_logs" in str(exc).lower():
             app.logger.warning("[audit] skipped: %s", exc)
             return
+        if "database is locked" in str(exc).lower() or "disk image is malformed" in str(exc).lower():
+            app.logger.warning("[audit] skipped (db busy/corrupt): %s", exc)
+            return
+        if str(event_type or "").startswith("login."):
+            app.logger.warning("[audit] skipped for %s: %s", event_type, exc)
+            return
         raise
 
     if IMMUTABLE_AUDIT_ENABLED and event_type:

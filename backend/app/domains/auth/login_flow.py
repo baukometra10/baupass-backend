@@ -38,13 +38,16 @@ def perform_login():
 
 
 def _log_login_failed(srv, username: str, reason: str = "") -> None:
-    ip = srv.get_client_ip()
-    suffix = f" ip:{ip}" if ip else ""
-    detail = f" ({reason})" if reason else ""
-    srv.log_audit(
-        "login.failed",
-        f"Fehlgeschlagener Login fuer {username or 'unbekannt'}{suffix}{detail}",
-    )
+    try:
+        ip = srv.get_client_ip()
+        suffix = f" ip:{ip}" if ip else ""
+        detail = f" ({reason})" if reason else ""
+        srv.log_audit(
+            "login.failed",
+            f"Fehlgeschlagener Login fuer {username or 'unbekannt'}{suffix}{detail}",
+        )
+    except Exception:
+        srv.app.logger.warning("login.failed audit skipped", exc_info=True)
 
 
 def _perform_login_core(srv, login_error):
