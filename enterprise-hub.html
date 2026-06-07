@@ -518,7 +518,7 @@
   </div>
 
   <script src="/embed-helpers.js?v=20260608i18n"></script>
-  <script src="/ai-voice-ui.js?v=20260608i18n"></script>
+  <script src="/ai-voice-ui.js?v=20260609voice"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -1924,6 +1924,8 @@
           lang: HUB_LANG,
           unsupportedHint: t("aiVoiceUnsupported"),
           hintText: t("voiceHint"),
+          multilingual: true,
+          authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
         });
       }
     })();

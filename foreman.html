@@ -14,6 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker.css?v=20260513k" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="/embed-helpers.js?v=20260608i18n"></script>
   <style>
     :root {
       --foreman-primary: #0f4c5c;
@@ -669,8 +670,26 @@
     // API Base URL
     const API_BASE = `/api`;
 
-    // Current session token (from localStorage or URL param)
-    let sessionToken = localStorage.getItem('baupass_admin_session') || '';
+    // Current session token (Control Pass / Admin v2)
+    const TOKEN_KEYS = ['baupass-control-token', 'baupass-admin-v2-token', 'baupass_admin_session'];
+    function getSessionToken() {
+      if (window.BaupassAuth?.getSessionToken) {
+        return window.BaupassAuth.getSessionToken() || '';
+      }
+      for (const key of TOKEN_KEYS) {
+        const value = (localStorage.getItem(key) || '').trim();
+        if (value) return value;
+      }
+      return '';
+    }
+    let sessionToken = getSessionToken();
+
+    function getCompanyQuery() {
+      const cid = window.BaupassAuth?.readStoredCompanyId?.()
+        || new URLSearchParams(location.search).get('company_id')
+        || '';
+      return cid ? `?company_id=${encodeURIComponent(cid)}` : '';
+    }
 
     // Fetch helper
     async function fetchAPI(endpoint, options = {}) {
@@ -678,18 +697,29 @@
         'Content-Type': 'application/json',
         ...options.headers,
       };
-      
+      sessionToken = getSessionToken();
       if (sessionToken) {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
 
-      const response = await fetch(`${API_BASE}${endpoint}`, {
+      const sep = endpoint.includes('?') ? '&' : '?';
+      const companyQs = getCompanyQuery();
+      let url = `${API_BASE}${endpoint}`;
+      if (companyQs && !endpoint.includes('company_id=')) {
+        url += endpoint.includes('?') ? companyQs.replace('?', '&') : companyQs;
+      }
+
+      const response = await fetch(url, {
         ...options,
         headers,
       });
 
+      if (response.status === 401) {
+        throw new Error('Bitte zuerst im Control Pass anmelden.');
+      }
       if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.hint || data.error || `API error: ${response.status}`);
       }
 
       return response.json();
@@ -900,11 +930,9 @@
     async function loadShifts() {
       try {
         const [teamData, shifts] = await Promise.all([
-          fetchAPI('/foreman/team-status'),
+          loadWorkerSelects(),
           fetchAPI('/foreman/shift-assignments'),
         ]);
-        populateWorkerSelect('shiftWorkerSelect', teamData.team);
-        populateWorkerSelect('alertWorkerSelect', teamData.team);
         renderShiftsTable(shifts.assignments || []);
       } catch (error) {
         console.error('Failed to load shifts:', error);
@@ -913,15 +941,30 @@
       }
     }
 
+    function workerOptionId(worker) {
+      return String(worker?.workerId || worker?.id || '').trim();
+    }
+
     function populateWorkerSelect(selectId, workers) {
       const select = document.getElementById(selectId);
+      if (!select) return;
       select.innerHTML = '<option value="">-- Auswählen --</option>';
-      workers.forEach(w => {
+      (workers || []).forEach((w) => {
+        const id = workerOptionId(w);
+        if (!id) return;
         const option = document.createElement('option');
-        option.value = w.workerId;
-        option.textContent = w.name;
+        option.value = id;
+        const badge = w.badge ? ` (${w.badge})` : '';
+        option.textContent = `${w.name || id}${badge}`;
         select.appendChild(option);
       });
+    }
+
+    async function loadWorkerSelects() {
+      const data = await fetchAPI('/foreman/team-status');
+      populateWorkerSelect('shiftWorkerSelect', data.team);
+      populateWorkerSelect('alertWorkerSelect', data.team);
+      return data;
     }
 
     document.getElementById('submitShiftBtn')?.addEventListener('click', async () => {
@@ -958,6 +1001,7 @@
     async function loadNotifications() {
       const list = document.getElementById('notificationList');
       try {
+        await loadWorkerSelects();
         const data = await fetchAPI('/foreman/recent-notifications?limit=30');
         const rows = data.notifications || [];
         if (!rows.length) {
@@ -1015,15 +1059,20 @@
       const type = document.getElementById('alertTypeSelect').value;
       const message = document.getElementById('alertMessage').value;
 
-      if (!workerId || !message) {
-        alert('Bitte Mitarbeiter und Nachricht auswählen');
+      if (!workerId) {
+        alert('Bitte Mitarbeiter auswählen');
+        return;
+      }
+      const finalMessage = message || QUICK_ALERTS[type] || QUICK_ALERTS.general;
+      if (!finalMessage) {
+        alert('Bitte Nachricht eingeben');
         return;
       }
 
       try {
         const res = await fetchAPI('/foreman/send-alert', {
           method: 'POST',
-          body: JSON.stringify({ workerId, type, message }),
+          body: JSON.stringify({ workerId, type, message: finalMessage }),
         });
         const d = res.pushDelivery || {};
         alert(

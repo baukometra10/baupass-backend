@@ -550,6 +550,43 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         dispatch["briefingPreview"] = body[:400]
         return jsonify(dispatch), (200 if dispatch.get("sent") else 400)
 
+    @ai_bp.post("/ai/transcribe")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_transcribe():
+        import base64
+
+        from .whisper import transcribe_audio_bytes
+
+        data = request.get_json(silent=True) or {}
+        audio_b64 = str(data.get("audio") or data.get("audio_b64") or "").strip()
+        if not audio_b64:
+            return jsonify({"error": "audio_required", "hint": "Keine Audiodaten."}), 400
+        try:
+            audio_bytes = base64.b64decode(audio_b64, validate=True)
+        except Exception:
+            return jsonify({"error": "invalid_audio_base64"}), 400
+
+        mime = str(data.get("mime") or "audio/webm")
+        ext = "webm" if "webm" in mime else "m4a" if "m4a" in mime else "wav"
+        multilingual = data.get("multilingual", True)
+        if isinstance(multilingual, str):
+            multilingual = multilingual.lower() not in {"0", "false", "no"}
+        lang_hint = "auto" if multilingual else str(data.get("lang") or request.args.get("lang") or "de")[:2]
+        tr = transcribe_audio_bytes(
+            audio_bytes,
+            filename=f"voice.{ext}",
+            mime=mime,
+            language=lang_hint,
+        )
+        if not tr.get("text"):
+            return jsonify({
+                "error": tr.get("error", "transcription_failed"),
+                "hint": tr.get("hint") or "Transkription fehlgeschlagen.",
+            }), 400
+        return jsonify({"text": tr["text"], "model": tr.get("model")})
+
     @ai_bp.get("/ai/rag/search")
     @require_auth
     @require_roles("superadmin", "company-admin")

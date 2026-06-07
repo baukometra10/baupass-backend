@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260608i18n"></script>
-  <script src="/ai-voice-ui.js?v=20260608i18n"></script>
+  <script src="/ai-voice-ui.js?v=20260609voice"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -314,7 +314,7 @@
         topicSecurity: "Sicherheit", topicCompliance: "Compliance", topicAttendance: "Anwesenheit", topicExecutive: "Management",
         statusLine: "{onsite} auf Baustelle · {security} Sicherheit · {queries} Anfragen (7T) · {refreshed} {time}",
         issueAskPrompt: "Was bedeutet dieser Hinweis und was soll ich tun? {msg}",
-        voiceHint: "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen.",
+        voiceHint: "BauPass KI — Sprache oder Text (Deutsch, Englisch, Arabisch). Wichtige Entscheidungen bitte prüfen.",
         errAiNotConfigured: "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.",
         errAuth: "Bitte erneut anmelden.", errRateLimit: "Zu viele Anfragen — bitte kurz warten.",
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
@@ -346,7 +346,7 @@
         topicSecurity: "Security", topicCompliance: "Compliance", topicAttendance: "Attendance", topicExecutive: "Executive",
         statusLine: "{onsite} on site · {security} security · {queries} queries (7d) · {refreshed} {time}",
         issueAskPrompt: "What does this notice mean and what should I do? {msg}",
-        voiceHint: "BauPass AI — voice or text. Verify important decisions.",
+        voiceHint: "BauPass AI — voice or text (German, English, Arabic). Verify important decisions.",
         errAiNotConfigured: "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway.",
         errAuth: "Please sign in again.", errRateLimit: "Too many requests — please wait briefly.",
         errNetwork: "Network error — check connection.",
@@ -378,7 +378,7 @@
         topicSecurity: "الأمن", topicCompliance: "الامتثال", topicAttendance: "الحضور", topicExecutive: "الإدارة",
         statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
         issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
-        voiceHint: "BauPass KI — صوت أو نص. تحقق من القرارات المهمة.",
+        voiceHint: "BauPass KI — صوت أو نص (ألماني، إنجليزي، عربي). تحقق من القرارات المهمة.",
         errAiNotConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد. يرجى تعيين OPENAI_API_KEY على Railway.",
         errAuth: "يرجى تسجيل الدخول مرة أخرى.", errRateLimit: "طلبات كثيرة — يرجى الانتظار قليلاً.",
         errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
@@ -1244,6 +1244,8 @@
             formId: "chatForm",
             lang: LANG,
             hintText: t("voiceHint"),
+            multilingual: true,
+            authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
           });
         }
         uiBooted = true;

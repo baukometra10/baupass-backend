@@ -20,9 +20,9 @@
   const SEND_SVG = `<svg class="bp-ai-send-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.6 21 12 3.4 3.4l2.8 7.2L17 12l-10.8 1.4-2.8 7.2z"/></svg>`;
 
   const HINTS = {
-    de: "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen.",
-    en: "BauPass AI — voice or text. Verify important decisions.",
-    ar: "BauPass KI — صوت أو نص. تحقق من القرارات المهمة.",
+    de: "BauPass KI — Sprache oder Text (Deutsch, Englisch, Arabisch). Wichtige Entscheidungen bitte prüfen.",
+    en: "BauPass AI — voice or text (German, English, Arabic). Verify important decisions.",
+    ar: "BauPass KI — صوت أو نص (ألماني، إنجليزي، عربي). تحقق من القرارات المهمة.",
   };
 
   const LABELS = {
@@ -71,6 +71,195 @@
     }
     const browser = String(global.navigator?.language || "").trim();
     return LANG_MAP[uiLang] || browser || "de-DE";
+  }
+
+  function preferWhisperTranscription(options) {
+    if (options?.useWhisper === false) return false;
+    if (options?.multilingual === false) return Boolean(options?.useWhisper);
+    return options?.useWhisper !== false;
+  }
+
+  function pickRecorderMimeType() {
+    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+    for (const mime of candidates) {
+      if (global.MediaRecorder?.isTypeSupported?.(mime)) return mime;
+    }
+    return "";
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const raw = String(reader.result || "");
+        const idx = raw.indexOf(",");
+        resolve(idx >= 0 ? raw.slice(idx + 1) : raw);
+      };
+      reader.onerror = () => reject(reader.error || new Error("read_failed"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function transcribeWithWhisper(blob, options) {
+    const audioB64 = await blobToBase64(blob);
+    const headers = { "Content-Type": "application/json" };
+    if (typeof options.authHeaders === "function") {
+      Object.assign(headers, options.authHeaders());
+    } else if (options.authHeaders && typeof options.authHeaders === "object") {
+      Object.assign(headers, options.authHeaders);
+    }
+    const url = options.transcribeUrl || "/api/ai/transcribe";
+    const multilingual = options.multilingual !== false;
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({
+        audio: audioB64,
+        mime: blob.type || "audio/webm",
+        multilingual,
+        lang: multilingual ? "auto" : resolveLang(options.lang),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.hint || data.error || res.statusText);
+      err.payload = data;
+      throw err;
+    }
+    return String(data.text || "").trim();
+  }
+
+  function startBrowserSpeechRecognition(options, btnEl, inputEl, lang, speechLang) {
+    const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
+    if (!SpeechRecognition || !global.isSecureContext) {
+      btnEl.disabled = true;
+      btnEl.title = options.unsupportedHint || labelsForLang(lang).unsupported;
+      return null;
+    }
+
+    let recognition = null;
+    let listening = false;
+
+    btnEl.addEventListener("click", () => {
+      if (listening && recognition) {
+        recognition.stop();
+        return;
+      }
+      recognition = new SpeechRecognition();
+      recognition.lang = speechLang;
+      recognition.continuous = false;
+      recognition.interimResults = Boolean(options.interimResults !== false);
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => {
+        listening = true;
+        setListeningState(btnEl, true, lang);
+      };
+      recognition.onend = () => {
+        listening = false;
+        setListeningState(btnEl, false, lang);
+      };
+      recognition.onerror = () => {
+        listening = false;
+        setListeningState(btnEl, false, lang);
+      };
+      recognition.onresult = (event) => {
+        let finalText = "";
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const part = event.results[i][0]?.transcript || "";
+          if (event.results[i].isFinal) finalText += part;
+          else interim += part;
+        }
+        const text = (finalText || interim).trim();
+        if (!text) return;
+        inputEl.value = text;
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dataset.bpVoiceInput = "1";
+        if (!finalText) return;
+        if (typeof options.onTranscript === "function") {
+          options.onTranscript(finalText);
+        } else {
+          inputEl.form?.requestSubmit?.();
+        }
+      };
+      recognition.start();
+    });
+    return recognition;
+  }
+
+  async function startWhisperCapture(options, btnEl, inputEl, lang) {
+    if (!global.navigator?.mediaDevices?.getUserMedia || !global.MediaRecorder) {
+      return false;
+    }
+
+    let stream = null;
+    let recorder = null;
+    let listening = false;
+    const ui = labelsForLang(lang);
+
+    const finish = (text) => {
+      const cleaned = String(text || "").trim();
+      if (!cleaned) return;
+      inputEl.value = cleaned;
+      inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+      inputEl.dataset.bpVoiceInput = "1";
+      if (typeof options.onTranscript === "function") {
+        options.onTranscript(cleaned);
+      } else {
+        inputEl.form?.requestSubmit?.();
+      }
+    };
+
+    btnEl.addEventListener("click", async () => {
+      if (listening && recorder && recorder.state !== "inactive") {
+        recorder.stop();
+        return;
+      }
+      try {
+        stream = await global.navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = pickRecorderMimeType();
+        const chunks = [];
+        recorder = mimeType ? new global.MediaRecorder(stream, { mimeType }) : new global.MediaRecorder(stream);
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) chunks.push(event.data);
+        };
+        recorder.onstop = async () => {
+          listening = false;
+          setListeningState(btnEl, false, lang);
+          stream?.getTracks?.().forEach((track) => track.stop());
+          stream = null;
+          btnEl.classList.remove("bp-ai-transcribing");
+          const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+          try {
+            btnEl.classList.add("bp-ai-transcribing");
+            btnEl.title = ui.speak;
+            const text = await transcribeWithWhisper(blob, options);
+            finish(text);
+          } catch (err) {
+            if (typeof options.onTranscribeError === "function") {
+              options.onTranscribeError(err);
+            } else {
+              global.console?.warn?.("Whisper transcription failed", err);
+            }
+          } finally {
+            btnEl.classList.remove("bp-ai-transcribing");
+            btnEl.title = ui.speak;
+          }
+        };
+        recorder.start();
+        listening = true;
+        setListeningState(btnEl, true, lang);
+      } catch (err) {
+        listening = false;
+        setListeningState(btnEl, false, lang);
+        stream?.getTracks?.().forEach((track) => track.stop());
+        if (typeof options.onMicError === "function") {
+          options.onMicError(err);
+        }
+      }
+    });
+    return true;
   }
 
   function actionLabel(action, lang) {
@@ -281,60 +470,18 @@
 
     const lang = resolveLang(options.lang);
     const speechLang = resolveSpeechLang(options);
-    const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
-    if (!SpeechRecognition || !global.isSecureContext) {
-      btnEl.disabled = true;
-      btnEl.title = options.unsupportedHint || labelsForLang(lang).unsupported;
+    const useWhisper = preferWhisperTranscription(options);
+
+    if (useWhisper) {
+      startWhisperCapture(options, btnEl, inputEl, lang).then((started) => {
+        if (!started) {
+          startBrowserSpeechRecognition(options, btnEl, inputEl, lang, speechLang);
+        }
+      });
       return;
     }
 
-    let recognition = null;
-    let listening = false;
-
-    btnEl.addEventListener("click", () => {
-      if (listening && recognition) {
-        recognition.stop();
-        return;
-      }
-      recognition = new SpeechRecognition();
-      recognition.lang = speechLang;
-      recognition.continuous = false;
-      recognition.interimResults = Boolean(options.interimResults !== false);
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => {
-        listening = true;
-        setListeningState(btnEl, true, lang);
-      };
-      recognition.onend = () => {
-        listening = false;
-        setListeningState(btnEl, false, lang);
-      };
-      recognition.onerror = () => {
-        listening = false;
-        setListeningState(btnEl, false, lang);
-      };
-      recognition.onresult = (event) => {
-        let finalText = "";
-        let interim = "";
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const part = event.results[i][0]?.transcript || "";
-          if (event.results[i].isFinal) finalText += part;
-          else interim += part;
-        }
-        const text = (finalText || interim).trim();
-        if (!text) return;
-        inputEl.value = text;
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl.dataset.bpVoiceInput = "1";
-        if (!finalText) return;
-        if (typeof options.onTranscript === "function") {
-          options.onTranscript(finalText);
-        } else {
-          inputEl.form?.requestSubmit?.();
-        }
-      };
-      recognition.start();
-    });
+    startBrowserSpeechRecognition(options, btnEl, inputEl, lang, speechLang);
   }
 
   function refreshComposerLabels(options = {}) {
@@ -370,5 +517,6 @@
     resolveLang,
     resolveSpeechLang,
     labelsForLang,
+    transcribeWithWhisper,
   };
 })(window);

@@ -28,6 +28,7 @@ def transcribe_audio_bytes(
     boundary = f"----Baupass{uuid.uuid4().hex}"
     model = (os.getenv("BAUPASS_WHISPER_MODEL") or "whisper-1").strip()
     lang = (language or os.getenv("BAUPASS_WHISPER_LANG") or "").strip()[:2]
+    auto_lang = not lang or lang.lower() in {"auto", "mul", "*", "xx"}
 
     parts: list[bytes] = []
     crlf = b"\r\n"
@@ -39,7 +40,7 @@ def transcribe_audio_bytes(
         parts.append(value.encode())
 
     add_field("model", model)
-    if lang:
+    if not auto_lang:
         add_field("language", lang)
     parts.append(f"--{boundary}".encode())
     parts.append(f'Content-Disposition: form-data; name="file"; filename="{filename}"'.encode())

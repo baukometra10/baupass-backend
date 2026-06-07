@@ -2598,7 +2598,10 @@ def init_db():
             return
     except ImportError:
         pass
-    db = sqlite3.connect(DB_PATH, timeout=60)
+    from backend.app.db.sqlite_recovery import ensure_usable_sqlite_path
+
+    db_path = ensure_usable_sqlite_path(Path(DB_PATH))
+    db = sqlite3.connect(db_path, timeout=60)
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA busy_timeout=60000")
     cur = db.cursor()
@@ -12288,12 +12291,32 @@ def worker_app_logout():
 # PHASE 1: FOREMAN/SUPERVISOR HUB
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@require_admin_session
+def _resolve_foreman_company_id(db):
+    user = getattr(g, "current_user", None) or {}
+    role = str(user.get("role") or "")
+    if role == "superadmin":
+        cid = str(getattr(g, "preview_company_id", None) or request.args.get("company_id") or "").strip()
+    else:
+        cid = str(user.get("company_id") or "").strip()
+    if not cid:
+        return None, (jsonify({"error": "company_required", "hint": "Firma fehlt."}), 400)
+    row = db.execute(
+        "SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (cid,),
+    ).fetchone()
+    if not row:
+        return None, (jsonify({"error": "company_not_found"}), 404)
+    return cid, None
+
+
+@require_auth
+@require_roles("company-admin", "superadmin")
 def foreman_team_status():
     """Foreman-View: Live-Status aller Mitarbeiter des Teams."""
     db = get_db()
-    user = g.admin_user
-    company_id = user["company_id"]
+    company_id, err = _resolve_foreman_company_id(db)
+    if err:
+        return err
     today_prefix = datetime.now().strftime("%Y-%m-%d")
 
     rows = db.execute(
@@ -12346,12 +12369,14 @@ def foreman_team_status():
     return jsonify({"team": team_data, "total": len(team_data)})
 
 
-@require_admin_session
+@require_auth
+@require_roles("company-admin", "superadmin")
 def foreman_crew_health():
     """Crew-Health-Score: Durchschnittliche Metriken des Teams."""
     db = get_db()
-    user = g.admin_user
-    company_id = user["company_id"]
+    company_id, err = _resolve_foreman_company_id(db)
+    if err:
+        return err
     today_prefix = datetime.now().strftime("%Y-%m-%d")
 
     total_workers = db.execute(
@@ -12392,25 +12417,28 @@ def foreman_crew_health():
     })
 
 
-@require_admin_session
+@require_auth
+@require_roles("company-admin", "superadmin")
 def foreman_tomorrow_forecast():
     """Vorarbeiter: Personalprognose für den nächsten Arbeitstag."""
     from backend.app.platform.predictions.engine import build_tomorrow_forecast
 
-    user = g.admin_user
-    company_id = str(user.get("company_id") or "").strip()
-    if not company_id:
-        return jsonify({"error": "company_required"}), 400
+    db = get_db()
+    company_id, err = _resolve_foreman_company_id(db)
+    if err:
+        return err
     return jsonify(build_tomorrow_forecast(get_db(), company_id))
 
 
-@require_admin_session
+@require_auth
+@require_roles("company-admin", "superadmin")
 def foreman_send_alert():
     """Foreman sendet Alert an einen Mitarbeiter."""
     db = get_db()
-    user = g.admin_user
+    company_id, err = _resolve_foreman_company_id(db)
+    if err:
+        return err
     payload = request.get_json(silent=True) or {}
-    
     worker_id = str(payload.get("workerId") or "").strip()
     alert_type = str(payload.get("type") or "").strip()  # checkout_reminder, document_alert, etc
     message = str(payload.get("message") or "").strip()
@@ -12419,7 +12447,7 @@ def foreman_send_alert():
         return jsonify({"error": "missing_fields"}), 400
 
     worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
-    if not worker or worker["company_id"] != user["company_id"]:
+    if not worker or worker["company_id"] != company_id:
         return jsonify({"error": "not_found"}), 404
 
     notif_id = f"notif-{secrets.token_hex(8)}"
@@ -12428,7 +12456,7 @@ def foreman_send_alert():
         INSERT INTO notifications (id, worker_id, company_id, type, title, message, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (notif_id, worker_id, user["company_id"], alert_type, alert_type, message, now_iso())
+        (notif_id, worker_id, company_id, alert_type, alert_type, message, now_iso())
     )
     db.commit()
 
@@ -12437,7 +12465,7 @@ def foreman_send_alert():
         f"Alert '{alert_type}' an {worker['first_name']} {worker['last_name']} versendet",
         target_type="worker",
         target_id=worker_id,
-        company_id=user["company_id"],
+        company_id=company_id,
     )
 
     tag_map = {
@@ -12455,7 +12483,7 @@ def foreman_send_alert():
         alert_type.replace("_", " ").title()[:80],
         message[:500],
         tag=push_tag,
-        company_id=str(user["company_id"]),
+        company_id=str(company_id),
     )
     return jsonify({
         "ok": True,
@@ -12465,12 +12493,14 @@ def foreman_send_alert():
     })
 
 
-@require_admin_session
+@require_auth
+@require_roles("company-admin", "superadmin")
 def foreman_recent_notifications():
     """Letzte Foreman/Admin Alerts an Mitarbeiter (Firma)."""
     db = get_db()
-    user = g.admin_user
-    company_id = user["company_id"]
+    company_id, err = _resolve_foreman_company_id(db)
+    if err:
+        return err
     limit = min(max(int(request.args.get("limit", "40")), 1), 100)
     rows = db.execute(
         """
@@ -12812,12 +12842,14 @@ def shift_create_assignment():
     return jsonify({"ok": True, "assignmentId": assign_id, "pushDelivery": push_delivery})
 
 
-@require_admin_session
+@require_auth
+@require_roles("company-admin", "superadmin")
 def foreman_shift_assignments():
     """Foreman: anstehende Schichten der Firma."""
     db = get_db()
-    user = g.admin_user
-    company_id = user["company_id"]
+    company_id, err = _resolve_foreman_company_id(db)
+    if err:
+        return err
     rows = db.execute(
         """
         SELECT sa.id, sa.worker_id, sa.site, sa.start_time, sa.end_time, sa.status, sa.notes,
