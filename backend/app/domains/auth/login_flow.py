@@ -21,7 +21,14 @@ def perform_login():
 
     try:
         return _perform_login_core(srv, login_error)
-    except Exception:
+    except Exception as exc:
+        try:
+            from backend.app.db.schema_errors import database_not_ready_response
+
+            if "not login-ready" in str(exc).lower():
+                return database_not_ready_response(ok_field=True)
+        except ImportError:
+            pass
         srv.app.logger.exception("admin login failed unexpectedly")
         return login_error(
             "login_server_error",
@@ -85,7 +92,7 @@ def _perform_login_core(srv, login_error):
             from backend.app.db.pg_bootstrap import is_schema_error
             from backend.app.db.schema_errors import database_not_ready_response
 
-            if is_schema_error(exc):
+            if is_schema_error(exc) or "not login-ready" in str(exc).lower():
                 return database_not_ready_response(ok_field=True)
         except ImportError:
             pass

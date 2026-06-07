@@ -73,18 +73,9 @@ def open_request_db() -> Any:
         return PgConnection(raw, pool_cm=cm)
 
     db_path = _resolve_sqlite_path()
-    if not db_path.is_file() or db_path.stat().st_size < 4096:
-        from backend.app.db.pg_bootstrap import find_sqlite_data_path
-        import shutil
+    from backend.app.db.sqlite_recovery import ensure_usable_sqlite_path
 
-        fallback = find_sqlite_data_path()
-        if fallback and fallback != db_path:
-            try:
-                db_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(fallback, db_path)
-                print(f"[baupass] Restored SQLite DB from {fallback} → {db_path}", flush=True)
-            except Exception as exc:
-                print(f"[baupass] WARNING: could not restore SQLite from backup: {exc}", flush=True)
+    db_path = ensure_usable_sqlite_path(db_path)
     conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
     try:

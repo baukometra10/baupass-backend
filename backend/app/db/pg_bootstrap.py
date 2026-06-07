@@ -112,6 +112,8 @@ def is_schema_error(exc: BaseException) -> bool:
     if name in {"UndefinedTable", "UndefinedColumn"}:
         return True
     msg = str(exc).lower()
+    if "no such table" in msg or "no such column" in msg:
+        return True
     return "does not exist" in msg and ("relation" in msg or "column" in msg)
 
 

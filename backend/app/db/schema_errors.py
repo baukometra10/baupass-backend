@@ -28,8 +28,18 @@ def database_not_ready_response(*, ok_field: bool = False):
 def guard_core_schema(*, ok_field: bool = False):
     from backend.app.db.runtime import postgres_runtime_enabled
 
-    if not postgres_runtime_enabled():
-        return None
-    if not missing_core_tables():
-        return None
-    return database_not_ready_response(ok_field=ok_field)
+    if postgres_runtime_enabled():
+        if not missing_core_tables():
+            return None
+        return database_not_ready_response(ok_field=ok_field)
+
+    try:
+        from backend.app.db.runtime import _resolve_sqlite_path
+        from backend.app.db.sqlite_recovery import sqlite_core_tables_ok
+
+        db_path = _resolve_sqlite_path()
+        if not sqlite_core_tables_ok(db_path):
+            return database_not_ready_response(ok_field=ok_field)
+    except Exception:
+        return database_not_ready_response(ok_field=ok_field)
+    return None
