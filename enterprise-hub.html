@@ -517,8 +517,8 @@
     </aside>
   </div>
 
-  <script src="/embed-helpers.js?v=20260531shell2"></script>
-  <script src="/ai-voice-ui.js?v=20260530a"></script>
+  <script src="/embed-helpers.js?v=20260608i18n"></script>
+  <script src="/ai-voice-ui.js?v=20260608i18n"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -541,6 +541,27 @@
       applyStaticI18n();
       if (catalog) renderLayers();
     }
+
+    function syncHubLangFromParent(lang) {
+      const code = String(lang || "").slice(0, 2).toLowerCase();
+      if (!["de", "en", "ar"].includes(code) || code === HUB_LANG) return;
+      setHubLang(code);
+      if (!catalog) return;
+      renderPlanBanner(catalog);
+      renderStats(catalog.stats, catalog.surfaceLabels);
+      renderMonatsplanHero();
+      loadRolePlaybook(hubPreviewMode).catch(() => {});
+      if (!hubPreviewMode) loadAiPrompts().catch(() => {});
+    }
+
+    window.addEventListener("baupass-lang-sync", (event) => {
+      syncHubLangFromParent(event?.detail?.lang);
+    });
+    window.addEventListener("storage", (event) => {
+      if (event.key === "baupass-ui-lang" && event.newValue) {
+        syncHubLangFromParent(event.newValue);
+      }
+    });
     const HUB_I18N = {
       de: {
         title: "Enterprise-Hub — 16-Ebenen-Karte",
@@ -1656,7 +1677,13 @@
 
     window.addEventListener("message", (event) => {
       if (!event?.data || event.origin !== location.origin) return;
+      if (event.data.type === "baupass-sync-lang") {
+        syncHubLangFromParent(event.data.lang);
+        return;
+      }
       if (event.data.type !== "baupass-sync-token") return;
+      const lang = String(event.data.lang || "").trim().slice(0, 2);
+      if (lang) syncHubLangFromParent(lang);
       if (event.data.token) {
         window.BaupassAuth?.persistSessionToken?.(event.data.token);
       }

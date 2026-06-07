@@ -1511,7 +1511,7 @@ const UI_TRANSLATIONS = {
     topbarHeadingDashboard: "Overview — badges, access & operations",
     topbarHeadingBetrieb: "Operations — inbox, shifts & workforce",
     topbarHeadingAi: "BauPass AI — assistant",
-    topbarHeadingHub: "Features & integrations",
+    topbarHeadingHub: "Features & plans",
     topbarHeadingOps: "Ops center",
     alertInstallUnavailable: "Installation is not directly available in this browser right now. In Chrome or Edge, choose 'Install app' from the browser menu.",
     alertSessionExpired: "Session expired. Please sign in again.",
@@ -1625,7 +1625,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpenBtn: "Open enterprise hub",
     enterpriseEmbedOpenTab: "Open in new tab",
     navBaupassAi: "BauPass AI",
-    navEnterpriseHub: "Enterprise Hub",
+    navEnterpriseHub: "Features & plans",
     navOpsCenter: "Ops center",
     navAdminV2: "Operations v2",
     enterpriseHubAdminV2Btn: "Admin v2",
@@ -3265,7 +3265,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpenBtn: "فتح مركز المؤسسة",
     enterpriseEmbedOpenTab: "فتح في تبويب جديد",
     navBaupassAi: "BauPass KI",
-    navEnterpriseHub: "مركز المؤسسة",
+    navEnterpriseHub: "الميزات والخطط",
     navOpsCenter: "مركز العمليات",
     navAdminV2: "التشغيل",
     enterpriseHubAdminV2Btn: "Admin v2",
@@ -3278,7 +3278,7 @@ const UI_TRANSLATIONS = {
     topbarHeadingDashboard: "نظرة عامة — البطاقات والدخول والتشغيل",
     topbarHeadingBetrieb: "التشغيل — البريد والورديات والقوى العاملة",
     topbarHeadingAi: "BauPass KI — المساعد",
-    topbarHeadingHub: "الوظائف والتكاملات",
+    topbarHeadingHub: "الميزات والخطط",
     topbarHeadingOps: "مركز العمليات",
     navAiCopilot: "مساعد الذكاء الاصطناعي",
     navIntegrations: "التكاملات",
@@ -8056,6 +8056,12 @@ function setUiLang(lang) {
   invalidateRuntimeUiTextsCache();
   applyUiTranslations();
   broadcastLangToEmbeds();
+  if (typeof updateShellChrome === "function") {
+    updateShellChrome(getCurrentViewName());
+  }
+  if (typeof renderEnterpriseNavMenu === "function") {
+    renderEnterpriseNavMenu();
+  }
   applySystemTheme(getStoredSystemTheme(), { persist: false });
   updateDesktopInstallHint();
   // Re-render dynamic panels that use runtimeText() so labels update immediately
@@ -16648,7 +16654,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260608i18n");
+    params.push("v=20260608i18n2");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
