@@ -30,7 +30,7 @@ from .database import close_postgres_pool, init_postgres_pool, is_postgres_confi
 from .platform_guard import enforce_platform_guards
 from .tasks import init_task_queues
 from .middleware.security import register_security_middleware
-from .middleware.rate_limiting import register_rate_limit_middleware
+from .middleware.rate_limiting import build_rate_limiter, register_rate_limit_middleware
 from .middleware.tenant import TenantMiddleware
 from .middleware.logging_mw import register_logging_middleware
 
@@ -60,6 +60,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
 
     # ── Extensions (Redis, etc.) ──────────────────────────────────────────────
     init_extensions(app)
+    build_rate_limiter(app)
     init_task_queues(app.config.get("REDIS_URL", "redis://localhost:6379/0"))
 
     # ── Database runtime adapters (PostgreSQL transition path) ──────────────
