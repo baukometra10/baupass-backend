@@ -352,6 +352,25 @@
         persistCompanyId(cid);
         global.dispatchEvent(new CustomEvent("baupass-company-sync", { detail: { companyId: cid } }));
       }
+      const lang = String(event.data.lang || "").trim().slice(0, 2);
+      if (lang) {
+        try {
+          global.localStorage.setItem("baupass-ui-lang", lang);
+        } catch {
+          // ignore
+        }
+        global.dispatchEvent(new CustomEvent("baupass-lang-sync", { detail: { lang } }));
+      }
+    }
+    if (event.data.type === "baupass-sync-lang") {
+      const lang = String(event.data.lang || "").trim().slice(0, 2);
+      if (!lang) return;
+      try {
+        global.localStorage.setItem("baupass-ui-lang", lang);
+      } catch {
+        // ignore
+      }
+      global.dispatchEvent(new CustomEvent("baupass-lang-sync", { detail: { lang } }));
     }
   });
 

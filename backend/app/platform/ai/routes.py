@@ -35,7 +35,8 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     def ai_status():
         from .assistant import ai_config_status
 
-        return jsonify(ai_config_status())
+        lang = str(request.args.get("lang") or "de")[:2]
+        return jsonify(ai_config_status(lang))
 
     def _user_id() -> str:
         return str(g.current_user.get("id") or g.current_user.get("username") or "unknown")

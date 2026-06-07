@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" dir="ltr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -205,17 +205,17 @@
     </div>
     <nav class="nav">
       <select id="companySelect" class="hidden"></select>
-      <a href="/enterprise-hub.html">Enterprise Hub</a>
-      <a href="/admin-v2/index.html">Admin v2</a>
-      <a href="/admin-v2/index.html">Posteingang</a>
-      <a href="/ops-command-center.html">Ops Live</a>
+      <a id="navEnterpriseHub" href="/enterprise-hub.html">Enterprise Hub</a>
+      <a id="navAdminV2" href="/admin-v2/index.html">Admin v2</a>
+      <a id="navPosteingang" href="/admin-v2/index.html">Posteingang</a>
+      <a id="navOpsLive" href="/ops-command-center.html">Ops Live</a>
     </nav>
   </header>
 
   <div id="authErr" class="err hidden">
     <span id="authErrText">Bitte anmelden.</span>
     <a id="authLoginLink" href="/admin-v2/index.html?login=1" style="margin-inline-start:0.5rem">Anmelden</a>
-    · <a href="/index.html">Control Pass</a>
+    · <a id="authControlPassLink" href="/index.html">Control Pass</a>
   </div>
 
   <div class="shell hidden embed-shell" id="shell">
@@ -267,8 +267,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="/embed-helpers.js?v=20260607a"></script>
-  <script src="/ai-voice-ui.js?v=20260530b"></script>
+  <script src="/embed-helpers.js?v=20260608i18n"></script>
+  <script src="/ai-voice-ui.js?v=20260608i18n"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -281,19 +281,25 @@
       }
     })();
 
-    const LANG = (localStorage.getItem("baupass-ui-lang") || "de").slice(0, 2);
+    const UI_LANG_KEY = "baupass-ui-lang";
+    function getUiLang() {
+      return (localStorage.getItem(UI_LANG_KEY) || "de").slice(0, 2);
+    }
+    let LANG = getUiLang();
     const I18N = {
       de: {
         title: "BauPass KI Command Center",
         sessions: "Chats", insights: "Live Insights", newChat: "+ Neu",
-        send: "Senden", briefing: "Tagesbriefing", placeholder: "Frage an den Agenten…",
+        send: "Senden", voiceInput: "Spracheingabe", briefing: "Tagesbriefing",
+        placeholder: "Frage an den Agenten…",
         thinking: "Analysiere Live-Daten…", needCompany: "Firma wählen.",
-        auth: "Bitte anmelden (Admin v2).", sources: "Quellen", tools: "Tools",
+        auth: "Bitte anmelden (Admin v2).", authLogin: "Anmelden", controlPass: "Control Pass",
+        sources: "Quellen", tools: "Tools", toolsPanelSummary: "Tools & Briefings",
         actions: "Aktionen", emailBriefing: "Briefing mailen", emailPrompt: "Empfänger-E-Mail:",
         emailOk: "Briefing gesendet.", emailFail: "E-Mail fehlgeschlagen.",
         webhookBriefing: "Slack/Teams", webhookOk: "Webhook gesendet.",
         toolRunning: "Tool",
-        nextActions: "Nächste Schritte", issues: "Baustellen-Hinweise",
+        nextActions: "Nächste Schritte", issues: "Baustellen-Hinweise", askIssue: "KI fragen",
         openOps: "Ops Live", refreshed: "Aktualisiert",
         deleteChat: "Chat löschen", deleteAllChats: "Alle löschen", clearChat: "Chat leeren",
         confirmDeleteChat: "Diesen Chat wirklich löschen?",
@@ -302,18 +308,30 @@
         chatDeleted: "Chat gelöscht.", allChatsDeleted: "Alle Chats gelöscht.", chatCleared: "Chat geleert.",
         noChats: "Noch keine Chats.",
         exportChat: "Chat exportieren", exportChatEmpty: "Kein Chat zum Exportieren.",
+        exportRoleUser: "Du", exportRoleAi: "KI", exportDefaultTitle: "BauPass-KI-Chat",
+        companyPlaceholder: "— Firma —",
+        navEnterpriseHub: "Enterprise Hub", navAdminV2: "Admin v2", navPosteingang: "Posteingang", navOpsLive: "Ops Live",
+        topicSecurity: "Sicherheit", topicCompliance: "Compliance", topicAttendance: "Anwesenheit", topicExecutive: "Management",
+        statusLine: "{onsite} auf Baustelle · {security} Sicherheit · {queries} Anfragen (7T) · {refreshed} {time}",
+        issueAskPrompt: "Was bedeutet dieser Hinweis und was soll ich tun? {msg}",
+        voiceHint: "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen.",
+        errAiNotConfigured: "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.",
+        errAuth: "Bitte erneut anmelden.", errRateLimit: "Zu viele Anfragen — bitte kurz warten.",
+        errNetwork: "Netzwerkfehler — Verbindung prüfen.",
       },
       en: {
         title: "BauPass AI Command Center",
         sessions: "Chats", insights: "Live Insights", newChat: "+ New",
-        send: "Send", briefing: "Daily briefing", placeholder: "Ask the agent…",
+        send: "Send", voiceInput: "Voice input", briefing: "Daily briefing",
+        placeholder: "Ask the agent…",
         thinking: "Analyzing live data…", needCompany: "Select company.",
-        auth: "Please sign in.", sources: "Sources", tools: "Tools",
+        auth: "Please sign in.", authLogin: "Sign in", controlPass: "Control Pass",
+        sources: "Sources", tools: "Tools", toolsPanelSummary: "Tools & briefings",
         actions: "Actions", emailBriefing: "Email briefing", emailPrompt: "Recipient email:",
         emailOk: "Briefing sent.", emailFail: "Email failed.",
         webhookBriefing: "Slack/Teams", webhookOk: "Webhook sent.",
         toolRunning: "Tool",
-        nextActions: "Next steps", issues: "Site notices",
+        nextActions: "Next steps", issues: "Site notices", askIssue: "Ask AI",
         openOps: "Ops live", refreshed: "Updated",
         deleteChat: "Delete chat", deleteAllChats: "Delete all", clearChat: "Clear chat",
         confirmDeleteChat: "Delete this chat?",
@@ -322,18 +340,30 @@
         chatDeleted: "Chat deleted.", allChatsDeleted: "All chats deleted.", chatCleared: "Chat cleared.",
         noChats: "No chats yet.",
         exportChat: "Export chat", exportChatEmpty: "Nothing to export.",
+        exportRoleUser: "You", exportRoleAi: "AI", exportDefaultTitle: "BauPass AI chat",
+        companyPlaceholder: "— Company —",
+        navEnterpriseHub: "Enterprise Hub", navAdminV2: "Admin v2", navPosteingang: "Inbox", navOpsLive: "Ops live",
+        topicSecurity: "Security", topicCompliance: "Compliance", topicAttendance: "Attendance", topicExecutive: "Executive",
+        statusLine: "{onsite} on site · {security} security · {queries} queries (7d) · {refreshed} {time}",
+        issueAskPrompt: "What does this notice mean and what should I do? {msg}",
+        voiceHint: "BauPass AI — voice or text. Verify important decisions.",
+        errAiNotConfigured: "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway.",
+        errAuth: "Please sign in again.", errRateLimit: "Too many requests — please wait briefly.",
+        errNetwork: "Network error — check connection.",
       },
       ar: {
         title: "مركز قيادة AI — BauPass",
         sessions: "المحادثات", insights: "رؤى مباشرة", newChat: "+ جديد",
-        send: "إرسال", briefing: "ملخص اليوم", placeholder: "اسأل الوكيل…",
+        send: "إرسال", voiceInput: "إدخال صوتي", briefing: "ملخص اليوم",
+        placeholder: "اسأل الوكيل…",
         thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
-        auth: "يرجى تسجيل الدخول.", sources: "المصادر", tools: "أدوات",
+        auth: "يرجى تسجيل الدخول.", authLogin: "تسجيل الدخول", controlPass: "Control Pass",
+        sources: "المصادر", tools: "أدوات", toolsPanelSummary: "أدوات وملخصات",
         actions: "إجراءات", emailBriefing: "إرسال الملخص", emailPrompt: "البريد:",
         emailOk: "تم الإرسال.", emailFail: "فشل الإرسال.",
         webhookBriefing: "Slack/Teams", webhookOk: "تم الإرسال للويبهوك.",
         toolRunning: "أداة",
-        nextActions: "الخطوات التالية", issues: "ملاحظات الموقع",
+        nextActions: "الخطوات التالية", issues: "ملاحظات الموقع", askIssue: "اسأل الذكاء الاصطناعي",
         openOps: "عمليات مباشرة", refreshed: "تم التحديث",
         deleteChat: "حذف المحادثة", deleteAllChats: "حذف الكل", clearChat: "مسح المحادثة",
         confirmDeleteChat: "حذف هذه المحادثة؟",
@@ -342,9 +372,103 @@
         chatDeleted: "تم حذف المحادثة.", allChatsDeleted: "تم حذف جميع المحادثات.", chatCleared: "تم مسح المحادثة.",
         noChats: "لا توجد محادثات بعد.",
         exportChat: "تصدير المحادثة", exportChatEmpty: "لا يوجد محادثة للتصدير.",
+        exportRoleUser: "أنت", exportRoleAi: "الذكاء الاصطناعي", exportDefaultTitle: "محادثة BauPass AI",
+        companyPlaceholder: "— الشركة —",
+        navEnterpriseHub: "Enterprise Hub", navAdminV2: "Admin v2", navPosteingang: "البريد الوارد", navOpsLive: "عمليات مباشرة",
+        topicSecurity: "الأمن", topicCompliance: "الامتثال", topicAttendance: "الحضور", topicExecutive: "الإدارة",
+        statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
+        issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
+        voiceHint: "BauPass KI — صوت أو نص. تحقق من القرارات المهمة.",
+        errAiNotConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد. يرجى تعيين OPENAI_API_KEY على Railway.",
+        errAuth: "يرجى تسجيل الدخول مرة أخرى.", errRateLimit: "طلبات كثيرة — يرجى الانتظار قليلاً.",
+        errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
       },
     };
+    const TOPIC_I18N_KEYS = {
+      security: "topicSecurity",
+      compliance: "topicCompliance",
+      attendance: "topicAttendance",
+      executive: "topicExecutive",
+    };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
+    function formatStatusLine(data, ts) {
+      return t("statusLine")
+        .replace("{onsite}", data?.snapshot?.workersOnSite ?? "—")
+        .replace("{security}", data?.snapshot?.openSecurityFindings ?? 0)
+        .replace("{queries}", data?.usage?.queries ?? 0)
+        .replace("{refreshed}", t("refreshed"))
+        .replace("{time}", ts);
+    }
+    let lastInsightsData = null;
+    let uiBooted = false;
+    function applyUiLanguage({ reloadAgents = false, reloadInsights = false } = {}) {
+      LANG = getUiLang();
+      const isAr = LANG === "ar";
+      document.documentElement.lang = LANG;
+      document.documentElement.dir = isAr ? "rtl" : "ltr";
+      document.title = t("title");
+      document.getElementById("pageTitle").textContent = t("title");
+      document.getElementById("sessionsTitle").textContent = t("sessions");
+      document.getElementById("insightsTitle").textContent = t("insights");
+      document.getElementById("newChatBtn").textContent = t("newChat");
+      const deleteAllBtn = document.getElementById("deleteAllChatsBtn");
+      if (deleteAllBtn) deleteAllBtn.textContent = t("deleteAllChats");
+      const clearChatBtnEl = document.getElementById("clearChatBtn");
+      if (clearChatBtnEl) clearChatBtnEl.textContent = t("clearChat");
+      const exportChatBtnEl = document.getElementById("exportChatBtn");
+      if (exportChatBtnEl) exportChatBtnEl.textContent = t("exportChat");
+      const toolsSummary = document.getElementById("toolsPanelSummary");
+      if (toolsSummary) toolsSummary.textContent = t("toolsPanelSummary");
+      document.getElementById("briefingBtn").textContent = t("briefing");
+      document.getElementById("emailBriefingBtn").textContent = t("emailBriefing");
+      document.getElementById("webhookBriefingBtn").textContent = t("webhookBriefing");
+      document.getElementById("question").placeholder = t("placeholder");
+      const authErrText = document.getElementById("authErrText");
+      if (authErrText) authErrText.textContent = t("auth");
+      const loginLink = document.getElementById("authLoginLink");
+      if (loginLink) loginLink.textContent = t("authLogin");
+      const controlPassLink = document.getElementById("authControlPassLink");
+      if (controlPassLink) controlPassLink.textContent = t("controlPass");
+      const navMap = {
+        navEnterpriseHub: "navEnterpriseHub",
+        navAdminV2: "navAdminV2",
+        navPosteingang: "navPosteingang",
+        navOpsLive: "navOpsLive",
+      };
+      Object.entries(navMap).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = t(key);
+      });
+      document.querySelectorAll("[data-topic]").forEach((btn) => {
+        const key = TOPIC_I18N_KEYS[btn.dataset.topic];
+        if (key) btn.textContent = t(key);
+      });
+      const companySel = document.getElementById("companySelect");
+      if (companySel?.options?.length && companySel.options[0].value === "") {
+        companySel.options[0].textContent = t("companyPlaceholder");
+      }
+      if (window.BaupassAiUi?.refreshComposerLabels) {
+        window.BaupassAiUi.refreshComposerLabels({
+          buttonId: "aiVoiceBtn",
+          sendId: "sendBtn",
+          hintText: t("voiceHint"),
+          lang: LANG,
+        });
+      }
+      if (uiBooted) {
+        renderSessions();
+        if (reloadAgents) {
+          loadAgents().then(() => renderAgents()).catch(() => renderAgents());
+        } else {
+          renderAgents();
+        }
+        if (reloadInsights && lastInsightsData) {
+          renderInsights(lastInsightsData);
+          const ts = new Date().toLocaleTimeString();
+          document.getElementById("statusLine").textContent = formatStatusLine(lastInsightsData, ts);
+        }
+      }
+    }
     const CARD_LABELS = {
       de: { onsite: "Auf Baustelle", security: "Sicherheit", workforceRisk: "Risiko", attendanceRisk: "Ausfallrisiko", fraud: "Betrug", productivity: "Produktivität", emergency: "Notfall", tomorrowForecast: "Prognose morgen" },
       en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency", tomorrowForecast: "Tomorrow forecast" },
@@ -505,24 +629,7 @@
       }
     }
 
-    document.getElementById("pageTitle").textContent = t("title");
-    document.getElementById("sessionsTitle").textContent = t("sessions");
-    document.getElementById("insightsTitle").textContent = t("insights");
-    document.getElementById("newChatBtn").textContent = t("newChat");
-    const deleteAllBtn = document.getElementById("deleteAllChatsBtn");
-    if (deleteAllBtn) deleteAllBtn.textContent = t("deleteAllChats");
-    const clearChatBtn = document.getElementById("clearChatBtn");
-    if (clearChatBtn) clearChatBtn.textContent = t("clearChat");
-    const exportChatBtn = document.getElementById("exportChatBtn");
-    if (exportChatBtn) exportChatBtn.textContent = t("exportChat");
-    const toolsSummary = document.getElementById("toolsPanelSummary");
-    if (toolsSummary) {
-      toolsSummary.textContent = LANG === "ar" ? "أدوات وملخصات" : (LANG === "en" ? "Tools & briefings" : "Tools & Briefings");
-    }
-    document.getElementById("briefingBtn").textContent = t("briefing");
-    document.getElementById("emailBriefingBtn").textContent = t("emailBriefing");
-    document.getElementById("webhookBriefingBtn").textContent = t("webhookBriefing");
-    document.getElementById("question").placeholder = t("placeholder");
+    applyUiLanguage();
 
     function authHeaders(extra = {}) {
       if (window.BaupassAuth) return window.BaupassAuth.authHeaders(extra);
@@ -584,7 +691,7 @@
       try {
         const rows = await api("/api/companies");
         const list = Array.isArray(rows) ? rows.filter((c) => !c.deleted_at) : [];
-        sel.innerHTML = `<option value="">— Firma —</option>` +
+        sel.innerHTML = `<option value="">${escapeHtml(t("companyPlaceholder"))}</option>` +
           list.map((c) => `<option value="${c.id}" ${c.id === selectedCompanyId ? "selected" : ""}>${c.name}</option>`).join("");
         sel.classList.remove("hidden");
         sel.onchange = () => {
@@ -594,6 +701,17 @@
           boot().catch(() => {});
         };
       } catch { sel.classList.add("hidden"); }
+    }
+
+    async function loadAgents() {
+      try {
+        const data = await api(`/api/ai/agents?lang=${encodeURIComponent(LANG)}`);
+        agents = data.agents || [];
+      } catch {
+        const st = await api(`/api/ai/status?lang=${encodeURIComponent(LANG)}`);
+        agents = st.agents || [];
+      }
+      if (!activeAgent && agents[0]) activeAgent = agents[0].id;
     }
 
     function renderAgents() {
@@ -683,7 +801,7 @@
         try {
           const data = await api(`/api/ai/sessions/${sessionId}?${companyQs()}`);
           (data.messages || []).forEach((m) => {
-            const role = m.role === "user" ? "Du" : "KI";
+            const role = m.role === "user" ? t("exportRoleUser") : t("exportRoleAi");
             lines.push(`**${role}:** ${m.content || ""}`);
           });
         } catch (e) {
@@ -692,7 +810,7 @@
         }
       } else {
         document.querySelectorAll("#chatLog > div").forEach((node) => {
-          const role = node.classList.contains("msg-user") ? "Du" : "KI";
+          const role = node.classList.contains("msg-user") ? t("exportRoleUser") : t("exportRoleAi");
           lines.push(`**${role}:** ${node.textContent || ""}`);
         });
       }
@@ -700,7 +818,7 @@
         showToast(t("exportChatEmpty"));
         return;
       }
-      const title = sessions.find((s) => s.id === sessionId)?.title || "BauPass-KI-Chat";
+      const title = sessions.find((s) => s.id === sessionId)?.title || t("exportDefaultTitle");
       const body = `# ${title}\n\n${lines.join("\n\n")}\n`;
       const blob = new Blob([body], { type: "text/markdown;charset=utf-8" });
       const a = document.createElement("a");
@@ -759,7 +877,7 @@
         html += `<div class="playbook-block"><h3>${t("issues")}</h3>` +
           issues.map((iss, i) => {
             const msg = typeof iss === "string" ? iss : (iss.message || iss.site || JSON.stringify(iss));
-            return `<div class="issue-row" data-issue="${i}" title="KI fragen">${msg}</div>`;
+            return `<div class="issue-row" data-issue="${i}" title="${escapeHtml(t("askIssue"))}">${msg}</div>`;
           }).join("") + `</div>`;
       }
       if (data?.opsUrl) {
@@ -778,7 +896,7 @@
       issues.forEach((iss, i) => {
         el.querySelector(`[data-issue="${i}"]`)?.addEventListener("click", () => {
           const msg = typeof iss === "string" ? iss : (iss.message || iss.site || "");
-          submitQuestion(`Was bedeutet dieser Hinweis und was soll ich tun? ${msg}`);
+          submitQuestion(t("issueAskPrompt").replace("{msg}", msg));
         });
       });
     }
@@ -787,10 +905,10 @@
     async function loadInsights() {
       if (companyRequiredForUi()) return;
       const data = await api(`/api/ai/insights?${companyQs()}`);
+      lastInsightsData = data;
       renderInsights(data);
       const ts = new Date().toLocaleTimeString();
-      document.getElementById("statusLine").textContent =
-        `${data.snapshot?.workersOnSite ?? "—"} onsite · ${data.snapshot?.openSecurityFindings ?? 0} security · ${data.usage?.queries ?? 0} queries (7d) · ${t("refreshed")} ${ts}`;
+      document.getElementById("statusLine").textContent = formatStatusLine(data, ts);
     }
 
     let insightsRealtimeStop = null;
@@ -894,18 +1012,16 @@
         const hint = String(err?.hint || err?.error || err?.message || "").trim();
         if (!hint || hint === "company_required") return t("needCompany");
         if (/openai|api.key|nicht konfiguriert|not configured/i.test(hint)) {
-          return LANG === "en"
-            ? "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway."
-            : "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.";
+          return t("errAiNotConfigured");
         }
         if (/401|403|auth|anmeld|sign in/i.test(hint)) {
-          return LANG === "en" ? "Please sign in again." : "Bitte erneut anmelden.";
+          return t("errAuth");
         }
         if (/429|rate|too many|limit/i.test(hint)) {
-          return LANG === "en" ? "Too many requests — please wait briefly." : "Zu viele Anfragen — bitte kurz warten.";
+          return t("errRateLimit");
         }
         if (/network|fetch|failed to fetch/i.test(hint)) {
-          return LANG === "en" ? "Network error — check connection." : "Netzwerkfehler — Verbindung prüfen.";
+          return t("errNetwork");
         }
         return hint;
       };
@@ -1086,14 +1202,25 @@
     });
 
     async function boot() {
-      const st = await api("/api/ai/status");
-      agents = st.agents || [];
-      if (!activeAgent && agents[0]) activeAgent = agents[0].id;
+      await loadAgents();
       renderAgents();
       await Promise.all([loadInsights(), loadPrompts(), loadSessions()]);
       startInsightsPolling();
       startInsightsRealtime();
     }
+
+    window.addEventListener("storage", (event) => {
+      if (event.key !== UI_LANG_KEY || !event.newValue) return;
+      applyUiLanguage({ reloadAgents: true, reloadInsights: true });
+      loadPrompts().catch(() => {});
+      if (!companyRequiredForUi()) loadInsights().catch(() => {});
+    });
+
+    window.addEventListener("baupass-lang-sync", () => {
+      applyUiLanguage({ reloadAgents: true, reloadInsights: true });
+      loadPrompts().catch(() => {});
+      if (!companyRequiredForUi()) loadInsights().catch(() => {});
+    });
 
     window.addEventListener("baupass-company-sync", (event) => {
       const cid = String(event?.detail?.companyId || "").trim();
@@ -1116,13 +1243,11 @@
             sendId: "sendBtn",
             formId: "chatForm",
             lang: LANG,
-            hintText: LANG === "ar"
-              ? "BauPass KI — صوت أو نص. تحقق من القرارات المهمة."
-              : (LANG === "en"
-                ? "BauPass AI — voice or text. Verify important decisions."
-                : "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen."),
+            hintText: t("voiceHint"),
           });
         }
+        uiBooted = true;
+        applyUiLanguage();
         await boot();
         const autoQ = new URLSearchParams(location.search).get("autoprompt");
         if (autoQ) {
@@ -1130,13 +1255,7 @@
         }
       } catch {
         showAuthError();
-        const errText = document.getElementById("authErrText");
-        if (errText) errText.textContent = t("auth");
-        const loginLink = document.getElementById("authLoginLink");
-        if (loginLink) {
-          loginLink.href = "/admin-v2/index.html?login=1";
-          loginLink.textContent = LANG === "ar" ? "تسجيل الدخول" : (LANG === "en" ? "Sign in" : "Anmelden");
-        }
+        applyUiLanguage();
       }
     })();
   </script>

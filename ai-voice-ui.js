@@ -25,6 +25,35 @@
     ar: "BauPass KI — صوت أو نص. تحقق من القرارات المهمة.",
   };
 
+  const LABELS = {
+    de: {
+      speak: "Spracheingabe",
+      stop: "Aufnahme beenden",
+      send: "Senden",
+      unsupported: "Spracheingabe benötigt HTTPS",
+      open: "Öffnen",
+    },
+    en: {
+      speak: "Voice input",
+      stop: "Stop listening",
+      send: "Send",
+      unsupported: "Voice needs HTTPS",
+      open: "Open",
+    },
+    ar: {
+      speak: "إدخال صوتي",
+      stop: "إيقاف الاستماع",
+      send: "إرسال",
+      unsupported: "الصوت يتطلب HTTPS",
+      open: "فتح",
+    },
+  };
+
+  function labelsForLang(lang) {
+    const key = resolveLang(lang);
+    return LABELS[key] || LABELS.de;
+  }
+
   function resolveLang(lang) {
     const stored =
       lang ||
@@ -46,7 +75,8 @@
 
   function actionLabel(action, lang) {
     const key = `label${lang.charAt(0).toUpperCase()}${lang.slice(1)}`;
-    return action[key] || action.labelDe || action.labelEn || action.labelAr || action.label || action.id || "Open";
+    const ui = labelsForLang(lang);
+    return action[key] || action.labelDe || action.labelEn || action.labelAr || action.label || action.id || ui.open;
   }
 
   function parseViewFromUrl(url) {
@@ -168,15 +198,13 @@
     resize();
   }
 
-  function setListeningState(btnEl, listening) {
+  function setListeningState(btnEl, listening, lang) {
     if (!btnEl) return;
     btnEl.classList.toggle("listening", Boolean(listening));
     btnEl.setAttribute("aria-pressed", listening ? "true" : "false");
-    const lang = resolveLang();
-    const stopLabel = lang === "en" ? "Stop listening" : lang === "ar" ? "إيقاف الاستماع" : "Aufnahme beenden";
-    const speakLabel = lang === "en" ? "Voice input" : lang === "ar" ? "إدخال صوتي" : "Spracheingabe";
-    btnEl.setAttribute("aria-label", listening ? stopLabel : speakLabel);
-    btnEl.title = listening ? stopLabel : speakLabel;
+    const ui = labelsForLang(lang);
+    btnEl.setAttribute("aria-label", listening ? ui.stop : ui.speak);
+    btnEl.title = listening ? ui.stop : ui.speak;
   }
 
   /**
@@ -190,9 +218,10 @@
     if (!inputEl || !btnEl) return null;
 
     const lang = resolveLang(options.lang);
+    const ui = labelsForLang(lang);
     const labels = {
-      speak: options.speakLabel || (lang === "en" ? "Voice input" : lang === "ar" ? "إدخال صوتي" : "Spracheingabe"),
-      send: options.sendLabel || (lang === "en" ? "Send" : lang === "ar" ? "إرسال" : "Senden"),
+      speak: options.speakLabel || ui.speak,
+      send: options.sendLabel || ui.send,
     };
 
     enhanceMicButton(btnEl, labels);
@@ -255,7 +284,7 @@
     const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
     if (!SpeechRecognition || !global.isSecureContext) {
       btnEl.disabled = true;
-      btnEl.title = options.unsupportedHint || "Voice needs HTTPS";
+      btnEl.title = options.unsupportedHint || labelsForLang(lang).unsupported;
       return;
     }
 
@@ -274,15 +303,15 @@
       recognition.maxAlternatives = 1;
       recognition.onstart = () => {
         listening = true;
-        setListeningState(btnEl, true);
+        setListeningState(btnEl, true, lang);
       };
       recognition.onend = () => {
         listening = false;
-        setListeningState(btnEl, false);
+        setListeningState(btnEl, false, lang);
       };
       recognition.onerror = () => {
         listening = false;
-        setListeningState(btnEl, false);
+        setListeningState(btnEl, false, lang);
       };
       recognition.onresult = (event) => {
         let finalText = "";
@@ -308,16 +337,38 @@
     });
   }
 
+  function refreshComposerLabels(options = {}) {
+    const lang = resolveLang(options.lang);
+    const ui = labelsForLang(lang);
+    const btnEl = document.getElementById(options.buttonId || "aiVoiceBtn");
+    const sendEl = options.sendId ? document.getElementById(options.sendId) : null;
+    const hintEl = document.getElementById(options.hintId || "bpAiComposerHint");
+    if (btnEl) {
+      const listening = btnEl.classList.contains("listening");
+      btnEl.setAttribute("aria-label", listening ? ui.stop : ui.speak);
+      btnEl.title = listening ? ui.stop : ui.speak;
+    }
+    if (sendEl) {
+      sendEl.setAttribute("aria-label", ui.send);
+      sendEl.title = ui.send;
+    }
+    if (hintEl) {
+      hintEl.textContent = options.hintText || HINTS[lang] || HINTS.de;
+    }
+  }
+
   global.BaupassAiUi = {
     bindVoiceInput,
     enhanceComposer,
     enhanceMicButton,
     enhanceSendButton,
     setListeningState,
+    refreshComposerLabels,
     renderActionButtons,
     executeBaupassAction,
     actionLabel,
     resolveLang,
     resolveSpeechLang,
+    labelsForLang,
   };
 })(window);

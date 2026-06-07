@@ -60,9 +60,10 @@ def resolve_ai_temperature(*, mode: str = "chat") -> float:
     return 0.45
 
 
-def ai_config_status() -> dict[str, Any]:
+def ai_config_status(lang: str = "de") -> dict[str, Any]:
     from .agents import list_agents
 
+    lang = str(lang or "de")[:2]
     model, warning = resolve_ai_model()
     azure = bool((os.getenv("AZURE_OPENAI_API_KEY") or "").strip())
     openai = bool((os.getenv("OPENAI_API_KEY") or "").strip())
@@ -74,7 +75,7 @@ def ai_config_status() -> dict[str, Any]:
         "configWarning": warning,
         "agentsEnabled": bool(openai or azure),
         "toolCalling": tools_on,
-        "agents": list_agents("de"),
+        "agents": list_agents(lang),
         "features": [
             "chat",
             "briefing",

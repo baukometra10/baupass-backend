@@ -8035,11 +8035,27 @@ function applyUiTranslations() {
   if (topbarSelect) topbarSelect.value = lang;
 }
 
+function broadcastLangToEmbeds() {
+  const message = {
+    type: "baupass-sync-lang",
+    lang: getStoredUiLang(),
+  };
+  Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
+    const frame = document.getElementById(meta.frameId);
+    try {
+      frame?.contentWindow?.postMessage(message, window.location.origin);
+    } catch {
+      // iframe not ready
+    }
+  });
+}
+
 function setUiLang(lang) {
   const normalized = normalizeUiLang(lang);
   window.localStorage.setItem(UI_LANG_STORAGE_KEY, normalized);
   invalidateRuntimeUiTextsCache();
   applyUiTranslations();
+  broadcastLangToEmbeds();
   applySystemTheme(getStoredSystemTheme(), { persist: false });
   updateDesktopInstallHint();
   // Re-render dynamic panels that use runtimeText() so labels update immediately
@@ -16632,7 +16648,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260607guard1");
+    params.push("v=20260608i18n");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
@@ -16690,6 +16706,7 @@ function broadcastSessionToEmbeds() {
     type: "baupass-sync-token",
     token,
     companyId: getEffectiveUiCompanyId(),
+    lang: getStoredUiLang(),
   };
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
