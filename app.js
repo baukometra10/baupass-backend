@@ -1513,6 +1513,23 @@ const UI_TRANSLATIONS = {
     topbarHeadingAi: "BauPass AI — assistant",
     topbarHeadingHub: "Features & plans",
     topbarHeadingOps: "Ops center",
+    platformHealthEyebrow: "Platform",
+    platformHealthH3: "Railway & modules",
+    platformHealthRefresh: "Refresh",
+    platformHealthLoading: "Checking system…",
+    platformHealthOk: "Online",
+    platformHealthFail: "Offline",
+    platformHealthDegraded: "Degraded",
+    platformHealthProbeApi: "API",
+    platformHealthProbeReady: "Ready",
+    platformHealthProbeAdminV2: "Operations",
+    platformHealthProbeHub: "Features & plans",
+    platformHealthProbeOps: "Ops center",
+    platformHealthProbeWorkers: "Background workers",
+    platformHealthProbeDeadLetter: "Dead-letter queue",
+    platformHealthProbeInvoiceRetry: "Invoice retry",
+    platformHealthProbeDb: "Database",
+    platformHealthFoot: "Last checked: {time} · {url}",
     alertInstallUnavailable: "Installation is not directly available in this browser right now. In Chrome or Edge, choose 'Install app' from the browser menu.",
     alertSessionExpired: "Session expired. Please sign in again.",
     // Shell
@@ -1625,6 +1642,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpenBtn: "Open enterprise hub",
     enterpriseEmbedOpenTab: "Open in new tab",
     navBaupassAi: "BauPass AI",
+    navAiCopilot: "AI assistant",
     navEnterpriseHub: "Features & plans",
     navOpsCenter: "Ops center",
     navAdminV2: "Operations v2",
@@ -3280,6 +3298,23 @@ const UI_TRANSLATIONS = {
     topbarHeadingAi: "BauPass KI — المساعد",
     topbarHeadingHub: "الميزات والخطط",
     topbarHeadingOps: "مركز العمليات",
+    platformHealthEyebrow: "المنصة",
+    platformHealthH3: "Railway والوحدات",
+    platformHealthRefresh: "تحديث",
+    platformHealthLoading: "جارٍ فحص النظام…",
+    platformHealthOk: "متصل",
+    platformHealthFail: "غير متصل",
+    platformHealthDegraded: "مقيد",
+    platformHealthProbeApi: "API",
+    platformHealthProbeReady: "جاهز",
+    platformHealthProbeAdminV2: "التشغيل",
+    platformHealthProbeHub: "الميزات والخطط",
+    platformHealthProbeOps: "مركز العمليات",
+    platformHealthProbeWorkers: "عاملات الخلفية",
+    platformHealthProbeDeadLetter: "طابور dead-letter",
+    platformHealthProbeInvoiceRetry: "إعادة محاولة الفواتير",
+    platformHealthProbeDb: "قاعدة البيانات",
+    platformHealthFoot: "آخر فحص: {time} · {url}",
     navAiCopilot: "مساعد الذكاء الاصطناعي",
     navIntegrations: "التكاملات",
     workerHoursModalTitle: "ساعات العمل",
@@ -8061,6 +8096,9 @@ function setUiLang(lang) {
   }
   if (typeof renderEnterpriseNavMenu === "function") {
     renderEnterpriseNavMenu();
+  }
+  if (typeof refreshPlatformHealth === "function") {
+    refreshPlatformHealth().catch(() => {});
   }
   applySystemTheme(getStoredSystemTheme(), { persist: false });
   updateDesktopInstallHint();
@@ -16654,7 +16692,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260608i18n2");
+    params.push("v=20260609i18n");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");

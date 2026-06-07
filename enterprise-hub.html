@@ -626,9 +626,18 @@
         rolePickCompany: "Firma wählen für Live-KPIs.",
         navAdminV2: "Admin v2",
         navLegacy: "Legacy-Dashboard",
-        navOps: "Ops Center",
+        navOps: "Ops-Zentrale",
+        navAiCenter: "KI-Assistent",
+        navHub: "Funktionen & Tarife",
         navJoin: "Mitarbeiter aktivieren",
         hubLang: "Sprache",
+        previewStrong: "Öffentliche Vorschau",
+        allLabel: "Alle",
+        capWord: "Funktionen",
+        redisYes: "ja",
+        redisNo: "nein",
+        voiceHint: "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen.",
+        monatsplanSteps: "1) Monat wählen 2) Mitarbeiter bearbeiten 3) Status prüfen 4) Versand bestätigen",
         quickNavTitle: "Plattform — Schnellzugriff",
         quickWorkers: "Mitarbeiter",
         quickWorkersDesc: "Team & Ausweise",
@@ -699,8 +708,17 @@
         navAdminV2: "Admin v2",
         navLegacy: "Legacy dashboard",
         navOps: "Ops center",
+        navAiCenter: "AI assistant",
+        navHub: "Features & plans",
         navJoin: "Activate worker",
         hubLang: "Language",
+        previewStrong: "Public preview",
+        allLabel: "All",
+        capWord: "features",
+        redisYes: "yes",
+        redisNo: "no",
+        voiceHint: "BauPass AI — voice or text. Verify important decisions.",
+        monatsplanSteps: "1) Pick month 2) Edit worker 3) Review status 4) Confirm send",
         quickNavTitle: "Platform — quick access",
         quickWorkers: "Workers",
         quickWorkersDesc: "Team & badges",
@@ -769,8 +787,17 @@
         navAdminV2: "لوحة v2",
         navLegacy: "لوحة قديمة",
         navOps: "مركز العمليات",
+        navAiCenter: "مساعد الذكاء الاصطناعي",
+        navHub: "الميزات والخطط",
         navJoin: "تفعيل موظف",
         hubLang: "اللغة",
+        previewStrong: "معاينة عامة",
+        allLabel: "الكل",
+        capWord: "قدرة",
+        redisYes: "نعم",
+        redisNo: "لا",
+        voiceHint: "BauPass KI — صوت أو نص. تحقق من القرارات المهمة.",
+        monatsplanSteps: "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال",
         quickNavTitle: "المنصة — وصول سريع",
         quickWorkers: "الموظفون",
         quickWorkersDesc: "الفريق والبطاقات",
@@ -1008,7 +1035,7 @@
       const centerLink = document.getElementById("aiCenterLink");
       if (centerLink) centerLink.textContent = t("aiOpenCenter");
       const navAi = document.getElementById("navAiCenter");
-      if (navAi) navAi.textContent = HUB_LANG === "ar" ? "مركز AI" : (HUB_LANG === "en" ? "AI Center" : "KI Center");
+      if (navAi) navAi.textContent = t("navAiCenter");
       const navMap = [
         ["navAdminV2", "navAdminV2"],
         ["navLegacy", "navLegacy"],
@@ -1026,7 +1053,7 @@
       if (hubLangSelect) hubLangSelect.value = HUB_LANG;
       renderHubQuickNav();
       const prev = document.getElementById("previewNote");
-      if (prev) prev.querySelector("strong").textContent = HUB_LANG === "ar" ? "معاينة عامة" : (HUB_LANG === "en" ? "Public preview" : "Öffentliche Vorschau");
+      if (prev) prev.querySelector("strong").textContent = t("previewStrong");
     }
 
     function roleDashboardUrl() {
@@ -1267,12 +1294,7 @@
       }
       el.classList.add("hidden");
       return;
-      const steps =
-        HUB_LANG === "ar"
-          ? "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال"
-          : HUB_LANG === "en"
-            ? "1) Pick month 2) Edit worker 3) Review status 4) Confirm send"
-            : "1) Monat wählen 2) Mitarbeiter bearbeiten 3) Status prüfen 4) Versand bestätigen";
+      const steps = t("monatsplanSteps");
       el.innerHTML = `
         <h3>${t("monatsplanTitle")}</h3>
         <p class="monatsplan-steps-compact">${steps}</p>
@@ -1286,7 +1308,7 @@
     function renderStats(stats, labels) {
       const el = document.getElementById("stats");
       const entries = Object.entries(stats).filter(([k]) => k !== "total");
-      const allLabel = HUB_LANG === "ar" ? "الكل" : (HUB_LANG === "en" ? "All" : "Alle");
+      const allLabel = t("allLabel");
       el.innerHTML = [
         `<div class="stat ${!filterSurface ? "active" : ""}" data-surface=""><strong>${stats.total}</strong>${allLabel}</div>`,
         ...entries.map(([k, v]) => {
@@ -1329,7 +1351,7 @@
       const ent = cat.entitlements || {};
       const plan = ent.plan || "starter";
       const meta = (cat.plans || {})[plan] || {};
-      const capWord = HUB_LANG === "ar" ? "قدرة" : (HUB_LANG === "en" ? "features" : "Funktionen");
+      const capWord = t("capWord");
       const comparison = (cat.planComparison || []).map((row) => {
         const cur = row.plan === plan ? " current" : "";
         return `<div class="plan-card${cur}"><strong>${planLabel(row.plan)}</strong><br>${row.enabledCount}/${row.total} ${capWord}<br>${row.coveragePercent}%</div>`;
@@ -1628,8 +1650,8 @@
         wireHubEmbedNav();
         const m = document.getElementById("maturity");
         if (caps) {
-          const redisYes = HUB_LANG === "ar" ? "نعم" : (HUB_LANG === "en" ? "yes" : "ja");
-          const redisNo = HUB_LANG === "ar" ? "لا" : (HUB_LANG === "en" ? "no" : "nein");
+          const redisYes = t("redisYes");
+          const redisNo = t("redisNo");
           m.textContent = `${t("maturity")}: ${caps.maturityLevel || "—"} (${caps.maturityScore ?? "—"}%) · DB: ${caps.dataLayer?.runtime || "—"} · Redis: ${caps.dataLayer?.redisConfigured ? redisYes : redisNo}`;
         } else if (isPreview) {
           m.textContent = t("previewMaturity");
@@ -1901,9 +1923,7 @@
           formId: "aiForm",
           lang: HUB_LANG,
           unsupportedHint: t("aiVoiceUnsupported"),
-          hintText: HUB_LANG === "ar"
-            ? "مساعد BauPass — صوت أو نص."
-            : (HUB_LANG === "en" ? "BauPass assistant — voice or text." : "BauPass KI — sprechen oder tippen."),
+          hintText: t("voiceHint"),
         });
       }
     })();

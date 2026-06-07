@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" dir="ltr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -61,27 +61,258 @@
 <body class="ops-app">
   <header class="ops-header">
     <div>
-      <h1><span class="ops-pulse" id="liveDot"></span> Ops Command Center</h1>
-      <div id="status">Laden…</div>
+      <h1><span class="ops-pulse" id="liveDot"></span> <span id="opsTitle">Ops Command Center</span></h1>
+      <div id="status"></div>
     </div>
     <nav class="ops-nav">
-      <a href="/ai-command-center.html">KI Command Center</a>
-      <a href="/enterprise-hub.html">Enterprise Hub</a>
-      <a href="/admin-v2/index.html">Admin v2</a>
-      <a href="/foreman.html">Vorarbeiter</a>
+      <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
+      <a id="navHub" href="/enterprise-hub.html">Funktionen &amp; Tarife</a>
+      <a id="navAdmin" href="/admin-v2/index.html">Admin v2</a>
+      <a id="navForeman" href="/foreman.html">Vorarbeiter</a>
       <a href="/ops-live-map.html" id="mapLink">Live Karte</a>
     </nav>
   </header>
   <main id="grid"></main>
-  <script src="/embed-helpers.js?v=20260529f"></script>
+  <script src="/embed-helpers.js?v=20260608i18n"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
+    const UI_LANG_KEY = "baupass-ui-lang";
+    function getUiLang() {
+      return (localStorage.getItem(UI_LANG_KEY) || "de").slice(0, 2);
+    }
+    let OPS_LANG = getUiLang();
+    const OPS_I18N = {
+      de: {
+        title: "Ops-Zentrale",
+        loading: "Laden…",
+        navAi: "KI-Assistent",
+        navHub: "Funktionen & Tarife",
+        navAdmin: "Admin v2",
+        navForeman: "Vorarbeiter",
+        navLiveMap: "Live-Karte",
+        forecastTomorrow: "Prognose morgen",
+        onSiteShort: "auf Baustelle",
+        forecastTitle: "KI: Personalplanung für morgen",
+        forecastPrompt: "Was ist die Personalprognose für morgen und welche Maßnahmen empfiehlst du?",
+        guardianLabel: "Platform Guardian",
+        statusOk: "OK",
+        statusOffline: "Offline",
+        statusDegraded: "Eingeschränkt",
+        guardianAffected: "Betroffen: {list}",
+        guardianWorkersMissing: "Hintergrund-Worker fehlen",
+        guardianAllGreen: "Alle Module grün",
+        guardianAutoRepair: "Auto-Reparatur: {n} Playbook(s)",
+        guardianAutoRepairReady: "Auto-Reparatur bereit",
+        guardianSecurityElevated: "Security: {n} Fehl-Logins/15min ({severity})",
+        guardianSecurityOk: "Security: {n} Fehl-Logins/24h · OK",
+        invoiceRetry: "Rechnungs-Retry",
+        invoiceDl: "Invoice DL",
+        queueDl: "Queue DL",
+        worker: "Worker",
+        healthCheck: "Health-Check",
+        repairNow: "Jetzt reparieren",
+        confirmRepair: "Guardian-Reparatur jetzt ausführen?",
+        checkFailed: "Check fehlgeschlagen",
+        repairFailed: "Reparatur fehlgeschlagen",
+        guardianFix: "Fix",
+        scopeGlobal: "Alle Firmen",
+        scopeOne: "Eine Firma",
+        live: "Live",
+        cardOnSite: "Auf Baustelle",
+        cardOnSiteHint: "KI: Wer ist auf der Baustelle?",
+        cardCompanies: "Firmen aktiv",
+        cardEmergencies: "Notfälle aktiv",
+        cardSecurity: "Offene Security-Alerts",
+        companiesTableTitle: "Firmen — Klick für KI & Admin",
+        thCompany: "Firma",
+        thOnSite: "On-site",
+        thGates: "Gates heute",
+        thEmergency: "Notfall",
+        thSecurity: "Security",
+        refreshNow: "Jetzt aktualisieren",
+        inbox: "Posteingang",
+        liveEvents: "Live-Ereignisse (SSE)",
+        connecting: "Verbinde…",
+        connectingStream: "Verbinde Live-Stream…",
+        authError: "Bitte in Admin v2 anmelden, dann diese Seite öffnen.",
+        promptOnsite: "Wer ist gerade auf allen Baustellen und wo gibt es Engpässe?",
+        promptEmergency: "Gibt es aktive Notfälle und was sind die Sofortmaßnahmen?",
+        promptSecurity: "Fasse offene Security-Alerts zusammen und priorisiere.",
+        promptCompanies: "Vergleiche die Firmen nach Risiko und Anwesenheit.",
+      },
+      en: {
+        title: "Ops center",
+        loading: "Loading…",
+        navAi: "AI assistant",
+        navHub: "Features & plans",
+        navAdmin: "Admin v2",
+        navForeman: "Site foreman",
+        navLiveMap: "Live map",
+        forecastTomorrow: "Tomorrow forecast",
+        onSiteShort: "on site",
+        forecastTitle: "AI: workforce planning for tomorrow",
+        forecastPrompt: "What is the workforce forecast for tomorrow and which actions do you recommend?",
+        guardianLabel: "Platform Guardian",
+        statusOk: "OK",
+        statusOffline: "Offline",
+        statusDegraded: "Degraded",
+        guardianAffected: "Affected: {list}",
+        guardianWorkersMissing: "Background workers missing",
+        guardianAllGreen: "All modules green",
+        guardianAutoRepair: "Auto-repair: {n} playbook(s)",
+        guardianAutoRepairReady: "Auto-repair ready",
+        guardianSecurityElevated: "Security: {n} failed logins/15min ({severity})",
+        guardianSecurityOk: "Security: {n} failed logins/24h · OK",
+        invoiceRetry: "Invoice retry",
+        invoiceDl: "Invoice DL",
+        queueDl: "Queue DL",
+        worker: "Worker",
+        healthCheck: "Health check",
+        repairNow: "Repair now",
+        confirmRepair: "Run Guardian repair now?",
+        checkFailed: "Check failed",
+        repairFailed: "Repair failed",
+        guardianFix: "Fix",
+        scopeGlobal: "All companies",
+        scopeOne: "One company",
+        live: "Live",
+        cardOnSite: "On site",
+        cardOnSiteHint: "AI: Who is on site?",
+        cardCompanies: "Active companies",
+        cardEmergencies: "Active emergencies",
+        cardSecurity: "Open security alerts",
+        companiesTableTitle: "Companies — click for AI & admin",
+        thCompany: "Company",
+        thOnSite: "On-site",
+        thGates: "Gates today",
+        thEmergency: "Emergency",
+        thSecurity: "Security",
+        refreshNow: "Refresh now",
+        inbox: "Inbox",
+        liveEvents: "Live events (SSE)",
+        connecting: "Connecting…",
+        connectingStream: "Connecting live stream…",
+        authError: "Please sign in via Admin v2, then open this page.",
+        promptOnsite: "Who is currently on all sites and where are there bottlenecks?",
+        promptEmergency: "Are there active emergencies and what are the immediate actions?",
+        promptSecurity: "Summarize open security alerts and prioritize.",
+        promptCompanies: "Compare companies by risk and attendance.",
+      },
+      ar: {
+        title: "مركز العمليات",
+        loading: "جارٍ التحميل…",
+        navAi: "مساعد الذكاء الاصطناعي",
+        navHub: "الميزات والخطط",
+        navAdmin: "Admin v2",
+        navForeman: "مشرف الموقع",
+        navLiveMap: "خريطة مباشرة",
+        forecastTomorrow: "توقعات الغد",
+        onSiteShort: "على الموقع",
+        forecastTitle: "AI: تخطيط القوى العاملة للغد",
+        forecastPrompt: "ما توقعات القوى العاملة للغد وما الإجراءات التي توصي بها؟",
+        guardianLabel: "Platform Guardian",
+        statusOk: "OK",
+        statusOffline: "غير متصل",
+        statusDegraded: "مقيد",
+        guardianAffected: "متأثر: {list}",
+        guardianWorkersMissing: "عاملات الخلفية مفقودة",
+        guardianAllGreen: "جميع الوحدات خضراء",
+        guardianAutoRepair: "إصلاح تلقائي: {n} playbook(s)",
+        guardianAutoRepairReady: "الإصلاح التلقائي جاهز",
+        guardianSecurityElevated: "الأمن: {n} محاولات دخول فاشلة/15د ({severity})",
+        guardianSecurityOk: "الأمن: {n} محاولات دخول فاشلة/24س · OK",
+        invoiceRetry: "إعادة محاولة الفواتير",
+        invoiceDl: "Invoice DL",
+        queueDl: "Queue DL",
+        worker: "Worker",
+        healthCheck: "فحص الصحة",
+        repairNow: "إصلاح الآن",
+        confirmRepair: "تشغيل إصلاح Guardian الآن؟",
+        checkFailed: "فشل الفحص",
+        repairFailed: "فشل الإصلاح",
+        guardianFix: "Fix",
+        scopeGlobal: "جميع الشركات",
+        scopeOne: "شركة واحدة",
+        live: "مباشر",
+        cardOnSite: "على الموقع",
+        cardOnSiteHint: "AI: من على الموقع؟",
+        cardCompanies: "شركات نشطة",
+        cardEmergencies: "طوارئ نشطة",
+        cardSecurity: "تنبيهات أمنية مفتوحة",
+        companiesTableTitle: "الشركات — انقر للذكاء الاصطناعي والإدارة",
+        thCompany: "الشركة",
+        thOnSite: "على الموقع",
+        thGates: "البوابات اليوم",
+        thEmergency: "طوارئ",
+        thSecurity: "الأمن",
+        refreshNow: "تحديث الآن",
+        inbox: "البريد الوارد",
+        liveEvents: "أحداث مباشرة (SSE)",
+        connecting: "جارٍ الاتصال…",
+        connectingStream: "جارٍ الاتصال بالبث المباشر…",
+        authError: "يرجى تسجيل الدخول عبر Admin v2 ثم فتح هذه الصفحة.",
+        promptOnsite: "من موجود حالياً على جميع المواقع وأين توجد نقاط ضغط؟",
+        promptEmergency: "هل توجد حالات طوارئ نشطة وما الإجراءات الفورية؟",
+        promptSecurity: "لخّص التنبيهات الأمنية المفتوحة ورتّب الأولويات.",
+        promptCompanies: "قارن الشركات حسب المخاطر والحضور.",
+      },
+    };
+    const tr = (key, vars = {}) => {
+      let text = (OPS_I18N[OPS_LANG] || OPS_I18N.de)[key] || (OPS_I18N.de[key] || key);
+      Object.entries(vars).forEach(([k, v]) => {
+        text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+      });
+      return text;
+    };
+
     const qs = new URLSearchParams(location.search);
     const companyId = qs.get("company_id") || "";
     const mapLink = document.getElementById("mapLink");
     if (mapLink && companyId) mapLink.href = `/ops-live-map.html?company_id=${encodeURIComponent(companyId)}`;
+
     let lastPayload = null;
+    let lastForecast = null;
+    let lastGuardianBundle = null;
+    let lastStatusDate = "—";
+    let lastStatusScope = "global";
+
+    function applyOpsUiLanguage() {
+      OPS_LANG = getUiLang();
+      const isAr = OPS_LANG === "ar";
+      document.documentElement.lang = OPS_LANG;
+      document.documentElement.dir = isAr ? "rtl" : "ltr";
+      document.title = `BauPass — ${tr("title")}`;
+      const titleEl = document.getElementById("opsTitle");
+      if (titleEl) titleEl.textContent = tr("title");
+      const navMap = {
+        navAi: "navAi",
+        navHub: "navHub",
+        navAdmin: "navAdmin",
+        navForeman: "navForeman",
+        mapLink: "navLiveMap",
+      };
+      Object.entries(navMap).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = tr(key);
+      });
+      const statusEl = document.getElementById("status");
+      if (statusEl && !lastPayload) statusEl.textContent = tr("loading");
+    }
+
+    function syncOpsLangFromParent(lang) {
+      const code = String(lang || "").slice(0, 2).toLowerCase();
+      if (!["de", "en", "ar"].includes(code) || code === OPS_LANG) return;
+      applyOpsUiLanguage();
+      if (lastPayload) render(lastPayload, lastForecast, lastGuardianBundle);
+    }
+
+    window.addEventListener("baupass-lang-sync", (event) => {
+      syncOpsLangFromParent(event?.detail?.lang);
+    });
+    window.addEventListener("storage", (event) => {
+      if (event.key === UI_LANG_KEY && event.newValue) syncOpsLangFromParent(event.newValue);
+    });
 
     function companyLink(path, cid) {
       const u = new URL(path, location.origin);
@@ -92,19 +323,29 @@
       return u.pathname + u.search;
     }
 
+    function actionPrompts() {
+      return {
+        onsite: tr("promptOnsite"),
+        emergency: tr("promptEmergency"),
+        security: tr("promptSecurity"),
+        companies: tr("promptCompanies"),
+        tomorrow: tr("forecastPrompt"),
+      };
+    }
+
     function renderForecastCard(grid, fc) {
       if (!fc?.date || !grid) return;
       const el = document.createElement("div");
       el.className = "card";
       el.dataset.action = "tomorrow";
-      el.title = "KI: Personalplanung für morgen";
+      el.title = tr("forecastTitle");
       el.innerHTML = `
-        <div class="label">Prognose morgen · ${fc.weekdayLabel || ""}</div>
-        <div class="metric" style="font-size:1.35rem">${fc.expectedOnSite ?? "—"} <span style="font-size:0.75rem;color:var(--muted)">on-site</span></div>
+        <div class="label">${tr("forecastTomorrow")} · ${fc.weekdayLabel || ""}</div>
+        <div class="metric" style="font-size:1.35rem">${fc.expectedOnSite ?? "—"} <span style="font-size:0.75rem;color:var(--muted)">${tr("onSiteShort")}</span></div>
         <div class="label" style="margin-top:0.35rem">${(fc.summary || "").slice(0, 90)}…</div>`;
       el.addEventListener("click", () => {
         const base = companyLink("/ai-command-center.html", companyId);
-        const q = encodeURIComponent("Was ist die Personalprognose für morgen und welche Maßnahmen empfiehlst du?");
+        const q = encodeURIComponent(actionPrompts().tomorrow);
         location.href = `${base}${base.includes("?") ? "&" : "?"}autoprompt=${q}`;
       });
       grid.insertBefore(el, grid.querySelector(".card[style*='grid-column']") || grid.firstChild);
@@ -114,7 +355,7 @@
       if (!guardian || !guardian.timestamp) return "";
       const status = String(guardian.status || "unknown").toLowerCase();
       const cls = status === "ok" ? "" : status === "down" ? "down" : "degraded";
-      const statusLabel = status === "ok" ? "OK" : status === "down" ? "Offline" : "Eingeschränkt";
+      const statusLabel = status === "ok" ? tr("statusOk") : status === "down" ? tr("statusOffline") : tr("statusDegraded");
       const failed = Array.isArray(guardian.failedProbes) ? guardian.failedProbes : [];
       const probes = Array.isArray(guardian.probes) ? guardian.probes : [];
       const probeHtml = probes.map((p) => {
@@ -125,39 +366,39 @@
       const host = (guardian.cloud && guardian.cloud.host) || "";
       const checked = (guardian.timestamp || "").replace("T", " ").slice(0, 19);
       const alertHint = failed.length
-        ? `Betroffen: ${failed.join(", ")}`
-        : (guardian.workersDegraded ? "Hintergrund-Worker fehlen" : "Alle Module grün");
+        ? tr("guardianAffected", { list: failed.join(", ") })
+        : (guardian.workersDegraded ? tr("guardianWorkersMissing") : tr("guardianAllGreen"));
       const remediation = guardian.remediation || {};
       const applied = remediation.appliedCount ?? 0;
       const remediationHint = remediation.enabled
-        ? (applied > 0 ? `Auto-Reparatur: ${applied} Playbook(s)` : "Auto-Reparatur bereit")
+        ? (applied > 0 ? tr("guardianAutoRepair", { n: applied }) : tr("guardianAutoRepairReady"))
         : "";
       const sec = guardian.security || {};
       const secHint = sec.enabled
         ? (sec.elevated
-          ? `Security: ${sec.failedLogins15m ?? 0} Fehl-Logins/15min (${String(sec.severity || "warn").toUpperCase()})`
-          : `Security: ${sec.failedLogins24h ?? 0} Fehl-Logins/24h · OK`)
+          ? tr("guardianSecurityElevated", { n: sec.failedLogins15m ?? 0, severity: String(sec.severity || "warn").toUpperCase() })
+          : tr("guardianSecurityOk", { n: sec.failedLogins24h ?? 0 }))
         : "";
       const extraHints = [remediationHint, secHint].filter(Boolean).join(" · ");
       const ops = guardian.ops || {};
       const opsHtml = `
         <div class="guardian-ops">
-          <span class="${(ops.criticalInvoiceRetries || 0) > 0 ? "warn" : ""}">Rechnungs-Retry: ${ops.criticalInvoiceRetries ?? 0}</span>
-          <span class="${(ops.invoiceDeadLetters || 0) > 0 ? "warn" : ""}">Invoice DL: ${ops.invoiceDeadLetters ?? 0}</span>
-          <span class="${(ops.queueDeadLetterEvents || 0) > 0 ? "warn" : ""}">Queue DL: ${ops.queueDeadLetterEvents ?? 0}</span>
-          <span>Worker: ${ops.activeWorkers ?? 0}</span>
+          <span class="${(ops.criticalInvoiceRetries || 0) > 0 ? "warn" : ""}">${tr("invoiceRetry")}: ${ops.criticalInvoiceRetries ?? 0}</span>
+          <span class="${(ops.invoiceDeadLetters || 0) > 0 ? "warn" : ""}">${tr("invoiceDl")}: ${ops.invoiceDeadLetters ?? 0}</span>
+          <span class="${(ops.queueDeadLetterEvents || 0) > 0 ? "warn" : ""}">${tr("queueDl")}: ${ops.queueDeadLetterEvents ?? 0}</span>
+          <span>${tr("worker")}: ${ops.activeWorkers ?? 0}</span>
         </div>`;
       const historyHtml = (history || []).slice(0, 8).map((row) => {
         const ts = String(row.timestamp || "").replace("T", " ").slice(0, 16);
         const st = String(row.status || "?").toUpperCase();
-        const fixes = row.appliedCount ? ` · ${row.appliedCount} Fix` : "";
+        const fixes = row.appliedCount ? ` · ${row.appliedCount} ${tr("guardianFix")}` : "";
         return `<div class="guardian-history-row">${ts} · ${st}${fixes}</div>`;
       }).join("") || `<div class="guardian-history-row">—</div>`;
       return `
         <div class="card guardian-card ${cls}" id="guardianCard">
           <div class="guardian-head">
             <div>
-              <div class="label">Platform Guardian</div>
+              <div class="label">${tr("guardianLabel")}</div>
               <div class="guardian-status">${statusLabel}</div>
               <div class="label" style="margin-top:0.35rem">${alertHint}</div>
               ${extraHints ? `<div class="label" style="margin-top:0.25rem">${extraHints}</div>` : ""}
@@ -167,8 +408,8 @@
           <div class="guardian-probes">${probeHtml || '<span class="guardian-probe">—</span>'}</div>
           ${opsHtml}
           <div class="guardian-actions">
-            <button type="button" id="guardianCheckBtn">Health-Check</button>
-            <button type="button" id="guardianRepairBtn">Jetzt reparieren</button>
+            <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
+            <button type="button" id="guardianRepairBtn">${tr("repairNow")}</button>
           </div>
           <div class="guardian-history">${historyHtml}</div>
         </div>`;
@@ -180,17 +421,17 @@
           await fetch("/api/guardian/check", { method: "POST", credentials: "include" });
           await load();
         } catch (e) {
-          alert(e.message || "Check fehlgeschlagen");
+          alert(e.message || tr("checkFailed"));
         }
       });
       document.getElementById("guardianRepairBtn")?.addEventListener("click", async () => {
-        if (!window.confirm("Guardian-Reparatur jetzt ausführen?")) return;
+        if (!window.confirm(tr("confirmRepair"))) return;
         try {
           const res = await fetch("/api/guardian/remediate", { method: "POST", credentials: "include" });
           if (!res.ok) throw new Error(await res.text());
           await load();
         } catch (e) {
-          alert(e.message || "Reparatur fehlgeschlagen");
+          alert(e.message || tr("repairFailed"));
         }
       });
     }
@@ -199,32 +440,38 @@
       const guardian = guardianBundle?.status || guardianBundle;
       const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
+      lastForecast = forecast;
+      lastGuardianBundle = guardianBundle;
+      lastStatusDate = data.date || "—";
+      lastStatusScope = data.scope || "global";
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
-      const t = data.totals || {};
-      status.textContent = `${data.date || "—"} · ${data.scope === "global" ? "Alle Firmen" : "Eine Firma"} · Live`;
+      const totals = data.totals || {};
+      const scopeLabel = data.scope === "global" ? tr("scopeGlobal") : tr("scopeOne");
+      status.textContent = `${lastStatusDate} · ${scopeLabel} · ${tr("live")}`;
 
-      const emerg = t.activeEmergencies ?? 0;
-      const sec = t.openSecurityAlerts ?? 0;
+      const emerg = totals.activeEmergencies ?? 0;
+      const sec = totals.openSecurityAlerts ?? 0;
+      const prompts = actionPrompts();
 
       grid.innerHTML = `
         ${renderGuardianCard(guardian, guardianHistory)}
-        <div class="card ops-card clickable" data-action="onsite" title="KI: Wer ist auf der Baustelle?">
-          <div class="ops-label">Auf Baustelle</div><div class="ops-metric">${t.workersOnSite ?? 0}</div>
+        <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
+          <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
         </div>
         <div class="card clickable" data-action="companies">
-          <div class="label">Firmen aktiv</div><div class="metric">${t.companies ?? 0}</div>
+          <div class="label">${tr("cardCompanies")}</div><div class="metric">${totals.companies ?? 0}</div>
         </div>
         <div class="card clickable ${emerg > 0 ? "critical" : ""}" data-action="emergency">
-          <div class="label">Notfälle aktiv</div><div class="metric" style="color:${emerg > 0 ? "var(--danger)" : "var(--accent)"}">${emerg}</div>
+          <div class="label">${tr("cardEmergencies")}</div><div class="metric" style="color:${emerg > 0 ? "var(--danger)" : "var(--accent)"}">${emerg}</div>
         </div>
         <div class="card clickable ${sec > 3 ? "critical" : ""}" data-action="security">
-          <div class="label">Offene Security-Alerts</div><div class="metric">${sec}</div>
+          <div class="label">${tr("cardSecurity")}</div><div class="metric">${sec}</div>
         </div>
         <div class="card" style="grid-column: 1 / -1">
-          <div class="label">Firmen — Klick für KI & Admin</div>
+          <div class="label">${tr("companiesTableTitle")}</div>
           <table>
-            <thead><tr><th>Firma</th><th>On-site</th><th>Gates heute</th><th>Notfall</th><th>Security</th></tr></thead>
+            <thead><tr><th>${tr("thCompany")}</th><th>${tr("thOnSite")}</th><th>${tr("thGates")}</th><th>${tr("thEmergency")}</th><th>${tr("thSecurity")}</th></tr></thead>
             <tbody>${(data.companies || []).map((c) => `
               <tr data-cid="${c.id || c.companyId || ""}" data-name="${(c.name || "").replace(/"/g, "")}">
                 <td><strong>${c.name}</strong></td>
@@ -235,26 +482,20 @@
               </tr>`).join("")}</tbody>
           </table>
           <div class="actions">
-            <a href="${companyLink("/ai-command-center.html", companyId)}">KI Command Center</a>
-            <a href="/admin-v2/index.html#inbox">Posteingang</a>
-            <button type="button" id="refreshBtn">Jetzt aktualisieren</button>
+            <a href="${companyLink("/ai-command-center.html", companyId)}">${tr("navAi")}</a>
+            <a href="/admin-v2/index.html#inbox">${tr("inbox")}</a>
+            <button type="button" id="refreshBtn">${tr("refreshNow")}</button>
           </div>
         </div>
         <div class="card" style="grid-column: 1 / -1">
-          <div class="label">Live-Ereignisse (SSE)</div>
-          <div id="eventFeed" class="event-feed"><span class="muted">Verbinde…</span></div>
+          <div class="label">${tr("liveEvents")}</div>
+          <div id="eventFeed" class="event-feed"><span class="muted">${tr("connecting")}</span></div>
         </div>`;
 
       grid.querySelectorAll("[data-action]").forEach((el) => {
         el.addEventListener("click", () => {
           const a = el.dataset.action;
           const base = companyLink("/ai-command-center.html", companyId);
-          const prompts = {
-            onsite: "Wer ist gerade auf allen Baustellen und wo gibt es Engpässe?",
-            emergency: "Gibt es aktive Notfälle und was sind die Sofortmaßnahmen?",
-            security: "Fasse offene Security-Alerts zusammen und priorisiere.",
-            companies: "Vergleiche die Firmen nach Risiko und Anwesenheit.",
-          };
           const q = encodeURIComponent(prompts[a] || "");
           location.href = `${base}${base.includes("?") ? "&" : "?"}autoprompt=${q}`;
         });
@@ -270,6 +511,7 @@
       document.getElementById("refreshBtn")?.addEventListener("click", load);
       wireGuardianActions();
       if (forecast) renderForecastCard(grid, forecast);
+      startEventStream().catch(() => {});
     }
 
     async function loadForecast() {
@@ -315,7 +557,7 @@
         render(await res.json(), forecast, guardianBundle);
       } catch (e) {
         status.textContent = "";
-        grid.innerHTML = `<p class="err">Bitte in Admin v2 anmelden, dann diese Seite öffnen. ${e.message}</p>`;
+        grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;
       }
     }
 
@@ -325,13 +567,16 @@
       const feed = document.getElementById("eventFeed");
       if (!feed || !window.BauPassOpsRealtime) return;
       if (stopRealtime) stopRealtime();
-      feed.innerHTML = '<span class="muted">Verbinde Live-Stream…</span>';
+      feed.innerHTML = `<span class="muted">${tr("connectingStream")}</span>`;
       stopRealtime = await window.BauPassOpsRealtime.start({
         companyId,
         feedEl: feed,
         onMode: (mode) => {
           const st = document.getElementById("status");
-          if (st) st.textContent = `${st.textContent.split("·")[0].trim()} · Live (${mode})`;
+          if (st) {
+            const scopeLabel = lastStatusScope === "global" ? tr("scopeGlobal") : tr("scopeOne");
+            st.textContent = `${lastStatusDate} · ${scopeLabel} · ${tr("live")} (${mode})`;
+          }
         },
       });
     }
@@ -349,9 +594,9 @@
       }
     })();
 
+    applyOpsUiLanguage();
     load();
     setInterval(load, 15000);
-    startEventStream();
 
     (async () => {
       const ap = qs.get("autoprompt");
