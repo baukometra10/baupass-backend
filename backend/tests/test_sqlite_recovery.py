@@ -70,6 +70,18 @@ class SqliteRecoveryTests(unittest.TestCase):
             self.assertTrue(dest.is_file())
             self.assertTrue(Path(f"{dest}-wal").is_file())
 
+    def test_ensure_usable_bootstraps_when_no_backups(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            live = Path(tmp) / "baupass.db"
+            live.write_bytes(b"not-a-valid-sqlite-file" * 200)
+
+            with mock.patch("backend.app.db.sqlite_recovery._backup_candidates") as candidates:
+                candidates.return_value = []
+                result = ensure_usable_sqlite_path(live)
+
+            self.assertEqual(result, live)
+            self.assertFalse(live.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
