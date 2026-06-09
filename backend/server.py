@@ -2599,10 +2599,12 @@ def init_db():
     except ImportError:
         pass
     from backend.app.db.sqlite_recovery import ensure_usable_sqlite_path
+    from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas, recover_sqlite_disk_io
 
     db_path = ensure_usable_sqlite_path(Path(DB_PATH))
+    recover_sqlite_disk_io(db_path)
     db = sqlite3.connect(db_path, timeout=60)
-    db.execute("PRAGMA journal_mode=WAL")
+    apply_sqlite_pragmas(db, db_path=db_path)
     db.execute("PRAGMA busy_timeout=60000")
     cur = db.cursor()
     cur.executescript(

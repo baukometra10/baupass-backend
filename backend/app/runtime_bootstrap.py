@@ -42,9 +42,9 @@ def apply_sqlite_migrations(db_path: Path) -> list[str]:
         try:
             from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas
 
-            apply_sqlite_pragmas(conn)
+            apply_sqlite_pragmas(conn, db_path=db_path)
         except Exception:
-            conn.executescript("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")
+            conn.executescript("PRAGMA journal_mode = DELETE; PRAGMA foreign_keys = ON;")
         runner = MigrationRunner(conn)
         return runner.run(ALL_MIGRATIONS)
     finally:

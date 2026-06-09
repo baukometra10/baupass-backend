@@ -72,6 +72,38 @@ def _resolve_sqlite_path() -> Path:
     return base / "baupass.db"
 
 
+def _is_disk_io_error(exc: BaseException) -> bool:
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    message = str(exc).lower()
+    return "disk i/o" in message or "i/o error" in message
+
+
+def _open_sqlite_connection(db_path: Path) -> sqlite3.Connection:
+    from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas, recover_sqlite_disk_io
+
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            conn = sqlite3.connect(str(db_path), timeout=60)
+            conn.row_factory = sqlite3.Row
+            apply_sqlite_pragmas(conn, db_path=db_path)
+            return conn
+        except sqlite3.OperationalError as exc:
+            last_exc = exc
+            if _is_disk_io_error(exc) and attempt < 2:
+                print(
+                    f"[baupass] WARNING: SQLite disk I/O error on {db_path} (attempt {attempt + 1}/3) — recovering",
+                    flush=True,
+                )
+                recover_sqlite_disk_io(db_path)
+                continue
+            raise
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"Failed to open SQLite database at {db_path}")
+
+
 def open_request_db() -> Any:
     """Open DB for current Flask request (caller stores on flask.g)."""
     if postgres_runtime_required() and not postgres_runtime_enabled():
@@ -90,17 +122,7 @@ def open_request_db() -> Any:
         return PgConnection(raw, pool_cm=cm)
 
     db_path = _resolve_sqlite_path()
-    conn = sqlite3.connect(str(db_path), timeout=60)
-    conn.row_factory = sqlite3.Row
-    try:
-        from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas
-
-        apply_sqlite_pragmas(conn)
-    except Exception:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=60000")
-    return conn
+    return _open_sqlite_connection(db_path)
 
 
 def close_request_db(db: Any) -> None:
