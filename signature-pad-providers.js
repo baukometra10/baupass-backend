@@ -32,7 +32,7 @@
 
 
 
-  function loadScriptOnce(src, key) {
+  function loadScriptOnce(src, key, timeoutMs = 15000) {
 
     const attr = `data-baupass-vendor-${key}`;
 
@@ -52,23 +52,55 @@
 
       return new Promise((resolve) => {
 
+        let settled = false;
+
+        const finish = (ok) => {
+
+          if (settled) return;
+
+          settled = true;
+
+          global.clearTimeout(timer);
+
+          resolve(ok);
+
+        };
+
+        const timer = global.setTimeout(() => finish(false), timeoutMs);
+
         if (existing.dataset.loaded === "1") {
 
-          resolve(true);
+          finish(true);
 
           return;
 
         }
 
-        existing.addEventListener("load", () => resolve(true), { once: true });
+        existing.addEventListener("load", () => finish(true), { once: true });
 
-        existing.addEventListener("error", () => resolve(false), { once: true });
+        existing.addEventListener("error", () => finish(false), { once: true });
 
       });
 
     }
 
     return new Promise((resolve) => {
+
+      let settled = false;
+
+      const finish = (ok) => {
+
+        if (settled) return;
+
+        settled = true;
+
+        global.clearTimeout(timer);
+
+        resolve(ok);
+
+      };
+
+      const timer = global.setTimeout(() => finish(false), timeoutMs);
 
       const script = global.document.createElement("script");
 
@@ -82,11 +114,11 @@
 
         script.dataset.loaded = "1";
 
-        resolve(true);
+        finish(true);
 
       };
 
-      script.onerror = () => resolve(false);
+      script.onerror = () => finish(false);
 
       global.document.head.appendChild(script);
 
@@ -230,69 +262,75 @@
 
 
 
+  let signotecLoadLibPromise = null;
+
+
+
   async function signotecLoadLib() {
 
     if (signotecLibsReady()) return true;
 
     if (signotecLoadFromCache()) return true;
 
-    const sources = [
+    if (signotecLoadLibPromise) return signotecLoadLibPromise;
 
-      "./vendor/signotec/STPadServerLib.js",
+    signotecLoadLibPromise = (async () => {
 
-      "/vendor/signotec/STPadServerLib.js",
+      const sources = [
 
-      "/api/signotec/lib.js",
+        "./vendor/signotec/STPadServerLib.js",
 
-      "https://local.signotecwebsocket.de:49494/STPadServerLib.js",
+        "/vendor/signotec/STPadServerLib.js",
 
-      "https://localhost:49494/STPadServerLib.js",
+        "/api/signotec/lib.js",
 
-      "https://127.0.0.1:49494/STPadServerLib.js",
+      ];
 
-    ];
+      for (let i = 0; i < sources.length; i += 1) {
 
-    for (let i = 0; i < sources.length; i += 1) {
+        const src = sources[i];
 
-      const src = sources[i];
+        const ok = await loadScriptOnce(src, `signotec-${i}`);
 
-      if (/^https:\/\/(localhost|127\.0\.0\.1|local\.signotecwebsocket\.de)(:|\/)/i.test(src)) {
+        if (ok && signotecLibsReady()) {
 
-        const fetched = await signotecFetchAndInject(src, `local-${i}`);
+          try {
 
-        if (fetched) return true;
+            const res = await fetch(src, { credentials: "omit" });
 
-      }
+            if (res.ok) {
 
-      const ok = await loadScriptOnce(src, `signotec-${i}`);
+              const code = await res.text();
 
-      if (ok && signotecLibsReady()) {
+              signotecCacheLib(code);
 
-        try {
+            }
 
-          const res = await fetch(src, { credentials: "omit" });
+          } catch {
 
-          if (res.ok) {
-
-            const code = await res.text();
-
-            signotecCacheLib(code);
+            // ignore cache write failures
 
           }
 
-        } catch {
-
-          // ignore cache write failures
+          return true;
 
         }
 
-        return true;
-
       }
 
-    }
+      return signotecLibsReady();
 
-    return signotecLibsReady();
+    })();
+
+    try {
+
+      return await signotecLoadLibPromise;
+
+    } finally {
+
+      signotecLoadLibPromise = null;
+
+    }
 
   }
 

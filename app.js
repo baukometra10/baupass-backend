@@ -717,6 +717,7 @@ const UI_TRANSLATIONS = {
     signatureUseCanvas: "Unterschreiben Sie in der weißen Fläche — USB-Signaturpads funktionieren ohne Extra-Software.",
     signatureSignotecLibMissing: "Signotec: STPadServerLib.js fehlt auf dem Server. Einmalig npm run vendor:signotec ausführen (signoPAD-API/Web) oder BAUPASS_SIGNOTEC_LIB_BASE64 setzen — danach Seite neu laden.",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web läuft nicht auf diesem PC (Port 49494). Software starten, Pad per USB verbinden.",
+    signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
     signatureProviderSignotec: "Signotec",
     signatureProviderWacom: "Wacom",
@@ -1765,6 +1766,7 @@ const UI_TRANSLATIONS = {
     signatureUseCanvas: "Sign in the white area — USB signature pads work without extra software.",
     signatureSignotecLibMissing: "Signotec: STPadServerLib.js is missing on the server. Run npm run vendor:signotec once (with signoPAD-API/Web) or set BAUPASS_SIGNOTEC_LIB_BASE64, then reload.",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web is not running on this PC (port 49494). Start the service and connect the pad via USB.",
+    signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
     signatureProviderSignotec: "Signotec",
     signatureProviderWacom: "Wacom",
@@ -3864,6 +3866,7 @@ const UI_TRANSLATIONS = {
     signatureUseCanvas: "وقّع في المساحة البيضاء — أجهزة USB تعمل بدون برنامج إضافي.",
     signatureSignotecLibMissing: "Signotec: ملف STPadServerLib.js غير موجود على السيرفر. شغّل npm run vendor:signotec مرة واحدة (مع signoPAD-API/Web) أو اضبط BAUPASS_SIGNOTEC_LIB_BASE64 ثم أعد التحميل.",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web غير شغّال على هذا الجهاز (منفذ 49494). شغّل البرنامج ووصّل الجهاز عبر USB.",
+    signatureDeviceTimeout: "جهاز التوقيع لا يستجيب — أعد المحاولة أو وقّع في المساحة البيضاء.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
     signatureProviderSignotec: "Signotec",
     signatureProviderWacom: "Wacom",
@@ -16621,6 +16624,7 @@ function mapSignaturePadError(error) {
   }
   if (code === "signotec_lib_missing") return uiT("signatureSignotecLibMissing");
   if (code === "signotec_ws_unreachable" || code === "signotec_ws_timeout") return uiT("signatureSignotecServiceMissing");
+  if (code === "signature_device_timeout") return uiT("signatureDeviceTimeout");
   if (code === "wacom_lib_missing" || code === "wacom_service_not_ready" || code === "wacom_dca_not_ready") {
     return uiT("signatureWacomMissing");
   }
@@ -16635,6 +16639,20 @@ function signatureCapturingMessage(providerId) {
   if (providerId === "wacom") return uiT("signatureDeviceCapturingWacom");
   if (providerId === "stepover") return uiT("signatureDeviceCapturingStepover");
   return uiT("signatureDeviceCapturing");
+}
+
+async function withSignatureDeviceTimeout(promise, timeoutMs = 20000) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = globalThis.setTimeout(() => reject(new Error("signature_device_timeout")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) globalThis.clearTimeout(timer);
+  }
 }
 
 async function captureComplianceSignatureFromDevice() {
@@ -16653,7 +16671,7 @@ async function captureComplianceSignatureFromDevice() {
   showToast(uiT("signatureDeviceDetecting"), "info", 4000);
 
   try {
-    const probes = await bridge.probeProviders(true);
+    const probes = await withSignatureDeviceTimeout(bridge.probeProviders(true), 20000);
     const active = probes.filter((p) => p.ok && p.id !== "canvas");
     const providerId = active[0]?.id || "";
     if (!providerId) {
@@ -16661,17 +16679,21 @@ async function captureComplianceSignatureFromDevice() {
       if (hint?.detail) {
         throw new Error(hint.detail);
       }
+      throw new Error("signature_pad_none_available");
     }
     if (providerId) {
       showToast(signatureCapturingMessage(providerId), "info", 6000);
     }
 
-    const result = await bridge.captureSignature({
-      mode: "auto",
-      fieldName: uiT("complianceSignatureHeading"),
-      customText: workerLabel || uiT("complianceSignatureHeading"),
-      canvas,
-    });
+    const result = await withSignatureDeviceTimeout(
+      bridge.captureSignature({
+        mode: "auto",
+        fieldName: uiT("complianceSignatureHeading"),
+        customText: workerLabel || uiT("complianceSignatureHeading"),
+        canvas,
+      }),
+      120000,
+    );
 
     complianceSignatureState.touched = true;
     complianceSignatureState.hasStroke = true;
