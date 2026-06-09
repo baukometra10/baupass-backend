@@ -4273,25 +4273,27 @@ def find_turnstile_by_api_key(db, raw_key):
 def serialize_user(user_row):
     if not user_row:
         return None
-    support_read_only = False
-    support_company_name = ""
-    support_actor_name = ""
-    if hasattr(user_row, "keys"):
-        keys = set(user_row.keys())
-        support_read_only = "support_read_only" in keys and bool(user_row["support_read_only"])
-        support_company_name = user_row["support_company_name"] if "support_company_name" in keys and user_row["support_company_name"] else ""
-        support_actor_name = user_row["support_actor_name"] if "support_actor_name" in keys and user_row["support_actor_name"] else ""
-    preview_company_id = ""
-    if hasattr(user_row, "keys") and "preview_company_id" in user_row.keys():
-        preview_company_id = user_row["preview_company_id"] or ""
+
+    def _field(key: str, default=""):
+        if hasattr(user_row, "keys") and key in user_row.keys():
+            value = user_row[key]
+            if value is None:
+                return default
+            return value
+        return default
+
+    support_read_only = bool(_field("support_read_only", False))
+    support_company_name = str(_field("support_company_name", "") or "")
+    support_actor_name = str(_field("support_actor_name", "") or "")
+    preview_company_id = str(_field("preview_company_id", "") or "")
     return {
-        "id": user_row["id"],
-        "username": user_row["username"],
-        "name": user_row["name"],
-        "role": user_row["role"],
-        "company_id": user_row["company_id"],
-        "twofa_enabled": int((user_row["twofa_enabled"] if hasattr(user_row, "keys") and "twofa_enabled" in set(user_row.keys()) else 0) or 0),
-        "email": user_row["email"] if hasattr(user_row, "keys") and "email" in set(user_row.keys()) else "",
+        "id": _field("id", ""),
+        "username": _field("username", ""),
+        "name": _field("name", ""),
+        "role": _field("role", ""),
+        "company_id": _field("company_id"),
+        "twofa_enabled": int(_field("twofa_enabled", 0) or 0),
+        "email": str(_field("email", "") or ""),
         "support_read_only": support_read_only,
         "support_company_name": support_company_name,
         "support_actor_name": support_actor_name,

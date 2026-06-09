@@ -32,12 +32,32 @@ def _schema_error_message(exc: Exception) -> bool:
         return True
     if "no such table" in message or "does not exist" in message:
         return True
+    if "database is locked" in message or "readonly" in message or "disk" in message:
+        return True
     try:
         from backend.app.db.pg_bootstrap import is_schema_error
 
         return bool(is_schema_error(exc))
     except ImportError:
         return False
+
+
+def _verify_totp_code(secret: str, otp_code: str) -> bool:
+    secret = str(secret or "").strip()
+    otp_code = str(otp_code or "").strip()
+    if not secret or not otp_code:
+        return False
+    try:
+        return bool(pyotp.TOTP(secret).verify(otp_code, valid_window=1))
+    except Exception:
+        return False
+
+
+def _safe_log_audit(srv, event_type: str, message: str, **kwargs) -> None:
+    try:
+        srv.log_audit(event_type, message, **kwargs)
+    except Exception as exc:
+        srv.app.logger.warning("[login] audit skipped for %s: %s", event_type, exc)
 
 
 def perform_login():
@@ -62,7 +82,7 @@ def perform_login():
         srv.app.logger.exception("admin login failed unexpectedly")
         return login_error(
             "login_server_error",
-            500,
+            200,
             message="Anmeldung voruebergehend nicht moeglich. Bitte erneut versuchen.",
         )
 
@@ -174,7 +194,8 @@ def _perform_login_core(srv, login_error):
             srv.run_db_write_with_retry(_bootstrap_superadmin_twofa)
             user = db.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone()
             twofa_enabled = True
-            srv.log_audit(
+            _safe_log_audit(
+                srv,
                 "security.superadmin_2fa_bootstrapped",
                 f"Superadmin 2FA (E-Mail-OTP) beim Login vorbereitet: {username}",
                 target_type="user",
@@ -212,7 +233,14 @@ def _perform_login_core(srv, login_error):
                     )
                     db.commit()
 
-                srv.run_db_write_with_retry(_persist_otp_code)
+                try:
+                    srv.run_db_write_with_retry(_persist_otp_code)
+                except Exception as exc:
+                    if _schema_error_message(exc):
+                        from backend.app.db.schema_errors import database_not_ready_response
+
+                        return database_not_ready_response(ok_field=True)
+                    raise
                 sent = srv._send_otp_email_to_user(db, user, otp)
                 if not sent:
                     srv.app.logger.warning(
@@ -232,8 +260,8 @@ def _perform_login_core(srv, login_error):
             db.execute("DELETE FROM otp_codes WHERE user_id = ?", (user["id"],))
             db.commit()
         else:
-            secret = (user["twofa_secret"] or "").strip()
-            if not (secret and pyotp.TOTP(secret).verify(otp_code, valid_window=1)):
+            secret = str(_user_value(user, "twofa_secret", "") or "").strip()
+            if not _verify_totp_code(secret, otp_code):
                 srv.register_login_failure(throttle_key)
                 return login_error("otp_invalid")
 
@@ -244,7 +272,8 @@ def _perform_login_core(srv, login_error):
     if user["role"] != "superadmin":
         company_error = srv.get_company_access_error(db, user["company_id"])
         if company_error:
-            srv.log_audit(
+            _safe_log_audit(
+                srv,
                 "login.blocked",
                 f"Login fuer {user['username']} wegen Firmensperre blockiert",
                 target_type="company",
@@ -318,7 +347,8 @@ def _perform_login_core(srv, login_error):
             f"Support-Login fuer {support_company_name or user['username']} "
             f"gestartet durch {actor_label} (nur lesen)"
         )
-    srv.log_audit(
+    _safe_log_audit(
+        srv,
         "login.success",
         login_message,
         target_type="user",
@@ -331,7 +361,24 @@ def _perform_login_core(srv, login_error):
     response_user["support_read_only"] = bool(support_read_only)
     response_user["support_company_name"] = support_company_name
     response_user["support_actor_name"] = support_actor_name
-    response = jsonify({"ok": True, "token": token, "user": srv.serialize_user(response_user)})
+    try:
+        serialized_user = srv.serialize_user(response_user)
+    except Exception as exc:
+        srv.app.logger.warning("[login] serialize_user failed: %s", exc)
+        serialized_user = {
+            "id": str(_user_value(user, "id", "")),
+            "username": str(_user_value(user, "username", "")),
+            "name": str(_user_value(user, "name", "")),
+            "role": str(_user_value(user, "role", "")),
+            "company_id": _user_value(user, "company_id"),
+            "twofa_enabled": int(_user_value(user, "twofa_enabled", 0) or 0) == 1,
+            "email": str(_user_value(user, "email", "") or ""),
+            "support_read_only": bool(support_read_only),
+            "support_company_name": support_company_name,
+            "support_actor_name": support_actor_name,
+            "preview_company_id": "",
+        }
+    response = jsonify({"ok": True, "token": token, "user": serialized_user})
     response.set_cookie(
         srv.SESSION_COOKIE_NAME,
         token,
