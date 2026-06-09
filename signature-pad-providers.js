@@ -114,6 +114,16 @@
 
         script.dataset.loaded = "1";
 
+        if (String(key || "").startsWith("signotec")) {
+
+          signotecBindGlobals();
+
+          finish(signotecLibsReady());
+
+          return;
+
+        }
+
         finish(true);
 
       };
@@ -152,7 +162,31 @@
 
 
 
+  function signotecBindGlobals() {
+
+    const bundle = global.STPadServerLib;
+
+    if (bundle?.STPadServerLibCommons) {
+
+      global.STPadServerLibCommons = bundle.STPadServerLibCommons;
+
+      global.STPadServerLibDefault = bundle.STPadServerLibDefault;
+
+      global.STPadServerLibApi = bundle.STPadServerLibApi;
+
+      return true;
+
+    }
+
+    return Boolean(global.STPadServerLibCommons && global.STPadServerLibDefault);
+
+  }
+
+
+
   function signotecLibsReady() {
+
+    signotecBindGlobals();
 
     return Boolean(
 
@@ -2097,7 +2131,13 @@
 
   if (global.document) {
 
-    const preloadSignotec = () => { void signotecLoadLib(); };
+    const preloadSignotec = () => {
+
+      signotecBindGlobals();
+
+      void signotecLoadLib();
+
+    };
 
     if (global.document.readyState === "loading") {
 

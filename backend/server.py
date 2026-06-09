@@ -23532,6 +23532,16 @@ def signotec_lib_script():
     return response
 
 
+def signotec_lib_status():
+    data = _signotec_lib_bytes()
+    return jsonify({
+        "available": bool(data),
+        "bytes": len(data) if data else 0,
+        "url": "/vendor/signotec/STPadServerLib.js",
+        "version": "3.5.0",
+    })
+
+
 def static_proxy(path):
     target = BASE_DIR / path
     if target.exists() and target.is_file():
@@ -25156,6 +25166,7 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/subcompanies", create_subcompany, ("POST",), "core_subcompanies_create")
     _patch_api_route("/api/geocode/reverse", reverse_geocode_coordinates, ("GET",), "core_geocode_reverse")
     _patch_api_route("/api/signotec/lib.js", signotec_lib_script, ("GET",), "core_signotec_lib")
+    _patch_api_route("/api/signotec/status", signotec_lib_status, ("GET",), "core_signotec_status")
     _patch_api_route("/api/invoices", list_invoices, ("GET",), "core_invoices_list")
     _patch_api_route("/api/access-logs", list_access_logs, ("GET",), "core_access_logs_list")
     _patch_api_route("/api/access-logs/latest", list_latest_access_logs, ("GET",), "core_access_logs_latest")
