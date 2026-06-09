@@ -15,6 +15,14 @@ def database_not_ready_response(*, ok_field: bool = False):
     )
     if missing:
         message += f" Fehlende Tabellen: {', '.join(missing)}."
+    else:
+        try:
+            from backend.app.db.runtime import _resolve_sqlite_path
+
+            db_path = _resolve_sqlite_path()
+            message += f" SQLite-Prüfung fehlgeschlagen für {db_path}."
+        except Exception:
+            pass
     payload = {
         "error": "database_not_ready",
         "message": message,

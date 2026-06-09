@@ -61,6 +61,12 @@ def existing_core_tables() -> set[str]:
 def find_sqlite_data_path() -> Path | None:
     """Locate a usable SQLite DB on Railway volume (main file or latest backup)."""
     candidates: list[Path] = []
+    try:
+        import backend.server as srv
+
+        candidates.append(Path(srv.DB_PATH))
+    except Exception:
+        pass
     explicit = os.getenv("BAUPASS_PG_BOOTSTRAP_SQLITE_PATH", os.getenv("BAUPASS_DB_PATH", "")).strip()
     if explicit:
         candidates.append(Path(explicit).expanduser())

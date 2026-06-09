@@ -45,12 +45,29 @@ def postgres_runtime_required() -> bool:
 
 
 def _resolve_sqlite_path() -> Path:
+    """Use the same resolved DB path as server.py (Railway /data volume override)."""
+    try:
+        import backend.server as srv
+
+        return Path(srv.DB_PATH)
+    except Exception:
+        pass
+
     explicit = os.getenv("BAUPASS_DB_PATH", "").strip().replace("\\", "/")
+    _ephemeral_db_hints = {
+        "",
+        "backend/baupass.db",
+        "/app/backend/baupass.db",
+    }
+    railway_data = Path("/data")
+    railway_candidate = railway_data / "baupass.db"
+    if railway_data.is_dir() and os.access(railway_data, os.W_OK):
+        if explicit in _ephemeral_db_hints or not explicit.startswith("/data/"):
+            return railway_candidate
     if explicit:
         return Path(explicit).expanduser()
-    data = Path("/data/baupass.db")
-    if data.parent.is_dir() and os.access(data.parent, os.W_OK):
-        return data
+    if railway_candidate.parent.is_dir() and os.access(railway_candidate.parent, os.W_OK):
+        return railway_candidate
     base = Path(__file__).resolve().parents[2]
     return base / "baupass.db"
 
