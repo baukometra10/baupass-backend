@@ -18,6 +18,11 @@ os.environ.setdefault("BAUPASS_SKIP_IMAP_POLL", "1")
 
 from backend import server  # noqa: E402
 
+TEST_COMPLIANCE_SIGNATURE = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAD0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
 
 def _prepare_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     db_path = tmp_path / "baupass-test.db"

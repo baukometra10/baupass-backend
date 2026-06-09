@@ -175,6 +175,7 @@ class WorkersServiceTest(unittest.TestCase):
                 "lastName": "Neu",
                 "badgePin": "1234",
                 "photoData": _VALID_PHOTO,
+                "complianceSignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAD0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
             },
         )
         self.assertEqual(result["status"], 201)
@@ -182,6 +183,23 @@ class WorkersServiceTest(unittest.TestCase):
             "SELECT first_name, company_id FROM workers WHERE first_name = ?", ("Anna",)
         ).fetchone()
         self.assertEqual(row["company_id"], "cmp-a")
+
+    @patch.object(WorkersService, "_ensure_worker_doc_dir", return_value=None)
+    def test_create_worker_requires_signature(self, _doc_dir):
+        user = {"role": "company-admin", "company_id": "cmp-a", "id": "usr-1"}
+        result = self.svc.create_worker(
+            self.conn,
+            user,
+            {
+                "companyId": "cmp-a",
+                "firstName": "No",
+                "lastName": "Sign",
+                "badgePin": "1234",
+                "photoData": _VALID_PHOTO,
+            },
+        )
+        self.assertEqual(result["status"], 400)
+        self.assertEqual(result["error"]["error"], "compliance_signature_required")
 
     def test_update_worker_not_found(self):
         user = {"role": "superadmin", "company_id": None}

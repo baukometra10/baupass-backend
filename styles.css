@@ -2333,6 +2333,34 @@ select:focus {
   font-size: 1.05rem;
 }
 
+.worker-form-step-indicator {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.worker-form-step {
+  flex: 1;
+  text-align: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(23, 23, 23, 0.55);
+}
+
+.worker-form-step.active {
+  background: rgba(255, 122, 0, 0.14);
+  color: #c2410c;
+  border: 1px solid rgba(255, 122, 0, 0.35);
+}
+
+.worker-form-phase.full-width {
+  grid-column: 1 / -1;
+  display: contents;
+}
+
 .signature-pad-wrap {
   border-radius: 12px;
   border: 1px solid rgba(23, 23, 23, 0.15);

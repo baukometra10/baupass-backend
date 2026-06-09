@@ -138,9 +138,29 @@
 
     if (signotecLibsReady()) return true;
 
-    const ok = await loadScriptOnce("./vendor/signotec/STPadServerLib.js", "signotec");
+    const sources = [
 
-    return ok && signotecLibsReady();
+      "./vendor/signotec/STPadServerLib.js",
+
+      "/vendor/signotec/STPadServerLib.js",
+
+      "https://local.signotecwebsocket.de:49494/STPadServerLib.js",
+
+      "https://localhost:49494/STPadServerLib.js",
+
+      "https://127.0.0.1:49494/STPadServerLib.js",
+
+    ];
+
+    for (let i = 0; i < sources.length; i += 1) {
+
+      const ok = await loadScriptOnce(sources[i], `signotec-${i}`);
+
+      if (ok && signotecLibsReady()) return true;
+
+    }
+
+    return signotecLibsReady();
 
   }
 

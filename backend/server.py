@@ -23430,6 +23430,17 @@ def static_proxy(path):
     target = BASE_DIR / path
     if target.exists() and target.is_file():
         return send_from_directory(BASE_DIR, path)
+    normalized = str(path or "").replace("\\", "/")
+    if normalized == "vendor/signotec/STPadServerLib.js":
+        b64 = str(os.getenv("BAUPASS_SIGNOTEC_LIB_BASE64", "") or "").strip()
+        if b64:
+            try:
+                data = base64.b64decode(b64)
+                response = Response(data, mimetype="application/javascript")
+                response.headers["Cache-Control"] = "public, max-age=3600"
+                return response
+            except Exception:
+                pass
     return jsonify({"error": "not_found"}), 404
 
 

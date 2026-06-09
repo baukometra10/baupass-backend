@@ -697,6 +697,12 @@ const UI_TRANSLATIONS = {
     complianceSignatureSaved: "Unterschrift in der Akte gespeichert.",
     complianceSignatureEmpty: "Noch keine Unterschrift hinterlegt.",
     complianceSignatureStatusNew: "Neue Unterschrift – wird beim Speichern übernommen.",
+    complianceSignatureRequired: "Unterschrift Pflicht — bitte zuerst unterschreiben (Gerät oder weiße Fläche), dann zum Ausweis.",
+    complianceSignatureBeforeBadgeHint: "Pflicht: Der Mitarbeiter muss hier unterschreiben, bevor Sie zum Ausweis (Foto & PIN) weitergehen.",
+    workerFormStepSignature: "1 · Unterschrift",
+    workerFormStepBadge: "2 · Ausweis",
+    workerFormContinueToBadge: "Weiter zum Ausweis →",
+    workerFormBackToSignature: "← Zurück zur Unterschrift",
     signatureDeviceBtn: "Signaturgerät",
     signatureDeviceDetecting: "Signaturgerät wird gesucht…",
     signatureDeviceCapturing: "Bitte auf dem Signaturgerät unterschreiben und bestätigen…",
@@ -1728,6 +1734,12 @@ const UI_TRANSLATIONS = {
     complianceSignatureSaved: "Signature saved to file.",
     complianceSignatureEmpty: "No signature on file yet.",
     complianceSignatureStatusNew: "New signature – saved when you submit.",
+    complianceSignatureRequired: "Signature required — sign first (device or white area), then continue to badge.",
+    complianceSignatureBeforeBadgeHint: "Required: the employee must sign here before you continue to the badge (photo & PIN).",
+    workerFormStepSignature: "1 · Signature",
+    workerFormStepBadge: "2 · Badge",
+    workerFormContinueToBadge: "Continue to badge →",
+    workerFormBackToSignature: "← Back to signature",
     signatureDeviceBtn: "Signature pad",
     signatureDeviceDetecting: "Detecting signature pad…",
     signatureDeviceCapturing: "Sign on the device, then confirm on the pad…",
@@ -3799,6 +3811,12 @@ const UI_TRANSLATIONS = {
     complianceSignatureSaved: "تم حفظ التوقيع في الملف.",
     complianceSignatureEmpty: "لا يوجد توقيع بعد.",
     complianceSignatureStatusNew: "توقيع جديد — يُحفظ عند الحفظ.",
+    complianceSignatureRequired: "التوقيع إلزامي — يجب أن يوقّع الموظف أولاً (الجهاز أو المساحة البيضاء) قبل قسم الهوية.",
+    complianceSignatureBeforeBadgeHint: "إلزامي: يجب أن يوقّع الموظف هنا قبل الانتقال إلى الهوية (الصورة ورمز PIN).",
+    workerFormStepSignature: "1 · التوقيع",
+    workerFormStepBadge: "2 · الهوية",
+    workerFormContinueToBadge: "متابعة إلى الهوية →",
+    workerFormBackToSignature: "← العودة إلى التوقيع",
     signatureDeviceBtn: "جهاز التوقيع",
     signatureDeviceDetecting: "جاري البحث عن جهاز التوقيع…",
     signatureDeviceCapturing: "يرجى التوقيع على الجهاز ثم التأكيد عليه…",
@@ -15918,6 +15936,7 @@ function syncWorkerTypeUi() {
   if (complianceBlock) {
     complianceBlock.classList.toggle("hidden", isVisitor);
   }
+  syncWorkerFormPhase();
 }
 
 function populateSubcompanySelects() {
@@ -16130,6 +16149,120 @@ const complianceSignatureState = {
   loadedForWorkerId: null,
 };
 
+let workerFormPhase = "basics";
+
+function hasComplianceSignatureReady() {
+  if (complianceSignatureState.hasStroke) return true;
+  const { hidden } = getComplianceSignatureElements();
+  if (String(hidden?.value || "").trim()) return true;
+  if (state.editingWorkerId) {
+    const worker = state.workers.find((entry) => entry.id === state.editingWorkerId);
+    if (worker?.hasComplianceSignature && !complianceSignatureState.touched) return true;
+  }
+  return false;
+}
+
+function syncWorkerFormPhase() {
+  const isVisitor = (elements.workerType?.value || "worker") === "visitor";
+  const phaseBasics = document.getElementById("workerFormPhaseBasics");
+  const phaseBadge = document.getElementById("workerFormPhaseBadge");
+  const stepIndicator = document.getElementById("workerFormStepIndicator");
+  const continueBtn = document.getElementById("workerFormContinueToBadgeBtn");
+  const backBtn = document.getElementById("workerFormBackToSignatureBtn");
+  const submitBtn = document.getElementById("workerSubmitButton");
+
+  if (stepIndicator) {
+    stepIndicator.classList.toggle("hidden", isVisitor);
+    stepIndicator.setAttribute("aria-hidden", isVisitor ? "true" : "false");
+    stepIndicator.querySelectorAll(".worker-form-step").forEach((el) => {
+      el.classList.toggle("active", el.dataset.step === workerFormPhase);
+    });
+  }
+
+  if (isVisitor) {
+    phaseBasics?.classList.remove("hidden");
+    phaseBadge?.classList.remove("hidden");
+    continueBtn?.classList.add("hidden");
+    backBtn?.classList.add("hidden");
+    if (submitBtn) submitBtn.classList.remove("hidden");
+    return;
+  }
+
+  const onBadgePhase = workerFormPhase === "badge";
+  phaseBasics?.classList.toggle("hidden", onBadgePhase);
+  phaseBadge?.classList.toggle("hidden", !onBadgePhase);
+  continueBtn?.classList.toggle("hidden", onBadgePhase);
+  backBtn?.classList.toggle("hidden", !onBadgePhase);
+  if (submitBtn) submitBtn.classList.toggle("hidden", !onBadgePhase);
+}
+
+function resetWorkerFormPhaseForWorker(worker) {
+  const isVisitor = worker ? isVisitorWorker(worker) : (elements.workerType?.value || "worker") === "visitor";
+  if (isVisitor) {
+    workerFormPhase = "badge";
+  } else if (worker?.hasComplianceSignature) {
+    workerFormPhase = "badge";
+  } else {
+    workerFormPhase = "basics";
+  }
+  syncWorkerFormPhase();
+}
+
+function validateWorkerFormBasicsFields() {
+  const form = document.querySelector("#workerForm");
+  if (!form) return false;
+  const requiredIds = [
+    "companySelect", "firstName", "lastName", "insuranceNumber",
+    "role", "site", "validUntil",
+  ];
+  for (const id of requiredIds) {
+    const field = document.getElementById(id);
+    if (!field || field.closest(".hidden")) continue;
+    if (!String(field.value || "").trim()) {
+      field.reportValidity?.();
+      field.focus?.();
+      return false;
+    }
+  }
+  return true;
+}
+
+function advanceWorkerFormToBadge() {
+  if ((elements.workerType?.value || "worker") === "visitor") {
+    workerFormPhase = "badge";
+    syncWorkerFormPhase();
+    return;
+  }
+  if (!validateWorkerFormBasicsFields()) return;
+  if (!hasComplianceSignatureReady()) {
+    showToast(uiT("complianceSignatureRequired"), "warning", 9000);
+    document.getElementById("complianceSignatureBlock")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    return;
+  }
+  workerFormPhase = "badge";
+  syncWorkerFormPhase();
+  document.getElementById("workerFormPhaseBadge")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+}
+
+function backWorkerFormToSignature() {
+  workerFormPhase = "basics";
+  syncWorkerFormPhase();
+  document.getElementById("complianceSignatureBlock")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+}
+
+function wireWorkerFormPhaseButtons() {
+  const continueBtn = document.getElementById("workerFormContinueToBadgeBtn");
+  const backBtn = document.getElementById("workerFormBackToSignatureBtn");
+  if (continueBtn && continueBtn.dataset.wired !== "1") {
+    continueBtn.dataset.wired = "1";
+    continueBtn.addEventListener("click", () => advanceWorkerFormToBadge());
+  }
+  if (backBtn && backBtn.dataset.wired !== "1") {
+    backBtn.dataset.wired = "1";
+    backBtn.addEventListener("click", () => backWorkerFormToSignature());
+  }
+}
+
 function getComplianceSignatureElements() {
   return {
     canvas: document.getElementById("complianceSignatureCanvas"),
@@ -16256,6 +16389,7 @@ function mapSignaturePadError(error) {
   }
   if (code === "signature_pad_none_available") return uiT("signaturePadNoneAvailable");
   if (code === "signature_use_canvas") return uiT("signatureUseCanvas");
+  if (code === "compliance_signature_required" || code === "signature_required") return uiT("complianceSignatureRequired");
   return uiT("signatureDeviceFailed").replace("{error}", code || "?");
 }
 
@@ -16337,6 +16471,7 @@ function resetComplianceSignatureEditor() {
   complianceSignatureState.loadedForWorkerId = null;
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireWorkerFormPhaseButtons();
   drawComplianceSignatureImage("");
   const { handoverInput } = getComplianceSignatureElements();
   if (handoverInput) handoverInput.value = "";
@@ -16353,6 +16488,7 @@ async function loadComplianceSignatureForWorker(worker) {
   }
   if (!worker?.id || !worker?.hasComplianceSignature) {
     drawComplianceSignatureImage("");
+    resetWorkerFormPhaseForWorker(worker);
     return;
   }
   try {
@@ -16364,6 +16500,7 @@ async function loadComplianceSignatureForWorker(worker) {
   } catch (_error) {
     drawComplianceSignatureImage("");
   }
+  resetWorkerFormPhaseForWorker(worker);
 }
 
 function appendComplianceFieldsToWorkerPayload(payload) {
@@ -16402,6 +16539,8 @@ function clearWorkerEditor() {
   }
   syncWorkerTypeUi();
   syncWorkerEditorUi();
+  workerFormPhase = "basics";
+  syncWorkerFormPhase();
 }
 
 async function loadPublicBranding() {
@@ -22146,6 +22285,7 @@ function bindWorkerRowActions() {
       loadComplianceSignatureForWorker(worker);
       syncWorkerTypeUi();
       syncWorkerEditorUi();
+      resetWorkerFormPhaseForWorker(worker);
       setView("workers");
     };
   });
@@ -25210,6 +25350,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
       setPhotoEditorSource(worker.photoData || "", { resetOffset: true });
       loadComplianceSignatureForWorker(worker);
       syncWorkerEditorUi();
+      resetWorkerFormPhaseForWorker(worker);
       setView("workers");
     });
   });
@@ -26598,6 +26739,19 @@ async function handleWorkerSubmit(event) {
     return;
   }
 
+  const workerType = elements.workerType?.value || "worker";
+  if (workerType !== "visitor" && workerFormPhase !== "badge") {
+    advanceWorkerFormToBadge();
+    return;
+  }
+  if (workerType !== "visitor" && !hasComplianceSignatureReady()) {
+    workerFormPhase = "basics";
+    syncWorkerFormPhase();
+    showToast(uiT("complianceSignatureRequired"), "warning", 9000);
+    document.getElementById("complianceSignatureBlock")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    return;
+  }
+
   const firstName = document.querySelector("#firstName").value.trim();
   const lastName = document.querySelector("#lastName").value.trim();
 
@@ -26728,6 +26882,12 @@ async function handleWorkerSubmit(event) {
     }
     if (error.message === "visit_purpose_required") {
       showToast(runtimeText("visitorPurposeMissing"));
+      return;
+    }
+    if (error.message === "compliance_signature_required" || error.message === "signature_required") {
+      workerFormPhase = "basics";
+      syncWorkerFormPhase();
+      showToast(uiT("complianceSignatureRequired"), "warning", 9000);
       return;
     }
     if (error.message === "visitor_company_required") {
@@ -32739,6 +32899,8 @@ if (workerForm) {
   workerForm.addEventListener("submit", handleWorkerSubmit);
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireWorkerFormPhaseButtons();
+  syncWorkerFormPhase();
 }
 
 const workerStatusFilter = document.querySelector("#workerStatusFilter");

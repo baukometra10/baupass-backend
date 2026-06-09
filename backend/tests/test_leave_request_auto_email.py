@@ -41,6 +41,7 @@ def _create_worker(client, headers):
             "status": "aktiv",
             "photoData": "data:image/png;base64,AAA",
             "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
             "physicalCardId": "NFC-LEAVE-001",
         },
         headers=headers,

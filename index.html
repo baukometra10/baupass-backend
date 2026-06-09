@@ -542,6 +542,11 @@
             </div>
 
             <form id="workerForm" class="form-grid">
+              <div id="workerFormStepIndicator" class="worker-form-step-indicator full-width" aria-hidden="true">
+                <span class="worker-form-step active" data-step="basics" data-ui-i18n="workerFormStepSignature">1 · Unterschrift</span>
+                <span class="worker-form-step" data-step="badge" data-ui-i18n="workerFormStepBadge">2 · Ausweis</span>
+              </div>
+              <div id="workerFormPhaseBasics" class="worker-form-phase full-width">
               <label>
                 <span data-ui-i18n="labelType">Typ</span>
                 <select id="workerType">
@@ -630,6 +635,31 @@
                   <option value="abgelaufen" data-ui-i18n="optStatusExpired">Abgelaufen</option>
                 </select>
               </label>
+
+              <div id="complianceSignatureBlock" class="compliance-signature-block full-width">
+                <p class="eyebrow" data-ui-i18n="complianceSignatureEyebrow">Mitarbeiterakte</p>
+                <h4 data-ui-i18n="complianceSignatureHeading">Unterschrift bei Ausweisübergabe</h4>
+                <p class="helper-text" data-ui-i18n="complianceSignatureBeforeBadgeHint">Pflicht: Der Mitarbeiter muss hier unterschreiben, bevor Sie zum Ausweis (Foto &amp; PIN) weitergehen.</p>
+                <p class="helper-text" data-ui-i18n="complianceSignatureHelp">Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.</p>
+                <label>
+                  <span data-ui-i18n="idHandoverDateLabel">Ausweis übergeben am</span>
+                  <input id="idHandoverAt" type="datetime-local" />
+                </label>
+                <div class="signature-pad-wrap">
+                  <canvas id="complianceSignatureCanvas" width="520" height="160" aria-label="Unterschrift"></canvas>
+                </div>
+                <input id="complianceSignatureData" type="hidden" />
+                <p id="complianceSignatureStatus" class="helper-text"></p>
+                <div class="button-row">
+                  <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
+                  <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
+                </div>
+              </div>
+
+              <button type="button" id="workerFormContinueToBadgeBtn" class="primary-button full-width" data-ui-i18n="workerFormContinueToBadge">Weiter zum Ausweis →</button>
+              </div>
+
+              <div id="workerFormPhaseBadge" class="worker-form-phase full-width hidden">
               <label>
                 <span data-ui-i18n="labelBadgePin">Badge-PIN für App-Login</span>
                 <input id="badgePin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" placeholder="4 bis 8 Ziffern" data-ui-i18n="badgePinPlaceholder" data-ui-i18n-attr="placeholder" required />
@@ -681,27 +711,10 @@
                 </div>
               </div>
 
-              <div id="complianceSignatureBlock" class="compliance-signature-block full-width">
-                <p class="eyebrow" data-ui-i18n="complianceSignatureEyebrow">Mitarbeiterakte</p>
-                <h4 data-ui-i18n="complianceSignatureHeading">Unterschrift bei Ausweisübergabe</h4>
-                <p class="helper-text" data-ui-i18n="complianceSignatureHelp">Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.</p>
-                <label>
-                  <span data-ui-i18n="idHandoverDateLabel">Ausweis übergeben am</span>
-                  <input id="idHandoverAt" type="datetime-local" />
-                </label>
-                <div class="signature-pad-wrap">
-                  <canvas id="complianceSignatureCanvas" width="520" height="160" aria-label="Unterschrift"></canvas>
-                </div>
-                <input id="complianceSignatureData" type="hidden" />
-                <p id="complianceSignatureStatus" class="helper-text"></p>
-                <div class="button-row">
-                  <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
-                  <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
-                </div>
-              </div>
-
+              <button type="button" id="workerFormBackToSignatureBtn" class="ghost-button full-width" data-ui-i18n="workerFormBackToSignature">← Zurück zur Unterschrift</button>
               <button id="workerSubmitButton" type="submit" class="primary-button full-width" data-ui-i18n="btnWorkerSubmit">Mitarbeiter speichern und Ausweis erzeugen</button>
               <button id="workerCancelEditButton" type="button" class="ghost-button full-width hidden" data-ui-i18n="btnWorkerCancelEdit">Bearbeiten abbrechen</button>
+              </div>
             </form>
           </article>
 
@@ -2220,9 +2233,9 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260609csrf"></script>
-  <script src="./signature-pad-bridge.js?v=20260609sigpad2" defer></script>
-  <script src="./signature-pad-providers.js?v=20260609sigpad2" defer></script>
-  <script src="./app.js?v=20260609sigpad2"></script>
+  <script src="./signature-pad-bridge.js?v=20260609sigpad3" defer></script>
+  <script src="./signature-pad-providers.js?v=20260609sigpad3" defer></script>
+  <script src="./app.js?v=20260609sigpad3"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

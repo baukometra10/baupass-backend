@@ -35,6 +35,7 @@ def _worker_payload(company_id, physical_card_id, **overrides):
         "status": "aktiv",
         "photoData": "data:image/png;base64,AAA",
         "badgePin": "1234",
+        "complianceSignatureData": "data:image/png;base64,AAA",
         "physicalCardId": physical_card_id,
     }
     payload.update(overrides)

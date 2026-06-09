@@ -63,6 +63,7 @@ def _create_worker(client, headers, company_id, badge_id="BADGE-E2E"):
             "status": "aktiv",
             "photoData": "data:image/png;base64,AAA",
             "badgePin": "9999",
+            "complianceSignatureData": "data:image/png;base64,AAA",
             "physicalCardId": badge_id,
         },
         headers=headers,

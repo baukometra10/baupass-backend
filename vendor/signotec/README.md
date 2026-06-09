@@ -11,7 +11,13 @@ BauPass loads Signotec's official JavaScript library from this folder.
 
 3. Ensure **STPadServer** is running (Windows service or `STPadServer.exe 49494`).
 
-4. Copy from the install folder (typical path):
+4. Copy automatically (recommended):
+   ```powershell
+   npm run vendor:signotec
+   ```
+   Or set `BAUPASS_SIGNOTEC_LIB_SRC` to the full path of `STPadServerLib.js`, then run the same command.
+
+   Manual copy from (typical path):
    ```
    C:\Program Files\signotec\signoPAD-API Web\STPadServerLib.js
    ```
@@ -20,12 +26,14 @@ BauPass loads Signotec's official JavaScript library from this folder.
    vendor/signotec/STPadServerLib.js
    ```
 
-5. Hard-refresh Control Pass (`Ctrl+Shift+R`) → Workers → **Signotec Pad** button.
+5. Commit `vendor/signotec/STPadServerLib.js` once so Railway serves it, **or** set Railway env `BAUPASS_SIGNOTEC_LIB_BASE64` (base64 of the file).
+
+6. Hard-refresh Control Pass (`Ctrl+Shift+R`) → Workers → **Signotec Pad** button.
 
 ## Notes
 
 - The pad LCD shows "Please sign" when capture starts — not the browser canvas.
-- `STPadServerLib.js` is **not** redistributed in this repo (Signotec license). Each site copies it locally.
+- `STPadServerLib.js` is **not** redistributed in git by default (Signotec license). Use `npm run vendor:signotec` on a PC with signoPAD installed, then commit or set `BAUPASS_SIGNOTEC_LIB_BASE64` on Railway.
 - For 50+ devices in production, signotec requires a commercial agreement.
 
 See also: `docs/signotec-setup-AR.md`

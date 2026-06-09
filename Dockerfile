@@ -14,5 +14,7 @@ RUN pip install --upgrade pip && pip install -r backend/requirements.txt
 
 COPY . .
 
+RUN node scripts/sync-signotec-vendor.js || true
+
 EXPOSE 8000
 CMD ["python", "backend/run_prod.py"]
