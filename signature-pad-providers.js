@@ -160,12 +160,9 @@
 
 
 
+  // CERT_SEL=Localhost install — certificate is valid for localhost only, not 127.0.0.1.
   const SIGNOTEC_WS_URLS = [
-
     "wss://localhost:49494",
-
-    "wss://127.0.0.1:49494",
-
   ];
 
   const SIGNOTEC_INTERFACE_VERSION = "3.5.0.0";

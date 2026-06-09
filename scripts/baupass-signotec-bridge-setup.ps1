@@ -103,7 +103,7 @@ if (-not (Wait-SignotecPort)) {
     exit 1
 }
 
-Write-Host 'BauPass: Bridge laeuft. Browser oeffnet fuer Zertifikat (Firefox: Erweitert -> Risiko akzeptieren).' -ForegroundColor Green
-Start-Process "https://127.0.0.1:$Port/"
+Write-Host 'BauPass: Bridge laeuft. Firefox oeffnet https://localhost:49494 — Erweitert -> Risiko akzeptieren.' -ForegroundColor Green
+Start-Process "https://localhost:$Port/"
 Write-Host 'Fertig. BauPass neu laden (Strg+Shift+R) und Signaturgeraet testen.' -ForegroundColor Green
 pause
