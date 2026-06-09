@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("baupassDesktop", {
   toggleMaximize: () => ipcRenderer.invoke("desktop:toggle-maximize"),
   close: () => ipcRenderer.invoke("desktop:close"),
   getWindowState: () => ipcRenderer.invoke("desktop:get-window-state"),
+  ensureSignotecBridge: () => ipcRenderer.invoke("desktop:ensure-signotec-bridge"),
   onWindowState: (callback) => {
     if (typeof callback !== "function") {
       return () => {};

@@ -4,6 +4,7 @@ const http = require("http");
 const https = require("https");
 const { spawn } = require("child_process");
 const { app, BrowserWindow, ipcMain, shell, screen } = require("electron");
+const signotecBridge = require("./signotec-bridge");
 
 // Ensure only one instance of the desktop app runs at a time.
 // Extra clicks on the shortcut will just raise the existing window.
@@ -14,7 +15,7 @@ if (!gotTheLock) {
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const LOCAL_DESKTOP_URL = "http://127.0.0.1:8000";
-const REMOTE_DESKTOP_URL = "https://baupass-production.up.railway.app";
+const REMOTE_DESKTOP_URL = "https://baupass-control.up.railway.app";
 let resolvedDesktopUrl = (process.env.BAUPASS_DESKTOP_URL || "").trim();
 // Backend auto-start only makes sense when pointing at localhost.
 let IS_LOCAL = false;
@@ -371,8 +372,21 @@ async function resolveDesktopUrl() {
   return resolvedDesktopUrl;
 }
 
+ipcMain.handle("desktop:ensure-signotec-bridge", async () => {
+  try {
+    return await signotecBridge.ensureSignotecBridge();
+  } catch (err) {
+    return { ok: false, reason: String(err?.message || err || "signotec_bridge_error") };
+  }
+});
+
 async function bootstrap() {
   await resolveDesktopUrl();
+  if (process.platform === "win32") {
+    signotecBridge.ensureSignotecBridge().then((result) => {
+      console.log(`[desktop][signotec] ${JSON.stringify(result)}`);
+    }).catch(() => {});
+  }
   // For cloud deployments skip the splash entirely — show the main window
   // immediately so it appears within the first second.
   if (!IS_LOCAL) {

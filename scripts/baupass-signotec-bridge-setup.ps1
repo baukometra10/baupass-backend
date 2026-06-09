@@ -56,16 +56,31 @@ function Ensure-FirewallRule {
     if ($existing) { return }
     try {
         New-NetFirewallRule -DisplayName $name -Direction Inbound -Action Allow -Protocol TCP -LocalPort $Port -ErrorAction Stop | Out-Null
-        Write-Log 'BauPass: Windows-Firewall-Regel fuer Port 49494 erstellt.' Cyan
+        Write-Log 'Firewall-Regel fuer Port 49494 erstellt.' Cyan
     } catch {
         netsh advfirewall firewall add rule name="$name" dir=in action=allow protocol=TCP localport=$Port | Out-Null
-        Write-Log 'BauPass: Firewall-Regel via netsh erstellt.' Cyan
+        Write-Log 'Firewall-Regel via netsh erstellt.' Cyan
     }
+}
+
+function Install-Autostart {
+    $exe = Find-STPadServerExe
+    if (-not $exe) { return }
+    $workDir = Split-Path $exe -Parent
+    $startup = [Environment]::GetFolderPath('Startup')
+    $bat = Join-Path $startup 'baupass-signotec-stpadserver.bat'
+    $content = @"
+@echo off
+cd /d "$workDir"
+start "" "$exe" $Port
+"@
+    Set-Content -Path $bat -Value $content -Encoding ASCII
+    Write-Log "Autostart erstellt: $bat" Green
 }
 
 function Stop-STPadServerProcesses {
     Get-Process STPadServer -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Log "BauPass: beende alten STPadServer (PID $($_.Id))..." Yellow
+        Write-Log "Beende alten STPadServer (PID $($_.Id))..." Yellow
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
     }
     Start-Sleep -Seconds 1
@@ -76,19 +91,17 @@ function Start-SignotecBridge {
         $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
         if ($svc) {
             if ($svc.Status -ne 'Running') {
-                Write-Log "BauPass: starte Dienst $name..." Cyan
+                Write-Log "Starte Dienst $name..." Cyan
                 Start-Service $name -ErrorAction SilentlyContinue
             }
             if ((Get-Service $name).Status -eq 'Running') { return $true }
         }
     }
-
     $exe = Find-STPadServerExe
     if (-not $exe) { return $false }
-
     $workDir = Split-Path $exe -Parent
     Stop-STPadServerProcesses
-    Write-Log "BauPass: starte STPadServer aus $workDir (Port $Port)..." Cyan
+    Write-Log "Starte STPadServer aus $workDir (Port $Port)..." Cyan
     Start-Process -FilePath $exe -ArgumentList "$Port" -WorkingDirectory $workDir -WindowStyle Hidden
     return $true
 }
@@ -110,7 +123,7 @@ function Wait-SignotecPort {
 }
 
 Clear-Content -Path $LogFile -ErrorAction SilentlyContinue
-Write-Log '=== BauPass Signotec Bridge Setup ===' Cyan
+Write-Log '=== BauPass Signotec Komplett-Setup ===' Cyan
 Write-Log "Log: $LogFile"
 
 Ensure-Admin
@@ -119,7 +132,7 @@ Ensure-FirewallRule
 if (-not $SkipInstall) {
     $installerUrl = "$BaseUrl/api/signotec/installer"
     $dest = Join-Path $env:TEMP $InstallerName
-    Write-Log 'BauPass: lade Signotec-Bridge vom Server...' Cyan
+    Write-Log 'Lade Signotec-Installer vom BauPass-Server...' Cyan
     try {
         Invoke-WebRequest -Uri $installerUrl -OutFile $dest -UseBasicParsing
     } catch {
@@ -127,33 +140,30 @@ if (-not $SkipInstall) {
         pause
         exit 1
     }
-    Write-Log 'BauPass: stille Installation (Admin, einmal pro PC)...' Cyan
-    $installArgs = '/s /v"/qn ADDLOCAL=WebSocketPadServer,PadDrivers CERT_SEL=\"Localhost\" ALLOW_EDGE_LOOPBACK=\"Yes\""'
-    $proc = Start-Process -FilePath $dest -ArgumentList $installArgs -Wait -PassThru
-    Write-Log "Installer ExitCode: $($proc.ExitCode)"
-    if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
-        Write-Log 'Stille Installation fehlgeschlagen — starte normale Installation...' Yellow
-        Start-Process -FilePath $dest -Wait
-    }
-    Start-Sleep -Seconds 5
+    Write-Log '=== WICHTIG: Installations-Assistent ===' Yellow
+    Write-Log '1) Alle Schritte mit Weiter/Next bestaetigen' Yellow
+    Write-Log '2) Bei Zertifikat-Option: LOCALHOST waehlen (nicht Default!)' Yellow
+    Write-Log '3) Installation abschliessen, dann hier weiter' Yellow
+    Start-Process -FilePath $dest -Wait
+    Start-Sleep -Seconds 4
 }
 
 if (-not (Start-SignotecBridge)) {
-    Write-Log 'FEHLER: STPadServer.exe nicht gefunden. signoPAD-API/Web ist nicht installiert.' Red
-    Write-Log 'Loesung: baupass-signotec-setup.bat erneut als Administrator ausfuehren.' Yellow
+    Write-Log 'FEHLER: STPadServer.exe nicht gefunden.' Red
+    Write-Log 'Bitte signoPAD-API/Web installieren und dieses Skript erneut starten.' Yellow
     pause
     exit 1
 }
 
-Write-Log "BauPass: warte auf localhost:$Port ..." Cyan
+Write-Log "Warte auf localhost:$Port ..." Cyan
 if (-not (Wait-SignotecPort)) {
     Write-Log "FEHLER: Port $Port antwortet nicht." Red
-    Write-Log 'Manuell testen: Windows-Taste -> signotec -> STPadServer starten' Yellow
-    Write-Log "Oder: `"$(Find-STPadServerExe)`" $Port" Yellow
+    Write-Log 'Manuell: Windows-Taste -> STPadServer suchen und starten' Yellow
     pause
     exit 1
 }
 
+Install-Autostart
 Write-Log 'OK: Bridge laeuft auf https://localhost:49494' Green
 Write-Log 'Firefox: Erweitert -> Risiko akzeptieren und fortfahren' Green
 Start-Process "https://localhost:$Port/"
