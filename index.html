@@ -17,11 +17,10 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260605f";
+        const buildTag = "20260531shell15";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
-          const scriptBuild = "20260605f";
           const hasCurrentVersion = url.searchParams.get("v") === buildTag;
           const seenBuild = window.localStorage.getItem(storageKey);
           if (!hasCurrentVersion && seenBuild !== buildTag) {
@@ -31,21 +30,6 @@
             return;
           }
           window.localStorage.setItem(storageKey, buildTag);
-          fetch("/api/public/branding")
-            .then(function (response) { return response.ok ? response.json() : null; })
-            .then(function (payload) {
-              if (!payload || !payload.uiBuild || !scriptBuild) return;
-              if (payload.uiBuild === scriptBuild) return;
-              var datedBuildTag = /^20\d{6}[a-z0-9]?$/i;
-              var gitShaTag = /^[0-9a-f]{7,40}$/i;
-              var scriptIsDated = datedBuildTag.test(scriptBuild);
-              var serverIsDated = datedBuildTag.test(payload.uiBuild);
-              var scriptIsGitSha = gitShaTag.test(scriptBuild);
-              var serverIsGitSha = gitShaTag.test(payload.uiBuild);
-              if (scriptIsDated !== serverIsDated || scriptIsGitSha !== serverIsGitSha) return;
-              console.warn("[ui-build] server", payload.uiBuild, "client", scriptBuild);
-            })
-            .catch(function () {});
           const host = window.location.hostname;
           if (host === "localhost" || host === "127.0.0.1") {
             try {
@@ -67,11 +51,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./embed-shell.css?v=20260605layout1" />
-    <link rel="stylesheet" href="./styles.css?v=20260609worker13" />
+    <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
+    <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
-    <link rel="stylesheet" href="./platform-unified.css?v=20260605options1" />
+    <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
@@ -165,9 +149,15 @@
           <span data-ui-i18n="loginOtpLabel">OTP-Code (wenn 2FA aktiv)</span>
           <input id="loginOtpCode" type="text" placeholder="123456" data-ui-i18n="loginOtpPlaceholder" data-ui-i18n-attr="placeholder" />
         </label>
-        <select id="loginScope" class="hidden" aria-hidden="true" tabindex="-1">
-          <option value="auto" selected>auto</option>
-        </select>
+        <label>
+          <span data-ui-i18n="loginScopeLabel">Zugangstyp</span>
+          <select id="loginScope">
+            <option value="auto" data-ui-i18n="loginScopeAuto">Automatisch</option>
+            <option value="server-admin" data-ui-i18n="loginScopeServerAdmin">Server-Admin</option>
+            <option value="company-admin" data-ui-i18n="loginScopeCompanyAdmin">Firmen-Admin</option>
+            <option value="turnstile" data-ui-i18n="loginScopeTurnstile">Drehkreuz</option>
+          </select>
+        </label>
         <button type="submit" class="primary-button" data-ui-i18n="loginButton">Anmelden</button>
         <button type="button" id="entraLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="entraLoginBtn">Mit Microsoft anmelden</button>
         <button type="button" id="googleLoginBtn" class="ghost-button" style="display:none;margin-top:8px;" data-ui-i18n="googleLoginBtn">Mit Google anmelden</button>
@@ -542,11 +532,6 @@
             </div>
 
             <form id="workerForm" class="form-grid">
-              <div id="workerFormStepIndicator" class="worker-form-step-indicator full-width" aria-hidden="true">
-                <span class="worker-form-step active" data-step="basics" data-ui-i18n="workerFormStepSignature">1 · Unterschrift</span>
-                <span class="worker-form-step" data-step="badge" data-ui-i18n="workerFormStepBadge">2 · Ausweis</span>
-              </div>
-              <div id="workerFormPhaseBasics" class="worker-form-phase full-width">
               <label>
                 <span data-ui-i18n="labelType">Typ</span>
                 <select id="workerType">
@@ -563,7 +548,6 @@
                 <select id="subcompanySelect">
                   <option value="" data-ui-i18n="optNoSubcompany">Kein Subunternehmen</option>
                 </select>
-                <small class="field-hint" data-ui-i18n="subcompanySelectHint">Bestehendes Subunternehmen direkt auswählen — nur bei Bedarf unten neu anlegen.</small>
               </label>
               <label>
                 <span data-ui-i18n="labelNewSubcompany">Neues Subunternehmen</span>
@@ -578,28 +562,17 @@
                 <span data-ui-i18n="labelLastName">Nachname</span>
                 <input id="lastName" type="text" placeholder="Mustermann" required />
               </label>
-              <div id="workerOnlyFields" class="worker-only-fields full-width">
               <label>
                 <span data-ui-i18n="labelInsuranceNumber">Rentenversicherungsnummer</span>
                 <input id="insuranceNumber" type="text" maxlength="15" placeholder="12 345678 A 123" autocomplete="off" spellcheck="false" required />
               </label>
               <label>
-                <span data-ui-i18n="labelVacationDays">Urlaubsanspruch (Tage/Jahr)</span>
-                <input id="workerLeaveBalance" type="number" min="0" max="365" value="30" placeholder="30" />
-              </label>
-              </div>
-              <label>
                 <span data-ui-i18n="labelRoleField">Funktion</span>
                 <input id="role" type="text" placeholder="Polier, Kranführer, Monteur" required />
               </label>
-              <label class="field-with-inline-action">
+              <label>
                 <span data-ui-i18n="labelSite">Standort</span>
-                <span class="input-with-embedded-action">
-                  <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
-                  <button type="button" id="siteGeoLocateBtn" class="input-embedded-action-btn" title="GPS-Standort übernehmen" aria-label="GPS-Standort übernehmen">
-                    <svg class="input-embedded-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
-                  </button>
-                </span>
+                <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
                 <small class="field-hint" data-ui-i18n="siteFieldHint">Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt</small>
               </label>
               <label>
@@ -609,6 +582,10 @@
               <label>
                 <span data-ui-i18n="labelEmailNotifications">E-Mail (Benachrichtigungen)</span>
                 <input id="workerContactEmail" type="email" placeholder="mitarbeiter@firma.de" />
+              </label>
+              <label>
+                <span data-ui-i18n="labelVacationDays">Urlaubsanspruch (Tage/Jahr)</span>
+                <input id="workerLeaveBalance" type="number" min="0" max="365" value="30" placeholder="30" />
               </label>
               <label>
                 <span data-ui-i18n="labelValidUntil">Gültig bis</span>
@@ -626,18 +603,8 @@
                   </label>
                   <label>
                     <span data-ui-i18n="labelHostName">Ansprechpartner vor Ort</span>
-                    <input id="hostName" type="text" placeholder="z. B. Bauleiter Mustafa Yilmaz" list="workerHostNameSuggestions" />
-                    <datalist id="workerHostNameSuggestions"></datalist>
+                    <input id="hostName" type="text" placeholder="z. B. Bauleiter Mustafa Yilmaz" />
                   </label>
-                  <div class="visitor-duration-row full-width">
-                    <span class="field-hint" data-ui-i18n="visitorDurationLabel">Besuchsdauer (Schnellauswahl)</span>
-                    <div class="visitor-duration-chips">
-                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-hours="1" data-ui-i18n="visitorDuration1h">1 Std.</button>
-                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-hours="2" data-ui-i18n="visitorDuration2h">2 Std.</button>
-                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-hours="4" data-ui-i18n="visitorDuration4h">4 Std.</button>
-                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-mode="eod" data-ui-i18n="visitorDurationEod">Tagesende</button>
-                    </div>
-                  </div>
                   <label>
                     <span data-ui-i18n="labelVisitEndAt">Besuchsende</span>
                     <input id="visitEndAt" type="datetime-local" />
@@ -653,63 +620,6 @@
                   <option value="abgelaufen" data-ui-i18n="optStatusExpired">Abgelaufen</option>
                 </select>
               </label>
-
-              <div id="complianceSignatureBlock" class="compliance-signature-block full-width">
-                <p class="eyebrow" data-ui-i18n="complianceSignatureEyebrow">Mitarbeiterakte</p>
-                <h4 data-ui-i18n="complianceSignatureHeading">Unterschrift bei Ausweisübergabe</h4>
-                <p class="helper-text" data-ui-i18n="complianceSignatureBeforeBadgeHint">Pflicht: Der Mitarbeiter muss hier unterschreiben, bevor Sie zum Ausweis (Foto &amp; PIN) weitergehen.</p>
-                <p class="helper-text" data-ui-i18n="complianceSignatureHelp">Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.</p>
-                <label>
-                  <span data-ui-i18n="idHandoverDateLabel">Ausweis übergeben am</span>
-                  <input id="idHandoverAt" type="datetime-local" />
-                </label>
-                <div class="signature-pad-wrap">
-                  <canvas id="complianceSignatureCanvas" width="520" height="160" aria-label="Unterschrift"></canvas>
-                </div>
-                <input id="complianceSignatureData" type="hidden" />
-                <p id="complianceSignatureStatus" class="helper-text"></p>
-                <div class="button-row">
-                  <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
-                  <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
-                </div>
-                <div id="signotecBridgeSetup" class="signotec-bridge-setup hidden" aria-live="polite">
-                  <div class="signotec-bridge-setup-head">
-                    <p class="eyebrow" data-ui-i18n="signotecBridgeEyebrow">Signaturgerät</p>
-                    <h5 data-ui-i18n="signotecBridgeTitle">Einmalige Einrichtung auf diesem PC</h5>
-                    <p class="helper-text" data-ui-i18n="signotecBridgeIntro">Die BauPass-Bibliothek läuft bereits auf dem Server. Auf jedem Windows-PC mit USB-Pad wird signoPAD-API/Web einmal installiert — danach funktioniert alles automatisch.</p>
-                  </div>
-                  <ol class="signotec-bridge-steps">
-                    <li id="signotecBridgeStepLib" class="signotec-bridge-step" data-state="pending">
-                      <span class="signotec-bridge-step-label" data-ui-i18n="signotecBridgeStepLib">1. BauPass-Bibliothek (Server)</span>
-                    </li>
-                    <li id="signotecBridgeStepInstall" class="signotec-bridge-step" data-state="idle">
-                      <span class="signotec-bridge-step-label" data-ui-i18n="signotecBridgeStepInstall">2. Signotec-Bridge auf diesem PC installieren</span>
-                    </li>
-                    <li id="signotecBridgeStepTrust" class="signotec-bridge-step" data-state="idle">
-                      <span class="signotec-bridge-step-label" data-ui-i18n="signotecBridgeStepTrust">3. Lokales Zertifikat bestätigen (einmal pro Browser)</span>
-                    </li>
-                    <li id="signotecBridgeStepReady" class="signotec-bridge-step" data-state="idle">
-                      <span class="signotec-bridge-step-label" data-ui-i18n="signotecBridgeStepReady">4. Pad per USB verbinden — fertig</span>
-                    </li>
-                  </ol>
-                  <p id="signotecBridgeFirefoxHint" class="helper-text signotec-bridge-firefox hidden" data-ui-i18n="signotecBridgeFirefoxHint"></p>
-                  <p id="signotecBridgeStatus" class="helper-text signotec-bridge-status"></p>
-                  <div class="button-row signotec-bridge-actions">
-                    <button type="button" id="signotecBridgeSetupScriptBtn" class="primary-button" data-ui-i18n="signotecBridgeSetupScript">Automatisch einrichten (Windows)</button>
-                    <button type="button" id="signotecBridgeDownloadBtn" class="ghost-button" data-ui-i18n="signotecBridgeDownload">Bridge herunterladen</button>
-                    <button type="button" id="signotecBridgeTrustBtn" class="ghost-button" data-ui-i18n="signotecBridgeTrustCert">Zertifikat bestätigen</button>
-                    <button type="button" id="signotecBridgeStartBtn" class="ghost-button" data-ui-i18n="signotecBridgeStart">Bridge starten</button>
-                    <button type="button" id="signotecBridgeRetestBtn" class="ghost-button" data-ui-i18n="signotecBridgeRetest">Verbindung prüfen</button>
-                    <button type="button" id="signotecBridgeCheckBtn" class="ghost-button" data-ui-i18n="signotecBridgeCheck">Diagnose (Windows)</button>
-                    <button type="button" id="signotecBridgeDismissBtn" class="ghost-button" data-ui-i18n="signotecBridgeDismiss">Später</button>
-                  </div>
-                </div>
-              </div>
-
-              <button type="button" id="workerFormContinueToBadgeBtn" class="primary-button full-width" data-ui-i18n="workerFormContinueToBadge">Weiter zum Ausweis →</button>
-              </div>
-
-              <div id="workerFormPhaseBadge" class="worker-form-phase full-width hidden">
               <label>
                 <span data-ui-i18n="labelBadgePin">Badge-PIN für App-Login</span>
                 <input id="badgePin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" placeholder="4 bis 8 Ziffern" data-ui-i18n="badgePinPlaceholder" data-ui-i18n-attr="placeholder" required />
@@ -761,10 +671,43 @@
                 </div>
               </div>
 
-              <button type="button" id="workerFormBackToSignatureBtn" class="ghost-button full-width" data-ui-i18n="workerFormBackToSignature">← Zurück zur Unterschrift</button>
+              <div id="complianceSignatureBlock" class="compliance-signature-block full-width">
+                <p class="eyebrow" data-ui-i18n="complianceSignatureEyebrow">Mitarbeiterakte</p>
+                <h4 data-ui-i18n="complianceSignatureHeading">Unterschrift bei Ausweisübergabe</h4>
+                <p class="helper-text" data-ui-i18n="complianceSignatureHelp">Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.</p>
+                <label>
+                  <span data-ui-i18n="idHandoverDateLabel">Ausweis übergeben am</span>
+                  <input id="idHandoverAt" type="datetime-local" />
+                </label>
+                <div class="signature-pad-wrap">
+                  <canvas id="complianceSignatureCanvas" width="520" height="160" aria-label="Unterschrift"></canvas>
+                </div>
+                <input id="complianceSignatureData" type="hidden" />
+                <p id="complianceSignatureStatus" class="helper-text"></p>
+                <div class="button-row">
+                  <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
+                  <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
+                </div>
+                <p class="helper-text"><a href="/signotec-pc2-setup.html" target="_blank" rel="noopener">Signotec auf diesem PC einrichten (PC 2)</a> — Login in BauPass ist hier irrelevant.</p>
+                <div id="signotecBridgeSetup" class="signotec-bridge-setup hidden" aria-live="polite">
+                  <div class="signotec-bridge-setup-head">
+                    <p class="eyebrow">Signaturgerät</p>
+                    <h5>Einmalige Einrichtung auf diesem PC</h5>
+                    <p class="helper-text">Admin- oder Firmen-Login in BauPass ändert nichts. STPadServer muss lokal auf diesem Windows-PC laufen.</p>
+                  </div>
+                  <p class="helper-text signotec-bridge-status"><a id="signotecBridgePc2Link" href="/signotec-pc2-setup.html" target="_blank" rel="noopener"><strong>Anleitung PC 2 öffnen (USB vom funktionierenden PC)</strong></a></p>
+                  <div class="button-row signotec-bridge-actions">
+                    <a class="primary-button" href="/signotec-pc2-setup.html" target="_blank" rel="noopener" style="display:inline-block;text-align:center;text-decoration:none;">PC-2 Anleitung</a>
+                    <button type="button" id="signotecBridgeSetupScriptBtn" class="ghost-button">Setup.bat</button>
+                    <button type="button" id="signotecBridgeDownloadBtn" class="ghost-button">Installer</button>
+                    <button type="button" id="signotecBridgeStartBtn" class="ghost-button">Bridge starten</button>
+                    <button type="button" id="signotecBridgeRetestBtn" class="ghost-button">Prüfen</button>
+                  </div>
+                </div>
+              </div>
+
               <button id="workerSubmitButton" type="submit" class="primary-button full-width" data-ui-i18n="btnWorkerSubmit">Mitarbeiter speichern und Ausweis erzeugen</button>
               <button id="workerCancelEditButton" type="button" class="ghost-button full-width hidden" data-ui-i18n="btnWorkerCancelEdit">Bearbeiten abbrechen</button>
-              </div>
             </form>
           </article>
 
@@ -1945,10 +1888,10 @@
               <label>
                 <span data-ui-i18n="labelPlan">Tarif</span>
                 <select id="companyPlan">
-                  <option value="tageskarte">Besucherkarte</option>
-                  <option value="starter">Starter</option>
-                  <option value="professional">Professional</option>
-                  <option value="enterprise">Enterprise</option>
+                  <option value="tageskarte" data-ui-i18n="optPlanDayPassPrice">Besucherkarte (19 EUR/Tag)</option>
+                  <option value="starter" data-ui-i18n="optPlanStarter">Starter (149 EUR/Monat)</option>
+                  <option value="professional" data-ui-i18n="optPlanProfessional">Professional (999 EUR/Monat, 2,50 EUR/MA)</option>
+                  <option value="enterprise" data-ui-i18n="optPlanEnterprise">Enterprise (2.490 EUR/Monat, 3 EUR/MA)</option>
                 </select>
               </label>
               <label>
@@ -2001,7 +1944,6 @@
                 <span data-ui-i18n="labelCompanyAdminPassword">Admin-Startpasswort</span>
                 <input id="companyAdminPassword" type="password" placeholder="z.B. Sicher!2025" autocomplete="new-password" data-ui-i18n="companyAdminPasswordPlaceholder" data-ui-i18n-attr="placeholder" />
               </label>
-              <p id="companyAdminPasswordHint" class="helper-text full-width">Startpasswort für den Admin-Login der neuen Firma.</p>
               <label>
                 <span data-ui-i18n="turnstilePasswordLabel">Drehkreuz-Startpasswort</span>
                 <input id="companyTurnstilePassword" type="password" placeholder="z.B. Gate!2025" autocomplete="new-password" />
@@ -2023,18 +1965,13 @@
               </div>
             </div>
             <form id="passwordForm" class="form-grid compact-grid">
-              <p class="helper-text full-width" data-ui-i18n="accountPasswordHint">Hier ändern Sie Ihr persönliches Control-Pass-Login. Firmen-Admin-Passwörter setzen Sie in der Firmenliste (Button „Passwort setzen“).</p>
               <label>
                 <span data-ui-i18n="labelCurrentPassword">Aktuelles Passwort</span>
                 <input id="currentPassword" type="password" required autocomplete="off" />
               </label>
               <label>
                 <span data-ui-i18n="labelNewPassword">Neues Passwort</span>
-                <input id="newPassword" type="password" minlength="8" required autocomplete="new-password" />
-              </label>
-              <label>
-                <span data-ui-i18n="passwordSetDialogConfirmPassword">Passwort bestätigen</span>
-                <input id="confirmPassword" type="password" minlength="8" required autocomplete="new-password" />
+                <input id="newPassword" type="password" minlength="8" required autocomplete="off" />
               </label>
               <button type="submit" class="ghost-button full-width" data-ui-i18n="btnChangePassword">Passwort ändern</button>
             </form>
@@ -2280,14 +2217,14 @@
       }
     })();
   </script>
+  <script src="/vendor/signotec/STPadServerLib.js?v=3.5.0"></script>
+  <script src="./signature-pad-bridge.js?v=20260609worker15" defer></script>
+  <script src="./signature-pad-providers.js?v=20260609worker15" defer></script>
+  <script src="./signotec-bridge-setup.js?v=20260609worker15" defer></script>
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
-  <script src="./embed-helpers.js?v=20260609csrf"></script>
-  <script src="/vendor/signotec/STPadServerLib.js?v=3.5.0"></script>
-  <script src="./signature-pad-bridge.js?v=20260609worker13" defer></script>
-  <script src="./signature-pad-providers.js?v=20260609worker13" defer></script>
-  <script src="./app.js?v=20260609worker13"></script>
-  <script src="./signotec-bridge-setup.js?v=20260609worker13"></script>
+  <script src="./embed-helpers.js?v=20260603nav1"></script>
+  <script src="./app.js?v=20260601sidebar1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
@@ -2394,10 +2331,6 @@
             <input id="manualEntrySiteRadius" type="number" min="10" max="40" step="1" value="20" />
           </label>
         </div>
-        <label class="manual-entry-worktime-check" style="margin-top:10px;display:flex;gap:8px;align-items:center;">
-          <input id="manualEntrySiteAutoProximity" type="checkbox" checked />
-          <span id="manualEntrySiteAutoProximityLabel">Auto-Anmeldung am Standort (GPS, nur an Einsatztagen)</span>
-        </label>
         <button id="manualEntryWorkTimeSave" type="button" class="ghost-button small-button">Arbeitszeiten speichern</button>
       </div>
       <div id="manualEntryList" class="manual-entry-list"></div>

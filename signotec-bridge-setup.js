@@ -168,19 +168,17 @@
     global.document.getElementById("signotecBridgeDismissBtn")?.addEventListener("click", () => {
       dismissPanel();
     });
+
+    const pc2Link = global.document.getElementById("signotecBridgePc2Link");
+    if (pc2Link && !pc2Link.getAttribute("href")) {
+      pc2Link.setAttribute("href", "/signotec-pc2-setup.html");
+    }
   }
 
   async function maybeAutoShow() {
     if (global.navigator?.platform && !/win/i.test(global.navigator.platform)) return;
-    let ok = false;
-    try {
-      ok = global.localStorage.getItem(OK_KEY) === "1";
-    } catch {
-      // ignore
-    }
-    if (ok) return;
     const state = await probeBridge();
-    if (!state.bridge && state.lib) showPanel(false);
+    if (!state.bridge && state.lib) showPanel(true);
   }
 
   global.BaupassSignotecBridge = {
