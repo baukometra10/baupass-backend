@@ -1,6 +1,22 @@
 # Signatur-Pad / USB-Bridge
 
-## Endpoint
+## Herstellerunabhängig (Browser)
+
+BauPass erkennt automatisch installierte lokale Bridges:
+
+| Anbieter | Software auf dem Admin-PC | Datei im Projekt |
+|----------|---------------------------|------------------|
+| **Signotec** | signoPAD-API/Web (Port 49494) | `vendor/signotec/STPadServerLib.js` |
+| **Wacom STU** | Wacom STU SigCaptX | `vendor/wacom/q.js` + `wgssStuSdk.js` |
+| **StepOver** | Pad Connector | — (WebSocket) |
+| **Topaz** | SigWeb | `vendor/topaz/SigWebTablet.js` |
+| **Beliebig** | — | Unterschrift auf der **Canvas** (USB-Stift als Maus) |
+
+Control Pass → Mitarbeiter → **Signaturgerät**
+
+Details: [signature-pad-setup-AR.md](./signature-pad-setup-AR.md) · Signotec: [signotec-setup-AR.md](./signotec-setup-AR.md)
+
+## Endpoint (alternativ: Desktop-Agent)
 
 `POST /api/device/signature/capture`
 

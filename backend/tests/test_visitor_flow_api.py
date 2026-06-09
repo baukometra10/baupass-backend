@@ -343,6 +343,29 @@ def test_worker_with_expired_required_document_is_auto_locked_and_access_blocked
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                "doc-mindest-1",
+                worker_id,
+                "cmp-default",
+                "mindestlohnnachweis",
+                "mindestlohn.pdf",
+                "backend/e2e-doc-uploads/mindestlohn.pdf",
+                123,
+                "",
+                None,
+                "usr-superadmin",
+                now,
+                "",
+                "",
+            ),
+        )
+        db.execute(
+            """
+            INSERT INTO worker_documents (
+                id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
                 "doc-expired-1",
                 worker_id,
                 "cmp-default",
@@ -382,6 +405,40 @@ def test_worker_with_expired_required_document_is_auto_locked_and_access_blocked
     assert access_response.get_json().get("error") == "worker_documents_expired"
 
 
+def test_worker_with_missing_required_documents_is_auto_locked_and_access_blocked(client_and_db):
+    client, _db_path = client_and_db
+    headers = _auth_headers(client)
+
+    create_response = client.post(
+        "/api/workers",
+        json=_worker_payload("cmp-default", "CARD-MISS-1"),
+        headers=headers,
+    )
+    assert create_response.status_code == 201
+    worker_id = create_response.get_json()["id"]
+
+    list_response = client.get("/api/workers", headers=headers)
+    assert list_response.status_code == 200
+    workers = list_response.get_json() or []
+    worker_row = next((row for row in workers if row.get("id") == worker_id), None)
+    assert worker_row is not None
+    assert worker_row.get("status") == "gesperrt"
+    assert worker_row.get("lockReasonCode") == "missing_documents"
+
+    access_response = client.post(
+        "/api/access-logs",
+        json={
+            "workerId": worker_id,
+            "direction": "check-in",
+            "gate": "Nordtor",
+            "note": "Blocked by missing docs",
+        },
+        headers=headers,
+    )
+    assert access_response.status_code == 400
+    assert access_response.get_json().get("error") == "worker_documents_missing"
+
+
 def test_worker_is_auto_unlocked_after_uploading_new_valid_required_document(client_and_db):
     client, db_path = client_and_db
     headers = _auth_headers(client)
@@ -396,6 +453,29 @@ def test_worker_is_auto_unlocked_after_uploading_new_valid_required_document(cli
 
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     with closing(sqlite3.connect(db_path)) as db:
+        db.execute(
+            """
+            INSERT INTO worker_documents (
+                id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "doc-mindest-2",
+                worker_id,
+                "cmp-default",
+                "mindestlohnnachweis",
+                "mindestlohn.pdf",
+                "backend/e2e-doc-uploads/mindestlohn-2.pdf",
+                123,
+                "",
+                None,
+                "usr-superadmin",
+                now,
+                "",
+                "",
+            ),
+        )
         db.execute(
             """
             INSERT INTO worker_documents (

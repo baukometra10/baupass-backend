@@ -12,6 +12,14 @@ _PAYROLL_HINT = re.compile(
     r"\b(lohn|gehalt|payroll|payslip|salary|abrechnung|entgelt|verdienst|datev|lohnjournal)\b",
     re.IGNORECASE,
 )
+_ID_DOC_HINT = re.compile(
+    r"\b(ausweis|personalausweis|reisepass|passport|id[\s-]?card|identit)\b",
+    re.IGNORECASE,
+)
+_MINLOHN_DOC_HINT = re.compile(
+    r"\b(mindestlohn|minimum[\s-]?wage|lohnnachweis|mindestlohnnachweis)\b",
+    re.IGNORECASE,
+)
 _GEHALT_HINT = re.compile(r"\b(gehalt|salary|gehalts)\b", re.IGNORECASE)
 _DATEV_FROM = re.compile(r"datev|lohnbuchhaltung|payroll", re.IGNORECASE)
 
@@ -34,6 +42,20 @@ def suggest_doc_type_from_email(
         return {"docType": "", "confidence": "", "reason": ""}
 
     is_pdf = name.lower().endswith(".pdf") or "pdf" in combined
+
+    if _ID_DOC_HINT.search(combined):
+        return {
+            "docType": normalize_doc_type("personalausweis"),
+            "confidence": "high" if is_pdf else "medium",
+            "reason": "id_document_keywords",
+        }
+    if _MINLOHN_DOC_HINT.search(combined):
+        return {
+            "docType": normalize_doc_type("mindestlohnnachweis"),
+            "confidence": "high" if is_pdf else "medium",
+            "reason": "mindestlohn_keywords",
+        }
+
     payroll_hit = bool(_PAYROLL_HINT.search(combined))
     datev_sender = bool(_DATEV_FROM.search(sender))
 

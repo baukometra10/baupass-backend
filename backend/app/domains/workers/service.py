@@ -308,6 +308,10 @@ class WorkersService:
             _persist_worker_compliance_fields(db, worker_id, payload, user, is_new=True)
         except ValueError as error:
             return {"error": {"error": str(error)}, "status": 400}
+        if worker_type != "visitor":
+            from backend.server import lock_worker_for_required_documents
+
+            lock_worker_for_required_documents(db, self.repo.get_by_id_global(db, worker_id))
         db.commit()
         row = self.repo.get_by_id_global(db, worker_id)
         return {

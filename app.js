@@ -697,7 +697,24 @@ const UI_TRANSLATIONS = {
     complianceSignatureSaved: "Unterschrift in der Akte gespeichert.",
     complianceSignatureEmpty: "Noch keine Unterschrift hinterlegt.",
     complianceSignatureStatusNew: "Neue Unterschrift – wird beim Speichern übernommen.",
-    idHandoverDateLabel: "Ausweis übergeben am",
+    signatureDeviceBtn: "Signaturgerät",
+    signatureDeviceDetecting: "Signaturgerät wird gesucht…",
+    signatureDeviceCapturing: "Bitte auf dem Signaturgerät unterschreiben und bestätigen…",
+    signatureDeviceCapturingTopaz: "Bitte auf dem Topaz-Gerät unterschreiben…",
+    signatureDeviceCapturingWacom: "Bitte auf dem Wacom-Gerät unterschreiben und OK bestätigen…",
+    signatureDeviceCapturingStepover: "Bitte auf dem StepOver-Gerät unterschreiben und OK bestätigen…",
+    signatureDeviceDone: "Unterschrift vom Gerät übernommen.",
+    signatureDeviceFailed: "Signaturgerät: {error}",
+    signatureCancelled: "Erfassung abgebrochen.",
+    signatureEmpty: "Keine Unterschrift erkannt — bitte erneut unterschreiben.",
+    signaturePadNoneAvailable: "Kein Signatur-Bridge gefunden — direkt in der weißen Fläche unterschreiben (jeder USB-Stift).",
+    signatureUseCanvas: "Unterschreiben Sie in der weißen Fläche — USB-Signaturpads funktionieren ohne Extra-Software.",
+    signatureProviderSignotec: "Signotec",
+    signatureProviderWacom: "Wacom",
+    signatureProviderStepover: "StepOver",
+    signatureProviderTopaz: "Topaz",
+    workerMissingDocsBlocked: "Mitarbeiter gespeichert, aber gesperrt — Pflichtdokumente (Ausweis + Mindestlohnnachweis) fehlen.",
+    workerBadgeBlockedDocs: "Ausweis nicht aktiv — Pflichtdokumente fehlen oder sind abgelaufen.",
     workerDetailSignatureHeading: "Unterschrift (Ausweisübergabe)",
     workerDetailIdHandover: "Ausweis übergeben",
     workerHceHeading: "HCE-Geraete",
@@ -1708,6 +1725,25 @@ const UI_TRANSLATIONS = {
     complianceSignatureSaved: "Signature saved to file.",
     complianceSignatureEmpty: "No signature on file yet.",
     complianceSignatureStatusNew: "New signature – saved when you submit.",
+    signatureDeviceBtn: "Signature pad",
+    signatureDeviceDetecting: "Detecting signature pad…",
+    signatureDeviceCapturing: "Sign on the device, then confirm on the pad…",
+    signatureDeviceCapturingTopaz: "Sign on the Topaz pad…",
+    signatureDeviceCapturingWacom: "Sign on the Wacom device, then tap OK…",
+    signatureDeviceCapturingStepover: "Sign on the StepOver device, then tap OK…",
+    signatureDeviceDone: "Signature captured from device.",
+    signatureDeviceFailed: "Signature pad: {error}",
+    signatureCancelled: "Capture cancelled.",
+    signatureEmpty: "No signature detected — please sign again.",
+    signaturePadNoneAvailable: "No signature bridge found — sign in the white area (any USB pen works).",
+    signatureUseCanvas: "Sign in the white area — USB signature pads work without extra software.",
+    signatureProviderSignotec: "Signotec",
+    signatureProviderWacom: "Wacom",
+    signatureProviderStepover: "StepOver",
+    signatureProviderTopaz: "Topaz",
+    signatureProviderCanvas: "On-screen",
+    workerMissingDocsBlocked: "Worker saved but locked — required documents (ID + minimum wage proof) are missing.",
+    workerBadgeBlockedDocs: "Badge inactive — required documents missing or expired.",
     idHandoverDateLabel: "ID handed over on",
     workerDetailSignatureHeading: "Signature (ID handover)",
     workerDetailIdHandover: "ID handed over",
@@ -3757,6 +3793,25 @@ const UI_TRANSLATIONS = {
     complianceSignatureSaved: "تم حفظ التوقيع في الملف.",
     complianceSignatureEmpty: "لا يوجد توقيع بعد.",
     complianceSignatureStatusNew: "توقيع جديد — يُحفظ عند الحفظ.",
+    signatureDeviceBtn: "جهاز التوقيع",
+    signatureDeviceDetecting: "جاري البحث عن جهاز التوقيع…",
+    signatureDeviceCapturing: "يرجى التوقيع على الجهاز ثم التأكيد عليه…",
+    signatureDeviceCapturingTopaz: "يرجى التوقيع على جهاز Topaz…",
+    signatureDeviceCapturingWacom: "يرجى التوقيع على جهاز Wacom ثم الضغط على OK…",
+    signatureDeviceCapturingStepover: "يرجى التوقيع على جهاز StepOver ثم الضغط على OK…",
+    signatureDeviceDone: "تم أخذ التوقيع من الجهاز.",
+    signatureDeviceFailed: "جهاز التوقيع: {error}",
+    signatureCancelled: "تم إلغاء التوقيع.",
+    signatureEmpty: "لم يُكتشف توقيع — يرجى التوقيع مرة أخرى.",
+    signaturePadNoneAvailable: "لم يُعثر على جسر توقيع — وقّع في المساحة البيضاء (أي قلم USB يعمل).",
+    signatureUseCanvas: "وقّع في المساحة البيضاء — أجهزة USB تعمل بدون برنامج إضافي.",
+    signatureProviderSignotec: "Signotec",
+    signatureProviderWacom: "Wacom",
+    signatureProviderStepover: "StepOver",
+    signatureProviderTopaz: "Topaz",
+    signatureProviderCanvas: "الشاشة",
+    workerMissingDocsBlocked: "تم حفظ العامل لكنه مُقفل — المستندات المطلوبة (الهوية + إثبات الحد الأدنى للأجر) ناقصة.",
+    workerBadgeBlockedDocs: "البطاقة غير نشطة — مستندات مطلوبة ناقصة أو منتهية.",
     idHandoverDateLabel: "تاريخ تسليم الهوية",
     workerDetailSignatureHeading: "التوقيع (تسليم الهوية)",
     workerDetailIdHandover: "تم تسليم الهوية",
@@ -9345,6 +9400,7 @@ function getRuntimeUiTexts() {
     gateOpsRefreshBtn: "Refresh",
     gateOpsWindowMinutes: "{count} min",
     gateOpsReasonWorkerDocumentsExpired: "Worker documents expired",
+    gateOpsReasonWorkerDocumentsMissing: "Required documents missing (ID / minimum wage proof)",
     gateOpsReasonVisitorVisitExpired: "Visitor pass expired",
     gateOpsReasonWorkerNotActive: "Worker not active",
     gateOpsReasonCompanyAccessDenied: "Company access denied",
@@ -10196,6 +10252,7 @@ function getRuntimeUiTexts() {
       gateOpsRefreshBtn: "Neu laden",
       gateOpsWindowMinutes: "{count} Min",
       gateOpsReasonWorkerDocumentsExpired: "Mitarbeiter-Dokumente abgelaufen",
+      gateOpsReasonWorkerDocumentsMissing: "Pflichtdokumente fehlen (Ausweis / Mindestlohnnachweis)",
       gateOpsReasonVisitorVisitExpired: "Besucherkarte abgelaufen",
       gateOpsReasonWorkerNotActive: "Mitarbeiter nicht aktiv",
       gateOpsReasonCompanyAccessDenied: "Firmenzugang gesperrt",
@@ -11814,6 +11871,7 @@ function getRuntimeUiTexts() {
       gateOpsRefreshBtn: "تحديث",
       gateOpsWindowMinutes: "{count} دقيقة",
       gateOpsReasonWorkerDocumentsExpired: "وثائق العامل منتهية",
+      gateOpsReasonWorkerDocumentsMissing: "مستندات مطلوبة ناقصة (هوية / إثبات الحد الأدنى للأجر)",
       gateOpsReasonVisitorVisitExpired: "بطاقة الزائر منتهية",
       gateOpsReasonWorkerNotActive: "العامل غير نشط",
       gateOpsReasonCompanyAccessDenied: "تم رفض وصول الشركة",
@@ -16158,11 +16216,105 @@ function initComplianceSignaturePad() {
   if (status) status.textContent = uiT("complianceSignatureEmpty");
 }
 
+function complianceSignatureWorkerLabel() {
+  const first = document.querySelector("#firstName")?.value?.trim() || "";
+  const last = document.querySelector("#lastName")?.value?.trim() || "";
+  const name = `${first} ${last}`.trim();
+  if (name) return name;
+  const editing = state.editingWorkerId
+    ? state.workers.find((w) => w.id === state.editingWorkerId)
+    : null;
+  if (editing) {
+    return `${editing.firstName || ""} ${editing.lastName || ""}`.trim();
+  }
+  return "";
+}
+
+function mapSignaturePadError(error) {
+  const code = String(error?.message || error || "").trim();
+  if (code === "signature_cancelled" || code === "signotec_cancelled") return uiT("signatureCancelled");
+  if (code === "signotec_empty_signature" || code === "topaz_empty_signature"
+    || code === "wacom_empty_signature" || code === "stepover_empty_signature"
+    || code === "signature_empty") {
+    return uiT("signatureEmpty");
+  }
+  if (code === "signature_pad_none_available") return uiT("signaturePadNoneAvailable");
+  if (code === "signature_use_canvas") return uiT("signatureUseCanvas");
+  return uiT("signatureDeviceFailed").replace("{error}", code || "?");
+}
+
+function signatureCapturingMessage(providerId) {
+  if (providerId === "topaz") return uiT("signatureDeviceCapturingTopaz");
+  if (providerId === "wacom") return uiT("signatureDeviceCapturingWacom");
+  if (providerId === "stepover") return uiT("signatureDeviceCapturingStepover");
+  return uiT("signatureDeviceCapturing");
+}
+
+async function captureComplianceSignatureFromDevice() {
+  const btn = document.getElementById("complianceSignatureDeviceBtn");
+  const bridge = window.BaupassSignaturePad;
+  if (!bridge?.captureSignature) {
+    showToast(uiT("signaturePadNoneAvailable"), "info", 9000);
+    initComplianceSignaturePad();
+    document.getElementById("complianceSignatureCanvas")?.focus?.();
+    return;
+  }
+
+  const workerLabel = complianceSignatureWorkerLabel();
+  const { canvas } = getComplianceSignatureElements();
+  if (btn) btn.disabled = true;
+  showToast(uiT("signatureDeviceDetecting"), "info", 4000);
+
+  try {
+    const probes = await bridge.probeProviders(true);
+    const active = probes.filter((p) => p.ok && p.id !== "canvas");
+    const providerId = active[0]?.id || "";
+    if (providerId) {
+      showToast(signatureCapturingMessage(providerId), "info", 6000);
+    }
+
+    const result = await bridge.captureSignature({
+      mode: "auto",
+      fieldName: uiT("complianceSignatureHeading"),
+      customText: workerLabel || uiT("complianceSignatureHeading"),
+      canvas,
+    });
+
+    complianceSignatureState.touched = true;
+    complianceSignatureState.hasStroke = true;
+    drawComplianceSignatureImage(result?.dataUrl || "");
+    const { status } = getComplianceSignatureElements();
+    if (status) status.textContent = uiT("signatureDeviceDone");
+    showToast(uiT("signatureDeviceDone"), "success");
+  } catch (error) {
+    const code = String(error?.message || "");
+    if (code === "signature_cancelled" || code === "signotec_cancelled") return;
+    if (code === "signature_pad_none_available" || code === "signature_use_canvas") {
+      initComplianceSignaturePad();
+      canvas?.focus?.();
+      canvas?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    }
+    showToast(mapSignaturePadError(error), code === "signature_use_canvas" ? "info" : "error", 8000);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function wireSignatureDeviceButton() {
+  const btn = document.getElementById("complianceSignatureDeviceBtn");
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", () => {
+    captureComplianceSignatureFromDevice().catch(() => {});
+  });
+}
+
 function resetComplianceSignatureEditor() {
   complianceSignatureState.touched = false;
   complianceSignatureState.hasStroke = false;
   complianceSignatureState.loadedForWorkerId = null;
   initComplianceSignaturePad();
+  wireSignatureDeviceButton();
   drawComplianceSignatureImage("");
   const { handoverInput } = getComplianceSignatureElements();
   if (handoverInput) handoverInput.value = "";
@@ -16170,6 +16322,7 @@ function resetComplianceSignatureEditor() {
 
 async function loadComplianceSignatureForWorker(worker) {
   initComplianceSignaturePad();
+  wireSignatureDeviceButton();
   complianceSignatureState.touched = false;
   complianceSignatureState.loadedForWorkerId = worker?.id || null;
   const { handoverInput } = getComplianceSignatureElements();
@@ -25254,9 +25407,15 @@ function renderBadge() {
   const visitor = isVisitorWorker(worker);
 
   elements.badgePreview.className = "badge-shell";
+  const docsBlocked = !visitor && (
+    String(worker.status || "").toLowerCase() === "gesperrt"
+    || worker.lockReasonCode === "missing_documents"
+    || worker.lockReasonCode === "expired_documents"
+  );
   const siteMapHref = worker.site ? `https://www.google.com/maps/search/${encodeURIComponent(worker.site)}` : "#";
   const validUntilLabel = formatDate(worker.validUntil);
   elements.badgePreview.innerHTML = `
+    ${docsBlocked ? `<div class="helper-text helper-text-warning" style="margin-bottom:10px;">${escapeHtml(uiT("workerBadgeBlockedDocs"))}${worker.lockReason ? `<br>${escapeHtml(worker.lockReason)}` : ""}</div>` : ""}
     <div class="badge-card-stage">
       ${buildPrintableWorkerCardMarkup(worker, company)}
       <div class="badge-card-note">
@@ -26469,6 +26628,20 @@ async function handleWorkerSubmit(event) {
     await loadAllData();
     if (targetWorkerId && state.workers.some((worker) => worker.id === targetWorkerId)) {
       state.selectedWorkerId = targetWorkerId;
+    }
+    const savedWorker = state.workers.find((entry) => entry.id === targetWorkerId) || null;
+    if (
+      savedWorker
+      && (
+        savedWorker.lockReasonCode === "missing_documents"
+        || savedWorker.lockReasonCode === "expired_documents"
+        || String(savedWorker.status || "").toLowerCase() === "gesperrt"
+      )
+    ) {
+      refreshAll();
+      showToast(uiT("workerMissingDocsBlocked"), "warning", 9000);
+      setView("workers");
+      return;
     }
     refreshAll();
     setView("badge");
@@ -28867,7 +29040,7 @@ function renderGateOpsMetrics() {
 
   const getDenyReasonClass = (reasonCode) => {
     const normalized = String(reasonCode || "").trim().toLowerCase();
-    if (["worker_documents_expired", "visitor_visit_expired", "worker_not_active"].includes(normalized)) {
+    if (["worker_documents_expired", "worker_documents_missing", "visitor_visit_expired", "worker_not_active"].includes(normalized)) {
       return "gate-deny-critical";
     }
     if (["company_access_denied", "turnstile_company_access_denied", "forbidden_worker_company"].includes(normalized)) {
@@ -28882,6 +29055,7 @@ function renderGateOpsMetrics() {
   const getDenyReasonText = (reasonCode) => {
     const normalized = String(reasonCode || "").trim().toLowerCase();
     if (normalized === "worker_documents_expired") return runtimeText("gateOpsReasonWorkerDocumentsExpired");
+    if (normalized === "worker_documents_missing") return runtimeText("gateOpsReasonWorkerDocumentsMissing");
     if (normalized === "visitor_visit_expired") return runtimeText("gateOpsReasonVisitorVisitExpired");
     if (normalized === "worker_not_active") return runtimeText("gateOpsReasonWorkerNotActive");
     if (normalized === "company_access_denied") return runtimeText("gateOpsReasonCompanyAccessDenied");
@@ -32503,6 +32677,7 @@ const workerForm = document.querySelector("#workerForm");
 if (workerForm) {
   workerForm.addEventListener("submit", handleWorkerSubmit);
   initComplianceSignaturePad();
+  wireSignatureDeviceButton();
 }
 
 const workerStatusFilter = document.querySelector("#workerStatusFilter");

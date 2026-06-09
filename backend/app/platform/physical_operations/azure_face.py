@@ -50,6 +50,26 @@ def _detect_face_id(endpoint: str, key: str, image_bytes: bytes) -> str | None:
     return str(face_id) if face_id else None
 
 
+def detect_faces_in_image(image_bytes: bytes) -> int | None:
+    """Return face count, or None when Azure Face is not configured."""
+    cfg = _azure_config()
+    if not cfg:
+        return None
+    endpoint, key = cfg
+    try:
+        faces = _face_request(
+            endpoint,
+            key,
+            "/detect?returnFaceId=false&recognitionModel=recognition_04",
+            image_bytes,
+        )
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(faces, list):
+        return None
+    return len(faces)
+
+
 def verify_worker_snapshot(worker_photo_data: str, snapshot_b64: str) -> bool | None:
     """
     Compare worker reference photo with camera snapshot via Azure Face verify.

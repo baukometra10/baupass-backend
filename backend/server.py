@@ -1059,6 +1059,19 @@ def get_worker_required_document_snapshot(db, worker_id, today_value=None):
     }
 
 
+_REQUIRED_DOC_LABELS = {
+    "personalausweis": "Personalausweis/Reisepass",
+    "mindestlohnnachweis": "Mindestlohnnachweis",
+}
+
+
+def worker_required_document_issues(db, worker_id, today_value=None):
+    snapshot = get_worker_required_document_snapshot(db, worker_id, today_value=today_value)
+    missing_types = list(snapshot.get("missingTypes") or [])
+    expired_types = list(snapshot.get("expiredTypes") or [])
+    return missing_types, expired_types
+
+
 def get_worker_lock_metadata(db, worker_row, today_value=None):
     if not worker_row:
         return {}
@@ -1066,14 +1079,18 @@ def get_worker_lock_metadata(db, worker_row, today_value=None):
     if worker_type != "worker":
         return {}
 
-    snapshot = get_worker_required_document_snapshot(db, worker_row["id"], today_value=today_value)
-    expired_types = snapshot.get("expiredTypes") or []
-    if expired_types:
-        label_map = {
-            "personalausweis": "Personalausweis/Reisepass",
-            "mindestlohnnachweis": "Mindestlohnnachweis",
+    missing_types, expired_types = worker_required_document_issues(
+        db, worker_row["id"], today_value=today_value
+    )
+    if missing_types:
+        labels = [_REQUIRED_DOC_LABELS.get(item, item) for item in missing_types]
+        return {
+            "lockReasonCode": "missing_documents",
+            "lockReason": f"Automatisch gesperrt — fehlende Pflichtdokumente: {', '.join(labels)}",
+            "missingRequiredDocTypes": missing_types,
         }
-        labels = [label_map.get(item, item) for item in expired_types]
+    if expired_types:
+        labels = [_REQUIRED_DOC_LABELS.get(item, item) for item in expired_types]
         return {
             "lockReasonCode": "expired_documents",
             "lockReason": f"Automatisch gesperrt wegen abgelaufener Pflichtdokumente: {', '.join(labels)}",
@@ -1083,9 +1100,18 @@ def get_worker_lock_metadata(db, worker_row, today_value=None):
 
 
 def worker_has_expired_required_documents(db, worker_id, today_value=None):
-    snapshot = get_worker_required_document_snapshot(db, worker_id, today_value=today_value)
-    expired_types = list(snapshot.get("expiredTypes") or [])
+    _missing, expired_types = worker_required_document_issues(db, worker_id, today_value=today_value)
     return len(expired_types) > 0, expired_types
+
+
+def worker_has_missing_required_documents(db, worker_id, today_value=None):
+    missing_types, _expired = worker_required_document_issues(db, worker_id, today_value=today_value)
+    return len(missing_types) > 0, missing_types
+
+
+def worker_has_blocking_required_documents(db, worker_id, today_value=None):
+    missing_types, expired_types = worker_required_document_issues(db, worker_id, today_value=today_value)
+    return bool(missing_types or expired_types), missing_types, expired_types
 
 
 def unlock_worker_if_documents_valid(db, worker_row, today_value=None, actor=None):
@@ -1100,23 +1126,34 @@ def unlock_worker_if_documents_valid(db, worker_row, today_value=None, actor=Non
     if not worker_id:
         return False
 
-    has_expired, _expired_types = worker_has_expired_required_documents(db, worker_id, today_value=today_value)
-    if has_expired:
+    has_blocking, _missing, _expired = worker_has_blocking_required_documents(
+        db, worker_id, today_value=today_value
+    )
+    if has_blocking:
         return False
     if str(worker_row["status"] or "").strip().lower() != "gesperrt":
         return False
 
-    lock_code = f"worker_doc_expired_lock_{worker_id}"
-    unresolved_lock_alert = db.execute(
-        "SELECT id FROM system_alerts WHERE code = ? AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 1",
-        (lock_code,),
-    ).fetchone()
-    if not unresolved_lock_alert:
+    lock_codes = [
+        f"worker_doc_missing_lock_{worker_id}",
+        f"worker_doc_expired_lock_{worker_id}",
+    ]
+    unresolved = False
+    for lock_code in lock_codes:
+        hit = db.execute(
+            "SELECT id FROM system_alerts WHERE code = ? AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 1",
+            (lock_code,),
+        ).fetchone()
+        if hit:
+            unresolved = True
+            db.execute(
+                "UPDATE system_alerts SET resolved_at = ? WHERE code = ? AND resolved_at IS NULL",
+                (now_iso(), lock_code),
+            )
+    if not unresolved:
         return False
 
     db.execute("UPDATE workers SET status = 'aktiv' WHERE id = ?", (worker_id,))
-    db.execute("UPDATE system_alerts SET resolved_at = ? WHERE code = ? AND resolved_at IS NULL", (now_iso(), lock_code))
-
     log_audit(
         "worker.auto_unlocked_documents",
         f"Mitarbeiter {worker_id} wurde nach gueltigem Dokument-Update automatisch entsperrt",
@@ -1128,7 +1165,7 @@ def unlock_worker_if_documents_valid(db, worker_row, today_value=None, actor=Non
     return True
 
 
-def lock_worker_for_expired_documents(db, worker_row, today_value=None):
+def lock_worker_for_required_documents(db, worker_row, today_value=None):
     if not worker_row:
         return False
     if str(worker_row["deleted_at"] or "").strip():
@@ -1140,8 +1177,10 @@ def lock_worker_for_expired_documents(db, worker_row, today_value=None):
     if not worker_id:
         return False
 
-    has_expired, expired_types = worker_has_expired_required_documents(db, worker_id, today_value=today_value)
-    if not has_expired:
+    missing_types, expired_types = worker_required_document_issues(
+        db, worker_id, today_value=today_value
+    )
+    if not missing_types and not expired_types:
         return False
 
     if str(worker_row["status"] or "").strip().lower() != "gesperrt":
@@ -1149,19 +1188,66 @@ def lock_worker_for_expired_documents(db, worker_row, today_value=None):
 
     badge = str(worker_row["badge_id"] or "-")
     full_name = f"{str(worker_row['first_name'] or '').strip()} {str(worker_row['last_name'] or '').strip()}".strip() or "Mitarbeiter"
-    create_system_alert(
-        db,
-        code=f"worker_doc_expired_lock_{worker_id}",
-        severity="warning",
-        message=f"Mitarbeiter {full_name} ({badge}) wurde wegen abgelaufener Dokumente automatisch gesperrt.",
-        details={
-            "workerId": worker_id,
-            "companyId": worker_row["company_id"],
-            "expiredDocTypes": expired_types,
-        },
-        dedup_minutes=240,
-    )
+
+    if missing_types:
+        labels = [_REQUIRED_DOC_LABELS.get(item, item) for item in missing_types]
+        create_system_alert(
+            db,
+            code=f"worker_doc_missing_lock_{worker_id}",
+            severity="warning",
+            message=f"Mitarbeiter {full_name} ({badge}) wurde wegen fehlender Pflichtdokumente automatisch gesperrt.",
+            details={
+                "workerId": worker_id,
+                "companyId": worker_row["company_id"],
+                "missingDocTypes": missing_types,
+            },
+            dedup_minutes=240,
+        )
+
+    if expired_types:
+        labels = [_REQUIRED_DOC_LABELS.get(item, item) for item in expired_types]
+        create_system_alert(
+            db,
+            code=f"worker_doc_expired_lock_{worker_id}",
+            severity="warning",
+            message=f"Mitarbeiter {full_name} ({badge}) wurde wegen abgelaufener Dokumente automatisch gesperrt.",
+            details={
+                "workerId": worker_id,
+                "companyId": worker_row["company_id"],
+                "expiredDocTypes": expired_types,
+            },
+            dedup_minutes=240,
+        )
     return True
+
+
+def lock_worker_for_expired_documents(db, worker_row, today_value=None):
+    """Backward-compatible wrapper — locks for missing OR expired required documents."""
+    return lock_worker_for_required_documents(db, worker_row, today_value=today_value)
+
+
+def worker_document_access_block(db, worker_row, today_value=None):
+    """Apply document lock if needed; return API error payload or None."""
+    if not worker_row:
+        return None
+    if str(worker_row["worker_type"] or "worker").strip().lower() != "worker":
+        return None
+    if not lock_worker_for_required_documents(db, worker_row, today_value=today_value):
+        return None
+    missing_types, expired_types = worker_required_document_issues(
+        db, worker_row["id"], today_value=today_value
+    )
+    if missing_types:
+        return {
+            "error": "worker_documents_missing",
+            "message": "Mitarbeiter wurde wegen fehlender Pflichtdokumente automatisch gesperrt.",
+            "missingRequiredDocTypes": missing_types,
+        }
+    return {
+        "error": "worker_documents_expired",
+        "message": "Mitarbeiter wurde wegen abgelaufener Pflichtdokumente automatisch gesperrt.",
+        "expiredRequiredDocTypes": expired_types,
+    }
 
 
 def lock_workers_with_expired_documents(db, today_value=None):
@@ -1182,16 +1268,10 @@ def lock_workers_with_expired_documents(db, today_value=None):
     changed = 0
     for row in rows:
         try:
-            if lock_worker_for_expired_documents(db, row, today_value=today):
+            if lock_worker_for_required_documents(db, row, today_value=today):
                 changed += 1
         except Exception:
-            pass
-
-    try:
-        if changed > 0:
-            db.commit()
-    except Exception:
-        pass
+            continue
     return changed
 
 
@@ -10324,6 +10404,17 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     if worker_visit_has_expired(worker):
         return None, (jsonify({"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}), 400)
 
+    doc_block = worker_document_access_block(db, worker)
+    if doc_block:
+        db.commit()
+        return None, (jsonify(doc_block), 403)
+
+    if str(worker["status"] or "").strip().lower() != "aktiv":
+        return None, (jsonify({
+            "error": "worker_not_active",
+            "message": "Mitarbeiter ist gesperrt oder inaktiv — Pflichtdokumente prüfen.",
+        }), 403)
+
     now = now_iso()
     db.execute(
         "UPDATE worker_app_tokens SET revoked_at = ? WHERE worker_id = ? AND revoked_at IS NULL AND expires_at >= ?",
@@ -11966,8 +12057,9 @@ def record_worker_app_nfc_attendance(
     if not company_has_feature(plan_value, "nfc_badges"):
         return {"ok": False, "error": "nfc_badges", "status": 403, "feature": "nfc_badges", "plan": plan_value}
 
-    if lock_worker_for_expired_documents(db, worker):
-        return {"ok": False, "error": "worker_documents_expired", "status": 403}
+    doc_block = worker_document_access_block(db, worker)
+    if doc_block:
+        return {"ok": False, "error": doc_block["error"], "status": 403, "message": doc_block.get("message")}
 
     if client_event_id and _access_log_has_client_event_id(db, worker["id"], client_event_id):
         return {
@@ -12102,7 +12194,7 @@ def worker_app_attendance_nfc():
         status = int(result.get("status") or 400)
         if result.get("error") == "nfc_badges":
             return feature_not_available_response("nfc_badges", result.get("plan"))
-        if result.get("error") == "worker_documents_expired":
+        if result.get("error") in {"worker_documents_expired", "worker_documents_missing"}:
             db.commit()
         body = {k: v for k, v in result.items() if k not in {"ok", "status"}}
         body["error"] = result.get("error")
@@ -14974,14 +15066,33 @@ def validate_worker_photo():
         elif total_variance < 500:
             warnings.append("Geringer Kontrast – bitte prüfen, ob ein echtes Portraitfoto vorhanden ist")
 
+        meta = {
+            "width": w,
+            "height": h,
+            "sizeKb": round(size_kb, 1),
+            "avgBrightness": round(avg_brightness, 1),
+            "format": img_format,
+        }
+        try:
+            from backend.app.platform.physical_operations.azure_face import detect_faces_in_image
+
+            face_count = detect_faces_in_image(img_bytes)
+            if face_count is not None:
+                meta["faceCount"] = face_count
+                if face_count < 1:
+                    errors.append("Kein Gesicht erkannt — bitte ein klares Portraitfoto verwenden")
+                elif face_count > 1:
+                    warnings.append("Mehrere Gesichter erkannt — nur eine Person sollte sichtbar sein")
+        except Exception:
+            pass
+
         score = max(0, min(100, 100 - len(errors) * 25 - len(warnings) * 10))
         return jsonify({
             "valid": len(errors) == 0,
             "score": score,
             "errors": errors,
             "warnings": warnings,
-            "meta": {"width": w, "height": h, "sizeKb": round(size_kb, 1),
-                     "avgBrightness": round(avg_brightness, 1), "format": img_format},
+            "meta": meta,
         })
     except ImportError:
         score = max(0, min(100, 70 - len(errors) * 25))
@@ -16392,12 +16503,10 @@ def create_access_log():
     if user["role"] != "superadmin" and worker["company_id"] != user.get("company_id"):
         return jsonify({"error": "forbidden_worker"}), 403
 
-    if lock_worker_for_expired_documents(db, worker):
+    doc_block = worker_document_access_block(db, worker)
+    if doc_block:
         db.commit()
-        return jsonify({
-            "error": "worker_documents_expired",
-            "message": "Mitarbeiter wurde wegen abgelaufener Pflichtdokumente automatisch gesperrt.",
-        }), 400
+        return jsonify(doc_block), 400
 
     company_error = get_company_access_error(db, worker["company_id"])
     if company_error:
@@ -16528,7 +16637,8 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         db.commit()
         return {"error": "forbidden_worker_company"}, 403
 
-    if lock_worker_for_expired_documents(db, worker):
+    doc_block = worker_document_access_block(db, worker)
+    if doc_block:
         insert_worker_gate_feedback_event(
             db,
             worker_id=worker["id"],
@@ -16536,14 +16646,11 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             status="deny",
             direction=direction if direction in {"check-in", "check-out"} else "",
             gate=gate_name,
-            message="Pflichtdokumente abgelaufen.",
-            reason_code="worker_documents_expired",
+            message=str(doc_block.get("message") or "Pflichtdokumente unvollständig."),
+            reason_code=str(doc_block.get("error") or "worker_documents_missing"),
         )
         db.commit()
-        return {
-            "error": "worker_documents_expired",
-            "message": "Mitarbeiter wurde wegen abgelaufener Pflichtdokumente automatisch gesperrt.",
-        }, 403
+        return doc_block, 403
 
     if requested_direction in {"", "auto", "toggle"}:
         latest_log = db.execute(
@@ -17141,14 +17248,10 @@ def unified_scan():
         if not company_has_feature(_gate_plan, required_feature):
             return feature_not_available_response(required_feature, _gate_plan)
 
-    if lock_worker_for_expired_documents(db, worker):
+    doc_block = worker_document_access_block(db, worker)
+    if doc_block:
         db.commit()
-        return jsonify(
-            {
-                "error": "worker_documents_expired",
-                "message": "Mitarbeiter wurde wegen abgelaufener Pflichtdokumente automatisch gesperrt.",
-            }
-        ), 403
+        return jsonify(doc_block), 403
 
     company_error = get_company_access_error(db, worker["company_id"])
     if company_error:
@@ -22330,6 +22433,21 @@ def poll_imap_inbox():
                         "INSERT INTO email_attachments (id, inbox_id, filename, content_type, file_size, file_data) VALUES (?,?,?,?,?,?)",
                         (att_id, inbox_id, att["filename"], att["content_type"], att["file_size"], att["file_data"]),
                     )
+
+                if matched_company_id:
+                    try:
+                        from backend.app.platform.inbox_worker_match import try_auto_assign_inbox_message
+
+                        try_auto_assign_inbox_message(
+                            db,
+                            inbox_id,
+                            company_id=str(matched_company_id),
+                            subject=subject,
+                            body_text=body_text,
+                            from_addr=from_addr,
+                        )
+                    except Exception:
+                        pass
 
                 if skipped_oversized > 0:
                     create_system_alert(

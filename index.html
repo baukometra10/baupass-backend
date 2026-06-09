@@ -695,6 +695,7 @@
                 <input id="complianceSignatureData" type="hidden" />
                 <p id="complianceSignatureStatus" class="helper-text"></p>
                 <div class="button-row">
+                  <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
                   <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
                 </div>
               </div>
@@ -2219,7 +2220,10 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260609csrf"></script>
-  <script src="./app.js?v=20260609hubi18n"></script>
+  <script src="./vendor/signotec/STPadServerLib.js" defer></script>
+  <script src="./signature-pad-bridge.js?v=20260609sigpad" defer></script>
+  <script src="./signature-pad-providers.js?v=20260609sigpad" defer></script>
+  <script src="./app.js?v=20260609sigpad"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
