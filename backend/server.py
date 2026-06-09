@@ -10728,6 +10728,59 @@ def _geocode_site_address(site_label):
     return _site_geocode_cache[cache_key]
 
 
+_reverse_geocode_cache: dict[str, str | None] = {}
+
+
+def _reverse_geocode_coordinates(latitude, longitude):
+    lat = _normalize_float(latitude)
+    lon = _normalize_float(longitude)
+    if lat is None or lon is None:
+        return None
+    cache_key = f"{lat:.5f},{lon:.5f}"
+    if cache_key in _reverse_geocode_cache:
+        return _reverse_geocode_cache[cache_key]
+
+    geocode_url = (
+        f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}&zoom=18&addressdetails=1"
+    )
+    request_obj = Request(
+        geocode_url,
+        headers={
+            "User-Agent": "BauPass Control/1.0 (worker geofence)",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urlopen(request_obj, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+        _reverse_geocode_cache[cache_key] = None
+        return None
+
+    label = str(payload.get("display_name") or "").strip()
+    if not label:
+        address = payload.get("address") if isinstance(payload.get("address"), dict) else {}
+        parts = [
+            str(address.get("road") or "").strip(),
+            str(address.get("house_number") or "").strip(),
+            str(address.get("postcode") or "").strip(),
+            str(address.get("city") or address.get("town") or address.get("village") or "").strip(),
+        ]
+        label = ", ".join(part for part in parts if part)
+    _reverse_geocode_cache[cache_key] = label or None
+    return _reverse_geocode_cache[cache_key]
+
+
+@require_auth
+def reverse_geocode_coordinates():
+    lat = request.args.get("lat")
+    lon = request.args.get("lon")
+    label = _reverse_geocode_coordinates(lat, lon)
+    if not label:
+        return jsonify({"error": "reverse_geocode_failed"}), 404
+    return jsonify({"address": label, "lat": lat, "lon": lon})
+
+
 def ensure_worker_site_coordinates(db, worker):
     latitude = worker["site_latitude"] if hasattr(worker, "keys") and "site_latitude" in worker.keys() else None
     longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
@@ -25052,6 +25105,7 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/settings", update_settings, ("PUT",), "core_settings_put")
     _patch_api_route("/api/subcompanies", list_subcompanies, ("GET",), "core_subcompanies_list")
     _patch_api_route("/api/subcompanies", create_subcompany, ("POST",), "core_subcompanies_create")
+    _patch_api_route("/api/geocode/reverse", reverse_geocode_coordinates, ("GET",), "core_geocode_reverse")
     _patch_api_route("/api/invoices", list_invoices, ("GET",), "core_invoices_list")
     _patch_api_route("/api/access-logs", list_access_logs, ("GET",), "core_access_logs_list")
     _patch_api_route("/api/access-logs/latest", list_latest_access_logs, ("GET",), "core_access_logs_latest")

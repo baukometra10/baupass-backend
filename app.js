@@ -772,6 +772,17 @@ const UI_TRANSLATIONS = {
     labelSubcompany: "Subunternehmen",
     optNoSubcompany: "Kein Subunternehmen",
     labelNewSubcompany: "Neues Subunternehmen",
+    subcompanySelectHint: "Bestehendes Subunternehmen direkt auswählen — nur bei Bedarf unten neu anlegen.",
+    siteGeoLocateBtn: "GPS",
+    siteGeoLocating: "Standort wird ermittelt…",
+    siteGeoLocateDone: "Adresse aus GPS übernommen.",
+    siteGeoLocateFailed: "GPS-Adresse konnte nicht ermittelt werden.",
+    siteGeoLocateDenied: "Standortzugriff verweigert — bitte im Browser erlauben.",
+    visitorDurationLabel: "Besuchsdauer (Schnellauswahl)",
+    visitorDuration1h: "1 Std.",
+    visitorDuration2h: "2 Std.",
+    visitorDuration4h: "4 Std.",
+    visitorDurationEod: "Tagesende",
     btnAddSubcompany: "Subunternehmen anlegen",
     labelFirstName: "Vorname",
     labelLastName: "Nachname",
@@ -1811,6 +1822,17 @@ const UI_TRANSLATIONS = {
     labelSubcompany: "Subcompany",
     optNoSubcompany: "No subcompany",
     labelNewSubcompany: "New Subcompany",
+    subcompanySelectHint: "Select an existing subcompany directly — only create a new one below if needed.",
+    siteGeoLocateBtn: "GPS",
+    siteGeoLocating: "Detecting location…",
+    siteGeoLocateDone: "Address filled from GPS.",
+    siteGeoLocateFailed: "Could not resolve GPS address.",
+    siteGeoLocateDenied: "Location access denied — please allow it in the browser.",
+    visitorDurationLabel: "Visit duration (quick pick)",
+    visitorDuration1h: "1 h",
+    visitorDuration2h: "2 h",
+    visitorDuration4h: "4 h",
+    visitorDurationEod: "End of day",
     btnAddSubcompany: "Create subcompany",
     labelFirstName: "First name",
     labelLastName: "Last name",
@@ -3457,6 +3479,17 @@ const UI_TRANSLATIONS = {
     labelSubcompany: "شركة فرعية",
     optNoSubcompany: "بدون شركة فرعية",
     labelNewSubcompany: "شركة فرعية جديدة",
+    subcompanySelectHint: "اختر شركة فرعية موجودة مباشرة — أنشئ واحدة جديدة بالأسفل فقط عند الحاجة.",
+    siteGeoLocateBtn: "GPS",
+    siteGeoLocating: "جاري تحديد الموقع…",
+    siteGeoLocateDone: "تم ملء العنوان من GPS.",
+    siteGeoLocateFailed: "تعذر تحديد العنوان من GPS.",
+    siteGeoLocateDenied: "تم رفض الوصول للموقع — يرجى السماح به في المتصفح.",
+    visitorDurationLabel: "مدة الزيارة (اختيار سريع)",
+    visitorDuration1h: "ساعة",
+    visitorDuration2h: "ساعتان",
+    visitorDuration4h: "4 ساعات",
+    visitorDurationEod: "نهاية اليوم",
     btnAddSubcompany: "إنشاء شركة فرعية",
     labelFirstName: "الاسم الأول",
     labelLastName: "اسم العائلة",
@@ -15902,6 +15935,10 @@ function syncWorkerTypeUi() {
   if (elements.visitorFields) {
     elements.visitorFields.classList.toggle("hidden", !isVisitor);
   }
+  const workerOnlyBlock = document.getElementById("workerOnlyFields");
+  if (workerOnlyBlock) {
+    workerOnlyBlock.classList.toggle("hidden", isVisitor);
+  }
   const insuranceField = document.querySelector("#insuranceNumber");
   const roleField = document.querySelector("#role");
   const badgePinField = document.querySelector("#badgePin");
@@ -15926,8 +15963,7 @@ function syncWorkerTypeUi() {
       : runtimeText("badgePinHintWorker");
   }
   if (isVisitor && elements.visitEndAt && !elements.visitEndAt.value) {
-    const defaultEnd = new Date(Date.now() + (8 * 60 * 60 * 1000));
-    elements.visitEndAt.value = toDateTimeLocalValue(defaultEnd);
+    applyVisitorDurationHours(2);
   }
   if (isVisitor && document.querySelector("#validUntil") && elements.visitEndAt?.value) {
     document.querySelector("#validUntil").value = elements.visitEndAt.value.slice(0, 10);
@@ -15936,7 +15972,201 @@ function syncWorkerTypeUi() {
   if (complianceBlock) {
     complianceBlock.classList.toggle("hidden", isVisitor);
   }
+  if (isVisitor) {
+    applyWorkerFormDefaults({ onlyEmpty: true });
+  }
   syncWorkerFormPhase();
+}
+
+const WORKER_FORM_DEFAULTS_KEY = "baupass-worker-form-defaults-v1";
+
+function readWorkerFormDefaultsStore() {
+  try {
+    const raw = window.localStorage.getItem(WORKER_FORM_DEFAULTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeWorkerFormDefaultsStore(store) {
+  try {
+    window.localStorage.setItem(WORKER_FORM_DEFAULTS_KEY, JSON.stringify(store || {}));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function getWorkerFormDefaultsForCompany(companyId) {
+  const store = readWorkerFormDefaultsStore();
+  const scoped = store.byCompany?.[String(companyId || "").trim()] || {};
+  const global = store.global || {};
+  return { ...global, ...scoped };
+}
+
+function saveWorkerFormDefaultsFromForm() {
+  const companyId = String(document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId() || "").trim();
+  if (!companyId) return;
+  const next = {
+    site: String(document.querySelector("#site")?.value || "").trim(),
+    hostName: String(elements.hostName?.value || "").trim(),
+    visitPurpose: String(elements.visitPurpose?.value || "").trim(),
+    visitorCompany: String(elements.visitorCompany?.value || "").trim(),
+  };
+  const store = readWorkerFormDefaultsStore();
+  store.byCompany = store.byCompany || {};
+  store.byCompany[companyId] = { ...(store.byCompany[companyId] || {}), ...next };
+  writeWorkerFormDefaultsStore(store);
+  refreshWorkerFormDefaultSuggestions();
+}
+
+function applyWorkerFormDefaults({ onlyEmpty = true } = {}) {
+  const companyId = String(document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId() || "").trim();
+  const defaults = getWorkerFormDefaultsForCompany(companyId);
+  const applyValue = (el, value) => {
+    if (!el || !String(value || "").trim()) return;
+    if (onlyEmpty && String(el.value || "").trim()) return;
+    el.value = String(value).trim();
+  };
+  applyValue(document.querySelector("#site"), defaults.site);
+  applyValue(elements.hostName, defaults.hostName);
+  applyValue(elements.visitPurpose, defaults.visitPurpose);
+  applyValue(elements.visitorCompany, defaults.visitorCompany);
+}
+
+function refreshWorkerFormDefaultSuggestions() {
+  const companyId = String(document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId() || "").trim();
+  const defaults = getWorkerFormDefaultsForCompany(companyId);
+  const datalist = document.getElementById("workerHostNameSuggestions");
+  if (datalist && defaults.hostName) {
+    datalist.innerHTML = `<option value="${escapeHtml(defaults.hostName)}"></option>`;
+  }
+}
+
+function applyVisitorDurationHours(hours) {
+  const end = new Date(Date.now() + (Number(hours) * 60 * 60 * 1000));
+  if (elements.visitEndAt) {
+    elements.visitEndAt.value = toDateTimeLocalValue(end);
+  }
+  const validUntilInput = document.querySelector("#validUntil");
+  if (validUntilInput) {
+    validUntilInput.value = toDateInputValue(end);
+  }
+}
+
+function applyVisitorDurationEndOfDay() {
+  const end = new Date();
+  end.setHours(23, 59, 0, 0);
+  if (elements.visitEndAt) {
+    elements.visitEndAt.value = toDateTimeLocalValue(end);
+  }
+  const validUntilInput = document.querySelector("#validUntil");
+  if (validUntilInput) {
+    validUntilInput.value = toDateInputValue(end);
+  }
+}
+
+async function refreshSubcompaniesForSelectedCompany() {
+  const companyId = String(document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId() || "").trim();
+  let url = `${API_BASE}/api/subcompanies`;
+  if (companyId) {
+    url += `?companyId=${encodeURIComponent(companyId)}`;
+  }
+  try {
+    const items = await apiRequest(url);
+    if (!Array.isArray(items)) {
+      populateSubcompanySelects();
+      return;
+    }
+    if (companyId) {
+      const others = (state.subcompanies || []).filter(
+        (entry) => String(entry?.companyId || entry?.company_id || "").trim() !== companyId,
+      );
+      state.subcompanies = [...others, ...items];
+    } else {
+      state.subcompanies = items;
+    }
+  } catch {
+    // keep cached list
+  }
+  populateSubcompanySelects();
+}
+
+async function fillSiteFromCurrentLocation() {
+  const siteInput = document.querySelector("#site");
+  const btn = document.getElementById("siteGeoLocateBtn");
+  if (!siteInput || !navigator.geolocation) {
+    showToast(uiT("siteGeoLocateFailed"), "error", 5000);
+    return;
+  }
+  if (btn) btn.disabled = true;
+  showToast(uiT("siteGeoLocating"), "info", 2500);
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60_000,
+      });
+    });
+    const lat = position?.coords?.latitude;
+    const lon = position?.coords?.longitude;
+    const data = await apiRequest(
+      `${API_BASE}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+    );
+    const address = String(data?.address || "").trim();
+    if (!address) {
+      throw new Error("reverse_geocode_failed");
+    }
+    siteInput.value = address;
+    showToast(uiT("siteGeoLocateDone"), "success", 3500);
+  } catch (error) {
+    const code = Number(error?.code);
+    if (code === 1) {
+      showToast(uiT("siteGeoLocateDenied"), "warning", 6000);
+    } else {
+      showToast(uiT("siteGeoLocateFailed"), "error", 5000);
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function wireWorkerFormEnhancements() {
+  const companySelect = document.querySelector("#companySelect");
+  if (companySelect && companySelect.dataset.subcompanyWired !== "1") {
+    companySelect.dataset.subcompanyWired = "1";
+    companySelect.addEventListener("change", () => {
+      void refreshSubcompaniesForSelectedCompany();
+      applyWorkerFormDefaults({ onlyEmpty: true });
+      refreshWorkerFormDefaultSuggestions();
+    });
+  }
+
+  const geoBtn = document.getElementById("siteGeoLocateBtn");
+  if (geoBtn && geoBtn.dataset.wired !== "1") {
+    geoBtn.dataset.wired = "1";
+    geoBtn.addEventListener("click", () => {
+      void fillSiteFromCurrentLocation();
+    });
+  }
+
+  document.querySelectorAll(".visitor-duration-chip").forEach((chip) => {
+    if (chip.dataset.wired === "1") return;
+    chip.dataset.wired = "1";
+    chip.addEventListener("click", () => {
+      const mode = String(chip.dataset.visitorMode || "");
+      if (mode === "eod") {
+        applyVisitorDurationEndOfDay();
+      } else {
+        applyVisitorDurationHours(Number(chip.dataset.visitorHours) || 2);
+      }
+      if (elements.visitEndAt?.value && document.querySelector("#validUntil")) {
+        document.querySelector("#validUntil").value = elements.visitEndAt.value.slice(0, 10);
+      }
+    });
+  });
 }
 
 function populateSubcompanySelects() {
@@ -16209,12 +16439,13 @@ function resetWorkerFormPhaseForWorker(worker) {
 }
 
 function validateWorkerFormBasicsFields() {
-  const form = document.querySelector("#workerForm");
-  if (!form) return false;
+  const isVisitor = (elements.workerType?.value || "worker") === "visitor";
   const requiredIds = [
-    "companySelect", "firstName", "lastName", "insuranceNumber",
-    "role", "site", "validUntil",
+    "companySelect", "firstName", "lastName", "role", "site", "validUntil",
   ];
+  if (!isVisitor) {
+    requiredIds.push("insuranceNumber");
+  }
   for (const id of requiredIds) {
     const field = document.getElementById(id);
     if (!field || field.closest(".hidden")) continue;
@@ -23943,6 +24174,9 @@ function populateCompanySelectOptions() {
   syncSelect(elements.companySelect);
   syncSelect(elements.invoiceCompanySelect);
   syncInvoiceRecipientFromCompany();
+  void refreshSubcompaniesForSelectedCompany();
+  applyWorkerFormDefaults({ onlyEmpty: true });
+  refreshWorkerFormDefaultSuggestions();
 }
 
 function getCompanyBillingEmail(company) {
@@ -26839,6 +27073,7 @@ async function handleWorkerSubmit(event) {
     }
     clearWorkerEditor();
     stopCamera();
+    saveWorkerFormDefaultsFromForm();
     await loadAllData();
     if (targetWorkerId && state.workers.some((worker) => worker.id === targetWorkerId)) {
       state.selectedWorkerId = targetWorkerId;
@@ -32900,7 +33135,10 @@ if (workerForm) {
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
   wireWorkerFormPhaseButtons();
+  wireWorkerFormEnhancements();
   syncWorkerFormPhase();
+  applyWorkerFormDefaults({ onlyEmpty: true });
+  refreshWorkerFormDefaultSuggestions();
 }
 
 const workerStatusFilter = document.querySelector("#workerStatusFilter");

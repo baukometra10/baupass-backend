@@ -2361,6 +2361,41 @@ select:focus {
   display: contents;
 }
 
+.input-inline-action-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.input-inline-action-wrap input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.input-inline-action-btn {
+  flex: 0 0 auto;
+  min-width: 42px;
+  padding: 0 10px;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.visitor-duration-row {
+  display: grid;
+  gap: 8px;
+}
+
+.visitor-duration-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.worker-only-fields.full-width {
+  grid-column: 1 / -1;
+  display: contents;
+}
+
 .signature-pad-wrap {
   border-radius: 12px;
   border: 1px solid rgba(23, 23, 23, 0.15);

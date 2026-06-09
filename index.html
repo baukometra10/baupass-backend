@@ -563,6 +563,7 @@
                 <select id="subcompanySelect">
                   <option value="" data-ui-i18n="optNoSubcompany">Kein Subunternehmen</option>
                 </select>
+                <small class="field-hint" data-ui-i18n="subcompanySelectHint">Bestehendes Subunternehmen direkt auswählen — nur bei Bedarf unten neu anlegen.</small>
               </label>
               <label>
                 <span data-ui-i18n="labelNewSubcompany">Neues Subunternehmen</span>
@@ -577,17 +578,26 @@
                 <span data-ui-i18n="labelLastName">Nachname</span>
                 <input id="lastName" type="text" placeholder="Mustermann" required />
               </label>
+              <div id="workerOnlyFields" class="worker-only-fields full-width">
               <label>
                 <span data-ui-i18n="labelInsuranceNumber">Rentenversicherungsnummer</span>
                 <input id="insuranceNumber" type="text" maxlength="15" placeholder="12 345678 A 123" autocomplete="off" spellcheck="false" required />
               </label>
               <label>
+                <span data-ui-i18n="labelVacationDays">Urlaubsanspruch (Tage/Jahr)</span>
+                <input id="workerLeaveBalance" type="number" min="0" max="365" value="30" placeholder="30" />
+              </label>
+              </div>
+              <label>
                 <span data-ui-i18n="labelRoleField">Funktion</span>
                 <input id="role" type="text" placeholder="Polier, Kranführer, Monteur" required />
               </label>
-              <label>
+              <label class="field-with-inline-action">
                 <span data-ui-i18n="labelSite">Standort</span>
-                <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
+                <span class="input-inline-action-wrap">
+                  <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
+                  <button type="button" id="siteGeoLocateBtn" class="input-inline-action-btn" title="GPS-Standort übernehmen" aria-label="GPS-Standort übernehmen" data-ui-i18n="siteGeoLocateBtn">📍</button>
+                </span>
                 <small class="field-hint" data-ui-i18n="siteFieldHint">Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt</small>
               </label>
               <label>
@@ -597,10 +607,6 @@
               <label>
                 <span data-ui-i18n="labelEmailNotifications">E-Mail (Benachrichtigungen)</span>
                 <input id="workerContactEmail" type="email" placeholder="mitarbeiter@firma.de" />
-              </label>
-              <label>
-                <span data-ui-i18n="labelVacationDays">Urlaubsanspruch (Tage/Jahr)</span>
-                <input id="workerLeaveBalance" type="number" min="0" max="365" value="30" placeholder="30" />
               </label>
               <label>
                 <span data-ui-i18n="labelValidUntil">Gültig bis</span>
@@ -618,8 +624,18 @@
                   </label>
                   <label>
                     <span data-ui-i18n="labelHostName">Ansprechpartner vor Ort</span>
-                    <input id="hostName" type="text" placeholder="z. B. Bauleiter Mustafa Yilmaz" />
+                    <input id="hostName" type="text" placeholder="z. B. Bauleiter Mustafa Yilmaz" list="workerHostNameSuggestions" />
+                    <datalist id="workerHostNameSuggestions"></datalist>
                   </label>
+                  <div class="visitor-duration-row full-width">
+                    <span class="field-hint" data-ui-i18n="visitorDurationLabel">Besuchsdauer (Schnellauswahl)</span>
+                    <div class="visitor-duration-chips">
+                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-hours="1" data-ui-i18n="visitorDuration1h">1 Std.</button>
+                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-hours="2" data-ui-i18n="visitorDuration2h">2 Std.</button>
+                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-hours="4" data-ui-i18n="visitorDuration4h">4 Std.</button>
+                      <button type="button" class="ghost-button small-button visitor-duration-chip" data-visitor-mode="eod" data-ui-i18n="visitorDurationEod">Tagesende</button>
+                    </div>
+                  </div>
                   <label>
                     <span data-ui-i18n="labelVisitEndAt">Besuchsende</span>
                     <input id="visitEndAt" type="datetime-local" />
@@ -2233,9 +2249,9 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260609csrf"></script>
-  <script src="./signature-pad-bridge.js?v=20260609sigpad3" defer></script>
-  <script src="./signature-pad-providers.js?v=20260609sigpad3" defer></script>
-  <script src="./app.js?v=20260609sigpad3"></script>
+  <script src="./signature-pad-bridge.js?v=20260609worker1" defer></script>
+  <script src="./signature-pad-providers.js?v=20260609worker1" defer></script>
+  <script src="./app.js?v=20260609worker1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
