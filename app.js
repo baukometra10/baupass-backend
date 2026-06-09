@@ -16704,7 +16704,7 @@ async function captureComplianceSignatureFromDevice() {
   } catch (error) {
     const code = String(error?.message || "");
     if (code === "signature_cancelled" || code === "signotec_cancelled") return;
-    if (code === "signature_pad_none_available" || code === "signature_use_canvas") {
+    if (code === "signature_pad_none_available" || code === "signature_use_canvas" || code === "signature_device_timeout") {
       initComplianceSignaturePad();
       canvas?.focus?.();
       canvas?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
