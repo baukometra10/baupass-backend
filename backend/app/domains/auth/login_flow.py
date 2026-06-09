@@ -3,11 +3,41 @@ from __future__ import annotations
 
 import re
 import secrets
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pyotp
 from flask import jsonify, request
+
+
+def _user_value(user, key: str, default=None):
+    if hasattr(user, "keys") and key in user.keys():
+        value = user[key]
+        return default if value is None and default is not None else value
+    return default
+
+
+def _password_hash_matches(srv, stored_hash: str, password: str) -> bool:
+    stored_hash = str(stored_hash or "").strip()
+    if not stored_hash.startswith(("pbkdf2:", "scrypt:")):
+        return False
+    try:
+        return bool(srv.check_password_hash(stored_hash, password))
+    except Exception:
+        return False
+
+
+def _schema_error_message(exc: Exception) -> bool:
+    message = str(exc).lower()
+    if "not login-ready" in message or "sessions table missing" in message:
+        return True
+    if "no such table" in message or "does not exist" in message:
+        return True
+    try:
+        from backend.app.db.pg_bootstrap import is_schema_error
+
+        return bool(is_schema_error(exc))
+    except ImportError:
+        return False
 
 
 def perform_login():
@@ -22,13 +52,13 @@ def perform_login():
     try:
         return _perform_login_core(srv, login_error)
     except Exception as exc:
-        try:
-            from backend.app.db.schema_errors import database_not_ready_response
+        if _schema_error_message(exc):
+            try:
+                from backend.app.db.schema_errors import database_not_ready_response
 
-            if "not login-ready" in str(exc).lower():
                 return database_not_ready_response(ok_field=True)
-        except ImportError:
-            pass
+            except ImportError:
+                pass
         srv.app.logger.exception("admin login failed unexpectedly")
         return login_error(
             "login_server_error",
@@ -91,14 +121,13 @@ def _perform_login_core(srv, login_error):
         db = srv.get_db()
         user = db.execute("SELECT * FROM users WHERE lower(username) = ?", (username,)).fetchone()
     except Exception as exc:
-        try:
-            from backend.app.db.pg_bootstrap import is_schema_error
-            from backend.app.db.schema_errors import database_not_ready_response
+        if _schema_error_message(exc):
+            try:
+                from backend.app.db.schema_errors import database_not_ready_response
 
-            if is_schema_error(exc) or "not login-ready" in str(exc).lower():
                 return database_not_ready_response(ok_field=True)
-        except ImportError:
-            pass
+            except ImportError:
+                pass
         raise
 
     if not user:
@@ -106,11 +135,8 @@ def _perform_login_core(srv, login_error):
         _log_login_failed(srv, username)
         return login_error("invalid_credentials")
 
-    stored_hash = str(user["password_hash"] or "").strip()
-    hash_ok = bool(
-        stored_hash.startswith(("pbkdf2:", "scrypt:"))
-        and srv.check_password_hash(stored_hash, password)
-    )
+    stored_hash = str(_user_value(user, "password_hash", "") or "").strip()
+    hash_ok = _password_hash_matches(srv, stored_hash, password)
     if not hash_ok:
         srv.register_login_failure(throttle_key)
         _log_login_failed(srv, username)
@@ -127,7 +153,7 @@ def _perform_login_core(srv, login_error):
         _log_login_failed(srv, username, "scope_mismatch")
         return login_error("login_scope_mismatch")
 
-    twofa_enabled = int(user["twofa_enabled"]) == 1
+    twofa_enabled = int(_user_value(user, "twofa_enabled", 0) or 0) == 1
     turnstile_auto_2fa = user["role"] == "turnstile"
     if srv.REQUIRE_SUPERADMIN_2FA and user["role"] == "superadmin" and not twofa_enabled:
         user_keys = set(user.keys()) if hasattr(user, "keys") else set()
@@ -258,14 +284,16 @@ def _perform_login_core(srv, login_error):
                 """,
                 (token, user["id"], srv.expiry_iso(), support_read_only, support_company_name, support_actor_name),
             )
-        except sqlite3.OperationalError as exc:
+        except Exception as exc:
             message = str(exc).lower()
             legacy_schema = (
                 "no such column" in message
-                or "has no column named support_read_only" in message
-                or "has no column named support_company_name" in message
-                or "has no column named support_actor_name" in message
+                or "has no column named" in message
+                or ("column" in message and "does not exist" in message)
             )
+            missing_sessions = "no such table" in message and "sessions" in message
+            if missing_sessions:
+                raise RuntimeError("sessions table missing") from exc
             if not legacy_schema:
                 raise
             db.execute(

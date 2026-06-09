@@ -17489,12 +17489,22 @@ async function restoreSessionFromBootstrap() {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const response = await fetch(`${API_BASE}/api/session/bootstrap`, {
-    method: "GET",
-    headers,
-    credentials: "include",
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}/api/session/bootstrap`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+  } catch {
+    throw new Error("backend_unreachable");
+  }
   const bootstrap = await response.json().catch(() => ({}));
+  if (bootstrap?.error === "database_not_ready") {
+    const requestError = new Error("database_not_ready");
+    requestError.payload = bootstrap;
+    throw requestError;
+  }
   if (
     !response.ok
     || bootstrap?.authenticated === false
@@ -18397,13 +18407,30 @@ async function loadAllData() {
       bootstrap = await restoreSessionFromBootstrap();
     } catch (error) {
       const msg = String(error?.message || "");
-      console.warn("[Bootstrap] Failed:", msg);
+      if (msg === "database_not_ready") {
+        clearSession();
+        sessionExpiryNoticeShown = false;
+        const detail = String(error?.payload?.message || "").trim();
+        showToast(
+          detail
+            || "Datenbank auf dem Server ist noch nicht bereit. Bitte Railway-Variablen prüfen (BAUPASS_PG_RUNTIME=0 und Volume /data).",
+          "error",
+          9000
+        );
+        return;
+      }
+      if (msg === "backend_unreachable") {
+        clearSession();
+        sessionExpiryNoticeShown = false;
+        return;
+      }
       // Nicht eingeloggt ist beim ersten Laden ein normaler Zustand.
       if (["unauthorized", "invalid_session", "session_expired"].includes(msg)) {
         clearSession();
         sessionExpiryNoticeShown = false;
         return;
       }
+      console.warn("[Bootstrap] Failed:", msg);
       throw error;
     }
   }
@@ -30269,8 +30296,10 @@ async function handleLoginSubmit(event) {
       return;
     }
     if (error.message === "login_server_error" || error.message === "internal_server_error" || error.message === "http_500") {
+      const serverMessage = String(error?.payload?.message || "").trim();
       showToast(
-        uiT("alertLoginServerError") || "Server vorübergehend nicht erreichbar. Bitte in wenigen Sekunden erneut versuchen.",
+        serverMessage
+          || uiT("alertLoginServerError") || "Server vorübergehend nicht erreichbar. Bitte in wenigen Sekunden erneut versuchen.",
         "error",
         6000,
       );

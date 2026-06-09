@@ -4290,7 +4290,7 @@ def serialize_user(user_row):
         "name": user_row["name"],
         "role": user_row["role"],
         "company_id": user_row["company_id"],
-        "twofa_enabled": int(user_row["twofa_enabled"]),
+        "twofa_enabled": int((user_row["twofa_enabled"] if hasattr(user_row, "keys") and "twofa_enabled" in set(user_row.keys()) else 0) or 0),
         "email": user_row["email"] if hasattr(user_row, "keys") and "email" in set(user_row.keys()) else "",
         "support_read_only": support_read_only,
         "support_company_name": support_company_name,
