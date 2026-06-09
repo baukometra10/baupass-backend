@@ -14,7 +14,8 @@
     "test:e2e:ops": "playwright test tests/e2e/invoice-ops.spec.js",
     "test:e2e:all": "playwright test tests/e2e/preview-session.spec.js tests/e2e/invoice-ops.spec.js",
     "vendor:signotec": "node scripts/sync-signotec-vendor.js",
-    "vendor:signotec:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-signotec-lib.ps1"
+    "vendor:signotec:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-signotec-lib.ps1",
+    "vendor:signotec:get": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/get-signotec-lib.ps1 -AfterInstall"
   },
   "build": {
     "appId": "com.baupass.control",

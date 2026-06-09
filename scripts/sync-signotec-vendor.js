@@ -11,8 +11,31 @@ const ROOT = path.resolve(__dirname, "..");
 const DEST = path.join(ROOT, "vendor", "signotec", "STPadServerLib.js");
 const DEST_DIR = path.dirname(DEST);
 
+function versionedSampleLibPaths() {
+  if (process.platform !== "win32") return [];
+  const roots = [
+    "C:\\Program Files\\signotec\\signoPAD-API Web\\Sample",
+    "C:\\Program Files (x86)\\signotec\\signoPAD-API Web\\Sample",
+  ];
+  const hits = [];
+  for (const root of roots) {
+    try {
+      if (!fs.existsSync(root)) continue;
+      for (const name of fs.readdirSync(root)) {
+        if (/^STPadServerLib(?:-\d+\.\d+\.\d+)?\.js$/i.test(name)) {
+          hits.push(path.join(root, name));
+        }
+      }
+    } catch {
+      // ignore unreadable sample dirs
+    }
+  }
+  return hits;
+}
+
 const CANDIDATES = [
   process.env.BAUPASS_SIGNOTEC_LIB_SRC,
+  ...versionedSampleLibPaths(),
   process.platform === "win32"
     ? "C:\\Program Files\\signotec\\signoPAD-API Web\\STPadServerLib.js"
     : null,

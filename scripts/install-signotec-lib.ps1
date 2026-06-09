@@ -37,7 +37,7 @@ if (-not $SourcePath) {
 
 $SourcePath = (Resolve-Path $SourcePath).Path
 if (-not (Test-SignotecLib $SourcePath)) {
-    Write-Host "Ungueltige Datei — erwartet STPadServerLib.js von signotec signoPAD-API/Web." -ForegroundColor Red
+    Write-Host "Ungueltige Datei - erwartet STPadServerLib.js von signotec signoPAD-API/Web." -ForegroundColor Red
     exit 1
 }
 
@@ -53,7 +53,7 @@ if (-not $SkipRailwayEnv -and (Get-Command railway -ErrorAction SilentlyContinue
         railway variables set "BAUPASS_SIGNOTEC_LIB_BASE64=$b64"
         Write-Host "Railway: BAUPASS_SIGNOTEC_LIB_BASE64 gesetzt." -ForegroundColor Green
     } else {
-        Write-Host "Datei zu gross fuer Railway-Env — wird per Deploy (vendor/signotec/) mitgeliefert." -ForegroundColor Yellow
+        Write-Host "Datei zu gross fuer Railway-Env - wird per Deploy (vendor/signotec/) mitgeliefert." -ForegroundColor Yellow
     }
 }
 

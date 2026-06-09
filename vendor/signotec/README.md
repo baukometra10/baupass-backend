@@ -28,6 +28,9 @@ BauPass loads Signotec's official JavaScript library from this folder.
 
 5. Commit `vendor/signotec/STPadServerLib.js` once so Railway serves it, **or** set Railway env `BAUPASS_SIGNOTEC_LIB_BASE64` (base64 of the file).
 
+**Direct installer (signoPAD-API/Web 3.5.0 — not signoPADTools):**  
+https://backend.signotec.com/wp-content/uploads/2025/11/signotec_signoPAD-API_Web_3.5.0.exe
+
 6. Hard-refresh Control Pass (`Ctrl+Shift+R`) → Workers → **Signotec Pad** button.
 
 ## Notes
