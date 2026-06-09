@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass — مركز المؤسسة (16 طبقة)</title>
+  <title>BauPass — Enterprise-Hub</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
@@ -436,8 +436,8 @@
 <body>
   <header id="hubHeader">
     <div>
-      <h1>مركز المؤسسة — خريطة الـ 16 طبقة</h1>
-      <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)">ما بُني فعلياً وأين تراه (واجهة · API · إعداد)</p>
+      <h1 id="hubTitle">Enterprise-Hub</h1>
+      <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)"></p>
     </div>
     <nav class="nav-links" id="hubNav">
       <label class="hub-lang-select" style="border:none;padding:0">
@@ -451,17 +451,13 @@
       <a href="/admin-v2/index.html#enterprise" id="navAdminV2">Admin v2</a>
       <a href="/index.html" id="navLegacy">Legacy</a>
       <a href="/ops-command-center.html" id="navOps">Ops</a>
-      <a href="/ai-command-center.html" id="navAiCenter">KI Command Center</a>
+      <a href="/ai-command-center.html" id="navAiCenter">KI</a>
       <a href="/join.html" id="navJoin">Join</a>
     </nav>
   </header>
 
-  <div id="previewNote" class="err-box hidden" style="background:#1a2e3a;border-color:#2a5a6a;color:#94a3b8">
-    <strong>معاينة عامة</strong> (خطة Professional كمثال). <a href="/admin-v2/index.html?login=1">سجّل الدخول</a> لرؤية خطتك الفعلية وتفعيل AI.
-  </div>
-  <div id="authErr" class="err-box hidden">
-    تعذّر تحميل الكتالوج. <a href="/admin-v2/index.html?login=1">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).
-  </div>
+  <div id="previewNote" class="err-box hidden" style="background:#1a2e3a;border-color:#2a5a6a;color:#94a3b8"></div>
+  <div id="authErr" class="err-box hidden"></div>
 
   <div class="layout" id="mainLayout">
     <section class="hub-main-col">
@@ -498,7 +494,7 @@
     </section>
 
     <aside class="ai-panel embed-panel-fixed">
-      <h2>مساعد BauPass (AI)</h2>
+      <h2 id="aiPanelTitle">BauPass KI</h2>
       <div id="aiStatus" style="padding:0 0.75rem;font-size:0.78rem;color:var(--muted)"></div>
       <div class="ai-toolbar">
         <button type="button" id="aiBriefingBtn" class="primary"></button>
@@ -508,11 +504,11 @@
       <div id="aiLog" class="embed-scroll-main"></div>
       <form class="ai-form embed-panel-footer" id="aiForm">
         <div class="ai-form-row">
-          <textarea id="aiQuestion" rows="1" placeholder="اسأل بلغة طبيعية: كم موظف على الموقع؟ ما تنبيهات الأمن؟"></textarea>
-          <button type="button" id="aiVoiceBtn" aria-label="Spracheingabe"></button>
-          <button type="submit" id="aiSendBtn" class="bp-ai-send" aria-label="Senden"></button>
+          <textarea id="aiQuestion" rows="1" placeholder=""></textarea>
+          <button type="button" id="aiVoiceBtn" aria-label=""></button>
+          <button type="submit" id="aiSendBtn" class="bp-ai-send" aria-label=""></button>
         </div>
-        <button type="submit" class="ai-send-btn ai-form-legacy-send">إرسال</button>
+        <button type="submit" class="ai-send-btn ai-form-legacy-send"></button>
       </form>
     </aside>
   </div>
@@ -539,19 +535,36 @@
       localStorage.setItem("baupass-ui-lang", code);
       localStorage.setItem("baupass-admin-v2-lang", code);
       applyStaticI18n();
-      if (catalog) renderLayers();
+      refreshHubDynamicContent();
+      if (window.BaupassAiUi?.bindVoiceInput) {
+        window.BaupassAiUi.bindVoiceInput({
+          inputId: "aiQuestion",
+          buttonId: "aiVoiceBtn",
+          sendId: "aiSendBtn",
+          formId: "aiForm",
+          lang: HUB_LANG,
+          unsupportedHint: t("aiVoiceUnsupported"),
+          hintText: t("voiceHint"),
+          multilingual: true,
+          authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
+        });
+      }
+      try {
+        window.parent?.postMessage({ type: "baupass-embed-set-lang", lang: HUB_LANG }, location.origin);
+      } catch {
+        // ignore
+      }
+      window.dispatchEvent(new CustomEvent("baupass-lang-sync", { detail: { lang: HUB_LANG } }));
     }
 
     function syncHubLangFromParent(lang) {
       const code = String(lang || "").slice(0, 2).toLowerCase();
       if (!["de", "en", "ar"].includes(code) || code === HUB_LANG) return;
-      setHubLang(code);
-      if (!catalog) return;
-      renderPlanBanner(catalog);
-      renderStats(catalog.stats, catalog.surfaceLabels);
-      renderMonatsplanHero();
-      loadRolePlaybook(hubPreviewMode).catch(() => {});
-      if (!hubPreviewMode) loadAiPrompts().catch(() => {});
+      HUB_LANG = code;
+      localStorage.setItem("baupass-ui-lang", code);
+      localStorage.setItem("baupass-admin-v2-lang", code);
+      applyStaticI18n();
+      refreshHubDynamicContent();
     }
 
     window.addEventListener("baupass-lang-sync", (event) => {
@@ -653,6 +666,11 @@
         quickAiDesc: "Sprache, Text & Briefing",
         quickDashboard: "Dashboard",
         quickDashboardDesc: "Control Pass Start",
+        capUpgradeHint: "Bitte Admin kontaktieren für Tarif-Upgrade (Professional / Enterprise).",
+        previewNoteHtml: "<strong>Öffentliche Vorschau</strong> (Professional als Beispiel). <a href=\"/admin-v2/index.html?login=1\">Anmelden</a> für Ihren echten Tarif und KI.",
+        authErrHtml: "Katalog konnte nicht geladen werden. <a href=\"/admin-v2/index.html?login=1\">Anmelden</a> oder Seite neu laden (Strg+F5).",
+        btnClose: "Schließen",
+        apiErrorPrefix: "API",
       },
       en: {
         title: "Enterprise hub — 16-layer map",
@@ -690,6 +708,7 @@
         aiNeedEnterprise: "AI assistant requires Enterprise plan.",
         aiBriefing: "Daily briefing",
         aiSources: "Sources",
+        aiOpenCenter: "Open full AI command center",
         maturity: "Platform maturity",
         previewMaturity: "Public preview — sign in for production metrics.",
         companySelect: "Company (plan preview)",
@@ -734,6 +753,11 @@
         quickAiDesc: "Voice, text & briefing",
         quickDashboard: "Dashboard",
         quickDashboardDesc: "Control Pass home",
+        capUpgradeHint: "Contact your admin to upgrade the plan.",
+        previewNoteHtml: "<strong>Public preview</strong> (Professional sample). <a href=\"/admin-v2/index.html?login=1\">Sign in</a> for your real plan and AI.",
+        authErrHtml: "Could not load catalog. <a href=\"/admin-v2/index.html?login=1\">Sign in</a> or hard-refresh (Ctrl+F5).",
+        btnClose: "Close",
+        apiErrorPrefix: "API",
       },
       ar: {
         title: "مركز المؤسسة — خريطة الـ 16 طبقة",
@@ -780,8 +804,20 @@
         embedPickCompany: "اختر شركة من الشريط لـ KPI والدليل التشغيلي",
         planUpgradeBanner: "<strong>{locked}</strong> وظائف تحتاج ترقية. اضغط البطاقة للتفاصيل.",
         planUpgradeCtaAdmin: "الخطة والشركة (المشرف)",
-        planUpgradeCtaProfessional: "Professional",
-        planUpgradeCtaEnterprise: "Enterprise",
+        planUpgradeCtaProfessional: "طلب Professional",
+        planUpgradeCtaEnterprise: "طلب Enterprise",
+        planUpgradeCtaCheckoutPro: "حجز Professional",
+        planUpgradeCtaCheckoutEnt: "حجز Enterprise",
+        planUpgradeCtaMail: "ترقية عبر البريد",
+        monatsplanTitle: "الخطة الشهرية (Einsatzplan) — 4 خطوات",
+        monatsplanStep1: "اختر الشهر أعلاه",
+        monatsplanStep2: "لكل موظف: الموقع + الوقت ثم حفظ",
+        monatsplanStep3: "راجع حالة «جاهز»",
+        monatsplanStep4: "«تأكيد الإرسال» — PDF/بريد + إشعار للجميع",
+        monatsplanOpen: "فتح الخطة الشهرية الآن",
+        monatsplanOpenHint: "يفتح Einsatzplan في التشغيل. اختر الشهر → عدّل كل موظف → أكّد الإرسال.",
+        monatsplanPreviewLogin: "يلزم تسجيل الدخول — سجّل في Control Pass ثم اضغط «فتح الخطة الشهرية».",
+        monatsplanLinkLabel: "📋 فتح الخطة الشهرية",
         rolePlaybook: "دليل التشغيل الخاص بك",
         rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
         navAdminV2: "لوحة v2",
@@ -813,10 +849,79 @@
         quickAiDesc: "صوت، نص وملخص",
         quickDashboard: "لوحة التحكم",
         quickDashboardDesc: "بداية Control Pass",
+        capUpgradeHint: "تواصل مع المسؤول لترقية الباقة.",
+        previewNoteHtml: "<strong>معاينة عامة</strong> (خطة Professional كمثال). <a href=\"/admin-v2/index.html?login=1\">سجّل الدخول</a> لرؤية خطتك الفعلية وتفعيل AI.",
+        authErrHtml: "تعذّر تحميل الكتالوج. <a href=\"/admin-v2/index.html?login=1\">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).",
+        btnClose: "إغلاق",
+        apiErrorPrefix: "API",
       },
     };
     function t(key) {
       return (HUB_I18N[HUB_LANG] || HUB_I18N.de)[key] || (HUB_I18N.de[key] || key);
+    }
+
+    function layerTitle(layer) {
+      if (!layer) return "";
+      if (HUB_LANG === "ar") return layer.titleAr || layer.titleEn || layer.title || "";
+      if (HUB_LANG === "de") return layer.titleDe || layer.title || layer.titleEn || "";
+      return layer.titleEn || layer.title || layer.titleAr || "";
+    }
+
+    function itemLabel(it) {
+      if (!it) return "";
+      if (HUB_LANG === "ar") return it.labelAr || it.labelEn || it.label || "";
+      if (HUB_LANG === "de") return it.labelDe || it.labelEn || it.label || "";
+      return it.labelEn || it.label || it.labelAr || "";
+    }
+
+    function itemNote(it) {
+      if (!it) return "";
+      const notes = it.noteI18n;
+      if (notes && typeof notes === "object") {
+        return notes[HUB_LANG] || notes.en || notes.de || notes.ar || "";
+      }
+      const note = String(it.note || "").trim();
+      if (!note) return "";
+      if (HUB_LANG === "ar") return note;
+      if (/[\u0600-\u06FF]/.test(note)) return "";
+      return note;
+    }
+
+    let lastCaps = null;
+    let lastAiSt = null;
+    let hubPreviewMode = false;
+
+    function refreshMaturityAndAiStatus() {
+      const m = document.getElementById("maturity");
+      if (m) {
+        if (lastCaps) {
+          const redisYes = t("redisYes");
+          const redisNo = t("redisNo");
+          m.textContent = `${t("maturity")}: ${lastCaps.maturityLevel || "—"} (${lastCaps.maturityScore ?? "—"}%) · DB: ${lastCaps.dataLayer?.runtime || "—"} · Redis: ${lastCaps.dataLayer?.redisConfigured ? redisYes : redisNo}`;
+        } else if (hubPreviewMode) {
+          m.textContent = t("previewMaturity");
+        }
+      }
+      const aiLine = hubPreviewMode
+        ? t("aiPreview")
+        : (lastAiSt?.configWarning
+          ? lastAiSt.configWarning
+          : (lastAiSt?.configured ? `${t("aiOn")}${lastAiSt.model ? ` (${lastAiSt.model})` : ""}` : t("aiOff")));
+      const aiStatus = document.getElementById("aiStatus");
+      if (aiStatus) aiStatus.textContent = aiLine;
+    }
+
+    function refreshHubDynamicContent() {
+      if (!catalog) return;
+      renderPlanBanner(catalog);
+      renderStats(catalog.stats, catalog.surfaceLabels);
+      renderMonatsplanHero();
+      renderHubQuickNav();
+      renderLayers();
+      updateEmbedLayersHint();
+      loadRolePlaybook(hubPreviewMode).catch(() => {});
+      if (!hubPreviewMode) loadAiPrompts().catch(() => {});
+      refreshMaturityAndAiStatus();
     }
     const PLAN_LABELS = {
       de: { tageskarte: "Tageskarte", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
@@ -862,11 +967,6 @@
       if (HUB_LANG === "ar") return row.ar || surface;
       if (HUB_LANG === "en") return row.en || row.label || surface;
       return row.de || row.label || row.en || surface;
-    }
-
-    function itemLabel(it) {
-      if (HUB_LANG === "ar") return it.labelAr || it.label;
-      return it.label || it.labelAr;
     }
 
     function isHubEmbedMode() {
@@ -1027,9 +1127,15 @@
       fp.options[1].value = "enabled";
       fp.options[0].value = "all";
       document.getElementById("openAllLabel").textContent = t("openAll");
-      document.querySelector(".ai-panel h2").textContent = t("aiTitle");
+      const aiPanelTitle = document.getElementById("aiPanelTitle") || document.querySelector(".ai-panel h2");
+      if (aiPanelTitle) aiPanelTitle.textContent = t("aiTitle");
       document.getElementById("aiQuestion").placeholder = t("aiPh");
-      document.querySelector("#aiForm button").textContent = t("aiSend");
+      const legacySend = document.querySelector("#aiForm .ai-form-legacy-send");
+      if (legacySend) legacySend.textContent = t("aiSend");
+      const voiceBtn = document.getElementById("aiVoiceBtn");
+      if (voiceBtn) voiceBtn.setAttribute("aria-label", t("aiVoice"));
+      const sendBtn = document.getElementById("aiSendBtn");
+      if (sendBtn) sendBtn.setAttribute("aria-label", t("aiSend"));
       const briefingBtn = document.getElementById("aiBriefingBtn");
       if (briefingBtn) briefingBtn.textContent = t("aiBriefing");
       const centerLink = document.getElementById("aiCenterLink");
@@ -1051,9 +1157,13 @@
       if (hubLangLabel) hubLangLabel.textContent = t("hubLang");
       const hubLangSelect = document.getElementById("hubLangSelect");
       if (hubLangSelect) hubLangSelect.value = HUB_LANG;
-      renderHubQuickNav();
       const prev = document.getElementById("previewNote");
-      if (prev) prev.querySelector("strong").textContent = t("previewStrong");
+      if (prev) prev.innerHTML = t("previewNoteHtml");
+      const authErr = document.getElementById("authErr");
+      if (authErr) authErr.innerHTML = t("authErrHtml");
+      const capClose = document.getElementById("capDetailClose");
+      if (capClose) capClose.setAttribute("aria-label", t("btnClose"));
+      renderHubQuickNav();
     }
 
     function roleDashboardUrl() {
@@ -1119,8 +1229,6 @@
         el.innerHTML = "";
       }
     }
-
-    let hubPreviewMode = false;
 
     async function hubHasSession() {
       if (currentUserRole) return true;
@@ -1337,7 +1445,10 @@
       if (filterEntitlement === "enabled" && !it.enabled) return false;
       if (filterEntitlement === "locked" && it.enabled) return false;
       if (!q) return true;
-      const hay = (it.label + " " + it.labelAr + " " + (it.note || "") + " " + (it.apis || []).join(" ")).toLowerCase();
+      const hay = (
+        itemLabel(it) + " " + (it.labelAr || "") + " " + (it.labelDe || "") + " " + (it.labelEn || "") + " " +
+        itemNote(it) + " " + (it.apis || []).join(" ")
+      ).toLowerCase();
       return hay.includes(q);
     }
 
@@ -1431,9 +1542,13 @@
       if (!it || !panel) return;
       const locked = it.enabled === false;
       document.getElementById("capDetailTitle").textContent = itemLabel(it);
-      document.getElementById("capDetailSub").textContent =
-        HUB_LANG === "ar" ? it.label : (it.labelAr || it.label || "");
-      document.getElementById("capDetailNote").textContent = it.note || "";
+      const subEl = document.getElementById("capDetailSub");
+      const noteText = itemNote(it);
+      if (subEl) {
+        subEl.textContent = noteText;
+        subEl.classList.toggle("hidden", !noteText);
+      }
+      document.getElementById("capDetailNote").textContent = "";
       const actions = document.getElementById("capDetailActions");
       actions.innerHTML = "";
       if (locked) {
@@ -1443,12 +1558,7 @@
         actions.appendChild(p);
         const hint = document.createElement("p");
         hint.className = "muted small";
-        hint.textContent =
-          HUB_LANG === "ar"
-            ? "تواصل مع المسؤول لترقية الباقة."
-            : HUB_LANG === "en"
-              ? "Contact your admin to upgrade the plan."
-              : "Bitte Admin kontaktieren für Tarif-Upgrade (Professional / Enterprise).";
+        hint.textContent = t("capUpgradeHint");
         actions.appendChild(hint);
         const minPlan = String(it.minPlan || "professional").toLowerCase();
         if (hubCanSelfServeCheckout() && (minPlan === "professional" || minPlan === "enterprise")) {
@@ -1498,7 +1608,7 @@
             const data = await api(apiPath.split(" ").pop() || apiPath);
             alert(JSON.stringify(data, null, 2).slice(0, 1200));
           } catch (e) {
-            alert("API: " + e.message);
+            alert(`${t("apiErrorPrefix")}: ${e.message}`);
           }
         });
         actions.appendChild(tryBtn);
@@ -1521,8 +1631,7 @@
             <div class="layer-head">
               <div>
                 <span class="layer-num">#${layer.number}</span>
-                <strong>${layer.titleAr}</strong>
-                <div style="font-size:0.75rem;color:var(--muted)">${layer.title}</div>
+                <strong>${layerTitle(layer)}</strong>
               </div>
               <span>${items.filter(i => i.enabled).length}/${items.length} ${t("layerEnabled")}</span>
             </div>
@@ -1563,19 +1672,17 @@
           ? `<a href="${uiHref}" data-hub-ui="${it.ui}">${t("openUi")}</a>`
           : `<a href="${uiHref}" target="_blank" rel="noopener">${t("openUi")}</a>`;
       }
-      const note = it.note ? `<div class="ar">${it.note}</div>` : "";
+      const noteHtml = itemNote(it) ? `<div class="ar">${itemNote(it)}</div>` : "";
       const planTag = `<span class="plan-badge badge" style="background:#6366f122;color:#a5b4fc">${planLabel(it.minPlan)}+</span>`;
       const state = locked
         ? `<span class="locked-badge badge">🔒 ${t("capUpgrade")} ${planLabel(it.minPlan)}</span>`
         : `<span class="enabled-badge badge">${t("capAvailable")}</span>`;
-      const secondary = HUB_LANG === "ar" ? it.label : (it.labelAr || "");
       return `
         <div class="cap ${locked ? "locked" : ""}" data-item-id="${it.id}" data-cap-enabled="${locked ? "0" : "1"}">
           <h4>${itemLabel(it)}</h4>
-          <div class="ar">${secondary}</div>
           ${planTag}${state}
           <span class="badge" style="background:${color}22;color:${color}">${lab}</span>
-          ${note}
+          ${noteHtml}
           <div class="cap-actions">${ui}${apis}</div>
         </div>`;
     }
@@ -1637,6 +1744,8 @@
         ]);
         catalog = cat;
         hubBilling = cat.billing || { stripeConfigured: false, selfServeCheckout: false };
+        lastCaps = caps;
+        lastAiSt = aiSt;
         document.getElementById("authErr").classList.add("hidden");
         document.getElementById("mainLayout").classList.remove("hidden");
         document.getElementById("previewNote").classList.toggle("hidden", !isPreview);
@@ -1648,20 +1757,7 @@
         renderLayers();
         updateEmbedLayersHint();
         wireHubEmbedNav();
-        const m = document.getElementById("maturity");
-        if (caps) {
-          const redisYes = t("redisYes");
-          const redisNo = t("redisNo");
-          m.textContent = `${t("maturity")}: ${caps.maturityLevel || "—"} (${caps.maturityScore ?? "—"}%) · DB: ${caps.dataLayer?.runtime || "—"} · Redis: ${caps.dataLayer?.redisConfigured ? redisYes : redisNo}`;
-        } else if (isPreview) {
-          m.textContent = t("previewMaturity");
-        }
-        const aiLine = isPreview
-          ? t("aiPreview")
-          : (aiSt.configWarning
-            ? aiSt.configWarning
-            : (aiSt.configured ? `${t("aiOn")}${aiSt.model ? ` (${aiSt.model})` : ""}` : t("aiOff")));
-        document.getElementById("aiStatus").textContent = aiLine;
+        refreshMaturityAndAiStatus();
         if (!isPreview && !aiSt.configured) {
           appendAi("system", t("aiAddKey"));
         }
@@ -1880,7 +1976,7 @@
         const data = await api(path);
         alert(JSON.stringify(data, null, 2).slice(0, 1200));
       } catch (e) {
-        alert("API: " + e.message);
+        alert(`${t("apiErrorPrefix")}: ${e.message}`);
       }
     });
     document.getElementById("capDetailClose")?.addEventListener("click", closeCapDetail);

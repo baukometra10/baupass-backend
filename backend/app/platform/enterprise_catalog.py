@@ -331,7 +331,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             stats["total"] += 1
             stats[it["surface"]] = stats.get(it["surface"], 0) + 1
 
-    return {
+    catalog = {
         "product": "BauPass Enterprise Platform",
         "layerCount": len(layers),
         "surfaceLabels": _SURFACE_LABELS,
@@ -345,3 +345,6 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "workerJoin": "/join.html",
         },
     }
+    from .enterprise_catalog_i18n import enrich_catalog_i18n
+
+    return enrich_catalog_i18n(catalog)

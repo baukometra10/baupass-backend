@@ -16692,7 +16692,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260609voice");
+    params.push("v=20260609hubi18n");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
@@ -32244,6 +32244,11 @@ function applyDeepLinkViewFromUrl() {
 
 window.addEventListener("message", (event) => {
   if (!event?.data || event.origin !== window.location.origin) {
+    return;
+  }
+  if (event.data.type === "baupass-embed-set-lang") {
+    const lang = String(event.data.lang || "").trim().slice(0, 2);
+    if (lang) setUiLang(lang);
     return;
   }
   if (event.data.type === "baupass-require-login") {
