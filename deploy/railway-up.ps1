@@ -20,7 +20,7 @@ node "$Root\scripts\sync-signotec-vendor.js"
 if (Test-Path "$Root\vendor\signotec\STPadServerLib.js") {
     Write-Host "  STPadServerLib.js ready for deploy." -ForegroundColor Green
 } else {
-    Write-Host "  STPadServerLib.js not found locally — set BAUPASS_SIGNOTEC_LIB_BASE64 on Railway if needed." -ForegroundColor Yellow
+    Write-Host "  STPadServerLib.js not found locally - set BAUPASS_SIGNOTEC_LIB_BASE64 on Railway if needed." -ForegroundColor Yellow
 }
 
 if ($ServiceId) {
