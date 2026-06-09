@@ -68,7 +68,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260605layout1" />
-    <link rel="stylesheet" href="./styles.css?v=20260606topbar1" />
+    <link rel="stylesheet" href="./styles.css?v=20260609worker2" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260605options1" />
@@ -594,9 +594,11 @@
               </label>
               <label class="field-with-inline-action">
                 <span data-ui-i18n="labelSite">Standort</span>
-                <span class="input-inline-action-wrap">
+                <span class="input-with-embedded-action">
                   <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
-                  <button type="button" id="siteGeoLocateBtn" class="input-inline-action-btn" title="GPS-Standort übernehmen" aria-label="GPS-Standort übernehmen" data-ui-i18n="siteGeoLocateBtn">📍</button>
+                  <button type="button" id="siteGeoLocateBtn" class="input-embedded-action-btn" title="GPS-Standort übernehmen" aria-label="GPS-Standort übernehmen">
+                    <svg class="input-embedded-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+                  </button>
                 </span>
                 <small class="field-hint" data-ui-i18n="siteFieldHint">Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt</small>
               </label>
@@ -2249,9 +2251,9 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260609csrf"></script>
-  <script src="./signature-pad-bridge.js?v=20260609worker1" defer></script>
-  <script src="./signature-pad-providers.js?v=20260609worker1" defer></script>
-  <script src="./app.js?v=20260609worker1"></script>
+  <script src="./signature-pad-bridge.js?v=20260609worker2" defer></script>
+  <script src="./signature-pad-providers.js?v=20260609worker2" defer></script>
+  <script src="./app.js?v=20260609worker2"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

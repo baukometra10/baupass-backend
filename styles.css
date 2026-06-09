@@ -2361,23 +2361,65 @@ select:focus {
   display: contents;
 }
 
-.input-inline-action-wrap {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
+.input-with-embedded-action {
+  position: relative;
+  display: block;
+  width: 100%;
 }
 
-.input-inline-action-wrap input {
-  flex: 1 1 auto;
-  min-width: 0;
+.input-with-embedded-action > input {
+  width: 100%;
+  padding-right: 34px;
 }
 
-.input-inline-action-btn {
-  flex: 0 0 auto;
-  min-width: 42px;
-  padding: 0 10px;
-  font-size: 1.05rem;
-  line-height: 1;
+.input-embedded-action-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent, #2563eb) 12%, transparent);
+  color: var(--accent, #2563eb);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.input-embedded-action-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent, #2563eb) 20%, transparent);
+}
+
+.input-embedded-action-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.94);
+}
+
+.input-embedded-action-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.input-embedded-action-icon {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+  pointer-events: none;
+}
+
+.input-embedded-action-btn.is-loading .input-embedded-action-icon {
+  animation: site-geo-spin 0.85s linear infinite;
+}
+
+@keyframes site-geo-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .visitor-duration-row {

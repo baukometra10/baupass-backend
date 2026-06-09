@@ -116,6 +116,8 @@
 
   const signotecState = { wsConnected: false, padOpen: false, activeCapture: null };
 
+  const SIGNOTEC_LIB_CACHE_KEY = "baupass-signotec-stpad-lib-v1";
+
 
 
   function signotecLibsReady() {
@@ -134,15 +136,113 @@
 
 
 
+  function signotecInjectScriptSource(code, key) {
+
+    const attr = `data-baupass-vendor-signotec-${key}`;
+
+    if (global.document?.querySelector(`script[${attr}]`)) {
+
+      return signotecLibsReady();
+
+    }
+
+    const script = global.document.createElement("script");
+
+    script.textContent = code;
+
+    script.setAttribute(attr, "1");
+
+    script.dataset.loaded = "1";
+
+    global.document.head.appendChild(script);
+
+    return signotecLibsReady();
+
+  }
+
+
+
+  function signotecCacheLib(code) {
+
+    try {
+
+      if (code && code.includes("STPadServerLibCommons")) {
+
+        global.localStorage?.setItem(SIGNOTEC_LIB_CACHE_KEY, code);
+
+      }
+
+    } catch {
+
+      // ignore quota / private mode
+
+    }
+
+  }
+
+
+
+  function signotecLoadFromCache() {
+
+    try {
+
+      const code = global.localStorage?.getItem(SIGNOTEC_LIB_CACHE_KEY);
+
+      if (!code || !code.includes("STPadServerLibCommons")) return false;
+
+      return signotecInjectScriptSource(code, "cache");
+
+    } catch {
+
+      return false;
+
+    }
+
+  }
+
+
+
+  async function signotecFetchAndInject(url, key) {
+
+    try {
+
+      const res = await fetch(url, { credentials: "omit", mode: "cors" });
+
+      if (!res.ok) return false;
+
+      const code = await res.text();
+
+      if (!code || !code.includes("STPadServerLibCommons")) return false;
+
+      signotecInjectScriptSource(code, key);
+
+      signotecCacheLib(code);
+
+      return signotecLibsReady();
+
+    } catch {
+
+      return false;
+
+    }
+
+  }
+
+
+
   async function signotecLoadLib() {
 
     if (signotecLibsReady()) return true;
+
+    if (signotecLoadFromCache()) return true;
 
     const sources = [
 
       "./vendor/signotec/STPadServerLib.js",
 
       "/vendor/signotec/STPadServerLib.js",
+
+      "/api/signotec/lib.js",
 
       "https://local.signotecwebsocket.de:49494/STPadServerLib.js",
 
@@ -154,9 +254,41 @@
 
     for (let i = 0; i < sources.length; i += 1) {
 
-      const ok = await loadScriptOnce(sources[i], `signotec-${i}`);
+      const src = sources[i];
 
-      if (ok && signotecLibsReady()) return true;
+      if (/^https:\/\/(localhost|127\.0\.0\.1|local\.signotecwebsocket\.de)(:|\/)/i.test(src)) {
+
+        const fetched = await signotecFetchAndInject(src, `local-${i}`);
+
+        if (fetched) return true;
+
+      }
+
+      const ok = await loadScriptOnce(src, `signotec-${i}`);
+
+      if (ok && signotecLibsReady()) {
+
+        try {
+
+          const res = await fetch(src, { credentials: "omit" });
+
+          if (res.ok) {
+
+            const code = await res.text();
+
+            signotecCacheLib(code);
+
+          }
+
+        } catch {
+
+          // ignore cache write failures
+
+        }
+
+        return true;
+
+      }
 
     }
 
@@ -1925,9 +2057,29 @@
 
 
 
+  if (global.document) {
+
+    const preloadSignotec = () => { void signotecLoadLib(); };
+
+    if (global.document.readyState === "loading") {
+
+      global.document.addEventListener("DOMContentLoaded", preloadSignotec, { once: true });
+
+    } else {
+
+      preloadSignotec();
+
+    }
+
+  }
+
+
+
   global.BaupassSignotec = {
 
     isAvailable: signotecLibsReady,
+
+    loadLib: signotecLoadLib,
 
     captureSignature: signotecCapture,
 

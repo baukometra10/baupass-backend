@@ -715,7 +715,7 @@ const UI_TRANSLATIONS = {
     signatureEmpty: "Keine Unterschrift erkannt — bitte erneut unterschreiben.",
     signaturePadNoneAvailable: "Kein Signatur-Bridge gefunden — direkt in der weißen Fläche unterschreiben (jeder USB-Stift).",
     signatureUseCanvas: "Unterschreiben Sie in der weißen Fläche — USB-Signaturpads funktionieren ohne Extra-Software.",
-    signatureSignotecLibMissing: "Signotec: STPadServerLib.js fehlt — von signoPAD-API/Web nach vendor/signotec/ kopieren und Seite neu laden.",
+    signatureSignotecLibMissing: "Signotec: STPadServerLib.js fehlt auf dem Server. Einmalig npm run vendor:signotec ausführen (signoPAD-API/Web) oder BAUPASS_SIGNOTEC_LIB_BASE64 setzen — danach Seite neu laden.",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web läuft nicht auf diesem PC (Port 49494). Software starten, Pad per USB verbinden.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
     signatureProviderSignotec: "Signotec",
@@ -1763,7 +1763,7 @@ const UI_TRANSLATIONS = {
     signatureEmpty: "No signature detected — please sign again.",
     signaturePadNoneAvailable: "No signature bridge found — sign in the white area (any USB pen works).",
     signatureUseCanvas: "Sign in the white area — USB signature pads work without extra software.",
-    signatureSignotecLibMissing: "Signotec: STPadServerLib.js is missing — copy it from signoPAD-API/Web to vendor/signotec/ and reload.",
+    signatureSignotecLibMissing: "Signotec: STPadServerLib.js is missing on the server. Run npm run vendor:signotec once (with signoPAD-API/Web) or set BAUPASS_SIGNOTEC_LIB_BASE64, then reload.",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web is not running on this PC (port 49494). Start the service and connect the pad via USB.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
     signatureProviderSignotec: "Signotec",
@@ -3862,7 +3862,7 @@ const UI_TRANSLATIONS = {
     signatureEmpty: "لم يُكتشف توقيع — يرجى التوقيع مرة أخرى.",
     signaturePadNoneAvailable: "لم يُعثر على جسر توقيع — وقّع في المساحة البيضاء (أي قلم USB يعمل).",
     signatureUseCanvas: "وقّع في المساحة البيضاء — أجهزة USB تعمل بدون برنامج إضافي.",
-    signatureSignotecLibMissing: "Signotec: ملف STPadServerLib.js غير موجود — انسخه من signoPAD-API/Web إلى vendor/signotec/ ثم أعد تحميل الصفحة.",
+    signatureSignotecLibMissing: "Signotec: ملف STPadServerLib.js غير موجود على السيرفر. شغّل npm run vendor:signotec مرة واحدة (مع signoPAD-API/Web) أو اضبط BAUPASS_SIGNOTEC_LIB_BASE64 ثم أعد التحميل.",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web غير شغّال على هذا الجهاز (منفذ 49494). شغّل البرنامج ووصّل الجهاز عبر USB.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
     signatureProviderSignotec: "Signotec",
@@ -16100,7 +16100,10 @@ async function fillSiteFromCurrentLocation() {
     showToast(uiT("siteGeoLocateFailed"), "error", 5000);
     return;
   }
-  if (btn) btn.disabled = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+  }
   showToast(uiT("siteGeoLocating"), "info", 2500);
   try {
     const position = await new Promise((resolve, reject) => {
@@ -16129,7 +16132,10 @@ async function fillSiteFromCurrentLocation() {
       showToast(uiT("siteGeoLocateFailed"), "error", 5000);
     }
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("is-loading");
+    }
   }
 }
 

@@ -10731,6 +10731,35 @@ def _geocode_site_address(site_label):
 _reverse_geocode_cache: dict[str, str | None] = {}
 
 
+def _format_reverse_geocode_street_address(address):
+    if not isinstance(address, dict):
+        return ""
+    road = str(
+        address.get("road")
+        or address.get("pedestrian")
+        or address.get("footway")
+        or address.get("street")
+        or address.get("residential")
+        or ""
+    ).strip()
+    house_number = str(address.get("house_number") or "").strip()
+    postcode = str(address.get("postcode") or "").strip()
+    city = str(
+        address.get("city")
+        or address.get("town")
+        or address.get("village")
+        or address.get("municipality")
+        or address.get("borough")
+        or address.get("suburb")
+        or ""
+    ).strip()
+    street_line = f"{road} {house_number}".strip() if road else ""
+    city_line = " ".join(part for part in (postcode, city) if part).strip()
+    if street_line and city_line:
+        return f"{street_line}, {city_line}"
+    return street_line or city_line
+
+
 def _reverse_geocode_coordinates(latitude, longitude):
     lat = _normalize_float(latitude)
     lon = _normalize_float(longitude)
@@ -10740,33 +10769,31 @@ def _reverse_geocode_coordinates(latitude, longitude):
     if cache_key in _reverse_geocode_cache:
         return _reverse_geocode_cache[cache_key]
 
-    geocode_url = (
-        f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}&zoom=18&addressdetails=1"
-    )
-    request_obj = Request(
-        geocode_url,
-        headers={
-            "User-Agent": "BauPass Control/1.0 (worker geofence)",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urlopen(request_obj, timeout=5) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+    headers = {
+        "User-Agent": "BauPass Control/1.0 (worker geofence)",
+        "Accept": "application/json",
+    }
+    payloads = []
+    for layer_suffix in ("&layer=address", ""):
+        geocode_url = (
+            f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}"
+            f"&zoom=18&addressdetails=1{layer_suffix}"
+        )
+        try:
+            with urlopen(Request(geocode_url, headers=headers), timeout=5) as response:
+                payloads.append(json.loads(response.read().decode("utf-8")))
+        except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+            continue
+    if not payloads:
         _reverse_geocode_cache[cache_key] = None
         return None
 
-    label = str(payload.get("display_name") or "").strip()
-    if not label:
+    label = ""
+    for payload in payloads:
         address = payload.get("address") if isinstance(payload.get("address"), dict) else {}
-        parts = [
-            str(address.get("road") or "").strip(),
-            str(address.get("house_number") or "").strip(),
-            str(address.get("postcode") or "").strip(),
-            str(address.get("city") or address.get("town") or address.get("village") or "").strip(),
-        ]
-        label = ", ".join(part for part in parts if part)
+        label = _format_reverse_geocode_street_address(address)
+        if label:
+            break
     _reverse_geocode_cache[cache_key] = label or None
     return _reverse_geocode_cache[cache_key]
 
@@ -23479,21 +23506,42 @@ def worker_icon_png(icon_size: int):
     return response
 
 
+def _signotec_lib_bytes():
+    target = BASE_DIR / "vendor" / "signotec" / "STPadServerLib.js"
+    if target.exists() and target.is_file():
+        try:
+            return target.read_bytes()
+        except OSError:
+            pass
+    b64 = str(os.getenv("BAUPASS_SIGNOTEC_LIB_BASE64", "") or "").strip()
+    if b64:
+        try:
+            return base64.b64decode(b64)
+        except Exception:
+            pass
+    return None
+
+
+def signotec_lib_script():
+    data = _signotec_lib_bytes()
+    if not data:
+        return jsonify({"error": "signotec_lib_missing"}), 404
+    response = Response(data, mimetype="application/javascript")
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
 def static_proxy(path):
     target = BASE_DIR / path
     if target.exists() and target.is_file():
         return send_from_directory(BASE_DIR, path)
     normalized = str(path or "").replace("\\", "/")
     if normalized == "vendor/signotec/STPadServerLib.js":
-        b64 = str(os.getenv("BAUPASS_SIGNOTEC_LIB_BASE64", "") or "").strip()
-        if b64:
-            try:
-                data = base64.b64decode(b64)
-                response = Response(data, mimetype="application/javascript")
-                response.headers["Cache-Control"] = "public, max-age=3600"
-                return response
-            except Exception:
-                pass
+        data = _signotec_lib_bytes()
+        if data:
+            response = Response(data, mimetype="application/javascript")
+            response.headers["Cache-Control"] = "public, max-age=86400"
+            return response
     return jsonify({"error": "not_found"}), 404
 
 
@@ -25106,6 +25154,7 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/subcompanies", list_subcompanies, ("GET",), "core_subcompanies_list")
     _patch_api_route("/api/subcompanies", create_subcompany, ("POST",), "core_subcompanies_create")
     _patch_api_route("/api/geocode/reverse", reverse_geocode_coordinates, ("GET",), "core_geocode_reverse")
+    _patch_api_route("/api/signotec/lib.js", signotec_lib_script, ("GET",), "core_signotec_lib")
     _patch_api_route("/api/invoices", list_invoices, ("GET",), "core_invoices_list")
     _patch_api_route("/api/access-logs", list_access_logs, ("GET",), "core_access_logs_list")
     _patch_api_route("/api/access-logs/latest", list_latest_access_logs, ("GET",), "core_access_logs_latest")
