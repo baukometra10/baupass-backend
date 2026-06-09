@@ -2,100 +2,10 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BauPass — Signotec PC-Einrichtung</title>
-  <style>
-    :root { --bg:#0d131a; --card:#151d27; --text:#e8eef5; --muted:#9fb0c3; --accent:#ff7a00; --ok:#22c55e; --bad:#ef4444; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: "Segoe UI", Tahoma, sans-serif; background:var(--bg); color:var(--text); line-height:1.55; }
-    .wrap { max-width: 820px; margin: 0 auto; padding: 28px 18px 48px; }
-    h1 { font-size: 1.55rem; margin: 0 0 8px; }
-    h2 { font-size: 1.1rem; margin: 24px 0 10px; color: var(--accent); }
-    .card { background: var(--card); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 18px; margin: 14px 0; }
-    .alert { border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
-    .ok { border-color: rgba(34,197,94,.4); background: rgba(34,197,94,.08); }
-    p, li { color: var(--muted); }
-    strong { color: var(--text); }
-    a.btn { display:inline-block; margin: 8px 8px 0 0; padding: 11px 16px; border-radius: 10px; background: var(--accent); color:#111; text-decoration:none; font-weight:700; }
-    a.btn.ghost { background: transparent; color: var(--text); border: 1px solid rgba(255,255,255,.2); }
-    code { background: rgba(0,0,0,.35); padding: 2px 6px; border-radius: 6px; color: #fff; }
-    .ar { direction: rtl; text-align: right; border-top: 1px dashed rgba(255,255,255,.12); margin-top: 18px; padding-top: 14px; }
-  </style>
+  <meta http-equiv="refresh" content="0; url=/signotec-setup.html" />
+  <title>Redirect…</title>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Signotec — Einrichtung auf diesem Windows-PC</h1>
-    <p>BauPass Control · Port <code>49494</code> · nur lokal auf diesem Rechner</p>
-
-    <div class="card alert">
-      <strong>Wichtig:</strong> Ihr BauPass-Login (Admin, Firma „Halul Ateada“, usw.) hat <strong>keinen Einfluss</strong> auf Signotec.
-      Der Fehler in Firefox bedeutet: Auf <strong>diesem PC</strong> läuft <code>STPadServer</code> nicht — nicht auf dem BauPass-Server.
-    </div>
-
-    <div class="card">
-      <h2>Schnelltest</h2>
-      <p>Öffnen Sie in Firefox: <a href="https://localhost:49494/" target="_blank" rel="noopener"><code>https://localhost:49494</code></a></p>
-      <ul>
-        <li><strong>Seite lädt nicht / Verbindung fehlgeschlagen</strong> → Signotec ist nicht installiert oder nicht gestartet (Schritte unten).</li>
-        <li><strong>Sicherheitswarnung</strong> → Erweitert → Risiko akzeptieren → dann BauPass neu laden.</li>
-        <li><strong>Seite von Signotec sichtbar</strong> → Bridge läuft. Zurück zu BauPass → Signaturgerät testen.</li>
-      </ul>
-    </div>
-
-    <div class="card ok">
-      <h2>Methode A — vom funktionierenden PC (empfohlen)</h2>
-      <ol>
-        <li>Auf dem <strong>PC, wo Signotec schon funktioniert</strong>: USB-Stick einstecken.</li>
-        <li>Installer kopieren von:<br />
-          <code>C:\Users\…\Downloads\signotec_signoPAD-API_Web_3.5.0.exe</code><br />
-          oder herunterladen:
-          <a class="btn ghost" href="/api/signotec/installer">Installer (45 MB)</a>
-        </li>
-        <li>Auch diese Datei auf den Stick kopieren:
-          <a class="btn ghost" href="/vendor/signotec/baupass-stpadserver-start.bat">STPadServer starten.bat</a>
-        </li>
-        <li>Stick an <strong>PC 2</strong> → Installer <strong>doppelklicken</strong> → Assistent durchklicken → bei Zertifikat: <strong>Localhost</strong> wählen.</li>
-        <li>Nach Installation: <code>baupass-stpadserver-start.bat</code> doppelklicken.</li>
-        <li>Firefox: <code>https://localhost:49494</code> → Zertifikat bestätigen → BauPass <code>Strg+Shift+R</code>.</li>
-      </ol>
-    </div>
-
-    <div class="card">
-      <h2>Methode B — nur auf PC 2 (Internet)</h2>
-      <ol>
-        <li>
-          <a class="btn" href="/api/signotec/installer">1. Signotec-Installer herunterladen</a>
-        </li>
-        <li>Datei <strong>doppelklicken</strong> (nicht nur in BauPass klicken). Assistent: <strong>Localhost</strong> wählen.</li>
-        <li>
-          <a class="btn" href="/api/signotec/setup-helper.bat">2. Setup.bat</a>
-          Rechtsklick → <strong>Als Administrator ausführen</strong>
-        </li>
-        <li>
-          <a class="btn ghost" href="/api/signotec/start-bridge.bat">3. Bridge starten.bat</a> (falls nötig)
-        </li>
-        <li>Firefox-Zertifikat → BauPass neu laden.</li>
-      </ol>
-    </div>
-
-    <div class="card">
-      <h2>Notlösung ohne Signotec</h2>
-      <p>In BauPass können Sie die Unterschrift direkt in der <strong>weißen Fläche</strong> mit Maus oder USB-Stift erfassen — ohne Signotec-Gerät.</p>
-      <a class="btn ghost" href="/index.html">Zurück zu BauPass</a>
-    </div>
-
-    <div class="card ar">
-      <h2>بالعربية</h2>
-      <p><strong>تسجيل الدخول</strong> (مسؤول أو شركة حلول عدة) <strong>لا يغيّر شيئاً</strong>. المشكلة برنامج محلي على هذا الكمبيوتر فقط.</p>
-      <ol>
-        <li>من الكمبيوتر <strong>الذي يعمل</strong>: انسخ مثبت Signotec على فلاش USB.</li>
-        <li>على الكمبيوتر الثاني: ثبّت من الفلاش (اختر <strong>Localhost</strong>).</li>
-        <li>شغّل <code>baupass-stpadserver-start.bat</code>.</li>
-        <li>افتح <code>https://localhost:49494</code> في Firefox واقبل الشهادة.</li>
-        <li>حدّث BauPass بـ Ctrl+Shift+R.</li>
-      </ol>
-      <p>بدون جهاز: وقّع في المساحة البيضاء داخل BauPass.</p>
-    </div>
-  </div>
+  <p><a href="/signotec-setup.html">Signotec Setup</a></p>
 </body>
 </html>

@@ -118,6 +118,13 @@ def register_platform_blueprints(flask_app: Flask) -> None:
         ).register_sso_catalog_routes(flask_app),
     )
     _step(
+        "signotec",
+        lambda: __import__(
+            "backend.app.platform.signotec.routes",
+            fromlist=["register_signotec_blueprint"],
+        ).register_signotec_blueprint(flask_app),
+    )
+    _step(
         "sector",
         lambda: __import__(
             "backend.app.platform.sector.routes",

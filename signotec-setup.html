@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BauPass — Signotec Setup</title>
+  <style>
+    :root { --bg:#0b1118; --card:#141c26; --text:#eef4fb; --muted:#9aadc2; --accent:#ff7a00; --line:rgba(255,255,255,.1); }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
+    .lang { display:flex; gap:8px; margin-bottom:20px; }
+    .lang button { flex:1; padding:10px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--muted); font-weight:600; cursor:pointer; }
+    .lang button.active { background:rgba(255,122,0,.15); border-color:rgba(255,122,0,.5); color:var(--text); }
+    .panel { display:none; }
+    .panel.active { display:block; }
+    h1 { margin:0 0 6px; font-size:1.45rem; }
+    .sub { color:var(--muted); margin:0 0 18px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin:14px 0; }
+    .steps { margin:0; padding-left:1.2rem; }
+    .steps li { margin:10px 0; color:var(--muted); }
+    .steps strong { color:var(--text); }
+    .cta { display:block; text-align:center; margin:18px 0 8px; padding:14px 18px; border-radius:12px; background:var(--accent); color:#111; font-weight:800; text-decoration:none; font-size:1.05rem; }
+    .cta:hover { filter:brightness(1.05); }
+    .ghost { display:inline-block; margin-top:10px; color:var(--muted); text-decoration:none; border:1px solid var(--line); padding:8px 12px; border-radius:10px; }
+    code { background:rgba(0,0,0,.35); padding:2px 6px; border-radius:6px; }
+    .note { font-size:.92rem; color:var(--muted); border-left:3px solid var(--accent); padding-left:12px; margin-top:12px; }
+    .ar { direction:rtl; text-align:right; }
+    .ar .steps { padding-right:1.2rem; padding-left:0; }
+    .ar .note { border-left:none; border-right:3px solid var(--accent); padding-right:12px; padding-left:0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="lang">
+      <button type="button" class="active" data-lang="de">Deutsch</button>
+      <button type="button" data-lang="en">English</button>
+      <button type="button" data-lang="ar">العربية</button>
+    </div>
+
+    <section id="panel-de" class="panel active" lang="de">
+      <h1>Signotec — Einmalige Einrichtung</h1>
+      <p class="sub">Nur auf diesem Windows-PC · einmal pro Rechner · USB-Pad anschließen</p>
+      <div class="card">
+        <p class="note">Ihr BauPass-Login (Admin oder Firma) hat <strong>keinen Einfluss</strong>. Signotec läuft lokal auf diesem PC, nicht auf dem Server.</p>
+        <a class="cta" href="/api/signotec/setup.bat" download>1. Setup-Datei herunterladen</a>
+        <ol class="steps">
+          <li><strong>Datei speichern</strong> — <code>baupass-signotec-setup.bat</code> (z.&nbsp;B. Downloads)</li>
+          <li><strong>Rechtsklick</strong> auf die Datei → <strong>Als Administrator ausführen</strong></li>
+          <li>Im Installations-Assistenten <strong>Localhost</strong> wählen (nicht Default) → Installation abschließen</li>
+          <li>Browser öffnet <code>https://localhost:49494</code> → <strong>Erweitert</strong> → <strong>Risiko akzeptieren</strong></li>
+          <li>BauPass neu laden (<code>Strg+Shift+R</code>) → Mitarbeiter → <strong>Signaturgerät</strong></li>
+        </ol>
+        <p class="note">Das Setup lädt Signotec, startet den Dienst, öffnet die Zertifikatsseite und richtet Autostart ein. Log: Desktop <code>baupass-signotec-setup.log</code></p>
+      </div>
+      <a class="ghost" href="/index.html">← Zurück zu BauPass</a>
+    </section>
+
+    <section id="panel-en" class="panel" lang="en">
+      <h1>Signotec — One-time setup</h1>
+      <p class="sub">On this Windows PC only · once per computer · connect USB pad</p>
+      <div class="card">
+        <p class="note">Your BauPass login (admin or company) does <strong>not</strong> affect Signotec. It runs locally on this PC, not on the server.</p>
+        <a class="cta" href="/api/signotec/setup.bat" download>1. Download setup file</a>
+        <ol class="steps">
+          <li><strong>Save the file</strong> — <code>baupass-signotec-setup.bat</code> (e.g. Downloads)</li>
+          <li><strong>Right-click</strong> the file → <strong>Run as administrator</strong></li>
+          <li>In the installer wizard choose <strong>Localhost</strong> (not Default) → finish installation</li>
+          <li>Browser opens <code>https://localhost:49494</code> → <strong>Advanced</strong> → <strong>Accept the risk</strong></li>
+          <li>Reload BauPass (<code>Ctrl+Shift+R</code>) → Workers → <strong>Signature device</strong></li>
+        </ol>
+        <p class="note">Setup downloads Signotec, starts the service, opens the certificate page, and enables autostart. Log: Desktop <code>baupass-signotec-setup.log</code></p>
+      </div>
+      <a class="ghost" href="/index.html">← Back to BauPass</a>
+    </section>
+
+    <section id="panel-ar" class="panel ar" lang="ar">
+      <h1>Signotec — إعداد لمرة واحدة</h1>
+      <p class="sub">على هذا الكمبيوتر Windows فقط · مرة واحدة لكل جهاز · وصّل لوحة USB</p>
+      <div class="card">
+        <p class="note">تسجيل الدخول في BauPass (مسؤول أو شركة) <strong>لا يؤثر</strong>. Signotec يعمل محلياً على هذا الجهاز وليس على السيرفر.</p>
+        <a class="cta" href="/api/signotec/setup.bat" download>1. تحميل ملف الإعداد</a>
+        <ol class="steps">
+          <li><strong>احفظ الملف</strong> — <code>baupass-signotec-setup.bat</code> (مثلاً في التنزيلات)</li>
+          <li><strong>كليك يمين</strong> على الملف → <strong>تشغيل كمسؤول (Run as administrator)</strong></li>
+          <li>في معالج التثبيت اختر <strong>Localhost</strong> (وليس Default) → أكمل التثبيت</li>
+          <li>يفتح المتصفح <code>https://localhost:49494</code> → <strong>متقدم</strong> → <strong>قبول المخاطرة</strong></li>
+          <li>أعد تحميل BauPass (<code>Ctrl+Shift+R</code>) → الموظفون → <strong>جهاز التوقيع</strong></li>
+        </ol>
+        <p class="note">الإعداد يحمّل Signotec ويشغّل الخدمة ويفتح صفحة الشهادة ويُفعّل التشغيل التلقائي. السجل: سطح المكتب <code>baupass-signotec-setup.log</code></p>
+      </div>
+      <a class="ghost" href="/index.html">← العودة إلى BauPass</a>
+    </section>
+  </div>
+  <script>
+    (function () {
+      var buttons = document.querySelectorAll(".lang button");
+      var panels = document.querySelectorAll(".panel");
+      buttons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var lang = btn.getAttribute("data-lang");
+          buttons.forEach(function (b) { b.classList.toggle("active", b === btn); });
+          panels.forEach(function (p) { p.classList.toggle("active", p.id === "panel-" + lang); });
+          document.documentElement.lang = lang === "ar" ? "ar" : lang;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

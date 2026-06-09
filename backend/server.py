@@ -23619,6 +23619,11 @@ pause
     return response
 
 
+def signotec_setup_bat():
+    """Canonical download URL used by signotec-setup.html."""
+    return signotec_setup_helper_bat()
+
+
 def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
@@ -25290,6 +25295,7 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/signotec/installer", signotec_installer_download, ("GET",), "core_signotec_installer")
     _patch_api_route("/api/signotec/setup-helper.ps1", signotec_setup_helper, ("GET",), "core_signotec_setup_helper")
     _patch_api_route("/api/signotec/setup-helper.bat", signotec_setup_helper_bat, ("GET",), "core_signotec_setup_bat")
+    _patch_api_route("/api/signotec/setup.bat", signotec_setup_bat, ("GET",), "core_signotec_setup_bat_canonical")
     _patch_api_route("/api/signotec/start-bridge.bat", signotec_start_bridge_bat, ("GET",), "core_signotec_start_bat")
     _patch_api_route("/api/signotec/check.ps1", signotec_check_helper, ("GET",), "core_signotec_check_ps1")
     _patch_api_route("/api/signotec/check.bat", signotec_check_bat, ("GET",), "core_signotec_check_bat")

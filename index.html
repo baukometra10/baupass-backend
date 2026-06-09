@@ -688,20 +688,16 @@
                   <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
                   <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
                 </div>
-                <p class="helper-text"><a href="/signotec-pc2-setup.html" target="_blank" rel="noopener">Signotec auf diesem PC einrichten (PC 2)</a> — Login in BauPass ist hier irrelevant.</p>
                 <div id="signotecBridgeSetup" class="signotec-bridge-setup hidden" aria-live="polite">
                   <div class="signotec-bridge-setup-head">
-                    <p class="eyebrow">Signaturgerät</p>
-                    <h5>Einmalige Einrichtung auf diesem PC</h5>
-                    <p class="helper-text">Admin- oder Firmen-Login in BauPass ändert nichts. STPadServer muss lokal auf diesem Windows-PC laufen.</p>
+                    <p class="eyebrow" data-ui-i18n="signotecBridgeEyebrow">Signaturgerät</p>
+                    <h5 data-ui-i18n="signotecBridgeTitle">Einmalige Einrichtung auf diesem PC</h5>
+                    <p class="helper-text" data-ui-i18n="signotecBridgeIntro">Signotec läuft lokal auf diesem Windows-PC — nicht auf dem Server. Einmal Setup-Datei herunterladen und als Administrator ausführen.</p>
                   </div>
-                  <p class="helper-text signotec-bridge-status"><a id="signotecBridgePc2Link" href="/signotec-pc2-setup.html" target="_blank" rel="noopener"><strong>Anleitung PC 2 öffnen (USB vom funktionierenden PC)</strong></a></p>
                   <div class="button-row signotec-bridge-actions">
-                    <a class="primary-button" href="/signotec-pc2-setup.html" target="_blank" rel="noopener" style="display:inline-block;text-align:center;text-decoration:none;">PC-2 Anleitung</a>
-                    <button type="button" id="signotecBridgeSetupScriptBtn" class="ghost-button">Setup.bat</button>
-                    <button type="button" id="signotecBridgeDownloadBtn" class="ghost-button">Installer</button>
-                    <button type="button" id="signotecBridgeStartBtn" class="ghost-button">Bridge starten</button>
-                    <button type="button" id="signotecBridgeRetestBtn" class="ghost-button">Prüfen</button>
+                    <button type="button" id="signotecBridgeOpenGuideBtn" class="primary-button" data-ui-i18n="signotecBridgeOpenGuide">Anleitung öffnen (DE / EN / AR)</button>
+                    <button type="button" id="signotecBridgeDownloadBtn" class="ghost-button" data-ui-i18n="signotecBridgeDownload">Setup-Datei herunterladen</button>
+                    <button type="button" id="signotecBridgeRetestBtn" class="ghost-button" data-ui-i18n="signotecBridgeRetest">Verbindung prüfen</button>
                   </div>
                 </div>
               </div>
@@ -2220,7 +2216,7 @@
   <script src="/vendor/signotec/STPadServerLib.js?v=3.5.0"></script>
   <script src="./signature-pad-bridge.js?v=20260609worker15" defer></script>
   <script src="./signature-pad-providers.js?v=20260609worker15" defer></script>
-  <script src="./signotec-bridge-setup.js?v=20260609worker15" defer></script>
+  <script src="./signotec-bridge-setup.js?v=20260601signotec1" defer></script>
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>

@@ -123,11 +123,26 @@ function Wait-SignotecPort {
 }
 
 Clear-Content -Path $LogFile -ErrorAction SilentlyContinue
-Write-Log '=== BauPass Signotec Komplett-Setup ===' Cyan
+Write-Log '=== BauPass Signotec Setup ===' Cyan
 Write-Log "Log: $LogFile"
 
 Ensure-Admin
 Ensure-FirewallRule
+
+$existingExe = Find-STPadServerExe
+if ($existingExe -and (Test-SignotecPort)) {
+    Write-Log 'Signotec bereits installiert und Port 49494 offen.' Green
+    Install-Autostart
+    Start-Process "https://localhost:$Port/"
+    Write-Log 'Fertig. BauPass mit Strg+Shift+R neu laden.' Green
+    pause
+    exit 0
+}
+
+if ($existingExe) {
+    Write-Log 'Signotec installiert — starte Bridge...' Cyan
+    $SkipInstall = $true
+}
 
 if (-not $SkipInstall) {
     $installerUrl = "$BaseUrl/api/signotec/installer"
