@@ -144,15 +144,15 @@
 
   const SIGNOTEC_WS_URLS = [
 
-    "wss://local.signotecwebsocket.de:49494",
-
     "wss://localhost:49494",
 
     "wss://127.0.0.1:49494",
 
+    "wss://local.signotecwebsocket.de:49494",
+
   ];
 
-  const SIGNOTEC_INTERFACE_VERSION = "1.6.0.0";
+  const SIGNOTEC_INTERFACE_VERSION = "3.5.0.0";
 
   const SIGNOTEC_PAD_INDEX = 0;
 
