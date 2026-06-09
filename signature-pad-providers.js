@@ -544,7 +544,7 @@
 
     try {
 
-      const params = new global.STPadServerLibDefault.Params.openPad(SIGNOTEC_PAD_INDEX);
+      const params = new global.STPadServerLibDefault.Params.closePad(SIGNOTEC_PAD_INDEX);
 
       await global.STPadServerLibDefault.closePad(params);
 
@@ -555,6 +555,72 @@
     }
 
     signotecState.padOpen = false;
+
+  }
+
+
+
+  async function signotecResetSession(options = {}) {
+
+    const reconnect = options.reconnect !== false;
+
+    const pending = signotecState.activeCapture;
+
+    signotecState.activeCapture = null;
+
+    if (pending) {
+
+      try {
+
+        pending.reject(new Error("signotec_cancelled"));
+
+      } catch {
+
+        // ignore
+
+      }
+
+    }
+
+    if (!signotecLibsReady()) {
+
+      signotecState.wsConnected = false;
+
+      signotecState.padOpen = false;
+
+      return;
+
+    }
+
+    try {
+
+      await global.STPadServerLibDefault.cancelSignature?.();
+
+    } catch {
+
+      // ignore
+
+    }
+
+    await signotecClosePadQuiet();
+
+    if (reconnect && signotecState.wsConnected) {
+
+      try {
+
+        global.STPadServerLibCommons.destroyConnection?.();
+
+      } catch {
+
+        // ignore
+
+      }
+
+      signotecState.wsConnected = false;
+
+      await sleep(180);
+
+    }
 
   }
 
@@ -663,6 +729,8 @@
   async function signotecCapture(options = {}) {
 
     if (signotecState.activeCapture) throw new Error("signotec_busy");
+
+    await signotecResetSession();
 
     await signotecEnsureConnection();
 
@@ -2181,6 +2249,8 @@
 
     loadLib: signotecLoadLib,
 
+    resetSession: signotecResetSession,
+
     captureSignature: signotecCapture,
 
     probeConnection: async () => {
@@ -2197,21 +2267,7 @@
 
     destroyConnection: () => {
 
-      try {
-
-        global.STPadServerLibCommons?.destroyConnection?.();
-
-      } catch {
-
-        // ignore
-
-      }
-
-      signotecState.wsConnected = false;
-
-      signotecState.padOpen = false;
-
-      signotecState.activeCapture = null;
+      void signotecResetSession({ reconnect: false });
 
     },
 

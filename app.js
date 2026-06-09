@@ -718,6 +718,7 @@ const UI_TRANSLATIONS = {
     signatureSignotecLibMissing: "Signotec-Bibliothek konnte nicht geladen werden. Seite mit Strg+Shift+R neu laden. Prüfen: /vendor/signotec/STPadServerLib.js",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web läuft nicht auf diesem PC (Port 49494). Software starten, Pad per USB verbinden.",
     signatureSignotecWsError: "Signotec-Verbindung fehlgeschlagen. 1) STPadServer starten 2) https://localhost:49494 im Browser öffnen und Zertifikat bestätigen 3) Seite neu laden und erneut versuchen.",
+    signatureSignotecBusy: "Signotec ist noch beschäftigt — kurz warten oder „Unterschrift löschen“ drücken, dann erneut versuchen.",
     signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
     signatureProviderSignotec: "Signotec",
@@ -1768,6 +1769,7 @@ const UI_TRANSLATIONS = {
     signatureSignotecLibMissing: "Signotec library failed to load. Hard-refresh (Ctrl+Shift+R). Check: /vendor/signotec/STPadServerLib.js",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web is not running on this PC (port 49494). Start the service and connect the pad via USB.",
     signatureSignotecWsError: "Signotec connection failed. 1) Start STPadServer 2) Open https://localhost:49494 and accept the certificate 3) Reload and try again.",
+    signatureSignotecBusy: "Signotec is still busy — wait a moment or clear the signature, then try again.",
     signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
     signatureProviderSignotec: "Signotec",
@@ -3869,6 +3871,7 @@ const UI_TRANSLATIONS = {
     signatureSignotecLibMissing: "تعذر تحميل مكتبة Signotec. حدّث الصفحة بـ Ctrl+Shift+R. تحقق من: /vendor/signotec/STPadServerLib.js",
     signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web غير شغّال على هذا الجهاز (منفذ 49494). شغّل البرنامج ووصّل الجهاز عبر USB.",
     signatureSignotecWsError: "فشل الاتصال بـ Signotec. 1) شغّل STPadServer 2) افتح https://localhost:49494 واقبل الشهادة 3) أعد تحميل الصفحة وحاول مجدداً.",
+    signatureSignotecBusy: "جهاز Signotec ما زال مشغولاً — انتظر قليلاً أو اضغط «مسح التوقيع» ثم حاول مجدداً.",
     signatureDeviceTimeout: "جهاز التوقيع لا يستجيب — أعد المحاولة أو وقّع في المساحة البيضاء.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
     signatureProviderSignotec: "Signotec",
@@ -16597,6 +16600,7 @@ function initComplianceSignaturePad() {
       drawComplianceSignatureImage("");
       const { status: statusEl } = getComplianceSignatureElements();
       if (statusEl) statusEl.textContent = uiT("complianceSignatureEmpty");
+      void window.BaupassSignotec?.resetSession?.().catch(() => {});
     });
   }
   drawComplianceSignatureImage("");
@@ -16628,6 +16632,7 @@ function mapSignaturePadError(error) {
   if (code === "signotec_lib_missing") return uiT("signatureSignotecLibMissing");
   if (code === "signotec_ws_error") return uiT("signatureSignotecWsError");
   if (code === "signotec_ws_unreachable" || code === "signotec_ws_timeout") return uiT("signatureSignotecServiceMissing");
+  if (code === "signotec_busy") return uiT("signatureSignotecBusy");
   if (code === "signature_device_timeout") return uiT("signatureDeviceTimeout");
   if (code === "wacom_lib_missing" || code === "wacom_service_not_ready" || code === "wacom_dca_not_ready") {
     return uiT("signatureWacomMissing");
