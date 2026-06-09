@@ -716,9 +716,24 @@ const UI_TRANSLATIONS = {
     signaturePadNoneAvailable: "Kein Signatur-Bridge gefunden — direkt in der weißen Fläche unterschreiben (jeder USB-Stift).",
     signatureUseCanvas: "Unterschreiben Sie in der weißen Fläche — USB-Signaturpads funktionieren ohne Extra-Software.",
     signatureSignotecLibMissing: "Signotec-Bibliothek konnte nicht geladen werden. Seite mit Strg+Shift+R neu laden. Prüfen: /vendor/signotec/STPadServerLib.js",
-    signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web läuft nicht auf diesem PC (Port 49494). Software starten, Pad per USB verbinden.",
-    signatureSignotecWsError: "Signotec-Verbindung fehlgeschlagen. 1) STPadServer starten 2) https://localhost:49494 im Browser öffnen und Zertifikat bestätigen 3) Seite neu laden und erneut versuchen.",
+    signatureSignotecServiceMissing: "Signotec-Bridge fehlt auf diesem PC (Port 49494). Einrichtung unten starten — einmal pro Rechner.",
+    signatureSignotecWsError: "Signotec-Zertifikat noch nicht bestätigt. „Zertifikat bestätigen“ in der Einrichtung unten — dann erneut versuchen.",
     signatureSignotecBusy: "Signotec ist noch beschäftigt — kurz warten oder „Unterschrift löschen“ drücken, dann erneut versuchen.",
+    signotecBridgeEyebrow: "Signaturgerät",
+    signotecBridgeTitle: "Einmalige Einrichtung auf diesem PC",
+    signotecBridgeIntro: "Die BauPass-Bibliothek läuft bereits auf dem Server. Auf jedem Windows-PC mit USB-Pad einmal „Einrichtung starten“ klicken, die Datei doppelklicken — fertig.",
+    signotecBridgeStepLib: "1. BauPass-Bibliothek (Server)",
+    signotecBridgeStepInstall: "2. Signotec-Bridge auf diesem PC installieren",
+    signotecBridgeStepTrust: "3. Lokales Zertifikat bestätigen (einmal pro Browser)",
+    signotecBridgeStepReady: "4. Pad per USB verbinden — fertig",
+    signotecBridgeSetupScript: "Einrichtung starten (Windows — Doppelklick)",
+    signotecBridgeDownload: "Bridge herunterladen",
+    signotecBridgeTrustCert: "Zertifikat bestätigen",
+    signotecBridgeRetest: "Verbindung prüfen",
+    signotecBridgeDismiss: "Später",
+    signotecBridgeStatusLibMissing: "Server-Bibliothek fehlt — Seite neu laden oder Support kontaktieren.",
+    signotecBridgeStatusInstall: "Bridge noch nicht erreichbar — „Automatisch einrichten“ ausführen, Pad per USB verbinden.",
+    signotecBridgeStatusCert: "Bridge läuft, Zertifikat fehlt — „Zertifikat bestätigen“, dann Verbindung prüfen.",
     signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
     signatureProviderSignotec: "Signotec",
@@ -1767,9 +1782,24 @@ const UI_TRANSLATIONS = {
     signaturePadNoneAvailable: "No signature bridge found — sign in the white area (any USB pen works).",
     signatureUseCanvas: "Sign in the white area — USB signature pads work without extra software.",
     signatureSignotecLibMissing: "Signotec library failed to load. Hard-refresh (Ctrl+Shift+R). Check: /vendor/signotec/STPadServerLib.js",
-    signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web is not running on this PC (port 49494). Start the service and connect the pad via USB.",
-    signatureSignotecWsError: "Signotec connection failed. 1) Start STPadServer 2) Open https://localhost:49494 and accept the certificate 3) Reload and try again.",
+    signatureSignotecServiceMissing: "Signotec bridge missing on this PC (port 49494). Use the setup panel below — once per computer.",
+    signatureSignotecWsError: "Signotec certificate not trusted yet. Click “Trust certificate” in the setup panel below, then try again.",
     signatureSignotecBusy: "Signotec is still busy — wait a moment or clear the signature, then try again.",
+    signotecBridgeEyebrow: "Signature device",
+    signotecBridgeTitle: "One-time setup on this PC",
+    signotecBridgeIntro: "The BauPass library is already on the server. On each Windows PC with a USB pad: click Start setup once, double-click the downloaded file — done.",
+    signotecBridgeStepLib: "1. BauPass library (server)",
+    signotecBridgeStepInstall: "2. Install Signotec bridge on this PC",
+    signotecBridgeStepTrust: "3. Trust local certificate (once per browser)",
+    signotecBridgeStepReady: "4. Connect pad via USB — done",
+    signotecBridgeSetupScript: "Start setup (Windows — double-click file)",
+    signotecBridgeDownload: "Download bridge",
+    signotecBridgeTrustCert: "Trust certificate",
+    signotecBridgeRetest: "Test connection",
+    signotecBridgeDismiss: "Later",
+    signotecBridgeStatusLibMissing: "Server library missing — reload the page or contact support.",
+    signotecBridgeStatusInstall: "Bridge not reachable — run Auto setup and connect the pad via USB.",
+    signotecBridgeStatusCert: "Bridge is running; certificate not trusted — click Trust certificate, then test again.",
     signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
     signatureProviderSignotec: "Signotec",
@@ -3869,9 +3899,24 @@ const UI_TRANSLATIONS = {
     signaturePadNoneAvailable: "لم يُعثر على جسر توقيع — وقّع في المساحة البيضاء (أي قلم USB يعمل).",
     signatureUseCanvas: "وقّع في المساحة البيضاء — أجهزة USB تعمل بدون برنامج إضافي.",
     signatureSignotecLibMissing: "تعذر تحميل مكتبة Signotec. حدّث الصفحة بـ Ctrl+Shift+R. تحقق من: /vendor/signotec/STPadServerLib.js",
-    signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web غير شغّال على هذا الجهاز (منفذ 49494). شغّل البرنامج ووصّل الجهاز عبر USB.",
-    signatureSignotecWsError: "فشل الاتصال بـ Signotec. 1) شغّل STPadServer 2) افتح https://localhost:49494 واقبل الشهادة 3) أعد تحميل الصفحة وحاول مجدداً.",
+    signatureSignotecServiceMissing: "جسر Signotec غير موجود على هذا الجهاز (منفذ 49494). استخدم لوحة الإعداد أدناه — مرة واحدة لكل كمبيوتر.",
+    signatureSignotecWsError: "شهادة Signotec لم تُقبل بعد. اضغط «تأكيد الشهادة» في لوحة الإعداد ثم حاول مجدداً.",
     signatureSignotecBusy: "جهاز Signotec ما زال مشغولاً — انتظر قليلاً أو اضغط «مسح التوقيع» ثم حاول مجدداً.",
+    signotecBridgeEyebrow: "جهاز التوقيع",
+    signotecBridgeTitle: "إعداد لمرة واحدة على هذا الجهاز",
+    signotecBridgeIntro: "مكتبة BauPass جاهزة على السيرفر. على كل Windows مع لوحة USB: اضغط «بدء الإعداد» مرة واحدة، ثم انقر مرتين على الملف المحمّل — انتهى.",
+    signotecBridgeStepLib: "1. مكتبة BauPass (السيرفر)",
+    signotecBridgeStepInstall: "2. تثبيت جسر Signotec على هذا الجهاز",
+    signotecBridgeStepTrust: "3. قبول الشهادة المحلية (مرة واحدة لكل متصفح)",
+    signotecBridgeStepReady: "4. وصّل اللوحة عبر USB — انتهى",
+    signotecBridgeSetupScript: "بدء الإعداد (Windows — نقرتان على الملف)",
+    signotecBridgeDownload: "تحميل الجسر",
+    signotecBridgeTrustCert: "تأكيد الشهادة",
+    signotecBridgeRetest: "اختبار الاتصال",
+    signotecBridgeDismiss: "لاحقاً",
+    signotecBridgeStatusLibMissing: "مكتبة السيرفر مفقودة — أعد تحميل الصفحة أو اتصل بالدعم.",
+    signotecBridgeStatusInstall: "الجسر غير متاح — شغّل الإعداد التلقائي ووصّل اللوحة عبر USB.",
+    signotecBridgeStatusCert: "الجسر يعمل؛ الشهادة غير مقبولة — اضغط تأكيد الشهادة ثم اختبر مجدداً.",
     signatureDeviceTimeout: "جهاز التوقيع لا يستجيب — أعد المحاولة أو وقّع في المساحة البيضاء.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
     signatureProviderSignotec: "Signotec",
@@ -16621,6 +16666,24 @@ function complianceSignatureWorkerLabel() {
   return "";
 }
 
+function signotecBridgeStatusText(state) {
+  if (!state || state.bridge) return "";
+  if (!state.lib) return uiT("signotecBridgeStatusLibMissing");
+  if (state.reason === "signotec_ws_error") return uiT("signotecBridgeStatusCert");
+  return uiT("signotecBridgeStatusInstall");
+}
+globalThis.signotecBridgeStatusText = signotecBridgeStatusText;
+
+function wireSignotecBridgeSetup() {
+  window.BaupassSignotecBridge?.wire?.();
+}
+
+async function maybeShowSignotecBridgeSetup() {
+  if (window.BaupassSignotecBridge?.maybeAutoShow) {
+    await window.BaupassSignotecBridge.maybeAutoShow();
+  }
+}
+
 function mapSignaturePadError(error) {
   const code = String(error?.message || error || "").trim();
   if (code === "signature_cancelled" || code === "signotec_cancelled") return uiT("signatureCancelled");
@@ -16723,7 +16786,7 @@ async function captureComplianceSignatureFromDevice() {
       canvas?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
     }
     if (code === "signotec_ws_error" || code === "signotec_ws_unreachable" || code === "signotec_ws_timeout") {
-      try { window.open("https://localhost:49494/", "_blank", "noopener,noreferrer"); } catch { /* ignore */ }
+      window.BaupassSignotecBridge?.showPanel?.(true);
     }
     showToast(mapSignaturePadError(error), code === "signature_use_canvas" ? "info" : "error", 12000);
   } finally {
@@ -16746,6 +16809,8 @@ function resetComplianceSignatureEditor() {
   complianceSignatureState.loadedForWorkerId = null;
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireSignotecBridgeSetup();
+  void maybeShowSignotecBridgeSetup();
   wireWorkerFormPhaseButtons();
   drawComplianceSignatureImage("");
   const { handoverInput } = getComplianceSignatureElements();
@@ -16755,6 +16820,8 @@ function resetComplianceSignatureEditor() {
 async function loadComplianceSignatureForWorker(worker) {
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireSignotecBridgeSetup();
+  void maybeShowSignotecBridgeSetup();
   complianceSignatureState.touched = false;
   complianceSignatureState.loadedForWorkerId = worker?.id || null;
   const { handoverInput } = getComplianceSignatureElements();
@@ -33181,6 +33248,8 @@ if (workerForm) {
   workerForm.addEventListener("submit", handleWorkerSubmit);
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireSignotecBridgeSetup();
+  void maybeShowSignotecBridgeSetup();
   wireWorkerFormPhaseButtons();
   wireWorkerFormEnhancements();
   syncWorkerFormPhase();

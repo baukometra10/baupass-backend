@@ -10,6 +10,13 @@ const https = require("https");
 const ROOT = path.resolve(__dirname, "..");
 const DEST = path.join(ROOT, "vendor", "signotec", "STPadServerLib.js");
 const DEST_DIR = path.dirname(DEST);
+const INSTALLER_FILENAME = "signotec_signoPAD-API_Web_3.5.0.exe";
+const INSTALLER_DEST = path.join(DEST_DIR, INSTALLER_FILENAME);
+const INSTALLER_URL = String(
+  process.env.BAUPASS_SIGNOTEC_INSTALLER_URL
+    || "https://backend.signotec.com/wp-content/uploads/2025/11/signotec_signoPAD-API_Web_3.5.0.exe",
+).trim();
+const INSTALLER_MIN_BYTES = 5_000_000;
 
 function versionedSampleLibPaths() {
   if (process.platform !== "win32") return [];
@@ -139,7 +146,81 @@ async function fetchFromRunningPadServer() {
   return null;
 }
 
-async function main() {
+function downloadRemoteFile(url, dest, minBytes, timeoutMs = 180000) {
+  return new Promise((resolve, reject) => {
+    const requestOnce = (currentUrl, redirectsLeft = 5) => {
+      const req = https.get(currentUrl, { timeout: timeoutMs }, (res) => {
+        if (
+          redirectsLeft > 0
+          && res.statusCode >= 300
+          && res.statusCode < 400
+          && res.headers.location
+        ) {
+          res.resume();
+          requestOnce(res.headers.location, redirectsLeft - 1);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`HTTP ${res.statusCode} for ${currentUrl}`));
+          return;
+        }
+        const file = fs.createWriteStream(dest);
+        res.pipe(file);
+        file.on("error", (err) => {
+          try { fs.unlinkSync(dest); } catch { /* ignore */ }
+          reject(err);
+        });
+        file.on("finish", () => {
+          file.close(() => {
+            try {
+              const size = fs.statSync(dest).size;
+              if (size < minBytes) {
+                fs.unlinkSync(dest);
+                reject(new Error(`installer too small (${size} bytes)`));
+                return;
+              }
+              resolve(size);
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+      });
+      req.on("error", reject);
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error(`timeout downloading ${currentUrl}`));
+      });
+    };
+    requestOnce(url);
+  });
+}
+
+async function syncInstaller() {
+  if (fs.existsSync(INSTALLER_DEST) && fs.statSync(INSTALLER_DEST).isFile()) {
+    const size = fs.statSync(INSTALLER_DEST).size;
+    if (size >= INSTALLER_MIN_BYTES) {
+      console.log(`[signotec] installer already present: ${INSTALLER_DEST} (${size} bytes)`);
+      return 0;
+    }
+  }
+  if (!INSTALLER_URL) {
+    console.warn("[signotec] installer URL not configured");
+    return 1;
+  }
+  try {
+    console.log(`[signotec] downloading installer from ${INSTALLER_URL}`);
+    const size = await downloadRemoteFile(INSTALLER_URL, INSTALLER_DEST, INSTALLER_MIN_BYTES);
+    console.log(`[signotec] installer saved -> ${INSTALLER_DEST} (${size} bytes)`);
+    return 0;
+  } catch (err) {
+    console.warn(`[signotec] installer download failed: ${err?.message || err}`);
+    return 1;
+  }
+}
+
+async function syncLibrary() {
   fs.mkdirSync(DEST_DIR, { recursive: true });
   if (fs.existsSync(DEST) && fs.statSync(DEST).isFile()) {
     const existing = fs.readFileSync(DEST, "utf8");
@@ -169,6 +250,15 @@ async function main() {
     "[signotec] STPadServerLib.js not found — install signoPAD-API/Web, start STPadServer, or set BAUPASS_SIGNOTEC_LIB_SRC / BAUPASS_SIGNOTEC_LIB_BASE64",
   );
   return 1;
+}
+
+async function main() {
+  fs.mkdirSync(DEST_DIR, { recursive: true });
+  const libCode = await syncLibrary();
+  const installerCode = await syncInstaller();
+  if (libCode === 0 && installerCode === 0) return 0;
+  if (libCode === 0) return 0;
+  return libCode;
 }
 
 main()

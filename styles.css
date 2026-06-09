@@ -2333,6 +2333,58 @@ select:focus {
   font-size: 1.05rem;
 }
 
+.signotec-bridge-setup {
+  margin-top: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.signotec-bridge-setup.hidden {
+  display: none;
+}
+
+.signotec-bridge-setup h5 {
+  margin: 4px 0 8px;
+  font-size: 0.98rem;
+}
+
+.signotec-bridge-steps {
+  margin: 0 0 10px;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 6px;
+}
+
+.signotec-bridge-step {
+  font-size: 0.88rem;
+  color: rgba(23, 23, 23, 0.55);
+}
+
+.signotec-bridge-step[data-state="ok"] {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.signotec-bridge-step[data-state="ok"]::marker {
+  content: "✓ ";
+}
+
+.signotec-bridge-step[data-state="pending"] {
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.signotec-bridge-status {
+  min-height: 1.2em;
+  color: #b45309;
+}
+
+.signotec-bridge-actions {
+  flex-wrap: wrap;
+}
+
 .worker-form-step-indicator {
   display: flex;
   gap: 10px;
