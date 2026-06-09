@@ -161,6 +161,10 @@
       void refreshPanelState();
     });
 
+    global.document.getElementById("signotecBridgeCheckBtn")?.addEventListener("click", () => {
+      global.open(downloadUrl("/api/signotec/check.bat"), "_blank", "noopener,noreferrer");
+    });
+
     global.document.getElementById("signotecBridgeDismissBtn")?.addEventListener("click", () => {
       dismissPanel();
     });

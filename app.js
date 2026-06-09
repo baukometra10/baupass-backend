@@ -732,8 +732,10 @@ const UI_TRANSLATIONS = {
     signotecBridgeRetest: "Verbindung prüfen",
     signotecBridgeStart: "Bridge starten (Port 49494)",
     signotecBridgeDismiss: "Später",
+    signotecBridgeCheck: "Diagnose (Windows)",
     signotecBridgeStatusLibMissing: "Server-Bibliothek fehlt — Seite neu laden oder Support kontaktieren.",
-    signotecBridgeStatusInstall: "Port 49494 antwortet nicht — „Einrichtung starten“ ausführen (Admin), Pad per USB verbinden.",
+    signotecBridgeStatusInstall: "STPadServer läuft nicht — wenn https://localhost:49494 im Browser nicht öffnet: „Einrichtung starten“ als Administrator ausführen.",
+    signotecBridgeServerDown: "Wenn Firefox „Verbindung unterbrochen“ zeigt: Bridge ist nicht installiert/gestartet. setup.bat als Admin → Log auf dem Desktop prüfen.",
     signotecBridgeStatusCert: "Bridge läuft, Zertifikat fehlt — „Zertifikat bestätigen“, dann Verbindung prüfen.",
     signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann BauPass mit Strg+Shift+R neu laden.",
     signotecBridgeStatusFirefox: "Signotec-Bridge fehlt oder Zertifikat in Firefox noch nicht bestätigt — zuerst Einrichtung starten, dann Zertifikat.",
@@ -1801,8 +1803,10 @@ const UI_TRANSLATIONS = {
     signotecBridgeRetest: "Test connection",
     signotecBridgeStart: "Start bridge (port 49494)",
     signotecBridgeDismiss: "Later",
+    signotecBridgeCheck: "Diagnose (Windows)",
     signotecBridgeStatusLibMissing: "Server library missing — reload the page or contact support.",
-    signotecBridgeStatusInstall: "Port 49494 not responding — run Start setup (admin once), connect pad via USB.",
+    signotecBridgeStatusInstall: "STPadServer not running — if https://localhost:49494 won't open in the browser, run Start setup as Administrator.",
+    signotecBridgeServerDown: "If Firefox shows connection interrupted: bridge not installed/started. Run setup.bat as Admin, check Desktop log.",
     signotecBridgeStatusCert: "Bridge is running; certificate not trusted — click Trust certificate, then test again.",
     signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload BauPass with Ctrl+Shift+R.",
     signotecBridgeStatusFirefox: "Signotec bridge missing or Firefox certificate not trusted — run setup first, then trust the certificate.",
@@ -3921,8 +3925,10 @@ const UI_TRANSLATIONS = {
     signotecBridgeRetest: "اختبار الاتصال",
     signotecBridgeStart: "تشغيل الجسر (منفذ 49494)",
     signotecBridgeDismiss: "لاحقاً",
+    signotecBridgeCheck: "تشخيص (Windows)",
     signotecBridgeStatusLibMissing: "مكتبة السيرفر مفقودة — أعد تحميل الصفحة أو اتصل بالدعم.",
-    signotecBridgeStatusInstall: "المنفذ 49494 لا يستجيب — شغّل «بدء الإعداد» (مرة كمسؤول)، ووصّل اللوحة عبر USB.",
+    signotecBridgeStatusInstall: "STPadServer غير شغّال — إن لم يفتح https://localhost:49494 في المتصفح: شغّل «بدء الإعداد» كمسؤول (Admin).",
+    signotecBridgeServerDown: "إذا ظهر «انقطع الاتصال» في Firefox: الجسر غير مثبت/غير شغّال. شغّل setup.bat كمسؤول وتحقق من ملف السجل على سطح المكتب.",
     signotecBridgeStatusCert: "الجسر يعمل؛ الشهادة غير مقبولة — اضغط تأكيد الشهادة ثم اختبر مجدداً.",
     signotecBridgeFirefoxHint: "Firefox: افتح https://localhost:49494 (وليس 127.0.0.1)، اضغط «متقدم» → «قبول المخاطرة»، ثم Ctrl+Shift+R لإعادة تحميل BauPass.",
     signotecBridgeStatusFirefox: "جسر Signotec غير موجود أو الشهادة غير مقبولة في Firefox — شغّل الإعداد أولاً ثم أكّد الشهادة.",
@@ -16679,8 +16685,11 @@ function signotecBridgeStatusText(state) {
   if (!state || state.bridge) return "";
   if (!state.lib) return uiT("signotecBridgeStatusLibMissing");
   if (state.reason === "signotec_ws_error") return uiT("signotecBridgeStatusCert");
-  if (/firefox/i.test(String(navigator.userAgent || ""))) return uiT("signotecBridgeStatusFirefox");
-  return uiT("signotecBridgeStatusInstall");
+  const extra = uiT("signotecBridgeServerDown");
+  if (/firefox/i.test(String(navigator.userAgent || ""))) {
+    return `${uiT("signotecBridgeStatusFirefox")} ${extra}`;
+  }
+  return `${uiT("signotecBridgeStatusInstall")} ${extra}`;
 }
 globalThis.signotecBridgeStatusText = signotecBridgeStatusText;
 

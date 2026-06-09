@@ -4,10 +4,17 @@ param(
     [switch]$SkipInstall
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $BaseUrl = '{{BASE_URL}}'
 $InstallerName = 'signotec_signoPAD-API_Web_3.5.0.exe'
 $Port = 49494
+$LogFile = Join-Path ([Environment]::GetFolderPath('Desktop')) 'baupass-signotec-setup.log'
+
+function Write-Log($msg, $color) {
+    $line = "[$(Get-Date -Format 'HH:mm:ss')] $msg"
+    Add-Content -Path $LogFile -Value $line -Encoding UTF8
+    if ($color) { Write-Host $msg -ForegroundColor $color } else { Write-Host $msg }
+}
 
 function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -17,22 +24,51 @@ function Test-Admin {
 
 function Ensure-Admin {
     if (Test-Admin) { return }
-    Write-Host 'BauPass: Administratorrechte werden angefordert...' -ForegroundColor Yellow
+    Write-Log 'BauPass: Administratorrechte werden angefordert...' Yellow
     $arg = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     if ($SkipInstall) { $arg += ' -SkipInstall' }
     Start-Process powershell.exe -Verb RunAs -ArgumentList $arg
     exit 0
 }
 
-function Get-STPadServerExe {
-    $paths = @(
+function Find-STPadServerExe {
+    $candidates = @(
         "${env:ProgramFiles(x86)}\signotec\signoPAD-API Web\STPadServer.exe",
         "$env:ProgramFiles\signotec\signoPAD-API Web\STPadServer.exe"
     )
-    foreach ($p in $paths) {
+    foreach ($p in $candidates) {
         if (Test-Path $p) { return $p }
     }
+    $roots = @("${env:ProgramFiles(x86)}\signotec", "$env:ProgramFiles\signotec")
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        try {
+            $hit = Get-ChildItem -Path $root -Filter 'STPadServer.exe' -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($hit) { return $hit.FullName }
+        } catch { }
+    }
     return $null
+}
+
+function Ensure-FirewallRule {
+    $name = 'BauPass Signotec STPadServer TCP 49494'
+    $existing = Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue
+    if ($existing) { return }
+    try {
+        New-NetFirewallRule -DisplayName $name -Direction Inbound -Action Allow -Protocol TCP -LocalPort $Port -ErrorAction Stop | Out-Null
+        Write-Log 'BauPass: Windows-Firewall-Regel fuer Port 49494 erstellt.' Cyan
+    } catch {
+        netsh advfirewall firewall add rule name="$name" dir=in action=allow protocol=TCP localport=$Port | Out-Null
+        Write-Log 'BauPass: Firewall-Regel via netsh erstellt.' Cyan
+    }
+}
+
+function Stop-STPadServerProcesses {
+    Get-Process STPadServer -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Log "BauPass: beende alten STPadServer (PID $($_.Id))..." Yellow
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
 }
 
 function Start-SignotecBridge {
@@ -40,70 +76,86 @@ function Start-SignotecBridge {
         $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
         if ($svc) {
             if ($svc.Status -ne 'Running') {
-                Write-Host "BauPass: starte Dienst $name..." -ForegroundColor Cyan
-                Start-Service $name
+                Write-Log "BauPass: starte Dienst $name..." Cyan
+                Start-Service $name -ErrorAction SilentlyContinue
             }
-            return $true
+            if ((Get-Service $name).Status -eq 'Running') { return $true }
         }
     }
-    $exe = Get-STPadServerExe
-    if ($exe) {
-        $running = Get-Process STPadServer -ErrorAction SilentlyContinue
-        if (-not $running) {
-            Write-Host "BauPass: starte STPadServer.exe $Port..." -ForegroundColor Cyan
-            Start-Process -FilePath $exe -ArgumentList "$Port" -WindowStyle Hidden
-        }
-        return $true
-    }
-    return $false
+
+    $exe = Find-STPadServerExe
+    if (-not $exe) { return $false }
+
+    $workDir = Split-Path $exe -Parent
+    Stop-STPadServerProcesses
+    Write-Log "BauPass: starte STPadServer aus $workDir (Port $Port)..." Cyan
+    Start-Process -FilePath $exe -ArgumentList "$Port" -WorkingDirectory $workDir -WindowStyle Hidden
+    return $true
 }
 
 function Test-SignotecPort {
     try {
-        return (Test-NetConnection -ComputerName 127.0.0.1 -Port $Port -WarningAction SilentlyContinue).TcpTestSucceeded
+        return (Test-NetConnection -ComputerName localhost -Port $Port -WarningAction SilentlyContinue).TcpTestSucceeded
     } catch {
         return $false
     }
 }
 
 function Wait-SignotecPort {
-    for ($i = 0; $i -lt 30; $i++) {
+    for ($i = 0; $i -lt 45; $i++) {
         if (Test-SignotecPort) { return $true }
         Start-Sleep -Seconds 1
     }
     return $false
 }
 
+Clear-Content -Path $LogFile -ErrorAction SilentlyContinue
+Write-Log '=== BauPass Signotec Bridge Setup ===' Cyan
+Write-Log "Log: $LogFile"
+
 Ensure-Admin
+Ensure-FirewallRule
 
 if (-not $SkipInstall) {
     $installerUrl = "$BaseUrl/api/signotec/installer"
     $dest = Join-Path $env:TEMP $InstallerName
-    Write-Host 'BauPass: lade Signotec-Bridge vom Server...' -ForegroundColor Cyan
-    Invoke-WebRequest -Uri $installerUrl -OutFile $dest -UseBasicParsing
-    Write-Host 'BauPass: Installation (einmal pro PC)...' -ForegroundColor Cyan
+    Write-Log 'BauPass: lade Signotec-Bridge vom Server...' Cyan
+    try {
+        Invoke-WebRequest -Uri $installerUrl -OutFile $dest -UseBasicParsing
+    } catch {
+        Write-Log "FEHLER Download: $($_.Exception.Message)" Red
+        pause
+        exit 1
+    }
+    Write-Log 'BauPass: stille Installation (Admin, einmal pro PC)...' Cyan
     $installArgs = '/s /v"/qn ADDLOCAL=WebSocketPadServer,PadDrivers CERT_SEL=\"Localhost\" ALLOW_EDGE_LOOPBACK=\"Yes\""'
     $proc = Start-Process -FilePath $dest -ArgumentList $installArgs -Wait -PassThru
+    Write-Log "Installer ExitCode: $($proc.ExitCode)"
     if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 3010) {
-        Write-Host "Hinweis: Installer ExitCode $($proc.ExitCode) — pruefe ob signotec installiert ist." -ForegroundColor Yellow
+        Write-Log 'Stille Installation fehlgeschlagen — starte normale Installation...' Yellow
+        Start-Process -FilePath $dest -Wait
     }
-    Start-Sleep -Seconds 3
+    Start-Sleep -Seconds 5
 }
 
 if (-not (Start-SignotecBridge)) {
-    Write-Host 'FEHLER: STPadServer nicht gefunden. Installation erneut ausfuehren.' -ForegroundColor Red
+    Write-Log 'FEHLER: STPadServer.exe nicht gefunden. signoPAD-API/Web ist nicht installiert.' Red
+    Write-Log 'Loesung: baupass-signotec-setup.bat erneut als Administrator ausfuehren.' Yellow
     pause
     exit 1
 }
 
-Write-Host "BauPass: warte auf Port $Port..." -ForegroundColor Cyan
+Write-Log "BauPass: warte auf localhost:$Port ..." Cyan
 if (-not (Wait-SignotecPort)) {
-    Write-Host "FEHLER: Port $Port antwortet nicht. Windows-Firewall oder STPadServer pruefen." -ForegroundColor Red
+    Write-Log "FEHLER: Port $Port antwortet nicht." Red
+    Write-Log 'Manuell testen: Windows-Taste -> signotec -> STPadServer starten' Yellow
+    Write-Log "Oder: `"$(Find-STPadServerExe)`" $Port" Yellow
     pause
     exit 1
 }
 
-Write-Host 'BauPass: Bridge laeuft. Firefox oeffnet https://localhost:49494 — Erweitert -> Risiko akzeptieren.' -ForegroundColor Green
+Write-Log 'OK: Bridge laeuft auf https://localhost:49494' Green
+Write-Log 'Firefox: Erweitert -> Risiko akzeptieren und fortfahren' Green
 Start-Process "https://localhost:$Port/"
-Write-Host 'Fertig. BauPass neu laden (Strg+Shift+R) und Signaturgeraet testen.' -ForegroundColor Green
+Write-Log 'Fertig. BauPass mit Strg+Shift+R neu laden.' Green
 pause

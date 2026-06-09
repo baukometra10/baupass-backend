@@ -23623,13 +23623,37 @@ def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
 title BauPass Signotec Bridge starten
-echo BauPass: STPadServer starten (Port 49494)...
+echo BauPass: STPadServer starten (Port 49494, Admin)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
 echo.
 pause
 """
     response = Response(bat, mimetype="application/octet-stream")
     response.headers["Content-Disposition"] = 'attachment; filename="baupass-signotec-start.bat"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def signotec_check_helper():
+    script_path = BASE_DIR / "scripts" / "baupass-signotec-bridge-check.ps1"
+    if script_path.exists() and script_path.is_file():
+        ps1 = script_path.read_text(encoding="utf-8")
+    else:
+        ps1 = "Write-Host 'Check script missing'; pause"
+    response = Response(ps1, mimetype="application/octet-stream")
+    response.headers["Content-Disposition"] = 'attachment; filename="baupass-signotec-check.ps1"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def signotec_check_bat():
+    base = request.url_root.rstrip("/")
+    bat = f"""@echo off
+title BauPass Signotec Diagnose
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-check.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/check.ps1' -OutFile $p -UseBasicParsing; & $p"
+"""
+    response = Response(bat, mimetype="application/octet-stream")
+    response.headers["Content-Disposition"] = 'attachment; filename="baupass-signotec-check.bat"'
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -25267,6 +25291,8 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/signotec/setup-helper.ps1", signotec_setup_helper, ("GET",), "core_signotec_setup_helper")
     _patch_api_route("/api/signotec/setup-helper.bat", signotec_setup_helper_bat, ("GET",), "core_signotec_setup_bat")
     _patch_api_route("/api/signotec/start-bridge.bat", signotec_start_bridge_bat, ("GET",), "core_signotec_start_bat")
+    _patch_api_route("/api/signotec/check.ps1", signotec_check_helper, ("GET",), "core_signotec_check_ps1")
+    _patch_api_route("/api/signotec/check.bat", signotec_check_bat, ("GET",), "core_signotec_check_bat")
     _patch_api_route("/api/invoices", list_invoices, ("GET",), "core_invoices_list")
     _patch_api_route("/api/access-logs", list_access_logs, ("GET",), "core_access_logs_list")
     _patch_api_route("/api/access-logs/latest", list_latest_access_logs, ("GET",), "core_access_logs_latest")
