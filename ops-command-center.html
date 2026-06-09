@@ -73,7 +73,7 @@
     </nav>
   </header>
   <main id="grid"></main>
-  <script src="/embed-helpers.js?v=20260608i18n"></script>
+  <script src="/embed-helpers.js?v=20260609csrf"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
@@ -415,10 +415,17 @@
         </div>`;
     }
 
+    function api(path, opts = {}) {
+      if (!window.BaupassAuth?.fetchApi) {
+        throw new Error("auth");
+      }
+      return window.BaupassAuth.fetchApi(path, opts);
+    }
+
     function wireGuardianActions() {
       document.getElementById("guardianCheckBtn")?.addEventListener("click", async () => {
         try {
-          await fetch("/api/guardian/check", { method: "POST", credentials: "include" });
+          await api("/api/guardian/check", { method: "POST" });
           await load();
         } catch (e) {
           alert(e.message || tr("checkFailed"));
@@ -427,8 +434,7 @@
       document.getElementById("guardianRepairBtn")?.addEventListener("click", async () => {
         if (!window.confirm(tr("confirmRepair"))) return;
         try {
-          const res = await fetch("/api/guardian/remediate", { method: "POST", credentials: "include" });
-          if (!res.ok) throw new Error(await res.text());
+          await api("/api/guardian/remediate", { method: "POST" });
           await load();
         } catch (e) {
           alert(e.message || tr("repairFailed"));
@@ -517,12 +523,9 @@
     async function loadForecast() {
       if (!companyId) return null;
       try {
-        const res = await fetch(
+        return await api(
           `/api/ops-os/predictions/tomorrow?company_id=${encodeURIComponent(companyId)}`,
-          { credentials: "include" },
         );
-        if (!res.ok) return null;
-        return await res.json();
       } catch {
         return null;
       }
@@ -530,12 +533,10 @@
 
     async function loadGuardianBundle() {
       try {
-        const [statusRes, historyRes] = await Promise.all([
-          fetch("/api/guardian/status", { credentials: "include" }),
-          fetch("/api/guardian/history?limit=20", { credentials: "include" }),
+        const [status, historyPayload] = await Promise.all([
+          api("/api/guardian/status"),
+          api("/api/guardian/history?limit=20"),
         ]);
-        const status = statusRes.ok ? await statusRes.json() : null;
-        const historyPayload = historyRes.ok ? await historyRes.json() : {};
         return { status, history: historyPayload.history || [] };
       } catch {
         return { status: null, history: [] };
@@ -548,13 +549,12 @@
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const [res, forecast, guardianBundle] = await Promise.all([
-          fetch(url, { credentials: "include" }),
+        const [data, forecast, guardianBundle] = await Promise.all([
+          api(url),
           loadForecast(),
           loadGuardianBundle(),
         ]);
-        if (!res.ok) throw new Error(res.status + " " + res.statusText);
-        render(await res.json(), forecast, guardianBundle);
+        render(data, forecast, guardianBundle);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;
@@ -595,8 +595,17 @@
     })();
 
     applyOpsUiLanguage();
-    load();
-    setInterval(load, 15000);
+    (async () => {
+      try {
+        if (window.BaupassAuth?.bootstrapSession) {
+          await window.BaupassAuth.bootstrapSession();
+        }
+      } catch {
+        // load() surfaces auth errors in the grid
+      }
+      load();
+      setInterval(load, 15000);
+    })();
 
     (async () => {
       const ap = qs.get("autoprompt");

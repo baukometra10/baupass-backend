@@ -293,20 +293,49 @@
     });
   }
 
+  function readCsrfToken() {
+    try {
+      const match = global.document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : "";
+    } catch {
+      return "";
+    }
+  }
+
   function authHeaders(extra = {}) {
     const headers = { ...(extra || {}) };
     const token = getSessionToken();
     if (token && !headers.Authorization) {
       headers.Authorization = `Bearer ${token}`;
     }
+    const csrf = readCsrfToken();
+    if (csrf && !headers["X-CSRF-Token"]) {
+      headers["X-CSRF-Token"] = csrf;
+    }
     return headers;
   }
 
   async function fetchApi(path, opts = {}) {
+    const method = String(opts.method || "GET").toUpperCase();
+    const headers = authHeaders(opts.headers || {});
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+    let body = opts.body;
+    if (!["GET", "HEAD", "OPTIONS"].includes(method) && body === undefined) {
+      body = {};
+    }
     const res = await fetch(path, {
       credentials: "include",
       ...opts,
-      headers: authHeaders(opts.headers || {}),
+      method,
+      headers,
+      body:
+        body === undefined
+          ? undefined
+          : typeof body === "string"
+            ? body
+            : JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) {
