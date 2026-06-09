@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import jsonify
 
-from backend.app.db.pg_bootstrap import core_schema_ready, is_schema_error, missing_core_tables
+from backend.app.db.pg_bootstrap import missing_core_tables, pg_runtime_flag_enabled
 
 
 def database_not_ready_response(*, ok_field: bool = False):
@@ -34,6 +34,10 @@ def database_not_ready_response(*, ok_field: bool = False):
 
 
 def guard_core_schema(*, ok_field: bool = False):
+    """
+    Block auth only when PostgreSQL runtime is explicitly enabled but schema is incomplete.
+    SQLite uses init_db() at startup — do not reject login on flaky read probes.
+    """
     from backend.app.db.runtime import postgres_runtime_enabled
 
     if postgres_runtime_enabled():
@@ -41,13 +45,16 @@ def guard_core_schema(*, ok_field: bool = False):
             return None
         return database_not_ready_response(ok_field=ok_field)
 
+    if pg_runtime_flag_enabled():
+        # PG flag on but runtime fell back to SQLite — do not block on PG missing tables.
+        return None
+
     try:
         from backend.app.db.runtime import _resolve_sqlite_path
-        from backend.app.db.sqlite_recovery import sqlite_core_tables_ok
 
         db_path = _resolve_sqlite_path()
-        if not sqlite_core_tables_ok(db_path):
-            return database_not_ready_response(ok_field=ok_field)
+        if db_path.is_file() and db_path.stat().st_size >= 4096:
+            return None
     except Exception:
-        return database_not_ready_response(ok_field=ok_field)
-    return None
+        pass
+    return database_not_ready_response(ok_field=ok_field)

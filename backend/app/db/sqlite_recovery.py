@@ -8,19 +8,32 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def sqlite_core_tables_ok(db_path: Path, *, timeout: float = 3.0) -> bool:
+def sqlite_core_tables_ok(db_path: Path, *, timeout: float = 3.0, attempts: int = 3) -> bool:
     """Return True when users (and settings) are readable — minimum for admin login."""
-    try:
-        if not db_path.is_file() or db_path.stat().st_size < 4096:
+    if not db_path.is_file() or db_path.stat().st_size < 4096:
+        return False
+    for attempt in range(max(1, attempts)):
+        try:
+            with sqlite3.connect(str(db_path), timeout=timeout) as conn:
+                conn.execute("SELECT 1 FROM users LIMIT 1").fetchone()
+                conn.execute("SELECT 1 FROM settings LIMIT 1").fetchone()
+            return True
+        except sqlite3.OperationalError as exc:
+            if "locked" in str(exc).lower() and attempt + 1 < attempts:
+                import time
+
+                time.sleep(0.15 * (attempt + 1))
+                continue
             return False
-        with sqlite3.connect(str(db_path), timeout=timeout) as conn:
-            conn.execute("SELECT 1 FROM users LIMIT 1").fetchone()
-            conn.execute("SELECT 1 FROM settings LIMIT 1").fetchone()
-        return True
-    except sqlite3.DatabaseError:
-        return False
-    except Exception:
-        return False
+        except sqlite3.DatabaseError:
+            return False
+        except Exception:
+            return False
+    return False
+
+
+def _is_sqlite_locked(exc: BaseException) -> bool:
+    return isinstance(exc, sqlite3.OperationalError) and "locked" in str(exc).lower()
 
 
 def _backup_search_dirs(db_path: Path | None = None) -> list[Path]:
@@ -122,6 +135,23 @@ def ensure_usable_sqlite_path(db_path: Path) -> Path:
     auto = str(os.getenv("BAUPASS_SQLITE_AUTO_RESTORE", "1")).strip().lower()
     if auto in {"0", "false", "no", "off"}:
         raise RuntimeError(f"SQLite database at {db_path} is not login-ready (auto-restore disabled)")
+
+    # Busy DB during concurrent requests is not corruption — never quarantine for that.
+    try:
+        with sqlite3.connect(str(db_path), timeout=3.0) as conn:
+            conn.execute("SELECT 1").fetchone()
+        print(
+            f"[baupass] WARNING: SQLite at {db_path} passed open check but core tables probe failed — "
+            "continuing without quarantine.",
+            flush=True,
+        )
+        return db_path
+    except sqlite3.OperationalError as exc:
+        if _is_sqlite_locked(exc):
+            print(f"[baupass] WARNING: SQLite at {db_path} is temporarily locked — continuing.", flush=True)
+            return db_path
+    except Exception:
+        pass
 
     candidates = _backup_candidates(exclude=db_path, db_path=db_path)
     for backup in candidates:

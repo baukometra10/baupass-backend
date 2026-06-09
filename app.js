@@ -32425,6 +32425,12 @@ async function initSsoLoginUi() {
 if (elements.loginForm) {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
 }
+if (elements.loginResetPasswordButton) {
+  elements.loginResetPasswordButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    void requestPasswordResetFromLogin();
+  });
+}
 void initSsoLoginUi();
 
 if (elements.authOverlay) {

@@ -90,10 +90,7 @@ def open_request_db() -> Any:
         return PgConnection(raw, pool_cm=cm)
 
     db_path = _resolve_sqlite_path()
-    from backend.app.db.sqlite_recovery import ensure_usable_sqlite_path
-
-    db_path = ensure_usable_sqlite_path(db_path)
-    conn = sqlite3.connect(db_path, timeout=60)
+    conn = sqlite3.connect(str(db_path), timeout=60)
     conn.row_factory = sqlite3.Row
     try:
         from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas
