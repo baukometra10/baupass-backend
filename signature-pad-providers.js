@@ -32,6 +32,24 @@
 
 
 
+  async function vendorAssetExists(src) {
+
+    try {
+
+      const res = await fetch(src, { method: "HEAD", credentials: "omit" });
+
+      return res.ok;
+
+    } catch {
+
+      return false;
+
+    }
+
+  }
+
+
+
   function loadScriptOnce(src, key, timeoutMs = 15000) {
 
     const attr = `data-baupass-vendor-${key}`;
@@ -147,8 +165,6 @@
     "wss://localhost:49494",
 
     "wss://127.0.0.1:49494",
-
-    "wss://local.signotecwebsocket.de:49494",
 
   ];
 
@@ -706,9 +722,13 @@
 
   async function loadWacomScripts() {
 
+    if (!(await vendorAssetExists("./vendor/wacom/q.js"))) return false;
+
     const qOk = await loadScriptOnce("./vendor/wacom/q.js", "wacom-q");
 
     if (!qOk || !global.Q) return false;
+
+    if (!(await vendorAssetExists("./vendor/wacom/wgssStuSdk.js"))) return false;
 
     const sdkOk = await loadScriptOnce("./vendor/wacom/wgssStuSdk.js", "wacom-sdk");
 
@@ -1738,6 +1758,8 @@
 
 
   async function loadTopazScript() {
+
+    if (!(await vendorAssetExists("./vendor/topaz/SigWebTablet.js"))) return false;
 
     return loadScriptOnce("./vendor/topaz/SigWebTablet.js", "topaz");
 

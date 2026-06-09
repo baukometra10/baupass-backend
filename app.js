@@ -16675,8 +16675,11 @@ async function captureComplianceSignatureFromDevice() {
   showToast(uiT("signatureDeviceDetecting"), "info", 4000);
 
   try {
-    const probes = await withSignatureDeviceTimeout(bridge.probeProviders(true), 20000);
-    const active = probes.filter((p) => p.ok && p.id !== "canvas");
+    const probes = await withSignatureDeviceTimeout(
+      bridge.probeProviders(true, { onlyIds: ["signotec"] }),
+      20000,
+    );
+    const active = probes.filter((p) => p.ok && p.id === "signotec");
     const providerId = active[0]?.id || "";
     if (!providerId) {
       const hint = probes.find((p) => p.id !== "canvas" && p.detail);
@@ -16692,6 +16695,7 @@ async function captureComplianceSignatureFromDevice() {
     const result = await withSignatureDeviceTimeout(
       bridge.captureSignature({
         mode: "auto",
+        providerId: "signotec",
         fieldName: uiT("complianceSignatureHeading"),
         customText: workerLabel || uiT("complianceSignatureHeading"),
         canvas,
@@ -17731,7 +17735,7 @@ async function refreshPlatformHealth() {
     const [data, queues, opsSummary] = await Promise.all([
       apiRequest(`${API_BASE}/api/health/platform`),
       apiRequest(`${API_BASE}/api/health/queues`).catch(() => null),
-      apiRequest(`${API_BASE}/api/guardian/ops-summary`).catch(() => null),
+      apiRequest(`${API_BASE}/api/guardian/ops-summary`, { allowUnauthorized: true }).catch(() => null),
     ]);
     renderPlatformHealthPanel(data, null, {
       workers: queues?.workers,
@@ -18244,7 +18248,7 @@ function startLiveAccessPoll() {
 }
 
 async function apiRequest(url, options = {}) {
-  const { method = "GET", body, auth = true, retries = 1, allowNotFound = false } = options;
+  const { method = "GET", body, auth = true, retries = 1, allowNotFound = false, allowUnauthorized = false } = options;
   const requestUrl = buildApiUrl(url);
   if (auth && !token) {
     handleExpiredControlSession();
@@ -18303,6 +18307,9 @@ async function apiRequest(url, options = {}) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (allowNotFound && response.status === 404) {
+      return null;
+    }
+    if (allowUnauthorized && response.status === 401) {
       return null;
     }
     if (payload?.error === "database_not_ready") {

@@ -1780,7 +1780,7 @@ def apply_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' https: "
-        "wss://localhost:49494 wss://127.0.0.1:49494 wss://local.signotecwebsocket.de:49494; "
+        "wss://localhost:49494 wss://127.0.0.1:49494; "
         "frame-src 'self' blob:; "
         "object-src 'self' blob:; "
         "base-uri 'self'; "
@@ -23553,6 +23553,10 @@ def static_proxy(path):
             response = Response(data, mimetype="application/javascript")
             response.headers["Cache-Control"] = "public, max-age=86400"
             return response
+    if normalized.endswith(".js"):
+        response = Response("/* not found */", mimetype="application/javascript", status=404)
+        response.headers["Cache-Control"] = "no-store"
+        return response
     return jsonify({"error": "not_found"}), 404
 
 
