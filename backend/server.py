@@ -23584,22 +23584,20 @@ def signotec_installer_download():
     return redirect(remote, code=302)
 
 
+def _signotec_setup_ps1_content(base: str) -> str:
+    script_path = BASE_DIR / "scripts" / "baupass-signotec-bridge-setup.ps1"
+    if script_path.exists() and script_path.is_file():
+        return script_path.read_text(encoding="utf-8").replace("{{BASE_URL}}", base)
+    return f"""# BauPass Signotec Bridge fallback
+$ErrorActionPreference = 'Stop'
+Write-Host 'Setup script missing on server. Download installer from {base}/api/signotec/installer'
+pause
+"""
+
+
 def signotec_setup_helper():
     base = request.url_root.rstrip("/")
-    ps1 = f"""# BauPass Signotec Bridge — one-time setup per Windows PC (signoPAD-API/Web 3.5.0)
-# Right-click -> Run with PowerShell (admin not required for per-user install).
-$ErrorActionPreference = 'Stop'
-$installerUrl = '{base}/api/signotec/installer'
-$dest = Join-Path $env:TEMP '{SIGNOTEC_INSTALLER_FILENAME}'
-Write-Host 'BauPass: downloading Signotec bridge...' -ForegroundColor Cyan
-Invoke-WebRequest -Uri $installerUrl -OutFile $dest -UseBasicParsing
-Write-Host 'BauPass: installing (once per PC)...' -ForegroundColor Cyan
-$args = '/s /v"/qn CERT_SEL=\\"Localhost\\" ALLOW_EDGE_LOOPBACK=\\"Yes\\""'
-Start-Process -FilePath $dest -ArgumentList $args -Wait
-Write-Host 'BauPass: open browser to trust local certificate (confirm once).' -ForegroundColor Cyan
-Start-Process 'https://localhost:49494/'
-Write-Host 'Done. Reload BauPass and click Signaturgeraet again.' -ForegroundColor Green
-"""
+    ps1 = _signotec_setup_ps1_content(base)
     response = Response(ps1, mimetype="application/octet-stream")
     response.headers["Content-Disposition"] = 'attachment; filename="baupass-signotec-setup.ps1"'
     response.headers["Cache-Control"] = "no-store"
@@ -23610,13 +23608,28 @@ def signotec_setup_helper_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
 title BauPass Signotec Bridge
-echo BauPass: Signotec bridge setup (once per PC)...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $u='{base}/api/signotec/installer'; $d=Join-Path $env:TEMP '{SIGNOTEC_INSTALLER_FILENAME}'; Write-Host 'Downloading...'; Invoke-WebRequest -Uri $u -OutFile $d -UseBasicParsing; Write-Host 'Installing...'; Start-Process -FilePath $d -ArgumentList '/s /v\\"/qn CERT_SEL=\\\\\\"Localhost\\\\\\" ALLOW_EDGE_LOOPBACK=\\\\\\"Yes\\\\\\"\\"' -Wait; Start-Process 'https://localhost:49494/'; Write-Host 'Done. Reload BauPass.'"
+echo BauPass: Signotec bridge setup (once per PC, needs admin once)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p"
 echo.
 pause
 """
     response = Response(bat, mimetype="application/octet-stream")
     response.headers["Content-Disposition"] = 'attachment; filename="baupass-signotec-setup.bat"'
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def signotec_start_bridge_bat():
+    base = request.url_root.rstrip("/")
+    bat = f"""@echo off
+title BauPass Signotec Bridge starten
+echo BauPass: STPadServer starten (Port 49494)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
+echo.
+pause
+"""
+    response = Response(bat, mimetype="application/octet-stream")
+    response.headers["Content-Disposition"] = 'attachment; filename="baupass-signotec-start.bat"'
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -25253,6 +25266,7 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/signotec/installer", signotec_installer_download, ("GET",), "core_signotec_installer")
     _patch_api_route("/api/signotec/setup-helper.ps1", signotec_setup_helper, ("GET",), "core_signotec_setup_helper")
     _patch_api_route("/api/signotec/setup-helper.bat", signotec_setup_helper_bat, ("GET",), "core_signotec_setup_bat")
+    _patch_api_route("/api/signotec/start-bridge.bat", signotec_start_bridge_bat, ("GET",), "core_signotec_start_bat")
     _patch_api_route("/api/invoices", list_invoices, ("GET",), "core_invoices_list")
     _patch_api_route("/api/access-logs", list_access_logs, ("GET",), "core_access_logs_list")
     _patch_api_route("/api/access-logs/latest", list_latest_access_logs, ("GET",), "core_access_logs_latest")

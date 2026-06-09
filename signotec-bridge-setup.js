@@ -153,6 +153,10 @@
       }
     });
 
+    global.document.getElementById("signotecBridgeStartBtn")?.addEventListener("click", () => {
+      global.open(downloadUrl("/api/signotec/start-bridge.bat"), "_blank", "noopener,noreferrer");
+    });
+
     global.document.getElementById("signotecBridgeRetestBtn")?.addEventListener("click", () => {
       void refreshPanelState();
     });
