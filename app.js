@@ -734,6 +734,8 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusLibMissing: "Server-Bibliothek fehlt — Seite neu laden oder Support kontaktieren.",
     signotecBridgeStatusInstall: "Bridge noch nicht erreichbar — „Automatisch einrichten“ ausführen, Pad per USB verbinden.",
     signotecBridgeStatusCert: "Bridge läuft, Zertifikat fehlt — „Zertifikat bestätigen“, dann Verbindung prüfen.",
+    signotecBridgeFirefoxHint: "Firefox: Nach „Zertifikat bestätigen“ auf „Erweitert“ → „Risiko akzeptieren“ klicken, dann BauPass neu laden.",
+    signotecBridgeStatusFirefox: "Signotec-Bridge fehlt oder Zertifikat in Firefox noch nicht bestätigt — zuerst Einrichtung starten, dann Zertifikat.",
     signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
     signatureProviderSignotec: "Signotec",
@@ -1800,6 +1802,8 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusLibMissing: "Server library missing — reload the page or contact support.",
     signotecBridgeStatusInstall: "Bridge not reachable — run Auto setup and connect the pad via USB.",
     signotecBridgeStatusCert: "Bridge is running; certificate not trusted — click Trust certificate, then test again.",
+    signotecBridgeFirefoxHint: "Firefox: after Trust certificate, click Advanced → Accept the Risk and Continue, then reload BauPass.",
+    signotecBridgeStatusFirefox: "Signotec bridge missing or Firefox certificate not trusted — run setup first, then trust the certificate.",
     signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
     signatureProviderSignotec: "Signotec",
@@ -3917,6 +3921,8 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusLibMissing: "مكتبة السيرفر مفقودة — أعد تحميل الصفحة أو اتصل بالدعم.",
     signotecBridgeStatusInstall: "الجسر غير متاح — شغّل الإعداد التلقائي ووصّل اللوحة عبر USB.",
     signotecBridgeStatusCert: "الجسر يعمل؛ الشهادة غير مقبولة — اضغط تأكيد الشهادة ثم اختبر مجدداً.",
+    signotecBridgeFirefoxHint: "Firefox: بعد «تأكيد الشهادة» اضغط «متقدم» → «قبول المخاطرة والمتابعة»، ثم أعد تحميل BauPass.",
+    signotecBridgeStatusFirefox: "جسر Signotec غير موجود أو الشهادة غير مقبولة في Firefox — شغّل الإعداد أولاً ثم أكّد الشهادة.",
     signatureDeviceTimeout: "جهاز التوقيع لا يستجيب — أعد المحاولة أو وقّع في المساحة البيضاء.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
     signatureProviderSignotec: "Signotec",
@@ -16670,6 +16676,7 @@ function signotecBridgeStatusText(state) {
   if (!state || state.bridge) return "";
   if (!state.lib) return uiT("signotecBridgeStatusLibMissing");
   if (state.reason === "signotec_ws_error") return uiT("signotecBridgeStatusCert");
+  if (/firefox/i.test(String(navigator.userAgent || ""))) return uiT("signotecBridgeStatusFirefox");
   return uiT("signotecBridgeStatusInstall");
 }
 globalThis.signotecBridgeStatusText = signotecBridgeStatusText;

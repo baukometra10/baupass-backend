@@ -2381,6 +2381,11 @@ select:focus {
   color: #b45309;
 }
 
+.signotec-bridge-firefox {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 .signotec-bridge-actions {
   flex-wrap: wrap;
 }

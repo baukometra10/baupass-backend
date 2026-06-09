@@ -45,6 +45,17 @@
     }
   }
 
+  function isFirefoxBrowser() {
+    return /firefox/i.test(String(global.navigator?.userAgent || ""));
+  }
+
+  function updateFirefoxHint(state) {
+    const hint = global.document.getElementById("signotecBridgeFirefoxHint");
+    if (!hint) return;
+    const show = isFirefoxBrowser() && state?.lib && !state?.bridge;
+    hint.classList.toggle("hidden", !show);
+  }
+
   async function refreshPanelState() {
     const root = panel();
     if (!root || root.classList.contains("hidden")) return null;
@@ -53,6 +64,7 @@
     setStepState("signotecBridgeStepInstall", state.bridge ? "ok" : state.lib ? "pending" : "idle");
     setStepState("signotecBridgeStepTrust", state.bridge ? "ok" : state.lib ? "pending" : "idle");
     setStepState("signotecBridgeStepReady", state.bridge ? "ok" : "idle");
+    updateFirefoxHint(state);
     const status = global.document.getElementById("signotecBridgeStatus");
     if (status) {
       if (state.bridge) {
@@ -79,6 +91,13 @@
       try {
         if (global.sessionStorage.getItem(SESSION_HIDE) === "1") return;
         if (global.localStorage.getItem(OK_KEY) === "1") return;
+      } catch {
+        // ignore
+      }
+    } else {
+      try {
+        global.sessionStorage.removeItem(SESSION_HIDE);
+        global.localStorage.removeItem(OK_KEY);
       } catch {
         // ignore
       }

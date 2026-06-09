@@ -2059,7 +2059,22 @@
 
   /* ── Register providers (market priority: DE/EU first, then global) ───── */
 
-
+  async function signotecProbe() {
+    if (!(await signotecLoadLib())) return { ok: false, reason: "signotec_lib_missing" };
+    try {
+      await signotecEnsureConnection({ timeoutMs: 2500 });
+      let serverVersion = "";
+      try {
+        const info = await global.STPadServerLibCommons.getServerVersion();
+        serverVersion = String(info?.serverVersion || "");
+      } catch {
+        // ignore
+      }
+      return { ok: true, detail: serverVersion, meta: { serverVersion } };
+    } catch (err) {
+      return { ok: false, reason: err?.message || "signotec_ws_unreachable" };
+    }
+  }
 
   bridge.registerProvider({
 
@@ -2069,37 +2084,7 @@
 
     order: 10,
 
-    probe: async () => {
-
-      if (!(await signotecLoadLib())) return { ok: false, reason: "signotec_lib_missing" };
-
-      try {
-
-        await signotecEnsureConnection({ timeoutMs: 2500 });
-
-        let serverVersion = "";
-
-        try {
-
-          const info = await global.STPadServerLibCommons.getServerVersion();
-
-          serverVersion = String(info?.serverVersion || "");
-
-        } catch {
-
-          // ignore
-
-        }
-
-        return { ok: true, detail: serverVersion, meta: { serverVersion } };
-
-      } catch (err) {
-
-        return { ok: false, reason: err?.message || "signotec_ws_unreachable" };
-
-      }
-
-    },
+    probe: signotecProbe,
 
     capture: signotecCapture,
 
@@ -2254,15 +2239,10 @@
     captureSignature: signotecCapture,
 
     probeConnection: async () => {
-
-      const hit = (await bridge.probeProviders(true)).find((p) => p.id === "signotec");
-
-      return hit?.ok
-
-        ? { ok: true, serverVersion: hit.detail }
-
-        : { ok: false, reason: hit?.detail || "signotec_ws_unreachable" };
-
+      const probe = await signotecProbe();
+      return probe.ok
+        ? { ok: true, serverVersion: probe.meta?.serverVersion || probe.detail || "" }
+        : { ok: false, reason: probe.reason || "signotec_ws_unreachable" };
     },
 
     destroyConnection: () => {
