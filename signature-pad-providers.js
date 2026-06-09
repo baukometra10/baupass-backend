@@ -134,6 +134,18 @@
 
 
 
+  async function signotecLoadLib() {
+
+    if (signotecLibsReady()) return true;
+
+    const ok = await loadScriptOnce("./vendor/signotec/STPadServerLib.js", "signotec");
+
+    return ok && signotecLibsReady();
+
+  }
+
+
+
   async function signotecSetInterfaceVersionSafe() {
 
     if (typeof global.STPadServerLibCommons.setInterfaceVersion !== "function") return;
@@ -154,7 +166,7 @@
 
 
 
-  function signotecCreateConnection(url) {
+  function signotecCreateConnection(url, timeoutMs = 8000) {
 
     return new Promise((resolve, reject) => {
 
@@ -184,7 +196,7 @@
 
       };
 
-      const timer = global.setTimeout(() => finishErr(new Error("signotec_ws_timeout")), 8000);
+      const timer = global.setTimeout(() => finishErr(new Error("signotec_ws_timeout")), timeoutMs);
 
       try {
 
@@ -232,9 +244,11 @@
 
 
 
-  async function signotecEnsureConnection() {
+  async function signotecEnsureConnection(options = {}) {
 
-    if (!signotecLibsReady()) throw new Error("signotec_lib_missing");
+    const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 8000;
+
+    if (!(await signotecLoadLib())) throw new Error("signotec_lib_missing");
 
     if (signotecState.wsConnected) return;
 
@@ -244,7 +258,7 @@
 
       try {
 
-        await signotecCreateConnection(url);
+        await signotecCreateConnection(url, timeoutMs);
 
         await signotecSetInterfaceVersionSafe();
 
@@ -1743,11 +1757,11 @@
 
     probe: async () => {
 
-      if (!signotecLibsReady()) return { ok: false, reason: "signotec_lib_missing" };
+      if (!(await signotecLoadLib())) return { ok: false, reason: "signotec_lib_missing" };
 
       try {
 
-        await signotecEnsureConnection();
+        await signotecEnsureConnection({ timeoutMs: 2500 });
 
         let serverVersion = "";
 
@@ -1793,7 +1807,7 @@
 
       if (!loaded) return { ok: false, reason: "wacom_lib_missing" };
 
-      await wacomWaitServiceReady(12, 400);
+      await wacomWaitServiceReady(4, 250);
 
       if (!global.WacomGSS.STU.isServiceReady()) {
 

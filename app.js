@@ -709,6 +709,9 @@ const UI_TRANSLATIONS = {
     signatureEmpty: "Keine Unterschrift erkannt — bitte erneut unterschreiben.",
     signaturePadNoneAvailable: "Kein Signatur-Bridge gefunden — direkt in der weißen Fläche unterschreiben (jeder USB-Stift).",
     signatureUseCanvas: "Unterschreiben Sie in der weißen Fläche — USB-Signaturpads funktionieren ohne Extra-Software.",
+    signatureSignotecLibMissing: "Signotec: STPadServerLib.js fehlt — von signoPAD-API/Web nach vendor/signotec/ kopieren und Seite neu laden.",
+    signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web läuft nicht auf diesem PC (Port 49494). Software starten, Pad per USB verbinden.",
+    signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
     signatureProviderSignotec: "Signotec",
     signatureProviderWacom: "Wacom",
     signatureProviderStepover: "StepOver",
@@ -1737,6 +1740,9 @@ const UI_TRANSLATIONS = {
     signatureEmpty: "No signature detected — please sign again.",
     signaturePadNoneAvailable: "No signature bridge found — sign in the white area (any USB pen works).",
     signatureUseCanvas: "Sign in the white area — USB signature pads work without extra software.",
+    signatureSignotecLibMissing: "Signotec: STPadServerLib.js is missing — copy it from signoPAD-API/Web to vendor/signotec/ and reload.",
+    signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web is not running on this PC (port 49494). Start the service and connect the pad via USB.",
+    signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
     signatureProviderSignotec: "Signotec",
     signatureProviderWacom: "Wacom",
     signatureProviderStepover: "StepOver",
@@ -3805,6 +3811,9 @@ const UI_TRANSLATIONS = {
     signatureEmpty: "لم يُكتشف توقيع — يرجى التوقيع مرة أخرى.",
     signaturePadNoneAvailable: "لم يُعثر على جسر توقيع — وقّع في المساحة البيضاء (أي قلم USB يعمل).",
     signatureUseCanvas: "وقّع في المساحة البيضاء — أجهزة USB تعمل بدون برنامج إضافي.",
+    signatureSignotecLibMissing: "Signotec: ملف STPadServerLib.js غير موجود — انسخه من signoPAD-API/Web إلى vendor/signotec/ ثم أعد تحميل الصفحة.",
+    signatureSignotecServiceMissing: "Signotec: signoPAD-API/Web غير شغّال على هذا الجهاز (منفذ 49494). شغّل البرنامج ووصّل الجهاز عبر USB.",
+    signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
     signatureProviderSignotec: "Signotec",
     signatureProviderWacom: "Wacom",
     signatureProviderStepover: "StepOver",
@@ -8477,6 +8486,8 @@ let heartbeatTimer = null;
 let selfieSegmenter = null;
 let sessionExpiryNoticeShown = false;
 let sessionExpiryNoticeAt = 0;
+let sessionBootstrapInFlight = null;
+let sessionKnownExpired = false;
 let invoicePaidHighlightTimer = null;
 let invoiceAutoRefreshTimer = null;
 let invoiceApprovalRefreshTimer = null;
@@ -16238,6 +16249,11 @@ function mapSignaturePadError(error) {
     || code === "signature_empty") {
     return uiT("signatureEmpty");
   }
+  if (code === "signotec_lib_missing") return uiT("signatureSignotecLibMissing");
+  if (code === "signotec_ws_unreachable" || code === "signotec_ws_timeout") return uiT("signatureSignotecServiceMissing");
+  if (code === "wacom_lib_missing" || code === "wacom_service_not_ready" || code === "wacom_dca_not_ready") {
+    return uiT("signatureWacomMissing");
+  }
   if (code === "signature_pad_none_available") return uiT("signaturePadNoneAvailable");
   if (code === "signature_use_canvas") return uiT("signatureUseCanvas");
   return uiT("signatureDeviceFailed").replace("{error}", code || "?");
@@ -16269,6 +16285,12 @@ async function captureComplianceSignatureFromDevice() {
     const probes = await bridge.probeProviders(true);
     const active = probes.filter((p) => p.ok && p.id !== "canvas");
     const providerId = active[0]?.id || "";
+    if (!providerId) {
+      const hint = probes.find((p) => p.id !== "canvas" && p.detail);
+      if (hint?.detail) {
+        throw new Error(hint.detail);
+      }
+    }
     if (providerId) {
       showToast(signatureCapturingMessage(providerId), "info", 6000);
     }
@@ -17615,6 +17637,8 @@ function startInvoiceApprovalAutoRefresh() {
 
 function clearSession() {
   stopLiveAccessPoll();
+  sessionKnownExpired = false;
+  sessionBootstrapInFlight = null;
   token = "";
   persistSessionToken("");
   state.currentUser = null;
@@ -17638,57 +17662,74 @@ function handleExpiredControlSession() {
 }
 
 async function restoreSessionFromBootstrap() {
-  const headers = { "Content-Type": "application/json" };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  let response;
-  try {
-    response = await fetch(`${API_BASE}/api/session/bootstrap`, {
-      method: "GET",
-      headers,
-      credentials: "include",
-    });
-  } catch {
-    throw new Error("backend_unreachable");
-  }
-  const bootstrap = await response.json().catch(() => ({}));
-  if (bootstrap?.error === "database_not_ready") {
-    const requestError = new Error("database_not_ready");
-    requestError.payload = bootstrap;
-    throw requestError;
-  }
-  if (
-    !response.ok
-    || bootstrap?.authenticated === false
-    || ["unauthorized", "invalid_session", "session_expired"].includes(String(bootstrap?.error || ""))
-  ) {
-    clearSession();
+  if (sessionKnownExpired && !token) {
     throw new Error("session_expired");
   }
-  if (bootstrap?.token) {
-    token = bootstrap.token;
-    persistSessionToken(token);
+  if (sessionBootstrapInFlight) {
+    return sessionBootstrapInFlight;
   }
-  if (bootstrap?.user) {
-    state.currentUser = bootstrap.user;
-    if (bootstrap.user.role === "superadmin") {
-      let previewCid = String(bootstrap.user.preview_company_id || "").trim();
-      if (!previewCid) {
-        try {
-          previewCid = String(localStorage.getItem("baupass-preview-company-id") || "").trim();
-        } catch {
-          // ignore
+
+  sessionBootstrapInFlight = (async () => {
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    let response;
+    try {
+      response = await fetch(`${API_BASE}/api/session/bootstrap`, {
+        method: "GET",
+        headers,
+        credentials: "include",
+      });
+    } catch {
+      throw new Error("backend_unreachable");
+    }
+    const bootstrap = await response.json().catch(() => ({}));
+    if (bootstrap?.error === "database_not_ready") {
+      const requestError = new Error("database_not_ready");
+      requestError.payload = bootstrap;
+      throw requestError;
+    }
+    if (
+      !response.ok
+      || bootstrap?.authenticated === false
+      || ["unauthorized", "invalid_session", "session_expired"].includes(String(bootstrap?.error || ""))
+    ) {
+      sessionKnownExpired = true;
+      clearSession();
+      throw new Error("session_expired");
+    }
+    sessionKnownExpired = false;
+    if (bootstrap?.token) {
+      token = bootstrap.token;
+      persistSessionToken(token);
+    }
+    if (bootstrap?.user) {
+      state.currentUser = bootstrap.user;
+      if (bootstrap.user.role === "superadmin") {
+        let previewCid = String(bootstrap.user.preview_company_id || "").trim();
+        if (!previewCid) {
+          try {
+            previewCid = String(localStorage.getItem("baupass-preview-company-id") || "").trim();
+          } catch {
+            // ignore
+          }
+        }
+        if (previewCid) {
+          superadminUiPreviewCompanyId = previewCid;
+          const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
+          companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
         }
       }
-      if (previewCid) {
-        superadminUiPreviewCompanyId = previewCid;
-        const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
-        companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
-      }
     }
+    return bootstrap;
+  })();
+
+  try {
+    return await sessionBootstrapInFlight;
+  } finally {
+    sessionBootstrapInFlight = null;
   }
-  return bootstrap;
 }
 
 function startHeartbeat() {
@@ -17888,6 +17929,10 @@ async function apiRequest(url, options = {}) {
     }
     // ── Retry bei 401 mit neuer Session ──
     if (auth && response.status === 401 && retries > 0) {
+      if (sessionKnownExpired) {
+        handleExpiredControlSession();
+        throw new Error("session_expired");
+      }
       const currentToken = String(token || "");
 
       // Wenn sich das Token waehrend des Requests geaendert hat (z. B. Login in parallelem Tab),
@@ -18492,30 +18537,45 @@ function normalizeWorkerAppLink(rawLink) {
 
 async function loadWorkerIdentityTokenStatuses(workersList) {
   const role = String(state.currentUser?.role || "").toLowerCase();
-  if (!Array.isArray(workersList) || workersList.length === 0 || !["superadmin", "company-admin"].includes(role)) {
+  if (!token || !Array.isArray(workersList) || workersList.length === 0 || !["superadmin", "company-admin"].includes(role)) {
     state.identityTokenByWorker = {};
     return;
   }
 
-  const requests = await Promise.allSettled(
-    workersList.map((worker) => apiRequest(`${API_BASE}/api/workers/${worker.id}/identity-token`))
-  );
   const nextState = {};
-  workersList.forEach((worker, index) => {
-    const result = requests[index];
-    if (result?.status === "fulfilled") {
-      const payload = result.value || {};
-      nextState[worker.id] = {
-        configured: Boolean(payload.configured),
-        status: String(payload.status || "").toLowerCase(),
-      };
-      return;
+  const batchSize = 8;
+  for (let offset = 0; offset < workersList.length; offset += batchSize) {
+    if (!token || sessionKnownExpired) {
+      break;
     }
-    nextState[worker.id] = {
-      configured: false,
-      status: "unknown",
-    };
-  });
+    const batch = workersList.slice(offset, offset + batchSize);
+    const requests = await Promise.allSettled(
+      batch.map((worker) => apiRequest(`${API_BASE}/api/workers/${worker.id}/identity-token`, { retries: 0 }))
+    );
+    let abort = false;
+    batch.forEach((worker, index) => {
+      const result = requests[index];
+      if (result?.status === "fulfilled") {
+        const payload = result.value || {};
+        nextState[worker.id] = {
+          configured: Boolean(payload.configured),
+          status: String(payload.status || "").toLowerCase(),
+        };
+        return;
+      }
+      const err = result?.reason;
+      if (Number(err?.status) === 401 || String(err?.message || "") === "session_expired") {
+        abort = true;
+      }
+      nextState[worker.id] = {
+        configured: false,
+        status: "unknown",
+      };
+    });
+    if (abort) {
+      break;
+    }
+  }
   state.identityTokenByWorker = nextState;
 }
 
@@ -30327,6 +30387,7 @@ async function handleLoginSubmit(event) {
     resetLoginFailureCounter();
     state.loginOtpPending = false;
     state.loginSetupEmailPending = false;
+    sessionKnownExpired = false;
     token = payload.token;
     persistSessionToken(token);
     state.currentUser = payload.user;
