@@ -36,6 +36,85 @@ def _is_sqlite_locked(exc: BaseException) -> bool:
     return isinstance(exc, sqlite3.OperationalError) and "locked" in str(exc).lower()
 
 
+def is_disk_io_error(exc: BaseException) -> bool:
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    message = str(exc).lower()
+    return "disk i/o" in message or "i/o error" in message
+
+
+def volume_is_writable(directory: Path) -> bool:
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        probe = directory / ".baupass_write_probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+def _create_empty_sqlite(db_path: Path) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    for suffix in ("-wal", "-shm", "-journal"):
+        sidecar = Path(f"{db_path}{suffix}")
+        if sidecar.is_file():
+            try:
+                sidecar.unlink()
+            except OSError:
+                pass
+    if db_path.is_file():
+        try:
+            db_path.unlink()
+        except OSError:
+            pass
+    conn = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("SELECT 1").fetchone()
+    finally:
+        conn.close()
+    print(f"[baupass] Created fresh SQLite database at {db_path}", flush=True)
+
+
+def recover_sqlite_from_disk_io_failure(db_path: Path) -> bool:
+    """
+    Quarantine a corrupt DB, restore the newest valid backup, or create a fresh file.
+    Returns True when db_path should be retried.
+    """
+    from backend.app.core.sqlite_pragmas import recover_sqlite_disk_io
+
+    recover_sqlite_disk_io(db_path)
+    if db_path.is_file():
+        _quarantine_unusable_db(db_path)
+
+    for backup in _backup_candidates(db_path=db_path):
+        if not sqlite_core_tables_ok(backup):
+            continue
+        try:
+            restore_sqlite_from_backup(backup, db_path)
+            recover_sqlite_disk_io(db_path)
+            if sqlite_core_tables_ok(db_path):
+                print(f"[baupass] Recovered SQLite from backup after disk I/O: {backup}", flush=True)
+                return True
+        except Exception as exc:
+            print(f"[baupass] WARNING: backup restore after disk I/O failed ({backup}): {exc}", flush=True)
+
+    if not volume_is_writable(db_path.parent):
+        print(
+            f"[baupass] CRITICAL: {db_path.parent} is not writable — cannot recover SQLite on volume.",
+            flush=True,
+        )
+        return False
+
+    try:
+        _create_empty_sqlite(db_path)
+        return True
+    except Exception as exc:
+        print(f"[baupass] CRITICAL: could not create fresh SQLite at {db_path}: {exc}", flush=True)
+        return False
+
+
 def _backup_search_dirs(db_path: Path | None = None) -> list[Path]:
     dirs: list[Path] = []
     seen: set[str] = set()
@@ -134,24 +213,7 @@ def ensure_usable_sqlite_path(db_path: Path) -> Path:
 
     auto = str(os.getenv("BAUPASS_SQLITE_AUTO_RESTORE", "1")).strip().lower()
     if auto in {"0", "false", "no", "off"}:
-        raise RuntimeError(f"SQLite database at {db_path} is not login-ready (auto-restore disabled)")
-
-    # Busy DB during concurrent requests is not corruption — never quarantine for that.
-    try:
-        with sqlite3.connect(str(db_path), timeout=3.0) as conn:
-            conn.execute("SELECT 1").fetchone()
-        print(
-            f"[baupass] WARNING: SQLite at {db_path} passed open check but core tables probe failed — "
-            "continuing without quarantine.",
-            flush=True,
-        )
-        return db_path
-    except sqlite3.OperationalError as exc:
-        if _is_sqlite_locked(exc):
-            print(f"[baupass] WARNING: SQLite at {db_path} is temporarily locked — continuing.", flush=True)
-            return db_path
-    except Exception:
-        pass
+        raise RuntimeError(f"SQLite database at {db_path} is not login-ready (auto-recover disabled)")
 
     candidates = _backup_candidates(exclude=db_path, db_path=db_path)
     for backup in candidates:

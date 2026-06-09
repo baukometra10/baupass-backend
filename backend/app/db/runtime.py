@@ -72,15 +72,9 @@ def _resolve_sqlite_path() -> Path:
     return base / "baupass.db"
 
 
-def _is_disk_io_error(exc: BaseException) -> bool:
-    if not isinstance(exc, sqlite3.OperationalError):
-        return False
-    message = str(exc).lower()
-    return "disk i/o" in message or "i/o error" in message
-
-
 def _open_sqlite_connection(db_path: Path) -> sqlite3.Connection:
     from backend.app.core.sqlite_pragmas import apply_sqlite_pragmas, recover_sqlite_disk_io
+    from backend.app.db.sqlite_recovery import is_disk_io_error, recover_sqlite_from_disk_io_failure
 
     last_exc: Exception | None = None
     for attempt in range(3):
@@ -91,13 +85,14 @@ def _open_sqlite_connection(db_path: Path) -> sqlite3.Connection:
             return conn
         except sqlite3.OperationalError as exc:
             last_exc = exc
-            if _is_disk_io_error(exc) and attempt < 2:
+            if is_disk_io_error(exc) and attempt < 2:
                 print(
                     f"[baupass] WARNING: SQLite disk I/O error on {db_path} (attempt {attempt + 1}/3) — recovering",
                     flush=True,
                 )
                 recover_sqlite_disk_io(db_path)
-                continue
+                if recover_sqlite_from_disk_io_failure(db_path):
+                    continue
             raise
     if last_exc is not None:
         raise last_exc

@@ -42,10 +42,6 @@ def recover_sqlite_disk_io(db_path: Path) -> bool:
                     conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 except Exception:
                     pass
-                try:
-                    conn.execute("PRAGMA journal_mode=DELETE")
-                except Exception:
-                    pass
     except Exception:
         pass
 
@@ -62,20 +58,27 @@ def recover_sqlite_disk_io(db_path: Path) -> bool:
     return recovered
 
 
+def _safe_pragma(conn: sqlite3.Connection, sql: str) -> None:
+    try:
+        conn.execute(sql)
+    except sqlite3.OperationalError:
+        pass
+
+
 def apply_sqlite_pragmas(conn: sqlite3.Connection, *, db_path: Path | str | None = None) -> None:
-    """Apply journal mode and cache settings once per connection."""
+    """Apply journal mode and cache settings once per connection (never raises)."""
     journal_mode = preferred_journal_mode(db_path)
-    conn.execute(f"PRAGMA journal_mode={journal_mode}")
-    conn.execute("PRAGMA synchronous=FULL" if journal_mode == "DELETE" else "PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    _safe_pragma(conn, f"PRAGMA journal_mode={journal_mode}")
+    _safe_pragma(
+        conn,
+        "PRAGMA synchronous=FULL" if journal_mode == "DELETE" else "PRAGMA synchronous=NORMAL",
+    )
+    _safe_pragma(conn, "PRAGMA foreign_keys=ON")
     busy_ms = int(os.getenv("BAUPASS_SQLITE_BUSY_TIMEOUT_MS", "60000"))
     cache_kb = int(os.getenv("BAUPASS_SQLITE_CACHE_KB", "64000"))
-    mmap_mb = int(os.getenv("BAUPASS_SQLITE_MMAP_MB", "256"))
-    conn.execute(f"PRAGMA busy_timeout={max(1000, busy_ms)}")
-    conn.execute(f"PRAGMA cache_size=-{max(2000, cache_kb)}")
-    conn.execute("PRAGMA temp_store=MEMORY")
-    if mmap_mb > 0 and preferred_journal_mode(db_path) != "DELETE":
-        try:
-            conn.execute(f"PRAGMA mmap_size={mmap_mb * 1024 * 1024}")
-        except sqlite3.OperationalError:
-            pass
+    mmap_mb = int(os.getenv("BAUPASS_SQLITE_MMAP_MB", "0"))
+    _safe_pragma(conn, f"PRAGMA busy_timeout={max(1000, busy_ms)}")
+    _safe_pragma(conn, f"PRAGMA cache_size=-{max(2000, cache_kb)}")
+    _safe_pragma(conn, "PRAGMA temp_store=MEMORY")
+    if mmap_mb > 0 and journal_mode != "DELETE":
+        _safe_pragma(conn, f"PRAGMA mmap_size={mmap_mb * 1024 * 1024}")

@@ -4156,12 +4156,21 @@ def init_db():
 
 
 def init_db_with_retry(attempts=5, base_delay_seconds=0.3):
-    """Retry init_db on transient SQLite lock contention during app startup."""
+    """Retry init_db on transient SQLite lock contention or disk I/O with auto-recovery."""
+    from backend.app.db.sqlite_recovery import is_disk_io_error, recover_sqlite_from_disk_io_failure
+
     for attempt in range(attempts):
         try:
             init_db()
             return
         except sqlite3.OperationalError as exc:
+            if is_disk_io_error(exc) and attempt < attempts - 1:
+                print(
+                    f"[baupass] init_db disk I/O error — auto-recovery attempt {attempt + 1}/{attempts - 1}",
+                    flush=True,
+                )
+                if recover_sqlite_from_disk_io_failure(Path(DB_PATH)):
+                    continue
             is_locked = "database is locked" in str(exc).lower()
             if not is_locked or attempt >= attempts - 1:
                 raise
