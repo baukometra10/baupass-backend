@@ -654,14 +654,42 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     def ai_speak():
         from flask import Response
 
-        from .tts import synthesize_speech_bytes
+        from .tts import synthesize_speech_bytes, synthesize_speech_stream
 
         data = request.get_json(silent=True) or {}
         text = str(data.get("text") or "").strip()
         if not text:
             return jsonify({"error": "text_required"}), 400
         lang = str(data.get("lang") or "de")[:2]
-        result = synthesize_speech_bytes(text, lang=lang)
+        fast = _parse_bool_flag(data.get("fast"), default=True)
+        stream = _parse_bool_flag(data.get("stream"), default=False)
+
+        if stream:
+            from flask import stream_with_context
+
+            gen = synthesize_speech_stream(text, lang=lang, fast=fast)
+            first = next(gen, None)
+            if first is None:
+                result = synthesize_speech_bytes(text, lang=lang, fast=fast)
+                audio = result.get("audio")
+                if not audio:
+                    return jsonify({
+                        "error": result.get("error", "tts_failed"),
+                        "hint": result.get("hint"),
+                    }), 400
+                return Response(audio, mimetype=result.get("mime") or "audio/mpeg")
+
+            def generate():
+                yield first
+                yield from gen
+
+            return Response(
+                stream_with_context(generate()),
+                mimetype="audio/wav",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+
+        result = synthesize_speech_bytes(text, lang=lang, fast=fast)
         audio = result.get("audio")
         if not audio:
             return jsonify({

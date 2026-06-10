@@ -208,8 +208,22 @@
     let s = dropMetaSections(stripMarkdown(text));
     s = s.replace(/\s+/g, " ").trim();
     if (!s || isWeakTranscript(s)) return "";
-    const maxSentences = options.spoken ? (options.maxSentences || 6) : (options.maxSentences || 8);
+    const uiLang = resolveLang(options.lang);
+    const isAr = uiLang === "ar";
+    const maxSentences = options.maxSentences ?? (options.spoken ? (isAr ? 3 : 6) : 8);
     s = truncateSentences(s, maxSentences);
+    const maxChars = options.maxChars ?? (options.spoken && isAr ? 280 : 0);
+    if (maxChars > 0 && s.length > maxChars) {
+      const cut = s.slice(0, maxChars);
+      const breakAt = Math.max(
+        cut.lastIndexOf("؟"),
+        cut.lastIndexOf("."),
+        cut.lastIndexOf("!"),
+        cut.lastIndexOf("?"),
+        cut.lastIndexOf("،"),
+      );
+      s = breakAt > 40 ? cut.slice(0, breakAt + 1).trim() : `${cut.trim()}…`;
+    }
     if (s.length <= 2800) return s;
     const cut = s.slice(0, 2600);
     const breakAt = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"), cut.lastIndexOf("؟"));
@@ -354,9 +368,10 @@
     }, 1200);
   }
 
-  function playAudioBlob(blob) {
+  function playAudioBlob(blob, mimeType) {
     return new Promise((resolve) => {
-      const url = URL.createObjectURL(blob);
+      const type = mimeType || blob.type || "audio/mpeg";
+      const url = URL.createObjectURL(new Blob([blob], { type }));
       currentAudioUrl = url;
       const audio = new Audio(url);
       currentAudio = audio;
@@ -380,6 +395,17 @@
     });
   }
 
+  function buildSpeakBody(text, lang, options = {}) {
+    const ui = resolveLang(lang);
+    const fast = options.fast !== false && (ui === "ar" || Boolean(options.spoken));
+    return {
+      text,
+      lang: ui,
+      fast,
+      stream: options.stream !== false && fast,
+    };
+  }
+
   async function speakWithOpenAi(text, lang, options = {}) {
     try {
       dispatchSpeakingState(true, { preparing: true });
@@ -388,19 +414,20 @@
         method: "POST",
         credentials: "include",
         headers: buildSpeakHeaders(options),
-        body: JSON.stringify({ text, lang: resolveLang(lang) }),
+        body: JSON.stringify(buildSpeakBody(text, lang, options)),
       });
       if (!res.ok) {
         dispatchSpeakingState(false);
         return false;
       }
+      const mime = res.headers.get("Content-Type") || "audio/mpeg";
       const blob = await res.blob();
       if (!blob.size) {
         dispatchSpeakingState(false);
         return false;
       }
       dispatchSpeakingState(true, { preparing: false });
-      return playAudioBlob(blob);
+      return playAudioBlob(blob, mime);
     } catch {
       dispatchSpeakingState(false);
       return false;
@@ -433,7 +460,9 @@
     if (!options.force && !spoken && !isVoiceReplyEnabled()) return false;
     const prepared = cleanTextForSpeech(text, {
       spoken,
-      maxSentences: options.maxSentences || (spoken ? 6 : 8),
+      lang,
+      maxSentences: options.maxSentences,
+      maxChars: options.maxChars,
     });
     if (!prepared) return false;
     stopSpeaking();
@@ -479,40 +508,62 @@
     return headers;
   }
 
+  function markTtsPreparing() {
+    dispatchSpeakingState(true, { preparing: true });
+  }
+
   function beginTtsPrefetch(text, lang, options = {}) {
+    const ui = resolveLang(lang);
     const prepared = cleanTextForSpeech(text, {
       spoken: Boolean(options.spoken),
-      maxSentences: options.maxSentences || 4,
+      lang,
+      maxSentences: options.maxSentences ?? (ui === "ar" ? 3 : 4),
+      maxChars: options.maxChars ?? (ui === "ar" ? 280 : 0),
     });
-    if (!prepared || prepared.length < 24) return null;
-    const sig = `${prepared.length}:${prepared.slice(0, 64)}`;
+    const minLen = ui === "ar" ? 18 : 24;
+    if (!prepared || prepared.length < minLen) return null;
+    const sig = `${prepared.length}:${prepared.slice(0, 72)}`;
     if (beginTtsPrefetch._active?.sig === sig) return beginTtsPrefetch._active;
+    try {
+      beginTtsPrefetch._abort?.abort();
+    } catch {
+      // ignore
+    }
+    const abort = new AbortController();
+    beginTtsPrefetch._abort = abort;
     const url = options.speakUrl || "/api/ai/speak";
     const fetchPromise = fetch(url, {
       method: "POST",
       credentials: "include",
+      signal: abort.signal,
       headers: buildSpeakHeaders(options),
-      body: JSON.stringify({ text: prepared, lang: resolveLang(lang) }),
+      body: JSON.stringify(buildSpeakBody(prepared, lang, { ...options, spoken: true, stream: false })),
     })
-      .then((res) => (res.ok ? res.blob() : null))
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const mime = res.headers.get("Content-Type") || "audio/mpeg";
+        const blob = await res.blob();
+        if (!blob?.size) return null;
+        return { blob, mime };
+      })
       .catch(() => null);
-    const entry = { prepared, fetchPromise, sig };
+    const entry = { prepared, fetchPromise, sig, mime: "audio/mpeg" };
     beginTtsPrefetch._active = entry;
     return entry;
   }
 
   async function playPrefetchedSpeech(prefetch, finalPrepared) {
     if (!prefetch?.fetchPromise || !finalPrepared) return false;
-    const blob = await prefetch.fetchPromise;
-    if (!blob || !blob.size) return false;
+    const result = await prefetch.fetchPromise;
+    if (!result?.blob?.size) return false;
     if (
-      finalPrepared.length > prefetch.prepared.length + 80
-      && !finalPrepared.startsWith(prefetch.prepared.slice(0, Math.min(prefetch.prepared.length, 120)))
+      finalPrepared.length > prefetch.prepared.length + 120
+      && !finalPrepared.startsWith(prefetch.prepared.slice(0, Math.min(prefetch.prepared.length, 100)))
     ) {
       return false;
     }
-    dispatchSpeakingState(true);
-    return playAudioBlob(blob);
+    dispatchSpeakingState(true, { preparing: false });
+    return playAudioBlob(result.blob, result.mime || prefetch.mime);
   }
 
   function pickRecorderMimeType() {
@@ -1440,6 +1491,7 @@
     speakReply,
     speakText,
     beginTtsPrefetch,
+    markTtsPreparing,
     stopSpeaking,
     isSpeaking,
   };
