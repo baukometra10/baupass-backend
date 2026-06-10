@@ -7219,16 +7219,19 @@ function appendWorkerAiLog(role, text, actions = []) {
 }
 
 async function submitWorkerAiQuestion() {
-  const question = (elements.workerAiQuestion?.value || "").trim();
+  const input = elements.workerAiQuestion;
+  let question = (input?.value || "").trim();
   if (!question) return;
   globalThis.BaupassAiUi?.stopSpeaking?.();
   if (!workerToken) {
     showWorkerNotice(t("sessionExpired"));
     return;
   }
+  const spoken = globalThis.BaupassAiUi?.consumeVoiceInputFlag?.(input) || false;
+  question = globalThis.BaupassAiUi?.cleanQuestionText?.(question) || question;
   appendWorkerAiLog("user", question);
-  if (elements.workerAiQuestion) {
-    elements.workerAiQuestion.value = "";
+  if (input) {
+    input.value = "";
   }
   try {
     const payload = await fetchJson(`${API_BASE}/ai/ask`, {
@@ -7237,12 +7240,16 @@ async function submitWorkerAiQuestion() {
         Authorization: `Bearer ${workerToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ question, lang: getWorkerLang() }),
+      body: JSON.stringify({ question, lang: getWorkerLang(), spoken }),
     });
     const answer = payload?.answer || payload?.message || t("workerAiNoAnswer");
     const actions = payload?.actions || payload?.suggestedActions || [];
     appendWorkerAiLog("bot", answer, actions);
-    globalThis.BaupassAiUi?.speakText?.(answer, getWorkerLang());
+    await globalThis.BaupassAiUi?.speakReply?.(answer, getWorkerLang(), {
+      spoken,
+      speakUrl: `${API_BASE}/ai/speak`,
+      authHeaders: { Authorization: `Bearer ${workerToken}` },
+    });
   } catch (error) {
     appendWorkerAiLog("bot", formatWorkerApiError(error));
   }

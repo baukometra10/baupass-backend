@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
-  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice9" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice10" />
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice9"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice10"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -1030,7 +1030,7 @@
       };
     }
 
-    async function submitQuestion(q) {
+    async function submitQuestion(q, options = {}) {
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
       window.BaupassAiUi?.stopSpeaking?.();
       if (!sessionId) await newSession();
@@ -1077,7 +1077,7 @@
           headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({
             question: q, company_id: selectedCompanyId, agent_id: activeAgent,
-            session_id: sessionId, lang: LANG,
+            session_id: sessionId, lang: LANG, spoken: Boolean(options.spoken),
           }),
         });
         let thinkingRemoved = false;
@@ -1150,7 +1150,10 @@
           actions: meta.actions || meta.suggestedActions,
         });
         if (botDiv.textContent && meta.ok !== false) {
-          window.BaupassAiUi?.speakText?.(botDiv.textContent, LANG);
+          await window.BaupassAiUi?.speakReply?.(botDiv.textContent, LANG, {
+            spoken: Boolean(options.spoken),
+            authHeaders: () => authHeaders(),
+          });
         }
         await loadSessions();
         await loadInsights();
@@ -1237,10 +1240,13 @@
 
     document.getElementById("chatForm").onsubmit = (ev) => {
       ev.preventDefault();
-      const q = document.getElementById("question").value.trim();
+      const input = document.getElementById("question");
+      let q = input.value.trim();
       if (!q) return;
-      document.getElementById("question").value = "";
-      submitQuestion(q);
+      const spoken = window.BaupassAiUi?.consumeVoiceInputFlag?.(input) || false;
+      q = window.BaupassAiUi?.cleanQuestionText?.(q) || q;
+      input.value = "";
+      submitQuestion(q, { spoken });
     };
     document.getElementById("briefingBtn").onclick = runBriefing;
     document.getElementById("newChatBtn").onclick = newSession;

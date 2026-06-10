@@ -32,6 +32,7 @@ def run_agent_query(
     lang: str = "de",
     role: str = "company-admin",
     history: list[dict] | None = None,
+    spoken: bool = False,
 ) -> dict[str, Any]:
     if not is_ai_configured():
         return {
@@ -68,7 +69,7 @@ def run_agent_query(
         if snippets:
             live_context += "\n\nRelevante Dokument-Auszüge:\n" + "\n".join(snippets)
 
-    system = agent_system_prompt(agent_id, lang, live_context=live_context)
+    system = agent_system_prompt(agent_id, lang, live_context=live_context, spoken=spoken)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     for h in (history or [])[-12:]:
         role_name = h.get("role")
@@ -158,6 +159,7 @@ def run_agent_query_stream(
     lang: str = "de",
     role: str = "company-admin",
     history: list[dict] | None = None,
+    spoken: bool = False,
 ) -> Generator[dict[str, Any], None, None]:
     """Yield progress events, then stream final answer tokens via OpenAI."""
     from .assistant import is_ai_configured
@@ -194,7 +196,7 @@ def run_agent_query_stream(
                 snippets.append(f"- {title}: {text.strip()}")
         if snippets:
             live_context += "\n\nRelevante Dokument-Auszüge:\n" + "\n".join(snippets)
-    system = agent_system_prompt(agent_id, lang, live_context=live_context)
+    system = agent_system_prompt(agent_id, lang, live_context=live_context, spoken=spoken)
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     for h in (history or [])[-12:]:

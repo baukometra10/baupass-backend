@@ -137,6 +137,93 @@
     return Boolean(global.speechSynthesis && typeof global.SpeechSynthesisUtterance === "function");
   }
 
+  function voiceReplySupported() {
+    return typeof global.fetch === "function" || ttsAvailable();
+  }
+
+  function stripMarkdown(text) {
+    let s = String(text || "");
+    s = s.replace(/```[\s\S]*?```/g, " ");
+    s = s.replace(/`([^`]+)`/g, "$1");
+    s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, " ");
+    s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+    s = s.replace(/^#{1,6}\s+/gm, "");
+    s = s.replace(/^\s*[-*+•]\s+/gm, "");
+    s = s.replace(/^\s*\d+[.)]\s+/gm, "");
+    s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
+    s = s.replace(/\*([^*]+)\*/g, "$1");
+    s = s.replace(/_{1,2}([^_]+)_{1,2}/g, "$1");
+    s = s.replace(/https?:\/\/\S+/gi, " ");
+    return s;
+  }
+
+  function dropMetaSections(text) {
+    const lines = String(text || "").split("\n");
+    const metaRe = /^(quelle|sources?|tools?|werkzeuge|referenz|hinweis|metadata|kontext)\s*[:：]/i;
+    const out = [];
+    let inMeta = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        if (!inMeta) out.push("");
+        continue;
+      }
+      if (metaRe.test(trimmed)) {
+        inMeta = true;
+        continue;
+      }
+      if (inMeta && /^[-*•\d]/.test(trimmed)) continue;
+      inMeta = false;
+      out.push(line);
+    }
+    return out.join("\n");
+  }
+
+  function truncateSentences(text, maxSentences) {
+    const cleaned = String(text || "").replace(/\s+/g, " ").trim();
+    if (!maxSentences || maxSentences <= 0) return cleaned;
+    const parts = cleaned.split(/(?<=[.!?؟…])\s+/);
+    if (parts.length <= maxSentences) return cleaned;
+    return parts.slice(0, maxSentences).join(" ").trim();
+  }
+
+  function cleanTextForSpeech(text, options = {}) {
+    let s = dropMetaSections(stripMarkdown(text));
+    s = s.replace(/\s+/g, " ").trim();
+    if (!s || isWeakTranscript(s)) return "";
+    const maxSentences = options.spoken ? (options.maxSentences || 6) : (options.maxSentences || 8);
+    s = truncateSentences(s, maxSentences);
+    if (s.length <= 2800) return s;
+    const cut = s.slice(0, 2600);
+    const breakAt = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"), cut.lastIndexOf("؟"));
+    return `${breakAt > 400 ? cut.slice(0, breakAt + 1) : cut}…`;
+  }
+
+  function cleanQuestionText(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function consumeVoiceInputFlag(inputEl) {
+    if (!inputEl) return false;
+    const flagged = inputEl.dataset?.bpVoiceInput === "1";
+    if (flagged) delete inputEl.dataset.bpVoiceInput;
+    return flagged;
+  }
+
+  function voiceScore(voice, ttsLang, prefix) {
+    const name = String(voice.name || "");
+    const lang = String(voice.lang || "").toLowerCase();
+    let score = 0;
+    if (lang === ttsLang.toLowerCase()) score += 50;
+    else if (lang.startsWith(prefix)) score += 30;
+    if (/neural|natural|online|premium|enhanced|wavenet|google.*network|microsoft.*online|azure/i.test(name)) {
+      score += 40;
+    }
+    if (!voice.localService) score += 20;
+    if (/female|zira|sabina|anna|nova|alloy|shimmer|samantha|moira/i.test(name)) score += 5;
+    return score;
+  }
+
   function pickVoiceForLang(lang) {
     if (!ttsAvailable()) return null;
     const voices = global.speechSynthesis.getVoices();
@@ -145,19 +232,19 @@
     const prefix = ttsLang.split("-")[0].toLowerCase();
     const matching = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith(prefix));
     const pool = matching.length ? matching : voices;
-    return pool.find((v) => v.localService) || pool[0] || null;
+    return pool.reduce((best, voice) => {
+      if (!best) return voice;
+      return voiceScore(voice, ttsLang, prefix) > voiceScore(best, ttsLang, prefix) ? voice : best;
+    }, null);
   }
 
-  function prepareSpeechText(text) {
-    const cleaned = String(text || "").replace(/\s+/g, " ").trim();
-    if (!cleaned || isWeakTranscript(cleaned)) return "";
-    if (cleaned.length <= 2800) return cleaned;
-    const cut = cleaned.slice(0, 2600);
-    const breakAt = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"), cut.lastIndexOf("؟"));
-    return `${breakAt > 400 ? cut.slice(0, breakAt + 1) : cut}…`;
+  function prepareSpeechText(text, options = {}) {
+    return cleanTextForSpeech(text, options);
   }
 
   let currentSpeechUtterance = null;
+  let currentAudio = null;
+  let currentAudioUrl = null;
 
   function stopSpeaking() {
     try {
@@ -166,11 +253,28 @@
       // ignore
     }
     currentSpeechUtterance = null;
+    if (currentAudio) {
+      try {
+        currentAudio.pause();
+      } catch {
+        // ignore
+      }
+      currentAudio = null;
+    }
+    if (currentAudioUrl) {
+      try {
+        URL.revokeObjectURL(currentAudioUrl);
+      } catch {
+        // ignore
+      }
+      currentAudioUrl = null;
+    }
     global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: false } }));
   }
 
   function isSpeaking() {
     try {
+      if (currentAudio && !currentAudio.paused) return true;
       return Boolean(global.speechSynthesis?.speaking || global.speechSynthesis?.pending);
     } catch {
       return false;
@@ -195,17 +299,62 @@
     }, 1200);
   }
 
-  function speakText(text, lang, options = {}) {
+  function playAudioBlob(blob) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      currentAudioUrl = url;
+      const audio = new Audio(url);
+      currentAudio = audio;
+      global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: true } }));
+      const finish = (ok) => {
+        if (currentAudioUrl === url) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            // ignore
+          }
+          currentAudioUrl = null;
+        }
+        if (currentAudio === audio) currentAudio = null;
+        global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: false } }));
+        resolve(ok);
+      };
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      audio.play().then(() => {}).catch(() => finish(false));
+    });
+  }
+
+  async function speakWithOpenAi(text, lang, options = {}) {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (typeof options.authHeaders === "function") {
+        Object.assign(headers, options.authHeaders());
+      } else if (options.authHeaders && typeof options.authHeaders === "object") {
+        Object.assign(headers, options.authHeaders);
+      }
+      const url = options.speakUrl || "/api/ai/speak";
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ text, lang: resolveLang(lang) }),
+      });
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      if (!blob.size) return false;
+      return playAudioBlob(blob);
+    } catch {
+      return false;
+    }
+  }
+
+  function speakWithBrowser(text, lang, options = {}) {
     if (!ttsAvailable()) return false;
-    if (options.enabled === false) return false;
-    if (!options.force && !isVoiceReplyEnabled()) return false;
-    const prepared = prepareSpeechText(text);
-    if (!prepared) return false;
-    stopSpeaking();
-    const utter = new global.SpeechSynthesisUtterance(prepared);
+    const utter = new global.SpeechSynthesisUtterance(text);
     const ttsLang = LANG_MAP[resolveLang(lang)] || resolveSpeechLang({ lang });
     utter.lang = ttsLang;
-    utter.rate = Number(options.rate) || 0.96;
+    utter.rate = Number(options.rate) || 0.94;
     utter.pitch = Number(options.pitch) || 1;
     utter.volume = Number(options.volume) || 1;
     const voice = pickVoiceForLang(lang);
@@ -219,6 +368,26 @@
     global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: true } }));
     global.speechSynthesis.speak(utter);
     return true;
+  }
+
+  async function speakReply(text, lang, options = {}) {
+    const spoken = Boolean(options.spoken);
+    if (!options.force && !spoken && !isVoiceReplyEnabled()) return false;
+    const prepared = cleanTextForSpeech(text, {
+      spoken,
+      maxSentences: options.maxSentences || (spoken ? 6 : 8),
+    });
+    if (!prepared) return false;
+    stopSpeaking();
+    if (options.preferOpenAi !== false) {
+      const ok = await speakWithOpenAi(prepared, lang, options);
+      if (ok) return true;
+    }
+    return speakWithBrowser(prepared, lang, options);
+  }
+
+  async function speakText(text, lang, options = {}) {
+    return speakReply(text, lang, options);
   }
 
   function pickRecorderMimeType() {
@@ -459,7 +628,7 @@
     };
 
     const applyTranscript = (text, isFinal) => {
-      const cleaned = String(text || "").trim();
+      const cleaned = cleanQuestionText(text);
       if (!cleaned) return;
       if (isFinal && isWeakTranscript(cleaned)) return;
       inputEl.value = cleaned;
@@ -788,7 +957,7 @@
 
   function enhanceVoiceReplyButton(btnEl, lang) {
     if (!btnEl || btnEl.dataset.bpSpeakerEnhanced === "1") return btnEl;
-    if (!ttsAvailable()) {
+    if (!voiceReplySupported()) {
       btnEl.disabled = true;
       btnEl.hidden = true;
       return btnEl;
@@ -904,7 +1073,7 @@
         toolbar.className = "bp-ai-composer-toolbar";
         row.appendChild(toolbar);
         toolbar.appendChild(btnEl);
-        if (options.voiceReply !== false && ttsAvailable()) {
+        if (options.voiceReply !== false && voiceReplySupported()) {
           const replyId = options.replyButtonId || "aiVoiceReplyBtn";
           let replyBtn = document.getElementById(replyId);
           if (!replyBtn) {
@@ -915,7 +1084,7 @@
           toolbar.appendChild(replyBtn);
         }
         if (sendEl) toolbar.appendChild(sendEl);
-      } else if (options.voiceReply !== false && ttsAvailable()) {
+      } else if (options.voiceReply !== false && voiceReplySupported()) {
         const replyId = options.replyButtonId || "aiVoiceReplyBtn";
         if (!document.getElementById(replyId)) {
           const replyBtn = document.createElement("button");
@@ -1023,8 +1192,13 @@
     browserSpeechAvailable,
     transcribeWithWhisper,
     ttsAvailable,
+    voiceReplySupported,
     isVoiceReplyEnabled,
     setVoiceReplyEnabled,
+    cleanQuestionText,
+    cleanTextForSpeech,
+    consumeVoiceInputFlag,
+    speakReply,
     speakText,
     stopSpeaking,
     isSpeaking,

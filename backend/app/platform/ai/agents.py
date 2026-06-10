@@ -124,6 +124,27 @@ _CONVERSATION_RULES: dict[str, str] = {
     ),
 }
 
+_SPOKEN_MODE_RULES = {
+    "de": (
+        "SPRACHMODUS (wie ChatGPT Voice): Der Nutzer hat gesprochen. "
+        "Antworte NUR auf die gestellte Frage — direkt, freundlich, klar. "
+        "Kein Markdown, keine Aufzählungen, keine Tabellen, keine Quellen- oder Tool-Hinweise im Antworttext. "
+        "2–6 kurze Sätze in natürlicher gesprochener Sprache, dann aufhören."
+    ),
+    "en": (
+        "VOICE MODE (ChatGPT Voice style): The user spoke their question. "
+        "Answer ONLY the question — direct, friendly, clear. "
+        "No markdown, bullet lists, tables, or source/tool mentions in the reply text. "
+        "2–6 short natural spoken sentences, then stop."
+    ),
+    "ar": (
+        "وضع الصوت (مثل ChatGPT Voice): المستخدم تحدّث بسؤاله. "
+        "أجب على السؤال فقط — مباشرة وبوضوح وبلطف. "
+        "بدون Markdown أو قوائم أو جداول أو ذكر للمصادر في النص. "
+        "2–6 جمل قصيرة طبيعية للمحادثة ثم توقف."
+    ),
+}
+
 
 def list_agents(lang: str = "de") -> list[dict[str, Any]]:
     lang = lang[:2]
@@ -155,7 +176,7 @@ def agent_tool_schemas(agent_id: str) -> list[dict[str, Any]]:
     return [t for t in OPENAI_TOOL_SCHEMAS if t["function"]["name"] in allowed]
 
 
-def agent_system_prompt(agent_id: str, lang: str = "de", *, live_context: str = "") -> str:
+def agent_system_prompt(agent_id: str, lang: str = "de", *, live_context: str = "", spoken: bool = False) -> str:
     agent = get_agent(agent_id) or AGENT_PROFILES["operations"]
     lang = (lang or "de")[:2]
     lang_reply = {
@@ -168,6 +189,8 @@ def agent_system_prompt(agent_id: str, lang: str = "de", *, live_context: str = 
         _CONVERSATION_RULES.get(lang) or _CONVERSATION_RULES["de"],
         lang_reply,
     ]
+    if spoken:
+        parts.append(_SPOKEN_MODE_RULES.get(lang) or _SPOKEN_MODE_RULES["de"])
     if live_context.strip():
         parts.append("Aktueller System-Kontext (Snapshot — bei Bedarf Tools für frische Daten nutzen):\n" + live_context.strip())
     return "\n\n".join(parts)

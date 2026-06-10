@@ -52,6 +52,11 @@ def register_worker_ai_blueprint(flask_app) -> None:
             return jsonify({"error": "question_required"}), 400
 
         lang = str(data.get("lang") or "de")[:2]
+        spoken = data.get("spoken", data.get("voice_mode", False))
+        if isinstance(spoken, str):
+            spoken = spoken.lower() not in {"0", "false", "no"}
+        else:
+            spoken = bool(spoken)
         ctx_worker = {
             "workerId": worker.get("id"),
             "name": f"{worker.get('first_name', '')} {worker.get('last_name', '')}".strip(),
@@ -78,6 +83,7 @@ def register_worker_ai_blueprint(flask_app) -> None:
                 agent_id="hr",
                 lang=lang,
                 role="worker",
+                spoken=spoken,
             )
         result["worker"] = ctx_worker
         return jsonify(result)
@@ -128,9 +134,31 @@ def register_worker_ai_blueprint(flask_app) -> None:
                 agent_id="hr",
                 lang=lang,
                 role="worker",
+                spoken=True,
             )
         result["transcript"] = question
         return jsonify(result)
+
+    @worker_ai_bp.post("/ai/speak")
+    @require_worker_session
+    def worker_ai_speak():
+        from flask import Response
+
+        from .tts import synthesize_speech_bytes
+
+        data = request.get_json(silent=True) or {}
+        text = str(data.get("text") or "").strip()
+        if not text:
+            return jsonify({"error": "text_required"}), 400
+        lang = str(data.get("lang") or "de")[:2]
+        result = synthesize_speech_bytes(text, lang=lang)
+        audio = result.get("audio")
+        if not audio:
+            return jsonify({
+                "error": result.get("error", "tts_failed"),
+                "hint": result.get("hint"),
+            }), 400
+        return Response(audio, mimetype=result.get("mime") or "audio/mpeg")
 
     @worker_ai_bp.post("/ai/ask/stream")
     @require_worker_session

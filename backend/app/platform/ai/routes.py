@@ -25,6 +25,14 @@ def _resolve_company_id_from_request(data: dict | None = None) -> str:
     return str(g.current_user.get("company_id") or "").strip()
 
 
+def _parse_spoken_flag(data: dict | None) -> bool:
+    data = data or {}
+    spoken = data.get("spoken", data.get("voice_mode", False))
+    if isinstance(spoken, str):
+        return spoken.lower() not in {"0", "false", "no"}
+    return bool(spoken)
+
+
 def register_ai_blueprint(flask_app: Flask) -> None:
     from backend.app.platform.plan_guard import require_plan_capability
     from backend.server import require_auth, require_roles, get_db
@@ -75,6 +83,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             use_agent = use_agent.lower() not in {"0", "false", "no"}
         tools_env = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
         use_agent = use_agent and tools_env
+        spoken = _parse_spoken_flag(data)
 
         db = get_db()
         history = []
@@ -102,6 +111,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     lang=lang,
                     role=role,
                     history=history,
+                    spoken=spoken,
                 )
             else:
                 ctx = data.get("context") or build_compact_context(db, company_id, role)
@@ -423,6 +433,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         session_id = str(data.get("session_id") or "").strip()
         lang = str(data.get("lang") or "de")[:2]
         role = str(g.current_user.get("role") or "company-admin")
+        spoken = _parse_spoken_flag(data)
         db = get_db()
         history = []
         if session_id:
@@ -435,7 +446,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         def generate():
             final: dict = {}
             for ev in run_agent_query_stream(
-                db, company_id, question, agent_id=agent_id, lang=lang, role=role, history=history
+                db, company_id, question, agent_id=agent_id, lang=lang, role=role, history=history, spoken=spoken
             ):
                 if ev.get("type") == "done":
                     final = ev
@@ -586,6 +597,29 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                 "hint": tr.get("hint") or "Transkription fehlgeschlagen.",
             }), 400
         return jsonify({"text": tr["text"], "model": tr.get("model")})
+
+    @ai_bp.post("/ai/speak")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_speak():
+        from flask import Response
+
+        from .tts import synthesize_speech_bytes
+
+        data = request.get_json(silent=True) or {}
+        text = str(data.get("text") or "").strip()
+        if not text:
+            return jsonify({"error": "text_required"}), 400
+        lang = str(data.get("lang") or "de")[:2]
+        result = synthesize_speech_bytes(text, lang=lang)
+        audio = result.get("audio")
+        if not audio:
+            return jsonify({
+                "error": result.get("error", "tts_failed"),
+                "hint": result.get("hint"),
+            }), 400
+        return Response(audio, mimetype=result.get("mime") or "audio/mpeg")
 
     @ai_bp.get("/ai/rag/search")
     @require_auth
