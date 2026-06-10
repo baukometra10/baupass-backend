@@ -514,7 +514,7 @@
   </div>
 
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260609voice"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice2"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -537,17 +537,10 @@
       applyStaticI18n();
       refreshHubDynamicContent();
       if (window.BaupassAiUi?.bindVoiceInput) {
-        window.BaupassAiUi.bindVoiceInput({
-          inputId: "aiQuestion",
-          buttonId: "aiVoiceBtn",
-          sendId: "aiSendBtn",
-          formId: "aiForm",
-          lang: HUB_LANG,
-          unsupportedHint: t("aiVoiceUnsupported"),
-          hintText: t("voiceHint"),
-          multilingual: true,
-          authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
-        });
+        window.BaupassAiUi.bindVoiceInput(hubVoiceInputOptions());
+      }
+      if (window.BaupassAiUi?.refreshComposerLabels) {
+        window.BaupassAiUi.refreshComposerLabels(hubVoiceInputOptions());
       }
       try {
         window.parent?.postMessage({ type: "baupass-embed-set-lang", lang: HUB_LANG }, location.origin);
@@ -650,6 +643,8 @@
         redisYes: "ja",
         redisNo: "nein",
         voiceHint: "BauPass KI — Sprache oder Text. Wichtige Entscheidungen bitte prüfen.",
+        aiVoiceListening: "Hört zu… sprechen Sie jetzt.",
+        aiVoiceMicDenied: "Mikrofon blockiert — im Browser erlauben, dann erneut klicken.",
         monatsplanSteps: "1) Monat wählen 2) Mitarbeiter bearbeiten 3) Status prüfen 4) Versand bestätigen",
         quickNavTitle: "Plattform — Schnellzugriff",
         quickWorkers: "Mitarbeiter",
@@ -737,6 +732,8 @@
         redisYes: "yes",
         redisNo: "no",
         voiceHint: "BauPass AI — voice or text. Verify important decisions.",
+        aiVoiceListening: "Listening… speak now.",
+        aiVoiceMicDenied: "Microphone blocked — allow in browser, then try again.",
         monatsplanSteps: "1) Pick month 2) Edit worker 3) Review status 4) Confirm send",
         quickNavTitle: "Platform — quick access",
         quickWorkers: "Workers",
@@ -833,6 +830,8 @@
         redisYes: "نعم",
         redisNo: "لا",
         voiceHint: "BauPass KI — صوت أو نص. تحقق من القرارات المهمة.",
+        aiVoiceListening: "جاري الاستماع… تحدّث الآن.",
+        aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح ثم أعد المحاولة.",
         monatsplanSteps: "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال",
         quickNavTitle: "المنصة — وصول سريع",
         quickWorkers: "الموظفون",
@@ -1873,6 +1872,38 @@
       }
     }
 
+    function hubVoiceInputOptions() {
+      return {
+        inputId: "aiQuestion",
+        buttonId: "aiVoiceBtn",
+        sendId: "aiSendBtn",
+        formId: "aiForm",
+        hintId: "bpAiComposerHint",
+        get lang() { return HUB_LANG; },
+        get unsupportedHint() { return t("aiVoiceUnsupported"); },
+        get hintText() { return t("voiceHint"); },
+        multilingual: true,
+        authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
+        onTranscript: (text) => {
+          void submitAiQuestion(text);
+          const el = document.getElementById("aiQuestion");
+          if (el) el.value = "";
+        },
+        onMicError: (err) => {
+          const msg = window.BaupassAiUi?.voiceErrorMessage?.(err, HUB_LANG) || t("aiVoiceMicDenied");
+          appendAi("bot", msg, true);
+        },
+        onTranscribeError: (err) => {
+          const msg = window.BaupassAiUi?.voiceErrorMessage?.(err, HUB_LANG) || String(err?.message || err);
+          appendAi("bot", msg, true);
+        },
+        onListening: (active) => {
+          const hint = document.getElementById("bpAiComposerHint");
+          if (hint) hint.textContent = active ? t("aiVoiceListening") : t("voiceHint");
+        },
+      };
+    }
+
     async function submitAiQuestion(q) {
       const question = String(q || "").trim();
       if (!question) return;
@@ -2012,17 +2043,7 @@
       await loadCompaniesForSuperadmin();
       await loadCatalog();
       if (window.BaupassAiUi) {
-        window.BaupassAiUi.bindVoiceInput({
-          inputId: "aiQuestion",
-          buttonId: "aiVoiceBtn",
-          sendId: "aiSendBtn",
-          formId: "aiForm",
-          lang: HUB_LANG,
-          unsupportedHint: t("aiVoiceUnsupported"),
-          hintText: t("voiceHint"),
-          multilingual: true,
-          authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
-        });
+        window.BaupassAiUi.bindVoiceInput(hubVoiceInputOptions());
       }
     })();
   </script>

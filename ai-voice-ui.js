@@ -73,10 +73,15 @@
     return LANG_MAP[uiLang] || browser || "de-DE";
   }
 
+  function browserSpeechAvailable() {
+    const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
+    return Boolean(SpeechRecognition && global.isSecureContext);
+  }
+
   function preferWhisperTranscription(options) {
+    if (options?.useWhisper === true) return true;
     if (options?.useWhisper === false) return false;
-    if (options?.multilingual === false) return Boolean(options?.useWhisper);
-    return options?.useWhisper !== false;
+    return !browserSpeechAvailable();
   }
 
   function pickRecorderMimeType() {
@@ -130,40 +135,127 @@
     return String(data.text || "").trim();
   }
 
-  function startBrowserSpeechRecognition(options, btnEl, inputEl, lang, speechLang) {
-    const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
-    if (!SpeechRecognition || !global.isSecureContext) {
-      btnEl.disabled = true;
-      btnEl.title = options.unsupportedHint || labelsForLang(lang).unsupported;
-      return null;
+  function voiceErrorMessage(err, lang) {
+    const code = String(err?.payload?.error || err?.message || err || "").trim();
+    const hint = String(err?.payload?.hint || "").trim();
+    if (hint) return hint;
+    const ui = resolveLang(lang);
+    if (code === "not-allowed" || code === "service-not-allowed") {
+      return ui === "ar"
+        ? "تم حظر الميكروفون — اسمح بالوصول في المتصفح."
+        : ui === "en"
+          ? "Microphone blocked — allow access in the browser."
+          : "Mikrofon blockiert — Browser-Berechtigung erlauben.";
     }
+    if (code === "no-speech" || code === "audio_too_short") {
+      return ui === "ar"
+        ? "لم يُسمع صوت — حاول مرة أخرى."
+        : ui === "en"
+          ? "No speech detected — try again."
+          : "Keine Sprache erkannt — bitte erneut versuchen.";
+    }
+    if (code === "openai_not_configured") {
+      return ui === "ar"
+        ? "الصوت يحتاج OPENAI_API_KEY على السيرفر."
+        : ui === "en"
+          ? "Voice needs OPENAI_API_KEY on the server."
+          : "Spracheingabe braucht OPENAI_API_KEY auf dem Server.";
+    }
+    if (code === "feature_not_available") {
+      return ui === "ar"
+        ? "المساعد الذكي يتطلب باقة Enterprise."
+        : ui === "en"
+          ? "AI assistant requires Enterprise plan."
+          : "KI-Assistent braucht Enterprise-Tarif.";
+    }
+    return code || (ui === "ar" ? "فشل الإدخال الصوتي." : ui === "en" ? "Voice input failed." : "Spracheingabe fehlgeschlagen.");
+  }
 
-    let recognition = null;
-    let listening = false;
+  function bindVoiceController(options, btnEl, inputEl) {
+    const lang = resolveLang(options.lang);
+    const speechLang = resolveSpeechLang(options);
+    const ui = labelsForLang(lang);
+    const maxRecordMs = Math.max(4000, Number(options.maxRecordMs) || 14000);
 
-    btnEl.addEventListener("click", () => {
-      if (listening && recognition) {
-        recognition.stop();
+    let browserRecognition = null;
+    let browserListening = false;
+    let stream = null;
+    let recorder = null;
+    let whisperListening = false;
+    let whisperTimer = null;
+
+    const applyTranscript = (text, isFinal) => {
+      const cleaned = String(text || "").trim();
+      if (!cleaned) return;
+      inputEl.value = cleaned;
+      inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+      if (!isFinal) return;
+      inputEl.dataset.bpVoiceInput = "1";
+      if (typeof options.onTranscript === "function") {
+        options.onTranscript(cleaned);
+      } else if (options.autoSubmit !== false) {
+        inputEl.form?.requestSubmit?.();
+      }
+    };
+
+    const notifyError = (err, kind) => {
+      const wrapped = err instanceof Error ? err : new Error(String(err || "voice_error"));
+      if (kind === "mic" && typeof options.onMicError === "function") {
+        options.onMicError(wrapped);
         return;
       }
-      recognition = new SpeechRecognition();
-      recognition.lang = speechLang;
-      recognition.continuous = false;
-      recognition.interimResults = Boolean(options.interimResults !== false);
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => {
-        listening = true;
+      if (typeof options.onTranscribeError === "function") {
+        options.onTranscribeError(wrapped);
+        return;
+      }
+      if (typeof options.onError === "function") {
+        options.onError(wrapped);
+        return;
+      }
+      global.console?.warn?.("BaupassAiUi voice", kind, wrapped);
+    };
+
+    const stopBrowser = () => {
+      try {
+        browserRecognition?.stop?.();
+      } catch {
+        // ignore
+      }
+      browserListening = false;
+      setListeningState(btnEl, false, lang);
+    };
+
+    const startBrowser = () => {
+      const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
+      if (!SpeechRecognition || !global.isSecureContext) return false;
+
+      browserRecognition = new SpeechRecognition();
+      browserRecognition.lang = options.multilingual !== false
+        ? (String(global.navigator?.language || "").trim() || speechLang)
+        : speechLang;
+      browserRecognition.continuous = false;
+      browserRecognition.interimResults = options.interimResults !== false;
+      browserRecognition.maxAlternatives = 1;
+
+      browserRecognition.onstart = () => {
+        browserListening = true;
         setListeningState(btnEl, true, lang);
+        if (typeof options.onListening === "function") options.onListening(true);
       };
-      recognition.onend = () => {
-        listening = false;
+      browserRecognition.onend = () => {
+        browserListening = false;
         setListeningState(btnEl, false, lang);
+        if (typeof options.onListening === "function") options.onListening(false);
       };
-      recognition.onerror = () => {
-        listening = false;
+      browserRecognition.onerror = (event) => {
+        browserListening = false;
         setListeningState(btnEl, false, lang);
+        const code = String(event?.error || "");
+        if (code && code !== "aborted") {
+          notifyError(new Error(code), "speech");
+        }
       };
-      recognition.onresult = (event) => {
+      browserRecognition.onresult = (event) => {
         let finalText = "";
         let interim = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -171,95 +263,112 @@
           if (event.results[i].isFinal) finalText += part;
           else interim += part;
         }
-        const text = (finalText || interim).trim();
-        if (!text) return;
-        inputEl.value = text;
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl.dataset.bpVoiceInput = "1";
-        if (!finalText) return;
-        if (typeof options.onTranscript === "function") {
-          options.onTranscript(finalText);
-        } else {
-          inputEl.form?.requestSubmit?.();
-        }
+        const display = (finalText || interim).trim();
+        if (display) applyTranscript(display, false);
+        if (finalText.trim()) applyTranscript(finalText.trim(), true);
       };
-      recognition.start();
-    });
-    return recognition;
-  }
 
-  async function startWhisperCapture(options, btnEl, inputEl, lang) {
-    if (!global.navigator?.mediaDevices?.getUserMedia || !global.MediaRecorder) {
-      return false;
-    }
-
-    let stream = null;
-    let recorder = null;
-    let listening = false;
-    const ui = labelsForLang(lang);
-
-    const finish = (text) => {
-      const cleaned = String(text || "").trim();
-      if (!cleaned) return;
-      inputEl.value = cleaned;
-      inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-      inputEl.dataset.bpVoiceInput = "1";
-      if (typeof options.onTranscript === "function") {
-        options.onTranscript(cleaned);
-      } else {
-        inputEl.form?.requestSubmit?.();
+      try {
+        browserRecognition.start();
+        return true;
+      } catch (err) {
+        notifyError(err, "speech");
+        return false;
       }
     };
 
-    btnEl.addEventListener("click", async () => {
-      if (listening && recorder && recorder.state !== "inactive") {
+    const stopWhisper = () => {
+      if (whisperTimer) {
+        global.clearTimeout(whisperTimer);
+        whisperTimer = null;
+      }
+      if (recorder && recorder.state !== "inactive") {
         recorder.stop();
-        return;
+      }
+    };
+
+    const startWhisper = async () => {
+      if (!global.navigator?.mediaDevices?.getUserMedia || !global.MediaRecorder) {
+        return false;
       }
       try {
         stream = await global.navigator.mediaDevices.getUserMedia({ audio: true });
         const mimeType = pickRecorderMimeType();
         const chunks = [];
-        recorder = mimeType ? new global.MediaRecorder(stream, { mimeType }) : new global.MediaRecorder(stream);
+        recorder = mimeType
+          ? new global.MediaRecorder(stream, { mimeType })
+          : new global.MediaRecorder(stream);
         recorder.ondataavailable = (event) => {
           if (event.data && event.data.size > 0) chunks.push(event.data);
         };
         recorder.onstop = async () => {
-          listening = false;
+          whisperListening = false;
           setListeningState(btnEl, false, lang);
+          if (whisperTimer) {
+            global.clearTimeout(whisperTimer);
+            whisperTimer = null;
+          }
           stream?.getTracks?.().forEach((track) => track.stop());
           stream = null;
           btnEl.classList.remove("bp-ai-transcribing");
           const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+          if (!blob.size || blob.size < 80) {
+            notifyError(new Error("audio_too_short"), "transcribe");
+            return;
+          }
           try {
             btnEl.classList.add("bp-ai-transcribing");
-            btnEl.title = ui.speak;
             const text = await transcribeWithWhisper(blob, options);
-            finish(text);
+            applyTranscript(text, true);
           } catch (err) {
-            if (typeof options.onTranscribeError === "function") {
-              options.onTranscribeError(err);
-            } else {
-              global.console?.warn?.("Whisper transcription failed", err);
+            if (!startBrowser()) {
+              notifyError(err, "transcribe");
             }
           } finally {
             btnEl.classList.remove("bp-ai-transcribing");
-            btnEl.title = ui.speak;
           }
         };
         recorder.start();
-        listening = true;
+        whisperListening = true;
         setListeningState(btnEl, true, lang);
+        whisperTimer = global.setTimeout(() => stopWhisper(), maxRecordMs);
+        return true;
       } catch (err) {
-        listening = false;
+        whisperListening = false;
         setListeningState(btnEl, false, lang);
         stream?.getTracks?.().forEach((track) => track.stop());
-        if (typeof options.onMicError === "function") {
-          options.onMicError(err);
+        notifyError(err, "mic");
+        return false;
+      }
+    };
+
+    btnEl.addEventListener("click", async () => {
+      if (browserListening) {
+        stopBrowser();
+        return;
+      }
+      if (whisperListening) {
+        stopWhisper();
+        return;
+      }
+
+      const useWhisper = preferWhisperTranscription(options);
+      if (useWhisper) {
+        const started = await startWhisper();
+        if (!started && !startBrowser()) {
+          btnEl.disabled = true;
+          btnEl.title = options.unsupportedHint || ui.unsupported;
+        }
+        return;
+      }
+      if (!startBrowser()) {
+        const started = await startWhisper();
+        if (!started) {
+          btnEl.disabled = true;
+          btnEl.title = options.unsupportedHint || ui.unsupported;
         }
       }
     });
-    return true;
   }
 
   function actionLabel(action, lang) {
@@ -468,20 +577,19 @@
 
     enhanceComposer(options);
 
-    const lang = resolveLang(options.lang);
-    const speechLang = resolveSpeechLang(options);
-    const useWhisper = preferWhisperTranscription(options);
+    if (btnEl.dataset.bpVoiceBound === "1") {
+      refreshComposerLabels(options);
+      return;
+    }
+    btnEl.dataset.bpVoiceBound = "1";
 
-    if (useWhisper) {
-      startWhisperCapture(options, btnEl, inputEl, lang).then((started) => {
-        if (!started) {
-          startBrowserSpeechRecognition(options, btnEl, inputEl, lang, speechLang);
-        }
-      });
+    if (!browserSpeechAvailable() && !global.navigator?.mediaDevices?.getUserMedia) {
+      btnEl.disabled = true;
+      btnEl.title = options.unsupportedHint || labelsForLang(options.lang).unsupported;
       return;
     }
 
-    startBrowserSpeechRecognition(options, btnEl, inputEl, lang, speechLang);
+    bindVoiceController(options, btnEl, inputEl);
   }
 
   function refreshComposerLabels(options = {}) {
@@ -517,6 +625,8 @@
     resolveLang,
     resolveSpeechLang,
     labelsForLang,
+    voiceErrorMessage,
+    browserSpeechAvailable,
     transcribeWithWhisper,
   };
 })(window);

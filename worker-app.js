@@ -2090,8 +2090,17 @@ function bindEvents() {
       buttonId: "workerAiVoiceBtn",
       sendId: "workerAiSendBtn",
       formId: "workerAiForm",
-      lang: getWorkerLang(),
+      get lang() { return getWorkerLang(); },
+      multilingual: true,
+      transcribeUrl: `${API_ROOT}/worker-ai/transcribe`,
+      authHeaders: () => ({ Authorization: `Bearer ${workerToken}` }),
       onTranscript: () => void submitWorkerAiQuestion(),
+      onMicError: (err) => showWorkerNotice(
+        globalThis.BaupassAiUi?.voiceErrorMessage?.(err, getWorkerLang()) || t("microphoneAccessBlocked"),
+      ),
+      onTranscribeError: (err) => showWorkerNotice(
+        globalThis.BaupassAiUi?.voiceErrorMessage?.(err, getWorkerLang()) || String(err?.message || err),
+      ),
     });
   }
 
