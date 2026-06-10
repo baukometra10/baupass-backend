@@ -207,6 +207,10 @@
     return cleanTextForSpeech(text, { spoken: true, maxSentences: options.maxSentences || 12, ...options });
   }
 
+  function cleanQuestionText(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+
   function resolveInputId(inputEl, options) {
     return String(options?.inputId || inputEl?.id || "").trim() || null;
   }
@@ -1216,6 +1220,8 @@
       }
 
       if (formEl) formEl.classList.add("bp-ai-form-enhanced");
+    } else if (row) {
+      row.classList.add("bp-ai-composer");
     }
 
     autoResizeTextarea(inputEl);

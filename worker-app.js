@@ -7247,7 +7247,7 @@ async function submitWorkerAiQuestion() {
     const answer = spoken
       ? (globalThis.BaupassAiUi?.cleanTextForDisplay?.(rawAnswer) || rawAnswer)
       : rawAnswer;
-    const actions = spoken ? [] : (payload?.actions || payload?.suggestedActions || []);
+    const actions = payload?.actions || payload?.suggestedActions || [];
     appendWorkerAiLog("bot", answer, actions);
     await globalThis.BaupassAiUi?.speakReply?.(answer, getWorkerLang(), {
       spoken,

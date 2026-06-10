@@ -298,10 +298,6 @@
   cursor: pointer;
 }
 
-.ai-form.bp-ai-form-enhanced .ai-form-row:not(.bp-ai-composer) {
-  display: none;
-}
-
 .ai-form.bp-ai-form-enhanced > .ai-send-btn,
 .ai-form.bp-ai-form-enhanced .ai-form-legacy-send {
   display: none;
