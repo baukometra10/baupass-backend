@@ -7223,6 +7223,7 @@ async function submitWorkerAiQuestion() {
   let question = (input?.value || "").trim();
   if (!question) return;
   globalThis.BaupassAiUi?.stopSpeaking?.();
+  globalThis.BaupassAiUi?.stopVoiceCapture?.("workerAiQuestion");
   if (!workerToken) {
     showWorkerNotice(t("sessionExpired"));
     return;
@@ -7242,8 +7243,11 @@ async function submitWorkerAiQuestion() {
       },
       body: JSON.stringify({ question, lang: getWorkerLang(), spoken }),
     });
-    const answer = payload?.answer || payload?.message || t("workerAiNoAnswer");
-    const actions = payload?.actions || payload?.suggestedActions || [];
+    const rawAnswer = payload?.answer || payload?.message || t("workerAiNoAnswer");
+    const answer = spoken
+      ? (globalThis.BaupassAiUi?.cleanTextForDisplay?.(rawAnswer) || rawAnswer)
+      : rawAnswer;
+    const actions = spoken ? [] : (payload?.actions || payload?.suggestedActions || []);
     appendWorkerAiLog("bot", answer, actions);
     await globalThis.BaupassAiUi?.speakReply?.(answer, getWorkerLang(), {
       spoken,

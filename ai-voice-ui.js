@@ -22,6 +22,7 @@
   const SPEAKER_SVG = `<svg class="bp-ai-speaker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
 
   const VOICE_REPLY_KEY = "baupass-ai-voice-reply";
+  const voiceCaptureByInputId = new Map();
 
   const DEFAULT_MAX_RECORD_MS = 300000;
   const DEFAULT_MIN_RECORD_MS = 600;
@@ -42,6 +43,7 @@
       voiceReplyOn: "Sprachausgabe an — KI antwortet mit Stimme",
       voiceReplyOff: "Sprachausgabe aus — nur Text",
       voiceReplyStop: "Vorlesen stoppen",
+      voiceSpeakingHint: "KI spricht — 🔊 tippen zum Stoppen",
       unsupported: "Spracheingabe benötigt HTTPS",
       open: "Öffnen",
     },
@@ -52,6 +54,7 @@
       voiceReplyOn: "Voice reply on — AI speaks answers",
       voiceReplyOff: "Voice reply off — text only",
       voiceReplyStop: "Stop speaking",
+      voiceSpeakingHint: "AI is speaking — tap 🔊 to stop",
       unsupported: "Voice needs HTTPS",
       open: "Open",
     },
@@ -62,6 +65,7 @@
       voiceReplyOn: "رد صوتي مفعّل — الذكاء الاصطناعي يرد بصوت",
       voiceReplyOff: "رد صوتي متوقف — نص فقط",
       voiceReplyStop: "إيقاف القراءة",
+      voiceSpeakingHint: "الذكاء الاصطناعي يتحدّث — اضغط 🔊 للإيقاف",
       unsupported: "الصوت يتطلب HTTPS",
       open: "فتح",
     },
@@ -199,8 +203,32 @@
     return `${breakAt > 400 ? cut.slice(0, breakAt + 1) : cut}…`;
   }
 
-  function cleanQuestionText(text) {
-    return String(text || "").replace(/\s+/g, " ").trim();
+  function cleanTextForDisplay(text, options = {}) {
+    return cleanTextForSpeech(text, { spoken: true, maxSentences: options.maxSentences || 12, ...options });
+  }
+
+  function resolveInputId(inputEl, options) {
+    return String(options?.inputId || inputEl?.id || "").trim() || null;
+  }
+
+  function stopVoiceCapture(inputIdOrOptions) {
+    const id = typeof inputIdOrOptions === "string"
+      ? inputIdOrOptions
+      : resolveInputId(null, inputIdOrOptions || {});
+    if (!id) return false;
+    const ctrl = voiceCaptureByInputId.get(id);
+    if (!ctrl) return false;
+    ctrl.stopCapture();
+    return true;
+  }
+
+  function isVoiceCaptureActive(inputIdOrOptions) {
+    const id = typeof inputIdOrOptions === "string"
+      ? inputIdOrOptions
+      : resolveInputId(null, inputIdOrOptions || {});
+    if (!id) return false;
+    const ctrl = voiceCaptureByInputId.get(id);
+    return Boolean(ctrl?.isActive?.());
   }
 
   function consumeVoiceInputFlag(inputEl) {
@@ -560,6 +588,69 @@
     let liveRecognition = null;
     let liveRecognitionActive = false;
     let liveDraftFinal = "";
+    let transcribeAborted = false;
+
+    const abortTranscribe = () => {
+      transcribeAborted = true;
+      btnEl.classList.remove("bp-ai-transcribing");
+      if (typeof options.onTranscribing === "function") options.onTranscribing(false);
+    };
+
+    const stopCapture = () => {
+      transcribeAborted = true;
+      if (browserListening) {
+        stopBrowser();
+      }
+      if (recording) {
+        recording = false;
+        liveRecognitionActive = false;
+        try {
+          liveRecognition?.stop?.();
+        } catch {
+          // ignore
+        }
+        liveRecognition = null;
+        if (maxRecordTimer) {
+          global.clearTimeout(maxRecordTimer);
+          maxRecordTimer = null;
+        }
+        if (recorder && recorder.state !== "inactive") {
+          recorder.onstop = () => {
+            chunks = [];
+            recorder = null;
+            cleanupRecording();
+          };
+          try {
+            if (typeof recorder.requestData === "function") recorder.requestData();
+          } catch {
+            // ignore
+          }
+          try {
+            recorder.stop();
+          } catch {
+            cleanupRecording();
+          }
+        } else {
+          cleanupRecording();
+        }
+      } else {
+        abortTranscribe();
+      }
+      setListeningState(btnEl, false, lang);
+    };
+
+    const inputId = resolveInputId(inputEl, options);
+    if (inputId) {
+      voiceCaptureByInputId.set(inputId, {
+        stopCapture,
+        isActive: () => Boolean(
+          recording
+          || browserListening
+          || btnEl.classList.contains("bp-ai-transcribing")
+          || btnEl.classList.contains("listening"),
+        ),
+      });
+    }
 
     const startLiveSpeechPreview = () => {
       if (options.liveSpeechDuringRecord === false) return;
@@ -754,6 +845,12 @@
     };
 
     const transcribeRecording = async () => {
+      if (transcribeAborted) {
+        chunks = [];
+        recorder = null;
+        cleanupRecording();
+        return;
+      }
       const savedLive = stopLiveSpeechPreview();
       const mimeType = recordMimeType || recorder?.mimeType || pickRecorderMimeType() || "audio/webm";
       const blob = new Blob(chunks, { type: mimeType });
@@ -796,6 +893,7 @@
 
     const startWhisperRecording = async () => {
       stopSpeaking();
+      transcribeAborted = false;
       if (!global.navigator?.mediaDevices?.getUserMedia || !global.MediaRecorder) {
         return false;
       }
@@ -836,6 +934,10 @@
     };
 
     btnEl.addEventListener("click", async () => {
+      if (isSpeaking()) {
+        stopSpeaking();
+        return;
+      }
       if (browserListening) {
         stopBrowser();
         return;
@@ -1126,6 +1228,33 @@
       syncSend();
     }
 
+    const hookSendStop = () => {
+      stopVoiceCapture(resolveInputId(inputEl, options));
+    };
+    if (formEl && formEl.dataset.bpVoiceSendHook !== "1") {
+      formEl.dataset.bpVoiceSendHook = "1";
+      formEl.addEventListener("submit", hookSendStop, true);
+    }
+    if (sendEl && sendEl.dataset.bpVoiceSendHook !== "1") {
+      sendEl.dataset.bpVoiceSendHook = "1";
+      sendEl.addEventListener("click", hookSendStop, true);
+    }
+
+    const hintEl = document.getElementById(options.hintId || "bpAiComposerHint");
+    if (hintEl && hintEl.dataset.bpSpeakingHint !== "1") {
+      hintEl.dataset.bpSpeakingHint = "1";
+      const defaultHint = hintEl.textContent;
+      global.addEventListener("baupass-ai-speaking", (ev) => {
+        if (ev.detail?.speaking) {
+          hintEl.textContent = options.speakingHintText || labelsForLang(lang).voiceSpeakingHint;
+          hintEl.classList.add("bp-ai-hint-speaking");
+        } else {
+          hintEl.textContent = options.hintText || HINTS[lang] || HINTS.de || defaultHint;
+          hintEl.classList.remove("bp-ai-hint-speaking");
+        }
+      });
+    }
+
     return { inputEl, btnEl, sendEl, formEl };
   }
 
@@ -1197,7 +1326,10 @@
     setVoiceReplyEnabled,
     cleanQuestionText,
     cleanTextForSpeech,
+    cleanTextForDisplay,
     consumeVoiceInputFlag,
+    stopVoiceCapture,
+    isVoiceCaptureActive,
     speakReply,
     speakText,
     stopSpeaking,

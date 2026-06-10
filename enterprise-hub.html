@@ -6,7 +6,7 @@
   <title>BauPass — Enterprise-Hub</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice10" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice11" />
   <style>
     :root {
       --bg: #0b1118;
@@ -514,7 +514,7 @@
   </div>
 
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice10"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice11"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -1917,6 +1917,8 @@
       const question = String(q || "").trim();
       if (!question) return;
       window.BaupassAiUi?.stopSpeaking?.();
+      window.BaupassAiUi?.stopVoiceCapture?.("aiQuestion");
+      const isVoiceTurn = Boolean(options.spoken);
       if (aiCompanyRequired()) {
         appendAi("bot", t("aiNeedCompany"), true);
         return;
@@ -1942,15 +1944,18 @@
         } else if (data.error) {
           appendAi("bot", data.hint || data.error, true);
         } else {
-          if (data.configWarning) appendAi("bot", data.configWarning, true);
+          if (data.configWarning && !isVoiceTurn) appendAi("bot", data.configWarning, true);
           const sources = data.sources || data.contextSummary?.sources;
-          appendAi("bot", data.answer || data.hint || t("aiAddKey"), !data.answer, {
+          const displayAnswer = isVoiceTurn
+            ? (window.BaupassAiUi?.cleanTextForDisplay?.(data.answer) || data.answer)
+            : (data.answer || data.hint || t("aiAddKey"));
+          appendAi("bot", displayAnswer, !data.answer, isVoiceTurn ? {} : {
             sources,
             actions: data.actions || data.suggestedActions,
           });
           if (data.answer) {
-            await window.BaupassAiUi?.speakReply?.(data.answer, HUB_LANG, {
-              spoken: Boolean(options.spoken),
+            await window.BaupassAiUi?.speakReply?.(displayAnswer, HUB_LANG, {
+              spoken: isVoiceTurn,
             });
           }
         }
@@ -1970,6 +1975,7 @@
     document.getElementById("aiForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const input = document.getElementById("aiQuestion");
+      window.BaupassAiUi?.stopVoiceCapture?.("aiQuestion");
       let q = input.value.trim();
       if (!q) return;
       const spoken = window.BaupassAiUi?.consumeVoiceInputFlag?.(input) || false;

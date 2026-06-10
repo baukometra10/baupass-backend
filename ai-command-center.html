@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
-  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice10" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice11" />
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice10"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice11"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -1033,22 +1033,28 @@
     async function submitQuestion(q, options = {}) {
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
       window.BaupassAiUi?.stopSpeaking?.();
+      window.BaupassAiUi?.stopVoiceCapture?.("question");
       if (!sessionId) await newSession();
       appendMsg("user", q);
       const log = document.getElementById("chatLog");
+      const isVoiceTurn = Boolean(options.spoken);
       const botDiv = document.createElement("div");
-      botDiv.className = "msg-bot";
-      botDiv.textContent = "";
+      botDiv.className = "msg-bot" + (isVoiceTurn ? " msg-bot-voice" : "");
+      botDiv.textContent = isVoiceTurn ? "…" : "";
       log.appendChild(botDiv);
-      const thinking = document.createElement("div");
-      thinking.className = "msg-bot";
-      thinking.textContent = t("thinking");
-      log.appendChild(thinking);
+      const thinking = isVoiceTurn ? null : document.createElement("div");
+      if (thinking) {
+        thinking.className = "msg-bot msg-thinking";
+        thinking.textContent = t("thinking");
+        log.appendChild(thinking);
+      }
       log.scrollTop = log.scrollHeight;
       let meta = {};
-      const statusEl = document.createElement("div");
-      statusEl.className = "msg-meta";
-      log.appendChild(statusEl);
+      const statusEl = isVoiceTurn ? null : document.createElement("div");
+      if (statusEl) {
+        statusEl.className = "msg-meta";
+        log.appendChild(statusEl);
+      }
       const friendlyAiError = (err) => {
         const code = String(err?.error || err?.payload?.error || "").trim();
         const hint = String(err?.hint || err?.payload?.hint || err?.message || "").trim();
@@ -1082,10 +1088,9 @@
         });
         let thinkingRemoved = false;
         const dropThinking = () => {
-          if (!thinkingRemoved) {
-            thinking.remove();
-            thinkingRemoved = true;
-          }
+          if (thinkingRemoved || !thinking) return;
+          if (thinking.parentNode) thinking.remove();
+          thinkingRemoved = true;
         };
         if (!res.ok) {
           dropThinking();
@@ -1109,26 +1114,27 @@
               const payload = JSON.parse(line.slice(5).trim());
               if (payload.type === "tool_start") {
                 dropThinking();
-                statusEl.textContent = `${t("toolRunning")}: ${payload.tool}…`;
+                if (statusEl) statusEl.textContent = `${t("toolRunning")}: ${payload.tool}…`;
               }
               if (payload.type === "tool_done") {
-                statusEl.textContent = `${payload.tool} ✓`;
+                if (statusEl) statusEl.textContent = `${payload.tool} ✓`;
               }
               if (payload.type === "thinking") {
                 dropThinking();
-                statusEl.textContent = (statusEl.textContent || t("thinking")) + (payload.text || "");
+                if (statusEl) statusEl.textContent = (statusEl.textContent || t("thinking")) + (payload.text || "");
               }
               if (payload.type === "answer_start") {
                 dropThinking();
-                statusEl.textContent = "";
+                if (statusEl) statusEl.textContent = "";
+                if (isVoiceTurn && botDiv.textContent === "…") botDiv.textContent = "";
               }
               if (payload.type === "answer_reset") {
                 botDiv.textContent = "";
-                statusEl.textContent = "";
+                if (statusEl) statusEl.textContent = "";
               }
               if (payload.type === "status") {
                 dropThinking();
-                statusEl.textContent = payload.text || "";
+                if (statusEl) statusEl.textContent = payload.text || "";
               }
               if (payload.type === "chunk") {
                 dropThinking();
@@ -1142,13 +1148,21 @@
             } catch { /* skip */ }
           }
         }
-        lastAnswerText = botDiv.textContent;
-        attachMeta(botDiv, {
-          sources: meta.sources,
-          toolsUsed: meta.toolsUsed,
-          suggestedActions: meta.suggestedActions,
-          actions: meta.actions || meta.suggestedActions,
-        });
+        statusEl?.remove();
+        if (thinking?.parentNode) thinking.remove();
+        if (isVoiceTurn && botDiv.textContent) {
+          const clean = window.BaupassAiUi?.cleanTextForDisplay?.(botDiv.textContent) || botDiv.textContent;
+          botDiv.textContent = clean;
+          lastAnswerText = clean;
+        } else {
+          lastAnswerText = botDiv.textContent;
+          attachMeta(botDiv, {
+            sources: meta.sources,
+            toolsUsed: meta.toolsUsed,
+            suggestedActions: meta.suggestedActions,
+            actions: meta.actions || meta.suggestedActions,
+          });
+        }
         if (botDiv.textContent && meta.ok !== false) {
           await window.BaupassAiUi?.speakReply?.(botDiv.textContent, LANG, {
             spoken: Boolean(options.spoken),
@@ -1241,6 +1255,7 @@
     document.getElementById("chatForm").onsubmit = (ev) => {
       ev.preventDefault();
       const input = document.getElementById("question");
+      window.BaupassAiUi?.stopVoiceCapture?.("question");
       let q = input.value.trim();
       if (!q) return;
       const spoken = window.BaupassAiUi?.consumeVoiceInputFlag?.(input) || false;

@@ -395,7 +395,18 @@ body.ops-app .bp-ai-send {
 
 .bp-ai-speaker.speaking {
   animation: bp-ai-speaker-pulse 1.2s ease-in-out infinite;
-  color: #34d399;
+  background: rgba(56, 189, 248, 0.22);
+  color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+
+.bp-ai-composer-hint.bp-ai-hint-speaking {
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.msg-bot-voice {
+  line-height: 1.55;
 }
 
 .bp-ai-speaker-icon {
