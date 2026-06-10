@@ -496,7 +496,7 @@ class MigrationRunner:
             )
 
             executed = []
-            for migration in sorted(pending, key=lambda m: m.version):
+            for migration in sorted(pending, key=lambda m: (int(m.version), m.name)):
                 if dry_run:
                     logger.info("  [dry-run] Would apply: %s – %s", migration.version, migration.name)
                     executed.append(migration.version)
