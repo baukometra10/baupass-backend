@@ -33,6 +33,14 @@ def _parse_spoken_flag(data: dict | None) -> bool:
     return bool(spoken)
 
 
+def _parse_bool_flag(value, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {"0", "false", "no"}
+
+
 def register_ai_blueprint(flask_app: Flask) -> None:
     from backend.app.platform.plan_guard import require_plan_capability
     from backend.server import require_auth, require_roles, get_db
@@ -78,11 +86,9 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         lang = str(data.get("lang") or request.args.get("lang") or "de")[:2]
         agent_id = str(data.get("agent_id") or data.get("agent") or "operations").strip()
         session_id = str(data.get("session_id") or "").strip()
-        use_agent = data.get("use_agent", True)
-        if isinstance(use_agent, str):
-            use_agent = use_agent.lower() not in {"0", "false", "no"}
+        use_agent = _parse_bool_flag(data.get("use_agent"), default=True)
         tools_env = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
-        use_agent = use_agent and tools_env
+        use_tools = _parse_bool_flag(data.get("use_tools"), default=False) and tools_env
         spoken = _parse_spoken_flag(data)
 
         db = get_db()
@@ -112,6 +118,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     role=role,
                     history=history,
                     spoken=spoken,
+                    use_tools=use_tools,
                 )
             else:
                 ctx = data.get("context") or build_compact_context(db, company_id, role)
@@ -434,6 +441,8 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         lang = str(data.get("lang") or "de")[:2]
         role = str(g.current_user.get("role") or "company-admin")
         spoken = _parse_spoken_flag(data)
+        tools_env = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
+        use_tools = _parse_bool_flag(data.get("use_tools"), default=False) and tools_env
         db = get_db()
         history = []
         if session_id:
@@ -444,13 +453,45 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             history = [{"role": m["role"], "content": m["content"]} for m in list_messages(db, session_id)]
 
         def generate():
+            from .intents import try_intent_response
+
             final: dict = {}
-            for ev in run_agent_query_stream(
-                db, company_id, question, agent_id=agent_id, lang=lang, role=role, history=history, spoken=spoken
-            ):
-                if ev.get("type") == "done":
-                    final = ev
-                yield sse_event(ev)
+            intent_hit = try_intent_response(
+                db, company_id, question, role=role, lang=lang
+            )
+            if intent_hit:
+                answer = str(intent_hit.get("answer") or "").strip()
+                yield sse_event({"type": "start", "agentId": agent_id, "mode": "intent"})
+                yield sse_event({"type": "answer_start"})
+                step = max(24, len(answer) // 6) if answer else 0
+                for i in range(0, len(answer), step or 1):
+                    yield sse_event({"type": "chunk", "text": answer[i : i + step]})
+                final = {
+                    "type": "done",
+                    "ok": True,
+                    "answer": answer,
+                    "agentId": agent_id,
+                    "mode": "intent",
+                    "toolsUsed": [],
+                    "suggestedActions": intent_hit.get("suggestedActions") or intent_hit.get("actions") or [],
+                    "sources": intent_hit.get("sources") or [],
+                }
+                yield sse_event(final)
+            else:
+                for ev in run_agent_query_stream(
+                    db,
+                    company_id,
+                    question,
+                    agent_id=agent_id,
+                    lang=lang,
+                    role=role,
+                    history=history,
+                    spoken=spoken,
+                    use_tools=use_tools,
+                ):
+                    if ev.get("type") == "done":
+                        final = ev
+                    yield sse_event(ev)
 
             record_audit(
                 db,

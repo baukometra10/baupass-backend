@@ -431,6 +431,9 @@
     });
     if (!prepared) return false;
     stopSpeaking();
+    if (spoken && options.preferOpenAi !== true) {
+      if (speakWithBrowser(prepared, lang, options)) return true;
+    }
     if (options.preferOpenAi !== false) {
       const ok = await speakWithOpenAi(prepared, lang, options);
       if (ok) return true;
@@ -890,6 +893,10 @@
       if (Date.now() - recordStartedAt < minRecordMs) {
         if (applyDraftIfUsable(savedLive)) return;
         notifyError(new Error("audio_too_short"), "transcribe");
+        return;
+      }
+      const liveDraft = String(savedLive || inputEl.value || "").trim();
+      if (options.preferLiveDraft !== false && applyDraftIfUsable(liveDraft)) {
         return;
       }
       try {

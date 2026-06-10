@@ -7,8 +7,8 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-OPENAI_429_MAX_ATTEMPTS = 3
-OPENAI_429_BACKOFF_SECONDS = (2.0, 5.0)
+OPENAI_429_MAX_ATTEMPTS = 4
+OPENAI_429_BACKOFF_SECONDS = (3.0, 10.0, 25.0)
 
 
 class OpenAiApiError(Exception):

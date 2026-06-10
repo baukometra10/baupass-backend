@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice13"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice14"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -322,7 +322,7 @@
         errOpenAiAuth: "Ungültiger OPENAI_API_KEY auf dem Server.",
         errOpenAiQuota: "OpenAI-API-Guthaben leer. ChatGPT Plus ≠ API — Guthaben unter platform.openai.com/settings/billing aufladen und denselben Key in OPENAI_API_KEY verwenden.",
         errAuth: "Bitte erneut anmelden.",
-        errRateLimit: "OpenAI-Ratenlimit erreicht. Bitte 30–60 Sekunden warten und erneut versuchen.",
+        errRateLimit: "OpenAI-Kontingent vorübergehend erschöpft (Limit Ihres OpenAI-Accounts, nicht BauPass). Eine Minute warten, dann erneut versuchen. Limits: platform.openai.com/settings/limits",
         errRateLimitWait: "OpenAI-Ratenlimit — bitte {sec} Sekunden warten und erneut versuchen.",
         errServerRateLimit: "Zu viele Anfragen an den Server. Bitte kurz warten und erneut versuchen.",
         errServerRateLimitWait: "Zu viele Anfragen — bitte {sec} Sekunden warten.",
@@ -364,7 +364,7 @@
         errOpenAiAuth: "Invalid OPENAI_API_KEY on the server.",
         errOpenAiQuota: "OpenAI API quota empty. ChatGPT Plus ≠ API — add billing at platform.openai.com/settings/billing and use the same key in OPENAI_API_KEY.",
         errAuth: "Please sign in again.",
-        errRateLimit: "OpenAI rate limit reached. Wait 30–60 seconds and try again.",
+        errRateLimit: "OpenAI quota temporarily exhausted (your OpenAI account limit, not BauPass). Wait one minute, then try again. Limits: platform.openai.com/settings/limits",
         errRateLimitWait: "OpenAI rate limit — wait {sec} seconds and try again.",
         errServerRateLimit: "Too many requests to the server. Wait briefly and try again.",
         errServerRateLimitWait: "Too many requests — wait {sec} seconds.",
@@ -406,7 +406,7 @@
         errOpenAiAuth: "مفتاح OPENAI_API_KEY على السيرفر غير صالح.",
         errOpenAiQuota: "رصيد OpenAI API منتهٍ. اشتراك ChatGPT Plus ≠ API — أضف رصيداً في platform.openai.com/settings/billing واستخدم نفس المفتاح في OPENAI_API_KEY.",
         errAuth: "يرجى تسجيل الدخول مرة أخرى.",
-        errRateLimit: "تم تجاوز حد طلبات OpenAI. انتظر 30–60 ثانية ثم أعد المحاولة.",
+        errRateLimit: "نفدت حصة OpenAI مؤقتاً (حد حساب OpenAI وليس BauPass). انتظر دقيقة ثم أعد المحاولة. الحدود: platform.openai.com/settings/limits",
         errRateLimitWait: "حد OpenAI — انتظر {sec} ثانية ثم أعد المحاولة.",
         errServerRateLimit: "طلبات كثيرة إلى الخادم. انتظر قليلاً ثم أعد المحاولة.",
         errServerRateLimitWait: "طلبات كثيرة — انتظر {sec} ثانية.",
@@ -506,6 +506,7 @@
     let agents = [];
     let activeAgent = "operations";
     let sessionId = "";
+    let aiQuestionInFlight = false;
     let sessions = [];
     let lastAnswerText = "";
 
@@ -1049,7 +1050,9 @@
     }
 
     async function submitQuestion(q, options = {}) {
+      if (aiQuestionInFlight) return;
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
+      aiQuestionInFlight = true;
       window.BaupassAiUi?.stopSpeaking?.();
       window.BaupassAiUi?.stopVoiceCapture?.("question");
       if (!sessionId) await newSession();
@@ -1208,6 +1211,8 @@
       } catch (e) {
         if (thinking.parentNode) thinking.remove();
         botDiv.textContent = e.message || String(e);
+      } finally {
+        aiQuestionInFlight = false;
       }
     }
 

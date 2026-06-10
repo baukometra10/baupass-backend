@@ -18,13 +18,15 @@ MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_MAX_TOOL_ROUNDS", "3"))
 SPOKEN_NO_TOOLS = os.getenv("BAUPASS_AI_SPOKEN_NO_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
 
 
-def _max_tool_rounds(*, spoken: bool = False) -> int:
-    if spoken and SPOKEN_NO_TOOLS:
+def _max_tool_rounds(*, spoken: bool = False, use_tools: bool = False) -> int:
+    if not use_tools or (spoken and SPOKEN_NO_TOOLS):
         return 1
     return max(1, MAX_TOOL_ROUNDS)
 
 
-def _resolve_tools(agent_id: str, *, spoken: bool = False) -> list[dict]:
+def _resolve_tools(agent_id: str, *, spoken: bool = False, use_tools: bool = False) -> list[dict]:
+    if not use_tools:
+        return []
     if spoken and SPOKEN_NO_TOOLS:
         return []
     return agent_tool_schemas(agent_id)
@@ -46,6 +48,7 @@ def run_agent_query(
     role: str = "company-admin",
     history: list[dict] | None = None,
     spoken: bool = False,
+    use_tools: bool = False,
 ) -> dict[str, Any]:
     if not is_ai_configured():
         return {
@@ -68,7 +71,7 @@ def run_agent_query(
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
-    tools = _resolve_tools(agent_id, spoken=spoken)
+    tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
     model, config_warning = resolve_ai_model()
 
     live_context = format_live_context_block(ctx, lang=lang)
@@ -96,7 +99,7 @@ def run_agent_query(
     tool_rounds = 0
 
     try:
-        for _ in range(_max_tool_rounds(spoken=spoken)):
+        for _ in range(_max_tool_rounds(spoken=spoken, use_tools=use_tools)):
             body = _chat_with_tools(messages, tools)
             choice = body["choices"][0]
             msg = choice["message"]
@@ -173,6 +176,7 @@ def run_agent_query_stream(
     role: str = "company-admin",
     history: list[dict] | None = None,
     spoken: bool = False,
+    use_tools: bool = False,
 ) -> Generator[dict[str, Any], None, None]:
     """Yield progress events, then stream final answer tokens via OpenAI."""
     from .assistant import is_ai_configured
@@ -197,7 +201,7 @@ def run_agent_query_stream(
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
-    tools = _resolve_tools(agent_id, spoken=spoken)
+    tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
     model, config_warning = resolve_ai_model()
     live_context = format_live_context_block(ctx, lang=lang)
     if rag_chunks:
@@ -221,7 +225,7 @@ def run_agent_query_stream(
     try:
         from .assistant import _stream_chat_completion_events
 
-        for _ in range(_max_tool_rounds(spoken=spoken)):
+        for _ in range(_max_tool_rounds(spoken=spoken, use_tools=use_tools)):
             content_deltas: list[str] = []
             tool_msg: dict[str, Any] | None = None
             live_answer = False
@@ -344,4 +348,5 @@ def run_deep_analysis(
         agent_id=spec["agent"],
         lang=lang,
         role=role,
+        use_tools=True,
     )
