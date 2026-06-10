@@ -15,6 +15,13 @@ from .tools import run_tool
 logger = logging.getLogger("baupass.ai.agent")
 
 MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_MAX_TOOL_ROUNDS", "6"))
+SPOKEN_MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_SPOKEN_MAX_TOOL_ROUNDS", "3"))
+
+
+def _max_tool_rounds(*, spoken: bool = False) -> int:
+    if spoken:
+        return max(1, min(MAX_TOOL_ROUNDS, SPOKEN_MAX_TOOL_ROUNDS))
+    return max(1, MAX_TOOL_ROUNDS)
 
 
 def _chat_with_tools(messages: list[dict], tools: list[dict]) -> dict[str, Any]:
@@ -83,7 +90,7 @@ def run_agent_query(
     tool_rounds = 0
 
     try:
-        for _ in range(MAX_TOOL_ROUNDS):
+        for _ in range(_max_tool_rounds(spoken=spoken)):
             body = _chat_with_tools(messages, tools)
             choice = body["choices"][0]
             msg = choice["message"]
@@ -208,7 +215,7 @@ def run_agent_query_stream(
     try:
         from .assistant import _stream_chat_completion_events
 
-        for _ in range(MAX_TOOL_ROUNDS):
+        for _ in range(_max_tool_rounds(spoken=spoken)):
             content_deltas: list[str] = []
             tool_msg: dict[str, Any] | None = None
             live_answer = False

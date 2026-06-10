@@ -321,7 +321,9 @@
         errAiNotConfigured: "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.",
         errOpenAiAuth: "Ungültiger OPENAI_API_KEY auf dem Server.",
         errOpenAiQuota: "OpenAI-API-Guthaben leer. ChatGPT Plus ≠ API — Guthaben unter platform.openai.com/settings/billing aufladen und denselben Key in OPENAI_API_KEY verwenden.",
-        errAuth: "Bitte erneut anmelden.", errRateLimit: "Zu viele Anfragen — bitte kurz warten.",
+        errAuth: "Bitte erneut anmelden.",
+        errRateLimit: "API-Limit erreicht (eine Sprachfrage nutzt mehrere Aufrufe: Transkription + KI + ggf. Tools). Bitte 30–60 Sekunden warten und erneut versuchen.",
+        errRateLimitWait: "API-Limit — bitte {sec} Sekunden warten und erneut versuchen.",
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
       },
       en: {
@@ -358,7 +360,9 @@
         errAiNotConfigured: "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway.",
         errOpenAiAuth: "Invalid OPENAI_API_KEY on the server.",
         errOpenAiQuota: "OpenAI API quota empty. ChatGPT Plus ≠ API — add billing at platform.openai.com/settings/billing and use the same key in OPENAI_API_KEY.",
-        errAuth: "Please sign in again.", errRateLimit: "Too many requests — please wait briefly.",
+        errAuth: "Please sign in again.",
+        errRateLimit: "API limit reached (one voice question uses several calls: transcription + AI + tools). Wait 30–60 seconds and try again.",
+        errRateLimitWait: "API limit — wait {sec} seconds and try again.",
         errNetwork: "Network error — check connection.",
       },
       ar: {
@@ -395,7 +399,9 @@
         errAiNotConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد. يرجى تعيين OPENAI_API_KEY على Railway.",
         errOpenAiAuth: "مفتاح OPENAI_API_KEY على السيرفر غير صالح.",
         errOpenAiQuota: "رصيد OpenAI API منتهٍ. اشتراك ChatGPT Plus ≠ API — أضف رصيداً في platform.openai.com/settings/billing واستخدم نفس المفتاح في OPENAI_API_KEY.",
-        errAuth: "يرجى تسجيل الدخول مرة أخرى.", errRateLimit: "طلبات كثيرة — يرجى الانتظار قليلاً.",
+        errAuth: "يرجى تسجيل الدخول مرة أخرى.",
+        errRateLimit: "تم تجاوز حد الـ API (سؤال صوتي واحد يستخدم عدة طلبات: تفريغ + ذكاء + أدوات). انتظر 30–60 ثانية ثم أعد المحاولة.",
+        errRateLimitWait: "حد الـ API — انتظر {sec} ثانية ثم أعد المحاولة.",
         errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
       },
     };
@@ -1057,6 +1063,12 @@
       const friendlyAiError = (err) => {
         const code = String(err?.error || err?.payload?.error || "").trim();
         const hint = String(err?.hint || err?.payload?.hint || err?.message || "").trim();
+        const retrySec = Number(err?.retryAfterSeconds || err?.payload?.retryAfterSeconds || 0);
+        const rateLimitMsg = () => (
+          retrySec > 0
+            ? t("errRateLimitWait").replace("{sec}", String(retrySec))
+            : t("errRateLimit")
+        );
         if (code === "openai_quota_exceeded" || /insufficient_quota|exceeded your current quota|chatgpt plus/i.test(hint)) {
           return t("errOpenAiQuota");
         }
@@ -1066,12 +1078,15 @@
         if (code === "openai_auth_error") {
           return t("errOpenAiAuth");
         }
+        if (code === "openai_rate_limit" || code === "rate_limited" || code === "rate_limit_exceeded") {
+          return rateLimitMsg();
+        }
         if (!hint || hint === "company_required") return t("needCompany");
         if (/401|403|auth|anmeld|sign in/i.test(hint)) {
           return t("errAuth");
         }
-        if (/429|rate|too many|limit/i.test(hint)) {
-          return t("errRateLimit");
+        if (/429/.test(hint) || /rate limit exceeded|rate_limit_exceeded|too many requests/i.test(hint)) {
+          return rateLimitMsg();
         }
         if (/network|fetch|failed to fetch/i.test(hint)) {
           return t("errNetwork");

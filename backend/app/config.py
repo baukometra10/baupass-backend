@@ -68,6 +68,7 @@ class BaseConfig:
     # تعريفات الـ scopes: (max_requests, window_seconds)
     RATE_LIMIT_SCOPES: dict = {
         "global":               (300,  60),   # 300 req/min لكل IP
+        "ai_api":               (120,  60),   # transcribe + stream + speak per voice turn
         "auth_login":           (30,   300),  # 30 login/OTP steps per 5 min (2FA needs multiple POSTs)
         "auth_login_fail":      (10,   900),  # 10 فشل / 15 دقيقة ثم lockout
         "worker_api":           (120,  60),   # 120 req/min للعمال

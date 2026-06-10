@@ -314,6 +314,8 @@ def register_rate_limit_middleware(app: Flask) -> None:
 
 def _detect_scope(path: str, method: str) -> str:
     """يُحدد الـ scope المناسب للـ rate limit بناءً على المسار."""
+    if path.startswith("/api/ai/"):
+        return "ai_api"
     if path in {"/api/login", "/api/logout"} and method in {"POST", "PUT"}:
         return "auth_login"
     if "/api/auth/login" in path or "/api/worker-app/auth" in path:
