@@ -13,6 +13,21 @@ from .openai_errors import OpenAiApiError, parse_openai_http_error, urlopen_with
 logger = logging.getLogger("baupass.ai.tts")
 
 
+def _resolve_tts_config(lang: str) -> tuple[str, str, float]:
+    lang = (lang or "de")[:2]
+    if lang == "ar":
+        model = (
+            os.getenv("BAUPASS_TTS_MODEL_AR")
+            or os.getenv("BAUPASS_TTS_MODEL")
+            or "tts-1-hd"
+        ).strip()
+        voice = (os.getenv("BAUPASS_TTS_VOICE_AR") or "shimmer").strip()
+        return model, voice, 1.0
+    model = (os.getenv("BAUPASS_TTS_MODEL") or "tts-1").strip()
+    voice = (os.getenv("BAUPASS_TTS_VOICE") or "nova").strip()
+    return model, voice, 0.98
+
+
 def synthesize_speech_bytes(text: str, *, lang: str = "de") -> dict[str, Any]:
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
@@ -21,15 +36,14 @@ def synthesize_speech_bytes(text: str, *, lang: str = "de") -> dict[str, Any]:
     if not cleaned or len(cleaned) < 2:
         return {"audio": None, "error": "text_too_short"}
 
-    model = (os.getenv("BAUPASS_TTS_MODEL") or "tts-1").strip()
-    voice = (os.getenv("BAUPASS_TTS_VOICE") or "nova").strip()
+    model, voice, speed = _resolve_tts_config(lang)
     payload = json.dumps(
         {
             "model": model,
             "input": cleaned[:4096],
             "voice": voice,
             "response_format": "mp3",
-            "speed": 0.98,
+            "speed": speed,
         }
     ).encode("utf-8")
     req = urlrequest.Request(

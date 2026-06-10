@@ -44,6 +44,7 @@
       voiceReplyOff: "Sprachausgabe aus — nur Text",
       voiceReplyStop: "Vorlesen stoppen",
       voiceSpeakingHint: "KI spricht — 🔊 tippen zum Stoppen",
+      voicePreparingHint: "Sprachausgabe wird vorbereitet…",
       unsupported: "Spracheingabe benötigt HTTPS",
       open: "Öffnen",
     },
@@ -55,6 +56,7 @@
       voiceReplyOff: "Voice reply off — text only",
       voiceReplyStop: "Stop speaking",
       voiceSpeakingHint: "AI is speaking — tap 🔊 to stop",
+      voicePreparingHint: "Preparing voice reply…",
       unsupported: "Voice needs HTTPS",
       open: "Open",
     },
@@ -66,6 +68,7 @@
       voiceReplyOff: "رد صوتي متوقف — نص فقط",
       voiceReplyStop: "إيقاف القراءة",
       voiceSpeakingHint: "الذكاء الاصطناعي يتحدّث — اضغط 🔊 للإيقاف",
+      voicePreparingHint: "جاري تجهيز الرد الصوتي…",
       unsupported: "الصوت يتطلب HTTPS",
       open: "فتح",
     },
@@ -379,24 +382,27 @@
 
   async function speakWithOpenAi(text, lang, options = {}) {
     try {
-      const headers = { "Content-Type": "application/json" };
-      if (typeof options.authHeaders === "function") {
-        Object.assign(headers, options.authHeaders());
-      } else if (options.authHeaders && typeof options.authHeaders === "object") {
-        Object.assign(headers, options.authHeaders);
-      }
+      dispatchSpeakingState(true, { preparing: true });
       const url = options.speakUrl || "/api/ai/speak";
       const res = await fetch(url, {
         method: "POST",
         credentials: "include",
-        headers,
+        headers: buildSpeakHeaders(options),
         body: JSON.stringify({ text, lang: resolveLang(lang) }),
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        dispatchSpeakingState(false);
+        return false;
+      }
       const blob = await res.blob();
-      if (!blob.size) return false;
+      if (!blob.size) {
+        dispatchSpeakingState(false);
+        return false;
+      }
+      dispatchSpeakingState(true, { preparing: false });
       return playAudioBlob(blob);
     } catch {
+      dispatchSpeakingState(false);
       return false;
     }
   }
@@ -413,11 +419,11 @@
     if (voice) utter.voice = voice;
     utter.onend = () => {
       currentSpeechUtterance = null;
-      global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: false } }));
+      dispatchSpeakingState(false);
     };
     utter.onerror = () => stopSpeaking();
     currentSpeechUtterance = utter;
-    global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: true } }));
+    dispatchSpeakingState(true);
     global.speechSynthesis.speak(utter);
     return true;
   }
@@ -431,10 +437,16 @@
     });
     if (!prepared) return false;
     stopSpeaking();
-    if (spoken && options.preferOpenAi !== true) {
-      if (speakWithBrowser(prepared, lang, options)) return true;
+    beginTtsPrefetch._active = null;
+
+    const preferOpenAi = shouldPreferOpenAiTts(lang, spoken, options);
+    if (preferOpenAi && options.ttsPrefetch) {
+      dispatchSpeakingState(true, { preparing: true });
+      const prefOk = await playPrefetchedSpeech(options.ttsPrefetch, prepared);
+      if (prefOk) return true;
     }
-    if (options.preferOpenAi !== false) {
+
+    if (preferOpenAi) {
       const ok = await speakWithOpenAi(prepared, lang, options);
       if (ok) return true;
     }
@@ -443,6 +455,64 @@
 
   async function speakText(text, lang, options = {}) {
     return speakReply(text, lang, options);
+  }
+
+  function dispatchSpeakingState(speaking, extra = {}) {
+    global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking, ...extra } }));
+  }
+
+  function shouldPreferOpenAiTts(lang, spoken, options = {}) {
+    if (options.preferOpenAi === false) return false;
+    if (options.preferOpenAi === true) return true;
+    const ui = resolveLang(lang);
+    if (ui === "ar" || spoken) return true;
+    return true;
+  }
+
+  function buildSpeakHeaders(options = {}) {
+    const headers = { "Content-Type": "application/json" };
+    if (typeof options.authHeaders === "function") {
+      Object.assign(headers, options.authHeaders());
+    } else if (options.authHeaders && typeof options.authHeaders === "object") {
+      Object.assign(headers, options.authHeaders);
+    }
+    return headers;
+  }
+
+  function beginTtsPrefetch(text, lang, options = {}) {
+    const prepared = cleanTextForSpeech(text, {
+      spoken: Boolean(options.spoken),
+      maxSentences: options.maxSentences || 4,
+    });
+    if (!prepared || prepared.length < 24) return null;
+    const sig = `${prepared.length}:${prepared.slice(0, 64)}`;
+    if (beginTtsPrefetch._active?.sig === sig) return beginTtsPrefetch._active;
+    const url = options.speakUrl || "/api/ai/speak";
+    const fetchPromise = fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: buildSpeakHeaders(options),
+      body: JSON.stringify({ text: prepared, lang: resolveLang(lang) }),
+    })
+      .then((res) => (res.ok ? res.blob() : null))
+      .catch(() => null);
+    const entry = { prepared, fetchPromise, sig };
+    beginTtsPrefetch._active = entry;
+    return entry;
+  }
+
+  async function playPrefetchedSpeech(prefetch, finalPrepared) {
+    if (!prefetch?.fetchPromise || !finalPrepared) return false;
+    const blob = await prefetch.fetchPromise;
+    if (!blob || !blob.size) return false;
+    if (
+      finalPrepared.length > prefetch.prepared.length + 80
+      && !finalPrepared.startsWith(prefetch.prepared.slice(0, Math.min(prefetch.prepared.length, 120)))
+    ) {
+      return false;
+    }
+    dispatchSpeakingState(true);
+    return playAudioBlob(blob);
   }
 
   function pickRecorderMimeType() {
@@ -1280,7 +1350,10 @@
       const defaultHint = hintEl.textContent;
       global.addEventListener("baupass-ai-speaking", (ev) => {
         if (ev.detail?.speaking) {
-          hintEl.textContent = options.speakingHintText || labelsForLang(lang).voiceSpeakingHint;
+          const ui = labelsForLang(lang);
+          hintEl.textContent = ev.detail?.preparing
+            ? (options.preparingHintText || ui.voicePreparingHint)
+            : (options.speakingHintText || ui.voiceSpeakingHint);
           hintEl.classList.add("bp-ai-hint-speaking");
         } else {
           hintEl.textContent = options.hintText || HINTS[lang] || HINTS.de || defaultHint;
@@ -1366,6 +1439,7 @@
     isVoiceCaptureActive,
     speakReply,
     speakText,
+    beginTtsPrefetch,
     stopSpeaking,
     isSpeaking,
   };
