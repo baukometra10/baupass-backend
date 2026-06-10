@@ -1,4 +1,4 @@
-"""OpenAI text-to-speech for AI voice replies."""
+"""ElevenLabs text-to-speech — fixed voices per language (Ghizlane / Ramona / Vanessa)."""
 from __future__ import annotations
 
 import json
@@ -7,26 +7,31 @@ import os
 import re
 import unicodedata
 from typing import Any, Generator
+
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-from .openai_errors import parse_openai_http_error, urlopen_with_rate_limit_retry
+from .openai_errors import urlopen_with_rate_limit_retry
 
 logger = logging.getLogger("baupass.ai.tts")
 
-_AR_TTS_INSTRUCTIONS = (
-    "Premium Arabic voice assistant — natural Modern Standard Arabic (فصحى), NOT robotic. "
-    "Warm, fluent, human-like intonation like ChatGPT voice. "
-    "Clear articulation, gentle pace, smooth flow between words."
-)
+# Only the three ElevenLabs voices chosen by the platform owner.
+_ELEVENLABS_VOICES = {
+    "ar": "u0TsaWvt0v8migutHM3M",  # Ghizlane — smooth, distinctive and calm
+    "de": "6CS8keYmkwxkspesdyA7",  # Ramona — professional and calm
+    "en": "8DzKSPdgEQPaK5vKG0Rs",  # Vanessa — beach girl
+}
 
-_MIME_BY_FORMAT = {
-    "mp3": "audio/mpeg",
-    "wav": "audio/wav",
-    "opus": "audio/opus",
-    "aac": "audio/aac",
-    "flac": "audio/flac",
-    "pcm": "audio/pcm",
+_ELEVENLABS_VOICE_NAMES = {
+    "ar": "Ghizlane",
+    "de": "Ramona",
+    "en": "Vanessa",
+}
+
+_ELEVENLABS_LANG = {
+    "ar": "ar",
+    "de": "de",
+    "en": "en",
 }
 
 
@@ -35,14 +40,13 @@ def prepare_tts_text(text: str, *, lang: str, fast: bool = False) -> str:
     if not cleaned:
         return ""
     lang = (lang or "de")[:2]
+    cleaned = re.sub(r"[*_#>`|\[\](){}]", "", cleaned)
     if lang == "ar":
         cleaned = unicodedata.normalize("NFKC", cleaned)
         cleaned = cleaned.replace("\u0640", "")
         cleaned = re.sub(r"[\u200c\u200d\u200e\u200f\ufeff]", "", cleaned)
-        cleaned = re.sub(r"[*_#>`|\[\](){}]", "", cleaned)
         cleaned = re.sub(r"([،؛:])(?=\S)", r"\1 ", cleaned)
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    # Client sends one segment per request; cap segment size only.
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
     max_len = 280 if fast else 4096
     if len(cleaned) <= max_len:
         return cleaned
@@ -54,55 +58,51 @@ def prepare_tts_text(text: str, *, lang: str, fast: bool = False) -> str:
     return cut.rstrip() + "…"
 
 
-def _resolve_tts_config(lang: str, *, fast: bool = False) -> dict[str, Any]:
+def _elevenlabs_api_key() -> str:
+    return (os.getenv("ELEVENLABS_API_KEY") or os.getenv("BAUPASS_ELEVENLABS_API_KEY") or "").strip()
+
+
+def _resolve_elevenlabs_config(lang: str, *, fast: bool = False) -> dict[str, Any]:
     lang = (lang or "de")[:2]
-    if lang == "ar":
-        model = (os.getenv("BAUPASS_TTS_MODEL_AR") or "gpt-4o-mini-tts").strip()
-        voice = (os.getenv("BAUPASS_TTS_VOICE_AR") or "marin").strip()
-        return {
-            "model": model,
-            "voice": voice,
-            "instructions": (os.getenv("BAUPASS_TTS_INSTRUCTIONS_AR") or _AR_TTS_INSTRUCTIONS).strip(),
-            "response_format": "mp3",
-            "speed": None,
-        }
-    model = (os.getenv("BAUPASS_TTS_MODEL") or "tts-1").strip()
-    voice = (os.getenv("BAUPASS_TTS_VOICE") or "nova").strip()
+    voice_id = _ELEVENLABS_VOICES.get(lang) or _ELEVENLABS_VOICES["en"]
     return {
-        "model": model,
-        "voice": voice,
-        "instructions": None,
-        "response_format": "mp3",
-        "speed": 0.98,
+        "voice_id": voice_id,
+        "voice_name": _ELEVENLABS_VOICE_NAMES.get(lang) or _ELEVENLABS_VOICE_NAMES["en"],
+        "model_id": (os.getenv("BAUPASS_ELEVENLABS_MODEL") or "eleven_multilingual_v2").strip(),
+        "language_code": _ELEVENLABS_LANG.get(lang, "en"),
+        "output_format": (os.getenv("BAUPASS_ELEVENLABS_FORMAT") or "mp3_44100_128").strip(),
+        "optimize_streaming_latency": 3 if fast else None,
     }
 
 
-def _build_tts_payload(cleaned: str, config: dict[str, Any]) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "model": config["model"],
-        "input": cleaned,
-        "voice": config["voice"],
-        "response_format": config.get("response_format") or "mp3",
-    }
-    instructions = config.get("instructions")
-    if instructions and str(config["model"]).startswith("gpt-4o-mini-tts"):
-        payload["instructions"] = instructions
-    elif config.get("speed") is not None:
-        payload["speed"] = config["speed"]
-    return payload
-
-
-def _openai_tts_request(cleaned: str, config: dict[str, Any], *, timeout: int = 20, fast: bool = False):
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+def _elevenlabs_tts_request(
+    cleaned: str,
+    config: dict[str, Any],
+    *,
+    timeout: int = 25,
+    fast: bool = False,
+):
+    key = _elevenlabs_api_key()
     if not key:
-        raise ValueError("openai_not_configured")
-    payload = json.dumps(_build_tts_payload(cleaned, config)).encode("utf-8")
+        raise ValueError("elevenlabs_not_configured")
+    voice_id = str(config["voice_id"])
+    query = f"output_format={config.get('output_format') or 'mp3_44100_128'}"
+    latency = config.get("optimize_streaming_latency")
+    if fast and latency is not None:
+        query += f"&optimize_streaming_latency={latency}"
+    body = {
+        "text": cleaned,
+        "model_id": config.get("model_id") or "eleven_multilingual_v2",
+    }
+    # Do not force language_code — multilingual v2 auto-detects; forced codes can 422.
+    payload = json.dumps(body).encode("utf-8")
     req = urlrequest.Request(
-        "https://api.openai.com/v1/audio/speech",
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?{query}",
         data=payload,
         headers={
-            "Authorization": f"Bearer {key}",
+            "xi-api-key": key,
             "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
         },
         method="POST",
     )
@@ -111,41 +111,83 @@ def _openai_tts_request(cleaned: str, config: dict[str, Any], *, timeout: int = 
     return urlopen_with_rate_limit_retry(req, timeout=timeout, max_attempts=2)
 
 
+def _synthesize_elevenlabs_bytes(
+    cleaned: str,
+    *,
+    lang: str,
+    fast: bool,
+) -> dict[str, Any]:
+    if not _elevenlabs_api_key():
+        return {
+            "audio": None,
+            "error": "elevenlabs_not_configured",
+            "hint": "Set ELEVENLABS_API_KEY on the server.",
+            "provider": "elevenlabs",
+        }
+    config = _resolve_elevenlabs_config(lang, fast=fast)
+    try:
+        with _elevenlabs_tts_request(cleaned, config, timeout=22 if fast else 35, fast=fast) as resp:
+            audio = resp.read()
+        if not audio:
+            return {"audio": None, "error": "tts_empty", "provider": "elevenlabs"}
+        return {
+            "audio": audio,
+            "mime": "audio/mpeg",
+            "model": config["model_id"],
+            "voice": config["voice_id"],
+            "voiceName": config["voice_name"],
+            "lang": lang[:2],
+            "format": "mp3",
+            "provider": "elevenlabs",
+        }
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:800]
+        logger.warning("ElevenLabs TTS HTTP %s: %s", exc.code, detail)
+        return {
+            "audio": None,
+            "error": "elevenlabs_http_error",
+            "hint": detail[:300],
+            "provider": "elevenlabs",
+        }
+    except Exception as exc:
+        return {"audio": None, "error": "tts_failed", "hint": str(exc)[:300], "provider": "elevenlabs"}
+
+
 def synthesize_speech_bytes(
     text: str,
     *,
     lang: str = "de",
     fast: bool = False,
 ) -> dict[str, Any]:
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not key:
-        return {"audio": None, "error": "openai_not_configured"}
     cleaned = prepare_tts_text(text, lang=lang, fast=fast)
     if not cleaned or len(cleaned) < 2:
         return {"audio": None, "error": "text_too_short"}
+    return _synthesize_elevenlabs_bytes(cleaned, lang=lang, fast=fast)
 
-    config = _resolve_tts_config(lang, fast=fast)
-    fmt = str(config.get("response_format") or "mp3")
-    try:
-        with _openai_tts_request(cleaned, config, timeout=22 if fast else 35, fast=fast) as resp:
-            audio = resp.read()
-        if not audio:
-            return {"audio": None, "error": "tts_empty"}
-        return {
-            "audio": audio,
-            "mime": _MIME_BY_FORMAT.get(fmt, "audio/mpeg"),
-            "model": config["model"],
-            "voice": config["voice"],
-            "lang": lang[:2],
-            "format": fmt,
+
+def tts_config_status() -> dict[str, Any]:
+    key_ok = bool(_elevenlabs_api_key())
+    voices = {
+        lang: {
+            "id": voice_id,
+            "name": _ELEVENLABS_VOICE_NAMES.get(lang) or lang,
         }
-    except urlerror.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:800]
-        logger.warning("OpenAI TTS HTTP %s: %s", exc.code, detail)
-        parsed = parse_openai_http_error(detail)
-        return {"audio": None, "error": parsed.get("error", "tts_http_error"), "hint": parsed.get("hint")}
-    except Exception as exc:
-        return {"audio": None, "error": "tts_failed", "hint": str(exc)[:300]}
+        for lang, voice_id in _ELEVENLABS_VOICES.items()
+    }
+    hint = None
+    if not key_ok:
+        hint = (
+            "Set ELEVENLABS_API_KEY (or BAUPASS_ELEVENLABS_API_KEY) on the server, "
+            "then redeploy Railway."
+        )
+    return {
+        "provider": "elevenlabs",
+        "configured": key_ok,
+        "envVars": ["ELEVENLABS_API_KEY", "BAUPASS_ELEVENLABS_API_KEY"],
+        "model": (os.getenv("BAUPASS_ELEVENLABS_MODEL") or "eleven_multilingual_v2").strip(),
+        "voices": voices,
+        "hint": hint,
+    }
 
 
 def synthesize_speech_stream(
@@ -154,24 +196,11 @@ def synthesize_speech_stream(
     lang: str = "de",
     fast: bool = True,
 ) -> Generator[bytes, None, None]:
-    """Stream audio bytes from OpenAI TTS."""
+    """Return ElevenLabs audio (single chunk — no alternate provider)."""
     cleaned = prepare_tts_text(text, lang=lang, fast=fast)
     if not cleaned or len(cleaned) < 2:
         return
-    config = _resolve_tts_config(lang, fast=True)
-    try:
-        resp = _openai_tts_request(cleaned, config, timeout=22, fast=True)
-    except Exception as exc:
-        logger.warning("TTS stream open failed: %s", exc)
-        return
-    try:
-        while True:
-            chunk = resp.read(8192)
-            if not chunk:
-                break
-            yield chunk
-    finally:
-        try:
-            resp.close()
-        except Exception:
-            pass
+    result = _synthesize_elevenlabs_bytes(cleaned, lang=lang, fast=fast)
+    audio = result.get("audio")
+    if audio:
+        yield audio

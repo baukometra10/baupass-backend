@@ -58,3 +58,35 @@ def test_no_intent_for_random(client_and_db, db_with_company):
     with server.app.app_context():
         db = server.get_db()
         assert try_intent_response(db, db_with_company, "xyzzy random nonsense 12345", lang="de") is None
+
+
+def test_founder_intent_arabic(client_and_db, db_with_company):
+    _client, _db_path = client_and_db
+    with server.app.app_context():
+        db = server.get_db()
+        out = try_intent_response(
+            db,
+            db_with_company,
+            "من الذي قام بتأسيس هذا النظام؟",
+            lang="ar",
+        )
+    assert out is not None
+    assert out["intent"] == "platform_founder"
+    assert "Sherif Mohamed" in out["answer"]
+    assert "Baukometra" in out["answer"] or "BauPass" in out["answer"]
+
+
+def test_founder_intent_german(client_and_db, db_with_company):
+    _client, _db_path = client_and_db
+    with server.app.app_context():
+        db = server.get_db()
+        out = try_intent_response(
+            db,
+            db_with_company,
+            "Wer hat BauPass gegründet?",
+            lang="de",
+        )
+    assert out is not None
+    assert out["intent"] == "platform_founder"
+    assert "Sherif Mohamed" in out["answer"]
+    assert "baupass-control@outlook.de" in out["answer"]

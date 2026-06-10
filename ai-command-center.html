@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice18"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice20"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -1376,6 +1376,10 @@
         await loadCompanies();
         if (window.BaupassAiUi) {
           window.BaupassAiUi.bindVoiceInput(commandCenterVoiceOptions());
+          window.addEventListener("baupass-ai-tts-error", (ev) => {
+            const msg = window.BaupassAiUi?.voiceErrorMessage?.(ev.detail || {}, LANG);
+            if (msg) showToast(msg);
+          });
         }
         uiBooted = true;
         applyUiLanguage();

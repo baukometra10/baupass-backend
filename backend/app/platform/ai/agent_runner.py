@@ -75,7 +75,10 @@ def run_agent_query(
     tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
     model, config_warning = resolve_ai_model()
 
+    from .founder_profile import format_founder_context_for_llm
+
     live_context = format_live_context_block(ctx, lang=lang)
+    live_context += "\n\n" + format_founder_context_for_llm(db, lang)
     if extra_context.strip():
         live_context += "\n\n" + extra_context.strip()
     if rag_chunks:
@@ -207,7 +210,10 @@ def run_agent_query_stream(
         ctx["ragChunks"] = rag_chunks
     tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
     model, config_warning = resolve_ai_model()
+    from .founder_profile import format_founder_context_for_llm
+
     live_context = format_live_context_block(ctx, lang=lang)
+    live_context += "\n\n" + format_founder_context_for_llm(db, lang)
     if extra_context.strip():
         live_context += "\n\n" + extra_context.strip()
     if rag_chunks:

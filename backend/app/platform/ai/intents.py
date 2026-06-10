@@ -5,6 +5,18 @@ import os
 import re
 from typing import Any
 
+_FOUNDER_PATTERNS = re.compile(
+    r"(gründer|gründung|gegründet|entwickelt|who (?:founded|created|built|made)|"
+    r"founder|creator|built this|who is behind|who made|"
+    r"wer hat (?:das|dieses|diesen)? ?(?:system|plattform|programm|portal|tool|ki|ai)?|"
+    r"wer steckt hinter|wer ist der (?:gründer|eigentümer|inhaber|boss|chef)|"
+    r"من (?:أسس|أسّس|أنشأ|طوّر|طور|بنى|صنع|قام)|"
+    r"من الذي|مَن الذي|مؤسس|مالك (?:النظام|المنصة)|صاحب (?:الشركة|النظام|المنصة)|"
+    r"تأسيس (?:هذا )?(?:النظام|المنصة)|"
+    r"wer hat bau ?pass|who founded bau ?pass|who created bau ?pass)",
+    re.I,
+)
+
 _CONTACT_PATTERNS = re.compile(
     r"(kontakt|contact|support|hotline|telefon|phone|e-mail|email|"
     r"erreichen|anrufen|zuständig|zustaendig|wer ist mein|meine daten|"
@@ -188,6 +200,42 @@ def try_intent_response(
     if not q or not company_id:
         return None
     lang = (lang or "de")[:2]
+
+    if _FOUNDER_PATTERNS.search(q):
+        from .founder_profile import format_founder_answer, load_founder_profile
+
+        profile = load_founder_profile(db)
+        actions: list[dict[str, Any]] = []
+        if profile.get("website"):
+            actions.append(
+                {
+                    "id": "founder_website",
+                    "type": "navigate",
+                    "url": str(profile["website"]),
+                    "labelDe": "Website öffnen",
+                    "labelEn": "Open website",
+                    "labelAr": "فتح الموقع",
+                }
+            )
+        if profile.get("email") and "@" in str(profile["email"]):
+            actions.append(
+                {
+                    "id": "founder_email",
+                    "type": "navigate",
+                    "url": f"mailto:{profile['email']}",
+                    "labelDe": "E-Mail senden",
+                    "labelEn": "Send email",
+                    "labelAr": "إرسال بريد",
+                }
+            )
+        return {
+            "answer": format_founder_answer(profile, lang),
+            "intent": "platform_founder",
+            "configured": True,
+            "sources": ["platform_founder_profile"],
+            "actions": actions,
+            "suggestedActions": actions,
+        }
 
     if _CONTACT_PATTERNS.search(q):
         ctx = _load_help_context(db, company_id)

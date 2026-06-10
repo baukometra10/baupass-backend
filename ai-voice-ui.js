@@ -459,13 +459,35 @@
       body: JSON.stringify(buildSpeakBody(text, lang, { ...options, spoken: true })),
     })
       .then(async (res) => {
-        if (!res.ok) return null;
+        if (!res.ok) {
+          let payload = null;
+          try {
+            payload = await res.json();
+          } catch {
+            payload = null;
+          }
+          const detail = {
+            error: payload?.error || "tts_failed",
+            hint: payload?.hint || "",
+            status: res.status,
+          };
+          global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+          return detail;
+        }
         const mime = res.headers.get("Content-Type") || "audio/mpeg";
         const blob = await res.blob();
-        if (!blob?.size) return null;
+        if (!blob?.size) {
+          const detail = { error: "tts_empty", hint: "", status: res.status };
+          global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+          return detail;
+        }
         return { blob, mime };
       })
-      .catch(() => null);
+      .catch((err) => {
+        const detail = { error: "tts_failed", hint: String(err?.message || err), status: 0 };
+        global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+        return detail;
+      });
   }
 
   function scheduleTtsAutoplay(prefetch) {
@@ -553,11 +575,6 @@
     const segments = splitSpeechSegments(text, lang, options);
     if (!segments.length) return false;
 
-    const preferOpenAi = shouldPreferOpenAiTts(lang, spoken, options);
-    if (!preferOpenAi) {
-      return speakWithBrowser(segments.join(" "), lang, options);
-    }
-
     if (ttsTurn.playPromise) {
       await ttsTurn.playPromise;
       const rest = splitSpeechSegments(text, lang, options);
@@ -573,8 +590,7 @@
     dispatchSpeakingState(true, { preparing: true });
     const playedAny = await speakRemainingSegments(segments, lang, options, 0);
     dispatchSpeakingState(false);
-    if (playedAny) return true;
-    return speakWithBrowser(segments.join(" "), lang, options);
+    return playedAny;
   }
 
   async function speakText(text, lang, options = {}) {
@@ -583,14 +599,6 @@
 
   function dispatchSpeakingState(speaking, extra = {}) {
     global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking, ...extra } }));
-  }
-
-  function shouldPreferOpenAiTts(lang, spoken, options = {}) {
-    if (options.preferOpenAi === false) return false;
-    if (options.preferOpenAi === true) return true;
-    const ui = resolveLang(lang);
-    if (ui === "ar" || spoken) return true;
-    return true;
   }
 
   function buildSpeakHeaders(options = {}) {
@@ -678,7 +686,7 @@
   }
 
   function inferOpenAiVoiceError(err) {
-    const code = String(err?.payload?.error || err?.message || "").trim();
+    const code = String(err?.payload?.error || err?.error || err?.message || "").trim();
     const hint = String(err?.payload?.hint || "").trim();
     if (code === "openai_quota_exceeded" || code === "openai_auth_error" || code === "openai_rate_limit") {
       return code;
@@ -758,6 +766,20 @@
         : ui === "en"
           ? "Voice needs OPENAI_API_KEY or Azure Whisper (AZURE_OPENAI_WHISPER_DEPLOYMENT) on the server."
           : "Spracheingabe braucht OPENAI_API_KEY oder Azure Whisper auf dem Server.";
+    }
+    if (code === "elevenlabs_not_configured") {
+      return ui === "ar"
+        ? "الصوت يحتاج ELEVENLABS_API_KEY على Railway ثم إعادة نشر (Redeploy) السيرفر."
+        : ui === "en"
+          ? "Voice needs ELEVENLABS_API_KEY on Railway, then redeploy the server."
+          : "Sprache braucht ELEVENLABS_API_KEY auf Railway und anschließend Redeploy.";
+    }
+    if (code === "elevenlabs_http_error") {
+      return ui === "ar"
+        ? "خطأ ElevenLabs — تحقق من المفتاح والرصيد في elevenlabs.io."
+        : ui === "en"
+          ? "ElevenLabs error — check API key and credits at elevenlabs.io."
+          : "ElevenLabs-Fehler — API-Key und Guthaben auf elevenlabs.io prüfen.";
     }
     if (code === "feature_not_available") {
       return ui === "ar"

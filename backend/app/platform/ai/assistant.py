@@ -65,6 +65,7 @@ def resolve_ai_temperature(*, mode: str = "chat") -> float:
 def ai_config_status(lang: str = "de") -> dict[str, Any]:
     from .agents import list_agents
     from .whisper import whisper_config_status
+    from .tts import tts_config_status
 
     lang = str(lang or "de")[:2]
     model, warning = resolve_ai_model()
@@ -79,6 +80,7 @@ def ai_config_status(lang: str = "de") -> dict[str, Any]:
         "configWarning": warning,
         "agentsEnabled": bool(openai or azure),
         "voiceTranscription": whisper,
+        "voiceSpeech": tts_config_status(),
         "billingNote": (
             "OpenAI API billing is separate from ChatGPT Plus. "
             "Add credits at platform.openai.com/settings/billing."
