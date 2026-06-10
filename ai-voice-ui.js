@@ -210,9 +210,9 @@
     if (!s || isWeakTranscript(s)) return "";
     const uiLang = resolveLang(options.lang);
     const isAr = uiLang === "ar";
-    const maxSentences = options.maxSentences ?? (options.spoken ? (isAr ? 2 : 4) : 8);
+    const maxSentences = options.maxSentences ?? (options.spoken ? (isAr ? 8 : 6) : 8);
     s = truncateSentences(s, maxSentences);
-    const maxChars = options.maxChars ?? (options.spoken && isAr ? 140 : 0);
+    const maxChars = options.maxChars ?? (options.spoken && isAr ? 1200 : (options.spoken ? 900 : 0));
     if (maxChars > 0 && s.length > maxChars) {
       const cut = s.slice(0, maxChars);
       const breakAt = Math.max(
@@ -368,14 +368,16 @@
     }, 1200);
   }
 
-  function playAudioBlob(blob, mimeType) {
+  function playAudioBlob(blob, mimeType, options = {}) {
     return new Promise((resolve) => {
       const type = mimeType || blob.type || "audio/mpeg";
       const url = URL.createObjectURL(new Blob([blob], { type }));
       currentAudioUrl = url;
       const audio = new Audio(url);
       currentAudio = audio;
-      global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: true } }));
+      if (!options.keepAlive) {
+        dispatchSpeakingState(true, { preparing: false });
+      }
       const finish = (ok) => {
         if (currentAudioUrl === url) {
           try {
@@ -386,7 +388,9 @@
           currentAudioUrl = null;
         }
         if (currentAudio === audio) currentAudio = null;
-        global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: false } }));
+        if (!options.keepAlive) {
+          dispatchSpeakingState(false);
+        }
         resolve(ok);
       };
       audio.onended = () => finish(true);
@@ -408,56 +412,51 @@
 
   const ttsTurn = {
     locked: false,
-    played: false,
+    segmentsDone: 0,
     prefetch: null,
     playPromise: null,
   };
 
   function resetTtsTurn() {
     ttsTurn.locked = false;
-    ttsTurn.played = false;
+    ttsTurn.segmentsDone = 0;
     ttsTurn.prefetch = null;
     ttsTurn.playPromise = null;
   }
 
-  function extractLeadingSpeech(text, lang, options = {}) {
+  function splitSpeechSegments(text, lang, options = {}) {
     const ui = resolveLang(lang);
-    return cleanTextForSpeech(text, {
+    const full = cleanTextForSpeech(text, {
       spoken: true,
       lang,
-      maxSentences: options.maxSentences ?? (ui === "ar" ? 2 : 3),
-      maxChars: options.maxChars ?? (ui === "ar" ? 140 : 220),
+      maxSentences: options.maxSentences ?? (ui === "ar" ? 8 : 6),
+      maxChars: options.maxChars ?? (ui === "ar" ? 1200 : 900),
     });
+    if (!full) return [];
+    const sentences = full.split(/(?<=[.!?؟…])\s+/).filter(Boolean);
+    const maxChunk = ui === "ar" ? 240 : 300;
+    const segments = [];
+    let buf = "";
+    for (const sentence of sentences) {
+      const next = buf ? `${buf} ${sentence}` : sentence;
+      if (next.length <= maxChunk) {
+        buf = next;
+        continue;
+      }
+      if (buf) segments.push(buf.trim());
+      buf = sentence.length <= maxChunk ? sentence : `${sentence.slice(0, maxChunk).trim()}…`;
+    }
+    if (buf.trim()) segments.push(buf.trim());
+    return segments;
   }
 
-  function scheduleTtsAutoplay(prefetch) {
-    if (!prefetch?.fetchPromise || ttsTurn.playPromise) return;
-    ttsTurn.playPromise = prefetch.fetchPromise.then(async (result) => {
-      if (!result?.blob?.size || ttsTurn.played) return false;
-      ttsTurn.played = true;
-      dispatchSpeakingState(true, { preparing: false });
-      return playAudioBlob(result.blob, result.mime || "audio/mpeg");
-    }).catch(() => false);
-  }
-
-  function tryLockTtsPrefetch(text, lang, options = {}) {
-    if (ttsTurn.locked) return ttsTurn.prefetch;
-    const ui = resolveLang(lang);
-    const raw = String(text || "").trim();
-    const hasBoundary = /[.!?؟…](?:\s|$)/.test(raw);
-    const longEnough = ui === "ar" ? raw.length >= 28 : raw.length >= 40;
-    if (!hasBoundary && !longEnough) return null;
-
-    const prepared = extractLeadingSpeech(raw, lang, options);
-    if (!prepared || prepared.length < 12) return null;
-
-    ttsTurn.locked = true;
+  function fetchTtsBlob(text, lang, options = {}) {
     const url = options.speakUrl || "/api/ai/speak";
-    const fetchPromise = fetch(url, {
+    return fetch(url, {
       method: "POST",
       credentials: "include",
       headers: buildSpeakHeaders(options),
-      body: JSON.stringify(buildSpeakBody(prepared, lang, { ...options, spoken: true })),
+      body: JSON.stringify(buildSpeakBody(text, lang, { ...options, spoken: true })),
     })
       .then(async (res) => {
         if (!res.ok) return null;
@@ -467,35 +466,59 @@
         return { blob, mime };
       })
       .catch(() => null);
+  }
 
+  function scheduleTtsAutoplay(prefetch) {
+    if (!prefetch?.fetchPromise || ttsTurn.playPromise) return;
+    ttsTurn.playPromise = prefetch.fetchPromise.then(async (result) => {
+      if (!result?.blob?.size) return false;
+      ttsTurn.segmentsDone = 1;
+      dispatchSpeakingState(true, { preparing: false });
+      return playAudioBlob(result.blob, result.mime, { keepAlive: true });
+    }).catch(() => false);
+  }
+
+  function tryLockTtsPrefetch(text, lang, options = {}) {
+    if (ttsTurn.locked) return ttsTurn.prefetch;
+    const raw = String(text || "").trim();
+    const segments = splitSpeechSegments(raw, lang, options);
+    if (!segments.length || segments[0].length < 10) return null;
+    const hasBoundary = /[.!?؟…](?:\s|$)/.test(raw);
+    if (!hasBoundary && raw.length < 44) return null;
+
+    ttsTurn.locked = true;
+    const prepared = segments[0];
+    const fetchPromise = fetchTtsBlob(prepared, lang, options);
     ttsTurn.prefetch = { prepared, fetchPromise, mime: "audio/mpeg" };
     dispatchSpeakingState(true, { preparing: true });
     scheduleTtsAutoplay(ttsTurn.prefetch);
     return ttsTurn.prefetch;
   }
 
+  async function speakRemainingSegments(segments, lang, options, startIdx) {
+    let playedAny = false;
+    for (let i = startIdx; i < segments.length; i++) {
+      dispatchSpeakingState(true, { preparing: true });
+      const part = await fetchTtsBlob(segments[i], lang, options);
+      if (!part?.blob?.size) continue;
+      dispatchSpeakingState(true, { preparing: false });
+      ttsTurn.segmentsDone = i + 1;
+      const ok = await playAudioBlob(part.blob, part.mime, { keepAlive: i < segments.length - 1 });
+      if (ok) playedAny = true;
+    }
+    return playedAny;
+  }
+
   async function speakWithOpenAi(text, lang, options = {}) {
     try {
       dispatchSpeakingState(true, { preparing: true });
-      const url = options.speakUrl || "/api/ai/speak";
-      const res = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-        headers: buildSpeakHeaders(options),
-        body: JSON.stringify(buildSpeakBody(text, lang, options)),
-      });
-      if (!res.ok) {
-        dispatchSpeakingState(false);
-        return false;
-      }
-      const mime = res.headers.get("Content-Type") || "audio/mpeg";
-      const blob = await res.blob();
-      if (!blob.size) {
+      const result = await fetchTtsBlob(text, lang, options);
+      if (!result?.blob?.size) {
         dispatchSpeakingState(false);
         return false;
       }
       dispatchSpeakingState(true, { preparing: false });
-      return playAudioBlob(blob, mime);
+      return playAudioBlob(result.blob, result.mime, { keepAlive: Boolean(options.keepAlive) });
     } catch {
       dispatchSpeakingState(false);
       return false;
@@ -527,35 +550,31 @@
     const spoken = Boolean(options.spoken);
     if (!options.force && !spoken && !isVoiceReplyEnabled()) return false;
 
-    const leading = extractLeadingSpeech(text, lang, options);
-    if (!leading) return false;
+    const segments = splitSpeechSegments(text, lang, options);
+    if (!segments.length) return false;
+
+    const preferOpenAi = shouldPreferOpenAiTts(lang, spoken, options);
+    if (!preferOpenAi) {
+      return speakWithBrowser(segments.join(" "), lang, options);
+    }
 
     if (ttsTurn.playPromise) {
-      const ok = await ttsTurn.playPromise;
-      if (ok) return true;
-    }
-
-    if (options.ttsPrefetch?.fetchPromise && !ttsTurn.played) {
-      dispatchSpeakingState(true, { preparing: true });
-      const prefOk = await playPrefetchedSpeech(options.ttsPrefetch, leading);
-      if (prefOk) {
-        ttsTurn.played = true;
-        return true;
+      await ttsTurn.playPromise;
+      const rest = splitSpeechSegments(text, lang, options);
+      const start = Math.max(ttsTurn.segmentsDone, 1);
+      if (start < rest.length) {
+        await speakRemainingSegments(rest, lang, options, start);
       }
+      dispatchSpeakingState(false);
+      return true;
     }
-
-    if (ttsTurn.played) return true;
 
     stopSpeaking();
-    const preferOpenAi = shouldPreferOpenAiTts(lang, spoken, options);
-    if (preferOpenAi) {
-      const ok = await speakWithOpenAi(leading, lang, options);
-      if (ok) {
-        ttsTurn.played = true;
-        return true;
-      }
-    }
-    return speakWithBrowser(leading, lang, options);
+    dispatchSpeakingState(true, { preparing: true });
+    const playedAny = await speakRemainingSegments(segments, lang, options, 0);
+    dispatchSpeakingState(false);
+    if (playedAny) return true;
+    return speakWithBrowser(segments.join(" "), lang, options);
   }
 
   async function speakText(text, lang, options = {}) {

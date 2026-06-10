@@ -15,8 +15,9 @@ from .openai_errors import parse_openai_http_error, urlopen_with_rate_limit_retr
 logger = logging.getLogger("baupass.ai.tts")
 
 _AR_TTS_INSTRUCTIONS = (
-    "Speak like ChatGPT voice: clear conversational Modern Standard Arabic (الفصحى). "
-    "Crisp pronunciation, natural warm tone, steady pace — every word easy to understand."
+    "Premium Arabic voice assistant — natural Modern Standard Arabic (فصحى), NOT robotic. "
+    "Warm, fluent, human-like intonation like ChatGPT voice. "
+    "Clear articulation, gentle pace, smooth flow between words."
 )
 
 _MIME_BY_FORMAT = {
@@ -41,7 +42,8 @@ def prepare_tts_text(text: str, *, lang: str, fast: bool = False) -> str:
         cleaned = re.sub(r"[*_#>`|\[\](){}]", "", cleaned)
         cleaned = re.sub(r"([،؛:])(?=\S)", r"\1 ", cleaned)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    max_len = 140 if (lang == "ar" and fast) else (220 if fast else 4096)
+    # Client sends one segment per request; cap segment size only.
+    max_len = 280 if fast else 4096
     if len(cleaned) <= max_len:
         return cleaned
     cut = cleaned[:max_len]
@@ -56,7 +58,7 @@ def _resolve_tts_config(lang: str, *, fast: bool = False) -> dict[str, Any]:
     lang = (lang or "de")[:2]
     if lang == "ar":
         model = (os.getenv("BAUPASS_TTS_MODEL_AR") or "gpt-4o-mini-tts").strip()
-        voice = (os.getenv("BAUPASS_TTS_VOICE_AR") or "coral").strip()
+        voice = (os.getenv("BAUPASS_TTS_VOICE_AR") or "marin").strip()
         return {
             "model": model,
             "voice": voice,
@@ -125,7 +127,7 @@ def synthesize_speech_bytes(
     config = _resolve_tts_config(lang, fast=fast)
     fmt = str(config.get("response_format") or "mp3")
     try:
-        with _openai_tts_request(cleaned, config, timeout=18 if fast else 30, fast=fast) as resp:
+        with _openai_tts_request(cleaned, config, timeout=22 if fast else 35, fast=fast) as resp:
             audio = resp.read()
         if not audio:
             return {"audio": None, "error": "tts_empty"}
@@ -140,22 +142,6 @@ def synthesize_speech_bytes(
     except urlerror.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:800]
         logger.warning("OpenAI TTS HTTP %s: %s", exc.code, detail)
-        if config["model"] != "tts-1" and lang[:2] == "ar":
-            fallback = {**config, "model": "tts-1", "instructions": None, "response_format": "mp3", "speed": 0.96}
-            try:
-                with _openai_tts_request(cleaned, fallback, timeout=15, fast=True) as resp:
-                    audio = resp.read()
-                if audio:
-                    return {
-                        "audio": audio,
-                        "mime": "audio/mpeg",
-                        "model": "tts-1",
-                        "voice": config["voice"],
-                        "lang": lang[:2],
-                        "format": "mp3",
-                    }
-            except Exception:
-                pass
         parsed = parse_openai_http_error(detail)
         return {"audio": None, "error": parsed.get("error", "tts_http_error"), "hint": parsed.get("hint")}
     except Exception as exc:
@@ -174,7 +160,7 @@ def synthesize_speech_stream(
         return
     config = _resolve_tts_config(lang, fast=True)
     try:
-        resp = _openai_tts_request(cleaned, config, timeout=18, fast=True)
+        resp = _openai_tts_request(cleaned, config, timeout=22, fast=True)
     except Exception as exc:
         logger.warning("TTS stream open failed: %s", exc)
         return
