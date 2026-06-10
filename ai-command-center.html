@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice3"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice4"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -314,9 +314,9 @@
         topicSecurity: "Sicherheit", topicCompliance: "Compliance", topicAttendance: "Anwesenheit", topicExecutive: "Management",
         statusLine: "{onsite} auf Baustelle · {security} Sicherheit · {queries} Anfragen (7T) · {refreshed} {time}",
         issueAskPrompt: "Was bedeutet dieser Hinweis und was soll ich tun? {msg}",
-        voiceHint: "Sprache: alle Sprachen. Nach dem Sprechen 20 Sek. warten, dann senden.",
-        aiVoiceListening: "Aufnahme läuft — beliebige Sprache.",
-        aiVoiceCountdown: "Sende in {sec}s… weiter sprechen bricht ab.",
+        voiceHint: "Mikrofon: tippen → sprechen → erneut tippen zum Stoppen → Text prüfen → Senden.",
+        aiVoiceListening: "Aufnahme läuft — erneut tippen zum Stoppen.",
+        aiVoiceTranscribing: "Wird transkribiert…",
         aiVoiceMicDenied: "Mikrofon blockiert — im Browser erlauben.",
         errAiNotConfigured: "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.",
         errAuth: "Bitte erneut anmelden.", errRateLimit: "Zu viele Anfragen — bitte kurz warten.",
@@ -349,9 +349,9 @@
         topicSecurity: "Security", topicCompliance: "Compliance", topicAttendance: "Attendance", topicExecutive: "Executive",
         statusLine: "{onsite} on site · {security} security · {queries} queries (7d) · {refreshed} {time}",
         issueAskPrompt: "What does this notice mean and what should I do? {msg}",
-        voiceHint: "Voice: all languages. After you stop, wait 20s, then sends.",
-        aiVoiceListening: "Recording — any language.",
-        aiVoiceCountdown: "Sending in {sec}s… speak to cancel.",
+        voiceHint: "Mic: tap to record → speak → tap to stop → review → Send.",
+        aiVoiceListening: "Recording — tap again to stop.",
+        aiVoiceTranscribing: "Transcribing…",
         aiVoiceMicDenied: "Microphone blocked — allow in browser.",
         errAiNotConfigured: "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway.",
         errAuth: "Please sign in again.", errRateLimit: "Too many requests — please wait briefly.",
@@ -384,9 +384,9 @@
         topicSecurity: "الأمن", topicCompliance: "الامتثال", topicAttendance: "الحضور", topicExecutive: "الإدارة",
         statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
         issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
-        voiceHint: "صوت: كل اللغات. بعد التوقف انتظر 20 ثانية.",
-        aiVoiceListening: "جاري التسجيل — أي لغة.",
-        aiVoiceCountdown: "الإرسال خلال {sec} ث… تحدّث لإلغاء الانتظار.",
+        voiceHint: "الميكروفون: اضغط للتسجيل → تحدّث → اضغط للإيقاف → راجع النص → أرسل.",
+        aiVoiceListening: "جاري التسجيل — اضغط مرة أخرى للإيقاف.",
+        aiVoiceTranscribing: "جاري تحويل الصوت إلى نص…",
         aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح.",
         errAiNotConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد. يرجى تعيين OPENAI_API_KEY على Railway.",
         errAuth: "يرجى تسجيل الدخول مرة أخرى.", errRateLimit: "طلبات كثيرة — يرجى الانتظار قليلاً.",
@@ -1005,11 +1005,6 @@
         get hintText() { return t("voiceHint"); },
         multilingual: true,
         authHeaders: () => authHeaders(),
-        onTranscript: (text) => {
-          void submitQuestion(text);
-          const el = document.getElementById("question");
-          if (el) el.value = "";
-        },
         onMicError: (err) => {
           appendMsg("bot", window.BaupassAiUi?.voiceErrorMessage?.(err, LANG) || t("aiVoiceMicDenied"), true);
         },
@@ -1020,14 +1015,10 @@
           const hint = document.getElementById("bpAiComposerHint");
           if (hint) hint.textContent = active ? t("aiVoiceListening") : t("voiceHint");
         },
-        onCountdown: (sec) => {
+        onTranscribing: (active) => {
           const hint = document.getElementById("bpAiComposerHint");
-          if (!hint) return;
-          hint.textContent = sec > 0
-            ? t("aiVoiceCountdown").replace("{sec}", String(sec))
-            : t("voiceHint");
+          if (hint) hint.textContent = active ? t("aiVoiceTranscribing") : t("voiceHint");
         },
-        sendDelayAfterSilenceMs: 20000,
       };
     }
 

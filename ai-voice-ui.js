@@ -19,16 +19,14 @@
 
   const SEND_SVG = `<svg class="bp-ai-send-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.6 21 12 3.4 3.4l2.8 7.2L17 12l-10.8 1.4-2.8 7.2z"/></svg>`;
 
-  const DEFAULT_SILENCE_MS = 1200;
-  const DEFAULT_SEND_DELAY_MS = 20000;
-  const DEFAULT_MAX_RECORD_MS = 180000;
-  const DEFAULT_MIN_RECORD_MS = 800;
-  const SILENCE_RMS_THRESHOLD = 0.018;
+  const DEFAULT_MAX_RECORD_MS = 300000;
+  const DEFAULT_MIN_RECORD_MS = 600;
+  const MIN_AUDIO_BYTES = 1200;
 
   const HINTS = {
-    de: "Spracheingabe: alle Sprachen (DE/EN/AR/…). Nach dem Sprechen 20s warten, dann senden.",
-    en: "Voice: all languages supported. After you stop speaking, wait 20s, then it sends.",
-    ar: "صوت: كل اللغات مدعومة. بعد التوقف عن الكلام انتظر 20 ثانية ثم يُرسل.",
+    de: "Mikrofon: Aufnahme starten → sprechen → erneut klicken zum Stoppen → Text prüfen → Senden.",
+    en: "Mic: tap to record → speak → tap to stop → review text → Send.",
+    ar: "الميكروفون: اضغط للتسجيل → تحدّث → اضغط للإيقاف → راجع النص → أرسل.",
   };
 
   const LABELS = {
@@ -91,107 +89,10 @@
     return !browserSpeechAvailable();
   }
 
-  function createSilenceMonitor(stream, opts) {
-    const AudioCtx = global.AudioContext || global.webkitAudioContext;
-    if (!AudioCtx) return null;
-
-    const silenceMs = Math.max(400, Number(opts.silenceMs) || DEFAULT_SILENCE_MS);
-    const sendDelayMs = Math.max(3000, Number(opts.sendDelayAfterSilenceMs) || DEFAULT_SEND_DELAY_MS);
-    const threshold = Number(opts.silenceThreshold) || SILENCE_RMS_THRESHOLD;
-
-    const audioContext = new AudioCtx();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
-    source.connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
-
-    let hadSpeech = false;
-    let lastLoudAt = 0;
-    let sendDelayTimer = null;
-    let countdownInterval = null;
-    let stopped = false;
-
-    const clearSendDelay = () => {
-      if (sendDelayTimer) {
-        global.clearTimeout(sendDelayTimer);
-        sendDelayTimer = null;
-      }
-      if (countdownInterval) {
-        global.clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-      if (typeof opts.onCountdown === "function") opts.onCountdown(0);
-    };
-
-    const beginSendCountdown = () => {
-      if (sendDelayTimer || stopped || !hadSpeech) return;
-      let remainingMs = sendDelayMs;
-      if (typeof opts.onCountdown === "function") {
-        opts.onCountdown(Math.ceil(remainingMs / 1000));
-      }
-      countdownInterval = global.setInterval(() => {
-        remainingMs -= 1000;
-        if (remainingMs <= 0) {
-          global.clearInterval(countdownInterval);
-          countdownInterval = null;
-          if (typeof opts.onCountdown === "function") opts.onCountdown(0);
-          return;
-        }
-        if (typeof opts.onCountdown === "function") {
-          opts.onCountdown(Math.ceil(remainingMs / 1000));
-        }
-      }, 1000);
-      sendDelayTimer = global.setTimeout(() => {
-        sendDelayTimer = null;
-        if (countdownInterval) {
-          global.clearInterval(countdownInterval);
-          countdownInterval = null;
-        }
-        if (typeof opts.onCountdown === "function") opts.onCountdown(0);
-        if (!stopped && typeof opts.onSendReady === "function") opts.onSendReady();
-      }, sendDelayMs);
-    };
-
-    const pollId = global.setInterval(() => {
-      if (stopped) return;
-      analyser.getByteTimeDomainData(samples);
-      let sum = 0;
-      for (let i = 0; i < samples.length; i += 1) {
-        const v = (samples[i] - 128) / 128;
-        sum += v * v;
-      }
-      const rms = Math.sqrt(sum / samples.length);
-      const now = Date.now();
-      if (rms > threshold) {
-        hadSpeech = true;
-        lastLoudAt = now;
-        clearSendDelay();
-        return;
-      }
-      if (hadSpeech && lastLoudAt && now - lastLoudAt >= silenceMs) {
-        beginSendCountdown();
-      }
-    }, 200);
-
-    return {
-      hadSpeech: () => hadSpeech,
-      triggerSendCountdown: () => {
-        if (hadSpeech) beginSendCountdown();
-      },
-      stop: () => {
-        stopped = true;
-        global.clearInterval(pollId);
-        clearSendDelay();
-        try {
-          source.disconnect();
-        } catch {
-          // ignore
-        }
-        audioContext.close().catch(() => {});
-      },
-      cancelSend: clearSendDelay,
-    };
+  function isWeakTranscript(text) {
+    const cleaned = String(text || "").trim();
+    if (!cleaned || cleaned.length < 2) return true;
+    return /^[.\s,;:!?…\-–—'"`]+$/.test(cleaned);
   }
 
   function pickRecorderMimeType() {
@@ -242,7 +143,13 @@
       err.payload = data;
       throw err;
     }
-    return String(data.text || "").trim();
+    const text = String(data.text || "").trim();
+    if (isWeakTranscript(text)) {
+      const err = new Error("no_speech_detected");
+      err.payload = { error: "no_speech_detected" };
+      throw err;
+    }
+    return text;
   }
 
   function voiceErrorMessage(err, lang) {
@@ -257,7 +164,7 @@
           ? "Microphone blocked — allow access in the browser."
           : "Mikrofon blockiert — Browser-Berechtigung erlauben.";
     }
-    if (code === "no-speech" || code === "audio_too_short") {
+    if (code === "no-speech" || code === "no_speech_detected" || code === "audio_too_short") {
       return ui === "ar"
         ? "لم يُسمع صوت — حاول مرة أخرى."
         : ui === "en"
@@ -293,23 +200,24 @@
     let browserListening = false;
     let stream = null;
     let recorder = null;
-    let silenceMonitor = null;
     let recording = false;
-    let awaitingSend = false;
     let recordStartedAt = 0;
     let maxRecordTimer = null;
     let chunks = [];
+    let recordMimeType = "";
 
     const applyTranscript = (text, isFinal) => {
       const cleaned = String(text || "").trim();
       if (!cleaned) return;
+      if (isFinal && isWeakTranscript(cleaned)) return;
       inputEl.value = cleaned;
       inputEl.dispatchEvent(new Event("input", { bubbles: true }));
       if (!isFinal) return;
       inputEl.dataset.bpVoiceInput = "1";
+      inputEl.focus?.();
       if (typeof options.onTranscript === "function") {
         options.onTranscript(cleaned);
-      } else if (options.autoSubmit !== false) {
+      } else if (options.autoSubmit === true) {
         inputEl.form?.requestSubmit?.();
       }
     };
@@ -398,23 +306,31 @@
         global.clearTimeout(maxRecordTimer);
         maxRecordTimer = null;
       }
-      silenceMonitor?.stop?.();
-      silenceMonitor = null;
       stream?.getTracks?.().forEach((track) => track.stop());
       stream = null;
       recording = false;
-      awaitingSend = false;
       setListeningState(btnEl, false, lang);
       if (typeof options.onListening === "function") options.onListening(false);
-      if (typeof options.onCountdown === "function") options.onCountdown(0);
+      if (typeof options.onTranscribing === "function") options.onTranscribing(false);
     };
 
-    const transcribeAndSend = async () => {
-      const mimeType = recorder?.mimeType || pickRecorderMimeType() || "audio/webm";
+    const stopWhisperRecording = () => {
+      if (!recorder || recorder.state === "inactive") return;
+      try {
+        if (typeof recorder.requestData === "function") recorder.requestData();
+      } catch {
+        // ignore
+      }
+      recorder.stop();
+    };
+
+    const transcribeRecording = async () => {
+      const mimeType = recordMimeType || recorder?.mimeType || pickRecorderMimeType() || "audio/webm";
       const blob = new Blob(chunks, { type: mimeType });
+      chunks = [];
+      recorder = null;
       cleanupRecording();
-      btnEl.classList.remove("bp-ai-transcribing");
-      if (!blob.size || blob.size < 80) {
+      if (!blob.size || blob.size < MIN_AUDIO_BYTES) {
         notifyError(new Error("audio_too_short"), "transcribe");
         return;
       }
@@ -424,25 +340,14 @@
       }
       try {
         btnEl.classList.add("bp-ai-transcribing");
+        if (typeof options.onTranscribing === "function") options.onTranscribing(true);
         const text = await transcribeWithWhisper(blob, options);
         applyTranscript(text, true);
       } catch (err) {
         notifyError(err, "transcribe");
       } finally {
         btnEl.classList.remove("bp-ai-transcribing");
-        chunks = [];
-        recorder = null;
-      }
-    };
-
-    const requestStopAndSend = () => {
-      if (!recording) return;
-      awaitingSend = true;
-      silenceMonitor?.cancelSend?.();
-      if (silenceMonitor?.hadSpeech?.()) {
-        silenceMonitor.triggerSendCountdown();
-      } else if (Date.now() - recordStartedAt >= minRecordMs) {
-        silenceMonitor?.triggerSendCountdown?.();
+        if (typeof options.onTranscribing === "function") options.onTranscribing(false);
       }
     };
 
@@ -453,49 +358,29 @@
       try {
         chunks = [];
         stream = await global.navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         });
-        const mimeType = pickRecorderMimeType();
-        recorder = mimeType
-          ? new global.MediaRecorder(stream, { mimeType })
+        recordMimeType = pickRecorderMimeType();
+        recorder = recordMimeType
+          ? new global.MediaRecorder(stream, { mimeType: recordMimeType })
           : new global.MediaRecorder(stream);
         recordStartedAt = Date.now();
         recorder.ondataavailable = (event) => {
           if (event.data && event.data.size > 0) chunks.push(event.data);
         };
-        recorder.onstop = async () => {
-          if (!awaitingSend) {
-            cleanupRecording();
-            chunks = [];
-            return;
-          }
-          awaitingSend = false;
-          await transcribeAndSend();
+        recorder.onstop = () => {
+          void transcribeRecording();
         };
-
-        silenceMonitor = createSilenceMonitor(stream, {
-          silenceMs: options.silenceMs,
-          sendDelayAfterSilenceMs: options.sendDelayAfterSilenceMs,
-          silenceThreshold: options.silenceThreshold,
-          onCountdown: options.onCountdown,
-          onSendReady: () => {
-            if (!recording) return;
-            awaitingSend = true;
-            if (recorder && recorder.state !== "inactive") {
-              recorder.stop();
-            }
-          },
-        });
-
-        recorder.start(250);
+        recorder.start();
         recording = true;
         setListeningState(btnEl, true, lang);
         if (typeof options.onListening === "function") options.onListening(true);
         maxRecordTimer = global.setTimeout(() => {
-          if (recording) {
-            awaitingSend = true;
-            if (recorder && recorder.state !== "inactive") recorder.stop();
-          }
+          if (recording) stopWhisperRecording();
         }, maxRecordMs);
         return true;
       } catch (err) {
@@ -511,15 +396,7 @@
         return;
       }
       if (recording) {
-        if (silenceMonitor?.hadSpeech?.()) {
-          requestStopAndSend();
-        } else {
-          awaitingSend = false;
-          if (recorder && recorder.state !== "inactive") recorder.stop();
-          cleanupRecording();
-          chunks = [];
-          recorder = null;
-        }
+        stopWhisperRecording();
         return;
       }
 

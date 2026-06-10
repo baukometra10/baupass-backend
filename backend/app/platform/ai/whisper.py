@@ -22,7 +22,7 @@ def transcribe_audio_bytes(
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
         return {"text": None, "error": "openai_not_configured"}
-    if not audio_bytes or len(audio_bytes) < 100:
+    if not audio_bytes or len(audio_bytes) < 500:
         return {"text": None, "error": "audio_too_short"}
 
     boundary = f"----Baupass{uuid.uuid4().hex}"
@@ -63,7 +63,12 @@ def transcribe_audio_bytes(
     try:
         with urlrequest.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        return {"text": (data.get("text") or "").strip(), "model": model}
+        text = (data.get("text") or "").strip()
+        if not text or len(text) < 2:
+            return {"text": None, "error": "no_speech_detected"}
+        if all(ch in ".,;:!?…-–—'\"` " for ch in text):
+            return {"text": None, "error": "no_speech_detected"}
+        return {"text": text, "model": model}
     except urlerror.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
         logger.warning("Whisper HTTP %s: %s", exc.code, detail)

@@ -514,7 +514,7 @@
   </div>
 
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice3"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice4"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -642,9 +642,9 @@
         capWord: "Funktionen",
         redisYes: "ja",
         redisNo: "nein",
-        voiceHint: "Sprache: alle Sprachen (DE/EN/AR/…). Nach dem Sprechen 20 Sek. warten, dann senden.",
-        aiVoiceListening: "Aufnahme läuft — sprechen Sie in beliebiger Sprache.",
-        aiVoiceCountdown: "Sende in {sec}s… weiter sprechen bricht ab.",
+        voiceHint: "Mikrofon: tippen → sprechen → erneut tippen zum Stoppen → Text prüfen → Senden.",
+        aiVoiceListening: "Aufnahme läuft — erneut tippen zum Stoppen.",
+        aiVoiceTranscribing: "Wird transkribiert…",
         aiVoiceMicDenied: "Mikrofon blockiert — im Browser erlauben, dann erneut klicken.",
         monatsplanSteps: "1) Monat wählen 2) Mitarbeiter bearbeiten 3) Status prüfen 4) Versand bestätigen",
         quickNavTitle: "Plattform — Schnellzugriff",
@@ -732,9 +732,9 @@
         capWord: "features",
         redisYes: "yes",
         redisNo: "no",
-        voiceHint: "Voice: all languages. After you stop, wait 20s, then it sends.",
-        aiVoiceListening: "Recording — speak in any language.",
-        aiVoiceCountdown: "Sending in {sec}s… speak again to cancel.",
+        voiceHint: "Mic: tap to record → speak → tap to stop → review → Send.",
+        aiVoiceListening: "Recording — tap again to stop.",
+        aiVoiceTranscribing: "Transcribing…",
         aiVoiceMicDenied: "Microphone blocked — allow in browser, then try again.",
         monatsplanSteps: "1) Pick month 2) Edit worker 3) Review status 4) Confirm send",
         quickNavTitle: "Platform — quick access",
@@ -831,9 +831,9 @@
         capWord: "قدرة",
         redisYes: "نعم",
         redisNo: "لا",
-        voiceHint: "صوت: كل اللغات. بعد التوقف انتظر 20 ثانية ثم يُرسل.",
-        aiVoiceListening: "جاري التسجيل — تحدّث بأي لغة.",
-        aiVoiceCountdown: "الإرسال خلال {sec} ث… تحدّث مرة أخرى للإلغاء.",
+        voiceHint: "الميكروفون: اضغط للتسجيل → تحدّث → اضغط للإيقاف → راجع النص → أرسل.",
+        aiVoiceListening: "جاري التسجيل — اضغط مرة أخرى للإيقاف.",
+        aiVoiceTranscribing: "جاري تحويل الصوت إلى نص…",
         aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح ثم أعد المحاولة.",
         monatsplanSteps: "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال",
         quickNavTitle: "المنصة — وصول سريع",
@@ -1887,11 +1887,6 @@
         get hintText() { return t("voiceHint"); },
         multilingual: true,
         authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
-        onTranscript: (text) => {
-          void submitAiQuestion(text);
-          const el = document.getElementById("aiQuestion");
-          if (el) el.value = "";
-        },
         onMicError: (err) => {
           const msg = window.BaupassAiUi?.voiceErrorMessage?.(err, HUB_LANG) || t("aiVoiceMicDenied");
           appendAi("bot", msg, true);
@@ -1904,14 +1899,10 @@
           const hint = document.getElementById("bpAiComposerHint");
           if (hint) hint.textContent = active ? t("aiVoiceListening") : t("voiceHint");
         },
-        onCountdown: (sec) => {
+        onTranscribing: (active) => {
           const hint = document.getElementById("bpAiComposerHint");
-          if (!hint) return;
-          hint.textContent = sec > 0
-            ? t("aiVoiceCountdown").replace("{sec}", String(sec))
-            : t("voiceHint");
+          if (hint) hint.textContent = active ? t("aiVoiceTranscribing") : t("voiceHint");
         },
-        sendDelayAfterSilenceMs: 20000,
       };
     }
 

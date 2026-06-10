@@ -2094,14 +2094,12 @@ function bindEvents() {
       multilingual: true,
       transcribeUrl: `${API_ROOT}/worker-ai/transcribe`,
       authHeaders: () => ({ Authorization: `Bearer ${workerToken}` }),
-      onTranscript: () => void submitWorkerAiQuestion(),
       onMicError: (err) => showWorkerNotice(
         globalThis.BaupassAiUi?.voiceErrorMessage?.(err, getWorkerLang()) || t("microphoneAccessBlocked"),
       ),
       onTranscribeError: (err) => showWorkerNotice(
         globalThis.BaupassAiUi?.voiceErrorMessage?.(err, getWorkerLang()) || String(err?.message || err),
       ),
-      sendDelayAfterSilenceMs: 20000,
     });
   }
 
