@@ -276,6 +276,7 @@ def register_rate_limit_middleware(app: Flask) -> None:
         if (
             path in _EXCLUDED_PATHS
             or path.startswith("/api/health")
+            or path.startswith("/api/ai/")
             or path.startswith("/metrics")
             or path.startswith("/static/")
         ):

@@ -7,12 +7,11 @@ import json
 import logging
 import os
 import re
-import time
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-from .openai_errors import OpenAiApiError, parse_openai_http_error
+from .openai_errors import OpenAiApiError, parse_openai_http_error, urlopen_with_rate_limit_retry
 
 logger = logging.getLogger("baupass.ai")
 
@@ -161,32 +160,18 @@ def _chat_completion(
         body["tools"] = tools
         body["tool_choice"] = tool_choice
     payload = json.dumps(body).encode("utf-8")
-    last_exc: urlerror.HTTPError | None = None
-    for attempt in range(2):
-        req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
-        try:
-            with urlrequest.urlopen(req, timeout=90) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-            return body
-        except urlerror.HTTPError as exc:
-            last_exc = exc
-            if exc.code == 429 and attempt == 0:
-                time.sleep(2.5)
-                continue
-            detail = exc.read().decode("utf-8", errors="replace")[:800]
-            parsed = parse_openai_http_error(detail)
-            raise OpenAiApiError(
-                str(parsed.get("error") or "openai_http_error"),
-                str(parsed.get("hint") or "OpenAI request failed."),
-            ) from exc
-    if last_exc:
-        detail = last_exc.read().decode("utf-8", errors="replace")[:800]
+    req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
+    try:
+        with urlopen_with_rate_limit_retry(req, timeout=90) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        return body
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:800]
         parsed = parse_openai_http_error(detail)
         raise OpenAiApiError(
             str(parsed.get("error") or "openai_http_error"),
             str(parsed.get("hint") or "OpenAI request failed."),
-        ) from last_exc
-    raise OpenAiApiError("openai_http_error", "OpenAI request failed.")
+        ) from exc
 
 
 def _openai_request_config() -> tuple[str, dict[str, str], str]:
@@ -246,24 +231,16 @@ def _stream_chat_completion_events(
         body["tool_choice"] = "auto"
     payload = json.dumps(body).encode("utf-8")
     tool_calls_acc: dict[int, dict[str, Any]] = {}
-    resp_ctx = None
-    for attempt in range(2):
-        req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
-        try:
-            resp_ctx = urlrequest.urlopen(req, timeout=120)
-            break
-        except urlerror.HTTPError as exc:
-            if exc.code == 429 and attempt == 0:
-                time.sleep(2.5)
-                continue
-            detail = exc.read().decode("utf-8", errors="replace")[:800]
-            parsed = parse_openai_http_error(detail)
-            raise OpenAiApiError(
-                str(parsed.get("error") or "openai_http_error"),
-                str(parsed.get("hint") or "OpenAI request failed."),
-            ) from exc
-    if resp_ctx is None:
-        raise OpenAiApiError("openai_http_error", "OpenAI request failed.")
+    req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
+    try:
+        resp_ctx = urlopen_with_rate_limit_retry(req, timeout=120)
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:800]
+        parsed = parse_openai_http_error(detail)
+        raise OpenAiApiError(
+            str(parsed.get("error") or "openai_http_error"),
+            str(parsed.get("hint") or "OpenAI request failed."),
+        ) from exc
     with resp_ctx as resp:
         for raw_line in resp:
             line = raw_line.decode("utf-8", errors="replace").strip()

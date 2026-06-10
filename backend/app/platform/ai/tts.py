@@ -8,7 +8,7 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-from .openai_errors import OpenAiApiError, parse_openai_http_error
+from .openai_errors import OpenAiApiError, parse_openai_http_error, urlopen_with_rate_limit_retry
 
 logger = logging.getLogger("baupass.ai.tts")
 
@@ -42,7 +42,7 @@ def synthesize_speech_bytes(text: str, *, lang: str = "de") -> dict[str, Any]:
         method="POST",
     )
     try:
-        with urlrequest.urlopen(req, timeout=60) as resp:
+        with urlopen_with_rate_limit_retry(req, timeout=60) as resp:
             audio = resp.read()
         if not audio:
             return {"audio": None, "error": "tts_empty"}

@@ -14,14 +14,20 @@ from .tools import run_tool
 
 logger = logging.getLogger("baupass.ai.agent")
 
-MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_MAX_TOOL_ROUNDS", "6"))
-SPOKEN_MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_SPOKEN_MAX_TOOL_ROUNDS", "3"))
+MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_MAX_TOOL_ROUNDS", "3"))
+SPOKEN_NO_TOOLS = os.getenv("BAUPASS_AI_SPOKEN_NO_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
 
 
 def _max_tool_rounds(*, spoken: bool = False) -> int:
-    if spoken:
-        return max(1, min(MAX_TOOL_ROUNDS, SPOKEN_MAX_TOOL_ROUNDS))
+    if spoken and SPOKEN_NO_TOOLS:
+        return 1
     return max(1, MAX_TOOL_ROUNDS)
+
+
+def _resolve_tools(agent_id: str, *, spoken: bool = False) -> list[dict]:
+    if spoken and SPOKEN_NO_TOOLS:
+        return []
+    return agent_tool_schemas(agent_id)
 
 
 def _chat_with_tools(messages: list[dict], tools: list[dict]) -> dict[str, Any]:
@@ -62,7 +68,7 @@ def run_agent_query(
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
-    tools = agent_tool_schemas(agent_id)
+    tools = _resolve_tools(agent_id, spoken=spoken)
     model, config_warning = resolve_ai_model()
 
     live_context = format_live_context_block(ctx, lang=lang)
@@ -191,7 +197,7 @@ def run_agent_query_stream(
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
-    tools = agent_tool_schemas(agent_id)
+    tools = _resolve_tools(agent_id, spoken=spoken)
     model, config_warning = resolve_ai_model()
     live_context = format_live_context_block(ctx, lang=lang)
     if rag_chunks:

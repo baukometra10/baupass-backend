@@ -322,8 +322,11 @@
         errOpenAiAuth: "Ungültiger OPENAI_API_KEY auf dem Server.",
         errOpenAiQuota: "OpenAI-API-Guthaben leer. ChatGPT Plus ≠ API — Guthaben unter platform.openai.com/settings/billing aufladen und denselben Key in OPENAI_API_KEY verwenden.",
         errAuth: "Bitte erneut anmelden.",
-        errRateLimit: "API-Limit erreicht (eine Sprachfrage nutzt mehrere Aufrufe: Transkription + KI + ggf. Tools). Bitte 30–60 Sekunden warten und erneut versuchen.",
-        errRateLimitWait: "API-Limit — bitte {sec} Sekunden warten und erneut versuchen.",
+        errRateLimit: "OpenAI-Ratenlimit erreicht. Bitte 30–60 Sekunden warten und erneut versuchen.",
+        errRateLimitWait: "OpenAI-Ratenlimit — bitte {sec} Sekunden warten und erneut versuchen.",
+        errServerRateLimit: "Zu viele Anfragen an den Server. Bitte kurz warten und erneut versuchen.",
+        errServerRateLimitWait: "Zu viele Anfragen — bitte {sec} Sekunden warten.",
+        errRateLimitVoiceNote: "Sprache nutzt zusätzlich Transkription und Vorlesen.",
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
       },
       en: {
@@ -361,8 +364,11 @@
         errOpenAiAuth: "Invalid OPENAI_API_KEY on the server.",
         errOpenAiQuota: "OpenAI API quota empty. ChatGPT Plus ≠ API — add billing at platform.openai.com/settings/billing and use the same key in OPENAI_API_KEY.",
         errAuth: "Please sign in again.",
-        errRateLimit: "API limit reached (one voice question uses several calls: transcription + AI + tools). Wait 30–60 seconds and try again.",
-        errRateLimitWait: "API limit — wait {sec} seconds and try again.",
+        errRateLimit: "OpenAI rate limit reached. Wait 30–60 seconds and try again.",
+        errRateLimitWait: "OpenAI rate limit — wait {sec} seconds and try again.",
+        errServerRateLimit: "Too many requests to the server. Wait briefly and try again.",
+        errServerRateLimitWait: "Too many requests — wait {sec} seconds.",
+        errRateLimitVoiceNote: "Voice also uses transcription and text-to-speech.",
         errNetwork: "Network error — check connection.",
       },
       ar: {
@@ -400,8 +406,11 @@
         errOpenAiAuth: "مفتاح OPENAI_API_KEY على السيرفر غير صالح.",
         errOpenAiQuota: "رصيد OpenAI API منتهٍ. اشتراك ChatGPT Plus ≠ API — أضف رصيداً في platform.openai.com/settings/billing واستخدم نفس المفتاح في OPENAI_API_KEY.",
         errAuth: "يرجى تسجيل الدخول مرة أخرى.",
-        errRateLimit: "تم تجاوز حد الـ API (سؤال صوتي واحد يستخدم عدة طلبات: تفريغ + ذكاء + أدوات). انتظر 30–60 ثانية ثم أعد المحاولة.",
-        errRateLimitWait: "حد الـ API — انتظر {sec} ثانية ثم أعد المحاولة.",
+        errRateLimit: "تم تجاوز حد طلبات OpenAI. انتظر 30–60 ثانية ثم أعد المحاولة.",
+        errRateLimitWait: "حد OpenAI — انتظر {sec} ثانية ثم أعد المحاولة.",
+        errServerRateLimit: "طلبات كثيرة إلى الخادم. انتظر قليلاً ثم أعد المحاولة.",
+        errServerRateLimitWait: "طلبات كثيرة — انتظر {sec} ثانية.",
+        errRateLimitVoiceNote: "الصوت يستخدم أيضاً التفريغ والقراءة الصوتية.",
         errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
       },
     };
@@ -1060,14 +1069,20 @@
       const statusEl = document.createElement("div");
       statusEl.className = "msg-meta";
       if (!isVoiceTurn) log.appendChild(statusEl);
-      const friendlyAiError = (err) => {
+      const friendlyAiError = (err, opts = {}) => {
         const code = String(err?.error || err?.payload?.error || "").trim();
         const hint = String(err?.hint || err?.payload?.hint || err?.message || "").trim();
         const retrySec = Number(err?.retryAfterSeconds || err?.payload?.retryAfterSeconds || 0);
-        const rateLimitMsg = () => (
-          retrySec > 0
+        const openAiRateMsg = () => {
+          const base = retrySec > 0
             ? t("errRateLimitWait").replace("{sec}", String(retrySec))
-            : t("errRateLimit")
+            : t("errRateLimit");
+          return opts.spoken ? `${base} ${t("errRateLimitVoiceNote")}` : base;
+        };
+        const serverRateMsg = () => (
+          retrySec > 0
+            ? t("errServerRateLimitWait").replace("{sec}", String(retrySec))
+            : t("errServerRateLimit")
         );
         if (code === "openai_quota_exceeded" || /insufficient_quota|exceeded your current quota|chatgpt plus/i.test(hint)) {
           return t("errOpenAiQuota");
@@ -1078,15 +1093,21 @@
         if (code === "openai_auth_error") {
           return t("errOpenAiAuth");
         }
-        if (code === "openai_rate_limit" || code === "rate_limited" || code === "rate_limit_exceeded") {
-          return rateLimitMsg();
+        if (code === "rate_limited") {
+          return serverRateMsg();
+        }
+        if (code === "openai_rate_limit" || code === "rate_limit_exceeded") {
+          return openAiRateMsg();
         }
         if (!hint || hint === "company_required") return t("needCompany");
         if (/401|403|auth|anmeld|sign in/i.test(hint)) {
           return t("errAuth");
         }
         if (/429/.test(hint) || /rate limit exceeded|rate_limit_exceeded|too many requests/i.test(hint)) {
-          return rateLimitMsg();
+          if (/tpm|rpm|tokens per min|requests per min|gpt-|openai/i.test(hint)) {
+            return openAiRateMsg();
+          }
+          return code === "rate_limited" ? serverRateMsg() : openAiRateMsg();
         }
         if (/network|fetch|failed to fetch/i.test(hint)) {
           return t("errNetwork");
@@ -1112,7 +1133,7 @@
         if (!res.ok) {
           dropThinking();
           const err = await res.json().catch(() => ({}));
-          botDiv.textContent = friendlyAiError(err);
+          botDiv.textContent = friendlyAiError(err, { spoken: Boolean(options.spoken) });
           return;
         }
         const reader = res.body.getReader();
@@ -1159,7 +1180,7 @@
               }
               if (payload.type === "done") meta = payload;
               if (payload.type === "error") {
-                botDiv.textContent = friendlyAiError(payload);
+                botDiv.textContent = friendlyAiError(payload, { spoken: Boolean(options.spoken) });
               }
             } catch { /* skip */ }
           }

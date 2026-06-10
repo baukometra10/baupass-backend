@@ -2,7 +2,13 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
+from urllib import error as urlerror
+from urllib import request as urlrequest
+
+OPENAI_429_MAX_ATTEMPTS = 3
+OPENAI_429_BACKOFF_SECONDS = (2.0, 5.0)
 
 
 class OpenAiApiError(Exception):
@@ -41,8 +47,9 @@ def parse_openai_http_error(detail: str) -> dict[str, Any]:
         }
     if oai_code in {"invalid_api_key", "authentication_error"} or "invalid api key" in message.lower():
         return {"error": "openai_auth_error", "hint": "Invalid OPENAI_API_KEY on the server."}
-    if oai_code == "rate_limit_exceeded":
-        return {"error": "openai_rate_limit", "hint": "OpenAI rate limit — try again shortly."}
+    if oai_code == "rate_limit_exceeded" or _looks_like_openai_rate_limit(message, text):
+        hint = message[:400] if message else "OpenAI rate limit — try again shortly."
+        return {"error": "openai_rate_limit", "hint": hint}
     if oai_code == "model_not_found" or "model_not_found" in text:
         return {
             "error": "openai_model_not_found",
@@ -51,3 +58,38 @@ def parse_openai_http_error(detail: str) -> dict[str, Any]:
     if message:
         return {"error": "openai_http_error", "hint": message[:400]}
     return {"error": "openai_http_error", "hint": text[:400]}
+
+
+def _looks_like_openai_rate_limit(message: str, raw: str) -> bool:
+    blob = f"{message} {raw}".lower()
+    if "rate limit" not in blob and "too many requests" not in blob:
+        return False
+    return any(
+        token in blob
+        for token in (
+            "tpm",
+            "rpm",
+            "tokens per min",
+            "requests per min",
+            "gpt-",
+            "openai",
+        )
+    )
+
+
+def urlopen_with_rate_limit_retry(req: urlrequest.Request, *, timeout: int = 90):
+    """Perform HTTP request with exponential backoff on OpenAI HTTP 429."""
+    last_exc: urlerror.HTTPError | None = None
+    for attempt in range(OPENAI_429_MAX_ATTEMPTS):
+        try:
+            return urlrequest.urlopen(req, timeout=timeout)
+        except urlerror.HTTPError as exc:
+            last_exc = exc
+            if exc.code == 429 and attempt < OPENAI_429_MAX_ATTEMPTS - 1:
+                delays = OPENAI_429_BACKOFF_SECONDS
+                time.sleep(delays[attempt] if attempt < len(delays) else delays[-1])
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise urlerror.URLError("OpenAI request failed")

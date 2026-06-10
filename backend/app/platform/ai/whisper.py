@@ -10,7 +10,7 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-from .openai_errors import parse_openai_http_error
+from .openai_errors import parse_openai_http_error, urlopen_with_rate_limit_retry
 
 logger = logging.getLogger("baupass.ai.whisper")
 
@@ -142,7 +142,7 @@ def _transcribe_with_provider(
     headers = {**provider.headers, "Content-Type": f"multipart/form-data; boundary={boundary}"}
     req = urlrequest.Request(provider.url, data=body, headers=headers, method="POST")
     try:
-        with urlrequest.urlopen(req, timeout=60) as resp:
+        with urlopen_with_rate_limit_retry(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         text = (data.get("text") or "").strip()
         if not text or len(text) < 2:
