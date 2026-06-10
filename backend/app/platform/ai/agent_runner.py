@@ -9,6 +9,7 @@ from typing import Any, Generator
 from .agents import agent_system_prompt, agent_tool_schemas, get_agent
 from .assistant import is_ai_configured, resolve_ai_model
 from .context_builder import build_compact_context, infer_context_sources
+from .openai_errors import OpenAiApiError
 from .tools import run_tool
 
 logger = logging.getLogger("baupass.ai.agent")
@@ -127,6 +128,14 @@ def run_agent_query(
             "error": "tool_loop_exhausted",
             "hint": "KI hat zu viele Tool-Schritte benötigt. Frage vereinfachen.",
             "toolsUsed": tools_used,
+            "agentId": agent_id,
+        }
+    except OpenAiApiError as exc:
+        return {
+            "answer": None,
+            "configured": True,
+            "error": exc.code,
+            "hint": exc.hint,
             "agentId": agent_id,
         }
     except Exception as exc:
@@ -262,6 +271,9 @@ def run_agent_query_stream(
 
         yield {"type": "error", "hint": "Tool-Schleife erschöpft.", "error": "tool_loop_exhausted"}
         yield {"type": "done", "ok": False, "toolsUsed": tools_used}
+    except OpenAiApiError as exc:
+        yield {"type": "error", "error": exc.code, "hint": exc.hint}
+        yield {"type": "done", "ok": False}
     except Exception as exc:
         logger.exception("agent stream failed")
         yield {"type": "error", "hint": str(exc)[:500]}

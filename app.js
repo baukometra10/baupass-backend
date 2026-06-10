@@ -19169,9 +19169,20 @@ async function loadAllData() {
     state.settings = settings.value || state.settings;
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
   }
-  if (companies.status === "fulfilled") {
+    if (companies.status === "fulfilled") {
     state.companiesLoadError = "";
     state.companies = companies.value || [];
+    if (String(getCurrentUser()?.role || "").toLowerCase() === "superadmin" && !superadminUiPreviewCompanyId) {
+      const firstCompany = (state.companies || []).find((entry) => entry && !entry.deleted_at);
+      if (firstCompany?.id) {
+        superadminUiPreviewCompanyId = String(firstCompany.id);
+        try {
+          localStorage.setItem("baupass-preview-company-id", superadminUiPreviewCompanyId);
+        } catch {
+          // ignore
+        }
+      }
+    }
     // Branding-Override nach Laden der Unternehmen auflösen (bei wiederhergestellter Vorschau-Session)
     if (superadminUiPreviewCompanyId && !companyBrandingPreviewOverride) {
       const previewCompany = state.companies.find((c) => c.id === superadminUiPreviewCompanyId);

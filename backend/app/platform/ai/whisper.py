@@ -10,6 +10,8 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from .openai_errors import parse_openai_http_error
+
 logger = logging.getLogger("baupass.ai.whisper")
 
 
@@ -25,40 +27,6 @@ class WhisperProvider:
 def _looks_like_openai_key(value: str) -> bool:
     v = (value or "").strip()
     return v.startswith("sk-") or v.startswith("sk_proj")
-
-
-def _parse_openai_http_error(detail: str) -> dict[str, Any]:
-    """Map OpenAI HTTP error bodies to stable BauPass error codes."""
-    text = (detail or "").strip()
-    if not text:
-        return {"error": "whisper_http_error", "hint": "Transcription failed."}
-
-    payload: dict[str, Any] | None = None
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict):
-            payload = parsed
-    except json.JSONDecodeError:
-        payload = None
-
-    err = payload.get("error") if isinstance(payload, dict) else {}
-    if not isinstance(err, dict):
-        err = {}
-    oai_code = str(err.get("code") or err.get("type") or "").strip()
-    message = str(err.get("message") or "")
-
-    if oai_code == "insufficient_quota" or "insufficient_quota" in text or "exceeded your current quota" in message:
-        return {
-            "error": "openai_quota_exceeded",
-            "hint": "OpenAI quota exceeded — add billing at platform.openai.com/settings/billing.",
-        }
-    if oai_code in {"invalid_api_key", "authentication_error"} or "invalid api key" in message.lower():
-        return {"error": "openai_auth_error", "hint": "Invalid OpenAI API key on the server."}
-    if oai_code == "rate_limit_exceeded":
-        return {"error": "openai_rate_limit", "hint": "OpenAI rate limit — try again in a moment."}
-    if message:
-        return {"error": "whisper_http_error", "hint": message[:300]}
-    return {"error": "whisper_http_error", "hint": text[:300]}
 
 
 def list_whisper_providers() -> list[WhisperProvider]:
@@ -169,7 +137,9 @@ def _transcribe_with_provider(
     except urlerror.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
         logger.warning("Whisper HTTP %s (%s): %s", exc.code, provider.provider, detail)
-        parsed = _parse_openai_http_error(detail)
+        parsed = parse_openai_http_error(detail)
+        if parsed.get("error") == "openai_http_error":
+            parsed["error"] = "whisper_http_error"
         parsed["provider"] = provider.provider
         return {"text": None, **parsed}
     except Exception as exc:

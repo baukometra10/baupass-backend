@@ -208,10 +208,10 @@
     }
     if (code === "openai_quota_exceeded") {
       return ui === "ar"
-        ? "رصيد OpenAI منتهٍ — أضف رصيداً في platform.openai.com/settings/billing ثم أعد المحاولة."
+        ? "رصيد OpenAI API منتهٍ. اشتراك ChatGPT Plus ≠ API — أضف رصيداً في platform.openai.com/settings/billing."
         : ui === "en"
-          ? "OpenAI quota exceeded — add billing at platform.openai.com/settings/billing, then try again."
-          : "OpenAI-Guthaben aufgebraucht — Billing unter platform.openai.com/settings/billing prüfen.";
+          ? "OpenAI API quota exceeded. ChatGPT Plus ≠ API billing — add credits at platform.openai.com/settings/billing."
+          : "OpenAI-API-Guthaben leer. ChatGPT Plus ≠ API — Billing unter platform.openai.com/settings/billing.";
     }
     if (code === "openai_auth_error") {
       return ui === "ar"

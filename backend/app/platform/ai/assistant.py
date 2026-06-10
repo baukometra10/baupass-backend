@@ -11,6 +11,8 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from .openai_errors import OpenAiApiError, parse_openai_http_error
+
 logger = logging.getLogger("baupass.ai")
 
 DEFAULT_AI_MODEL = "gpt-4o-mini"
@@ -77,6 +79,12 @@ def ai_config_status(lang: str = "de") -> dict[str, Any]:
         "configWarning": warning,
         "agentsEnabled": bool(openai or azure),
         "voiceTranscription": whisper,
+        "billingNote": (
+            "OpenAI API billing is separate from ChatGPT Plus. "
+            "Add credits at platform.openai.com/settings/billing."
+            if openai and not azure
+            else None
+        ),
         "toolCalling": tools_on,
         "agents": list_agents(lang),
         "features": [
@@ -147,9 +155,17 @@ def _chat_completion(
         body["tool_choice"] = tool_choice
     payload = json.dumps(body).encode("utf-8")
     req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
-    with urlrequest.urlopen(req, timeout=90) as resp:
-        body = json.loads(resp.read().decode("utf-8"))
-    return body
+    try:
+        with urlrequest.urlopen(req, timeout=90) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        return body
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:800]
+        parsed = parse_openai_http_error(detail)
+        raise OpenAiApiError(
+            str(parsed.get("error") or "openai_http_error"),
+            str(parsed.get("hint") or "OpenAI request failed."),
+        ) from exc
 
 
 def _openai_request_config() -> tuple[str, dict[str, str], str]:
@@ -199,7 +215,16 @@ def _stream_chat_completion_events(
     payload = json.dumps(body).encode("utf-8")
     req = urlrequest.Request(url, data=payload, headers=headers, method="POST")
     tool_calls_acc: dict[int, dict[str, Any]] = {}
-    with urlrequest.urlopen(req, timeout=120) as resp:
+    try:
+        resp_ctx = urlrequest.urlopen(req, timeout=120)
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:800]
+        parsed = parse_openai_http_error(detail)
+        raise OpenAiApiError(
+            str(parsed.get("error") or "openai_http_error"),
+            str(parsed.get("hint") or "OpenAI request failed."),
+        ) from exc
+    with resp_ctx as resp:
         for raw_line in resp:
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line or not line.startswith("data:"):
@@ -362,21 +387,14 @@ def natural_language_query(
         except Exception:
             detail = _sanitize_error_detail(str(exc))
         logger.warning("OpenAI HTTP error %s: %s", exc.code, detail)
-        hint = f"KI-Anfrage fehlgeschlagen (HTTP {exc.code}). Prüfe API-Key, Modell und Guthaben."
+        parsed = parse_openai_http_error(detail)
+        hint = str(parsed.get("hint") or f"KI-Anfrage fehlgeschlagen (HTTP {exc.code}).")
         if config_warning:
             hint = f"{config_warning} {hint}"
-        elif "model_not_found" in detail or _looks_like_openai_key(detail):
-            hint = (
-                "Modell-Variable falsch: API-Key gehört in OPENAI_API_KEY, "
-                "nicht in BAUPASS_AI_MODEL. Modell z. B. gpt-4o-mini. "
-                + hint
-            )
-        if detail:
-            hint = f"{hint} {detail}"
         return {
             "answer": None,
             "configured": True,
-            "error": "openai_http_error",
+            "error": parsed.get("error", "openai_http_error"),
             "hint": hint,
         }
     except Exception as exc:
