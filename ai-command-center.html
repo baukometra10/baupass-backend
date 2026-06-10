@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
-  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice12" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice12"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice13"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -319,6 +319,7 @@
         aiVoiceTranscribing: "Wird transkribiert…",
         aiVoiceMicDenied: "Mikrofon blockiert — im Browser erlauben.",
         errAiNotConfigured: "Die KI ist noch nicht eingerichtet. Bitte OPENAI_API_KEY auf Railway setzen.",
+        errOpenAiAuth: "Ungültiger OPENAI_API_KEY auf dem Server.",
         errOpenAiQuota: "OpenAI-API-Guthaben leer. ChatGPT Plus ≠ API — Guthaben unter platform.openai.com/settings/billing aufladen und denselben Key in OPENAI_API_KEY verwenden.",
         errAuth: "Bitte erneut anmelden.", errRateLimit: "Zu viele Anfragen — bitte kurz warten.",
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
@@ -355,6 +356,7 @@
         aiVoiceTranscribing: "Transcribing…",
         aiVoiceMicDenied: "Microphone blocked — allow in browser.",
         errAiNotConfigured: "AI is not configured on the server yet. Set OPENAI_API_KEY on Railway.",
+        errOpenAiAuth: "Invalid OPENAI_API_KEY on the server.",
         errOpenAiQuota: "OpenAI API quota empty. ChatGPT Plus ≠ API — add billing at platform.openai.com/settings/billing and use the same key in OPENAI_API_KEY.",
         errAuth: "Please sign in again.", errRateLimit: "Too many requests — please wait briefly.",
         errNetwork: "Network error — check connection.",
@@ -391,6 +393,7 @@
         aiVoiceTranscribing: "جاري تحويل الصوت إلى نص…",
         aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح.",
         errAiNotConfigured: "لم يتم إعداد الذكاء الاصطناعي بعد. يرجى تعيين OPENAI_API_KEY على Railway.",
+        errOpenAiAuth: "مفتاح OPENAI_API_KEY على السيرفر غير صالح.",
         errOpenAiQuota: "رصيد OpenAI API منتهٍ. اشتراك ChatGPT Plus ≠ API — أضف رصيداً في platform.openai.com/settings/billing واستخدم نفس المفتاح في OPENAI_API_KEY.",
         errAuth: "يرجى تسجيل الدخول مرة أخرى.", errRateLimit: "طلبات كثيرة — يرجى الانتظار قليلاً.",
         errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
@@ -1057,10 +1060,13 @@
         if (code === "openai_quota_exceeded" || /insufficient_quota|exceeded your current quota|chatgpt plus/i.test(hint)) {
           return t("errOpenAiQuota");
         }
-        if (!hint || hint === "company_required") return t("needCompany");
-        if (/openai|api.key|nicht konfiguriert|not configured/i.test(hint)) {
+        if (code === "ai_not_configured" || code === "openai_not_configured") {
           return t("errAiNotConfigured");
         }
+        if (code === "openai_auth_error") {
+          return t("errOpenAiAuth");
+        }
+        if (!hint || hint === "company_required") return t("needCompany");
         if (/401|403|auth|anmeld|sign in/i.test(hint)) {
           return t("errAuth");
         }
@@ -1145,7 +1151,7 @@
         }
         statusEl?.remove?.();
         if (thinking.parentNode) thinking.remove();
-        if (isVoiceTurn && botDiv.textContent) {
+        if (isVoiceTurn && botDiv.textContent && meta.ok !== false) {
           botDiv.textContent = window.BaupassAiUi?.cleanTextForDisplay?.(botDiv.textContent) || botDiv.textContent;
         }
         lastAnswerText = botDiv.textContent;

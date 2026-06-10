@@ -124,8 +124,14 @@ def _chat_completion(
     azure_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     model, _warn = resolve_ai_model()
+    from .whisper import _prefer_openai_direct
 
-    if azure_key:
+    use_openai = _prefer_openai_direct() and openai_key
+    if use_openai:
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
+        payload_model = model
+    elif azure_key:
         endpoint = (os.getenv("AZURE_OPENAI_ENDPOINT") or "").strip().rstrip("/")
         if not endpoint:
             raise ValueError("AZURE_OPENAI_ENDPOINT is required when using AZURE_OPENAI_API_KEY")
@@ -170,11 +176,22 @@ def _chat_completion(
 
 def _openai_request_config() -> tuple[str, dict[str, str], str]:
     """Return (url, headers, model) for OpenAI-compatible chat API."""
+    from .whisper import _prefer_openai_direct
+
     azure_key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     model, _ = resolve_ai_model()
+    use_openai = _prefer_openai_direct() and openai_key
+    if use_openai:
+        return (
+            "https://api.openai.com/v1/chat/completions",
+            {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+            model,
+        )
     if azure_key:
         endpoint = (os.getenv("AZURE_OPENAI_ENDPOINT") or "").strip().rstrip("/")
+        if not endpoint:
+            raise ValueError("AZURE_OPENAI_ENDPOINT is required when using AZURE_OPENAI_API_KEY")
         deployment = (os.getenv("AZURE_OPENAI_DEPLOYMENT") or "").strip() or model
         if _looks_like_openai_key(deployment):
             deployment = model

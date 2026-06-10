@@ -165,7 +165,7 @@ def run_agent_query_stream(
     from .assistant import is_ai_configured
 
     if not is_ai_configured():
-        yield {"type": "error", "hint": "OPENAI_API_KEY nicht konfiguriert."}
+        yield {"type": "error", "error": "ai_not_configured", "hint": "OPENAI_API_KEY nicht konfiguriert."}
         yield {"type": "done", "ok": False}
         return
 

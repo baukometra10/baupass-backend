@@ -108,13 +108,23 @@
   function preferWhisperTranscription(options) {
     if (options?.useWhisper === true) return true;
     if (options?.useWhisper === false) return false;
+    const uiLang = resolveLang(options?.lang);
+    if (uiLang === "ar") return true;
     if (options?.multilingual !== false) return true;
     return !browserSpeechAvailable();
+  }
+
+  function resolveWhisperLang(options) {
+    const uiLang = resolveLang(options?.lang);
+    if (uiLang === "ar") return "ar";
+    if (options?.multilingual === false) return uiLang;
+    return "auto";
   }
 
   function isWeakTranscript(text) {
     const cleaned = String(text || "").trim();
     if (!cleaned || cleaned.length < 2) return true;
+    if (/[\u0600-\u06FF]/.test(cleaned)) return false;
     return /^[.\s,;:!?…\-–—'"`]+$/.test(cleaned);
   }
 
@@ -260,10 +270,20 @@
     if (!ttsAvailable()) return null;
     const voices = global.speechSynthesis.getVoices();
     if (!voices.length) return null;
-    const ttsLang = LANG_MAP[resolveLang(lang)] || resolveSpeechLang({ lang });
+    const uiLang = resolveLang(lang);
+    const ttsLang = LANG_MAP[uiLang] || resolveSpeechLang({ lang });
     const prefix = ttsLang.split("-")[0].toLowerCase();
     const matching = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith(prefix));
     const pool = matching.length ? matching : voices;
+    if (uiLang === "ar" && !matching.length) {
+      const arVoices = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith("ar"));
+      if (arVoices.length) {
+        return arVoices.reduce((best, voice) => {
+          if (!best) return voice;
+          return voiceScore(voice, "ar-SA", "ar") > voiceScore(best, "ar-SA", "ar") ? voice : best;
+        }, null);
+      }
+    }
     return pool.reduce((best, voice) => {
       if (!best) return voice;
       return voiceScore(voice, ttsLang, prefix) > voiceScore(best, ttsLang, prefix) ? voice : best;
@@ -453,6 +473,7 @@
     }
     const url = options.transcribeUrl || "/api/ai/transcribe";
     const multilingual = options.multilingual !== false;
+    const whisperLang = resolveWhisperLang(options);
     const res = await fetch(url, {
       method: "POST",
       credentials: "include",
@@ -460,8 +481,8 @@
       body: JSON.stringify({
         audio: audioB64,
         mime: blob.type || "audio/webm",
-        multilingual,
-        lang: multilingual ? "auto" : resolveLang(options.lang),
+        multilingual: whisperLang === "auto" ? multilingual : false,
+        lang: whisperLang,
       }),
     });
     const data = await res.json().catch(() => ({}));

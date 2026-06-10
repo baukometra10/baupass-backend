@@ -29,9 +29,19 @@ def _looks_like_openai_key(value: str) -> bool:
     return v.startswith("sk-") or v.startswith("sk_proj")
 
 
+def _prefer_openai_direct() -> bool:
+    """When both Azure and OpenAI keys exist, default to direct OpenAI (user billing)."""
+    prefer = (os.getenv("BAUPASS_AI_PREFER") or os.getenv("BAUPASS_WHISPER_PREFER") or "openai").strip().lower()
+    if prefer in {"azure", "foundry"}:
+        return False
+    return bool((os.getenv("OPENAI_API_KEY") or "").strip())
+
+
 def list_whisper_providers() -> list[WhisperProvider]:
-    """Azure first (matches chat), then direct OpenAI."""
+    """OpenAI first when configured (better multilingual/Arabic), then Azure."""
     providers: list[WhisperProvider] = []
+    azure_list: list[WhisperProvider] = []
+    openai_list: list[WhisperProvider] = []
 
     azure_key = (os.getenv("AZURE_OPENAI_API_KEY") or "").strip()
     if azure_key:
@@ -49,7 +59,7 @@ def list_whisper_providers() -> list[WhisperProvider]:
                 or (os.getenv("AZURE_OPENAI_API_VERSION") or "").strip()
                 or "2024-02-01"
             )
-            providers.append(
+            azure_list.append(
                 WhisperProvider(
                     provider="azure",
                     url=f"{endpoint}/openai/deployments/{deployment}/audio/transcriptions?api-version={api_version}",
@@ -64,7 +74,7 @@ def list_whisper_providers() -> list[WhisperProvider]:
     openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if openai_key:
         model = (os.getenv("BAUPASS_WHISPER_MODEL") or "whisper-1").strip()
-        providers.append(
+        openai_list.append(
             WhisperProvider(
                 provider="openai",
                 url="https://api.openai.com/v1/audio/transcriptions",
@@ -74,6 +84,12 @@ def list_whisper_providers() -> list[WhisperProvider]:
             )
         )
 
+    if _prefer_openai_direct():
+        providers.extend(openai_list)
+        providers.extend(azure_list)
+    else:
+        providers.extend(azure_list)
+        providers.extend(openai_list)
     return providers
 
 
@@ -131,7 +147,9 @@ def _transcribe_with_provider(
         text = (data.get("text") or "").strip()
         if not text or len(text) < 2:
             return {"text": None, "error": "no_speech_detected"}
-        if all(ch in ".,;:!?…-–—'\"` " for ch in text):
+        if not any("\u0600" <= ch <= "\u06FF" for ch in text) and all(
+            ch in ".,;:!?…-–—'\"` " for ch in text
+        ):
             return {"text": None, "error": "no_speech_detected"}
         return {"text": text, "model": provider.model, "provider": provider.provider}
     except urlerror.HTTPError as exc:
@@ -150,8 +168,6 @@ def _transcribe_with_provider(
             "provider": provider.provider,
         }
 
-
-_RETRYABLE_ERRORS = {"openai_quota_exceeded", "openai_auth_error", "openai_rate_limit"}
 
 
 def transcribe_audio_bytes(
@@ -180,8 +196,7 @@ def transcribe_audio_bytes(
         if result.get("text"):
             return result
         last_result = result
-        err = str(result.get("error") or "")
-        if err not in _RETRYABLE_ERRORS or i >= len(providers) - 1:
+        if i >= len(providers) - 1:
             return result
 
     return last_result or {"text": None, "error": "openai_not_configured"}
