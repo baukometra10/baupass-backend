@@ -152,10 +152,45 @@
     return text;
   }
 
-  function voiceErrorMessage(err, lang) {
-    const code = String(err?.payload?.error || err?.message || err || "").trim();
+  function inferOpenAiVoiceError(err) {
+    const code = String(err?.payload?.error || err?.message || "").trim();
     const hint = String(err?.payload?.hint || "").trim();
-    if (hint) return hint;
+    if (code === "openai_quota_exceeded" || code === "openai_auth_error" || code === "openai_rate_limit") {
+      return code;
+    }
+    const blob = `${code} ${hint}`;
+    if (blob.includes("insufficient_quota") || blob.includes("exceeded your current quota")) {
+      return "openai_quota_exceeded";
+    }
+    if (hint.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(hint);
+        const oai = parsed?.error?.code || parsed?.error?.type || "";
+        if (oai === "insufficient_quota") return "openai_quota_exceeded";
+        if (oai === "invalid_api_key" || oai === "authentication_error") return "openai_auth_error";
+        if (oai === "rate_limit_exceeded") return "openai_rate_limit";
+      } catch {
+        // ignore invalid JSON hint
+      }
+    }
+    return code;
+  }
+
+  function isWhisperServerError(err) {
+    const code = inferOpenAiVoiceError(err);
+    return [
+      "openai_quota_exceeded",
+      "openai_not_configured",
+      "openai_auth_error",
+      "openai_rate_limit",
+      "whisper_http_error",
+      "whisper_failed",
+    ].includes(code);
+  }
+
+  function voiceErrorMessage(err, lang) {
+    const code = inferOpenAiVoiceError(err);
+    const hint = String(err?.payload?.hint || "").trim();
     const ui = resolveLang(lang);
     if (code === "not-allowed" || code === "service-not-allowed") {
       return ui === "ar"
@@ -171,6 +206,27 @@
           ? "No speech detected — try again."
           : "Keine Sprache erkannt — bitte erneut versuchen.";
     }
+    if (code === "openai_quota_exceeded") {
+      return ui === "ar"
+        ? "رصيد OpenAI منتهٍ — أضف رصيداً في platform.openai.com/settings/billing ثم أعد المحاولة."
+        : ui === "en"
+          ? "OpenAI quota exceeded — add billing at platform.openai.com/settings/billing, then try again."
+          : "OpenAI-Guthaben aufgebraucht — Billing unter platform.openai.com/settings/billing prüfen.";
+    }
+    if (code === "openai_auth_error") {
+      return ui === "ar"
+        ? "مفتاح OPENAI_API_KEY على السيرفر غير صالح."
+        : ui === "en"
+          ? "Invalid OPENAI_API_KEY on the server."
+          : "Ungültiger OPENAI_API_KEY auf dem Server.";
+    }
+    if (code === "openai_rate_limit") {
+      return ui === "ar"
+        ? "حد طلبات OpenAI — انتظر قليلاً ثم أعد المحاولة."
+        : ui === "en"
+          ? "OpenAI rate limit — wait briefly and try again."
+          : "OpenAI-Ratenlimit — kurz warten und erneut versuchen.";
+    }
     if (code === "openai_not_configured") {
       return ui === "ar"
         ? "الصوت يحتاج OPENAI_API_KEY على السيرفر."
@@ -185,7 +241,8 @@
           ? "AI assistant requires Enterprise plan."
           : "KI-Assistent braucht Enterprise-Tarif.";
     }
-    return code || (ui === "ar" ? "فشل الإدخال الصوتي." : ui === "en" ? "Voice input failed." : "Spracheingabe fehlgeschlagen.");
+    if (hint && !hint.startsWith("{")) return hint;
+    return ui === "ar" ? "فشل الإدخال الصوتي." : ui === "en" ? "Voice input failed." : "Spracheingabe fehlgeschlagen.";
   }
 
   function bindVoiceController(options, btnEl, inputEl) {
@@ -194,7 +251,7 @@
     const ui = labelsForLang(lang);
     const maxRecordMs = Math.max(10000, Number(options.maxRecordMs) || DEFAULT_MAX_RECORD_MS);
     const minRecordMs = Math.max(300, Number(options.minRecordMs) || DEFAULT_MIN_RECORD_MS);
-    const useWhisperMode = preferWhisperTranscription(options);
+    let useWhisperMode = preferWhisperTranscription(options);
 
     let browserRecognition = null;
     let browserListening = false;
@@ -344,6 +401,16 @@
         const text = await transcribeWithWhisper(blob, options);
         applyTranscript(text, true);
       } catch (err) {
+        if (options.fallbackToBrowser !== false && isWhisperServerError(err) && browserSpeechAvailable()) {
+          useWhisperMode = false;
+          const fallbackMsg = resolveLang(lang) === "ar"
+            ? "تعذّر التفريغ على السيرفر — تحدّث مرة أخرى (صوت المتصفح، لغات محدودة)."
+            : resolveLang(lang) === "en"
+              ? "Server transcription unavailable — speak again (browser voice, limited languages)."
+              : "Server-Transkription nicht verfügbar — erneut sprechen (Browser-Sprache, begrenzte Sprachen).";
+          notifyError(Object.assign(new Error("whisper_fallback"), { payload: { error: "whisper_fallback", hint: fallbackMsg } }), "transcribe");
+          if (startBrowser()) return;
+        }
         notifyError(err, "transcribe");
       } finally {
         btnEl.classList.remove("bp-ai-transcribing");

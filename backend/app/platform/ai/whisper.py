@@ -12,6 +12,40 @@ from urllib import request as urlrequest
 logger = logging.getLogger("baupass.ai.whisper")
 
 
+def _parse_openai_http_error(detail: str) -> dict[str, Any]:
+    """Map OpenAI HTTP error bodies to stable BauPass error codes."""
+    text = (detail or "").strip()
+    if not text:
+        return {"error": "whisper_http_error", "hint": "Transcription failed."}
+
+    payload: dict[str, Any] | None = None
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            payload = parsed
+    except json.JSONDecodeError:
+        payload = None
+
+    err = payload.get("error") if isinstance(payload, dict) else {}
+    if not isinstance(err, dict):
+        err = {}
+    oai_code = str(err.get("code") or err.get("type") or "").strip()
+    message = str(err.get("message") or "")
+
+    if oai_code == "insufficient_quota" or "insufficient_quota" in text or "exceeded your current quota" in message:
+        return {
+            "error": "openai_quota_exceeded",
+            "hint": "OpenAI quota exceeded — add billing at platform.openai.com/settings/billing.",
+        }
+    if oai_code in {"invalid_api_key", "authentication_error"} or "invalid api key" in message.lower():
+        return {"error": "openai_auth_error", "hint": "Invalid OPENAI_API_KEY on the server."}
+    if oai_code == "rate_limit_exceeded":
+        return {"error": "openai_rate_limit", "hint": "OpenAI rate limit — try again in a moment."}
+    if message:
+        return {"error": "whisper_http_error", "hint": message[:300]}
+    return {"error": "whisper_http_error", "hint": text[:300]}
+
+
 def transcribe_audio_bytes(
     audio_bytes: bytes,
     *,
@@ -72,6 +106,7 @@ def transcribe_audio_bytes(
     except urlerror.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
         logger.warning("Whisper HTTP %s: %s", exc.code, detail)
-        return {"text": None, "error": "whisper_http_error", "hint": detail}
+        parsed = _parse_openai_http_error(detail)
+        return {"text": None, **parsed}
     except Exception as exc:
         return {"text": None, "error": "whisper_failed", "hint": str(exc)[:300]}
