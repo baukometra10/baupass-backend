@@ -21,12 +21,13 @@
 
   const DEFAULT_MAX_RECORD_MS = 300000;
   const DEFAULT_MIN_RECORD_MS = 600;
-  const MIN_AUDIO_BYTES = 1200;
+  const MIN_AUDIO_BYTES = 800;
+  const RECORD_TIMESLICE_MS = 500;
 
   const HINTS = {
-    de: "Mikrofon: Aufnahme starten → sprechen → erneut klicken zum Stoppen → Text prüfen → Senden.",
-    en: "Mic: tap to record → speak → tap to stop → review text → Send.",
-    ar: "الميكروفون: اضغط للتسجيل → تحدّث → اضغط للإيقاف → راجع النص → أرسل.",
+    de: "Mikrofon: tippen → sprechen (Text erscheint live) → erneut tippen → Senden.",
+    en: "Mic: tap → speak (text appears live) → tap again → Send.",
+    ar: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
   };
 
   const LABELS = {
@@ -80,6 +81,11 @@
   function browserSpeechAvailable() {
     const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
     return Boolean(SpeechRecognition && global.isSecureContext);
+  }
+
+  function resolveLiveSpeechLang(options) {
+    const uiLang = resolveLang(options?.lang);
+    return LANG_MAP[uiLang] || resolveSpeechLang(options);
   }
 
   function preferWhisperTranscription(options) {
@@ -262,6 +268,75 @@
     let maxRecordTimer = null;
     let chunks = [];
     let recordMimeType = "";
+    let liveRecognition = null;
+    let liveRecognitionActive = false;
+    let liveDraftFinal = "";
+
+    const startLiveSpeechPreview = () => {
+      if (options.liveSpeechDuringRecord === false) return;
+      const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
+      if (!SpeechRecognition || !global.isSecureContext) return;
+      liveDraftFinal = inputEl.value.trim();
+      liveRecognition = new SpeechRecognition();
+      liveRecognition.lang = resolveLiveSpeechLang(options);
+      liveRecognition.continuous = true;
+      liveRecognition.interimResults = true;
+      liveRecognition.maxAlternatives = 1;
+      liveRecognition.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const part = event.results[i][0]?.transcript || "";
+          if (event.results[i].isFinal) {
+            liveDraftFinal = `${liveDraftFinal} ${part}`.trim();
+          } else {
+            interim += part;
+          }
+        }
+        const display = `${liveDraftFinal}${interim ? ` ${interim}` : ""}`.trim();
+        if (display) applyTranscript(display, false);
+      };
+      liveRecognition.onend = () => {
+        if (recording && liveRecognitionActive) {
+          try {
+            liveRecognition.start();
+          } catch {
+            // ignore restart races
+          }
+        }
+      };
+      liveRecognition.onerror = () => {
+        // Whisper + saved draft remain the fallback; stay quiet during live preview.
+      };
+      try {
+        liveRecognition.start();
+        liveRecognitionActive = true;
+      } catch {
+        liveRecognition = null;
+        liveRecognitionActive = false;
+      }
+    };
+
+    const stopLiveSpeechPreview = () => {
+      liveRecognitionActive = false;
+      try {
+        liveRecognition?.stop?.();
+      } catch {
+        // ignore
+      }
+      liveRecognition = null;
+      const fromInput = inputEl.value.trim();
+      if (fromInput.length >= liveDraftFinal.length) {
+        liveDraftFinal = fromInput;
+      }
+      return liveDraftFinal.trim();
+    };
+
+    const applyDraftIfUsable = (draft) => {
+      const cleaned = String(draft || "").trim();
+      if (!cleaned || isWeakTranscript(cleaned)) return false;
+      applyTranscript(cleaned, true);
+      return true;
+    };
 
     const applyTranscript = (text, isFinal) => {
       const cleaned = String(text || "").trim();
@@ -363,6 +438,13 @@
         global.clearTimeout(maxRecordTimer);
         maxRecordTimer = null;
       }
+      liveRecognitionActive = false;
+      try {
+        liveRecognition?.stop?.();
+      } catch {
+        // ignore
+      }
+      liveRecognition = null;
       stream?.getTracks?.().forEach((track) => track.stop());
       stream = null;
       recording = false;
@@ -382,16 +464,19 @@
     };
 
     const transcribeRecording = async () => {
+      const savedLive = stopLiveSpeechPreview();
       const mimeType = recordMimeType || recorder?.mimeType || pickRecorderMimeType() || "audio/webm";
       const blob = new Blob(chunks, { type: mimeType });
       chunks = [];
       recorder = null;
       cleanupRecording();
       if (!blob.size || blob.size < MIN_AUDIO_BYTES) {
+        if (applyDraftIfUsable(savedLive)) return;
         notifyError(new Error("audio_too_short"), "transcribe");
         return;
       }
       if (Date.now() - recordStartedAt < minRecordMs) {
+        if (applyDraftIfUsable(savedLive)) return;
         notifyError(new Error("audio_too_short"), "transcribe");
         return;
       }
@@ -401,6 +486,7 @@
         const text = await transcribeWithWhisper(blob, options);
         applyTranscript(text, true);
       } catch (err) {
+        if (applyDraftIfUsable(savedLive || inputEl.value)) return;
         if (options.fallbackToBrowser !== false && isWhisperServerError(err) && browserSpeechAvailable()) {
           useWhisperMode = false;
           const fallbackMsg = resolveLang(lang) === "ar"
@@ -442,8 +528,9 @@
         recorder.onstop = () => {
           void transcribeRecording();
         };
-        recorder.start();
+        recorder.start(RECORD_TIMESLICE_MS);
         recording = true;
+        startLiveSpeechPreview();
         setListeningState(btnEl, true, lang);
         if (typeof options.onListening === "function") options.onListening(true);
         maxRecordTimer = global.setTimeout(() => {
