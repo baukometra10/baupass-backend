@@ -19,6 +19,10 @@
 
   const SEND_SVG = `<svg class="bp-ai-send-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.6 21 12 3.4 3.4l2.8 7.2L17 12l-10.8 1.4-2.8 7.2z"/></svg>`;
 
+  const SPEAKER_SVG = `<svg class="bp-ai-speaker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+
+  const VOICE_REPLY_KEY = "baupass-ai-voice-reply";
+
   const DEFAULT_MAX_RECORD_MS = 300000;
   const DEFAULT_MIN_RECORD_MS = 600;
   const MIN_AUDIO_BYTES = 800;
@@ -35,6 +39,9 @@
       speak: "Spracheingabe",
       stop: "Aufnahme beenden",
       send: "Senden",
+      voiceReplyOn: "Sprachausgabe an — KI antwortet mit Stimme",
+      voiceReplyOff: "Sprachausgabe aus — nur Text",
+      voiceReplyStop: "Vorlesen stoppen",
       unsupported: "Spracheingabe benötigt HTTPS",
       open: "Öffnen",
     },
@@ -42,6 +49,9 @@
       speak: "Voice input",
       stop: "Stop listening",
       send: "Send",
+      voiceReplyOn: "Voice reply on — AI speaks answers",
+      voiceReplyOff: "Voice reply off — text only",
+      voiceReplyStop: "Stop speaking",
       unsupported: "Voice needs HTTPS",
       open: "Open",
     },
@@ -49,6 +59,9 @@
       speak: "إدخال صوتي",
       stop: "إيقاف الاستماع",
       send: "إرسال",
+      voiceReplyOn: "رد صوتي مفعّل — الذكاء الاصطناعي يرد بصوت",
+      voiceReplyOff: "رد صوتي متوقف — نص فقط",
+      voiceReplyStop: "إيقاف القراءة",
       unsupported: "الصوت يتطلب HTTPS",
       open: "فتح",
     },
@@ -99,6 +112,113 @@
     const cleaned = String(text || "").trim();
     if (!cleaned || cleaned.length < 2) return true;
     return /^[.\s,;:!?…\-–—'"`]+$/.test(cleaned);
+  }
+
+  function isVoiceReplyEnabled() {
+    try {
+      const stored = global.localStorage?.getItem(VOICE_REPLY_KEY);
+      if (stored === "0" || stored === "false") return false;
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  function setVoiceReplyEnabled(on) {
+    try {
+      global.localStorage?.setItem(VOICE_REPLY_KEY, on ? "1" : "0");
+    } catch {
+      // ignore
+    }
+    global.dispatchEvent(new CustomEvent("baupass-ai-voice-reply-toggle", { detail: { enabled: Boolean(on) } }));
+  }
+
+  function ttsAvailable() {
+    return Boolean(global.speechSynthesis && typeof global.SpeechSynthesisUtterance === "function");
+  }
+
+  function pickVoiceForLang(lang) {
+    if (!ttsAvailable()) return null;
+    const voices = global.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const ttsLang = LANG_MAP[resolveLang(lang)] || resolveSpeechLang({ lang });
+    const prefix = ttsLang.split("-")[0].toLowerCase();
+    const matching = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith(prefix));
+    const pool = matching.length ? matching : voices;
+    return pool.find((v) => v.localService) || pool[0] || null;
+  }
+
+  function prepareSpeechText(text) {
+    const cleaned = String(text || "").replace(/\s+/g, " ").trim();
+    if (!cleaned || isWeakTranscript(cleaned)) return "";
+    if (cleaned.length <= 2800) return cleaned;
+    const cut = cleaned.slice(0, 2600);
+    const breakAt = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"), cut.lastIndexOf("؟"));
+    return `${breakAt > 400 ? cut.slice(0, breakAt + 1) : cut}…`;
+  }
+
+  let currentSpeechUtterance = null;
+
+  function stopSpeaking() {
+    try {
+      global.speechSynthesis?.cancel();
+    } catch {
+      // ignore
+    }
+    currentSpeechUtterance = null;
+    global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: false } }));
+  }
+
+  function isSpeaking() {
+    try {
+      return Boolean(global.speechSynthesis?.speaking || global.speechSynthesis?.pending);
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureVoicesLoaded(callback) {
+    if (!ttsAvailable()) return;
+    const voices = global.speechSynthesis.getVoices();
+    if (voices.length) {
+      callback();
+      return;
+    }
+    const onVoices = () => {
+      global.speechSynthesis.removeEventListener("voiceschanged", onVoices);
+      callback();
+    };
+    global.speechSynthesis.addEventListener("voiceschanged", onVoices);
+    global.setTimeout(() => {
+      global.speechSynthesis.removeEventListener("voiceschanged", onVoices);
+      callback();
+    }, 1200);
+  }
+
+  function speakText(text, lang, options = {}) {
+    if (!ttsAvailable()) return false;
+    if (options.enabled === false) return false;
+    if (!options.force && !isVoiceReplyEnabled()) return false;
+    const prepared = prepareSpeechText(text);
+    if (!prepared) return false;
+    stopSpeaking();
+    const utter = new global.SpeechSynthesisUtterance(prepared);
+    const ttsLang = LANG_MAP[resolveLang(lang)] || resolveSpeechLang({ lang });
+    utter.lang = ttsLang;
+    utter.rate = Number(options.rate) || 0.96;
+    utter.pitch = Number(options.pitch) || 1;
+    utter.volume = Number(options.volume) || 1;
+    const voice = pickVoiceForLang(lang);
+    if (voice) utter.voice = voice;
+    utter.onend = () => {
+      currentSpeechUtterance = null;
+      global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: false } }));
+    };
+    utter.onerror = () => stopSpeaking();
+    currentSpeechUtterance = utter;
+    global.dispatchEvent(new CustomEvent("baupass-ai-speaking", { detail: { speaking: true } }));
+    global.speechSynthesis.speak(utter);
+    return true;
   }
 
   function pickRecorderMimeType() {
@@ -382,6 +502,7 @@
     };
 
     const startBrowser = () => {
+      stopSpeaking();
       const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
       if (!SpeechRecognition || !global.isSecureContext) return false;
 
@@ -505,6 +626,7 @@
     };
 
     const startWhisperRecording = async () => {
+      stopSpeaking();
       if (!global.navigator?.mediaDevices?.getUserMedia || !global.MediaRecorder) {
         return false;
       }
@@ -664,6 +786,51 @@
     container.appendChild(row);
   }
 
+  function enhanceVoiceReplyButton(btnEl, lang) {
+    if (!btnEl || btnEl.dataset.bpSpeakerEnhanced === "1") return btnEl;
+    if (!ttsAvailable()) {
+      btnEl.disabled = true;
+      btnEl.hidden = true;
+      return btnEl;
+    }
+    btnEl.dataset.bpSpeakerEnhanced = "1";
+    btnEl.type = "button";
+    btnEl.classList.add("bp-ai-speaker");
+    btnEl.innerHTML = SPEAKER_SVG;
+    const syncState = () => {
+      const ui = labelsForLang(lang);
+      const on = isVoiceReplyEnabled();
+      const speaking = isSpeaking();
+      btnEl.classList.toggle("voice-reply-on", on);
+      btnEl.classList.toggle("speaking", speaking);
+      btnEl.setAttribute("aria-pressed", on ? "true" : "false");
+      if (speaking) {
+        btnEl.title = ui.voiceReplyStop;
+        btnEl.setAttribute("aria-label", ui.voiceReplyStop);
+      } else if (on) {
+        btnEl.title = ui.voiceReplyOn;
+        btnEl.setAttribute("aria-label", ui.voiceReplyOn);
+      } else {
+        btnEl.title = ui.voiceReplyOff;
+        btnEl.setAttribute("aria-label", ui.voiceReplyOff);
+      }
+    };
+    btnEl.addEventListener("click", () => {
+      if (isSpeaking()) {
+        stopSpeaking();
+        syncState();
+        return;
+      }
+      setVoiceReplyEnabled(!isVoiceReplyEnabled());
+      syncState();
+    });
+    global.addEventListener("baupass-ai-speaking", syncState);
+    global.addEventListener("baupass-ai-voice-reply-toggle", syncState);
+    ensureVoicesLoaded(syncState);
+    syncState();
+    return btnEl;
+  }
+
   function enhanceMicButton(btnEl, labels) {
     if (!btnEl || btnEl.dataset.bpMicEnhanced === "1") return;
     btnEl.dataset.bpMicEnhanced = "1";
@@ -737,7 +904,29 @@
         toolbar.className = "bp-ai-composer-toolbar";
         row.appendChild(toolbar);
         toolbar.appendChild(btnEl);
+        if (options.voiceReply !== false && ttsAvailable()) {
+          const replyId = options.replyButtonId || "aiVoiceReplyBtn";
+          let replyBtn = document.getElementById(replyId);
+          if (!replyBtn) {
+            replyBtn = document.createElement("button");
+            replyBtn.id = replyId;
+          }
+          enhanceVoiceReplyButton(replyBtn, lang);
+          toolbar.appendChild(replyBtn);
+        }
         if (sendEl) toolbar.appendChild(sendEl);
+      } else if (options.voiceReply !== false && ttsAvailable()) {
+        const replyId = options.replyButtonId || "aiVoiceReplyBtn";
+        if (!document.getElementById(replyId)) {
+          const replyBtn = document.createElement("button");
+          replyBtn.id = replyId;
+          enhanceVoiceReplyButton(replyBtn, lang);
+          if (sendEl && sendEl.parentElement === toolbar) {
+            toolbar.insertBefore(replyBtn, sendEl);
+          } else {
+            toolbar.appendChild(replyBtn);
+          }
+        }
       }
 
       if (formEl && !formEl.querySelector(".bp-ai-composer-wrap")) {
@@ -808,6 +997,10 @@
       sendEl.setAttribute("aria-label", ui.send);
       sendEl.title = ui.send;
     }
+    const replyBtn = document.getElementById(options.replyButtonId || "aiVoiceReplyBtn");
+    if (replyBtn) {
+      enhanceVoiceReplyButton(replyBtn, lang);
+    }
     if (hintEl) {
       hintEl.textContent = options.hintText || HINTS[lang] || HINTS.de;
     }
@@ -829,5 +1022,11 @@
     voiceErrorMessage,
     browserSpeechAvailable,
     transcribeWithWhisper,
+    ttsAvailable,
+    isVoiceReplyEnabled,
+    setVoiceReplyEnabled,
+    speakText,
+    stopSpeaking,
+    isSpeaking,
   };
 })(window);

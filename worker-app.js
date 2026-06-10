@@ -7221,6 +7221,7 @@ function appendWorkerAiLog(role, text, actions = []) {
 async function submitWorkerAiQuestion() {
   const question = (elements.workerAiQuestion?.value || "").trim();
   if (!question) return;
+  globalThis.BaupassAiUi?.stopSpeaking?.();
   if (!workerToken) {
     showWorkerNotice(t("sessionExpired"));
     return;
@@ -7241,6 +7242,7 @@ async function submitWorkerAiQuestion() {
     const answer = payload?.answer || payload?.message || t("workerAiNoAnswer");
     const actions = payload?.actions || payload?.suggestedActions || [];
     appendWorkerAiLog("bot", answer, actions);
+    globalThis.BaupassAiUi?.speakText?.(answer, getWorkerLang());
   } catch (error) {
     appendWorkerAiLog("bot", formatWorkerApiError(error));
   }

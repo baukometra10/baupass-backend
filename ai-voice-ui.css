@@ -368,3 +368,46 @@ body.ops-app .bp-ai-send {
   background: var(--bp-composer-text);
   color: var(--bp-composer-bg);
 }
+
+.bp-ai-speaker {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--bp-composer-mic, #94a3b8);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.bp-ai-speaker:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--bp-composer-focus, #38bdf8);
+}
+
+.bp-ai-speaker.voice-reply-on {
+  color: var(--bp-composer-focus, #38bdf8);
+}
+
+.bp-ai-speaker.speaking {
+  animation: bp-ai-speaker-pulse 1.2s ease-in-out infinite;
+  color: #34d399;
+}
+
+.bp-ai-speaker-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+@keyframes bp-ai-speaker-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.82; }
+}
+
+html[data-theme="light"] .bp-ai-speaker.voice-reply-on {
+  color: #0f4c5c;
+}

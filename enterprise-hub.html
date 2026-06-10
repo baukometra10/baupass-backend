@@ -6,7 +6,7 @@
   <title>BauPass — Enterprise-Hub</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260530a" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice9" />
   <style>
     :root {
       --bg: #0b1118;
@@ -514,7 +514,7 @@
   </div>
 
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice6"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice9"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -732,7 +732,7 @@
         capWord: "features",
         redisYes: "yes",
         redisNo: "no",
-        voiceHint: "Mic: tap to record → speak → tap to stop → review → Send.",
+        voiceHint: "Mic: tap → speak (live text) → tap again → Send.",
         aiVoiceListening: "Recording — tap again to stop.",
         aiVoiceTranscribing: "Transcribing…",
         aiVoiceMicDenied: "Microphone blocked — allow in browser, then try again.",
@@ -831,7 +831,7 @@
         capWord: "قدرة",
         redisYes: "نعم",
         redisNo: "لا",
-        voiceHint: "الميكروفون: اضغط للتسجيل → تحدّث → اضغط للإيقاف → راجع النص → أرسل.",
+        voiceHint: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
         aiVoiceListening: "جاري التسجيل — اضغط مرة أخرى للإيقاف.",
         aiVoiceTranscribing: "جاري تحويل الصوت إلى نص…",
         aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح ثم أعد المحاولة.",
@@ -1916,6 +1916,7 @@
     async function submitAiQuestion(q) {
       const question = String(q || "").trim();
       if (!question) return;
+      window.BaupassAiUi?.stopSpeaking?.();
       if (aiCompanyRequired()) {
         appendAi("bot", t("aiNeedCompany"), true);
         return;
@@ -1947,6 +1948,9 @@
             sources,
             actions: data.actions || data.suggestedActions,
           });
+          if (data.answer) {
+            window.BaupassAiUi?.speakText?.(data.answer, HUB_LANG);
+          }
         }
       } catch (e) {
         thinking.remove();

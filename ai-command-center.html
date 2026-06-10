@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
-  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260606a" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice9" />
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice7"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice9"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -386,7 +386,7 @@
         topicSecurity: "الأمن", topicCompliance: "الامتثال", topicAttendance: "الحضور", topicExecutive: "الإدارة",
         statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
         issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
-        voiceHint: "الميكروفون: اضغط للتسجيل → تحدّث → اضغط للإيقاف → راجع النص → أرسل.",
+        voiceHint: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
         aiVoiceListening: "جاري التسجيل — اضغط مرة أخرى للإيقاف.",
         aiVoiceTranscribing: "جاري تحويل الصوت إلى نص…",
         aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح.",
@@ -1032,6 +1032,7 @@
 
     async function submitQuestion(q) {
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
+      window.BaupassAiUi?.stopSpeaking?.();
       if (!sessionId) await newSession();
       appendMsg("user", q);
       const log = document.getElementById("chatLog");
@@ -1148,6 +1149,9 @@
           suggestedActions: meta.suggestedActions,
           actions: meta.actions || meta.suggestedActions,
         });
+        if (botDiv.textContent && meta.ok !== false) {
+          window.BaupassAiUi?.speakText?.(botDiv.textContent, LANG);
+        }
         await loadSessions();
         await loadInsights();
       } catch (e) {
