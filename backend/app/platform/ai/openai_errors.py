@@ -77,15 +77,16 @@ def _looks_like_openai_rate_limit(message: str, raw: str) -> bool:
     )
 
 
-def urlopen_with_rate_limit_retry(req: urlrequest.Request, *, timeout: int = 90):
+def urlopen_with_rate_limit_retry(req: urlrequest.Request, *, timeout: int = 90, max_attempts: int | None = None):
     """Perform HTTP request with exponential backoff on OpenAI HTTP 429."""
+    attempts = max_attempts if max_attempts is not None else OPENAI_429_MAX_ATTEMPTS
     last_exc: urlerror.HTTPError | None = None
-    for attempt in range(OPENAI_429_MAX_ATTEMPTS):
+    for attempt in range(max(1, attempts)):
         try:
             return urlrequest.urlopen(req, timeout=timeout)
         except urlerror.HTTPError as exc:
             last_exc = exc
-            if exc.code == 429 and attempt < OPENAI_429_MAX_ATTEMPTS - 1:
+            if exc.code == 429 and attempt < attempts - 1:
                 delays = OPENAI_429_BACKOFF_SECONDS
                 time.sleep(delays[attempt] if attempt < len(delays) else delays[-1])
                 continue
