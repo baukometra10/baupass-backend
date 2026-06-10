@@ -2101,6 +2101,7 @@ function bindEvents() {
       onTranscribeError: (err) => showWorkerNotice(
         globalThis.BaupassAiUi?.voiceErrorMessage?.(err, getWorkerLang()) || String(err?.message || err),
       ),
+      sendDelayAfterSilenceMs: 20000,
     });
   }
 

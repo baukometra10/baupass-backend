@@ -19,10 +19,16 @@
 
   const SEND_SVG = `<svg class="bp-ai-send-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.6 21 12 3.4 3.4l2.8 7.2L17 12l-10.8 1.4-2.8 7.2z"/></svg>`;
 
+  const DEFAULT_SILENCE_MS = 1200;
+  const DEFAULT_SEND_DELAY_MS = 20000;
+  const DEFAULT_MAX_RECORD_MS = 180000;
+  const DEFAULT_MIN_RECORD_MS = 800;
+  const SILENCE_RMS_THRESHOLD = 0.018;
+
   const HINTS = {
-    de: "BauPass KI — Sprache oder Text (Deutsch, Englisch, Arabisch). Wichtige Entscheidungen bitte prüfen.",
-    en: "BauPass AI — voice or text (German, English, Arabic). Verify important decisions.",
-    ar: "BauPass KI — صوت أو نص (ألماني، إنجليزي، عربي). تحقق من القرارات المهمة.",
+    de: "Spracheingabe: alle Sprachen (DE/EN/AR/…). Nach dem Sprechen 20s warten, dann senden.",
+    en: "Voice: all languages supported. After you stop speaking, wait 20s, then it sends.",
+    ar: "صوت: كل اللغات مدعومة. بعد التوقف عن الكلام انتظر 20 ثانية ثم يُرسل.",
   };
 
   const LABELS = {
@@ -81,7 +87,111 @@
   function preferWhisperTranscription(options) {
     if (options?.useWhisper === true) return true;
     if (options?.useWhisper === false) return false;
+    if (options?.multilingual !== false) return true;
     return !browserSpeechAvailable();
+  }
+
+  function createSilenceMonitor(stream, opts) {
+    const AudioCtx = global.AudioContext || global.webkitAudioContext;
+    if (!AudioCtx) return null;
+
+    const silenceMs = Math.max(400, Number(opts.silenceMs) || DEFAULT_SILENCE_MS);
+    const sendDelayMs = Math.max(3000, Number(opts.sendDelayAfterSilenceMs) || DEFAULT_SEND_DELAY_MS);
+    const threshold = Number(opts.silenceThreshold) || SILENCE_RMS_THRESHOLD;
+
+    const audioContext = new AudioCtx();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+
+    let hadSpeech = false;
+    let lastLoudAt = 0;
+    let sendDelayTimer = null;
+    let countdownInterval = null;
+    let stopped = false;
+
+    const clearSendDelay = () => {
+      if (sendDelayTimer) {
+        global.clearTimeout(sendDelayTimer);
+        sendDelayTimer = null;
+      }
+      if (countdownInterval) {
+        global.clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      if (typeof opts.onCountdown === "function") opts.onCountdown(0);
+    };
+
+    const beginSendCountdown = () => {
+      if (sendDelayTimer || stopped || !hadSpeech) return;
+      let remainingMs = sendDelayMs;
+      if (typeof opts.onCountdown === "function") {
+        opts.onCountdown(Math.ceil(remainingMs / 1000));
+      }
+      countdownInterval = global.setInterval(() => {
+        remainingMs -= 1000;
+        if (remainingMs <= 0) {
+          global.clearInterval(countdownInterval);
+          countdownInterval = null;
+          if (typeof opts.onCountdown === "function") opts.onCountdown(0);
+          return;
+        }
+        if (typeof opts.onCountdown === "function") {
+          opts.onCountdown(Math.ceil(remainingMs / 1000));
+        }
+      }, 1000);
+      sendDelayTimer = global.setTimeout(() => {
+        sendDelayTimer = null;
+        if (countdownInterval) {
+          global.clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+        if (typeof opts.onCountdown === "function") opts.onCountdown(0);
+        if (!stopped && typeof opts.onSendReady === "function") opts.onSendReady();
+      }, sendDelayMs);
+    };
+
+    const pollId = global.setInterval(() => {
+      if (stopped) return;
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (let i = 0; i < samples.length; i += 1) {
+        const v = (samples[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / samples.length);
+      const now = Date.now();
+      if (rms > threshold) {
+        hadSpeech = true;
+        lastLoudAt = now;
+        clearSendDelay();
+        return;
+      }
+      if (hadSpeech && lastLoudAt && now - lastLoudAt >= silenceMs) {
+        beginSendCountdown();
+      }
+    }, 200);
+
+    return {
+      hadSpeech: () => hadSpeech,
+      triggerSendCountdown: () => {
+        if (hadSpeech) beginSendCountdown();
+      },
+      stop: () => {
+        stopped = true;
+        global.clearInterval(pollId);
+        clearSendDelay();
+        try {
+          source.disconnect();
+        } catch {
+          // ignore
+        }
+        audioContext.close().catch(() => {});
+      },
+      cancelSend: clearSendDelay,
+    };
   }
 
   function pickRecorderMimeType() {
@@ -175,14 +285,20 @@
     const lang = resolveLang(options.lang);
     const speechLang = resolveSpeechLang(options);
     const ui = labelsForLang(lang);
-    const maxRecordMs = Math.max(4000, Number(options.maxRecordMs) || 14000);
+    const maxRecordMs = Math.max(10000, Number(options.maxRecordMs) || DEFAULT_MAX_RECORD_MS);
+    const minRecordMs = Math.max(300, Number(options.minRecordMs) || DEFAULT_MIN_RECORD_MS);
+    const useWhisperMode = preferWhisperTranscription(options);
 
     let browserRecognition = null;
     let browserListening = false;
     let stream = null;
     let recorder = null;
-    let whisperListening = false;
-    let whisperTimer = null;
+    let silenceMonitor = null;
+    let recording = false;
+    let awaitingSend = false;
+    let recordStartedAt = 0;
+    let maxRecordTimer = null;
+    let chunks = [];
 
     const applyTranscript = (text, isFinal) => {
       const cleaned = String(text || "").trim();
@@ -277,66 +393,113 @@
       }
     };
 
-    const stopWhisper = () => {
-      if (whisperTimer) {
-        global.clearTimeout(whisperTimer);
-        whisperTimer = null;
+    const cleanupRecording = () => {
+      if (maxRecordTimer) {
+        global.clearTimeout(maxRecordTimer);
+        maxRecordTimer = null;
       }
-      if (recorder && recorder.state !== "inactive") {
-        recorder.stop();
+      silenceMonitor?.stop?.();
+      silenceMonitor = null;
+      stream?.getTracks?.().forEach((track) => track.stop());
+      stream = null;
+      recording = false;
+      awaitingSend = false;
+      setListeningState(btnEl, false, lang);
+      if (typeof options.onListening === "function") options.onListening(false);
+      if (typeof options.onCountdown === "function") options.onCountdown(0);
+    };
+
+    const transcribeAndSend = async () => {
+      const mimeType = recorder?.mimeType || pickRecorderMimeType() || "audio/webm";
+      const blob = new Blob(chunks, { type: mimeType });
+      cleanupRecording();
+      btnEl.classList.remove("bp-ai-transcribing");
+      if (!blob.size || blob.size < 80) {
+        notifyError(new Error("audio_too_short"), "transcribe");
+        return;
+      }
+      if (Date.now() - recordStartedAt < minRecordMs) {
+        notifyError(new Error("audio_too_short"), "transcribe");
+        return;
+      }
+      try {
+        btnEl.classList.add("bp-ai-transcribing");
+        const text = await transcribeWithWhisper(blob, options);
+        applyTranscript(text, true);
+      } catch (err) {
+        notifyError(err, "transcribe");
+      } finally {
+        btnEl.classList.remove("bp-ai-transcribing");
+        chunks = [];
+        recorder = null;
       }
     };
 
-    const startWhisper = async () => {
+    const requestStopAndSend = () => {
+      if (!recording) return;
+      awaitingSend = true;
+      silenceMonitor?.cancelSend?.();
+      if (silenceMonitor?.hadSpeech?.()) {
+        silenceMonitor.triggerSendCountdown();
+      } else if (Date.now() - recordStartedAt >= minRecordMs) {
+        silenceMonitor?.triggerSendCountdown?.();
+      }
+    };
+
+    const startWhisperRecording = async () => {
       if (!global.navigator?.mediaDevices?.getUserMedia || !global.MediaRecorder) {
         return false;
       }
       try {
-        stream = await global.navigator.mediaDevices.getUserMedia({ audio: true });
+        chunks = [];
+        stream = await global.navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
         const mimeType = pickRecorderMimeType();
-        const chunks = [];
         recorder = mimeType
           ? new global.MediaRecorder(stream, { mimeType })
           : new global.MediaRecorder(stream);
+        recordStartedAt = Date.now();
         recorder.ondataavailable = (event) => {
           if (event.data && event.data.size > 0) chunks.push(event.data);
         };
         recorder.onstop = async () => {
-          whisperListening = false;
-          setListeningState(btnEl, false, lang);
-          if (whisperTimer) {
-            global.clearTimeout(whisperTimer);
-            whisperTimer = null;
-          }
-          stream?.getTracks?.().forEach((track) => track.stop());
-          stream = null;
-          btnEl.classList.remove("bp-ai-transcribing");
-          const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
-          if (!blob.size || blob.size < 80) {
-            notifyError(new Error("audio_too_short"), "transcribe");
+          if (!awaitingSend) {
+            cleanupRecording();
+            chunks = [];
             return;
           }
-          try {
-            btnEl.classList.add("bp-ai-transcribing");
-            const text = await transcribeWithWhisper(blob, options);
-            applyTranscript(text, true);
-          } catch (err) {
-            if (!startBrowser()) {
-              notifyError(err, "transcribe");
-            }
-          } finally {
-            btnEl.classList.remove("bp-ai-transcribing");
-          }
+          awaitingSend = false;
+          await transcribeAndSend();
         };
-        recorder.start();
-        whisperListening = true;
+
+        silenceMonitor = createSilenceMonitor(stream, {
+          silenceMs: options.silenceMs,
+          sendDelayAfterSilenceMs: options.sendDelayAfterSilenceMs,
+          silenceThreshold: options.silenceThreshold,
+          onCountdown: options.onCountdown,
+          onSendReady: () => {
+            if (!recording) return;
+            awaitingSend = true;
+            if (recorder && recorder.state !== "inactive") {
+              recorder.stop();
+            }
+          },
+        });
+
+        recorder.start(250);
+        recording = true;
         setListeningState(btnEl, true, lang);
-        whisperTimer = global.setTimeout(() => stopWhisper(), maxRecordMs);
+        if (typeof options.onListening === "function") options.onListening(true);
+        maxRecordTimer = global.setTimeout(() => {
+          if (recording) {
+            awaitingSend = true;
+            if (recorder && recorder.state !== "inactive") recorder.stop();
+          }
+        }, maxRecordMs);
         return true;
       } catch (err) {
-        whisperListening = false;
-        setListeningState(btnEl, false, lang);
-        stream?.getTracks?.().forEach((track) => track.stop());
+        cleanupRecording();
         notifyError(err, "mic");
         return false;
       }
@@ -347,22 +510,29 @@
         stopBrowser();
         return;
       }
-      if (whisperListening) {
-        stopWhisper();
+      if (recording) {
+        if (silenceMonitor?.hadSpeech?.()) {
+          requestStopAndSend();
+        } else {
+          awaitingSend = false;
+          if (recorder && recorder.state !== "inactive") recorder.stop();
+          cleanupRecording();
+          chunks = [];
+          recorder = null;
+        }
         return;
       }
 
-      const useWhisper = preferWhisperTranscription(options);
-      if (useWhisper) {
-        const started = await startWhisper();
-        if (!started && !startBrowser()) {
+      if (useWhisperMode) {
+        const started = await startWhisperRecording();
+        if (!started) {
           btnEl.disabled = true;
           btnEl.title = options.unsupportedHint || ui.unsupported;
         }
         return;
       }
       if (!startBrowser()) {
-        const started = await startWhisper();
+        const started = await startWhisperRecording();
         if (!started) {
           btnEl.disabled = true;
           btnEl.title = options.unsupportedHint || ui.unsupported;
