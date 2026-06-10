@@ -265,3 +265,49 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
         lines.append(f"- Anwesenheitsrisiko: {len(at_risk)} Mitarbeiter markiert")
     lines.append("- Für Details: gezielte Fragen im KI-Chat stellen.")
     return "\n".join(lines)
+
+
+def format_analysis_data_block(ctx: dict[str, Any], topic: str, *, lang: str = "de") -> str:
+    """Rich pre-loaded data for one-shot analysis (no OpenAI tool rounds)."""
+    import json
+
+    topic = (topic or "operations").strip().lower()
+    intel = ctx.get("intelligence") or {}
+    sec = ctx.get("security") or {}
+    payload: dict[str, Any] = {
+        "analysisTopic": topic,
+        "companyName": ctx.get("companyName"),
+        "date": ctx.get("date"),
+        "workersOnSite": ctx.get("workersOnSite"),
+        "onSiteNames": (ctx.get("onSiteNames") or [])[:20],
+        "operationalIssues": (ctx.get("operationalIssues") or [])[:8],
+        "busiestGates": (ctx.get("busiestGates") or [])[:5],
+        "emergency": ctx.get("emergency"),
+        "intelligence": intel,
+        "securityFindings": (sec.get("topFindings") or [])[:15],
+        "openSecurityFindings": sec.get("openFindings"),
+        "openSecurityAlerts": sec.get("openAlerts"),
+        "pendingLeave": ctx.get("pendingLeave"),
+    }
+    if topic in {"security", "operations", "executive"}:
+        payload["fraudSignals"] = (intel.get("fraud") or {}).get("signals") or []
+    if topic in {"compliance", "executive"}:
+        payload["workforceRisk"] = intel.get("risk") or {}
+    if topic in {"attendance", "hr", "executive"}:
+        payload["attendanceRisk"] = (intel.get("attendance") or {}).get("at_risk") or []
+
+    blob = json.dumps(payload, ensure_ascii=False)[:12000]
+    if lang == "en":
+        return (
+            f"Deep analysis topic: {topic}. Use ONLY this live JSON — do not invent data.\n"
+            f"Be concise: max 8 bullets + 3 prioritized actions.\n{blob}"
+        )
+    if lang == "ar":
+        return (
+            f"موضوع التحليل: {topic}. استخدم JSON فقط — لا تخترع بيانات.\n"
+            f"كن مختصراً: 8 نقاط كحد أقصى + 3 إجراءات.\n{blob}"
+        )
+    return (
+        f"Tiefenanalyse-Thema: {topic}. Nutze NUR dieses Live-JSON — keine erfundenen Daten.\n"
+        f"Kurz halten: max. 8 Bulletpoints + 3 priorisierte Maßnahmen.\n{blob}"
+    )

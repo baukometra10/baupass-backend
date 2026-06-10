@@ -49,6 +49,7 @@ def run_agent_query(
     history: list[dict] | None = None,
     spoken: bool = False,
     use_tools: bool = False,
+    extra_context: str = "",
 ) -> dict[str, Any]:
     if not is_ai_configured():
         return {
@@ -75,6 +76,8 @@ def run_agent_query(
     model, config_warning = resolve_ai_model()
 
     live_context = format_live_context_block(ctx, lang=lang)
+    if extra_context.strip():
+        live_context += "\n\n" + extra_context.strip()
     if rag_chunks:
         snippets = []
         for chunk in rag_chunks[:4]:
@@ -177,6 +180,7 @@ def run_agent_query_stream(
     history: list[dict] | None = None,
     spoken: bool = False,
     use_tools: bool = False,
+    extra_context: str = "",
 ) -> Generator[dict[str, Any], None, None]:
     """Yield progress events, then stream final answer tokens via OpenAI."""
     from .assistant import is_ai_configured
@@ -204,6 +208,8 @@ def run_agent_query_stream(
     tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
     model, config_warning = resolve_ai_model()
     live_context = format_live_context_block(ctx, lang=lang)
+    if extra_context.strip():
+        live_context += "\n\n" + extra_context.strip()
     if rag_chunks:
         snippets = []
         for chunk in rag_chunks[:4]:
@@ -341,6 +347,10 @@ def run_deep_analysis(
     }
     spec = prompts.get(topic, prompts["operations"])
     question = spec.get(lang[:2], spec["de"])
+    from .context_builder import build_compact_context, format_analysis_data_block
+
+    ctx = build_compact_context(db, company_id, role)
+    extra = format_analysis_data_block(ctx, topic, lang=lang)
     return run_agent_query(
         db,
         company_id,
@@ -348,5 +358,6 @@ def run_deep_analysis(
         agent_id=spec["agent"],
         lang=lang,
         role=role,
-        use_tools=True,
+        use_tools=False,
+        extra_context=extra,
     )

@@ -444,6 +444,13 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         tools_env = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
         use_tools = _parse_bool_flag(data.get("use_tools"), default=False) and tools_env
         db = get_db()
+        analysis_topic = str(data.get("analysis_topic") or "").strip().lower()
+        extra_context = ""
+        if analysis_topic:
+            from .context_builder import build_compact_context, format_analysis_data_block
+
+            ctx = build_compact_context(db, company_id, role)
+            extra_context = format_analysis_data_block(ctx, analysis_topic, lang=lang)
         history = []
         if session_id:
             sess = get_session(db, session_id, company_id=company_id, user_id=_user_id())
@@ -488,6 +495,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     history=history,
                     spoken=spoken,
                     use_tools=use_tools,
+                    extra_context=extra_context,
                 ):
                     if ev.get("type") == "done":
                         final = ev

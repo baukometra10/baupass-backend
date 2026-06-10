@@ -312,6 +312,10 @@
         companyPlaceholder: "— Firma —",
         navEnterpriseHub: "Funktionen & Tarife", navAdminV2: "Admin v2", navPosteingang: "Posteingang", navOpsLive: "Ops-Zentrale",
         topicSecurity: "Sicherheit", topicCompliance: "Compliance", topicAttendance: "Anwesenheit", topicExecutive: "Management",
+        analysisPrompt_security: "Sicherheitsanalyse (kurz): Alerts, Betrug, Anomalien und Top-3 Maßnahmen.",
+        analysisPrompt_compliance: "Compliance-Check (kurz): Dokumente, Sperren, Risiko-Score und Top-3 Maßnahmen.",
+        analysisPrompt_attendance: "Anwesenheitsanalyse (kurz): Ausfallrisiken der letzten 14 Tage und Top-3 Maßnahmen.",
+        analysisPrompt_executive: "Executive Summary (kurz): KPIs und Top-5 Maßnahmen für die Geschäftsführung.",
         statusLine: "{onsite} auf Baustelle · {security} Sicherheit · {queries} Anfragen (7T) · {refreshed} {time}",
         issueAskPrompt: "Was bedeutet dieser Hinweis und was soll ich tun? {msg}",
         voiceHint: "Mikrofon: tippen → sprechen (Text live) → erneut tippen → Senden.",
@@ -354,6 +358,10 @@
         companyPlaceholder: "— Company —",
         navEnterpriseHub: "Features & plans", navAdminV2: "Admin v2", navPosteingang: "Inbox", navOpsLive: "Ops center",
         topicSecurity: "Security", topicCompliance: "Compliance", topicAttendance: "Attendance", topicExecutive: "Executive",
+        analysisPrompt_security: "Security analysis (concise): alerts, fraud, anomalies, top 3 actions.",
+        analysisPrompt_compliance: "Compliance check (concise): documents, locks, risk score, top 3 actions.",
+        analysisPrompt_attendance: "Attendance analysis (concise): 14-day no-show risks, top 3 actions.",
+        analysisPrompt_executive: "Executive summary (concise): KPIs and top 5 actions.",
         statusLine: "{onsite} on site · {security} security · {queries} queries (7d) · {refreshed} {time}",
         issueAskPrompt: "What does this notice mean and what should I do? {msg}",
         voiceHint: "Mic: tap → speak (live text) → tap again → Send.",
@@ -396,6 +404,10 @@
         companyPlaceholder: "— الشركة —",
         navEnterpriseHub: "الميزات والخطط", navAdminV2: "Admin v2", navPosteingang: "البريد الوارد", navOpsLive: "مركز العمليات",
         topicSecurity: "الأمن", topicCompliance: "الامتثال", topicAttendance: "الحضور", topicExecutive: "الإدارة",
+        analysisPrompt_security: "تحليل أمني (مختصر): التنبيهات والاحتيال والشذوذ و3 إجراءات.",
+        analysisPrompt_compliance: "فحص امتثال (مختصر): الوثائق والإيقافات ومخاطر و3 إجراءات.",
+        analysisPrompt_attendance: "تحليل حضور (مختصر): مخاطر الغياب 14 يوماً و3 إجراءات.",
+        analysisPrompt_executive: "ملخص تنفيذي (مختصر): مؤشرات و5 إجراءات.",
         statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
         issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
         voiceHint: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
@@ -419,6 +431,12 @@
       compliance: "topicCompliance",
       attendance: "topicAttendance",
       executive: "topicExecutive",
+    };
+    const ANALYSIS_AGENT_IDS = {
+      security: "security",
+      compliance: "compliance",
+      attendance: "hr",
+      executive: "executive",
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
     function formatStatusLine(data, ts) {
@@ -1123,8 +1141,9 @@
           credentials: "include",
           headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({
-            question: q, company_id: selectedCompanyId, agent_id: activeAgent,
+            question: q, company_id: selectedCompanyId, agent_id: options.agentId || activeAgent,
             session_id: sessionId, lang: LANG, spoken: Boolean(options.spoken),
+            ...(options.analysisTopic ? { analysis_topic: options.analysisTopic } : {}),
           }),
         });
         let thinkingRemoved = false;
@@ -1268,27 +1287,11 @@
     };
 
     async function runAnalysis(topic) {
-      if (companyRequiredForUi()) {
-        appendMsg("bot", t("needCompany"));
-        return;
-      }
-      appendMsg("user", `[${topic}]`);
-      const thinking = document.createElement("div");
-      thinking.className = "msg-bot";
-      thinking.textContent = t("thinking");
-      document.getElementById("chatLog").appendChild(thinking);
-      try {
-        const data = await api("/api/ai/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic, company_id: selectedCompanyId, lang: LANG }),
-        });
-        thinking.remove();
-        appendMsg("bot", data.answer || "—", { sources: data.sources, toolsUsed: data.toolsUsed });
-      } catch (e) {
-        thinking.remove();
-        appendMsg("bot", e.payload?.hint || e.message);
-      }
+      const promptKey = `analysisPrompt_${topic}`;
+      const q = t(promptKey);
+      if (!q || q === promptKey) return;
+      const agentId = ANALYSIS_AGENT_IDS[topic] || "operations";
+      await submitQuestion(q, { spoken: false, agentId, analysisTopic: topic });
     }
 
     document.getElementById("chatForm").onsubmit = (ev) => {
