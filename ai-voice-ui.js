@@ -229,10 +229,10 @@
     }
     if (code === "openai_not_configured") {
       return ui === "ar"
-        ? "الصوت يحتاج OPENAI_API_KEY على السيرفر."
+        ? "الصوت يحتاج OPENAI_API_KEY أو Azure (AZURE_OPENAI_WHISPER_DEPLOYMENT) على السيرفر."
         : ui === "en"
-          ? "Voice needs OPENAI_API_KEY on the server."
-          : "Spracheingabe braucht OPENAI_API_KEY auf dem Server.";
+          ? "Voice needs OPENAI_API_KEY or Azure Whisper (AZURE_OPENAI_WHISPER_DEPLOYMENT) on the server."
+          : "Spracheingabe braucht OPENAI_API_KEY oder Azure Whisper auf dem Server.";
     }
     if (code === "feature_not_available") {
       return ui === "ar"

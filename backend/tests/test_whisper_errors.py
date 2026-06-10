@@ -1,4 +1,4 @@
-from backend.app.platform.ai.whisper import _parse_openai_http_error
+from backend.app.platform.ai.whisper import _parse_openai_http_error, list_whisper_providers
 
 
 def test_parse_insufficient_quota_json():
@@ -15,3 +15,13 @@ def test_parse_invalid_api_key():
     detail = '{"error":{"message":"Incorrect API key provided","type":"invalid_request_error","code":"invalid_api_key"}}'
     out = _parse_openai_http_error(detail)
     assert out["error"] == "openai_auth_error"
+
+
+def test_whisper_prefers_azure_when_configured(monkeypatch):
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    providers = list_whisper_providers()
+    assert len(providers) == 2
+    assert providers[0].provider == "azure"
+    assert providers[1].provider == "openai"

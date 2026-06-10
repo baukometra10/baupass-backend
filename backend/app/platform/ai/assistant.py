@@ -62,11 +62,13 @@ def resolve_ai_temperature(*, mode: str = "chat") -> float:
 
 def ai_config_status(lang: str = "de") -> dict[str, Any]:
     from .agents import list_agents
+    from .whisper import whisper_config_status
 
     lang = str(lang or "de")[:2]
     model, warning = resolve_ai_model()
     azure = bool((os.getenv("AZURE_OPENAI_API_KEY") or "").strip())
     openai = bool((os.getenv("OPENAI_API_KEY") or "").strip())
+    whisper = whisper_config_status()
     tools_on = os.getenv("BAUPASS_AI_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
     return {
         "configured": openai or azure,
@@ -74,6 +76,7 @@ def ai_config_status(lang: str = "de") -> dict[str, Any]:
         "model": model,
         "configWarning": warning,
         "agentsEnabled": bool(openai or azure),
+        "voiceTranscription": whisper,
         "toolCalling": tools_on,
         "agents": list_agents(lang),
         "features": [

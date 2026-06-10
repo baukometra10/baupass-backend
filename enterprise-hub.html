@@ -514,7 +514,7 @@
   </div>
 
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice5"></script>
+  <script src="/ai-voice-ui.js?v=20260601voice6"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -1719,6 +1719,13 @@
         const list = Array.isArray(rows) ? rows.filter((c) => !c.deleted_at) : [];
         sel.innerHTML = `<option value="">${t("allCompanies")}</option>` +
           list.map((c) => `<option value="${c.id}" ${c.id === selectedCompanyId ? "selected" : ""}>${c.name} (${planLabel(c.plan)})</option>`).join("");
+        if (!selectedCompanyId && list.length > 0) {
+          selectedCompanyId = list[0].id;
+          sel.value = selectedCompanyId;
+          const url = new URL(location.href);
+          url.searchParams.set("company_id", selectedCompanyId);
+          history.replaceState({}, "", url);
+        }
         sel.classList.remove("hidden");
         sel.title = t("companySelect");
         sel.onchange = () => {
