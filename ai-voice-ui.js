@@ -450,6 +450,15 @@
     return segments;
   }
 
+  function isOpenAiTtsBillingError(result) {
+    const code = String(result?.error || "").trim();
+    if (["openai_quota_exceeded", "openai_auth_error", "openai_not_configured", "openai_rate_limit"].includes(code)) {
+      return true;
+    }
+    const hint = String(result?.hint || "");
+    return /insufficient_quota|exceeded your current quota|invalid_api_key|authentication_error/i.test(hint);
+  }
+
   function fetchTtsBlob(text, lang, options = {}) {
     const url = options.speakUrl || "/api/ai/speak";
     return fetch(url, {
@@ -471,21 +480,27 @@
             hint: payload?.hint || "",
             status: res.status,
           };
-          global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+          if (!options.suppressTtsErrorEvent) {
+            global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+          }
           return detail;
         }
         const mime = res.headers.get("Content-Type") || "audio/mpeg";
         const blob = await res.blob();
         if (!blob?.size) {
           const detail = { error: "tts_empty", hint: "", status: res.status };
-          global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+          if (!options.suppressTtsErrorEvent) {
+            global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+          }
           return detail;
         }
         return { blob, mime };
       })
       .catch((err) => {
         const detail = { error: "tts_failed", hint: String(err?.message || err), status: 0 };
-        global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+        if (!options.suppressTtsErrorEvent) {
+          global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
+        }
         return detail;
       });
   }
@@ -519,16 +534,21 @@
 
   async function speakRemainingSegments(segments, lang, options, startIdx) {
     let playedAny = false;
+    let billingError = false;
+    const segOpts = { ...options, suppressTtsErrorEvent: true };
     for (let i = startIdx; i < segments.length; i++) {
       dispatchSpeakingState(true, { preparing: true });
-      const part = await fetchTtsBlob(segments[i], lang, options);
-      if (!part?.blob?.size) continue;
+      const part = await fetchTtsBlob(segments[i], lang, segOpts);
+      if (!part?.blob?.size) {
+        if (isOpenAiTtsBillingError(part)) billingError = true;
+        continue;
+      }
       dispatchSpeakingState(true, { preparing: false });
       ttsTurn.segmentsDone = i + 1;
       const ok = await playAudioBlob(part.blob, part.mime, { keepAlive: i < segments.length - 1 });
       if (ok) playedAny = true;
     }
-    return playedAny;
+    return { playedAny, billingError };
   }
 
   async function speakWithOpenAi(text, lang, options = {}) {
@@ -568,6 +588,49 @@
     return true;
   }
 
+  function speakWithBrowserAsync(text, lang, options = {}) {
+    return new Promise((resolve) => {
+      if (!ttsAvailable()) {
+        resolve(false);
+        return;
+      }
+      const utter = new global.SpeechSynthesisUtterance(text);
+      const ttsLang = LANG_MAP[resolveLang(lang)] || resolveSpeechLang({ lang });
+      utter.lang = ttsLang;
+      utter.rate = Number(options.rate) || 0.94;
+      utter.pitch = Number(options.pitch) || 1;
+      utter.volume = Number(options.volume) || 1;
+      const voice = pickVoiceForLang(lang);
+      if (voice) utter.voice = voice;
+      utter.onend = () => {
+        currentSpeechUtterance = null;
+        dispatchSpeakingState(false);
+        resolve(true);
+      };
+      utter.onerror = () => {
+        stopSpeaking();
+        resolve(false);
+      };
+      currentSpeechUtterance = utter;
+      dispatchSpeakingState(true);
+      global.speechSynthesis.speak(utter);
+    });
+  }
+
+  async function tryBrowserTtsFallback(text, lang, options, billingError) {
+    if (!billingError && !options.forceBrowserFallback) return false;
+    if (!ttsAvailable()) return false;
+    const full = splitSpeechSegments(text, lang, options).join(" ");
+    if (!full) return false;
+    const ok = await speakWithBrowserAsync(full, lang, options);
+    if (ok) {
+      global.dispatchEvent(new CustomEvent("baupass-ai-tts-fallback", {
+        detail: { reason: billingError ? "openai_billing" : "tts_failed", lang: resolveLang(lang) },
+      }));
+    }
+    return ok;
+  }
+
   async function speakReply(text, lang, options = {}) {
     const spoken = Boolean(options.spoken);
     if (!options.force && !spoken && !isVoiceReplyEnabled()) return false;
@@ -580,7 +643,10 @@
       const rest = splitSpeechSegments(text, lang, options);
       const start = Math.max(ttsTurn.segmentsDone, 1);
       if (start < rest.length) {
-        await speakRemainingSegments(rest, lang, options, start);
+        const { playedAny, billingError } = await speakRemainingSegments(rest, lang, options, start);
+        if (!playedAny) {
+          return tryBrowserTtsFallback(text, lang, options, billingError);
+        }
       }
       dispatchSpeakingState(false);
       return true;
@@ -588,9 +654,19 @@
 
     stopSpeaking();
     dispatchSpeakingState(true, { preparing: true });
-    const playedAny = await speakRemainingSegments(segments, lang, options, 0);
+    const { playedAny, billingError } = await speakRemainingSegments(segments, lang, options, 0);
+    if (playedAny) {
+      dispatchSpeakingState(false);
+      return true;
+    }
+    const browserOk = await tryBrowserTtsFallback(text, lang, options, billingError);
+    if (!browserOk && billingError) {
+      global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", {
+        detail: { error: "openai_quota_exceeded" },
+      }));
+    }
     dispatchSpeakingState(false);
-    return playedAny;
+    return browserOk;
   }
 
   async function speakText(text, lang, options = {}) {
