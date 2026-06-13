@@ -616,9 +616,12 @@
         planUpgradeCtaAdmin: "Tarif & Firma (Admin)",
         planUpgradeCtaProfessional: "Professional anfragen",
         planUpgradeCtaEnterprise: "Enterprise anfragen",
+        planUpgradeCtaAssignPro: "Professional zuweisen (Admin)",
+        planUpgradeCtaAssignEnt: "Enterprise zuweisen (Admin)",
         planUpgradeCtaCheckoutPro: "Professional buchen",
         planUpgradeCtaCheckoutEnt: "Enterprise buchen",
         planUpgradeCtaMail: "Upgrade per E-Mail",
+        planUpgradeMailFallback: "Kein E-Mail-Programm erkannt. Bitte schreiben Sie an:",
         monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
         monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
         monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
@@ -715,9 +718,12 @@
         planUpgradeCtaAdmin: "Plan & company (Admin)",
         planUpgradeCtaProfessional: "Request Professional",
         planUpgradeCtaEnterprise: "Request Enterprise",
+        planUpgradeCtaAssignPro: "Assign Professional (Admin)",
+        planUpgradeCtaAssignEnt: "Assign Enterprise (Admin)",
         planUpgradeCtaCheckoutPro: "Buy Professional",
         planUpgradeCtaCheckoutEnt: "Buy Enterprise",
         planUpgradeCtaMail: "Request upgrade by email",
+        planUpgradeMailFallback: "No mail app detected. Please email:",
         rolePlaybook: "Your operations playbook",
         rolePickCompany: "Select a company for live KPIs.",
         navAdminV2: "Admin v2",
@@ -805,9 +811,12 @@
         planUpgradeCtaAdmin: "الخطة والشركة (المشرف)",
         planUpgradeCtaProfessional: "طلب Professional",
         planUpgradeCtaEnterprise: "طلب Enterprise",
+        planUpgradeCtaAssignPro: "تعيين Professional (المشرف)",
+        planUpgradeCtaAssignEnt: "تعيين Enterprise (المشرف)",
         planUpgradeCtaCheckoutPro: "حجز Professional",
         planUpgradeCtaCheckoutEnt: "حجز Enterprise",
         planUpgradeCtaMail: "ترقية عبر البريد",
+        planUpgradeMailFallback: "لم يُعثر على برنامج بريد. راسلنا على:",
         monatsplanTitle: "الخطة الشهرية (Einsatzplan) — 4 خطوات",
         monatsplanStep1: "اختر الشهر أعلاه",
         monatsplanStep2: "لكل موظف: الموقع + الوقت ثم حفظ",
@@ -1321,15 +1330,52 @@
       window.location.href = u.pathname + u.search + u.hash;
     }
 
+    function hubUpgradePlanLabel(planKey, selfServe) {
+      const plan = String(planKey || "").trim().toLowerCase();
+      const role = String(currentUserRole || "").toLowerCase();
+      if (selfServe) {
+        return plan === "enterprise" ? t("planUpgradeCtaCheckoutEnt") : t("planUpgradeCtaCheckoutPro");
+      }
+      if (role === "superadmin") {
+        return plan === "enterprise" ? t("planUpgradeCtaAssignEnt") : t("planUpgradeCtaAssignPro");
+      }
+      return plan === "enterprise" ? t("planUpgradeCtaEnterprise") : t("planUpgradeCtaProfessional");
+    }
+
     function hubUpgradeMailto(planKey) {
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || selectedCompanyId || "";
       const plan = String(planKey || "professional").trim();
-      const subject = encodeURIComponent(`BauPass Tarif-Upgrade: ${plan}`);
-      const body = encodeURIComponent(
-        `Gewünschter Tarif: ${plan}\nFirma-ID: ${companyId || "—"}\n\nBitte kontaktieren Sie uns für ein Angebot.`,
-      );
-      window.location.href = `mailto:support@baupass.de?subject=${subject}&body=${body}`;
+      const subject = `BauPass Tarif-Upgrade: ${plan}`;
+      const body = `Gewünschter Tarif: ${plan}\nFirma-ID: ${companyId || "—"}\n\nBitte kontaktieren Sie uns für ein Angebot.`;
+      const mailUrl = `mailto:support@baupass.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const fallbackText = `${t("planUpgradeMailFallback")}\nsupport@baupass.de\n\n${subject}`;
+      if (window.self !== window.top) {
+        try {
+          window.parent.postMessage(
+            {
+              type: "baupass-upgrade-mail",
+              plan,
+              companyId,
+              mailto: mailUrl,
+              contactEmail: "support@baupass.de",
+              fallbackText,
+            },
+            location.origin,
+          );
+        } catch {
+          alert(fallbackText);
+        }
+        return;
+      }
+      try {
+        const mailWindow = window.open(mailUrl, "_blank", "noopener,noreferrer");
+        if (!mailWindow) {
+          alert(fallbackText);
+        }
+      } catch {
+        alert(fallbackText);
+      }
     }
 
     function hubCanSelfServeCheckout() {
@@ -1368,7 +1414,8 @@
           hubRequestStripeCheckout(target);
           return;
         }
-        if (String(currentUserRole || "").toLowerCase() === "company-admin") {
+        const role = String(currentUserRole || "").toLowerCase();
+        if (role === "company-admin" || role === "superadmin") {
           hubOpenUpgradeAdmin({ targetPlan: target });
           return;
         }
@@ -1502,12 +1549,12 @@
       }
       if (plan !== "professional" && plan !== "enterprise") {
         ctas.push(
-          `<button type="button" data-hub-upgrade="professional">${selfServe ? t("planUpgradeCtaCheckoutPro") : t("planUpgradeCtaProfessional")}</button>`,
+          `<button type="button" data-hub-upgrade="professional">${hubUpgradePlanLabel("professional", selfServe)}</button>`,
         );
       }
       if (plan !== "enterprise") {
         ctas.push(
-          `<button type="button" data-hub-upgrade="enterprise">${selfServe ? t("planUpgradeCtaCheckoutEnt") : t("planUpgradeCtaEnterprise")}</button>`,
+          `<button type="button" data-hub-upgrade="enterprise">${hubUpgradePlanLabel("enterprise", selfServe)}</button>`,
         );
       }
       if (!selfServe) {

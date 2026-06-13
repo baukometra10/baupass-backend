@@ -1133,6 +1133,7 @@ const UI_TRANSLATIONS = {
     billingUpgradeSuccess: "Plan erfolgreich aktualisiert. Vielen Dank!",
     billingUpgradePending: "Zahlung eingegangen. Plan-Aktualisierung kann wenige Minuten dauern.",
     billingUpgradeCancelled: "Checkout abgebrochen — kein Plan gewechselt.",
+    hubUpgradeAdminHint: "Tarif {plan}: Firma in der Liste wählen → Plan ändern → speichern.",
     billingPaymentLinkFailed: "Zahlungslink fehlgeschlagen: {error}",
     billingRevenueMrr: "Geschätzter MRR (netto)",
     billingRevenueOpen: "Offene Forderungen",
@@ -2267,6 +2268,7 @@ const UI_TRANSLATIONS = {
     billingUpgradeSuccess: "Plan updated successfully. Thank you!",
     billingUpgradePending: "Payment received. Plan update may take a few minutes.",
     billingUpgradeCancelled: "Checkout cancelled — plan unchanged.",
+    hubUpgradeAdminHint: "Plan {plan}: pick company in list → change plan → save.",
     billingPaymentLinkFailed: "Payment link failed: {error}",
     billingRevenueMrr: "Estimated MRR (net)",
     billingRevenueOpen: "Open receivables",
@@ -17393,7 +17395,7 @@ function buildEnterpriseEmbedUrl(item) {
     params.push("embed=1");
   }
   if (item.version) {
-    params.push("v=20260609hubi18n");
+    params.push("v=20260601hubupgrade1");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
     params.push("tab=workers");
@@ -18065,8 +18067,17 @@ function scheduleHubUpgradeFocus(targetView) {
     }
     if (wantCompanies) {
       pendingFocusCompanies = false;
+      const plan = String(pendingHubUpgradePlan || "").trim().toLowerCase();
       pendingHubUpgradePlan = "";
       document.getElementById("companyList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (plan) {
+        showToast(
+          runtimeTextTemplate("hubUpgradeAdminHint", { plan: plan.toUpperCase() })
+            || `Tarif ${plan.toUpperCase()}: Firma in der Liste wählen → Plan ändern → speichern.`,
+          "info",
+          10000,
+        );
+      }
     }
   });
 }
@@ -33130,6 +33141,26 @@ window.addEventListener("message", (event) => {
       return;
     }
     void tryHubUpgradeCheckout(event.data.plan);
+    return;
+  }
+  if (event.data.type === "baupass-upgrade-mail") {
+    const contactEmail = String(event.data.contactEmail || "support@baupass.de").trim();
+    const fallbackText = String(event.data.fallbackText || "").trim();
+    showToast(
+      fallbackText || `${uiT("billingStripeUnavailable") || "E-Mail"}: ${contactEmail}`,
+      "info",
+      12000,
+    );
+    if (event.data.mailto) {
+      try {
+        const mailWindow = window.open(String(event.data.mailto), "_blank", "noopener,noreferrer");
+        if (!mailWindow && fallbackText) {
+          showToast(fallbackText.replace(/\n/g, " · "), "info", 14000);
+        }
+      } catch {
+        /* toast already shown */
+      }
+    }
     return;
   }
   if (event.data.type !== "baupass-navigate") {
