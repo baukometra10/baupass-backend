@@ -3,17 +3,17 @@
  * Import in HTML: <link rel="stylesheet" href="/design-tokens.css">
  */
 :root {
-  --bp-color-primary: #a66a3d;
-  --bp-color-primary-dark: #8a5632;
-  --bp-color-surface: #fff8f1;
-  --bp-color-surface-elevated: #ffffff;
-  --bp-color-text: #1f1f1f;
-  --bp-color-text-muted: #5f5f5f;
-  --bp-color-border: rgba(0, 0, 0, 0.08);
+  --bp-color-primary: #38bdf8;
+  --bp-color-primary-dark: #2563eb;
+  --bp-color-surface: #0b1020;
+  --bp-color-surface-elevated: #111a2d;
+  --bp-color-text: #ecf6ff;
+  --bp-color-text-muted: #8aa2bf;
+  --bp-color-border: rgba(120, 156, 255, 0.16);
   --bp-radius-sm: 8px;
   --bp-radius-md: 12px;
   --bp-radius-lg: 20px;
-  --bp-shadow-card: 0 18px 40px rgba(0, 0, 0, 0.12);
+  --bp-shadow-card: 0 22px 55px rgba(0, 0, 0, 0.36);
   --bp-font-sans: "Segoe UI", system-ui, Arial, sans-serif;
   --bp-space-xs: 4px;
   --bp-space-sm: 8px;
@@ -21,14 +21,14 @@
   --bp-space-lg: 24px;
 
   /* Ops / command centers (dark surfaces) */
-  --bp-ops-bg: #0b1220;
-  --bp-ops-surface: #111827;
-  --bp-ops-surface-2: #1f2937;
-  --bp-ops-border: rgba(255, 255, 255, 0.08);
-  --bp-ops-text: #f3f4f6;
-  --bp-ops-muted: #9ca3af;
+  --bp-ops-bg: #050816;
+  --bp-ops-surface: #0c1224;
+  --bp-ops-surface-2: #111a33;
+  --bp-ops-border: rgba(120, 156, 255, 0.14);
+  --bp-ops-text: #eaf3ff;
+  --bp-ops-muted: #8ea4c0;
   --bp-ops-accent: #38bdf8;
   --bp-ops-warn: #fbbf24;
-  --bp-ops-danger: #f87171;
-  --bp-ops-success: #34d399;
+  --bp-ops-danger: #fb7185;
+  --bp-ops-success: #22c55e;
 }

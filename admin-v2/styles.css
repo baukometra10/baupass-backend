@@ -1,17 +1,17 @@
 :root {
-  --bg: #0a0f14;
-  --panel: #121a24;
-  --panel-2: #182230;
-  --text: #eef4f9;
-  --muted: #8fa0b0;
-  --accent: #1a8aad;
-  --accent-hover: #22a8d4;
-  --accent-soft: rgba(34, 168, 212, 0.12);
-  --danger: #e05d5d;
-  --border: #2a3848;
+  --bg: #050816;
+  --panel: rgba(10, 16, 30, 0.92);
+  --panel-2: rgba(16, 24, 44, 0.92);
+  --text: #eef6ff;
+  --muted: #8ea4c0;
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-soft: rgba(56, 189, 248, 0.14);
+  --danger: #fb7185;
+  --border: rgba(120, 156, 255, 0.16);
   --sidebar-w: 248px;
   --radius: 10px;
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --shadow: 0 22px 55px rgba(0, 0, 0, 0.46);
   --touch-min: 44px;
 }
 
@@ -49,11 +49,28 @@ html {
 body {
   margin: 0;
   font-family: "Segoe UI", system-ui, sans-serif;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 12% 12%, rgba(56, 189, 248, 0.18), transparent 24%),
+    radial-gradient(circle at 88% 18%, rgba(99, 102, 241, 0.16), transparent 22%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.06), transparent 30%),
+    linear-gradient(145deg, #050816 0%, #081124 38%, #050816 100%);
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
   max-width: 100vw;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(120, 156, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 156, 255, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.55), transparent 76%);
+  opacity: 0.45;
 }
 
 /* WCAG: visible keyboard focus (section 6 / 17) */

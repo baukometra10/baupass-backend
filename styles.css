@@ -168,22 +168,22 @@
   color: #163842;
 }
 :root {
-  --bg: #ece3d1;
-  --surface: rgba(255, 252, 246, 0.84);
-  --surface-strong: #fffef9;
-  --surface-alt: #151a20;
-  --text: #121518;
-  --muted: #4f5862;
-  --line: rgba(18, 21, 24, 0.1);
-  --accent: #ca5a2d;
-  --accent-soft: #ffe3cf;
-  --accent-dark: #7f3018;
-  --ink-deep: #0d131a;
-  --teal-soft: #2a7177;
-  --success: #167857;
-  --warning: #efb43d;
-  --danger: #c53d2f;
-  --shadow: 0 26px 64px rgba(35, 24, 14, 0.16);
+  --bg: #050816;
+  --surface: rgba(11, 16, 32, 0.84);
+  --surface-strong: #111a2f;
+  --surface-alt: #0b1224;
+  --text: #eef6ff;
+  --muted: #8ea4c0;
+  --line: rgba(120, 156, 255, 0.16);
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.18);
+  --accent-dark: #2563eb;
+  --ink-deep: #050816;
+  --teal-soft: #7dd3fc;
+  --success: #22c55e;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+  --shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
   --radius-xl: 28px;
   --radius-lg: 20px;
   --radius-md: 14px;
@@ -206,9 +206,10 @@ body {
   color: var(--text);
   font-family: "Barlow", sans-serif;
   background:
-    radial-gradient(circle at 8% 0%, rgba(202, 90, 45, 0.2), transparent 30%),
-    radial-gradient(circle at 100% 12%, rgba(42, 113, 119, 0.2), transparent 30%),
-    linear-gradient(155deg, #f6efe2 0%, #ede2cf 52%, #e6dbc8 100%);
+    radial-gradient(circle at 8% 0%, rgba(56, 189, 248, 0.18), transparent 30%),
+    radial-gradient(circle at 100% 12%, rgba(99, 102, 241, 0.18), transparent 30%),
+    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.08), transparent 28%),
+    linear-gradient(155deg, #050816 0%, #081124 52%, #050816 100%);
 }
 
 body::before,
@@ -225,7 +226,7 @@ body::before {
   width: 340px;
   height: 340px;
   border-radius: 44% 56% 62% 38% / 49% 34% 66% 51%;
-  background: radial-gradient(circle at 28% 30%, rgba(202, 90, 45, 0.18), rgba(202, 90, 45, 0));
+  background: radial-gradient(circle at 28% 30%, rgba(56, 189, 248, 0.2), rgba(56, 189, 248, 0));
   animation: blob-drift 14s ease-in-out infinite;
 }
 
@@ -237,12 +238,12 @@ body::after {
   background:
     repeating-linear-gradient(
       112deg,
-      rgba(255, 255, 255, 0.08) 0,
-      rgba(255, 255, 255, 0.08) 8px,
-      rgba(255, 255, 255, 0) 8px,
-      rgba(255, 255, 255, 0) 16px
+      rgba(120, 156, 255, 0.08) 0,
+      rgba(120, 156, 255, 0.08) 8px,
+      rgba(120, 156, 255, 0) 8px,
+      rgba(120, 156, 255, 0) 16px
     ),
-    radial-gradient(circle at 40% 30%, rgba(42, 113, 119, 0.18), rgba(42, 113, 119, 0));
+    radial-gradient(circle at 40% 30%, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0));
   animation: blob-drift 18s ease-in-out infinite reverse;
 }
 

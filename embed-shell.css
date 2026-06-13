@@ -38,7 +38,7 @@ body:not(.auth-locked) {
   z-index: 40;
   margin: 0 0 12px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(120, 156, 255, 0.24);
 }
 
 .content.has-embed-view {
@@ -76,8 +76,8 @@ body:not(.auth-locked) {
   flex: 1;
   min-height: 0;
   border-radius: 14px;
-  border: 1px solid rgba(94, 234, 212, 0.14);
-  background: linear-gradient(165deg, #0e151d 0%, #0a1016 100%);
+  border: 1px solid rgba(120, 156, 255, 0.18);
+  background: linear-gradient(165deg, #0a1020 0%, #050816 100%);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -85,8 +85,8 @@ body:not(.auth-locked) {
   padding: 0.55rem 0.9rem;
   gap: 0.5rem;
   flex-shrink: 0;
-  background: rgba(15, 23, 32, 0.96);
-  border-bottom: 1px solid rgba(94, 234, 212, 0.12);
+  background: rgba(10, 16, 30, 0.96);
+  border-bottom: 1px solid rgba(120, 156, 255, 0.12);
   box-shadow: none;
 }
 
@@ -97,7 +97,7 @@ body:not(.auth-locked) {
 .enterprise-embed-title {
   font-size: 0.78rem;
   letter-spacing: 0.1em;
-  color: #5eead4;
+  color: #7dd3fc;
   opacity: 1;
 }
 
@@ -106,14 +106,14 @@ body:not(.auth-locked) {
   padding: 0.4rem 0.75rem !important;
   font-size: 0.76rem !important;
   border-radius: 10px !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(120, 156, 255, 0.14) !important;
+  color: #eaf3ff !important;
 }
 
 .enterprise-embed-toolbar .ghost-button:hover {
-  background: rgba(94, 234, 212, 0.12) !important;
-  border-color: rgba(94, 234, 212, 0.35) !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
 }
 
 .enterprise-embed-frame.is-hidden {
@@ -132,7 +132,7 @@ body:not(.auth-locked) {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: radial-gradient(ellipse at 50% 0%, rgba(15, 76, 92, 0.35), transparent 70%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.24), transparent 70%);
 }
 
 .embed-frame-fallback.hidden {
@@ -144,8 +144,8 @@ body:not(.auth-locked) {
   text-align: center;
   padding: 1.75rem 1.5rem;
   border-radius: 16px;
-  border: 1px solid rgba(94, 234, 212, 0.22);
-  background: rgba(14, 21, 29, 0.92);
+  border: 1px solid rgba(120, 156, 255, 0.18);
+  background: rgba(10, 16, 30, 0.92);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -154,20 +154,20 @@ body:not(.auth-locked) {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(94, 234, 212, 0.85);
+  color: rgba(125, 211, 252, 0.9);
 }
 
 .embed-frame-fallback-title {
   margin: 0 0 0.65rem;
   font-size: 1.15rem;
-  color: #e8eef4;
+  color: #eef6ff;
 }
 
 .embed-frame-fallback-msg {
   margin: 0 0 1.1rem;
   font-size: 0.88rem;
   line-height: 1.45;
-  color: #94a3b8;
+  color: #8ea4c0;
 }
 
 .embed-frame-fallback-actions {
@@ -183,7 +183,7 @@ body:not(.auth-locked) {
   width: 100%;
   height: 100%;
   border: none;
-  background: #0a1016;
+  background: #050816;
 }
 
 /* ── Iframe children (enterprise-hub, ai-command-center, admin-v2) ── */
@@ -198,7 +198,10 @@ body.embed-mode {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #0a1016;
+  background:
+    radial-gradient(circle at 14% 12%, rgba(56, 189, 248, 0.14), transparent 26%),
+    radial-gradient(circle at 88% 10%, rgba(99, 102, 241, 0.12), transparent 24%),
+    linear-gradient(145deg, #050816 0%, #081124 42%, #050816 100%);
 }
 
 body.embed-mode .embed-scroll-main {
@@ -209,7 +212,7 @@ body.embed-mode .embed-scroll-main {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(94, 234, 212, 0.35) rgba(10, 16, 22, 0.8);
+  scrollbar-color: rgba(56, 189, 248, 0.35) rgba(5, 8, 22, 0.8);
 }
 
 body.embed-mode .embed-scroll-main::-webkit-scrollbar {
@@ -217,23 +220,23 @@ body.embed-mode .embed-scroll-main::-webkit-scrollbar {
 }
 
 body.embed-mode .embed-scroll-main::-webkit-scrollbar-track {
-  background: rgba(10, 16, 22, 0.85);
+  background: rgba(5, 8, 22, 0.85);
   border-radius: 6px;
 }
 
 body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb {
-  background: rgba(94, 234, 212, 0.32);
+  background: rgba(56, 189, 248, 0.32);
   border-radius: 6px;
 }
 
 body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb:hover {
-  background: rgba(94, 234, 212, 0.5);
+  background: rgba(56, 189, 248, 0.5);
 }
 
 /* Custom scrollbars on main content column (Control Pass views) */
 .content .view.active:not(.view-embed) {
   scrollbar-width: thin;
-  scrollbar-color: rgba(42, 113, 119, 0.45) rgba(246, 239, 226, 0.5);
+  scrollbar-color: rgba(56, 189, 248, 0.45) rgba(5, 8, 22, 0.55);
 }
 
 .content .view.active:not(.view-embed)::-webkit-scrollbar {
@@ -241,12 +244,12 @@ body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb:hover {
 }
 
 .content .view.active:not(.view-embed)::-webkit-scrollbar-track {
-  background: rgba(246, 239, 226, 0.45);
+  background: rgba(5, 8, 22, 0.45);
   border-radius: 8px;
 }
 
 .content .view.active:not(.view-embed)::-webkit-scrollbar-thumb {
-  background: rgba(42, 113, 119, 0.4);
+  background: rgba(56, 189, 248, 0.4);
   border-radius: 8px;
 }
 
