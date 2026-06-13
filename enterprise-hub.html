@@ -215,37 +215,41 @@
       text-decoration: none;
     }
     .playbook-links .playbook-link-deployment {
-      border-color: rgba(94, 234, 212, 0.5);
-      background: rgba(15, 76, 92, 0.35);
+      border-color: rgba(125, 211, 252, 0.45);
+      background: rgba(10, 16, 30, 0.72);
+      color: #ffffff;
       font-weight: 700;
       cursor: pointer;
       font-family: inherit;
     }
     .playbook-links .playbook-link-deployment:hover {
-      background: rgba(94, 234, 212, 0.22);
+      background: rgba(56, 189, 248, 0.16);
+      border-color: rgba(56, 189, 248, 0.55);
     }
     .role-playbook {
-      background: linear-gradient(135deg, #152535, #1a3040);
-      border: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(10, 16, 30, 0.96), rgba(16, 24, 44, 0.98));
+      border: 1px solid rgba(120, 156, 255, 0.16);
       border-radius: 12px;
-      padding: 0.85rem 1rem;
+      padding: 0.95rem 1rem;
       margin-bottom: 1rem;
+      color: #ffffff;
     }
-    .role-playbook h3 { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--accent); }
+    .role-playbook h3 { margin: 0 0 0.5rem; font-size: 1rem; font-weight: 800; letter-spacing: 0.01em; color: #7dd3fc; }
     .playbook-widgets { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem; }
     .playbook-widget {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-      padding: 0.45rem 0.65rem; font-size: 0.78rem; min-width: 110px;
+      background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(120, 156, 255, 0.14); border-radius: 10px;
+      padding: 0.5rem 0.7rem; font-size: 0.82rem; min-width: 110px; color: #ffffff;
     }
-    .playbook-widget strong { display: block; font-size: 1.05rem; color: var(--accent); }
+    .playbook-widget strong { display: block; font-size: 1.1rem; color: #ffffff; line-height: 1.15; }
     .playbook-widget.sev-high strong { color: #fbbf24; }
     .playbook-widget.sev-medium strong { color: #fbbf24; }
     .playbook-links { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .playbook-links a {
-      font-size: 0.75rem; padding: 0.3rem 0.55rem; border-radius: 8px;
-      border: 1px solid var(--border); text-decoration: none; color: var(--accent);
+      font-size: 0.8rem; padding: 0.35rem 0.6rem; border-radius: 8px;
+      border: 1px solid rgba(120, 156, 255, 0.16); text-decoration: none; color: #ffffff;
+      background: rgba(255, 255, 255, 0.03);
     }
-    .plan-banner strong { color: var(--accent); font-size: 1.2rem; }
+    .plan-banner strong { color: #ffffff; font-size: 1.35rem; font-weight: 800; letter-spacing: 0.01em; }
     .plan-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin: 0.75rem 0; }
     .plan-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem; font-size: 0.78rem; text-align: center; }
     .plan-card.current { outline: 2px solid var(--accent); }
@@ -258,8 +262,9 @@
       border-radius: 10px;
       border: 1px solid rgba(248, 113, 113, 0.35);
       background: rgba(127, 29, 29, 0.18);
-      font-size: 0.82rem;
-      line-height: 1.4;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: #eef6ff;
     }
     .plan-upgrade-banner strong { color: #fca5a5; }
     .plan-upgrade-cta-row {
@@ -278,7 +283,7 @@
       cursor: pointer;
     }
     .plan-upgrade-cta-row button:hover { background: rgba(26, 138, 173, 0.45); }
-    .cap:not(.locked):hover { border-color: rgba(34, 168, 212, 0.45); background: #121c28; }
+    .cap:not(.locked):hover { border-color: rgba(56, 189, 248, 0.45); background: #121c28; }
     .cap-detail-panel {
       position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center;
       background: rgba(0, 0, 0, 0.55); padding: 1rem;

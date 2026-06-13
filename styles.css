@@ -619,17 +619,23 @@ body.embed-mode.admin-v2-embed #app {
 }
 
 .enterprise-hub-banner {
-  border: 2px solid var(--enterprise-accent, #fbbf24);
-  background: linear-gradient(135deg, var(--enterprise-bg-start, #1a2838), var(--enterprise-bg-end, #0d131a));
+  border: 1px solid rgba(120, 156, 255, 0.2);
+  background: linear-gradient(135deg, rgba(10, 16, 30, 0.98), rgba(16, 24, 44, 0.98));
+  color: #ffffff;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.32);
 }
 
 .enterprise-hub-banner-eyebrow {
-  color: var(--enterprise-accent, #fbbf24);
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .enterprise-hub-plan-hint {
   margin-top: 0.35rem;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #ffffff;
 }
 
 .enterprise-banner-actions {
@@ -643,11 +649,11 @@ body.embed-mode.admin-v2-embed #app {
   border: 1px solid rgba(255, 255, 255, 0.07);
   padding: 10px 12px;
   border-radius: 12px;
-  font-size: 0.9rem;
-  line-height: 1.25;
+  font-size: 0.95rem;
+  line-height: 1.35;
   text-align: left;
-  color: rgba(255, 247, 239, 0.82);
-  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
@@ -656,9 +662,9 @@ body.embed-mode.admin-v2-embed #app {
 
 .nav-link:hover,
 .nav-link.active {
-  color: white;
+  color: #ffffff;
   border-color: rgba(255, 255, 255, 0.2);
-  background: linear-gradient(135deg, rgba(202, 90, 45, 0.86), rgba(127, 48, 24, 0.95));
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.24));
   transform: translateX(4px);
 }
 
