@@ -469,7 +469,12 @@ def register_enterprise_routes(flask_app):
 
         payload_raw = request.get_data() or b""
         sig = request.headers.get("Stripe-Signature") or ""
-        if stripe_service._webhook_secret():
+        if stripe_service.webhook_signature_required():
+            if not stripe_service._webhook_secret():
+                return jsonify({"error": "webhook_secret_missing"}), 503
+            if not stripe_service.verify_webhook_signature(payload_raw, sig):
+                return jsonify({"error": "invalid_signature"}), 400
+        elif stripe_service._webhook_secret():
             if not stripe_service.verify_webhook_signature(payload_raw, sig):
                 return jsonify({"error": "invalid_signature"}), 400
         try:
@@ -636,6 +641,46 @@ def register_enterprise_routes(flask_app):
 
         period = (request.args.get("period") or "").strip()[:7]
         return jsonify(oracle_export_preview(get_db(), _company_id(), period=period))
+
+    @enterprise_bp.post("/integrations/sap/export")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def sap_export_push_route():
+        from backend.server import get_db
+        from .erp_adapters import push_erp_export
+        from .integration_oauth import extract_oauth_config
+
+        data = request.get_json(silent=True) or {}
+        period = str(data.get("period") or request.args.get("period") or "").strip()[:7]
+        dry_run = bool(data.get("dryRun") or data.get("dry_run"))
+        cid = _company_id()
+        row = get_db().execute(
+            "SELECT config_json FROM integration_connections WHERE company_id = ? AND provider = 'sap' LIMIT 1",
+            (cid,),
+        ).fetchone()
+        cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+        cfg.update(extract_oauth_config(cfg))
+        return jsonify(push_erp_export(get_db(), cid, "sap", cfg, period=period, dry_run=dry_run))
+
+    @enterprise_bp.post("/integrations/oracle/export")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def oracle_export_push_route():
+        from backend.server import get_db
+        from .erp_adapters import push_erp_export
+        from .integration_oauth import extract_oauth_config
+
+        data = request.get_json(silent=True) or {}
+        period = str(data.get("period") or request.args.get("period") or "").strip()[:7]
+        dry_run = bool(data.get("dryRun") or data.get("dry_run"))
+        cid = _company_id()
+        row = get_db().execute(
+            "SELECT config_json FROM integration_connections WHERE company_id = ? AND provider = 'oracle' LIMIT 1",
+            (cid,),
+        ).fetchone()
+        cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+        cfg.update(extract_oauth_config(cfg))
+        return jsonify(push_erp_export(get_db(), cid, "oracle", cfg, period=period, dry_run=dry_run))
 
     @enterprise_bp.get("/integrations/<provider>/health")
     @require_auth

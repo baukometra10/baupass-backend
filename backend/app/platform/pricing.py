@@ -1,43 +1,40 @@
 """
-Market-aligned SaaS pricing for BauPass (DE construction workforce + access control).
+Canonical BauPass SaaS pricing — single source of truth for admin, billing, Stripe, and UI.
 
-Benchmarks (2025–2026):
-- Crewly: 49 €/mo + 4,99 €/worker (10 incl.) — attendance, NFC, DATEV
-- 123erfasst: 7–12 €/user/mo — personnel/time modules
-- Ditio: ~17 €/active user/mo — construction ERP-lite
-- Access control cloud: 3,50–15 €/door/mo
-
-BauPass bundles access control, badges (QR/NFC/Wallet), worker app, invoicing, dunning,
-real-time ops and enterprise integrations — priced at a fair premium over point solutions,
-not below commodity trackers and not at legacy flat-rate extremes.
+Plans (net EUR, excl. VAT):
+- Tageskarte: 19/day
+- Starter: 149/month (10 workers included)
+- Professional: 999/month + 2.50/worker
+- Enterprise: 2,490/month + 3.00/worker
 """
 from __future__ import annotations
 
 from typing import Any
 
 PLAN_ORDER = ("tageskarte", "starter", "professional", "enterprise")
+PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
 
-# Monthly net base fee (EUR, excl. VAT)
+# Monthly net base fee (EUR, excl. VAT). Tageskarte is per day.
 PLAN_NET_PRICE_EUR: dict[str, float] = {
-    "tageskarte": 29.0,       # per day / short-term site
-    "starter": 69.0,
-    "professional": 249.0,
-    "enterprise": 599.0,
+    "tageskarte": 19.0,
+    "starter": 149.0,
+    "professional": 999.0,
+    "enterprise": 2490.0,
 }
 
 # Per active worker beyond included quota (EUR/mo, excl. VAT)
 PLAN_WORKER_PRICE_EUR: dict[str, float] = {
     "tageskarte": 0.0,
-    "starter": 5.99,
-    "professional": 7.50,
-    "enterprise": 9.50,
+    "starter": 0.0,
+    "professional": 2.50,
+    "enterprise": 3.00,
 }
 
 PLAN_WORKER_FREE_INCLUDED: dict[str, int] = {
     "tageskarte": 0,
     "starter": 10,
-    "professional": 25,
-    "enterprise": 50,
+    "professional": 0,
+    "enterprise": 0,
 }
 
 # Annual prepay: ~2 months free on base fee
@@ -58,58 +55,61 @@ def checkout_trial_days() -> int:
             pass
     return DEFAULT_CHECKOUT_TRIAL_DAYS
 
+
 PLAN_MARKETING: dict[str, dict[str, Any]] = {
     "tageskarte": {
         "label": "Tageskarte",
         "labelAr": "بطاقة يومية",
-        "priceEur": 29,
         "priceUnit": "day",
         "priceUnitAr": "يوم",
         "taglineDe": "Besucher & Kurzzeit-Zutritt",
         "taglineEn": "Visitors and short-term site access",
         "taglineAr": "زوار ودخول مؤقت للموقع",
-        "benchmarkNoteDe": "Vergleich: Tages-Pass-Lösungen ab ~25 €/Tag",
+        "benchmarkNoteDe": "Kurzzeit-Zutritt für Besucher und Subunternehmer",
     },
     "starter": {
         "label": "Starter",
         "labelAr": "مبتدئ",
-        "priceEur": 69,
         "priceUnit": "month",
         "priceUnitAr": "شهر",
-        "workersIncluded": 10,
-        "workerOverageEur": 5.99,
         "taglineDe": "Worker-App, NFC, Urlaub — bis 10 MA inkl.",
         "taglineEn": "Worker app, NFC, leave — 10 workers included",
         "taglineAr": "تطبيق الموظف + NFC + إجازات — 10 موظفين مشمولين",
-        "benchmarkNoteDe": "Vergleich: Crewly 49 € + 4,99 €/MA",
+        "benchmarkNoteDe": "Kleine Baustellen & Subunternehmer",
     },
     "professional": {
         "label": "Professional",
         "labelAr": "احترافي",
-        "priceEur": 249,
         "priceUnit": "month",
         "priceUnitAr": "شهر",
-        "workersIncluded": 25,
-        "workerOverageEur": 7.50,
         "taglineDe": "Echtzeit, Automatisierung, Fakturierung & Mahnwesen",
         "taglineEn": "Real-time ops, automation, invoicing & dunning",
         "taglineAr": "تشغيل لحظي + أتمتة + فوترة + تذكيرات",
-        "benchmarkNoteDe": "Vergleich: 123erfasst Pro ~12 €/MA",
+        "benchmarkNoteDe": "999 €/Monat + 2,50 € pro aktivem Mitarbeiter",
     },
     "enterprise": {
         "label": "Enterprise",
         "labelAr": "مؤسسي",
-        "priceEur": 599,
         "priceUnit": "month",
         "priceUnitAr": "شهر",
-        "workersIncluded": 50,
-        "workerOverageEur": 9.50,
-        "taglineDe": "KI, Wallet-Pässe, Integrationen, Command Center",
-        "taglineEn": "AI, wallet passes, integrations, command center",
-        "taglineAr": "AI + محافظ رقمية + تكاملات + قيادة مركزية",
-        "benchmarkNoteDe": "Vergleich: Enterprise-HR/Access ab ~500 €/Mo",
+        "taglineDe": "KI, Wallet-Pässe, SAP/Oracle, Command Center",
+        "taglineEn": "AI, wallet passes, SAP/Oracle, command center",
+        "taglineAr": "AI + محافظ رقمية + SAP/Oracle + قيادة مركزية",
+        "benchmarkNoteDe": "2.490 €/Monat + 3,00 € pro aktivem Mitarbeiter",
     },
 }
+
+
+def build_plan_meta() -> dict[str, dict[str, Any]]:
+    """Entitlements-compatible plan metadata derived from canonical pricing."""
+    out: dict[str, dict[str, Any]] = {}
+    for plan in PLAN_ORDER:
+        meta = dict(PLAN_MARKETING.get(plan, {}))
+        meta["priceEur"] = PLAN_NET_PRICE_EUR.get(plan, 0)
+        meta["workersIncluded"] = PLAN_WORKER_FREE_INCLUDED.get(plan, 0)
+        meta["workerOverageEur"] = PLAN_WORKER_PRICE_EUR.get(plan, 0)
+        out[plan] = meta
+    return out
 
 
 def stripe_price_env_key(plan: str, *, annual: bool = False) -> str:
@@ -117,11 +117,24 @@ def stripe_price_env_key(plan: str, *, annual: bool = False) -> str:
     return f"STRIPE_PRICE_{plan.upper()}{suffix}"
 
 
+def stripe_worker_price_env_key(plan: str) -> str:
+    return f"STRIPE_PRICE_{plan.upper()}_WORKER"
+
+
 def resolve_stripe_price_id(plan: str, *, annual: bool = False) -> str:
     import os
 
     key = stripe_price_env_key(plan, annual=annual)
-    return (os.getenv(key) or os.getenv(f"STRIPE_PRICE_{plan.upper()}") or "").strip()
+    value = (os.getenv(key) or "").strip()
+    if value or annual:
+        return value
+    return (os.getenv(f"STRIPE_PRICE_{plan.upper()}") or "").strip()
+
+
+def resolve_stripe_worker_price_id(plan: str) -> str:
+    import os
+
+    return (os.getenv(stripe_worker_price_env_key(plan)) or "").strip()
 
 
 def calculate_monthly_net(plan: str, worker_count: int = 0, *, annual: bool = False) -> dict[str, Any]:
@@ -157,9 +170,13 @@ def pricing_catalog() -> dict[str, Any]:
     for plan in PLAN_ORDER:
         meta = dict(PLAN_MARKETING.get(plan, {}))
         meta["plan"] = plan
+        meta["priceEur"] = PLAN_NET_PRICE_EUR.get(plan, 0)
+        meta["workersIncluded"] = PLAN_WORKER_FREE_INCLUDED.get(plan, 0)
+        meta["workerOverageEur"] = PLAN_WORKER_PRICE_EUR.get(plan, 0)
         meta["monthlyQuote"] = calculate_monthly_net(plan, worker_count=meta.get("workersIncluded") or 0)
         meta["stripePriceId"] = resolve_stripe_price_id(plan, annual=False)
         meta["stripePriceIdAnnual"] = resolve_stripe_price_id(plan, annual=True)
+        meta["stripeWorkerPriceId"] = resolve_stripe_worker_price_id(plan)
         plans.append(meta)
     return {
         "plans": plans,

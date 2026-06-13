@@ -11,6 +11,8 @@ BauPass loads Signotec's official JavaScript library from this folder.
 
 3. Ensure **STPadServer** is running (Windows service or `STPadServer.exe 49494`).
 
+   Browser bridge: `wss://localhost:49494` — trust once: **https://localhost:49494/**
+
 4. Copy automatically (recommended):
    ```powershell
    npm run vendor:signotec

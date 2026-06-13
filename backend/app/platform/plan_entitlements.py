@@ -7,55 +7,9 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-PLAN_ORDER = ("tageskarte", "starter", "professional", "enterprise")
-PLAN_RANK = {p: i for i, p in enumerate(PLAN_ORDER)}
+from backend.app.platform.pricing import PLAN_ORDER, PLAN_RANK, build_plan_meta
 
-PLAN_META: dict[str, dict[str, Any]] = {
-    "tageskarte": {
-        "label": "Tageskarte",
-        "labelAr": "بطاقة يومية",
-        "priceEur": 29,
-        "priceUnit": "day",
-        "workersIncluded": 0,
-        "workerOverageEur": 0,
-        "taglineDe": "Besucher & Kurzzeit-Zutritt",
-        "taglineEn": "Visitors and short-term site access",
-        "taglineAr": "زوار ودخول مؤقت للموقع",
-    },
-    "starter": {
-        "label": "Starter",
-        "labelAr": "مبتدئ",
-        "priceEur": 69,
-        "priceUnit": "month",
-        "workersIncluded": 10,
-        "workerOverageEur": 5.99,
-        "taglineDe": "Worker-App, NFC, Urlaub — 10 MA inkl.",
-        "taglineEn": "Worker app, NFC, leave — 10 workers included",
-        "taglineAr": "تطبيق الموظف + NFC + إجازات — 10 موظفين",
-    },
-    "professional": {
-        "label": "Professional",
-        "labelAr": "احترافي",
-        "priceEur": 249,
-        "priceUnit": "month",
-        "workersIncluded": 25,
-        "workerOverageEur": 7.50,
-        "taglineDe": "Echtzeit, Automatisierung, Fakturierung",
-        "taglineEn": "Real-time ops, automation, invoicing",
-        "taglineAr": "تشغيل لحظي + أتمتة + فوترة + تذكيرات",
-    },
-    "enterprise": {
-        "label": "Enterprise",
-        "labelAr": "مؤسسي",
-        "priceEur": 599,
-        "priceUnit": "month",
-        "workersIncluded": 50,
-        "workerOverageEur": 9.50,
-        "taglineDe": "KI, Wallet, Integrationen, Command Center",
-        "taglineEn": "AI, wallet passes, integrations, command center",
-        "taglineAr": "AI + محافظ + تكاملات + قيادة مركزية",
-    },
-}
+PLAN_META: dict[str, dict[str, Any]] = build_plan_meta()
 
 # Maps every catalog item id -> minimum plan (defaults to enterprise if missing)
 CATALOG_MIN_PLAN: dict[str, str] = {

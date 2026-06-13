@@ -2049,14 +2049,21 @@ async function loadTools() {
       { label: t("table.enabled"), render: (r) => yn(r.enabled) },
     ]);
     const intByProvider = Object.fromEntries(intRows.map((r) => [r.provider, r]));
+    const erpProviders = new Set(["sap", "oracle"]);
     $("integrationCards").innerHTML = providers
       .map((p) => {
         const conn = intByProvider[p.id];
         const st = conn ? conn.status : t("tools.notConnected");
+        const erpBtns = erpProviders.has(p.id)
+          ? `<button type="button" class="btn-link" data-export-preview="${p.id}">${t("tools.exportPreview")}</button>
+             <button type="button" class="btn-link" data-export-push="${p.id}">${t("tools.exportPush")}</button>
+             <button type="button" class="btn-link" data-export-dry="${p.id}">${t("tools.exportDryRun")}</button>`
+          : "";
         return `<div class="layer-pill" data-provider="${p.id}">
           <strong>${p.label}</strong><br><span class="muted small">${st}</span>
           <button type="button" class="btn-link" data-connect="${p.id}">${t("tools.connect")}</button>
           <button type="button" class="btn-link" data-sync="${p.id}">${t("tools.sync")}</button>
+          ${erpBtns}
         </div>`;
       })
       .join("");
@@ -2111,6 +2118,45 @@ async function loadTools() {
         try {
           const res = await api(`/api/integrations/${provider}/sync${q}`, { method: "POST", body: "{}" });
           alert(JSON.stringify(res, null, 2).slice(0, 800));
+        } catch (e) {
+          alert(e.message);
+        }
+      });
+    });
+    panel.querySelectorAll("[data-export-preview]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const provider = btn.getAttribute("data-export-preview");
+        try {
+          const res = await api(`/api/integrations/${provider}/export-preview${q}`);
+          alert(JSON.stringify(res, null, 2).slice(0, 1200));
+        } catch (e) {
+          alert(e.message);
+        }
+      });
+    });
+    async function runErpExport(provider, dryRun) {
+      const res = await api(`/api/integrations/${provider}/export${q}`, {
+        method: "POST",
+        body: JSON.stringify({ dryRun: Boolean(dryRun) }),
+      });
+      alert(JSON.stringify(res, null, 2).slice(0, 1200));
+    }
+    panel.querySelectorAll("[data-export-push]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const provider = btn.getAttribute("data-export-push");
+        if (!window.confirm(`${provider.toUpperCase()}: ${t("tools.exportPush")}?`)) return;
+        try {
+          await runErpExport(provider, false);
+        } catch (e) {
+          alert(e.message);
+        }
+      });
+    });
+    panel.querySelectorAll("[data-export-dry]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const provider = btn.getAttribute("data-export-dry");
+        try {
+          await runErpExport(provider, true);
         } catch (e) {
           alert(e.message);
         }

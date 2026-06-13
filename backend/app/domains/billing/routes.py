@@ -201,7 +201,12 @@ def register_billing_blueprint(flask_app: Flask) -> None:
     def v2_stripe_webhook():
         payload_raw = request.get_data() or b""
         sig = request.headers.get("Stripe-Signature") or ""
-        if stripe_service._webhook_secret():
+        if stripe_service.webhook_signature_required():
+            if not stripe_service._webhook_secret():
+                return jsonify({"error": "webhook_secret_missing"}), 503
+            if not stripe_service.verify_webhook_signature(payload_raw, sig):
+                return jsonify({"error": "invalid_signature"}), 400
+        elif stripe_service._webhook_secret():
             if not stripe_service.verify_webhook_signature(payload_raw, sig):
                 return jsonify({"error": "invalid_signature"}), 400
         try:

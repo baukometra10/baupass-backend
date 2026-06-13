@@ -35,7 +35,9 @@ Get-Process STPadServer -ErrorAction SilentlyContinue
 & "C:\Program Files\signotec\signoPAD-API Web\STPadServer.exe" 49494
 ```
 
-المنفذ الافتراضي: **49494** (`wss://local.signotecwebsocket.de:49494`)
+المنفذ الافتراضي: **49494** (`wss://localhost:49494` أو `wss://127.0.0.1:49494`)
+
+ثق بشهادة STPadServer مرة واحدة: **https://localhost:49494/**
 
 ### 3) مكتبة JavaScript
 

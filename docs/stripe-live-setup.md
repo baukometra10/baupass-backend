@@ -13,20 +13,23 @@ STRIPE_PRICE_ENTERPRISE=price_...
 STRIPE_PRICE_STARTER_ANNUAL=price_...
 STRIPE_PRICE_PROFESSIONAL_ANNUAL=price_...
 STRIPE_PRICE_ENTERPRISE_ANNUAL=price_...
+# Per-worker overage (Professional 2,50 €/MA, Enterprise 3,00 €/MA):
+STRIPE_PRICE_PROFESSIONAL_WORKER=price_...
+STRIPE_PRICE_ENTERPRISE_WORKER=price_...
 ```
 
 ## Public pricing (net, excl. VAT)
 
-| Plan | Base / month | Workers included | Extra worker |
-|------|-------------|------------------|--------------|
-| Tageskarte | 29 € / day | — | — |
-| Starter | 69 € | 10 | 5,99 € |
-| Professional | 249 € | 25 | 7,50 € |
-| Enterprise | 599 € | 50 | 9,50 € |
+| Plan | Base | Workers included | Extra worker |
+|------|------|------------------|--------------|
+| Tageskarte | 19 € / day | — | — |
+| Starter | 149 € / month | 10 | — |
+| Professional | 999 € / month | — | 2,50 € / MA |
+| Enterprise | 2.490 € / month | — | 3,00 € / MA |
 
 Annual subscription checkout applies **17% discount** on the base fee.
 
-Market reference: Crewly ~49 € + 4,99 €/MA, 123erfasst 7–12 €/MA, Ditio ~17 €/active user.
+Canonical source: `backend/app/platform/pricing.py` — all UI, admin, billing API, and Stripe bootstrap read from this module.
 
 ## Bootstrap products (one-time)
 

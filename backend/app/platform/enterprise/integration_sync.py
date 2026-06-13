@@ -124,33 +124,51 @@ def sync_provider(provider: str, config: dict[str, str], *, company_id: str | in
         return sync_datev(config, company_id=company_id)
     if provider == "sap":
         from .integrations import provider_connectivity
-        from .erp_adapters import sap_export_preview
+        from .erp_adapters import push_erp_export, sap_export_preview
 
         probe = provider_connectivity(provider, config)
         preview = None
+        push_result = None
         if company_id is not None:
             try:
                 from backend.server import get_db
 
                 preview = sap_export_preview(get_db(), str(company_id))
+                if config.get("auto_push") or config.get("push_on_sync"):
+                    push_result = push_erp_export(get_db(), int(company_id), provider, config)
             except Exception as exc:
                 preview = {"error": str(exc)}
-        return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe, "exportPreview": preview}
+        return {
+            "ok": bool(probe.get("ok")),
+            "provider": provider,
+            "probe": probe,
+            "exportPreview": preview,
+            "exportPush": push_result,
+        }
 
     if provider == "oracle":
         from .integrations import provider_connectivity
-        from .erp_adapters import oracle_export_preview
+        from .erp_adapters import oracle_export_preview, push_erp_export
 
         probe = provider_connectivity(provider, config)
         preview = None
+        push_result = None
         if company_id is not None:
             try:
                 from backend.server import get_db
 
                 preview = oracle_export_preview(get_db(), str(company_id))
+                if config.get("auto_push") or config.get("push_on_sync"):
+                    push_result = push_erp_export(get_db(), int(company_id), provider, config)
             except Exception as exc:
                 preview = {"error": str(exc)}
-        return {"ok": bool(probe.get("ok")), "provider": provider, "probe": probe, "exportPreview": preview}
+        return {
+            "ok": bool(probe.get("ok")),
+            "provider": provider,
+            "probe": probe,
+            "exportPreview": preview,
+            "exportPush": push_result,
+        }
     from .integrations import provider_connectivity
 
     probe = provider_connectivity(provider, config)

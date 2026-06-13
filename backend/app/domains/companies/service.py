@@ -1274,35 +1274,32 @@ class CompaniesService:
         plan = self.companies.get_plan(db, company_id)
         if plan is None:
             return {"error": {"error": "company_not_found"}, "status": 404}
+        from backend.app.platform.pricing import (
+            PLAN_MARKETING,
+            PLAN_NET_PRICE_EUR,
+            PLAN_ORDER as PRICING_PLAN_ORDER,
+            PLAN_RANK as PRICING_PLAN_RANK,
+            PLAN_WORKER_PRICE_EUR,
+        )
+
+        available_plans = []
+        for plan_key in PRICING_PLAN_ORDER:
+            meta = PLAN_MARKETING.get(plan_key, {})
+            entry = {
+                "key": plan_key,
+                "labelDe": meta.get("label") or plan_key.title(),
+                "priceEur": float(PLAN_NET_PRICE_EUR.get(plan_key, 0)),
+                "workerPriceEur": float(PLAN_WORKER_PRICE_EUR.get(plan_key, 0)),
+                "rank": PRICING_PLAN_RANK.get(plan_key, 0),
+            }
+            available_plans.append(entry)
+
         return {
             "body": {
                 "plan": plan,
                 "features": get_plan_features(plan),
                 "planRank": PLAN_RANK.get(plan, 1),
-                "availablePlans": [
-                    {"key": "tageskarte", "labelDe": "Tageskarte", "priceEur": 19.0, "rank": 0},
-                    {
-                        "key": "starter",
-                        "labelDe": "Start",
-                        "priceEur": 49.0,
-                        "workerPriceEur": 1.50,
-                        "rank": 1,
-                    },
-                    {
-                        "key": "professional",
-                        "labelDe": "Professional",
-                        "priceEur": 99.0,
-                        "workerPriceEur": 2.50,
-                        "rank": 2,
-                    },
-                    {
-                        "key": "enterprise",
-                        "labelDe": "Enterprise",
-                        "priceEur": 199.0,
-                        "workerPriceEur": 0.0,
-                        "rank": 3,
-                    },
-                ],
+                "availablePlans": available_plans,
             }
         }
 

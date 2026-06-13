@@ -14,10 +14,12 @@ from backend.app.platform.pricing import (
     PLAN_MARKETING,
     PLAN_NET_PRICE_EUR,
     PLAN_ORDER,
+    PLAN_WORKER_PRICE_EUR,
     ANNUAL_DISCOUNT_PERCENT,
     calculate_monthly_net,
     checkout_trial_days,
     resolve_stripe_price_id,
+    resolve_stripe_worker_price_id,
 )
 
 STRIPE_API = "https://api.stripe.com/v1"
@@ -37,6 +39,14 @@ def _public_base_url() -> str:
 
 def stripe_configured() -> bool:
     return bool(_stripe_key())
+
+
+def webhook_signature_required() -> bool:
+    """Require signed Stripe webhooks when Stripe is configured (opt-out for local dev)."""
+    if not stripe_configured():
+        return False
+    allow = (os.getenv("BAUPASS_ALLOW_UNSIGNED_STRIPE_WEBHOOKS") or "").strip().lower()
+    return allow not in ("1", "true", "yes")
 
 
 def _stripe_request(method: str, path: str, payload: dict[str, str] | None = None, timeout_s: int = 30) -> dict:
@@ -196,6 +206,16 @@ def create_checkout_session(
     if trial_eligible and trial_days > 0:
         payload["subscription_data[trial_period_days]"] = str(trial_days)
         payload["metadata[trial_days]"] = str(trial_days)
+    worker_count = _worker_count(db, company_id)
+    quote = calculate_monthly_net(normalized, worker_count, annual=annual)
+    billable_workers = int(quote.get("billableWorkers") or 0)
+    if billable_workers > 0:
+        worker_price_id = resolve_stripe_worker_price_id(normalized)
+        if worker_price_id:
+            payload["line_items[1][price]"] = worker_price_id
+            payload["line_items[1][quantity]"] = str(billable_workers)
+            payload["metadata[billable_workers]"] = str(billable_workers)
+            payload["subscription_data[metadata][billable_workers]"] = str(billable_workers)
     session = _stripe_request("POST", "/checkout/sessions", payload)
     return {
         "sessionId": session.get("id"),
@@ -203,6 +223,8 @@ def create_checkout_session(
         "plan": normalized,
         "annual": annual,
         "priceId": price_id,
+        "workerCount": worker_count,
+        "billableWorkers": billable_workers,
         "trialDays": trial_days if trial_eligible else 0,
         "trialEligible": trial_eligible,
     }
@@ -563,17 +585,21 @@ def bootstrap_stripe_catalog(*, dry_run: bool = False) -> dict[str, Any]:
         product_desc = str(meta.get("taglineDe") or meta.get("taglineEn") or "")
 
         if dry_run:
+            worker_eur = float(PLAN_WORKER_PRICE_EUR.get(plan, 0.0))
             created.append(
                 {
                     "plan": plan,
                     "productName": product_name,
                     "monthlyEur": monthly_eur,
                     "annualEur": annual_eur,
+                    "workerEur": worker_eur if worker_eur > 0 else None,
                     "dryRun": True,
                 }
             )
             env_lines[f"STRIPE_PRICE_{plan.upper()}"] = f"price_DRYRUN_{plan}_monthly"
             env_lines[f"STRIPE_PRICE_{plan.upper()}_ANNUAL"] = f"price_DRYRUN_{plan}_annual"
+            if worker_eur > 0:
+                env_lines[f"STRIPE_PRICE_{plan.upper()}_WORKER"] = f"price_DRYRUN_{plan}_worker"
             continue
 
         product = _stripe_request(
@@ -618,6 +644,24 @@ def bootstrap_stripe_catalog(*, dry_run: bool = False) -> dict[str, Any]:
         annual_id = str(annual.get("id") or "")
         env_lines[f"STRIPE_PRICE_{plan.upper()}"] = monthly_id
         env_lines[f"STRIPE_PRICE_{plan.upper()}_ANNUAL"] = annual_id
+        worker_eur = float(PLAN_WORKER_PRICE_EUR.get(plan, 0.0))
+        worker_price_id = ""
+        if worker_eur > 0:
+            worker = _stripe_request(
+                "POST",
+                "/prices",
+                {
+                    "product": product_id,
+                    "unit_amount": str(int(round(worker_eur * 100))),
+                    "currency": "eur",
+                    "recurring[interval]": "month",
+                    "tax_behavior": "exclusive",
+                    "metadata[plan]": plan,
+                    "metadata[billing_cycle]": "worker_overage",
+                },
+            )
+            worker_price_id = str(worker.get("id") or "")
+            env_lines[f"STRIPE_PRICE_{plan.upper()}_WORKER"] = worker_price_id
         created.append(
             {
                 "plan": plan,
@@ -626,6 +670,8 @@ def bootstrap_stripe_catalog(*, dry_run: bool = False) -> dict[str, Any]:
                 "monthlyEur": monthly_eur,
                 "annualPriceId": annual_id,
                 "annualEur": annual_eur,
+                "workerPriceId": worker_price_id or None,
+                "workerEur": worker_eur if worker_eur > 0 else None,
             }
         )
 

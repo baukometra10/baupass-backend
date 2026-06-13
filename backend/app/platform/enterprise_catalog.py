@@ -257,8 +257,8 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "titleAr": "التكاملات المؤسسية",
             "items": [
                 _item("payroll", "Payroll Integrations", "الرواتب", "api", apis=["GET /api/integrations/payroll/export"]),
-                _item("sap", "SAP Integration", "SAP", "api", apis=["POST /api/integrations/sap/sync"]),
-                _item("oracle", "Oracle Integration", "Oracle", "api", apis=["POST /api/integrations/oracle/sync"]),
+                _item("sap", "SAP Integration", "SAP", "api", apis=["POST /api/integrations/sap/sync", "GET /api/integrations/sap/export-preview", "POST /api/integrations/sap/export"]),
+                _item("oracle", "Oracle Integration", "Oracle", "api", apis=["POST /api/integrations/oracle/sync", "GET /api/integrations/oracle/export-preview", "POST /api/integrations/oracle/export"]),
                 _item("m365", "Microsoft 365", "Microsoft 365", "api", apis=["POST /api/integrations/microsoft365/connect"]),
                 _item("google", "Google Workspace", "Google", "api", apis=["POST /api/integrations/google/connect"]),
                 _item("webhooks", "Webhooks", "Webhooks", "api", apis=["GET /api/developer/webhooks"]),

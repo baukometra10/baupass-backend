@@ -1129,6 +1129,10 @@ const UI_TRANSLATIONS = {
     billingStripeUnavailable: "Online-Zahlung ist derzeit nicht konfiguriert.",
     billingCheckoutFailed: "Checkout fehlgeschlagen: {error}",
     billingPortalFailed: "Portal konnte nicht geöffnet werden: {error}",
+    billingUpgradeProcessing: "Zahlung wird verarbeitet — Plan wird aktualisiert …",
+    billingUpgradeSuccess: "Plan erfolgreich aktualisiert. Vielen Dank!",
+    billingUpgradePending: "Zahlung eingegangen. Plan-Aktualisierung kann wenige Minuten dauern.",
+    billingUpgradeCancelled: "Checkout abgebrochen — kein Plan gewechselt.",
     billingPaymentLinkFailed: "Zahlungslink fehlgeschlagen: {error}",
     billingRevenueMrr: "Geschätzter MRR (netto)",
     billingRevenueOpen: "Offene Forderungen",
@@ -1170,9 +1174,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Bau",
     optBrandingIndustry: "Industrie",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     navDevices: "Geräte",
     devicesEyebrow: "Hardware",
     devicesH3: "Smart-Boxen und OSDP-Geräte",
@@ -1206,7 +1210,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Monatlich pro Standort",
     optPlanPerWorker: "Pro Mitarbeiter",
     optPlanFlatCompany: "Pauschal pro Firma",
-    optPlanDayPassPrice: "Besucherkarte (29 EUR/Tag)",
+    optPlanDayPassPrice: "Besucherkarte (19 EUR/Tag)",
     planPriceDaySuffix: "{price}/Tag",
     planPriceMonthSuffix: "{price}/Monat",
     planPriceMonthIncludedOnlySuffix: "{price}/Monat, {included} MA inkl.",
@@ -1963,7 +1967,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Monthly per site",
     optPlanPerWorker: "Per worker",
     optPlanFlatCompany: "Flat rate per company",
-    optPlanDayPassPrice: "Visitor card (29 EUR/day)",
+    optPlanDayPassPrice: "Visitor card (19 EUR/day)",
     planPriceDaySuffix: "{price}/day",
     planPriceMonthSuffix: "{price}/month",
     planPriceMonthIncludedOnlySuffix: "{price}/month, {included} workers incl.",
@@ -2259,6 +2263,10 @@ const UI_TRANSLATIONS = {
     billingStripeUnavailable: "Online payment is not configured yet.",
     billingCheckoutFailed: "Checkout failed: {error}",
     billingPortalFailed: "Could not open portal: {error}",
+    billingUpgradeProcessing: "Payment processing — updating your plan …",
+    billingUpgradeSuccess: "Plan updated successfully. Thank you!",
+    billingUpgradePending: "Payment received. Plan update may take a few minutes.",
+    billingUpgradeCancelled: "Checkout cancelled — plan unchanged.",
     billingPaymentLinkFailed: "Payment link failed: {error}",
     billingRevenueMrr: "Estimated MRR (net)",
     billingRevenueOpen: "Open receivables",
@@ -2300,9 +2308,9 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construction",
     optBrandingIndustry: "Industry",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
     accessFeedbackCheckin: "Access granted",
     badgePinHint: "Badge login in the worker app only works with Badge-ID and this PIN. When editing you can set a new PIN here.",
     badgePinPlaceholder: "4 to 8 digits",
@@ -3040,7 +3048,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Aylık şantiye başına",
     optPlanPerWorker: "Çalışan başına",
     optPlanFlatCompany: "Firma başına sabit",
-    optPlanDayPassPrice: "Ziyaretçi kartı (29 EUR/gün)",
+    optPlanDayPassPrice: "Ziyaretçi kartı (19 EUR/gün)",
     loginForgotPassword: "Sifremi unuttum",
     legalImpressum: "Yasal bilgilendirme",
     legalPrivacy: "Gizlilik",
@@ -3076,9 +3084,14 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Insaat",
     optBrandingIndustry: "Sanayi",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    billingCheckoutFailed: "Ödeme başarısız: {error}",
+    billingUpgradeProcessing: "Ödeme işleniyor — plan güncelleniyor …",
+    billingUpgradeSuccess: "Plan başarıyla güncellendi. Teşekkürler!",
+    billingUpgradePending: "Ödeme alındı. Plan güncellemesi birkaç dakika sürebilir.",
+    billingUpgradeCancelled: "Ödeme iptal edildi — plan değişmedi.",
     accessFeedbackCheckin: "Giriş onaylandı",
     badgePinHint: "Mitarbeiter uygulamasında rozet girişi yalnızca Badge-ID ve bu PIN ile çalışır. Düzenlerken buradan yeni bir PIN ayarlayabilirsiniz.",
     badgePinPlaceholder: "4 ila 8 rakam",
@@ -4016,7 +4029,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "شهرياً لكل موقع",
     optPlanPerWorker: "لكل عامل",
     optPlanFlatCompany: "ثابت لكل شركة",
-    optPlanDayPassPrice: "بطاقة زائر (29 EUR/يوم)",
+    optPlanDayPassPrice: "بطاقة زائر (19 EUR/يوم)",
     loginForgotPassword: "نسيت كلمة المرور",
     legalImpressum: "البيانات القانونية",
     legalPrivacy: "الخصوصية",
@@ -4052,9 +4065,14 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "إنشاءات",
     optBrandingIndustry: "صناعة",
     optBrandingPremium: "مميز",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    billingCheckoutFailed: "فشل الدفع: {error}",
+    billingUpgradeProcessing: "جاري معالجة الدفع — تحديث الخطة …",
+    billingUpgradeSuccess: "تم تحديث الخطة بنجاح. شكراً لك!",
+    billingUpgradePending: "تم استلام الدفع. قد يستغرق تحديث الخطة بضع دقائق.",
+    billingUpgradeCancelled: "تم إلغاء الدفع — لم تتغير الخطة.",
     accessFeedbackCheckin: "تم تسجيل الدخول",
     badgePinHint: "تسجيل الدخول بالبطاقة في تطبيق العمال يعمل فقط بـ Badge-ID وهذا الرمز السري. عند التعديل يمكنك تعيين رمز سري جديد هنا.",
     badgePinPlaceholder: "4 إلى 8 أرقام",
@@ -4846,7 +4864,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Mensuel par chantier",
     optPlanPerWorker: "Par travailleur",
     optPlanFlatCompany: "Forfait par entreprise",
-    optPlanDayPassPrice: "Carte visiteur (29 EUR/jour)",
+    optPlanDayPassPrice: "Carte visiteur (19 EUR/jour)",
     loginForgotPassword: "Mot de passe oublié",
     legalImpressum: "Mentions légales",
     legalPrivacy: "Confidentialité",
@@ -4882,9 +4900,14 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construction",
     optBrandingIndustry: "Industrie",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    billingCheckoutFailed: "Paiement échoué : {error}",
+    billingUpgradeProcessing: "Paiement en cours — mise à jour du plan …",
+    billingUpgradeSuccess: "Plan mis à jour avec succès. Merci !",
+    billingUpgradePending: "Paiement reçu. La mise à jour du plan peut prendre quelques minutes.",
+    billingUpgradeCancelled: "Paiement annulé — plan inchangé.",
     accessFeedbackCheckin: "Accès accordé",
     badgePinHint: "La connexion par badge dans l'application travailleur ne fonctionne qu'avec le Badge-ID et ce code PIN. En modifiant, vous pouvez définir un nouveau code PIN ici.",
     badgePinPlaceholder: "4 à 8 chiffres",
@@ -5625,7 +5648,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Mensual por obra",
     optPlanPerWorker: "Por trabajador",
     optPlanFlatCompany: "Tarifa plana por empresa",
-    optPlanDayPassPrice: "Tarjeta de visitante (29 EUR/día)",
+    optPlanDayPassPrice: "Tarjeta de visitante (19 EUR/día)",
     loginForgotPassword: "Olvidé la contraseña",
     legalImpressum: "Aviso legal",
     legalPrivacy: "Privacidad",
@@ -5661,9 +5684,14 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Construcción",
     optBrandingIndustry: "Industria",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    billingCheckoutFailed: "Pago fallido: {error}",
+    billingUpgradeProcessing: "Procesando pago — actualizando plan …",
+    billingUpgradeSuccess: "Plan actualizado correctamente. ¡Gracias!",
+    billingUpgradePending: "Pago recibido. La actualización del plan puede tardar unos minutos.",
+    billingUpgradeCancelled: "Pago cancelado — plan sin cambios.",
     accessFeedbackCheckin: "Acceso registrado",
     badgePinHint: "El inicio de sesión por badge en la app del trabajador solo funciona con el Badge-ID y este PIN. Al editar puedes establecer un nuevo PIN aquí.",
     badgePinPlaceholder: "4 a 8 dígitos",
@@ -6396,7 +6424,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Mensile per cantiere",
     optPlanPerWorker: "Per lavoratore",
     optPlanFlatCompany: "Forfait per azienda",
-    optPlanDayPassPrice: "Tessera visitatore (29 EUR/giorno)",
+    optPlanDayPassPrice: "Tessera visitatore (19 EUR/giorno)",
     loginForgotPassword: "Password dimenticata",
     legalImpressum: "Note legali",
     legalPrivacy: "Privacy",
@@ -6432,9 +6460,14 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Costruzioni",
     optBrandingIndustry: "Industria",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    billingCheckoutFailed: "Pagamento fallito: {error}",
+    billingUpgradeProcessing: "Elaborazione pagamento — aggiornamento piano …",
+    billingUpgradeSuccess: "Piano aggiornato con successo. Grazie!",
+    billingUpgradePending: "Pagamento ricevuto. L'aggiornamento del piano può richiedere alcuni minuti.",
+    billingUpgradeCancelled: "Pagamento annullato — piano invariato.",
     accessFeedbackCheckin: "Accesso registrato",
     badgePinHint: "Il login con badge nell'app lavoratori funziona solo con Badge-ID e questo PIN. In modifica puoi impostare un nuovo PIN qui.",
     badgePinPlaceholder: "da 4 a 8 cifre",
@@ -7175,7 +7208,7 @@ const UI_TRANSLATIONS = {
     optPlanMonthlySite: "Miesięcznie za budowę",
     optPlanPerWorker: "Na pracownika",
     optPlanFlatCompany: "Ryczałt za firmę",
-    optPlanDayPassPrice: "Karta gościa (29 EUR/dzień)",
+    optPlanDayPassPrice: "Karta gościa (19 EUR/dzień)",
     loginForgotPassword: "Nie pamietam hasla",
     legalImpressum: "Informacje prawne",
     legalPrivacy: "Prywatnosc",
@@ -7211,9 +7244,14 @@ const UI_TRANSLATIONS = {
     optBrandingConstruction: "Budownictwo",
     optBrandingIndustry: "Przemysl",
     optBrandingPremium: "Premium",
-    optPlanStarter: "Starter (69 EUR/Monat, 10 MA inkl.)",
-    optPlanProfessional: "Professional (249 EUR/Monat, 25 MA inkl.)",
-    optPlanEnterprise: "Enterprise (599 EUR/Monat, 50 MA inkl.)",
+    optPlanStarter: "Starter (149 EUR/Monat, 10 MA inkl.)",
+    optPlanProfessional: "Professional (999 EUR/Monat, 2,50 EUR/MA)",
+    optPlanEnterprise: "Enterprise (2.490 EUR/Monat, 3 EUR/MA)",
+    billingCheckoutFailed: "Platnosc nieudana: {error}",
+    billingUpgradeProcessing: "Przetwarzanie platnosci — aktualizacja planu …",
+    billingUpgradeSuccess: "Plan zaktualizowany pomyslnie. Dziekujemy!",
+    billingUpgradePending: "Platnosc otrzymana. Aktualizacja planu moze potrwac kilka minut.",
+    billingUpgradeCancelled: "Platnosc anulowana — plan bez zmian.",
     accessFeedbackCheckin: "Wejście zarejestrowane",
     badgePinHint: "Logowanie przez badge w aplikacji pracowników działa tylko z Badge-ID i tym kodem PIN. Podczas edycji możesz tu ustawić nowy PIN.",
     badgePinPlaceholder: "4 do 8 cyfr",
@@ -8618,26 +8656,26 @@ const PLAN_LABELS = {
 const PLAN_ORDER = ["tageskarte", "starter", "professional", "enterprise"];
 
 const PLAN_NET_PRICE_EUR = {
-  tageskarte: 29,
-  starter: 69,
-  professional: 249,
-  enterprise: 599,
+  tageskarte: 19,
+  starter: 149,
+  professional: 999,
+  enterprise: 2490,
 };
 
 // Monatliche Zusatzgebuehr pro aktivem Mitarbeiter (0 = inklusive)
 const PLAN_WORKER_PRICE_EUR = {
   tageskarte: 0,
-  starter: 5.99,
-  professional: 7.5,
-  enterprise: 9.5,
+  starter: 0,
+  professional: 2.5,
+  enterprise: 3,
 };
 
 // Freikontigent inkludierter Mitarbeiter pro Plan (0 = alle zahlen)
 const PLAN_WORKER_FREE_INCLUDED = {
   tageskarte: 0,
   starter: 10,
-  professional: 25,
-  enterprise: 50,
+  professional: 0,
+  enterprise: 0,
 };
 
 const PLAN_RANK = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
@@ -29090,6 +29128,63 @@ async function bootstrapStripeCatalog() {
   }
 }
 
+async function handleBillingReturnQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const billingState = String(params.get("billing") || "").trim().toLowerCase();
+  if (!billingState) {
+    return;
+  }
+  const expectedPlan = String(params.get("plan") || "").trim().toLowerCase();
+  params.delete("billing");
+  params.delete("plan");
+  params.delete("session_id");
+  const cleanQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash || ""}`;
+  window.history.replaceState({}, "", nextUrl);
+  if (!token) {
+    return;
+  }
+  if (billingState === "cancel") {
+    showToast(runtimeText("billingUpgradeCancelled"), "info", 6000);
+    return;
+  }
+  if (billingState !== "success") {
+    return;
+  }
+  showToast(runtimeText("billingUpgradeProcessing"), "info", 8000);
+  let attempts = 0;
+  const poll = async () => {
+    attempts += 1;
+    try {
+      await loadBillingOverview({ silent: true });
+      const currentPlan = String(state.billingOverview?.plan || "").trim().toLowerCase();
+      if (expectedPlan && currentPlan === expectedPlan) {
+        showToast(runtimeText("billingUpgradeSuccess"), "success", 8000);
+        await loadAllData().catch(() => {});
+        refreshAll();
+        return;
+      }
+      const stripeStatus = String(state.billingOverview?.stripe?.subscriptionStatus || "").toLowerCase();
+      if (stripeStatus === "active" || stripeStatus === "trialing") {
+        if (!expectedPlan || currentPlan === expectedPlan) {
+          showToast(runtimeText("billingUpgradeSuccess"), "success", 8000);
+          await loadAllData().catch(() => {});
+          refreshAll();
+          return;
+        }
+      }
+    } catch {
+      /* retry */
+    }
+    if (attempts < 20) {
+      window.setTimeout(poll, 2500);
+      return;
+    }
+    showToast(runtimeText("billingUpgradePending"), "warning", 10000);
+  };
+  void poll();
+}
+
 async function loadBillingOverview(options = {}) {
   const { silent = false } = options;
   const portal = document.querySelector("#billingSubscriptionPortal");
@@ -35497,6 +35592,7 @@ warnStaleControlAssets();
     await loadPublicBranding();
     await loadPricingCatalog();
     await loadAllData();
+    await handleBillingReturnQuery();
     await loadSectorTerminology();
     if (state.currentUser?.role === "superadmin") {
       await refreshSystemStatus().catch(() => {});

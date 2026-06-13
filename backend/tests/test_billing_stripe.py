@@ -8,27 +8,44 @@ from backend.app.platform.pricing import (
     PLAN_NET_PRICE_EUR,
     calculate_monthly_net,
     pricing_catalog,
+    resolve_stripe_price_id,
 )
 
 
-def test_plan_prices_are_market_aligned_not_legacy_flat():
-    assert PLAN_NET_PRICE_EUR["starter"] == 69.0
-    assert PLAN_NET_PRICE_EUR["professional"] == 249.0
-    assert PLAN_NET_PRICE_EUR["enterprise"] == 599.0
-    assert PLAN_NET_PRICE_EUR["professional"] < 999.0
+def test_plan_prices_are_canonical():
+    assert PLAN_NET_PRICE_EUR["tageskarte"] == 19.0
+    assert PLAN_NET_PRICE_EUR["starter"] == 149.0
+    assert PLAN_NET_PRICE_EUR["professional"] == 999.0
+    assert PLAN_NET_PRICE_EUR["enterprise"] == 2490.0
 
 
 def test_calculate_monthly_net_includes_worker_overage():
-    quote = calculate_monthly_net("starter", worker_count=15)
-    assert quote["baseEur"] == 69.0
-    assert quote["billableWorkers"] == 5
-    assert quote["totalNetEur"] == round(69.0 + 5 * 5.99, 2)
+    quote = calculate_monthly_net("professional", worker_count=10)
+    assert quote["baseEur"] == 999.0
+    assert quote["billableWorkers"] == 10
+    assert quote["totalNetEur"] == round(999.0 + 10 * 2.50, 2)
+
+
+def test_starter_includes_ten_workers_without_overage():
+    quote = calculate_monthly_net("starter", worker_count=8)
+    assert quote["baseEur"] == 149.0
+    assert quote["billableWorkers"] == 0
+    assert quote["totalNetEur"] == 149.0
+
+
+def test_annual_price_does_not_fallback_to_monthly(monkeypatch):
+    monkeypatch.delenv("STRIPE_PRICE_STARTER_ANNUAL", raising=False)
+    monkeypatch.setenv("STRIPE_PRICE_STARTER", "price_monthly_only")
+    assert resolve_stripe_price_id("starter", annual=True) == ""
+    assert resolve_stripe_price_id("starter", annual=False) == "price_monthly_only"
 
 
 def test_pricing_catalog_exposes_all_plans():
     catalog = pricing_catalog()
     plan_ids = [p["plan"] for p in catalog["plans"]]
     assert plan_ids == ["tageskarte", "starter", "professional", "enterprise"]
+    starter = next(p for p in catalog["plans"] if p["plan"] == "starter")
+    assert starter["priceEur"] == 149.0
 
 
 def test_webhook_idempotency_skips_duplicate_event():
@@ -61,3 +78,13 @@ def test_webhook_idempotency_skips_duplicate_event():
         second = stripe_service.handle_webhook_event(db, event)
     assert first.get("duplicate") is not True
     assert second.get("duplicate") is True
+
+
+def test_webhook_signature_required_when_stripe_configured(monkeypatch):
+    from backend.app.domains.billing import stripe_service
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.delenv("BAUPASS_ALLOW_UNSIGNED_STRIPE_WEBHOOKS", raising=False)
+    assert stripe_service.webhook_signature_required() is True
+    monkeypatch.setenv("BAUPASS_ALLOW_UNSIGNED_STRIPE_WEBHOOKS", "1")
+    assert stripe_service.webhook_signature_required() is False
