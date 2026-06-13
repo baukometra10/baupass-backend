@@ -4158,6 +4158,15 @@ body.theme-black .doc-inbox-unread {
   font-size: 1.02rem;
 }
 
+.card-item code.company-id-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  word-break: break-all;
+}
+
 .card-item button {
   justify-self: flex-start;
   margin-top: 6px;

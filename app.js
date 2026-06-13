@@ -1068,6 +1068,10 @@ const UI_TRANSLATIONS = {
     labelCompanyContact: "Ansprechpartner",
     labelBillingEmail: "Rechnungs-E-Mail",
     companyCustomerNumberLabel: "Kundennummer",
+    companyInternalIdLabel: "Firma-ID",
+    companyInternalIdCopyBtn: "ID kopieren",
+    companyInternalIdCopied: "Firma-ID kopiert.",
+    companyInternalIdNotFound: "Firma-ID nicht gefunden: {id}",
     labelAccessHost: "Firmen-Zugangsdomain",
     labelPlan: "Tarif",
     labelCompanyStatus: "Status",
@@ -2203,6 +2207,10 @@ const UI_TRANSLATIONS = {
     labelCompanyContact: "Contact person",
     labelBillingEmail: "Billing email",
     companyCustomerNumberLabel: "Customer number",
+    companyInternalIdLabel: "Company ID",
+    companyInternalIdCopyBtn: "Copy ID",
+    companyInternalIdCopied: "Company ID copied.",
+    companyInternalIdNotFound: "Company ID not found: {id}",
     labelAccessHost: "Company access domain",
     labelPlan: "Plan",
     labelCompanyStatus: "Status",
@@ -10519,6 +10527,9 @@ function getRuntimeUiTexts() {
       workStartTimeLabel: "Arbeitsbeginn (HH:MM)",
       workEndTimeLabel: "Arbeitsende (HH:MM)",
       companyCustomerNumberLabel: "Kundennummer:",
+      companyInternalIdLabel: "Firma-ID:",
+      companyInternalIdCopyBtn: "ID kopieren",
+      companyInternalIdCopied: "Firma-ID kopiert.",
       badgePrintFormatLabel: "Druckformat",
       badgePrintFormatValue: "ID-1 Karte 85.6 × 54 mm",
       badgeOutputOptionsLabel: "Ausgabe-Optionen",
@@ -21557,6 +21568,26 @@ function renderSuperadminSidebarCompanyPicker(loggedIn) {
     )
     .join("");
   select.innerHTML = `<option value="">${escapeHtml(uiT("sidebarCompanyPreviewNone"))}</option>${options}`;
+  let idEl = document.getElementById("superadminSidebarCompanyId");
+  if (!idEl) {
+    idEl = document.createElement("p");
+    idEl.id = "superadminSidebarCompanyId";
+    idEl.className = "sidebar-company-picker-hint muted small";
+    const hint = mount.querySelector(".sidebar-company-picker-hint");
+    if (hint) {
+      mount.insertBefore(idEl, hint);
+    } else {
+      select.insertAdjacentElement("afterend", idEl);
+    }
+  }
+  const activePreviewId = String(superadminUiPreviewCompanyId || previewId || "").trim();
+  if (activePreviewId) {
+    idEl.textContent = `${uiT("companyInternalIdLabel")} ${activePreviewId}`;
+    idEl.classList.remove("hidden");
+  } else {
+    idEl.textContent = "";
+    idEl.classList.add("hidden");
+  }
   if (!superadminSidebarPickerBound) {
     superadminSidebarPickerBound = true;
     select.addEventListener("change", () => {
@@ -23043,6 +23074,7 @@ function renderCompanyList() {
       return `
         <article class="card-item ${deleted ? "is-deleted" : ""}">
           <strong>${escapeHtml(company.name || runtimeText("invoiceFallbackCompany"))}</strong>
+          <p><strong>${escapeHtml(runtimeText("companyInternalIdLabel"))}</strong> <code class="company-id-code">${escapeHtml(companyId || "-")}</code> <button type="button" class="ghost-button small-button" data-company-id-copy="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyInternalIdCopyBtn"))}</button></p>
           <p><strong>${escapeHtml(runtimeText("companyCustomerNumberLabel"))}</strong> ${escapeHtml(customerNumber || "-")}</p>
           <span>${escapeHtml(company.plan || "-")}</span>
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
@@ -23794,6 +23826,25 @@ function bindCompanyRowActions() {
           email: suggested,
           error: error?.message || runtimeText("genericUnknownError"),
         }));
+      }
+      return;
+    }
+
+    const copyCompanyIdButton = event.target.closest("[data-company-id-copy]");
+    if (copyCompanyIdButton && elements.companyList.contains(copyCompanyIdButton)) {
+      const companyId = String(copyCompanyIdButton.dataset.companyIdCopy || "").trim();
+      if (!companyId) {
+        return;
+      }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(companyId);
+          showToast(runtimeText("companyInternalIdCopied") || uiT("alertDataCopied"));
+        } else {
+          window.prompt(uiT("promptCopyData"), companyId);
+        }
+      } catch {
+        window.prompt(uiT("promptCopyData"), companyId);
       }
       return;
     }
@@ -33056,11 +33107,42 @@ function handleBillingReturnFromUrl() {
   }
 }
 
+async function applyCompanyIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const cid = String(params.get("company_id") || "").trim();
+  if (!cid || /x{4,}/i.test(cid)) {
+    return;
+  }
+  if (String(getCurrentUser()?.role || "").toLowerCase() !== "superadmin") {
+    return;
+  }
+  const exists = (state.companies || []).some((entry) => String(entry?.id || "") === cid);
+  if (!exists) {
+    showToast(
+      runtimeTextTemplate("companyInternalIdNotFound", { id: cid })
+        || `Firma-ID nicht gefunden: ${cid}`,
+      "warning",
+      9000,
+    );
+    return;
+  }
+  params.delete("company_id");
+  const clean = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash || ""}`;
+  window.history.replaceState({}, "", clean);
+  if (String(superadminUiPreviewCompanyId || "") !== cid) {
+    await setSuperadminPreviewCompany(cid, { refresh: false });
+    syncSuperadminCompanyPickerUi();
+    broadcastSessionToEmbeds();
+    reloadActiveEnterpriseEmbed();
+  }
+}
+
 function applyDeepLinkViewFromUrl() {
   handleBillingReturnFromUrl();
   if (!token) {
     return;
   }
+  void applyCompanyIdFromUrl();
   const params = new URLSearchParams(window.location.search);
   let view = params.get("view");
   if (!view) {
