@@ -249,6 +249,29 @@ function notifyTabError(err) {
   showActionToast(err?.message || String(err), true);
 }
 
+async function applyTenantBrandingFromApi() {
+  const user = getUser();
+  let cid = String(user?.company_id || "").trim();
+  if (user?.role === "superadmin") {
+    cid = String(localStorage.getItem(COMPANY_KEY) || "").trim();
+  }
+  try {
+    if (window.BaupassAuth?.resolveTenantBranding) {
+      await window.BaupassAuth.resolveTenantBranding({ companyId: cid || undefined });
+      return;
+    }
+    if (window.BaupassAuth?.loadTenantBranding) {
+      await window.BaupassAuth.loadTenantBranding(cid || undefined);
+      return;
+    }
+    const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+    const branding = await api(`/api/companies/current/branding${q}`);
+    window.BaupassAuth?.applyTenantBranding?.(branding);
+  } catch {
+    // optional white-label
+  }
+}
+
 function applyParentCompanyId(companyId) {
   const cid = String(companyId || "").trim();
   if (!cid) return;
@@ -258,6 +281,7 @@ function applyParentCompanyId(companyId) {
     const has = Array.from(select.options).some((o) => o.value === cid);
     if (has) select.value = cid;
   }
+  void applyTenantBrandingFromApi();
 }
 
 window.addEventListener("message", (event) => {
@@ -438,6 +462,7 @@ function setupCompanyPicker(user) {
       return;
     }
     localStorage.setItem(COMPANY_KEY, select.value);
+    void applyTenantBrandingFromApi();
     syncEnterpriseFrame();
     startAdminRealtime().catch(() => {});
     refreshActiveTab().catch(notifyTabError);
@@ -3085,6 +3110,7 @@ async function bootSession() {
       applyParentCompanyId(qsCid);
     }
     showDashboard();
+    await applyTenantBrandingFromApi();
     await applyStartupTabAfterLoad();
     if (pendingEinsatzplanFocus) {
       tryFocusEinsatzplanFromParent();
@@ -3123,6 +3149,7 @@ $("loginBtn").addEventListener("click", async () => {
     }
     await loadCompanies();
     showDashboard();
+    await applyTenantBrandingFromApi();
     await applyStartupTabAfterLoad();
     await loadPlatformBanner();
     const params = new URLSearchParams(location.search);

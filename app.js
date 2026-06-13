@@ -349,6 +349,8 @@ const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
     authTitle: "Sicher in Control Pass anmelden",
+    authTitleTenant: "Bei {company} anmelden",
+    authCopyTenant: "Melden Sie sich mit Ihrem Firmenkonto bei {company} an.",
     authCopy: "Enterprise Identity, Zutrittskontrolle und Compliance — für Mandanten, Standorte und Zutrittspunkte.",
     labelOperatingSector: "Betriebssektor",
     optSectorConstruction: "Bau",
@@ -1520,6 +1522,8 @@ const UI_TRANSLATIONS = {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
     authTitle: "Secure Sign-in to Control Pass",
+    authTitleTenant: "Sign in to {company}",
+    authCopyTenant: "Sign in with your {company} account.",
     authCopy: "Enterprise identity, operational control and compliance — for tenants, sites and access endpoints.",
     labelOperatingSector: "Operating sector",
     optSectorConstruction: "Construction",
@@ -8249,6 +8253,7 @@ function applyUiTranslations() {
   }
 
   document.querySelectorAll("[data-ui-i18n]").forEach((el) => {
+    if (el.getAttribute("data-tenant-branded") === "1") return;
     const key = el.getAttribute("data-ui-i18n");
     const attr = el.getAttribute("data-ui-i18n-attr");
     if (!key) return;
@@ -8771,6 +8776,8 @@ const state = {
   },
   companies: [],
   companiesLoadError: "",
+  companyAccessBlocked: null,
+  tenantWhiteLabel: { active: false, displayName: "", logoData: "" },
   pricingCatalog: null,
   subcompanies: [],
   workers: [],
@@ -16943,36 +16950,139 @@ function clearWorkerEditor() {
   syncWorkerFormPhase();
 }
 
+function shouldUseFullTenantWhiteLabel() {
+  if (state.tenantWhiteLabel?.active) {
+    return true;
+  }
+  if (document.body?.classList.contains("tenant-white-label")) {
+    return true;
+  }
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (role === "company-admin") {
+    return true;
+  }
+  if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
+    return true;
+  }
+  return false;
+}
+
+function applyTenantWhiteLabelShell(displayName, logoData = "") {
+  const name = String(displayName || "").trim();
+  if (!name) {
+    return;
+  }
+  state.tenantWhiteLabel = {
+    active: true,
+    displayName: name,
+    logoData: String(logoData || "").trim(),
+  };
+  if (document.body) {
+    document.body.classList.add("tenant-white-label");
+    document.body.setAttribute("data-portal-display-name", name);
+  }
+  document.title = name;
+
+  const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (metaAppTitle) metaAppTitle.setAttribute("content", name);
+  const metaAppName = document.querySelector('meta[name="application-name"]');
+  if (metaAppName) metaAppName.setAttribute("content", name);
+
+  if (logoData) {
+    applyWebsiteLogo(logoData);
+  }
+
+  document.querySelectorAll(".sidebar h1, .desktop-titlebar-brand, #loginPlatformName").forEach((el) => {
+    if (!el) return;
+    el.textContent = name;
+    el.setAttribute("data-tenant-branded", "1");
+  });
+
+  const sidebarEyebrow = document.querySelector(".sidebar .eyebrow");
+  if (sidebarEyebrow) {
+    sidebarEyebrow.textContent = name;
+    sidebarEyebrow.setAttribute("data-tenant-branded", "1");
+  }
+
+  const authTitle = document.querySelector('[data-ui-i18n="authTitle"]');
+  if (authTitle) {
+    authTitle.textContent = uiT("authTitleTenant")?.replace("{company}", name)
+      || `Bei ${name} anmelden`;
+    authTitle.setAttribute("data-tenant-branded", "1");
+  }
+
+  const authCopy = document.querySelector('[data-ui-i18n="authCopy"]');
+  if (authCopy) {
+    authCopy.textContent = uiT("authCopyTenant")?.replace("{company}", name)
+      || `Melden Sie sich mit Ihrem Firmenkonto bei ${name} an.`;
+    authCopy.setAttribute("data-tenant-branded", "1");
+  }
+
+  const dashEyebrow = document.querySelector('[data-ui-i18n="dashEyebrow"]');
+  if (dashEyebrow) {
+    dashEyebrow.textContent = name;
+    dashEyebrow.setAttribute("data-tenant-branded", "1");
+  }
+
+  const operatorEl = document.querySelector("#loginOperatorName");
+  if (operatorEl) {
+    operatorEl.textContent = name;
+    operatorEl.setAttribute("data-tenant-branded", "1");
+  }
+
+  state.settings.platformName = name;
+  renderSystemIdentity();
+}
+
 async function loadPublicBranding() {
   try {
-    const data = await apiRequest(`${API_BASE}/api/public/branding`, { auth: false }).catch(() => null);
+    const host = window.location.hostname || "";
+    const qsCid = new URLSearchParams(window.location.search).get("company_id") || "";
+    let data = null;
+    if (window.BaupassAuth?.loadPublicTenantBranding) {
+      data = await window.BaupassAuth.loadPublicTenantBranding({ host, companyId: qsCid });
+    }
+    if (!data) {
+      const q = `?host=${encodeURIComponent(host)}${qsCid ? `&company_id=${encodeURIComponent(qsCid)}` : ""}`;
+      data = await apiRequest(`${API_BASE}/api/public/tenant-branding${q}`, { auth: false }).catch(() => null);
+    }
+    if (!data) {
+      data = await apiRequest(`${API_BASE}/api/public/branding`, { auth: false }).catch(() => null);
+    }
     if (!data) return;
-    // Logo on auth/login page
+    const displayName = String(data.portalDisplayName || data.companyName || "").trim();
     if (data.logoData) {
-      const authLogo = document.querySelector(".website-logo-auth");
-      if (authLogo) {
-        authLogo.src = data.logoData;
-        authLogo.classList.remove("hidden");
-      }
+      applyWebsiteLogo(data.logoData);
     }
-    // Platform name as page title prefix
-    if (data.platformName) {
-      document.title = data.platformName;
+    if (displayName && (data.tenantMatched || qsCid)) {
+      applyTenantWhiteLabelShell(displayName, data.logoData || "");
+    } else if (displayName) {
+      state.settings.platformName = displayName;
+      document.title = displayName;
+    } else if (data.platformName) {
       state.settings.platformName = data.platformName;
+      document.title = data.platformName;
     }
-    if (data.operatorName) {
+    if (data.operatorName && !shouldUseFullTenantWhiteLabel()) {
       state.settings.operatorName = data.operatorName;
     }
-    renderSystemIdentity();
-    // Brand colors as CSS variables for the login page
+    if (!shouldUseFullTenantWhiteLabel()) {
+      renderSystemIdentity();
+    }
     const root = document.documentElement;
     if (data.primaryColor && /^#[0-9a-fA-F]{6}$/.test(data.primaryColor)) {
       root.style.setProperty("--brand-primary", data.primaryColor);
+      root.style.setProperty("--teal-soft", data.primaryColor);
+      root.style.setProperty("--teal", data.primaryColor);
     }
     if (data.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.accentColor)) {
       root.style.setProperty("--brand-accent", data.accentColor);
+      root.style.setProperty("--accent", data.accentColor);
     }
-    // Store legal texts so the modal can use them before login
+    const preset = String(data.preset || data.brandingPreset || "").trim().toLowerCase();
+    if (["construction", "industry", "premium"].includes(preset)) {
+      document.body.setAttribute("data-branding-preset", preset);
+    }
     if (data.impressumText !== undefined) {
       window._publicImpressumText = data.impressumText;
     }
@@ -18190,6 +18300,11 @@ function clearSession() {
   token = "";
   persistSessionToken("");
   state.currentUser = null;
+  state.companyAccessBlocked = null;
+  state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
+  if (document.body) {
+    document.body.classList.remove("tenant-white-label");
+  }
   state.loginOtpPending = false;
   state.loginSetupEmailPending = false;
   state.companyAdminSecurity = {};
@@ -18248,12 +18363,14 @@ async function restoreSessionFromBootstrap() {
       throw new Error("session_expired");
     }
     sessionKnownExpired = false;
+    state.companyAccessBlocked = bootstrap?.companyAccessBlocked || null;
     if (bootstrap?.token) {
       token = bootstrap.token;
       persistSessionToken(token);
     }
     if (bootstrap?.user) {
       state.currentUser = bootstrap.user;
+      state.companyAccessBlocked = bootstrap.companyAccessBlocked || state.companyAccessBlocked || null;
       if (bootstrap.user.role === "superadmin") {
         let previewCid = String(bootstrap.user.preview_company_id || "").trim();
         if (!previewCid) {
@@ -18511,8 +18628,13 @@ async function apiRequest(url, options = {}) {
       throw new Error("session_expired");
     }
     if (auth && ["company_locked", "company_paused", "company_trial_expired", "company_deleted", "company_not_found"].includes(String(payload?.error || ""))) {
-      clearSession();
-      refreshAll();
+      state.companyAccessBlocked = payload;
+      renderSystemAlertBanner(Boolean(token && state.currentUser));
+      const requestError = new Error(payload?.error || `http_${response.status}`);
+      requestError.code = payload?.error || `http_${response.status}`;
+      requestError.payload = payload;
+      requestError.status = response.status;
+      throw requestError;
     }
     const requestError = new Error(payload?.error || `http_${response.status}`);
     requestError.code = payload?.error || `http_${response.status}`;
@@ -19470,6 +19592,7 @@ function refreshAll() {
 
   enforceRoleViewAccess();
   applyActiveCompanyBrandingPreset();
+  void refreshTenantBrandingFromApi();
 
   renderStats();
   renderOperationsSnapshot();
@@ -20750,10 +20873,9 @@ function buildPrintableWorkerCardMarkup(worker, company) {
   const passSubLabel = getWorkerCardPassSubLabel(worker);
   const roleLabel = getWorkerCardRoleLabel(worker);
   const companyName = company?.name || uiT("badgeUnknownCompany");
-  const companyPreset = getCompanyBrandingPreset(company);
-  const cardBrandName = (companyPreset === "industry" || companyPreset === "premium")
-    ? "KONTROLLPASS"
-    : String((state.settings?.platformName || "BAUPASS")).toUpperCase();
+  const brand = resolveWorkerCardBrand(company);
+  const companyPreset = brand.preset;
+  const cardBrandName = brand.cardBrandName;
   const subcompanyLine = subcompanyLabel ? `Sub: ${subcompanyLabel}` : "";
   const statusText = normalizedStatus === "gesperrt"
     ? runtimeText("workerStatusLocked")
@@ -20762,7 +20884,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
       : runtimeText("workerStatusActive");
 
   return `
-    <article class="wallet-card preset-${escapeHtml(companyPreset)}" data-status="${escapeHtml(normalizedStatus)}">
+    <article class="wallet-card preset-${escapeHtml(companyPreset)}${brand.logoData || /^#[0-9a-f]{6}$/i.test(brand.accent) ? " branding-custom" : ""}" data-status="${escapeHtml(normalizedStatus)}"${/^#[0-9a-f]{6}$/i.test(brand.accent) ? ` style="--worker-card-accent:${escapeHtml(brand.accent)};--worker-card-primary:${escapeHtml(brand.accent)};--worker-card-primary-dark:${escapeHtml(shadeWorkerCardHexColor(brand.accent, -35))};--worker-card-primary-light:${escapeHtml(shadeWorkerCardHexColor(brand.accent, 40))};"` : ""}>
       <div class="wc-shimmer"></div>
       <div class="wc-grid"></div>
 
@@ -20770,11 +20892,7 @@ function buildPrintableWorkerCardMarkup(worker, company) {
       <div class="wc-top">
         <div class="wc-brand">
           <div class="wc-brand-mark">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 17L12 4l9 13H3z" fill="#fff" fill-opacity=".9"/>
-              <rect x="7" y="17" width="10" height="4" rx="1" fill="#fff" fill-opacity=".7"/>
-              <rect x="10" y="13" width="4" height="4" fill="#fff" fill-opacity=".5"/>
-            </svg>
+            ${buildWorkerCardBrandMarkHtml(brand.logoData)}
           </div>
           <div class="wc-brand-text">
             <span class="wc-brand-name">${escapeHtml(cardBrandName)}</span>
@@ -20901,6 +21019,25 @@ function renderSystemAlertBanner(loggedIn) {
 
   if (!loggedIn) {
     elements.systemAlertBanner.style.display = "none";
+    return;
+  }
+
+  if (state.companyAccessBlocked && String(getCurrentUser()?.role || "").toLowerCase() !== "superadmin") {
+    const blocked = state.companyAccessBlocked;
+    elements.systemAlertText.textContent = String(
+      blocked.message || runtimeText("companyLockedError") || blocked.error || "Firma gesperrt",
+    );
+    elements.systemAlertActionBtn.textContent = runtimeText("navInvoices") || "Rechnungen";
+    elements.systemAlertActionBtn.onclick = () => {
+      switchView("invoices");
+    };
+    elements.systemAlertBanner.style.display = "flex";
+    elements.systemAlertBanner.classList.remove("system-alert-banner-warn");
+    elements.systemAlertBanner.classList.add("system-alert-banner-alert");
+    const heading = elements.systemAlertBanner.querySelector("strong");
+    if (heading) {
+      heading.textContent = String(blocked.companyName || runtimeText("supportCompanyFallback") || "Firma");
+    }
     return;
   }
 
@@ -24474,6 +24611,66 @@ function getCompanyWhiteLabel(company) {
   };
 }
 
+const WORKER_CARD_BRAND_MARK_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 17L12 4l9 13H3z" fill="#fff" fill-opacity=".9"/><rect x="7" y="17" width="10" height="4" rx="1" fill="#fff" fill-opacity=".7"/><rect x="10" y="13" width="4" height="4" fill="#fff" fill-opacity=".5"/></svg>`;
+
+function shadeWorkerCardHexColor(hex, amount) {
+  const raw = String(hex || "").trim();
+  if (!/^#[0-9a-fA-F]{6}$/.test(raw)) return "";
+  const channel = raw.slice(1);
+  const parts = [channel.slice(0, 2), channel.slice(2, 4), channel.slice(4, 6)].map((part) => {
+    const value = parseInt(part, 16);
+    const next = Math.min(255, Math.max(0, value + amount));
+    return next.toString(16).padStart(2, "0");
+  });
+  return `#${parts.join("")}`;
+}
+
+function resolveWorkerCardBrand(company) {
+  const wl = getCompanyWhiteLabel(company);
+  const preset = getCompanyBrandingPreset(company);
+  const brandTitle = (wl.portalDisplayName || company?.name || "").trim() || uiT("badgeUnknownCompany") || "Firma";
+  return {
+    preset,
+    brandTitle,
+    cardBrandName: brandTitle.toUpperCase(),
+    logoData: wl.brandingLogoData || "",
+    accent: wl.brandingAccentColor || "",
+  };
+}
+
+function buildWorkerCardBrandMarkHtml(logoData) {
+  const src = String(logoData || "").trim();
+  if (src) {
+    return `<img class="wc-brand-logo" src="${escapeHtml(src)}" alt="" />`;
+  }
+  return WORKER_CARD_BRAND_MARK_SVG;
+}
+
+function applyBadgeShellCardBranding(company, rootEl) {
+  if (!rootEl) return;
+  const card = rootEl.querySelector(".wallet-card");
+  if (!card) return;
+  const brand = resolveWorkerCardBrand(company);
+  const mark = card.querySelector(".wc-brand-mark");
+  if (mark) {
+    mark.innerHTML = buildWorkerCardBrandMarkHtml(brand.logoData);
+  }
+  card.classList.remove("branding-custom");
+  card.style.removeProperty("--worker-card-accent");
+  card.style.removeProperty("--worker-card-primary");
+  card.style.removeProperty("--worker-card-primary-dark");
+  card.style.removeProperty("--worker-card-primary-light");
+  if (/^#[0-9a-f]{6}$/i.test(brand.accent) || brand.logoData) {
+    card.classList.add("branding-custom");
+  }
+  if (/^#[0-9a-f]{6}$/i.test(brand.accent)) {
+    card.style.setProperty("--worker-card-accent", brand.accent);
+    card.style.setProperty("--worker-card-primary", brand.accent);
+    card.style.setProperty("--worker-card-primary-dark", shadeWorkerCardHexColor(brand.accent, -35));
+    card.style.setProperty("--worker-card-primary-light", shadeWorkerCardHexColor(brand.accent, 40));
+  }
+}
+
 function applyCompanyWhiteLabelStyles(company) {
   const wl = getCompanyWhiteLabel(company);
   const root = document.documentElement;
@@ -24483,10 +24680,33 @@ function applyCompanyWhiteLabelStyles(company) {
   } else {
     root.style.removeProperty("--company-accent");
   }
-  if (wl.portalDisplayName) {
-    document.body.setAttribute("data-portal-display-name", wl.portalDisplayName);
-  } else {
+  const displayName = wl.portalDisplayName || String(company?.name || "").trim();
+  if (!displayName) {
     document.body.removeAttribute("data-portal-display-name");
+    if (!shouldUseFullTenantWhiteLabel()) {
+      document.body.classList.remove("tenant-white-label");
+      state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
+    }
+    return;
+  }
+
+  const logoData = wl.brandingLogoData || "";
+  if (shouldUseFullTenantWhiteLabel()) {
+    applyTenantWhiteLabelShell(displayName, logoData);
+    return;
+  }
+
+  document.body.setAttribute("data-portal-display-name", displayName);
+  applyWebsiteLogo(logoData);
+
+  const sidebarTitle = document.querySelector(".sidebar h1");
+  if (sidebarTitle) {
+    sidebarTitle.textContent = displayName;
+    sidebarTitle.setAttribute("data-tenant-branded", "1");
+  }
+  const desktopBrand = document.querySelector(".desktop-titlebar-brand");
+  if (desktopBrand) {
+    desktopBrand.textContent = displayName;
   }
 }
 
@@ -25020,10 +25240,50 @@ function applyActiveCompanyBrandingPreset() {
   const activeCompany = companyId ? state.companies.find((entry) => String(entry?.id || "") === companyId) : null;
   const activePreset = role === "superadmin" ? "construction" : getCompanyBrandingPreset(activeCompany);
   document.body.setAttribute("data-branding-preset", activePreset);
-  if (role !== "superadmin") {
+    if (role !== "superadmin") {
     applyCompanyWhiteLabelStyles(activeCompany);
+  } else if (!isSuperadminCompanyPreviewMode()) {
+    applyCompanyWhiteLabelStyles(null);
+    applyWebsiteLogo(state.settings?.invoiceLogoData || "");
+    document.body.classList.remove("tenant-white-label");
+    state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
   } else {
     applyCompanyWhiteLabelStyles(null);
+    applyWebsiteLogo(state.settings?.invoiceLogoData || "");
+  }
+}
+
+async function refreshTenantBrandingFromApi() {
+  if (!token || !state.currentUser) {
+    return;
+  }
+  const role = String(state.currentUser?.role || "").toLowerCase();
+  let companyId = "";
+  if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
+    companyId = String(superadminUiPreviewCompanyId || "").trim();
+  } else if (role !== "superadmin") {
+    companyId = String(state.currentUser?.company_id || state.currentUser?.companyId || "").trim();
+  }
+  if (!companyId) {
+    return;
+  }
+  try {
+    const branding = await apiRequest(`${API_BASE}/api/companies/current/branding?company_id=${encodeURIComponent(companyId)}`);
+    document.body.setAttribute("data-branding-preset", normalizeCompanyBrandingPresetValue(branding?.preset));
+    applyCompanyWhiteLabelStyles({
+      name: branding?.companyName || "",
+      portalDisplayName: branding?.portalDisplayName || branding?.companyName || "",
+      brandingAccentColor: branding?.accent || "",
+      brandingLogoData: branding?.logoData || "",
+    });
+    if (shouldUseFullTenantWhiteLabel()) {
+      const name = String(branding?.portalDisplayName || branding?.companyName || "").trim();
+      if (name) {
+        applyTenantWhiteLabelShell(name, branding?.logoData || "");
+      }
+    }
+  } catch {
+    // optional — local company row branding still applied
   }
 }
 
@@ -25376,8 +25636,18 @@ function renderSystemIdentity() {
   const platform = document.querySelector("#loginPlatformName");
   const operator = document.querySelector("#loginOperatorName");
   const endpoint = document.querySelector("#loginTurnstileEndpoint");
-  if (platform) platform.textContent = state.settings.platformName || uiT("appTitle");
-  if (operator) operator.textContent = state.settings.operatorName || getUiPlaceholderText("operatorName");
+  const tenantName = String(state.tenantWhiteLabel?.displayName || "").trim();
+  if (shouldUseFullTenantWhiteLabel() && tenantName) {
+    if (platform && platform.getAttribute("data-tenant-branded") !== "1") {
+      platform.textContent = tenantName;
+    }
+    if (operator && operator.getAttribute("data-tenant-branded") !== "1") {
+      operator.textContent = tenantName;
+    }
+  } else {
+    if (platform) platform.textContent = state.settings.platformName || uiT("appTitle");
+    if (operator) operator.textContent = state.settings.operatorName || getUiPlaceholderText("operatorName");
+  }
   if (endpoint) endpoint.textContent = state.settings.turnstileEndpoint || runtimeText("systemIdentityUnset");
 }
 
@@ -26116,6 +26386,7 @@ function renderBadge() {
       </div>
     </div>
   `;
+  applyBadgeShellCardBranding(company, elements.badgePreview);
 
   // Make badge photo placeholder clickable if no photo is present
   setTimeout(() => {

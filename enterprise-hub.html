@@ -435,9 +435,12 @@
 </head>
 <body>
   <header id="hubHeader">
-    <div>
-      <h1 id="hubTitle">Enterprise-Hub</h1>
+    <div style="display:flex;align-items:center;gap:0.65rem;">
+      <img id="hubTenantLogo" data-tenant-logo class="hidden" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:8px;background:#0f1419;padding:4px;" />
+      <div>
+      <h1 id="hubTitle" data-tenant-brand-title>Enterprise-Hub</h1>
       <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)"></p>
+      </div>
     </div>
     <nav class="nav-links" id="hubNav">
       <label class="hub-lang-select" style="border:none;padding:0">
@@ -1755,6 +1758,26 @@
       }
     }
 
+    async function refreshHubTenantBranding() {
+      const cid = String(selectedCompanyId || "").trim();
+      try {
+        if (window.BaupassAuth?.resolveTenantBranding) {
+          await window.BaupassAuth.resolveTenantBranding({ companyId: cid || undefined });
+          return;
+        }
+        if (window.BaupassAuth?.loadTenantBranding) {
+          await window.BaupassAuth.loadTenantBranding(cid || undefined);
+          return;
+        }
+        if (!cid && currentUserRole !== "company-admin") return;
+        const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+        const branding = await api(`/api/companies/current/branding${q}`);
+        window.BaupassAuth?.applyTenantBranding?.(branding);
+      } catch {
+        // branding optional
+      }
+    }
+
     async function loadCompaniesForSuperadmin() {
       const sel = document.getElementById("companySelect");
       if (!sel || currentUserRole !== "superadmin") {
@@ -1782,6 +1805,7 @@
           else url.searchParams.delete("company_id");
           history.replaceState({}, "", url);
           updateEmbedLayersHint();
+          void refreshHubTenantBranding();
           loadCatalog();
         };
       } catch {
@@ -2112,6 +2136,7 @@
         currentUserRole = "";
       }
       await loadCompaniesForSuperadmin();
+      await refreshHubTenantBranding();
       await loadCatalog();
       if (window.BaupassAiUi) {
         window.BaupassAiUi.bindVoiceInput(hubVoiceInputOptions());

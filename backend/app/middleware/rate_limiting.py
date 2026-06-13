@@ -243,6 +243,7 @@ _INTERNAL_NETWORKS = [
 _EXCLUDED_PATHS = frozenset({
     "/api/health",
     "/api/public/branding",
+    "/api/public/tenant-branding",
     "/api/session/bootstrap",
     "/favicon.ico",
 })

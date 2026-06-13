@@ -2707,7 +2707,14 @@ select:focus {
   --future-glow: 0 0 0 1px rgba(75, 227, 209, 0.18), 0 22px 48px rgba(12, 17, 23, 0.24);
 }
 
-body[data-branding-preset="construction"] {
+body.tenant-white-label .sidebar-card-label,
+body.tenant-white-label [data-ui-i18n="sidebarEyebrow"] {
+  /* Firmenname statt Plattform-Label — wird per JS gesetzt */
+}
+
+body.tenant-white-label .website-logo-sidebar:not(.hidden) {
+  display: block !important;
+}
   --future-cyan: #4be3d1;
   --future-orange: #ff8e3c;
 }
@@ -4473,6 +4480,38 @@ body[data-branding-preset="premium"] .badge-shell .wallet-card .wc-qr-frame {
 
 .badge-shell .wallet-card.preset-construction {
   background: linear-gradient(135deg, #0f1923 0%, #1a2d3d 45%, #0d1520 100%);
+}
+
+.badge-shell .wallet-card.branding-custom::before {
+  background: linear-gradient(
+    90deg,
+    var(--worker-card-accent, #d95d39) 0%,
+    var(--worker-card-primary-light, #f08a50) 50%,
+    var(--worker-card-accent, #d95d39) 100%
+  );
+}
+
+.badge-shell .wallet-card.branding-custom .wc-brand-mark {
+  background: linear-gradient(135deg, var(--worker-card-primary, #183243), var(--worker-card-accent, #f08a50));
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--worker-card-accent, #f08a50) 45%, transparent);
+}
+
+.badge-shell .wallet-card.branding-custom .wc-brand-mark .wc-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
+.badge-shell .wallet-card.branding-custom .wc-qr-frame {
+  background: linear-gradient(
+    135deg,
+    var(--worker-card-primary-dark, #183243) 0%,
+    var(--worker-card-accent, #f08a50) 42%,
+    var(--worker-card-primary-light, #f0b27a) 100%
+  );
+  border-color: color-mix(in srgb, var(--worker-card-accent, #f08a50) 46%, transparent);
 }
 
 /* INDUSTRY – Dunkelorange */

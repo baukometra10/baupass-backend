@@ -45,6 +45,22 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
+    .foreman-header-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .foreman-header-logo {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.12);
+      padding: 4px;
+    }
+
     .foreman-header h1 {
       margin: 0;
       font-size: 2rem;
@@ -503,8 +519,13 @@
   <div class="foreman-container">
     <!-- Header -->
     <div class="foreman-header">
-      <h1 data-i18n="foremanTitle">Foreman Dashboard</h1>
-      <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
+      <div class="foreman-header-brand">
+        <img data-tenant-logo class="foreman-header-logo hidden" alt="" />
+        <div>
+          <h1 data-tenant-brand-title data-i18n="foremanTitle">Foreman Dashboard</h1>
+          <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
+        </div>
+      </div>
       <p style="margin-top:0.6rem;font-size:0.88rem;opacity:0.95">
         <a href="/ops-live-map.html" style="color:#fff;margin-right:1rem">Live Karte</a>
         <a href="/ops-command-center.html" style="color:#fff;margin-right:1rem">Ops Center</a>
@@ -1087,8 +1108,20 @@
     });
 
     // Initialize on load
+    async function initForemanBranding() {
+      try {
+        if (window.BaupassAuth?.resolveTenantBranding) {
+          await window.BaupassAuth.resolveTenantBranding({
+            companyId: new URLSearchParams(location.search).get('company_id') || '',
+          });
+        }
+      } catch {
+        // optional branding
+      }
+    }
+
     window.addEventListener('load', () => {
-      loadTeamStatus();
+      initForemanBranding().finally(() => loadTeamStatus());
     });
   </script>
 </body>

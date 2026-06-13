@@ -17,6 +17,7 @@ class RuntimeDevicesRbacRoutesTest(unittest.TestCase):
     def test_public_and_devices(self):
         for path in (
             "/api/public/branding",
+            "/api/public/tenant-branding",
             "/api/device/register",
             "/api/scan",
             "/api/worker-app/mobile-setup",

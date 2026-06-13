@@ -4534,8 +4534,6 @@ def require_auth(handler):
         if user_payload.get("role") != "superadmin":
             company_error = get_company_access_error(db, user_payload.get("company_id"))
             if company_error:
-                db.execute("DELETE FROM sessions WHERE token = ?", (token,))
-                db.commit()
                 return jsonify(company_error), 403
 
         if user_payload.get("role") in ["superadmin", "company-admin"]:
@@ -7990,6 +7988,21 @@ def start_background_jobs():
             threading.Thread(target=ai_briefing_loop, name="baupass-ai-briefing", daemon=True).start()  # baupass:allow-inline-thread
 
 
+def is_demo_company_row(company) -> bool:
+    if not company:
+        return False
+    company_id = str(company["id"] if "id" in company.keys() else "").strip()
+    demo_ids = {
+        part.strip()
+        for part in (os.getenv("BAUPASS_DEMO_COMPANY_IDS") or "").split(",")
+        if part.strip()
+    }
+    if company_id and company_id in demo_ids:
+        return True
+    name = str(company["name"] if "name" in company.keys() else "").strip().lower()
+    return any(token in name for token in ("demo", "muster", "beispiel"))
+
+
 def get_company_access_error(db, company_id):
     if not company_id:
         return None
@@ -8001,6 +8014,11 @@ def get_company_access_error(db, company_id):
         return {"error": "company_deleted", "companyStatus": "geloescht", "companyName": company["name"]}
 
     status = (company["status"] or "aktiv").strip().lower()
+    if status == "test":
+        from backend.app.core.enterprise_mode import demo_features_allowed
+
+        if demo_features_allowed() and is_demo_company_row(company):
+            return None
     if status == "gesperrt":
         return {
             "error": "company_locked",
@@ -8330,27 +8348,112 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
     return auto_closed
 
 
+def _platform_branding_payload(db):
+    ui_build = (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()
+    fallback = {
+        "platformName": "Control Pass",
+        "operatorName": "Baukometra",
+        "primaryColor": "#0f4c5c",
+        "accentColor": "#e36414",
+        "logoData": "",
+        "impressumText": "",
+        "datenschutzText": "",
+        "uiBuild": ui_build,
+        "tenantMatched": False,
+    }
+    if db is None:
+        return fallback
+    row = db.execute(
+        "SELECT platform_name, operator_name, invoice_primary_color, invoice_accent_color, invoice_logo_data, impressum_text, datenschutz_text FROM settings WHERE id = 1"
+    ).fetchone()
+    if not row:
+        return fallback
+    return {
+        "platformName": str(row["platform_name"] or "Control Pass"),
+        "operatorName": str(row["operator_name"] or "Baukometra"),
+        "primaryColor": str(row["invoice_primary_color"] or "#0f4c5c"),
+        "accentColor": str(row["invoice_accent_color"] or "#e36414"),
+        "logoData": str(row["invoice_logo_data"] or ""),
+        "impressumText": str(row["impressum_text"] or ""),
+        "datenschutzText": str(row["datenschutz_text"] or ""),
+        "uiBuild": ui_build,
+        "tenantMatched": False,
+    }
+
+
+def resolve_public_tenant_company(db, *, host: str = "", company_id: str = ""):
+    cid = str(company_id or "").strip()
+    if cid:
+        row = db.execute(
+            "SELECT id, name FROM companies WHERE id = ? AND deleted_at IS NULL",
+            (cid,),
+        ).fetchone()
+        if row:
+            return row
+    host_norm = str(host or "").strip().lower().split(":", 1)[0]
+    if host_norm:
+        row = db.execute(
+            """
+            SELECT id, name FROM companies
+            WHERE deleted_at IS NULL AND lower(trim(access_host)) = ?
+            LIMIT 1
+            """,
+            (host_norm,),
+        ).fetchone()
+        if row:
+            return row
+    return None
+
+
 def public_branding():
     """Oeffentlicher Endpunkt fuer Branding-Informationen (kein Login noetig)."""
     try:
         db = get_db()
-        row = db.execute(
-            "SELECT platform_name, operator_name, invoice_primary_color, invoice_accent_color, invoice_logo_data, impressum_text, datenschutz_text FROM settings WHERE id = 1"
-        ).fetchone()
-        if not row:
-            return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": "", "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()})
-        return jsonify({
-            "platformName": str(row["platform_name"] or "Control Pass"),
-            "operatorName": str(row["operator_name"] or "Baukometra"),
-            "primaryColor": str(row["invoice_primary_color"] or "#0f4c5c"),
-            "accentColor": str(row["invoice_accent_color"] or "#e36414"),
-            "logoData": str(row["invoice_logo_data"] or ""),
-            "impressumText": str(row["impressum_text"] or ""),
-            "datenschutzText": str(row["datenschutz_text"] or ""),
-            "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip(),
-        })
+        return jsonify(_platform_branding_payload(db))
     except Exception:
-        return jsonify({"platformName": "Control Pass", "operatorName": "Baukometra", "primaryColor": "#0f4c5c", "accentColor": "#e36414", "logoData": "", "impressumText": "", "datenschutzText": "", "uiBuild": (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()})
+        return jsonify(_platform_branding_payload(None))
+
+
+def public_tenant_branding():
+    """Public branding with tenant override when host matches companies.access_host or company_id is given."""
+    try:
+        from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
+
+        db = get_db()
+        host = (request.args.get("host") or get_request_host() or "").strip()
+        company_id = (request.args.get("company_id") or "").strip()
+        payload = _platform_branding_payload(db)
+        company_row = resolve_public_tenant_company(db, host=host, company_id=company_id)
+        if not company_row:
+            return jsonify(payload)
+
+        tenant = resolve_company_pdf_branding(db, str(company_row["id"]))
+        display_name = str(tenant.get("companyName") or company_row["name"] or "").strip()
+        accent = str(tenant.get("accent") or "").strip().lower()
+        logo_data = str(tenant.get("logoData") or "").strip()
+        preset = normalize_branding_preset(tenant.get("preset") or "construction")
+
+        payload["tenantMatched"] = True
+        payload["companyId"] = str(company_row["id"])
+        payload["companyName"] = display_name or str(company_row["name"] or "")
+        payload["portalDisplayName"] = display_name
+        payload["preset"] = preset
+        payload["brandingPreset"] = preset
+        if accent and re.match(r"^#[0-9a-f]{6}$", accent):
+            payload["accent"] = accent
+            payload["primaryColor"] = accent
+            payload["accentColor"] = accent
+        if logo_data:
+            payload["logoData"] = logo_data
+        if display_name:
+            payload["platformName"] = display_name
+        return jsonify(payload)
+    except Exception:
+        try:
+            db = get_db()
+            return jsonify(_platform_branding_payload(db))
+        except Exception:
+            return jsonify(_platform_branding_payload(None))
 
 
 def phone_test_api():
@@ -8570,12 +8673,11 @@ def session_bootstrap():
     if not is_tenant_host_valid(db, user):
         return jsonify({"error": "forbidden_tenant_host"}), 403
 
+    company_access_blocked = None
     if user.get("role") != "superadmin":
         company_error = get_company_access_error(db, user.get("company_id"))
         if company_error:
-            db.execute("DELETE FROM sessions WHERE token = ?", (token,))
-            db.commit()
-            return jsonify(company_error), 403
+            company_access_blocked = company_error
 
     try:
         if user.get("role") in ["superadmin", "company-admin"]:
@@ -8597,7 +8699,10 @@ def session_bootstrap():
             pass
         raise
 
-    return jsonify({"authenticated": True, "token": token, "user": serialize_user(user)})
+    payload = {"authenticated": True, "token": token, "user": serialize_user(user)}
+    if company_access_blocked:
+        payload["companyAccessBlocked"] = company_access_blocked
+    return jsonify(payload)
 
 
 @require_auth
@@ -9371,6 +9476,42 @@ def companies_collection():
 
 
 @require_auth
+def current_company_branding():
+    """Resolved logo, accent and sector preset for the active tenant (UI white-label)."""
+    from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
+
+    db = get_db()
+    user = g.current_user
+    company_id = str(user.get("company_id") or request.args.get("company_id") or "").strip()
+    if user.get("role") == "superadmin":
+        company_id = str(
+            request.args.get("company_id")
+            or user.get("preview_company_id")
+            or company_id
+        ).strip()
+    if not company_id:
+        return jsonify({"error": "missing_company"}), 400
+
+    if user.get("role") == "company-admin" and company_id != str(user.get("company_id") or ""):
+        return jsonify({"error": "forbidden_company"}), 403
+
+    branding = resolve_company_pdf_branding(db, company_id)
+    branding["companyId"] = company_id
+    branding["tenantMatched"] = True
+    row = db.execute(
+        "SELECT branding_preset, operating_sector, portal_display_name FROM companies WHERE id = ?",
+        (company_id,),
+    ).fetchone()
+    if row:
+        branding["brandingPreset"] = normalize_branding_preset(row["branding_preset"])
+        branding["operatingSector"] = normalize_operating_sector(row["operating_sector"])
+        portal_name = str(row["portal_display_name"] or "").strip()
+        if portal_name:
+            branding["portalDisplayName"] = portal_name
+    return jsonify(branding)
+
+
+@require_auth
 def list_companies():
     from backend.app.domains.companies.service import CompaniesService
 
@@ -9507,8 +9648,13 @@ def demo_seed():
             company_id = "cmp-default"
             db.execute(
                 "INSERT OR IGNORE INTO companies (id, name, contact, billing_email, access_host, plan, status, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
-                (company_id, "Muster Bau GmbH", "Sabine Keller", "", "", "professional", "test"),
+                (company_id, "Muster Bau GmbH", "Sabine Keller", "", "", "professional", "aktiv"),
             )
+
+    db.execute(
+        "UPDATE companies SET status = ?, trial_ends_at = ? WHERE id = ?",
+        ("aktiv", "", company_id),
+    )
 
     if g.current_user["role"] != "superadmin" and company_id != g.current_user.get("company_id"):
         return jsonify({"error": "forbidden_company"}), 403

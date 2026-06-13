@@ -172,7 +172,7 @@ function applyWorkerBrandLabels(brandTitle) {
   const title = String(brandTitle || "").trim();
   if (!title) return;
   currentAppBrandTitle = title;
-  document.title = `${title} – ${t("pageTitle")}`;
+  document.title = title;
   const targets = [
     document.getElementById("workerBrandName"),
     document.getElementById("dashboardBrandName"),
@@ -180,12 +180,13 @@ function applyWorkerBrandLabels(brandTitle) {
     document.getElementById("workerAppTitle"),
     document.getElementById("workerSplashTitle"),
     document.getElementById("workerBrandChip"),
+    document.querySelector(".stb-brand-name"),
+    document.querySelector(".login-brand-title"),
   ];
   targets.forEach((el) => {
     if (!el) return;
-    el.textContent = el.id === "workerBrandName" || el.id === "dashboardBrandName" || el.id === "visitorBrandName"
-      ? title.toUpperCase()
-      : title;
+    const isCardBrand = el.id === "workerBrandName" || el.id === "dashboardBrandName" || el.id === "visitorBrandName";
+    el.textContent = isCardBrand ? title.toUpperCase() : title;
   });
   const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (metaAppTitle) metaAppTitle.setAttribute("content", title);
@@ -195,49 +196,63 @@ function applyWorkerBrandLabels(brandTitle) {
   if (storedToken) applyDynamicManifestStartUrl(storedToken, title);
 }
 
-function getWorkerCardBrandTitle(companyPreset) {
-  const preset = normalizeCompanyBrandingPreset(companyPreset);
-  if (preset === "industry" || preset === "premium") {
-    return "ControlPass";
+const WORKER_CARD_DEFAULT_MARK_HTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 17L12 4l9 13H3z" fill="#fff" fill-opacity=".9"/><rect x="7" y="17" width="10" height="4" rx="1" fill="#fff" fill-opacity=".7"/><rect x="10" y="13" width="4" height="4" fill="#fff" fill-opacity=".5"/></svg>`;
+
+function resolveWorkerCardBrandTitle({ portalDisplayName, companyName } = {}) {
+  return String(portalDisplayName || companyName || "").trim() || t("companyFallback");
+}
+
+function applyWorkerBrandMarkElement(mark, logoData) {
+  if (!mark) return;
+  const logoSrc = String(logoData || "").trim();
+  if (logoSrc) {
+    mark.innerHTML = `<img class="wc-brand-logo" src="${logoSrc.replace(/"/g, "&quot;")}" alt="" />`;
+    return;
   }
-  return "BauPass";
+  if (!mark.dataset.defaultHtml) {
+    mark.dataset.defaultHtml = mark.innerHTML.trim() || WORKER_CARD_DEFAULT_MARK_HTML;
+  }
+  mark.innerHTML = mark.dataset.defaultHtml || WORKER_CARD_DEFAULT_MARK_HTML;
+}
+
+function applyWorkerLogoMarks(logoData) {
+  document.querySelectorAll(".wc-brand-mark, .stb-logo-mark").forEach((mark) => {
+    applyWorkerBrandMarkElement(mark, logoData);
+  });
 }
 
 /** Firmen-Branding auf der Mitarbeiter-Karte (Preset aus Admin/Firma, nicht Rechnung). */
 function applyWorkerCompanyBranding({
   companyPreset,
+  companyName,
   portalDisplayName,
   brandingAccentColor,
   brandingLogoData,
 } = {}) {
   const preset = normalizeCompanyBrandingPreset(companyPreset);
   document.body.setAttribute("data-branding-preset", preset);
-  const customTitle = String(portalDisplayName || "").trim();
-  applyWorkerBrandLabels(customTitle || getWorkerCardBrandTitle(preset));
+  const brandTitle = resolveWorkerCardBrandTitle({ portalDisplayName, companyName });
+  applyWorkerBrandLabels(brandTitle);
 
   const accent = String(brandingAccentColor || "").trim();
+  const logoSrc = String(brandingLogoData || "").trim();
+  const hasCustomBranding = Boolean(logoSrc) || /^#[0-9a-f]{6}$/i.test(accent);
+
   if (/^#[0-9a-f]{6}$/i.test(accent)) {
     document.documentElement.style.setProperty("--worker-card-accent", accent);
     document.documentElement.style.setProperty("--accent", accent);
+    document.documentElement.style.setProperty("--corp-primary", accent);
   } else {
     document.documentElement.style.removeProperty("--worker-card-accent");
+    document.documentElement.style.removeProperty("--corp-primary");
   }
 
-  const logoMark = document.querySelector(".stb-logo-mark");
-  if (logoMark) {
-    const logoSrc = String(brandingLogoData || "").trim();
-    if (logoSrc) {
-      logoMark.innerHTML = `<img src="${logoSrc.replace(/"/g, "&quot;")}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:8px;" />`;
-    } else if (!logoMark.dataset.defaultHtml) {
-      logoMark.dataset.defaultHtml = logoMark.innerHTML;
-    } else if (logoMark.dataset.defaultHtml) {
-      logoMark.innerHTML = logoMark.dataset.defaultHtml;
-    }
-  }
+  applyWorkerLogoMarks(logoSrc);
 
   document.querySelectorAll(".wallet-card").forEach((card) => {
     card.classList.remove("preset-construction", "preset-industry", "preset-premium", "branding-custom");
     card.classList.add(`preset-${preset}`);
+    card.classList.toggle("branding-custom", hasCustomBranding);
     card.style.removeProperty("--worker-card-primary");
     card.style.removeProperty("--worker-card-primary-dark");
     card.style.removeProperty("--worker-card-primary-light");
@@ -245,6 +260,9 @@ function applyWorkerCompanyBranding({
       card.style.removeProperty("--worker-card-accent");
     } else {
       card.style.setProperty("--worker-card-accent", accent);
+      card.style.setProperty("--worker-card-primary", accent);
+      card.style.setProperty("--worker-card-primary-dark", shadeHexColor(accent, -35));
+      card.style.setProperty("--worker-card-primary-light", shadeHexColor(accent, 40));
     }
   });
 }
@@ -2920,6 +2938,7 @@ function renderWorker(payload) {
 
   applyWorkerCompanyBranding({
     companyPreset,
+    companyName: company.name || "",
     portalDisplayName: company.portalDisplayName || company.portal_display_name,
     brandingAccentColor: company.brandingAccentColor || company.branding_accent_color,
     brandingLogoData: company.brandingLogoData || company.branding_logo_data,

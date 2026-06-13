@@ -60,9 +60,12 @@
 </head>
 <body class="ops-app">
   <header class="ops-header">
-    <div>
+    <div style="display:flex;align-items:center;gap:0.65rem;">
+      <img data-tenant-logo class="hidden" alt="" style="width:36px;height:36px;object-fit:contain;border-radius:8px;background:#0c1218;padding:3px;" />
+      <div>
       <h1><span class="ops-pulse" id="liveDot"></span> <span id="opsTitle">Ops Command Center</span></h1>
       <div id="status"></div>
+      </div>
     </div>
     <nav class="ops-nav">
       <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
@@ -602,6 +605,13 @@
         }
       } catch {
         // load() surfaces auth errors in the grid
+      }
+      try {
+        if (window.BaupassAuth?.resolveTenantBranding) {
+          await window.BaupassAuth.resolveTenantBranding({ companyId });
+        }
+      } catch {
+        // optional branding
       }
       load();
       setInterval(load, 15000);

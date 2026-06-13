@@ -51,9 +51,12 @@
       <div class="app-shell">
         <aside class="app-sidebar" id="appSidebar" aria-label="Navigation">
           <div class="sidebar-brand">
-            <span class="sidebar-logo" aria-hidden="true">BP</span>
+            <span class="sidebar-logo" aria-hidden="true">
+              <img data-tenant-logo class="tenant-logo-img hidden" alt="" />
+              <span data-tenant-logo-fallback>BP</span>
+            </span>
             <div>
-              <strong id="sidebarBrandTitle" data-i18n="app.title">BauPass Admin</strong>
+              <strong id="sidebarBrandTitle" data-tenant-brand-title data-i18n="app.title">BauPass Admin</strong>
               <p id="sidebarUserLine" class="muted small"></p>
             </div>
           </div>

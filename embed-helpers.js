@@ -370,6 +370,131 @@
     return data;
   }
 
+  function applyTenantBranding(branding) {
+    if (!branding || typeof branding !== "object") return;
+    const preset = String(branding.preset || branding.brandingPreset || "construction").trim().toLowerCase();
+    if (["construction", "industry", "premium"].includes(preset)) {
+      document.body.setAttribute("data-branding-preset", preset);
+    }
+    const accent = String(
+      branding.accent || branding.brandingAccentColor || branding.accentColor || "",
+    ).trim();
+    const primary = String(branding.primaryColor || accent || "").trim();
+    if (/^#[0-9a-f]{6}$/i.test(accent)) {
+      document.documentElement.style.setProperty("--accent", accent);
+      document.documentElement.style.setProperty("--company-accent", accent);
+    }
+    if (/^#[0-9a-f]{6}$/i.test(primary)) {
+      document.documentElement.style.setProperty("--brand-primary", primary);
+      document.documentElement.style.setProperty("--teal", primary);
+      document.documentElement.style.setProperty("--teal-soft", primary);
+      document.documentElement.style.setProperty("--foreman-primary", primary);
+    }
+    const displayName = String(
+      branding.portalDisplayName || branding.companyName || branding.platformName || branding.portal_display_name || "",
+    ).trim();
+    if (displayName) {
+      document.body.setAttribute("data-portal-display-name", displayName);
+    }
+    const logoData = String(branding.logoData || branding.brandingLogoData || "").trim();
+    document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
+      if (logoData) {
+        img.src = logoData;
+        img.classList.remove("hidden");
+      } else {
+        img.classList.add("hidden");
+      }
+    });
+    if (logoData) {
+      document.querySelectorAll(".website-logo-auth, .website-logo-sync.website-logo-auth").forEach((img) => {
+        img.src = logoData;
+        img.classList.remove("hidden");
+      });
+    }
+    document.querySelectorAll("[data-tenant-brand-title]").forEach((el) => {
+      if (displayName) el.textContent = displayName;
+    });
+    if (displayName) {
+      document.querySelectorAll("#loginPlatformName, [data-tenant-login-platform]").forEach((el) => {
+        el.textContent = displayName;
+        el.setAttribute("data-tenant-branded", "1");
+      });
+      document.querySelectorAll(".website-logo-sync.website-logo-sidebar").forEach((img) => {
+        if (logoData) {
+          img.src = logoData;
+          img.classList.remove("hidden");
+        }
+      });
+      if (branding.tenantMatched || branding.companyId) {
+        document.body.classList.add("tenant-white-label");
+        document.title = displayName;
+        const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if (metaAppTitle) metaAppTitle.setAttribute("content", displayName);
+      } else if (displayName) {
+        document.title = displayName;
+      }
+    }
+    const foremanHeader = document.querySelector(".foreman-header");
+    if (foremanHeader && /^#[0-9a-f]{6}$/i.test(primary || accent)) {
+      const c1 = primary || accent;
+      const c2 = accent || primary;
+      foremanHeader.style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+    }
+    const opsTitle = document.getElementById("opsTitle");
+    if (opsTitle && displayName && (branding.tenantMatched || branding.companyId)) {
+      opsTitle.textContent = displayName;
+    }
+    const mapTitle = document.getElementById("opsMapTitle");
+    if (mapTitle && displayName && (branding.tenantMatched || branding.companyId)) {
+      mapTitle.textContent = displayName;
+    }
+  }
+
+  async function loadPublicTenantBranding(opts = {}) {
+    const host = String(opts.host || global.location.hostname || "").trim();
+    const companyId = String(
+      opts.companyId || readStoredCompanyId() || new URLSearchParams(global.location.search).get("company_id") || "",
+    ).trim();
+    let query = `?host=${encodeURIComponent(host)}`;
+    if (companyId) query += `&company_id=${encodeURIComponent(companyId)}`;
+    try {
+      const res = await fetch(`/api/public/tenant-branding${query}`, { credentials: "include" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      applyTenantBranding(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  async function resolveTenantBranding(opts = {}) {
+    const companyId = String(
+      opts.companyId || readStoredCompanyId() || new URLSearchParams(global.location.search).get("company_id") || "",
+    ).trim();
+    if (getSessionToken()) {
+      try {
+        const authBranding = await loadTenantBranding(companyId || undefined);
+        if (authBranding) return authBranding;
+      } catch {
+        // fall through to public tenant branding
+      }
+    }
+    return loadPublicTenantBranding({ host: opts.host, companyId });
+  }
+
+  async function loadTenantBranding(companyId) {
+    const cid = String(companyId || readStoredCompanyId() || "").trim();
+    const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+    try {
+      const branding = await fetchApi(`/api/companies/current/branding${q}`);
+      applyTenantBranding(branding);
+      return branding;
+    } catch {
+      return null;
+    }
+  }
+
   window.addEventListener("message", (event) => {
     if (!event?.data || event.origin !== global.location.origin) return;
     if (event.data.type === "baupass-sync-token") {
@@ -409,6 +534,10 @@
     authHeaders,
     fetchApi,
     bootstrapSession,
+    applyTenantBranding,
+    loadTenantBranding,
+    loadPublicTenantBranding,
+    resolveTenantBranding,
     readStoredCompanyId,
     resolveCompanyIdFromUser,
     persistCompanyId,

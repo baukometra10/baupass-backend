@@ -34,9 +34,12 @@
 </head>
 <body class="ops-app">
   <header class="ops-header">
-    <div>
-      <strong>Live Ops Karte</strong>
-      <span id="status">Laden…</span>
+    <div style="display:flex;align-items:center;gap:0.65rem;">
+      <img data-tenant-logo class="hidden" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:8px;background:#0c1218;padding:3px;" />
+      <div>
+        <strong id="opsMapTitle">Live Ops Karte</strong>
+        <span id="status">Laden…</span>
+      </div>
     </div>
     <nav>
       <select id="companySelect" style="display:none"></select>
@@ -142,6 +145,16 @@
       renderMap(data);
     }
 
+    async function applyOpsMapBranding() {
+      try {
+        if (window.BaupassAuth?.resolveTenantBranding) {
+          await window.BaupassAuth.resolveTenantBranding({ companyId });
+        }
+      } catch {
+        // optional
+      }
+    }
+
     async function boot() {
       try {
         const boot = window.BaupassAuth?.bootstrapSession
@@ -155,8 +168,12 @@
           const rows = await api("/api/companies");
           sel.innerHTML = `<option value="">— Firma —</option>` + rows.filter(c => !c.deleted_at).map(c =>
             `<option value="${c.id}" ${c.id === companyId ? "selected" : ""}>${c.name}</option>`).join("");
-          sel.onchange = () => { companyId = sel.value; load().catch(e => alert(e.message)); };
+          sel.onchange = () => {
+            companyId = sel.value;
+            applyOpsMapBranding().finally(() => load().catch(e => alert(e.message)));
+          };
         }
+        await applyOpsMapBranding();
         await load();
         if (window.BauPassOpsRealtime) {
           await window.BauPassOpsRealtime.start({

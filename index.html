@@ -2224,16 +2224,39 @@
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
-      fetch('/api/public/branding').then(function(r) { return r.json(); }).then(function(b) {
+      var host = location.hostname || '';
+      var cid = new URLSearchParams(location.search).get('company_id') || '';
+      var q = '?host=' + encodeURIComponent(host) + (cid ? '&company_id=' + encodeURIComponent(cid) : '');
+      fetch('/api/public/tenant-branding' + q).then(function(r) { return r.json(); }).then(function(b) {
         var root = document.documentElement;
         if (b.primaryColor) {
           root.style.setProperty('--teal-soft', b.primaryColor);
           root.style.setProperty('--teal', b.primaryColor);
+          root.style.setProperty('--brand-primary', b.primaryColor);
         }
         if (b.accentColor) root.style.setProperty('--accent', b.accentColor);
-        if (b.platformName && b.platformName !== 'Control Pass') document.title = b.platformName;
+        var name = b.portalDisplayName || b.companyName || b.platformName || '';
+        if (name) {
+          document.title = name;
+          var platformEl = document.getElementById('loginPlatformName');
+          if (platformEl && b.tenantMatched) {
+            platformEl.textContent = name;
+            platformEl.setAttribute('data-tenant-branded', '1');
+          }
+          if (b.tenantMatched) {
+            document.body.classList.add('tenant-white-label');
+            var authTitle = document.querySelector('[data-ui-i18n="authTitle"]');
+            if (authTitle) {
+              authTitle.textContent = 'Bei ' + name + ' anmelden';
+              authTitle.setAttribute('data-tenant-branded', '1');
+            }
+          }
+        }
         if (b.logoData && b.logoData.startsWith('data:image/')) {
-          document.querySelectorAll('.website-logo-auth').forEach(function(el) { el.src = b.logoData; });
+          document.querySelectorAll('.website-logo-auth, .website-logo-sync').forEach(function(el) { el.src = b.logoData; el.classList.remove('hidden'); });
+        }
+        if (b.preset || b.brandingPreset) {
+          document.body.setAttribute('data-branding-preset', b.preset || b.brandingPreset);
         }
       }).catch(function() {});
     })();
