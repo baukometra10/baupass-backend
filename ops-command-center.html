@@ -8,53 +8,53 @@
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
   <style>
-    main { padding: 1rem 1.5rem; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    main { padding: 0.75rem 1rem; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .card {
-      background: var(--panel); border-radius: 12px; padding: 1rem; border: 1px solid var(--border);
+      background: var(--panel); border-radius: 12px; padding: 0.85rem; border: 1px solid var(--border);
       transition: border-color 0.2s, transform 0.15s;
     }
     .card.critical { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25); }
     .card.clickable { cursor: pointer; }
     .card.clickable:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .metric { font-size: 2rem; font-weight: 700; color: var(--accent); }
-    .label { font-size: 0.85rem; color: var(--muted); }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th, td { text-align: start; padding: 0.5rem 0.4rem; border-bottom: 1px solid var(--border); }
+    .metric { font-size: 1.65rem; font-weight: 700; color: var(--accent); }
+    .label { font-size: 0.8rem; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { text-align: start; padding: 0.4rem 0.35rem; border-bottom: 1px solid var(--border); }
     tr[data-cid] { cursor: pointer; }
     tr[data-cid]:hover { background: #14202c; }
     .err { color: var(--danger); padding: 1rem; }
     #status { font-size: 0.8rem; color: var(--muted); }
-    .actions { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .actions { margin-top: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
     .actions a, .actions button {
-      font-size: 0.78rem; padding: 0.35rem 0.65rem; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 0.72rem; padding: 0.3rem 0.55rem; border-radius: 8px; border: 1px solid var(--border);
       background: #0c1218; color: var(--accent); cursor: pointer; text-decoration: none;
     }
-    .event-feed { max-height: 220px; overflow-y: auto; font-size: 0.78rem; }
+    .event-feed { max-height: 190px; overflow-y: auto; font-size: 0.74rem; }
     .event-line { padding: 0.35rem 0; border-bottom: 1px solid var(--border); color: var(--muted); }
     .event-line strong { color: var(--text); }
     .guardian-card { grid-column: 1 / -1; border-color: var(--accent); }
     .guardian-card.degraded { border-color: var(--warn); }
     .guardian-card.down { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25); }
     .guardian-head { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
-    .guardian-status { font-size: 1.35rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+    .guardian-status { font-size: 1.1rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
     .guardian-card.degraded .guardian-status { color: var(--warn); }
     .guardian-card.down .guardian-status { color: var(--danger); }
     .guardian-probes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.65rem; }
     .guardian-probe {
-      font-size: 0.72rem; padding: 0.2rem 0.45rem; border-radius: 999px;
+      font-size: 0.68rem; padding: 0.18rem 0.4rem; border-radius: 999px;
       border: 1px solid var(--border); color: var(--muted);
     }
     .guardian-probe.ok { border-color: rgba(75, 227, 209, 0.35); color: var(--accent); }
     .guardian-probe.fail { border-color: rgba(248, 113, 113, 0.45); color: var(--danger); }
-    .guardian-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.65rem; }
+    .guardian-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.55rem; }
     .guardian-actions button {
-      font-size: 0.75rem; padding: 0.35rem 0.65rem; border-radius: 8px;
+      font-size: 0.7rem; padding: 0.28rem 0.5rem; border-radius: 8px;
       border: 1px solid var(--border); background: #0c1218; color: var(--accent); cursor: pointer;
     }
-    .guardian-ops { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
-    .guardian-ops span { font-size: 0.72rem; color: var(--muted); padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: 999px; }
+    .guardian-ops { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.55rem; }
+    .guardian-ops span { font-size: 0.68rem; color: var(--muted); padding: 0.18rem 0.4rem; border: 1px solid var(--border); border-radius: 999px; }
     .guardian-ops span.warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
-    .guardian-history { margin-top: 0.65rem; font-size: 0.72rem; color: var(--muted); max-height: 120px; overflow-y: auto; }
+    .guardian-history { margin-top: 0.55rem; font-size: 0.68rem; color: var(--muted); max-height: 110px; overflow-y: auto; }
     .guardian-history-row { padding: 0.2rem 0; border-bottom: 1px solid var(--border); }
   </style>
 </head>

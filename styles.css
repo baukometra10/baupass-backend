@@ -1988,8 +1988,8 @@ textarea.invoice-field-valid {
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
-  padding: 28px;
-  margin-bottom: 20px;
+  padding: 20px 22px;
+  margin-bottom: 14px;
   border-radius: var(--radius-xl);
 }
 
@@ -2005,15 +2005,15 @@ textarea.invoice-field-valid {
 
 .hero-panel p {
   max-width: 720px;
-  margin: 10px 0 0;
-  line-height: 1.55;
+  margin: 8px 0 0;
+  line-height: 1.45;
 }
 
 .hero-badges {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
 .hero-badges span,
@@ -2022,7 +2022,7 @@ textarea.invoice-field-valid {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 10px;
   border-radius: 999px;
   font-weight: 600;
   background: rgba(202, 90, 45, 0.14);
@@ -2030,14 +2030,14 @@ textarea.invoice-field-valid {
 }
 
 .hero-panel .hero-badges span {
-  font-size: 1.02rem;
+  font-size: 0.9rem;
   box-shadow: 0 2px 8px 0 rgba(227,100,20,0.10);
 }
 
 .stats-grid,
 .panel-grid {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 /* Panels untereinander (volle Breite) – vermeidet halbe leere Seite + Höhen-Lücken */
@@ -2065,8 +2065,8 @@ textarea.invoice-field-valid {
 }
 
 .stats-grid {
-  grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-bottom: 14px;
 }
 
 .panel .stats-grid {
@@ -2083,7 +2083,7 @@ textarea.invoice-field-valid {
 }
 
 .stat-card {
-  padding: 22px;
+  padding: 16px 18px;
   transition: transform 180ms ease, box-shadow 180ms ease;
   position: relative;
 }
@@ -2205,6 +2205,52 @@ label {
   gap: 8px;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.site-geo-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.12rem;
+  transform: translateY(-50%);
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0;
+  min-height: 1.45rem;
+  min-width: 1.45rem;
+  font-size: 0.66rem;
+  border-radius: 999px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  color: rgba(125, 211, 252, 0.92);
+  box-shadow: none;
+}
+
+.site-geo-icon {
+  width: 0.82rem;
+  height: 0.82rem;
+  fill: currentColor;
+  display: block;
+}
+
+.site-geo-btn:hover {
+  background: rgba(56, 189, 248, 0.12);
+  color: #ffffff;
+}
+
+.site-geo-btn:focus-visible {
+  outline: 1px solid rgba(56, 189, 248, 0.5);
+  outline-offset: 1px;
+}
+
+.site-input-shell {
+  position: relative;
+}
+
+.site-input-shell input {
+  padding-inline-end: 1.95rem;
 }
 
 input,

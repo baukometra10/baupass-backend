@@ -554,7 +554,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubTitle: "Enterprise-Hub: 16 Ebenen + Tarife + KI-Assistent",
     enterpriseHubDesc: "Alle gebauten Funktionen (Anwesenheit, Identit\u00e4t, Sicherheit, KI, Integrationen \u2026) an einem Ort \u2014 gefiltert nach Ihrem Tarif.",
     enterpriseHubOpenBtn: "Enterprise-Hub \u00f6ffnen",
-    enterpriseEmbedOpenTab: "In neuem Tab \u00f6ffnen",
+    enterpriseEmbedOpenTab: "In der Plattform öffnen",
     enterpriseHubAdminV2Btn: "Admin v2",
     enterpriseHubOpsBtn: "Ops-Zentrale",
     enterpriseHubPlanHint: "Aktueller Tarif: {plan} \u2014 {enabled} von {total} Funktionen aktiv ({percent}%). Superadmin: Firmen-Vorschau w\u00e4hlen, um den Kunden-Tarif zu simulieren.",
@@ -1709,7 +1709,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubTitle: "Enterprise hub: 16 layers + plans + AI assistant",
     enterpriseHubDesc: "All built capabilities (attendance, identity, security, AI, integrations …) in one place — filtered by your plan.",
     enterpriseHubOpenBtn: "Open enterprise hub",
-    enterpriseEmbedOpenTab: "Open in new tab",
+    enterpriseEmbedOpenTab: "Open inside platform",
     navBaupassAi: "BauPass AI",
     navAiCopilot: "AI assistant",
     navEnterpriseHub: "Features & plans",
@@ -3422,7 +3422,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubTitle: "مركز المؤسسة: 16 طبقة + خطط + مساعد AI",
     enterpriseHubDesc: "كل القدرات التي بُنيت (حضور، هوية، أمن، AI، تكاملات…) في مكان واحد — مُخصّصة حسب خطتك.",
     enterpriseHubOpenBtn: "فتح مركز المؤسسة",
-    enterpriseEmbedOpenTab: "فتح في تبويب جديد",
+    enterpriseEmbedOpenTab: "فتح داخل المنصة",
     navBaupassAi: "BauPass KI",
     navEnterpriseHub: "الميزات والخطط",
     navOpsCenter: "مركز العمليات",
@@ -17717,6 +17717,15 @@ function loadEnterpriseEmbed(viewName) {
   const external = document.getElementById(meta.externalLinkId);
   if (external) {
     external.setAttribute("href", url);
+    external.setAttribute("target", "_self");
+    external.setAttribute("rel", "noopener noreferrer");
+    if (!external.dataset.viewBound) {
+      external.dataset.viewBound = "1";
+      external.addEventListener("click", (event) => {
+        event.preventDefault();
+        openEnterpriseView(viewName, pendingEnterpriseEmbedItemId || meta.defaultItemId);
+      });
+    }
   }
 }
 

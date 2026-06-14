@@ -10891,7 +10891,6 @@ def _format_reverse_geocode_street_address(address):
         or ""
     ).strip()
     house_number = str(address.get("house_number") or "").strip()
-    postcode = str(address.get("postcode") or "").strip()
     city = str(
         address.get("city")
         or address.get("town")
@@ -10902,7 +10901,7 @@ def _format_reverse_geocode_street_address(address):
         or ""
     ).strip()
     street_line = f"{road} {house_number}".strip() if road else ""
-    city_line = " ".join(part for part in (postcode, city) if part).strip()
+    city_line = city
     if street_line and city_line:
         return f"{street_line}, {city_line}"
     return street_line or city_line

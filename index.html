@@ -572,7 +572,14 @@
               </label>
               <label>
                 <span data-ui-i18n="labelSite">Standort</span>
-                <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
+                <div class="site-input-shell">
+                  <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
+                  <button id="siteGeoLocateBtn" type="button" class="ghost-button small-button site-geo-btn" data-ui-i18n="siteGeoLocateBtn" aria-label="GPS" title="GPS">
+                    <svg class="site-geo-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M12 2c3.9 0 7 3.1 7 7 0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7zm0 9.4A2.4 2.4 0 1 0 12 6.6a2.4 2.4 0 0 0 0 4.8z"></path>
+                    </svg>
+                  </button>
+                </div>
                 <small class="field-hint" data-ui-i18n="siteFieldHint">Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt</small>
               </label>
               <label>
