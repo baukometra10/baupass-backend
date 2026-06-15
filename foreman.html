@@ -736,7 +736,7 @@
       });
 
       if (response.status === 401) {
-        throw new Error('Bitte zuerst im Control Pass anmelden.');
+        throw new Error('Bitte zuerst in BauPass anmelden.');
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

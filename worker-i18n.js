@@ -3,7 +3,7 @@
 const TRANSLATIONS = {
   de: {
     pageTitle: "Mitarbeiter-App",
-    appTitle: "Control Pass Mobile",
+    appTitle: "BauPass Mobile",
     appEyebrow: "Mitarbeiter-App",
     appLead: "Dein Ausweis, dein Arbeitsweg und dein Einlass an einem Ort. Schnell, sauber und direkt auf dem Homescreen.",
     languageLabel: "Sprache",
@@ -329,7 +329,7 @@ const TRANSLATIONS = {
   },
   en: {
     pageTitle: "Worker App",
-    appTitle: "Control Pass Mobile",
+    appTitle: "BauPass Mobile",
     appEyebrow: "Worker App",
     appLead: "Your ID, your route, and your site access in one place. Fast, clean, and right on your home screen.",
     languageLabel: "Language",
@@ -556,7 +556,7 @@ const TRANSLATIONS = {
   },
   tr: {
     pageTitle: "Çalışan Uygulaması",
-    appTitle: "Control Pass Mobil",
+    appTitle: "BauPass Mobil",
     appEyebrow: "Çalışan Uygulaması",
     appLead: "Kimliğin, rotanın ve şantiye girişin tek bir yerde. Hızlı, temiz ve ana ekranında.",
     languageLabel: "Dil",
@@ -700,7 +700,7 @@ const TRANSLATIONS = {
   },
   ar: {
     pageTitle: "تطبيق العمال",
-    appTitle: "Control Pass موبايل",
+    appTitle: "BauPass موبايل",
     appEyebrow: "تطبيق العمال",
     appLead: "هويتك وطريقك ودخولك إلى الموقع في مكان واحد. سريع وسهل على الشاشة الرئيسية.",
     languageLabel: "اللغة",
@@ -1628,7 +1628,7 @@ Object.assign(TRANSLATIONS.pl, {
 });
 
 Object.assign(TRANSLATIONS.fr, {
-  appTitle: "Control Pass Mobile",
+  appTitle: "BauPass Mobile",
   appLead: "Votre badge, votre trajet et votre accès au chantier en un seul endroit.",
   installBtn: "Installer l'application",
   forceRefreshBtn: "Actualiser maintenant",
@@ -1766,7 +1766,7 @@ Object.assign(TRANSLATIONS.fr, {
 });
 
 Object.assign(TRANSLATIONS.es, {
-  appTitle: "Control Pass Mobile",
+  appTitle: "BauPass Mobile",
   appLead: "Tu credencial, tu ruta y tu acceso a obra en un solo lugar.",
   installBtn: "Instalar aplicación",
   forceRefreshBtn: "Actualizar ahora",
@@ -1918,7 +1918,7 @@ Object.assign(TRANSLATIONS.es, {
 });
 
 Object.assign(TRANSLATIONS.it, {
-  appTitle: "Control Pass Mobile",
+  appTitle: "BauPass Mobile",
   appLead: "Il tuo badge, il tuo percorso e l'accesso al cantiere in un unico posto.",
   installBtn: "Installa app",
   forceRefreshBtn: "Aggiorna ora",
@@ -2076,7 +2076,7 @@ Object.assign(TRANSLATIONS.it, {
 });
 
 Object.assign(TRANSLATIONS.pl, {
-  appTitle: "Control Pass Mobile",
+  appTitle: "BauPass Mobile",
   appLead: "Twoja karta, trasa i dostęp do budowy w jednym miejscu.",
   installBtn: "Zainstaluj aplikację",
   forceRefreshBtn: "Odśwież teraz",

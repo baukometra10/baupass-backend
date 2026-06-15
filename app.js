@@ -365,7 +365,7 @@ function clearSupportLoginContext() {
 const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
-    authTitle: "Sicher in Control Pass anmelden",
+    authTitle: "Sicher in BauPass anmelden",
     authTitleTenant: "Bei {company} anmelden",
     authCopyTenant: "Melden Sie sich mit Ihrem Firmenkonto bei {company} an.",
     authCopy: "Digitale Ausweise, Zutrittskontrolle und Compliance für Unternehmen, Teams und Standorte.",
@@ -1538,7 +1538,7 @@ const UI_TRANSLATIONS = {
   en: {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
-    authTitle: "Secure Sign-in to Control Pass",
+    authTitle: "Secure sign-in to BauPass",
     authTitleTenant: "Sign in to {company}",
     authCopyTenant: "Sign in with your {company} account.",
     authCopy: "Digital badges, access control and compliance for companies, teams and sites.",
@@ -1641,7 +1641,7 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Deployment plan — monthly",
     deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
     deploymentPlanLockedToast: "Deployment plan requires Professional plan or higher.",
-    deploymentPlanLoginRequired: "Please sign in to Control Pass first — then the deployment plan editor opens.",
+    deploymentPlanLoginRequired: "Please sign in to BauPass first — then the deployment plan editor opens.",
     loginMissingFields: "Please enter username and password.",
     loginAlreadyActive: "You are already signed in as {user} ({role}). Sign out first to switch accounts.",
     deploymentStep1Title: "1. Pick month",
@@ -1716,7 +1716,7 @@ const UI_TRANSLATIONS = {
     btnExport: "Export system",
     btnImport: "Import system",
     btnLogout: "Sign out securely",
-    dashEyebrow: "Enterprise Control Pass",
+    dashEyebrow: "Enterprise BauPass",
     dashHeading: "Digital badges with photo, badge ID and check-in at turnstile",
     dashSubtext: "Enterprise identity, access control, workforce, compliance, documents and reporting \u2014 multi-tenant for agencies and enterprises.",
     dashBadge1: "Photo capture",
@@ -3355,7 +3355,7 @@ const UI_TRANSLATIONS = {
   },
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
-    authTitle: "تسجيل دخول آمن إلى Control Pass",
+    authTitle: "تسجيل دخول آمن إلى BauPass",
     authCopy: "منصة الهوية المؤسسية والتحكم التشغيلي والامتثال — للمشرف العام ومدير المستأجر ونقاط الدخول.",
     labelOperatingSector: "القطاع التشغيلي",
     optSectorConstruction: "البناء",
