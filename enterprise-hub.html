@@ -288,6 +288,34 @@
       cursor: pointer;
     }
     .plan-upgrade-cta-row button:hover { background: rgba(26, 138, 173, 0.45); }
+    .contracts-panel {
+      background: linear-gradient(135deg, rgba(10, 16, 30, 0.96), rgba(16, 24, 44, 0.98));
+      border: 1px solid rgba(120, 156, 255, 0.16);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .contracts-panel h3 { margin: 0 0 0.4rem; color: #7dd3fc; }
+    .contracts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+    .contracts-panel label { display: grid; gap: 0.3rem; font-size: 0.82rem; }
+    .contracts-panel input, .contracts-panel select, .contracts-panel textarea {
+      width: 100%; padding: 0.55rem 0.65rem; border-radius: 8px; border: 1px solid var(--border); background: #0f1419; color: var(--text);
+    }
+    .contracts-panel textarea { min-height: 110px; resize: vertical; }
+    .contracts-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.8rem; }
+    .contracts-output {
+      margin-top: 0.8rem; padding: 0.85rem; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03); white-space: pre-wrap; font-size: 0.84rem; line-height: 1.55;
+      max-height: 340px; overflow: auto;
+      min-height: 240px;
+      width: 100%;
+      color: var(--text);
+    }
+    .contracts-meta {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
     .cap:not(.locked):hover { border-color: rgba(56, 189, 248, 0.45); background: #121c28; }
     .cap-detail-panel {
       position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center;
@@ -480,6 +508,60 @@
         <div id="planUpgradeBanner" class="plan-upgrade-banner hidden" role="status"></div>
         <div id="monatsplanHero" class="monatsplan-hero hidden"></div>
       </div>
+      <section id="contractsPanel" class="contracts-panel hidden">
+        <h3>AI Arbeitsverträge</h3>
+        <p class="muted small">Mehrere Vertragstypen, KI-Entwurf und PDF-Download direkt aus der Plattform.</p>
+        <div class="contracts-grid">
+          <label>
+            <span>Vertragstyp</span>
+            <select id="contractTemplateSelect"></select>
+          </label>
+          <label>
+            <span>Mitarbeiter-ID</span>
+            <input id="contractWorkerId" type="text" placeholder="z. B. worker-123" />
+          </label>
+          <label>
+            <span>Titel</span>
+            <input id="contractTitle" type="text" placeholder="Arbeitsvertrag" />
+          </label>
+          <label>
+            <span>Sprache</span>
+            <select id="contractLang">
+              <option value="de">DE</option>
+              <option value="en">EN</option>
+              <option value="ar">AR</option>
+            </select>
+          </label>
+          <label>
+            <span>Arbeitsbeginn</span>
+            <input id="contractStartDate" type="date" />
+          </label>
+          <label>
+            <span>Arbeitsort</span>
+            <input id="contractWorkLocation" type="text" placeholder="z. B. Berlin / Baustelle Nord" />
+          </label>
+          <label>
+            <span>Wochenstunden</span>
+            <input id="contractWeeklyHours" type="text" placeholder="z. B. 40" />
+          </label>
+          <label>
+            <span>Vergütung</span>
+            <input id="contractSalary" type="text" placeholder="z. B. 3.500 EUR brutto" />
+          </label>
+        </div>
+        <label style="margin-top:0.75rem;">
+          <span>Vertragsdaten und Anforderungen</span>
+          <textarea id="contractNotes" placeholder="Beschreiben Sie Position, Beginn, Laufzeit, Vergütung, Urlaub, Probezeit, Sonderklauseln und alle weiteren gewünschten Vertragsinhalte."></textarea>
+        </label>
+        <div class="contracts-actions">
+          <button type="button" class="primary" id="contractGenerateBtn">KI-Entwurf erstellen</button>
+          <button type="button" id="contractSaveBtn">Text speichern</button>
+          <button type="button" id="contractPdfBtn">PDF herunterladen</button>
+        </div>
+        <div id="contractList" class="cap-actions" style="margin-top:0.75rem;"></div>
+        <div id="contractMeta" class="contracts-meta"></div>
+        <textarea id="contractOutput" class="contracts-output" style="resize:vertical;">Noch kein Vertragsentwurf.</textarea>
+      </section>
       <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
       <div id="stats" class="stats hub-embed-stats"></div>
@@ -683,6 +765,8 @@
         authErrHtml: "Katalog konnte nicht geladen werden. <a href=\"/admin-v2/index.html?login=1\">Anmelden</a> oder Seite neu laden (Strg+F5).",
         btnClose: "Schließen",
         apiErrorPrefix: "API",
+        contractsTitle: "Arbeitsverträge mit KI",
+        contractsDesc: "Vertragstyp wählen, Vorgaben beschreiben, Entwurf erzeugen und PDF herunterladen.",
       },
       en: {
         title: "Enterprise hub — 16-layer map",
@@ -776,6 +860,8 @@
         authErrHtml: "Could not load catalog. <a href=\"/admin-v2/index.html?login=1\">Sign in</a> or hard-refresh (Ctrl+F5).",
         btnClose: "Close",
         apiErrorPrefix: "API",
+        contractsTitle: "AI employment contracts",
+        contractsDesc: "Choose a contract type, describe requirements, generate a draft, and download a PDF.",
       },
       ar: {
         title: "مركز المؤسسة — خريطة الـ 16 طبقة",
@@ -878,6 +964,8 @@
         authErrHtml: "تعذّر تحميل الكتالوج. <a href=\"/admin-v2/index.html?login=1\">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).",
         btnClose: "إغلاق",
         apiErrorPrefix: "API",
+        contractsTitle: "عقود العمل بالذكاء الاصطناعي",
+        contractsDesc: "اختر نوع العقد، أضف المتطلبات، أنشئ المسودة وحمّل ملف PDF.",
       },
     };
     function t(key) {
@@ -956,6 +1044,9 @@
       return (PLAN_LABELS[HUB_LANG] || PLAN_LABELS.de)[plan] || plan;
     }
     let catalog = null;
+    let currentContractId = "";
+    let currentContractDraft = "";
+    let contractList = [];
     let hubBilling = { stripeConfigured: false, selfServeCheckout: false };
     let filterSurface = "";
     let filterEntitlement = "enabled";
@@ -1142,6 +1233,10 @@
       if (h1) h1.textContent = t("title");
       const sub = document.getElementById("subtitle");
       if (sub) sub.textContent = t("subtitle");
+      const contractsTitle = document.querySelector("#contractsPanel h3");
+      if (contractsTitle) contractsTitle.textContent = t("contractsTitle");
+      const contractsDesc = document.querySelector("#contractsPanel .muted.small");
+      if (contractsDesc) contractsDesc.textContent = t("contractsDesc");
       document.getElementById("search").placeholder = t("searchPh");
       const fp = document.getElementById("filterPlan");
       fp.options[0].textContent = t("filterAll");
@@ -1188,6 +1283,136 @@
       const capClose = document.getElementById("capDetailClose");
       if (capClose) capClose.setAttribute("aria-label", t("btnClose"));
       renderHubQuickNav();
+    }
+
+    async function loadContractTemplates() {
+      const panel = document.getElementById("contractsPanel");
+      const select = document.getElementById("contractTemplateSelect");
+      if (!panel || !select) return;
+      if (!selectedCompanyId && currentUserRole === "superadmin") {
+        panel.classList.add("hidden");
+        return;
+      }
+      try {
+        let url = "/api/contracts/templates";
+        if (selectedCompanyId) url += `?company_id=${encodeURIComponent(selectedCompanyId)}`;
+        const data = await api(url);
+        const rows = data.templates || [];
+        select.innerHTML = rows.map((row) => `<option value="${row.id}">${row.name}</option>`).join("");
+        panel.classList.toggle("hidden", !rows.length);
+        await loadContractsList();
+      } catch {
+        panel.classList.add("hidden");
+      }
+    }
+
+    async function loadContractsList() {
+      const output = document.getElementById("contractOutput");
+      const listEl = document.getElementById("contractList");
+      const metaEl = document.getElementById("contractMeta");
+      if (!output) return;
+      let url = "/api/contracts";
+      if (selectedCompanyId) url += `?company_id=${encodeURIComponent(selectedCompanyId)}`;
+      try {
+        const data = await api(url);
+        contractList = data.contracts || [];
+        if (listEl) {
+          listEl.innerHTML = contractList
+            .slice(0, 8)
+            .map((contract) => `<button type="button" data-contract-id="${contract.id}">${contract.title || contract.contract_type || contract.id}</button>`)
+            .join("");
+          listEl.querySelectorAll("[data-contract-id]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const id = btn.getAttribute("data-contract-id") || "";
+              const selected = contractList.find((entry) => entry.id === id);
+              if (!selected) return;
+              currentContractId = id;
+              currentContractDraft = selected.final_text || selected.draft_text || "";
+              output.textContent = currentContractDraft || "Noch kein Vertragsentwurf.";
+              const titleInput = document.getElementById("contractTitle");
+              if (titleInput) titleInput.value = selected.title || "";
+              if (metaEl) metaEl.textContent = `Ausgewählt: ${selected.title || selected.contract_type || selected.id}`;
+            });
+          });
+        }
+        if (!currentContractId && contractList.length) {
+          currentContractId = contractList[0].id || "";
+          currentContractDraft = contractList[0].final_text || contractList[0].draft_text || "";
+          output.textContent = currentContractDraft || "Noch kein Vertragsentwurf.";
+          if (metaEl) metaEl.textContent = `Ausgewählt: ${contractList[0].title || contractList[0].contract_type || contractList[0].id}`;
+        }
+        if (!contractList.length && metaEl) metaEl.textContent = "Noch keine gespeicherten Verträge vorhanden.";
+      } catch {
+        contractList = [];
+      }
+    }
+
+    async function generateContractDraft() {
+      const templateId = document.getElementById("contractTemplateSelect")?.value || "";
+      const workerId = document.getElementById("contractWorkerId")?.value.trim() || "";
+      const title = document.getElementById("contractTitle")?.value.trim() || "Arbeitsvertrag";
+      const language = document.getElementById("contractLang")?.value || HUB_LANG;
+      const notes = document.getElementById("contractNotes")?.value.trim() || "";
+      const startDate = document.getElementById("contractStartDate")?.value || "";
+      const workLocation = document.getElementById("contractWorkLocation")?.value.trim() || "";
+      const weeklyHours = document.getElementById("contractWeeklyHours")?.value.trim() || "";
+      const salary = document.getElementById("contractSalary")?.value.trim() || "";
+      const output = document.getElementById("contractOutput");
+      if (!templateId || !output) return;
+      output.textContent = "Vertragsentwurf wird erstellt…";
+      const body = {
+        template_id: templateId,
+        worker_id: workerId || undefined,
+        title,
+        language,
+        notes,
+        form: {
+          start_date: startDate,
+          work_location: workLocation,
+          weekly_hours: weeklyHours,
+          salary_gross_monthly: salary,
+        },
+      };
+      if (selectedCompanyId) body.company_id = selectedCompanyId;
+      try {
+        const data = await api("/api/contracts/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        currentContractId = data.contract?.id || "";
+        currentContractDraft = data.contract?.draft_text || "";
+        output.textContent = currentContractDraft || "Kein Entwurf erzeugt.";
+        await loadContractsList();
+      } catch (e) {
+        output.textContent = e.payload?.error || e.message || String(e);
+      }
+    }
+
+    async function saveContractDraft() {
+      if (!currentContractId) return;
+      const output = document.getElementById("contractOutput");
+      const finalText = String(output?.textContent || "").trim();
+      if (!finalText) return;
+      await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ final_text: finalText }),
+      });
+    }
+
+    async function downloadContractPdf() {
+      if (!currentContractId) return;
+      await saveContractDraft();
+      const res = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selectedCompanyId ? { company_id: selectedCompanyId } : {}),
+      });
+      if (res?.download) {
+        window.open(res.download, "_blank", "noopener");
+      }
+      await loadContractsList();
     }
 
     function roleDashboardUrl() {
@@ -1816,6 +2041,7 @@
           history.replaceState({}, "", url);
           updateEmbedLayersHint();
           void refreshHubTenantBranding();
+          loadContractTemplates().catch(() => {});
           loadCatalog();
         };
       } catch {
@@ -2119,6 +2345,15 @@
     document.getElementById("capDetailPanel")?.addEventListener("click", (ev) => {
       if (ev.target.id === "capDetailPanel") closeCapDetail();
     });
+    document.getElementById("contractGenerateBtn")?.addEventListener("click", () => {
+      generateContractDraft().catch(() => {});
+    });
+    document.getElementById("contractSaveBtn")?.addEventListener("click", () => {
+      saveContractDraft().catch(() => {});
+    });
+    document.getElementById("contractPdfBtn")?.addEventListener("click", () => {
+      downloadContractPdf().catch(() => {});
+    });
 
     document.getElementById("hubLangSelect")?.addEventListener("change", (ev) => {
       setHubLang(ev.target.value);
@@ -2148,6 +2383,7 @@
       await loadCompaniesForSuperadmin();
       await refreshHubTenantBranding();
       await loadCatalog();
+      await loadContractTemplates();
       if (window.BaupassAiUi) {
         window.BaupassAiUi.bindVoiceInput(hubVoiceInputOptions());
       }

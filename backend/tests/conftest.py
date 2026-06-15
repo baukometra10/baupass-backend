@@ -17,6 +17,7 @@ os.environ.setdefault("BAUPASS_ENABLE_IMAP_POLLER", "0")
 os.environ.setdefault("BAUPASS_SKIP_IMAP_POLL", "1")
 
 from backend import server  # noqa: E402
+from backend.app.runtime_bootstrap import apply_sqlite_migrations  # noqa: E402
 
 TEST_COMPLIANCE_SIGNATURE = (
     "data:image/png;base64,"
@@ -31,6 +32,7 @@ def _prepare_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     server.request_rate_state.clear()
     server.failed_login_attempts.clear()
     server.init_db()
+    apply_sqlite_migrations(db_path)
     server.app.config.update(TESTING=True)
     return db_path
 
@@ -50,6 +52,7 @@ def worker_client(tmp_path):
     server.request_rate_state.clear()
     server.failed_login_attempts.clear()
     server.init_db()
+    apply_sqlite_migrations(db_path)
     server.app.config.update(TESTING=True)
     with server.app.test_client() as client:
         yield client

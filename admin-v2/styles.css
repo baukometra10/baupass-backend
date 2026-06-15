@@ -1844,6 +1844,47 @@ html[dir="rtl"] .app-sidebar {
   background: #fff;
 }
 
+.chat-thread-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.chat-thread-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.8rem;
+}
+
+.chat-message-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0.75rem 0;
+}
+
+.chat-message-bubble {
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(15, 76, 92, 0.12);
+  border: 1px solid rgba(94, 234, 212, 0.16);
+}
+
+.chat-message-bubble.admin {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(96, 165, 250, 0.18);
+}
+
+.chat-reply-box {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chat-reply-box textarea {
+  min-height: 96px;
+}
+
 @media (max-width: 720px) {
   .deployment-days-header {
     display: none;

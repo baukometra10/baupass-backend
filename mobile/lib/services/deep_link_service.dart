@@ -32,6 +32,9 @@ class DeepLinkService {
       case 'shifts':
       case 'shift':
         return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 3);
+      case 'chat':
+      case 'messages':
+        return const WorkerAppRoute(tabIndex: 3, openChat: true);
       case 'profile':
         return const WorkerAppRoute(tabIndex: 3);
       default:
@@ -78,9 +81,15 @@ class DeepLinkService {
 }
 
 class WorkerAppRoute {
-  const WorkerAppRoute({required this.tabIndex, this.openAi = false, this.tasksSubTab = 0});
+  const WorkerAppRoute({
+    required this.tabIndex,
+    this.openAi = false,
+    this.openChat = false,
+    this.tasksSubTab = 0,
+  });
 
   final int tabIndex;
   final bool openAi;
+  final bool openChat;
   final int tasksSubTab;
 }

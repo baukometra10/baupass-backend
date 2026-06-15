@@ -21,6 +21,7 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.0
   open_file: ^3.5.10
+  file_picker: ^8.1.2
 
 dev_dependencies:
   flutter_test:

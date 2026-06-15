@@ -930,6 +930,115 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="026",
+        name="contracts_and_worker_chat",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS contract_templates (
+                id TEXT PRIMARY KEY,
+                company_id TEXT,
+                template_key TEXT NOT NULL,
+                contract_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                language TEXT NOT NULL DEFAULT 'de',
+                body_template TEXT NOT NULL DEFAULT '',
+                guidance_text TEXT NOT NULL DEFAULT '',
+                required_fields_json TEXT NOT NULL DEFAULT '[]',
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                created_by_user_id TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_contract_templates_company ON contract_templates(company_id, active, updated_at DESC);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_contract_templates_unique
+                ON contract_templates(company_id, template_key, language);
+
+            CREATE TABLE IF NOT EXISTS employment_contracts (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                worker_id TEXT,
+                template_id TEXT,
+                contract_type TEXT NOT NULL,
+                title TEXT NOT NULL DEFAULT '',
+                language TEXT NOT NULL DEFAULT 'de',
+                status TEXT NOT NULL DEFAULT 'draft',
+                input_json TEXT NOT NULL DEFAULT '{}',
+                ai_prompt TEXT NOT NULL DEFAULT '',
+                draft_text TEXT NOT NULL DEFAULT '',
+                final_text TEXT NOT NULL DEFAULT '',
+                pdf_file_path TEXT NOT NULL DEFAULT '',
+                created_by_user_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_employment_contracts_company ON employment_contracts(company_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_employment_contracts_worker ON employment_contracts(worker_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_employment_contracts_status ON employment_contracts(company_id, status, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS employment_contract_events (
+                id TEXT PRIMARY KEY,
+                contract_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                actor_user_id TEXT,
+                event_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_contract_events_contract ON employment_contract_events(contract_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS chat_threads (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                subject TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_message_at TEXT,
+                last_worker_read_at TEXT,
+                last_admin_read_at TEXT,
+                created_by_user_id TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_threads_company ON chat_threads(company_id, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                sender_type TEXT NOT NULL,
+                sender_user_id TEXT,
+                sender_worker_id TEXT,
+                body TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                read_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at ASC);
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_company_worker ON chat_messages(company_id, worker_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS chat_attachments (
+                id TEXT PRIMARY KEY,
+                message_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                content_type TEXT NOT NULL DEFAULT '',
+                file_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_attachments_message ON chat_attachments(message_id);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS chat_attachments;
+            DROP TABLE IF EXISTS chat_messages;
+            DROP TABLE IF EXISTS chat_threads;
+            DROP TABLE IF EXISTS employment_contract_events;
+            DROP TABLE IF EXISTS employment_contracts;
+            DROP TABLE IF EXISTS contract_templates;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

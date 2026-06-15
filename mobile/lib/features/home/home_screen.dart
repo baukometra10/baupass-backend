@@ -7,6 +7,7 @@ import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/digital_card_repository.dart';
 import '../ai/worker_ai_screen.dart';
+import '../chat/chat_screen.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import '../../widgets/digital_pass_card.dart';
@@ -148,6 +149,17 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+          IconButton(
+            tooltip: 'Chat mit Firma',
+            icon: const Icon(Icons.chat_bubble_outline),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
+                ),
+              );
+            },
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
@@ -214,6 +226,19 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               icon: const Icon(Icons.chat_outlined),
               label: const Text('BauPass Assistent (KI)'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Chat mit Firma'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
             ),
           ],

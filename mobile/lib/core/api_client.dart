@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -174,6 +175,43 @@ class ApiClient {
       throw ApiException(response.statusCode, 'http_${response.statusCode}');
     }
     return Uint8List.fromList(response.bodyBytes);
+  }
+
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    required File file,
+    required String fileField,
+    String? bearerToken,
+    String? deviceId,
+  }) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers(bearerToken: bearerToken, deviceId: deviceId));
+    request.fields.addAll(fields);
+    request.files.add(await http.MultipartFile.fromPath(fileField, file.path));
+    http.StreamedResponse streamed;
+    try {
+      streamed = await request.send();
+    } on Exception catch (e) {
+      throw ApiException(0, 'network_error', e.toString());
+    }
+    final response = await http.Response.fromStream(streamed);
+    Map<String, dynamic> decoded = <String, dynamic>{};
+    if (response.body.isNotEmpty) {
+      final parsed = jsonDecode(response.body);
+      if (parsed is Map<String, dynamic>) decoded = parsed;
+    }
+    if (response.statusCode >= 400) {
+      final errorCode = decoded['error'] as String?;
+      _maybeNotifySessionExpired(response.statusCode, errorCode);
+      throw ApiException(
+        response.statusCode,
+        errorCode,
+        decoded['message'] as String?,
+      );
+    }
+    return decoded;
   }
 
   void close() => _http.close();

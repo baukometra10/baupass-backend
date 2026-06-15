@@ -16,6 +16,7 @@ import '../../services/worker_cache.dart';
 import '../attendance/attendance_screen.dart';
 import '../home/home_screen.dart';
 import '../ai/worker_ai_screen.dart';
+import '../chat/chat_screen.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
 import '../../services/deep_link_service.dart';
@@ -80,6 +81,13 @@ class WorkerShellState extends State<WorkerShell> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+        ),
+      );
+    }
+    if (route.openChat && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
         ),
       );
     }

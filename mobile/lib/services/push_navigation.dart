@@ -33,6 +33,8 @@ class PushNavigation {
       case 'foreman-alert':
       case 'ops-notify':
         return const WorkerAppRoute(tabIndex: 3);
+      case 'worker-chat':
+        return const WorkerAppRoute(tabIndex: 3, openChat: true);
       default:
         return null;
     }

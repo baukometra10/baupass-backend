@@ -29,12 +29,14 @@ DOMAIN_REGISTRARS: tuple[DomainRegistrar, ...] = (
     DomainRegistrar("companies", "backend.app.domains.companies.routes", "register_companies_blueprint", "tenant"),
     DomainRegistrar("workers", "backend.app.domains.workers.routes", "register_workers_blueprint", "tenant"),
     DomainRegistrar("onboarding", "backend.app.domains.onboarding.routes", "register_onboarding_blueprint", "tenant"),
+    DomainRegistrar("contracts", "backend.app.domains.contracts.routes", "register_contracts_blueprint", "tenant"),
     # Operations
     DomainRegistrar("access", "backend.app.domains.access.routes", "register_access_blueprint", "operations"),
     DomainRegistrar("devices", "backend.app.domains.devices.routes", "register_devices_blueprint", "operations"),
     DomainRegistrar("workforce", "backend.app.domains.workforce.routes", "register_workforce_blueprint", "operations"),
     DomainRegistrar("operations", "backend.app.domains.operations.routes", "register_operations_blueprint", "operations"),
     DomainRegistrar("compliance", "backend.app.domains.compliance.routes", "register_compliance_blueprint", "operations"),
+    DomainRegistrar("chat", "backend.app.domains.chat.routes", "register_chat_blueprint", "operations"),
     # Back-office
     DomainRegistrar("documents", "backend.app.domains.documents.routes", "register_documents_blueprint", "backoffice"),
     DomainRegistrar("billing", "backend.app.domains.billing.routes", "register_billing_blueprint", "backoffice"),
