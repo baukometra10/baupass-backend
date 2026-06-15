@@ -1,21 +1,24 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/session_store.dart';
-import '../../services/tasks_repository.dart';
+import '../../services/chat_repository.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.session,
-    required this.tasks,
+    required this.chat,
   });
 
   final WorkerSession session;
-  final TasksRepository tasks;
+  final ChatRepository chat;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -55,14 +58,14 @@ class _ChatScreenState extends State<ChatScreen> {
       _silentRefresh = true;
     }
     try {
-      final threads = await widget.tasks.listChatThreads(widget.session);
+      final threads = await widget.chat.listThreads(widget.session);
       String threadId;
       if (threads.isNotEmpty) {
         threadId = threads.first['id'] as String;
       } else {
-        threadId = await widget.tasks.ensureChatThread(widget.session);
+        threadId = await widget.chat.ensureThread(widget.session);
       }
-      final messages = await widget.tasks.listChatMessages(widget.session, threadId);
+      final messages = await widget.chat.listMessages(widget.session, threadId);
       if (!mounted) return;
       setState(() {
         _threadId = threadId;
@@ -86,7 +89,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (threadId == null || body.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      final res = await widget.tasks.sendChatMessage(
+      final res = await widget.chat.sendMessage(
         session: widget.session,
         threadId: threadId,
         body: body,
@@ -112,13 +115,13 @@ class _ChatScreenState extends State<ChatScreen> {
     if (file == null || file.isEmpty) return;
     setState(() => _sending = true);
     try {
-      final res = await widget.tasks.sendChatMessage(
+      final res = await widget.chat.sendMessage(
         session: widget.session,
         threadId: threadId,
         body: _message.text.trim().isEmpty ? 'Anhang gesendet' : _message.text.trim(),
       );
       final msg = Map<String, dynamic>.from(res['message'] as Map);
-      await widget.tasks.uploadChatAttachment(
+      await widget.chat.uploadAttachment(
         session: widget.session,
         threadId: threadId,
         messageId: msg['id'] as String,
@@ -135,11 +138,18 @@ class _ChatScreenState extends State<ChatScreen> {
     final id = attachment['id'] as String?;
     final filename = attachment['filename'] as String? ?? 'attachment.bin';
     if (id == null || id.isEmpty) return;
-    final bytes = await widget.tasks.downloadChatAttachment(
+    final bytes = await widget.chat.downloadAttachment(
       session: widget.session,
       attachmentId: id,
     );
-    await widget.tasks.saveAndOpenPdf(bytes, filename: filename);
+    await _saveAndOpenFile(bytes, filename: filename);
+  }
+
+  Future<void> _saveAndOpenFile(Uint8List bytes, {required String filename}) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$filename');
+    await file.writeAsBytes(bytes, flush: true);
+    await OpenFile.open(file.path);
   }
 
   @override
@@ -184,6 +194,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Text(
+                                      isWorker ? 'Du' : 'Firma',
+                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
                                     Text(item['body'] as String? ?? ''),
                                     if (attachments.isNotEmpty) ...[
                                       const SizedBox(height: 8),

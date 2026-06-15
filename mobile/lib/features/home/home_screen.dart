@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
+import '../../services/chat_repository.dart';
 import '../../services/digital_card_repository.dart';
 import '../ai/worker_ai_screen.dart';
 import '../chat/chat_screen.dart';
@@ -19,6 +20,7 @@ class HomeScreen extends StatefulWidget {
     required this.session,
     required this.auth,
     required this.digitalCard,
+    required this.chat,
     required this.workerCache,
     required this.ai,
     required this.tasks,
@@ -30,6 +32,7 @@ class HomeScreen extends StatefulWidget {
   final WorkerSession session;
   final AuthRepository auth;
   final DigitalCardRepository digitalCard;
+  final ChatRepository chat;
   final WorkerCache workerCache;
   final AiAssistantService ai;
   final TasksRepository tasks;
@@ -156,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
+                  builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
                 ),
               );
             },
@@ -234,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
+                    builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
                   ),
                 );
               },

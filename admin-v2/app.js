@@ -2101,6 +2101,11 @@ function initOpsCarousel(root) {
 async function loadOperations() {
   const panel = $("operationsPanel");
   const q = companyQuery();
+  const contractsLink = $("operationsContractsLink");
+  if (contractsLink) {
+    const target = q ? `/enterprise-hub.html${q}` : "/enterprise-hub.html";
+    contractsLink.setAttribute("href", `${target}${q ? "&focus=contracts" : "?focus=contracts"}`);
+  }
   if (getUser().role === "superadmin" && !q) {
     panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;

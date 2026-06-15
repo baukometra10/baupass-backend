@@ -7,6 +7,7 @@ import 'features/auth/login_screen.dart';
 import 'features/shell/worker_shell.dart';
 import 'services/ai_assistant_service.dart';
 import 'services/attendance_repository.dart';
+import 'services/chat_repository.dart';
 import 'services/deep_link_service.dart';
 import 'services/digital_card_repository.dart';
 import 'services/geofence_service.dart';
@@ -31,6 +32,7 @@ class _WorkerAppState extends State<WorkerApp> {
   late final AuthRepository _auth;
   late final AttendanceRepository _attendance;
   late final DigitalCardRepository _digitalCard;
+  late final ChatRepository _chat;
   late final NfcService _nfc;
   late final LocationService _location;
   late final GeofenceService _geofence;
@@ -54,6 +56,7 @@ class _WorkerAppState extends State<WorkerApp> {
     _auth = AuthRepository(_api);
     _attendance = AttendanceRepository(_api);
     _digitalCard = DigitalCardRepository(_api);
+    _chat = ChatRepository(_api);
     _nfc = NfcService();
     _location = LocationService();
     _geofence = GeofenceService(_api, _location);
@@ -193,6 +196,7 @@ class _WorkerAppState extends State<WorkerApp> {
                   auth: _auth,
                   attendance: _attendance,
                   digitalCard: _digitalCard,
+                  chat: _chat,
                   nfc: _nfc,
                   location: _location,
                   geofence: _geofence,

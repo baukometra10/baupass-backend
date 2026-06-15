@@ -4,6 +4,7 @@ import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/attendance_repository.dart';
+import '../../services/chat_repository.dart';
 import '../../services/digital_card_repository.dart';
 import '../../services/geofence_service.dart';
 import '../../services/location_service.dart';
@@ -29,6 +30,7 @@ class WorkerShell extends StatefulWidget {
     required this.auth,
     required this.attendance,
     required this.digitalCard,
+    required this.chat,
     required this.nfc,
     required this.location,
     required this.geofence,
@@ -45,6 +47,7 @@ class WorkerShell extends StatefulWidget {
   final AuthRepository auth;
   final AttendanceRepository attendance;
   final DigitalCardRepository digitalCard;
+  final ChatRepository chat;
   final NfcService nfc;
   final LocationService location;
   final GeofenceService geofence;
@@ -87,7 +90,7 @@ class WorkerShellState extends State<WorkerShell> {
     if (route.openChat && mounted) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
+          builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
         ),
       );
     }
@@ -143,6 +146,7 @@ class WorkerShellState extends State<WorkerShell> {
         session: widget.session,
         auth: widget.auth,
         digitalCard: widget.digitalCard,
+        chat: widget.chat,
         workerCache: widget.workerCache,
         ai: widget.ai,
         tasks: widget.tasks,

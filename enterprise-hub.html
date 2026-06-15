@@ -561,6 +561,7 @@
         <div id="contractList" class="cap-actions" style="margin-top:0.75rem;"></div>
         <div id="contractMeta" class="contracts-meta"></div>
         <textarea id="contractOutput" class="contracts-output" style="resize:vertical;">Noch kein Vertragsentwurf.</textarea>
+        <p class="muted small" style="margin-top:0.5rem;">Hinweis: Entwurf vor finalem Einsatz juristisch prüfen.</p>
       </section>
       <div id="rolePlaybook" class="role-playbook hidden"></div>
       <p id="maturity" class="maturity"></p>
@@ -1300,6 +1301,10 @@
         const rows = data.templates || [];
         select.innerHTML = rows.map((row) => `<option value="${row.id}">${row.name}</option>`).join("");
         panel.classList.toggle("hidden", !rows.length);
+        const focus = new URLSearchParams(location.search).get("focus");
+        if (focus === "contracts") {
+          panel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
         await loadContractsList();
       } catch {
         panel.classList.add("hidden");
