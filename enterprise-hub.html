@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass — Enterprise-Hub</title>
+  <meta name="apple-mobile-web-app-title" content="BauPass Enterprise Hub" />
+  <meta name="application-name" content="BauPass Enterprise Hub" />
+  <title>BauPass — Enterprise Hub</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
@@ -443,7 +448,7 @@
     <div style="display:flex;align-items:center;gap:0.65rem;">
       <img id="hubTenantLogo" data-tenant-logo class="hidden" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:8px;background:#0f1419;padding:4px;" />
       <div>
-      <h1 id="hubTitle" data-tenant-brand-title>Enterprise-Hub</h1>
+      <h1 id="hubTitle" data-tenant-brand-title>Enterprise Hub</h1>
       <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)"></p>
       </div>
     </div>
@@ -456,7 +461,7 @@
           <option value="ar">AR</option>
         </select>
       </label>
-      <a href="/admin-v2/index.html#enterprise" id="navAdminV2">Admin v2</a>
+      <a href="/admin-v2/index.html#enterprise" id="navAdminV2">Betrieb</a>
       <a href="/index.html" id="navLegacy">Legacy</a>
       <a href="/ops-command-center.html" id="navOps">Ops</a>
       <a href="/ai-command-center.html" id="navAiCenter">KI</a>

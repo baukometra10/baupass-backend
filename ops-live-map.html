@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass — Live Ops Karte</title>
+  <meta name="apple-mobile-web-app-title" content="BauPass Live Ops" />
+  <meta name="application-name" content="BauPass Live Ops" />
+  <title>BauPass — Live Ops Map</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/ops-shell.css" />
@@ -37,7 +42,7 @@
     <div style="display:flex;align-items:center;gap:0.65rem;">
       <img data-tenant-logo class="hidden" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:8px;background:#0c1218;padding:3px;" />
       <div>
-        <strong id="opsMapTitle">Live Ops Karte</strong>
+        <strong id="opsMapTitle">Live Ops Map</strong>
         <span id="status">Laden…</span>
       </div>
     </div>

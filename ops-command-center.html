@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass — Ops Command Center</title>
+  <meta name="apple-mobile-web-app-title" content="BauPass Ops Center" />
+  <meta name="application-name" content="BauPass Ops Center" />
+  <title>BauPass — Ops Center</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
@@ -63,14 +68,14 @@
     <div style="display:flex;align-items:center;gap:0.65rem;">
       <img data-tenant-logo class="hidden" alt="" style="width:36px;height:36px;object-fit:contain;border-radius:8px;background:#0c1218;padding:3px;" />
       <div>
-      <h1><span class="ops-pulse" id="liveDot"></span> <span id="opsTitle">Ops Command Center</span></h1>
+      <h1><span class="ops-pulse" id="liveDot"></span> <span id="opsTitle">Ops Center</span></h1>
       <div id="status"></div>
       </div>
     </div>
     <nav class="ops-nav">
       <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
       <a id="navHub" href="/enterprise-hub.html">Funktionen &amp; Tarife</a>
-      <a id="navAdmin" href="/admin-v2/index.html">Admin v2</a>
+      <a id="navAdmin" href="/admin-v2/index.html">Betrieb</a>
       <a id="navForeman" href="/foreman.html">Vorarbeiter</a>
       <a href="/ops-live-map.html" id="mapLink">Live Karte</a>
     </nav>
