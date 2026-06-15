@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#050816" />
+  <meta name="apple-mobile-web-app-title" content="BauPass Mitarbeiter-Chat" />
+  <meta name="application-name" content="BauPass Mitarbeiter-Chat" />
+  <title>BauPass — Mitarbeiter-Chat</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
+  <style>
+    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; gap:1rem; align-items:center; }
+    main { max-width:1200px; margin:0 auto; padding:1rem 1.25rem 1.5rem; display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:1rem; }
+    @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:1rem; }
+    .thread-list { display:grid; gap:0.5rem; }
+    .thread-item { width:100%; text-align:left; background:rgba(255,255,255,0.03); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:0.75rem; cursor:pointer; }
+    .thread-item:hover { border-color:var(--accent); }
+    .message-list { display:grid; gap:0.6rem; max-height:420px; overflow:auto; margin-bottom:0.8rem; }
+    .bubble { padding:0.75rem; border-radius:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); }
+    .bubble.admin { background:rgba(22,78,99,0.24); border-color:rgba(94,234,212,0.18); }
+    textarea, input, button { font:inherit; }
+    textarea, input { width:100%; padding:0.65rem 0.75rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); }
+    textarea { min-height:110px; resize:vertical; }
+    .actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    button { padding:0.65rem 0.9rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); cursor:pointer; }
+    button.primary { background:#164e63; border-color:#5eead4; }
+    .muted { color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <strong>BauPass</strong>
+      <div class="muted">Mitarbeiter-Chat</div>
+    </div>
+    <a href="/admin-v2/index.html" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
+  </header>
+  <main>
+    <section class="panel">
+      <h3>Chats</h3>
+      <input id="threadSearch" type="search" placeholder="Mitarbeiter oder Thema suchen" />
+      <div id="threadList" class="thread-list" style="margin-top:0.75rem;"></div>
+    </section>
+    <section class="panel">
+      <h2>Unterhaltung</h2>
+      <p class="muted">Direkte Kommunikation mit Mitarbeitern inklusive Anhängen.</p>
+      <div id="threadMeta" class="muted" style="margin-bottom:0.75rem;">Noch kein Chat ausgewählt.</div>
+      <div id="messageList" class="message-list"></div>
+      <div class="actions" style="margin-bottom:0.75rem;">
+        <input id="chatFile" type="file" />
+      </div>
+      <textarea id="chatReply" placeholder="Antwort schreiben…"></textarea>
+      <div class="actions" style="margin-top:0.75rem;">
+        <button type="button" class="primary" id="sendReplyBtn">Senden</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const companyId = params.get("company_id") || "";
+    const token = localStorage.getItem("baupass-admin-v2-token") || localStorage.getItem("baupass-control-token") || "";
+    let threads = [];
+    let currentThreadId = "";
+    let currentWorkerId = "";
+    const headers = () => ({ "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) });
+    const api = async (path, options = {}) => {
+      const res = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) }, credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || res.statusText);
+      return data;
+    };
+    async function apiMultipart(path, { fields = {}, fileField = "file", file } = {}) {
+      const form = new FormData();
+      Object.entries(fields).forEach(([key, value]) => form.append(key, value));
+      if (file) form.append(fileField, file);
+      const res = await fetch(path, { method: "POST", headers: headers(), body: form, credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || res.statusText);
+      return data;
+    }
+    function renderThreads() {
+      const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
+      const host = document.getElementById("threadList");
+      const rows = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""}`).toLowerCase().includes(q));
+      host.innerHTML = rows.length
+        ? rows.map((row) => `<button type="button" class="thread-item" data-id="${row.id}" data-worker="${row.worker_id}"><strong>${row.subject || 'general'}</strong><br><span class="muted">${row.first_name || ''} ${row.last_name || ''}</span></button>`).join("")
+        : `<p class="muted">Keine Chats gefunden.</p>`;
+      host.querySelectorAll("[data-id]").forEach((btn) => {
+        btn.addEventListener("click", () => loadMessages(btn.getAttribute("data-id"), btn.getAttribute("data-worker")));
+      });
+    }
+    async function loadThreads() {
+      const data = await api(`/api/chat/threads?company_id=${encodeURIComponent(companyId)}`);
+      threads = data.threads || [];
+      renderThreads();
+    }
+    async function loadMessages(threadId, workerId) {
+      currentThreadId = threadId || "";
+      currentWorkerId = workerId || "";
+      const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
+      const messages = data.messages || [];
+      document.getElementById("threadMeta").textContent = `Thread: ${currentThreadId}`;
+      document.getElementById("messageList").innerHTML = messages.length
+        ? messages.map((msg) => `<div class="bubble ${msg.senderType === 'admin' ? 'admin' : ''}"><strong>${msg.senderType === 'worker' ? 'Mitarbeiter' : 'Firma'}</strong><br><span>${msg.body || ''}</span>${Array.isArray(msg.attachments) && msg.attachments.length ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename}</a>`).join('<br>')}</div>` : ''}</div>`).join("")
+        : `<p class="muted">Noch keine Nachrichten.</p>`;
+    }
+    document.getElementById("threadSearch").addEventListener("input", renderThreads);
+    document.getElementById("sendReplyBtn").addEventListener("click", async () => {
+      if (!currentThreadId || !currentWorkerId) return;
+      const body = document.getElementById("chatReply").value.trim();
+      const file = document.getElementById("chatFile").files[0] || null;
+      if (!body && !file) return;
+      const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ worker_id: currentWorkerId, body }),
+      });
+      if (file && res?.message?.id) {
+        await apiMultipart(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/attachments?company_id=${encodeURIComponent(companyId)}`, {
+          fields: { message_id: String(res.message.id), worker_id: currentWorkerId },
+          file,
+        });
+      }
+      document.getElementById("chatReply").value = "";
+      document.getElementById("chatFile").value = "";
+      await loadMessages(currentThreadId, currentWorkerId);
+      await loadThreads();
+    });
+    loadThreads().catch((e) => { document.getElementById("threadMeta").textContent = e.message; });
+  </script>
+</body>
+</html>
