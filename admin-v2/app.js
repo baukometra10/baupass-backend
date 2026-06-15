@@ -9,6 +9,17 @@ const CONTROL_TOKEN_KEY = "baupass-control-token";
 
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 
+function isLocalHostName(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return (
+    host === "localhost"
+    || host === "127.0.0.1"
+    || host === "::1"
+    || host === "0.0.0.0"
+    || host.endsWith(".local")
+  );
+}
+
 function isEmbedMode() {
   return new URLSearchParams(location.search).get("embed") === "1";
 }
@@ -376,14 +387,19 @@ function apiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = String(params.get("apiBase") || "").trim().replace(/\/+$/, "");
   const host = String(window.location.hostname || "").toLowerCase();
+  const localHost = isLocalHostName(host);
   const staticHost = host.endsWith("github.io") || host.endsWith(".pages.dev") || host.endsWith(".web.app");
+
+  if (localHost) {
+    return "";
+  }
 
   if (staticHost) {
     if (queryValue) {
       try {
         const parsed = new URL(queryValue);
         const queryHost = parsed.hostname.toLowerCase();
-        if (queryHost !== "localhost" && queryHost !== "127.0.0.1" && queryHost !== "::1") {
+        if (!isLocalHostName(queryHost)) {
           return queryValue;
         }
       } catch {
@@ -397,7 +413,7 @@ function apiBase() {
     try {
       const parsed = new URL(queryValue);
       const queryHost = parsed.hostname.toLowerCase();
-      if (queryHost !== "localhost" && queryHost !== "127.0.0.1" && queryHost !== "::1") {
+      if (!isLocalHostName(queryHost)) {
         return queryValue;
       }
     } catch {
@@ -405,7 +421,7 @@ function apiBase() {
     }
   }
 
-  return DEFAULT_RENDER_API_BASE;
+  return "";
 }
 
 async function api(path, options = {}) {
