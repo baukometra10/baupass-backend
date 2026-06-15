@@ -2103,8 +2103,7 @@ async function loadOperations() {
   const q = companyQuery();
   const contractsLink = $("operationsContractsLink");
   if (contractsLink) {
-    const target = q ? `/enterprise-hub.html${q}` : "/enterprise-hub.html";
-    contractsLink.setAttribute("href", `${target}${q ? "&focus=contracts" : "?focus=contracts"}`);
+    contractsLink.setAttribute("href", q ? `/admin-v2/contracts.html${q}` : "/admin-v2/contracts.html");
   }
   if (getUser().role === "superadmin" && !q) {
     panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
