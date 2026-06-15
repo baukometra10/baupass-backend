@@ -194,6 +194,8 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         from .context_builder import build_compact_context, suggested_prompts
 
         company_id = str(request.args.get("company_id") or "").strip()
+        if not company_id and g.current_user.get("role") == "superadmin":
+            company_id = str(g.current_user.get("preview_company_id") or "").strip()
         if g.current_user.get("role") != "superadmin":
             company_id = str(g.current_user.get("company_id") or "").strip()
         if not company_id:

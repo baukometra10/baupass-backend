@@ -71,6 +71,7 @@ function resolveApiBase() {
   const queryValue = sanitizeApiBase(params.get("apiBase"));
   const metaValue = sanitizeApiBase(document.querySelector('meta[name="baupass-api-base"]')?.content);
   const onLocalHost = isLocalHostName(window.location.hostname);
+  const onProductionHost = isKnownProductionApiHost(window.location.hostname);
   const onStaticFrontend = isStaticFrontendHost(window.location.hostname);
 
   // Lokal immer same-origin – nie gespeicherte Production-URL (baupass-production…).
@@ -126,7 +127,11 @@ function resolveApiBase() {
     return DEFAULT_RENDER_API_BASE;
   }
 
-  return DEFAULT_RENDER_API_BASE;
+  if (onProductionHost) {
+    return "";
+  }
+
+  return "";
 }
 
 function buildApiUrl(path) {
