@@ -397,6 +397,7 @@
       document.body.setAttribute("data-portal-display-name", displayName);
     }
     const logoData = String(branding.logoData || branding.brandingLogoData || "").trim();
+    applyTenantFavicon({ logoData, title: displayName });
     document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
       if (logoData) {
         img.src = logoData;
@@ -447,6 +448,39 @@
     const mapTitle = document.getElementById("opsMapTitle");
     if (mapTitle && displayName && (branding.tenantMatched || branding.companyId)) {
       mapTitle.textContent = displayName;
+    }
+  }
+
+  function ensureBrandingLink(selector, relValue) {
+    let link = document.querySelector(selector);
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = relValue;
+      document.head.appendChild(link);
+    }
+    return link;
+  }
+
+  function applyTenantFavicon({ logoData, title } = {}) {
+    const iconHref = String(logoData || "").trim() || new URL("/worker-icon-192.png", global.location.origin).href;
+    const appFavicon = ensureBrandingLink("#appFavicon", "icon");
+    appFavicon.id = "appFavicon";
+    appFavicon.type = "image/png";
+    appFavicon.sizes = "192x192";
+    appFavicon.href = iconHref;
+
+    document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach((link) => {
+      link.href = iconHref;
+    });
+    document.querySelectorAll('link[rel="apple-touch-icon"]').forEach((link) => {
+      link.href = iconHref;
+    });
+
+    if (title) {
+      const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (metaAppTitle) metaAppTitle.setAttribute("content", title);
+      const metaAppName = document.querySelector('meta[name="application-name"]');
+      if (metaAppName) metaAppName.setAttribute("content", title);
     }
   }
 
@@ -535,6 +569,7 @@
     fetchApi,
     bootstrapSession,
     applyTenantBranding,
+    applyTenantFavicon,
     loadTenantBranding,
     loadPublicTenantBranding,
     resolveTenantBranding,

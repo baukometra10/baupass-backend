@@ -17124,7 +17124,6 @@ async function loadPublicBranding() {
 }
 
 function applyWebsiteLogo(dataUrl) {
-  const fixedBpIconPath = "./worker-icon-192.png";
   const hasLogo = Boolean(dataUrl);
   document.querySelectorAll(".website-logo-sync").forEach((img) => {
     if (hasLogo) {
@@ -17132,14 +17131,12 @@ function applyWebsiteLogo(dataUrl) {
     }
     img.classList.toggle("hidden", !hasLogo && img.classList.contains("website-logo-sidebar"));
   });
-
-  const appFavicon = document.querySelector("#appFavicon");
-  if (appFavicon) {
-    appFavicon.href = fixedBpIconPath;
+  if (window.BaupassAuth?.applyTenantFavicon) {
+    window.BaupassAuth.applyTenantFavicon({
+      logoData: String(dataUrl || "").trim(),
+      title: String(state.tenantWhiteLabel?.displayName || state.settings?.platformName || "").trim(),
+    });
   }
-  document.querySelectorAll('link[rel="apple-touch-icon"]').forEach((link) => {
-    link.href = fixedBpIconPath;
-  });
 }
 
 function getCurrentUser() {
@@ -20715,8 +20712,8 @@ async function printBadge(worker, company) {
         .print-badge-root .wallet-card .wc-company { margin: 0 !important; font-size: 5.2pt !important; line-height: 1.1 !important; color: rgba(250, 252, 255, .98) !important; text-transform: uppercase !important; }
         .print-badge-root .wallet-card .wc-subcompany { margin: 0 !important; font-size: 4.6pt !important; line-height: 1.08 !important; color: rgba(236, 244, 255, .88) !important; }
         .print-badge-root .wallet-card .wc-subcompany.hidden { display: none !important; }
-        .print-badge-root .wallet-card .wc-status { display: inline-flex !important; align-items: center !important; gap: 2px !important; font-size: 5.2pt !important; color: #4ade80 !important; text-transform: uppercase !important; }
-        .print-badge-root .wallet-card .wc-status::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: #4ade80 !important; box-shadow: 0 0 5px rgba(74, 222, 128, .65) !important; }
+        .print-badge-root .wallet-card .wc-status,
+        .print-badge-root .wallet-card .wc-status::before { display: none !important; content: none !important; }
         .print-badge-root .wallet-card, .print-badge-root .wallet-card * { box-sizing: border-box !important; }
         .print-badge-root .wallet-card .wc-top,
         .print-badge-root .wallet-card .wc-middle,
