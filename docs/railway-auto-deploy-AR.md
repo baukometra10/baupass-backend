@@ -6,7 +6,7 @@
 
 | المسار | الوظيفة |
 |--------|---------|
-| **Railway ← GitHub** (الأساسي) | كل `git push` على `main` يبني Docker ويشغّل `python backend/run_prod.py` |
+| **Railway ← GitHub** (الأساسي) | كل `git push` على `main` يبني Docker ويشغّل `python backend/entrypoint.py --mode prod` |
 | **GitHub Actions** (احتياطي) | يعمل فقط إذا وُضعت الأسرار أدناه — وإلا يُتخطى بصمت |
 
 تحقق سريع من جهازك:
@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File .\deploy\verify-production-deploy.ps1
 | الإعداد | القيمة |
 |---------|--------|
 | Builder | Dockerfile (`railway.json`) |
-| Start | `python backend/run_prod.py` |
+| Start | `python backend/entrypoint.py --mode prod` |
 | Volume | mount **`/data`** |
 | `BAUPASS_DB_PATH` | `/data/baupass.db` |
 | `PUBLIC_BASE_URL` | `https://baupass-production.up.railway.app` |

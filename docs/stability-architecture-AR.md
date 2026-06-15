@@ -31,7 +31,7 @@
 
 ### 5. Migrations على الإقلاع
 
-- `run_prod.py` يطبّق migrations بعد `init_db()` (Railway).
+- `entrypoint.py --mode prod` يطبّق migrations بعد `init_db()` (Railway).
 - `runtime_bootstrap` يطبّقها أيضاً عند تحميل `server.py`.
 
 ### 6. إصلاح domain billing

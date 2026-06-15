@@ -41,6 +41,14 @@ body.admin-v2-embed .embed-quick-nav {
   display: none !important;
 }
 
+body.embed-mode.admin-v2-embed {
+  background: #050816;
+}
+
+body.embed-mode.admin-v2-embed::before {
+  display: none;
+}
+
 html {
   overflow-x: hidden;
   max-width: 100%;

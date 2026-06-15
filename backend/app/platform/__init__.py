@@ -12,13 +12,22 @@ from flask import Flask
 logger = logging.getLogger("baupass.platform")
 
 
+def _is_blueprint_setup_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "The setup method" in text and "can no longer be called on the blueprint" in text
+
+
 def _step(name: str, fn) -> None:
     try:
         fn()
     except Exception as exc:
-        logger.warning("Platform step skipped (%s): %s", name, exc)
-        print(f"[baupass] WARNING: platform/{name} skipped: {exc}", flush=True)
-        traceback.print_exc()
+        if _is_blueprint_setup_error(exc):
+            logger.warning("Platform blueprint already mounted: %s", name)
+            print(f"[baupass] platform/{name} already mounted; skipped", flush=True)
+        else:
+            logger.warning("Platform step skipped (%s): %s", name, exc)
+            print(f"[baupass] WARNING: platform/{name} skipped: {exc}", flush=True)
+            traceback.print_exc()
 
 
 def init_platform(flask_app: Flask) -> None:

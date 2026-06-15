@@ -5,8 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#050816" />
   <title>BauPass Admin v2</title>
+  <script>
+    (function clearLocalPreviewState() {
+      try {
+        const host = String(window.location.hostname || "").toLowerCase();
+        const isLocalHost =
+          host === "localhost"
+          || host === "127.0.0.1"
+          || host === "::1"
+          || host === "0.0.0.0"
+          || host.endsWith(".local");
+        if (isLocalHost) {
+          window.localStorage.removeItem("baupass-preview-company-id");
+          window.localStorage.removeItem("baupass-admin-v2-company");
+        }
+      } catch {
+        // no-op
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260605options1" />
+  <link rel="stylesheet" href="styles.css?v=20260614loginfix1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -125,7 +144,7 @@
           <main class="app-content">
         <div id="tab-enterprise" class="tab-panel hidden">
           <p class="muted small" data-i18n="section.enterprise.desc">Enterprise layers</p>
-          <iframe id="enterpriseFrame" title="Enterprise hub" src="/enterprise-hub.html?embed=1&v=20260531shell2" class="hub-embed-frame"></iframe>
+          <iframe id="enterpriseFrame" title="Enterprise hub" src="/enterprise-hub.html?embed=1&v=20260614loginfix1" class="hub-embed-frame"></iframe>
         </div>
         <div id="tab-copilot" class="tab-panel hidden">
           <h2 class="section-title" data-i18n="section.copilot.title">Ops Copilot</h2>
@@ -364,6 +383,6 @@
   <script src="/embed-helpers.js?v=20260609csrf"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
-  <script src="app.js?v=20260605options1" type="module"></script>
+  <script src="app.js?v=20260614loginfix1" type="module"></script>
 </body>
 </html>

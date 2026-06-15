@@ -53,7 +53,7 @@ Kein `railway login`, kein Token.
 2. **New** → **Web Service**
 3. Repo verbinden **oder** „Deploy from Docker“ / manuelles Image
 4. Im Repo liegt bereits `render.yaml` als Vorlage
-5. Start: `python backend/run_prod.py`
+5. Start: `python backend/entrypoint.py --mode prod`
 6. Disk mount fuer DB (Render Disk) oder Postgres
 
 Domain z.B. `https://baupass-backend.onrender.com`
@@ -67,7 +67,7 @@ Alles in einen Ordner kopieren (USB, ZIP, RDP):
 ```powershell
 pip install -r backend\requirements.txt
 $env:PUBLIC_BASE_URL = "https://ihre-domain.de"
-python backend\run_prod.py
+python backend\entrypoint.py --mode prod
 ```
 
 Dauerhaft: `deploy\windows-service-install.ps1`  

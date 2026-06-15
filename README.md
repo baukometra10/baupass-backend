@@ -60,8 +60,8 @@ Enterprise-Plattform fuer digitale Identitaet, Zutrittskontrolle, Workforce, Com
 ## Produktivbetrieb (Windows + Reverse Proxy)
 
 1. Abhaengigkeiten installieren: `pip install -r backend/requirements.txt`
-2. Backend nur intern starten, z. B. mit `HOST=127.0.0.1`, `PORT=8000` und `python backend/run_prod.py`
-   - `backend/run_prod.py` setzt `BAUPASS_ENV=production`, wenn die Variable nicht explizit gesetzt ist.
+2. Backend nur intern starten, z. B. mit `HOST=127.0.0.1`, `PORT=8000` und `python backend/entrypoint.py --mode prod`
+   - Der gemeinsame Entrypoint verwendet lokal `--mode dev` und auf Railway `--mode prod`.
 3. Im Reverse Proxy eine echte HTTPS-Domain davor setzen, Vorlage: `deploy/nginx.conf.example`
 4. Backend-Linkbasis setzen: `PUBLIC_BASE_URL=https://baupass.example.com`
 5. Gate-Reader absichern: `BAUPASS_GATE_API_KEY=<starkes-geheimes-token>`
@@ -80,16 +80,16 @@ $env:PORT = "8000"
 $env:PUBLIC_BASE_URL = "https://baupass.example.com"
 $env:BAUPASS_GATE_API_KEY = "ein-langes-gate-secret"
 $env:BAUPASS_RECOVERY_SECRET = "ein-langes-recovery-secret"
-python backend/run_prod.py
+python backend/entrypoint.py --mode prod
 ```
 
-Beim Start gibt `backend/run_prod.py` jetzt Runtime-Warnungen aus, z. B. fuer fehlende Secrets, fehlende `PUBLIC_BASE_URL` oder Demo-Passwoerter (`1234`) auf Admin-/Terminal-Konten.
+Beim Start gibt der gemeinsame Entrypoint Runtime-Warnungen aus, z. B. fuer fehlende Secrets, fehlende `PUBLIC_BASE_URL` oder Demo-Passwoerter (`1234`) auf Admin-/Terminal-Konten.
 
 ## Render Deploy
 
 1. Repository direkt in Render als `Web Service` verbinden.
 2. Render kann jetzt die Root-Dateien `requirements.txt` und `render.yaml` verwenden.
-3. Start-Command ist `python backend/run_prod.py`.
+3. Start-Command ist `python backend/entrypoint.py --mode prod`.
 4. Die App bindet standardmaessig an `0.0.0.0` und nutzt `PORT` von Render.
 5. Nach dem Deploy sollte `https://baupass-backend.onrender.com/api/health` `{"status":"ok"...}` liefern.
 
@@ -173,7 +173,7 @@ Beispiel unter Windows PowerShell fuer den internen Backend-Start hinter Nginx:
 $env:HOST = "127.0.0.1"
 $env:PORT = "8000"
 $env:PUBLIC_BASE_URL = "https://baupass.example.com"
-python backend/run_prod.py
+python backend/entrypoint.py --mode prod
 ```
 
 ## Demo-Zugaenge

@@ -51,7 +51,7 @@ flowchart TB
 | سجلات / تدقيق | `log_audit`, observability | ✅ |
 | فوترة / إشعارات | domains scaffold | 🟡 |
 
-**تشغيل:** `backend/server.py`, `backend/run_prod.py`, Railway workflow.
+**تشغيل:** `backend/server.py`, `backend/entrypoint.py`, Railway workflow.
 
 **قاعدة بيانات:** انتقال Postgres عبر `backend/app/db/`.
 

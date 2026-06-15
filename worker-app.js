@@ -55,10 +55,16 @@ function isLocalWorkerHost(hostname) {
   return host === "localhost" || host === "127.0.0.1" || host === "::1";
 }
 
+function isStaticFrontendHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host.endsWith("github.io") || host.endsWith(".pages.dev") || host.endsWith(".web.app");
+}
+
 function resolveWorkerApiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = sanitizeApiBase(params.get("apiBase"));
   const currentHost = window.location.hostname.toLowerCase();
+  const staticHost = isStaticFrontendHost(currentHost);
 
   if (isLocalWorkerHost(currentHost)) {
     if (queryValue) {
@@ -92,6 +98,17 @@ function resolveWorkerApiBase() {
   const configuredValue = queryValue || storedValue;
 
   if (configuredValue) {
+    try {
+      const configuredHost = new URL(configuredValue).hostname.toLowerCase();
+      if (isLocalWorkerHost(configuredHost)) {
+        return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
+      }
+      if (staticHost && configuredHost === currentHost) {
+        return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
+      }
+    } catch {
+      return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
+    }
     window.localStorage.setItem(API_BASE_STORAGE_KEY, configuredValue);
     return `${configuredValue}/api/worker-app`;
   }
@@ -100,11 +117,11 @@ function resolveWorkerApiBase() {
     window.localStorage.removeItem(API_BASE_STORAGE_KEY);
   }
 
-  if (window.location.hostname.endsWith("github.io")) {
+  if (staticHost) {
     return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
   }
 
-  return "/api/worker-app";
+  return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
 }
 
 const API_BASE = resolveWorkerApiBase();

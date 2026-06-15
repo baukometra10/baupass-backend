@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 from typing import Optional, TYPE_CHECKING
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from flask import Flask
@@ -34,6 +36,15 @@ def _init_redis(app: "Flask") -> None:
     redis_url = app.config.get("REDIS_URL", "redis://localhost:6379/0")
 
     try:
+        parsed = urlparse(redis_url)
+        host = parsed.hostname or "localhost"
+        port = int(parsed.port or 6379)
+        try:
+            with socket.create_connection((host, port), timeout=0.75):
+                pass
+        except OSError as exc:
+            raise ConnectionError(f"{host}:{port}") from exc
+
         import redis
 
         pool = redis.ConnectionPool.from_url(

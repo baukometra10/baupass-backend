@@ -275,6 +275,39 @@ html.baupass-local-dev {
   text-size-adjust: 100%;
 }
 
+html.baupass-local-dev #superadminSidebarCompanyPicker,
+html.baupass-local-dev #superadminSidebarPreviewStatus {
+  display: none !important;
+}
+
+html.baupass-local-dev .enterprise-embed-shell {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.baupass-local-dev .enterprise-embed-toolbar {
+  box-shadow: none !important;
+}
+
+html.baupass-local-dev .sidebar {
+  background: linear-gradient(178deg, rgba(13, 19, 26, 0.98), rgba(21, 26, 32, 0.95)) !important;
+}
+
+html.baupass-local-dev .sidebar::after,
+html.baupass-local-dev .sidebar::before {
+  display: none !important;
+}
+
+html.baupass-local-dev .auth-overlay {
+  background: rgba(18, 20, 23, 0.92) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.baupass-local-dev .auth-panel {
+  background: rgba(255, 251, 245, 0.98) !important;
+}
+
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -525,6 +558,10 @@ select {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+}
+
+.content.has-embed-view::before {
+  display: none;
 }
 
 .content.has-embed-view .view-embed.active {
@@ -2210,22 +2247,27 @@ label {
 .site-geo-btn {
   position: absolute;
   top: 50%;
-  right: 0.12rem;
+  right: 0.28rem;
   transform: translateY(-50%);
-  width: 1.45rem;
-  height: 1.45rem;
+  z-index: 2;
+  width: 1.72rem;
+  height: 1.72rem;
   padding: 0;
-  min-height: 1.45rem;
-  min-width: 1.45rem;
-  font-size: 0.66rem;
+  min-height: 1.72rem;
+  min-width: 1.72rem;
+  font-size: 0.68rem;
   border-radius: 999px;
   line-height: 1;
   display: grid;
   place-items: center;
-  background: transparent;
-  border: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.18);
   color: rgba(125, 211, 252, 0.92);
   box-shadow: none;
+  overflow: hidden;
 }
 
 .site-geo-icon {
@@ -2236,7 +2278,7 @@ label {
 }
 
 .site-geo-btn:hover {
-  background: rgba(56, 189, 248, 0.12);
+  background: rgba(56, 189, 248, 0.2);
   color: #ffffff;
 }
 
@@ -2245,12 +2287,19 @@ label {
   outline-offset: 1px;
 }
 
+.site-geo-btn::after {
+  content: none;
+}
+
 .site-input-shell {
   position: relative;
+  width: 100%;
 }
 
 .site-input-shell input {
-  padding-inline-end: 1.95rem;
+  width: 100%;
+  padding-inline-end: 2.45rem;
+  box-sizing: border-box;
 }
 
 input,

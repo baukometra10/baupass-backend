@@ -15,6 +15,11 @@ from .registry import DOMAIN_REGISTRARS
 logger = logging.getLogger("baupass.domains")
 
 
+def _is_blueprint_setup_error(exc: Exception) -> bool:
+    text = str(exc)
+    return "The setup method" in text and "can no longer be called on the blueprint" in text
+
+
 def register_domain_blueprints(flask_app: Flask) -> None:
     """Register all domain blueprints in canonical order."""
     results: list[dict[str, str]] = []
@@ -24,8 +29,12 @@ def register_domain_blueprints(flask_app: Flask) -> None:
             getattr(mod, entry.registrar)(flask_app)
             results.append({"name": entry.name, "status": "ok", "category": entry.category})
         except Exception as exc:
-            logger.exception("Domain blueprint failed: %s", entry.name)
-            print(f"[baupass] WARNING: domain/{entry.name} skipped: {exc}", flush=True)
+            if _is_blueprint_setup_error(exc):
+                logger.warning("Domain blueprint already mounted: %s", entry.name)
+                print(f"[baupass] domain/{entry.name} already mounted; skipped", flush=True)
+            else:
+                logger.exception("Domain blueprint failed: %s", entry.name)
+                print(f"[baupass] WARNING: domain/{entry.name} skipped: {exc}", flush=True)
             results.append(
                 {
                     "name": entry.name,

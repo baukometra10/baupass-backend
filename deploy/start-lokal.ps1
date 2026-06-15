@@ -24,15 +24,18 @@ $env:HOST = "0.0.0.0"
 $env:PORT = "8000"
 $env:PUBLIC_BASE_URL = "http://localhost:8000"
 $env:BAUPASS_DB_PATH = Join-Path $Root "backend\baupass.db"
+$env:FLASK_APP = "backend.server"
+$env:FLASK_DEBUG = "1"
 
 Write-Host ""
 Write-Host "BauPass laeuft lokal:" -ForegroundColor Green
 Write-Host "  Admin:       http://localhost:8000/"
 Write-Host "  Mitarbeiter: http://localhost:8000/emp-app.html?worker=1&view=card"
 Write-Host ""
-Write-Host "Wichtig: Nur localhost:8000 oeffnen – nicht die Railway-URL im Browser." -ForegroundColor Yellow
+Write-Host "Wichtig: Nur localhost:8000 oeffnen - nicht die Railway-URL im Browser." -ForegroundColor Yellow
 Write-Host "Browser-Zoom zuruecksetzen: Strg+0 (Windows) / Cmd+0 (Mac)" -ForegroundColor Yellow
 Write-Host "Redis-Warnung ist OK (laeuft ohne Redis lokal)." -ForegroundColor Yellow
+Write-Host "Lokaler Dev-Mode mit Auto-Reload aktiv." -ForegroundColor Yellow
 Write-Host "Beenden mit Strg+C" -ForegroundColor Yellow
 Write-Host ""
-& $python backend\run_prod.py
+& $python -m backend.entrypoint --mode dev

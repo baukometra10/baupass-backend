@@ -17,7 +17,7 @@
   <title data-ui-i18n="appTitle">Control Pass</title>
     <script>
       (function enforceLatestBuild() {
-        const buildTag = "20260531shell15";
+          const buildTag = "20260615localpreview3";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -30,10 +30,18 @@
             return;
           }
           window.localStorage.setItem(storageKey, buildTag);
-          const host = window.location.hostname;
-          if (host === "localhost" || host === "127.0.0.1") {
+          const host = String(window.location.hostname || "").toLowerCase();
+          const isLocalHost =
+            host === "localhost"
+            || host === "127.0.0.1"
+            || host === "::1"
+            || host === "0.0.0.0"
+            || host.endsWith(".local");
+          if (isLocalHost) {
             try {
               window.localStorage.removeItem("baupass-api-base");
+              window.localStorage.removeItem("baupass-preview-company-id");
+              window.localStorage.removeItem("baupass-admin-v2-company");
             } catch {
               // no-op
             }
@@ -44,6 +52,29 @@
         }
       })();
     </script>
+  <style>
+    html.baupass-local-dev body {
+      background: #050816 !important;
+    }
+
+    html.baupass-local-dev body::before,
+    html.baupass-local-dev body::after,
+    html.baupass-local-dev .sidebar::before,
+    html.baupass-local-dev .sidebar::after {
+      display: none !important;
+      content: none !important;
+    }
+
+    html.baupass-local-dev .auth-overlay {
+      background: rgba(18, 20, 23, 0.96) !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+
+    html.baupass-local-dev .auth-panel {
+      background: rgba(255, 251, 245, 0.98) !important;
+    }
+  </style>
   <link rel="manifest" href="./control-manifest.json" />
   <link rel="apple-touch-icon" sizes="192x192" href="./worker-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="./worker-icon-192.svg" />
@@ -52,7 +83,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
-    <link rel="stylesheet" href="./styles.css?v=20260531shell15" />
+  <link rel="stylesheet" href="./styles.css?v=20260615localpreview2" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
@@ -574,7 +605,7 @@
                 <span data-ui-i18n="labelSite">Standort</span>
                 <div class="site-input-shell">
                   <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
-                  <button id="siteGeoLocateBtn" type="button" class="ghost-button small-button site-geo-btn" data-ui-i18n="siteGeoLocateBtn" aria-label="GPS" title="GPS">
+                  <button id="siteGeoLocateBtn" type="button" class="site-geo-btn" data-ui-i18n="siteGeoLocateBtn" data-ui-i18n-attr="aria-label,title">
                     <svg class="site-geo-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <path d="M12 2c3.9 0 7 3.1 7 7 0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7zm0 9.4A2.4 2.4 0 1 0 12 6.6a2.4 2.4 0 0 0 0 4.8z"></path>
                     </svg>
@@ -2227,7 +2258,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./app.js?v=20260601sidebar1"></script>
+  <script src="./app.js?v=20260615localpreview2"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

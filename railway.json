@@ -4,7 +4,7 @@
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "startCommand": "python backend/run_prod.py",
+    "startCommand": "python backend/entrypoint.py --mode prod",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   },

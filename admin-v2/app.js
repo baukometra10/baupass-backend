@@ -7,6 +7,8 @@ const USER_KEY = "baupass-admin-v2-user";
 const COMPANY_KEY = "baupass-admin-v2-company";
 const CONTROL_TOKEN_KEY = "baupass-control-token";
 
+const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
+
 function isEmbedMode() {
   return new URLSearchParams(location.search).get("embed") === "1";
 }
@@ -371,7 +373,39 @@ function companyQuery() {
 }
 
 function apiBase() {
-  return "";
+  const params = new URL(window.location.href).searchParams;
+  const queryValue = String(params.get("apiBase") || "").trim().replace(/\/+$/, "");
+  const host = String(window.location.hostname || "").toLowerCase();
+  const staticHost = host.endsWith("github.io") || host.endsWith(".pages.dev") || host.endsWith(".web.app");
+
+  if (staticHost) {
+    if (queryValue) {
+      try {
+        const parsed = new URL(queryValue);
+        const queryHost = parsed.hostname.toLowerCase();
+        if (queryHost !== "localhost" && queryHost !== "127.0.0.1" && queryHost !== "::1") {
+          return queryValue;
+        }
+      } catch {
+        // ignore malformed overrides on static hosts
+      }
+    }
+    return DEFAULT_RENDER_API_BASE;
+  }
+
+  if (queryValue) {
+    try {
+      const parsed = new URL(queryValue);
+      const queryHost = parsed.hostname.toLowerCase();
+      if (queryHost !== "localhost" && queryHost !== "127.0.0.1" && queryHost !== "::1") {
+        return queryValue;
+      }
+    } catch {
+      // ignore malformed overrides
+    }
+  }
+
+  return DEFAULT_RENDER_API_BASE;
 }
 
 async function api(path, options = {}) {

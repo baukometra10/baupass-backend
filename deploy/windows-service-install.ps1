@@ -8,7 +8,7 @@ param(
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $venvPython = Join-Path $projectRoot ".venv\Scripts\python.exe"
-$runScript = Join-Path $projectRoot "backend\run_prod.py"
+$runScript = Join-Path $projectRoot "backend\entrypoint.py"
 $taskName = "BauPassControl"
 
 if (-not (Test-Path $venvPython)) {
@@ -19,7 +19,7 @@ $command = @(
     "$env:HOST='$HostAddress'",
     "$env:PORT='$Port'",
     "$env:PUBLIC_BASE_URL='$PublicBaseUrl'",
-    "& '$venvPython' '$runScript'"
+    "& '$venvPython' '$runScript' --mode prod"
 ) -join '; '
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -Command $command"

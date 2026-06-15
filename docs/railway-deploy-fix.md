@@ -57,7 +57,7 @@ Häufige Ursachen: Repo umbenannt/verschoben, Org gewechselt, GitHub-App-Zugriff
 
 - **Build-Timeout / „Diagnosis failed“** – oft weil `COPY . .` ohne `.dockerignore` über 800 MB (`node_modules`, `.git`, `.venv`) hochlädt. Ab Fix-Commit mit `.dockerignore` im Repo-Root sollte der Build deutlich kleiner sein.
 - Falscher Branch / falsches Repo verknüpft
-- Start-Command nicht `python backend/run_prod.py` (siehe `railway.json`)
+- Start-Command nicht `python backend/entrypoint.py --mode prod` (siehe `railway.json`)
 
 ## Nach erfolgreichem Deploy
 

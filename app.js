@@ -32,6 +32,11 @@ function isKnownProductionApiHost(hostname) {
   return host.endsWith(".up.railway.app") || host.endsWith(".onrender.com");
 }
 
+function isStaticFrontendHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host.endsWith("github.io") || host.endsWith(".pages.dev") || host.endsWith(".web.app");
+}
+
 function normalizeApiBase(value) {
   return String(value || "").trim().replace(/\/+$/, "");
 }
@@ -66,6 +71,7 @@ function resolveApiBase() {
   const queryValue = sanitizeApiBase(params.get("apiBase"));
   const metaValue = sanitizeApiBase(document.querySelector('meta[name="baupass-api-base"]')?.content);
   const onLocalHost = isLocalHostName(window.location.hostname);
+  const onStaticFrontend = isStaticFrontendHost(window.location.hostname);
 
   // Lokal immer same-origin – nie gespeicherte Production-URL (baupass-production…).
   if (onLocalHost) {
@@ -94,7 +100,18 @@ function resolveApiBase() {
       storedValue = "";
     }
   }
-  const configuredValue = queryValue || metaValue || storedValue;
+  let configuredValue = queryValue || metaValue || storedValue;
+  if (configuredValue) {
+    try {
+      const configuredHost = new URL(configuredValue).hostname.toLowerCase();
+      if (!onLocalHost && isLocalHostName(configuredHost)) {
+        configuredValue = "";
+        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      }
+    } catch {
+      configuredValue = "";
+    }
+  }
 
   if (configuredValue) {
     window.localStorage.setItem(API_BASE_STORAGE_KEY, configuredValue);
@@ -105,16 +122,11 @@ function resolveApiBase() {
     window.localStorage.removeItem(API_BASE_STORAGE_KEY);
   }
 
-  if (window.location.hostname.endsWith("github.io")) {
+  if (onStaticFrontend) {
     return DEFAULT_RENDER_API_BASE;
   }
 
-  const host = window.location.hostname.toLowerCase();
-  if (host.endsWith(".pages.dev") || host.endsWith(".web.app")) {
-    return configuredValue || DEFAULT_RENDER_API_BASE;
-  }
-
-  return "";
+  return DEFAULT_RENDER_API_BASE;
 }
 
 function buildApiUrl(path) {
@@ -16221,13 +16233,25 @@ async function fillSiteFromCurrentLocation() {
   }
   showToast(uiT("siteGeoLocating"), "info", 2500);
   try {
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60_000,
+    const getPosition = (options) =>
+      new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
       });
-    });
+    let position;
+    try {
+      // Fast path: use a fresh-ish cached reading first so the UI responds within about a second.
+      position = await getPosition({
+        enableHighAccuracy: false,
+        timeout: 1000,
+        maximumAge: 300000,
+      });
+    } catch {
+      position = await getPosition({
+        enableHighAccuracy: true,
+        timeout: 4000,
+        maximumAge: 60000,
+      });
+    }
     const lat = position?.coords?.latitude;
     const lon = position?.coords?.longitude;
     const data = await apiRequest(
@@ -18382,7 +18406,7 @@ async function restoreSessionFromBootstrap() {
       state.companyAccessBlocked = bootstrap.companyAccessBlocked || state.companyAccessBlocked || null;
       if (bootstrap.user.role === "superadmin") {
         let previewCid = String(bootstrap.user.preview_company_id || "").trim();
-        if (!previewCid) {
+        if (!previewCid && !isLocalHostName(window.location.hostname)) {
           try {
             previewCid = String(localStorage.getItem("baupass-preview-company-id") || "").trim();
           } catch {
@@ -19363,7 +19387,11 @@ async function loadAllData() {
     if (companies.status === "fulfilled") {
     state.companiesLoadError = "";
     state.companies = companies.value || [];
-    if (String(getCurrentUser()?.role || "").toLowerCase() === "superadmin" && !superadminUiPreviewCompanyId) {
+    if (
+      String(getCurrentUser()?.role || "").toLowerCase() === "superadmin"
+      && !superadminUiPreviewCompanyId
+      && !isLocalHostName(window.location.hostname)
+    ) {
       const firstCompany = (state.companies || []).find((entry) => entry && !entry.deleted_at);
       if (firstCompany?.id) {
         superadminUiPreviewCompanyId = String(firstCompany.id);
@@ -21697,6 +21725,10 @@ function renderSuperadminSidebarCompanyPicker(loggedIn) {
   const mount = document.getElementById("superadminSidebarCompanyPicker");
   const select = document.getElementById("superadminSidebarCompanySelect");
   if (!mount || !select) {
+    return;
+  }
+  if (isLocalHostName(window.location.hostname)) {
+    mount.classList.add("hidden");
     return;
   }
   const isSuperadmin = loggedIn && String(getCurrentUser()?.role || "").toLowerCase() === "superadmin";
@@ -35956,6 +35988,9 @@ function warnBrowserZoom() {
 
 function warnStaleControlAssets() {
   try {
+    if (isLocalHostName(window.location.hostname)) {
+      return;
+    }
     const cssHref = document.querySelector('link[rel="stylesheet"][href*="styles.css"]')?.getAttribute("href") || "";
     if (cssHref && !cssHref.includes("20260524h")) {
       showToast(

@@ -12,7 +12,7 @@
 ## Checklist — إنشاء Staging
 
 1. **مشروع Railway جديد** أو **Service ثانٍ** في نفس المشروع (يفضّل مشروع منفصل للعزل).
-2. **نفس المستودع** `baupass-backend`، فرع `main`، Root: `backend`، Start: `python run_prod.py`.
+2. **نفس المستودع** `baupass-backend`، فرع `main`، Root: `backend`، Start: `python entrypoint.py --mode prod`.
 3. **متغيرات لا تُنسخ أعمى من الإنتاج:**
    - `BAUPASS_DEMO_MODE=0` (أو `1` فقط لعرض تجريبي داخلي)
    - `SECRET_KEY` **جديد** (لا تستخدم مفتاح الإنتاج)

@@ -13,7 +13,7 @@ This repository follows a multi-component architecture for an enterprise platfor
 ### Backend (Python)
 - **Install dependencies**: `pip install -r .\backend\requirements.txt`
 - **Start Dev Server**: `python .\backend\server.py`
-- **Start Prod Server**: `python .\backend\run_prod.py`
+- **Start Prod Server**: `python .\backend\entrypoint.py --mode prod`
 - **Run Tests**: `pytest` (executed from root or `.\backend`)
 
 ### Frontend & Desktop (Node.js)

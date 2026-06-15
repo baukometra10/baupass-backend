@@ -44,7 +44,7 @@ Falls das Repo **nicht** in der Liste steht:
 | Einstellung | Wert |
 |-------------|------|
 | **Builder** | Dockerfile (automatisch via `railway.json`) |
-| **Start** | `python backend/run_prod.py` |
+| **Start** | `python backend/entrypoint.py --mode prod` |
 | **Volume** | Mount **`/data`** (Datenbank bleibt erhalten) |
 | **`PUBLIC_BASE_URL`** | `https://DEINE-DOMAIN.up.railway.app` |
 | **Redis** (empfohlen) | Service **Redis** + `REDIS_URL` referenzieren |

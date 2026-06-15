@@ -20,6 +20,7 @@ import zipfile
 import logging
 import uuid
 import shutil
+import sys
 from contextlib import closing, contextmanager
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -44,6 +45,10 @@ import pyotp
 import qrcode
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+if __name__ == "__main__" and "backend.server" not in sys.modules:
+    sys.modules["backend.server"] = sys.modules[__name__]
 
 
 def _load_local_env_files():
@@ -74,6 +79,14 @@ def _load_local_env_files():
 
 
 _load_local_env_files()
+
+def _blueprint_retry_enabled() -> bool:
+    raw = (os.getenv("BAUPASS_BLUEPRINT_RETRY") or "").strip().lower()
+    if raw:
+        return raw in {"1", "true", "yes", "on"}
+    env = (os.getenv("BAUPASS_ENV") or os.getenv("FLASK_ENV") or "").strip().lower()
+    return env in {"prod", "production"}
+
 
 WORKER_LOGIN_MAX_DISTANCE_METERS = 100
 WORKER_SITE_GEOFENCE_DEFAULT_METERS = 20
@@ -10900,8 +10913,9 @@ def _format_reverse_geocode_street_address(address):
         or address.get("suburb")
         or ""
     ).strip()
+    postcode = str(address.get("postcode") or "").strip()
     street_line = f"{road} {house_number}".strip() if road else ""
-    city_line = city
+    city_line = " ".join(part for part in (postcode, city) if part).strip()
     if street_line and city_line:
         return f"{street_line}, {city_line}"
     return street_line or city_line
@@ -25397,6 +25411,7 @@ def _ensure_critical_api_routes() -> None:
         print("[baupass] WARNING: critical domain routes missing — applying direct route patches", flush=True)
 
     _patch_api_route("/api/companies", companies_collection, ("GET", "POST"), "core_companies_collection")
+    _patch_api_route("/api/login", login, ("POST",), "core_login")
     _patch_api_route("/api/companies/<company_id>", update_company, ("PUT",), "core_company_update")
     _patch_api_route("/api/companies/<company_id>", delete_company, ("DELETE",), "core_company_delete")
     _patch_api_route(
@@ -25548,32 +25563,26 @@ try:
     from backend.app.api.blueprint_registry import register_modular_blueprints
 
     register_modular_blueprints(app)
-    _retry_failed_domain_blueprints()
     _ensure_critical_api_routes()
-    _ensure_platform_workforce_routes()
-    _ensure_billing_v2_routes()
+    if _blueprint_retry_enabled():
+        _retry_failed_domain_blueprints()
+        _ensure_critical_api_routes()
+        _ensure_platform_workforce_routes()
+        _ensure_billing_v2_routes()
+    else:
+        print("[baupass] Blueprint retries disabled for local startup", flush=True)
 except Exception as _blueprint_exc:
     import traceback as _bp_tb
 
     print(f"[baupass] CRITICAL: blueprint registry failed: {_blueprint_exc}", flush=True)
     _bp_tb.print_exc()
-    _ensure_critical_api_routes()
-    _ensure_platform_workforce_routes()
-    _ensure_billing_v2_routes()
+    if _blueprint_retry_enabled():
+        _ensure_critical_api_routes()
+        _ensure_platform_workforce_routes()
+        _ensure_billing_v2_routes()
 
 
 if __name__ == "__main__":
-    # Avoid double-loading server.py as both __main__ and backend.server.
-    if __package__ is None:
-        import runpy
-        import sys
-
-        root = str(BASE_DIR)
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        runpy.run_module("backend.server", run_name="__main__", alter_sys=True)
-        raise SystemExit(0)
-
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8080"))
     ssl_context = get_ssl_context_from_env()

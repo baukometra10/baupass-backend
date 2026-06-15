@@ -34,7 +34,7 @@ Empfehlung **mit funktionierendem GitHub**: Render.com.
 | Branch | `main` |
 | Runtime | **Python 3** |
 | Build Command | `pip install -r backend/requirements.txt` |
-| Start Command | `python backend/run_prod.py` |
+| Start Command | `python backend/entrypoint.py --mode prod` |
 | Plan | **Free** |
 
 4. **Environment Variables** (optional, Render setzt die URL oft automatisch):

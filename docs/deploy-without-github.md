@@ -48,7 +48,7 @@ pip install -r backend\requirements.txt
 $env:HOST = "127.0.0.1"
 $env:PORT = "8000"
 $env:PUBLIC_BASE_URL = "https://ihre-domain.de"
-python backend\run_prod.py
+python backend\entrypoint.py --mode prod
 ```
 
 Dienst dauerhaft: `deploy\windows-service-install.ps1`  

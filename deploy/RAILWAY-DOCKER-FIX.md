@@ -49,7 +49,7 @@ Typische Fehler:
 **Settings** → **Networking** / **Public Networking**:
 
 - Port: **`$PORT`** oder den Port, den Railway anzeigt (oft nicht 8000 fest eintragen)
-- Die App liest `PORT` aus der Umgebung (`run_prod.py`) – das passt, wenn Railway `PORT` setzt.
+- Die App liest `PORT` aus der Umgebung (`entrypoint.py --mode prod`) – das passt, wenn Railway `PORT` setzt.
 
 ### 3. Volume
 
