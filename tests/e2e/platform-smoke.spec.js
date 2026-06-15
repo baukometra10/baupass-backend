@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 async function login(request, { username, password, loginScope, otpCode }) {
   const response = await request.post('/api/login', {
@@ -16,9 +17,16 @@ async function login(request, { username, password, loginScope, otpCode }) {
 }
 
 function getWorkspacePythonExecutable() {
-  return process.platform === 'win32'
-    ? path.resolve('.venv', 'Scripts', 'python.exe')
-    : path.resolve('.venv', 'bin', 'python');
+  const candidates = process.platform === 'win32'
+    ? [
+        path.resolve('.venv311', 'Scripts', 'python.exe'),
+        path.resolve('.venv', 'Scripts', 'python.exe'),
+      ]
+    : [
+        path.resolve('.venv311', 'bin', 'python'),
+        path.resolve('.venv', 'bin', 'python'),
+      ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[candidates.length - 1];
 }
 
 function ensureLocalSuperadminCredentials(username) {
@@ -59,7 +67,8 @@ test.describe('Platform smoke', () => {
     const platformHealth = await request.get('/api/health/platform');
     expect(platformHealth.ok()).toBeTruthy();
     const platformPayload = await platformHealth.json();
-    expect(platformPayload.ok).toBeTruthy();
+    expect(platformPayload.status).toBe('ok');
+    expect(platformPayload.ready).toBeTruthy();
 
     const loginPayload = await login(request, {
       username,
