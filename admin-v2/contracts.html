@@ -11,8 +11,9 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
+  <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
   <style>
-    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; }
+    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --danger:#f87171; }
     * { box-sizing:border-box; }
     body { margin:0; font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
     header { padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; gap:1rem; align-items:center; }
@@ -22,6 +23,7 @@
     .panel h2, .panel h3 { margin:0 0 0.6rem; }
     .contract-list { display:grid; gap:0.5rem; }
     .contract-item { width:100%; text-align:left; background:rgba(255,255,255,0.03); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:0.75rem; cursor:pointer; }
+    .contract-item.active { border-color:var(--accent); background:rgba(22,78,99,0.22); }
     .contract-item:hover { border-color:var(--accent); }
     form { display:grid; gap:0.75rem; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem; }
@@ -32,9 +34,13 @@
     .actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
     button { padding:0.6rem 0.9rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); cursor:pointer; }
     button.primary { background:#164e63; border-color:#5eead4; }
-    .editor { min-height:320px; }
+    button.danger { border-color:rgba(248,113,113,0.45); color:var(--danger); }
+    .editor { min-height:360px; }
     .muted { color:var(--muted); }
     .status { margin-top:0.5rem; font-size:0.78rem; color:var(--muted); }
+    .notes-composer .bp-ai-composer-row { display:flex; gap:0.5rem; align-items:flex-start; }
+    .notes-composer textarea { flex:1; min-height:110px; }
+    .notes-composer .bp-ai-voice-btn { flex-shrink:0; margin-top:0.15rem; }
   </style>
 </head>
 <body>
@@ -43,7 +49,7 @@
       <strong>BauPass</strong>
       <div class="muted">Arbeitsverträge</div>
     </div>
-    <a href="/admin-v2/index.html" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
+    <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
   </header>
   <main>
     <section class="panel">
@@ -53,33 +59,49 @@
     </section>
     <section class="panel">
       <h2>AI Arbeitsvertrag</h2>
-      <p class="muted">Vertragstyp wählen, Daten ergänzen, KI-Entwurf erzeugen und als PDF speichern.</p>
+      <p class="muted">Vertragstyp wählen, alle Daten ergänzen, per Sprache diktieren, KI-Entwurf erzeugen und als PDF speichern.</p>
       <form id="contractForm">
         <div class="grid">
           <label><span>Firma</span><input id="companyId" readonly /></label>
           <label><span>Vertragstyp</span><select id="templateId"></select></label>
-          <label><span>Mitarbeiter-ID</span><input id="workerId" /></label>
+          <label><span>Mitarbeiter-ID</span><input id="workerId" placeholder="z. B. wrk-…" /></label>
+          <label><span>Name des Arbeitnehmers</span><input id="employeeName" placeholder="Vor- und Nachname" /></label>
+          <label><span>Adresse des Arbeitnehmers</span><input id="employeeAddress" placeholder="Straße, PLZ Ort" /></label>
+          <label><span>Position / Tätigkeit</span><input id="jobTitle" placeholder="z. B. Maler, Elektriker" /></label>
           <label><span>Titel</span><input id="contractTitle" value="Arbeitsvertrag" /></label>
+          <label><span>Rechtsraum / Land</span><select id="jurisdiction"><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="EU">EU allgemein</option></select></label>
           <label><span>Sprache</span><select id="language"><option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option></select></label>
           <label><span>Arbeitsbeginn</span><input id="startDate" type="date" /></label>
+          <label><span>Vertragsende (befristet)</span><input id="endDate" type="date" /></label>
           <label><span>Arbeitsort</span><input id="workLocation" /></label>
-          <label><span>Wochenstunden</span><input id="weeklyHours" /></label>
-          <label><span>Vergütung</span><input id="salary" /></label>
+          <label><span>Wochenstunden</span><input id="weeklyHours" placeholder="z. B. 40" /></label>
+          <label><span>Urlaubstage</span><input id="vacationDays" placeholder="z. B. 30" /></label>
+          <label><span>Probezeit (Monate)</span><input id="probationMonths" placeholder="z. B. 6" /></label>
+          <label><span>Vergütung (brutto/Monat)</span><input id="salary" placeholder="z. B. 3200 EUR" /></label>
         </div>
-        <label><span>Vorgaben und Vertragsinhalte</span><textarea id="notes"></textarea></label>
+        <div class="notes-composer">
+          <label><span>Vorgaben und Vertragsinhalte</span></label>
+          <div class="bp-ai-composer-row">
+            <textarea id="notes" placeholder="Beschreiben Sie kurz den Vertrag — KI erstellt den vollständigen Text mit allen Paragraphen."></textarea>
+            <button type="button" id="notesVoiceBtn" class="bp-ai-voice-btn" title="Spracheingabe">🎤</button>
+          </div>
+          <p id="notesVoiceHint" class="muted" style="font-size:0.75rem;margin:0.35rem 0 0;">Mikrofon: tippen → sprechen → erneut tippen.</p>
+        </div>
         <div class="actions">
           <button type="button" class="primary" id="generateBtn">KI-Entwurf erstellen</button>
           <button type="button" id="saveBtn">Speichern</button>
           <button type="button" id="pdfBtn">PDF herunterladen</button>
+          <button type="button" class="danger" id="deleteBtn">Vertrag löschen</button>
         </div>
-        <textarea id="contractEditor" class="editor"></textarea>
+        <textarea id="contractEditor" class="editor" placeholder="Hier erscheint der vollständige Vertragstext…"></textarea>
         <div id="statusLine" class="status">Noch kein Vertrag geladen.</div>
       </form>
     </section>
   </main>
+  <script src="/ai-voice-ui.js?v=20260601voice22"></script>
   <script>
     const params = new URLSearchParams(location.search);
-    const companyId = params.get("company_id") || "";
+    const companyId = params.get("company_id") || localStorage.getItem("baupass-admin-v2-company") || "";
     const token = localStorage.getItem("baupass-admin-v2-token") || localStorage.getItem("baupass-control-token") || "";
     let currentContractId = "";
     let contracts = [];
@@ -90,7 +112,52 @@
       if (!res.ok) throw new Error(data.error || data.message || res.statusText);
       return data;
     };
+    const backLink = document.getElementById("backLink");
+    if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
     document.getElementById("companyId").value = companyId;
+    function contractFormPayload() {
+      return {
+        company_id: companyId,
+        template_id: document.getElementById("templateId").value,
+        worker_id: document.getElementById("workerId").value || undefined,
+        title: document.getElementById("contractTitle").value,
+        language: document.getElementById("language").value,
+        notes: document.getElementById("notes").value,
+        form: {
+          employee_name: document.getElementById("employeeName").value,
+          employee_address: document.getElementById("employeeAddress").value,
+          job_title: document.getElementById("jobTitle").value,
+          jurisdiction: document.getElementById("jurisdiction").value,
+          start_date: document.getElementById("startDate").value,
+          end_date: document.getElementById("endDate").value,
+          work_location: document.getElementById("workLocation").value,
+          weekly_hours: document.getElementById("weeklyHours").value,
+          vacation_days: document.getElementById("vacationDays").value,
+          probation_months: document.getElementById("probationMonths").value,
+          salary_gross_monthly: document.getElementById("salary").value,
+        },
+      };
+    }
+    function fillFormFromContract(data) {
+      const input = data.input_json ? (typeof data.input_json === "string" ? JSON.parse(data.input_json) : data.input_json) : {};
+      const form = input.form || {};
+      document.getElementById("contractTitle").value = data.title || "";
+      document.getElementById("workerId").value = data.worker_id || "";
+      document.getElementById("employeeName").value = form.employee_name || `${data.first_name || ""} ${data.last_name || ""}`.trim();
+      document.getElementById("employeeAddress").value = form.employee_address || "";
+      document.getElementById("jobTitle").value = form.job_title || "";
+      document.getElementById("jurisdiction").value = form.jurisdiction || "DE";
+      document.getElementById("language").value = data.language || "de";
+      document.getElementById("startDate").value = form.start_date || "";
+      document.getElementById("endDate").value = form.end_date || "";
+      document.getElementById("workLocation").value = form.work_location || "";
+      document.getElementById("weeklyHours").value = form.weekly_hours || "";
+      document.getElementById("vacationDays").value = form.vacation_days || "";
+      document.getElementById("probationMonths").value = form.probation_months || "";
+      document.getElementById("salary").value = form.salary_gross_monthly || "";
+      document.getElementById("notes").value = input.notes || "";
+      document.getElementById("contractEditor").value = data.final_text || data.draft_text || "";
+    }
     async function loadTemplates() {
       const data = await api(`/api/contracts/templates?company_id=${encodeURIComponent(companyId)}`);
       const select = document.getElementById("templateId");
@@ -109,36 +176,38 @@
         return !q || text.includes(q);
       });
       host.innerHTML = rows.length
-        ? rows.map((row) => `<button type="button" class="contract-item" data-id="${row.id}"><strong>${row.title || row.contract_type}</strong><br><span class="muted">${row.first_name || ""} ${row.last_name || ""}</span></button>`).join("")
+        ? rows.map((row) => `<button type="button" class="contract-item${row.id === currentContractId ? " active" : ""}" data-id="${row.id}"><strong>${row.title || row.contract_type}</strong><br><span class="muted">${row.first_name || ""} ${row.last_name || ""}</span></button>`).join("")
         : `<p class="muted">Keine Verträge gefunden.</p>`;
       host.querySelectorAll("[data-id]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const data = await api(`/api/contracts/${btn.getAttribute("data-id")}?company_id=${encodeURIComponent(companyId)}`);
           currentContractId = data.id || "";
-          document.getElementById("contractTitle").value = data.title || "";
-          document.getElementById("workerId").value = data.worker_id || "";
-          document.getElementById("contractEditor").value = data.final_text || data.draft_text || "";
+          fillFormFromContract(data);
           document.getElementById("statusLine").textContent = `Ausgewählt: ${data.title || data.id}`;
+          renderContractList();
         });
       });
     }
+    async function downloadPdfFile(downloadPath) {
+      const res = await fetch(downloadPath, { headers: headers(), credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || res.statusText);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${currentContractId || "vertrag"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
     document.getElementById("contractSearch").addEventListener("input", renderContractList);
     document.getElementById("generateBtn").addEventListener("click", async () => {
-      const body = {
-        company_id: companyId,
-        template_id: document.getElementById("templateId").value,
-        worker_id: document.getElementById("workerId").value || undefined,
-        title: document.getElementById("contractTitle").value,
-        language: document.getElementById("language").value,
-        notes: document.getElementById("notes").value,
-        form: {
-          start_date: document.getElementById("startDate").value,
-          work_location: document.getElementById("workLocation").value,
-          weekly_hours: document.getElementById("weeklyHours").value,
-          salary_gross_monthly: document.getElementById("salary").value,
-        },
-      };
-      const data = await api("/api/contracts/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      document.getElementById("statusLine").textContent = "KI erstellt Vertragsentwurf…";
+      const data = await api("/api/contracts/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(contractFormPayload()) });
       currentContractId = data.contract?.id || "";
       document.getElementById("contractEditor").value = data.contract?.draft_text || "";
       document.getElementById("statusLine").textContent = `KI-Entwurf erstellt: ${currentContractId}`;
@@ -152,8 +221,30 @@
     });
     document.getElementById("pdfBtn").addEventListener("click", async () => {
       if (!currentContractId) return;
+      document.getElementById("statusLine").textContent = "PDF wird erstellt…";
       const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company_id: companyId }) });
-      if (data.download) window.open(data.download, "_blank", "noopener");
+      if (data.download) await downloadPdfFile(data.download);
+      document.getElementById("statusLine").textContent = "PDF heruntergeladen.";
+    });
+    document.getElementById("deleteBtn").addEventListener("click", async () => {
+      if (!currentContractId) return;
+      if (!window.confirm("Diesen Vertrag wirklich löschen?")) return;
+      await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`, { method: "DELETE" });
+      currentContractId = "";
+      document.getElementById("contractEditor").value = "";
+      document.getElementById("statusLine").textContent = "Vertrag gelöscht.";
+      await loadContracts();
+    });
+    const langSelect = document.getElementById("language");
+    window.BaupassAiUi?.bindVoiceInput?.({
+      inputId: "notes",
+      buttonId: "notesVoiceBtn",
+      hintId: "notesVoiceHint",
+      lang: langSelect.value,
+      voiceReply: false,
+    });
+    langSelect.addEventListener("change", () => {
+      window.BaupassAiUi?.refreshComposerLabels?.({ inputId: "notes", buttonId: "notesVoiceBtn", hintId: "notesVoiceHint", lang: langSelect.value, voiceReply: false });
     });
     loadTemplates().then(loadContracts).catch((e) => { document.getElementById("statusLine").textContent = e.message; });
   </script>

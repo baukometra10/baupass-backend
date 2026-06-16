@@ -231,3 +231,14 @@ class ContractsRepository:
             (contract_id, company_id),
         ).fetchone()
         return dict(row) if row else None
+
+    def delete_contract(self, contract_id: str, company_id: str) -> None:
+        self.db.execute(
+            "DELETE FROM employment_contract_events WHERE contract_id = ? AND company_id = ?",
+            (contract_id, company_id),
+        )
+        self.db.execute(
+            "DELETE FROM employment_contracts WHERE id = ? AND company_id = ?",
+            (contract_id, company_id),
+        )
+        self.db.commit()

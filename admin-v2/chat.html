@@ -40,7 +40,7 @@
       <strong>BauPass</strong>
       <div class="muted">Mitarbeiter-Chat</div>
     </div>
-    <a href="/admin-v2/index.html" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
+    <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
   </header>
   <main>
     <section class="panel">
@@ -64,8 +64,10 @@
   </main>
   <script>
     const params = new URLSearchParams(location.search);
-    const companyId = params.get("company_id") || "";
+    const companyId = params.get("company_id") || localStorage.getItem("baupass-admin-v2-company") || "";
     const token = localStorage.getItem("baupass-admin-v2-token") || localStorage.getItem("baupass-control-token") || "";
+    const backLink = document.getElementById("backLink");
+    if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
     let threads = [];
     let currentThreadId = "";
     let currentWorkerId = "";

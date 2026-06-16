@@ -87,6 +87,12 @@ def test_contract_templates_and_draft(client_and_db):
     assert payload["contract"]["id"]
     assert payload["contract"]["draft_text"]
 
+    contract_id = payload["contract"]["id"]
+    deleted = client.delete(f"/api/contracts/{contract_id}?company_id={company_id}", headers=headers)
+    assert deleted.status_code == 200
+    missing = client.get(f"/api/contracts/{contract_id}?company_id={company_id}", headers=headers)
+    assert missing.status_code == 404
+
 
 def test_chat_thread_message_and_attachment(client_and_db):
     client, db_path = client_and_db

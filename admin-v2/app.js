@@ -788,6 +788,12 @@ const COMMAND_NAV = [
     groupKey: "nav.group.ops",
     searchTerms: "chat mitarbeiter nachricht nachrichten firma unterhaltung message messages",
   },
+  {
+    href: "/admin-v2/contracts.html",
+    titleKey: "contracts.title",
+    groupKey: "nav.group.ops",
+    searchTerms: "arbeitsvertrag vertrag contract ai pdf employment agreement",
+  },
   { tab: "tools", titleKey: "tab.tools", groupKey: "nav.group.ops" },
   { tab: "platform", titleKey: "tab.platform", groupKey: "nav.group.ops" },
   { tab: "enterprise", titleKey: "tab.enterprise", groupKey: "nav.group.enterprise" },
@@ -1602,7 +1608,7 @@ async function loadPlatform() {
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   const cid = activeCompanyId();
   try {
-    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist, autopilot, contractTemplates, contracts] = await Promise.all([
+    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist, autopilot] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
@@ -1615,8 +1621,6 @@ async function loadPlatform() {
       cid
         ? api(`/api/platform/autopilot/settings${companyQuery()}`).catch(() => ({ settings: {} }))
         : Promise.resolve({ settings: {} }),
-      cid ? api(`/api/contracts/templates${companyQuery()}`).catch(() => ({ templates: [] })) : Promise.resolve({ templates: [] }),
-      cid ? api(`/api/contracts${companyQuery()}`).catch(() => ({ contracts: [] })) : Promise.resolve({ contracts: [] }),
     ]);
     const ap = autopilot?.settings || {};
     const autopilotToggles = AUTOPILOT_KEYS.map(
@@ -1693,31 +1697,6 @@ async function loadPlatform() {
       </div>`
           : ""
       }
-      ${
-        cid
-          ? `<div class="panel-block">
-        <h3>AI Arbeitsverträge</h3>
-        <p class="muted small">Verträge mit KI-Entwurf und PDF-Download.</p>
-        <form id="platformContractsForm" class="tool-form">
-          <select name="template_id">${(contractTemplates.templates || []).map((tpl) => `<option value="${tpl.id}">${tpl.name}</option>`).join("")}</select>
-          <input name="worker_id" placeholder="Worker-ID" />
-          <input name="title" placeholder="Vertragstitel" value="Arbeitsvertrag" />
-          <textarea name="notes" placeholder="Vorgaben, Klauseln, Vergütung, Laufzeit …"></textarea>
-          <button type="submit">${t("common.ask")}</button>
-        </form>
-        <div id="platformContractsList" class="chat-thread-list">${
-          (contracts.contracts || []).length
-            ? (contracts.contracts || []).slice(0, 6).map((item) => `<button type="button" class="layer-pill" data-contract-open="${item.id}"><strong>${item.title || item.contract_type}</strong><br><span class="muted small">${item.updated_at || ''}</span></button>`).join("")
-            : `<p class="muted small">Noch keine Verträge vorhanden.</p>`
-        }</div>
-        <textarea id="platformContractsOutput" class="ai-answer" style="min-height:220px;"></textarea>
-        <div class="worker-action-group" style="margin-top:0.5rem;">
-          <button type="button" class="worker-action-btn worker-action-btn-primary" id="platformContractSaveBtn">Speichern</button>
-          <button type="button" class="worker-action-btn worker-action-btn-ghost" id="platformContractPdfBtn">PDF</button>
-        </div>
-      </div>`
-          : ""
-      }
       <div class="panel-block">
         <h3>${t("platform.aiAssistant")} ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
         <p class="muted small">${t("platform.aiRequires")}</p>
@@ -1757,51 +1736,6 @@ async function loadPlatform() {
     panel.querySelector("#platformBrandingPdfBtn")?.addEventListener("click", () =>
       previewCompanyBrandingPdf().catch((e) => showActionToast(e.message, true)),
     );
-    let currentContractId = "";
-    panel.querySelectorAll("[data-contract-open]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        currentContractId = btn.getAttribute("data-contract-open") || "";
-        if (!currentContractId) return;
-        const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}${companyQuery()}`);
-        $("platformContractsOutput").value = data.final_text || data.draft_text || "";
-      });
-    });
-    $("platformContractsForm")?.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(ev.target);
-      const body = {
-        template_id: fd.get("template_id"),
-        worker_id: fd.get("worker_id"),
-        title: fd.get("title"),
-        notes: fd.get("notes"),
-        language: getLang().slice(0, 2),
-        company_id: cid,
-        form: {},
-      };
-      const data = await api("/api/contracts/draft", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      currentContractId = data.contract?.id || "";
-      $("platformContractsOutput").value = data.contract?.draft_text || "";
-      await loadPlatform();
-    });
-    $("platformContractSaveBtn")?.addEventListener("click", async () => {
-      if (!currentContractId) return;
-      await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
-        method: "PUT",
-        body: JSON.stringify({ final_text: $("platformContractsOutput").value, company_id: cid }),
-      });
-      showActionToast(t("common.save"), false);
-    });
-    $("platformContractPdfBtn")?.addEventListener("click", async () => {
-      if (!currentContractId) return;
-      const res = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, {
-        method: "POST",
-        body: JSON.stringify({ company_id: cid }),
-      });
-      if (res?.download) window.open(res.download, "_blank", "noopener");
-    });
     $("aiQuickForm")?.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const q = ev.target.question.value.trim();
@@ -2104,17 +2038,35 @@ function initOpsCarousel(root) {
   );
 }
 
+function renderBetriebActionHub(companyId) {
+  const host = $("operationsActionHub");
+  if (!host) return;
+  const q = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+  if (getUser().role === "superadmin" && !companyId) {
+    host.innerHTML = `<p class="muted small">${t("common.selectCompany")}</p>`;
+    return;
+  }
+  host.innerHTML = `
+    <a href="/admin-v2/contracts.html${q}" class="betrieb-action-card">
+      <span class="betrieb-action-icon" aria-hidden="true">📄</span>
+      <strong>${t("contracts.title")}</strong>
+      <span class="muted small">${t("contracts.desc")}</span>
+      <span class="betrieb-action-cta">${t("contracts.open")} →</span>
+    </a>
+    <a href="/admin-v2/chat.html${q}" class="betrieb-action-card">
+      <span class="betrieb-action-icon" aria-hidden="true">💬</span>
+      <strong>${t("chat.title")}</strong>
+      <span class="muted small">${t("chat.desc")}</span>
+      <span class="betrieb-action-cta">${t("chat.open")} →</span>
+    </a>
+  `;
+}
+
 async function loadOperations() {
   const panel = $("operationsPanel");
   const q = companyQuery();
-  const contractsLink = $("operationsContractsLink");
-  const chatLink = $("operationsChatLink");
-  if (contractsLink) {
-    contractsLink.setAttribute("href", q ? `/admin-v2/contracts.html${q}` : "/admin-v2/contracts.html");
-  }
-  if (chatLink) {
-    chatLink.setAttribute("href", q ? `/admin-v2/chat.html${q}` : "/admin-v2/chat.html");
-  }
+  const cid = q.replace("?company_id=", "");
+  renderBetriebActionHub(cid);
   if (getUser().role === "superadmin" && !q) {
     panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;
@@ -2136,7 +2088,7 @@ async function loadOperations() {
     } catch {
       rtLabel = "";
     }
-    const chatResp = await api(`/api/chat/threads${q ? q : ''}`).catch(() => ({ threads: [] }));
+    const chatResp = await api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] }));
     const chatThreads = chatResp.threads || [];
     panel.innerHTML = `
       <div class="panel-block ops-panel">
@@ -2162,77 +2114,30 @@ async function loadOperations() {
       </div>
       <iframe id="opsEmbedFrame" src="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
       <div class="panel-block">
+        <h3>${t("contracts.title")}</h3>
+        <p class="muted small">${t("contracts.desc")}</p>
+        <a href="/admin-v2/contracts.html${q}" class="betrieb-action-card" style="max-width:420px;">
+          <span class="betrieb-action-icon" aria-hidden="true">📄</span>
+          <strong>${t("contracts.open")}</strong>
+          <span class="muted small">${t("contracts.desc")}</span>
+          <span class="betrieb-action-cta">${t("contracts.open")} →</span>
+        </a>
+      </div>
+      <div class="panel-block">
         <h3>${t("chat.title")}</h3>
-        <p class="muted small">${t("chat.desc")}</p>
-        <div id="chatAdminThreads" class="chat-thread-list">${
-          chatThreads.length
-            ? chatThreads.map((thread) => `
-              <button type="button" class="layer-pill" data-chat-thread="${thread.id}" data-chat-worker="${thread.worker_id || thread.workerId || ''}">
-                <strong>${thread.subject || 'general'}</strong><br>
-                <span class="muted small">${thread.first_name || ''} ${thread.last_name || ''}</span><br>
-                <span class="muted small">${thread.last_message_at || thread.updated_at || ''}</span>
-              </button>
-            `).join('')
-            : `<p class="muted small">${t("chat.empty")}</p>`
-        }</div>
-        <div id="chatAdminDetail" class="hidden"></div>
+        <p class="muted small">${t("chat.inboxHint", { count: chatThreads.length })}</p>
+        <a href="/admin-v2/chat.html${q}" class="betrieb-action-card" style="max-width:420px;">
+          <span class="betrieb-action-icon" aria-hidden="true">💬</span>
+          <strong>${t("chat.open")}</strong>
+          <span class="muted small">${chatThreads.length ? t("chat.threadCount", { count: chatThreads.length }) : t("chat.empty")}</span>
+          <span class="betrieb-action-cta">${t("chat.open")} →</span>
+        </a>
       </div>
     `;
     window.__opsLayersCache = layers;
     initOpsCarousel($("opsCarousel"));
     initOpsLayerCards($("opsCarousel"));
     initOpsEmbedTabs(panel, cid);
-    panel.querySelectorAll("[data-chat-thread]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const threadId = btn.getAttribute("data-chat-thread");
-        const workerId = btn.getAttribute("data-chat-worker") || "";
-        const host = $("chatAdminDetail");
-        if (!threadId || !host) return;
-        host.classList.remove("hidden");
-        host.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
-        try {
-          const data = await api(`/api/chat/threads/${encodeURIComponent(threadId)}`);
-          const messages = data.messages || [];
-          host.innerHTML = `
-            <div class="chat-thread-card">
-              <p class="muted small">Thread: ${threadId}</p>
-              <div class="chat-message-list">
-                ${messages.map((msg) => `
-                  <div class="chat-message-bubble ${msg.senderType === 'admin' ? 'admin' : ''}">
-                    <strong>${msg.senderType === 'worker' ? 'Mitarbeiter' : 'Firma'}</strong><br>
-                    <span>${msg.body || ''}</span>
-                    ${Array.isArray(msg.attachments) && msg.attachments.length ? `<div class="muted small">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename || 'Anhang'}</a>`).join('<br>')}</div>` : ''}
-                  </div>
-                `).join('')}
-              </div>
-              <div class="chat-reply-box">
-                <textarea id="chatReplyBox" placeholder="${t("chat.replyPlaceholder")}"></textarea>
-                <input type="file" id="chatReplyFile" />
-                <button type="button" id="chatReplySendBtn">${t("common.send")}</button>
-              </div>
-            </div>
-          `;
-          $("chatReplySendBtn")?.addEventListener("click", async () => {
-            const body = $("chatReplyBox")?.value?.trim() || "";
-            const file = $("chatReplyFile")?.files?.[0] || null;
-            if (!body && !file) return;
-            const res = await api(`/api/chat/threads/${encodeURIComponent(threadId)}/messages`, {
-              method: "POST",
-              body: JSON.stringify({ worker_id: workerId, body }),
-            });
-            if (file && res?.message?.id) {
-              await apiMultipart(`/api/chat/threads/${encodeURIComponent(threadId)}/attachments`, {
-                fields: { message_id: String(res.message.id), worker_id: workerId },
-                file,
-              });
-            }
-            await loadOperations();
-          });
-        } catch (e) {
-          host.innerHTML = `<p class="error">${e.message || t("chat.loadError")}</p>`;
-        }
-      });
-    });
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || t("ops.loadError")}</p>`;
   }

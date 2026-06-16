@@ -94,6 +94,19 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": "contract_not_found"}), 404
         return jsonify({"ok": True, "contract": contract})
 
+    @contracts_core_bp.delete("/contracts/<contract_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def delete_contract(contract_id: str):
+        cid = _resolve_company_id(request.get_json(silent=True) or {})
+        if not cid:
+            return forbidden_company()
+        storage_root = Path(BASE_DIR) / "backend" / "uploads"
+        deleted = ContractsService(get_db()).delete_contract(contract_id, cid, storage_root)
+        if not deleted:
+            return jsonify({"error": "contract_not_found"}), 404
+        return jsonify({"ok": True})
+
     @contracts_core_bp.post("/contracts/<contract_id>/generate-pdf")
     @require_auth
     @require_roles("superadmin", "company-admin")

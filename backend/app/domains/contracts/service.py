@@ -75,6 +75,24 @@ class ContractsService:
     def get_contract(self, contract_id: str, company_id: str) -> dict[str, Any] | None:
         return self.repo.get_contract(contract_id, company_id)
 
+    def delete_contract(self, contract_id: str, company_id: str, storage_root: Path | None = None) -> bool:
+        contract = self.repo.get_contract(contract_id, company_id)
+        if not contract:
+            return False
+        pdf_path = Path(str(contract.get("pdf_file_path") or ""))
+        if storage_root and pdf_path.is_file():
+            try:
+                pdf_path.unlink()
+            except OSError:
+                pass
+        elif pdf_path.is_file():
+            try:
+                pdf_path.unlink()
+            except OSError:
+                pass
+        self.repo.delete_contract(contract_id, company_id)
+        return True
+
     def update_contract(self, contract_id: str, company_id: str, final_text: str) -> dict[str, Any] | None:
         self.repo.update_contract_text(contract_id, company_id=company_id, final_text=final_text, status="final")
         return self.repo.get_contract(contract_id, company_id)
@@ -120,9 +138,12 @@ class ContractsService:
                 },
                 "input": input_data,
                 "instructions": [
-                    "Generate a legally structured employment contract draft in the requested language.",
-                    "Use section headings and complete sentences.",
-                    "Do not invent company/employee facts that are not present; if missing, phrase neutrally.",
+                    "Generate a complete, legally structured employment contract draft in the requested language.",
+                    "Include all standard sections: parties, role, start date, term, work location, working hours, compensation, vacation, probation, confidentiality, data protection, termination, and final clauses.",
+                    "Use numbered sections and complete sentences — not bullet fragments.",
+                    "Minimum length: at least 12 substantive sections with multiple sentences each.",
+                    "Respect the jurisdiction/country implied by the template and input (e.g. German labor law for DE templates).",
+                    "Do not invent company/employee facts that are not present; if missing, phrase neutrally or mark as 'nach Vereinbarung'.",
                     "Return only the final contract text without markdown fences.",
                 ],
             },
@@ -161,23 +182,57 @@ class ContractsService:
         if lang == "en":
             return (
                 f"{title}\n\n"
-                f"Between {company_name} and employee {employee_name} for the role of {job_title}.\n\n"
-                f"1. Start date: {start_date}\n"
-                f"2. Work location: {work_location}\n"
-                f"3. Weekly working hours: {weekly_hours}\n"
-                f"4. Compensation: {salary}\n"
-                f"5. Additional notes: {notes or 'No additional notes.'}\n\n"
-                "This draft should be legally reviewed before final use."
+                f"Between {company_name} (Employer) and {employee_name} (Employee) for the role of {job_title}.\n\n"
+                "§1 Parties\n"
+                f"The employer is {company_name}. The employee is {employee_name}.\n\n"
+                "§2 Position and duties\n"
+                f"The employee is employed as {job_title}. Duties follow the employer's reasonable instructions.\n\n"
+                "§3 Start of employment\n"
+                f"Employment begins on {start_date}.\n\n"
+                "§4 Place of work\n"
+                f"The primary place of work is {work_location}.\n\n"
+                "§5 Working hours\n"
+                f"The regular weekly working time is {weekly_hours}.\n\n"
+                "§6 Remuneration\n"
+                f"Gross remuneration: {salary}.\n\n"
+                "§7 Vacation\n"
+                "Vacation entitlement follows applicable statutory minimums unless otherwise agreed.\n\n"
+                "§8 Probation\n"
+                "A probation period may apply as permitted by local law.\n\n"
+                "§9 Confidentiality and data protection\n"
+                "The employee must maintain confidentiality and comply with data protection obligations.\n\n"
+                "§10 Termination\n"
+                "Termination follows applicable statutory notice periods and formal requirements.\n\n"
+                "§11 Final provisions\n"
+                f"Additional notes: {notes or 'No additional notes.'}\n\n"
+                "This draft must be legally reviewed before final signature."
             )
         return (
             f"{title}\n\n"
-            f"Zwischen der Firma {company_name} und dem Arbeitnehmer {employee_name} für die Position {job_title}.\n\n"
-            f"1. Arbeitsbeginn: {start_date}\n"
-            f"2. Arbeitsort: {work_location}\n"
-            f"3. Wöchentliche Arbeitszeit: {weekly_hours}\n"
-            f"4. Vergütung: {salary}\n"
-            f"5. Zusätzliche Hinweise: {notes or 'Keine weiteren Hinweise.'}\n\n"
-            "Dieser Vertragsentwurf sollte vor der finalen Verwendung rechtlich geprüft werden."
+            f"Zwischen der Firma {company_name} (Arbeitgeber) und {employee_name} (Arbeitnehmer) für die Position {job_title}.\n\n"
+            "§1 Vertragsparteien\n"
+            f"Arbeitgeber ist {company_name}. Arbeitnehmer ist {employee_name}.\n\n"
+            "§2 Tätigkeit\n"
+            f"Der Arbeitnehmer wird als {job_title} beschäftigt. Die konkreten Aufgaben ergeben sich aus der Tätigkeitsbeschreibung und den Weisungen des Arbeitgebers.\n\n"
+            "§3 Arbeitsbeginn\n"
+            f"Das Arbeitsverhältnis beginnt am {start_date}.\n\n"
+            "§4 Arbeitsort\n"
+            f"Der Arbeitsort ist {work_location}.\n\n"
+            "§5 Arbeitszeit\n"
+            f"Die regelmäßige wöchentliche Arbeitszeit beträgt {weekly_hours}.\n\n"
+            "§6 Vergütung\n"
+            f"Die Vergütung beträgt {salary}.\n\n"
+            "§7 Urlaub\n"
+            "Der Urlaubsanspruch richtet sich nach den gesetzlichen Mindestvorgaben, sofern nicht abweichend vereinbart.\n\n"
+            "§8 Probezeit\n"
+            "Eine Probezeit kann vereinbart werden, soweit gesetzlich zulässig.\n\n"
+            "§9 Verschwiegenheit und Datenschutz\n"
+            "Der Arbeitnehmer verpflichtet sich zur Verschwiegenheit und zur Einhaltung datenschutzrechtlicher Vorgaben.\n\n"
+            "§10 Kündigung\n"
+            "Die Kündigung erfolgt unter Einhaltung der gesetzlichen Fristen und Formvorschriften.\n\n"
+            "§11 Schlussbestimmungen\n"
+            f"Zusätzliche Hinweise: {notes or 'Keine weiteren Hinweise.'}\n\n"
+            "Dieser Vertragsentwurf sollte vor der finalen Unterzeichnung rechtlich geprüft werden."
         )
 
     def _load_company(self, company_id: str) -> dict[str, Any]:
