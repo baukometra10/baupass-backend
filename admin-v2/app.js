@@ -782,6 +782,12 @@ const COMMAND_NAV = [
   { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
   { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
   { tab: "operations", titleKey: "tab.operations", groupKey: "nav.group.ops" },
+  {
+    href: "/admin-v2/chat.html",
+    titleKey: "chat.title",
+    groupKey: "nav.group.ops",
+    searchTerms: "chat mitarbeiter nachricht nachrichten firma unterhaltung message messages",
+  },
   { tab: "tools", titleKey: "tab.tools", groupKey: "nav.group.ops" },
   { tab: "platform", titleKey: "tab.platform", groupKey: "nav.group.ops" },
   { tab: "enterprise", titleKey: "tab.enterprise", groupKey: "nav.group.enterprise" },
