@@ -69,6 +69,8 @@ def get_enterprise_catalog() -> dict[str, Any]:
                 _item("presence_tracking", "Worker Presence Tracking", "تتبع الحضور", "admin-v2", ui="/admin-v2/index.html"),
                 _item("workforce_reporting", "Workforce Reporting", "تقارير القوى العاملة", "legacy"),
                 _item("worker_notifications", "Worker Notifications", "إشعارات الموظف", "worker"),
+                _item("worker_chat", "Worker Company Chat", "محادثة الموظف مع الشركة", "admin-v2", apis=["GET /api/chat/threads"], ui="/admin-v2/chat.html"),
+                _item("employment_contracts", "AI Employment Contracts", "عقود العمل بالذكاء الاصطناعي", "admin-v2", apis=["POST /api/contracts/draft"], ui="/admin-v2/contracts.html"),
                 _item("foreman_dashboard", "Foreman Dashboard", "لوحة المشرف", "legacy"),
                 _item("contractor_mgmt", "Contractor Management", "المقاولون", "legacy"),
                 _item("visitor", "Visitor Management", "الزوار", "legacy", ui="/index.html"),

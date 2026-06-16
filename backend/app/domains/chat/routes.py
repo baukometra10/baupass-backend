@@ -12,11 +12,17 @@ chat_core_bp = Blueprint("chat_domain_core", __name__)
 
 
 def register_chat_blueprint(flask_app: Flask) -> None:
+    from backend.app.platform.plan_guard import capability_blocked_response, require_plan_capability
     from backend.server import BASE_DIR, get_db, require_auth, require_roles, require_worker_session
+
+    def _worker_chat_allowed(company_id: str):
+        blocked = capability_blocked_response(get_db(), company_id, "worker_chat")
+        return blocked
 
     @chat_core_bp.get("/chat/threads")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
     def admin_chat_threads():
         cid = company_id_from_user()
         if not cid:
@@ -27,6 +33,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/chat/threads/<thread_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
     def admin_chat_thread(thread_id: str):
         cid = company_id_from_user()
         if not cid:
@@ -39,6 +46,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/chat/threads/<thread_id>/messages")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
     def admin_chat_reply(thread_id: str):
         cid = company_id_from_user()
         if not cid:
@@ -65,6 +73,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/chat/threads/<thread_id>/attachments")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
     def admin_chat_attachment(thread_id: str):
         cid = company_id_from_user()
         if not cid:
@@ -88,6 +97,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/chat/messages/<message_id>/mark-read")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
     def admin_chat_mark_read(message_id: str):
         cid = company_id_from_user()
         if not cid:
@@ -101,6 +111,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/chat/attachments/<attachment_id>/download")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
     def download_chat_attachment(attachment_id: str):
         cid = company_id_from_user()
         if not cid:
@@ -119,6 +130,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/worker-app/chat/threads")
     @require_worker_session
     def worker_chat_threads():
+        company_id = str(g.current_worker["company_id"])
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
         worker_id = str(g.current_worker["id"])
         company_id = str(g.current_worker["company_id"])
         return jsonify({"threads": ChatService(get_db()).list_threads(company_id, worker_id=worker_id)})
@@ -126,6 +141,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/worker-app/chat/threads")
     @require_worker_session
     def worker_create_thread():
+        company_id = str(g.current_worker["company_id"])
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
         worker_id = str(g.current_worker["id"])
         company_id = str(g.current_worker["company_id"])
         data = request.get_json(silent=True) or {}
@@ -140,6 +159,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/worker-app/chat/threads/<thread_id>/messages")
     @require_worker_session
     def worker_chat_messages(thread_id: str):
+        company_id = str(g.current_worker["company_id"])
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
         worker_id = str(g.current_worker["id"])
         company_id = str(g.current_worker["company_id"])
         service = ChatService(get_db())
@@ -151,6 +174,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/worker-app/chat/attachments/<attachment_id>/download")
     @require_worker_session
     def worker_chat_attachment_download(attachment_id: str):
+        company_id = str(g.current_worker["company_id"])
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
         worker_id = str(g.current_worker["id"])
         row = get_db().execute(
             "SELECT filename, content_type, file_path, worker_id FROM chat_attachments WHERE id = ?",
@@ -166,6 +193,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/messages")
     @require_worker_session
     def worker_chat_send(thread_id: str):
+        company_id = str(g.current_worker["company_id"])
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
         worker_id = str(g.current_worker["id"])
         company_id = str(g.current_worker["company_id"])
         data = request.get_json(silent=True) or {}
@@ -187,6 +218,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/attachments")
     @require_worker_session
     def worker_chat_attachment(thread_id: str):
+        company_id = str(g.current_worker["company_id"])
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
         worker_id = str(g.current_worker["id"])
         company_id = str(g.current_worker["company_id"])
         message_id = str(request.form.get("message_id") or "").strip()

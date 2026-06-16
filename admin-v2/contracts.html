@@ -10,18 +10,18 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
   <style>
     :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --danger:#f87171; }
     * { box-sizing:border-box; }
-    body { margin:0; font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
-    header { padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; gap:1rem; align-items:center; }
-    main { max-width:1200px; margin:0 auto; padding:1rem 1.25rem 1.5rem; display:grid; grid-template-columns: 320px minmax(0, 1fr); gap:1rem; }
-    @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+    html { height:100%; }
+    body { margin:0; min-height:100%; font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; overflow-y:auto; }
+    header { position:sticky; top:0; z-index:10; padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; gap:1rem; align-items:center; }
+    main { max-width:1200px; margin:0 auto; padding:1rem 1.25rem 2.5rem; display:grid; grid-template-columns:320px minmax(0,1fr); gap:1rem; align-items:start; }
+    @media (max-width:980px) { main { grid-template-columns:1fr; } }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:1rem; }
     .panel h2, .panel h3 { margin:0 0 0.6rem; }
-    .contract-list { display:grid; gap:0.5rem; }
+    .contract-list { display:grid; gap:0.5rem; max-height:70vh; overflow:auto; }
     .contract-item { width:100%; text-align:left; background:rgba(255,255,255,0.03); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:0.75rem; cursor:pointer; }
     .contract-item.active { border-color:var(--accent); background:rgba(22,78,99,0.22); }
     .contract-item:hover { border-color:var(--accent); }
@@ -31,13 +31,15 @@
     input, select, textarea, button { font:inherit; }
     input, select, textarea { width:100%; padding:0.6rem 0.7rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); }
     textarea { min-height:130px; resize:vertical; }
-    .actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .actions { display:flex; gap:0.5rem; flex-wrap:wrap; position:sticky; bottom:0; padding:0.75rem 0 0.25rem; background:linear-gradient(180deg, rgba(20,28,40,0), rgba(20,28,40,0.96) 28%); }
     button { padding:0.6rem 0.9rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); cursor:pointer; }
     button.primary { background:#164e63; border-color:#5eead4; }
     button.danger { border-color:rgba(248,113,113,0.45); color:var(--danger); }
     .editor { min-height:360px; }
     .muted { color:var(--muted); }
     .status { margin-top:0.5rem; font-size:0.78rem; color:var(--muted); }
+    .hidden { display:none !important; }
+    .upgrade-box { max-width:720px; margin:2rem auto; padding:1.25rem; border-radius:14px; border:1px solid rgba(248,113,113,0.35); background:rgba(63,29,29,0.35); }
     .notes-composer .bp-ai-composer-row { display:flex; gap:0.5rem; align-items:flex-start; }
     .notes-composer textarea { flex:1; min-height:110px; }
     .notes-composer .bp-ai-voice-btn { flex-shrink:0; margin-top:0.15rem; }
@@ -47,11 +49,11 @@
   <header>
     <div>
       <strong>BauPass</strong>
-      <div class="muted">Arbeitsverträge</div>
+      <div class="muted">Arbeitsverträge — alle Branchen</div>
     </div>
     <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
   </header>
-  <main>
+  <main id="mainRoot">
     <section class="panel">
       <h3>Verträge suchen</h3>
       <input id="contractSearch" type="search" placeholder="Vertragstitel oder Mitarbeiter-ID" />
@@ -59,25 +61,91 @@
     </section>
     <section class="panel">
       <h2>AI Arbeitsvertrag</h2>
-      <p class="muted">Vertragstyp wählen, alle Daten ergänzen, per Sprache diktieren, KI-Entwurf erzeugen und als PDF speichern.</p>
+      <p class="muted">Für jede Branche und jedes Land — Vertragstyp wählen, Daten ergänzen, KI-Entwurf erzeugen, speichern oder löschen.</p>
       <form id="contractForm">
         <div class="grid">
           <label><span>Firma</span><input id="companyId" readonly /></label>
           <label><span>Vertragstyp</span><select id="templateId"></select></label>
-          <label><span>Mitarbeiter-ID</span><input id="workerId" placeholder="z. B. wrk-…" /></label>
+          <label><span>Mitarbeiter-ID</span><input id="workerId" placeholder="optional, z. B. wrk-…" /></label>
           <label><span>Name des Arbeitnehmers</span><input id="employeeName" placeholder="Vor- und Nachname" /></label>
           <label><span>Adresse des Arbeitnehmers</span><input id="employeeAddress" placeholder="Straße, PLZ Ort" /></label>
-          <label><span>Position / Tätigkeit</span><input id="jobTitle" placeholder="z. B. Maler, Elektriker" /></label>
+          <label><span>Position / Tätigkeit</span><input id="jobTitle" placeholder="z. B. Verkäufer, Bürokraft, Techniker" /></label>
           <label><span>Titel</span><input id="contractTitle" value="Arbeitsvertrag" /></label>
-          <label><span>Rechtsraum / Land</span><select id="jurisdiction"><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="EU">EU allgemein</option></select></label>
-          <label><span>Sprache</span><select id="language"><option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option></select></label>
+          <label><span>Rechtsraum / Land</span>
+            <select id="jurisdiction">
+              <optgroup label="Europa">
+                <option value="DE">Deutschland</option>
+                <option value="AT">Österreich</option>
+                <option value="CH">Schweiz</option>
+                <option value="FR">Frankreich</option>
+                <option value="NL">Niederlande</option>
+                <option value="BE">Belgien</option>
+                <option value="IT">Italien</option>
+                <option value="ES">Spanien</option>
+                <option value="PL">Polen</option>
+                <option value="EU">EU (allgemein)</option>
+              </optgroup>
+              <optgroup label="Naher Osten">
+                <option value="SA">Saudi-Arabien</option>
+                <option value="AE">Vereinigte Arabische Emirate</option>
+                <option value="QA">Katar</option>
+                <option value="KW">Kuwait</option>
+                <option value="BH">Bahrain</option>
+                <option value="OM">Oman</option>
+                <option value="JO">Jordanien</option>
+                <option value="LB">Libanon</option>
+                <option value="EG">Ägypten</option>
+                <option value="TR">Türkei</option>
+              </optgroup>
+              <optgroup label="Amerika">
+                <option value="US">USA</option>
+                <option value="CA">Kanada</option>
+                <option value="MX">Mexiko</option>
+                <option value="BR">Brasilien</option>
+              </optgroup>
+              <optgroup label="Asien &amp; Pazifik">
+                <option value="IN">Indien</option>
+                <option value="PK">Pakistan</option>
+                <option value="SG">Singapur</option>
+                <option value="MY">Malaysia</option>
+                <option value="AU">Australien</option>
+              </optgroup>
+              <optgroup label="Afrika">
+                <option value="MA">Marokko</option>
+                <option value="TN">Tunesien</option>
+                <option value="ZA">Südafrika</option>
+              </optgroup>
+              <option value="INT">International / sonstiges Recht</option>
+            </select>
+          </label>
+          <label><span>Sprache des Vertrags</span><select id="language"><option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option></select></label>
           <label><span>Arbeitsbeginn</span><input id="startDate" type="date" /></label>
           <label><span>Vertragsende (befristet)</span><input id="endDate" type="date" /></label>
-          <label><span>Arbeitsort</span><input id="workLocation" /></label>
+          <label><span>Arbeitsort</span><input id="workLocation" placeholder="z. B. Hauptsitz, Filiale, Homeoffice" /></label>
           <label><span>Wochenstunden</span><input id="weeklyHours" placeholder="z. B. 40" /></label>
           <label><span>Urlaubstage</span><input id="vacationDays" placeholder="z. B. 30" /></label>
           <label><span>Probezeit (Monate)</span><input id="probationMonths" placeholder="z. B. 6" /></label>
-          <label><span>Vergütung (brutto/Monat)</span><input id="salary" placeholder="z. B. 3200 EUR" /></label>
+          <label><span>Vergütungsart</span>
+            <select id="salaryType">
+              <option value="monthly_fixed">Monatsgehalt (fest)</option>
+              <option value="hourly">Stundenlohn</option>
+            </select>
+          </label>
+          <label><span>Währung</span>
+            <select id="currency">
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="CHF">CHF</option>
+              <option value="SAR">SAR</option>
+              <option value="AED">AED</option>
+              <option value="QAR">QAR</option>
+              <option value="TRY">TRY</option>
+              <option value="EGP">EGP</option>
+            </select>
+          </label>
+          <label id="salaryMonthlyWrap"><span>Bruttogehalt pro Monat</span><input id="salaryMonthly" placeholder="z. B. 2500" /></label>
+          <label id="salaryHourlyWrap" class="hidden"><span>Stundenlohn</span><input id="salaryHourly" placeholder="z. B. 18.50" /></label>
         </div>
         <div class="notes-composer">
           <label><span>Vorgaben und Vertragsinhalte</span></label>
@@ -109,13 +177,28 @@
     const api = async (path, options = {}) => {
       const res = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) }, credentials: "include" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || res.statusText);
+      if (!res.ok) {
+        const err = new Error(data.error || data.message || res.statusText);
+        err.data = data;
+        err.status = res.status;
+        throw err;
+      }
       return data;
     };
     const backLink = document.getElementById("backLink");
     if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
     document.getElementById("companyId").value = companyId;
+
+    function syncSalaryFields() {
+      const hourly = document.getElementById("salaryType").value === "hourly";
+      document.getElementById("salaryMonthlyWrap").classList.toggle("hidden", hourly);
+      document.getElementById("salaryHourlyWrap").classList.toggle("hidden", !hourly);
+    }
+    document.getElementById("salaryType").addEventListener("change", syncSalaryFields);
+    syncSalaryFields();
+
     function contractFormPayload() {
+      const hourly = document.getElementById("salaryType").value === "hourly";
       return {
         company_id: companyId,
         template_id: document.getElementById("templateId").value,
@@ -134,7 +217,10 @@
           weekly_hours: document.getElementById("weeklyHours").value,
           vacation_days: document.getElementById("vacationDays").value,
           probation_months: document.getElementById("probationMonths").value,
-          salary_gross_monthly: document.getElementById("salary").value,
+          salary_type: document.getElementById("salaryType").value,
+          currency: document.getElementById("currency").value,
+          salary_gross_monthly: hourly ? "" : document.getElementById("salaryMonthly").value,
+          hourly_rate: hourly ? document.getElementById("salaryHourly").value : "",
         },
       };
     }
@@ -154,7 +240,11 @@
       document.getElementById("weeklyHours").value = form.weekly_hours || "";
       document.getElementById("vacationDays").value = form.vacation_days || "";
       document.getElementById("probationMonths").value = form.probation_months || "";
-      document.getElementById("salary").value = form.salary_gross_monthly || "";
+      document.getElementById("salaryType").value = form.salary_type || "monthly_fixed";
+      document.getElementById("currency").value = form.currency || "EUR";
+      document.getElementById("salaryMonthly").value = form.salary_gross_monthly || "";
+      document.getElementById("salaryHourly").value = form.hourly_rate || "";
+      syncSalaryFields();
       document.getElementById("notes").value = input.notes || "";
       document.getElementById("contractEditor").value = data.final_text || data.draft_text || "";
     }
@@ -204,6 +294,35 @@
       a.remove();
       URL.revokeObjectURL(url);
     }
+    function showUpgrade(requiredPlan) {
+      document.getElementById("mainRoot").innerHTML = `
+        <section class="upgrade-box">
+          <h2>Professional erforderlich</h2>
+          <p class="muted">AI-Arbeitsverträge sind ab dem Plan <strong>${requiredPlan || "professional"}</strong> verfügbar. Bitte Tarif upgraden oder Superadmin kontaktieren.</p>
+          <p><a href="/admin-v2/index.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}#platform">Zur Plattform / Tarife</a></p>
+        </section>`;
+    }
+    async function ensureAccess() {
+      if (!companyId) {
+        document.getElementById("statusLine").textContent = "Bitte zuerst eine Firma in Betrieb auswählen.";
+        return false;
+      }
+      try {
+        const me = await api("/api/me");
+        if (me.role === "superadmin") return true;
+        const ent = await api(`/api/platform/entitlements?company_id=${encodeURIComponent(companyId)}`);
+        if (!ent.legacyFeatures?.employment_contracts) {
+          showUpgrade(ent.planMeta?.minPlan || "professional");
+          return false;
+        }
+      } catch (e) {
+        if (e.status === 403 && e.data?.error === "feature_not_available") {
+          showUpgrade(e.data.requiredPlan);
+          return false;
+        }
+      }
+      return true;
+    }
     document.getElementById("contractSearch").addEventListener("input", renderContractList);
     document.getElementById("generateBtn").addEventListener("click", async () => {
       document.getElementById("statusLine").textContent = "KI erstellt Vertragsentwurf…";
@@ -227,8 +346,11 @@
       document.getElementById("statusLine").textContent = "PDF heruntergeladen.";
     });
     document.getElementById("deleteBtn").addEventListener("click", async () => {
-      if (!currentContractId) return;
-      if (!window.confirm("Diesen Vertrag wirklich löschen?")) return;
+      if (!currentContractId) {
+        document.getElementById("statusLine").textContent = "Kein Vertrag ausgewählt.";
+        return;
+      }
+      if (!window.confirm("Diesen Vertrag endgültig löschen?")) return;
       await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`, { method: "DELETE" });
       currentContractId = "";
       document.getElementById("contractEditor").value = "";
@@ -236,17 +358,14 @@
       await loadContracts();
     });
     const langSelect = document.getElementById("language");
-    window.BaupassAiUi?.bindVoiceInput?.({
-      inputId: "notes",
-      buttonId: "notesVoiceBtn",
-      hintId: "notesVoiceHint",
-      lang: langSelect.value,
-      voiceReply: false,
-    });
+    window.BaupassAiUi?.bindVoiceInput?.({ inputId: "notes", buttonId: "notesVoiceBtn", hintId: "notesVoiceHint", lang: langSelect.value, voiceReply: false });
     langSelect.addEventListener("change", () => {
       window.BaupassAiUi?.refreshComposerLabels?.({ inputId: "notes", buttonId: "notesVoiceBtn", hintId: "notesVoiceHint", lang: langSelect.value, voiceReply: false });
     });
-    loadTemplates().then(loadContracts).catch((e) => { document.getElementById("statusLine").textContent = e.message; });
+    ensureAccess().then((ok) => {
+      if (!ok) return;
+      loadTemplates().then(loadContracts).catch((e) => { document.getElementById("statusLine").textContent = e.message; });
+    });
   </script>
 </body>
 </html>

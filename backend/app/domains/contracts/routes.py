@@ -20,11 +20,13 @@ def _resolve_company_id(data: dict | None = None) -> str:
 
 
 def register_contracts_blueprint(flask_app: Flask) -> None:
+    from backend.app.platform.plan_guard import require_plan_capability
     from backend.server import BASE_DIR, get_db, require_auth, require_roles
 
     @contracts_core_bp.get("/contracts/templates")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def list_contract_templates():
         cid = _resolve_company_id()
         if not cid:
@@ -35,6 +37,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.post("/contracts/draft")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def create_contract_draft():
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -60,6 +63,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.get("/contracts")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def list_contracts():
         cid = _resolve_company_id()
         if not cid:
@@ -69,6 +73,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.get("/contracts/<contract_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def get_contract(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -81,6 +86,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.put("/contracts/<contract_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def update_contract(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -97,6 +103,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.delete("/contracts/<contract_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def delete_contract(contract_id: str):
         cid = _resolve_company_id(request.get_json(silent=True) or {})
         if not cid:
@@ -110,6 +117,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.post("/contracts/<contract_id>/generate-pdf")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def generate_contract_pdf(contract_id: str):
         cid = _resolve_company_id(request.get_json(silent=True) or {})
         if not cid:
@@ -125,6 +133,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.get("/contracts/<contract_id>/download.pdf")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
     def download_contract_pdf(contract_id: str):
         cid = _resolve_company_id()
         if not cid:

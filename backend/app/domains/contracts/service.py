@@ -142,7 +142,8 @@ class ContractsService:
                     "Include all standard sections: parties, role, start date, term, work location, working hours, compensation, vacation, probation, confidentiality, data protection, termination, and final clauses.",
                     "Use numbered sections and complete sentences — not bullet fragments.",
                     "Minimum length: at least 12 substantive sections with multiple sentences each.",
-                    "Respect the jurisdiction/country implied by the template and input (e.g. German labor law for DE templates).",
+                    "Respect the jurisdiction/country and applicable labor law from the input (not limited to construction).",
+                    "Support both fixed monthly salary and hourly compensation when specified in the form.",
                     "Do not invent company/employee facts that are not present; if missing, phrase neutrally or mark as 'nach Vereinbarung'.",
                     "Return only the final contract text without markdown fences.",
                 ],
@@ -165,7 +166,15 @@ class ContractsService:
         work_location = str(form.get("work_location") or worker.get("site") or "Arbeitsort").strip()
         start_date = str(form.get("start_date") or "").strip() or "nach Vereinbarung"
         weekly_hours = str(form.get("weekly_hours") or "").strip() or "nach Vereinbarung"
-        salary = str(form.get("salary_gross_monthly") or form.get("hourly_rate") or "").strip() or "nach Vereinbarung"
+        salary_type = str(form.get("salary_type") or "monthly_fixed").strip()
+        currency = str(form.get("currency") or "EUR").strip()
+        if salary_type == "hourly":
+            salary = str(form.get("hourly_rate") or "").strip()
+            salary = f"{salary} {currency}/Stunde".strip() if salary else "nach Vereinbarung"
+        else:
+            salary = str(form.get("salary_gross_monthly") or form.get("hourly_rate") or "").strip()
+            salary = f"{salary} {currency}/Monat".strip() if salary else "nach Vereinbarung"
+        jurisdiction = str(form.get("jurisdiction") or form.get("jurisdiction_country") or "").strip()
         title = str(template.get("name") or "Arbeitsvertrag").strip()
 
         if lang == "ar":
@@ -221,7 +230,7 @@ class ContractsService:
             "§5 Arbeitszeit\n"
             f"Die regelmäßige wöchentliche Arbeitszeit beträgt {weekly_hours}.\n\n"
             "§6 Vergütung\n"
-            f"Die Vergütung beträgt {salary}.\n\n"
+            f"Die Vergütung beträgt {salary} ({'Stundenlohn' if salary_type == 'hourly' else 'Monatsgehalt'}).\n\n"
             "§7 Urlaub\n"
             "Der Urlaubsanspruch richtet sich nach den gesetzlichen Mindestvorgaben, sofern nicht abweichend vereinbart.\n\n"
             "§8 Probezeit\n"
@@ -231,6 +240,7 @@ class ContractsService:
             "§10 Kündigung\n"
             "Die Kündigung erfolgt unter Einhaltung der gesetzlichen Fristen und Formvorschriften.\n\n"
             "§11 Schlussbestimmungen\n"
+            f"Rechtsraum: {jurisdiction or 'nach Vereinbarung'}.\n"
             f"Zusätzliche Hinweise: {notes or 'Keine weiteren Hinweise.'}\n\n"
             "Dieser Vertragsentwurf sollte vor der finalen Unterzeichnung rechtlich geprüft werden."
         )

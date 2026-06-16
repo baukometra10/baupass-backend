@@ -8,6 +8,22 @@ from flask import g
 from backend.app.platform.plan_entitlements import min_plan_for_capability, plan_includes
 
 
+def company_has_capability(db, company_id: str | None, capability_id: str) -> bool:
+    from backend.server import get_company_plan
+
+    if not company_id:
+        return False
+    plan = get_company_plan(db, company_id)
+    return plan_includes(plan, min_plan_for_capability(capability_id))
+
+
+def capability_blocked_response(db, company_id: str | None, capability_id: str):
+    from backend.server import feature_not_available_response, get_company_plan
+
+    plan = get_company_plan(db, company_id) if company_id else "starter"
+    return feature_not_available_response(capability_id, plan)
+
+
 def require_plan_capability(capability_id: str):
     """Decorator: 403 if company plan does not include capability."""
 

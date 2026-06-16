@@ -39,6 +39,8 @@ ITEM_LABEL_DE: dict[str, str] = {
     "presence_tracking": "Anwesenheitsverfolgung",
     "workforce_reporting": "Workforce-Reporting",
     "worker_notifications": "Mitarbeiter-Benachrichtigungen",
+    "worker_chat": "Mitarbeiter-Chat",
+    "employment_contracts": "AI-Arbeitsverträge",
     "foreman_dashboard": "Vorarbeiter-Dashboard",
     "contractor_mgmt": "Subunternehmer-Verwaltung",
     "visitor": "Besucherverwaltung",

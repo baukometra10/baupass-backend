@@ -17,9 +17,10 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "name": "Unbefristeter Vollzeitvertrag",
         "language": "de",
         "guidance_text": (
-            "Erstelle einen vollständigen deutschsprachigen Arbeitsvertrag für eine unbefristete Vollzeitstelle. "
-            "Nutze klare juristische Sprache, mit Abschnitten zu Beginn, Tätigkeit, Arbeitsort, Arbeitszeit, "
-            "Vergütung, Probezeit, Urlaub, Verschwiegenheit, Datenschutz, Kündigung und Schlussbestimmungen."
+            "Erstelle einen vollständigen Arbeitsvertrag für eine unbefristete Vollzeitstelle in der gewählten Rechtsordnung. "
+            "Branche und Tätigkeit sind branchenneutral zu formulieren (Handel, Dienstleistung, Produktion, Verwaltung usw.). "
+            "Nutze klare juristische Sprache mit Abschnitten zu Parteien, Tätigkeit, Arbeitsort, Arbeitszeit, "
+            "Vergütung (Monatsgehalt oder Stundenlohn gemäß Vorgabe), Probezeit, Urlaub, Verschwiegenheit, Datenschutz, Kündigung und Schlussbestimmungen."
         ),
         "required_fields_json": json.dumps(
             [
@@ -41,9 +42,9 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "name": "Befristeter Arbeitsvertrag",
         "language": "de",
         "guidance_text": (
-            "Erstelle einen vollständigen deutschsprachigen befristeten Arbeitsvertrag. "
-            "Berücksichtige insbesondere die Befristung mit Start- und Enddatum, Tätigkeit, Arbeitszeit, "
-            "Vergütung, Urlaub, Probezeit soweit angegeben, sowie Kündigungs- und Schlussklauseln."
+            "Erstelle einen vollständigen befristeten Arbeitsvertrag in der gewählten Rechtsordnung. "
+            "Die Tätigkeit ist branchenneutral zu beschreiben. Berücksichtige Befristung mit Start- und Enddatum, "
+            "Arbeitszeit, Vergütung (Monatsgehalt oder Stundenlohn), Urlaub, Probezeit soweit zulässig, sowie Kündigungs- und Schlussklauseln."
         ),
         "required_fields_json": json.dumps(
             [
@@ -64,8 +65,9 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "name": "Minijob-Vertrag",
         "language": "de",
         "guidance_text": (
-            "Erstelle einen deutschsprachigen Minijob-Arbeitsvertrag mit Fokus auf geringfügige Beschäftigung, "
-            "inklusive Vergütungsgrenzen, Aufgabenbereich, Einsatzzeiten, Urlaub, Dokumentationspflichten und Datenschutz."
+            "Erstelle einen Arbeitsvertrag für eine geringfügige Beschäftigung in der gewählten Rechtsordnung. "
+            "Branche und Aufgaben sind neutral zu formulieren. Berücksichtige Vergütungsart (monatlich oder stündlich), "
+            "Einsatzzeiten, Urlaub, Dokumentationspflichten und Datenschutz."
         ),
         "required_fields_json": json.dumps(
             [

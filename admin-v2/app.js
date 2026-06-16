@@ -2038,7 +2038,38 @@ function initOpsCarousel(root) {
   );
 }
 
-function renderBetriebActionHub(companyId) {
+async function loadLegacyFeatures(companyId) {
+  if (getUser().role === "superadmin") return null;
+  const q = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+  const ent = await api(`/api/platform/entitlements${q}`).catch(() => null);
+  return ent?.legacyFeatures || {};
+}
+
+function legacyFeatureEnabled(features, key) {
+  if (features === null) return true;
+  return Boolean(features[key]);
+}
+
+function renderBetriebActionCard({ href, icon, title, desc, cta, locked, upgradeLabel }) {
+  if (locked) {
+    return `
+      <div class="betrieb-action-card betrieb-action-locked" aria-disabled="true">
+        <span class="betrieb-action-icon" aria-hidden="true">${icon}</span>
+        <strong>${title}</strong>
+        <span class="muted small">${desc}</span>
+        <span class="betrieb-action-cta">${upgradeLabel}</span>
+      </div>`;
+  }
+  return `
+    <a href="${href}" class="betrieb-action-card">
+      <span class="betrieb-action-icon" aria-hidden="true">${icon}</span>
+      <strong>${title}</strong>
+      <span class="muted small">${desc}</span>
+      <span class="betrieb-action-cta">${cta} →</span>
+    </a>`;
+}
+
+async function renderBetriebActionHub(companyId) {
   const host = $("operationsActionHub");
   if (!host) return;
   const q = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
@@ -2046,27 +2077,34 @@ function renderBetriebActionHub(companyId) {
     host.innerHTML = `<p class="muted small">${t("common.selectCompany")}</p>`;
     return;
   }
-  host.innerHTML = `
-    <a href="/admin-v2/contracts.html${q}" class="betrieb-action-card">
-      <span class="betrieb-action-icon" aria-hidden="true">📄</span>
-      <strong>${t("contracts.title")}</strong>
-      <span class="muted small">${t("contracts.desc")}</span>
-      <span class="betrieb-action-cta">${t("contracts.open")} →</span>
-    </a>
-    <a href="/admin-v2/chat.html${q}" class="betrieb-action-card">
-      <span class="betrieb-action-icon" aria-hidden="true">💬</span>
-      <strong>${t("chat.title")}</strong>
-      <span class="muted small">${t("chat.desc")}</span>
-      <span class="betrieb-action-cta">${t("chat.open")} →</span>
-    </a>
-  `;
+  const features = await loadLegacyFeatures(companyId);
+  host.innerHTML = [
+    renderBetriebActionCard({
+      href: `/admin-v2/contracts.html${q}`,
+      icon: "📄",
+      title: t("contracts.title"),
+      desc: t("contracts.desc"),
+      cta: t("contracts.open"),
+      locked: !legacyFeatureEnabled(features, "employment_contracts"),
+      upgradeLabel: t("contracts.upgrade"),
+    }),
+    renderBetriebActionCard({
+      href: `/admin-v2/chat.html${q}`,
+      icon: "💬",
+      title: t("chat.title"),
+      desc: t("chat.desc"),
+      cta: t("chat.open"),
+      locked: !legacyFeatureEnabled(features, "worker_chat"),
+      upgradeLabel: t("chat.upgrade"),
+    }),
+  ].join("");
 }
 
 async function loadOperations() {
   const panel = $("operationsPanel");
   const q = companyQuery();
   const cid = q.replace("?company_id=", "");
-  renderBetriebActionHub(cid);
+  await renderBetriebActionHub(cid);
   if (getUser().role === "superadmin" && !q) {
     panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;
@@ -2090,6 +2128,25 @@ async function loadOperations() {
     }
     const chatResp = await api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] }));
     const chatThreads = chatResp.threads || [];
+    const features = await loadLegacyFeatures(cid);
+    const contractsCard = renderBetriebActionCard({
+      href: `/admin-v2/contracts.html${q}`,
+      icon: "📄",
+      title: t("contracts.open"),
+      desc: t("contracts.desc"),
+      cta: t("contracts.open"),
+      locked: !legacyFeatureEnabled(features, "employment_contracts"),
+      upgradeLabel: t("contracts.upgrade"),
+    });
+    const chatCard = renderBetriebActionCard({
+      href: `/admin-v2/chat.html${q}`,
+      icon: "💬",
+      title: t("chat.open"),
+      desc: chatThreads.length ? t("chat.threadCount", { count: chatThreads.length }) : t("chat.empty"),
+      cta: t("chat.open"),
+      locked: !legacyFeatureEnabled(features, "worker_chat"),
+      upgradeLabel: t("chat.upgrade"),
+    });
     panel.innerHTML = `
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
@@ -2116,22 +2173,12 @@ async function loadOperations() {
       <div class="panel-block">
         <h3>${t("contracts.title")}</h3>
         <p class="muted small">${t("contracts.desc")}</p>
-        <a href="/admin-v2/contracts.html${q}" class="betrieb-action-card" style="max-width:420px;">
-          <span class="betrieb-action-icon" aria-hidden="true">📄</span>
-          <strong>${t("contracts.open")}</strong>
-          <span class="muted small">${t("contracts.desc")}</span>
-          <span class="betrieb-action-cta">${t("contracts.open")} →</span>
-        </a>
+        <div style="max-width:420px;">${contractsCard}</div>
       </div>
       <div class="panel-block">
         <h3>${t("chat.title")}</h3>
         <p class="muted small">${t("chat.inboxHint", { count: chatThreads.length })}</p>
-        <a href="/admin-v2/chat.html${q}" class="betrieb-action-card" style="max-width:420px;">
-          <span class="betrieb-action-icon" aria-hidden="true">💬</span>
-          <strong>${t("chat.open")}</strong>
-          <span class="muted small">${chatThreads.length ? t("chat.threadCount", { count: chatThreads.length }) : t("chat.empty")}</span>
-          <span class="betrieb-action-cta">${t("chat.open")} →</span>
-        </a>
+        <div style="max-width:420px;">${chatCard}</div>
       </div>
     `;
     window.__opsLayersCache = layers;

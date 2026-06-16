@@ -94,6 +94,40 @@ def test_contract_templates_and_draft(client_and_db):
     assert missing.status_code == 404
 
 
+def test_contracts_require_professional_plan(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    response = client.post(
+        "/api/companies",
+        json={
+            "name": "ContractPlanCo",
+            "contact": "x",
+            "adminPassword": "1234",
+            "turnstilePassword": "1234",
+            "turnstileCount": 0,
+        },
+        headers=headers,
+    )
+    assert response.status_code in (200, 201)
+    payload = response.get_json() or {}
+    company = payload.get("company") or {}
+    company_id = str(company.get("id") or payload.get("id") or "")
+    admin_username = (payload.get("adminCredentials") or {}).get("username") or ""
+    assert company_id and admin_username
+    with closing(sqlite3.connect(db_path)) as db:
+        db.execute("UPDATE companies SET plan = ? WHERE id = ?", ("tageskarte", company_id))
+        db.commit()
+    login = client.post(
+        "/api/login",
+        json={"username": admin_username, "password": "1234", "loginScope": "company-admin"},
+    )
+    assert login.status_code == 200
+    admin_headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+    blocked = client.get("/api/contracts/templates", headers=admin_headers)
+    assert blocked.status_code == 403
+    assert blocked.get_json().get("error") == "feature_not_available"
+
+
 def test_chat_thread_message_and_attachment(client_and_db):
     client, db_path = client_and_db
     headers = _superadmin_headers(client)
