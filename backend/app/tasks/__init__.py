@@ -93,9 +93,10 @@ def init_task_queues(redis_url: str) -> bool:
         return False
 
     except Exception as exc:
-        logger.error(
-            "Failed to connect to Redis for task queue: %s. "
-            "Background tasks will run synchronously (degraded mode).",
+        logger.warning(
+            "Redis unavailable for task queue (%s). "
+            "Background tasks will run synchronously (degraded mode). "
+            "Set REDIS_URL to enable distributed background job processing.",
             exc,
         )
         return False

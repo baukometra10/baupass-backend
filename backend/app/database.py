@@ -52,9 +52,17 @@ def get_db_path() -> Path:
 
     explicit = current_app.config.get("SQLITE_PATH", "").strip()
     if explicit and explicit != ":memory:":
-        return Path(explicit).expanduser()
+        path = Path(explicit).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     railway_data = Path("/data")
+    # Create /data if it doesn't exist yet (e.g. volume not yet mounted but
+    # directory creation is allowed), or use it when already present.
+    try:
+        railway_data.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass  # Volume not writable or not mounted; fall through to default.
     if railway_data.is_dir() and railway_data.stat().st_mode & 0o200:
         return railway_data / "baupass.db"
 
