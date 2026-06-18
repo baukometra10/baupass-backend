@@ -529,8 +529,23 @@
     }
   }
 
+  function clearEmbeddedSession() {
+    try {
+      global.localStorage.removeItem("baupass-control-token");
+      global.localStorage.removeItem("baupass-admin-v2-token");
+      global.localStorage.removeItem("baupass-admin-v2-user");
+    } catch {
+      // ignore
+    }
+    global.dispatchEvent(new CustomEvent("baupass-session-cleared"));
+  }
+
   window.addEventListener("message", (event) => {
     if (!event?.data || event.origin !== global.location.origin) return;
+    if (event.data.type === "baupass-clear-session") {
+      clearEmbeddedSession();
+      return;
+    }
     if (event.data.type === "baupass-sync-token") {
       if (event.data.token) {
         persistSessionToken(event.data.token);

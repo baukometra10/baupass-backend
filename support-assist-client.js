@@ -143,11 +143,11 @@
       }
       if (type === "force_logout") {
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
-        if (global.clearSession) {
-          try { global.clearSession(); } catch { /* ignore */ }
+        if (global.BaupassSession?.clearSession) {
+          try { global.BaupassSession.clearSession(); } catch { /* ignore */ }
         }
-        if (global.refreshAll) {
-          try { global.refreshAll(); } catch { /* ignore */ }
+        if (global.BaupassSession?.refreshAll) {
+          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
         }
         return;
       }

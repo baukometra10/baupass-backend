@@ -524,6 +524,7 @@
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
     let currentRole = "";
     let bootUser = null;
+    let supportReadOnly = false;
     let agents = [];
     let activeAgent = "operations";
     let sessionId = "";
@@ -694,6 +695,36 @@
     function showApp() {
       document.getElementById("authErr")?.classList.add("hidden");
       document.getElementById("shell")?.classList.remove("hidden");
+    }
+
+    function applySupportReadOnlyUi() {
+      supportReadOnly = Boolean(bootUser?.support_read_only);
+      const question = document.getElementById("question");
+      const sendBtn = document.getElementById("sendBtn");
+      const chatForm = document.getElementById("chatForm");
+      if (!supportReadOnly) return;
+      question?.setAttribute("disabled", "disabled");
+      sendBtn?.setAttribute("disabled", "disabled");
+      chatForm?.classList.add("support-read-only");
+      const status = document.getElementById("statusLine");
+      if (status) {
+        status.textContent = "Support-Modus: KI ist nur lesend — keine neuen Fragen in dieser Sitzung.";
+      }
+    }
+
+    function isSupportReadOnlyMode() {
+      return Boolean(supportReadOnly || bootUser?.support_read_only);
+    }
+
+    function stopInsightsTransport() {
+      if (insightsTimer) {
+        clearInterval(insightsTimer);
+        insightsTimer = null;
+      }
+      if (insightsRealtimeStop) {
+        insightsRealtimeStop();
+        insightsRealtimeStop = null;
+      }
     }
 
     async function bootstrapSession() {
@@ -1031,6 +1062,10 @@
     }
 
     async function newSession() {
+      if (isSupportReadOnlyMode()) {
+        appendMsg("bot", "Support-Modus: KI-Chat ist in dieser Sitzung nur lesend.");
+        return;
+      }
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
       const s = await api("/api/ai/sessions", {
         method: "POST",
@@ -1072,6 +1107,10 @@
 
     async function submitQuestion(q, options = {}) {
       if (aiQuestionInFlight) return;
+      if (isSupportReadOnlyMode()) {
+        appendMsg("bot", "Support-Modus: KI-Chat ist in dieser Sitzung nur lesend.");
+        return;
+      }
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
       aiQuestionInFlight = true;
       window.BaupassAiUi?.resetTtsTurn?.();
@@ -1121,6 +1160,9 @@
         }
         if (code === "rate_limited") {
           return serverRateMsg();
+        }
+        if (code === "support_session_read_only") {
+          return "Support-Modus: KI-Chat ist in dieser Sitzung nur lesend.";
         }
         if (code === "openai_rate_limit" || code === "rate_limit_exceeded") {
           return openAiRateMsg();
@@ -1369,6 +1411,11 @@
       syncSelectedCompanyId({ ...bootUser, preview_company_id: cid, role: currentRole || "superadmin" }, { reload: true });
     });
 
+    window.addEventListener("baupass-session-cleared", () => {
+      stopInsightsTransport();
+      showAuthError();
+    });
+
     (async () => {
       try {
         const bootData = await bootstrapSession();
@@ -1376,6 +1423,7 @@
         currentRole = bootUser?.role || "";
         syncSelectedCompanyId(bootUser);
         showApp();
+        applySupportReadOnlyUi();
         await loadCompanies();
         if (window.BaupassAiUi) {
           window.BaupassAiUi.bindVoiceInput(commandCenterVoiceOptions());

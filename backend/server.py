@@ -4490,6 +4490,8 @@ def is_read_only_support_session(session_row):
 def is_read_only_support_request_allowed():
     if request.method in {"GET", "HEAD", "OPTIONS"}:
         return True
+    if request.path.startswith("/api/support-assist/"):
+        return True
     return request.path in {"/api/logout", "/api/me/heartbeat"}
 
 
@@ -9939,6 +9941,19 @@ def export_workers_pdf():
         include_photos=request.args.get("includePhotos", "0") == "1",
         period=(request.args.get("period") or "all").strip().lower(),
         date_param=(request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip(),
+    )
+    return _workers_file_response(result)
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
+def export_workers_signatures_zip():
+    from backend.app.domains.workers.service import WorkersService
+
+    result = WorkersService().export_workers_signatures_zip(
+        get_db(),
+        g.current_user,
+        include_deleted=request.args.get("includeDeleted", "0") == "1",
     )
     return _workers_file_response(result)
 

@@ -76,6 +76,10 @@
       try {
         const response = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } });
         if (!response.ok) {
+          if (response.status === 401) {
+            stopped = true;
+            return;
+          }
           timer = global.setTimeout(poll, retryMs);
           retryMs = Math.min(Math.round(retryMs * 1.4), 60000);
           return;

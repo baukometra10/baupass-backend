@@ -1495,7 +1495,10 @@ const UI_TRANSLATIONS = {
     exportPeriodWeek: "Diese Woche",
     btnExportCsv: "CSV exportieren",
     btnExportPdf: "PDF exportieren",
+    btnExportSignaturesZip: "Unterschriften (ZIP)",
     btnExportCancel: "Abbrechen",
+    alertWorkerSignaturesExportEmpty: "Keine Unterschriften zum Exportieren vorhanden.",
+    alertWorkerSignaturesExportFailed: "Unterschriften-Export fehlgeschlagen: {error}",
     btnWorkerExportOptions: "Erweiterte Export-Optionen",
     invoiceQuickFilterOpen: "Offen",
     invoiceQuickFilterOverdue: "Überfällig",
@@ -2573,7 +2576,10 @@ const UI_TRANSLATIONS = {
     exportPeriodWeek: "This week",
     btnExportCsv: "Export CSV",
     btnExportPdf: "Export PDF",
+    btnExportSignaturesZip: "Signatures (ZIP)",
     btnExportCancel: "Cancel",
+    alertWorkerSignaturesExportEmpty: "No signatures available to export.",
+    alertWorkerSignaturesExportFailed: "Signature export failed: {error}",
     btnWorkerExportOptions: "Advanced export options",
     invoiceQuickFilterOpen: "Open",
     invoiceQuickFilterOverdue: "Overdue",
@@ -17644,16 +17650,7 @@ function scheduleAdminV2EinsatzplanFocus() {
   window.setTimeout(send, 1500);
 }
 
-function broadcastSessionToEmbeds() {
-  if (!token) {
-    return;
-  }
-  const message = {
-    type: "baupass-sync-token",
-    token,
-    companyId: getEffectiveUiCompanyId(),
-    lang: getStoredUiLang(),
-  };
+function postMessageToEmbedFrames(message) {
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
     try {
@@ -17662,6 +17659,22 @@ function broadcastSessionToEmbeds() {
       // iframe not ready
     }
   });
+}
+
+function broadcastSessionToEmbeds() {
+  if (!token) {
+    return;
+  }
+  postMessageToEmbedFrames({
+    type: "baupass-sync-token",
+    token,
+    companyId: getEffectiveUiCompanyId(),
+    lang: getStoredUiLang(),
+  });
+}
+
+function broadcastSessionClearToEmbeds() {
+  postMessageToEmbedFrames({ type: "baupass-clear-session" });
 }
 
 function requestEinsatzplanEditor(options = {}) {
@@ -18382,9 +18395,29 @@ function startInvoiceApprovalAutoRefresh() {
   }, 20000);
 }
 
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+function stopBackendStatusMonitor() {
+  if (backendStatusTimer) {
+    window.clearInterval(backendStatusTimer);
+    backendStatusTimer = null;
+  }
+}
+
 function clearSession() {
   stopLiveAccessPoll();
-  sessionKnownExpired = false;
+  stopHeartbeat();
+  stopBackendStatusMonitor();
+  stopDashboardPoll();
+  stopPlatformHealthPoll();
+  stopInvoiceAutoRefresh();
+  stopInvoiceApprovalAutoRefresh();
+  sessionKnownExpired = true;
   sessionBootstrapInFlight = null;
   token = "";
   persistSessionToken("");
@@ -18399,7 +18432,13 @@ function clearSession() {
   state.companyAdminSecurity = {};
   state.companyTurnstiles = {};
   state.companyMailSettings = {};
+  broadcastSessionClearToEmbeds();
 }
+
+window.BaupassSession = {
+  clearSession,
+  refreshAll,
+};
 
 function handleExpiredControlSession() {
   clearSession();
@@ -18596,6 +18635,9 @@ function startLiveAccessPoll() {
 async function apiRequest(url, options = {}) {
   const { method = "GET", body, auth = true, retries = 1, allowNotFound = false, allowUnauthorized = false } = options;
   const requestUrl = buildApiUrl(url);
+  if (auth && document.body?.classList?.contains("support-assist-spectator-active")) {
+    throw new Error("session_expired");
+  }
   if (auth && !token) {
     handleExpiredControlSession();
     throw new Error("session_expired");
@@ -18607,6 +18649,7 @@ async function apiRequest(url, options = {}) {
     && !["GET", "HEAD", "OPTIONS"].includes(normalizedMethod)
     && !String(url || "").includes("/api/logout")
     && !String(url || "").includes("/api/me/heartbeat")
+    && !String(url || "").includes("/api/support-assist/")
   ) {
     throw new Error("support_session_read_only");
   }
@@ -28003,6 +28046,135 @@ async function exportAccessCsv() {
   }
 }
 
+function closeWorkerExportModal() {
+  document.querySelector("#workerExportModal")?.classList.add("hidden");
+  document.querySelector("#exportModalBackdrop")?.classList.add("hidden");
+}
+
+function openWorkerExportModal() {
+  const modal = document.querySelector("#workerExportModal");
+  const backdrop = document.querySelector("#exportModalBackdrop");
+  if (!modal || !backdrop) return;
+  modal.classList.remove("hidden");
+  backdrop.classList.remove("hidden");
+}
+
+async function downloadWorkerExportFile(url, filename, emptyErrorKey) {
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include",
+  });
+  if (!response.ok) {
+    let backendError = "";
+    try {
+      const payload = await response.json();
+      backendError = String(payload?.error || "").trim();
+    } catch {
+      backendError = "";
+    }
+    if (response.status === 404 && backendError === "no_signatures") {
+      throw new Error(uiT(emptyErrorKey || "alertWorkerSignaturesExportEmpty"));
+    }
+    throw new Error(backendError || `API Fehler ${response.status}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+}
+
+function wireWorkerExportModal() {
+  const openBtn = document.querySelector("#workerExportOptionsButton");
+  const modal = document.querySelector("#workerExportModal");
+  const backdrop = document.querySelector("#exportModalBackdrop");
+  const csvBtn = document.querySelector("#exportCsvBtn");
+  const pdfBtn = document.querySelector("#exportPdfBtn");
+  const zipBtn = document.querySelector("#exportSignaturesZipBtn");
+  const cancelBtn = document.querySelector("#exportCancelBtn");
+  if (!openBtn || !modal || !backdrop) return;
+
+  openBtn.addEventListener("click", openWorkerExportModal);
+  cancelBtn?.addEventListener("click", closeWorkerExportModal);
+  backdrop.addEventListener("click", closeWorkerExportModal);
+
+  csvBtn?.addEventListener("click", async () => {
+    const includeDeleted = document.querySelector("#exportIncludeDeleted")?.checked;
+    const query = new URLSearchParams();
+    if (includeDeleted) query.set("includeDeleted", "1");
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    csvBtn.disabled = true;
+    try {
+      await downloadWorkerExportFile(
+        `${API_BASE}/api/workers/export.csv${suffix}`,
+        `mitarbeiterliste-${new Date().toISOString().slice(0, 10)}.csv`,
+        "alertWorkerSignaturesExportEmpty"
+      );
+      closeWorkerExportModal();
+    } catch (error) {
+      showToast(uiT("alertWorkerExportFailed").replace("{error}", error.message), "error", 3600);
+    } finally {
+      csvBtn.disabled = false;
+    }
+  });
+
+  pdfBtn?.addEventListener("click", async () => {
+    const includeDeleted = document.querySelector("#exportIncludeDeleted")?.checked;
+    const includePhotos = document.querySelector("#exportIncludePhotos")?.checked;
+    const periodVal = document.querySelector("#exportPeriod")?.value || "all";
+    const today = new Date().toISOString().slice(0, 10);
+    const query = new URLSearchParams();
+    if (includeDeleted) query.set("includeDeleted", "1");
+    if (includePhotos) query.set("includePhotos", "1");
+    if (periodVal === "day") {
+      query.set("period", "day");
+      query.set("date", today);
+    } else if (periodVal === "week") {
+      query.set("period", "week");
+      query.set("date", today);
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    pdfBtn.disabled = true;
+    try {
+      await downloadWorkerExportFile(
+        `${API_BASE}/api/workers/export.pdf${suffix}`,
+        `mitarbeiterliste-${today}.pdf`,
+        "alertWorkerSignaturesExportEmpty"
+      );
+      closeWorkerExportModal();
+    } catch (error) {
+      showToast(uiT("alertWorkerExportFailed").replace("{error}", error.message), "error", 3600);
+    } finally {
+      pdfBtn.disabled = false;
+    }
+  });
+
+  zipBtn?.addEventListener("click", async () => {
+    const includeDeleted = document.querySelector("#exportIncludeDeleted")?.checked;
+    const query = new URLSearchParams();
+    if (includeDeleted) query.set("includeDeleted", "1");
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    zipBtn.disabled = true;
+    try {
+      await downloadWorkerExportFile(
+        `${API_BASE}/api/workers/export.signatures.zip${suffix}`,
+        `unterschriften-${new Date().toISOString().slice(0, 10)}.zip`,
+        "alertWorkerSignaturesExportEmpty"
+      );
+      closeWorkerExportModal();
+    } catch (error) {
+      showToast(uiT("alertWorkerSignaturesExportFailed").replace("{error}", error.message), "error", 3600);
+    } finally {
+      zipBtn.disabled = false;
+    }
+  });
+}
+
 function exportWorkersPdf() {
   closeSecretDialog();
   const today = new Date().toISOString().slice(0, 10);
@@ -33861,6 +34033,7 @@ const workerCsvButton = document.querySelector("#workerCsvButton");
 if (workerCsvButton) {
   workerCsvButton.addEventListener("click", exportWorkersPdf);
 }
+wireWorkerExportModal();
 
 const workerForm = document.querySelector("#workerForm");
 if (workerForm) {
