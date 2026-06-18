@@ -42,7 +42,7 @@
     .upgrade-box { max-width:720px; margin:2rem auto; padding:1.25rem; border-radius:14px; border:1px solid rgba(248,113,113,0.35); background:rgba(63,29,29,0.35); }
     .notes-composer .bp-ai-composer-row { display:flex; gap:0.5rem; align-items:flex-start; }
     .notes-composer textarea { flex:1; min-height:110px; }
-    .notes-composer .bp-ai-voice-btn { flex-shrink:0; margin-top:0.15rem; }
+    .signing-hint { margin-top:0.75rem; padding:0.75rem; border-radius:10px; border:1px solid rgba(94,234,212,0.25); background:rgba(22,78,99,0.18); font-size:0.82rem; line-height:1.45; }
   </style>
 </head>
 <body>
@@ -159,7 +159,13 @@
           <button type="button" class="primary" id="generateBtn">KI-Entwurf erstellen</button>
           <button type="button" id="saveBtn">Speichern</button>
           <button type="button" id="pdfBtn">PDF herunterladen</button>
+          <button type="button" id="printBtn">Drucken / Unterschrift</button>
           <button type="button" class="danger" id="deleteBtn">Vertrag löschen</button>
+        </div>
+        <div class="signing-hint" id="signingHint">
+          <strong>Unterschrift (auch remote):</strong> PDF erzeugen, ausdrucken oder digital öffnen.
+          Arbeitgeber und Arbeitnehmer/-in unterschreiben auf der letzten Seite (Ort, Datum, Unterschrift).
+          Bei räumlicher Trennung: gescannt oder postalisch senden — oder elektronisch unterzeichnen.
         </div>
         <textarea id="contractEditor" class="editor" placeholder="Hier erscheint der vollständige Vertragstext…"></textarea>
         <div id="statusLine" class="status">Noch kein Vertrag geladen.</div>
@@ -196,6 +202,72 @@
     }
     document.getElementById("salaryType").addEventListener("change", syncSalaryFields);
     syncSalaryFields();
+
+    const JURISDICTION_DEFAULTS = {
+      DE: { currency: "EUR", language: "de" },
+      AT: { currency: "EUR", language: "de" },
+      CH: { currency: "CHF", language: "de" },
+      FR: { currency: "EUR", language: "en" },
+      NL: { currency: "EUR", language: "en" },
+      BE: { currency: "EUR", language: "en" },
+      IT: { currency: "EUR", language: "en" },
+      ES: { currency: "EUR", language: "en" },
+      PL: { currency: "PLN", language: "en" },
+      EU: { currency: "EUR", language: "en" },
+      SA: { currency: "SAR", language: "ar" },
+      AE: { currency: "AED", language: "ar" },
+      QA: { currency: "QAR", language: "ar" },
+      KW: { currency: "KWD", language: "ar" },
+      BH: { currency: "BHD", language: "ar" },
+      OM: { currency: "OMR", language: "ar" },
+      JO: { currency: "JOD", language: "ar" },
+      LB: { currency: "LBP", language: "ar" },
+      EG: { currency: "EGP", language: "ar" },
+      TR: { currency: "TRY", language: "en" },
+      US: { currency: "USD", language: "en" },
+      CA: { currency: "CAD", language: "en" },
+      MX: { currency: "MXN", language: "en" },
+      BR: { currency: "BRL", language: "en" },
+      IN: { currency: "INR", language: "en" },
+      PK: { currency: "PKR", language: "en" },
+      SG: { currency: "SGD", language: "en" },
+      MY: { currency: "MYR", language: "en" },
+      AU: { currency: "AUD", language: "en" },
+      MA: { currency: "MAD", language: "ar" },
+      TN: { currency: "TND", language: "ar" },
+      ZA: { currency: "ZAR", language: "en" },
+      INT: { currency: "EUR", language: "en" },
+    };
+    const SIGNING_HINTS = {
+      de: "<strong>Unterschrift (auch remote):</strong> PDF erzeugen und auf der letzten Seite unterschreiben (Ort, Datum). Rechtsraum und Sprache werden im PDF berücksichtigt. Bei räumlicher Trennung: Scan/Post oder elektronische Signatur.",
+      en: "<strong>Signature (including remote):</strong> Generate the PDF and sign on the last page (place, date). Jurisdiction and language are applied in the PDF. If parties are apart: scan/post or e-sign.",
+      ar: "<strong>التوقيع (بما في ذلك عن بُعد):</strong> أنشئ ملف PDF ووقّع على الصفحة الأخيرة (المكان، التاريخ). يُطبَّق القانون واللغة في الملف. عند التباعد الجغرافي: مسح ضوئي/بريد أو توقيع إلكتروني.",
+    };
+    function syncLocaleFromJurisdiction(force = false) {
+      const code = document.getElementById("jurisdiction").value;
+      const defaults = JURISDICTION_DEFAULTS[code] || JURISDICTION_DEFAULTS.INT;
+      const currencySelect = document.getElementById("currency");
+      if (force || !currencySelect.dataset.userSet) currencySelect.value = defaults.currency;
+      if (force) document.getElementById("language").value = defaults.language;
+      updateSigningHint();
+      window.BaupassAiUi?.refreshComposerLabels?.({
+        inputId: "notes",
+        buttonId: "notesVoiceBtn",
+        hintId: "notesVoiceHint",
+        lang: document.getElementById("language").value,
+        voiceReply: false,
+      });
+    }
+    function updateSigningHint() {
+      const lang = document.getElementById("language").value;
+      const jurisdictionLabel = document.getElementById("jurisdiction").selectedOptions[0]?.textContent || "";
+      const hint = SIGNING_HINTS[lang] || SIGNING_HINTS.de;
+      document.getElementById("signingHint").innerHTML = `${hint}<br><span class="muted">Rechtsraum: ${jurisdictionLabel}</span>`;
+    }
+    document.getElementById("jurisdiction").addEventListener("change", () => syncLocaleFromJurisdiction(true));
+    document.getElementById("language").addEventListener("change", updateSigningHint);
+    document.getElementById("currency").addEventListener("change", () => { document.getElementById("currency").dataset.userSet = "1"; });
+    syncLocaleFromJurisdiction(false);
 
     function contractFormPayload() {
       const hourly = document.getElementById("salaryType").value === "hourly";
@@ -247,6 +319,8 @@
       syncSalaryFields();
       document.getElementById("notes").value = input.notes || "";
       document.getElementById("contractEditor").value = data.final_text || data.draft_text || "";
+      if (form.currency) document.getElementById("currency").dataset.userSet = "1";
+      updateSigningHint();
     }
     async function loadTemplates() {
       const data = await api(`/api/contracts/templates?company_id=${encodeURIComponent(companyId)}`);
@@ -344,6 +418,28 @@
       const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company_id: companyId }) });
       if (data.download) await downloadPdfFile(data.download);
       document.getElementById("statusLine").textContent = "PDF heruntergeladen.";
+    });
+    document.getElementById("printBtn").addEventListener("click", async () => {
+      if (!currentContractId) return;
+      document.getElementById("statusLine").textContent = "PDF für Druck wird erstellt…";
+      const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company_id: companyId }) });
+      if (!data.download) return;
+      const res = await fetch(data.download, { headers: headers(), credentials: "include" });
+      if (!res.ok) throw new Error("PDF konnte nicht geladen werden.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      if (win) {
+        win.addEventListener("load", () => {
+          try { win.focus(); win.print(); } catch (_) { /* popup blocked or print unavailable */ }
+        });
+      } else {
+        await downloadPdfFile(data.download);
+        document.getElementById("statusLine").textContent = "Popup blockiert — PDF wurde heruntergeladen. Bitte manuell öffnen und drucken.";
+        return;
+      }
+      document.getElementById("statusLine").textContent = "PDF geöffnet — bitte auf der letzten Seite unterschreiben.";
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
     });
     document.getElementById("deleteBtn").addEventListener("click", async () => {
       if (!currentContractId) {

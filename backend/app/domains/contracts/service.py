@@ -8,6 +8,14 @@ from backend.app.platform.ai.assistant import natural_language_query
 from backend.app.platform.reports.contracts_pdf import build_employment_contract_pdf
 from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
 
+from .contract_locales import (
+    build_ai_instructions,
+    build_fallback_contract_body,
+    default_currency_for_jurisdiction,
+    document_title,
+    normalize_jurisdiction,
+    normalize_lang,
+)
 from .repository import ContractsRepository
 
 
@@ -35,25 +43,33 @@ class ContractsService:
             raise ValueError("template_not_found")
         worker = self._load_worker(worker_id, company_id) if worker_id else None
         company = self._load_company(company_id)
+        form = dict(payload.get("form") or {})
+        jurisdiction = normalize_jurisdiction(form.get("jurisdiction") or form.get("jurisdiction_country"))
+        if not form.get("currency"):
+            form["currency"] = default_currency_for_jurisdiction(jurisdiction)
+        lang = normalize_lang(payload.get("language") or template.get("language"))
         input_data = {
             "company": company,
             "worker": worker,
-            "form": payload.get("form") or {},
+            "form": form,
             "notes": str(payload.get("notes") or "").strip(),
         }
-        prompt = self._build_contract_prompt(template, input_data)
-        result = natural_language_query(company_id, prompt, input_data, mode="chat", lang=str(payload.get("language") or template.get("language") or "de")[:2])
+        prompt = self._build_contract_prompt(template, input_data, lang=lang, jurisdiction=jurisdiction)
+        result = natural_language_query(company_id, prompt, input_data, mode="chat", lang=lang)
         draft_text = str(result.get("answer") or "").strip()
         if not draft_text:
-            draft_text = self._fallback_contract_text(template, input_data, str(payload.get("language") or template.get("language") or "de")[:2])
-        contract_title = str(payload.get("title") or template.get("name") or "Arbeitsvertrag").strip()
+            draft_text = self._fallback_contract_text(input_data, lang=lang, jurisdiction=jurisdiction)
+        contract_title = str(
+            payload.get("title")
+            or document_title(lang, jurisdiction, template.get("name"))
+        ).strip()
         contract_id = self.repo.create_contract(
             company_id=company_id,
             worker_id=worker_id,
             template_id=template_id,
             contract_type=str(template.get("contract_type") or "employment"),
             title=contract_title,
-            language=str(payload.get("language") or template.get("language") or "de")[:2],
+            language=lang,
             input_data=input_data,
             ai_prompt=prompt,
             draft_text=draft_text,
@@ -102,11 +118,21 @@ class ContractsService:
         if not contract:
             raise ValueError("contract_not_found")
         branding = resolve_company_pdf_branding(self.db, company_id)
+        input_data: dict[str, Any] = {}
+        raw_input = contract.get("input_json")
+        if isinstance(raw_input, str) and raw_input.strip():
+            try:
+                input_data = json.loads(raw_input)
+            except json.JSONDecodeError:
+                input_data = {}
+        elif isinstance(raw_input, dict):
+            input_data = raw_input
         pdf_bytes = build_employment_contract_pdf(
             contract={
                 **contract,
                 "companyName": branding.get("companyName"),
                 "final_text": contract.get("final_text") or contract.get("draft_text") or "",
+                "input_data": input_data,
             },
             branding=branding,
         )
@@ -126,10 +152,19 @@ class ContractsService:
         updated = self.repo.get_contract(contract_id, company_id)
         return updated, pdf_bytes, file_path
 
-    def _build_contract_prompt(self, template: dict[str, Any], input_data: dict[str, Any]) -> str:
+    def _build_contract_prompt(
+        self,
+        template: dict[str, Any],
+        input_data: dict[str, Any],
+        *,
+        lang: str,
+        jurisdiction: str,
+    ) -> str:
         return json.dumps(
             {
                 "task": "employment_contract_draft",
+                "language": lang,
+                "jurisdiction": jurisdiction,
                 "template": {
                     "name": template.get("name"),
                     "type": template.get("contract_type"),
@@ -137,112 +172,19 @@ class ContractsService:
                     "required_fields": json.loads(template.get("required_fields_json") or "[]"),
                 },
                 "input": input_data,
-                "instructions": [
-                    "Generate a complete, legally structured employment contract draft in the requested language.",
-                    "Include all standard sections: parties, role, start date, term, work location, working hours, compensation, vacation, probation, confidentiality, data protection, termination, and final clauses.",
-                    "Use numbered sections and complete sentences — not bullet fragments.",
-                    "Minimum length: at least 12 substantive sections with multiple sentences each.",
-                    "Respect the jurisdiction/country and applicable labor law from the input (not limited to construction).",
-                    "Support both fixed monthly salary and hourly compensation when specified in the form.",
-                    "Do not invent company/employee facts that are not present; if missing, phrase neutrally or mark as 'nach Vereinbarung'.",
-                    "Return only the final contract text without markdown fences.",
-                ],
+                "instructions": build_ai_instructions(lang, jurisdiction),
             },
             ensure_ascii=False,
         )
 
-    def _fallback_contract_text(self, template: dict[str, Any], input_data: dict[str, Any], lang: str) -> str:
-        company = input_data.get("company") or {}
-        worker = input_data.get("worker") or {}
+    def _fallback_contract_text(self, input_data: dict[str, Any], *, lang: str, jurisdiction: str) -> str:
         form = input_data.get("form") or {}
         notes = str(input_data.get("notes") or "").strip()
-        company_name = str(company.get("portal_display_name") or company.get("name") or "Unternehmen").strip()
-        employee_name = (
-            str(form.get("employee_name") or "").strip()
-            or f"{str(worker.get('first_name') or '').strip()} {str(worker.get('last_name') or '').strip()}".strip()
-            or "Mitarbeiter"
-        )
-        job_title = str(form.get("job_title") or worker.get("role") or "Position").strip()
-        work_location = str(form.get("work_location") or worker.get("site") or "Arbeitsort").strip()
-        start_date = str(form.get("start_date") or "").strip() or "nach Vereinbarung"
-        weekly_hours = str(form.get("weekly_hours") or "").strip() or "nach Vereinbarung"
-        salary_type = str(form.get("salary_type") or "monthly_fixed").strip()
-        currency = str(form.get("currency") or "EUR").strip()
-        if salary_type == "hourly":
-            salary = str(form.get("hourly_rate") or "").strip()
-            salary = f"{salary} {currency}/Stunde".strip() if salary else "nach Vereinbarung"
-        else:
-            salary = str(form.get("salary_gross_monthly") or form.get("hourly_rate") or "").strip()
-            salary = f"{salary} {currency}/Monat".strip() if salary else "nach Vereinbarung"
-        jurisdiction = str(form.get("jurisdiction") or form.get("jurisdiction_country") or "").strip()
-        title = str(template.get("name") or "Arbeitsvertrag").strip()
-
-        if lang == "ar":
-            return (
-                f"{title}\n\n"
-                f"بين شركة {company_name} والموظف {employee_name} لوظيفة {job_title}.\n\n"
-                f"1. بداية العمل: {start_date}\n"
-                f"2. مكان العمل: {work_location}\n"
-                f"3. ساعات العمل الأسبوعية: {weekly_hours}\n"
-                f"4. الأجر: {salary}\n"
-                f"5. ملاحظات إضافية: {notes or 'لا توجد ملاحظات إضافية.'}\n\n"
-                "يجب مراجعة هذا النص قانونيًا قبل الاستخدام النهائي."
-            )
-        if lang == "en":
-            return (
-                f"{title}\n\n"
-                f"Between {company_name} (Employer) and {employee_name} (Employee) for the role of {job_title}.\n\n"
-                "§1 Parties\n"
-                f"The employer is {company_name}. The employee is {employee_name}.\n\n"
-                "§2 Position and duties\n"
-                f"The employee is employed as {job_title}. Duties follow the employer's reasonable instructions.\n\n"
-                "§3 Start of employment\n"
-                f"Employment begins on {start_date}.\n\n"
-                "§4 Place of work\n"
-                f"The primary place of work is {work_location}.\n\n"
-                "§5 Working hours\n"
-                f"The regular weekly working time is {weekly_hours}.\n\n"
-                "§6 Remuneration\n"
-                f"Gross remuneration: {salary}.\n\n"
-                "§7 Vacation\n"
-                "Vacation entitlement follows applicable statutory minimums unless otherwise agreed.\n\n"
-                "§8 Probation\n"
-                "A probation period may apply as permitted by local law.\n\n"
-                "§9 Confidentiality and data protection\n"
-                "The employee must maintain confidentiality and comply with data protection obligations.\n\n"
-                "§10 Termination\n"
-                "Termination follows applicable statutory notice periods and formal requirements.\n\n"
-                "§11 Final provisions\n"
-                f"Additional notes: {notes or 'No additional notes.'}\n\n"
-                "This draft must be legally reviewed before final signature."
-            )
-        return (
-            f"{title}\n\n"
-            f"Zwischen der Firma {company_name} (Arbeitgeber) und {employee_name} (Arbeitnehmer) für die Position {job_title}.\n\n"
-            "§1 Vertragsparteien\n"
-            f"Arbeitgeber ist {company_name}. Arbeitnehmer ist {employee_name}.\n\n"
-            "§2 Tätigkeit\n"
-            f"Der Arbeitnehmer wird als {job_title} beschäftigt. Die konkreten Aufgaben ergeben sich aus der Tätigkeitsbeschreibung und den Weisungen des Arbeitgebers.\n\n"
-            "§3 Arbeitsbeginn\n"
-            f"Das Arbeitsverhältnis beginnt am {start_date}.\n\n"
-            "§4 Arbeitsort\n"
-            f"Der Arbeitsort ist {work_location}.\n\n"
-            "§5 Arbeitszeit\n"
-            f"Die regelmäßige wöchentliche Arbeitszeit beträgt {weekly_hours}.\n\n"
-            "§6 Vergütung\n"
-            f"Die Vergütung beträgt {salary} ({'Stundenlohn' if salary_type == 'hourly' else 'Monatsgehalt'}).\n\n"
-            "§7 Urlaub\n"
-            "Der Urlaubsanspruch richtet sich nach den gesetzlichen Mindestvorgaben, sofern nicht abweichend vereinbart.\n\n"
-            "§8 Probezeit\n"
-            "Eine Probezeit kann vereinbart werden, soweit gesetzlich zulässig.\n\n"
-            "§9 Verschwiegenheit und Datenschutz\n"
-            "Der Arbeitnehmer verpflichtet sich zur Verschwiegenheit und zur Einhaltung datenschutzrechtlicher Vorgaben.\n\n"
-            "§10 Kündigung\n"
-            "Die Kündigung erfolgt unter Einhaltung der gesetzlichen Fristen und Formvorschriften.\n\n"
-            "§11 Schlussbestimmungen\n"
-            f"Rechtsraum: {jurisdiction or 'nach Vereinbarung'}.\n"
-            f"Zusätzliche Hinweise: {notes or 'Keine weiteren Hinweise.'}\n\n"
-            "Dieser Vertragsentwurf sollte vor der finalen Unterzeichnung rechtlich geprüft werden."
+        return build_fallback_contract_body(
+            lang=lang,
+            jurisdiction=jurisdiction,
+            form=form,
+            notes=notes,
         )
 
     def _load_company(self, company_id: str) -> dict[str, Any]:
