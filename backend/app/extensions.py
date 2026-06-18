@@ -33,7 +33,14 @@ def _init_redis(app: "Flask") -> None:
     """
     global redis_client
 
-    redis_url = app.config.get("REDIS_URL", "redis://localhost:6379/0")
+    redis_url = str(app.config.get("REDIS_URL") or os.getenv("REDIS_URL") or "").strip()
+    if not redis_url:
+        logger.info(
+            "Redis not configured (REDIS_URL unset). "
+            "Rate limits use in-memory; background jobs run synchronously."
+        )
+        redis_client = None
+        return
 
     try:
         parsed = urlparse(redis_url)

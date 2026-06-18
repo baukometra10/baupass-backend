@@ -119,8 +119,8 @@ def integrate_server_runtime(
 
     from backend.app.tasks import init_task_queues, task_queues_ready
 
-    redis_url = flask_app.config.get("REDIS_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-    tasks_ok = init_task_queues(str(redis_url))
+    redis_url = str(flask_app.config.get("REDIS_URL") or os.getenv("REDIS_URL") or "").strip()
+    tasks_ok = init_task_queues(redis_url)
     summary["task_queues"] = "redis" if tasks_ok else "sync"
     flask_app.extensions["task_queues_ready"] = bool(tasks_ok)
 

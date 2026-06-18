@@ -66,6 +66,10 @@ def init_task_queues(redis_url: str) -> bool:
     """
     global _rq_queues, _redis_conn
 
+    if not str(redis_url or "").strip():
+        logger.info("Task queues: REDIS_URL not set — background jobs run synchronously.")
+        return False
+
     try:
         import redis
         from rq import Queue
@@ -93,8 +97,8 @@ def init_task_queues(redis_url: str) -> bool:
         return False
 
     except Exception as exc:
-        logger.error(
-            "Failed to connect to Redis for task queue: %s. "
+        logger.warning(
+            "Failed to connect to Redis for task queue (%s). "
             "Background tasks will run synchronously (degraded mode).",
             exc,
         )

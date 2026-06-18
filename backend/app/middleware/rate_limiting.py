@@ -345,10 +345,17 @@ def build_rate_limiter(app: Flask):
         logger.info("Rate limiter: Redis (distributed)")
     else:
         limiter = InMemoryRateLimiter(app.config)
-        logger.warning(
-            "Rate limiter: in-memory (NOT suitable for multiple workers). "
-            "Connect Redis for distributed rate limiting."
-        )
+        redis_url_set = bool(str(os.getenv("REDIS_URL") or app.config.get("REDIS_URL") or "").strip())
+        if redis_url_set:
+            logger.warning(
+                "Rate limiter: in-memory (REDIS_URL is set but Redis is unavailable). "
+                "Fix Redis or use a single worker until restored."
+            )
+        else:
+            logger.info(
+                "Rate limiter: in-memory (REDIS_URL not set; OK for a single Railway instance). "
+                "Add Railway Redis + REDIS_URL reference for multi-replica production."
+            )
 
     app.extensions["rate_limiter"] = limiter
     return limiter

@@ -60,7 +60,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
 
     # ── Extensions (Redis, etc.) ──────────────────────────────────────────────
     init_extensions(app)
-    init_task_queues(app.config.get("REDIS_URL", "redis://localhost:6379/0"))
+    init_task_queues(str(app.config.get("REDIS_URL") or os.getenv("REDIS_URL") or "").strip())
 
     # ── Database runtime adapters (PostgreSQL transition path) ──────────────
     if is_postgres_configured(app.config):

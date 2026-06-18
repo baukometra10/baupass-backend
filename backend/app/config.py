@@ -56,7 +56,9 @@ class BaseConfig:
     SQLITE_MMAP_SIZE_BYTES: int = 256 * 1024 * 1024  # 256 MB
 
     # ── Redis ─────────────────────────────────────────────────────────────────
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    # Empty by default — do not probe localhost on Railway/cloud when unset.
+    # Local dev: set REDIS_URL in .env (see .env.example).
+    REDIS_URL: str = os.getenv("REDIS_URL", "").strip()
     REDIS_MAX_CONNECTIONS: int = 20
     REDIS_SOCKET_TIMEOUT: float = 3.0
     REDIS_RETRY_ON_TIMEOUT: bool = True
