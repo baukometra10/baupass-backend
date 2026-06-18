@@ -59,6 +59,13 @@ def register_platform_blueprints(flask_app: Flask) -> None:
     _step("socketio", lambda: __import__("backend.app.platform.realtime.websocket", fromlist=["init_socketio"]).init_socketio(flask_app))
     _step("metrics_routes", lambda: __import__("backend.app.platform.observability.routes", fromlist=["register_metrics_blueprint"]).register_metrics_blueprint(flask_app))
     _step("realtime", lambda: __import__("backend.app.platform.realtime.routes", fromlist=["register_realtime_blueprint"]).register_realtime_blueprint(flask_app))
+    _step(
+        "support_assist",
+        lambda: __import__(
+            "backend.app.platform.support_assist.routes",
+            fromlist=["register_support_assist_blueprint"],
+        ).register_support_assist_blueprint(flask_app),
+    )
     _step("api_platform", lambda: __import__("backend.app.platform.api_platform.routes", fromlist=["register_api_platform_blueprints"]).register_api_platform_blueprints(flask_app))
     _step("ai", lambda: __import__("backend.app.platform.ai.routes", fromlist=["register_ai_blueprint"]).register_ai_blueprint(flask_app))
     _step("enterprise", lambda: __import__("backend.app.platform.enterprise", fromlist=["register_enterprise_blueprints"]).register_enterprise_blueprints(flask_app))

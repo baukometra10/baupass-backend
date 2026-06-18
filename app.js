@@ -362,6 +362,48 @@ function clearSupportLoginContext() {
     // ignore storage failures
   }
 }
+
+function getSupportAssistAgentState() {
+  const row = window.BaupassSupportAssist?.readWatchState?.();
+  return row?.agent && row?.companyId && row?.watchToken ? row : null;
+}
+
+async function pulseSupportAssist(type, payload) {
+  const assist = getSupportAssistAgentState();
+  if (!assist || !window.BaupassSupportAssist?.pulse) return;
+  await window.BaupassSupportAssist.pulse(assist, type, payload || {});
+}
+
+function resolveSpectatorCompanyId() {
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (role === "company-admin") {
+    return String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
+  }
+  const tenantId = String(state.tenantCompanyId || "").trim();
+  if (tenantId) return tenantId;
+  try {
+    return String(window.BaupassAuth?.readStoredCompanyId?.() || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function syncSupportAssistSpectatorWatch() {
+  const assist = window.BaupassSupportAssist;
+  if (!assist) return;
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (role === "superadmin" && !getSupportAssistAgentState()) {
+    assist.stopPublicSpectatorWatch?.();
+    return;
+  }
+  if (getSupportAssistAgentState()) {
+    assist.stopPublicSpectatorWatch?.();
+    return;
+  }
+  const companyId = resolveSpectatorCompanyId();
+  if (!companyId) return;
+  assist.startPublicSpectatorWatch?.(companyId);
+}
 const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
@@ -8794,6 +8836,7 @@ const state = {
   companies: [],
   companiesLoadError: "",
   companyAccessBlocked: null,
+  tenantCompanyId: "",
   tenantWhiteLabel: { active: false, displayName: "", logoData: "" },
   pricingCatalog: null,
   subcompanies: [],
@@ -15651,6 +15694,9 @@ function syncSupportLoginUi() {
       elements.loginSupportNotice.style.display = "none";
     }
   }
+  if (getSupportAssistAgentState()) {
+    void pulseSupportAssist("login_screen", { companyName: context?.companyName || "" });
+  }
 }
 
 function focusLoginInput({ force = false } = {}) {
@@ -17079,6 +17125,12 @@ async function loadPublicBranding() {
       data = await apiRequest(`${API_BASE}/api/public/branding`, { auth: false }).catch(() => null);
     }
     if (!data) return;
+    if (data.companyId) {
+      state.tenantCompanyId = String(data.companyId || "").trim();
+      if (window.BaupassAuth?.persistCompanyId) {
+        window.BaupassAuth.persistCompanyId(state.tenantCompanyId);
+      }
+    }
     const displayName = String(data.portalDisplayName || data.companyName || "").trim();
     if (data.logoData) {
       applyWebsiteLogo(data.logoData);
@@ -18173,6 +18225,8 @@ function setView(viewName) {
     loadDevices();
   }
 
+  void pulseSupportAssist("view", { view: targetView });
+
   if (targetView === "documents") {
     loadDocumentInbox({ silent: true });
   }
@@ -18350,6 +18404,7 @@ function clearSession() {
 function handleExpiredControlSession() {
   clearSession();
   refreshAll();
+  syncSupportAssistSpectatorWatch();
   const now = Date.now();
   if (sessionExpiryNoticeShown && (now - sessionExpiryNoticeAt) < 2500) {
     return;
@@ -19626,8 +19681,11 @@ function refreshAll() {
   if (!loggedIn) {
     stopInvoiceAutoRefresh();
     stopInvoiceApprovalAutoRefresh();
+    syncSupportAssistSpectatorWatch();
     return;
   }
+
+  syncSupportAssistSpectatorWatch();
 
   enforceRoleViewAccess();
   applyActiveCompanyBrandingPreset();
@@ -24526,6 +24584,17 @@ function bindCompanyRowActions() {
     const actorName = getCurrentUser()?.name || getCurrentUser()?.username || "Admin";
     state.supportLoginContext = { companyId, companyName, actorName };
     persistSupportLoginContext(state.supportLoginContext);
+
+    let assistState = null;
+    try {
+      if (window.BaupassSupportAssist?.startAssistSession) {
+        assistState = await window.BaupassSupportAssist.startAssistSession(companyId, actorName);
+      }
+    } catch (assistError) {
+      showToast(`Live-Support konnte nicht gestartet werden: ${assistError.message || assistError}`, "error", 6000);
+      return;
+    }
+
     const companyAccessHost = String(company?.accessHost || company?.access_host || "").trim().toLowerCase();
     const currentHost = String(window.location.host || "").trim().toLowerCase();
     if (companyAccessHost && companyAccessHost !== currentHost) {
@@ -24541,6 +24610,9 @@ function bindCompanyRowActions() {
       targetUrl.searchParams.set("supportCompanyId", companyId);
       targetUrl.searchParams.set("supportCompanyName", companyName);
       targetUrl.searchParams.set("supportActorName", actorName);
+      if (assistState?.watchToken) {
+        targetUrl.searchParams.set("supportAssistWatchToken", assistState.watchToken);
+      }
       targetUrl.searchParams.set("loginScope", "company-admin");
       window.location.assign(targetUrl.toString());
       return;
@@ -31357,6 +31429,7 @@ async function handleLoginSubmit(event) {
   if (elements.loginForm) {
     elements.loginForm.setAttribute("aria-busy", "true");
   }
+  void pulseSupportAssist("logging_in", { username });
   try {
     const payload = await apiRequest(API_BASE + "/api/login", {
       auth: false,
@@ -31390,6 +31463,7 @@ async function handleLoginSubmit(event) {
     persistSessionToken(token);
     state.currentUser = payload.user;
     broadcastSessionToEmbeds();
+    void pulseSupportAssist("logged_in", { role: payload.user?.role || "" });
     clearSupportLoginContext();
     state.supportLoginContext = null;
     elements.loginForm.reset();
@@ -31595,6 +31669,7 @@ async function maybeHandlePasswordResetToken() {
 
 async function handleLogout(options = {}) {
   const { preserveSupportContext = false } = options;
+  const assistAgent = getSupportAssistAgentState();
   try {
     if (token) {
       await apiRequest(API_BASE + "/api/logout", { method: "POST" });
@@ -31604,6 +31679,9 @@ async function handleLogout(options = {}) {
   }
 
   if (!preserveSupportContext) {
+    if (assistAgent && window.BaupassSupportAssist?.stopAgentBroadcast) {
+      window.BaupassSupportAssist.stopAgentBroadcast(assistAgent);
+    }
     clearSupportLoginContext();
     state.supportLoginContext = null;
   }
@@ -31611,6 +31689,7 @@ async function handleLogout(options = {}) {
   setView("dashboard");
   stopCamera();
   refreshAll();
+  syncSupportAssistSpectatorWatch();
 }
 
 async function handlePasswordChange(event) {
@@ -36031,6 +36110,7 @@ warnStaleControlAssets();
     startBackendStatusMonitor();
     checkUiBuildFreshness().catch(() => {});
     startLiveAccessPoll();
+    syncSupportAssistSpectatorWatch();
   } catch {
     clearSession();
   } finally {

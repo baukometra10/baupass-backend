@@ -989,6 +989,109 @@ body.embed-mode.admin-v2-embed #app {
   }
 }
 
+@keyframes login-focus-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.support-assist-spectator {
+  position: fixed;
+  inset: 0;
+  z-index: 120000;
+  display: grid;
+  place-items: start center;
+  padding: 24px 16px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 24, 32, 0.42), rgba(8, 24, 32, 0.08) 38%, transparent 72%);
+}
+
+.support-assist-spectator.hidden {
+  display: none;
+}
+
+.support-assist-spectator-card {
+  max-width: 520px;
+  width: min(92vw, 520px);
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 76, 92, 0.18);
+  box-shadow: 0 18px 48px rgba(8, 24, 32, 0.18);
+}
+
+.support-assist-kicker {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(15, 76, 92, 0.72);
+}
+
+.support-assist-spectator-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.support-assist-status {
+  margin: 0;
+  color: rgba(18, 32, 40, 0.82);
+  line-height: 1.45;
+}
+
+.support-assist-remote-cursor {
+  position: fixed;
+  z-index: 120001;
+  width: 18px;
+  height: 18px;
+  margin-left: -2px;
+  margin-top: -2px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #0f4c5c;
+  box-shadow: 0 0 0 1px rgba(15, 76, 92, 0.45), 0 8px 24px rgba(8, 24, 32, 0.28);
+  pointer-events: none;
+  transition: left 90ms linear, top 90ms linear;
+}
+
+.support-assist-remote-cursor.hidden {
+  display: none;
+}
+
+.support-assist-remote-cursor-label {
+  position: absolute;
+  top: 18px;
+  left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #0f4c5c;
+  color: #fff;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+body.support-assist-spectator-active .app-shell,
+body.support-assist-spectator-active .auth-overlay,
+body.support-assist-spectator-active .topbar,
+body.support-assist-spectator-active main {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+body.support-assist-spectator-active input,
+body.support-assist-spectator-active select,
+body.support-assist-spectator-active textarea,
+body.support-assist-spectator-active button,
+body.support-assist-spectator-active a {
+  cursor: not-allowed !important;
+}
+
 .auth-lang-field {
   display: grid;
   gap: 6px;
