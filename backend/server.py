@@ -4246,6 +4246,51 @@ def init_db():
     if "review_token" not in company_review_cols:
         cur.execute("ALTER TABLE companies ADD COLUMN review_token TEXT NOT NULL DEFAULT ''")
 
+    # ── Nutzungsanalyse & System-Zufriedenheit ─────────────────────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS system_satisfaction_surveys (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL DEFAULT '',
+            user_id TEXT NOT NULL DEFAULT '',
+            actor_username TEXT NOT NULL DEFAULT '',
+            actor_role TEXT NOT NULL DEFAULT '',
+            satisfaction_score INTEGER NOT NULL,
+            would_recommend INTEGER NOT NULL DEFAULT 0,
+            best_feature TEXT NOT NULL DEFAULT '',
+            frequent_request TEXT NOT NULL DEFAULT '',
+            confusion_note TEXT NOT NULL DEFAULT '',
+            time_saved_hours REAL,
+            cost_saved_estimate REAL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_satisfaction_company_created
+        ON system_satisfaction_surveys(company_id, created_at DESC)
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS feature_usage_events (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            user_id TEXT NOT NULL DEFAULT '',
+            feature_id TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'admin-v2',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_feature_usage_company_feature
+        ON feature_usage_events(company_id, feature_id, created_at DESC)
+        """
+    )
+
     db.commit()
     db.close()
 
@@ -14154,6 +14199,26 @@ def worker_app_push_status():
     from backend.app.platform.push.delivery import push_platform_status
 
     return jsonify(push_platform_status())
+
+
+@require_worker_session
+def worker_app_usage_event():
+    """Track worker-app / mobile feature usage for admin analytics."""
+    worker = g.worker or {}
+    data = request.get_json(force=True, silent=True) or {}
+    feature_id = str(data.get("feature_id") or data.get("featureId") or "").strip()
+    if not feature_id:
+        return jsonify({"error": "feature_id_required"}), 400
+    from backend.app.domains.admin.usage_analytics import log_feature_usage
+
+    log_feature_usage(
+        get_db(),
+        str(worker.get("company_id") or ""),
+        str(worker.get("id") or ""),
+        feature_id,
+        source=str(data.get("source") or "worker-app")[:32],
+    )
+    return jsonify({"ok": True})
 
 
 def device_biometric_auth():

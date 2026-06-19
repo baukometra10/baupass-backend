@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>System-Bewertung — BauPass</title>
+  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260619survey1" />
+  <style>
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .survey-card { max-width: 520px; width: 100%; background: var(--panel, #fff); border-radius: 16px; padding: 28px; border: 1px solid var(--border, #e5e7eb); }
+    .scale-hint { font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="survey-card">
+    <h1>System-Bewertung</h1>
+    <p class="scale-hint">1 = sehr gut · 5 = sehr schlecht</p>
+    <p id="authHint" class="muted small hidden">Bitte zuerst anmelden.</p>
+    <form id="surveyForm" class="satisfaction-form">
+      <label>
+        <span>Zufriedenheit (1–5)</span>
+        <select id="score" required>
+          <option value="">—</option>
+          <option value="1">1 — Sehr gut</option>
+          <option value="2">2 — Gut</option>
+          <option value="3">3 — Neutral</option>
+          <option value="4">4 — Schlecht</option>
+          <option value="5">5 — Sehr schlecht</option>
+        </select>
+      </label>
+      <label class="satisfaction-check">
+        <input type="checkbox" id="recommend" />
+        <span>Würden Sie das System einer anderen Firma empfehlen?</span>
+      </label>
+      <label>
+        <span>Welche Funktion nutzen Sie am meisten?</span>
+        <input type="text" id="bestFeature" maxlength="500" />
+      </label>
+      <label>
+        <span>Was wünschen Sie sich häufiger?</span>
+        <input type="text" id="frequentRequest" maxlength="500" />
+      </label>
+      <label>
+        <span>Was ist verwirrend oder unklar?</span>
+        <textarea id="confusion" rows="2" maxlength="1000"></textarea>
+      </label>
+      <div class="satisfaction-roi-row">
+        <label>
+          <span>Geschätzte Zeitersparnis (Std./Woche)</span>
+          <input type="number" id="timeSaved" min="0" step="0.5" />
+        </label>
+        <label>
+          <span>Geschätzte Kosteneinsparung (EUR/Monat)</span>
+          <input type="number" id="costSaved" min="0" step="10" />
+        </label>
+      </div>
+      <p id="errorBox" class="error hidden"></p>
+      <button type="submit" class="primary" style="width:100%;margin-top:0.5rem">Absenden</button>
+    </form>
+    <p id="successBox" class="muted hidden" style="text-align:center;padding:2rem 0">Vielen Dank für Ihre Bewertung!</p>
+  </div>
+  <script>
+    const TOKEN_KEYS = ["baupass-admin-v2-token", "baupass-control-token", "baupass-token"];
+    function token() {
+      for (const k of TOKEN_KEYS) {
+        const v = (localStorage.getItem(k) || "").trim();
+        if (v) return v;
+      }
+      return "";
+    }
+    const authHint = document.getElementById("authHint");
+    const form = document.getElementById("surveyForm");
+    const successBox = document.getElementById("successBox");
+    if (!token()) {
+      authHint.classList.remove("hidden");
+      form.style.display = "none";
+    }
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const err = document.getElementById("errorBox");
+      err.classList.add("hidden");
+      const score = Number(document.getElementById("score").value || 0);
+      if (score < 1 || score > 5) {
+        err.textContent = "Bitte Zufriedenheit 1–5 wählen.";
+        err.classList.remove("hidden");
+        return;
+      }
+      try {
+        const res = await fetch("/api/v2/satisfaction-survey", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token()}`,
+          },
+          body: JSON.stringify({
+            satisfaction_score: score,
+            would_recommend: document.getElementById("recommend").checked,
+            best_feature: document.getElementById("bestFeature").value.trim(),
+            frequent_request: document.getElementById("frequentRequest").value.trim(),
+            confusion_note: document.getElementById("confusion").value.trim(),
+            time_saved_hours: document.getElementById("timeSaved").value || null,
+            cost_saved_estimate: document.getElementById("costSaved").value || null,
+          }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || "Fehler");
+        }
+        form.style.display = "none";
+        successBox.classList.remove("hidden");
+      } catch (e) {
+        err.textContent = e.message;
+        err.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

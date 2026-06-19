@@ -1039,6 +1039,49 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="027",
+        name="usage_analytics_and_satisfaction",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS system_satisfaction_surveys (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL DEFAULT '',
+                user_id TEXT NOT NULL DEFAULT '',
+                actor_username TEXT NOT NULL DEFAULT '',
+                actor_role TEXT NOT NULL DEFAULT '',
+                satisfaction_score INTEGER NOT NULL,
+                would_recommend INTEGER NOT NULL DEFAULT 0,
+                best_feature TEXT NOT NULL DEFAULT '',
+                frequent_request TEXT NOT NULL DEFAULT '',
+                confusion_note TEXT NOT NULL DEFAULT '',
+                time_saved_hours REAL,
+                cost_saved_estimate REAL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_satisfaction_company_created
+                ON system_satisfaction_surveys(company_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_satisfaction_user_created
+                ON system_satisfaction_surveys(user_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS feature_usage_events (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                user_id TEXT NOT NULL DEFAULT '',
+                feature_id TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'admin-v2',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_feature_usage_company_feature
+                ON feature_usage_events(company_id, feature_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_feature_usage_company_created
+                ON feature_usage_events(company_id, created_at DESC);
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS feature_usage_events;
+            DROP TABLE IF EXISTS system_satisfaction_surveys;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

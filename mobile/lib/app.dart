@@ -18,6 +18,7 @@ import 'services/offline_sync_service.dart';
 import 'services/push_foreground_listener.dart';
 import 'services/push_notification_service.dart';
 import 'services/tasks_repository.dart';
+import 'services/usage_repository.dart';
 import 'services/worker_cache.dart';
 
 class WorkerApp extends StatefulWidget {
@@ -40,6 +41,7 @@ class _WorkerAppState extends State<WorkerApp> {
   late final OfflineSyncService _offlineSync;
   late final WorkerCache _workerCache;
   late final TasksRepository _tasks;
+  late final UsageRepository _usage;
   late final PushNotificationService _push;
   late final AiAssistantService _ai;
   late final DeepLinkService _deepLinks;
@@ -64,6 +66,7 @@ class _WorkerAppState extends State<WorkerApp> {
     _offlineSync = OfflineSyncService(_attendance, _offlineStore);
     _workerCache = WorkerCache();
     _tasks = TasksRepository(_api);
+    _usage = UsageRepository(_api);
     _push = PushNotificationService(_api);
     _ai = AiAssistantService(_api);
     _deepLinks = DeepLinkService();
@@ -204,6 +207,7 @@ class _WorkerAppState extends State<WorkerApp> {
                   offlineSync: _offlineSync,
                   workerCache: _workerCache,
                   tasks: _tasks,
+                  usage: _usage,
                   push: _push,
                   ai: _ai,
                   onLogout: _onLogout,

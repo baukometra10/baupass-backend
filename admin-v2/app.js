@@ -779,6 +779,7 @@ function syncEnterpriseFrame() {
 
 const TAB_TITLE_KEYS = {
   overview: "tab.overview",
+  analytics: "tab.analytics",
   inbox: "tab.inbox",
   copilot: "tab.copilot",
   enterprise: "tab.enterprise",
@@ -792,6 +793,7 @@ const TAB_TITLE_KEYS = {
 
 const COMMAND_NAV = [
   { tab: "overview", titleKey: "tab.overview", groupKey: "nav.group.start" },
+  { tab: "analytics", titleKey: "tab.analytics", groupKey: "nav.group.start" },
   { tab: "inbox", titleKey: "tab.inbox", groupKey: "nav.group.start" },
   { tab: "copilot", titleKey: "tab.copilot", groupKey: "nav.group.start" },
   { tab: "workers", titleKey: "tab.workers", groupKey: "nav.group.people" },
@@ -857,6 +859,7 @@ function switchToTab(tabId) {
   const content = document.querySelector(".app-content");
   if (content) content.scrollTop = 0;
   window.scrollTo(0, 0);
+  trackFeatureUsage(tabId);
   if (tabId === "enterprise") syncEnterpriseFrame();
   if (tabId === "tools") {
     requestAnimationFrame(() => {
@@ -2736,6 +2739,298 @@ async function loadInbox() {
   });
 }
 
+let analyticsPeriod = "day";
+
+function trackFeatureUsage(featureId) {
+  const fid = String(featureId || "").trim();
+  if (!fid || superadminNeedsCompany()) return;
+  if (globalThis.BaupassUsage?.track) {
+    globalThis.BaupassUsage.track(fid, "admin-v2");
+    return;
+  }
+  api("/api/v2/usage/event", {
+    method: "POST",
+    body: JSON.stringify({ feature_id: fid, source: "admin-v2" }),
+  }).catch(() => {});
+}
+
+function bindAnalyticsPeriodButtons() {
+  document.querySelectorAll("[data-analytics-period]").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", async () => {
+      analyticsPeriod = btn.getAttribute("data-analytics-period") || "day";
+      document.querySelectorAll("[data-analytics-period]").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+      await loadAnalytics();
+    });
+  });
+}
+
+async function loadAnalytics() {
+  bindAnalyticsPeriodButtons();
+  const q = companyQuery();
+  if (getUser().role === "superadmin" && !q) {
+    $("usageStatCards").innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
+    return;
+  }
+  const periodQs = `${q}${q ? "&" : "?"}period=${encodeURIComponent(analyticsPeriod)}`;
+  const featDays = analyticsPeriod === "week" ? 14 : 7;
+  const featQs = `${q}${q ? "&" : "?"}days=${featDays}`;
+  const [usage, features, surveys, trends] = await Promise.all([
+    api(`/api/v2/admin/usage-stats${periodQs}`),
+    api(`/api/v2/admin/feature-usage${featQs}`),
+    api(`/api/v2/admin/satisfaction-surveys${q}`),
+    api(`/api/v2/admin/usage-trends${q}${q ? "&" : "?"}days=${featDays}`),
+  ]);
+  const cards = [
+    ["analytics.activeUsers", usage.activeUsers],
+    ["analytics.logins", usage.logins],
+    ["analytics.attendance", usage.attendanceCheckIns],
+    ["analytics.contracts", usage.contractsCreated],
+    ["analytics.documents", usage.documentsCreated],
+    ["analytics.messages", usage.internalMessagesSent],
+  ];
+  $("usageStatCards").innerHTML = cards
+    .map(
+      ([key, val]) =>
+        `<div class="card"><span class="muted">${t(key)}</span><strong>${val ?? 0}</strong></div>`,
+    )
+    .join("");
+
+  renderUsageTrends(trends);
+  renderModuleAlerts(features.unusedModuleAlerts || []);
+  await loadSurveyInvitePanel(q);
+
+  const sum = surveys.summary || {};
+  $("satisfactionSummaryCards").innerHTML = `
+    <div class="card"><span class="muted">${t("analytics.avgScore")}</span><strong>${sum.avgSatisfactionScore ?? "—"}</strong></div>
+    <div class="card"><span class="muted">${t("analytics.recommendRate")}</span><strong>${sum.recommendRate != null ? `${Math.round(sum.recommendRate * 100)}%` : "—"}</strong></div>
+    <div class="card"><span class="muted">${t("analytics.avgTimeSaved")}</span><strong>${sum.avgTimeSavedHours ?? "—"}</strong></div>
+    <div class="card"><span class="muted">${t("analytics.avgCostSaved")}</span><strong>${sum.avgCostSavedEstimate != null ? `€${sum.avgCostSavedEstimate}` : "—"}</strong></div>
+  `;
+
+  const rows = surveys.surveys || [];
+  $("satisfactionSurveysList").innerHTML = rows.length
+    ? `<table class="data-table"><thead><tr>
+        <th>${t("table.time")}</th><th>${t("login.user")}</th><th>Score</th><th>✓</th><th>Feature</th><th>ROI</th>
+      </tr></thead><tbody>${rows
+        .map((r) => {
+          const roi = [
+            r.time_saved_hours != null ? `${r.time_saved_hours}h` : "",
+            r.cost_saved_estimate != null ? `€${r.cost_saved_estimate}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return `<tr>
+            <td>${escapeHtml((r.created_at || "").slice(0, 16))}</td>
+            <td>${escapeHtml(r.actor_username || "—")}</td>
+            <td>${r.satisfaction_score ?? "—"}</td>
+            <td>${r.would_recommend ? "✓" : "—"}</td>
+            <td>${escapeHtml(r.best_feature || "—")}</td>
+            <td>${escapeHtml(roi || "—")}</td>
+          </tr>`;
+        })
+        .join("")}</tbody></table>`
+    : `<p class="muted">${t("analytics.noSurveys")}</p>`;
+
+  const daily = features.dailyUsed || [];
+  const unused = features.unusedModules || [];
+  const freq = features.frequentRequests || [];
+  const confusion = features.confusionReports || [];
+  $("featureUsagePanel").innerHTML = `
+    <div class="analytics-feature-grid">
+      <div class="card">
+        <h3 class="section-title">${t("analytics.dailyUsed")}</h3>
+        ${daily.length ? `<ul class="analytics-list">${daily.map((m) => `<li><strong>${escapeHtml(m.label)}</strong> — ${m.hits} hits / ${m.activeDays}d</li>`).join("")}</ul>` : `<p class="muted">${t("analytics.noFeatures")}</p>`}
+      </div>
+      <div class="card">
+        <h3 class="section-title">${t("analytics.unused")}</h3>
+        ${unused.length ? `<ul class="analytics-list">${unused.map((m) => `<li>${escapeHtml(m.label)}</li>`).join("")}</ul>` : `<p class="muted">—</p>`}
+      </div>
+      <div class="card">
+        <h3 class="section-title">${t("analytics.frequentRequests")}</h3>
+        ${freq.length ? `<ul class="analytics-list">${freq.map((m) => `<li>${escapeHtml(m.text)} <span class="muted">(${m.count})</span></li>`).join("")}</ul>` : `<p class="muted">—</p>`}
+      </div>
+      <div class="card">
+        <h3 class="section-title">${t("analytics.confusion")}</h3>
+        ${confusion.length ? `<ul class="analytics-list">${confusion.map((m) => `<li>${escapeHtml(m.confusion_note)} <span class="muted">(${m.satisfaction_score})</span></li>`).join("")}</ul>` : `<p class="muted">—</p>`}
+      </div>
+    </div>`;
+}
+
+async function loadSurveyInvitePanel(q) {
+  const panel = $("surveyInvitePanel");
+  if (!panel) return;
+  try {
+    const data = await api(`/api/v2/admin/satisfaction-survey/invite-candidates${q}`);
+    const mail = data.mail || {};
+    const candidates = data.candidates || [];
+    const mailReady = Boolean(mail.configured);
+    const mailBanner = mailReady
+      ? `<p class="survey-mail-banner survey-mail-ok">${t("survey.mailReady", { provider: (mail.providers || []).join(", ") || "—" })}</p>`
+      : `<p class="survey-mail-banner survey-mail-pending">${t("survey.mailPending")}</p>`;
+
+    const reasonLabel = (c) => {
+      if (c.eligible) return t("survey.eligible");
+      if (c.ineligibleReason === "usage_too_short") {
+        const need = Math.max(0, (data.usageDaysRequired || 30) - (c.usageDays || 0));
+        return t("survey.waitUsage", { days: need });
+      }
+      if (c.ineligibleReason === "recent_invite") return t("survey.recentInvite");
+      if (c.ineligibleReason === "recent_submission") return t("survey.recentSubmission");
+      return "—";
+    };
+
+    const rows = candidates.length
+      ? candidates
+          .map(
+            (c) => `<tr>
+              <td>${escapeHtml(c.name || c.username || "—")}</td>
+              <td>${escapeHtml(c.email || "—")}</td>
+              <td>${c.usageDays ?? 0}d</td>
+              <td class="muted small">${escapeHtml(reasonLabel(c))}</td>
+              <td>
+                <button type="button" class="ghost small survey-send-btn" data-user-id="${escapeHtml(c.id)}"
+                  ${!mailReady ? "disabled" : ""}>${t("survey.sendOne")}</button>
+              </td>
+            </tr>`,
+          )
+          .join("")
+      : "";
+
+    panel.innerHTML = `
+      <div class="card survey-invite-card">
+        <h3 class="section-title">${t("section.analytics.satisfaction")} — E-Mail</h3>
+        ${mailBanner}
+        <p class="muted small">${t("survey.mailHint")}: <a href="${escapeHtml(mail.surveyUrl || "/satisfaction-survey.html")}" target="_blank" rel="noopener">${escapeHtml(mail.surveyUrl || "/satisfaction-survey.html")}</a></p>
+        <div class="survey-invite-actions">
+          <button type="button" id="surveySendAllBtn" class="ghost" ${!mailReady ? "disabled" : ""}>${t("survey.sendAll")}</button>
+        </div>
+        ${rows
+          ? `<div class="table-wrap"><table class="data-table"><thead><tr>
+              <th>${t("table.name")}</th><th>E-Mail</th><th>${t("analytics.periodDay")}</th><th>Status</th><th></th>
+            </tr></thead><tbody>${rows}</tbody></table></div>`
+          : `<p class="muted">${t("survey.noCandidates")}</p>`}
+      </div>`;
+
+    panel.querySelector("#surveySendAllBtn")?.addEventListener("click", () => {
+      sendSurveyInvite({ send_all: true }).catch(notifyTabError);
+    });
+    panel.querySelectorAll(".survey-send-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const uid = btn.getAttribute("data-user-id");
+        if (!uid) return;
+        sendSurveyInvite({ user_id: uid }).catch(notifyTabError);
+      });
+    });
+  } catch (err) {
+    panel.innerHTML = `<p class="muted">${escapeHtml(err.message || String(err))}</p>`;
+  }
+}
+
+async function sendSurveyInvite(body) {
+  try {
+    const result = await api("/api/v2/admin/satisfaction-survey/invite", {
+      method: "POST",
+      body: JSON.stringify(body || {}),
+    });
+    if (result.sent > 0) {
+      showActionToast(t("survey.sentOk", { email: `${result.sent}` }));
+    } else if (result.error === "mail_not_configured") {
+      showActionToast(result.hint || t("survey.mailPending"), true);
+    } else {
+      showActionToast(
+        t("survey.sentFail", { error: result.errors?.[0]?.error || result.error || "—" }),
+        true,
+      );
+    }
+    await loadSurveyInvitePanel(companyQuery());
+  } catch (err) {
+    const data = err.data || {};
+    if (data.error === "mail_not_configured" || err.status === 503) {
+      showActionToast(data.hint || t("survey.mailPending"), true);
+    } else {
+      showActionToast(t("survey.sentFail", { error: err.message || "—" }), true);
+    }
+  }
+}
+
+function renderUsageTrends(trends) {
+  const panel = $("usageTrendsPanel");
+  if (!panel) return;
+  const daily = trends?.dailyActiveUsers || [];
+  const weekly = trends?.weeklySatisfaction || [];
+  const peak = Math.max(1, Number(trends?.peakActiveUsers || 1));
+
+  const dauBars = daily
+    .map((d) => {
+      const h = Math.max(6, Math.round((Number(d.activeUsers || 0) / peak) * 100));
+      return `<div class="trend-bar-wrap" title="${escapeHtml(d.date)}: ${d.activeUsers}">
+        <div class="trend-bar" style="height:${h}%"></div>
+        <span class="trend-bar-label">${escapeHtml((d.date || "").slice(5))}</span>
+      </div>`;
+    })
+    .join("");
+
+  const satBars = weekly
+    .map((w) => {
+      const score = Number(w.avgSatisfactionScore || 0);
+      const h = score ? Math.max(8, Math.round(((6 - score) / 5) * 100)) : 6;
+      return `<div class="trend-bar-wrap" title="${escapeHtml(w.week)}: ${score || "—"}">
+        <div class="trend-bar trend-bar-sat" style="height:${h}%"></div>
+        <span class="trend-bar-label">${escapeHtml((w.week || "").replace("W", ""))}</span>
+      </div>`;
+    })
+    .join("");
+
+  panel.innerHTML = `
+    <div class="analytics-trends-grid">
+      <div class="card">
+        <h3 class="section-title">${t("analytics.trendDau")}</h3>
+        <div class="trend-chart" role="img" aria-label="${t("analytics.trendDau")}">${dauBars || `<p class="muted">—</p>`}</div>
+      </div>
+      <div class="card">
+        <h3 class="section-title">${t("analytics.trendSatisfaction")}</h3>
+        <div class="trend-chart" role="img" aria-label="${t("analytics.trendSatisfaction")}">${satBars || `<p class="muted">—</p>`}</div>
+        <p class="muted small">${t("analytics.avgScore")}</p>
+      </div>
+    </div>`;
+}
+
+function renderModuleAlerts(alerts) {
+  const panel = $("moduleAlertsPanel");
+  if (!panel) return;
+  if (!alerts.length) {
+    panel.innerHTML = "";
+    return;
+  }
+  panel.innerHTML = `
+    <h2 class="section-title">${t("analytics.moduleAlerts")}</h2>
+    <div class="analytics-alerts-list">
+      ${alerts
+        .map(
+          (a) => `<div class="analytics-alert analytics-alert-${escapeHtml(a.severity || "info")}">
+            <strong>${escapeHtml(a.label || a.featureId)}</strong>
+            <span class="muted small">${escapeHtml(a.message || "")}</span>
+          </div>`,
+        )
+        .join("")}
+    </div>`;
+}
+
+async function maybePromptSatisfactionSurvey() {
+  try {
+    const pending = await api("/api/v2/satisfaction-survey/pending");
+    if (!pending?.pending) return;
+    const modal = $("satisfactionSurveyModal");
+    if (modal) modal.classList.remove("hidden");
+  } catch {
+    // no-op
+  }
+}
+
 async function loadOverview() {
   renderOverviewQuickBar();
   $("overviewQuickBar")?.classList.remove("hidden");
@@ -3277,6 +3572,7 @@ async function refreshActiveTab() {
   else if (tab === "operations") await loadOperations();
   else if (tab === "platform") await loadPlatform();
   else if (tab === "tools") await loadTools();
+  else if (tab === "analytics") await loadAnalytics();
   else if (tab === "enterprise") syncEnterpriseFrame();
   else await loadOverview();
 }
@@ -3334,6 +3630,7 @@ async function bootSession() {
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
+    maybePromptSatisfactionSurvey().catch(() => {});
   } catch (e) {
     if (isAuthError(e)) return;
     clearSessionAndShowLogin(t("login.sessionExpired"));
@@ -3370,6 +3667,7 @@ $("loginBtn").addEventListener("click", async () => {
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
+    maybePromptSatisfactionSurvey().catch(() => {});
   } catch (e) {
     $("loginError").textContent = e.message || t("login.fail");
     $("loginError").classList.remove("hidden");
@@ -3451,5 +3749,51 @@ window.addEventListener("baupass-admin-lang", () => {
   refreshActiveTab().catch(() => {});
 });
 applyI18n();
+
+$("satisfactionSurveyLater")?.addEventListener("click", () => {
+  $("satisfactionSurveyModal")?.classList.add("hidden");
+});
+
+$("satisfactionSurveyForm")?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const errEl = $("satisfactionSurveyError");
+  errEl?.classList.add("hidden");
+  const score = Number($("satisfactionScore")?.value || 0);
+  if (score < 1 || score > 5) {
+    if (errEl) {
+      errEl.textContent = "Bitte Zufriedenheit 1–5 wählen.";
+      errEl.classList.remove("hidden");
+    }
+    return;
+  }
+  const btn = $("satisfactionSurveySubmit");
+  if (btn) btn.disabled = true;
+  try {
+    await api("/api/v2/satisfaction-survey", {
+      method: "POST",
+      body: JSON.stringify({
+        satisfaction_score: score,
+        would_recommend: Boolean($("satisfactionRecommend")?.checked),
+        best_feature: $("satisfactionBestFeature")?.value?.trim() || "",
+        frequent_request: $("satisfactionFrequentRequest")?.value?.trim() || "",
+        confusion_note: $("satisfactionConfusion")?.value?.trim() || "",
+        time_saved_hours: $("satisfactionTimeSaved")?.value || null,
+        cost_saved_estimate: $("satisfactionCostSaved")?.value || null,
+      }),
+    });
+    $("satisfactionSurveyModal")?.classList.add("hidden");
+    showActionToast("Danke für Ihre Bewertung!");
+    if (document.querySelector(".tab.active")?.dataset?.tab === "analytics") {
+      await loadAnalytics();
+    }
+  } catch (e) {
+    if (errEl) {
+      errEl.textContent = e.message || "Fehler";
+      errEl.classList.remove("hidden");
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
 
 bootSession();

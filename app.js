@@ -18550,6 +18550,9 @@ function setView(viewName) {
   updateShellChrome(targetView);
   syncPlatformNavLinks();
   scheduleHubUpgradeFocus(targetView);
+  if (globalThis.BaupassUsage?.track) {
+    globalThis.BaupassUsage.track(targetView, "legacy-dashboard");
+  }
 }
 
 function scheduleHubUpgradeFocus(targetView) {

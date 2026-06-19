@@ -13,6 +13,7 @@ import '../../services/offline_attendance_store.dart';
 import '../../services/offline_sync_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/tasks_repository.dart';
+import '../../services/usage_repository.dart';
 import '../../services/worker_cache.dart';
 import '../attendance/attendance_screen.dart';
 import '../home/home_screen.dart';
@@ -38,6 +39,7 @@ class WorkerShell extends StatefulWidget {
     required this.offlineSync,
     required this.workerCache,
     required this.tasks,
+    required this.usage,
     required this.push,
     required this.ai,
     required this.onLogout,
@@ -55,6 +57,7 @@ class WorkerShell extends StatefulWidget {
   final OfflineSyncService offlineSync;
   final WorkerCache workerCache;
   final TasksRepository tasks;
+  final UsageRepository usage;
   final PushNotificationService push;
   final AiAssistantService ai;
   final VoidCallback onLogout;
@@ -73,6 +76,11 @@ class WorkerShellState extends State<WorkerShell> {
     super.initState();
     _loadProfileAndGeofence();
     _refreshBadges();
+    widget.usage.trackTab(
+      tabIndex: _index,
+      bearerToken: widget.session.bearer,
+      deviceId: widget.session.deviceId,
+    );
   }
 
   void navigateTo(WorkerAppRoute route) {
@@ -81,6 +89,11 @@ class WorkerShellState extends State<WorkerShell> {
       _tasksSubTab = route.tasksSubTab.clamp(0, 3);
     });
     if (route.openAi && mounted) {
+      widget.usage.trackFeature(
+        featureId: 'worker-ai',
+        bearerToken: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+      );
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
@@ -88,6 +101,11 @@ class WorkerShellState extends State<WorkerShell> {
       );
     }
     if (route.openChat && mounted) {
+      widget.usage.trackFeature(
+        featureId: 'worker-chat',
+        bearerToken: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+      );
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
@@ -192,6 +210,11 @@ class WorkerShellState extends State<WorkerShell> {
         onDestinationSelected: (i) {
           setState(() => _index = i);
           if (i == 1) _refreshBadges();
+          widget.usage.trackTab(
+            tabIndex: i,
+            bearerToken: widget.session.bearer,
+            deviceId: widget.session.deviceId,
+          );
         },
         destinations: [
           const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),

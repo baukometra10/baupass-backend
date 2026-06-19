@@ -357,6 +357,13 @@ def _perform_login_core(srv, login_error):
         company_id=user["company_id"],
     )
 
+    try:
+        from backend.app.domains.admin.survey_dispatch import maybe_send_survey_invite_on_login
+
+        maybe_send_survey_invite_on_login(db, srv.row_to_dict(user))
+    except Exception:
+        pass
+
     response_user = srv.row_to_dict(user)
     response_user["support_read_only"] = bool(support_read_only)
     response_user["support_company_name"] = support_company_name

@@ -46,6 +46,7 @@ WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/attendance/nfc", "worker_app_attendance_nfc", ["POST"]),
     ("/push/register", "worker_app_push_register", ["POST"]),
     ("/push/status", "worker_app_push_status", ["GET"]),
+    ("/usage/event", "worker_app_usage_event", ["POST"]),
 )
 
 

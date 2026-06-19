@@ -88,6 +88,7 @@
             <div class="nav-group">
               <span class="nav-group-label" data-i18n="nav.group.start">Start</span>
               <button type="button" data-tab="overview" class="tab nav-item active" data-i18n="tab.overview">Übersicht</button>
+              <button type="button" data-tab="analytics" class="tab nav-item" data-i18n="tab.analytics">Nutzung & Bewertung</button>
               <button type="button" data-tab="inbox" class="tab nav-item" id="tabInboxBtn">
                 <span data-i18n="tab.inbox">Posteingang</span>
                 <span id="inboxTabBadge" class="tab-badge hidden"></span>
@@ -180,6 +181,22 @@
           <div id="quickLinks" class="feature-grid"></div>
           <h2 class="section-title" data-i18n="section.overview.recentAccess">Recent access</h2>
           <div id="recentAccess" class="table-wrap"></div>
+        </div>
+        <div id="tab-analytics" class="tab-panel hidden">
+          <div class="analytics-toolbar">
+            <button type="button" class="ghost analytics-period-btn active" data-analytics-period="day" data-i18n="analytics.periodDay">Heute</button>
+            <button type="button" class="ghost analytics-period-btn" data-analytics-period="week" data-i18n="analytics.periodWeek">7 Tage</button>
+          </div>
+          <h2 class="section-title" data-i18n="section.analytics.usage">Nutzungsstatistik</h2>
+          <div class="cards" id="usageStatCards"></div>
+          <div id="usageTrendsPanel" class="analytics-trends-panel"></div>
+          <div id="moduleAlertsPanel" class="analytics-alerts-panel"></div>
+          <h2 class="section-title" data-i18n="section.analytics.satisfaction">System-Bewertungen</h2>
+          <div id="surveyInvitePanel" class="survey-invite-panel"></div>
+          <div class="cards" id="satisfactionSummaryCards"></div>
+          <div id="satisfactionSurveysList" class="table-wrap"></div>
+          <h2 class="section-title" data-i18n="section.analytics.features">Modul-Nutzung</h2>
+          <div id="featureUsagePanel" class="stack-panel"></div>
         </div>
         <div id="tab-workers" class="tab-panel hidden">
           <p class="muted small" data-i18n="section.workers.hint">NFC hint</p>
@@ -365,6 +382,57 @@
     </div>
   </div>
 
+  <div id="satisfactionSurveyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="satisfactionSurveyTitle">
+    <div class="modal-card satisfaction-modal-card">
+      <h2 id="satisfactionSurveyTitle">System-Bewertung</h2>
+      <p class="muted small">1 = sehr gut · 5 = sehr schlecht</p>
+      <form id="satisfactionSurveyForm" class="satisfaction-form">
+        <label>
+          <span>Zufriedenheit (1–5)</span>
+          <select id="satisfactionScore" required>
+            <option value="">—</option>
+            <option value="1">1 — Sehr gut</option>
+            <option value="2">2 — Gut</option>
+            <option value="3">3 — Neutral</option>
+            <option value="4">4 — Schlecht</option>
+            <option value="5">5 — Sehr schlecht</option>
+          </select>
+        </label>
+        <label class="satisfaction-check">
+          <input type="checkbox" id="satisfactionRecommend" />
+          <span>Würden Sie das System einer anderen Firma empfehlen?</span>
+        </label>
+        <label>
+          <span>Welche Funktion nutzen Sie am meisten?</span>
+          <input type="text" id="satisfactionBestFeature" maxlength="500" placeholder="z. B. Anwesenheit, Chat, Verträge" />
+        </label>
+        <label>
+          <span>Was wünschen Sie sich häufiger?</span>
+          <input type="text" id="satisfactionFrequentRequest" maxlength="500" />
+        </label>
+        <label>
+          <span>Was ist verwirrend oder unklar?</span>
+          <textarea id="satisfactionConfusion" rows="2" maxlength="1000"></textarea>
+        </label>
+        <div class="satisfaction-roi-row">
+          <label>
+            <span>Geschätzte Zeitersparnis (Std./Woche)</span>
+            <input type="number" id="satisfactionTimeSaved" min="0" step="0.5" />
+          </label>
+          <label>
+            <span>Geschätzte Kosteneinsparung (EUR/Monat)</span>
+            <input type="number" id="satisfactionCostSaved" min="0" step="10" />
+          </label>
+        </div>
+        <p id="satisfactionSurveyError" class="error hidden"></p>
+      </form>
+      <div class="modal-actions">
+        <button type="submit" form="satisfactionSurveyForm" id="satisfactionSurveySubmit">Absenden</button>
+        <button type="button" id="satisfactionSurveyLater" class="ghost">Später</button>
+      </div>
+    </div>
+  </div>
+
   <div id="joinModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="joinModalTitle">
     <div class="modal-card join-modal-card">
       <header class="join-modal-header">
@@ -390,6 +458,7 @@
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
+  <script src="/usage-tracker.js?v=20260619usage1"></script>
   <script src="app.js?v=20260614loginfix1" type="module"></script>
 </body>
 </html>

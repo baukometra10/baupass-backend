@@ -274,6 +274,15 @@ def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
     return summary
 
 
+def _run_survey_invites(db) -> dict[str, Any]:
+    try:
+        from backend.app.domains.admin.survey_dispatch import run_survey_invite_cycle
+
+        return run_survey_invite_cycle(db)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 def _maybe_prepare_next_month_deployment(db, company_id: str) -> dict | None:
     """From day 20: draft next month from weekday pattern — never auto-send."""
     from datetime import datetime, timezone
@@ -381,6 +390,7 @@ def run_autopilot_cycle(db) -> dict[str, Any]:
         "securityScans": 0,
         "rulesSeeded": 0,
         "scheduledReportsCreated": 0,
+        "surveyInvitesSent": 0,
     }
     for row in companies:
         cid = str(row["id"])
@@ -396,6 +406,10 @@ def run_autopilot_cycle(db) -> dict[str, Any]:
                 totals["scheduledReportsCreated"] += 1
         except Exception as exc:
             results.append({"companyId": cid, "ok": False, "error": str(exc)[:200]})
+
+    survey_result = _run_survey_invites(db)
+    totals["surveyInvitesSent"] = int(survey_result.get("sent") or 0)
+    results.append({"surveyInvites": survey_result})
 
     return {
         "ok": True,

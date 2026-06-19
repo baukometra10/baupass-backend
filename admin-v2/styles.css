@@ -418,6 +418,172 @@ main {
   margin-bottom: 1.5rem;
 }
 
+.analytics-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.analytics-period-btn.active {
+  border-color: var(--accent, #a66a3d);
+  color: var(--accent, #a66a3d);
+}
+
+.analytics-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.analytics-list {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  line-height: 1.5;
+}
+
+.analytics-trends-panel {
+  margin: 1rem 0 1.5rem;
+}
+
+.analytics-trends-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  min-height: 140px;
+  padding-top: 0.5rem;
+}
+
+.trend-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  height: 120px;
+}
+
+.trend-bar {
+  width: 100%;
+  max-width: 28px;
+  background: linear-gradient(180deg, var(--accent, #a66a3d), rgba(166, 106, 61, 0.45));
+  border-radius: 4px 4px 0 0;
+  min-height: 6px;
+}
+
+.trend-bar-sat {
+  background: linear-gradient(180deg, #3b82f6, rgba(59, 130, 246, 0.45));
+}
+
+.trend-bar-label {
+  font-size: 0.65rem;
+  color: var(--muted, #6b7280);
+  margin-top: 0.25rem;
+  writing-mode: horizontal-tb;
+}
+
+.analytics-alerts-panel {
+  margin-bottom: 1.5rem;
+}
+
+.analytics-alerts-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.analytics-alert {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.analytics-alert-warning {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.analytics-alert-info {
+  border-color: rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.survey-invite-panel {
+  margin-bottom: 1rem;
+}
+
+.survey-invite-card {
+  padding: 1rem 1.1rem;
+}
+
+.survey-mail-banner {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.survey-mail-ok {
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.survey-mail-pending {
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.survey-invite-actions {
+  margin: 0.75rem 0;
+}
+
+.satisfaction-form label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.satisfaction-form label > span {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.satisfaction-form input,
+.satisfaction-form select,
+.satisfaction-form textarea {
+  width: 100%;
+}
+
+.satisfaction-check {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.satisfaction-check input {
+  width: auto;
+}
+
+.satisfaction-roi-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .satisfaction-roi-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .forecast-card {
   border-color: rgba(166, 106, 61, 0.35);
 }

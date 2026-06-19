@@ -1494,6 +1494,16 @@ function updateWorkerShellForTab(tabName) {
 }
 
 function showOnlyWorkerFeaturePanel(panelId) {
+  const panelFeatureMap = {
+    leaveRequestCard: "worker-leave",
+    timesheetCard: "worker-timesheets",
+    documentsCard: "worker-documents",
+    deploymentPlanCard: "worker-deployment",
+    workerAiCard: "worker-ai",
+  };
+  if (globalThis.BaupassUsage?.track && panelFeatureMap[panelId]) {
+    globalThis.BaupassUsage.track(panelFeatureMap[panelId], "worker-app");
+  }
   const panelIds = [
     "routeCard",
     "sessionInfoCard",
@@ -6139,6 +6149,20 @@ function switchToTab(tabName) {
 
   // Scroll to top of content
   window.scrollTo(0, 0);
+
+  const workerFeatureMap = {
+    home: "worker-badge",
+    vacation: "worker-leave",
+    timesheet: "worker-timesheets",
+    documents: "worker-documents",
+    deployment: "worker-deployment",
+    actions: "worker-actions",
+    chat: "worker-chat",
+  };
+  const trackId = workerFeatureMap[tabName] || `worker-${tabName}`;
+  if (globalThis.BaupassUsage?.track) {
+    globalThis.BaupassUsage.track(trackId, "worker-app");
+  }
 }
 
 function initBottomTabNavigation() {
