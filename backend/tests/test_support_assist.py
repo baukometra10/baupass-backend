@@ -44,3 +44,14 @@ def test_start_session_and_poll_events():
 
     assist_service.end_session(company_id="co-demo", watch_token=started["watchToken"])
     assert assist_service.get_active_session("co-demo") is None
+
+
+def test_get_watch_session_validates_token():
+    assist_service._sessions.clear()
+    db = _FakeDb()
+    started = assist_service.start_session(db, company_id="co-demo", actor_name="Support Team")
+    row = assist_service.get_watch_session("co-demo", started["watchToken"])
+    assert row is not None
+    assert row["companyId"] == "co-demo"
+    assert row["actorName"] == "Support Team"
+    assert assist_service.get_watch_session("co-demo", "wrong-token") is None

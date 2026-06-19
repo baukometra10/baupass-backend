@@ -368,6 +368,73 @@ function getSupportAssistAgentState() {
   return row?.agent && row?.companyId && row?.watchToken ? row : null;
 }
 
+function isSupportSpectatorWatching() {
+  return Boolean(
+    document.body?.classList.contains("support-assist-spectator-active")
+    && !getSupportAssistAgentState()
+  );
+}
+
+function isSupportSpectatorMirrorApp() {
+  return Boolean(
+    isSupportSpectatorWatching()
+    && document.body?.classList.contains("support-assist-mirror-app")
+  );
+}
+
+function getSupportSpectatorCompanyId() {
+  const watch = window.BaupassSupportAssist?.readWatchState?.();
+  if (!watch?.companyId || watch?.agent) return "";
+  return String(watch.companyId).trim();
+}
+
+function canSupportSpectatorReadApi() {
+  const watch = window.BaupassSupportAssist?.readWatchState?.();
+  return Boolean(
+    isSupportSpectatorMirrorApp()
+    && watch?.watchToken
+    && watch?.companyId
+  );
+}
+
+function appendSupportSpectatorHeaders(headers, auth) {
+  if (!auth || token) return headers;
+  const watch = window.BaupassSupportAssist?.readWatchState?.();
+  if (!watch?.watchToken || !watch?.companyId || watch?.agent) return headers;
+  if (!document.body?.classList.contains("support-assist-spectator-active")) return headers;
+  headers["X-Support-Watch-Token"] = watch.watchToken;
+  headers["X-Support-Company-Id"] = watch.companyId;
+  return headers;
+}
+
+let spectatorMirrorSyncTimer = null;
+
+async function syncSpectatorMirrorData() {
+  if (!isSupportSpectatorMirrorApp()) return;
+  try {
+    sessionKnownExpired = false;
+    await loadAllData();
+    refreshAll();
+  } catch (err) {
+    console.warn("Spectator mirror data sync failed:", err);
+  }
+}
+
+function scheduleSpectatorMirrorDataSync() {
+  if (spectatorMirrorSyncTimer) {
+    window.clearTimeout(spectatorMirrorSyncTimer);
+  }
+  spectatorMirrorSyncTimer = window.setTimeout(() => {
+    spectatorMirrorSyncTimer = null;
+    void syncSpectatorMirrorData();
+  }, 180);
+}
+
+function showSupportSpectatorNotice(message) {
+  const text = String(message || "").trim();
+  if (text) showToast(text, "info", 8000);
+}
+
 function isSupportAssistUiActive() {
   return Boolean(
     getSupportAssistAgentState()
@@ -462,19 +529,28 @@ function clearSupportAssistLoginMirror() {
 function applySupportAssistUiState(uiState) {
   if (!uiState || getSupportAssistAgentState()) return;
 
-  const shouldMirrorAuth = Boolean(uiState.authVisible && !uiState.loggedIn);
+  const agentLoggedIn = Boolean(uiState.loggedIn);
+  const shouldMirrorAuth = Boolean(uiState.authVisible && !agentLoggedIn);
+  const watching = isSupportSpectatorWatching();
+
   document.body.classList.toggle("support-assist-mirror-auth", shouldMirrorAuth);
+  document.body.classList.toggle("support-assist-mirror-app", agentLoggedIn && watching);
 
   if (shouldMirrorAuth) {
+    document.body.classList.remove("support-assist-mirror-app");
     applySupportAssistLoginMirror(uiState);
     if (elements.authOverlay) {
       elements.authOverlay.classList.add("active");
       elements.authOverlay.setAttribute("aria-hidden", "false");
       elements.authOverlay.removeAttribute("inert");
     }
-  } else {
+  } else if (agentLoggedIn && watching) {
     clearSupportAssistLoginMirror();
     document.body.classList.remove("support-assist-mirror-auth");
+    scheduleSpectatorMirrorDataSync();
+  } else {
+    clearSupportAssistLoginMirror();
+    document.body.classList.remove("support-assist-mirror-auth", "support-assist-mirror-app");
     if (token && state.currentUser && elements.authOverlay) {
       elements.authOverlay.classList.remove("active");
       elements.authOverlay.setAttribute("aria-hidden", "true");
@@ -501,6 +577,9 @@ function applySupportAssistUiState(uiState) {
   }
 
   window.BaupassSupportAssist?.updateSpectatorBanner?.(uiState);
+  if (watching) {
+    refreshAll();
+  }
 }
 
 function startSupportAssistAgentUiCapture() {
@@ -559,6 +638,10 @@ function stopSupportAssistAgentUiCapture() {
 }
 
 function resolveSpectatorCompanyId() {
+  const watch = window.BaupassSupportAssist?.readWatchState?.();
+  if (watch?.companyId && !watch?.agent) {
+    return String(watch.companyId).trim();
+  }
   const role = String(getCurrentUser()?.role || "").toLowerCase();
   if (role === "company-admin") {
     return String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
@@ -17391,6 +17474,9 @@ function isSuperadminCompanyPreviewMode() {
 }
 
 function getEffectiveUiRole() {
+  if (isSupportSpectatorMirrorApp()) {
+    return "company-admin";
+  }
   if (isSuperadminCompanyPreviewMode()) {
     return "company-admin";
   }
@@ -17398,6 +17484,9 @@ function getEffectiveUiRole() {
 }
 
 function getEffectiveUiCompanyId() {
+  if (isSupportSpectatorMirrorApp()) {
+    return getSupportSpectatorCompanyId();
+  }
   if (isSuperadminCompanyPreviewMode()) {
     return String(superadminUiPreviewCompanyId || "").trim();
   }
@@ -18629,9 +18718,13 @@ window.BaupassSession = {
   startSupportAssistAgentUiCapture,
   stopSupportAssistAgentUiCapture,
   clearSupportAssistLoginMirror,
+  showSupportSpectatorNotice,
 };
 
 function handleExpiredControlSession() {
+  if (document.body?.classList.contains("support-assist-spectator-active")) {
+    return;
+  }
   clearSession();
   refreshAll();
   syncSupportAssistSpectatorWatch();
@@ -18835,8 +18928,18 @@ async function apiRequest(url, options = {}) {
     throw new Error("support_spectator_readonly");
   }
   if (auth && !token) {
-    handleExpiredControlSession();
-    throw new Error("session_expired");
+    const watchState = window.BaupassSupportAssist?.readWatchState?.();
+    const canSpectatorRead = Boolean(
+      document.body?.classList?.contains("support-assist-spectator-active")
+      && watchState?.watchToken
+      && watchState?.companyId
+      && !watchState?.agent
+      && ["GET", "HEAD", "OPTIONS"].includes(normalizedMethod)
+    );
+    if (!canSpectatorRead) {
+      handleExpiredControlSession();
+      throw new Error("session_expired");
+    }
   }
   if (
     auth
@@ -18849,6 +18952,7 @@ async function apiRequest(url, options = {}) {
     throw new Error("support_session_read_only");
   }
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  appendSupportSpectatorHeaders(headers, auth);
   const requestToken = auth ? String(token || "") : "";
   if (auth && token) {
     headers.Authorization = `Bearer ${token}`;
@@ -19606,16 +19710,15 @@ function resolveAdminCompanyIdsForExtras(companies = []) {
 }
 
 async function loadAllData() {
-  // Ohne gespeicherten Token gibt es keine Session zum Bootstrappen.
-  // So vermeiden wir unnoetige 401-Requests im ausgeloggten Zustand.
-  if (!token) {
+  const spectatorRead = canSupportSpectatorReadApi();
+  if (!token && !spectatorRead) {
     sessionExpiryNoticeShown = false;
     return;
   }
 
   // Bootstrap nur dann nutzen, wenn ein Token existiert, aber der User noch
   // nicht in den lokalen State geladen wurde.
-  if (!state.currentUser) {
+  if (!state.currentUser && token) {
     let bootstrap;
     try {
       bootstrap = await restoreSessionFromBootstrap();
@@ -19857,33 +19960,35 @@ async function loadAllData() {
 
 function refreshAll() {
   const loggedIn = Boolean(token && state.currentUser);
+  const mirrorApp = isSupportSpectatorMirrorApp();
+  const showMainUi = loggedIn || mirrorApp;
   syncSupportLoginUi();
   if (elements.authOverlay) {
     const activeElement = document.activeElement;
-    if (loggedIn && activeElement && elements.authOverlay.contains(activeElement) && typeof activeElement.blur === "function") {
+    if (showMainUi && activeElement && elements.authOverlay.contains(activeElement) && typeof activeElement.blur === "function") {
       activeElement.blur();
     }
-    elements.authOverlay.classList.toggle("active", !loggedIn);
-    elements.authOverlay.setAttribute("aria-hidden", loggedIn ? "true" : "false");
-    elements.authOverlay.toggleAttribute("inert", loggedIn);
+    elements.authOverlay.classList.toggle("active", !showMainUi);
+    elements.authOverlay.setAttribute("aria-hidden", showMainUi ? "true" : "false");
+    elements.authOverlay.toggleAttribute("inert", showMainUi);
   }
   if (elements.mainShell) {
-    elements.mainShell.style.display = loggedIn ? "grid" : "none";
-    elements.mainShell.classList.toggle("locked", !loggedIn);
-    elements.mainShell.hidden = !loggedIn;
-    elements.mainShell.setAttribute("aria-hidden", loggedIn ? "false" : "true");
-    elements.mainShell.toggleAttribute("inert", !loggedIn);
+    elements.mainShell.style.display = showMainUi ? "grid" : "none";
+    elements.mainShell.classList.toggle("locked", !showMainUi);
+    elements.mainShell.hidden = !showMainUi;
+    elements.mainShell.setAttribute("aria-hidden", showMainUi ? "false" : "true");
+    elements.mainShell.toggleAttribute("inert", !showMainUi);
   }
   if (elements.body) {
-    elements.body.classList.toggle("auth-locked", !loggedIn);
-    if (!loggedIn) {
+    elements.body.classList.toggle("auth-locked", !showMainUi);
+    if (!showMainUi) {
       companyBrandingPreviewOverride = "";
       superadminUiPreviewCompanyId = "";
       elements.body.setAttribute("data-branding-preset", "construction");
     }
   }
 
-  if (!loggedIn) {
+  if (!showMainUi && !document.body?.classList.contains("support-assist-mirror-auth")) {
     focusLoginInput();
   }
 
@@ -19916,7 +20021,7 @@ function refreshAll() {
     elements.sessionCard.innerHTML = `<strong>${escapeHtml(texts.sessionLoggedIn)}:</strong> ${escapeHtml(user)} | <strong>${escapeHtml(texts.sessionRole)}:</strong> ${escapeHtml(role)}${supportModeMarkup}${previewMarkup}${twofaBanner}`;
   }
 
-  if (!loggedIn) {
+  if (!showMainUi) {
     stopInvoiceAutoRefresh();
     stopInvoiceApprovalAutoRefresh();
     syncSupportAssistSpectatorWatch();
@@ -32060,7 +32165,10 @@ async function handleLogout(options = {}) {
 
   if (!preserveSupportContext) {
     if (assistAgent) {
-      await pulseSupportAssist("logout", { message: "Support hat die Sitzung beendet — Sie können sich anmelden." });
+      await pulseSupportAssist("logout", {
+        message: "Support hat die Sitzung beendet — Sie können sich jetzt anmelden.",
+        allowCustomerLogin: true,
+      });
     }
     if (assistAgent && window.BaupassSupportAssist?.stopAgentBroadcast) {
       window.BaupassSupportAssist.stopAgentBroadcast(assistAgent);

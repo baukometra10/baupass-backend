@@ -4492,7 +4492,37 @@ def is_read_only_support_request_allowed():
         return True
     if request.path.startswith("/api/support-assist/"):
         return True
+    if request.path.startswith("/api/public/support-assist/"):
+        return True
     return request.path in {"/api/logout", "/api/me/heartbeat"}
+
+
+def resolve_support_spectator_user(db):
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        return None
+    watch_token = (request.headers.get("X-Support-Watch-Token") or "").strip()
+    company_id = (request.headers.get("X-Support-Company-Id") or "").strip()
+    if not watch_token or not company_id:
+        return None
+    try:
+        from backend.app.platform.support_assist.service import get_watch_session
+
+        row = get_watch_session(company_id, watch_token)
+    except Exception:
+        return None
+    if not row:
+        return None
+    return {
+        "id": f"support-spectator:{company_id}",
+        "username": "support-spectator",
+        "role": "company-admin",
+        "company_id": company_id,
+        "support_read_only": True,
+        "support_spectator": True,
+        "support_company_name": "",
+        "support_actor_name": row.get("actorName") or "Support",
+        "is_active": 1,
+    }
 
 
 def is_tenant_host_valid(db, user):
@@ -4515,9 +4545,25 @@ def require_auth(handler):
     @wraps(handler)
     def wrapper(*args, **kwargs):
         token = get_auth_token_from_request()
-        if not token:
-            return jsonify({"error": "unauthorized"}), 401
         db = get_db()
+        if not token:
+            spectator_user = resolve_support_spectator_user(db)
+            if spectator_user:
+                if not is_read_only_support_request_allowed():
+                    return jsonify({"error": "support_spectator_read_only"}), 403
+                if not is_tenant_host_valid(db, spectator_user):
+                    return jsonify({"error": "forbidden_tenant_host"}), 403
+                company_error = get_company_access_error(db, spectator_user.get("company_id"))
+                if company_error:
+                    return jsonify(company_error), 403
+                g.current_user = spectator_user
+                g.token = ""
+                g.current_session = {}
+                g.preview_company_id = ""
+                g.enterprise_permissions = set()
+                g.support_spectator = True
+                return handler(*args, **kwargs)
+            return jsonify({"error": "unauthorized"}), 401
         session = db.execute(
             "SELECT user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id FROM sessions WHERE token = ?",
             (token,),

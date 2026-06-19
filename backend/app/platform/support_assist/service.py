@@ -65,8 +65,22 @@ def start_session(db, *, company_id: str, actor_name: str) -> dict[str, Any]:
         _append_event_locked(
             cid,
             "force_logout",
-            {"message": "Support übernimmt — bitte zuschauen, Eingaben sind gesperrt."},
+            {"message": "Support übernimmt — bitte Hände vom System. Sie werden abgemeldet und sehen live mit."},
         )
+
+    try:
+        db.execute(
+            """
+            DELETE FROM sessions
+            WHERE user_id IN (
+                SELECT id FROM users WHERE company_id = ? AND role = 'company-admin'
+            )
+            """,
+            (cid,),
+        )
+        db.commit()
+    except Exception:
+        pass
 
     try:
         from backend.app.platform.events.bus import publish_event
@@ -85,6 +99,23 @@ def start_session(db, *, company_id: str, actor_name: str) -> dict[str, Any]:
         "watchToken": watch_token,
         "actorName": actor_name,
     }
+
+
+def get_watch_session(company_id: str, watch_token: str) -> dict[str, Any] | None:
+    cid = str(company_id or "").strip()
+    token = str(watch_token or "").strip()
+    if not cid or not token:
+        return None
+    with _lock:
+        _purge_stale_locked()
+        row = _sessions.get(cid)
+        if not row or str(row.get("watch_token") or "") != token:
+            return None
+        return {
+            "companyId": cid,
+            "actorName": row.get("actor_name") or "Support",
+            "sessionId": row.get("session_id"),
+        }
 
 
 def append_pulse(*, company_id: str, watch_token: str, event_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -192,11 +192,11 @@
       case "session_start":
         return `${actor} startet eine Support-Sitzung. Sie sehen live mit, was geöffnet wird.`;
       case "force_logout":
-        return payload?.message || "Support übernimmt — bitte zuschauen, Eingaben sind gesperrt.";
+        return payload?.message || "Support übernimmt — bitte Hände vom System. Sie werden abgemeldet und sehen live mit.";
       case "logout":
         return payload?.message || `${actor} hat sich abgemeldet. Sie können sich jetzt anmelden.`;
       case "login_screen":
-        return `${actor} ist auf dem Anmeldebildschirm. Sie können sich anmelden, sobald Support fertig ist.`;
+        return `${actor} ist auf dem Anmeldebildschirm — Sie sehen die Anmeldung live (Passwort verborgen).`;
       case "logging_in":
         return `${actor} meldet sich an…`;
       case "logged_in":
@@ -229,16 +229,39 @@
         return;
       }
       if (type === "force_logout") {
-        applyUiState({ authVisible: true, loggedIn: false, viewLabel: "Anmeldung", view: "dashboard" }, actorName);
-        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
+        if (global.BaupassSession?.clearSession) {
+          try { global.BaupassSession.clearSession(); } catch { /* ignore */ }
+        }
+        if (global.BaupassSession?.showSupportSpectatorNotice) {
+          try { global.BaupassSession.showSupportSpectatorNotice(payload?.message); } catch { /* ignore */ }
+        }
+        applyUiState({
+          authVisible: true,
+          loggedIn: false,
+          viewLabel: "Anmeldung",
+          view: "dashboard",
+          loginUsername: "",
+          loginPasswordLen: 0,
+        }, actorName);
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: false });
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
         }
         return;
       }
-      if (type === "logout" || type === "login_screen") {
+      if (type === "logout") {
         applyUiState({ authVisible: true, loggedIn: false, ...(payload || {}) }, actorName);
-        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: true });
+        global.document.body.classList.remove("support-assist-mirror-app");
+        const allowLogin = Boolean(payload?.allowCustomerLogin);
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin });
+        if (global.BaupassSession?.refreshAll) {
+          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
+        }
+        return;
+      }
+      if (type === "login_screen") {
+        applyUiState({ authVisible: true, loggedIn: false, ...(payload || {}) }, actorName);
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: false });
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
         }
@@ -254,10 +277,16 @@
       }
       if (type === "session_end") {
         setSpectatorMode(false);
+        global.document.body.classList.remove("support-assist-mirror-app", "support-assist-mirror-auth");
         writeWatchState(null);
         stopPolling();
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
+        }
+        if (global.BaupassSession?.focusLoginInput) {
+          global.setTimeout(() => {
+            try { global.BaupassSession.focusLoginInput({ force: true }); } catch { /* ignore */ }
+          }, 120);
         }
         return;
       }
@@ -284,10 +313,16 @@
       if (!res.ok || !data?.active) {
         if (lastSeq > 0) {
           setSpectatorMode(false);
+          global.document.body.classList.remove("support-assist-mirror-app", "support-assist-mirror-auth");
           writeWatchState(null);
           stopPolling();
           if (global.BaupassSession?.refreshAll) {
             try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
+          }
+          if (global.BaupassSession?.focusLoginInput) {
+            global.setTimeout(() => {
+              try { global.BaupassSession.focusLoginInput({ force: true }); } catch { /* ignore */ }
+            }, 120);
           }
         }
         return;

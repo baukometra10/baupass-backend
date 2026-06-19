@@ -1099,6 +1099,19 @@ body.support-assist-mirror-auth.support-assist-spectator-login-ready #authOverla
   cursor: auto !important;
 }
 
+body.support-assist-mirror-app #authOverlay {
+  display: none !important;
+}
+
+body.support-assist-mirror-app #mainShell {
+  display: grid !important;
+  visibility: visible !important;
+}
+
+body.support-assist-mirror-app.auth-locked #mainShell {
+  pointer-events: none;
+}
+
 .support-assist-kicker {
   margin: 0 0 4px;
   font-size: 0.78rem;
