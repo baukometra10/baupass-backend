@@ -18797,14 +18797,7 @@ async function restoreSessionFromBootstrap() {
       state.currentUser = bootstrap.user;
       state.companyAccessBlocked = bootstrap.companyAccessBlocked || state.companyAccessBlocked || null;
       if (bootstrap.user.role === "superadmin") {
-        let previewCid = String(bootstrap.user.preview_company_id || "").trim();
-        if (!previewCid && !isLocalHostName(window.location.hostname)) {
-          try {
-            previewCid = String(localStorage.getItem("baupass-preview-company-id") || "").trim();
-          } catch {
-            // ignore
-          }
-        }
+        const previewCid = String(bootstrap.user.preview_company_id || "").trim();
         if (previewCid) {
           superadminUiPreviewCompanyId = previewCid;
           const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
@@ -19797,21 +19790,6 @@ async function loadAllData() {
     if (companies.status === "fulfilled") {
     state.companiesLoadError = "";
     state.companies = companies.value || [];
-    if (
-      String(getCurrentUser()?.role || "").toLowerCase() === "superadmin"
-      && !superadminUiPreviewCompanyId
-      && !isLocalHostName(window.location.hostname)
-    ) {
-      const firstCompany = (state.companies || []).find((entry) => entry && !entry.deleted_at);
-      if (firstCompany?.id) {
-        superadminUiPreviewCompanyId = String(firstCompany.id);
-        try {
-          localStorage.setItem("baupass-preview-company-id", superadminUiPreviewCompanyId);
-        } catch {
-          // ignore
-        }
-      }
-    }
     // Branding-Override nach Laden der Unternehmen auflösen (bei wiederhergestellter Vorschau-Session)
     if (superadminUiPreviewCompanyId && !companyBrandingPreviewOverride) {
       const previewCompany = state.companies.find((c) => c.id === superadminUiPreviewCompanyId);
@@ -31956,6 +31934,15 @@ async function handleLoginSubmit(event) {
     token = payload.token;
     persistSessionToken(token);
     state.currentUser = payload.user;
+    if (String(payload.user?.role || "").toLowerCase() === "superadmin") {
+      superadminUiPreviewCompanyId = "";
+      companyBrandingPreviewOverride = "";
+      try {
+        localStorage.removeItem("baupass-preview-company-id");
+      } catch {
+        // ignore
+      }
+    }
     broadcastSessionToEmbeds();
     void pulseSupportAssist("ui_state", captureSupportAssistUiState({ loggedIn: true, authVisible: false }));
     clearSupportLoginContext();
