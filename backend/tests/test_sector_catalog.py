@@ -38,6 +38,13 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertIn("terms", cfg)
         self.assertTrue(cfg["terms"].get("navWorkers") or cfg["terms"].get("labelSite"))
 
+    def test_sector_config_admin_v2_terms(self):
+        cfg = sector_config("public_sector", lang="de")
+        terms = cfg["terms"]
+        self.assertIn("overviewOnSite", terms)
+        self.assertNotIn("Baustelle", terms.get("overviewOnSite", ""))
+        self.assertIn("Standort", terms["overviewOnSite"])
+
     def test_all_sectors_public_count(self):
         sectors = all_sectors_public()
         self.assertGreaterEqual(len(sectors), 7)

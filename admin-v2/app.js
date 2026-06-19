@@ -1,4 +1,4 @@
-import { applyI18n, getLang, setLang, t } from "./i18n.js";
+import { applyI18n, getLang, setLang, setSectorTermOverrides, t } from "./i18n.js";
 import { mountGeofenceMapWhenReady, refreshGeofenceMap } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -271,17 +271,40 @@ async function applyTenantBrandingFromApi() {
   try {
     if (window.BaupassAuth?.resolveTenantBranding) {
       await window.BaupassAuth.resolveTenantBranding({ companyId: cid || undefined });
-      return;
-    }
-    if (window.BaupassAuth?.loadTenantBranding) {
+    } else if (window.BaupassAuth?.loadTenantBranding) {
       await window.BaupassAuth.loadTenantBranding(cid || undefined);
-      return;
+    } else {
+      const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+      const branding = await api(`/api/companies/current/branding${q}`);
+      window.BaupassAuth?.applyTenantBranding?.(branding);
     }
-    const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
-    const branding = await api(`/api/companies/current/branding${q}`);
-    window.BaupassAuth?.applyTenantBranding?.(branding);
   } catch {
     // optional white-label
+  }
+  await loadSectorTerminologyForAdmin();
+}
+
+function resolveAdminCompanyId() {
+  const user = getUser();
+  let cid = String(user?.company_id || "").trim();
+  if (user?.role === "superadmin") {
+    cid = String(localStorage.getItem(COMPANY_KEY) || "").trim();
+  }
+  return cid;
+}
+
+async function loadSectorTerminologyForAdmin() {
+  const cid = resolveAdminCompanyId();
+  const lang = getLang();
+  try {
+    let url = `/api/platform/sector-config?lang=${encodeURIComponent(lang)}`;
+    if (cid) url += `&company_id=${encodeURIComponent(cid)}`;
+    const data = await api(url);
+    setSectorTermOverrides(data?.terms || {});
+    window.__adminV2Sector = data?.sector || "construction";
+    applyI18n();
+  } catch {
+    setSectorTermOverrides({});
   }
 }
 
@@ -3414,6 +3437,7 @@ function bindLangSelect(sel) {
 bindLangSelect($("langSelect"));
 bindLangSelect($("langSelectDash"));
 window.addEventListener("baupass-admin-lang", () => {
+  loadSectorTerminologyForAdmin().catch(() => {});
   if ($("dashboardView").classList.contains("hidden")) return;
   const tab = document.querySelector(".tab.active")?.dataset?.tab;
   if (tab && TAB_TITLE_KEYS[tab]) {

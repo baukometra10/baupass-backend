@@ -5,10 +5,35 @@ const STRINGS = Object.fromEntries(
   ["de", "en", "ar"].map((lang) => [lang, { ...BASE_STRINGS[lang], ...EXT_STRINGS[lang] }]),
 );
 
+/** Maps admin-v2 i18n keys → sector-config term keys from /api/platform/sector-config */
+const SECTOR_I18N_MAP = {
+  "overview.onSite": "overviewOnSite",
+  "overview.onSiteKpi": "overviewOnSiteKpi",
+  "tools.geofence": "toolsGeofence",
+  "deployment.locationPh": "deploymentLocationPh",
+  "tools.sitePlaceholder": "toolsSitePlaceholder",
+  "deployment.colLocation": "deploymentColLocation",
+};
+
 export { STRINGS };
 
 const LANG_KEY = "baupass-admin-v2-lang";
 const SHARED_LANG_KEY = "baupass-ui-lang";
+
+let sectorTermOverrides = {};
+
+export function setSectorTermOverrides(apiTerms = {}) {
+  const next = {};
+  for (const [i18nKey, sectorKey] of Object.entries(SECTOR_I18N_MAP)) {
+    const value = String(apiTerms[sectorKey] || "").trim();
+    if (value) next[i18nKey] = value;
+  }
+  sectorTermOverrides = next;
+}
+
+export function clearSectorTermOverrides() {
+  sectorTermOverrides = {};
+}
 
 export function getLang() {
   const code =
@@ -27,7 +52,12 @@ export function setLang(code) {
 /** Interpolate {name} placeholders in translated strings. */
 export function t(key, vars = {}) {
   const lang = getLang();
-  let text = STRINGS[lang]?.[key] || STRINGS.de[key] || STRINGS.en[key] || key;
+  let text =
+    sectorTermOverrides[key]
+    || STRINGS[lang]?.[key]
+    || STRINGS.de[key]
+    || STRINGS.en[key]
+    || key;
   for (const [k, v] of Object.entries(vars)) {
     text = text.replaceAll(`{${k}}`, String(v ?? ""));
   }

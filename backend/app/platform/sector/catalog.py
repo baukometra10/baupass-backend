@@ -202,6 +202,67 @@ SECTOR_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
 }
 
 
+# Admin-v2 / Betrieb dashboard strings overridden per operating sector
+ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
+    "construction": {
+        "overviewOnSite": _t("Jetzt auf der Baustelle", "On site now", "على موقع البناء الآن"),
+        "overviewOnSiteKpi": _t("auf Baustelle", "on site", "على الموقع"),
+        "toolsGeofence": _t("Geofence — Baustellen", "Geofence — sites", "Geofence — مواقع البناء"),
+        "deploymentLocationPh": _t("z. B. Baustelle Berlin, Musterstraße 12", "e.g. Site Berlin, Main St 12", "مثال: موقع برلين"),
+        "toolsSitePlaceholder": _t("Standort / Baustelle", "Site / project", "موقع / مشروع"),
+        "deploymentColLocation": _t("Einsatzort", "Assignment location", "موقع التكليف"),
+    },
+    "manufacturing": {
+        "overviewOnSite": _t("Jetzt im Werk", "In plant now", "في المنشأة الآن"),
+        "overviewOnSiteKpi": _t("im Werk", "in plant", "في المنشأة"),
+        "toolsGeofence": _t("Geofence — Werksbereiche", "Geofence — plant zones", "Geofence — مناطق المصنع"),
+        "deploymentLocationPh": _t("z. B. Halle 3, Werk Nord", "e.g. Hall 3, North plant", "مثال: القاعة 3، المصنع الشمالي"),
+        "toolsSitePlaceholder": _t("Werk / Halle", "Plant / hall", "مصنع / قاعة"),
+        "deploymentColLocation": _t("Werk / Halle", "Plant / hall", "مصنع / قاعة"),
+    },
+    "aviation": {
+        "overviewOnSite": _t("Jetzt im Terminal", "In terminal now", "في المبنى الآن"),
+        "overviewOnSiteKpi": _t("im Terminal", "in terminal", "في المبنى"),
+        "toolsGeofence": _t("Geofence — Zonen", "Geofence — zones", "Geofence — المناطق"),
+        "deploymentLocationPh": _t("z. B. Terminal 1, Zone B", "e.g. Terminal 1, Zone B", "مثال: المبنى 1، المنطقة B"),
+        "toolsSitePlaceholder": _t("Terminal / Zone", "Terminal / zone", "مبنى / منطقة"),
+        "deploymentColLocation": _t("Terminal / Zone", "Terminal / zone", "مبنى / منطقة"),
+    },
+    "logistics": {
+        "overviewOnSite": _t("Jetzt im Hub", "At hub now", "في المركز الآن"),
+        "overviewOnSiteKpi": _t("im Hub", "at hub", "في المركز"),
+        "toolsGeofence": _t("Geofence — Depots", "Geofence — depots", "Geofence — المستودعات"),
+        "deploymentLocationPh": _t("z. B. Depot Nord, Rampe 4", "e.g. North depot, dock 4", "مثال: مستودع الشمال، رصيف 4"),
+        "toolsSitePlaceholder": _t("Depot / Hub", "Depot / hub", "مستودع / مركز"),
+        "deploymentColLocation": _t("Depot / Hub", "Depot / hub", "مستودع / مركز"),
+    },
+    "security": {
+        "overviewOnSite": _t("Jetzt im Einsatz", "On assignment now", "في المهمة الآن"),
+        "overviewOnSiteKpi": _t("im Einsatz", "on assignment", "في المهمة"),
+        "toolsGeofence": _t("Geofence — Objekte", "Geofence — sites", "Geofence — المواقع"),
+        "deploymentLocationPh": _t("z. B. Objekt Mitte, Eingang A", "e.g. Central site, entrance A", "مثال: موقع الوسط، المدخل A"),
+        "toolsSitePlaceholder": _t("Objekt / Einsatzort", "Site / assignment", "موقع / مهمة"),
+        "deploymentColLocation": _t("Objekt / Einsatzort", "Site / assignment", "موقع / مهمة"),
+    },
+    "public_sector": {
+        "overviewOnSite": _t("Jetzt am Standort", "At facility now", "في المنشأة الآن"),
+        "overviewOnSiteKpi": _t("am Standort", "at facility", "في المنشأة"),
+        "toolsGeofence": _t("Geofence — Standorte", "Geofence — facilities", "Geofence — المنشآت"),
+        "deploymentLocationPh": _t("z. B. Verwaltungsgebäude, Hauptstraße 1", "e.g. Admin building, Main St 1", "مثال: مبنى الإدارة، الشارع الرئيسي 1"),
+        "toolsSitePlaceholder": _t("Standort / Gebäude", "Facility", "منشأة / مبنى"),
+        "deploymentColLocation": _t("Standort / Gebäude", "Facility", "منشأة / مبنى"),
+    },
+    "government": {
+        "overviewOnSite": _t("Jetzt in der Dienststelle", "At office now", "في الدائرة الآن"),
+        "overviewOnSiteKpi": _t("in Dienststelle", "at office", "في الدائرة"),
+        "toolsGeofence": _t("Geofence — Liegenschaften", "Geofence — premises", "Geofence — المباني"),
+        "deploymentLocationPh": _t("z. B. Dienststelle Mitte, Raum 204", "e.g. Central office, room 204", "مثال: الدائرة المركزية، الغرفة 204"),
+        "toolsSitePlaceholder": _t("Standort / Dienststelle", "Office / site", "موقع / دائرة"),
+        "deploymentColLocation": _t("Standort / Dienststelle", "Office / site", "موقع / دائرة"),
+    },
+}
+
+
 OPERATION_TEMPLATES: dict[str, dict[str, Any]] = {
     "construction": {
         "id": "construction-default",
@@ -253,7 +314,9 @@ def sector_config(sector_id: str, *, lang: str = "de") -> dict[str, Any]:
     lang = str(lang or "de").strip().lower()[:2] or "de"
     meta = SECTOR_META[sector_id]
     terms_raw = SECTOR_TERM_KEYS.get(sector_id, {})
-    terms = {k: (v.get(lang) or v.get("de") or "") for k, v in terms_raw.items()}
+    admin_terms = ADMIN_V2_TERM_KEYS.get(sector_id, ADMIN_V2_TERM_KEYS["construction"])
+    merged_terms = {**terms_raw, **admin_terms}
+    terms = {k: (v.get(lang) or v.get("de") or "") for k, v in merged_terms.items()}
     label = meta["labels"].get(lang) or meta["labels"]["de"]
     product_line = meta["productLine"].get(lang) or meta["productLine"]["de"]
     return {

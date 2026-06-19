@@ -18400,7 +18400,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.drawCentredString(x + 8 * mm, y + 5.8 * mm, "BK")
             pdf.setFillColor(c_dark)
             pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(x + 18 * mm, y + 7.2 * mm, "BauKometra")
+            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "BauPass")[:28])
 
         # ════════════════════════════════════════════════════════════
         # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende

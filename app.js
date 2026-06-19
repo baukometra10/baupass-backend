@@ -8812,6 +8812,18 @@ function getThemeModeLabel(mode) {
 }
 
 function applySystemTheme(mode, { persist = true } = {}) {
+  if (window.BaupassTheme?.apply) {
+    window.BaupassTheme.apply(mode, { persist, broadcast: true });
+    const selectedMode = window.BaupassTheme.getStoredMode();
+    const button = document.querySelector("#systemThemeToggleButton");
+    if (button) {
+      const texts = getSystemThemeTexts();
+      button.textContent = `${texts.labelPrefix}: ${getThemeModeLabel(selectedMode)}`;
+      if (selectedMode === SYSTEM_THEME_BLACK) button.title = texts.titleWhenDark;
+      else button.title = texts.titleWhenWhite;
+    }
+    return;
+  }
   const selectedMode = normalizeSystemTheme(mode);
   const effective = resolveEffectiveTheme(selectedMode);
   document.body.classList.remove("theme-black", "theme-white");
