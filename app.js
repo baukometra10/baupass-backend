@@ -379,7 +379,183 @@ function isSupportAssistUiActive() {
 async function pulseSupportAssist(type, payload) {
   const assist = getSupportAssistAgentState();
   if (!assist || !window.BaupassSupportAssist?.pulse) return;
-  await window.BaupassSupportAssist.pulse(assist, type, payload || {});
+  const body = type === "ui_state" ? (payload || captureSupportAssistUiState()) : (payload || {});
+  await window.BaupassSupportAssist.pulse(assist, type, body);
+}
+
+let supportAssistAgentCaptureTimer = null;
+let supportAssistAgentCaptureBound = false;
+let supportAssistScrollTimer = null;
+
+function getSupportAssistViewLabel(viewName) {
+  const view = String(viewName || "").trim();
+  if (!view) return "";
+  const link = document.querySelector(
+    `.nav-link[data-view="${view}"], #enterpriseNavMount .nav-link[data-view="${view}"]`,
+  );
+  return link?.textContent?.trim() || view;
+}
+
+function captureSupportAssistUiState(extra) {
+  const loggedIn = Boolean(token && state.currentUser);
+  const contentEl = document.querySelector(".content");
+  const base = {
+    view: getCurrentViewName(),
+    viewLabel: getSupportAssistViewLabel(getCurrentViewName()),
+    loggedIn,
+    authVisible: !loggedIn,
+    scrollX: window.scrollX || 0,
+    scrollY: window.scrollY || 0,
+    contentScrollTop: contentEl ? contentEl.scrollTop : 0,
+    loginUsername: String(elements.loginUsername?.value || "").trim(),
+    loginPasswordLen: String(elements.loginPassword?.value || "").length,
+    loginScope: String(document.querySelector("#loginScope")?.value || ""),
+    loginOtpPending: Boolean(state.loginOtpPending),
+    loginOtpLen: String(elements.loginOtpCode?.value || "").length,
+  };
+  return extra && typeof extra === "object" ? { ...base, ...extra } : base;
+}
+
+function applySupportAssistLoginMirror(uiState) {
+  const userEl = elements.loginUsername;
+  const passEl = elements.loginPassword;
+  const scopeEl = document.querySelector("#loginScope");
+  const otpEl = elements.loginOtpCode;
+
+  if (userEl) {
+    userEl.value = String(uiState.loginUsername || "");
+    userEl.readOnly = true;
+    userEl.classList.add("support-assist-mirror-field");
+  }
+  if (passEl) {
+    const len = Math.max(0, Number(uiState.loginPasswordLen) || 0);
+    passEl.value = len ? "\u2022".repeat(Math.min(len, 32)) : "";
+    passEl.readOnly = true;
+    passEl.classList.add("support-assist-mirror-field");
+  }
+  if (scopeEl && uiState.loginScope) {
+    scopeEl.value = uiState.loginScope;
+    scopeEl.disabled = true;
+  }
+  if (uiState.loginOtpPending) {
+    state.loginOtpPending = true;
+    updateLoginOtpVisibility();
+    if (otpEl) {
+      const otpLen = Math.max(0, Number(uiState.loginOtpLen) || 0);
+      otpEl.value = otpLen ? "\u2022".repeat(Math.min(otpLen, 8)) : "";
+      otpEl.readOnly = true;
+      otpEl.classList.add("support-assist-mirror-field");
+    }
+  }
+}
+
+function clearSupportAssistLoginMirror() {
+  [elements.loginUsername, elements.loginPassword, elements.loginOtpCode].forEach((el) => {
+    if (!el) return;
+    el.readOnly = false;
+    el.classList.remove("support-assist-mirror-field");
+  });
+  const scopeEl = document.querySelector("#loginScope");
+  if (scopeEl) scopeEl.disabled = false;
+}
+
+function applySupportAssistUiState(uiState) {
+  if (!uiState || getSupportAssistAgentState()) return;
+
+  const shouldMirrorAuth = Boolean(uiState.authVisible && !uiState.loggedIn);
+  document.body.classList.toggle("support-assist-mirror-auth", shouldMirrorAuth);
+
+  if (shouldMirrorAuth) {
+    applySupportAssistLoginMirror(uiState);
+    if (elements.authOverlay) {
+      elements.authOverlay.classList.add("active");
+      elements.authOverlay.setAttribute("aria-hidden", "false");
+      elements.authOverlay.removeAttribute("inert");
+    }
+  } else {
+    clearSupportAssistLoginMirror();
+    document.body.classList.remove("support-assist-mirror-auth");
+    if (token && state.currentUser && elements.authOverlay) {
+      elements.authOverlay.classList.remove("active");
+      elements.authOverlay.setAttribute("aria-hidden", "true");
+      elements.authOverlay.toggleAttribute("inert", true);
+    }
+  }
+
+  const targetView = String(uiState.view || "").trim();
+  if (targetView && targetView !== getCurrentViewName()) {
+    setView(targetView);
+  }
+
+  const sy = Number(uiState.scrollY);
+  const sx = Number(uiState.scrollX);
+  if (Number.isFinite(sy) && Number.isFinite(sx)) {
+    if (Math.abs(window.scrollY - sy) > 4 || Math.abs(window.scrollX - sx) > 4) {
+      window.scrollTo(sx, sy);
+    }
+  }
+  const contentEl = document.querySelector(".content");
+  const cst = Number(uiState.contentScrollTop);
+  if (contentEl && Number.isFinite(cst) && Math.abs(contentEl.scrollTop - cst) > 4) {
+    contentEl.scrollTop = cst;
+  }
+
+  window.BaupassSupportAssist?.updateSpectatorBanner?.(uiState);
+}
+
+function startSupportAssistAgentUiCapture() {
+  if (supportAssistAgentCaptureTimer) return;
+  const pulseState = () => {
+    if (!getSupportAssistAgentState()) return;
+    void pulseSupportAssist("ui_state", captureSupportAssistUiState());
+  };
+  if (!supportAssistAgentCaptureBound) {
+    supportAssistAgentCaptureBound = true;
+    const onInput = (event) => {
+      if (!getSupportAssistAgentState()) return;
+      const target = event.target;
+      if (!target?.closest) return;
+      if (target.closest("#loginForm, #loginUsername, #loginPassword, #loginScope, #loginOtpCode")) {
+        pulseState();
+      }
+    };
+    const onScroll = () => {
+      if (!getSupportAssistAgentState()) return;
+      if (supportAssistScrollTimer) return;
+      supportAssistScrollTimer = window.setTimeout(() => {
+        supportAssistScrollTimer = null;
+        pulseState();
+      }, 180);
+    };
+    document.addEventListener("input", onInput, true);
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.__baupassSupportAssistInputHandler = onInput;
+    window.__baupassSupportAssistScrollHandler = onScroll;
+  }
+  pulseState();
+  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 1200);
+}
+
+function stopSupportAssistAgentUiCapture() {
+  if (supportAssistAgentCaptureTimer) {
+    window.clearInterval(supportAssistAgentCaptureTimer);
+    supportAssistAgentCaptureTimer = null;
+  }
+  if (window.__baupassSupportAssistInputHandler) {
+    document.removeEventListener("input", window.__baupassSupportAssistInputHandler, true);
+    window.__baupassSupportAssistInputHandler = null;
+  }
+  if (window.__baupassSupportAssistScrollHandler) {
+    document.removeEventListener("scroll", window.__baupassSupportAssistScrollHandler, true);
+    window.removeEventListener("scroll", window.__baupassSupportAssistScrollHandler);
+    window.__baupassSupportAssistScrollHandler = null;
+  }
+  if (supportAssistScrollTimer) {
+    window.clearTimeout(supportAssistScrollTimer);
+    supportAssistScrollTimer = null;
+  }
+  supportAssistAgentCaptureBound = false;
 }
 
 function resolveSpectatorCompanyId() {
@@ -15709,7 +15885,7 @@ function syncSupportLoginUi() {
     }
   }
   if (getSupportAssistAgentState()) {
-    void pulseSupportAssist("login_screen", { companyName: context?.companyName || "" });
+    void pulseSupportAssist("ui_state", captureSupportAssistUiState({ authVisible: true, loggedIn: false }));
   }
 }
 
@@ -18246,7 +18422,7 @@ function setView(viewName) {
     loadDevices();
   }
 
-  void pulseSupportAssist("view", { view: targetView });
+  void pulseSupportAssist("ui_state", captureSupportAssistUiState());
 
   if (targetView === "documents") {
     loadDocumentInbox({ silent: true });
@@ -18448,6 +18624,11 @@ window.BaupassSession = {
   refreshAll,
   setView,
   focusLoginInput,
+  captureSupportAssistUiState,
+  applySupportAssistUiState,
+  startSupportAssistAgentUiCapture,
+  stopSupportAssistAgentUiCapture,
+  clearSupportAssistLoginMirror,
 };
 
 function handleExpiredControlSession() {
@@ -31621,7 +31802,11 @@ async function handleLoginSubmit(event) {
   if (elements.loginForm) {
     elements.loginForm.setAttribute("aria-busy", "true");
   }
-  void pulseSupportAssist("logging_in", { username });
+  void pulseSupportAssist("ui_state", captureSupportAssistUiState({
+    authVisible: true,
+    loggedIn: false,
+    loginUsername: username,
+  }));
   try {
     const payload = await apiRequest(API_BASE + "/api/login", {
       auth: false,
@@ -31655,7 +31840,7 @@ async function handleLoginSubmit(event) {
     persistSessionToken(token);
     state.currentUser = payload.user;
     broadcastSessionToEmbeds();
-    void pulseSupportAssist("logged_in", { role: payload.user?.role || "", view: getCurrentViewName() });
+    void pulseSupportAssist("ui_state", captureSupportAssistUiState({ loggedIn: true, authVisible: false }));
     clearSupportLoginContext();
     state.supportLoginContext = null;
     elements.loginForm.reset();
@@ -31863,7 +32048,7 @@ async function handleLogout(options = {}) {
   const { preserveSupportContext = false } = options;
   const assistAgent = getSupportAssistAgentState();
   if (assistAgent && preserveSupportContext) {
-    await pulseSupportAssist("login_screen", {});
+    await pulseSupportAssist("ui_state", captureSupportAssistUiState({ authVisible: true, loggedIn: false }));
   }
   try {
     if (token) {

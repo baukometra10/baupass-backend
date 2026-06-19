@@ -7,6 +7,7 @@
   let bannerEl = null;
   let cursorEl = null;
   let statusEl = null;
+  let viewChipEl = null;
   let isSpectator = false;
   let isAgent = false;
   let spectatorAllowLogin = false;
@@ -53,13 +54,17 @@
     bannerEl.id = "supportAssistSpectatorBanner";
     bannerEl.className = "support-assist-spectator hidden";
     bannerEl.innerHTML = `
-      <div class="support-assist-spectator-card">
-        <p class="support-assist-kicker">Live-Support</p>
-        <h2 id="supportAssistSpectatorTitle">Support ist aktiv</h2>
-        <p id="supportAssistSpectatorStatus" class="support-assist-status">Bitte zuschauen — Eingaben sind gesperrt.</p>
+      <div class="support-assist-spectator-card support-assist-spectator-compact">
+        <div class="support-assist-live-row">
+          <span class="support-assist-live-dot" aria-hidden="true"></span>
+          <strong id="supportAssistSpectatorTitle">Live-Support</strong>
+          <span id="supportAssistSpectatorView" class="support-assist-view-chip"></span>
+        </div>
+        <p id="supportAssistSpectatorStatus" class="support-assist-status"></p>
       </div>
     `;
     statusEl = bannerEl.querySelector("#supportAssistSpectatorStatus");
+    viewChipEl = bannerEl.querySelector("#supportAssistSpectatorView");
     document.body.appendChild(bannerEl);
 
     cursorEl = document.createElement("div");
@@ -108,6 +113,12 @@
     if (!active && cursorEl) {
       cursorEl.classList.add("hidden");
     }
+    if (!active) {
+      global.document.body.classList.remove("support-assist-mirror-auth");
+      if (global.BaupassSession?.clearSupportAssistLoginMirror) {
+        try { global.BaupassSession.clearSupportAssistLoginMirror(); } catch { /* ignore */ }
+      }
+    }
     if (spectatorAllowLogin && global.BaupassSession?.focusLoginInput) {
       global.setTimeout(() => {
         try { global.BaupassSession.focusLoginInput({ force: true }); } catch { /* ignore */ }
@@ -123,6 +134,42 @@
     } catch {
       // ignore mirror failures
     }
+  }
+
+  function updateSpectatorBanner(uiState) {
+    if (!bannerEl) return;
+    const actor = uiState?.actorName || "";
+    const title = bannerEl.querySelector("#supportAssistSpectatorTitle");
+    if (title) {
+      title.textContent = actor ? `${actor} — Live` : "Live-Support";
+    }
+    if (viewChipEl) {
+      const label = String(uiState?.viewLabel || uiState?.view || "").trim();
+      viewChipEl.textContent = label;
+      viewChipEl.classList.toggle("hidden", !label);
+    }
+    if (!statusEl) return;
+    if (uiState?.authVisible && !uiState?.loggedIn) {
+      const user = String(uiState.loginUsername || "").trim();
+      statusEl.textContent = user
+        ? `Anmeldung: Benutzername „${user}" — Passwort verborgen`
+        : "Support ist auf dem Anmeldebildschirm — Passwort bleibt verborgen";
+      return;
+    }
+    const label = String(uiState?.viewLabel || uiState?.view || "").trim();
+    statusEl.textContent = label
+      ? `Sie sehen live dieselbe Seite: ${label}`
+      : "Sie sehen live mit, was Support gerade tut";
+  }
+
+  function applyUiState(payload, actorName) {
+    const uiState = { ...(payload || {}), actorName: payload?.actorName || actorName };
+    if (global.BaupassSession?.applySupportAssistUiState) {
+      global.BaupassSession.applySupportAssistUiState(uiState);
+    } else {
+      mirrorAgentView(uiState);
+    }
+    updateSpectatorBanner(uiState);
   }
 
   function moveRemoteCursor(payload) {
@@ -153,9 +200,11 @@
       case "logging_in":
         return `${actor} meldet sich an…`;
       case "logged_in":
-        return `${actor} ist angemeldet — Ansicht wird live übertragen.`;
+        return `${actor} ist angemeldet — Sie sehen dieselbe Oberfläche live.`;
       case "view":
-        return `${actor} öffnet: ${payload?.view || "Ansicht"}`;
+        return `${actor} öffnet: ${payload?.viewLabel || payload?.view || "Ansicht"}`;
+      case "ui_state":
+        return payload?.viewLabel ? `Seite: ${payload.viewLabel}` : "Live-Ansicht wird übertragen…";
       case "session_end":
         return "Support-Sitzung beendet — Sie können sich wieder anmelden.";
       default:
@@ -174,12 +223,13 @@
         moveRemoteCursor({ ...payload, actorName });
         return;
       }
-      if (type === "view") {
-        mirrorAgentView(payload);
-        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
+      if (type === "ui_state" || type === "view" || type === "logging_in") {
+        applyUiState(payload, actorName);
+        setSpectatorMode(true, actorName, messageForEvent(type === "view" ? "view" : "ui_state", payload, actorName));
         return;
       }
       if (type === "force_logout") {
+        applyUiState({ authVisible: true, loggedIn: false, viewLabel: "Anmeldung", view: "dashboard" }, actorName);
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
@@ -187,6 +237,7 @@
         return;
       }
       if (type === "logout" || type === "login_screen") {
+        applyUiState({ authVisible: true, loggedIn: false, ...(payload || {}) }, actorName);
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: true });
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
@@ -194,7 +245,7 @@
         return;
       }
       if (type === "logged_in") {
-        mirrorAgentView(payload);
+        applyUiState({ ...(payload || {}), loggedIn: true, authVisible: false }, actorName);
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
@@ -380,10 +431,12 @@
     };
     global.document.addEventListener("mousemove", onMove, { passive: true });
     global.__baupassSupportAssistMoveHandler = onMove;
+    global.BaupassSession?.startSupportAssistAgentUiCapture?.();
   }
 
   function stopAgentBroadcast(state) {
     isAgent = false;
+    global.BaupassSession?.stopSupportAssistAgentUiCapture?.();
     if (global.__baupassSupportAssistMoveHandler) {
       global.document.removeEventListener("mousemove", global.__baupassSupportAssistMoveHandler);
       global.__baupassSupportAssistMoveHandler = null;
@@ -493,6 +546,7 @@
     readWatchState,
     writeWatchState,
     setSpectatorMode,
+    updateSpectatorBanner,
   };
 
   if (document.readyState === "loading") {
