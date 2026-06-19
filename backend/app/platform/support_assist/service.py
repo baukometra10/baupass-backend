@@ -62,21 +62,11 @@ def start_session(db, *, company_id: str, actor_name: str) -> dict[str, Any]:
             "events": [],
         }
         _append_event_locked(cid, "session_start", {"actorName": actor_name})
-        _append_event_locked(cid, "force_logout", {"message": "Support übernimmt — Sie werden abgemeldet."})
-
-    try:
-        db.execute(
-            """
-            DELETE FROM sessions
-            WHERE user_id IN (
-                SELECT id FROM users WHERE company_id = ? AND role = 'company-admin'
-            )
-            """,
-            (cid,),
+        _append_event_locked(
+            cid,
+            "force_logout",
+            {"message": "Support übernimmt — bitte zuschauen, Eingaben sind gesperrt."},
         )
-        db.commit()
-    except Exception:
-        pass
 
     try:
         from backend.app.platform.events.bus import publish_event

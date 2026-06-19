@@ -368,6 +368,14 @@ function getSupportAssistAgentState() {
   return row?.agent && row?.companyId && row?.watchToken ? row : null;
 }
 
+function isSupportAssistUiActive() {
+  return Boolean(
+    getSupportAssistAgentState()
+    || state.supportLoginContext?.companyId
+    || isSupportReadOnlyMode(),
+  );
+}
+
 async function pulseSupportAssist(type, payload) {
   const assist = getSupportAssistAgentState();
   if (!assist || !window.BaupassSupportAssist?.pulse) return;
@@ -18438,6 +18446,8 @@ function clearSession() {
 window.BaupassSession = {
   clearSession,
   refreshAll,
+  setView,
+  focusLoginInput,
 };
 
 function handleExpiredControlSession() {
@@ -18635,14 +18645,18 @@ function startLiveAccessPoll() {
 async function apiRequest(url, options = {}) {
   const { method = "GET", body, auth = true, retries = 1, allowNotFound = false, allowUnauthorized = false } = options;
   const requestUrl = buildApiUrl(url);
-  if (auth && document.body?.classList?.contains("support-assist-spectator-active")) {
-    throw new Error("session_expired");
+  const normalizedMethod = String(method || "GET").toUpperCase();
+  if (
+    auth
+    && document.body?.classList?.contains("support-assist-spectator-active")
+    && !["GET", "HEAD", "OPTIONS"].includes(normalizedMethod)
+  ) {
+    throw new Error("support_spectator_readonly");
   }
   if (auth && !token) {
     handleExpiredControlSession();
     throw new Error("session_expired");
   }
-  const normalizedMethod = String(method || "GET").toUpperCase();
   if (
     auth
     && isSupportReadOnlyMode()
@@ -21707,7 +21721,7 @@ function renderSuperadminPreviewTopbar(loggedIn) {
   }
 
   let previewPill = document.querySelector("#superadminPreviewTopbarPill");
-  const previewActive = loggedIn && isSuperadminCompanyPreviewMode();
+  const previewActive = loggedIn && isSuperadminCompanyPreviewMode() && !isSupportAssistUiActive();
   if (!previewActive) {
     if (previewPill) {
       previewPill.remove();
@@ -21759,7 +21773,7 @@ function renderSuperadminSimulationBar(loggedIn) {
   }
 
   let simulationBar = document.querySelector("#superadminSimulationBar");
-  const previewActive = loggedIn && isSuperadminCompanyPreviewMode();
+  const previewActive = loggedIn && isSuperadminCompanyPreviewMode() && !isSupportAssistUiActive();
   if (!previewActive) {
     if (simulationBar) {
       simulationBar.remove();
@@ -21839,6 +21853,10 @@ function renderSuperadminSidebarCompanyPicker(loggedIn) {
     mount.classList.add("hidden");
     return;
   }
+  if (isSupportAssistUiActive()) {
+    mount.classList.add("hidden");
+    return;
+  }
   mount.classList.remove("hidden");
   const previewId = String(superadminUiPreviewCompanyId || "").trim();
   const options = (state.companies || [])
@@ -21889,7 +21907,7 @@ function renderSuperadminPreviewSidebarStatus(loggedIn) {
   }
 
   let sidebarStatus = document.querySelector("#superadminSidebarPreviewStatus");
-  const previewActive = loggedIn && isSuperadminCompanyPreviewMode();
+  const previewActive = loggedIn && isSuperadminCompanyPreviewMode() && !isSupportAssistUiActive();
   if (!previewActive) {
     if (sidebarStatus) {
       sidebarStatus.remove();
@@ -24627,6 +24645,8 @@ function bindCompanyRowActions() {
     const actorName = getCurrentUser()?.name || getCurrentUser()?.username || "Admin";
     state.supportLoginContext = { companyId, companyName, actorName };
     persistSupportLoginContext(state.supportLoginContext);
+
+    await clearSuperadminPreviewMode({ refresh: false });
 
     let assistState = null;
     try {
@@ -31635,7 +31655,7 @@ async function handleLoginSubmit(event) {
     persistSessionToken(token);
     state.currentUser = payload.user;
     broadcastSessionToEmbeds();
-    void pulseSupportAssist("logged_in", { role: payload.user?.role || "" });
+    void pulseSupportAssist("logged_in", { role: payload.user?.role || "", view: getCurrentViewName() });
     clearSupportLoginContext();
     state.supportLoginContext = null;
     elements.loginForm.reset();
@@ -31842,6 +31862,9 @@ async function maybeHandlePasswordResetToken() {
 async function handleLogout(options = {}) {
   const { preserveSupportContext = false } = options;
   const assistAgent = getSupportAssistAgentState();
+  if (assistAgent && preserveSupportContext) {
+    await pulseSupportAssist("login_screen", {});
+  }
   try {
     if (token) {
       await apiRequest(API_BASE + "/api/logout", { method: "POST" });
@@ -31851,6 +31874,9 @@ async function handleLogout(options = {}) {
   }
 
   if (!preserveSupportContext) {
+    if (assistAgent) {
+      await pulseSupportAssist("logout", { message: "Support hat die Sitzung beendet — Sie können sich anmelden." });
+    }
     if (assistAgent && window.BaupassSupportAssist?.stopAgentBroadcast) {
       window.BaupassSupportAssist.stopAgentBroadcast(assistAgent);
     }

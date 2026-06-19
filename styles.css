@@ -1003,13 +1003,15 @@ body.embed-mode.admin-v2-embed #app {
 
 .support-assist-spectator {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 120000;
   display: grid;
   place-items: start center;
-  padding: 24px 16px;
+  padding: 10px 12px 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(8, 24, 32, 0.42), rgba(8, 24, 32, 0.08) 38%, transparent 72%);
+  background: transparent;
 }
 
 .support-assist-spectator.hidden {
@@ -1017,13 +1019,19 @@ body.embed-mode.admin-v2-embed #app {
 }
 
 .support-assist-spectator-card {
-  max-width: 520px;
-  width: min(92vw, 520px);
-  padding: 16px 18px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
+  max-width: min(720px, 96vw);
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid rgba(15, 76, 92, 0.18);
-  box-shadow: 0 18px 48px rgba(8, 24, 32, 0.18);
+  box-shadow: 0 10px 28px rgba(8, 24, 32, 0.14);
+}
+
+.support-assist-spectator.support-assist-spectator-login-ready .support-assist-spectator-card,
+body.support-assist-spectator-login-ready .support-assist-spectator-card {
+  border-color: rgba(22, 163, 74, 0.35);
+  box-shadow: 0 10px 28px rgba(22, 163, 74, 0.12);
 }
 
 .support-assist-kicker {
@@ -1082,6 +1090,19 @@ body.support-assist-spectator-active .topbar,
 body.support-assist-spectator-active main {
   pointer-events: none !important;
   user-select: none !important;
+}
+
+body.support-assist-spectator-active.support-assist-spectator-login-ready .auth-overlay,
+body.support-assist-spectator-active.support-assist-spectator-login-ready .auth-panel,
+body.support-assist-spectator-active.support-assist-spectator-login-ready .auth-form,
+body.support-assist-spectator-active.support-assist-spectator-login-ready #loginForm,
+body.support-assist-spectator-active.support-assist-spectator-login-ready #loginForm input,
+body.support-assist-spectator-active.support-assist-spectator-login-ready #loginForm select,
+body.support-assist-spectator-active.support-assist-spectator-login-ready #loginForm button,
+body.support-assist-spectator-active.support-assist-spectator-login-ready #loginSupportNotice {
+  pointer-events: auto !important;
+  user-select: auto !important;
+  cursor: auto !important;
 }
 
 body.support-assist-spectator-active input,

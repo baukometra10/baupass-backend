@@ -1314,6 +1314,76 @@ class WorkersService:
             }
         }
 
+    def export_workers_signatures_zip(
+        self, db, user: dict[str, Any], *, include_deleted: bool
+    ) -> dict[str, Any]:
+        import base64
+        import io
+        import re
+        import zipfile
+        from datetime import datetime
+
+        where_clause, params = self._export_where_clause(
+            user, include_deleted=include_deleted
+        )
+        where_clause = (
+            f"{where_clause}{' AND' if where_clause else ' WHERE'} "
+            "COALESCE(workers.compliance_signature_data, '') != '' "
+            "AND COALESCE(workers.worker_type, 'worker') != 'visitor'"
+        )
+        rows = db.execute(
+            f"""
+            SELECT workers.id, workers.first_name, workers.last_name, workers.badge_id,
+                   workers.compliance_signature_data
+            FROM workers
+            {where_clause}
+            ORDER BY workers.last_name, workers.first_name
+            """,
+            params,
+        ).fetchall()
+
+        buf = io.BytesIO()
+        generated = 0
+        used_names: set[str] = set()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
+            for row in rows:
+                sig = str(row["compliance_signature_data"] or "").strip()
+                if not sig.startswith("data:image"):
+                    continue
+                try:
+                    _, encoded = sig.split(",", 1)
+                    raw = base64.b64decode(encoded)
+                except Exception:
+                    continue
+                safe_base = re.sub(
+                    r"[^A-Za-z0-9_-]+",
+                    "_",
+                    f"{row['last_name']}_{row['first_name']}_{row['badge_id'] or row['id']}",
+                )[:60]
+                filename = f"{safe_base}.png"
+                suffix = 2
+                while filename in used_names:
+                    filename = f"{safe_base}_{suffix}.png"
+                    suffix += 1
+                used_names.add(filename)
+                archive.writestr(filename, raw)
+                generated += 1
+
+        if generated == 0:
+            return {"error": {"error": "no_signatures"}, "status": 404}
+
+        buf.seek(0)
+        today = datetime.now().strftime("%Y-%m-%d")
+        return {
+            "response": {
+                "data": buf.getvalue(),
+                "mimetype": "application/zip",
+                "headers": {
+                    "Content-Disposition": f'attachment; filename="unterschriften-{today}.zip"'
+                },
+            }
+        }
+
     def export_attendance_pdf(
         self, db, user: dict[str, Any], *, date_param: str
     ) -> dict[str, Any]:

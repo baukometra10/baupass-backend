@@ -4,11 +4,12 @@
   let publicWatchTimer = null;
   let publicWatchCompanyId = "";
   let lastSeq = 0;
-  let overlayEl = null;
+  let bannerEl = null;
   let cursorEl = null;
   let statusEl = null;
   let isSpectator = false;
   let isAgent = false;
+  let spectatorAllowLogin = false;
 
   function readWatchState() {
     try {
@@ -35,20 +36,31 @@
     return String(global.API_BASE || global.location.origin || "").replace(/\/+$/, "");
   }
 
-  function ensureOverlay() {
-    if (overlayEl) return overlayEl;
-    overlayEl = document.createElement("div");
-    overlayEl.id = "supportAssistSpectatorOverlay";
-    overlayEl.className = "support-assist-spectator hidden";
-    overlayEl.innerHTML = `
+  function isLoginTarget(target) {
+    if (!target || !target.closest) return false;
+    return Boolean(
+      target.closest(
+        "#authOverlay, .auth-panel, .auth-form, #loginForm, #loginUsername, #loginPassword, "
+        + "#loginSubmitButton, #loginOtpCode, #loginScope, #loginSetupEmail, .auth-lang-field, "
+        + "#loginSupportNotice, .server-auth-shell, #f",
+      ),
+    );
+  }
+
+  function ensureBanner() {
+    if (bannerEl) return bannerEl;
+    bannerEl = document.createElement("div");
+    bannerEl.id = "supportAssistSpectatorBanner";
+    bannerEl.className = "support-assist-spectator hidden";
+    bannerEl.innerHTML = `
       <div class="support-assist-spectator-card">
         <p class="support-assist-kicker">Live-Support</p>
         <h2 id="supportAssistSpectatorTitle">Support ist aktiv</h2>
         <p id="supportAssistSpectatorStatus" class="support-assist-status">Bitte zuschauen — Eingaben sind gesperrt.</p>
       </div>
     `;
-    statusEl = overlayEl.querySelector("#supportAssistSpectatorStatus");
-    document.body.appendChild(overlayEl);
+    statusEl = bannerEl.querySelector("#supportAssistSpectatorStatus");
+    document.body.appendChild(bannerEl);
 
     cursorEl = document.createElement("div");
     cursorEl.id = "supportAssistRemoteCursor";
@@ -56,18 +68,20 @@
     cursorEl.innerHTML = `<span class="support-assist-remote-cursor-label">Support</span>`;
     document.body.appendChild(cursorEl);
 
-    document.addEventListener("mousemove", blockSpectatorInput, true);
     document.addEventListener("mousedown", blockSpectatorInput, true);
     document.addEventListener("keydown", blockSpectatorInput, true);
     document.addEventListener("touchstart", blockSpectatorInput, true);
     document.addEventListener("click", blockSpectatorInput, true);
-    return overlayEl;
+    return bannerEl;
   }
 
   function blockSpectatorInput(event) {
     if (!isSpectator) return;
     const target = event.target;
-    if (target && target.closest && target.closest("#supportAssistSpectatorOverlay")) {
+    if (target && target.closest && target.closest("#supportAssistSpectatorBanner")) {
+      return;
+    }
+    if (spectatorAllowLogin && isLoginTarget(target)) {
       return;
     }
     event.preventDefault();
@@ -75,12 +89,16 @@
     return false;
   }
 
-  function setSpectatorMode(active, actorName, message) {
+  function setSpectatorMode(active, actorName, message, options) {
+    const opts = options || {};
     isSpectator = Boolean(active);
-    const overlay = ensureOverlay();
-    overlay.classList.toggle("hidden", !active);
+    spectatorAllowLogin = Boolean(opts.allowLogin);
+    const banner = ensureBanner();
+    banner.classList.toggle("hidden", !active);
+    banner.classList.toggle("support-assist-spectator-login-ready", spectatorAllowLogin);
     document.body.classList.toggle("support-assist-spectator-active", active);
-    const title = overlay.querySelector("#supportAssistSpectatorTitle");
+    document.body.classList.toggle("support-assist-spectator-login-ready", spectatorAllowLogin);
+    const title = banner.querySelector("#supportAssistSpectatorTitle");
     if (title) {
       title.textContent = actorName ? `${actorName} übernimmt` : "Support ist aktiv";
     }
@@ -89,6 +107,21 @@
     }
     if (!active && cursorEl) {
       cursorEl.classList.add("hidden");
+    }
+    if (spectatorAllowLogin && global.BaupassSession?.focusLoginInput) {
+      global.setTimeout(() => {
+        try { global.BaupassSession.focusLoginInput({ force: true }); } catch { /* ignore */ }
+      }, 120);
+    }
+  }
+
+  function mirrorAgentView(payload) {
+    const view = String(payload?.view || "").trim();
+    if (!view || !global.BaupassSession?.setView) return;
+    try {
+      global.BaupassSession.setView(view);
+    } catch {
+      // ignore mirror failures
     }
   }
 
@@ -110,21 +143,21 @@
     const actor = payload?.actorName || actorName || "Support";
     switch (type) {
       case "session_start":
-        return `${actor} startet eine Support-Sitzung.`;
+        return `${actor} startet eine Support-Sitzung. Sie sehen live mit, was geöffnet wird.`;
       case "force_logout":
-        return payload?.message || "Sie wurden abgemeldet — Support übernimmt.";
+        return payload?.message || "Support übernimmt — bitte zuschauen, Eingaben sind gesperrt.";
       case "logout":
-        return `${actor} meldet sich ab…`;
+        return payload?.message || `${actor} hat sich abgemeldet. Sie können sich jetzt anmelden.`;
       case "login_screen":
-        return `${actor} ist auf dem Anmeldebildschirm.`;
+        return `${actor} ist auf dem Anmeldebildschirm. Sie können sich anmelden, sobald Support fertig ist.`;
       case "logging_in":
         return `${actor} meldet sich an…`;
       case "logged_in":
-        return `${actor} ist angemeldet.`;
+        return `${actor} ist angemeldet — Ansicht wird live übertragen.`;
       case "view":
         return `${actor} öffnet: ${payload?.view || "Ansicht"}`;
       case "session_end":
-        return "Support-Sitzung beendet.";
+        return "Support-Sitzung beendet — Sie können sich wieder anmelden.";
       default:
         return payload?.message || "Support ist aktiv — bitte zuschauen.";
     }
@@ -141,11 +174,28 @@
         moveRemoteCursor({ ...payload, actorName });
         return;
       }
+      if (type === "view") {
+        mirrorAgentView(payload);
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
+        return;
+      }
       if (type === "force_logout") {
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
-        if (global.BaupassSession?.clearSession) {
-          try { global.BaupassSession.clearSession(); } catch { /* ignore */ }
+        if (global.BaupassSession?.refreshAll) {
+          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
         }
+        return;
+      }
+      if (type === "logout" || type === "login_screen") {
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: true });
+        if (global.BaupassSession?.refreshAll) {
+          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
+        }
+        return;
+      }
+      if (type === "logged_in") {
+        mirrorAgentView(payload);
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
         if (global.BaupassSession?.refreshAll) {
           try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
         }
@@ -155,6 +205,9 @@
         setSpectatorMode(false);
         writeWatchState(null);
         stopPolling();
+        if (global.BaupassSession?.refreshAll) {
+          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
+        }
         return;
       }
       setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
@@ -182,6 +235,9 @@
           setSpectatorMode(false);
           writeWatchState(null);
           stopPolling();
+          if (global.BaupassSession?.refreshAll) {
+            try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
+          }
         }
         return;
       }
@@ -194,7 +250,7 @@
   function startPolling(state) {
     writeWatchState(state);
     lastSeq = 0;
-    ensureOverlay();
+    ensureBanner();
     setSpectatorMode(true, state?.actorName, "Support verbindet…");
     stopPolling();
     pollOnce();
@@ -307,6 +363,7 @@
   function startAgentBroadcast(state) {
     if (!state?.companyId || !state?.watchToken) return;
     isAgent = true;
+    setSpectatorMode(false);
     writeWatchState({ companyId: state.companyId, watchToken: state.watchToken, actorName: state.actorName, agent: true });
     const onMove = (event) => {
       pendingMouse = {
@@ -387,7 +444,7 @@
       actorName: data.actorName || actorName,
     };
     startAgentBroadcast(state);
-    await pulse(state, "logout", { message: "Support meldet sich ab…" });
+    await pulse(state, "session_start", {});
     return state;
   }
 

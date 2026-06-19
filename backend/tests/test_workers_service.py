@@ -1,6 +1,7 @@
 """WorkersService — repository-backed core endpoints."""
 from __future__ import annotations
 
+import io
 import sqlite3
 import tempfile
 import unittest
@@ -348,6 +349,30 @@ class WorkersServiceTest(unittest.TestCase):
         data = result["response"]["data"].decode("utf-8-sig")
         self.assertIn("first_name", data)
         self.assertIn("Max", data)
+
+    @patch("backend.server.visible_worker_clause", return_value=(" WHERE workers.company_id = ?", ["cmp-a"]))
+    def test_export_workers_signatures_zip(self, _clause):
+        import zipfile
+
+        self.conn.execute(
+            "UPDATE workers SET compliance_signature_data = ? WHERE id = 'wrk-1'",
+            ("data:image/png;base64,iVBORw0KGgo=",),
+        )
+        self.conn.commit()
+        user = {"role": "company-admin", "company_id": "cmp-a"}
+        result = self.svc.export_workers_signatures_zip(self.conn, user, include_deleted=False)
+        self.assertIn("response", result)
+        with zipfile.ZipFile(io.BytesIO(result["response"]["data"])) as archive:
+            names = archive.namelist()
+        self.assertEqual(len(names), 1)
+        self.assertTrue(names[0].endswith(".png"))
+
+    @patch("backend.server.visible_worker_clause", return_value=(" WHERE workers.company_id = ?", ["cmp-a"]))
+    def test_export_workers_signatures_zip_empty(self, _clause):
+        user = {"role": "company-admin", "company_id": "cmp-a"}
+        result = self.svc.export_workers_signatures_zip(self.conn, user, include_deleted=False)
+        self.assertEqual(result["status"], 404)
+        self.assertEqual(result["error"]["error"], "no_signatures")
 
     def test_import_workers_csv_invalid_empty(self):
         user = {"role": "superadmin", "company_id": None}

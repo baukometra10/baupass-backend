@@ -812,10 +812,11 @@
                   </select>
                 </label>
               </div>
-              <div style="display: flex; gap: 8px; margin-top: 20px;">
-                <button id="exportCsvBtn" type="button" class="primary-button" style="flex: 1;" data-ui-i18n="btnExportCsv">CSV exportieren</button>
-                <button id="exportPdfBtn" type="button" class="primary-button" style="flex: 1;" data-ui-i18n="btnExportPdf">PDF exportieren</button>
-                <button id="exportCancelBtn" type="button" class="ghost-button" style="flex: 1;" data-ui-i18n="btnExportCancel">Abbrechen</button>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px;">
+                <button id="exportCsvBtn" type="button" class="primary-button" style="flex: 1; min-width: 120px;" data-ui-i18n="btnExportCsv">CSV exportieren</button>
+                <button id="exportPdfBtn" type="button" class="primary-button" style="flex: 1; min-width: 120px;" data-ui-i18n="btnExportPdf">PDF exportieren</button>
+                <button id="exportSignaturesZipBtn" type="button" class="primary-button" style="flex: 1; min-width: 120px;" data-ui-i18n="btnExportSignaturesZip">Unterschriften (ZIP)</button>
+                <button id="exportCancelBtn" type="button" class="ghost-button" style="flex: 1; min-width: 120px;" data-ui-i18n="btnExportCancel">Abbrechen</button>
               </div>
             </div>
             <div id="exportModalBackdrop" class="export-modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1000;"></div>
@@ -2258,7 +2259,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
-  <script src="./support-assist-client.js?v=20260601assist1"></script>
+  <script src="./support-assist-client.js?v=20260618assist2"></script>
   <script src="./app.js?v=20260615localpreview2"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>

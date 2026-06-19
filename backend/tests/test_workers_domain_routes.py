@@ -21,6 +21,7 @@ class WorkersDomainRoutesTest(unittest.TestCase):
             "/api/workers/stats",
             "/api/workers/current-visitors",
             "/api/workers/export.csv",
+            "/api/workers/export.signatures.zip",
             "/api/workers/import-csv",
         ):
             self.assertIn(path, self.rules, msg=f"missing {path}")
