@@ -104,7 +104,7 @@ def register_admin_blueprint(flask_app: Flask) -> None:
 
     @admin_v2_bp.get("/admin/usage-stats")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_usage_stats():
         cid = company_id_from_user()
         if not cid:
@@ -114,7 +114,7 @@ def register_admin_blueprint(flask_app: Flask) -> None:
 
     @admin_v2_bp.get("/admin/usage-trends")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_usage_trends():
         cid = company_id_from_user()
         if not cid:
@@ -124,7 +124,7 @@ def register_admin_blueprint(flask_app: Flask) -> None:
 
     @admin_v2_bp.get("/admin/feature-usage")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_feature_usage():
         cid = company_id_from_user()
         if not cid:
@@ -134,38 +134,29 @@ def register_admin_blueprint(flask_app: Flask) -> None:
 
     @admin_v2_bp.get("/admin/satisfaction-surveys")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_satisfaction_surveys():
-        from flask import g
-
         cid = company_id_from_user()
-        role = str(getattr(g, "current_user", {}).get("role") or "")
-        scope = cid if role != "superadmin" or cid else None
-        if role == "company-admin" and not cid:
-            return forbidden_company()
+        scope = cid if cid else None
         limit = int(request.args.get("limit") or 100)
         return jsonify(list_satisfaction_surveys(get_db(), scope, limit=limit))
 
     @admin_v2_bp.get("/admin/satisfaction-survey/mail-status")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_survey_mail_status():
         return jsonify(check_mail_provider_ready(get_db()))
 
     @admin_v2_bp.get("/admin/satisfaction-survey/invite-candidates")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_survey_invite_candidates():
-        from flask import g
-
         cid = company_id_from_user()
-        if str(getattr(g, "current_user", {}).get("role") or "") == "company-admin" and not cid:
-            return forbidden_company()
         return jsonify(list_invite_candidates(get_db(), cid))
 
     @admin_v2_bp.post("/admin/satisfaction-survey/invite")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin")
     def v2_admin_survey_send_invite():
         cid = company_id_from_user()
         data = request.get_json(force=True, silent=True) or {}

@@ -76,7 +76,10 @@ function applyEmbedStartupTab() {
 
 function applyStartupTab() {
   const params = new URLSearchParams(location.search);
-  const tab = params.get("tab");
+  let tab = params.get("tab");
+  if (tab === "analytics" && !canAccessAnalyticsTab()) {
+    tab = "overview";
+  }
   if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
     switchToTab(tab);
   }
@@ -397,6 +400,24 @@ function getUser() {
   }
 }
 
+function isSuperadminUser() {
+  return String(getUser()?.role || "").toLowerCase() === "superadmin";
+}
+
+function canAccessAnalyticsTab() {
+  return isSuperadminUser();
+}
+
+function applyRoleNavigation() {
+  const showAnalytics = canAccessAnalyticsTab();
+  document.querySelectorAll('.tab[data-tab="analytics"]').forEach((el) => {
+    el.classList.toggle("hidden", !showAnalytics);
+  });
+  if (!showAnalytics && document.querySelector('.tab.active[data-tab="analytics"]')) {
+    switchToTab("overview");
+  }
+}
+
 function companyQuery() {
   const user = getUser();
   if (user.role !== "superadmin") {
@@ -547,6 +568,7 @@ function showDashboard() {
   const sideLine = $("sidebarUserLine");
   if (sideLine) sideLine.textContent = line;
   setupCompanyPicker(user);
+  applyRoleNavigation();
   bindTabNavigation();
   initCommandPalette();
   bindDeploymentModalOnce();
@@ -841,6 +863,9 @@ function bindTabNavigation() {
 }
 
 function switchToTab(tabId) {
+  if (tabId === "analytics" && !canAccessAnalyticsTab()) {
+    tabId = "overview";
+  }
   document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
     const on = btn.dataset.tab === tabId;
     btn.classList.toggle("active", on);
@@ -928,6 +953,9 @@ function renderCommandPaletteList(query) {
   if (!list) return;
   const q = query.toLowerCase();
   commandPaletteFiltered = COMMAND_NAV.filter((item) => {
+    if (item.tab === "analytics" && !canAccessAnalyticsTab()) {
+      return false;
+    }
     const title = t(item.titleKey).toLowerCase();
     const group = t(item.groupKey || "").toLowerCase();
     const extra = String(item.searchTerms || "").toLowerCase();
@@ -2769,6 +2797,10 @@ function bindAnalyticsPeriodButtons() {
 }
 
 async function loadAnalytics() {
+  if (!canAccessAnalyticsTab()) {
+    switchToTab("overview");
+    return;
+  }
   bindAnalyticsPeriodButtons();
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
