@@ -1082,6 +1082,37 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="028",
+        name="employment_contract_sign_sessions",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS employment_contract_sign_sessions (
+                id TEXT PRIMARY KEY,
+                contract_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                role TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                signer_name TEXT NOT NULL DEFAULT '',
+                signature_data TEXT NOT NULL DEFAULT '',
+                sign_place TEXT NOT NULL DEFAULT '',
+                signed_at TEXT,
+                expires_at TEXT NOT NULL,
+                created_by_user_id TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_contract_sign_token
+                ON employment_contract_sign_sessions(token);
+            CREATE INDEX IF NOT EXISTS idx_contract_sign_contract
+                ON employment_contract_sign_sessions(contract_id, role, status);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_contract_sign_contract;
+            DROP INDEX IF EXISTS idx_contract_sign_token;
+            DROP TABLE IF EXISTS employment_contract_sign_sessions;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

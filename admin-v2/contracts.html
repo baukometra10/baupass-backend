@@ -51,29 +51,29 @@
   <header>
     <div>
       <strong>BauPass</strong>
-      <div class="muted">Arbeitsverträge — alle Branchen</div>
+      <div id="pageSubtitle" class="muted">Arbeitsverträge — alle Branchen</div>
     </div>
-    <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
+    <a href="/admin-v2/index.html" id="backLink" class="muted" data-cpi18n="back" style="text-decoration:none;">Zurück zu Betrieb</a>
   </header>
   <main id="mainRoot">
     <section class="panel">
-      <h3>Verträge suchen</h3>
-      <input id="contractSearch" type="search" placeholder="Vertragstitel oder Mitarbeiter-ID" />
+      <h3 data-cpi18n="searchTitle">Verträge suchen</h3>
+      <input id="contractSearch" type="search" data-cpi18n="searchPh" data-cpi18n-attr="placeholder" placeholder="Vertragstitel oder Mitarbeiter-ID" />
       <div id="contractList" class="contract-list" style="margin-top:0.75rem;"></div>
     </section>
     <section class="panel">
-      <h2>AI Arbeitsvertrag</h2>
-      <p class="muted">Für jede Branche und jedes Land — Vertragstyp wählen, Daten ergänzen, KI-Entwurf erzeugen, speichern oder löschen.</p>
+      <h2 data-cpi18n="formTitle">AI Arbeitsvertrag</h2>
+      <p class="muted" data-cpi18n="formDesc">Für jede Branche und jedes Land — Vertragstyp wählen, Daten ergänzen, KI-Entwurf erzeugen, speichern oder löschen.</p>
       <form id="contractForm">
         <div class="grid">
-          <label><span>Firma</span><input id="companyId" readonly /></label>
-          <label><span>Vertragstyp</span><select id="templateId"></select></label>
-          <label><span>Mitarbeiter-ID</span><input id="workerId" placeholder="optional, z. B. wrk-…" /></label>
-          <label><span>Name des Arbeitnehmers</span><input id="employeeName" placeholder="Vor- und Nachname" /></label>
-          <label><span>Adresse des Arbeitnehmers</span><input id="employeeAddress" placeholder="Straße, PLZ Ort" /></label>
-          <label><span>Position / Tätigkeit</span><input id="jobTitle" placeholder="z. B. Verkäufer, Bürokraft, Techniker" /></label>
-          <label><span>Titel</span><input id="contractTitle" value="Arbeitsvertrag" /></label>
-          <label><span>Rechtsraum / Land</span>
+          <label><span data-cpi18n="company">Firma</span><input id="companyId" readonly /></label>
+          <label><span data-cpi18n="template">Vertragstyp</span><select id="templateId"></select></label>
+          <label><span data-cpi18n="workerId">Mitarbeiter-ID</span><input id="workerId" data-cpi18n="workerIdPh" data-cpi18n-attr="placeholder" placeholder="optional, z. B. wrk-…" /></label>
+          <label><span data-cpi18n="employeeName">Name des Arbeitnehmers</span><input id="employeeName" data-cpi18n="employeeNamePh" data-cpi18n-attr="placeholder" placeholder="Vor- und Nachname" /></label>
+          <label><span data-cpi18n="employeeAddress">Adresse des Arbeitnehmers</span><input id="employeeAddress" data-cpi18n="employeeAddressPh" data-cpi18n-attr="placeholder" placeholder="Straße, PLZ Ort" /></label>
+          <label><span data-cpi18n="jobTitle">Position / Tätigkeit</span><input id="jobTitle" data-cpi18n="jobTitlePh" data-cpi18n-attr="placeholder" placeholder="z. B. Verkäufer, Bürokraft, Techniker" /></label>
+          <label><span data-cpi18n="title">Titel</span><input id="contractTitle" value="Arbeitsvertrag" /></label>
+          <label><span data-cpi18n="jurisdiction">Rechtsraum / Land</span>
             <select id="jurisdiction">
               <optgroup label="Europa">
                 <option value="DE">Deutschland</option>
@@ -120,20 +120,20 @@
               <option value="INT">International / sonstiges Recht</option>
             </select>
           </label>
-          <label><span>Sprache des Vertrags</span><select id="language"><option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option></select></label>
-          <label><span>Arbeitsbeginn</span><input id="startDate" type="date" /></label>
-          <label><span>Vertragsende (befristet)</span><input id="endDate" type="date" /></label>
-          <label><span>Arbeitsort</span><input id="workLocation" placeholder="z. B. Hauptsitz, Filiale, Homeoffice" /></label>
-          <label><span>Wochenstunden</span><input id="weeklyHours" placeholder="z. B. 40" /></label>
-          <label><span>Urlaubstage</span><input id="vacationDays" placeholder="z. B. 30" /></label>
-          <label><span>Probezeit (Monate)</span><input id="probationMonths" placeholder="z. B. 6" /></label>
-          <label><span>Vergütungsart</span>
+          <label><span data-cpi18n="language">Sprache des Vertrags</span><select id="language"><option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option><option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option><option value="it">IT</option><option value="pl">PL</option></select></label>
+          <label><span data-cpi18n="startDate">Arbeitsbeginn</span><input id="startDate" type="date" /></label>
+          <label><span data-cpi18n="endDate">Vertragsende (befristet)</span><input id="endDate" type="date" /></label>
+          <label><span data-cpi18n="workLocation">Arbeitsort</span><input id="workLocation" data-cpi18n="workLocationPh" data-cpi18n-attr="placeholder" placeholder="z. B. Hauptsitz, Filiale, Homeoffice" /></label>
+          <label><span data-cpi18n="weeklyHours">Wochenstunden</span><input id="weeklyHours" data-cpi18n="weeklyHoursPh" data-cpi18n-attr="placeholder" placeholder="z. B. 40" /></label>
+          <label><span data-cpi18n="vacationDays">Urlaubstage</span><input id="vacationDays" data-cpi18n="vacationDaysPh" data-cpi18n-attr="placeholder" placeholder="z. B. 30" /></label>
+          <label><span data-cpi18n="probation">Probezeit (Monate)</span><input id="probationMonths" data-cpi18n="probationPh" data-cpi18n-attr="placeholder" placeholder="z. B. 6" /></label>
+          <label><span data-cpi18n="salaryType">Vergütungsart</span>
             <select id="salaryType">
-              <option value="monthly_fixed">Monatsgehalt (fest)</option>
-              <option value="hourly">Stundenlohn</option>
+              <option value="monthly_fixed" data-cpi18n="salaryMonthly">Monatsgehalt (fest)</option>
+              <option value="hourly" data-cpi18n="salaryHourly">Stundenlohn</option>
             </select>
           </label>
-          <label><span>Währung</span>
+          <label><span data-cpi18n="currency">Währung</span>
             <select id="currency">
               <option value="EUR">EUR</option>
               <option value="USD">USD</option>
@@ -146,34 +146,33 @@
               <option value="EGP">EGP</option>
             </select>
           </label>
-          <label id="salaryMonthlyWrap"><span>Bruttogehalt pro Monat</span><input id="salaryMonthly" placeholder="z. B. 2500" /></label>
-          <label id="salaryHourlyWrap" class="hidden"><span>Stundenlohn</span><input id="salaryHourly" placeholder="z. B. 18.50" /></label>
+          <label id="salaryMonthlyWrap"><span data-cpi18n="grossMonthly">Bruttogehalt pro Monat</span><input id="salaryMonthly" data-cpi18n="grossMonthlyPh" data-cpi18n-attr="placeholder" placeholder="z. B. 2500" /></label>
+          <label id="salaryHourlyWrap" class="hidden"><span data-cpi18n="hourlyRate">Stundenlohn</span><input id="salaryHourly" data-cpi18n="hourlyRatePh" data-cpi18n-attr="placeholder" placeholder="z. B. 18.50" /></label>
         </div>
         <div class="notes-composer">
-          <label><span>Vorgaben und Vertragsinhalte</span></label>
+          <label><span data-cpi18n="notes">Vorgaben und Vertragsinhalte</span></label>
           <div class="bp-ai-composer-row">
-            <textarea id="notes" placeholder="Beschreiben Sie kurz den Vertrag — KI erstellt den vollständigen Text mit allen Paragraphen."></textarea>
+            <textarea id="notes" data-cpi18n="notesPh" data-cpi18n-attr="placeholder" placeholder="Beschreiben Sie kurz den Vertrag — KI erstellt den vollständigen Text mit allen Paragraphen."></textarea>
             <button type="button" id="notesVoiceBtn" class="bp-ai-voice-btn" title="Spracheingabe">🎤</button>
           </div>
-          <p id="notesVoiceHint" class="muted" style="font-size:0.75rem;margin:0.35rem 0 0;">Mikrofon: tippen → sprechen → erneut tippen.</p>
+          <p id="notesVoiceHint" class="muted" data-cpi18n="voiceHint" style="font-size:0.75rem;margin:0.35rem 0 0;">Mikrofon: tippen → sprechen → erneut tippen.</p>
         </div>
         <div class="actions">
-          <button type="button" class="primary" id="generateBtn">KI-Entwurf erstellen</button>
-          <button type="button" id="saveBtn">Speichern</button>
-          <button type="button" id="pdfBtn">PDF herunterladen</button>
-          <button type="button" id="printBtn">Drucken / Unterschrift</button>
-          <button type="button" class="danger" id="deleteBtn">Vertrag löschen</button>
+          <button type="button" class="primary" id="generateBtn" data-cpi18n="genDraft">KI-Entwurf erstellen</button>
+          <button type="button" id="saveBtn" data-cpi18n="save">Speichern</button>
+          <button type="button" id="pdfBtn" data-cpi18n="pdf">PDF herunterladen</button>
+          <button type="button" id="printBtn" data-cpi18n="print">Drucken / Unterschrift</button>
+          <button type="button" id="signLinkEmployeeBtn" data-cpi18n="signLinkEmployee">Signatur-Link (MA)</button>
+          <button type="button" id="signLinkEmployerBtn" data-cpi18n="signLinkEmployer">Signatur-Link (AG)</button>
+          <button type="button" class="danger" id="deleteBtn" data-cpi18n="delete">Vertrag löschen</button>
         </div>
-        <div class="signing-hint" id="signingHint">
-          <strong>Unterschrift (auch remote):</strong> PDF erzeugen, ausdrucken oder digital öffnen.
-          Arbeitgeber und Arbeitnehmer/-in unterschreiben auf der letzten Seite (Ort, Datum, Unterschrift).
-          Bei räumlicher Trennung: gescannt oder postalisch senden — oder elektronisch unterzeichnen.
-        </div>
-        <textarea id="contractEditor" class="editor" placeholder="Hier erscheint der vollständige Vertragstext…"></textarea>
-        <div id="statusLine" class="status">Noch kein Vertrag geladen.</div>
+        <div class="signing-hint" id="signingHint"></div>
+        <textarea id="contractEditor" class="editor" data-cpi18n="editorPh" data-cpi18n-attr="placeholder" placeholder="Hier erscheint der vollständige Vertragstext…"></textarea>
+        <div id="statusLine" class="status" data-cpi18n="statusEmpty">Noch kein Vertrag geladen.</div>
       </form>
     </section>
   </main>
+  <script src="/admin-v2/contracts-i18n.js?v=20260618contracts1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="/ai-voice-ui.js?v=20260601voice22"></script>
   <script>
@@ -210,12 +209,12 @@
       DE: { currency: "EUR", language: "de" },
       AT: { currency: "EUR", language: "de" },
       CH: { currency: "CHF", language: "de" },
-      FR: { currency: "EUR", language: "en" },
+      FR: { currency: "EUR", language: "fr" },
       NL: { currency: "EUR", language: "en" },
       BE: { currency: "EUR", language: "en" },
-      IT: { currency: "EUR", language: "en" },
-      ES: { currency: "EUR", language: "en" },
-      PL: { currency: "PLN", language: "en" },
+      IT: { currency: "EUR", language: "it" },
+      ES: { currency: "EUR", language: "es" },
+      PL: { currency: "PLN", language: "pl" },
       EU: { currency: "EUR", language: "en" },
       SA: { currency: "SAR", language: "ar" },
       AE: { currency: "AED", language: "ar" },
@@ -226,7 +225,7 @@
       JO: { currency: "JOD", language: "ar" },
       LB: { currency: "LBP", language: "ar" },
       EG: { currency: "EGP", language: "ar" },
-      TR: { currency: "TRY", language: "en" },
+      TR: { currency: "TRY", language: "tr" },
       US: { currency: "USD", language: "en" },
       CA: { currency: "CAD", language: "en" },
       MX: { currency: "MXN", language: "en" },
@@ -240,11 +239,6 @@
       TN: { currency: "TND", language: "ar" },
       ZA: { currency: "ZAR", language: "en" },
       INT: { currency: "EUR", language: "en" },
-    };
-    const SIGNING_HINTS = {
-      de: "<strong>Unterschrift (auch remote):</strong> PDF erzeugen und auf der letzten Seite unterschreiben (Ort, Datum). Rechtsraum und Sprache werden im PDF berücksichtigt. Bei räumlicher Trennung: Scan/Post oder elektronische Signatur.",
-      en: "<strong>Signature (including remote):</strong> Generate the PDF and sign on the last page (place, date). Jurisdiction and language are applied in the PDF. If parties are apart: scan/post or e-sign.",
-      ar: "<strong>التوقيع (بما في ذلك عن بُعد):</strong> أنشئ ملف PDF ووقّع على الصفحة الأخيرة (المكان، التاريخ). يُطبَّق القانون واللغة في الملف. عند التباعد الجغرافي: مسح ضوئي/بريد أو توقيع إلكتروني.",
     };
     function syncLocaleFromJurisdiction(force = false) {
       const code = document.getElementById("jurisdiction").value;
@@ -262,15 +256,13 @@
       });
     }
     function updateSigningHint() {
-      const lang = document.getElementById("language").value;
       const jurisdictionLabel = document.getElementById("jurisdiction").selectedOptions[0]?.textContent || "";
-      const hint = SIGNING_HINTS[lang] || SIGNING_HINTS.de;
-      document.getElementById("signingHint").innerHTML = `${hint}<br><span class="muted">Rechtsraum: ${jurisdictionLabel}</span>`;
+      const hint = window.contractPageT("signingHint");
+      document.getElementById("signingHint").innerHTML = `${hint}<br><span class="muted">${window.contractPageT("jurisdictionLabel")}: ${jurisdictionLabel}</span>`;
     }
     document.getElementById("jurisdiction").addEventListener("change", () => syncLocaleFromJurisdiction(true));
     document.getElementById("language").addEventListener("change", updateSigningHint);
     document.getElementById("currency").addEventListener("change", () => { document.getElementById("currency").dataset.userSet = "1"; });
-    syncLocaleFromJurisdiction(false);
 
     function contractFormPayload() {
       const hourly = document.getElementById("salaryType").value === "hourly";
@@ -344,7 +336,7 @@
       });
       host.innerHTML = rows.length
         ? rows.map((row) => `<button type="button" class="contract-item${row.id === currentContractId ? " active" : ""}" data-id="${row.id}"><strong>${row.title || row.contract_type}</strong><br><span class="muted">${row.first_name || ""} ${row.last_name || ""}</span></button>`).join("")
-        : `<p class="muted">Keine Verträge gefunden.</p>`;
+        : `<p class="muted">${window.contractPageT("noContracts")}</p>`;
       host.querySelectorAll("[data-id]").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const data = await api(`/api/contracts/${btn.getAttribute("data-id")}?company_id=${encodeURIComponent(companyId)}`);
@@ -374,14 +366,35 @@
     function showUpgrade(requiredPlan) {
       document.getElementById("mainRoot").innerHTML = `
         <section class="upgrade-box">
-          <h2>Professional erforderlich</h2>
-          <p class="muted">AI-Arbeitsverträge sind ab dem Plan <strong>${requiredPlan || "professional"}</strong> verfügbar. Bitte Tarif upgraden oder Superadmin kontaktieren.</p>
-          <p><a href="/admin-v2/index.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}#platform">Zur Plattform / Tarife</a></p>
+          <h2>${window.contractPageT("upgradeTitle")}</h2>
+          <p class="muted">${window.contractPageT("upgradeBody", { plan: requiredPlan || "professional" })}</p>
+          <p><a href="/admin-v2/index.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}#platform">${window.contractPageT("upgradeLink")}</a></p>
         </section>`;
+    }
+    async function createSignLink(role) {
+      if (!currentContractId) return;
+      await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: companyId, final_text: document.getElementById("contractEditor").value }),
+      });
+      const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/sign-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: companyId, role }),
+      });
+      const url = data.absoluteUrl || `${location.origin}${data.signUrl}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        document.getElementById("statusLine").textContent = window.contractPageT("linkCopied");
+      } catch {
+        window.prompt(window.contractPageT("linkCreated"), url);
+        document.getElementById("statusLine").textContent = window.contractPageT("linkCreated");
+      }
     }
     async function ensureAccess() {
       if (!companyId) {
-        document.getElementById("statusLine").textContent = "Bitte zuerst eine Firma in Betrieb auswählen.";
+        document.getElementById("statusLine").textContent = window.contractPageT("selectCompany");
         return false;
       }
       try {
@@ -456,6 +469,10 @@
       document.getElementById("statusLine").textContent = "Vertrag gelöscht.";
       await loadContracts();
     });
+    document.getElementById("signLinkEmployeeBtn").addEventListener("click", () => createSignLink("employee"));
+    document.getElementById("signLinkEmployerBtn").addEventListener("click", () => createSignLink("employer"));
+    window.applyContractPageI18n?.();
+    syncLocaleFromJurisdiction(false);
     const langSelect = document.getElementById("language");
     window.BaupassAiUi?.bindVoiceInput?.({ inputId: "notes", buttonId: "notesVoiceBtn", hintId: "notesVoiceHint", lang: langSelect.value, voiceReply: false });
     langSelect.addEventListener("change", () => {

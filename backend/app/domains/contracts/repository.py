@@ -236,6 +236,10 @@ class ContractsRepository:
 
     def delete_contract(self, contract_id: str, company_id: str) -> None:
         self.db.execute(
+            "DELETE FROM employment_contract_sign_sessions WHERE contract_id = ? AND company_id = ?",
+            (contract_id, company_id),
+        )
+        self.db.execute(
             "DELETE FROM employment_contract_events WHERE contract_id = ? AND company_id = ?",
             (contract_id, company_id),
         )
@@ -244,3 +248,78 @@ class ContractsRepository:
             (contract_id, company_id),
         )
         self.db.commit()
+
+    def create_sign_session(
+        self,
+        *,
+        contract_id: str,
+        company_id: str,
+        role: str,
+        token: str,
+        expires_at: str,
+        created_by_user_id: str | None,
+    ) -> dict[str, Any]:
+        session_id = f"csn-{uuid.uuid4().hex[:16]}"
+        now = utc_now_iso()
+        self.db.execute(
+            """
+            INSERT INTO employment_contract_sign_sessions
+            (id, contract_id, company_id, token, role, status, expires_at, created_by_user_id, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            """,
+            (session_id, contract_id, company_id, token, role, expires_at, created_by_user_id, now),
+        )
+        self.db.commit()
+        return self.get_sign_session_by_token(token) or {}
+
+    def get_sign_session_by_token(self, token: str) -> dict[str, Any] | None:
+        row = self.db.execute(
+            "SELECT * FROM employment_contract_sign_sessions WHERE token = ?",
+            (token,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_sign_sessions(self, contract_id: str, company_id: str) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT * FROM employment_contract_sign_sessions
+            WHERE contract_id = ? AND company_id = ?
+            ORDER BY created_at DESC
+            """,
+            (contract_id, company_id),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_signed_sessions(self, contract_id: str, company_id: str) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT * FROM employment_contract_sign_sessions
+            WHERE contract_id = ? AND company_id = ? AND status = 'signed'
+            ORDER BY signed_at ASC
+            """,
+            (contract_id, company_id),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def submit_sign_session(
+        self,
+        token: str,
+        *,
+        signer_name: str,
+        signature_data: str,
+        sign_place: str,
+    ) -> dict[str, Any] | None:
+        session = self.get_sign_session_by_token(token)
+        if not session:
+            return None
+        now = utc_now_iso()
+        self.db.execute(
+            """
+            UPDATE employment_contract_sign_sessions
+            SET status = 'signed', signer_name = ?, signature_data = ?, sign_place = ?, signed_at = ?
+            WHERE token = ? AND status = 'pending'
+            """,
+            (signer_name, signature_data, sign_place, now, token),
+        )
+        self.db.commit()
+        return self.get_sign_session_by_token(token)

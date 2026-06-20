@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +120,7 @@ class ContractsService:
         if not contract:
             raise ValueError("contract_not_found")
         branding = resolve_company_pdf_branding(self.db, company_id)
+        signatures = self._signatures_for_pdf(contract_id, company_id)
         input_data: dict[str, Any] = {}
         raw_input = contract.get("input_json")
         if isinstance(raw_input, str) and raw_input.strip():
@@ -135,6 +138,7 @@ class ContractsService:
                 "input_data": input_data,
             },
             branding=branding,
+            signatures=signatures,
         )
         target_dir = storage_root / "contracts" / company_id
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -142,15 +146,162 @@ class ContractsService:
         file_path = target_dir / safe_name
         file_path.write_bytes(pdf_bytes)
         stored_path = str(file_path)
+        status = "signed" if len(signatures) >= 2 else "final"
         self.repo.update_contract_text(
             contract_id,
             company_id=company_id,
             final_text=str(contract.get("final_text") or contract.get("draft_text") or ""),
-            status="final",
+            status=status,
             pdf_file_path=stored_path,
         )
         updated = self.repo.get_contract(contract_id, company_id)
         return updated, pdf_bytes, file_path
+
+    def create_sign_invite(
+        self,
+        contract_id: str,
+        company_id: str,
+        *,
+        role: str,
+        actor_user_id: str,
+        expires_days: int = 14,
+    ) -> dict[str, Any]:
+        role_code = str(role or "").strip().lower()
+        if role_code not in {"employer", "employee"}:
+            raise ValueError("invalid_sign_role")
+        contract = self.repo.get_contract(contract_id, company_id)
+        if not contract:
+            raise ValueError("contract_not_found")
+        final_text = str(contract.get("final_text") or contract.get("draft_text") or "").strip()
+        if not final_text:
+            raise ValueError("contract_text_required")
+        token = secrets.token_urlsafe(32)
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=max(1, min(expires_days, 90)))).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        session = self.repo.create_sign_session(
+            contract_id=contract_id,
+            company_id=company_id,
+            role=role_code,
+            token=token,
+            expires_at=expires_at,
+            created_by_user_id=actor_user_id,
+        )
+        return {
+            "session": session,
+            "token": token,
+            "signUrl": f"/contract-sign.html?token={token}",
+        }
+
+    def get_public_sign_view(self, token: str) -> dict[str, Any] | None:
+        session = self.repo.get_sign_session_by_token(token)
+        if not session:
+            return None
+        if str(session.get("status") or "") == "pending" and self._session_expired(session):
+            return {"error": "sign_link_expired"}
+
+        contract = self.repo.get_contract(str(session["contract_id"]), str(session["company_id"]))
+        if not contract:
+            return None
+        branding = resolve_company_pdf_branding(self.db, str(session["company_id"]))
+        input_data = self._parse_contract_input(contract)
+        form = input_data.get("form") or {}
+        lang = normalize_lang(contract.get("language"))
+        return {
+            "token": token,
+            "role": session.get("role"),
+            "status": session.get("status"),
+            "signerName": session.get("signer_name") or "",
+            "signedAt": session.get("signed_at"),
+            "expiresAt": session.get("expires_at"),
+            "companyName": branding.get("companyName"),
+            "logoData": branding.get("logoData"),
+            "title": contract.get("title") or document_title(lang, normalize_jurisdiction(form.get("jurisdiction"))),
+            "language": lang,
+            "contractText": str(contract.get("final_text") or contract.get("draft_text") or ""),
+            "employeeName": str(form.get("employee_name") or "").strip(),
+            "downloadReady": str(session.get("status") or "") == "signed",
+        }
+
+    def submit_public_signature(
+        self,
+        token: str,
+        *,
+        signer_name: str,
+        signature_data: str,
+        sign_place: str,
+        storage_root: Path,
+    ) -> dict[str, Any]:
+        session = self.repo.get_sign_session_by_token(token)
+        if not session:
+            raise ValueError("sign_session_not_found")
+        if str(session.get("status") or "") == "signed":
+            raise ValueError("already_signed")
+        if self._session_expired(session):
+            raise ValueError("sign_link_expired")
+        name = str(signer_name or "").strip()
+        sig = str(signature_data or "").strip()
+        if not name:
+            raise ValueError("signer_name_required")
+        updated = self.repo.submit_sign_session(
+            token,
+            signer_name=name,
+            signature_data=sig,
+            sign_place=str(sign_place or "").strip(),
+        )
+        if not updated:
+            raise ValueError("sign_failed")
+        contract_id = str(session["contract_id"])
+        company_id = str(session["company_id"])
+        self.generate_contract_pdf(contract_id, company_id, storage_root)
+        contract = self.repo.get_contract(contract_id, company_id)
+        return {
+            "ok": True,
+            "session": updated,
+            "contract": contract,
+            "download": f"/api/public/contracts/sign/{token}/download.pdf",
+        }
+
+    def list_sign_sessions(self, contract_id: str, company_id: str) -> list[dict[str, Any]]:
+        return self.repo.list_sign_sessions(contract_id, company_id)
+
+    def _signatures_for_pdf(self, contract_id: str, company_id: str) -> dict[str, Any]:
+        signed = self.repo.get_signed_sessions(contract_id, company_id)
+        out: dict[str, Any] = {}
+        for row in signed:
+            role = str(row.get("role") or "").strip().lower()
+            if role not in {"employer", "employee"}:
+                continue
+            out[role] = {
+                "signer_name": row.get("signer_name") or "",
+                "signature_data": row.get("signature_data") or "",
+                "sign_place": row.get("sign_place") or "",
+                "signed_at": row.get("signed_at") or "",
+            }
+        return out
+
+    @staticmethod
+    def _session_expired(session: dict[str, Any]) -> bool:
+        raw = str(session.get("expires_at") or "").strip()
+        if not raw:
+            return False
+        try:
+            expires = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        return datetime.now(timezone.utc) > expires
+
+    @staticmethod
+    def _parse_contract_input(contract: dict[str, Any]) -> dict[str, Any]:
+        raw = contract.get("input_json")
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str) and raw.strip():
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return {}
+        return {}
 
     def _build_contract_prompt(
         self,

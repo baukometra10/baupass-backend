@@ -1,8 +1,13 @@
 import { STRINGS as BASE_STRINGS } from "./i18n-strings.js";
 import { EXT_STRINGS } from "./i18n-strings-ext.js";
 
+const LANGS_8 = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
+
 const STRINGS = Object.fromEntries(
-  ["de", "en", "ar"].map((lang) => [lang, { ...BASE_STRINGS[lang], ...EXT_STRINGS[lang] }]),
+  LANGS_8.map((lang) => [
+    lang,
+    { ...(BASE_STRINGS[lang] || BASE_STRINGS.en || {}), ...(EXT_STRINGS[lang] || EXT_STRINGS.en || {}) },
+  ]),
 );
 
 /** Maps admin-v2 i18n keys → sector-config term keys from /api/platform/sector-config */
@@ -38,11 +43,11 @@ export function clearSectorTermOverrides() {
 export function getLang() {
   const code =
     localStorage.getItem(LANG_KEY) || localStorage.getItem(SHARED_LANG_KEY) || "de";
-  return STRINGS[code] ? code : "de";
+  return LANGS_8.includes(code) ? code : "de";
 }
 
 export function setLang(code) {
-  if (!STRINGS[code]) return;
+  if (!LANGS_8.includes(code)) return;
   localStorage.setItem(LANG_KEY, code);
   localStorage.setItem(SHARED_LANG_KEY, code);
   applyI18n();

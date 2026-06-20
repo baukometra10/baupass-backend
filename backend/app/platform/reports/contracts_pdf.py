@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import os
 from datetime import datetime, timezone
@@ -79,7 +80,93 @@ def _resolve_pdf_font(lang: str) -> str:
     return "Helvetica"
 
 
-def build_employment_contract_pdf(*, contract: dict[str, Any], branding: dict[str, Any] | None = None) -> bytes:
+def _decode_logo_blob(logo_data: str) -> bytes | None:
+    raw = str(logo_data or "").strip()
+    if not raw.lower().startswith("data:image/"):
+        return None
+    try:
+        _header, payload = raw.split(",", 1)
+        blob = base64.b64decode(payload, validate=False)
+        return blob or None
+    except Exception:
+        return None
+
+
+def _make_page_logo_drawer(logo_data: str, *, max_height_mm: float = 12.0):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+
+    blob = _decode_logo_blob(logo_data)
+    if not blob:
+        return None
+
+    try:
+        img = ImageReader(io.BytesIO(blob))
+        iw, ih = img.getSize()
+    except Exception:
+        return None
+
+    page_w, _page_h = A4
+    max_h = max_height_mm * mm
+    if ih > max_h:
+        ratio = max_h / float(ih)
+        draw_w = iw * ratio
+        draw_h = max_h
+    else:
+        draw_w, draw_h = float(iw), float(ih)
+
+    def _draw(canvas, doc) -> None:
+        x = (page_w - draw_w) / 2.0
+        y = doc.pagesize[1] - doc.topMargin + 2 * mm
+        canvas.saveState()
+        try:
+            canvas.drawImage(img, x, y, width=draw_w, height=draw_h, mask="auto", preserveAspectRatio=True)
+        except Exception:
+            pass
+        canvas.restoreState()
+
+    return _draw
+
+
+def _signature_cell(signature: dict[str, Any] | None, font_name: str, fallback_line: str):
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Image, Paragraph
+
+    sig = signature or {}
+    raw = str(sig.get("signature_data") or "").strip()
+    typed_name = str(sig.get("signer_name") or "").strip()
+
+    if raw.lower().startswith("data:image/"):
+        try:
+            from reportlab.lib.units import mm
+
+            _header, payload = raw.split(",", 1)
+            blob = base64.b64decode(payload, validate=False)
+            if blob:
+                bio = io.BytesIO(blob)
+                img = Image(bio, width=55 * mm, height=18 * mm)
+                img.hAlign = "CENTER"
+                return img
+        except Exception:
+            pass
+
+    if typed_name:
+        styles = getSampleStyleSheet()
+        return Paragraph(
+            f"<para align='center'><i><font size='14'>{_escape_pdf_text(typed_name)}</font></i></para>",
+            styles["Normal"],
+        )
+
+    return fallback_line
+
+
+def build_employment_contract_pdf(
+    *,
+    contract: dict[str, Any],
+    branding: dict[str, Any] | None = None,
+    signatures: dict[str, Any] | None = None,
+) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
     from reportlab.lib.pagesizes import A4
@@ -87,9 +174,8 @@ def build_employment_contract_pdf(*, contract: dict[str, Any], branding: dict[st
     from reportlab.lib.units import mm
     from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    from backend.app.platform.workforce.deployment_branding import logo_image_flowable
-
     branding = branding or {}
+    signatures = signatures or {}
     input_data = _parse_input_data(contract)
     form = input_data.get("form") or {}
     company = input_data.get("company") or {}
@@ -117,13 +203,17 @@ def build_employment_contract_pdf(*, contract: dict[str, Any], branding: dict[st
     body_text = str(contract.get("final_text") or contract.get("draft_text") or "").strip()
     contract_title = document_title(lang, jurisdiction, contract.get("title"))
 
+    logo_data = str(branding.get("logoData") or "")
+    logo_drawer = _make_page_logo_drawer(logo_data)
+    top_margin = 28 * mm if logo_drawer else 18 * mm
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
         leftMargin=20 * mm,
         rightMargin=20 * mm,
-        topMargin=18 * mm,
+        topMargin=top_margin,
         bottomMargin=18 * mm,
         title=contract_title,
     )
@@ -190,12 +280,6 @@ def build_employment_contract_pdf(*, contract: dict[str, Any], branding: dict[st
     )
 
     story: list[Any] = []
-    logo = logo_image_flowable(str(branding.get("logoData") or ""), max_height_mm=14)
-    if logo:
-        logo_table = Table([[logo]], colWidths=[doc.width])
-        logo_table.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
-        story.extend([logo_table, Spacer(1, 2 * mm)])
-
     story.append(Paragraph(_escape_pdf_text(contract_title), title_style))
     story.append(
         Paragraph(
@@ -233,34 +317,55 @@ def build_employment_contract_pdf(*, contract: dict[str, Any], branding: dict[st
             story.append(Paragraph(_escape_pdf_text(block).replace("\n", "<br/>"), section_style))
 
     place_date_label, employer_sign, employee_sign = signature_labels(lang)
+    employer_sig = signatures.get("employer") if isinstance(signatures.get("employer"), dict) else None
+    employee_sig = signatures.get("employee") if isinstance(signatures.get("employee"), dict) else None
+    sign_place = str(
+        (employer_sig or {}).get("sign_place")
+        or (employee_sig or {}).get("sign_place")
+        or form.get("work_location")
+        or ""
+    ).strip()
+    signed_dates = [
+        str((employer_sig or {}).get("signed_at") or "")[:10],
+        str((employee_sig or {}).get("signed_at") or "")[:10],
+    ]
+    signed_dates = [d for d in signed_dates if d]
+    place_date_text = place_date_label
+    if sign_place or signed_dates:
+        place_date_text = f"{place_date_label}: {sign_place or '—'}"
+        if signed_dates:
+            place_date_text += f" · {signed_dates[-1]}"
+
     story.append(PageBreak())
     story.append(Spacer(1, 8 * mm))
     story.append(Paragraph(signing_note(lang), note_style))
     story.append(Spacer(1, 10 * mm))
 
     sign_line = "……………………………………………………………………………………"
+    employer_cell = _signature_cell(employer_sig, font_name, sign_line)
+    employee_cell = _signature_cell(employee_sig, font_name, sign_line)
     sign_table = Table(
         [
-            [sign_line],
-            [place_date_label],
+            [place_date_text],
             ["", ""],
-            [sign_line, sign_line],
+            [employer_cell, employee_cell],
             [employer_sign, employee_sign],
         ],
         colWidths=[doc.width / 2.0 - 4 * mm, doc.width / 2.0 - 4 * mm],
-        rowHeights=[None, None, 10 * mm, None, None],
+        rowHeights=[None, 10 * mm, None, None],
     )
     sign_table.setStyle(
         TableStyle(
             [
                 ("SPAN", (0, 0), (1, 0)),
-                ("SPAN", (0, 1), (1, 1)),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("FONTNAME", (0, 3), (-1, 4), font_name),
-                ("FONTSIZE", (0, 3), (-1, 3), 10),
-                ("TOPPADDING", (0, 3), (-1, 3), 18),
-                ("BOTTOMPADDING", (0, 4), (-1, 4), 0),
+                ("FONTNAME", (0, 0), (-1, 0), font_name),
+                ("FONTSIZE", (0, 0), (-1, 0), 9),
+                ("FONTNAME", (0, 3), (-1, 3), font_name),
+                ("FONTSIZE", (0, 2), (-1, 2), 10),
+                ("TOPPADDING", (0, 2), (-1, 2), 12),
+                ("BOTTOMPADDING", (0, 3), (-1, 3), 0),
             ]
         )
     )
@@ -273,5 +378,8 @@ def build_employment_contract_pdf(*, contract: dict[str, Any], branding: dict[st
         )
     )
 
-    doc.build(story)
+    if logo_drawer:
+        doc.build(story, onFirstPage=logo_drawer, onLaterPages=logo_drawer)
+    else:
+        doc.build(story)
     return buffer.getvalue()

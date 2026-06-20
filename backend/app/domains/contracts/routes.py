@@ -146,5 +146,83 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": "contract_pdf_missing"}), 404
         return send_file(file_path, mimetype="application/pdf", as_attachment=True, download_name=f"{contract_id}.pdf")
 
+    @contracts_core_bp.post("/contracts/<contract_id>/sign-link")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def create_contract_sign_link(contract_id: str):
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        role = str(data.get("role") or "employee").strip().lower()
+        try:
+            result = ContractsService(get_db()).create_sign_invite(
+                contract_id,
+                cid,
+                role=role,
+                actor_user_id=str(g.current_user.get("id") or ""),
+            )
+        except ValueError as exc:
+            code = str(exc)
+            status = 404 if code == "contract_not_found" else 400
+            return jsonify({"error": code}), status
+        base = str(request.host_url or "").rstrip("/")
+        return jsonify({**result, "absoluteUrl": f"{base}{result['signUrl']}"})
+
+    @contracts_core_bp.get("/contracts/<contract_id>/sign-sessions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def list_contract_sign_sessions(contract_id: str):
+        cid = _resolve_company_id()
+        if not cid:
+            return forbidden_company()
+        sessions = ContractsService(get_db()).list_sign_sessions(contract_id, cid)
+        return jsonify({"sessions": sessions})
+
+    @contracts_core_bp.get("/public/contracts/sign/<token>")
+    def public_contract_sign_view(token: str):
+        view = ContractsService(get_db()).get_public_sign_view(token)
+        if not view:
+            return jsonify({"error": "sign_session_not_found"}), 404
+        if view.get("error"):
+            return jsonify(view), 410
+        return jsonify(view)
+
+    @contracts_core_bp.post("/public/contracts/sign/<token>")
+    def public_contract_sign_submit(token: str):
+        data = request.get_json(silent=True) or {}
+        storage_root = Path(BASE_DIR) / "backend" / "uploads"
+        try:
+            result = ContractsService(get_db()).submit_public_signature(
+                token,
+                signer_name=str(data.get("signer_name") or data.get("signerName") or ""),
+                signature_data=str(data.get("signature_data") or data.get("signatureData") or ""),
+                sign_place=str(data.get("sign_place") or data.get("signPlace") or ""),
+                storage_root=storage_root,
+            )
+        except ValueError as exc:
+            code = str(exc)
+            status = 404 if code == "sign_session_not_found" else 400
+            if code == "sign_link_expired":
+                status = 410
+            return jsonify({"error": code}), status
+        return jsonify(result)
+
+    @contracts_core_bp.get("/public/contracts/sign/<token>/download.pdf")
+    def public_contract_sign_download(token: str):
+        service = ContractsService(get_db())
+        session = service.repo.get_sign_session_by_token(token)
+        if not session or str(session.get("status") or "") != "signed":
+            return jsonify({"error": "signed_pdf_not_ready"}), 404
+        contract = service.get_contract(str(session["contract_id"]), str(session["company_id"]))
+        if not contract:
+            return jsonify({"error": "contract_not_found"}), 404
+        file_path = Path(str(contract.get("pdf_file_path") or ""))
+        if not file_path.exists():
+            return jsonify({"error": "contract_pdf_missing"}), 404
+        return send_file(file_path, mimetype="application/pdf", as_attachment=True, download_name=f"{contract['id']}.pdf")
+
     register_blueprint_once(flask_app, contracts_core_bp, url_prefix="/api")
-    print("[baupass] domain/contracts: templates, drafts, contracts, pdf routes registered", flush=True)
+    print("[baupass] domain/contracts: templates, drafts, contracts, pdf, sign routes registered", flush=True)

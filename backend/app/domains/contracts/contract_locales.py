@@ -4,18 +4,18 @@ import re
 from typing import Any
 
 
-SUPPORTED_LANGS = frozenset({"de", "en", "ar"})
+SUPPORTED_LANGS = frozenset({"de", "en", "ar", "tr", "fr", "es", "it", "pl"})
 
 JURISDICTION_META: dict[str, dict[str, Any]] = {
     "DE": {"currency": "EUR", "default_lang": "de", "names": {"de": "Deutschland", "en": "Germany", "ar": "ألمانيا"}},
     "AT": {"currency": "EUR", "default_lang": "de", "names": {"de": "Österreich", "en": "Austria", "ar": "النمسا"}},
     "CH": {"currency": "CHF", "default_lang": "de", "names": {"de": "Schweiz", "en": "Switzerland", "ar": "سويسرا"}},
-    "FR": {"currency": "EUR", "default_lang": "en", "names": {"de": "Frankreich", "en": "France", "ar": "فرنسا"}},
+    "FR": {"currency": "EUR", "default_lang": "fr", "names": {"de": "Frankreich", "en": "France", "ar": "فرنسا"}},
     "NL": {"currency": "EUR", "default_lang": "en", "names": {"de": "Niederlande", "en": "Netherlands", "ar": "هولندا"}},
     "BE": {"currency": "EUR", "default_lang": "en", "names": {"de": "Belgien", "en": "Belgium", "ar": "بلجيكا"}},
-    "IT": {"currency": "EUR", "default_lang": "en", "names": {"de": "Italien", "en": "Italy", "ar": "إيطاليا"}},
-    "ES": {"currency": "EUR", "default_lang": "en", "names": {"de": "Spanien", "en": "Spain", "ar": "إسبانيا"}},
-    "PL": {"currency": "PLN", "default_lang": "en", "names": {"de": "Polen", "en": "Poland", "ar": "بولندا"}},
+    "IT": {"currency": "EUR", "default_lang": "it", "names": {"de": "Italien", "en": "Italy", "ar": "إيطاليا"}},
+    "ES": {"currency": "EUR", "default_lang": "es", "names": {"de": "Spanien", "en": "Spain", "ar": "إسبانيا"}},
+    "PL": {"currency": "PLN", "default_lang": "pl", "names": {"de": "Polen", "en": "Poland", "ar": "بولندا"}},
     "EU": {"currency": "EUR", "default_lang": "en", "names": {"de": "Europäische Union", "en": "European Union", "ar": "الاتحاد الأوروبي"}},
     "SA": {"currency": "SAR", "default_lang": "ar", "names": {"de": "Saudi-Arabien", "en": "Saudi Arabia", "ar": "المملكة العربية السعودية"}},
     "AE": {"currency": "AED", "default_lang": "ar", "names": {"de": "Vereinigte Arabische Emirate", "en": "United Arab Emirates", "ar": "الإمارات العربية المتحدة"}},
@@ -26,7 +26,7 @@ JURISDICTION_META: dict[str, dict[str, Any]] = {
     "JO": {"currency": "JOD", "default_lang": "ar", "names": {"de": "Jordanien", "en": "Jordan", "ar": "الأردن"}},
     "LB": {"currency": "LBP", "default_lang": "ar", "names": {"de": "Libanon", "en": "Lebanon", "ar": "لبنان"}},
     "EG": {"currency": "EGP", "default_lang": "ar", "names": {"de": "Ägypten", "en": "Egypt", "ar": "مصر"}},
-    "TR": {"currency": "TRY", "default_lang": "en", "names": {"de": "Türkei", "en": "Turkey", "ar": "تركيا"}},
+    "TR": {"currency": "TRY", "default_lang": "tr", "names": {"de": "Türkei", "en": "Turkey", "ar": "تركيا"}},
     "US": {"currency": "USD", "default_lang": "en", "names": {"de": "USA", "en": "United States", "ar": "الولايات المتحدة"}},
     "CA": {"currency": "CAD", "default_lang": "en", "names": {"de": "Kanada", "en": "Canada", "ar": "كندا"}},
     "MX": {"currency": "MXN", "default_lang": "en", "names": {"de": "Mexiko", "en": "Mexico", "ar": "المكسيك"}},
@@ -74,7 +74,10 @@ def _t(lang: str, de: str, en: str, ar: str) -> str:
         return ar
     if lang_code == "en":
         return en
-    return de
+    if lang_code == "de":
+        return de
+    # tr, fr, es, it, pl — fallback to English until dedicated strings are added
+    return en
 
 
 def _legal_basis(lang: str, jurisdiction: str) -> str:

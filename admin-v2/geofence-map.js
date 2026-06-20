@@ -43,10 +43,29 @@ export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
     c.bindPopup(z.site_name || "Zone");
   });
 
+  const setMarker = (latVal, lngVal) => {
+    if (map._baupassMarker) {
+      try {
+        map._baupassMarker.remove();
+      } catch {
+        // no-op
+      }
+    }
+    map._baupassMarker = window.L.marker([latVal, lngVal]).addTo(map);
+  };
+
+  const applyCoords = (latVal, lngVal, { center = false } = {}) => {
+    if (latInput) latInput.value = latVal.toFixed(6);
+    if (lngInput) lngInput.value = lngVal.toFixed(6);
+    setMarker(latVal, lngVal);
+    if (center) map.setView([latVal, lngVal], Math.max(map.getZoom(), 15));
+  };
+
   map.on("click", (e) => {
-    if (latInput) latInput.value = e.latlng.lat.toFixed(6);
-    if (lngInput) lngInput.value = e.latlng.lng.toFixed(6);
+    applyCoords(e.latlng.lat, e.latlng.lng);
   });
+
+  map._baupassApplyCoords = applyCoords;
 
   const invalidate = () => {
     try {
@@ -107,4 +126,28 @@ export function mountGeofenceMapWhenReady(containerEl, latInput, lngInput, zones
 export function refreshGeofenceMap() {
   const map = document.getElementById("geofenceMap")?._baupassLeafletMap;
   map?._baupassInvalidate?.();
+}
+
+/** Fill lat/lng from browser geolocation and center the map. */
+export function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { onStatus } = {}) {
+  const map = mapEl?._baupassLeafletMap || document.getElementById("geofenceMap")?._baupassLeafletMap;
+  if (!navigator.geolocation) {
+    onStatus?.("unsupported");
+    return;
+  }
+  onStatus?.("loading");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      if (map?._baupassApplyCoords) {
+        map._baupassApplyCoords(latitude, longitude, { center: true });
+      } else {
+        if (latInput) latInput.value = latitude.toFixed(6);
+        if (lngInput) lngInput.value = longitude.toFixed(6);
+      }
+      onStatus?.("ok");
+    },
+    () => onStatus?.("denied"),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+  );
 }

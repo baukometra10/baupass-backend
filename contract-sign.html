@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BauPass — Vertrag unterschreiben</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
+  <style>
+    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --danger:#f87171; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    header { padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; }
+    main { max-width:920px; margin:0 auto; padding:1rem 1.25rem 2.5rem; display:grid; gap:1rem; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:1rem; }
+    .logo { max-height:48px; max-width:220px; object-fit:contain; }
+    .contract-text { white-space:pre-wrap; line-height:1.55; max-height:360px; overflow:auto; font-size:0.92rem; border:1px solid var(--border); border-radius:10px; padding:0.85rem; background:#0f1419; }
+    label { display:grid; gap:0.35rem; font-size:0.85rem; margin-bottom:0.75rem; }
+    input, button { font:inherit; }
+    input { width:100%; padding:0.6rem 0.7rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); }
+    button { padding:0.65rem 1rem; border-radius:10px; border:1px solid var(--border); background:#164e63; color:var(--text); cursor:pointer; }
+    button.secondary { background:#0f1419; }
+    button:disabled { opacity:0.55; cursor:not-allowed; }
+    .actions { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem; }
+    .muted { color:var(--muted); }
+    .sign-pad-wrap { border:1px dashed var(--border); border-radius:10px; padding:0.5rem; background:#0f1419; }
+    canvas { width:100%; height:160px; touch-action:none; display:block; background:#fff; border-radius:8px; cursor:crosshair; }
+    .error-box { border-color:rgba(248,113,113,0.45); background:rgba(63,29,29,0.35); }
+    .success-box { border-color:rgba(94,234,212,0.35); background:rgba(22,78,99,0.22); }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <img id="companyLogo" class="logo hidden" alt="" />
+      <strong id="companyName">BauPass</strong>
+      <div class="muted" id="pageHint">Vertrag lesen und unterschreiben</div>
+    </div>
+    <span id="roleBadge" class="muted"></span>
+  </header>
+  <main>
+    <section id="errorPanel" class="panel error-box hidden"></section>
+    <section id="donePanel" class="panel success-box hidden">
+      <h2 id="doneTitle">Vielen Dank — Unterschrift gespeichert</h2>
+      <p class="muted" id="doneHint">Sie können das signierte PDF jetzt herunterladen.</p>
+      <div class="actions">
+        <button type="button" id="downloadBtn">PDF herunterladen</button>
+      </div>
+    </section>
+    <section id="signPanel" class="panel hidden">
+      <h2 id="contractTitle">Arbeitsvertrag</h2>
+      <p class="muted" id="employeeLine"></p>
+      <h3>Dokument</h3>
+      <div id="contractText" class="contract-text"></div>
+      <h3 style="margin-top:1rem;">Unterschrift</h3>
+      <label><span>Name (Pflichtfeld)</span><input id="signerName" autocomplete="name" /></label>
+      <label><span>Ort</span><input id="signPlace" autocomplete="address-level2" /></label>
+      <p class="muted" style="margin:0 0 0.5rem;">Unterschrift zeichnen oder nur den Namen eingeben (Schrift-Signatur).</p>
+      <div class="sign-pad-wrap">
+        <canvas id="signCanvas" width="800" height="200"></canvas>
+      </div>
+      <div class="actions">
+        <button type="button" class="secondary" id="clearSignBtn">Löschen</button>
+        <button type="button" id="submitSignBtn">Vertrag unterschreiben</button>
+      </div>
+      <p id="statusLine" class="muted" style="margin-top:0.75rem;"></p>
+    </section>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token") || "";
+    const UI = {
+      de: { hint:"Vertrag lesen und unterschreiben", doc:"Dokument", sign:"Unterschrift", name:"Name (Pflichtfeld)", place:"Ort", drawHint:"Unterschrift zeichnen oder nur den Namen eingeben.", clear:"Löschen", submit:"Vertrag unterschreiben", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Sie können das signierte PDF jetzt herunterladen.", download:"PDF herunterladen", employee:"Mitarbeiter", employer:"Arbeitgeber", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…" },
+      en: { hint:"Read and sign the contract", doc:"Document", sign:"Signature", name:"Name (required)", place:"Place", drawHint:"Draw a signature or type your name only.", clear:"Clear", submit:"Sign contract", done:"Thank you — signature saved", doneHint:"You can download the signed PDF now.", download:"Download PDF", employee:"Employee", employer:"Employer", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…" },
+      ar: { hint:"اقرأ العقد ووقّع", doc:"المستند", sign:"التوقيع", name:"الاسم (مطلوب)", place:"المكان", drawHint:"ارسم التوقيع أو اكتب الاسم فقط.", clear:"مسح", submit:"توقيع العقد", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكنك الآن تحميل PDF الموقّع.", download:"تحميل PDF", employee:"موظف", employer:"صاحب عمل", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…" },
+    };
+    let view = null;
+    let downloadPath = "";
+    const canvas = document.getElementById("signCanvas");
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+    let hasStroke = false;
+
+    function ui(key) {
+      const lang = (view?.language || "de").slice(0, 2);
+      return (UI[lang] || UI.en)[key] || UI.en[key] || key;
+    }
+
+    function applyUi() {
+      document.getElementById("pageHint").textContent = ui("hint");
+      document.querySelector("#signPanel h3").textContent = ui("doc");
+      document.querySelectorAll("#signPanel h3")[1].textContent = ui("sign");
+      document.querySelector('label span').textContent = ui("name");
+      document.querySelectorAll("label span")[1].textContent = ui("place");
+      document.querySelector("#signPanel .muted").textContent = ui("drawHint");
+      document.getElementById("clearSignBtn").textContent = ui("clear");
+      document.getElementById("submitSignBtn").textContent = ui("submit");
+      document.getElementById("doneTitle").textContent = ui("done");
+      document.getElementById("doneHint").textContent = ui("doneHint");
+      document.getElementById("downloadBtn").textContent = ui("download");
+      const lang = (view?.language || "de").slice(0, 2);
+      document.documentElement.lang = lang === "ar" ? "ar" : lang;
+      document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+    }
+
+    function pos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      return { x, y };
+    }
+    function startDraw(e) { drawing = true; hasStroke = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+    function moveDraw(e) { if (!drawing) return; const p = pos(e); ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.strokeStyle = "#111827"; ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+    function endDraw() { drawing = false; }
+    canvas.addEventListener("pointerdown", startDraw);
+    canvas.addEventListener("pointermove", moveDraw);
+    canvas.addEventListener("pointerup", endDraw);
+    canvas.addEventListener("pointerleave", endDraw);
+    document.getElementById("clearSignBtn").addEventListener("click", () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasStroke = false;
+    });
+
+    function showError(msg) {
+      document.getElementById("errorPanel").textContent = msg;
+      document.getElementById("errorPanel").classList.remove("hidden");
+    }
+
+    async function loadView() {
+      if (!token) {
+        showError(UI.de.missing);
+        return;
+      }
+      const res = await fetch(`/api/public/contracts/sign/${encodeURIComponent(token)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(data.error === "sign_link_expired" ? UI.de.expired : (data.error || UI.de.missing));
+        return;
+      }
+      view = data;
+      applyUi();
+      document.getElementById("companyName").textContent = data.companyName || "BauPass";
+      if (data.logoData) {
+        const logo = document.getElementById("companyLogo");
+        logo.src = data.logoData;
+        logo.classList.remove("hidden");
+      }
+      document.getElementById("contractTitle").textContent = data.title || "Arbeitsvertrag";
+      document.getElementById("employeeLine").textContent = data.employeeName || "";
+      document.getElementById("roleBadge").textContent = data.role === "employer" ? ui("employer") : ui("employee");
+      document.getElementById("contractText").textContent = data.contractText || "";
+      if (data.signerName) document.getElementById("signerName").value = data.signerName;
+      if (data.status === "signed") {
+        downloadPath = `/api/public/contracts/sign/${encodeURIComponent(token)}/download.pdf`;
+        document.getElementById("donePanel").classList.remove("hidden");
+        document.getElementById("statusLine").textContent = ui("signed");
+        return;
+      }
+      document.getElementById("signPanel").classList.remove("hidden");
+    }
+
+    document.getElementById("submitSignBtn").addEventListener("click", async () => {
+      const name = document.getElementById("signerName").value.trim();
+      const place = document.getElementById("signPlace").value.trim();
+      if (!name) return;
+      let signatureData = "";
+      if (hasStroke) signatureData = canvas.toDataURL("image/png");
+      document.getElementById("statusLine").textContent = ui("saving");
+      const res = await fetch(`/api/public/contracts/sign/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signer_name: name, signature_data: signatureData, sign_place: place }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        document.getElementById("statusLine").textContent = data.error || "Error";
+        return;
+      }
+      downloadPath = data.download || `/api/public/contracts/sign/${encodeURIComponent(token)}/download.pdf`;
+      document.getElementById("signPanel").classList.add("hidden");
+      document.getElementById("donePanel").classList.remove("hidden");
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      if (!downloadPath) return;
+      window.location.href = downloadPath;
+    });
+
+    loadView().catch(() => showError(UI.de.missing));
+  </script>
+</body>
+</html>

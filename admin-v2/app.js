@@ -1,5 +1,5 @@
 import { applyI18n, getLang, setLang, setSectorTermOverrides, t } from "./i18n.js";
-import { mountGeofenceMapWhenReady, refreshGeofenceMap } from "./geofence-map.js";
+import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
 const TOKEN_KEY = "baupass-admin-v2-token";
@@ -2281,8 +2281,12 @@ async function loadTools() {
         <div id="geofenceMap"></div>
         <form id="geofenceForm" class="tool-form">
           <input name="site_name" placeholder="${t("tools.sitePlaceholder")}" required />
-          <input name="latitude" type="number" step="any" placeholder="${t("tools.lat")}" required />
-          <input name="longitude" type="number" step="any" placeholder="${t("tools.lng")}" required />
+          <div class="geofence-coords-row">
+            <input name="latitude" type="number" step="any" placeholder="${t("tools.lat")}" required />
+            <input name="longitude" type="number" step="any" placeholder="${t("tools.lng")}" required />
+            <button type="button" id="geofenceGpsBtn" class="btn-link" title="${t("tools.useGps")}">📍 ${t("tools.useGps")}</button>
+          </div>
+          <span id="geofenceGpsStatus" class="muted small"></span>
           <input name="radius_meters" type="number" value="50" placeholder="${t("tools.radius")}" />
           <button type="submit">${t("tools.addZone")}</button>
         </form>
@@ -2339,6 +2343,18 @@ async function loadTools() {
     const latIn = gfForm.querySelector('[name="latitude"]');
     const lngIn = gfForm.querySelector('[name="longitude"]');
     mountGeofenceMapWhenReady($("geofenceMap"), latIn, lngIn, gfRows);
+    const gpsStatus = $("geofenceGpsStatus");
+    $("geofenceGpsBtn")?.addEventListener("click", () => {
+      useGeofenceCurrentLocation(latIn, lngIn, $("geofenceMap"), {
+        onStatus: (state) => {
+          if (!gpsStatus) return;
+          if (state === "loading") gpsStatus.textContent = t("tools.gpsLoading");
+          else if (state === "ok") gpsStatus.textContent = t("tools.gpsOk");
+          else if (state === "denied") gpsStatus.textContent = t("tools.gpsDenied");
+          else if (state === "unsupported") gpsStatus.textContent = t("tools.gpsUnsupported");
+        },
+      });
+    });
     $("geofenceForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.target);
