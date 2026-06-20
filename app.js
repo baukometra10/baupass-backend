@@ -363,6 +363,37 @@ function clearSupportLoginContext() {
   }
 }
 
+function stripSupportLoginUrlParams() {
+  try {
+    const url = new URL(window.location.href);
+    let changed = false;
+    [
+      "supportCompanyId",
+      "supportCompanyName",
+      "supportActorName",
+      "supportAssistWatchToken",
+      "loginScope",
+    ].forEach((key) => {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
+    });
+    if (changed) {
+      window.history.replaceState({}, document.title, url.toString());
+    }
+  } catch {
+    // ignore history update failures
+  }
+}
+
+function resetSupportLoginScopeUi() {
+  const loginScopeEl = document.querySelector("#loginScope");
+  if (loginScopeEl) {
+    loginScopeEl.value = "auto";
+  }
+}
+
 function getSupportAssistAgentState() {
   const row = window.BaupassSupportAssist?.readWatchState?.();
   return row?.agent && row?.companyId && row?.watchToken ? row : null;
@@ -658,18 +689,42 @@ function resolveSpectatorCompanyId() {
 function syncSupportAssistSpectatorWatch() {
   const assist = window.BaupassSupportAssist;
   if (!assist) return;
-  const role = String(getCurrentUser()?.role || "").toLowerCase();
-  if (role === "superadmin" && !getSupportAssistAgentState()) {
-    assist.stopPublicSpectatorWatch?.();
-    return;
-  }
+
   if (getSupportAssistAgentState()) {
     assist.stopPublicSpectatorWatch?.();
     return;
   }
-  const companyId = resolveSpectatorCompanyId();
-  if (!companyId) return;
-  assist.startPublicSpectatorWatch?.(companyId);
+
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (role === "superadmin") {
+    assist.stopPublicSpectatorWatch?.();
+    assist.stopPolling?.();
+    return;
+  }
+
+  const watch = assist.readWatchState?.();
+  if (watch?.watchToken && watch?.companyId && !watch?.agent) {
+    return;
+  }
+
+  if (document.body?.classList.contains("support-assist-spectator-active")) {
+    const companyId = resolveSpectatorCompanyId();
+    if (companyId) {
+      assist.startPublicSpectatorWatch?.(companyId);
+    }
+    return;
+  }
+
+  if (role === "company-admin") {
+    const companyId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
+    if (companyId) {
+      assist.startPublicSpectatorWatch?.(companyId);
+    }
+    return;
+  }
+
+  assist.stopPublicSpectatorWatch?.();
+  assist.stopPolling?.();
 }
 const UI_TRANSLATIONS = {
   de: {
@@ -32172,11 +32227,23 @@ async function handleLogout(options = {}) {
         allowCustomerLogin: true,
       });
     }
-    if (assistAgent && window.BaupassSupportAssist?.stopAgentBroadcast) {
+    if (window.BaupassSupportAssist?.resetAfterAgentLogout) {
+      await window.BaupassSupportAssist.resetAfterAgentLogout(assistAgent);
+    } else if (assistAgent && window.BaupassSupportAssist?.stopAgentBroadcast) {
       window.BaupassSupportAssist.stopAgentBroadcast(assistAgent);
+    } else {
+      window.BaupassSupportAssist?.resetSpectatorUi?.();
     }
     clearSupportLoginContext();
     state.supportLoginContext = null;
+    stripSupportLoginUrlParams();
+    resetSupportLoginScopeUi();
+    document.body.classList.remove(
+      "support-assist-mirror-app",
+      "support-assist-mirror-auth",
+      "support-assist-spectator-active",
+      "support-assist-spectator-login-ready",
+    );
   }
   clearSession();
   setView("dashboard");

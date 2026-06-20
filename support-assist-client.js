@@ -469,6 +469,54 @@
     global.BaupassSession?.startSupportAssistAgentUiCapture?.();
   }
 
+  function resetSpectatorUi() {
+    isSpectator = false;
+    isAgent = false;
+    spectatorAllowLogin = false;
+    setSpectatorMode(false);
+    stopPolling();
+    stopPublicSpectatorWatch();
+    global.document.body.classList.remove(
+      "support-assist-mirror-app",
+      "support-assist-mirror-auth",
+      "support-assist-spectator-active",
+      "support-assist-spectator-login-ready",
+    );
+    writeWatchState(null);
+    if (cursorEl) {
+      cursorEl.classList.add("hidden");
+    }
+  }
+
+  async function resetAfterAgentLogout(state) {
+    isAgent = false;
+    global.BaupassSession?.stopSupportAssistAgentUiCapture?.();
+    if (global.__baupassSupportAssistMoveHandler) {
+      global.document.removeEventListener("mousemove", global.__baupassSupportAssistMoveHandler);
+      global.__baupassSupportAssistMoveHandler = null;
+    }
+    if (agentMoveTimer) {
+      global.clearTimeout(agentMoveTimer);
+      agentMoveTimer = null;
+    }
+    if (state?.companyId && state?.watchToken) {
+      const headers = { "Content-Type": "application/json", Accept: "application/json" };
+      const token = global.localStorage?.getItem("baupass-control-token") || "";
+      if (token) headers.Authorization = `Bearer ${token}`;
+      try {
+        await fetch(`${apiBase()}/api/support-assist/end`, {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: JSON.stringify({ companyId: state.companyId, watchToken: state.watchToken }),
+        });
+      } catch {
+        // ignore end-session failures
+      }
+    }
+    resetSpectatorUi();
+  }
+
   function stopAgentBroadcast(state) {
     isAgent = false;
     global.BaupassSession?.stopSupportAssistAgentUiCapture?.();
@@ -570,6 +618,8 @@
     startAssistSession,
     startAgentBroadcast,
     stopAgentBroadcast,
+    resetAfterAgentLogout,
+    resetSpectatorUi,
     startPolling,
     stopPolling,
     startPublicSpectatorWatch,
