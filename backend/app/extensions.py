@@ -26,6 +26,20 @@ def init_extensions(app: "Flask") -> None:
     _init_redis(app)
 
 
+def _redis_connect_hint(host: str) -> str:
+    if "railway.internal" in host:
+        return (
+            "Railway: Redis-Service im gleichen Projekt anlegen, dann REDIS_URL als "
+            "Reference-Variable (nicht manuell kopieren) auf API + Worker setzen."
+        )
+    return "Set REDIS_URL or start Redis."
+
+
+def _probe_redis_socket(host: str, port: int, timeout: float = 0.75) -> None:
+    with socket.create_connection((host, port), timeout=timeout):
+        pass
+
+
 def _init_redis(app: "Flask") -> None:
     """
     تهيئة Redis مع connection pool.
@@ -42,47 +56,71 @@ def _init_redis(app: "Flask") -> None:
         redis_client = None
         return
 
+    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
+    default_retries = 5 if is_railway else 1
     try:
-        parsed = urlparse(redis_url)
-        host = parsed.hostname or "localhost"
-        port = int(parsed.port or 6379)
+        max_attempts = max(1, int(os.getenv("BAUPASS_REDIS_CONNECT_RETRIES", str(default_retries))))
+    except ValueError:
+        max_attempts = default_retries
+
+    parsed = urlparse(redis_url)
+    host = parsed.hostname or "localhost"
+    port = int(parsed.port or 6379)
+    last_exc: Exception | None = None
+
+    for attempt in range(1, max_attempts + 1):
         try:
-            with socket.create_connection((host, port), timeout=0.75):
-                pass
-        except OSError as exc:
-            raise ConnectionError(f"{host}:{port}") from exc
+            _probe_redis_socket(host, port)
 
-        import redis
+            import redis
 
-        pool = redis.ConnectionPool.from_url(
-            redis_url,
-            max_connections=app.config.get("REDIS_MAX_CONNECTIONS", 20),
-            socket_timeout=app.config.get("REDIS_SOCKET_TIMEOUT", 3.0),
-            socket_connect_timeout=3.0,
-            retry_on_timeout=app.config.get("REDIS_RETRY_ON_TIMEOUT", True),
-            decode_responses=True,
-        )
-        redis_client = redis.Redis(connection_pool=pool)
+            pool = redis.ConnectionPool.from_url(
+                redis_url,
+                max_connections=app.config.get("REDIS_MAX_CONNECTIONS", 20),
+                socket_timeout=app.config.get("REDIS_SOCKET_TIMEOUT", 3.0),
+                socket_connect_timeout=3.0,
+                retry_on_timeout=app.config.get("REDIS_RETRY_ON_TIMEOUT", True),
+                decode_responses=True,
+            )
+            redis_client = redis.Redis(connection_pool=pool)
+            redis_client.ping()
+            app.extensions["redis"] = redis_client
+            logger.info("Redis connected: %s", redis_url.split("@")[-1])
+            return
 
-        # اختبار الاتصال
-        redis_client.ping()
-        app.extensions["redis"] = redis_client
-        logger.info("Redis connected: %s", redis_url.split("@")[-1])
+        except ImportError:
+            logger.warning(
+                "redis package not installed. Rate limiting will fall back to in-memory. "
+                "Install: pip install redis"
+            )
+            redis_client = None
+            return
 
-    except ImportError:
-        logger.warning(
-            "redis package not installed. Rate limiting will fall back to in-memory. "
-            "Install: pip install redis"
-        )
-        redis_client = None
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_attempts:
+                delay = min(0.5 * attempt, 2.0)
+                logger.info(
+                    "Redis connect attempt %s/%s failed (%s:%s) — retry in %.1fs",
+                    attempt,
+                    max_attempts,
+                    host,
+                    port,
+                    delay,
+                )
+                import time
 
-    except Exception as exc:
-        logger.warning(
-            "Redis unavailable (%s). Rate limiting falls back to in-memory. "
-            "Set REDIS_URL or start Redis.",
-            exc,
-        )
-        redis_client = None
+                time.sleep(delay)
+                continue
+            break
+
+    hint = _redis_connect_hint(host)
+    logger.warning(
+        "Redis unavailable (%s). Rate limiting falls back to in-memory. %s",
+        last_exc,
+        hint,
+    )
+    redis_client = None
 
 
 def get_redis():
