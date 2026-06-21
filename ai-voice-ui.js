@@ -1,5 +1,5 @@
-/**
- * Shared BauPass AI UI — ChatGPT-style voice + composer (Enterprise Hub, Command Center, Worker).
+﻿/**
+ * Shared SUPPIX AI UI — ChatGPT-style voice + composer (Enterprise Hub, Command Center, Worker).
  */
 (function initBaupassAiUi(global) {
   const LANG_MAP = {
@@ -33,6 +33,11 @@
     de: "Mikrofon: tippen → sprechen (Text erscheint live) → erneut tippen → Senden.",
     en: "Mic: tap → speak (text appears live) → tap again → Send.",
     ar: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
+    tr: "Mikrofon: dokun → konuş (metin canlı görünür) → tekrar dokun → Gönder.",
+    fr: "Micro : appuyer → parler (texte en direct) → réappuyer → Envoyer.",
+    es: "Micrófono: tocar → hablar (texto en vivo) → tocar de nuevo → Enviar.",
+    it: "Microfono: tocca → parla (testo in tempo reale) → tocca di nuovo → Invia.",
+    pl: "Mikrofon: dotknij → mów (tekst na żywo) → dotknij ponownie → Wyślij.",
   };
 
   const LABELS = {
@@ -72,11 +77,71 @@
       unsupported: "الصوت يتطلب HTTPS",
       open: "فتح",
     },
+    tr: {
+      speak: "Sesli giriş",
+      stop: "Dinlemeyi durdur",
+      send: "Gönder",
+      voiceReplyOn: "Sesli yanıt açık — AI sesle yanıtlar",
+      voiceReplyOff: "Sesli yanıt kapalı — yalnızca metin",
+      voiceReplyStop: "Konuşmayı durdur",
+      voiceSpeakingHint: "AI konuşuyor — durdurmak için 🔊",
+      voicePreparingHint: "Sesli yanıt hazırlanıyor…",
+      unsupported: "Ses için HTTPS gerekir",
+      open: "Aç",
+    },
+    fr: {
+      speak: "Saisie vocale",
+      stop: "Arrêter l'écoute",
+      send: "Envoyer",
+      voiceReplyOn: "Réponse vocale activée — l'IA répond à voix haute",
+      voiceReplyOff: "Réponse vocale désactivée — texte uniquement",
+      voiceReplyStop: "Arrêter la lecture",
+      voiceSpeakingHint: "L'IA parle — appuyez sur 🔊 pour arrêter",
+      voicePreparingHint: "Préparation de la réponse vocale…",
+      unsupported: "La voix nécessite HTTPS",
+      open: "Ouvrir",
+    },
+    es: {
+      speak: "Entrada de voz",
+      stop: "Detener escucha",
+      send: "Enviar",
+      voiceReplyOn: "Respuesta por voz activada — la IA responde con voz",
+      voiceReplyOff: "Respuesta por voz desactivada — solo texto",
+      voiceReplyStop: "Detener lectura",
+      voiceSpeakingHint: "La IA está hablando — pulsa 🔊 para detener",
+      voicePreparingHint: "Preparando respuesta de voz…",
+      unsupported: "La voz requiere HTTPS",
+      open: "Abrir",
+    },
+    it: {
+      speak: "Input vocale",
+      stop: "Interrompi ascolto",
+      send: "Invia",
+      voiceReplyOn: "Risposta vocale attiva — l'IA risponde a voce",
+      voiceReplyOff: "Risposta vocale disattivata — solo testo",
+      voiceReplyStop: "Interrompi lettura",
+      voiceSpeakingHint: "L'IA sta parlando — tocca 🔊 per fermare",
+      voicePreparingHint: "Preparazione risposta vocale…",
+      unsupported: "La voce richiede HTTPS",
+      open: "Apri",
+    },
+    pl: {
+      speak: "Wprowadzanie głosowe",
+      stop: "Zatrzymaj nasłuch",
+      send: "Wyślij",
+      voiceReplyOn: "Odpowiedź głosowa włączona — AI odpowiada głosem",
+      voiceReplyOff: "Odpowiedź głosowa wyłączona — tylko tekst",
+      voiceReplyStop: "Zatrzymaj odtwarzanie",
+      voiceSpeakingHint: "AI mówi — dotknij 🔊, aby zatrzymać",
+      voicePreparingHint: "Przygotowywanie odpowiedzi głosowej…",
+      unsupported: "Głos wymaga HTTPS",
+      open: "Otwórz",
+    },
   };
 
   function labelsForLang(lang) {
     const key = resolveLang(lang);
-    return LABELS[key] || LABELS.de;
+    return LABELS[key] || LABELS.en || LABELS.de;
   }
 
   function resolveLang(lang) {
@@ -86,7 +151,8 @@
       global.localStorage?.getItem("baupass-admin-v2-lang") ||
       global.localStorage?.getItem("baupass-worker-lang") ||
       "de";
-    return String(stored).slice(0, 2);
+    const code = String(stored).slice(0, 2).toLowerCase();
+    return Object.prototype.hasOwnProperty.call(LANG_MAP, code) ? code : "de";
   }
 
   function resolveSpeechLang(options) {

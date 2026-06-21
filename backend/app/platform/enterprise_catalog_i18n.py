@@ -176,19 +176,72 @@ NOTE_I18N: dict[str, dict[str, str]] = {
 }
 
 
+HUB_LANGS = ("de", "en", "ar", "tr", "fr", "es", "it", "pl")
+
+
+def _fill_hub_lang_map(base: dict[str, str]) -> dict[str, str]:
+    en = base.get("en") or base.get("de") or ""
+    out = dict(base)
+    for lang in HUB_LANGS:
+        out.setdefault(lang, en)
+    return out
+
+
 def enrich_catalog_i18n(catalog: dict) -> dict:
-    """Attach labelDe, titleDe, and noteI18n for hub language switching."""
+    """Attach localized titles/labels for all 8 hub languages."""
+    from .enterprise_catalog_labels_extra import (
+        ITEM_LABEL_EXTRA,
+        LAYER_TITLE_EXTRA,
+        NOTE_EXTRA,
+        SURFACE_LABEL_EXTRA,
+    )
+
+    surface_labels = catalog.get("surfaceLabels") or {}
+    for surface, row in surface_labels.items():
+        if not isinstance(row, dict):
+            continue
+        extra = SURFACE_LABEL_EXTRA.get(surface) or {}
+        row.update({lang: extra[lang] for lang in ("tr", "fr", "es", "it", "pl") if extra.get(lang)})
+
     for layer in catalog.get("layers") or []:
         lid = str(layer.get("id") or "")
-        layer["titleDe"] = LAYER_TITLE_DE.get(lid, layer.get("title") or "")
-        layer["titleEn"] = layer.get("title") or ""
+        title_en = str(layer.get("title") or "")
+        title_ar = str(layer.get("titleAr") or title_en)
+        title_de = LAYER_TITLE_DE.get(lid, title_en)
+        title_i18n = _fill_hub_lang_map(
+            {
+                "de": title_de,
+                "en": title_en,
+                "ar": title_ar,
+                **(LAYER_TITLE_EXTRA.get(lid) or {}),
+            }
+        )
+        layer["titleDe"] = title_i18n["de"]
+        layer["titleEn"] = title_i18n["en"]
+        layer["titleI18n"] = title_i18n
+
         for it in layer.get("items") or []:
             iid = str(it.get("id") or "")
-            it["labelDe"] = ITEM_LABEL_DE.get(iid, it.get("label") or "")
-            it["labelEn"] = it.get("label") or ""
+            label_en = str(it.get("label") or "")
+            label_ar = str(it.get("labelAr") or label_en)
+            label_de = ITEM_LABEL_DE.get(iid, label_en)
+            label_i18n = _fill_hub_lang_map(
+                {
+                    "de": label_de,
+                    "en": label_en,
+                    "ar": label_ar,
+                    **(ITEM_LABEL_EXTRA.get(iid) or {}),
+                }
+            )
+            it["labelDe"] = label_i18n["de"]
+            it["labelEn"] = label_i18n["en"]
+            it["labelI18n"] = label_i18n
+
             note = str(it.get("note") or "").strip()
             if iid in NOTE_I18N:
-                it["noteI18n"] = dict(NOTE_I18N[iid])
+                note_map = dict(NOTE_I18N[iid])
+                note_map.update(NOTE_EXTRA.get(iid) or {})
+                it["noteI18n"] = _fill_hub_lang_map(note_map)
             elif note:
-                it["noteI18n"] = {"de": note, "en": note, "ar": note}
+                it["noteI18n"] = _fill_hub_lang_map({"de": note, "en": note, "ar": note})
     return catalog

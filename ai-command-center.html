@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" dir="ltr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass — KI Command Center</title>
+  <title>WorkPass — KI Command Center</title>
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
@@ -200,7 +200,7 @@
 <body class="ops-app">
   <header class="ops-header">
     <div>
-      <h1 id="pageTitle">BauPass KI Command Center</h1>
+      <h1 id="pageTitle">SUPPIX AI Command Center</h1>
       <div class="status-line" id="statusLine"></div>
     </div>
     <nav class="nav">
@@ -215,7 +215,7 @@
   <div id="authErr" class="err hidden">
     <span id="authErrText">Bitte anmelden.</span>
     <a id="authLoginLink" href="/admin-v2/index.html?login=1" style="margin-inline-start:0.5rem">Anmelden</a>
-    · <a id="authControlPassLink" href="/index.html">BauPass</a>
+    · <a id="authControlPassLink" href="/index.html">WorkPass</a>
   </div>
 
   <div class="shell hidden embed-shell" id="shell">
@@ -268,7 +268,7 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice22"></script>
+  <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -288,12 +288,12 @@
     let LANG = getUiLang();
     const I18N = {
       de: {
-        title: "BauPass KI — Assistent",
+        title: "SUPPIX AI — Assistent",
         sessions: "Chats", insights: "Live Insights", newChat: "+ Neu",
         send: "Senden", voiceInput: "Spracheingabe", briefing: "Tagesbriefing",
         placeholder: "Frage an den Agenten…",
         thinking: "Analysiere Live-Daten…", needCompany: "Firma wählen.",
-        auth: "Bitte anmelden (BauPass).", authLogin: "Anmelden", controlPass: "BauPass",
+        auth: "Bitte anmelden (WorkPass).", authLogin: "Anmelden", controlPass: "WorkPass",
         sources: "Quellen", tools: "Tools", toolsPanelSummary: "Tools & Briefings",
         actions: "Aktionen", emailBriefing: "Briefing mailen", emailPrompt: "Empfänger-E-Mail:",
         emailOk: "Briefing gesendet.", emailFail: "E-Mail fehlgeschlagen.",
@@ -308,7 +308,7 @@
         chatDeleted: "Chat gelöscht.", allChatsDeleted: "Alle Chats gelöscht.", chatCleared: "Chat geleert.",
         noChats: "Noch keine Chats.",
         exportChat: "Chat exportieren", exportChatEmpty: "Kein Chat zum Exportieren.",
-        exportRoleUser: "Du", exportRoleAi: "KI", exportDefaultTitle: "BauPass-KI-Chat",
+        exportRoleUser: "Du", exportRoleAi: "KI", exportDefaultTitle: "WorkPass-KI-Chat",
         companyPlaceholder: "— Firma —",
         navEnterpriseHub: "Funktionen & Tarife", navAdminV2: "Betrieb", navPosteingang: "Posteingang", navOpsLive: "Ops-Zentrale",
         topicSecurity: "Sicherheit", topicCompliance: "Compliance", topicAttendance: "Anwesenheit", topicExecutive: "Management",
@@ -327,7 +327,7 @@
         errOpenAiQuota: "OpenAI-API-Guthaben leer. ChatGPT Plus ≠ API — Guthaben unter platform.openai.com/settings/billing aufladen und denselben Key in OPENAI_API_KEY verwenden.",
         errBrowserVoiceFallback: "OpenAI-Guthaben leer — vorübergehend Browser-Stimme. Premium-Stimme nach Aufladung auf platform.openai.com/settings/billing.",
         errAuth: "Bitte erneut anmelden.",
-        errRateLimit: "OpenAI-Kontingent vorübergehend erschöpft (Limit Ihres OpenAI-Accounts, nicht BauPass). Eine Minute warten, dann erneut versuchen. Limits: platform.openai.com/settings/limits",
+        errRateLimit: "OpenAI-Kontingent vorübergehend erschöpft (Limit Ihres OpenAI-Accounts, nicht WorkPass). Eine Minute warten, dann erneut versuchen. Limits: platform.openai.com/settings/limits",
         errRateLimitWait: "OpenAI-Ratenlimit — bitte {sec} Sekunden warten und erneut versuchen.",
         errServerRateLimit: "Zu viele Anfragen an den Server. Bitte kurz warten und erneut versuchen.",
         errServerRateLimitWait: "Zu viele Anfragen — bitte {sec} Sekunden warten.",
@@ -335,12 +335,12 @@
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
       },
       en: {
-        title: "BauPass AI — Assistant",
+        title: "SUPPIX AI — Assistant",
         sessions: "Chats", insights: "Live Insights", newChat: "+ New",
         send: "Send", voiceInput: "Voice input", briefing: "Daily briefing",
         placeholder: "Ask the agent…",
         thinking: "Analyzing live data…", needCompany: "Select company.",
-        auth: "Please sign in.", authLogin: "Sign in", controlPass: "BauPass",
+        auth: "Please sign in.", authLogin: "Sign in", controlPass: "WorkPass",
         sources: "Sources", tools: "Tools", toolsPanelSummary: "Tools & briefings",
         actions: "Actions", emailBriefing: "Email briefing", emailPrompt: "Recipient email:",
         emailOk: "Briefing sent.", emailFail: "Email failed.",
@@ -355,7 +355,7 @@
         chatDeleted: "Chat deleted.", allChatsDeleted: "All chats deleted.", chatCleared: "Chat cleared.",
         noChats: "No chats yet.",
         exportChat: "Export chat", exportChatEmpty: "Nothing to export.",
-        exportRoleUser: "You", exportRoleAi: "AI", exportDefaultTitle: "BauPass AI chat",
+        exportRoleUser: "You", exportRoleAi: "AI", exportDefaultTitle: "SUPPIX AI chat",
         companyPlaceholder: "— Company —",
         navEnterpriseHub: "Features & plans", navAdminV2: "Operations", navPosteingang: "Inbox", navOpsLive: "Ops center",
         topicSecurity: "Security", topicCompliance: "Compliance", topicAttendance: "Attendance", topicExecutive: "Executive",
@@ -374,7 +374,7 @@
         errOpenAiQuota: "OpenAI API quota empty. ChatGPT Plus ≠ API — add billing at platform.openai.com/settings/billing and use the same key in OPENAI_API_KEY.",
         errBrowserVoiceFallback: "OpenAI quota empty — using browser voice temporarily. Premium voice after adding credits at platform.openai.com/settings/billing.",
         errAuth: "Please sign in again.",
-        errRateLimit: "OpenAI quota temporarily exhausted (your OpenAI account limit, not BauPass). Wait one minute, then try again. Limits: platform.openai.com/settings/limits",
+        errRateLimit: "OpenAI quota temporarily exhausted (your OpenAI account limit, not WorkPass). Wait one minute, then try again. Limits: platform.openai.com/settings/limits",
         errRateLimitWait: "OpenAI rate limit — wait {sec} seconds and try again.",
         errServerRateLimit: "Too many requests to the server. Wait briefly and try again.",
         errServerRateLimitWait: "Too many requests — wait {sec} seconds.",
@@ -382,12 +382,12 @@
         errNetwork: "Network error — check connection.",
       },
       ar: {
-        title: "مركز قيادة AI — BauPass",
+        title: "مركز قيادة AI — WorkPass",
         sessions: "المحادثات", insights: "رؤى مباشرة", newChat: "+ جديد",
         send: "إرسال", voiceInput: "إدخال صوتي", briefing: "ملخص اليوم",
         placeholder: "اسأل الوكيل…",
         thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
-        auth: "يرجى تسجيل الدخول.", authLogin: "تسجيل الدخول", controlPass: "BauPass",
+        auth: "يرجى تسجيل الدخول.", authLogin: "تسجيل الدخول", controlPass: "WorkPass",
         sources: "المصادر", tools: "أدوات", toolsPanelSummary: "أدوات وملخصات",
         actions: "إجراءات", emailBriefing: "إرسال الملخص", emailPrompt: "البريد:",
         emailOk: "تم الإرسال.", emailFail: "فشل الإرسال.",
@@ -402,7 +402,7 @@
         chatDeleted: "تم حذف المحادثة.", allChatsDeleted: "تم حذف جميع المحادثات.", chatCleared: "تم مسح المحادثة.",
         noChats: "لا توجد محادثات بعد.",
         exportChat: "تصدير المحادثة", exportChatEmpty: "لا يوجد محادثة للتصدير.",
-        exportRoleUser: "أنت", exportRoleAi: "الذكاء الاصطناعي", exportDefaultTitle: "محادثة BauPass AI",
+        exportRoleUser: "أنت", exportRoleAi: "الذكاء الاصطناعي", exportDefaultTitle: "محادثة SUPPIX AI",
         companyPlaceholder: "— الشركة —",
         navEnterpriseHub: "الميزات والخطط", navAdminV2: "التشغيل", navPosteingang: "البريد الوارد", navOpsLive: "مركز العمليات",
         topicSecurity: "الأمن", topicCompliance: "الامتثال", topicAttendance: "الحضور", topicExecutive: "الإدارة",
@@ -421,7 +421,7 @@
         errOpenAiQuota: "رصيد OpenAI API منتهٍ. اشتراك ChatGPT Plus ≠ API — أضف رصيداً في platform.openai.com/settings/billing واستخدم نفس المفتاح في OPENAI_API_KEY.",
         errBrowserVoiceFallback: "رصيد OpenAI منتهٍ — صوت المتصفح مؤقتاً. للصوت المميز: أضف رصيداً على platform.openai.com/settings/billing.",
         errAuth: "يرجى تسجيل الدخول مرة أخرى.",
-        errRateLimit: "نفدت حصة OpenAI مؤقتاً (حد حساب OpenAI وليس BauPass). انتظر دقيقة ثم أعد المحاولة. الحدود: platform.openai.com/settings/limits",
+        errRateLimit: "نفدت حصة OpenAI مؤقتاً (حد حساب OpenAI وليس WorkPass). انتظر دقيقة ثم أعد المحاولة. الحدود: platform.openai.com/settings/limits",
         errRateLimitWait: "حد OpenAI — انتظر {sec} ثانية ثم أعد المحاولة.",
         errServerRateLimit: "طلبات كثيرة إلى الخادم. انتظر قليلاً ثم أعد المحاولة.",
         errServerRateLimitWait: "طلبات كثيرة — انتظر {sec} ثانية.",
@@ -1007,9 +1007,9 @@
     }
 
     async function startInsightsRealtime() {
-      if (!window.BauPassOpsRealtime) return;
+      if (!window.WorkPassOpsRealtime) return;
       if (insightsRealtimeStop) insightsRealtimeStop();
-      insightsRealtimeStop = await window.BauPassOpsRealtime.start({
+      insightsRealtimeStop = await window.WorkPassOpsRealtime.start({
         companyId: selectedCompanyId,
         feedEl: null,
         onEvent: () => scheduleInsightsReload(),

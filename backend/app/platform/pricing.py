@@ -1,5 +1,5 @@
-"""
-Canonical BauPass SaaS pricing — single source of truth for admin, billing, Stripe, and UI.
+﻿"""
+Canonical WorkPass SaaS pricing — single source of truth for admin, billing, Stripe, and UI.
 
 Plans (net EUR, excl. VAT):
 - Tageskarte: 19/day
@@ -65,6 +65,11 @@ PLAN_MARKETING: dict[str, dict[str, Any]] = {
         "taglineDe": "Besucher & Kurzzeit-Zutritt",
         "taglineEn": "Visitors and short-term site access",
         "taglineAr": "زوار ودخول مؤقت للموقع",
+        "taglineTr": "Ziyaretçiler ve kısa süreli şantiye erişimi",
+        "taglineFr": "Visiteurs et accès court terme au chantier",
+        "taglineEs": "Visitantes y acceso temporal a la obra",
+        "taglineIt": "Visitatori e accesso temporaneo al cantiere",
+        "taglinePl": "Goście i krótkoterminowy dostęp do placu budowy",
         "benchmarkNoteDe": "Kurzzeit-Zutritt für Besucher und Subunternehmer",
     },
     "starter": {
@@ -75,6 +80,11 @@ PLAN_MARKETING: dict[str, dict[str, Any]] = {
         "taglineDe": "Worker-App, NFC, Urlaub — bis 10 MA inkl.",
         "taglineEn": "Worker app, NFC, leave — 10 workers included",
         "taglineAr": "تطبيق الموظف + NFC + إجازات — 10 موظفين مشمولين",
+        "taglineTr": "Worker uygulaması, NFC, izin — 10 çalışan dahil",
+        "taglineFr": "App worker, NFC, congés — 10 salariés inclus",
+        "taglineEs": "App del trabajador, NFC, permisos — 10 trabajadores incluidos",
+        "taglineIt": "App worker, NFC, ferie — 10 lavoratori inclusi",
+        "taglinePl": "Aplikacja pracownika, NFC, urlopy — 10 pracowników w cenie",
         "benchmarkNoteDe": "Kleine Baustellen & Subunternehmer",
     },
     "professional": {
@@ -85,6 +95,11 @@ PLAN_MARKETING: dict[str, dict[str, Any]] = {
         "taglineDe": "Echtzeit, Automatisierung, Fakturierung & Mahnwesen",
         "taglineEn": "Real-time ops, automation, invoicing & dunning",
         "taglineAr": "تشغيل لحظي + أتمتة + فوترة + تذكيرات",
+        "taglineTr": "Gerçek zamanlı operasyon, otomasyon, faturalama ve tahsilat",
+        "taglineFr": "Ops temps réel, automatisation, facturation et relances",
+        "taglineEs": "Operación en tiempo real, automatización, facturación y recordatorios",
+        "taglineIt": "Operatività in tempo reale, automazione, fatturazione e solleciti",
+        "taglinePl": "Operacje w czasie rzeczywistym, automatyzacja, fakturowanie i windykacja",
         "benchmarkNoteDe": "999 €/Monat + 2,50 € pro aktivem Mitarbeiter",
     },
     "enterprise": {
@@ -95,9 +110,27 @@ PLAN_MARKETING: dict[str, dict[str, Any]] = {
         "taglineDe": "KI, Wallet-Pässe, SAP/Oracle, Command Center",
         "taglineEn": "AI, wallet passes, SAP/Oracle, command center",
         "taglineAr": "AI + محافظ رقمية + SAP/Oracle + قيادة مركزية",
+        "taglineTr": "Yapay zeka, cüzdan kartları, SAP/Oracle, komuta merkezi",
+        "taglineFr": "IA, passes wallet, SAP/Oracle, centre de commande",
+        "taglineEs": "IA, pases wallet, SAP/Oracle, centro de mando",
+        "taglineIt": "IA, pass wallet, SAP/Oracle, command center",
+        "taglinePl": "AI, karty wallet, SAP/Oracle, centrum dowodzenia",
         "benchmarkNoteDe": "2.490 €/Monat + 3,00 € pro aktivem Mitarbeiter",
     },
 }
+
+
+def _attach_tagline_i18n(meta: dict[str, Any]) -> None:
+    meta["taglineI18n"] = {
+        "de": str(meta.get("taglineDe") or meta.get("taglineEn") or ""),
+        "en": str(meta.get("taglineEn") or meta.get("taglineDe") or ""),
+        "ar": str(meta.get("taglineAr") or meta.get("taglineEn") or ""),
+        "tr": str(meta.get("taglineTr") or meta.get("taglineEn") or ""),
+        "fr": str(meta.get("taglineFr") or meta.get("taglineEn") or ""),
+        "es": str(meta.get("taglineEs") or meta.get("taglineEn") or ""),
+        "it": str(meta.get("taglineIt") or meta.get("taglineEn") or ""),
+        "pl": str(meta.get("taglinePl") or meta.get("taglineEn") or ""),
+    }
 
 
 def build_plan_meta() -> dict[str, dict[str, Any]]:
@@ -108,6 +141,7 @@ def build_plan_meta() -> dict[str, dict[str, Any]]:
         meta["priceEur"] = PLAN_NET_PRICE_EUR.get(plan, 0)
         meta["workersIncluded"] = PLAN_WORKER_FREE_INCLUDED.get(plan, 0)
         meta["workerOverageEur"] = PLAN_WORKER_PRICE_EUR.get(plan, 0)
+        _attach_tagline_i18n(meta)
         out[plan] = meta
     return out
 

@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" dir="ltr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="apple-mobile-web-app-title" content="BauPass Enterprise Hub" />
-  <meta name="application-name" content="BauPass Enterprise Hub" />
-  <title>BauPass — Enterprise Hub</title>
+  <meta name="apple-mobile-web-app-title" content="WorkPass Enterprise Hub" />
+  <meta name="application-name" content="WorkPass Enterprise Hub" />
+  <title>WorkPass — Enterprise Hub</title>
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
@@ -167,7 +167,7 @@
       border-radius: 12px; padding: 1rem; margin-bottom: 1rem;
     }
     .monatsplan-hero {
-      background: linear-gradient(135deg, #0f4c5c, #1a3040);
+      background: linear-gradient(135deg, #06b6d4, #1a3040);
       border: 1px solid rgba(94, 234, 212, 0.35);
       border-radius: 12px;
       padding: 1rem 1.1rem;
@@ -459,6 +459,11 @@
           <option value="de">DE</option>
           <option value="en">EN</option>
           <option value="ar">AR</option>
+          <option value="tr">TR</option>
+          <option value="fr">FR</option>
+          <option value="es">ES</option>
+          <option value="it">IT</option>
+          <option value="pl">PL</option>
         </select>
       </label>
       <a href="/admin-v2/index.html#enterprise" id="navAdminV2">Betrieb</a>
@@ -507,7 +512,7 @@
     </section>
 
     <aside class="ai-panel embed-panel-fixed">
-      <h2 id="aiPanelTitle">BauPass KI</h2>
+      <h2 id="aiPanelTitle">SUPPIX AI</h2>
       <div id="aiStatus" style="padding:0 0.75rem;font-size:0.78rem;color:var(--muted)"></div>
       <div class="ai-toolbar">
         <button type="button" id="aiBriefingBtn" class="primary"></button>
@@ -526,27 +531,42 @@
     </aside>
   </div>
 
+  <script src="/enterprise-hub-i18n.js?v=20260619hub8lang"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice22"></script>
+  <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
       hub: "#f59e0b", api: "#64748b", config: "#ef4444",
     };
+    const HUB_LANGS = window.BaupassHubI18n?.LANGS || ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
+    const HUB_I18N = window.BaupassHubI18n?.STRINGS || {};
+
+    function normalizeHubLang(code) {
+      if (window.BaupassHubI18n?.normalizeLang) {
+        return window.BaupassHubI18n.normalizeLang(code);
+      }
+      const lang = String(code || "").slice(0, 2).toLowerCase();
+      return HUB_LANGS.includes(lang) ? lang : "de";
+    }
+
     let HUB_LANG = (() => {
+      const qsLang = new URLSearchParams(location.search).get("lang");
       const stored = (
+        qsLang ||
         localStorage.getItem("baupass-ui-lang") ||
         localStorage.getItem("baupass-admin-v2-lang") ||
         "de"
-      ).slice(0, 2).toLowerCase();
-      return ["de", "en", "ar"].includes(stored) ? stored : "de";
+      );
+      return normalizeHubLang(stored);
     })();
 
     function setHubLang(code) {
-      if (!["de", "en", "ar"].includes(code)) return;
-      HUB_LANG = code;
-      localStorage.setItem("baupass-ui-lang", code);
-      localStorage.setItem("baupass-admin-v2-lang", code);
+      const lang = normalizeHubLang(code);
+      if (lang === HUB_LANG) return;
+      HUB_LANG = lang;
+      localStorage.setItem("baupass-ui-lang", lang);
+      localStorage.setItem("baupass-admin-v2-lang", lang);
       applyStaticI18n();
       refreshHubDynamicContent();
       if (window.BaupassAiUi?.bindVoiceInput) {
@@ -564,340 +584,51 @@
     }
 
     function syncHubLangFromParent(lang) {
-      const code = String(lang || "").slice(0, 2).toLowerCase();
-      if (!["de", "en", "ar"].includes(code) || code === HUB_LANG) return;
+      const code = normalizeHubLang(lang);
+      if (code === HUB_LANG) return;
       HUB_LANG = code;
       localStorage.setItem("baupass-ui-lang", code);
       localStorage.setItem("baupass-admin-v2-lang", code);
       applyStaticI18n();
       refreshHubDynamicContent();
+      if (window.BaupassAiUi?.bindVoiceInput) {
+        window.BaupassAiUi.bindVoiceInput(hubVoiceInputOptions());
+      }
+      if (window.BaupassAiUi?.refreshComposerLabels) {
+        window.BaupassAiUi.refreshComposerLabels(hubVoiceInputOptions());
+      }
     }
 
     window.addEventListener("baupass-lang-sync", (event) => {
       syncHubLangFromParent(event?.detail?.lang);
     });
     window.addEventListener("storage", (event) => {
-      if (event.key === "baupass-ui-lang" && event.newValue) {
+      if ((event.key === "baupass-ui-lang" || event.key === "baupass-admin-v2-lang") && event.newValue) {
         syncHubLangFromParent(event.newValue);
       }
     });
-    const HUB_I18N = {
-      de: {
-        title: "Enterprise-Hub — 16-Ebenen-Karte",
-        subtitle: "Was gebaut ist und wo Sie es finden (UI · API · Einstellungen)",
-        previewNote: "Öffentliche Vorschau (Professional als Beispiel). Anmelden für Ihren echten Tarif.",
-        authErr: "Katalog konnte nicht geladen werden. Bitte anmelden oder Seite neu laden (Strg+F5).",
-        searchPh: "Suche: Anwesenheit, KI, Wallet, SAP…",
-        filterAll: "Alle Funktionen",
-        filterEnabled: "In meinem Tarif",
-        filterLocked: "Upgrade nötig",
-        openAll: "Alle Ebenen öffnen",
-        yourPlan: "Ihr Tarif",
-        enabled: "aktiv",
-        locked: "Upgrade nötig",
-        coverage: "Abdeckung",
-        coverageOf: "der Plattform",
-        planMatrixFoot: "Alle 16 Ebenen — gefiltert nach Tarif. Enterprise öffnet KI, Integrationen und globales Command Center.",
-        layerEnabled: "aktiv",
-        capAvailable: "✓ verfügbar",
-        capUpgrade: "Upgrade auf",
-        tryApi: "API testen",
-        openUi: "UI öffnen",
-        aiTitle: "BauPass KI-Assistent",
-        aiPh: "Frage auf Deutsch: Wie viele Mitarbeiter sind auf der Baustelle?",
-        aiSend: "Senden",
-        aiVoice: "Sprechen",
-        aiVoiceUnsupported: "Spracheingabe braucht HTTPS",
-        aiOpenAction: "Öffnen",
-        aiPreview: "Anmelden + Enterprise-Tarif für KI",
-        aiOn: "KI aktiv",
-        aiOff: "KI inaktiv — OPENAI_API_KEY auf Railway setzen",
-        aiAddKey: "OPENAI_API_KEY für intelligente Antworten hinzufügen.",
-        aiThinking: "Denke nach…",
-        aiNeedCompany: "Bitte oben eine Firma wählen (Superadmin).",
-        aiNeedEnterprise: "KI-Assistent erfordert Tarif Enterprise.",
-        aiBriefing: "Tagesbriefing",
-        aiSources: "Quellen",
-        aiOpenCenter: "Vollständiges KI Command Center öffnen",
-        maturity: "Reifegrad",
-        previewMaturity: "Öffentliche Vorschau — anmelden für Produktionsmetriken.",
-        companySelect: "Firma (Tarif-Vorschau)",
-        allCompanies: "— Superadmin (Firma wählen) —",
-        embedLayersHint: "Kategorie oben antippen — die Funktionen erscheinen unten. Ebene aufklappen oder Karte öffnen.",
-        embedPickCompany: "Firma in der Leiste wählen für Live-KPIs und Playbook",
-        planUpgradeBanner: "<strong>{locked}</strong> Funktionen sind in Ihrem Tarif gesperrt. Karte antippen für Details — Filter «Upgrade nötig».",
-        planUpgradeCtaAdmin: "Tarif & Firma (Admin)",
-        planUpgradeCtaProfessional: "Professional anfragen",
-        planUpgradeCtaEnterprise: "Enterprise anfragen",
-        planUpgradeCtaAssignPro: "Professional zuweisen (Admin)",
-        planUpgradeCtaAssignEnt: "Enterprise zuweisen (Admin)",
-        planUpgradeCtaCheckoutPro: "Professional buchen",
-        planUpgradeCtaCheckoutEnt: "Enterprise buchen",
-        planUpgradeCtaMail: "Upgrade per E-Mail",
-        planUpgradeMailFallback: "Kein E-Mail-Programm erkannt. Bitte schreiben Sie an:",
-        monatsplanTitle: "Monatsplan (Einsatzplan) — in 4 Schritten",
-        monatsplanStep1: "Monat oben wählen (Monatsplan Firma)",
-        monatsplanStep2: "Pro Mitarbeiter: Ort + Uhrzeit eintragen und speichern",
-        monatsplanStep3: "Status «bereit» prüfen",
-        monatsplanStep4: "«Versand bestätigen» — PDF/E-Mail + Push an alle",
-        monatsplanOpen: "Monatsplan jetzt öffnen",
-        monatsplanOpenHint: "Öffnet den Monatsplan in Betrieb. Monat wählen → pro Mitarbeiter bearbeiten → Versand bestätigen.",
-        monatsplanPreviewLogin: "Anmeldung erforderlich — bitte in BauPass anmelden, dann erneut «Monatsplan öffnen».",
-        monatsplanLinkLabel: "📋 Monatsplan öffnen",
-        rolePlaybook: "Ihr Einsatz-Playbook",
-        rolePickCompany: "Firma wählen für Live-KPIs.",
-        navAdminV2: "Betrieb",
-        navLegacy: "Legacy-Dashboard",
-        navOps: "Ops-Zentrale",
-        navAiCenter: "KI-Assistent",
-        navHub: "Funktionen & Tarife",
-        navJoin: "Mitarbeiter aktivieren",
-        hubLang: "Sprache",
-        previewStrong: "Öffentliche Vorschau",
-        allLabel: "Alle",
-        capWord: "Funktionen",
-        redisYes: "ja",
-        redisNo: "nein",
-        voiceHint: "Mikrofon: tippen → sprechen (Text live) → erneut tippen → Senden.",
-        aiVoiceListening: "Aufnahme läuft — erneut tippen zum Stoppen.",
-        aiVoiceTranscribing: "Wird transkribiert…",
-        aiVoiceMicDenied: "Mikrofon blockiert — im Browser erlauben, dann erneut klicken.",
-        monatsplanSteps: "1) Monat wählen 2) Mitarbeiter bearbeiten 3) Status prüfen 4) Versand bestätigen",
-        quickNavTitle: "Plattform — Schnellzugriff",
-        quickWorkers: "Mitarbeiter",
-        quickWorkersDesc: "Team & Ausweise",
-        quickMonatsplan: "Monatsplan",
-        quickMonatsplanDesc: "Betrieb — Team & Versand",
-        quickAdminV2: "Betrieb",
-        quickAdminV2Desc: "Tagesbetrieb",
-        quickAccess: "Zutritt",
-        quickAccessDesc: "Anwesenheit & Logs",
-        quickDocuments: "Dokumente",
-        quickDocumentsDesc: "Posteingang & Ablage",
-        quickAi: "Assistent",
-        quickAiDesc: "Sprache, Text & Briefing",
-        quickDashboard: "Dashboard",
-        quickDashboardDesc: "BauPass Start",
-        capUpgradeHint: "Bitte Admin kontaktieren für Tarif-Upgrade (Professional / Enterprise).",
-        previewNoteHtml: "<strong>Öffentliche Vorschau</strong> (Professional als Beispiel). <a href=\"/admin-v2/index.html?login=1\">Anmelden</a> für Ihren echten Tarif und KI.",
-        authErrHtml: "Katalog konnte nicht geladen werden. <a href=\"/admin-v2/index.html?login=1\">Anmelden</a> oder Seite neu laden (Strg+F5).",
-        btnClose: "Schließen",
-        apiErrorPrefix: "API",
-      },
-      en: {
-        title: "Enterprise hub — 16-layer map",
-        subtitle: "What is built and where to find it (UI · API · settings)",
-        previewNote: "Public preview (Professional sample). Sign in for your real plan.",
-        authErr: "Could not load catalog. Please sign in or hard-refresh (Ctrl+F5).",
-        searchPh: "Search: attendance, AI, wallet, SAP…",
-        filterAll: "All capabilities",
-        filterEnabled: "In my plan",
-        filterLocked: "Needs upgrade",
-        openAll: "Expand all layers",
-        yourPlan: "Your plan",
-        enabled: "enabled",
-        locked: "needs upgrade",
-        coverage: "Coverage",
-        coverageOf: "of platform",
-        planMatrixFoot: "All 16 layers — filtered by plan. Enterprise unlocks AI, integrations and global command center.",
-        layerEnabled: "enabled",
-        capAvailable: "✓ available",
-        capUpgrade: "Upgrade to",
-        tryApi: "Try API",
-        openUi: "Open UI",
-        aiTitle: "BauPass AI assistant",
-        aiPh: "Ask in plain language: How many workers are on site?",
-        aiSend: "Send",
-        aiVoice: "Speak",
-        aiVoiceUnsupported: "Voice input requires HTTPS",
-        aiOpenAction: "Open",
-        aiPreview: "Sign in + Enterprise plan for AI",
-        aiOn: "AI enabled",
-        aiOff: "AI disabled — set OPENAI_API_KEY on Railway",
-        aiAddKey: "Add OPENAI_API_KEY for smart answers.",
-        aiThinking: "Thinking…",
-        aiNeedCompany: "Select a company above (superadmin).",
-        aiNeedEnterprise: "AI assistant requires Enterprise plan.",
-        aiBriefing: "Daily briefing",
-        aiSources: "Sources",
-        aiOpenCenter: "Open full AI command center",
-        maturity: "Platform maturity",
-        previewMaturity: "Public preview — sign in for production metrics.",
-        companySelect: "Company (plan preview)",
-        allCompanies: "— Superadmin: pick company —",
-        embedLayersHint: "Tap a category above — features appear below. Expand a layer or open a card.",
-        embedPickCompany: "Pick a company in the toolbar for live KPIs and playbook",
-        planUpgradeBanner: "<strong>{locked}</strong> features need an upgrade. Tap a card for details — filter «Upgrade needed».",
-        planUpgradeCtaAdmin: "Plan & company (Admin)",
-        planUpgradeCtaProfessional: "Request Professional",
-        planUpgradeCtaEnterprise: "Request Enterprise",
-        planUpgradeCtaAssignPro: "Assign Professional (Admin)",
-        planUpgradeCtaAssignEnt: "Assign Enterprise (Admin)",
-        planUpgradeCtaCheckoutPro: "Buy Professional",
-        planUpgradeCtaCheckoutEnt: "Buy Enterprise",
-        planUpgradeCtaMail: "Request upgrade by email",
-        planUpgradeMailFallback: "No mail app detected. Please email:",
-        rolePlaybook: "Your operations playbook",
-        rolePickCompany: "Select a company for live KPIs.",
-        navAdminV2: "Operations",
-        navLegacy: "Legacy dashboard",
-        navOps: "Ops center",
-        navAiCenter: "AI assistant",
-        navHub: "Features & plans",
-        navJoin: "Activate worker",
-        hubLang: "Language",
-        previewStrong: "Public preview",
-        allLabel: "All",
-        capWord: "features",
-        redisYes: "yes",
-        redisNo: "no",
-        voiceHint: "Mic: tap → speak (live text) → tap again → Send.",
-        aiVoiceListening: "Recording — tap again to stop.",
-        aiVoiceTranscribing: "Transcribing…",
-        aiVoiceMicDenied: "Microphone blocked — allow in browser, then try again.",
-        monatsplanSteps: "1) Pick month 2) Edit worker 3) Review status 4) Confirm send",
-        quickNavTitle: "Platform — quick access",
-        quickWorkers: "Workers",
-        quickWorkersDesc: "Team & badges",
-        quickMonatsplan: "Monthly plan",
-        quickMonatsplanDesc: "Operations — team & send",
-        quickAdminV2: "Operations",
-        quickAdminV2Desc: "Daily operations",
-        quickAccess: "Access",
-        quickAccessDesc: "Attendance & logs",
-        quickDocuments: "Documents",
-        quickDocumentsDesc: "Inbox & files",
-        quickAi: "Assistant",
-        quickAiDesc: "Voice, text & briefing",
-        quickDashboard: "Dashboard",
-        quickDashboardDesc: "BauPass home",
-        capUpgradeHint: "Contact your admin to upgrade the plan.",
-        previewNoteHtml: "<strong>Public preview</strong> (Professional sample). <a href=\"/admin-v2/index.html?login=1\">Sign in</a> for your real plan and AI.",
-        authErrHtml: "Could not load catalog. <a href=\"/admin-v2/index.html?login=1\">Sign in</a> or hard-refresh (Ctrl+F5).",
-        btnClose: "Close",
-        apiErrorPrefix: "API",
-      },
-      ar: {
-        title: "مركز المؤسسة — خريطة الـ 16 طبقة",
-        subtitle: "ما بُني فعلياً وأين تراه (واجهة · API · إعداد)",
-        previewNote: "معاينة عامة (خطة Professional كمثال). سجّل الدخول لرؤية خطتك الفعلية.",
-        authErr: "تعذّر تحميل الكتالوج. سجّل الدخول أو حدّث الصفحة (Ctrl+F5).",
-        searchPh: "بحث: حضور، AI، Wallet، SAP…",
-        filterAll: "كل القدرات",
-        filterEnabled: "متاح في خطتي",
-        filterLocked: "يتطلب ترقية",
-        openAll: "فتح كل الطبقات",
-        yourPlan: "خطتك",
-        enabled: "مفعّل",
-        locked: "يحتاج ترقية",
-        coverage: "تغطية",
-        coverageOf: "من المنصة",
-        planMatrixFoot: "كل الـ 16 طبقة — مُخصّصة حسب خطتك. Enterprise يفتح AI والتكاملات ومركز القيادة.",
-        layerEnabled: "مفعّل",
-        capAvailable: "✓ متاح",
-        capUpgrade: "ترقية إلى",
-        tryApi: "جرب API",
-        openUi: "فتح الواجهة",
-        aiTitle: "مساعد BauPass (AI)",
-        aiPh: "اسأل بلغة طبيعية: كم موظف على الموقع؟",
-        aiSend: "إرسال",
-        aiVoice: "تحدث",
-        aiVoiceUnsupported: "الإدخال الصوتي يحتاج HTTPS",
-        aiOpenAction: "فتح",
-        aiPreview: "سجّل الدخول + خطة Enterprise لاستخدام AI",
-        aiOn: "AI مفعّل",
-        aiOff: "AI غير مفعّل — OPENAI_API_KEY على Railway",
-        aiAddKey: "أضف OPENAI_API_KEY لتفعيل الإجابات الذكية.",
-        aiThinking: "جاري التفكير…",
-        aiNeedCompany: "اختر شركة من القائمة أعلاه (المشرف).",
-        aiNeedEnterprise: "مساعد AI يتطلب خطة Enterprise.",
-        aiBriefing: "ملخص اليوم",
-        aiSources: "المصادر",
-        aiOpenCenter: "فتح مركز قيادة AI الكامل",
-        maturity: "نضج المنصة",
-        previewMaturity: "معاينة عامة — سجّل الدخول لمقاييس الإنتاج.",
-        companySelect: "الشركة (معاينة الخطة)",
-        allCompanies: "— المشرف: اختر شركة —",
-        embedLayersHint: "اضغط فئة أعلاه — تظهر الوظائف بالأسفل. افتح طبقة أو بطاقة.",
-        embedPickCompany: "اختر شركة من الشريط لـ KPI والدليل التشغيلي",
-        planUpgradeBanner: "<strong>{locked}</strong> وظائف تحتاج ترقية. اضغط البطاقة للتفاصيل.",
-        planUpgradeCtaAdmin: "الخطة والشركة (المشرف)",
-        planUpgradeCtaProfessional: "طلب Professional",
-        planUpgradeCtaEnterprise: "طلب Enterprise",
-        planUpgradeCtaAssignPro: "تعيين Professional (المشرف)",
-        planUpgradeCtaAssignEnt: "تعيين Enterprise (المشرف)",
-        planUpgradeCtaCheckoutPro: "حجز Professional",
-        planUpgradeCtaCheckoutEnt: "حجز Enterprise",
-        planUpgradeCtaMail: "ترقية عبر البريد",
-        planUpgradeMailFallback: "لم يُعثر على برنامج بريد. راسلنا على:",
-        monatsplanTitle: "الخطة الشهرية (Einsatzplan) — 4 خطوات",
-        monatsplanStep1: "اختر الشهر أعلاه",
-        monatsplanStep2: "لكل موظف: الموقع + الوقت ثم حفظ",
-        monatsplanStep3: "راجع حالة «جاهز»",
-        monatsplanStep4: "«تأكيد الإرسال» — PDF/بريد + إشعار للجميع",
-        monatsplanOpen: "فتح الخطة الشهرية الآن",
-        monatsplanOpenHint: "يفتح Einsatzplan في التشغيل. اختر الشهر → عدّل كل موظف → أكّد الإرسال.",
-        monatsplanPreviewLogin: "يلزم تسجيل الدخول — سجّل في BauPass ثم اضغط «فتح الخطة الشهرية».",
-        monatsplanLinkLabel: "📋 فتح الخطة الشهرية",
-        rolePlaybook: "دليل التشغيل الخاص بك",
-        rolePickCompany: "اختر شركة لعرض مؤشرات مباشرة.",
-        navAdminV2: "لوحة v2",
-        navLegacy: "لوحة قديمة",
-        navOps: "مركز العمليات",
-        navAiCenter: "مساعد الذكاء الاصطناعي",
-        navHub: "الميزات والخطط",
-        navJoin: "تفعيل موظف",
-        hubLang: "اللغة",
-        previewStrong: "معاينة عامة",
-        allLabel: "الكل",
-        capWord: "قدرة",
-        redisYes: "نعم",
-        redisNo: "لا",
-        voiceHint: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
-        aiVoiceListening: "جاري التسجيل — اضغط مرة أخرى للإيقاف.",
-        aiVoiceTranscribing: "جاري تحويل الصوت إلى نص…",
-        aiVoiceMicDenied: "الميكروفون محظور — اسمح في المتصفح ثم أعد المحاولة.",
-        monatsplanSteps: "١) اختر الشهر ٢) عدّل الموظف ٣) راجع الحالة ٤) أكّد الإرسال",
-        quickNavTitle: "المنصة — وصول سريع",
-        quickWorkers: "الموظفون",
-        quickWorkersDesc: "الفريق والبطاقات",
-        quickMonatsplan: "الخطة الشهرية",
-        quickMonatsplanDesc: "التشغيل — الفريق والإرسال",
-        quickAdminV2: "التشغيل",
-        quickAdminV2Desc: "التشغيل اليومي",
-        quickAccess: "الدخول",
-        quickAccessDesc: "الحضور والسجلات",
-        quickDocuments: "المستندات",
-        quickDocumentsDesc: "البريد والملفات",
-        quickAi: "المساعد",
-        quickAiDesc: "صوت، نص وملخص",
-        quickDashboard: "لوحة التحكم",
-        quickDashboardDesc: "بداية BauPass",
-        capUpgradeHint: "تواصل مع المسؤول لترقية الباقة.",
-        previewNoteHtml: "<strong>معاينة عامة</strong> (خطة Professional كمثال). <a href=\"/admin-v2/index.html?login=1\">سجّل الدخول</a> لرؤية خطتك الفعلية وتفعيل AI.",
-        authErrHtml: "تعذّر تحميل الكتالوج. <a href=\"/admin-v2/index.html?login=1\">سجّل الدخول</a> أو حدّث الصفحة (Ctrl+F5).",
-        btnClose: "إغلاق",
-        apiErrorPrefix: "API",
-      },
-    };
+
     function t(key) {
       return (HUB_I18N[HUB_LANG] || HUB_I18N.de)[key] || (HUB_I18N.de[key] || key);
     }
 
+    function hubCatalogText(obj, field) {
+      if (!obj) return "";
+      const i18n = obj[`${field}I18n`];
+      if (i18n && typeof i18n === "object" && i18n[HUB_LANG]) {
+        return i18n[HUB_LANG];
+      }
+      const cap = HUB_LANG.charAt(0).toUpperCase() + HUB_LANG.slice(1);
+      return obj[`${field}${cap}`] || obj[field] || obj[`${field}En`] || obj[`${field}De`] || obj[`${field}Ar`] || "";
+    }
+
     function layerTitle(layer) {
-      if (!layer) return "";
-      if (HUB_LANG === "ar") return layer.titleAr || layer.titleEn || layer.title || "";
-      if (HUB_LANG === "de") return layer.titleDe || layer.title || layer.titleEn || "";
-      return layer.titleEn || layer.title || layer.titleAr || "";
+      return hubCatalogText(layer, "title");
     }
 
     function itemLabel(it) {
-      if (!it) return "";
-      if (HUB_LANG === "ar") return it.labelAr || it.labelEn || it.label || "";
-      if (HUB_LANG === "de") return it.labelDe || it.labelEn || it.label || "";
-      return it.labelEn || it.label || it.labelAr || "";
+      return hubCatalogText(it, "label");
     }
-
     function itemNote(it) {
       if (!it) return "";
       const notes = it.noteI18n;
@@ -906,9 +637,8 @@
       }
       const note = String(it.note || "").trim();
       if (!note) return "";
-      if (HUB_LANG === "ar") return note;
-      if (/[\u0600-\u06FF]/.test(note)) return "";
-      return note;
+      if (HUB_LANG === "ar" || !/[\u0600-\u06FF]/.test(note)) return note;
+      return "";
     }
 
     let lastCaps = null;
@@ -947,13 +677,14 @@
       if (!hubPreviewMode) loadAiPrompts().catch(() => {});
       refreshMaturityAndAiStatus();
     }
-    const PLAN_LABELS = {
-      de: { tageskarte: "Tageskarte", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
-      en: { tageskarte: "Day pass", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
-      ar: { tageskarte: "يومي", starter: "Starter", professional: "Professional", enterprise: "Enterprise" },
-    };
     function planLabel(plan) {
-      return (PLAN_LABELS[HUB_LANG] || PLAN_LABELS.de)[plan] || plan;
+      const key = {
+        tageskarte: "planTageskarte",
+        starter: "planStarter",
+        professional: "planProfessional",
+        enterprise: "planEnterprise",
+      }[plan];
+      return key ? t(key) : plan;
     }
     let catalog = null;
     let hubBilling = { stripeConfigured: false, selfServeCheckout: false };
@@ -988,9 +719,7 @@
 
     function surfaceLabel(surface, labels) {
       const row = labels[surface] || {};
-      if (HUB_LANG === "ar") return row.ar || surface;
-      if (HUB_LANG === "en") return row.en || row.label || surface;
-      return row.de || row.label || row.en || surface;
+      return row[HUB_LANG] || row.en || row.de || row.label || surface;
     }
 
     function isHubEmbedMode() {
@@ -1135,9 +864,9 @@
     }
 
     function applyStaticI18n() {
-      document.documentElement.lang = HUB_LANG === "ar" ? "ar" : (HUB_LANG === "de" ? "de" : "en");
+      document.documentElement.lang = HUB_LANG;
       document.documentElement.dir = HUB_LANG === "ar" ? "rtl" : "ltr";
-      document.title = `BauPass — ${t("title")}`;
+      document.title = `WorkPass — ${t("title")}`;
       const h1 = document.querySelector("#hubHeader h1");
       if (h1) h1.textContent = t("title");
       const sub = document.getElementById("subtitle");
@@ -1360,7 +1089,7 @@
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || selectedCompanyId || "";
       const plan = String(planKey || "professional").trim();
-      const subject = `BauPass Tarif-Upgrade: ${plan}`;
+      const subject = `WorkPass Tarif-Upgrade: ${plan}`;
       const body = `Gewünschter Tarif: ${plan}\nFirma-ID: ${companyId || "—"}\n\nBitte kontaktieren Sie uns für ein Angebot.`;
       const mailUrl = `mailto:support@baupass.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       const fallbackText = `${t("planUpgradeMailFallback")}\nsupport@baupass.de\n\n${subject}`;
@@ -1508,17 +1237,23 @@
       if (filterEntitlement === "enabled" && !it.enabled) return false;
       if (filterEntitlement === "locked" && it.enabled) return false;
       if (!q) return true;
+      const labelI18n = it.labelI18n && typeof it.labelI18n === "object"
+        ? Object.values(it.labelI18n).join(" ")
+        : "";
       const hay = (
-        itemLabel(it) + " " + (it.labelAr || "") + " " + (it.labelDe || "") + " " + (it.labelEn || "") + " " +
+        itemLabel(it) + " " + labelI18n + " " + (it.labelAr || "") + " " + (it.labelDe || "") + " " + (it.labelEn || "") + " " +
         itemNote(it) + " " + (it.apis || []).join(" ")
       ).toLowerCase();
       return hay.includes(q);
     }
 
     function planMetaLine(plan, meta) {
-      if (HUB_LANG === "ar") return `${meta.labelAr || planLabel(plan)} — ${meta.taglineAr || ""}`;
-      if (HUB_LANG === "en") return `${meta.label || planLabel(plan)} — ${meta.taglineEn || meta.taglineAr || ""}`;
-      return `${meta.label || planLabel(plan)} — ${meta.taglineDe || meta.taglineAr || ""}`;
+      const label = planLabel(plan);
+      const tagline = hubCatalogText(meta, "tagline");
+      if (HUB_LANG === "ar") {
+        return `${meta.labelAr || label}${tagline ? ` — ${tagline}` : ""}`;
+      }
+      return `${meta.label || label}${tagline ? ` — ${tagline}` : ""}`;
     }
 
     function renderPlanBanner(cat) {

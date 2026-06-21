@@ -1,4 +1,4 @@
-import { applyI18n, getLang, setLang, setSectorTermOverrides, t } from "./i18n.js";
+﻿import { applyI18n, getLang, setLang, setSectorTermOverrides, t } from "./i18n.js";
 import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -151,7 +151,7 @@ async function activateCommandItem(item) {
 
 function ensureEmbedQuickNav() {
   if (!isEmbedMode()) return;
-  /* Parent BauPass sidebar owns navigation — no duplicate quick bar in embed */
+  /* Parent WorkPass sidebar owns navigation — no duplicate quick bar in embed */
   return;
   const main = document.querySelector(".app-main");
   if (!main || document.getElementById("embedQuickNav")) return;
@@ -760,14 +760,14 @@ function scheduleInboxReload() {
 }
 
 async function startAdminRealtime() {
-  if (!window.BauPassOpsRealtime) return;
+  if (!window.WorkPassOpsRealtime) return;
   if (adminRealtimeStop) {
     adminRealtimeStop();
     adminRealtimeStop = null;
   }
   const cid = companyIdFromQuery();
   if (!cid && getUser().role === "superadmin") return;
-  adminRealtimeStop = await window.BauPassOpsRealtime.start({
+  adminRealtimeStop = await window.WorkPassOpsRealtime.start({
     companyId: cid,
     feedEl: null,
     onEvent: (evt) => {
@@ -795,8 +795,24 @@ function syncEnterpriseFrame() {
   if (!frame) return;
   const q = companyQuery();
   const cid = q ? q.replace(/^\?company_id=/, "") : "";
-  const base = "/enterprise-hub.html?embed=1&v=20260531shell2";
+  const lang = getLang();
+  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260619hub8lang`;
   frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
+  try {
+    frame.contentWindow?.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+  } catch {
+    // iframe not ready
+  }
+}
+
+function broadcastLangToEnterpriseFrame(lang) {
+  const frame = $("enterpriseFrame");
+  if (!frame) return;
+  try {
+    frame.contentWindow?.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+  } catch {
+    // iframe not ready
+  }
 }
 
 const TAB_TITLE_KEYS = {
@@ -3790,7 +3806,9 @@ function bindLangSelect(sel) {
 }
 bindLangSelect($("langSelect"));
 bindLangSelect($("langSelectDash"));
-window.addEventListener("baupass-admin-lang", () => {
+window.addEventListener("baupass-admin-lang", (event) => {
+  const lang = event?.detail?.lang || getLang();
+  broadcastLangToEnterpriseFrame(lang);
   loadSectorTerminologyForAdmin().catch(() => {});
   if ($("dashboardView").classList.contains("hidden")) return;
   const tab = document.querySelector(".tab.active")?.dataset?.tab;

@@ -40,6 +40,23 @@ def test_enterprise_catalog_includes_billing_flags(client_and_db):
     assert billing.get("selfServeCheckout") is False
 
 
+def test_enterprise_catalog_i18n_eight_langs(client_and_db):
+    client, _ = client_and_db
+    h = _superadmin_headers(client)
+    r = client.get("/api/platform/enterprise-catalog", headers=h)
+    assert r.status_code == 200
+    data = r.get_json()
+    langs = {"de", "en", "ar", "tr", "fr", "es", "it", "pl"}
+    layer = (data.get("layers") or [])[0]
+    item = (layer.get("items") or [])[0]
+    assert langs.issubset(set((layer.get("titleI18n") or {}).keys()))
+    assert langs.issubset(set((item.get("labelI18n") or {}).keys()))
+    plans = data.get("plans") or {}
+    pro = plans.get("professional") or {}
+    assert langs.issubset(set((pro.get("taglineI18n") or {}).keys()))
+    assert pro["taglineI18n"]["tr"]
+
+
 def test_setup_status_public(client_and_db):
     client, _ = client_and_db
     r = client.get("/api/platform/setup-status")

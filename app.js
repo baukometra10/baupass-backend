@@ -1,4 +1,4 @@
-// ALLE ELEMENTE OBEN DEFINIEREN!
+﻿// ALLE ELEMENTE OBEN DEFINIEREN!
 window.__BAUPASS_UI_BUILD = "20260605f";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
@@ -204,8 +204,8 @@ function resolveLocalApiFallbackRequests(url, options = {}) {
 
 let API_BASE = resolveApiBase();
 const DEFAULT_BRAND_LOGO = API_BASE
-  ? `${API_BASE}/branding/baukometra-logo.svg`
-  : `${window.location.origin}/branding/baukometra-logo.svg`;
+  ? `${API_BASE}/branding/suppix-ai-logo.svg`
+  : `${window.location.origin}/branding/suppix-ai-logo.svg`;
 const SESSION_TOKEN_STORAGE_KEY = "baupass-control-token";
 const SUPPORT_LOGIN_CONTEXT_KEY = "baupass-support-login-context";
 const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
@@ -729,7 +729,7 @@ function syncSupportAssistSpectatorWatch() {
 const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
-    authTitle: "Sicher in BauPass anmelden",
+    authTitle: "Sicher in WorkPass anmelden",
     authTitleTenant: "Bei {company} anmelden",
     authCopyTenant: "Melden Sie sich mit Ihrem Firmenkonto bei {company} an.",
     authCopy: "Digitale Ausweise, Zutrittskontrolle und Compliance für Unternehmen, Teams und Standorte.",
@@ -780,7 +780,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop-App",
     desktopInstallHint: "Dieses Portal kann auf dem Computer wie ein Programm installiert werden.",
     desktopInstallButton: "Auf diesem Computer installieren",
-    appTitle: "BauPass",
+    appTitle: "WorkPass",
     navBetrieb: "Betrieb",
     topbarHeadingDashboard: "Übersicht — Ausweise, Zutritt & Betrieb",
     topbarHeadingWorkers: "Mitarbeiter verwalten",
@@ -792,13 +792,13 @@ const UI_TRANSLATIONS = {
     topbarHeadingInvoices: "Rechnungen",
     topbarHeadingAdmin: "System & Mandanten",
     topbarHeadingBetrieb: "Betrieb — Posteingang, Schichten & Workforce",
-    topbarHeadingAi: "BauPass KI — Assistent",
+    topbarHeadingAi: "SUPPIX AI — Assistent",
     topbarHeadingHub: "Funktionen & Tarife",
     topbarHeadingOps: "Ops-Zentrale",
     alertInstallUnavailable: "Die Installation ist in diesem Browser gerade nicht direkt verfuegbar. In Chrome oder Edge kannst du im Browser-Menue 'App installieren' waehlen.",
     alertSessionExpired: "Sitzung abgelaufen. Bitte neu anmelden.",
     // Shell
-    sidebarEyebrow: "BauPass Plattform",
+    sidebarEyebrow: "WorkPass Plattform",
     sidebarCopy: "Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.",
     sidebarCardTitle: "Vermietungsmodus",
     sidebarCardStrong: "Multi-Firma f\u00e4hig",
@@ -824,7 +824,7 @@ const UI_TRANSLATIONS = {
     deploymentPdfPrint: "Drucken",
     deploymentPlanBetriebHint: "Der vollständige Editor (Monat, Mitarbeiter, PDF, Versand) liegt unter Betrieb — nicht nur diese Kurzanleitung.",
     deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
-    deploymentPlanLoginRequired: "Bitte zuerst in BauPass anmelden — danach öffnet sich der Einsatzplan-Editor.",
+    deploymentPlanLoginRequired: "Bitte zuerst in WorkPass anmelden — danach öffnet sich der Einsatzplan-Editor.",
     loginMissingFields: "Bitte Benutzername und Passwort eingeben.",
     loginAlreadyActive: "Sie sind bereits angemeldet als {user} ({role}). Zum Wechseln bitte zuerst abmelden.",
     deploymentStep1Title: "1. Monat wählen",
@@ -899,7 +899,7 @@ const UI_TRANSLATIONS = {
     btnExport: "System exportieren",
     btnImport: "System importieren",
     btnLogout: "Sicher abmelden",
-    dashEyebrow: "Enterprise BauPass",
+    dashEyebrow: "Enterprise WorkPass",
     dashHeading: "Digitale Ausweise mit Foto, Badge-ID und Check-in am Drehkreuz",
     dashSubtext: "Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting \u2014 mandantenf\u00e4hig f\u00fcr Beh\u00f6rden und Unternehmen.",
     dashBadge1: "Fotoaufnahme",
@@ -999,7 +999,7 @@ const UI_TRANSLATIONS = {
     reportTimezonePlaceholder: "Europe/Berlin",
     reportTimezoneHint: "IANA, z. B. Europe/Berlin, Asia/Dubai. Leer = Plattform-Standard.",
     navEnterpriseSection: "KI & Integration",
-    navBaupassAi: "BauPass KI",
+    navBaupassAi: "SUPPIX AI",
     navEnterpriseHub: "Funktionen & Tarife",
     navOpsCenter: "Ops-Zentrale",
     navAdminV2: "Betrieb",
@@ -1116,7 +1116,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer läuft nicht — wenn https://localhost:49494 im Browser nicht öffnet: „Einrichtung starten“ als Administrator ausführen.",
     signotecBridgeServerDown: "Wenn Firefox „Verbindung unterbrochen“ zeigt: Bridge ist nicht installiert/gestartet. setup.bat als Admin → Log auf dem Desktop prüfen.",
     signotecBridgeStatusCert: "Bridge läuft, Zertifikat fehlt — „Zertifikat bestätigen“, dann Verbindung prüfen.",
-    signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann BauPass mit Strg+Shift+R neu laden.",
+    signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann WorkPass mit Strg+Shift+R neu laden.",
     signotecBridgeStatusFirefox: "Signotec-Bridge fehlt oder Zertifikat in Firefox noch nicht bestätigt — zuerst Einrichtung starten, dann Zertifikat.",
     signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
@@ -1316,9 +1316,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "Einstellungen konnten nicht gespeichert werden: {error}",
     alertSystemRepairDone: "System-Reparatur wurde ausgefuehrt.",
     alertSystemRepairFailed: "System-Reparatur fehlgeschlagen: {error}",
-    alertBrandingLoaded: "BauKometra Branding geladen. Jetzt nur noch auf Admin-Einstellungen speichern klicken.",
+    alertBrandingLoaded: "Suppix Technologie UG Branding geladen. Jetzt nur noch auf Admin-Einstellungen speichern klicken.",
     alertBrandingLoadFailed: "Branding konnte nicht geladen werden: {error}",
-    alertBrandingAltLoaded: "Alternative BauKometra Branding-Variante geladen. Jetzt nur noch auf Admin-Einstellungen speichern klicken.",
+    alertBrandingAltLoaded: "Alternative Suppix Technologie UG Branding-Variante geladen. Jetzt nur noch auf Admin-Einstellungen speichern klicken.",
     alertBrandingAltLoadFailed: "Alternative Branding-Variante konnte nicht geladen werden: {error}",
     alertDayCloseAckFailed: "Tagesabschluss konnte nicht quittiert werden: {error}",
     alertOtpRequired: "Fuer dieses Konto ist 2FA aktiv. Bitte OTP-Code eingeben.",
@@ -1634,7 +1634,7 @@ const UI_TRANSLATIONS = {
     btnDayCloseAcknowledge: "Tagesabschluss quittieren",
     btnExportCompanyDocEmails: "Dokument-Mails exportieren",
     btnLoadAltBrand: "Alternative laden",
-    btnLoadDefaultBrand: "BauKometra Branding laden",
+    btnLoadDefaultBrand: "Suppix Technologie UG Branding laden",
     cameraNotStarted: "Kamera noch nicht gestartet.",
     complianceEyebrow: "Compliance",
     complianceH3: "Dokumentenstatus",
@@ -1905,7 +1905,7 @@ const UI_TRANSLATIONS = {
   en: {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
-    authTitle: "Secure sign-in to BauPass",
+    authTitle: "Secure sign-in to WorkPass",
     authTitleTenant: "Sign in to {company}",
     authCopyTenant: "Sign in with your {company} account.",
     authCopy: "Digital badges, access control and compliance for companies, teams and sites.",
@@ -1959,11 +1959,11 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop App",
     desktopInstallHint: "This portal can be installed on your computer like a native app.",
     desktopInstallButton: "Install on this computer",
-    appTitle: "BauPass",
+    appTitle: "WorkPass",
     navBetrieb: "Operations",
     topbarHeadingDashboard: "Overview — badges, access & operations",
     topbarHeadingBetrieb: "Operations — inbox, shifts & workforce",
-    topbarHeadingAi: "BauPass AI — assistant",
+    topbarHeadingAi: "SUPPIX AI — assistant",
     topbarHeadingHub: "Features & plans",
     topbarHeadingOps: "Ops center",
     platformHealthEyebrow: "Platform",
@@ -2008,7 +2008,7 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Deployment plan — monthly",
     deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
     deploymentPlanLockedToast: "Deployment plan requires Professional plan or higher.",
-    deploymentPlanLoginRequired: "Please sign in to BauPass first — then the deployment plan editor opens.",
+    deploymentPlanLoginRequired: "Please sign in to WorkPass first — then the deployment plan editor opens.",
     loginMissingFields: "Please enter username and password.",
     loginAlreadyActive: "You are already signed in as {user} ({role}). Sign out first to switch accounts.",
     deploymentStep1Title: "1. Pick month",
@@ -2083,7 +2083,7 @@ const UI_TRANSLATIONS = {
     btnExport: "Export system",
     btnImport: "Import system",
     btnLogout: "Sign out securely",
-    dashEyebrow: "Enterprise BauPass",
+    dashEyebrow: "Enterprise WorkPass",
     dashHeading: "Digital badges with photo, badge ID and check-in at turnstile",
     dashSubtext: "Enterprise identity, access control, workforce, compliance, documents and reporting \u2014 multi-tenant for agencies and enterprises.",
     dashBadge1: "Photo capture",
@@ -2094,7 +2094,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubDesc: "All built capabilities (attendance, identity, security, AI, integrations …) in one place — filtered by your plan.",
     enterpriseHubOpenBtn: "Open Enterprise Hub",
     enterpriseEmbedOpenTab: "Open inside platform",
-    navBaupassAi: "BauPass AI",
+    navBaupassAi: "SUPPIX AI",
     navAiCopilot: "AI assistant",
     navEnterpriseHub: "Features & plans",
     navOpsCenter: "Ops center",
@@ -2197,7 +2197,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer not running — if https://localhost:49494 won't open in the browser, run Start setup as Administrator.",
     signotecBridgeServerDown: "If Firefox shows connection interrupted: bridge not installed/started. Run setup.bat as Admin, check Desktop log.",
     signotecBridgeStatusCert: "Bridge is running; certificate not trusted — click Trust certificate, then test again.",
-    signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload BauPass with Ctrl+Shift+R.",
+    signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload WorkPass with Ctrl+Shift+R.",
     signotecBridgeStatusFirefox: "Signotec bridge missing or Firefox certificate not trusted — run setup first, then trust the certificate.",
     signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
@@ -2377,7 +2377,7 @@ const UI_TRANSLATIONS = {
     passwordSetDialogMismatch: "Passwords do not match.",
     turnstilePasswordDialogTitle: "Reset turnstile password",
     alertCompanyCreate405: "Company could not be created (405). Request landed on {target}. The backend does not accept POST there — check the API URL or wait for deploy.",
-    accountPasswordHint: "Change your personal Control Pass login here. Set company admin passwords in the company list (\"Set password\" button).",
+    accountPasswordHint: "Change your personal WorkPass login here. Set company admin passwords in the company list (\"Set password\" button).",
     companyAdminStartPasswordHint: "Initial password for the new company admin login of \"{company}\".",
     btnDocInboxRematch: "Re-assign",
     manualEntryBtn: "Manual Entry",
@@ -2461,9 +2461,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "Settings could not be saved: {error}",
     alertSystemRepairDone: "System repair has been executed.",
     alertSystemRepairFailed: "System repair failed: {error}",
-    alertBrandingLoaded: "BauKometra branding loaded. Just click Save in Admin Settings.",
+    alertBrandingLoaded: "Suppix Technologie UG branding loaded. Just click Save in Admin Settings.",
     alertBrandingLoadFailed: "Branding could not be loaded: {error}",
-    alertBrandingAltLoaded: "Alternative BauKometra branding loaded. Just click Save in Admin Settings.",
+    alertBrandingAltLoaded: "Alternative Suppix Technologie UG branding loaded. Just click Save in Admin Settings.",
     alertBrandingAltLoadFailed: "Alternative branding could not be loaded: {error}",
     alertDayCloseAckFailed: "Day close could not be acknowledged: {error}",
     alertOtpRequired: "2FA is active for this account. Please enter the OTP code.",
@@ -2967,7 +2967,7 @@ const UI_TRANSLATIONS = {
   },
   tr: {
     authEyebrow: "Giriş Sayfası",
-    authTitle: "Control Pass'a Güvenli Giriş",
+    authTitle: "WorkPass'a Güvenli Giriş",
     authCopy: "Süper admin tüm sistem kontrolünü elinde tutar. Firma adminleri yalnızca kendi firmalarını görür. Turnike girişi hızlı geçiş moduna sahiptir.",
     authPlatform: "Platform",
     authOperator: "İşletmeci",
@@ -3381,9 +3381,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "Ayarlar kaydedilemedi: {error}",
     alertSystemRepairDone: "Sistem onarimi gerceklestirildi.",
     alertSystemRepairFailed: "Sistem onarimi basarisiz oldu: {error}",
-    alertBrandingLoaded: "BauKometra markasi yuklendi. Simdi Admin Ayarlari'nda kaydet dugmesine tiklayin.",
+    alertBrandingLoaded: "Suppix Technologie UG markasi yuklendi. Simdi Admin Ayarlari'nda kaydet dugmesine tiklayin.",
     alertBrandingLoadFailed: "Marka yuklenemedi: {error}",
-    alertBrandingAltLoaded: "Alternatif BauKometra markasi yuklendi. Simdi Admin Ayarlari'nda kaydet dugmesine tiklayin.",
+    alertBrandingAltLoaded: "Alternatif Suppix Technologie UG markasi yuklendi. Simdi Admin Ayarlari'nda kaydet dugmesine tiklayin.",
     alertBrandingAltLoadFailed: "Alternatif marka yuklenemedi: {error}",
     alertDayCloseAckFailed: "Gun sonu onaylanamadi: {error}",
     alertOtpRequired: "Bu hesap icin 2FA aktif. Lutfen OTP kodunu girin.",
@@ -3725,7 +3725,7 @@ const UI_TRANSLATIONS = {
   },
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
-    authTitle: "تسجيل دخول آمن إلى BauPass",
+    authTitle: "تسجيل دخول آمن إلى WorkPass",
     authCopy: "منصة الهوية المؤسسية والتحكم التشغيلي والامتثال — للمشرف العام ومدير المستأجر ونقاط الدخول.",
     labelOperatingSector: "القطاع التشغيلي",
     optSectorConstruction: "البناء",
@@ -3810,7 +3810,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubDesc: "كل القدرات التي بُنيت (حضور، هوية، أمن، AI، تكاملات…) في مكان واحد — مُخصّصة حسب خطتك.",
     enterpriseHubOpenBtn: "فتح Enterprise Hub",
     enterpriseEmbedOpenTab: "فتح داخل المنصة",
-    navBaupassAi: "BauPass KI",
+    navBaupassAi: "SUPPIX AI",
     navEnterpriseHub: "الميزات والخطط",
     navOpsCenter: "مركز العمليات",
     navAdminV2: "التشغيل",
@@ -3818,12 +3818,12 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
     enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
-    appTitle: "BauPass",
+    appTitle: "WorkPass",
     navBetrieb: "التشغيل",
     navEnterpriseSection: "الذكاء والتكامل",
     topbarHeadingDashboard: "نظرة عامة — البطاقات والدخول والتشغيل",
     topbarHeadingBetrieb: "التشغيل — البريد والورديات والقوى العاملة",
-    topbarHeadingAi: "BauPass KI — المساعد",
+    topbarHeadingAi: "SUPPIX AI — المساعد",
     topbarHeadingHub: "الميزات والخطط",
     topbarHeadingOps: "مركز العمليات",
     platformHealthEyebrow: "المنصة",
@@ -4073,9 +4073,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "تعذر حفظ الإعدادات: {error}",
     alertSystemRepairDone: "تم تنفيذ إصلاح النظام.",
     alertSystemRepairFailed: "فشل إصلاح النظام: {error}",
-    alertBrandingLoaded: "تم تحميل علامة BauKometra التجارية. الآن انقر فوق حفظ في إعدادات الإدارة.",
+    alertBrandingLoaded: "تم تحميل علامة Suppix Technologie UG التجارية. الآن انقر فوق حفظ في إعدادات الإدارة.",
     alertBrandingLoadFailed: "تعذر تحميل العلامة التجارية: {error}",
-    alertBrandingAltLoaded: "تم تحميل البديل لعلامة BauKometra التجارية. الآن انقر فوق حفظ في إعدادات الإدارة.",
+    alertBrandingAltLoaded: "تم تحميل البديل لعلامة Suppix Technologie UG التجارية. الآن انقر فوق حفظ في إعدادات الإدارة.",
     alertBrandingAltLoadFailed: "تعذر تحميل العلامة التجارية البديلة: {error}",
     alertDayCloseAckFailed: "تعذر تأكيد إغلاق اليوم: {error}",
     alertOtpRequired: "المصادقة الثنائية مفعلة لهذا الحساب. يرجى إدخال رمز OTP.",
@@ -4332,7 +4332,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer غير شغّال — إن لم يفتح https://localhost:49494 في المتصفح: شغّل «بدء الإعداد» كمسؤول (Admin).",
     signotecBridgeServerDown: "إذا ظهر «انقطع الاتصال» في Firefox: الجسر غير مثبت/غير شغّال. شغّل setup.bat كمسؤول وتحقق من ملف السجل على سطح المكتب.",
     signotecBridgeStatusCert: "الجسر يعمل؛ الشهادة غير مقبولة — اضغط تأكيد الشهادة ثم اختبر مجدداً.",
-    signotecBridgeFirefoxHint: "Firefox: افتح https://localhost:49494 (وليس 127.0.0.1)، اضغط «متقدم» → «قبول المخاطرة»، ثم Ctrl+Shift+R لإعادة تحميل BauPass.",
+    signotecBridgeFirefoxHint: "Firefox: افتح https://localhost:49494 (وليس 127.0.0.1)، اضغط «متقدم» → «قبول المخاطرة»، ثم Ctrl+Shift+R لإعادة تحميل WorkPass.",
     signotecBridgeStatusFirefox: "جسر Signotec غير موجود أو الشهادة غير مقبولة في Firefox — شغّل الإعداد أولاً ثم أكّد الشهادة.",
     signatureDeviceTimeout: "جهاز التوقيع لا يستجيب — أعد المحاولة أو وقّع في المساحة البيضاء.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
@@ -4757,7 +4757,7 @@ const UI_TRANSLATIONS = {
   },
   fr: {
     authEyebrow: "Page de connexion",
-    authTitle: "Connexion sécurisée à Control Pass",
+    authTitle: "Connexion sécurisée à WorkPass",
     authCopy: "Le super admin garde le contrôle total du système. Les admins d'entreprise ne voient que leur entreprise. Le login tourniquet offre un mode d'accès rapide.",
     authPlatform: "Plateforme",
     authOperator: "Opérateur",
@@ -4967,9 +4967,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "Les paramètres n'ont pas pu etre sauvegardés : {error}",
     alertSystemRepairDone: "La réparation du système a été exécutée.",
     alertSystemRepairFailed: "La réparation du système a échoué : {error}",
-    alertBrandingLoaded: "Marque BauKometra chargée. Cliquez maintenant sur Enregistrer dans les paramètres admin.",
+    alertBrandingLoaded: "Marque Suppix Technologie UG chargée. Cliquez maintenant sur Enregistrer dans les paramètres admin.",
     alertBrandingLoadFailed: "La marque n'a pas pu etre chargée : {error}",
-    alertBrandingAltLoaded: "Variante alternative de la marque BauKometra chargée. Cliquez maintenant sur Enregistrer dans les paramètres admin.",
+    alertBrandingAltLoaded: "Variante alternative de la marque Suppix Technologie UG chargée. Cliquez maintenant sur Enregistrer dans les paramètres admin.",
     alertBrandingAltLoadFailed: "La variante de marque alternative n'a pas pu etre chargée : {error}",
     alertDayCloseAckFailed: "La cloture journalière n'a pas pu etre accusée : {error}",
     alertOtpRequired: "La 2FA est active pour ce compte. Veuillez saisir le code OTP.",
@@ -5541,7 +5541,7 @@ const UI_TRANSLATIONS = {
   },
   es: {
     authEyebrow: "Página de acceso",
-    authTitle: "Inicio de sesión seguro en Control Pass",
+    authTitle: "Inicio de sesión seguro en WorkPass",
     authCopy: "El super admin mantiene el control completo del sistema. Los admins de empresa solo ven su empresa. El acceso de torniquete ofrece un modo rápido.",
     authPlatform: "Plataforma",
     authOperator: "Operador",
@@ -5751,9 +5751,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "La configuracion no pudo guardarse: {error}",
     alertSystemRepairDone: "La reparacion del sistema ha sido ejecutada.",
     alertSystemRepairFailed: "La reparacion del sistema fallo: {error}",
-    alertBrandingLoaded: "Marca BauKometra cargada. Ahora haga clic en Guardar en la configuracion de admin.",
+    alertBrandingLoaded: "Marca Suppix Technologie UG cargada. Ahora haga clic en Guardar en la configuracion de admin.",
     alertBrandingLoadFailed: "La marca no pudo cargarse: {error}",
-    alertBrandingAltLoaded: "Variante alternativa de la marca BauKometra cargada. Ahora haga clic en Guardar en la configuracion de admin.",
+    alertBrandingAltLoaded: "Variante alternativa de la marca Suppix Technologie UG cargada. Ahora haga clic en Guardar en la configuracion de admin.",
     alertBrandingAltLoadFailed: "La variante de marca alternativa no pudo cargarse: {error}",
     alertDayCloseAckFailed: "El cierre de dia no pudo confirmarse: {error}",
     alertOtpRequired: "La 2FA esta activa para esta cuenta. Por favor ingrese el codigo OTP.",
@@ -6317,7 +6317,7 @@ const UI_TRANSLATIONS = {
   },
   it: {
     authEyebrow: "Pagina di accesso",
-    authTitle: "Accesso sicuro a Control Pass",
+    authTitle: "Accesso sicuro a WorkPass",
     authCopy: "Il super admin mantiene il controllo completo del sistema. Gli admin aziendali vedono solo la propria azienda. L'accesso tornello ha una modalità rapida.",
     authPlatform: "Piattaforma",
     authOperator: "Operatore",
@@ -6527,9 +6527,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "Le impostazioni non hanno potuto essere salvate: {error}",
     alertSystemRepairDone: "La riparazione del sistema e stata eseguita.",
     alertSystemRepairFailed: "La riparazione del sistema e fallita: {error}",
-    alertBrandingLoaded: "Marchio BauKometra caricato. Ora fare clic su Salva nelle impostazioni admin.",
+    alertBrandingLoaded: "Marchio Suppix Technologie UG caricato. Ora fare clic su Salva nelle impostazioni admin.",
     alertBrandingLoadFailed: "Il marchio non ha potuto essere caricato: {error}",
-    alertBrandingAltLoaded: "Variante alternativa del marchio BauKometra caricata. Ora fare clic su Salva nelle impostazioni admin.",
+    alertBrandingAltLoaded: "Variante alternativa del marchio Suppix Technologie UG caricata. Ora fare clic su Salva nelle impostazioni admin.",
     alertBrandingAltLoadFailed: "La variante di marchio alternativa non ha potuto essere caricata: {error}",
     alertDayCloseAckFailed: "La chiusura giornaliera non ha potuto essere confermata: {error}",
     alertOtpRequired: "La 2FA e attiva per questo account. Inserire il codice OTP.",
@@ -7101,7 +7101,7 @@ const UI_TRANSLATIONS = {
   },
   pl: {
     authEyebrow: "Strona logowania",
-    authTitle: "Bezpieczne logowanie do Control Pass",
+    authTitle: "Bezpieczne logowanie do WorkPass",
     authCopy: "Super administrator zachowuje pełną kontrolę nad systemem. Administratorzy firm widzą tylko swoją firmę. Logowanie bramki ma szybki tryb dostępu.",
     authPlatform: "Platforma",
     authOperator: "Operator",
@@ -7311,9 +7311,9 @@ const UI_TRANSLATIONS = {
     alertSettingsSaveFailed: "Nie udalo sie zapisac ustawien: {error}",
     alertSystemRepairDone: "Naprawa systemu zostala wykonana.",
     alertSystemRepairFailed: "Naprawa systemu nie powiodla sie: {error}",
-    alertBrandingLoaded: "Marka BauKometra zaladowana. Teraz kliknij Zapisz w ustawieniach administratora.",
+    alertBrandingLoaded: "Marka Suppix Technologie UG zaladowana. Teraz kliknij Zapisz w ustawieniach administratora.",
     alertBrandingLoadFailed: "Nie udalo sie zaladowac marki: {error}",
-    alertBrandingAltLoaded: "Alternatywny wariant marki BauKometra zaladowany. Teraz kliknij Zapisz w ustawieniach administratora.",
+    alertBrandingAltLoaded: "Alternatywny wariant marki Suppix Technologie UG zaladowany. Teraz kliknij Zapisz w ustawieniach administratora.",
     alertBrandingAltLoadFailed: "Nie udalo sie zaladowac alternatywnego wariantu marki: {error}",
     alertDayCloseAckFailed: "Zamkniecie dnia nie moglo zostac potwierdzone: {error}",
     alertOtpRequired: "2FA jest aktywne dla tego konta. Prosze wprowadzic kod OTP.",
@@ -8104,24 +8104,24 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Bramka Północna",
   },
   platformName: {
-    de: "BauPass",
-    en: "BauPass",
-    tr: "BauPass",
-    ar: "BauPass",
-    fr: "BauPass",
-    es: "BauPass",
-    it: "BauPass",
-    pl: "BauPass",
+    de: "WorkPass",
+    en: "WorkPass",
+    tr: "WorkPass",
+    ar: "WorkPass",
+    fr: "WorkPass",
+    es: "WorkPass",
+    it: "WorkPass",
+    pl: "WorkPass",
   },
   operatorName: {
-    de: "Baukometra",
-    en: "Baukometra",
-    tr: "Baukometra",
-    ar: "Baukometra",
-    fr: "Baukometra",
-    es: "Baukometra",
-    it: "Baukometra",
-    pl: "Baukometra",
+    de: "Suppix Technologie UG",
+    en: "Suppix Technologie UG",
+    tr: "Suppix Technologie UG",
+    ar: "Suppix Technologie UG",
+    fr: "Suppix Technologie UG",
+    es: "Suppix Technologie UG",
+    it: "Suppix Technologie UG",
+    pl: "Suppix Technologie UG",
   },
   companyTurnstileEndpoint: {
     de: "https://api.dein-gateway.de/access",
@@ -9169,8 +9169,8 @@ const state = {
   currentUser: null,
   supportLoginContext: loadSupportLoginContext(),
   settings: {
-    platformName: "BauPass",
-    operatorName: "Baukometra",
+    platformName: "WorkPass",
+    operatorName: "Suppix Technologie UG",
     turnstileEndpoint: ""
   },
   companies: [],
@@ -10028,7 +10028,7 @@ function getRuntimeUiTexts() {
     ttsFallbackEnglish: "Until installation is complete, the greeting uses <strong>English</strong> as fallback.",
     ttsVoiceCountOne: "{count} voice",
     ttsVoiceCountMany: "{count} voices",
-    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in Control Pass",
+    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in WorkPass",
     ttsLoadingVoices: "Loading voices...",
     smtpEnvCheckPrefix: "Env check",
     smtpEnvSet: "set",
@@ -10880,7 +10880,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Bis zur Installation spricht die Begruessung auf <strong>Englisch</strong> als Fallback.",
       ttsVoiceCountOne: "{count} Stimme",
       ttsVoiceCountMany: "{count} Stimmen",
-      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in Control Pass genutzte Sprachen",
+      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in WorkPass genutzte Sprachen",
       ttsLoadingVoices: "Lade Stimmen...",
       smtpEnvCheckPrefix: "Env-Check",
       smtpEnvSet: "gesetzt",
@@ -11694,7 +11694,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Kurulum tamamlanana kadar karşılama yedek olarak <strong>English</strong> kullanır.",
       ttsVoiceCountOne: "{count} ses",
       ttsVoiceCountMany: "{count} ses",
-      ttsLegend: "🖥️ = yerel ses &nbsp; ☁️ = bulut sesi &nbsp; <strong>Bold</strong> = Control Pass içinde kullanılan diller",
+      ttsLegend: "🖥️ = yerel ses &nbsp; ☁️ = bulut sesi &nbsp; <strong>Bold</strong> = WorkPass içinde kullanılan diller",
       ttsLoadingVoices: "Sesler yükleniyor...",
       smtpEnvCheckPrefix: "Ortam kontrolü",
       smtpEnvSet: "ayarlı",
@@ -12502,7 +12502,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "إلى أن يكتمل التثبيت، يستخدم الترحيب <strong>English</strong> كبديل.",
       ttsVoiceCountOne: "{count} صوت",
       ttsVoiceCountMany: "{count} أصوات",
-      ttsLegend: "🖥️ = صوت محلي &nbsp; ☁️ = صوت سحابي &nbsp; <strong>Bold</strong> = اللغات المستخدمة في Control Pass",
+      ttsLegend: "🖥️ = صوت محلي &nbsp; ☁️ = صوت سحابي &nbsp; <strong>Bold</strong> = اللغات المستخدمة في WorkPass",
       ttsLoadingVoices: "جارٍ تحميل الأصوات...",
       smtpEnvCheckPrefix: "فحص البيئة",
       smtpEnvSet: "مُعيّن",
@@ -13309,7 +13309,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Jusqu'à la fin de l'installation, le message d'accueil utilise <strong>English</strong> comme solution de repli.",
       ttsVoiceCountOne: "{count} voix",
       ttsVoiceCountMany: "{count} voix",
-      ttsLegend: "🖥️ = voix locale &nbsp; ☁️ = voix cloud &nbsp; <strong>Bold</strong> = langues utilisées dans Control Pass",
+      ttsLegend: "🖥️ = voix locale &nbsp; ☁️ = voix cloud &nbsp; <strong>Bold</strong> = langues utilisées dans WorkPass",
       ttsLoadingVoices: "Chargement des voix...",
       smtpEnvCheckPrefix: "Vérification env",
       smtpEnvSet: "défini",
@@ -14116,7 +14116,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Hasta que finalice la instalación, el saludo usa <strong>English</strong> como alternativa.",
       ttsVoiceCountOne: "{count} voz",
       ttsVoiceCountMany: "{count} voces",
-      ttsLegend: "🖥️ = voz local &nbsp; ☁️ = voz en la nube &nbsp; <strong>Bold</strong> = idiomas usados en Control Pass",
+      ttsLegend: "🖥️ = voz local &nbsp; ☁️ = voz en la nube &nbsp; <strong>Bold</strong> = idiomas usados en WorkPass",
       ttsLoadingVoices: "Cargando voces...",
       smtpEnvCheckPrefix: "Comprobación de entorno",
       smtpEnvSet: "configurado",
@@ -14923,7 +14923,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Fino al completamento dell'installazione, il saluto usa <strong>English</strong> come fallback.",
       ttsVoiceCountOne: "{count} voce",
       ttsVoiceCountMany: "{count} voci",
-      ttsLegend: "🖥️ = voce locale &nbsp; ☁️ = voce cloud &nbsp; <strong>Bold</strong> = lingue usate in Control Pass",
+      ttsLegend: "🖥️ = voce locale &nbsp; ☁️ = voce cloud &nbsp; <strong>Bold</strong> = lingue usate in WorkPass",
       ttsLoadingVoices: "Caricamento voci...",
       smtpEnvCheckPrefix: "Controllo env",
       smtpEnvSet: "impostato",
@@ -15730,7 +15730,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Do czasu zakończenia instalacji powitanie używa <strong>English</strong> jako języka zastępczego.",
       ttsVoiceCountOne: "{count} głos",
       ttsVoiceCountMany: "{count} głosy",
-      ttsLegend: "🖥️ = głos lokalny &nbsp; ☁️ = głos chmurowy &nbsp; <strong>Bold</strong> = języki używane w Control Pass",
+      ttsLegend: "🖥️ = głos lokalny &nbsp; ☁️ = głos chmurowy &nbsp; <strong>Bold</strong> = języki używane w WorkPass",
       ttsLoadingVoices: "Ładowanie głosów...",
       smtpEnvCheckPrefix: "Sprawdzenie env",
       smtpEnvSet: "ustawione",
@@ -16269,14 +16269,14 @@ function updateDesktopInstallHint() {
 
   const lang = getStoredUiLang();
   const installHintInstalledByLang = {
-    de: "Control Pass ist auf diesem Geraet bereits als Desktop-App installiert.",
-    en: "Control Pass is already installed as a desktop app on this device.",
-    tr: "Control Pass bu cihazda zaten masaustu uygulamasi olarak kurulu.",
-    ar: "Control Pass مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
-    fr: "Control Pass est deja installe comme application de bureau sur cet appareil.",
-    es: "Control Pass ya esta instalado como aplicacion de escritorio en este dispositivo.",
-    it: "Control Pass e gia installato come app desktop su questo dispositivo.",
-    pl: "Control Pass jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
+    de: "WorkPass ist auf diesem Geraet bereits als Desktop-App installiert.",
+    en: "WorkPass is already installed as a desktop app on this device.",
+    tr: "WorkPass bu cihazda zaten masaustu uygulamasi olarak kurulu.",
+    ar: "WorkPass مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
+    fr: "WorkPass est deja installe comme application de bureau sur cet appareil.",
+    es: "WorkPass ya esta instalado como aplicacion de escritorio en este dispositivo.",
+    it: "WorkPass e gia installato come app desktop su questo dispositivo.",
+    pl: "WorkPass jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
   };
   const installHintDefaultByLang = {
     de: "Dieses Portal kann auf Windows, macOS und Linux wie ein lokales Programm installiert werden.",
@@ -17516,10 +17516,11 @@ async function loadPublicBranding() {
 }
 
 function applyWebsiteLogo(dataUrl) {
-  const hasLogo = Boolean(dataUrl);
+  const logoSrc = String(dataUrl || "").trim() || DEFAULT_BRAND_LOGO;
+  const hasLogo = Boolean(logoSrc);
   document.querySelectorAll(".website-logo-sync").forEach((img) => {
     if (hasLogo) {
-      img.src = dataUrl;
+      img.src = logoSrc;
     }
     img.classList.toggle("hidden", !hasLogo && img.classList.contains("website-logo-sidebar"));
   });
@@ -17949,6 +17950,7 @@ function buildEnterpriseEmbedUrl(item) {
   if (item.queryCompany && cid) {
     params.push(`company_id=${encodeURIComponent(cid)}`);
   }
+  params.push(`lang=${encodeURIComponent(getStoredUiLang())}`);
   if (params.length) {
     url += `?${params.join("&")}`;
   }
@@ -20330,7 +20332,7 @@ function loadTtsVoiceList() {
     for (const lang of langKeys) {
       const prefix = lang.split("-")[0].toLowerCase();
       const isHighlighted = highlighted.includes(prefix);
-      const color = isHighlighted ? "#0f4c5c" : "#555";
+      const color = isHighlighted ? "#06b6d4" : "#555";
       const weight = isHighlighted ? "600" : "400";
       const voiceCountLabel = byLang[lang].length === 1
         ? runtimeTextTemplate("ttsVoiceCountOne", { count: byLang[lang].length })
@@ -21851,7 +21853,7 @@ async function collectBrandingPayloadFromCard(companyId) {
   };
   const theme = themeMap[preset] || themeMap.construction;
   return {
-    companyName: portalName || company.name || "BauPass",
+    companyName: portalName || company.name || "WorkPass",
     logoData: brandingLogoData,
     accent,
     accentLight: theme.accentLight,
@@ -22344,7 +22346,7 @@ function renderOperationsSnapshot() {
   }
   const isDarkTheme = document.body.classList.contains("theme-black");
   const cards = [
-    ["🏗️", uiT("opsWorkersOnSite"), snap.workersOnSite, "#0f4c5c", "", snap.workersOnSite > 0],
+    ["🏗️", uiT("opsWorkersOnSite"), snap.workersOnSite, "#06b6d4", "", snap.workersOnSite > 0],
     ["↗️", uiT("opsCheckInsToday"), snap.checkInsToday, "#0891b2", "", false],
     ["↘️", uiT("opsCheckOutsToday"), snap.checkOutsToday, "#0369a1", "", false],
     ["📄", uiT("opsExpiringDocs30"), snap.expiringDocs30Days, snap.expiringDocs30Days > 0 ? "#d97706" : "#6b7280", isDarkTheme ? "" : (snap.expiringDocs30Days > 0 ? "rgba(254,243,199,0.5)" : ""), snap.expiringDocs30Days > 0],
@@ -22384,7 +22386,7 @@ function renderStats() {
 
   // Stammdaten: keine Live-KPIs (Anwesenheit/Dokumente heute → Live-Betrieb + Compliance)
   const cards = [
-    ["👷", texts.statsWorkersTotal, totalWorkers, "#0f4c5c", "", false, "workers"],
+    ["👷", texts.statsWorkersTotal, totalWorkers, "#06b6d4", "", false, "workers"],
     ["✅", texts.statsWorkersActive, activeWorkers, "#16a34a", isDarkTheme ? "" : "rgba(220,252,231,0.5)", false, "workers"],
     ["🚶", texts.statsVisitorsTotal, totalVisitors, "#7c3aed", isDarkTheme ? "" : "rgba(237,233,254,0.5)", false, "workers"],
     ["🏢", texts.statsCompanies, totalCompanies, "#0369a1", isDarkTheme ? "" : "rgba(224,242,254,0.5)", false, "dashboard"],
@@ -23727,7 +23729,7 @@ function renderCompanyList() {
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
               <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailSenderLabel"))}</label>
               <input data-company-mail-sender-email="${escapeHtml(companyId)}" type="email" placeholder="sender@company.tld" value="${escapeAttr(companyMail.senderEmail)}" ${canManageMail ? "" : "disabled"} />
-              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="BauPass" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="WorkPass" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
               <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailImapLabel"))}</label>
@@ -25396,7 +25398,7 @@ async function openCompanyPlanModal(companyId, company) {
       </div>
 
       <details style="margin-bottom:16px;">
-        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary,#0f4c5c);">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary,#06b6d4);">
           Feature-Übersicht anzeigen ▼
         </summary>
         <div style="overflow-x:auto;margin-top:10px;">
@@ -26188,8 +26190,8 @@ function renderAdminSettingsForm() {
   if (operatorName) operatorName.value = state.settings.operatorName || getUiPlaceholderText("operatorName");
   if (turnstileEndpoint) turnstileEndpoint.value = state.settings.turnstileEndpoint || "";
   if (rentalModel) rentalModel.value = state.settings.rentalModel || "tageskarte";
-  if (invoicePrimaryColor) invoicePrimaryColor.value = state.settings.invoicePrimaryColor || "#0f4c5c";
-  if (invoiceAccentColor) invoiceAccentColor.value = state.settings.invoiceAccentColor || "#e36414";
+  if (invoicePrimaryColor) invoicePrimaryColor.value = state.settings.invoicePrimaryColor || "#06b6d4";
+  if (invoiceAccentColor) invoiceAccentColor.value = state.settings.invoiceAccentColor || "#a855f7";
   if (smtpHost) smtpHost.value = state.settings.smtpHost || "";
   if (smtpPort) smtpPort.value = String(state.settings.smtpPort || 587);
   if (smtpUsername) smtpUsername.value = state.settings.smtpUsername || "";
@@ -28808,8 +28810,8 @@ function getCurrentSmtpSettingsFromForm() {
   const settings = {
     platformName: document.querySelector("#platformName")?.value.trim() || "",
     operatorName: document.querySelector("#operatorName")?.value.trim() || "",
-    invoicePrimaryColor: document.querySelector("#invoicePrimaryColor")?.value || "#0f4c5c",
-    invoiceAccentColor: document.querySelector("#invoiceAccentColor")?.value || "#e36414",
+    invoicePrimaryColor: document.querySelector("#invoicePrimaryColor")?.value || "#06b6d4",
+    invoiceAccentColor: document.querySelector("#invoiceAccentColor")?.value || "#a855f7",
     smtpHost: document.querySelector("#smtpHost")?.value.trim() || "",
     smtpPort: Number(document.querySelector("#smtpPort")?.value || 587),
     smtpUsername: document.querySelector("#smtpUsername")?.value.trim() || "",
@@ -29291,7 +29293,7 @@ async function handleInvoiceLogoUpload(event) {
 
 async function loadCustomBrandingPreset() {
   try {
-    const response = await fetch(API_BASE + "/branding/baukometra-logo.svg");
+    const response = await fetch(API_BASE + "/branding/suppix-ai-invoice.svg");
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -29299,10 +29301,10 @@ async function loadCustomBrandingPreset() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "BauPass";
-    document.querySelector("#operatorName").value = "Baukometra";
-    document.querySelector("#invoicePrimaryColor").value = "#0f4c5c";
-    document.querySelector("#invoiceAccentColor").value = "#e36414";
+    document.querySelector("#platformName").value = "WorkPass";
+    document.querySelector("#operatorName").value = "Suppix Technologie UG";
+    document.querySelector("#invoicePrimaryColor").value = "#06b6d4";
+    document.querySelector("#invoiceAccentColor").value = "#a855f7";
 
     elements.invoiceLogoData.value = logoDataUrl;
     elements.invoiceLogoPreview.src = logoDataUrl;
@@ -29317,7 +29319,7 @@ async function loadCustomBrandingPreset() {
 
 async function loadCustomBrandingPresetAlt() {
   try {
-    const response = await fetch(API_BASE + "/branding/baukometra-alt-logo.svg");
+    const response = await fetch(API_BASE + "/branding/suppix-ai-invoice.svg");
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -29325,10 +29327,10 @@ async function loadCustomBrandingPresetAlt() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "BauPass";
-    document.querySelector("#operatorName").value = "Baukometra";
+    document.querySelector("#platformName").value = "WorkPass";
+    document.querySelector("#operatorName").value = "Suppix Technologie UG";
     document.querySelector("#invoicePrimaryColor").value = "#24324a";
-    document.querySelector("#invoiceAccentColor").value = "#c65a2e";
+    document.querySelector("#invoiceAccentColor").value = "#9333ea";
 
     elements.invoiceLogoData.value = logoDataUrl;
     elements.invoiceLogoPreview.src = logoDataUrl;
@@ -29579,8 +29581,8 @@ async function buildInvoiceDraft(options = {}) {
     discountAmount,
     items: positionItems.length > 0 ? positionItems : undefined,
     accessLineItems,
-    primaryColor: normalizeHexColor(state.settings.invoicePrimaryColor, "#0f4c5c"),
-    accentColor: normalizeHexColor(state.settings.invoiceAccentColor, "#e36414"),
+    primaryColor: normalizeHexColor(state.settings.invoicePrimaryColor, "#06b6d4"),
+    accentColor: normalizeHexColor(state.settings.invoiceAccentColor, "#a855f7"),
     logo: sanitizeInvoiceLogoSrc(state.settings.invoiceLogoData)
       || sanitizeInvoiceLogoSrc(elements.invoiceLogoData.value)
       || DEFAULT_BRAND_LOGO
@@ -31250,7 +31252,7 @@ function renderInvoiceManagementList() {
                 </div>
                 <div>
                   <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewAmountLabel"))}</p>
-                  <p style="margin: 0; font-size: 16px; font-weight: bold; color: #e36414;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
+                  <p style="margin: 0; font-size: 16px; font-weight: bold; color: #a855f7;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
                 </div>
                 <div>
                   <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDateLabel"))}</p>
