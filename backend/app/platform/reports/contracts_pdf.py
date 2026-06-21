@@ -22,8 +22,7 @@ from backend.app.domains.contracts.contract_locales import (
     split_body_blocks,
 )
 
-FIRST_PAGE_SECTIONS = 2
-SECTION_SPACER_MM = 7.0
+SECTION_SPACER_MM = 4.0
 
 
 def _parse_input_data(contract: dict[str, Any]) -> dict[str, Any]:
@@ -235,7 +234,7 @@ def build_employment_contract_pdf(
         fontSize=14,
         leading=18,
         alignment=title_align,
-        spaceAfter=10,
+        spaceAfter=6,
         textColor=text_color,
     )
     preamble_style = ParagraphStyle(
@@ -289,57 +288,71 @@ def build_employment_contract_pdf(
         "ContractEmployeeCover",
         parent=styles["Normal"],
         fontName=font_name,
-        fontSize=11,
-        leading=16,
-        alignment=TA_CENTER,
-        spaceBefore=2,
-        spaceAfter=10,
+        fontSize=10.5,
+        leading=14,
+        alignment=TA_LEFT if lang != "ar" else TA_RIGHT,
+        spaceBefore=0,
+        spaceAfter=0,
         textColor=text_color,
     )
     employer_cover_style = ParagraphStyle(
         "ContractEmployerCover",
         parent=cover_style,
-        fontSize=10.5,
-        spaceAfter=8,
+        alignment=TA_RIGHT if lang != "ar" else TA_LEFT,
     )
     intro_style = ParagraphStyle(
         "ContractIntro",
         parent=preamble_style,
         alignment=TA_CENTER if lang != "ar" else TA_CENTER,
-        spaceAfter=10,
-        fontSize=10,
+        spaceAfter=6,
+        fontSize=9.5,
+        leading=13,
     )
 
     story: list[Any] = []
     story.append(Paragraph(_escape_pdf_text(contract_title), title_style))
-    story.append(Spacer(1, 5 * mm))
-    story.append(
-        Paragraph(
-            employee_cover_html(
-                lang=lang,
-                employee_name=_escape_pdf_text(employee_name),
-                employee_birth_date=employee_birth_date,
-                employee_address=_escape_pdf_text(employee_address),
-                employee_gender=employee_gender,
-            ),
-            cover_style,
-        )
-    )
-    story.append(Spacer(1, 4 * mm))
-    story.append(
-        Paragraph(
-            employer_cover_html(lang=lang, company_name=_escape_pdf_text(company_name)),
-            employer_cover_style,
-        )
-    )
     story.append(Spacer(1, 3 * mm))
+    parties_table = Table(
+        [
+            [
+                Paragraph(
+                    employee_cover_html(
+                        lang=lang,
+                        employee_name=_escape_pdf_text(employee_name),
+                        employee_birth_date=employee_birth_date,
+                        employee_address=_escape_pdf_text(employee_address),
+                        employee_gender=employee_gender,
+                    ),
+                    cover_style,
+                ),
+                Paragraph(
+                    employer_cover_html(lang=lang, company_name=_escape_pdf_text(company_name)),
+                    employer_cover_style,
+                ),
+            ]
+        ],
+        colWidths=[doc.width / 2.0 - 3 * mm, doc.width / 2.0 - 3 * mm],
+    )
+    parties_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    story.append(parties_table)
+    story.append(Spacer(1, 4 * mm))
     story.append(
         Paragraph(
             contract_intro_html(lang=lang, jurisdiction=jurisdiction),
             intro_style,
         )
     )
-    story.append(Spacer(1, 6 * mm))
+    story.append(Spacer(1, 4 * mm))
 
     blocks = split_body_blocks(body_text, lang)
     if not blocks:
@@ -351,14 +364,12 @@ def build_employment_contract_pdf(
         )
         blocks = split_body_blocks(fallback, lang)
 
-    section_heading_style.spaceBefore = 10
-    section_heading_style.spaceAfter = 6
-    section_style.spaceAfter = 10
+    section_heading_style.spaceBefore = 6
+    section_heading_style.spaceAfter = 4
+    section_style.spaceAfter = 6
 
     for index, block in enumerate(blocks):
-        if index == FIRST_PAGE_SECTIONS:
-            story.append(PageBreak())
-        elif index > 0:
+        if index > 0:
             story.append(Spacer(1, SECTION_SPACER_MM * mm))
         lines = block.split("\n", 1)
         heading = lines[0].strip()
@@ -367,10 +378,7 @@ def build_employment_contract_pdf(
             parts = [Paragraph(_escape_pdf_text(heading), section_heading_style)]
             if body:
                 parts.append(Paragraph(_escape_pdf_text(body).replace("\n", "<br/>"), section_style))
-            if index < FIRST_PAGE_SECTIONS:
-                story.append(KeepTogether(parts))
-            else:
-                story.extend(parts)
+            story.append(KeepTogether(parts))
         else:
             story.append(Paragraph(_escape_pdf_text(block).replace("\n", "<br/>"), section_style))
 
