@@ -25,6 +25,7 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "required_fields_json": json.dumps(
             [
                 "employee_name",
+                "employee_gender",
                 "employee_address",
                 "job_title",
                 "start_date",
@@ -49,6 +50,7 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "required_fields_json": json.dumps(
             [
                 "employee_name",
+                "employee_gender",
                 "employee_address",
                 "job_title",
                 "start_date",
@@ -72,6 +74,7 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
         "required_fields_json": json.dumps(
             [
                 "employee_name",
+                "employee_gender",
                 "employee_address",
                 "job_title",
                 "start_date",
@@ -79,6 +82,65 @@ DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
                 "hourly_rate",
                 "monthly_cap",
             ]
+        ),
+    },
+    {
+        "template_key": "contract_amendment",
+        "contract_type": "amendment",
+        "name": "Vertragsänderung / Nachtrag",
+        "language": "de",
+        "guidance_text": (
+            "Erstelle einen Nachtrag zur Änderung eines bestehenden Arbeitsverhältnisses (z. B. Gehalt, Arbeitszeit, "
+            "Tätigkeit, Arbeitsort). Verweise auf das ursprüngliche Arbeitsverhältnis, nenne die geänderten Paragraphen "
+            "klar und formuliere branchenneutral. Schlussbestimmung: übrige Vertragsbedingungen bleiben unverändert."
+        ),
+        "required_fields_json": json.dumps(
+            [
+                "employee_name",
+                "employee_gender",
+                "job_title",
+                "start_date",
+                "notes",
+            ]
+        ),
+    },
+    {
+        "template_key": "retail_sales",
+        "contract_type": "employment",
+        "name": "Einzelhandel / Verkauf",
+        "language": "de",
+        "guidance_text": (
+            "Arbeitsvertrag für Verkauf/Einzelhandel: Schichten, Kassenführung, Warenpflege, "
+            "Kundenkontakt, ArbZG-Pausen, Vergütung, Urlaub, Kündigung — branchentypisch aber neutral formuliert."
+        ),
+        "required_fields_json": json.dumps(
+            ["employee_name", "employee_gender", "employee_address", "job_title", "start_date", "work_location", "weekly_hours", "salary_gross_monthly"]
+        ),
+    },
+    {
+        "template_key": "healthcare_care",
+        "contract_type": "employment",
+        "name": "Gesundheitswesen / Pflege",
+        "language": "de",
+        "guidance_text": (
+            "Arbeitsvertrag für Pflege/Gesundheitswesen: Schichtdienst, Schweigepflicht, Hygiene, "
+            "Arbeitszeit, Vergütung nach Tarif/ Vereinbarung, Fortbildung, Kündigung."
+        ),
+        "required_fields_json": json.dumps(
+            ["employee_name", "employee_gender", "employee_address", "job_title", "start_date", "work_location", "weekly_hours", "salary_gross_monthly"]
+        ),
+    },
+    {
+        "template_key": "logistics_warehouse",
+        "contract_type": "employment",
+        "name": "Logistik / Lager / Produktion",
+        "language": "de",
+        "guidance_text": (
+            "Arbeitsvertrag für Lager, Logistik oder Produktion: Arbeitszeiten, Schichtmodelle, "
+            "Arbeitsschutz, Vergütung (Stunden/Monat), Urlaub, Verschwiegenheit, Kündigung."
+        ),
+        "required_fields_json": json.dumps(
+            ["employee_name", "employee_gender", "employee_address", "job_title", "start_date", "work_location", "weekly_hours", "salary_gross_monthly"]
         ),
     },
 )
@@ -159,6 +221,7 @@ class ContractsRepository:
         ai_prompt: str,
         draft_text: str,
         actor_user_id: str,
+        parent_contract_id: str | None = None,
     ) -> str:
         contract_id = f"ctr-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
@@ -166,8 +229,8 @@ class ContractsRepository:
             """
             INSERT INTO employment_contracts
             (id, company_id, worker_id, template_id, contract_type, title, language, status, input_json,
-             ai_prompt, draft_text, final_text, pdf_file_path, created_by_user_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, '', ?, ?, ?)
+             ai_prompt, draft_text, final_text, pdf_file_path, parent_contract_id, created_by_user_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, '', ?, ?, ?, ?)
             """,
             (
                 contract_id,
@@ -181,6 +244,7 @@ class ContractsRepository:
                 ai_prompt,
                 draft_text,
                 draft_text,
+                parent_contract_id,
                 actor_user_id,
                 now,
                 now,
@@ -209,6 +273,128 @@ class ContractsRepository:
         )
         self.db.commit()
 
+    def update_contract_full(
+        self,
+        contract_id: str,
+        *,
+        company_id: str,
+        final_text: str | None = None,
+        input_json: str | None = None,
+        worker_id: str | None = None,
+        title: str | None = None,
+        language: str | None = None,
+        status: str | None = None,
+        pdf_file_path: str | None = None,
+        clear_worker: bool = False,
+        parent_contract_id: str | None = None,
+        clear_parent: bool = False,
+    ) -> None:
+        now = utc_now_iso()
+        sets = ["updated_at = ?"]
+        params: list[Any] = [now]
+        if final_text is not None:
+            sets.append("final_text = ?")
+            params.append(final_text)
+        if input_json is not None:
+            sets.append("input_json = ?")
+            params.append(input_json)
+        if clear_worker:
+            sets.append("worker_id = NULL")
+        elif worker_id is not None:
+            sets.append("worker_id = ?")
+            params.append(worker_id)
+        if title is not None:
+            sets.append("title = ?")
+            params.append(title)
+        if language is not None:
+            sets.append("language = ?")
+            params.append(language)
+        if status is not None:
+            sets.append("status = ?")
+            params.append(status)
+        if pdf_file_path is not None:
+            sets.append("pdf_file_path = ?")
+            params.append(pdf_file_path)
+        if clear_parent:
+            sets.append("parent_contract_id = NULL")
+        elif parent_contract_id is not None:
+            sets.append("parent_contract_id = ?")
+            params.append(parent_contract_id or None)
+        params.extend([contract_id, company_id])
+        self.db.execute(
+            f"""
+            UPDATE employment_contracts
+            SET {", ".join(sets)}
+            WHERE id = ? AND company_id = ?
+            """,
+            tuple(params),
+        )
+        self.db.commit()
+
+    def log_event(
+        self,
+        *,
+        contract_id: str,
+        company_id: str,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        actor_user_id: str | None = None,
+    ) -> str:
+        event_id = f"cev-{uuid.uuid4().hex[:16]}"
+        now = utc_now_iso()
+        self.db.execute(
+            """
+            INSERT INTO employment_contract_events
+            (id, contract_id, company_id, actor_user_id, event_type, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                contract_id,
+                company_id,
+                actor_user_id or "",
+                event_type,
+                json.dumps(payload or {}, ensure_ascii=False),
+                now,
+            ),
+        )
+        self.db.commit()
+        return event_id
+
+    def list_events(self, contract_id: str, company_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT * FROM employment_contract_events
+            WHERE contract_id = ? AND company_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (contract_id, company_id, max(1, min(limit, 200))),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def expire_pending_sign_sessions(self, contract_id: str, company_id: str, role: str | None = None) -> int:
+        if role:
+            cur = self.db.execute(
+                """
+                UPDATE employment_contract_sign_sessions
+                SET status = 'expired'
+                WHERE contract_id = ? AND company_id = ? AND role = ? AND status = 'pending'
+                """,
+                (contract_id, company_id, role),
+            )
+        else:
+            cur = self.db.execute(
+                """
+                UPDATE employment_contract_sign_sessions
+                SET status = 'expired'
+                WHERE contract_id = ? AND company_id = ? AND status = 'pending'
+                """,
+                (contract_id, company_id),
+            )
+        self.db.commit()
+        return int(cur.rowcount or 0)
+
     def list_contracts(self, company_id: str) -> list[dict[str, Any]]:
         rows = self.db.execute(
             """
@@ -219,6 +405,19 @@ class ContractsRepository:
             ORDER BY c.updated_at DESC
             """,
             (company_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_contracts_for_worker(self, worker_id: str, company_id: str) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT c.*, w.first_name, w.last_name
+            FROM employment_contracts c
+            LEFT JOIN workers w ON w.id = c.worker_id
+            WHERE c.worker_id = ? AND c.company_id = ?
+            ORDER BY c.updated_at DESC
+            """,
+            (worker_id, company_id),
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -308,6 +507,9 @@ class ContractsRepository:
         signer_name: str,
         signature_data: str,
         sign_place: str,
+        sign_latitude: float | None = None,
+        sign_longitude: float | None = None,
+        consent_accepted: bool = False,
     ) -> dict[str, Any] | None:
         session = self.get_sign_session_by_token(token)
         if not session:
@@ -316,10 +518,45 @@ class ContractsRepository:
         self.db.execute(
             """
             UPDATE employment_contract_sign_sessions
-            SET status = 'signed', signer_name = ?, signature_data = ?, sign_place = ?, signed_at = ?
+            SET status = 'signed', signer_name = ?, signature_data = ?, sign_place = ?, signed_at = ?,
+                sign_latitude = ?, sign_longitude = ?, consent_accepted = ?
             WHERE token = ? AND status = 'pending'
             """,
-            (signer_name, signature_data, sign_place, now, token),
+            (
+                signer_name,
+                signature_data,
+                sign_place,
+                now,
+                sign_latitude,
+                sign_longitude,
+                1 if consent_accepted else 0,
+                token,
+            ),
         )
         self.db.commit()
         return self.get_sign_session_by_token(token)
+
+    def list_pending_sign_sessions_for_reminder(self, *, min_age_days: int = 3) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT s.*, c.title AS contract_title, c.language AS contract_language, c.worker_id
+            FROM employment_contract_sign_sessions s
+            JOIN employment_contracts c ON c.id = s.contract_id AND c.company_id = s.company_id
+            WHERE s.status = 'pending'
+              AND (s.reminder_sent_at IS NULL OR s.reminder_sent_at = '')
+              AND datetime(s.created_at) <= datetime('now', ?)
+              AND datetime(s.expires_at) > datetime('now')
+            ORDER BY s.created_at ASC
+            LIMIT 100
+            """,
+            (f"-{max(1, min(min_age_days, 30))} days",),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_sign_reminder_sent(self, session_id: str) -> None:
+        now = utc_now_iso()
+        self.db.execute(
+            "UPDATE employment_contract_sign_sessions SET reminder_sent_at = ? WHERE id = ?",
+            (now, session_id),
+        )
+        self.db.commit()

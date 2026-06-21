@@ -5,6 +5,7 @@ import '../../core/plan_features.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
+import 'contracts_tab.dart';
 import 'deployment_plan_tab.dart';
 import 'documents_tab.dart';
 import 'leave_requests_tab.dart';
@@ -38,9 +39,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tabs = TabController(
-      length: 4,
+      length: 5,
       vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 3),
+      initialIndex: widget.initialTab.clamp(0, 4),
     );
     _loadProfile();
   }
@@ -66,6 +67,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final leaveOk = planHasFeature(_profile, 'leave_management');
     final docsOk = planHasFeature(_profile, 'document_upload');
+    final contractsOk = planHasFeature(_profile, 'employment_contracts');
     final planOk = planHasFeature(_profile, 'deployment_plan');
 
     return Scaffold(
@@ -79,6 +81,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             Tab(text: 'Einsatzplan'),
             Tab(text: 'Urlaub'),
             Tab(text: 'Dokumente'),
+            Tab(text: 'Verträge'),
             Tab(text: 'Schichten'),
           ],
         ),
@@ -106,6 +109,11 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                     _tabs.animateTo(0);
                   }
                 : null,
+          ),
+          ContractsTab(
+            session: widget.session,
+            tasks: widget.tasks,
+            enabled: contractsOk,
           ),
           ShiftsTab(session: widget.session, tasks: widget.tasks),
         ],

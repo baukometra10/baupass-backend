@@ -35,6 +35,8 @@ class DeepLinkService {
       case 'chat':
       case 'messages':
         return const WorkerAppRoute(tabIndex: 3, openChat: true);
+      case 'contract-sign':
+        return WorkerAppRoute(tabIndex: 0, externalUrl: uri.queryParameters['url']);
       case 'profile':
         return const WorkerAppRoute(tabIndex: 3);
       default:
@@ -86,10 +88,12 @@ class WorkerAppRoute {
     this.openAi = false,
     this.openChat = false,
     this.tasksSubTab = 0,
+    this.externalUrl,
   });
 
   final int tabIndex;
   final bool openAi;
   final bool openChat;
   final int tasksSubTab;
+  final String? externalUrl;
 }

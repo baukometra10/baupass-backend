@@ -11,6 +11,8 @@ import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
 import '../../services/offline_sync_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../services/push_notification_service.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/usage_repository.dart';
@@ -84,6 +86,11 @@ class WorkerShellState extends State<WorkerShell> {
   }
 
   void navigateTo(WorkerAppRoute route) {
+    final external = (route.externalUrl ?? '').trim();
+    if (external.isNotEmpty) {
+      launchUrl(Uri.parse(external), mode: LaunchMode.externalApplication);
+      return;
+    }
     setState(() {
       _index = route.tabIndex.clamp(0, 3);
       _tasksSubTab = route.tasksSubTab.clamp(0, 3);

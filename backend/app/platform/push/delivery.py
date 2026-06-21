@@ -33,6 +33,7 @@ def deliver_worker_push(
     *,
     tag: str = "notification",
     company_id: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Send push to worker devices (FCM first, legacy Web Push fallback)."""
     web_push = 0
@@ -55,7 +56,7 @@ def deliver_worker_push(
                 tokens,
                 title=title,
                 body=body,
-                data=push_data_payload(tag=tag, worker_id=str(worker_id)),
+                data=push_data_payload(tag=tag, worker_id=str(worker_id), extra=extra),
             )
     except Exception:
         pass
@@ -76,7 +77,7 @@ def deliver_worker_push(
             if callable(webpush) and vapid_private_key and vapid_email:
                 from .deeplinks import push_data_payload
 
-                payload = push_data_payload(tag=tag, worker_id=str(worker_id))
+                payload = push_data_payload(tag=tag, worker_id=str(worker_id), extra=extra)
                 subs = db.execute(
                     "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE worker_id = ?",
                     (worker_id,),

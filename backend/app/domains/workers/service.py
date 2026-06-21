@@ -328,6 +328,7 @@ class WorkersService:
             _persist_worker_compliance_fields(db, worker_id, payload, user, is_new=True)
         except ValueError as error:
             return {"error": {"error": str(error)}, "status": 400}
+        self._apply_worker_personal_fields(db, worker_id, payload, self.repo.get_by_id_global(db, worker_id) or {})
         if worker_type != "visitor":
             from backend.server import lock_worker_for_required_documents
 
@@ -587,6 +588,7 @@ class WorkersService:
                 ),
             ),
         )
+        self._apply_worker_personal_fields(db, worker_id, payload, worker)
         db.commit()
 
         photo_override_audit = None
@@ -1775,3 +1777,40 @@ class WorkersService:
             "body": {"ok": True, "deleted": deleted},
             "audit": {"deleted": deleted},
         }
+
+    @staticmethod
+    def _apply_worker_personal_fields(db, worker_id: str, payload: dict[str, Any], worker: dict[str, Any]) -> None:
+        from backend.app.domains.contracts.contract_locales import normalize_employee_gender
+        from backend.server import clean_text_input
+
+        from .repository import WorkersRepository
+
+        repo = WorkersRepository()
+        fields: dict[str, str] = {}
+        if "homeAddress" in payload or "home_address" in payload:
+            fields["home_address"] = clean_text_input(
+                payload.get("homeAddress", payload.get("home_address", worker.get("home_address") or "")) or "",
+                max_len=500,
+            )
+        if "birthDate" in payload or "birth_date" in payload:
+            fields["birth_date"] = clean_text_input(
+                payload.get("birthDate", payload.get("birth_date", worker.get("birth_date") or "")) or "",
+                max_len=32,
+            )
+        if "gender" in payload or "employee_gender" in payload:
+            raw = payload.get("gender", payload.get("employee_gender", worker.get("gender") or ""))
+            fields["gender"] = normalize_employee_gender(raw) or clean_text_input(str(raw or ""), max_len=16)
+        if "contactPhone" in payload or "contact_phone" in payload:
+            fields["contact_phone"] = clean_text_input(
+                payload.get("contactPhone", payload.get("contact_phone", worker.get("contact_phone") or "")) or "",
+                max_len=40,
+            )
+        if fields:
+            repo.update_worker_personal(
+                db,
+                worker_id,
+                home_address=fields.get("home_address"),
+                birth_date=fields.get("birth_date"),
+                gender=fields.get("gender"),
+                contact_phone=fields.get("contact_phone"),
+            )

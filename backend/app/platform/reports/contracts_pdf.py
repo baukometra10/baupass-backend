@@ -8,17 +8,22 @@ from typing import Any
 
 from backend.app.domains.contracts.contract_locales import (
     build_fallback_contract_body,
+    contract_intro_html,
     default_currency_for_jurisdiction,
     document_title,
+    employee_cover_html,
+    employer_cover_html,
     footer_text,
     is_section_heading,
     normalize_jurisdiction,
     normalize_lang,
-    preamble_html,
     signing_note,
     signature_labels,
     split_body_blocks,
 )
+
+FIRST_PAGE_SECTIONS = 2
+SECTION_SPACER_MM = 7.0
 
 
 def _parse_input_data(contract: dict[str, Any]) -> dict[str, Any]:
@@ -200,6 +205,8 @@ def build_employment_contract_pdf(
         or ("الموظف/ة" if lang == "ar" else "Employee" if lang == "en" else "Arbeitnehmer/-in")
     )
     employee_address = str(form.get("employee_address") or "").strip()
+    employee_birth_date = str(form.get("employee_birth_date") or form.get("birth_date") or "").strip()
+    employee_gender = str(form.get("employee_gender") or "").strip()
     body_text = str(contract.get("final_text") or contract.get("draft_text") or "").strip()
     contract_title = document_title(lang, jurisdiction, contract.get("title"))
 
@@ -278,21 +285,61 @@ def build_employment_contract_pdf(
         alignment=TA_CENTER,
         textColor=text_color,
     )
+    cover_style = ParagraphStyle(
+        "ContractEmployeeCover",
+        parent=styles["Normal"],
+        fontName=font_name,
+        fontSize=11,
+        leading=16,
+        alignment=TA_CENTER,
+        spaceBefore=2,
+        spaceAfter=10,
+        textColor=text_color,
+    )
+    employer_cover_style = ParagraphStyle(
+        "ContractEmployerCover",
+        parent=cover_style,
+        fontSize=10.5,
+        spaceAfter=8,
+    )
+    intro_style = ParagraphStyle(
+        "ContractIntro",
+        parent=preamble_style,
+        alignment=TA_CENTER if lang != "ar" else TA_CENTER,
+        spaceAfter=10,
+        fontSize=10,
+    )
 
     story: list[Any] = []
     story.append(Paragraph(_escape_pdf_text(contract_title), title_style))
+    story.append(Spacer(1, 5 * mm))
     story.append(
         Paragraph(
-            preamble_html(
+            employee_cover_html(
                 lang=lang,
-                jurisdiction=jurisdiction,
-                company_name=_escape_pdf_text(company_name),
                 employee_name=_escape_pdf_text(employee_name),
+                employee_birth_date=employee_birth_date,
                 employee_address=_escape_pdf_text(employee_address),
+                employee_gender=employee_gender,
             ),
-            preamble_style,
+            cover_style,
         )
     )
+    story.append(Spacer(1, 4 * mm))
+    story.append(
+        Paragraph(
+            employer_cover_html(lang=lang, company_name=_escape_pdf_text(company_name)),
+            employer_cover_style,
+        )
+    )
+    story.append(Spacer(1, 3 * mm))
+    story.append(
+        Paragraph(
+            contract_intro_html(lang=lang, jurisdiction=jurisdiction),
+            intro_style,
+        )
+    )
+    story.append(Spacer(1, 6 * mm))
 
     blocks = split_body_blocks(body_text, lang)
     if not blocks:
@@ -304,7 +351,15 @@ def build_employment_contract_pdf(
         )
         blocks = split_body_blocks(fallback, lang)
 
-    for block in blocks:
+    section_heading_style.spaceBefore = 10
+    section_heading_style.spaceAfter = 6
+    section_style.spaceAfter = 10
+
+    for index, block in enumerate(blocks):
+        if index == FIRST_PAGE_SECTIONS:
+            story.append(PageBreak())
+        elif index > 0:
+            story.append(Spacer(1, SECTION_SPACER_MM * mm))
         lines = block.split("\n", 1)
         heading = lines[0].strip()
         body = lines[1].strip() if len(lines) > 1 else ""
@@ -312,11 +367,14 @@ def build_employment_contract_pdf(
             parts = [Paragraph(_escape_pdf_text(heading), section_heading_style)]
             if body:
                 parts.append(Paragraph(_escape_pdf_text(body).replace("\n", "<br/>"), section_style))
-            story.append(KeepTogether(parts))
+            if index < FIRST_PAGE_SECTIONS:
+                story.append(KeepTogether(parts))
+            else:
+                story.extend(parts)
         else:
             story.append(Paragraph(_escape_pdf_text(block).replace("\n", "<br/>"), section_style))
 
-    place_date_label, employer_sign, employee_sign = signature_labels(lang)
+    place_date_label, employer_sign, employee_sign = signature_labels(lang, employee_gender)
     employer_sig = signatures.get("employer") if isinstance(signatures.get("employer"), dict) else None
     employee_sig = signatures.get("employee") if isinstance(signatures.get("employee"), dict) else None
     sign_place = str(

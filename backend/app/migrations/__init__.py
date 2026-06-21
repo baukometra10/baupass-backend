@@ -1113,6 +1113,36 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="029",
+        name="workers_personal_fields",
+        up_sql="""
+            ALTER TABLE workers ADD COLUMN home_address TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN birth_date TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN gender TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN contact_phone TEXT NOT NULL DEFAULT '';
+        """,
+        down_sql="""
+            -- SQLite cannot DROP COLUMN easily; no-op downgrade
+            SELECT 1;
+        """,
+    ),
+
+    Migration(
+        version="030",
+        name="employment_contracts_enhancements",
+        up_sql="""
+            ALTER TABLE employment_contracts ADD COLUMN parent_contract_id TEXT;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN sign_latitude REAL;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN sign_longitude REAL;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN consent_accepted INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN reminder_sent_at TEXT;
+            CREATE INDEX IF NOT EXISTS idx_contract_parent
+                ON employment_contracts(parent_contract_id);
+        """,
+        down_sql="SELECT 1;",
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

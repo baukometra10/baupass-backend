@@ -19,6 +19,8 @@ def test_build_employment_contract_pdf_de_germany():
                 "form": {
                     "jurisdiction": "DE",
                     "employee_name": "Max Mustermann",
+                    "employee_gender": "male",
+                    "employee_birth_date": "1990-05-15",
                     "employee_address": "Musterstraße 1, 10115 Berlin",
                     "job_title": "Bürokraft",
                     "start_date": "01.07.2026",

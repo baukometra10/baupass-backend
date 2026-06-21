@@ -170,6 +170,43 @@ def document_title(lang: str, jurisdiction: str, contract_title: str | None = No
     return _t(lang, "Arbeitsvertrag", "Employment Contract", "عقد عمل")
 
 
+def normalize_employee_gender(value: str | None) -> str:
+    code = str(value or "").strip().lower()
+    if code in {"male", "m", "man", "herr", "mr", "homme", "männlich", "mann"}:
+        return "male"
+    if code in {"female", "f", "woman", "frau", "ms", "mrs", "madame", "weiblich"}:
+        return "female"
+    return ""
+
+
+def employee_salutation(lang: str, gender: str) -> str:
+    lang = normalize_lang(lang)
+    gender_code = normalize_employee_gender(gender)
+    if gender_code == "male":
+        return _t(lang, "Herr", "Mr.", "السيد")
+    if gender_code == "female":
+        return _t(lang, "Frau", "Ms.", "السيدة")
+    return _t(lang, "Herr/Frau", "Mr./Ms.", "السيد/السيدة")
+
+
+def employee_signature_label(lang: str, gender: str) -> str:
+    lang = normalize_lang(lang)
+    gender_code = normalize_employee_gender(gender)
+    if lang == "ar":
+        if gender_code == "male":
+            return "توقيع الموظف"
+        if gender_code == "female":
+            return "توقيع الموظفة"
+        return "توقيع الموظف/ة"
+    if lang == "en":
+        return "Employee signature"
+    if gender_code == "male":
+        return "Unterschrift Arbeitnehmer"
+    if gender_code == "female":
+        return "Unterschrift Arbeitnehmerin"
+    return "Unterschrift Arbeitnehmer/-in"
+
+
 def preamble_html(
     *,
     lang: str,
@@ -177,14 +214,22 @@ def preamble_html(
     company_name: str,
     employee_name: str,
     employee_address: str,
+    employee_birth_date: str = "",
+    employee_gender: str = "",
 ) -> str:
+    """Legacy combined preamble — prefer employee_cover_html + employer_cover_html + contract_intro_html."""
     lang = normalize_lang(lang)
     jurisdiction_label = jurisdiction_name(jurisdiction, lang)
     addr = employee_address or _t(lang, "………………………………………………………………………………………..", "………………………………………………………………………………………..", "………………………………………………………………………………………..")
+    birth_line = ""
+    if employee_birth_date:
+        birth_label = _t(lang, "Geburtsdatum", "Date of birth", "تاريخ الميلاد")
+        birth_line = f"<br/>{birth_label}: {format_display_date(employee_birth_date, lang)}"
+    salutation = employee_salutation(lang, employee_gender)
     if lang == "ar":
         return (
             f"بين <b>{company_name}</b> — المشار إليها فيما يلي بـ «صاحب العمل» —<br/>"
-            f"والسيد/السيدة <b>{employee_name}</b><br/>"
+            f"و{salutation} <b>{employee_name}</b>{birth_line}<br/>"
             f"المقيم/ة في {addr}<br/>"
             f"— المشار إليه/ا فيما يلي بـ «الموظف/ة» —<br/><br/>"
             f"في إطار قانون العمل المعمول به في {jurisdiction_label}، يتم إبرام عقد العمل التالي:"
@@ -194,19 +239,78 @@ def preamble_html(
             f"Between <b>{company_name}</b><br/>"
             f"— hereinafter referred to as the \"Employer\" —<br/><br/>"
             f"and<br/><br/>"
-            f"<b>{employee_name}</b><br/>"
+            f"{salutation} <b>{employee_name}</b>{birth_line}<br/>"
             f"residing at {addr}<br/>"
             f"— hereinafter referred to as the \"Employee\" —<br/><br/>"
             f"Under the employment laws of {jurisdiction_label}, the following employment contract is concluded:"
         )
+    birth_de = f"<br/>geboren am {format_display_date(employee_birth_date, lang)}" if employee_birth_date else ""
     return (
         f"Zwischen <b>{company_name}</b><br/>"
         f"- nachfolgend „Arbeitgeber“ genannt -<br/><br/>"
         f"und<br/><br/>"
-        f"Herrn/Frau <b>{employee_name}</b><br/>"
+        f"{salutation} <b>{employee_name}</b>{birth_de}<br/>"
         f"wohnhaft {addr}<br/>"
         f"- nachfolgend „Arbeitnehmer/-in“ genannt -<br/><br/>"
         f"unter dem für {jurisdiction_label} geltenden Arbeitsrecht wird folgender Arbeitsvertrag geschlossen:"
+    )
+
+
+def format_display_date(raw: str, lang: str | None = None) -> str:
+    value = str(raw or "").strip()
+    if not value:
+        return "—"
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y"):
+        try:
+            from datetime import datetime
+
+            dt = datetime.strptime(value[:10], fmt)
+            if normalize_lang(lang) == "en":
+                return dt.strftime("%d %B %Y")
+            return dt.strftime("%d.%m.%Y")
+        except ValueError:
+            continue
+    return value
+
+
+def employee_cover_html(
+    *,
+    lang: str,
+    employee_name: str,
+    employee_birth_date: str,
+    employee_address: str,
+    employee_gender: str = "",
+) -> str:
+    lang = normalize_lang(lang)
+    name = employee_name or _t(lang, "Arbeitnehmer/-in", "Employee", "الموظف/ة")
+    salutation = employee_salutation(lang, employee_gender)
+    gender_label = _t(lang, "Anrede", "Salutation", "اللقب")
+    birth_label = _t(lang, "Geburtsdatum", "Date of birth", "تاريخ الميلاد")
+    addr_label = _t(lang, "Anschrift", "Address", "العنوان")
+    birth = format_display_date(employee_birth_date, lang) if employee_birth_date else "—"
+    addr = employee_address or "—"
+    gender_line = f"{gender_label}: <b>{salutation}</b><br/>"
+    return (
+        f"{gender_line}"
+        f"<b>{name}</b><br/>"
+        f"{birth_label}: {birth}<br/>"
+        f"{addr_label}: {addr}"
+    )
+
+
+def employer_cover_html(*, lang: str, company_name: str) -> str:
+    lang = normalize_lang(lang)
+    employer_label = _t(lang, "Arbeitgeber", "Employer", "صاحب العمل")
+    return f"{employer_label}: <b>{company_name}</b>"
+
+
+def contract_intro_html(*, lang: str, jurisdiction: str) -> str:
+    jurisdiction_label = jurisdiction_name(jurisdiction, lang)
+    return _t(
+        lang,
+        f"Unter dem für {jurisdiction_label} geltenden Arbeitsrecht wird zwischen den Parteien folgender Arbeitsvertrag geschlossen:",
+        f"Under the employment laws applicable in {jurisdiction_label}, the following employment contract is agreed between the parties:",
+        f"وفقًا لقانون العمل المعمول به في {jurisdiction_label}، يُبرَم بين الطرفين عقد العمل التالي:",
     )
 
 
@@ -232,13 +336,13 @@ def signing_note(lang: str) -> str:
     )
 
 
-def signature_labels(lang: str) -> tuple[str, str, str]:
+def signature_labels(lang: str, employee_gender: str = "") -> tuple[str, str, str]:
     lang = normalize_lang(lang)
     if lang == "ar":
-        return ("المكان، التاريخ", "توقيع صاحب العمل", "توقيع الموظف/ة")
+        return ("المكان، التاريخ", "توقيع صاحب العمل", employee_signature_label(lang, employee_gender))
     if lang == "en":
-        return ("Place, Date", "Employer signature", "Employee signature")
-    return ("Ort, Datum", "Unterschrift Arbeitgeber", "Unterschrift Arbeitnehmer/-in")
+        return ("Place, Date", "Employer signature", employee_signature_label(lang, employee_gender))
+    return ("Ort, Datum", "Unterschrift Arbeitgeber", employee_signature_label(lang, employee_gender))
 
 
 def footer_text(lang: str) -> str:
@@ -286,6 +390,60 @@ def is_section_heading(line: str, lang: str) -> bool:
     return line.startswith("المادة")
 
 
+def employee_party_label(lang: str, gender: str) -> str:
+    """Noun phrase for employee in contract body (gender-aware)."""
+    lang = normalize_lang(lang)
+    gender_code = normalize_employee_gender(gender)
+    if lang == "ar":
+        if gender_code == "male":
+            return "الموظف"
+        if gender_code == "female":
+            return "الموظفة"
+        return "الموظف/ة"
+    if lang == "en":
+        return "The Employee"
+    if lang == "fr":
+        if gender_code == "female":
+            return "La Salariée"
+        if gender_code == "male":
+            return "Le Salarié"
+        return "Le/La Salarié(e)"
+    if lang == "tr":
+        return "Çalışan"
+    if lang == "es":
+        if gender_code == "female":
+            return "La Trabajadora"
+        if gender_code == "male":
+            return "El Trabajador"
+        return "El/La Trabajador(a)"
+    if lang == "it":
+        if gender_code == "female":
+            return "La Lavoratrice"
+        if gender_code == "male":
+            return "Il Lavoratore"
+        return "Il/La Lavoratore/trice"
+    if lang == "pl":
+        if gender_code == "female":
+            return "Pracownica"
+        if gender_code == "male":
+            return "Pracownik"
+        return "Pracownik/Pracownica"
+    if gender_code == "female":
+        return "Die Arbeitnehmerin"
+    if gender_code == "male":
+        return "Der Arbeitnehmer"
+    return "Der/Die Arbeitnehmer/in"
+
+
+def employee_pronoun_de(gender: str) -> str:
+    gender_code = normalize_employee_gender(gender)
+    if gender_code == "female":
+        return "Sie"
+    if gender_code == "male":
+        return "Er"
+    return "Er/Sie"
+
+
 def build_fallback_contract_body(
     *,
     lang: str,
@@ -304,6 +462,9 @@ def build_fallback_contract_body(
     vacation_days = str(form.get("vacation_days") or "").strip() or _t(lang, "nach Vereinbarung", "as agreed", "وفق الاتفاق")
     salary_line = salary_label(form, lang, jurisdiction)
     legal = _legal_basis(lang, jurisdiction)
+    gender = str(form.get("employee_gender") or "")
+    employee = employee_party_label(lang, gender)
+    pronoun_de = employee_pronoun_de(gender)
     location_clause = (
         f" {_t(lang, 'Arbeitsort:', 'Place of work:', 'مكان العمل:')} {work_location}."
         if work_location
@@ -311,16 +472,17 @@ def build_fallback_contract_body(
     )
 
     if lang == "ar":
+        emp = employee
         sections = [
             (1, "بداية العمل", f"يبدأ عقد العمل في {start_date}."),
             (2, "فترة التجربة", f"تُعتبر أول {probation_months} أشهر فترة تجربة وفق قانون العمل المعمول به في {jurisdiction_name(jurisdiction, lang)}."),
-            (3, "الوظيفة", f"يُعيَّن الموظف/ة في وظيفة {job_title}.{location_clause}"),
-            (4, "الأجر", f"يتقاضى الموظف/ة {salary_line}."),
+            (3, "الوظيفة", f"يُعيَّن {emp} في وظيفة {job_title}.{location_clause}"),
+            (4, "الأجر", f"يتقاضى {emp} {salary_line}."),
             (5, "ساعات العمل", f"ساعات العمل الأسبوعية المنتظمة: {weekly_hours} ساعة."),
-            (6, "الإجازة", f"يستحق الموظف/ة إجازة سنوية وفق القانون، بالإضافة إلى {vacation_days} يومًا إضافيًا إن وُجد."),
-            (7, "المرض", "يجب إبلاغ صاحب العمل فورًا عن التعذر عن العمل وتقديم التقارير الطبية عند الطلب."),
-            (8, "السرية", "يلتزم الموظف/ة بالحفاظ على سرية معلومات العمل والشركة."),
-            (9, "عمل إضافي", "لا يجوز للموظف/ة القيام بعمل إضافي دون موافقة صاحب العمل."),
+            (6, "الإجازة", f"يستحق {emp} إجازة سنوية وفق القانون، بالإضافة إلى {vacation_days} يومًا إضافيًا إن وُجد."),
+            (7, "المرض", f"يجب على {emp} إبلاغ صاحب العمل فورًا عن التعذر عن العمل وتقديم التقارير الطبية عند الطلب."),
+            (8, "السرية", f"يلتزم {emp} بالحفاظ على سرية معلومات العمل والشركة."),
+            (9, "عمل إضافي", f"لا يجوز لـ{emp} القيام بعمل إضافي دون موافقة صاحب العمل."),
             (10, "إنهاء العقد", "يخضع إنهاء العقد للإجراءات والمدد المنصوص عليها في القانون المعمول به."),
             (11, "أحكام إضافية", notes or legal),
             (12, "تعديل العقد", "تتطلب أي تعديلات على هذا العقد موافقة خطية من الطرفين."),
@@ -333,8 +495,8 @@ def build_fallback_contract_body(
         sections = [
             (1, "Commencement", f"Employment begins on {start_date}."),
             (2, "Probation", f"The first {probation_months} months constitute a probation period as permitted under the laws of {jurisdiction_name(jurisdiction, lang)}."),
-            (3, "Position", f"The Employee is employed as {job_title}.{location_clause}"),
-            (4, "Remuneration", f"The Employee receives {salary_line}."),
+            (3, "Position", f"{employee} is employed as {job_title}.{location_clause}"),
+            (4, "Remuneration", f"{employee} receives {salary_line}."),
             (5, "Working hours", f"Regular weekly working time is {weekly_hours} hours."),
             (6, "Leave", f"Annual leave follows statutory minimums, plus {vacation_days} contractual days where agreed."),
             (7, "Sickness", "The Employee must notify the Employer without delay and provide medical certificates when required."),
@@ -351,23 +513,123 @@ def build_fallback_contract_body(
             sections.insert(10, (10, "At-will employment", "Unless otherwise stated, employment is at-will and may be terminated by either party subject to applicable law."))
         return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
 
+        return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
+
+    if lang == "fr":
+        sections = [
+            (1, "Prise de fonction", f"Le contrat commence le {start_date}."),
+            (2, "Période d'essai", f"Les {probation_months} premiers mois constituent une période d'essai selon le droit applicable en {jurisdiction_name(jurisdiction, lang)}."),
+            (3, "Poste", f"{employee} est employé(e) en qualité de {job_title}.{location_clause}"),
+            (4, "Rémunération", f"{employee} perçoit {salary_line}."),
+            (5, "Durée du travail", f"La durée hebdomadaire de travail est de {weekly_hours} heures."),
+            (6, "Congés", f"{employee} bénéficie des congés légaux, plus {vacation_days} jours contractuels le cas échéant."),
+            (7, "Maladie", f"{employee} informe l'employeur sans délai en cas d'empêchement et fournit les justificatifs requis."),
+            (8, "Confidentialité", f"{employee} respecte la confidentialité des informations de l'entreprise."),
+            (9, "Activité accessoire", "Toute activité rémunérée ou incompatible requiert l'accord de l'employeur."),
+            (10, "Résiliation", "La résiliation respecte les délais et formalités prévus par la loi applicable."),
+            (11, "Clauses complémentaires", notes or legal),
+            (12, "Modifications", "Toute modification du contrat requiert un accord écrit."),
+        ]
+        if end_date:
+            sections.insert(1, (2, "Durée déterminée", f"Contrat à durée déterminée jusqu'au {end_date}."))
+        return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
+
+    if lang == "tr":
+        sections = [
+            (1, "İşe başlama", f"İş ilişkisi {start_date} tarihinde başlar."),
+            (2, "Deneme süresi", f"İlk {probation_months} ay, {jurisdiction_name(jurisdiction, lang)} hukukuna göre deneme süresidir."),
+            (3, "Görev", f"{employee}, {job_title} olarak çalışır.{location_clause}"),
+            (4, "Ücret", f"{employee} {salary_line} alır."),
+            (5, "Çalışma süresi", f"Haftalık çalışma süresi {weekly_hours} saattir."),
+            (6, "İzin", f"{employee} yasal izinlere ek olarak {vacation_days} sözleşmesel izin gününe sahip olabilir."),
+            (7, "Hastalık", f"{employee} işe gelemeyeceğini gecikmeksizin bildirir ve gerekli belgeleri sunar."),
+            (8, "Gizlilik", f"{employee} iş ve ticari sırları gizli tutar."),
+            (9, "Ek iş", "Ücretli veya çakışan ek işler işveren onayına tabidir."),
+            (10, "Fesih", "Fesih, uygulanabilir hukukun bildirim sürelerine tabidir."),
+            (11, "Ek hükümler", notes or legal),
+            (12, "Değişiklikler", "Sözleşme değişiklikleri yazılı olarak yapılmalıdır."),
+        ]
+        if end_date:
+            sections.insert(1, (2, "Süreli sözleşme", f"Sözleşme {end_date} tarihine kadar sürelidir."))
+        return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
+
+    if lang == "es":
+        sections = [
+            (1, "Inicio", f"La relación laboral comienza el {start_date}."),
+            (2, "Periodo de prueba", f"Los primeros {probation_months} meses constituyen periodo de prueba según la ley de {jurisdiction_name(jurisdiction, lang)}."),
+            (3, "Puesto", f"{employee} desempeña el puesto de {job_title}.{location_clause}"),
+            (4, "Retribución", f"{employee} percibe {salary_line}."),
+            (5, "Jornada", f"La jornada semanal ordinaria es de {weekly_hours} horas."),
+            (6, "Vacaciones", f"{employee} tiene derecho a vacaciones legales y, en su caso, {vacation_days} días adicionales."),
+            (7, "Enfermedad", f"{employee} comunicará la incapacidad sin demora y aportará certificados cuando proceda."),
+            (8, "Confidencialidad", f"{employee} mantendrá la confidencialidad de la información empresarial."),
+            (9, "Actividad secundaria", "La actividad remunerada o incompatible requiere consentimiento del empleador."),
+            (10, "Extinción", "La extinción se rige por los plazos legales aplicables."),
+            (11, "Cláusulas adicionales", notes or legal),
+            (12, "Modificaciones", "Las modificaciones requieren forma escrita."),
+        ]
+        if end_date:
+            sections.insert(1, (2, "Duración determinada", f"Contrato de duración determinada hasta el {end_date}."))
+        return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
+
+    if lang == "it":
+        sections = [
+            (1, "Inizio", f"Il rapporto di lavoro inizia il {start_date}."),
+            (2, "Periodo di prova", f"I primi {probation_months} mesi costituiscono periodo di prova secondo la legge di {jurisdiction_name(jurisdiction, lang)}."),
+            (3, "Mansione", f"{employee} è assunto/a come {job_title}.{location_clause}"),
+            (4, "Retribuzione", f"{employee} percepisce {salary_line}."),
+            (5, "Orario", f"L'orario settimanale ordinario è di {weekly_hours} ore."),
+            (6, "Ferie", f"{employee} ha diritto alle ferie legali e, se concordato, {vacation_days} giorni aggiuntivi."),
+            (7, "Malattia", f"{employee} informa senza ritardo l'datore di lavoro e presenta certificati se richiesto."),
+            (8, "Riservatezza", f"{employee} mantiene la riservatezza sulle informazioni aziendali."),
+            (9, "Attività secondaria", "Attività remunerata o incompatibile richiede consenso del datore di lavoro."),
+            (10, "Recess", "Il recesso segue i termini di legge applicabili."),
+            (11, "Clausole aggiuntive", notes or legal),
+            (12, "Modifiche", "Le modifiche richiedono forma scritta."),
+        ]
+        if end_date:
+            sections.insert(1, (2, "Tempo determinato", f"Contratto a tempo determinato fino al {end_date}."))
+        return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
+
+    if lang == "pl":
+        sections = [
+            (1, "Rozpoczęcie pracy", f"Stosunek pracy rozpoczyna się {start_date}."),
+            (2, "Okres próbny", f"Pierwsze {probation_months} miesięcy stanowi okres próbny zgodnie z prawem {jurisdiction_name(jurisdiction, lang)}."),
+            (3, "Stanowisko", f"{employee} zatrudniony/a jest na stanowisku {job_title}.{location_clause}"),
+            (4, "Wynagrodzenie", f"{employee} otrzymuje {salary_line}."),
+            (5, "Czas pracy", f"Tygodniowy wymiar czasu pracy wynosi {weekly_hours} godzin."),
+            (6, "Urlop", f"{employee} ma prawo do urlopu ustawowego oraz {vacation_days} dni umownych, jeśli uzgodniono."),
+            (7, "Choroba", f"{employee} niezwłocznie informuje pracodawcę o niemożności pracy i przedkłada zaświadczenia."),
+            (8, "Poufność", f"{employee} zachowuje poufność informacji służbowych."),
+            (9, "Dodatkowe zajęcie", "Dodatkowa praca wymaga zgody pracodawcy."),
+            (10, "Wypowiedzenie", "Wypowiedzenie podlega ustawowym terminom."),
+            (11, "Postanowienia dodatkowe", notes or legal),
+            (12, "Zmiany", "Zmiany umowy wymagaj formy pisemnej."),
+        ]
+        if end_date:
+            sections.insert(1, (2, "Czas określony", f"Umowa na czas określony do {end_date}."))
+        return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
+
     # German default (DACH-style Muster)
     sections = [
         (1, "Beginn des Arbeitsverhältnisses", f"Das Arbeitsverhältnis beginnt am {start_date}."),
         (2, "Probezeit", f"Die ersten {probation_months} Monate gelten als Probezeit. Während der Probezeit kann das Arbeitsverhältnis beiderseits mit einer Frist von zwei Wochen gekündigt werden."),
-        (3, "Tätigkeit", f"Der Arbeitnehmer wird als {job_title} eingestellt.{location_clause} Er verpflichtet sich, auch andere zumutbare Arbeiten auszuführen."),
-        (4, "Arbeitsvergütung", f"Der Arbeitnehmer erhält {salary_line}."),
+        (3, "Tätigkeit", f"{employee} wird als {job_title} eingestellt.{location_clause} {pronoun_de} verpflichtet sich, auch andere zumutbare Arbeiten auszuführen."),
+        (4, "Arbeitsvergütung", f"{employee} erhält {salary_line}."),
         (5, "Arbeitszeit", f"Die regelmäßige wöchentliche Arbeitszeit beträgt {weekly_hours} Stunden."),
-        (6, "Urlaub", f"Der Arbeitnehmer hat Anspruch auf gesetzlichen Mindesturlaub sowie zusätzlich {vacation_days} vertragliche Urlaubstage, soweit vereinbart."),
-        (7, "Krankheit", "Die Arbeitsverhinderung ist dem Arbeitgeber unverzüglich mitzuteilen. Eine ärztliche Bescheinigung ist spätestens am vierten Kalendertag vorzulegen."),
-        (8, "Verschwiegenheitspflicht", "Der Arbeitnehmer verpflichtet sich, über Betriebs- und Geschäftsgeheimnisse Stillschweigen zu bewahren."),
-        (9, "Nebentätigkeit", "Entgeltliche oder das Arbeitsverhältnis beeinträchtigende Nebenbeschäftigung bedarf der Zustimmung des Arbeitgebers."),
+        (6, "Urlaub", f"{employee} hat Anspruch auf gesetzlichen Mindesturlaub sowie zusätzlich {vacation_days} vertragliche Urlaubstage, soweit vereinbart."),
+        (7, "Krankheit", f"Die Arbeitsverhinderung ist dem Arbeitgeber unverzüglich mitzuteilen. {pronoun_de} legt eine ärztliche Bescheinigung spätestens am vierten Kalendertag vor."),
+        (8, "Verschwiegenheitspflicht", f"{employee} verpflichtet sich, über Betriebs- und Geschäftsgeheimnisse Stillschweigen zu bewahren."),
+        (9, "Nebentätigkeit", f"Entgeltliche oder das Arbeitsverhältnis beeinträchtigende Nebenbeschäftigung bedarf der Zustimmung des Arbeitgebers."),
         (10, "Vertragsstrafe", "Bei schuldhafter Verletzung wesentlicher Vertragspflichten kann der Arbeitgeber eine Vertragsstrafe verhängen, soweit gesetzlich zulässig."),
         (11, "Kündigung", "Die Kündigung bedarf der Schriftform und richtet sich nach den gesetzlichen Fristen."),
         (12, "Verfall- und Ausschlussfristen", "Ansprüche aus dem Arbeitsverhältnis verfallen, wenn sie nicht innerhalb von drei Monaten nach Fälligkeit schriftlich geltend gemacht werden."),
         (13, "Zusätzliche Vereinbarungen", notes or legal),
         (14, "Vertragsänderungen und Nebenabreden", "Änderungen und Ergänzungen dieses Vertrages bedürfen der Schriftform."),
     ]
+    if str(form.get("collective_agreement") or "").strip().lower() in {"1", "true", "yes", "ja"}:
+        tariff = str(form.get("collective_agreement_name") or "Tarifvertrag").strip()
+        sections.insert(3, (3, "Tarifbindung", f"Es gilt der {tariff}, soweit anwendbar."))
     if end_date:
         sections.insert(1, (2, "Befristung", f"Der Vertrag ist befristet bis zum {end_date}."))
     return "\n\n".join(f"{format_section_heading(lang, n, t)}\n{b}" for n, t, b in sections)
@@ -380,7 +642,7 @@ def build_ai_instructions(lang: str, jurisdiction: str) -> list[str]:
     legal = _legal_basis(lang, jurisdiction)
     prefix = section_prefix(lang)
 
-    structure_hint = {
+    structure_hints = {
         "de": (
             f"Use German Muster-style numbered paragraphs ({prefix} 1–{prefix} 14): "
             "Beginn, Probezeit/Befristung, Tätigkeit, Arbeitsvergütung, Arbeitszeit, Urlaub, Krankheit, "
@@ -396,13 +658,24 @@ def build_ai_instructions(lang: str, jurisdiction: str) -> list[str]:
             f"Use numbered articles ({prefix} 1–{prefix} 12+): بداية العمل، فترة التجربة، الوظيفة، الأجر، "
             "ساعات العمل، الإجازة، المرض، السرية، عمل إضافي، إنهاء العقد، أحكام إضافية، تعديل العقد."
         ),
-    }[lang]
+        "fr": f"Use numbered sections ({prefix} 1–{prefix} 12+): prise de fonction, essai, poste, rémunération, durée du travail, congés, maladie, confidentialité, activité accessoire, résiliation, clauses complémentaires, modifications.",
+        "tr": f"Use numbered sections ({prefix} 1–{prefix} 12+): işe başlama, deneme süresi, görev, ücret, çalışma süresi, izin, hastalık, gizlilik, ek iş, fesih, ek hükümler, değişiklikler.",
+        "es": f"Use numbered sections ({prefix} 1–{prefix} 12+): inicio, periodo de prueba, puesto, retribución, jornada, vacaciones, enfermedad, confidencialidad, actividad secundaria, extinción, cláusulas adicionales, modificaciones.",
+        "it": f"Use numbered sections ({prefix} 1–{prefix} 12+): inizio, periodo di prova, mansione, retribuzione, orario, ferie, malattia, riservatezza, attività secondaria, recesso, clausole aggiuntive, modifiche.",
+        "pl": f"Use numbered sections ({prefix} 1–{prefix} 12+): rozpoczęcie, okres próbny, stanowisko, wynagrodzenie, czas pracy, urlop, choroba, poufność, dodatkowe zajęcie, wypowiedzenie, postanowienia dodatkowe, zmiany.",
+    }
+    structure_hint = structure_hints.get(lang, structure_hints["en"])
 
     missing = {
         "de": "nach Vereinbarung",
         "en": "as agreed",
         "ar": "وفق الاتفاق",
-    }[lang]
+        "fr": "selon accord",
+        "tr": "anlaşmaya göre",
+        "es": "según acuerdo",
+        "it": "come concordato",
+        "pl": "zgodnie z ustaleniami",
+    }.get(lang, "as agreed")
 
     return [
         f"Write the entire contract in language code '{lang}' only.",
@@ -412,6 +685,7 @@ def build_ai_instructions(lang: str, jurisdiction: str) -> list[str]:
         "Industry-neutral wording (retail, office, healthcare, production, services, logistics, etc.).",
         "Support both fixed monthly salary and hourly compensation when specified in the form.",
         f"Do not invent facts; use '{missing}' for missing values.",
+        "Respect employee_gender from the form (male/female) for grammatically correct wording (e.g. Arbeitnehmer/Arbeitnehmerin, he/she).",
         "Do not include party preamble or signature lines (added automatically in PDF).",
         "Return only the contract body text without markdown fences.",
     ]

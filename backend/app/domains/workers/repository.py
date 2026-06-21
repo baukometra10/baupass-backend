@@ -194,6 +194,38 @@ class WorkersRepository:
             ),
         )
 
+    def update_worker_personal(
+        self,
+        db,
+        worker_id: str,
+        *,
+        home_address: str | None = None,
+        birth_date: str | None = None,
+        gender: str | None = None,
+        contact_phone: str | None = None,
+    ) -> None:
+        sets: list[str] = []
+        params: list[Any] = []
+        if home_address is not None:
+            sets.append("home_address = ?")
+            params.append(home_address)
+        if birth_date is not None:
+            sets.append("birth_date = ?")
+            params.append(birth_date)
+        if gender is not None:
+            sets.append("gender = ?")
+            params.append(gender)
+        if contact_phone is not None:
+            sets.append("contact_phone = ?")
+            params.append(contact_phone)
+        if not sets:
+            return
+        params.append(worker_id)
+        db.execute(
+            f"UPDATE workers SET {', '.join(sets)} WHERE id = ?",
+            tuple(params),
+        )
+
     def soft_delete(self, db, worker_id: str, *, deleted_at: str) -> None:
         db.execute("UPDATE workers SET deleted_at = ? WHERE id = ?", (deleted_at, worker_id))
 

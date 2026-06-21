@@ -13,15 +13,23 @@
     main { max-width:920px; margin:0 auto; padding:1rem 1.25rem 2.5rem; display:grid; gap:1rem; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:1rem; }
     .logo { max-height:48px; max-width:220px; object-fit:contain; }
-    .contract-text { white-space:pre-wrap; line-height:1.55; max-height:360px; overflow:auto; font-size:0.92rem; border:1px solid var(--border); border-radius:10px; padding:0.85rem; background:#0f1419; }
+    .doc-tabs { display:flex; gap:0.5rem; margin-bottom:0.65rem; flex-wrap:wrap; }
+    .doc-tabs button { padding:0.4rem 0.75rem; border-radius:999px; border:1px solid var(--border); background:#0f1419; color:var(--text); cursor:pointer; font-size:0.82rem; }
+    .doc-tabs button.active { border-color:var(--accent); color:var(--accent); }
+    .contract-text { white-space:pre-wrap; line-height:1.55; max-height:420px; overflow:auto; font-size:0.92rem; border:1px solid var(--border); border-radius:10px; padding:0.85rem; background:#0f1419; }
+    .pdf-frame { width:100%; height:420px; border:1px solid var(--border); border-radius:10px; background:#fff; }
     label { display:grid; gap:0.35rem; font-size:0.85rem; margin-bottom:0.75rem; }
     input, button { font:inherit; }
-    input { width:100%; padding:0.6rem 0.7rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); }
+    input[type=text], input:not([type]) { width:100%; padding:0.6rem 0.7rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); }
+    input[type=checkbox] { width:auto; justify-self:start; }
     button { padding:0.65rem 1rem; border-radius:10px; border:1px solid var(--border); background:#164e63; color:var(--text); cursor:pointer; }
     button.secondary { background:#0f1419; }
     button:disabled { opacity:0.55; cursor:not-allowed; }
     .actions { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem; }
-    .muted { color:var(--muted); }
+    .muted { color:var(--muted); font-size:0.85rem; }
+    .legal-note { font-size:0.78rem; line-height:1.45; padding:0.65rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; margin-bottom:0.75rem; }
+    .consent-row { display:flex; gap:0.5rem; align-items:flex-start; margin-bottom:0.75rem; }
+    .consent-row label { margin:0; flex:1; font-size:0.82rem; }
     .sign-pad-wrap { border:1px dashed var(--border); border-radius:10px; padding:0.5rem; background:#0f1419; }
     canvas { width:100%; height:160px; touch-action:none; display:block; background:#fff; border-radius:8px; cursor:crosshair; }
     .error-box { border-color:rgba(248,113,113,0.45); background:rgba(63,29,29,0.35); }
@@ -50,14 +58,24 @@
     <section id="signPanel" class="panel hidden">
       <h2 id="contractTitle">Arbeitsvertrag</h2>
       <p class="muted" id="employeeLine"></p>
-      <h3>Dokument</h3>
-      <div id="contractText" class="contract-text"></div>
-      <h3 style="margin-top:1rem;">Unterschrift</h3>
-      <label><span>Name (Pflichtfeld)</span><input id="signerName" autocomplete="name" /></label>
-      <label><span>Ort</span><input id="signPlace" autocomplete="address-level2" /></label>
-      <p class="muted" style="margin:0 0 0.5rem;">Unterschrift zeichnen oder nur den Namen eingeben (Schrift-Signatur).</p>
+      <p class="legal-note" id="legalNote"></p>
+      <h3 id="docHeading">Dokument</h3>
+      <div class="doc-tabs">
+        <button type="button" id="tabPdf" class="active">PDF</button>
+        <button type="button" id="tabText" class="secondary">Text</button>
+      </div>
+      <iframe id="pdfPreview" class="pdf-frame" title="Vertrag PDF"></iframe>
+      <div id="contractText" class="contract-text hidden"></div>
+      <h3 style="margin-top:1rem;" id="signHeading">Unterschrift</h3>
+      <label><span id="nameLabel">Name (Pflichtfeld)</span><input id="signerName" autocomplete="name" /></label>
+      <label><span id="placeLabel">Ort</span><input id="signPlace" autocomplete="address-level2" /></label>
+      <p class="muted" id="drawHint">Unterschrift zeichnen oder nur den Namen eingeben.</p>
       <div class="sign-pad-wrap">
         <canvas id="signCanvas" width="800" height="200"></canvas>
+      </div>
+      <div class="consent-row">
+        <input type="checkbox" id="consentCheck" />
+        <label for="consentCheck" id="consentLabel">Ich habe den Vertrag gelesen und akzeptiere ihn.</label>
       </div>
       <div class="actions">
         <button type="button" class="secondary" id="clearSignBtn">Löschen</button>
@@ -70,12 +88,18 @@
     const params = new URLSearchParams(location.search);
     const token = params.get("token") || "";
     const UI = {
-      de: { hint:"Vertrag lesen und unterschreiben", doc:"Dokument", sign:"Unterschrift", name:"Name (Pflichtfeld)", place:"Ort", drawHint:"Unterschrift zeichnen oder nur den Namen eingeben.", clear:"Löschen", submit:"Vertrag unterschreiben", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Sie können das signierte PDF jetzt herunterladen.", download:"PDF herunterladen", employee:"Mitarbeiter", employer:"Arbeitgeber", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…" },
-      en: { hint:"Read and sign the contract", doc:"Document", sign:"Signature", name:"Name (required)", place:"Place", drawHint:"Draw a signature or type your name only.", clear:"Clear", submit:"Sign contract", done:"Thank you — signature saved", doneHint:"You can download the signed PDF now.", download:"Download PDF", employee:"Employee", employer:"Employer", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…" },
-      ar: { hint:"اقرأ العقد ووقّع", doc:"المستند", sign:"التوقيع", name:"الاسم (مطلوب)", place:"المكان", drawHint:"ارسم التوقيع أو اكتب الاسم فقط.", clear:"مسح", submit:"توقيع العقد", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكنك الآن تحميل PDF الموقّع.", download:"تحميل PDF", employee:"موظف", employer:"صاحب عمل", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…" },
+      de: { hint:"Vertrag lesen und unterschreiben", doc:"Dokument", sign:"Unterschrift", name:"Name (Pflichtfeld)", place:"Ort", drawHint:"Unterschrift zeichnen oder nur den Namen eingeben.", clear:"Löschen", submit:"Vertrag unterschreiben", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Sie können das signierte PDF jetzt herunterladen.", download:"PDF herunterladen", employee:"Mitarbeiter", employer:"Arbeitgeber", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…", tabPdf:"PDF", tabText:"Text", consent:"Ich habe den Vertrag gelesen und akzeptiere ihn. Die KI-Vorlage ersetzt keine Rechtsberatung.", consentRequired:"Bitte bestätigen Sie, dass Sie den Vertrag gelesen und akzeptiert haben.", legal:"Hinweis: Dieser Vertragstext ist eine Vorlage und ersetzt keine anwaltliche Prüfung." },
+      en: { hint:"Read and sign the contract", doc:"Document", sign:"Signature", name:"Name (required)", place:"Place", drawHint:"Draw a signature or type your name only.", clear:"Clear", submit:"Sign contract", done:"Thank you — signature saved", doneHint:"You can download the signed PDF now.", download:"Download PDF", employee:"Employee", employer:"Employer", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…", tabPdf:"PDF", tabText:"Text", consent:"I have read and accept the contract. AI templates are not legal advice.", consentRequired:"Please confirm that you have read and accept the contract.", legal:"Note: This contract text is a template and does not replace legal review." },
+      ar: { hint:"اقرأ العقد ووقّع", doc:"المستند", sign:"التوقيع", name:"الاسم (مطلوب)", place:"المكان", drawHint:"ارسم التوقيع أو اكتب الاسم فقط.", clear:"مسح", submit:"توقيع العقد", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكنك الآن تحميل PDF الموقّع.", download:"تحميل PDF", employee:"موظف", employer:"صاحب عمل", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…", tabPdf:"PDF", tabText:"نص", consent:"قرأت العقد وأوافق عليه. القوالب بالذكاء الاصطناعي ليست استشارة قانونية.", consentRequired:"يرجى تأكيد قراءة العقد وقبوله.", legal:"تنبيه: هذا النص قالب ولا يغني عن مراجعة قانونية." },
+      tr: { hint:"Sözlesmeyi okuyun ve imzalayın", doc:"Belge", sign:"Imza", name:"Ad (zorunlu)", place:"Yer", drawHint:"Imza cizin veya yalnizca adinizi yazin.", clear:"Sil", submit:"Sözlesmeyi imzala", done:"Tesekkürler — imza kaydedildi", doneHint:"Imzali PDF indirilebilir.", download:"PDF indir", employee:"Calisan", employer:"Isveren", expired:"Bu linkin suresi doldu.", missing:"Gecersiz imza linki.", signed:"Zaten imzalandi.", saving:"Kaydediliyor…", tabPdf:"PDF", tabText:"Metin", consent:"Sözlesmeyi okudum ve kabul ediyorum. AI sablonlari hukuki danismanlik degildir.", consentRequired:"Lütfen sözlesmeyi okudugunuzu onaylayin.", legal:"Not: Bu metin bir sablondur, hukuki inceleme yerine gecmez." },
+      fr: { hint:"Lire et signer le contrat", doc:"Document", sign:"Signature", name:"Nom (obligatoire)", place:"Lieu", drawHint:"Dessinez une signature ou saisissez votre nom.", clear:"Effacer", submit:"Signer le contrat", done:"Merci — signature enregistree", doneHint:"Vous pouvez telecharger le PDF signe.", download:"Telecharger PDF", employee:"Employe", employer:"Employeur", expired:"Ce lien a expire.", missing:"Lien de signature invalide.", signed:"Deja signe.", saving:"Enregistrement…", tabPdf:"PDF", tabText:"Texte", consent:"J'ai lu et j'accepte le contrat. Les modeles IA ne remplacent pas un avis juridique.", consentRequired:"Veuillez confirmer avoir lu et accepte le contrat.", legal:"Note : ce texte est un modele et ne remplace pas un controle juridique." },
+      es: { hint:"Lea y firme el contrato", doc:"Documento", sign:"Firma", name:"Nombre (obligatorio)", place:"Lugar", drawHint:"Dibuje la firma o escriba solo su nombre.", clear:"Borrar", submit:"Firmar contrato", done:"Gracias — firma guardada", doneHint:"Puede descargar el PDF firmado.", download:"Descargar PDF", employee:"Empleado", employer:"Empleador", expired:"Este enlace ha caducado.", missing:"Enlace de firma invalido.", signed:"Ya firmado.", saving:"Guardando…", tabPdf:"PDF", tabText:"Texto", consent:"He leido y acepto el contrato. Las plantillas IA no son asesoramiento legal.", consentRequired:"Confirme que ha leido y acepta el contrato.", legal:"Nota: este texto es una plantilla y no sustituye revision legal." },
+      it: { hint:"Leggere e firmare il contratto", doc:"Documento", sign:"Firma", name:"Nome (obbligatorio)", place:"Luogo", drawHint:"Disegna la firma o inserisci solo il nome.", clear:"Cancella", submit:"Firma contratto", done:"Grazie — firma salvata", doneHint:"Puoi scaricare il PDF firmato.", download:"Scarica PDF", employee:"Dipendente", employer:"Datore", expired:"Link scaduto.", missing:"Link firma non valido.", signed:"Gia firmato.", saving:"Salvataggio…", tabPdf:"PDF", tabText:"Testo", consent:"Ho letto e accetto il contratto. I modelli IA non sono consulenza legale.", consentRequired:"Conferma di aver letto e accettato il contratto.", legal:"Nota: testo modello, non sostituisce revisione legale." },
+      pl: { hint:"Przeczytaj i podpisz umowe", doc:"Dokument", sign:"Podpis", name:"Imie i nazwisko (wymagane)", place:"Miejsce", drawHint:"Narysuj podpis lub wpisz tylko imie i nazwisko.", clear:"Wyczysc", submit:"Podpisz umowe", done:"Dziekujemy — podpis zapisany", doneHint:"Mozesz pobrac podpisany PDF.", download:"Pobierz PDF", employee:"Pracownik", employer:"Pracodawca", expired:"Link wygasl.", missing:"Nieprawidlowy link podpisu.", signed:"Juz podpisano.", saving:"Zapisywanie…", tabPdf:"PDF", tabText:"Tekst", consent:"Przeczytalem/am i akceptuje umowe. Szablony AI to nie porada prawna.", consentRequired:"Potwierdz przeczytanie i akceptacje umowy.", legal:"Uwaga: to szablon, nie zastepuje opinii prawnej." },
     };
     let view = null;
     let downloadPath = "";
+    let geo = { latitude: null, longitude: null };
     const canvas = document.getElementById("signCanvas");
     const ctx = canvas.getContext("2d");
     let drawing = false;
@@ -86,21 +110,45 @@
       return (UI[lang] || UI.en)[key] || UI.en[key] || key;
     }
 
+    function setDocMode(mode) {
+      const pdf = mode === "pdf";
+      document.getElementById("tabPdf").classList.toggle("active", pdf);
+      document.getElementById("tabText").classList.toggle("active", !pdf);
+      document.getElementById("pdfPreview").classList.toggle("hidden", !pdf);
+      document.getElementById("contractText").classList.toggle("hidden", pdf);
+    }
+
     function applyUi() {
       document.getElementById("pageHint").textContent = ui("hint");
-      document.querySelector("#signPanel h3").textContent = ui("doc");
-      document.querySelectorAll("#signPanel h3")[1].textContent = ui("sign");
-      document.querySelector('label span').textContent = ui("name");
-      document.querySelectorAll("label span")[1].textContent = ui("place");
-      document.querySelector("#signPanel .muted").textContent = ui("drawHint");
+      document.getElementById("docHeading").textContent = ui("doc");
+      document.getElementById("signHeading").textContent = ui("sign");
+      document.getElementById("nameLabel").textContent = ui("name");
+      document.getElementById("placeLabel").textContent = ui("place");
+      document.getElementById("drawHint").textContent = ui("drawHint");
       document.getElementById("clearSignBtn").textContent = ui("clear");
       document.getElementById("submitSignBtn").textContent = ui("submit");
       document.getElementById("doneTitle").textContent = ui("done");
       document.getElementById("doneHint").textContent = ui("doneHint");
       document.getElementById("downloadBtn").textContent = ui("download");
+      document.getElementById("tabPdf").textContent = ui("tabPdf");
+      document.getElementById("tabText").textContent = ui("tabText");
+      document.getElementById("consentLabel").textContent = ui("consent");
+      document.getElementById("legalNote").textContent = ui("legal");
       const lang = (view?.language || "de").slice(0, 2);
       document.documentElement.lang = lang === "ar" ? "ar" : lang;
       document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+    }
+
+    function captureGeo() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          geo.latitude = pos.coords.latitude;
+          geo.longitude = pos.coords.longitude;
+        },
+        () => {},
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      );
     }
 
     function pos(e) {
@@ -120,6 +168,8 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       hasStroke = false;
     });
+    document.getElementById("tabPdf").addEventListener("click", () => setDocMode("pdf"));
+    document.getElementById("tabText").addEventListener("click", () => setDocMode("text"));
 
     function showError(msg) {
       document.getElementById("errorPanel").textContent = msg;
@@ -131,6 +181,7 @@
         showError(UI.de.missing);
         return;
       }
+      captureGeo();
       const res = await fetch(`/api/public/contracts/sign/${encodeURIComponent(token)}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -149,6 +200,10 @@
       document.getElementById("employeeLine").textContent = data.employeeName || "";
       document.getElementById("roleBadge").textContent = data.role === "employer" ? ui("employer") : ui("employee");
       document.getElementById("contractText").textContent = data.contractText || "";
+      if (data.previewPdfUrl) {
+        document.getElementById("pdfPreview").src = data.previewPdfUrl;
+      }
+      setDocMode("pdf");
       if (data.signerName) document.getElementById("signerName").value = data.signerName;
       if (data.status === "signed") {
         downloadPath = `/api/public/contracts/sign/${encodeURIComponent(token)}/download.pdf`;
@@ -163,17 +218,32 @@
       const name = document.getElementById("signerName").value.trim();
       const place = document.getElementById("signPlace").value.trim();
       if (!name) return;
+      if (!document.getElementById("consentCheck").checked) {
+        document.getElementById("statusLine").textContent = ui("consentRequired");
+        return;
+      }
       let signatureData = "";
       if (hasStroke) signatureData = canvas.toDataURL("image/png");
       document.getElementById("statusLine").textContent = ui("saving");
+      const body = {
+        signer_name: name,
+        signature_data: signatureData,
+        sign_place: place,
+        consent_accepted: true,
+      };
+      if (geo.latitude != null && geo.longitude != null) {
+        body.sign_latitude = geo.latitude;
+        body.sign_longitude = geo.longitude;
+      }
       const res = await fetch(`/api/public/contracts/sign/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signer_name: name, signature_data: signatureData, sign_place: place }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        document.getElementById("statusLine").textContent = data.error || "Error";
+        const err = data.error === "consent_required" ? ui("consentRequired") : (data.error || "Error");
+        document.getElementById("statusLine").textContent = err;
         return;
       }
       downloadPath = data.download || `/api/public/contracts/sign/${encodeURIComponent(token)}/download.pdf`;

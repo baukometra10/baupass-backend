@@ -3476,6 +3476,7 @@ async function loadWorkers() {
         <td class="worker-action-cell">
           <div class="worker-action-group">
             <button type="button" class="worker-action-btn worker-action-btn-primary" data-deployment-plan="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("deployment.planBtn")}</button>
+            <button type="button" class="worker-action-btn worker-action-btn-ghost" data-worker-contracts="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.contracts")}</button>
             <button type="button" class="worker-action-btn worker-action-btn-ghost" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.joinQr")}</button>
           </div>
         </td>
@@ -3502,6 +3503,13 @@ async function loadWorkers() {
       const wid = btn.getAttribute("data-deployment-plan");
       const wname = btn.getAttribute("data-worker-name") || wid;
       openDeploymentModal(wid, wname).catch((e) => showActionToast(e.message, true));
+    });
+  });
+  container.querySelectorAll("[data-worker-contracts]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const wid = btn.getAttribute("data-worker-contracts");
+      const q = companyQuery();
+      location.href = `/admin-v2/contracts.html${q}&worker_id=${encodeURIComponent(wid)}`;
     });
   });
 }

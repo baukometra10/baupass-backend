@@ -1709,6 +1709,11 @@ def serialize_worker_record(row):
         "badgePinConfigured": bool(row["badge_pin_hash"]),
         "physicalCardId": row["physical_card_id"],
         "deletedAt": row["deleted_at"],
+        "contactEmail": (row["contact_email"] if "contact_email" in row.keys() else "") or "",
+        "homeAddress": (row["home_address"] if "home_address" in row.keys() else "") or "",
+        "birthDate": (row["birth_date"] if "birth_date" in row.keys() else "") or "",
+        "gender": (row["gender"] if "gender" in row.keys() else "") or "",
+        "contactPhone": (row["contact_phone"] if "contact_phone" in row.keys() else "") or "",
     }
     payload.update(_worker_compliance_signature_meta(row))
     return payload

@@ -35,6 +35,12 @@ class PushNavigation {
         return const WorkerAppRoute(tabIndex: 3);
       case 'worker-chat':
         return const WorkerAppRoute(tabIndex: 3, openChat: true);
+      case 'contract-sign':
+        final signUrl = (data['signUrl'] ?? data['sign_url'] ?? '').trim();
+        if (signUrl.isNotEmpty) {
+          return WorkerAppRoute(tabIndex: 0, externalUrl: signUrl);
+        }
+        return const WorkerAppRoute(tabIndex: 0);
       default:
         return null;
     }
