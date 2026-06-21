@@ -64,6 +64,27 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
+    @contracts_core_bp.post("/contracts/<contract_id>/regenerate")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def regenerate_contract_draft(contract_id: str):
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        service = ContractsService(get_db())
+        try:
+            result = service.rebuild_contract_draft(
+                contract_id,
+                cid,
+                actor_user_id=str(g.current_user.get("id") or ""),
+                payload=data,
+            )
+            return jsonify(result)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
     @contracts_core_bp.get("/contracts")
     @require_auth
     @require_roles("superadmin", "company-admin")

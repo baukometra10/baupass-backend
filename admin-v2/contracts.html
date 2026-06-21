@@ -514,25 +514,38 @@
     }
 
     async function generateContractDraft() {
-      const data = await api("/api/contracts/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...contractFormPayload(),
-          parent_contract_id: document.getElementById("parentContractId").value || "",
-        }),
-      });
-      currentContractId = data.contract?.id || "";
-      document.getElementById("contractEditor").value = data.contract?.draft_text || "";
-      setStatus(window.contractPageT("statusDraftCreated", { id: currentContractId }), { active: true });
+      const payload = {
+        ...contractFormPayload(),
+        parent_contract_id: document.getElementById("parentContractId").value || "",
+        existing_text: document.getElementById("contractEditor").value.trim(),
+      };
+      if (currentContractId) {
+        const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/regenerate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        document.getElementById("contractEditor").value = data.contract?.final_text || data.contract?.draft_text || "";
+        setStatus(window.contractPageT("statusDraftUpdated", { id: currentContractId }), { active: true });
+      } else {
+        const data = await api("/api/contracts/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        currentContractId = data.contract?.id || "";
+        document.getElementById("contractEditor").value = data.contract?.draft_text || data.contract?.final_text || "";
+        setStatus(window.contractPageT("statusDraftCreated", { id: currentContractId }), { active: true });
+      }
       await loadContracts();
     }
 
     async function submitNotesToAi() {
-      const notes = document.getElementById("notes").value.trim();
+      const notesEl = document.getElementById("notes");
+      const notes = notesEl.value.trim();
       if (!notes) {
         setStatus(window.contractPageT("statusNotesRequired"), { error: true });
-        document.getElementById("notes").focus();
+        notesEl.focus();
         document.getElementById("notesSendBtn")?.classList.add("is-warn");
         setTimeout(() => document.getElementById("notesSendBtn")?.classList.remove("is-warn"), 800);
         return;
@@ -542,6 +555,7 @@
       sendBtn?.setAttribute("disabled", "disabled");
       try {
         await withToolbarAction("generateBtn", window.contractPageT("statusGenerating"), generateContractDraft);
+        notesEl.value = "";
       } finally {
         sendBtn?.classList.remove("is-busy");
         sendBtn?.removeAttribute("disabled");
@@ -585,7 +599,7 @@
         submitNotesToAi().catch(() => {});
       });
       document.getElementById("notes")?.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+        if (ev.key === "Enter" && !ev.shiftKey) {
           ev.preventDefault();
           submitNotesToAi().catch(() => {});
         }
@@ -823,6 +837,7 @@
       panel.classList.remove("hidden");
       const labels = {
         "contract.created": "Erstellt",
+        "contract.regenerated": "KI neu generiert",
         "contract.updated": "Gespeichert",
         "contract.pdf_generated": "PDF erzeugt",
         "sign_link.created": "Signatur-Link",

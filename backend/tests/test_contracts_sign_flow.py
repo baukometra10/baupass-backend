@@ -156,6 +156,63 @@ def test_submit_signature_requires_consent(client_and_db):
     client.delete(f"/api/contracts/{contract_id}?company_id={company_id}", headers=headers)
 
 
+def test_regenerate_contract_keeps_same_id(client_and_db):
+    client, _ = client_and_db
+    headers_resp = client.post(
+        "/api/login",
+        json={"username": "superadmin", "password": "1234", "loginScope": "server-admin"},
+    )
+    headers = {"Authorization": f"Bearer {headers_resp.get_json()['token']}"}
+    company = client.post(
+        "/api/companies",
+        json={
+            "name": "RegenCo",
+            "contact": "x",
+            "adminPassword": "1234",
+            "turnstilePassword": "1234",
+            "turnstileCount": 0,
+        },
+        headers=headers,
+    )
+    company_id = (company.get_json().get("company") or {}).get("id") or company.get_json().get("id")
+    templates = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
+    template_id = next(
+        (t["id"] for t in templates.get_json()["templates"] if t.get("template_key") == "permanent_full_time"),
+        templates.get_json()["templates"][0]["id"],
+    )
+    form = {
+        "employee_name": "Sam Test",
+        "employee_gender": "male",
+        "employee_address": "Berlin",
+        "job_title": "Clerk",
+        "start_date": "2026-07-01",
+        "work_location": "Office",
+        "weekly_hours": "40",
+        "vacation_days": "28",
+        "probation_months": "6",
+        "salary_type": "hourly",
+        "hourly_rate": "15",
+    }
+    draft = client.post(
+        "/api/contracts/draft",
+        json={"company_id": company_id, "template_id": template_id, "title": "Test", "language": "de", "form": form},
+        headers=headers,
+    )
+    contract_id = draft.get_json()["contract"]["id"]
+    regen = client.post(
+        f"/api/contracts/{contract_id}/regenerate",
+        json={"company_id": company_id, "notes": "Add probation clause", "form": form, "existing_text": "§ 1 Beginn"},
+        headers=headers,
+    )
+    assert regen.status_code == 200
+    body = regen.get_json()
+    assert body["contract"]["id"] == contract_id
+    events = client.get(f"/api/contracts/{contract_id}/events?company_id={company_id}", headers=headers)
+    types = [row.get("event_type") for row in events.get_json().get("events") or []]
+    assert "contract.regenerated" in types
+    client.delete(f"/api/contracts/{contract_id}?company_id={company_id}", headers=headers)
+
+
 def test_integrations_status(client_and_db):
     client, _ = client_and_db
     headers_resp = client.post(

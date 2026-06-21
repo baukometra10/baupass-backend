@@ -96,6 +96,88 @@ class ContractsService:
             },
         }
 
+    def rebuild_contract_draft(
+        self,
+        contract_id: str,
+        company_id: str,
+        *,
+        actor_user_id: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        contract = self.repo.get_contract(contract_id, company_id)
+        if not contract:
+            raise ValueError("contract_not_found")
+        template_id = str(payload.get("template_id") or contract.get("template_id") or "").strip()
+        template = self.repo.get_template(template_id, company_id) if template_id else None
+        if not template:
+            raise ValueError("template_not_found")
+        input_data = self._parse_contract_input(contract)
+        form_patch = dict(payload.get("form") or {})
+        if form_patch:
+            input_data["form"] = normalize_contract_form({**(input_data.get("form") or {}), **form_patch})
+        if "notes" in payload:
+            input_data["notes"] = str(payload.get("notes") or "").strip()
+        existing_text = str(
+            payload.get("existing_text")
+            or contract.get("final_text")
+            or contract.get("draft_text")
+            or ""
+        ).strip()
+        if existing_text:
+            input_data["existing_text"] = existing_text
+        worker_id = str(payload.get("worker_id") or contract.get("worker_id") or "").strip() or None
+        if worker_id:
+            worker = self._load_worker(worker_id, company_id)
+            if worker:
+                input_data["worker"] = worker
+        input_data["company"] = self._load_company(company_id)
+        form = input_data.get("form") or {}
+        jurisdiction = normalize_jurisdiction(form.get("jurisdiction") or form.get("jurisdiction_country"))
+        if not form.get("currency"):
+            form["currency"] = default_currency_for_jurisdiction(jurisdiction)
+            input_data["form"] = form
+        lang = normalize_lang(payload.get("language") or contract.get("language") or template.get("language"))
+        title = str(payload.get("title") or contract.get("title") or document_title(lang, jurisdiction, template.get("name"))).strip()
+        parent_contract_id = str(payload.get("parent_contract_id") or contract.get("parent_contract_id") or "").strip() or None
+        prompt = self._build_contract_prompt(template, input_data, lang=lang, jurisdiction=jurisdiction, regenerate=bool(existing_text))
+        result = natural_language_query(company_id, prompt, input_data, mode="chat", lang=lang)
+        draft_text = str(result.get("answer") or "").strip()
+        if not draft_text:
+            draft_text = self._fallback_contract_text(input_data, lang=lang, jurisdiction=jurisdiction)
+        self.repo.update_contract_full(
+            contract_id,
+            company_id=company_id,
+            draft_text=draft_text,
+            final_text=draft_text,
+            ai_prompt=prompt,
+            input_json=json.dumps(input_data, ensure_ascii=False),
+            worker_id=worker_id,
+            title=title,
+            language=lang,
+            status="draft",
+            clear_worker=bool(payload.get("worker_id") == ""),
+            parent_contract_id=parent_contract_id,
+            clear_parent=bool(payload.get("parent_contract_id") == ""),
+        )
+        self.repo.log_event(
+            contract_id=contract_id,
+            company_id=company_id,
+            event_type="contract.regenerated",
+            payload={"template_id": template_id, "worker_id": worker_id},
+            actor_user_id=actor_user_id,
+        )
+        if worker_id and input_data.get("form"):
+            self._sync_worker_from_contract_form(worker_id, company_id, input_data["form"])
+        contract = self.repo.get_contract(contract_id, company_id)
+        return {
+            "contract": contract,
+            "ai": {
+                "configured": bool(result.get("configured")),
+                "model": result.get("model"),
+                "hint": result.get("hint"),
+            },
+        }
+
     def list_contracts(self, company_id: str) -> list[dict[str, Any]]:
         rows = self.repo.list_contracts(company_id)
         return [self._enrich_contract_summary(row) for row in rows]
@@ -683,12 +765,21 @@ class ContractsService:
         *,
         lang: str,
         jurisdiction: str,
+        regenerate: bool = False,
     ) -> str:
+        instructions = build_ai_instructions(lang, jurisdiction)
+        if regenerate or input_data.get("existing_text"):
+            instructions = [
+                *instructions,
+                "Revise the existing contract text in place using the admin notes and updated form fields.",
+                "Do not create a separate or duplicate contract — return the full updated contract body only.",
+            ]
         return json.dumps(
             {
                 "task": "employment_contract_draft",
                 "language": lang,
                 "jurisdiction": jurisdiction,
+                "regenerate": bool(regenerate or input_data.get("existing_text")),
                 "template": {
                     "name": template.get("name"),
                     "type": template.get("contract_type"),
@@ -696,7 +787,7 @@ class ContractsService:
                     "required_fields": json.loads(template.get("required_fields_json") or "[]"),
                 },
                 "input": input_data,
-                "instructions": build_ai_instructions(lang, jurisdiction),
+                "instructions": instructions,
             },
             ensure_ascii=False,
         )

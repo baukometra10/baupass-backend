@@ -279,6 +279,8 @@ class ContractsRepository:
         *,
         company_id: str,
         final_text: str | None = None,
+        draft_text: str | None = None,
+        ai_prompt: str | None = None,
         input_json: str | None = None,
         worker_id: str | None = None,
         title: str | None = None,
@@ -295,6 +297,12 @@ class ContractsRepository:
         if final_text is not None:
             sets.append("final_text = ?")
             params.append(final_text)
+        if draft_text is not None:
+            sets.append("draft_text = ?")
+            params.append(draft_text)
+        if ai_prompt is not None:
+            sets.append("ai_prompt = ?")
+            params.append(ai_prompt)
         if input_json is not None:
             sets.append("input_json = ?")
             params.append(input_json)
