@@ -443,6 +443,7 @@
     const companyId = params.get("company_id") || localStorage.getItem("baupass-admin-v2-company") || "";
     const token = localStorage.getItem("baupass-admin-v2-token") || localStorage.getItem("baupass-control-token") || "";
     let currentContractId = "";
+    let adminPdfPreviewObjectUrl = null;
     let contracts = [];
     let toolbarBusy = false;
     let workers = [];
@@ -761,15 +762,44 @@
       const show = meta.contract_type === "amendment";
       wrap.classList.toggle("hidden", !show);
     }
-    function setEditorMode(mode) {
+    async function fetchContractPreviewBlob() {
+      if (!currentContractId) throw new Error(window.contractPageT("statusNoContract"));
+      await persistContract();
+      const url = `/api/contracts/${encodeURIComponent(currentContractId)}/preview.pdf?company_id=${encodeURIComponent(companyId)}&t=${Date.now()}`;
+      const res = await fetch(url, {
+        headers: { ...headers(), Accept: "application/pdf" },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || window.contractPageT("statusError"));
+        err.data = data;
+        throw err;
+      }
+      return res.blob();
+    }
+    async function setEditorMode(mode) {
       const pdf = mode === "pdf";
       document.getElementById("tabEditorText").classList.toggle("active", !pdf);
       document.getElementById("tabEditorPdf").classList.toggle("active", pdf);
       document.getElementById("contractEditor").style.display = pdf ? "none" : "";
       const frame = document.getElementById("adminPdfPreview");
       frame.style.display = pdf ? "block" : "none";
-      if (pdf && currentContractId) {
-        frame.src = `/api/contracts/${encodeURIComponent(currentContractId)}/preview.pdf?company_id=${encodeURIComponent(companyId)}&t=${Date.now()}`;
+      if (!pdf) return;
+      if (!currentContractId) {
+        frame.removeAttribute("src");
+        return;
+      }
+      try {
+        setStatus(window.contractPageT("statusWorking"));
+        const blob = await fetchContractPreviewBlob();
+        if (adminPdfPreviewObjectUrl) URL.revokeObjectURL(adminPdfPreviewObjectUrl);
+        adminPdfPreviewObjectUrl = URL.createObjectURL(blob);
+        frame.src = adminPdfPreviewObjectUrl;
+        setStatus("");
+      } catch (e) {
+        frame.removeAttribute("src");
+        setStatus(mapApiError(e), { error: true });
       }
     }
     async function loadEvents() {
@@ -1101,8 +1131,8 @@
     document.getElementById("contractSearch").addEventListener("input", renderContractList);
     document.getElementById("statusFilter").addEventListener("change", renderContractList);
     document.getElementById("templateId").addEventListener("change", syncParentContractField);
-    document.getElementById("tabEditorText").addEventListener("click", () => setEditorMode("text"));
-    document.getElementById("tabEditorPdf").addEventListener("click", () => setEditorMode("pdf"));
+    document.getElementById("tabEditorText").addEventListener("click", () => { setEditorMode("text").catch(() => {}); });
+    document.getElementById("tabEditorPdf").addEventListener("click", () => { setEditorMode("pdf").catch(() => {}); });
     document.getElementById("generateBtn").addEventListener("click", () => {
       withToolbarAction("generateBtn", window.contractPageT("statusGenerating"), generateContractDraft).catch(() => {});
     });
