@@ -1,5 +1,5 @@
-/**
- * Einsatzplan direkt im Control Pass (ohne iframe).
+﻿/**
+ * Einsatzplan direkt im WorkPass (ohne iframe).
  */
 (function initBaupassDeploymentPlan(global) {
   let modalWorkerId = null;

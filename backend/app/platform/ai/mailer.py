@@ -1,4 +1,4 @@
-"""Send AI briefing emails via platform SMTP env or settings row."""
+﻿"""Send AI briefing emails via platform SMTP env or settings row."""
 from __future__ import annotations
 
 import os
@@ -15,7 +15,7 @@ def send_ai_briefing_email(*, to: str, subject: str, body_text: str) -> Tuple[bo
     password = (os.getenv("SMTP_PASSWORD") or "").strip()
     use_tls = str(os.getenv("SMTP_USE_TLS", "1")).strip().lower() in {"1", "true", "yes"}
     sender = (os.getenv("SMTP_SENDER_EMAIL") or user or "noreply@baupass.de").strip()
-    sender_name = (os.getenv("SMTP_SENDER_NAME") or "BauPass KI").strip()
+    sender_name = (os.getenv("SMTP_SENDER_NAME") or "SUPPIX AI").strip()
 
     if not host:
         return False, "SMTP_HOST nicht konfiguriert (Railway Variables)."

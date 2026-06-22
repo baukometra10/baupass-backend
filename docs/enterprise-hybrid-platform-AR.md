@@ -1,4 +1,4 @@
-# BauPass — منصة Enterprise Hybrid
+﻿# WorkPass — منصة Enterprise Hybrid
 
 معمارية موحّدة: **Backend مركزي** + **لوحة إدارة ويب** + **تطبيق موظف Hybrid (Flutter ~90% / Native NFC ~10%)**.
 

@@ -1,4 +1,4 @@
-"""Einsatzplan PDF: portrait A4, single page, branded header."""
+﻿"""Einsatzplan PDF: portrait A4, single page, branded header."""
 from __future__ import annotations
 
 import calendar
@@ -41,7 +41,7 @@ def test_deployment_pdf_portrait_single_page():
         lang="de",
         branding={
             "companyName": "Test GmbH",
-            "accent": "#0f4c5c",
+            "accent": "#06b6d4",
             "accentLight": "#1a8aad",
         },
     )

@@ -1,4 +1,4 @@
-# عزل المستأجرين (Tenant Isolation) — BauPass
+﻿# عزل المستأجرين (Tenant Isolation) — WorkPass
 
 ## النموذج
 

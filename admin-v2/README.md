@@ -1,4 +1,4 @@
-# BauPass Admin v2
+﻿# WorkPass Admin v2
 
 Lightweight enterprise admin dashboard consuming **API v2**.
 

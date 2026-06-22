@@ -1,5 +1,5 @@
-"""
-Canonical registration order for BauPass domain blueprints.
+﻿"""
+Canonical registration order for WorkPass domain blueprints.
 
 API domains first (foundation → business). HTTP/static routes last so the
 catch-all static proxy does not shadow API paths.

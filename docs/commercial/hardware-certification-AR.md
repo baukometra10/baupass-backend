@@ -1,4 +1,4 @@
-# برنامج اعتماد الأجهزة (Hardware Certification)
+﻿# برنامج اعتماد الأجهزة (Hardware Certification)
 
 ## نطاق
 
@@ -10,7 +10,7 @@
 
 | مستوى | معنى |
 |-------|------|
-| Compatible | يعمل في مختبر BauPass |
+| Compatible | يعمل في مختبر WorkPass |
 | Certified | اختبار ميداني + دعم رسمي |
 | Deprecated | لا يُباع للعملاء الجدد |
 

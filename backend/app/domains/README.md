@@ -1,4 +1,4 @@
-# BauPass Domain Modules
+﻿# WorkPass Domain Modules
 
 `backend/server.py` keeps **handler implementations** during migration; **all HTTP routing** lives in domain blueprints.
 

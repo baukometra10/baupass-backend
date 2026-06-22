@@ -1,4 +1,4 @@
-# الطبقات الست للمؤسسة — BauPass
+﻿# الطبقات الست للمؤسسة — WorkPass
 
 ## 1) Enterprise Intelligence Layer
 
@@ -20,7 +20,7 @@
 
 ## 2) Enterprise Integration Ecosystem
 
-**الهدف:** BauPass مركز التشغيل — ERP، رواتب، M365، Google، بوابات، IoT، كاميرات.
+**الهدف:** WorkPass مركز التشغيل — ERP، رواتب، M365، Google، بوابات، IoT، كاميرات.
 
 | التكامل | API |
 |---------|-----|

@@ -1,1 +1,1 @@
-"""Sector templates and terminology (multi-vertical BauPass)."""
+﻿"""Sector templates and terminology (multi-vertical WorkPass)."""

@@ -1,4 +1,4 @@
-"""Enterprise + Operations combined PDF report."""
+﻿"""Enterprise + Operations combined PDF report."""
 from __future__ import annotations
 
 from typing import Any
@@ -69,8 +69,8 @@ def build_enterprise_ops_pdf(
     snapshot["enterpriseLayers"] = build_enterprise_layers_snapshot(db, company_id)
     guidance = build_operational_guidance(snapshot)
     return build_operations_report_pdf(
-        title="BauPass Enterprise & Operations Report",
-        company_name=company_name or "BauPass",
+        title="WorkPass Enterprise & Operations Report",
+        company_name=company_name or "WorkPass",
         snapshot=snapshot,
         guidance=guidance,
     )

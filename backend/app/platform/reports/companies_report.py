@@ -1,4 +1,4 @@
-"""Companies document-email overview PDF."""
+﻿"""Companies document-email overview PDF."""
 from __future__ import annotations
 
 from backend.app.platform.reports.table_pdf import build_table_report_pdf
@@ -42,7 +42,7 @@ def build_companies_document_email_pdf(db) -> bytes:
     subtitle = f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')} / {now_iso()[:10]}"
     headers = ("Firma", "Dokument-E-Mail", "Status", "Rechnungs-E-Mail", "Letzter Eingang", "Offen", "Ungelöst", "Gelöscht")
     return build_table_report_pdf(
-        title="BauPass — Firmen Dokument-E-Mails",
+        title="WorkPass — Firmen Dokument-E-Mails",
         subtitle=subtitle,
         headers=headers,
         rows=table_rows,

@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Copy BauPass schema + data from SQLite to PostgreSQL.
+Copy WorkPass schema + data from SQLite to PostgreSQL.
 
 Usage:
   set DATABASE_URL=postgresql://...
@@ -160,7 +160,7 @@ def migrate_sqlite_to_postgres(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Migrate BauPass SQLite → PostgreSQL")
+    parser = argparse.ArgumentParser(description="Migrate WorkPass SQLite → PostgreSQL")
     parser.add_argument("--sqlite", required=True, help="Path to baupass.db")
     parser.add_argument("--batch", type=int, default=500)
     parser.add_argument("--truncate", action="store_true", help="Drop PG tables before create")

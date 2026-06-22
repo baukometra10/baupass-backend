@@ -1,4 +1,4 @@
-"""Workers domain — CSV/PDF export builders."""
+﻿"""Workers domain — CSV/PDF export builders."""
 from __future__ import annotations
 
 import base64
@@ -97,7 +97,7 @@ def build_workers_pdf_bytes(
 
     def draw_worker_page_header(y):
         pdf.setFont("Helvetica-Bold", 14)
-        pdf.drawString(36, y, "BauPass - Mitarbeiterliste")
+        pdf.drawString(36, y, "WorkPass - Mitarbeiterliste")
         y -= 16
         pdf.setFont("Helvetica", 9)
         pdf.drawString(
@@ -289,7 +289,7 @@ def build_leave_request_pdf_bytes(data: dict[str, Any]) -> dict[str, Any] | byte
     y = page_height - 48
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(40, y, "BauPass - Urlaubsantrag")
+    pdf.drawString(40, y, "WorkPass - Urlaubsantrag")
     y -= 20
     pdf.setFont("Helvetica", 9)
     pdf.drawString(40, y, f"Exportiert: {datetime.now().strftime('%d.%m.%Y %H:%M')}")

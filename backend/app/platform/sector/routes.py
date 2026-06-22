@@ -1,4 +1,4 @@
-"""Sector configuration API."""
+﻿"""Sector configuration API."""
 from __future__ import annotations
 
 from flask import Blueprint, g, jsonify, request
@@ -32,7 +32,7 @@ def register_sector_blueprint(flask_app) -> None:
 
         db = get_db()
         user = g.current_user
-        lang = (request.args.get("lang") or request.headers.get("X-BauPass-Ui-Lang") or "de").strip().lower()[:2]
+        lang = (request.args.get("lang") or request.headers.get("X-WorkPass-Ui-Lang") or "de").strip().lower()[:2]
         company_id = str(user.get("company_id") or request.args.get("company_id") or "").strip()
         if user.get("role") == "superadmin" and request.args.get("company_id"):
             company_id = str(request.args.get("company_id")).strip()

@@ -1,4 +1,4 @@
-const BUILD = "20260605f";
+﻿const BUILD = "20260621contrast1";
 const SHELL_CACHE = `baupass-control-shell-${BUILD}`;
 const RUNTIME_CACHE = `baupass-control-runtime-${BUILD}`;
 const SHELL_ASSETS = [
@@ -7,9 +7,12 @@ const SHELL_ASSETS = [
   `/index.html?v=${BUILD}`,
   `/app.js?v=${BUILD}`,
   `/styles.css?v=${BUILD}`,
+  `/platform-health.css?v=${BUILD}`,
   "/control-manifest.json",
-  "/branding/baukometra-logo.svg",
-  "/branding/baukometra-alt-logo.svg",
+  "/branding/suppix-ai-logo.svg",
+  "/branding/suppix-ai-logo-dark.svg",
+  "/branding/suppix-ai-invoice.svg",
+  "/branding/suppix-ai-mark.svg",
   "/worker-icon-192.png",
   "/worker-icon-512.png",
   "/worker-icon-192.svg",
@@ -80,6 +83,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith("/index.html") ||
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/styles.css") ||
+    url.pathname.endsWith("/platform-health.css") ||
     url.pathname.endsWith("/control-manifest.json")
   );
   const isStaticShell = isSameOrigin && (
@@ -87,6 +91,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith("/index.html") ||
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/styles.css") ||
+    url.pathname.endsWith("/platform-health.css") ||
     url.pathname.endsWith(".svg") ||
     url.pathname.endsWith(".png") ||
     url.pathname.endsWith(".json")

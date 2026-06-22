@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="apple-mobile-web-app-title" content="BauPass Live Ops" />
-  <meta name="application-name" content="BauPass Live Ops" />
-  <title>BauPass — Live Ops Map</title>
+  <meta name="apple-mobile-web-app-title" content="WorkPass Live Ops" />
+  <meta name="application-name" content="WorkPass Live Ops" />
+  <title>WorkPass — Live Ops Map</title>
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
@@ -40,7 +40,7 @@
 <body class="ops-app">
   <header class="ops-header">
     <div style="display:flex;align-items:center;gap:0.65rem;">
-      <img data-tenant-logo class="hidden" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:8px;background:#0c1218;padding:3px;" />
+      <img data-tenant-logo class="tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="SUPPIX AI" />
       <div>
         <strong id="opsMapTitle">Live Ops Map</strong>
         <span id="status">Laden…</span>
@@ -180,8 +180,8 @@
         }
         await applyOpsMapBranding();
         await load();
-        if (window.BauPassOpsRealtime) {
-          await window.BauPassOpsRealtime.start({
+        if (window.WorkPassOpsRealtime) {
+          await window.WorkPassOpsRealtime.start({
             companyId,
             feedEl: null,
             onMode: (mode) => {

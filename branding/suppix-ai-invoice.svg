@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="88" viewBox="0 0 480 88" role="img" aria-label="SUPPIX AI">
+  <defs>
+    <linearGradient id="i-cyan" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0891b2"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="i-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(6 6)">
+    <circle cx="38" cy="38" r="34" fill="#a855f7" opacity="0.1"/>
+    <g fill="none" stroke-linecap="round" stroke-width="4.5">
+      <path d="M38 6 A32 32 0 0 1 66 34" stroke="url(#i-cyan)"/>
+      <path d="M66 34 A32 32 0 0 1 54 66" stroke="url(#i-cyan)"/>
+      <path d="M54 66 A32 32 0 0 1 22 66" stroke="url(#i-purple)"/>
+      <path d="M22 66 A32 32 0 0 1 10 34" stroke="url(#i-purple)"/>
+      <path d="M10 34 A32 32 0 0 1 38 6" stroke="url(#i-cyan)"/>
+    </g>
+    <circle cx="38" cy="38" r="14" fill="#0f172a" stroke="url(#i-purple)" stroke-width="1.2"/>
+    <text x="38" y="42" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="#fff">AI</text>
+  </g>
+  <text x="92" y="40" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#0f172a">SUPPIX</text>
+  <text x="214" y="40" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="url(#i-cyan)">AI</text>
+  <text x="94" y="62" font-family="Arial,sans-serif" font-size="9" font-weight="600" letter-spacing="2.5" fill="#64748b">Suppix Technologie UG · WorkPass</text>
+  <rect x="92" y="70" width="96" height="2.5" rx="1.25" fill="url(#i-cyan)" opacity="0.75"/>
+</svg>

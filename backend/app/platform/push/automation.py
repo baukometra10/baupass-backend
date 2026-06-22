@@ -1,4 +1,4 @@
-"""Automatic FCM push hooks for hybrid worker app events."""
+﻿"""Automatic FCM push hooks for hybrid worker app events."""
 from __future__ import annotations
 
 from typing import Any
@@ -130,7 +130,7 @@ def push_security_alert(
     delivery = push_to_worker(
         db,
         worker_id,
-        "BauPass Sicherheit",
+        "WorkPass Sicherheit",
         (title or "Sicherheitshinweis")[:200],
         tag="ops-notify",
         company_id=company_id,

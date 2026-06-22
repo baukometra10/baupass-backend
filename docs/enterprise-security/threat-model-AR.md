@@ -1,8 +1,8 @@
-# نموذج التهديدات — BauPass (مسودة)
+﻿# نموذج التهديدات — WorkPass (مسودة)
 
 ## نطاق النظام
 
-- لوحة Control Pass (متصفح)
+- لوحة WorkPass (متصفح)
 - تطبيق العامل (موبايل / PWA)
 - API مركزي (`backend/server.py` + `backend/app/platform/*`)
 - تكاملات: SMTP, Stripe, Entra/Google SSO, كاميرات/RTSP, Push

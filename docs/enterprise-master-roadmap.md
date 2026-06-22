@@ -1,4 +1,4 @@
-# BauPass – Enterprise Master Roadmap
+﻿# WorkPass – Enterprise Master Roadmap
 # خارطة الطريق الشاملة للمنصة المؤسسية
 
 > **الحالة:** مايو 2026  
@@ -224,7 +224,7 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Workforce OS Core | 🟡 | BauPass monolith with strong features |
+| Workforce OS Core | 🟡 | WorkPass monolith with strong features |
 | Enterprise Platform SDK | 🔴 | — |
 | Third-Party Extensions | 🔴 | — |
 | Plugin Architecture | 🔴 | — |

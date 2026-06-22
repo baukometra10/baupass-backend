@@ -1,5 +1,5 @@
-"""
-Prometheus metrics for BauPass.
+﻿"""
+Prometheus metrics for WorkPass.
 """
 from __future__ import annotations
 

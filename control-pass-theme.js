@@ -1,5 +1,5 @@
-/**
- * Control Pass window theme (light / dark) — shared across app.js, admin-v2, embeds.
+﻿/**
+ * WorkPass window theme (light / dark) — shared across app.js, admin-v2, embeds.
  */
 (function initControlPassTheme(global) {
   const STORAGE_KEY = "baupass-system-theme";

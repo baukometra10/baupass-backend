@@ -1,4 +1,4 @@
-# Data Governance
+﻿# Data Governance
 
 ## تصنيف البيانات
 
@@ -22,4 +22,4 @@
 | البيانات | المالك |
 |----------|--------|
 | بيانات العمال | العميل (controller) |
-| سجلات المنصة | BauPass (processor) |
+| سجلات المنصة | WorkPass (processor) |

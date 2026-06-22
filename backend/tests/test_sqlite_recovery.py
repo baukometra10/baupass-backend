@@ -1,4 +1,4 @@
-"""SQLite auto-restore when live DB is unusable."""
+﻿"""SQLite auto-restore when live DB is unusable."""
 from __future__ import annotations
 
 import sqlite3
@@ -19,7 +19,7 @@ def _seed_minimal_db(path: Path) -> None:
         conn.executescript(
             """
             CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK (id = 1), platform_name TEXT);
-            INSERT INTO settings (id, platform_name) VALUES (1, 'BauPass');
+            INSERT INTO settings (id, platform_name) VALUES (1, 'WorkPass');
             CREATE TABLE users (
                 id TEXT PRIMARY KEY,
                 username TEXT NOT NULL,

@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI assistant — OpenAI or Azure OpenAI when keys are configured.
 """
 from __future__ import annotations
@@ -338,7 +338,7 @@ def _openai_stream_request(
 
 
 _CHAT_SYSTEM = (
-    "Du bist BauPass KI — ein freundlicher Assistent für Baustellen-Betrieb und Zutrittskontrolle. "
+    "Du bist SUPPIX AI — ein freundlicher Assistent für Baustellen-Betrieb und Zutrittskontrolle. "
     "Antworte in der Sprache der Nutzerfrage (Deutsch, Englisch oder Arabisch). "
     "Kommuniziere natürlich und verständlich; verstehe auch umgangssprachliche Formulierungen. "
     "Nutze NUR den mitgelieferten Kontext — erfinde keine Mitarbeiter, Zahlen oder Alerts. "
@@ -346,7 +346,7 @@ _CHAT_SYSTEM = (
 )
 
 _BRIEFING_SYSTEM = (
-    "You are BauPass operations lead. Produce a concise daily site briefing from the JSON context. "
+    "You are WorkPass operations lead. Produce a concise daily site briefing from the JSON context. "
     "Use the user's language. Sections: Lage / On-site, Sicherheit, Anwesenheit & Risiko, "
     "Empfohlene Maßnahmen (numbered). Max 12 bullets total. No invented data."
 )

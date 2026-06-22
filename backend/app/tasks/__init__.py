@@ -1,5 +1,5 @@
-"""
-BauPass – Background Task Queue (Redis + RQ)
+﻿"""
+WorkPass – Background Task Queue (Redis + RQ)
 =============================================
 يفصل المهام الثقيلة عن Flask request cycle:
   - إرسال الإيميلات

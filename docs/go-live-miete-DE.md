@@ -1,10 +1,10 @@
-# BauPass — Go-Live für Firmen-Miete (SaaS)
+﻿# WorkPass — Go-Live für Firmen-Miete (SaaS)
 
 Kurz-Checkliste, damit ihr die Plattform an andere Bauunternehmen vermieten könnt.
 
 ## 1. Mandant & Pläne
 
-- Pro Kunde eine **Firma** in BauPass anlegen (`companies`).
+- Pro Kunde eine **Firma** in WorkPass anlegen (`companies`).
 - **Plan** setzen: `starter` | `professional` | `enterprise` (steuert Features).
 - **Superadmin**: Firmen-Vorschau nutzen, um den Kundenplan zu testen.
 
@@ -12,7 +12,7 @@ Kurz-Checkliste, damit ihr die Plattform an andere Bauunternehmen vermieten kön
 
 | Rolle | Zugang |
 |--------|--------|
-| Betrieb / HR | Control Pass (`index.html`) oder Admin v2 |
+| Betrieb / HR | WorkPass (`index.html`) oder Admin v2 |
 | Baustelle / Pförtner | Turnstile-Login |
 | Mitarbeiter | Worker-App (`emp-app.html`) + Badge/PIN |
 
@@ -38,7 +38,7 @@ Unter **Firmen → Design speichern**: Portal-Titel, Akzentfarbe, Logo.
 
 ## 5. KI & Enterprise
 
-- Plan **Professional+** für Enterprise-Navigation, Ops, BauPass KI.
+- Plan **Professional+** für Enterprise-Navigation, Ops, SUPPIX AI.
 - OpenAI/API-Key nur in Railway/Server-Umgebung.
 
 ## 6. Technischer Betrieb

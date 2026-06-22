@@ -1,4 +1,4 @@
-# BauPass Production Environment Variables
+﻿# WorkPass Production Environment Variables
 
 Vollständige Dokumentation aller erforderlichen und optionalen Umgebungsvariablen für den Produktionsbetrieb.
 

@@ -1,13 +1,13 @@
-# Signotec signoPAD-API/Web — JS library for BauPass
+﻿# Signotec signoPAD-API/Web — JS library for WorkPass
 
-BauPass loads Signotec's official JavaScript library from this folder.
+WorkPass loads Signotec's official JavaScript library from this folder.
 
 ## Setup (Windows, one-time per PC)
 
 1. Download **signotec signoPAD-API/Web** from  
    [signotec Developer Tools](https://en.signotec.com/portal/seiten/download-developer-tools-api-sdk--900000510-10002.html)
 
-2. Install on the **same PC** where Control Pass runs in the browser (USB pad connected).
+2. Install on the **same PC** where WorkPass runs in the browser (USB pad connected).
 
 3. Ensure **STPadServer** is running (Windows service or `STPadServer.exe 49494`).
 
@@ -33,7 +33,7 @@ BauPass loads Signotec's official JavaScript library from this folder.
 **Direct installer (signoPAD-API/Web 3.5.0 — not signoPADTools):**  
 https://backend.signotec.com/wp-content/uploads/2025/11/signotec_signoPAD-API_Web_3.5.0.exe
 
-6. Hard-refresh Control Pass (`Ctrl+Shift+R`) → Workers → **Signotec Pad** button.
+6. Hard-refresh WorkPass (`Ctrl+Shift+R`) → Workers → **Signotec Pad** button.
 
 ## Notes
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -26,4 +26,4 @@ def enforce_platform_guards(config: dict[str, Any]) -> None:
 
     if errors:
         msg = "\n".join(f"  - {e}" for e in errors)
-        raise RuntimeError(f"[BauPass] Production platform guard failed:\n{msg}")
+        raise RuntimeError(f"[WorkPass] Production platform guard failed:\n{msg}")

@@ -1,4 +1,4 @@
-# Firebase Push (FCM / APNs) for BauPass Hybrid Worker App
+﻿# Firebase Push (FCM / APNs) for WorkPass Hybrid Worker App
 
 ## 1. Firebase project
 

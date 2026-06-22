@@ -1,4 +1,4 @@
-const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
+﻿const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const API_BASE_STORAGE_KEY = "baupass-api-base";
 const WORKER_BUILD_TAG = "20260606a";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -908,7 +908,7 @@ function applyTranslations() {
   const dir = LANG_META[lang]?.dir || "ltr";
   document.documentElement.lang = lang;
   document.documentElement.dir = dir;
-  // Use company brand title (KontrolPass/BauPass) if already loaded, otherwise fallback to i18n key
+  // Use company brand title (KontrolPass/WorkPass) if already loaded, otherwise fallback to i18n key
   const brandPrefix = currentAppBrandTitle || "";
   document.title = brandPrefix ? brandPrefix + " – " + t("pageTitle") : t("pageTitle");
 
@@ -930,7 +930,7 @@ function applyTranslations() {
       el.textContent = t(key);
     }
   });
-  // Re-apply company brand label after translations (preserves KontrolPass / BauPass)
+  // Re-apply company brand label after translations (preserves KontrolPass / WorkPass)
   if (currentAppBrandTitle) {
     const appTitleEl = document.getElementById("workerAppTitle");
     if (appTitleEl) appTitleEl.textContent = currentAppBrandTitle;
@@ -973,7 +973,7 @@ let lastCameraPhotoDataUrl = null;
 let lastCameraPhotoRotation = 0;
 let wakeLockHandle = null;
 let dynamicManifestUrl = "";
-let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / BauPass)
+let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / WorkPass)
 let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
 

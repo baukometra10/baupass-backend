@@ -1,4 +1,4 @@
-"""Company-wide monthly Einsatzplan batch — draft, confirm, send."""
+﻿"""Company-wide monthly Einsatzplan batch — draft, confirm, send."""
 from __future__ import annotations
 
 import calendar
@@ -355,7 +355,7 @@ def send_worker_plan(
 
     branding = resolve_company_pdf_branding(db, str(company_id))
     pdf_bytes = build_deployment_plan_pdf(
-        company_name=branding.get("companyName") or "BauPass",
+        company_name=branding.get("companyName") or "WorkPass",
         worker_name=f"{w['first_name']} {w['last_name']}".strip(),
         badge_id=w["badge_id"],
         year=year,
@@ -370,7 +370,7 @@ def send_worker_plan(
     if to_email:
         ok, err = send_pdf_report_email(
             to=to_email,
-            subject=f"Einsatzplan {month:02d}/{year} — {company['name'] if company else 'BauPass'}",
+            subject=f"Einsatzplan {month:02d}/{year} — {company['name'] if company else 'WorkPass'}",
             body_text=f"Ihr Einsatzplan für {month:02d}/{year} ist im Anhang (PDF).",
             pdf_bytes=pdf_bytes,
             filename=f"einsatzplan-{year}-{month:02d}.pdf",

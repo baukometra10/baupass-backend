@@ -1,4 +1,4 @@
-const path = require("path");
+﻿const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const https = require("https");
@@ -233,7 +233,7 @@ function createSplashWindow() {
   });
 
   splashWindow.webContents.on("did-finish-load", () => {
-    updateSplashProgress(8, "BauPass startet", "Arbeitsbereich wird aufgebaut");
+    updateSplashProgress(8, "WorkPass startet", "Arbeitsbereich wird aufgebaut");
   });
 
   splashWindow.on("closed", () => {
@@ -297,7 +297,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
-    updateSplashProgress(100, "Bereit", "Willkommen in BauPass Control");
+    updateSplashProgress(100, "Bereit", "Willkommen in WorkPass");
     revealMainWindow(0);
   });
 

@@ -1,4 +1,4 @@
-"""Outbound alerts for Platform Guardian."""
+﻿"""Outbound alerts for Platform Guardian."""
 from __future__ import annotations
 
 import os
@@ -68,7 +68,7 @@ def maybe_notify_guardian(
 
     failed = snapshot.get("failedProbes") or []
     host = ((snapshot.get("cloud") or {}).get("host") or "").strip()
-    title = "BauPass Platform Guardian"
+    title = "WorkPass Platform Guardian"
     if is_recovery:
         text = (
             "*Status wieder OK*\n"

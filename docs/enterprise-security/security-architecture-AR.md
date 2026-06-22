@@ -1,9 +1,9 @@
-# Security Architecture — BauPass (ملخص)
+﻿# Security Architecture — WorkPass (ملخص)
 
 ```mermaid
 flowchart TB
   subgraph clients [Clients]
-    CP[Control Pass Web]
+    CP[WorkPass Web]
     WA[Worker App]
     ADM[Admin v2]
     TS[Turnstile]

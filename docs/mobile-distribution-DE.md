@@ -1,4 +1,4 @@
-# BauPass Mitarbeiter-App — Verteilung (APK + TestFlight)
+﻿# WorkPass Mitarbeiter-App — Verteilung (APK + TestFlight)
 
 Schnelle Feldtests ohne Google Play oder App Store.
 

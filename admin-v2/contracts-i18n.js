@@ -1,4 +1,4 @@
-/** Contract page UI — 8 languages aligned with Control Pass. */
+﻿/** Contract page UI — 8 languages aligned with WorkPass. */
 window.ContractPageI18n = {
   de: {
     pageTitle: "Arbeitsverträge — alle Branchen",
@@ -48,6 +48,17 @@ window.ContractPageI18n = {
     notesPh: "Beschreiben Sie kurz den Vertrag — KI erstellt den vollständigen Text mit allen Paragraphen.",
     voiceHint: "Schreiben oder sprechen → Enter oder ➤ senden. Nach Sprache: automatisch senden.",
     genDraft: "KI-Entwurf erstellen",
+    toolbarGen: "KI-Entwurf",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Druck",
+    toolbarLinkEmp: "Link MA",
+    toolbarLinkEr: "Link AG",
+    toolbarEmailEmp: "E-Mail MA",
+    toolbarEmailEr: "E-Mail AG",
+    toolbarSmsEmp: "SMS MA",
+    toolbarDelete: "Löschen",
+    voiceSpeak: "Spracheingabe",
+    uiLang: "Sprache",
     save: "Speichern",
     pdf: "PDF herunterladen",
     print: "Drucken / Unterschrift",
@@ -178,6 +189,17 @@ window.ContractPageI18n = {
     notesPh: "Briefly describe the contract — AI will generate the full text with all sections.",
     voiceHint: "Type or speak → Enter or ➤ send. After voice: auto-send.",
     genDraft: "Generate AI draft",
+    toolbarGen: "AI draft",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Print",
+    toolbarLinkEmp: "Link (EE)",
+    toolbarLinkEr: "Link (ER)",
+    toolbarEmailEmp: "Email employee",
+    toolbarEmailEr: "Email employer",
+    toolbarSmsEmp: "SMS employee",
+    toolbarDelete: "Delete",
+    voiceSpeak: "Voice input",
+    uiLang: "Language",
     save: "Save",
     pdf: "Download PDF",
     print: "Print / sign",
@@ -308,6 +330,17 @@ window.ContractPageI18n = {
     notesPh: "صف العقد باختصار — الذكاء الاصطناعي ينشئ النص الكامل بجميع البنود.",
     voiceHint: "اكتب أو تحدث → Enter أو ➤ إرسال. بعد الصوت: إرسال تلقائي.",
     genDraft: "إنشاء مسودة بالذكاء الاصطناعي",
+    toolbarGen: "مسودة AI",
+    toolbarPdf: "PDF",
+    toolbarPrint: "طباعة",
+    toolbarLinkEmp: "رابط موظف",
+    toolbarLinkEr: "رابط صاحب عمل",
+    toolbarEmailEmp: "بريد الموظف",
+    toolbarEmailEr: "بريد صاحب العمل",
+    toolbarSmsEmp: "SMS موظف",
+    toolbarDelete: "حذف",
+    voiceSpeak: "إدخال صوتي",
+    uiLang: "اللغة",
     save: "حفظ",
     pdf: "تحميل PDF",
     print: "طباعة / توقيع",
@@ -425,6 +458,17 @@ window.ContractPageI18n = {
     notesPh: "Sozlesmeyi kisaca aciklayin — AI tum maddelerle tam metni olusturur.",
     voiceHint: "Mikrofon: dokun → konus → tekrar dokun.",
     genDraft: "AI taslagı olustur",
+    toolbarGen: "AI taslak",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Yazdir",
+    toolbarLinkEmp: "Link (calisan)",
+    toolbarLinkEr: "Link (isveren)",
+    toolbarEmailEmp: "E-posta calisan",
+    toolbarEmailEr: "E-posta isveren",
+    toolbarSmsEmp: "SMS calisan",
+    toolbarDelete: "Sil",
+    voiceSpeak: "Sesli giris",
+    uiLang: "Dil",
     save: "Kaydet",
     pdf: "PDF indir",
     print: "Yazdir / imzala",
@@ -543,6 +587,17 @@ window.ContractPageI18n = {
     notesPh: "Decrivez brievement le contrat — l'IA genere le texte complet avec toutes les clauses.",
     voiceHint: "Micro : appuyer → parler → appuyer a nouveau.",
     genDraft: "Generer brouillon IA",
+    toolbarGen: "Brouillon IA",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Imprimer",
+    toolbarLinkEmp: "Lien (employe)",
+    toolbarLinkEr: "Lien (employeur)",
+    toolbarEmailEmp: "E-mail employe",
+    toolbarEmailEr: "E-mail employeur",
+    toolbarSmsEmp: "SMS employe",
+    toolbarDelete: "Supprimer",
+    voiceSpeak: "Saisie vocale",
+    uiLang: "Langue",
     save: "Enregistrer",
     pdf: "Telecharger PDF",
     print: "Imprimer / signer",
@@ -661,6 +716,17 @@ window.ContractPageI18n = {
     notesPh: "Describa brevemente el contrato — la IA genera el texto completo con todas las clausulas.",
     voiceHint: "Microfono: tocar → hablar → tocar de nuevo.",
     genDraft: "Generar borrador IA",
+    toolbarGen: "Borrador IA",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Imprimir",
+    toolbarLinkEmp: "Enlace (empleado)",
+    toolbarLinkEr: "Enlace (empleador)",
+    toolbarEmailEmp: "Correo empleado",
+    toolbarEmailEr: "Correo empleador",
+    toolbarSmsEmp: "SMS empleado",
+    toolbarDelete: "Eliminar",
+    voiceSpeak: "Entrada de voz",
+    uiLang: "Idioma",
     save: "Guardar",
     pdf: "Descargar PDF",
     print: "Imprimir / firmar",
@@ -779,6 +845,17 @@ window.ContractPageI18n = {
     notesPh: "Descrivi brevemente il contratto — l'IA genera il testo completo con tutte le clausole.",
     voiceHint: "Microfono: tocca → parla → tocca di nuovo.",
     genDraft: "Genera bozza IA",
+    toolbarGen: "Bozza IA",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Stampa",
+    toolbarLinkEmp: "Link (dipendente)",
+    toolbarLinkEr: "Link (datore)",
+    toolbarEmailEmp: "E-mail dipendente",
+    toolbarEmailEr: "E-mail datore",
+    toolbarSmsEmp: "SMS dipendente",
+    toolbarDelete: "Elimina",
+    voiceSpeak: "Input vocale",
+    uiLang: "Lingua",
     save: "Salva",
     pdf: "Scarica PDF",
     print: "Stampa / firma",
@@ -897,6 +974,17 @@ window.ContractPageI18n = {
     notesPh: "Opisz krotko umowe — AI wygeneruje pelny tekst ze wszystkimi paragrafami.",
     voiceHint: "Mikrofon: dotknij → mow → dotknij ponownie.",
     genDraft: "Generuj szkic AI",
+    toolbarGen: "Szkic AI",
+    toolbarPdf: "PDF",
+    toolbarPrint: "Drukuj",
+    toolbarLinkEmp: "Link (pracownik)",
+    toolbarLinkEr: "Link (pracodawca)",
+    toolbarEmailEmp: "E-mail pracownika",
+    toolbarEmailEr: "E-mail pracodawcy",
+    toolbarSmsEmp: "SMS pracownika",
+    toolbarDelete: "Usun",
+    voiceSpeak: "Wprowadzanie glosowe",
+    uiLang: "Jezyk",
     save: "Zapisz",
     pdf: "Pobierz PDF",
     print: "Drukuj / podpisz",
@@ -972,8 +1060,10 @@ window.ContractPageI18n = {
 
 window.getContractPageLang = function getContractPageLang() {
   const langs = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
+  const qsLang = new URLSearchParams(location.search).get("lang");
   const code = (
-    localStorage.getItem("baupass-admin-v2-lang")
+    qsLang
+    || localStorage.getItem("baupass-admin-v2-lang")
     || localStorage.getItem("baupass-ui-lang")
     || "de"
   ).slice(0, 2);
@@ -1002,7 +1092,14 @@ window.applyContractPageI18n = function applyContractPageI18n() {
     } else if (el.tagName === "OPTION") {
       el.textContent = window.contractPageT(key);
     } else {
-      el.textContent = window.contractPageT(key);
+      const attr = el.getAttribute("data-cpi18n-attr");
+      if (attr) {
+        const val = window.contractPageT(key);
+        if (attr === "title") el.title = val;
+        else el.setAttribute(attr, val);
+      } else {
+        el.textContent = window.contractPageT(key);
+      }
     }
   });
   const sendBtn = document.getElementById("notesSendBtn");
@@ -1010,6 +1107,52 @@ window.applyContractPageI18n = function applyContractPageI18n() {
     sendBtn.title = window.contractPageT("sendNotes");
     sendBtn.setAttribute("aria-label", window.contractPageT("sendNotes"));
   }
+  const voiceBtn = document.getElementById("notesVoiceBtn");
+  if (voiceBtn) {
+    voiceBtn.title = window.contractPageT("voiceSpeak");
+    voiceBtn.setAttribute("aria-label", window.contractPageT("voiceSpeak"));
+  }
+  const langSel = document.getElementById("contractLangSelect");
+  if (langSel) {
+    langSel.value = lang;
+    langSel.setAttribute("aria-label", window.contractPageT("uiLang"));
+  }
   const titleEl = document.getElementById("pageSubtitle");
   if (titleEl) titleEl.textContent = window.contractPageT("pageTitle");
+};
+
+window.initContractPageLangSync = function initContractPageLangSync() {
+  const langs = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
+  const qsLang = new URLSearchParams(location.search).get("lang");
+  if (qsLang && langs.includes(String(qsLang).slice(0, 2))) {
+    const code = String(qsLang).slice(0, 2);
+    localStorage.setItem("baupass-ui-lang", code);
+    localStorage.setItem("baupass-admin-v2-lang", code);
+  }
+  const sel = document.getElementById("contractLangSelect");
+  if (sel && !sel.dataset.bound) {
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", () => {
+      const code = sel.value;
+      localStorage.setItem("baupass-ui-lang", code);
+      localStorage.setItem("baupass-admin-v2-lang", code);
+      window.applyContractPageI18n();
+      window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: code } }));
+      window.BaupassAiUi?.refreshComposerLabels?.(window.contractVoiceOptions?.());
+    });
+  }
+  if (!window.__contractLangSyncBound) {
+    window.__contractLangSyncBound = true;
+    window.addEventListener("storage", (event) => {
+      if ((event.key === "baupass-ui-lang" || event.key === "baupass-admin-v2-lang") && event.newValue) {
+        if (sel) sel.value = window.getContractPageLang();
+        window.applyContractPageI18n();
+      }
+    });
+    window.addEventListener("baupass-admin-lang", () => {
+      if (sel) sel.value = window.getContractPageLang();
+      window.applyContractPageI18n();
+      window.BaupassAiUi?.refreshComposerLabels?.(window.contractVoiceOptions?.());
+    });
+  }
 };

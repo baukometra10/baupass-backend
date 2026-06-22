@@ -1,14 +1,14 @@
-# Enterprise Hybrid Mobile Application — Architecture
+﻿# Enterprise Hybrid Mobile Application — Architecture
 
 **Status:** Canonical reference (May 2026)  
-**Product:** BauPass worker (employee) application  
+**Product:** WorkPass worker (employee) application  
 **Decision:** Hybrid native mobile app — **not** a PWA
 
 ---
 
 ## Why not a PWA?
 
-The employee app requires **real native NFC** on Android and iPhone. Browsers and PWAs cannot reliably read physical NFC tag UIDs on iOS (Apple restricts NFC to native apps and Wallet). BauPass therefore uses a **Hybrid Enterprise Mobile Application** with a thin native layer per platform.
+The employee app requires **real native NFC** on Android and iPhone. Browsers and PWAs cannot reliably read physical NFC tag UIDs on iOS (Apple restricts NFC to native apps and Wallet). WorkPass therefore uses a **Hybrid Enterprise Mobile Application** with a thin native layer per platform.
 
 ---
 

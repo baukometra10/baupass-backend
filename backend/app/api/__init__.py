@@ -1,5 +1,5 @@
-"""
-BauPass – API Blueprints Registry
+﻿"""
+WorkPass – API Blueprints Registry
 ===================================
 كل blueprint يمثل domain منفصل.
 يُضاف blueprint جديد هنا عند نقله من server.py.

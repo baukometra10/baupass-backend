@@ -1,5 +1,5 @@
-"""
-BauPass – Flask Extensions
+﻿"""
+WorkPass – Flask Extensions
 ===========================
 تهيئة جميع Flask extensions في مكان واحد.
 يُستدعى init_extensions() من app factory بعد إنشاء Flask app.

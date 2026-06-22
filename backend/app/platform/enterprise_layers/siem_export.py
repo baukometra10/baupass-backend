@@ -1,4 +1,4 @@
-"""SIEM export formats (Phase C)."""
+﻿"""SIEM export formats (Phase C)."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ def _cef_escape(value: str) -> str:
     return str(value or "").replace("\\", "\\\\").replace("|", "\\|")
 
 
-def audit_row_to_cef(row: dict[str, Any], *, vendor: str = "BauPass") -> str:
+def audit_row_to_cef(row: dict[str, Any], *, vendor: str = "WorkPass") -> str:
     severity = 3
     if str(row.get("event_type") or "").endswith(".failed"):
         severity = 7

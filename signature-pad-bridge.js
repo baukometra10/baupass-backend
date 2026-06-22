@@ -1,5 +1,5 @@
-/**
- * BauPass — vendor-agnostic signature pad bridge (core registry)
+﻿/**
+ * WorkPass — vendor-agnostic signature pad bridge (core registry)
  * Providers register via signature-pad-providers.js
  * @see docs/signature-pad-setup-AR.md
  */

@@ -1,4 +1,4 @@
-# Enterprise Backup + Restore Runbook
+﻿# Enterprise Backup + Restore Runbook
 
 ## Goal
 
@@ -6,7 +6,7 @@ This runbook ensures production backup is not only created but also verified by 
 
 ## Scope
 
-- SQLite database backups for BauPass backend
+- SQLite database backups for WorkPass backend
 - Automatic retention cleanup
 - Restore verification (integrity + required tables)
 
@@ -68,13 +68,13 @@ $env:BAUPASS_DB_BACKUP_RETENTION_DAYS = "30"
 Create backup task (01:30 daily):
 
 ```powershell
-schtasks /Create /TN "BauPass-DB-Backup" /SC DAILY /ST 01:30 /TR "powershell -ExecutionPolicy Bypass -File C:\Users\u4363\Desktop\baustelle\scripts\run_backup.ps1" /F
+schtasks /Create /TN "WorkPass-DB-Backup" /SC DAILY /ST 01:30 /TR "powershell -ExecutionPolicy Bypass -File C:\Users\u4363\Desktop\baustelle\scripts\run_backup.ps1" /F
 ```
 
 Create restore verification task (02:00 daily):
 
 ```powershell
-schtasks /Create /TN "BauPass-DB-Restore-Verify" /SC DAILY /ST 02:00 /TR "powershell -ExecutionPolicy Bypass -File C:\Users\u4363\Desktop\baustelle\scripts\verify_backup_restore.ps1" /F
+schtasks /Create /TN "WorkPass-DB-Restore-Verify" /SC DAILY /ST 02:00 /TR "powershell -ExecutionPolicy Bypass -File C:\Users\u4363\Desktop\baustelle\scripts\verify_backup_restore.ps1" /F
 ```
 
 ## 5) Release gate (must pass)

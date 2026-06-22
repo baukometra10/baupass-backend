@@ -1,4 +1,4 @@
-"""Unified operations inbox — system, security, documents, leave."""
+﻿"""Unified operations inbox — system, security, documents, leave."""
 from __future__ import annotations
 
 import json
@@ -101,7 +101,7 @@ def build_operations_inbox(
                                     "action": "notify_worker",
                                     "params": {
                                         "worker_id": r["worker_id"],
-                                        "title": "BauPass Sicherheit",
+                                        "title": "WorkPass Sicherheit",
                                         "body": (r["title"] or "Security-Hinweis")[:200],
                                     },
                                     "label": "Push an MA",

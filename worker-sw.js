@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260606a";
+﻿const WORKER_BUILD = "20260606a";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -7,10 +7,12 @@ const STATIC_ASSETS = [
   { path: "/worker.css", rev: WORKER_BUILD },
   { path: "/worker-app.js", rev: WORKER_BUILD },
   { path: "/emp-app-manifest.json", rev: WORKER_BUILD },
-  { path: "/worker-icon-192-20260511f.png" },
-  { path: "/worker-icon-512-20260511f.png" },
-  { path: "/worker-icon-192-20260511f.svg" },
-  { path: "/worker-icon-512-20260511f.svg" }
+  { path: "/worker-icon-192.png" },
+  { path: "/worker-icon-512.png" },
+  { path: "/worker-icon-192.svg" },
+  { path: "/worker-icon-512.svg" },
+  { path: "/branding/suppix-ai-mark.svg" },
+  { path: "/branding/suppix-ai-logo.svg" }
 ];
 const STATIC_PATHS = new Set(STATIC_ASSETS.map((asset) => asset.path));
 const STATIC_FILES = STATIC_ASSETS.map((asset) => (asset.rev ? `${asset.path}?v=${asset.rev}` : asset.path));
@@ -128,9 +130,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "BauPass", body: event.data ? event.data.text() : "" };
+    data = { title: "WorkPass", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "BauPass";
+  const title = data.title || "WorkPass";
   const tag = data.tag || "baupass-notification";
   let defaultUrl = data.url || "/worker-install.html?launch=1";
   if (tag === "deployment-plan") {

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Workflow automation rule evaluator.
 """
 from __future__ import annotations
@@ -222,14 +222,14 @@ def _execute_action(db, company_id: int, rule_id: str, action: dict, context: di
             guidance = build_operational_guidance(snapshot)
             company = db.execute("SELECT name FROM companies WHERE id = ?", (str(company_id),)).fetchone()
             pdf_bytes = build_operations_report_pdf(
-                title="BauPass Operations Report",
-                company_name=company["name"] if company else "BauPass",
+                title="WorkPass Operations Report",
+                company_name=company["name"] if company else "WorkPass",
                 snapshot=snapshot,
                 guidance=guidance,
             )
             ok, err = send_pdf_report_email(
                 to=recipient,
-                subject=str(action.get("subject") or "BauPass Automationsbericht"),
+                subject=str(action.get("subject") or "WorkPass Automationsbericht"),
                 body_text=str(action.get("body") or "Automatischer Betriebsbericht (PDF im Anhang)."),
                 pdf_bytes=pdf_bytes,
             )

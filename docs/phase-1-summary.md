@@ -1,4 +1,4 @@
-# Phase 1 Summary (Weeks 1–2)
+﻿# Phase 1 Summary (Weeks 1–2)
 
 **Status:** Complete  
 **Goal:** Establish infrastructure, credentials, and specifications for wallet pass generation.
@@ -126,7 +126,7 @@ backend/wallet/
 - Generic card suits badge use case
 - QR code enables universal fallback (no wallet needed)
 - Consistent branding across Apple + Google
-- Professional appearance aligns with BauPass brand
+- Professional appearance aligns with WorkPass brand
 
 ---
 
@@ -156,7 +156,7 @@ backend/wallet/
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         BauPass System                          │
+│                         WorkPass System                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  Apple Wallet Infrastructure        Google Wallet Infrastructure
@@ -274,7 +274,7 @@ pip install cryptography     # Cryptographic signing
    - Pass lifecycle management (scheduled jobs)
 
 2. **Designer/Product:** Prepares pass visual assets
-   - Baukometra logo (320×320 PNG)
+   - Suppix Technologie UG logo (320×320 PNG)
    - Thumbnail (86×86 PNG)
    - Icon (29×29 PNG)
    - Optional: Hero images for Google Wallet

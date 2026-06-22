@@ -1,4 +1,4 @@
-"""Incidents + active visitors PDF for email reporting."""
+﻿"""Incidents + active visitors PDF for email reporting."""
 from __future__ import annotations
 
 import io
@@ -118,7 +118,7 @@ def build_incidents_visits_pdf(db, user: dict[str, Any], company_name: str) -> b
     margin = 36
     y = ph - margin
     pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(margin, y, "BauPass — Incidents & Visitors")
+    pdf.drawString(margin, y, "WorkPass — Incidents & Visitors")
     y -= 12
     pdf.setFont("Helvetica", 8)
     pdf.drawString(margin, y, f"{company_name} · {period}")

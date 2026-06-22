@@ -1,5 +1,5 @@
-/**
- * Same-origin iframe embed: add embed=1 to links and optional parent navigation (Control Pass).
+﻿/**
+ * Same-origin iframe embed: add embed=1 to links and optional parent navigation (WorkPass).
  */
 (function initBaupassEmbedHelpers(global) {
   function isEmbedMode() {
@@ -117,7 +117,7 @@
     fb.setAttribute("role", "alert");
     fb.innerHTML = `
       <div class="embed-frame-fallback-card">
-        <p class="embed-frame-fallback-eyebrow">BauPass</p>
+        <p class="embed-frame-fallback-eyebrow">WorkPass</p>
         <h3 class="embed-frame-fallback-title">${title || "Modul"}</h3>
         <p class="embed-frame-fallback-msg" data-embed-fallback-msg>
           Verbindung zum Server fehlgeschlagen. Bitte prüfen Sie, ob die Anwendung auf Railway läuft, oder öffnen Sie das Modul im Vollbild.
@@ -397,21 +397,23 @@
       document.body.setAttribute("data-portal-display-name", displayName);
     }
     const logoData = String(branding.logoData || branding.brandingLogoData || "").trim();
-    applyTenantFavicon({ logoData, title: displayName });
+    const chipFallback = "/branding/suppix-ai-mark.svg";
+    const resolvedLogo = logoData || "/branding/suppix-ai-logo.svg";
+    const resolvedSidebarLogo = logoData
+      ? (logoData.includes("suppix-ai-logo") && !logoData.includes("-dark") && !logoData.startsWith("data:")
+        ? "/branding/suppix-ai-logo-dark.svg"
+        : logoData)
+      : "/branding/suppix-ai-logo-dark.svg";
+    applyTenantFavicon({ logoData: resolvedLogo, title: displayName });
     document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
-      if (logoData) {
-        img.src = logoData;
-        img.classList.remove("hidden");
-      } else {
-        img.classList.add("hidden");
-      }
+      const useChip = img.classList.contains("tenant-logo-chip") || img.classList.contains("foreman-header-logo");
+      img.src = logoData || (useChip ? chipFallback : resolvedSidebarLogo);
+      img.classList.remove("hidden");
     });
-    if (logoData) {
-      document.querySelectorAll(".website-logo-auth, .website-logo-sync.website-logo-auth").forEach((img) => {
-        img.src = logoData;
-        img.classList.remove("hidden");
-      });
-    }
+    document.querySelectorAll(".website-logo-auth, .website-logo-sync.website-logo-auth").forEach((img) => {
+      img.src = resolvedLogo;
+      img.classList.remove("hidden");
+    });
     document.querySelectorAll("[data-tenant-brand-title]").forEach((el) => {
       if (displayName) el.textContent = displayName;
     });
@@ -421,10 +423,8 @@
         el.setAttribute("data-tenant-branded", "1");
       });
       document.querySelectorAll(".website-logo-sync.website-logo-sidebar").forEach((img) => {
-        if (logoData) {
-          img.src = logoData;
-          img.classList.remove("hidden");
-        }
+        img.src = resolvedSidebarLogo;
+        img.classList.remove("hidden");
       });
       if (branding.tenantMatched || branding.companyId) {
         document.body.classList.add("tenant-white-label");

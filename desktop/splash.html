@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BauPass Start</title>
+  <title>WorkPass Start</title>
   <style>
     :root {
       --bg0: #091118;
@@ -59,7 +59,7 @@
       right: -90px;
       top: -90px;
       border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, rgba(199, 134, 82, 0.58), rgba(138, 82, 48, 0.06));
+      background: radial-gradient(circle at 35% 35%, rgba(6, 182, 212, 0.45), rgba(168, 85, 247, 0.08));
       filter: blur(8px);
       animation: drift 8s ease-in-out infinite;
     }
@@ -75,14 +75,19 @@
       width: 58px;
       height: 58px;
       border-radius: 16px;
-      background: linear-gradient(150deg, var(--coffee) 0%, var(--coffee-dark) 100%);
-      color: #f8f0e8;
+      background: linear-gradient(150deg, rgba(6, 182, 212, 0.25) 0%, rgba(168, 85, 247, 0.35) 100%);
       display: grid;
       place-items: center;
-      font-size: 24px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(6, 182, 212, 0.25);
+      border: 1px solid rgba(103, 232, 249, 0.3);
+    }
+
+    .logo img {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      display: block;
     }
 
     .title {
@@ -143,9 +148,9 @@
     <section class="card">
       <div class="orb" aria-hidden="true"></div>
       <header class="head">
-        <div class="logo" aria-hidden="true">BP</div>
+        <div class="logo" aria-hidden="true"><img src="../branding/suppix-ai-mark.svg" alt="" width="52" height="52" /></div>
         <div>
-          <h1 class="title">BauPass Control startet</h1>
+          <h1 class="title">WorkPass startet</h1>
           <p class="subtitle">Sichere Verbindung und Arbeitsbereich werden vorbereitet</p>
         </div>
       </header>

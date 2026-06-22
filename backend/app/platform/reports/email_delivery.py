@@ -1,4 +1,4 @@
-"""Email delivery for PDF reports."""
+﻿"""Email delivery for PDF reports."""
 from __future__ import annotations
 
 import os
@@ -15,7 +15,7 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
     password = (os.getenv("SMTP_PASSWORD") or "").strip()
     use_tls = str(os.getenv("SMTP_USE_TLS", "1")).strip().lower() in {"1", "true", "yes"}
     sender = (os.getenv("SMTP_SENDER_EMAIL") or user or "noreply@baupass.de").strip()
-    sender_name = (os.getenv("SMTP_SENDER_NAME") or "BauPass").strip()
+    sender_name = (os.getenv("SMTP_SENDER_NAME") or "WorkPass").strip()
     if host:
         return host, port, user, password, use_tls, sender, sender_name
     from backend.server import get_db
@@ -36,7 +36,7 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
         str(row["smtp_password"] or ""),
         int(row["smtp_use_tls"] or 0) == 1,
         str(row["smtp_sender_email"] or row["smtp_username"] or "noreply@baupass.de").strip(),
-        str(row["smtp_sender_name"] or "BauPass").strip(),
+        str(row["smtp_sender_name"] or "WorkPass").strip(),
     )
 
 

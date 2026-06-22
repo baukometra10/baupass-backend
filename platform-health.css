@@ -1,7 +1,11 @@
 .platform-health-panel {
+  --ph-text: #e8eef4;
+  --ph-muted: #94a3b8;
+  --ph-detail: #c5d0dc;
   border-radius: 14px;
   border: 1px solid rgba(94, 234, 212, 0.18);
   background: linear-gradient(160deg, rgba(14, 21, 29, 0.95), rgba(20, 28, 40, 0.88));
+  color: var(--ph-text);
 }
 
 .platform-health-grid {
@@ -43,17 +47,65 @@
   font-size: 0.9rem;
   font-weight: 700;
   color: #e8eef4;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .platform-health-detail {
   margin: 0.25rem 0 0;
   font-size: 0.72rem;
-  color: #64748b;
+  color: var(--ph-detail);
   line-height: 1.3;
 }
 
 .platform-health-foot {
   margin-top: 0.65rem;
   font-size: 0.78rem;
+  color: var(--ph-muted);
+}
+
+/* Dark panel — ignore global theme text overrides */
+body.theme-white .platform-health-panel,
+body.theme-black .platform-health-panel {
+  color: var(--ph-text);
+}
+
+body.theme-white .platform-health-panel .platform-health-value,
+body.theme-black .platform-health-panel .platform-health-value {
+  color: #e8eef4;
+}
+
+body.theme-white .platform-health-panel .platform-health-label,
+body.theme-black .platform-health-panel .platform-health-label {
   color: #94a3b8;
+}
+
+body.theme-white .platform-health-panel .platform-health-detail,
+body.theme-black .platform-health-panel .platform-health-detail {
+  color: var(--ph-detail);
+}
+
+body.theme-white .platform-health-panel .platform-health-foot,
+body.theme-white .platform-health-panel .muted,
+body.theme-black .platform-health-panel .platform-health-foot,
+body.theme-black .platform-health-panel .muted {
+  color: var(--ph-muted);
+}
+
+body.theme-white .platform-health-panel .panel-heading h3,
+body.theme-black .platform-health-panel .panel-heading h3 {
+  color: #f0f4f8;
+}
+
+.platform-health-card.is-ok .platform-health-value {
+  color: #86efac;
+}
+
+.platform-health-card.is-warn .platform-health-value {
+  color: #fcd34d;
+}
+
+.platform-health-card.is-fail .platform-health-value {
+  color: #fca5a5;
 }

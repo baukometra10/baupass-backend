@@ -1,4 +1,4 @@
-# Kamera / RTSP-Bridge
+﻿# Kamera / RTSP-Bridge
 
 ## Endpunkte
 
@@ -15,7 +15,7 @@
 
 ## Authentifizierung (RTSP-Ingest)
 
-1. `X-BauPass-Rtsp-Token` = `BAUPASS_RTSP_BRIDGE_TOKEN` (+ optional `X-BauPass-Company-Id`)
+1. `X-WorkPass-Rtsp-Token` = `BAUPASS_RTSP_BRIDGE_TOKEN` (+ optional `X-WorkPass-Company-Id`)
 2. `X-Device-API-Key` (registriertes Gerät)
 3. Admin-Session (Cookie/Bearer)
 
@@ -98,7 +98,7 @@ python scripts/rtsp_camera_agent.py --once --heartbeat --snapshot
 
 ## UI
 
-Control Pass → **Geräte** → Panel «Kamera-KI & RTSP-Bridge»
+WorkPass → **Geräte** → Panel «Kamera-KI & RTSP-Bridge»
 
 - Kameras registrieren
 - Online/Offline-Status

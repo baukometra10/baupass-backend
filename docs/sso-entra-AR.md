@@ -1,4 +1,4 @@
-# تسجيل الدخول الموحّد — Microsoft Entra ID (SSO)
+﻿# تسجيل الدخول الموحّد — Microsoft Entra ID (SSO)
 
 ## متى تستخدمه
 
@@ -18,7 +18,7 @@
 | `BAUPASS_ENTRA_CLIENT_ID` | Application (client) ID |
 | `BAUPASS_ENTRA_CLIENT_SECRET` | Secret value |
 | `BAUPASS_ENTRA_REDIRECT_URI` | `https://baupass-production.up.railway.app/api/auth/entra/callback` |
-| `BAUPASS_APP_URL` | `https://your-frontend.github.io` أو نطاق Control Pass |
+| `BAUPASS_APP_URL` | `https://your-frontend.github.io` أو نطاق WorkPass |
 
 ## ربط المستخدم
 

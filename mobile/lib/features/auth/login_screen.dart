@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BauPass Mitarbeiter'),
+        title: const Text('WorkPass Mitarbeiter'),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [

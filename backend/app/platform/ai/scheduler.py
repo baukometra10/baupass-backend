@@ -1,4 +1,4 @@
-"""Scheduled AI operations briefing — daily Slack/Teams/email dispatch."""
+﻿"""Scheduled AI operations briefing — daily Slack/Teams/email dispatch."""
 from __future__ import annotations
 
 import logging
@@ -91,7 +91,7 @@ def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
                 if not body:
                     continue
                 processed += 1
-                title = f"BauPass KI — {row['name'] or company_id}"
+                title = f"SUPPIX AI — {row['name'] or company_id}"
                 dispatch = dispatch_briefing_notifications(
                     body, company_id=company_id, title=title
                 )

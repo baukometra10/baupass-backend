@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sqlite3
 import secrets
 import csv
@@ -533,8 +533,10 @@ def feature_not_available_response(feature_key, plan_value):
         "requiredPlan": required,
     }), 403
 
-DEFAULT_PLATFORM_NAME = "BauPass"
-DEFAULT_OPERATOR_NAME = "Baukometra"
+DEFAULT_PLATFORM_NAME = "WorkPass"
+DEFAULT_OPERATOR_NAME = "Suppix Technologie UG"
+DEFAULT_BRAND_PRIMARY = "#06b6d4"
+DEFAULT_BRAND_ACCENT = "#a855f7"
 
 AUTO_SUSPEND_GRACE_DAYS = 3
 APP_STARTED_AT = datetime.now(timezone.utc)
@@ -733,7 +735,7 @@ def clean_text_input(value, max_len=255):
     return raw
 
 
-def sanitize_hex_color(value, fallback="#0f4c5c"):
+def sanitize_hex_color(value, fallback=DEFAULT_BRAND_PRIMARY):
     raw = clean_text_input(value, max_len=7)
     if re.fullmatch(r"#[0-9A-Fa-f]{6}", raw):
         return raw.lower()
@@ -1993,6 +1995,36 @@ def get_user_from_session_token(token_value):
     return payload
 
 
+def _default_brand_logo_data_url():
+    cached = getattr(_default_brand_logo_data_url, "_cache", None)
+    if cached:
+        return cached
+    for name in ("suppix-ai-invoice.svg", "suppix-ai-logo.svg"):
+        path = BASE_DIR / "branding" / name
+        if not path.exists():
+            continue
+        try:
+            svg = path.read_text(encoding="utf-8")
+            data = f"data:image/svg+xml;charset=utf-8,{quote(svg)}"
+            _default_brand_logo_data_url._cache = data
+            return data
+        except Exception:
+            continue
+    return ""
+
+
+def _default_brand_logo_fallback_svg():
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="210" height="84" viewBox="0 0 210 84">'
+        f'<rect width="210" height="84" rx="12" fill="{DEFAULT_BRAND_PRIMARY}"/>'
+        '<text x="50%" y="44%" text-anchor="middle" dominant-baseline="middle" '
+        'font-family="Arial" font-size="20" font-weight="700" fill="white">SUPPIX</text>'
+        '<text x="50%" y="68%" text-anchor="middle" dominant-baseline="middle" '
+        'font-family="Arial" font-size="16" font-weight="700" fill="#e0f2fe">AI</text>'
+        "</svg>"
+    )
+
+
 def render_login_page():
     db = get_db()
     settings_row = db.execute("SELECT invoice_logo_data, platform_name, operator_name, turnstile_endpoint FROM settings WHERE id = 1").fetchone()
@@ -2007,14 +2039,21 @@ def render_login_page():
         turnstile_endpoint = (settings_row["turnstile_endpoint"] or "").strip() or turnstile_endpoint
 
     if not logo_src:
-        fallback_logo = BASE_DIR / "branding" / "baukometra-logo.svg"
-        if fallback_logo.exists():
-            svg = fallback_logo.read_text(encoding="utf-8")
-            logo_src = f"data:image/svg+xml;charset=utf-8,{quote(svg)}"
-        else:
-            logo_src = "/branding/baukometra-logo.svg"
+        logo_src = _default_brand_logo_data_url()
+        if not logo_src:
+            fallback_logo = BASE_DIR / "branding" / "suppix-ai-invoice.svg"
+            if not fallback_logo.exists():
+                fallback_logo = BASE_DIR / "branding" / "suppix-ai-logo.svg"
+            if fallback_logo.exists():
+                try:
+                    svg = fallback_logo.read_text(encoding="utf-8")
+                    logo_src = f"data:image/svg+xml;charset=utf-8,{quote(svg)}"
+                except Exception:
+                    logo_src = "/branding/suppix-ai-logo.svg"
+            else:
+                logo_src = "/branding/suppix-ai-logo.svg"
 
-    fallback_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="210" height="84" viewBox="0 0 210 84"><rect width="210" height="84" rx="12" fill="#0f4c5c"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="32" font-weight="700" fill="white">BK</text></svg>'
+    fallback_svg = _default_brand_logo_fallback_svg()
     fallback_data = f"data:image/svg+xml;charset=utf-8,{quote(fallback_svg)}"
 
     template = """
@@ -2470,9 +2509,9 @@ def _wallet_build_google_save_url(pass_object_id: str, worker: dict, company_nam
                     "id": object_id,
                     "classId": class_id,
                     "state": "ACTIVE",
-                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "BauPass"}},
+                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "WorkPass"}},
                     "header": {"defaultValue": {"language": "de-DE", "value": worker_name}},
-                    "subheader": {"defaultValue": {"language": "de-DE", "value": company_name or "Baukometra"}},
+                    "subheader": {"defaultValue": {"language": "de-DE", "value": company_name or "Suppix Technologie UG"}},
                     "barcode": {"type": "QR_CODE", "value": badge_id, "alternateText": badge_id},
                     "textModulesData": [
                         {"id": "badge-id", "header": "Badge ID", "body": badge_id},
@@ -2560,15 +2599,15 @@ def _wallet_build_apple_pkpass(pass_object_id: str, worker: dict, company_name: 
         "passTypeIdentifier": pass_type_id,
         "serialNumber": pass_object_id,
         "teamIdentifier": team_id,
-        "organizationName": company_name or "Baukometra",
-        "description": "BauPass Worker Badge",
-        "logoText": "BauPass",
+        "organizationName": company_name or "Suppix Technologie UG",
+        "description": "WorkPass Worker Badge",
+        "logoText": "WorkPass",
         "generic": {
             "primaryFields": [
                 {"key": "worker_name", "label": "Mitarbeiter", "value": worker_name}
             ],
             "secondaryFields": [
-                {"key": "company", "label": "Firma", "value": company_name or "Baukometra"},
+                {"key": "company", "label": "Firma", "value": company_name or "Suppix Technologie UG"},
                 {"key": "badge", "label": "Badge", "value": badge_id},
             ],
             "auxiliaryFields": [
@@ -2719,8 +2758,8 @@ def init_db():
             monthly_invoice_run_day INTEGER NOT NULL DEFAULT 1,
             monthly_invoice_due_days INTEGER NOT NULL DEFAULT 14,
             invoice_logo_data TEXT NOT NULL DEFAULT '',
-            invoice_primary_color TEXT NOT NULL DEFAULT '#0f4c5c',
-            invoice_accent_color TEXT NOT NULL DEFAULT '#e36414',
+            invoice_primary_color TEXT NOT NULL DEFAULT '#06b6d4',
+            invoice_accent_color TEXT NOT NULL DEFAULT '#a855f7',
             invoice_iban TEXT NOT NULL DEFAULT '',
             invoice_bic TEXT NOT NULL DEFAULT '',
             invoice_bank_name TEXT NOT NULL DEFAULT '',
@@ -2735,7 +2774,7 @@ def init_db():
             smtp_username TEXT NOT NULL DEFAULT '',
             smtp_password TEXT NOT NULL DEFAULT '',
             smtp_sender_email TEXT NOT NULL DEFAULT '',
-            smtp_sender_name TEXT NOT NULL DEFAULT 'BauPass',
+            smtp_sender_name TEXT NOT NULL DEFAULT 'WorkPass',
             smtp_use_tls INTEGER NOT NULL DEFAULT 1,
             resend_api_key TEXT NOT NULL DEFAULT '',
             resend_from_email TEXT NOT NULL DEFAULT '',
@@ -3118,7 +3157,7 @@ def init_db():
                 card_print_offset_x_mm, card_print_offset_y_mm, card_print_scale_pct, card_print_rotation_deg
             ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#0f4c5c", "#e36414", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0, 0, 0, 100, 0),
+            (DEFAULT_PLATFORM_NAME, DEFAULT_OPERATOR_NAME, "", "tageskarte", 1, 1, 14, "", "#06b6d4", "#a855f7", "", "", "", "", "", "", "", "", "", "", 587, "", "", "", DEFAULT_PLATFORM_NAME, 1, "", "", "", "", "", 0, 0, 0, 100, 0),
         )
 
     settings_columns = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
@@ -3131,9 +3170,9 @@ def init_db():
     if "monthly_invoice_due_days" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN monthly_invoice_due_days INTEGER NOT NULL DEFAULT 14")
     if "invoice_primary_color" not in settings_columns:
-        cur.execute("ALTER TABLE settings ADD COLUMN invoice_primary_color TEXT NOT NULL DEFAULT '#0f4c5c'")
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_primary_color TEXT NOT NULL DEFAULT '#06b6d4'")
     if "invoice_accent_color" not in settings_columns:
-        cur.execute("ALTER TABLE settings ADD COLUMN invoice_accent_color TEXT NOT NULL DEFAULT '#e36414'")
+        cur.execute("ALTER TABLE settings ADD COLUMN invoice_accent_color TEXT NOT NULL DEFAULT '#a855f7'")
     if "invoice_iban" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN invoice_iban TEXT NOT NULL DEFAULT ''")
     if "invoice_bic" not in settings_columns:
@@ -3185,16 +3224,36 @@ def init_db():
     if "card_print_rotation_deg" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN card_print_rotation_deg REAL NOT NULL DEFAULT 0")
     cur.execute(
-        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass Control', 'Control Pass')",
+        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass')",
         (DEFAULT_PLATFORM_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass')",
+        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass Control', 'Control Pass', 'BauPass')",
+        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
+    )
+    default_logo = _default_brand_logo_data_url()
+    if default_logo:
+        cur.execute(
+            "UPDATE settings SET invoice_logo_data = ? WHERE id = 1 AND COALESCE(TRIM(invoice_logo_data), '') = ''",
+            (default_logo,),
+        )
+        cur.execute(
+            "UPDATE settings SET invoice_logo_data = ? WHERE id = 1 AND ("
+            "LOWER(invoice_logo_data) LIKE '%baukometra%' OR LOWER(invoice_logo_data) LIKE '%baupass%'"
+            " OR LOWER(invoice_logo_data) LIKE '%>bk<%')",
+            (default_logo,),
+        )
+    cur.execute(
+        "UPDATE settings SET invoice_primary_color = ? WHERE id = 1 AND COALESCE(TRIM(invoice_primary_color), '') IN ('', '#0f4c5c', '#24324a')",
+        (DEFAULT_BRAND_PRIMARY,),
+    )
+    cur.execute(
+        "UPDATE settings SET invoice_accent_color = ? WHERE id = 1 AND COALESCE(TRIM(invoice_accent_color), '') IN ('', '#e36414', '#c65a2e')",
+        (DEFAULT_BRAND_ACCENT,),
     )
     cur.execute(
         "UPDATE companies SET plan = 'professional' WHERE id = 'cmp-default' AND COALESCE(TRIM(plan), '') IN ('', 'tageskarte', 'starter')",
@@ -5271,7 +5330,7 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, global_settings, stag
     bank_name = str((s["invoice_bank_name"] if "invoice_bank_name" in s.keys() else None) or "").strip()
     tax_id = str((s["invoice_tax_id"] if "invoice_tax_id" in s.keys() else None) or "").strip()
     vat_id = str((s["invoice_vat_id"] if "invoice_vat_id" in s.keys() else None) or "").strip()
-    primary_color = str((s["invoice_primary_color"] if "invoice_primary_color" in s.keys() else None) or "#0f4c5c").strip()
+    primary_color = str((s["invoice_primary_color"] if "invoice_primary_color" in s.keys() else None) or DEFAULT_BRAND_PRIMARY).strip()
 
     def _hex_rgb(h):
         h = h.lstrip("#")
@@ -5534,9 +5593,9 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     if not recipient:
         return False, "Empfänger-E-Mail fehlt"
 
-    platform_name = str(global_settings["platform_name"] or "BauPass").strip()
-    primary_color = str(global_settings["invoice_primary_color"] or "#0f4c5c").strip()
-    accent_color = str(global_settings.get("invoice_accent_color") or "#e36414").strip() or "#e36414"
+    platform_name = str(global_settings["platform_name"] or "WorkPass").strip()
+    primary_color = str(global_settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
+    accent_color = str(global_settings.get("invoice_accent_color") or DEFAULT_BRAND_ACCENT).strip() or DEFAULT_BRAND_ACCENT
     operator_name = str(global_settings["operator_name"] or platform_name).strip()
     operator_phone = str(global_settings.get("invoice_operator_phone") or "").strip()
     operator_email_addr = str(global_settings.get("invoice_operator_email") or "").strip()
@@ -5995,7 +6054,7 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "BauPass/1.0 (resend-client; python-urllib)",
+            "User-Agent": "WorkPass/1.0 (resend-client; python-urllib)",
         },
         method="POST",
     )
@@ -6192,7 +6251,7 @@ def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
     sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (settings.get("smtp_sender_name") or "BauPass").strip()
+    sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
     try:
         _send_via_any_api(subject, sender_email, sender_name, email, text_body, html_body)
         return True
@@ -6293,8 +6352,8 @@ def _resolve_smtp_settings(saved_settings, override_payload=None):
         "smtp_use_tls": (1 if bool(payload.get("smtpUseTls")) else 0) if "smtpUseTls" in payload else (int(saved_settings["smtp_use_tls"] or 0) if saved_settings else 0),
         "platform_name": str(payload.get("platformName") if "platformName" in payload else (saved_settings["platform_name"] if saved_settings else DEFAULT_PLATFORM_NAME) or DEFAULT_PLATFORM_NAME).strip(),
         "operator_name": str(payload.get("operatorName") if "operatorName" in payload else (saved_settings["operator_name"] if saved_settings else DEFAULT_OPERATOR_NAME) or DEFAULT_OPERATOR_NAME).strip(),
-        "invoice_primary_color": str(payload.get("invoicePrimaryColor") if "invoicePrimaryColor" in payload else (saved_settings["invoice_primary_color"] if saved_settings else "#0f4c5c") or "#0f4c5c").strip(),
-        "invoice_accent_color": str(payload.get("invoiceAccentColor") if "invoiceAccentColor" in payload else (saved_settings["invoice_accent_color"] if saved_settings else "#e36414") or "#e36414").strip(),
+        "invoice_primary_color": str(payload.get("invoicePrimaryColor") if "invoicePrimaryColor" in payload else (saved_settings["invoice_primary_color"] if saved_settings else DEFAULT_BRAND_PRIMARY) or DEFAULT_BRAND_PRIMARY).strip(),
+        "invoice_accent_color": str(payload.get("invoiceAccentColor") if "invoiceAccentColor" in payload else (saved_settings["invoice_accent_color"] if saved_settings else DEFAULT_BRAND_ACCENT) or DEFAULT_BRAND_ACCENT).strip(),
     }
     if not smtp_settings["smtp_sender_name"]:
         smtp_settings["smtp_sender_name"] = smtp_settings["platform_name"]
@@ -6818,7 +6877,7 @@ def check_visitor_card_expiry_notifications(db):
             f"die Besucherkarte von {worker['first_name']} {worker['last_name']} "
             f"(Badge {worker['badge_id']}, Firma {worker['company_name']}) "
             f"läuft am {expire_label} Uhr ab.\n\n"
-            f"Bitte verlängern oder löschen Sie die Karte im BauPass-Admin-Panel.\n\n"
+            f"Bitte verlängern oder löschen Sie die Karte im WorkPass-Admin-Panel.\n\n"
             f"Viele Grüße\n{settings['operator_name']}"
         )
         mail_sent = False
@@ -6836,7 +6895,7 @@ def check_visitor_card_expiry_notifications(db):
                 f"die Besucherkarte von {worker['first_name']} {worker['last_name']} "
                 f"(Badge {worker['badge_id']}, Firma {worker['company_name']}) "
                 f"l\u00e4uft am {expire_label} Uhr ab.\n\n"
-                f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im BauPass-Admin-Panel.\n\n"
+                f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im WorkPass-Admin-Panel.\n\n"
                 f"Viele Gr\u00fc\u00dfe\n{settings['operator_name']}"
             )
             fallback_ok, _, _provider_used = _send_via_any_api(
@@ -6943,14 +7002,14 @@ def _build_monthly_invoice_html(company_name, invoice_number, period_label, plat
 <head><meta charset="utf-8"><title>Rechnung {number_safe}</title>
 <style>
   body {{ font-family: Arial, sans-serif; font-size: 13px; color: #1a1a1a; margin: 0; padding: 32px; }}
-  .header {{ border-bottom: 3px solid #0f4c5c; padding-bottom: 12px; margin-bottom: 24px; }}
-  .header h1 {{ margin: 0; font-size: 22px; color: #0f4c5c; }}
+  .header {{ border-bottom: 3px solid #06b6d4; padding-bottom: 12px; margin-bottom: 24px; }}
+  .header h1 {{ margin: 0; font-size: 22px; color: #06b6d4; }}
   .header .sub {{ color: #666; font-size: 12px; margin-top: 4px; }}
   .meta-table {{ width: 100%; border-collapse: collapse; margin-bottom: 24px; }}
   .meta-table td {{ padding: 8px 12px; border: 1px solid #e0e0e0; }}
   .meta-table tr:nth-child(odd) {{ background: #f8f9fa; }}
   .meta-table .label {{ color: #555; font-weight: 600; width: 40%; }}
-  .total-row {{ background: #0f4c5c !important; color: #fff; font-weight: 700; font-size: 14px; }}
+  .total-row {{ background: #06b6d4 !important; color: #fff; font-weight: 700; font-size: 14px; }}
   .total-row td {{ color: #fff !important; }}
   .footer {{ border-top: 1px solid #e0e0e0; margin-top: 32px; padding-top: 12px; font-size: 11px; color: #888; }}
 </style>
@@ -7534,7 +7593,7 @@ def start_background_jobs():
                     "SELECT COUNT(*) AS c FROM invoices WHERE paid_at IS NULL AND status NOT IN ('bezahlt','draft')"
                 ).fetchone()["c"]
 
-                platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 summary_text = (
                     f"{platform_label} Tageszusammenfassung für {yesterday}:\n\n"
@@ -7551,7 +7610,7 @@ def start_background_jobs():
                 msg["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>" if smtp_sender else operator_label
                 msg["To"] = admin_email
                 msg.set_content(summary_text)
-                _primary = str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+                _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
                 html_body = _build_email_html(
                     platform_label, _primary, _primary,
                     f"Tageszusammenfassung {yesterday}",
@@ -7664,9 +7723,9 @@ def start_background_jobs():
                         }
                     by_company[cid]["workers"].append(row)
 
-                platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
-                _primary = str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+                _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
 
                 for cid, data in by_company.items():
                     recipient = data["admin_email"] or data["billing_email"]
@@ -7792,9 +7851,9 @@ def start_background_jobs():
                         }
                     by_company[cid]["docs"].append(row)
 
-                platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
-                _primary = str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+                _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
 
                 for cid, data in by_company.items():
                     recipient = data["admin_email"] or data["billing_email"]
@@ -8462,11 +8521,11 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
 def _platform_branding_payload(db):
     ui_build = (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()
     fallback = {
-        "platformName": "Control Pass",
-        "operatorName": "Baukometra",
-        "primaryColor": "#0f4c5c",
-        "accentColor": "#e36414",
-        "logoData": "",
+        "platformName": "WorkPass",
+        "operatorName": "Suppix Technologie UG",
+        "primaryColor": DEFAULT_BRAND_PRIMARY,
+        "accentColor": DEFAULT_BRAND_ACCENT,
+        "logoData": _default_brand_logo_data_url(),
         "impressumText": "",
         "datenschutzText": "",
         "uiBuild": ui_build,
@@ -8480,11 +8539,11 @@ def _platform_branding_payload(db):
     if not row:
         return fallback
     return {
-        "platformName": str(row["platform_name"] or "Control Pass"),
-        "operatorName": str(row["operator_name"] or "Baukometra"),
-        "primaryColor": str(row["invoice_primary_color"] or "#0f4c5c"),
-        "accentColor": str(row["invoice_accent_color"] or "#e36414"),
-        "logoData": str(row["invoice_logo_data"] or ""),
+        "platformName": str(row["platform_name"] or "WorkPass"),
+        "operatorName": str(row["operator_name"] or "Suppix Technologie UG"),
+        "primaryColor": str(row["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY),
+        "accentColor": str(row["invoice_accent_color"] or DEFAULT_BRAND_ACCENT),
+        "logoData": str(row["invoice_logo_data"] or "").strip() or _default_brand_logo_data_url(),
         "impressumText": str(row["impressum_text"] or ""),
         "datenschutzText": str(row["datenschutz_text"] or ""),
         "uiBuild": ui_build,
@@ -8592,7 +8651,7 @@ def phone_test_page():
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
     <meta name=\"google\" content=\"notranslate\" />
     <meta http-equiv=\"Content-Language\" content=\"de\" />
-    <title>BauPass Telefon-Test</title>
+    <title>WorkPass Telefon-Test</title>
     <style>
         body {{
             margin: 0;
@@ -8622,7 +8681,7 @@ def phone_test_page():
 </head>
 <body>
     <main class=\"card\">
-        <p class=\"ok\">BauPass Telefon-Test: ERREICHBAR</p>
+        <p class=\"ok\">WorkPass Telefon-Test: ERREICHBAR</p>
         <p class=\"row\"><strong>Zeit:</strong> {now_value}</p>
         <p class=\"row\"><strong>Host:</strong> {host}</p>
         <p class=\"row\"><strong>Client-IP:</strong> {remote_addr}</p>
@@ -9335,10 +9394,10 @@ def resend_test():
         return jsonify({"ok": False, "error": "missing_recipient"})
 
     sender_email = ""
-    sender_name = "BauPass"
+    sender_name = "WorkPass"
     if settings:
         sender_email = str(settings["smtp_sender_email"] or "").strip()
-        sender_name = str(settings["smtp_sender_name"] or "BauPass").strip() or "BauPass"
+        sender_name = str(settings["smtp_sender_name"] or "WorkPass").strip() or "WorkPass"
 
     env_presence = _collect_resend_env_presence()
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
@@ -9371,7 +9430,7 @@ def resend_test():
             "resendCacheDebug": f"cache_key_len={len(_resend_key_cache.get('key',''))}",
         })
 
-    subject = "BauPass: API Direkt-Test"
+    subject = "WorkPass: API Direkt-Test"
     text_body = (
         "Dieser Test wurde direkt ueber die HTTPS API-Fallback-Zustellung versendet.\n"
         "Wenn diese Mail ankommt, funktioniert die API-Zustellung korrekt im Container."
@@ -9492,8 +9551,8 @@ def update_settings():
             min(max(int(payload.get("monthlyInvoiceRunDay") or 1), 1), 28),
             min(max(int(payload.get("monthlyInvoiceDueDays") or 14), 1), 90),
             payload.get("invoiceLogoData", ""),
-            payload.get("invoicePrimaryColor", "#0f4c5c"),
-            payload.get("invoiceAccentColor", "#e36414"),
+            payload.get("invoicePrimaryColor", DEFAULT_BRAND_PRIMARY),
+            payload.get("invoiceAccentColor", DEFAULT_BRAND_ACCENT),
             payload.get("invoiceIban", ""),
             payload.get("invoiceBic", ""),
             payload.get("invoiceBankName", ""),
@@ -10437,7 +10496,7 @@ def download_worker_akte_pdf(worker_id):
             pass
 
     pdf.setFont("Helvetica", 8)
-    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | BauPass Mitarbeiterakte")
+    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | WorkPass Mitarbeiterakte")
     pdf.showPage()
     pdf.save()
     buf.seek(0)
@@ -10974,7 +11033,7 @@ def _geocode_site_address(site_label):
     request_obj = Request(
         geocode_url,
         headers={
-            "User-Agent": "BauPass Control/1.0 (worker geofence)",
+            "User-Agent": "WorkPass/1.0 (worker geofence)",
             "Accept": "application/json",
         },
     )
@@ -11042,7 +11101,7 @@ def _reverse_geocode_coordinates(latitude, longitude):
         return _reverse_geocode_cache[cache_key]
 
     headers = {
-        "User-Agent": "BauPass Control/1.0 (worker geofence)",
+        "User-Agent": "WorkPass/1.0 (worker geofence)",
         "Accept": "application/json",
     }
     payloads = []
@@ -11164,7 +11223,7 @@ def normalize_device_protocol(value):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Reader Adapter Layer  (Enterprise Point 4)
-# Each adapter normalises a raw device payload into a standard BauPass event.
+# Each adapter normalises a raw device payload into a standard WorkPass event.
 # New reader brands can be supported by adding a new subclass.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -12243,8 +12302,8 @@ def worker_app_me():
             "settings": {
                 "platformName": setting["platform_name"],
                 "operatorName": setting["operator_name"],
-                "primaryColor": str(setting["invoice_primary_color"] or "#0f4c5c"),
-                "accentColor": str(setting["invoice_accent_color"] or "#e36414"),
+                "primaryColor": str(setting["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY),
+                "accentColor": str(setting["invoice_accent_color"] or DEFAULT_BRAND_ACCENT),
                 "logoData": str(setting["invoice_logo_data"] or ""),
                 "workerPassLockEnabled": int(setting["worker_pass_lock_enabled"]) if setting and "worker_pass_lock_enabled" in setting.keys() else 0,
             },
@@ -15510,7 +15569,7 @@ def request_password_reset():
     base_url = request.host_url.rstrip("/")
     reset_link = f"{base_url}/?resetToken={raw_token}"
     msg = __import__("email.message", fromlist=["EmailMessage"]).EmailMessage()
-    platform_label = str(settings["platform_name"] or "BauPass").strip() or "BauPass"
+    platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
     operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
     smtp_sender_name = str(settings["smtp_sender_name"] or operator_label).strip() or operator_label
     msg["Subject"] = f"Passwort zurücksetzen – {platform_label}"
@@ -15883,7 +15942,7 @@ def export_access_csv():
 
     def draw_access_hdr(y):
         pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(36, y, f"BauPass - Zutrittsjournal{period_label}")
+        pdf.drawString(36, y, f"WorkPass - Zutrittsjournal{period_label}")
         y -= 14
         pdf.setFont("Helvetica", 8)
         pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')} | {len(rows)} Einträge")
@@ -16237,21 +16296,21 @@ def reporting_email_pdf():
     company_name = str(snapshot.get("companyName") or "")
     if not company_name and user.get("company_id"):
         row = db.execute("SELECT name FROM companies WHERE id = ?", (user["company_id"],)).fetchone()
-        company_name = row["name"] if row else "BauPass"
+        company_name = row["name"] if row else "WorkPass"
 
     pdf_bytes = build_operations_report_pdf(
-        title="BauPass Operations Report",
-        company_name=company_name or "BauPass",
+        title="WorkPass Operations Report",
+        company_name=company_name or "WorkPass",
         snapshot=snapshot,
         guidance=guidance,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-report-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"BauPass Bericht {period}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"WorkPass Bericht {period}"), max_len=200)
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei finden Sie Ihren aktuellen BauPass-Betriebsbericht als PDF.\n\nMit freundlichen Grüßen\nBauPass",
+            "Anbei finden Sie Ihren aktuellen WorkPass-Betriebsbericht als PDF.\n\nMit freundlichen Grüßen\nWorkPass",
         ),
         max_len=4000,
     )
@@ -16324,9 +16383,9 @@ def reporting_email_datev_csv():
         return jsonify({"error": "no_payroll_data", "message": "Keine DATEV-Exportdaten für diese Firma."}), 404
 
     period_label = period or datetime.now(timezone.utc).strftime("%Y-%m")
-    subject = clean_text_input(payload.get("subject", f"BauPass DATEV Lohn-CSV {period_label}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"WorkPass DATEV Lohn-CSV {period_label}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label}.\n\nBauPass"),
+        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label}.\n\nWorkPass"),
         max_len=4000,
     )
     ok, err = send_attachments_email(
@@ -16396,9 +16455,9 @@ def reporting_email_invoices_pdf():
     pdf_bytes = build_invoices_report_pdf(db, company_id=company_id, company_name=company_name)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-invoices-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"BauPass Rechnungsübersicht {period}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"WorkPass Rechnungsübersicht {period}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", "Anbei die Rechnungsübersicht als PDF.\n\nBauPass"),
+        payload.get("body", "Anbei die Rechnungsübersicht als PDF.\n\nWorkPass"),
         max_len=4000,
     )
     ok, err = send_pdf_report_email(
@@ -16439,8 +16498,8 @@ def reporting_email_companies_pdf():
     pdf_bytes = build_companies_document_email_pdf(db)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-companies-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"BauPass Firmenübersicht {period}"), max_len=200)
-    body = clean_text_input(payload.get("body", "Anbei die Firmen-Dokument-E-Mail-Übersicht.\n\nBauPass"), max_len=4000)
+    subject = clean_text_input(payload.get("subject", f"WorkPass Firmenübersicht {period}"), max_len=200)
+    body = clean_text_input(payload.get("body", "Anbei die Firmen-Dokument-E-Mail-Übersicht.\n\nWorkPass"), max_len=4000)
     ok, err = send_pdf_report_email(
         to=recipient,
         subject=subject,
@@ -16484,7 +16543,7 @@ def reporting_email_enterprise_pdf():
         return jsonify({"error": "missing_company", "message": "companyId erforderlich für Enterprise-PDF."}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "BauPass"
+    company_name = row["name"] if row else "WorkPass"
     role = str(user.get("role") or "company-admin")
 
     pdf_bytes = build_enterprise_ops_pdf(
@@ -16496,13 +16555,13 @@ def reporting_email_enterprise_pdf():
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-enterprise-{company_id}-{period}.pdf"
     subject = clean_text_input(
-        payload.get("subject", f"BauPass Enterprise-Bericht {period}"),
+        payload.get("subject", f"WorkPass Enterprise-Bericht {period}"),
         max_len=200,
     )
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei der Enterprise- und Operations-Bericht (6 Ebenen, KPIs, Lohn/Compliance, Guidance).\n\nBauPass",
+            "Anbei der Enterprise- und Operations-Bericht (6 Ebenen, KPIs, Lohn/Compliance, Guidance).\n\nWorkPass",
         ),
         max_len=4000,
     )
@@ -16569,16 +16628,16 @@ def reporting_email_executive_pdf():
         return jsonify({"error": "missing_company"}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "BauPass"
+    company_name = row["name"] if row else "WorkPass"
     snapshot = _operations_snapshot_for_user(db, user)
     snapshot["guidance"] = build_operational_guidance(snapshot)
 
     pdf_bytes = build_executive_summary_pdf(company_name=str(company_name or ""), snapshot=snapshot)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-executive-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"BauPass Executive Summary {period}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"WorkPass Executive Summary {period}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary).\n\nBauPass"),
+        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary).\n\nWorkPass"),
         max_len=4000,
     )
     ok, err = send_pdf_report_email(
@@ -16622,22 +16681,22 @@ def reporting_email_incidents_visits_pdf():
     if user["role"] == "superadmin" and payload.get("companyId"):
         company_id = str(payload.get("companyId")).strip()
 
-    company_name = "BauPass"
+    company_name = "WorkPass"
     if company_id:
         row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
         company_name = row["name"] if row else company_name
 
-    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "BauPass"))
+    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "WorkPass"))
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-incidents-visitors-{period}.pdf"
     subject = clean_text_input(
-        payload.get("subject", f"BauPass Incidents & Visitors {period}"),
+        payload.get("subject", f"WorkPass Incidents & Visitors {period}"),
         max_len=200,
     )
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei: PDF mit Sicherheitsvorfaellen / Incidents und aktiven Besuchern auf der Baustelle.\n\nBauPass",
+            "Anbei: PDF mit Sicherheitsvorfaellen / Incidents und aktiven Besuchern auf der Baustelle.\n\nWorkPass",
         ),
         max_len=4000,
     )
@@ -18257,7 +18316,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     attachment_payload = []
     safe_invoice_no = re.sub(r"[^A-Za-z0-9._-]+", "-", str(invoice_row["invoice_number"] or "rechnung")).strip("-") or "rechnung"
     pdf_filename = f"rechnung-von-baupass-{safe_invoice_no}.pdf"
-    platform_label = str(settings_row["platform_name"] or "BauPass").strip() or "BauPass"
+    platform_label = str(settings_row["platform_name"] or "WorkPass").strip() or "WorkPass"
     operator_label = str(settings_row["operator_name"] or platform_label).strip() or platform_label
     mail_subject = f"Rechnung von {platform_label} - {invoice_row['invoice_number']}"
     # ── Mehrsprachigkeit ─────────────────────────────────────────────────────────
@@ -18448,12 +18507,14 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         def _logo_bytes():
             data_url = str(settings_row["invoice_logo_data"] or "").strip()
             if not data_url:
-                fbf = BASE_DIR / "branding" / "baukometra-logo.svg"
-                if fbf.exists():
-                    try:
-                        data_url = f"data:image/svg+xml;charset=utf-8,{quote(fbf.read_text(encoding='utf-8'))}"
-                    except Exception:
-                        data_url = ""
+                for logo_name in ("suppix-ai-invoice.svg", "suppix-ai-logo.svg"):
+                    fbf = BASE_DIR / "branding" / logo_name
+                    if fbf.exists():
+                        try:
+                            data_url = f"data:image/svg+xml;charset=utf-8,{quote(fbf.read_text(encoding='utf-8'))}"
+                            break
+                        except Exception:
+                            data_url = ""
             mime, raw = _decode_data_url(data_url)
             if mime == "image/svg+xml":
                 png = _svg_to_png(raw)
@@ -18467,10 +18528,10 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.circle(x + 8 * mm, y + 8 * mm, 7.5 * mm, stroke=0, fill=1)
             pdf.setFillColor(rl_colors.white)
             pdf.setFont("Helvetica-Bold", 9)
-            pdf.drawCentredString(x + 8 * mm, y + 5.8 * mm, "BK")
+            pdf.drawCentredString(x + 8 * mm, y + 5.8 * mm, "AI")
             pdf.setFillColor(c_dark)
             pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "BauPass")[:28])
+            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "WorkPass")[:28])
 
         # ════════════════════════════════════════════════════════════
         # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende
@@ -18884,8 +18945,8 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             text_body=text_body,
             html_body=_build_email_html(
                 platform_label,
-                str(settings_row["invoice_primary_color"] or "#0f4c5c"),
-                str(settings_row["invoice_accent_color"] or "#e36414"),
+                str(settings_row["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY),
+                str(settings_row["invoice_accent_color"] or DEFAULT_BRAND_ACCENT),
                 email_header_label,
                 body_html,
                 operator_label,
@@ -18901,8 +18962,8 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     
     html_body = _build_email_html(
         platform_label,
-        str(settings_row["invoice_primary_color"] or "#0f4c5c"),
-        str(settings_row["invoice_accent_color"] or "#e36414"),
+        str(settings_row["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY),
+        str(settings_row["invoice_accent_color"] or DEFAULT_BRAND_ACCENT),
         email_header_label,
         body_html,
         operator_label,
@@ -19690,7 +19751,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
         )
 
     alert_text = (
-        "BauPass hat eine kritische Lage in der Rechnungs-Retry-Queue erkannt.\n\n"
+        "WorkPass hat eine kritische Lage in der Rechnungs-Retry-Queue erkannt.\n\n"
         f"Schweregrad: {severity}\n"
         f"Kritische Faelle (Score >= 70): {critical_count}\n"
         f"Hoechster Score: {int(summary.get('maxScore', 0))}\n\n"
@@ -19699,7 +19760,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
         "Bitte im Admin-Panel den Rechnungsbereich oeffnen und die Queue pruefen."
     )
     message = EmailMessage()
-    message["Subject"] = f"[BauPass] {'KRITISCH' if severity == 'critical' else 'Warnung'}: {critical_count} kritische Retry-Faelle"
+    message["Subject"] = f"[WorkPass] {'KRITISCH' if severity == 'critical' else 'Warnung'}: {critical_count} kritische Retry-Faelle"
     message["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>"
     message["To"] = ", ".join(recipients)
     message.set_content(alert_text)
@@ -20769,7 +20830,7 @@ def export_invoice_retry_queue_csv():
 
     def draw_rq_hdr(y):
         pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(36, y, "BauPass - Rechnungs-Retry-Queue")
+        pdf.drawString(36, y, "WorkPass - Rechnungs-Retry-Queue")
         y -= 14
         pdf.setFont("Helvetica", 8)
         pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')} | {len(rows)} Einträge")
@@ -20843,7 +20904,7 @@ def export_invoice_incidents_csv():
 
     y = ph - 36
     pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(36, y, "BauPass - Rechnungs-Incident-Report")
+    pdf.drawString(36, y, "WorkPass - Rechnungs-Incident-Report")
     y -= 16
     pdf.setFont("Helvetica", 9)
     pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
@@ -21149,12 +21210,12 @@ def invoice_reminder_letter_pdf(invoice_id):
     original_due_str = str(invoice["due_date"] or "")
     total_amount = float(invoice["total_amount"] or 0)
 
-    operator_name = str(settings["operator_name"] or settings["platform_name"] or "BauPass").strip() if settings else "BauPass"
+    operator_name = str(settings["operator_name"] or settings["platform_name"] or "WorkPass").strip() if settings else "WorkPass"
     operator_street = str(settings["invoice_operator_street"] or "").strip() if settings else ""
     operator_zip_city = str(settings["invoice_operator_zip_city"] or "").strip() if settings else ""
     operator_phone = str(settings["invoice_operator_phone"] or "").strip() if settings else ""
     operator_email = str(settings["invoice_operator_email"] or "").strip() if settings else ""
-    primary_color = str(settings["invoice_primary_color"] or "#0f4c5c").strip() if settings else "#0f4c5c"
+    primary_color = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip() if settings else DEFAULT_BRAND_PRIMARY
 
     def hex_to_rgb(h):
         h = h.lstrip("#")
@@ -23189,7 +23250,7 @@ def reply_to_inbox_email(inbox_id):
         settings_row["smtp_sender_name"]
         or settings_row["operator_name"]
         or settings_row["platform_name"]
-        or "BauPass"
+        or "WorkPass"
     ).strip()
 
     original_message_id = clean_text_input(inbox_row["message_id"] or "", max_len=500)
@@ -23766,15 +23827,30 @@ def _load_invoice_logo_data_url():
             db.row_factory = sqlite3.Row
             row = db.execute("SELECT invoice_logo_data FROM settings WHERE id = 1").fetchone()
     except Exception:
-        return ""
+        return _default_brand_logo_data_url()
     if not row:
-        return ""
-    return (row["invoice_logo_data"] or "").strip()
+        return _default_brand_logo_data_url()
+    stored = (row["invoice_logo_data"] or "").strip()
+    return stored or _default_brand_logo_data_url()
 
 
 def _build_worker_icon_svg(icon_size: int) -> str:
-    _ = html  # keep import used in this module without removing broader helpers.
-    return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{icon_size}\" height=\"{icon_size}\" viewBox=\"0 0 512 512\">\n  <defs>\n    <linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">\n      <stop offset=\"0%\" stop-color=\"#c78652\" />\n      <stop offset=\"100%\" stop-color=\"#8a5230\" />\n    </linearGradient>\n  </defs>\n  <rect width=\"512\" height=\"512\" rx=\"118\" fill=\"url(#bg)\" />\n  <text x=\"256\" y=\"330\" text-anchor=\"middle\" font-family=\"'Segoe UI', Arial, sans-serif\" font-size=\"192\" font-weight=\"800\" letter-spacing=\"4\" fill=\"#f6efe2\">BP</text>\n</svg>"""
+    mark_path = BASE_DIR / "branding" / "suppix-ai-mark.svg"
+    if mark_path.exists():
+        try:
+            raw = mark_path.read_text(encoding="utf-8")
+            if icon_size != 192:
+                raw = raw.replace('width="192"', f'width="{icon_size}"').replace('height="192"', f'height="{icon_size}"')
+            return raw
+        except Exception:
+            pass
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{icon_size}" height="{icon_size}" viewBox="0 0 512 512">'
+        f'<rect width="512" height="512" rx="118" fill="#050816"/>'
+        f'<circle cx="256" cy="256" r="120" fill="{DEFAULT_BRAND_ACCENT}" opacity="0.25"/>'
+        f'<text x="256" y="300" text-anchor="middle" font-family="Arial,sans-serif" font-size="120" font-weight="700" fill="#ffffff">AI</text>'
+        f"</svg>"
+    )
 
 
 def worker_icon_svg(icon_size: int):
@@ -23854,7 +23930,7 @@ def signotec_lib_status():
             "setupHelperUrl": "/api/signotec/setup-helper.bat",
             "setupHelperPs1Url": "/api/signotec/setup-helper.ps1",
             "trustUrl": "https://localhost:49494/",
-            "note": "Library is on BauPass server; signoPAD-API/Web runs once per PC with USB pad.",
+            "note": "Library is on WorkPass server; signoPAD-API/Web runs once per PC with USB pad.",
         },
     })
 
@@ -23878,7 +23954,7 @@ def _signotec_setup_ps1_content(base: str) -> str:
     script_path = BASE_DIR / "scripts" / "baupass-signotec-bridge-setup.ps1"
     if script_path.exists() and script_path.is_file():
         return script_path.read_text(encoding="utf-8").replace("{{BASE_URL}}", base)
-    return f"""# BauPass Signotec Bridge fallback
+    return f"""# WorkPass Signotec Bridge fallback
 $ErrorActionPreference = 'Stop'
 Write-Host 'Setup script missing on server. Download installer from {base}/api/signotec/installer'
 pause
@@ -23897,8 +23973,8 @@ def signotec_setup_helper():
 def signotec_setup_helper_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title BauPass Signotec Bridge
-echo BauPass: Signotec bridge setup (once per PC, needs admin once)...
+title WorkPass Signotec Bridge
+echo WorkPass: Signotec bridge setup (once per PC, needs admin once)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p"
 echo.
 pause
@@ -23917,8 +23993,8 @@ def signotec_setup_bat():
 def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title BauPass Signotec Bridge starten
-echo BauPass: STPadServer starten (Port 49494, Admin)...
+title WorkPass Signotec Bridge starten
+echo WorkPass: STPadServer starten (Port 49494, Admin)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
 echo.
 pause
@@ -23944,7 +24020,7 @@ def signotec_check_helper():
 def signotec_check_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title BauPass Signotec Diagnose
+title WorkPass Signotec Diagnose
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-check.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/check.ps1' -OutFile $p -UseBasicParsing; & $p"
 """
     response = Response(bat, mimetype="application/octet-stream")
@@ -24370,7 +24446,7 @@ def _build_leave_request_pdf_bytes(payload: dict) -> bytes | None:
     y = page_h - 50
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(40, y, "BauPass - Abwesenheitsantrag")
+    pdf.drawString(40, y, "WorkPass - Abwesenheitsantrag")
     y -= 18
     pdf.setFont("Helvetica", 9)
     pdf.drawString(40, y, f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
@@ -24479,7 +24555,7 @@ def worker_submit_leave_request():
     <p style="color:#444;font-size:16px;"><strong>{worker_name}</strong> ({worker['badge_id']}) hat einen neuen Antrag eingereicht:</p>
     <p style="font-size:18px;font-weight:700;color:#1a1a2e;">{req_type_label} · {start_date} – {end_date}</p>
     {note_html}
-    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt im BauPass Admin-Portal prüfen und genehmigen oder ablehnen.</p>
+    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt in WorkPass Admin-Portal prüfen und genehmigen oder ablehnen.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
     text_mail = f"Neuer Antrag von {worker_name}: {req_type_label} {start_date}–{end_date}." + (f"\nNotiz: {note}" if note else "")
@@ -24495,7 +24571,7 @@ def worker_submit_leave_request():
     ).fetchone()
     s = dict(settings_row) if settings_row else {}
     sender_email = (s.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (s.get("smtp_sender_name") or "BauPass").strip()
+    sender_name = (s.get("smtp_sender_name") or "WorkPass").strip()
 
     pdf_payload = {
         "id": req_id,
@@ -25042,7 +25118,7 @@ def worker_send_leave_request_email(req_id):
     <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:600px;width:100%;">
       <tr><td style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:28px 36px;">
         <h1 style="margin:0;color:#fff;font-size:22px;">Abwesenheitsantrag</h1>
-        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über BauPass Worker App</p>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über WorkPass Worker App</p>
       </td></tr>
       <tr><td style="padding:28px 36px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eee;border-radius:8px;overflow:hidden;border-spacing:0;">
@@ -25054,7 +25130,7 @@ def worker_send_leave_request_email(req_id):
           {note_html}
           <tr><td style="padding:10px 12px;color:#555;">Eingereicht am</td><td style="padding:10px 12px;">{req_row['created_at'][:10]}</td></tr>
         </table>
-        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag im BauPass Admin-Portal.</p>
+        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag in WorkPass Admin-Portal.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -25074,7 +25150,7 @@ def worker_send_leave_request_email(req_id):
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
     sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (settings.get("smtp_sender_name") or "BauPass").strip()
+    sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
 
     # HTML-Datei als Anhang (base64)
     import base64 as _b64
@@ -25532,7 +25608,7 @@ def _patch_api_route(path: str, view_func, methods: tuple[str, ...], endpoint: s
 
 
 def _ensure_critical_api_routes() -> None:
-    """Safety net when domain blueprints fail — keeps Control Pass admin usable."""
+    """Safety net when domain blueprints fail — keeps WorkPass admin usable."""
     missing_core = not (
         {"GET", "POST"}.issubset(_route_methods_for("/api/companies"))
         and "PUT" in _route_methods_for("/api/companies/<company_id>")

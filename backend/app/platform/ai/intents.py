@@ -1,4 +1,4 @@
-"""Fast intent routing before LLM — contact, help, and common navigation."""
+﻿"""Fast intent routing before LLM — contact, help, and common navigation."""
 from __future__ import annotations
 
 import os
@@ -99,7 +99,7 @@ def _load_help_context(db, company_id: str) -> dict[str, Any]:
         """
     ).fetchone()
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    platform = (settings["platform_name"] if settings else "") or "BauPass"
+    platform = (settings["platform_name"] if settings else "") or "WorkPass"
     operator = (settings["operator_name"] if settings else "") or "Support"
     phone = (settings["invoice_operator_phone"] if settings else "") or ""
     website = (settings["invoice_operator_website"] if settings else "") or public_base
@@ -121,7 +121,7 @@ def _load_help_context(db, company_id: str) -> dict[str, Any]:
 def _format_contact_answer(ctx: dict[str, Any], lang: str) -> str:
     cn = ctx.get("companyName") or "—"
     cc = ctx.get("companyContact") or "—"
-    op = ctx.get("operatorName") or "BauPass Support"
+    op = ctx.get("operatorName") or "WorkPass Support"
     phone = ctx.get("supportPhone") or "—"
     mail = ctx.get("supportEmail") or "—"
     web = ctx.get("portalUrl") or ctx.get("supportWebsite") or "—"
@@ -129,7 +129,7 @@ def _format_contact_answer(ctx: dict[str, Any], lang: str) -> str:
         return (
             f"**شركتك ({cn})**\n"
             f"• جهة اتصال الشركة: {cc}\n\n"
-            f"**دعم {ctx.get('platformName') or 'BauPass'}**\n"
+            f"**دعم {ctx.get('platformName') or 'WorkPass'}**\n"
             f"• المشغّل: {op}\n"
             f"• هاتف: {phone}\n"
             f"• بريد: {mail}\n"
@@ -139,7 +139,7 @@ def _format_contact_answer(ctx: dict[str, Any], lang: str) -> str:
         return (
             f"**Your company ({cn})**\n"
             f"• Company contact: {cc}\n\n"
-            f"**{ctx.get('platformName') or 'BauPass'} support**\n"
+            f"**{ctx.get('platformName') or 'WorkPass'} support**\n"
             f"• Operator: {op}\n"
             f"• Phone: {phone}\n"
             f"• Email: {mail}\n"
@@ -148,7 +148,7 @@ def _format_contact_answer(ctx: dict[str, Any], lang: str) -> str:
     return (
         f"**Ihre Firma ({cn})**\n"
         f"• Firmen-Kontakt: {cc}\n\n"
-        f"**{ctx.get('platformName') or 'BauPass'} Support**\n"
+        f"**{ctx.get('platformName') or 'WorkPass'} Support**\n"
         f"• Betreiber: {op}\n"
         f"• Telefon: {phone}\n"
         f"• E-Mail: {mail}\n"
@@ -160,7 +160,7 @@ def _format_worker_contact_answer(ctx: dict[str, Any], lang: str) -> str:
     cn = ctx.get("companyName") or "—"
     cc = ctx.get("companyContact") or "—"
     we = ctx.get("workerEmail") or "—"
-    op = ctx.get("operatorName") or "BauPass Support"
+    op = ctx.get("operatorName") or "WorkPass Support"
     mail = ctx.get("supportEmail") or "—"
     if lang == "ar":
         return (

@@ -1,4 +1,4 @@
-"""Send system satisfaction survey invites after sufficient product usage."""
+﻿"""Send system satisfaction survey invites after sufficient product usage."""
 from __future__ import annotations
 
 import uuid
@@ -131,18 +131,18 @@ def check_mail_provider_ready(db) -> dict[str, Any]:
 
 
 def _build_survey_bodies(name: str, usage_days: int, survey_link: str) -> tuple[str, str, str]:
-    subject = "BauPass — Kurze System-Bewertung (2 Minuten)"
+    subject = "WorkPass — Kurze System-Bewertung (2 Minuten)"
     text_body = (
         f"Hallo {name},\n\n"
-        f"Sie nutzen BauPass seit etwa {usage_days} Tagen. "
+        f"Sie nutzen WorkPass seit etwa {usage_days} Tagen. "
         f"Helfen Sie uns mit einer kurzen Bewertung (1 = sehr gut, 5 = sehr schlecht):\n\n"
         f"{survey_link}\n\n"
         "Fragen: Zufriedenheit, Weiterempfehlung, beste Funktion, Zeitersparnis, Kosteneinsparung.\n\n"
-        "Vielen Dank!\nIhr BauPass-Team"
+        "Vielen Dank!\nIhr WorkPass-Team"
     )
     inner_html = (
         f"<p>Hallo <strong>{name}</strong>,</p>"
-        f"<p>Sie nutzen BauPass seit etwa <strong>{usage_days} Tagen</strong>. "
+        f"<p>Sie nutzen WorkPass seit etwa <strong>{usage_days} Tagen</strong>. "
         f"Bitte nehmen Sie sich 2 Minuten für eine kurze System-Bewertung "
         f"(<em>1 = sehr gut · 5 = sehr schlecht</em>).</p>"
         f'<p style="margin:24px 0;"><a href="{survey_link}" '
@@ -154,15 +154,15 @@ def _build_survey_bodies(name: str, usage_days: int, survey_link: str) -> tuple[
         from backend.server import _build_email_html
 
         html_body = _build_email_html(
-            "BauPass",
+            "WorkPass",
             "#1B5E8C",
             "#A66A3D",
             "Ihre Meinung zählt",
             inner_html,
-            "BauPass-Team",
+            "WorkPass-Team",
         )
     except Exception:
-        html_body = inner_html + "<p>Danke!<br>BauPass-Team</p>"
+        html_body = inner_html + "<p>Danke!<br>WorkPass-Team</p>"
     return subject, text_body, html_body
 
 
@@ -214,7 +214,7 @@ def send_survey_invite_email(
         ).fetchone()
         settings = dict(settings_row) if settings_row else {}
         sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-        sender_name = (settings.get("smtp_sender_name") or "BauPass").strip()
+        sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
         ok, err, provider = _send_via_any_api(
             subject, sender_email, sender_name, email, text_body, html_body
         )

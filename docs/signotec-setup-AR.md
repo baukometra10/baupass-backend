@@ -1,15 +1,15 @@
-# Signotec — إعداد جهاز التوقيع مع BauPass
+﻿# Signotec — إعداد جهاز التوقيع مع WorkPass
 
-جهاز **signotec GmbH** (Sigma, Zeta, Omega, Gamma, Delta, Alpha…) يعمل مع BauPass عبر **signoPAD-API/Web** — برنامج وسيط على كمبيوتر المكتب يتصل بالـ USB ويفتح WebSocket للمتصفح.
+جهاز **signotec GmbH** (Sigma, Zeta, Omega, Gamma, Delta, Alpha…) يعمل مع WorkPass عبر **signoPAD-API/Web** — برنامج وسيط على كمبيوتر المكتب يتصل بالـ USB ويفتح WebSocket للمتصفح.
 
 ## لماذا لم يظهر «وقّع هنا» على الجهاز؟
 
 توصيل USB **لا يكفي**. المتصفح لا يتحدث مع USB مباشرة. تحتاج:
 
-1. **تثبيت signoPAD-API/Web** على نفس PC الذي يفتح فيه Control Pass  
+1. **تثبيت signoPAD-API/Web** على نفس PC الذي يفتح فيه WorkPass  
 2. **تشغيل STPadServer** (خدمة Windows أو يدوياً)  
 3. **نسخ `STPadServerLib.js`** إلى `vendor/signotec/` في المشروع (أو على السيرver static files)  
-4. في BauPass: **Mitarbeiter** → زر **«جهاز التوقيع»** (يكتشف Signotec تلقائياً)
+4. في WorkPass: **Mitarbeiter** → زر **«جهاز التوقيع»** (يكتشف Signotec تلقائياً)
 
 راجع أيضاً: [signature-pad-setup-AR.md](./signature-pad-setup-AR.md) للماركات الأخرى (Topaz، USB بدون برنامج).
 
@@ -47,9 +47,9 @@ Get-Process STPadServer -ErrorAction SilentlyContinue
 STPadServerLib.js  →  vendor/signotec/STPadServerLib.js
 ```
 
-### 4) استخدام BauPass
+### 4) استخدام WorkPass
 
-1. سجّل الدخول إلى Control Pass على **نفس PC**  
+1. سجّل الدخول إلى WorkPass على **نفس PC**  
 2. **Mitarbeiter** → أنشئ أو عدّل موظفاً  
 3. في قسم **Unterschrift bei Ausweisübergabe** اضغط **Signotec Pad**  
 4. على **شاشة جهاز Signotec** يظهر النص — يوقّع الموظف ويضغط **Confirm** على الجهاز  
@@ -69,7 +69,7 @@ STPadServerLib.js  →  vendor/signotec/STPadServerLib.js
 لأتمتة من برنامج خارجي:
 
 `POST /api/device/signature/capture`  
-Header: `X-BauPass-Signature-Token` = `BAUPASS_SIGNATURE_BRIDGE_TOKEN`
+Header: `X-WorkPass-Signature-Token` = `BAUPASS_SIGNATURE_BRIDGE_TOKEN`
 
 راجع: [device-signature-bridge-DE.md](./device-signature-bridge-DE.md)
 

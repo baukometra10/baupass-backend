@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>BauPass Worker</string>
+	<string>WorkPass Worker</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -38,11 +38,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NFCReaderUsageDescription</key>
-	<string>BauPass uses NFC to record your attendance when you tap your employee card.</string>
+	<string>WorkPass uses NFC to record your attendance when you tap your employee card.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>BauPass uses the microphone for voice questions to the on-site assistant.</string>
+	<string>WorkPass uses the microphone for voice questions to the on-site assistant.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>BauPass uses your location to verify you are on the construction site when checking in or out.</string>
+	<string>WorkPass uses your location to verify you are on site when checking in or out.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

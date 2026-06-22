@@ -1,5 +1,5 @@
-"""
-BauPass – Base Repository with Tenant Isolation
+﻿"""
+WorkPass – Base Repository with Tenant Isolation
 ================================================
 جميع repositories ترث من BaseRepository.
 

@@ -1,4 +1,4 @@
-# QR/NFC/Wallet Implementation Architecture – Three Tiers
+﻿# QR/NFC/Wallet Implementation Architecture – Three Tiers
 
 **Document Date:** May 2026  
 **Status:** Strategic Recommendation  
@@ -120,7 +120,7 @@ This document outlines three implementation tiers for digital access cards (badg
 ### Worker Experience
 
 **QR Path:**
-1. Worker opens BauPass Worker app
+1. Worker opens WorkPass Worker app
 2. Gate page shows QR code
 3. Worker holds up phone to scanner
 4. ✅ Gate opens
@@ -233,21 +233,21 @@ ALTER TABLE workers ADD COLUMN nfc_wallet_uid TEXT;  -- UID for NFC chip
 ### Worker Experience
 
 **Apple Wallet (iPhone):**
-1. Worker opens BauPass Worker app
+1. Worker opens WorkPass Worker app
 2. Taps "Add to Wallet"
 3. Pass appears in native Wallet app alongside bank cards
 4. At gate: Tap phone on NFC reader (or double-tap screen)
 5. ✅ Gate opens
 
 **Google Wallet (Android):**
-1. Worker opens BauPass Worker app
+1. Worker opens WorkPass Worker app
 2. Taps "Add to Wallet"
 3. Pass added to Google Wallet
 4. At gate: Tap phone on NFC reader
 5. ✅ Gate opens
 
 **Fallback (QR if wallet unavailable):**
-1. Worker opens BauPass Worker app
+1. Worker opens WorkPass Worker app
 2. Shows QR code
 3. Tap "Scan" at gate (manual QR)
 4. ✅ Gate opens

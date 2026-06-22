@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" translate="no">
 <head>
   <meta charset="UTF-8" />
@@ -6,8 +6,8 @@
   <meta http-equiv="Content-Language" content="de" />
   <meta name="google" content="notranslate" />
   <meta name="description" content="Foreman Dashboard – Team-Verwaltung und Analytics." />
-  <meta name="theme-color" content="#0f4c5c" />
-  <title>BauPass – Foreman Dashboard</title>
+  <meta name="theme-color" content="#06b6d4" />
+  <title>WorkPass – Foreman Dashboard</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,8 +17,8 @@
   <script src="/embed-helpers.js?v=20260609csrf"></script>
   <style>
     :root {
-      --foreman-primary: #0f4c5c;
-      --foreman-accent: #e36414;
+      --foreman-primary: #06b6d4;
+      --foreman-accent: #a855f7;
       --foreman-success: #2d6a4f;
       --foreman-warning: #d4a574;
       --foreman-danger: #a23b72;
@@ -520,7 +520,7 @@
     <!-- Header -->
     <div class="foreman-header">
       <div class="foreman-header-brand">
-        <img data-tenant-logo class="foreman-header-logo hidden" alt="" />
+        <img data-tenant-logo class="foreman-header-logo tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="SUPPIX AI" />
         <div>
           <h1 data-tenant-brand-title data-i18n="foremanTitle">Foreman Dashboard</h1>
           <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
@@ -691,7 +691,7 @@
     // API Base URL
     const API_BASE = `/api`;
 
-    // Current session token (Control Pass / Admin v2)
+    // Current session token (WorkPass / Admin v2)
     const TOKEN_KEYS = ['baupass-control-token', 'baupass-admin-v2-token', 'baupass_admin_session'];
     function getSessionToken() {
       if (window.BaupassAuth?.getSessionToken) {
@@ -736,7 +736,7 @@
       });
 
       if (response.status === 401) {
-        throw new Error('Bitte zuerst in BauPass anmelden.');
+        throw new Error('Bitte zuerst in WorkPass anmelden.');
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

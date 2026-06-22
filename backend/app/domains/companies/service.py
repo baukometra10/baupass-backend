@@ -1,4 +1,4 @@
-"""Companies domain — business logic."""
+﻿"""Companies domain — business logic."""
 from __future__ import annotations
 
 import secrets
@@ -783,7 +783,7 @@ class CompaniesService:
 
         settings = get_company_mail_settings(db, company_id)
         smtp_sender_email = str(settings.get("sender_email") or "").strip()
-        smtp_sender_name = str(settings.get("sender_name") or "BauPass").strip() or "BauPass"
+        smtp_sender_name = str(settings.get("sender_name") or "WorkPass").strip() or "WorkPass"
         smtp_host = str(settings.get("smtp_host") or "").strip()
         smtp_port = int(settings.get("smtp_port") or 587)
         smtp_use_tls = int(settings.get("smtp_use_tls") or 0)
@@ -814,7 +814,7 @@ class CompaniesService:
                 }
 
             ok, err = _send_via_brevo(
-                subject="BauPass Company Mail Test",
+                subject="WorkPass Company Mail Test",
                 sender_email=smtp_sender_email,
                 sender_name=smtp_sender_name,
                 recipient=recipient,
@@ -1337,7 +1337,7 @@ class CompaniesService:
 
         def draw_header(y_pos: float) -> float:
             pdf.setFont("Helvetica-Bold", 12)
-            pdf.drawString(36, y_pos, "BauPass - Firmen Dokument-E-Mails")
+            pdf.drawString(36, y_pos, "WorkPass - Firmen Dokument-E-Mails")
             y_pos -= 14
             pdf.setFont("Helvetica", 8)
             pdf.drawString(36, y_pos, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}")

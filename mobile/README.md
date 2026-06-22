@@ -1,6 +1,6 @@
-# BauPass Worker — Flutter Hybrid App (Enterprise)
+﻿# WorkPass Worker — Flutter Hybrid App (Enterprise)
 
-**Sole employee UI** for BauPass: hybrid Flutter (Android + iOS) talking to the existing `/api/worker-app/*` backend on PostgreSQL/Railway — no backend rewrite.
+**Sole employee UI** for WorkPass: hybrid Flutter (Android + iOS) talking to the existing `/api/worker-app/*` backend on PostgreSQL/Railway — no backend rewrite.
 
 **~90%** shared Dart: login + JWT/device binding, digital pass card (dynamic QR), NFC attendance, offline queue, geofence polling, tasks.  
 **~10%** native NFC: Kotlin (Android) + Swift (Core NFC) via Platform Channel.
@@ -25,7 +25,7 @@ Platform architecture: [docs/enterprise-hybrid-platform-AR.md](../docs/enterpris
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) 3.22+
 - Android Studio / Xcode for device builds
-- Running BauPass backend (`backend/server.py` or production URL)
+- Running WorkPass backend (`backend/server.py` or production URL)
 
 ## First-time setup
 

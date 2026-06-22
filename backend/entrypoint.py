@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import logging
@@ -348,7 +348,7 @@ def main(mode: str = "auto") -> None:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="BauPass shared server entrypoint")
+    parser = argparse.ArgumentParser(description="WorkPass shared server entrypoint")
     parser.add_argument("--mode", choices=["auto", "dev", "prod"], default="auto")
     return parser.parse_args(argv)
 

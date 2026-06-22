@@ -1,12 +1,12 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#050816" />
-  <meta name="apple-mobile-web-app-title" content="BauPass Arbeitsverträge" />
-  <meta name="application-name" content="BauPass Arbeitsverträge" />
-  <title>BauPass — Arbeitsverträge</title>
+  <meta name="apple-mobile-web-app-title" content="WorkPass Arbeitsverträge" />
+  <meta name="application-name" content="WorkPass Arbeitsverträge" />
+  <title>WorkPass — Arbeitsverträge</title>
   <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
@@ -102,6 +102,10 @@
       border:1px solid var(--border); border-radius:8px;
     }
     .header-link:hover { border-color:var(--accent); color:var(--text); }
+    .header-lang {
+      font-size:0.78rem; padding:0.3rem 0.4rem; border-radius:8px;
+      border:1px solid var(--border); background:var(--panel); color:var(--text);
+    }
 
     .app-shell {
       flex:1; min-height:0; display:grid;
@@ -233,21 +237,31 @@
 <body>
   <header class="app-header">
     <div class="brand">
-      <strong>BauPass</strong>
+      <strong>WorkPass</strong>
       <div id="pageSubtitle" class="muted">Arbeitsverträge</div>
     </div>
     <div class="toolbar">
-      <button type="button" class="primary compact" id="generateBtn">KI-Entwurf</button>
+      <button type="button" class="primary compact" id="generateBtn" data-cpi18n="toolbarGen">KI-Entwurf</button>
       <button type="button" class="compact" id="saveBtn" data-cpi18n="save">Speichern</button>
-      <button type="button" class="compact" id="pdfBtn">PDF</button>
-      <button type="button" class="compact" id="printBtn">Druck</button>
-      <button type="button" class="compact" id="signLinkEmployeeBtn">Link MA</button>
-      <button type="button" class="compact" id="signLinkEmployerBtn">Link AG</button>
-      <button type="button" class="compact" id="signEmailEmployeeBtn" title="E-Mail MA">📧 MA</button>
-      <button type="button" class="compact" id="signEmailEmployerBtn" title="E-Mail AG">📧 AG</button>
-      <button type="button" class="compact" id="signSmsEmployeeBtn" title="SMS MA">💬 MA</button>
-      <button type="button" class="danger compact" id="deleteBtn">Löschen</button>
+      <button type="button" class="compact" id="pdfBtn" data-cpi18n="toolbarPdf">PDF</button>
+      <button type="button" class="compact" id="printBtn" data-cpi18n="toolbarPrint">Druck</button>
+      <button type="button" class="compact" id="signLinkEmployeeBtn" data-cpi18n="toolbarLinkEmp">Link MA</button>
+      <button type="button" class="compact" id="signLinkEmployerBtn" data-cpi18n="toolbarLinkEr">Link AG</button>
+      <button type="button" class="compact" id="signEmailEmployeeBtn" data-cpi18n="toolbarEmailEmp" data-cpi18n-attr="title">📧 MA</button>
+      <button type="button" class="compact" id="signEmailEmployerBtn" data-cpi18n="toolbarEmailEr" data-cpi18n-attr="title">📧 AG</button>
+      <button type="button" class="compact" id="signSmsEmployeeBtn" data-cpi18n="toolbarSmsEmp" data-cpi18n-attr="title">💬 MA</button>
+      <button type="button" class="danger compact" id="deleteBtn" data-cpi18n="toolbarDelete">Löschen</button>
     </div>
+    <select id="contractLangSelect" class="header-lang" aria-label="Sprache">
+      <option value="de">DE</option>
+      <option value="en">EN</option>
+      <option value="ar">AR</option>
+      <option value="tr">TR</option>
+      <option value="fr">FR</option>
+      <option value="es">ES</option>
+      <option value="it">IT</option>
+      <option value="pl">PL</option>
+    </select>
     <a href="/admin-v2/index.html" id="backLink" class="header-link" data-cpi18n="back">Zurück</a>
   </header>
   <div class="app-shell" id="mainRoot">
@@ -395,7 +409,7 @@
               <textarea id="notes" data-cpi18n="notesPh" data-cpi18n-attr="placeholder" placeholder="Kurz beschreiben…"></textarea>
               <div class="notes-composer-actions">
                 <button type="button" id="notesSendBtn" class="bp-ai-send" title="Senden">➤</button>
-                <button type="button" id="notesVoiceBtn" class="bp-ai-voice-btn" title="Spracheingabe">🎤</button>
+                <button type="button" id="notesVoiceBtn" class="bp-ai-voice-btn" title="Spracheingabe" aria-label="Spracheingabe">🎤</button>
               </div>
             </div>
             <p id="notesVoiceHint" class="notes-composer-hint" data-cpi18n="voiceHint">Mikrofon: tippen → sprechen → senden.</p>
@@ -434,7 +448,7 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260621contracts1"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260621contracts8lang"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260621contracts1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="/ai-voice-ui.js?v=20260601voice22"></script>
@@ -592,6 +606,7 @@
         },
       };
     }
+    window.contractVoiceOptions = contractVoiceOptions;
 
     function bindNotesComposer() {
       window.BaupassAiUi?.bindVoiceInput?.(contractVoiceOptions());
@@ -1242,6 +1257,7 @@
       withToolbarAction("signLinkEmployerBtn", window.contractPageT("statusWorking"), () => createSignLink("employer")).catch(() => {});
     });
     window.applyContractPageI18n?.();
+    window.initContractPageLangSync?.();
     syncLocaleFromJurisdiction(false);
     bindNotesComposer();
     document.getElementById("language").addEventListener("change", () => {

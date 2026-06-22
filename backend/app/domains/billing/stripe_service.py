@@ -1,4 +1,4 @@
-"""Stripe billing: checkout, portal, payment links, webhooks, reconciliation."""
+﻿"""Stripe billing: checkout, portal, payment links, webhooks, reconciliation."""
 from __future__ import annotations
 
 import hashlib
@@ -568,7 +568,7 @@ def revenue_metrics(db) -> dict[str, Any]:
 
 def bootstrap_stripe_catalog(*, dry_run: bool = False) -> dict[str, Any]:
     """
-    Create BauPass subscription products/prices in Stripe (test or live key).
+    Create WorkPass subscription products/prices in Stripe (test or live key).
     Returns env var lines for Railway — does not write .env automatically.
     """
     if not stripe_configured():
@@ -581,7 +581,7 @@ def bootstrap_stripe_catalog(*, dry_run: bool = False) -> dict[str, Any]:
         monthly_eur = float(PLAN_NET_PRICE_EUR[plan])
         annual_eur = round(monthly_eur * 12 * (1 - ANNUAL_DISCOUNT_PERCENT / 100), 2)
         meta = PLAN_MARKETING.get(plan, {})
-        product_name = f"BauPass {meta.get('label', plan.title())}"
+        product_name = f"WorkPass {meta.get('label', plan.title())}"
         product_desc = str(meta.get("taglineDe") or meta.get("taglineEn") or "")
 
         if dry_run:

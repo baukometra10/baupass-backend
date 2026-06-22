@@ -1,5 +1,5 @@
 """
-BauPass Enterprise SDK (minimal HTTP client).
+WorkPass Enterprise SDK (minimal HTTP client).
 """
 from __future__ import annotations
 
@@ -59,3 +59,6 @@ class BauPassClient:
         if company_id is not None:
             body["company_id"] = company_id
         return self._post("/api/ops-os/copilot", body)
+
+
+WorkPassClient = BauPassClient

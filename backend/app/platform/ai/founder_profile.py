@@ -1,4 +1,4 @@
-"""Platform founder / operator profile for AI founder questions."""
+﻿"""Platform founder / operator profile for AI founder questions."""
 from __future__ import annotations
 
 import os
@@ -51,9 +51,9 @@ def load_founder_profile(db) -> dict[str, Any]:
         """
     ).fetchone()
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    platform = (settings["platform_name"] if settings else "") or "BauPass"
+    platform = (settings["platform_name"] if settings else "") or "WorkPass"
     company = (os.getenv("BAUPASS_FOUNDER_COMPANY") or "").strip() or (
-        (settings["operator_name"] if settings else "") or "Baukometra"
+        (settings["operator_name"] if settings else "") or "Suppix Technologie UG"
     )
     impressum = (settings["impressum_text"] if settings else "") or ""
     name = (
@@ -98,8 +98,8 @@ def _resolve_bio(profile: dict[str, Any], lang: str) -> str:
         return lang_bio
     template = _DEFAULT_BIOS.get(lang) or _DEFAULT_BIOS["de"]
     return template.format(
-        company=profile.get("company") or "Baukometra",
-        platform=profile.get("platform") or "BauPass",
+        company=profile.get("company") or "Suppix Technologie UG",
+        platform=profile.get("platform") or "WorkPass",
     )
 
 
@@ -116,8 +116,8 @@ def _resolve_title(profile: dict[str, Any], lang: str) -> str:
 def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
     lang = (lang or "de")[:2]
     name = str(profile.get("name") or "").strip()
-    company = str(profile.get("company") or "Baukometra").strip()
-    platform = str(profile.get("platform") or "BauPass").strip()
+    company = str(profile.get("company") or "Suppix Technologie UG").strip()
+    platform = str(profile.get("platform") or "WorkPass").strip()
     title = _resolve_title(profile, lang)
     bio = _resolve_bio(profile, lang)
     phone = str(profile.get("phone") or "").strip()

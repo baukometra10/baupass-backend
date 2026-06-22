@@ -1,4 +1,4 @@
-"""Serve Signotec library, installer, and one-click Windows setup helpers."""
+﻿"""Serve Signotec library, installer, and one-click Windows setup helpers."""
 from __future__ import annotations
 
 import base64
@@ -46,7 +46,7 @@ def _signotec_setup_ps1_content(base: str) -> str:
     if script_path.exists() and script_path.is_file():
         return script_path.read_text(encoding="utf-8").replace("{{BASE_URL}}", base)
     return (
-        f"# BauPass Signotec Bridge fallback\n"
+        f"# WorkPass Signotec Bridge fallback\n"
         f"$ErrorActionPreference = 'Stop'\n"
         f"Write-Host 'Setup script missing on server. Download installer from {base}/api/signotec/installer'\n"
         f"pause\n"
@@ -55,8 +55,8 @@ def _signotec_setup_ps1_content(base: str) -> str:
 
 def _setup_bat_response(base: str) -> Response:
     bat = f"""@echo off
-title BauPass Signotec Bridge
-echo BauPass: Signotec bridge setup (once per PC, needs admin once)...
+title WorkPass Signotec Bridge
+echo WorkPass: Signotec bridge setup (once per PC, needs admin once)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p"
 echo.
 pause
@@ -97,7 +97,7 @@ def signotec_lib_status():
             "setupHelperPs1Url": "/api/signotec/setup-helper.ps1",
             "setupPageUrl": "/signotec-setup.html",
             "trustUrl": "https://localhost:49494/",
-            "note": "Library is on BauPass server; signoPAD-API/Web runs once per PC with USB pad.",
+            "note": "Library is on WorkPass server; signoPAD-API/Web runs once per PC with USB pad.",
         },
     })
 
@@ -143,8 +143,8 @@ def signotec_setup_bat():
 def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title BauPass Signotec Bridge starten
-echo BauPass: STPadServer starten (Port 49494, Admin)...
+title WorkPass Signotec Bridge starten
+echo WorkPass: STPadServer starten (Port 49494, Admin)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
 echo.
 pause
@@ -172,7 +172,7 @@ def signotec_check_helper():
 def signotec_check_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title BauPass Signotec Diagnose
+title WorkPass Signotec Diagnose
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-check.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/check.ps1' -OutFile $p -UseBasicParsing; & $p"
 """
     response = Response(bat, mimetype="application/octet-stream")

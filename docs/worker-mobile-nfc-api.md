@@ -1,6 +1,6 @@
-# Worker Mobile App — NFC Attendance API
+﻿# Worker Mobile App — NFC Attendance API
 
-Contract between the Flutter employee app and the BauPass backend.
+Contract between the Flutter employee app and the WorkPass backend.
 
 ## Authentication
 

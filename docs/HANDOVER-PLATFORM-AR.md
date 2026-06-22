@@ -1,4 +1,4 @@
-# BauPass — وثيقة تسليم المنصة (Handover)
+﻿# WorkPass — وثيقة تسليم المنصة (Handover)
 
 > **الهدف:** منصة **جاهزة للتشغيل في أي وقت** عبر Railway + لوحة التحكم + وكيل الكameras المحلي — **بدون فتح الكود أو تعديله** للعمليات اليومية.
 
@@ -16,7 +16,7 @@
 | تقارير PDF، تنبيهات، inbox | تخصيص واجهة من الصفر |
 | النشر التلقائي من GitHub → Railway | — |
 
-**قاعدة:** كل ما تحتاجه للتشغيل اليومي موجود في **Railway Variables** أو **Control Pass / admin-v2** أو **سكربت الوكيل على موقع البناء**.
+**قاعدة:** كل ما تحتاجه للتشغيل اليومي موجود في **Railway Variables** أو **WorkPass / admin-v2** أو **سكربت الوكيل على موقع البناء**.
 
 ---
 
@@ -105,10 +105,10 @@ powershell -ExecutionPolicy Bypass -File .\deploy\handover-ready.ps1 -BaseUrl "h
 
 | الواجهة | الرابط | من يستخدمها |
 |---------|--------|-------------|
-| Control Pass | `/index.html` | Superadmin، Company-admin |
+| WorkPass | `/index.html` | Superadmin، Company-admin |
 | Betrieb / Admin v2 | `/admin-v2/index.html` | مدير الشركة، Ops |
 | Worker PWA | `/emp-app.html` | العامل |
-| Porter / Gate | من Control Pass | البوابة |
+| Porter / Gate | من WorkPass | البوابة |
 
 ### 5.2 ما يمكن إدارته بدون كود
 
@@ -150,7 +150,7 @@ python scripts/rtsp_camera_agent.py --interval 60 --snapshot
 python scripts/rtsp_camera_agent.py --once --heartbeat --snapshot
 ```
 
-### 6.3 من Control Pass → Geräte
+### 6.3 من WorkPass → Geräte
 
 1. **Kamera registrieren** (اسم + موقع)
 2. شاهد **Online/Offline**
@@ -199,7 +199,7 @@ Runbook: [`docs/enterprise-backup-restore-runbook.md`](enterprise-backup-restore
 - [ ] `handover-ready.ps1` → exit 0
 - [ ] `setup-status` ≥ 80%
 - [ ] Redis + Worker service يعملان
-- [ ] SMTP يُرسل (اختبار من Control Pass أو invoice test)
+- [ ] SMTP يُرسل (اختبار من WorkPass أو invoice test)
 
 ### البيانات
 
@@ -213,7 +213,7 @@ Runbook: [`docs/enterprise-backup-restore-runbook.md`](enterprise-backup-restore
 - [ ] `BAUPASS_RTSP_BRIDGE_TOKEN` مضبوط
 - [ ] كamera مسجّلة في UI
 - [ ] Agent يعمل على الموقع (`--interval 60 --snapshot`)
-- [ ] Live-Snapshot يظهر في Control Pass
+- [ ] Live-Snapshot يظهر في WorkPass
 - [ ] اختبار مخالفة → email PDF (اختياري: `--event ppe_check` مع `ppe: false`)
 
 ### الجوال
@@ -272,11 +272,11 @@ python scripts/rtsp_camera_agent.py --interval 60 --snapshot
 
 ## 13. خلاصة التسليم
 
-**BauPass جاهزة للتشغيل المستقل:**
+**WorkPass جاهزة للتشغيل المستقل:**
 
 1. **Railway** يحمل المتغيرات + Volume + Redis + Worker  
 2. **GitHub** ينشر تلقائياً — Migrations تلقائية  
-3. **Control Pass / admin-v2** لإدارة كل شيء  
+3. **WorkPass / admin-v2** لإدارة كل شيء  
 4. **RTSP Agent** على البaustelle للكameras  
 5. **PDF + Email + Push** تلقائياً للتنبيهات  
 

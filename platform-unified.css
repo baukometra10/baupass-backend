@@ -1,4 +1,4 @@
-/* BauPass — eine Plattform: Control Pass + Betrieb + Enterprise (ein Shell-Gefühl) */
+﻿/* WorkPass — eine Plattform: WorkPass + Betrieb + Enterprise (ein Shell-Gefühl) */
 
 .content.has-embed-view {
   padding-top: 0;
@@ -152,6 +152,25 @@
   color: #e2e8f0;
   font-size: 0.85rem;
   line-height: 1.2;
+}
+
+body.theme-white .sidebar-company-picker {
+  background: rgba(6, 182, 212, 0.08);
+  border-color: rgba(6, 182, 212, 0.22);
+}
+
+body.theme-white .sidebar-company-picker-label {
+  color: #64748b;
+}
+
+body.theme-white .sidebar-company-picker-select {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+body.theme-white .sidebar-company-picker-hint {
+  color: #64748b;
 }
 
 /* Einheitliche Select-Felder in Shell (Topbar, Auth, Sidebar) */

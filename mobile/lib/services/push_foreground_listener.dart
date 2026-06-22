@@ -1,4 +1,4 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
+﻿import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../firebase_bootstrap.dart';
@@ -19,7 +19,7 @@ class PushForegroundListener {
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      final title = message.notification?.title ?? message.data['title'] ?? 'BauPass';
+      final title = message.notification?.title ?? message.data['title'] ?? 'WorkPass';
       final body = message.notification?.body ?? message.data['body'] ?? '';
       final text = body.isNotEmpty ? '$title: $body' : title;
       final route = PushNavigation.routeFromMessage(message);

@@ -1,5 +1,5 @@
-"""
-BauPass – Security Middleware
+﻿"""
+WorkPass – Security Middleware
 ==============================
 يُضيف:
   1. Security Headers (HSTS, CSP, X-Frame-Options, etc.)

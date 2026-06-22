@@ -1,4 +1,4 @@
-"""Unified worker Mitteilungen: in-app inbox + Web Push / FCM + e-mail."""
+﻿"""Unified worker Mitteilungen: in-app inbox + Web Push / FCM + e-mail."""
 from __future__ import annotations
 
 import html
@@ -73,7 +73,7 @@ def _send_worker_mitteilung_email(
             _send_email_to_worker(
                 db,
                 str(worker_id),
-                f"BauPass: {title}"[:180],
+                f"WorkPass: {title}"[:180],
                 text_body,
                 html_body,
             )
@@ -116,7 +116,7 @@ def notify_worker_mitteilung(
             _send_push_to_worker(
                 db,
                 str(worker_id),
-                str(title or "BauPass")[:120],
+                str(title or "WorkPass")[:120],
                 str(message or "")[:240],
                 tag=tag,
             )

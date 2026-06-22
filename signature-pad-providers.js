@@ -1,6 +1,6 @@
-/**
+﻿/**
 
- * BauPass — signature pad providers (Signotec, Wacom, StepOver, Topaz, canvas)
+ * WorkPass — signature pad providers (Signotec, Wacom, StepOver, Topaz, canvas)
 
  * Loaded after signature-pad-bridge.js
 
@@ -733,7 +733,7 @@
 
     signotecInstallCaptureHandlers();
 
-    const fieldName = String(options.fieldName || "BauPass").trim() || "BauPass";
+    const fieldName = String(options.fieldName || "WorkPass").trim() || "WorkPass";
 
     const customText = String(options.customText || options.hint || "").trim();
 
@@ -873,7 +873,7 @@
 
 
 
-    const hint = String(options.customText || options.hint || options.fieldName || "BauPass").trim();
+    const hint = String(options.customText || options.hint || options.fieldName || "WorkPass").trim();
 
 
 
@@ -1674,7 +1674,7 @@
 
   async function stepoverCapture(options = {}) {
 
-    const hint = String(options.customText || options.hint || options.fieldName || "BauPass").trim();
+    const hint = String(options.customText || options.hint || options.fieldName || "WorkPass").trim();
 
     const client = new StepOverClient();
 

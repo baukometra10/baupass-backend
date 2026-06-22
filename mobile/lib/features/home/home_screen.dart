@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -130,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BauPass'),
+        title: const Text('WorkPass'),
         actions: [
           IconButton(
             tooltip: 'Mitteilungen',
@@ -229,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
               icon: const Icon(Icons.chat_outlined),
-              label: const Text('BauPass Assistent (KI)'),
+              label: const Text('SUPPIX AI Assistent'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
             ),
             const SizedBox(height: 8),

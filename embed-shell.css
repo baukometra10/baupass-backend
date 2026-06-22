@@ -1,16 +1,16 @@
-/**
- * Unified embed + app-shell layout (Control Pass parent + iframe children).
+﻿/**
+ * Unified embed + app-shell layout (WorkPass parent + iframe children).
  * One viewport, one scroll region per surface — no nested scroll chaos.
  */
 
-/* Logged-in Control Pass: lock page scroll; views scroll internally */
+/* Logged-in WorkPass: lock page scroll; views scroll internally */
 body:not(.auth-locked) {
   overflow: hidden;
   height: 100dvh;
   max-height: 100dvh;
 }
 
-/* ── Control Pass: main column is a flex stack ── */
+/* ── WorkPass: main column is a flex stack ── */
 .shell {
   height: 100vh;
   height: 100dvh;
@@ -233,7 +233,7 @@ body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb:hover {
   background: rgba(56, 189, 248, 0.5);
 }
 
-/* Custom scrollbars on main content column (Control Pass views) */
+/* Custom scrollbars on main content column (WorkPass views) */
 .content .view.active:not(.view-embed) {
   scrollbar-width: thin;
   scrollbar-color: rgba(56, 189, 248, 0.45) rgba(5, 8, 22, 0.55);
@@ -270,7 +270,7 @@ body.embed-mode .embed-panel-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Enterprise Hub inside Control Pass iframe — 100vh bug fix */
+/* Enterprise Hub inside WorkPass iframe — 100vh bug fix */
 html.embed-document body.embed-mode #mainLayout.embed-layout-split {
   height: 100%;
   min-height: 0;
@@ -315,7 +315,7 @@ body.embed-mode .embed-panel-fixed #aiLog {
   min-height: 0;
 }
 
-/* Admin v2 inside Control Pass iframe */
+/* Admin v2 inside WorkPass iframe */
 html.embed-document body.embed-mode.admin-v2-embed {
   height: 100%;
   min-height: 0;
@@ -434,4 +434,22 @@ html.embed-document body.ops-app.embed-mode main {
     min-height: 0;
     flex: 1;
   }
+}
+
+/* Shared tenant / platform logo chip (ops, hub, foreman) */
+[data-tenant-logo],
+.tenant-logo-chip {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 10px;
+  padding: 4px;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(5, 8, 22, 0.95));
+  border: 1px solid rgba(103, 232, 249, 0.22);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28), 0 0 16px rgba(168, 85, 247, 0.12);
+}
+
+[data-tenant-logo]:not(.hidden),
+.tenant-logo-chip:not(.hidden) {
+  display: inline-block;
 }

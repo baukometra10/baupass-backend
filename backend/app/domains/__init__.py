@@ -1,5 +1,5 @@
-"""
-BauPass bounded contexts (Clean Architecture domains).
+﻿"""
+WorkPass bounded contexts (Clean Architecture domains).
 
 Each package exposes ``register_*_blueprint(app)``.
 Registration order is defined in ``registry.py`` (HTTP/static last).

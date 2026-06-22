@@ -1,12 +1,12 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" translate="no">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Language" content="de" />
   <meta name="google" content="notranslate" />
-  <meta name="theme-color" content="#1b5e8c" />
-  <title>BauPass — App aktivieren</title>
+  <meta name="theme-color" content="#06b6d4" />
+  <title>WorkPass — App aktivieren</title>
   <style>
     body {
       margin: 0;
@@ -42,7 +42,7 @@
       cursor: pointer;
       font-size: 1rem;
     }
-    .primary { background: linear-gradient(135deg, #1b5e8c, #0f4c5c); color: #fff; }
+    .primary { background: linear-gradient(135deg, #1b5e8c, #06b6d4); color: #fff; }
     .secondary { background: #eef4f8; color: #1b3d52; border: 1px solid rgba(0,0,0,0.08); }
     .muted { font-size: 0.88rem; color: #5f6f7a; }
     .hidden { display: none !important; }
@@ -52,13 +52,13 @@
 </head>
 <body class="notranslate" translate="no">
   <main class="card">
-    <h1 id="title">BauPass Hybrid-App</h1>
+    <h1 id="title">WorkPass Hybrid-App</h1>
     <p id="subtitle">Native App (Flutter) installieren — dann mit diesem Einmal-Link anmelden.</p>
     <p class="muted" id="hybridBadge" style="font-weight:600;color:#1b5e8c">Empfohlen: Flutter-App (Android / iPhone)</p>
     <p id="hint" class="muted"></p>
     <div id="statusBox" class="status hidden"></div>
     <div class="actions">
-      <a id="openAppBtn" class="btn primary hidden" href="#">In BauPass-App öffnen</a>
+      <a id="openAppBtn" class="btn primary hidden" href="#">In WorkPass-App öffnen</a>
       <a id="androidApkBtn" class="btn secondary hidden" href="#" rel="noopener">Android: APK installieren</a>
       <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener">iPhone: TestFlight</a>
       <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener">Google Play</a>

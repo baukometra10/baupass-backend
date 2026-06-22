@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
@@ -90,7 +90,7 @@ class _DocumentsTabState extends State<DocumentsTab> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
                   child: Text(
-                    'Dein Arbeitgeber kann Nachweise hier bereitstellen. Bei Fragen: BauPass Assistent auf der Startseite.',
+                    'Dein Arbeitgeber kann Nachweise hier bereitstellen. Bei Fragen: SUPPIX AI Assistent auf der Startseite.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,

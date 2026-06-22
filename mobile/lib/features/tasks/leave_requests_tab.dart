@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
@@ -147,7 +147,7 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: Text(
-                          'Stelle einen Antrag — dein Team sieht ihn sofort in BauPass Admin.',
+                          'Stelle einen Antrag — dein Team sieht ihn sofort in WorkPass Admin.',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,

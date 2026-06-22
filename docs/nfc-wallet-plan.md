@@ -1,10 +1,10 @@
-# NFC- und Wallet-Plan fuer BauPass
+﻿# NFC- und Wallet-Plan fuer WorkPass
 
 ## Zielbild
 
 Der Mitarbeiter soll seinen Ausweis auf drei Wegen nutzen koennen:
 
-1. Badge-ID plus PIN in der BauPass-App
+1. Badge-ID plus PIN in der WorkPass-App
 2. QR am Drehkreuz als Fallback
 3. Echter Tap mit physischer Karte oder Wallet-Pass
 
@@ -40,7 +40,7 @@ Empfehlung fuer das hochwertige Mobile-Erlebnis.
 - Jeder Mitarbeiter bekommt einen signierten Wallet-Pass.
 - Der Pass enthaelt sichtbare Daten, Foto/Branding und einen Barcode oder eine Wallet-kompatible NFC-Struktur.
 - Check-in erfolgt ueber Wallet-Pass statt ueber Browserseite.
-- Die BauPass-App bleibt fuer Profil, Baustelle, Foto, Route und Updates da.
+- Die WorkPass-App bleibt fuer Profil, Baustelle, Foto, Route und Updates da.
 
 Vorteile:
 
@@ -101,7 +101,7 @@ Nachteile:
 
 - USB- oder Netzwerk-Reader am Gate oder Drehkreuz
 - Reader darf nicht nur Tastatur-Emulation machen, wenn echte Sicherheitspruefung gewuenscht ist
-- Bevorzugt: Reader -> lokaler Gate-Service -> BauPass-Backend
+- Bevorzugt: Reader -> lokaler Gate-Service -> WorkPass-Backend
 
 ### Sicherheit
 

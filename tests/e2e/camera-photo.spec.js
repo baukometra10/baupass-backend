@@ -160,4 +160,22 @@ test.describe('Camera / photo-button smoke', () => {
     // Dismiss without selecting a file.
     await fileChooser.setFiles([]);
   });
+
+  test('photo editor frame and d-pad are present', async ({ page }) => {
+    await page.context().grantPermissions([]);
+
+    try {
+      await loginUI(page, E2E_USERNAME, PASSWORD);
+    } catch {
+      test.skip(true, 'Login failed – backend not reachable or credentials mismatch.');
+      return;
+    }
+
+    await navigateToWorkerForm(page);
+
+    await expect(page.locator('#photoEditorFrame')).toBeAttached();
+    await expect(page.locator('.photo-dpad')).toBeAttached();
+    await expect(page.locator('#photoUndoButton')).toBeAttached();
+    await expect(page.locator('#photoZoom')).toBeAttached();
+  });
 });

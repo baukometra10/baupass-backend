@@ -1,4 +1,4 @@
-"""Operating sectors, terminology packs, and operation templates."""
+﻿"""Operating sectors, terminology packs, and operation templates."""
 from __future__ import annotations
 
 from typing import Any
@@ -106,7 +106,7 @@ SECTOR_META: dict[str, dict[str, Any]] = {
 }
 
 
-# UI translation keys overridden per sector (Control Pass + worker app can consume the same keys)
+# UI translation keys overridden per sector (WorkPass + worker app can consume the same keys)
 SECTOR_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
     "construction": {
         "topbarHeading": _t(

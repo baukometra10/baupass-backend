@@ -1,4 +1,4 @@
-
+﻿
 /* ─── Visitor Card Container ──────────────────────────── */
 
 .visitor-card-container {
@@ -143,7 +143,7 @@
 
 /* ─────────────────────────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════
-   BauPass Mitarbeiter-App – Wallet-Card Redesign
+   WorkPass Mitarbeiter-App – Wallet-Card Redesign
    ═══════════════════════════════════════════════════════ */
 
 /* Theme tokens and global mode styles moved to worker-theme.css */
@@ -2817,7 +2817,7 @@ body.splash-released .login-card {
   --accent: #c78652;
   --accent-dark: #a66a3d;
   --accent-soft: #f0c39b;
-  --blue: #0f4c5c;
+  --blue: #06b6d4;
   --shadow: 0 20px 52px rgba(88, 60, 36, 0.14);
 }
 
@@ -2871,7 +2871,7 @@ body {
   border-color: var(--accent);
 }
 
-/* BauPass KI (worker assistant) */
+/* SUPPIX AI (worker assistant) */
 .worker-ai-card .helper-text {
   font-size: 0.85rem;
   color: var(--muted, #64748b);
@@ -2920,9 +2920,9 @@ body {
   gap: 0.15rem;
   font-size: 0.82rem;
 }
-.doc-payroll-banner strong { color: #0f4c5c; }
+.doc-payroll-banner strong { color: #06b6d4; }
 .doc-payroll-item {
-  border-inline-start: 3px solid #0f4c5c;
+  border-inline-start: 3px solid #06b6d4;
   background: rgba(244, 196, 0, 0.08);
 }
 .doc-type-row {
@@ -2935,7 +2935,7 @@ body {
   font-size: 0.68rem;
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
-  background: #0f4c5c;
+  background: #06b6d4;
   color: #fff;
   white-space: nowrap;
 }
@@ -2944,9 +2944,9 @@ body {
   font-size: 0.78rem;
   padding: 0.35rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid #0f4c5c;
+  border: 1px solid #06b6d4;
   background: #fff;
-  color: #0f4c5c;
+  color: #06b6d4;
   cursor: pointer;
   font-weight: 600;
 }
@@ -2955,9 +2955,9 @@ body {
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   border-radius: 8px;
-  border: 1px solid var(--accent, #0f4c5c);
+  border: 1px solid var(--accent, #06b6d4);
   background: transparent;
-  color: var(--accent, #0f4c5c);
+  color: var(--accent, #06b6d4);
 }
 
 /* Leave Request Card */

@@ -1,4 +1,4 @@
-"""Nightly camera digest — violations + offline summary per company."""
+﻿"""Nightly camera digest — violations + offline summary per company."""
 from __future__ import annotations
 
 import json
@@ -117,7 +117,7 @@ def run_camera_nightly_digest(db, *, hours_back: int | None = None) -> dict[str,
                 + "\n".join(summary_lines)
                 + "\n\nDetails im PDF-Anhang."
             )
-            subject = f"BauPass Kamera-Bericht — {company_name} ({start_iso[:10]})"
+            subject = f"WorkPass Kamera-Bericht — {company_name} ({start_iso[:10]})"
             for recipient in _company_admin_recipients(db, company_id):
                 ok, _ = send_pdf_report_email(
                     to=recipient,

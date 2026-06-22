@@ -1,5 +1,5 @@
-"""
-BauPass – Database Migrations Registry
+﻿"""
+WorkPass – Database Migrations Registry
 ========================================
 Schema الفعلي (baupass.db):
   - workers: id, company_id, badge_id, badge_id_lookup, contact_email, status, deleted_at

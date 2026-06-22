@@ -1,4 +1,4 @@
-# Grafana — BauPass dashboards
+﻿# Grafana — WorkPass dashboards
 
 ## Import (manual)
 
@@ -24,4 +24,4 @@ Set Prometheus URL in `provisioning/datasources/prometheus.yml` to your scrape e
 
 ## Metrics source
 
-BauPass exposes Prometheus metrics at `GET /metrics` on the API service.
+WorkPass exposes Prometheus metrics at `GET /metrics` on the API service.

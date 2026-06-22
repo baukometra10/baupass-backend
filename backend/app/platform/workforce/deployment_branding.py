@@ -1,15 +1,32 @@
-"""Company branding for Einsatzplan PDFs (logo, colors, sector preset)."""
+﻿"""Company branding for Einsatzplan PDFs (logo, colors, sector preset)."""
 from __future__ import annotations
 
 import base64
 import io
 import re
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+
+BRANDING_DIR = Path(__file__).resolve().parents[4] / "branding"
+
+
+def _default_logo_data_url() -> str:
+    for name in ("suppix-ai-invoice.svg", "suppix-ai-logo.svg", "suppix-ai-mark.svg"):
+        path = BRANDING_DIR / name
+        if not path.is_file():
+            continue
+        try:
+            svg = path.read_text(encoding="utf-8")
+            return f"data:image/svg+xml;charset=utf-8,{quote(svg)}"
+        except OSError:
+            continue
+    return ""
 
 PRESET_THEMES: dict[str, dict[str, str]] = {
     "construction": {
-        "accent": "#0f4c5c",
-        "accent_light": "#1a8aad",
+        "accent": "#06b6d4",
+        "accent_light": "#22d3ee",
         "sector_de": "Bau & Handwerk",
     },
     "industry": {
@@ -66,15 +83,17 @@ def resolve_company_pdf_branding(db, company_id: str) -> dict[str, Any]:
         logo_data = str(company["branding_logo_data"]).strip()
     elif settings and str(settings["invoice_logo_data"] or "").strip():
         logo_data = str(settings["invoice_logo_data"]).strip()
+    if not logo_data:
+        logo_data = _default_logo_data_url()
 
     display_name = ""
     if company:
         display_name = str(company["portal_display_name"] or company["name"] or "").strip()
     if not display_name and settings:
-        display_name = str(settings["platform_name"] or "BauPass").strip()
+        display_name = str(settings["platform_name"] or "WorkPass").strip()
 
     return {
-        "companyName": display_name or "BauPass",
+        "companyName": display_name or "WorkPass",
         "logoData": logo_data,
         "accent": accent,
         "accentLight": theme["accent_light"],

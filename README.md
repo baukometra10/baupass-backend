@@ -1,6 +1,6 @@
-# BauPass Control
+# WorkPass — Suppix Technologie UG
 
-Enterprise-Plattform fuer digitale Identitaet, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfaehig (Bau, Industrie, Logistik, Luftfahrt, Sicherheit, oeffentlicher Sektor, Behoerden).
+Enterprise-Plattform **WorkPass** von **Suppix Technologie UG** fuer digitale Identitaet, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfaehig (Bau, Industrie, Logistik, Luftfahrt, Sicherheit, oeffentlicher Sektor, Behoerden).
 
 ## Enthaltene Funktionen
 
@@ -25,8 +25,8 @@ Enterprise-Plattform fuer digitale Identitaet, Zutrittskontrolle, Workforce, Com
 - Rechnungsversand per E-Mail mit SMTP (inkl. Versandstatus und Fehleranzeige)
 - Das Rechnungslogo wird gleichzeitig als Website-Logo in der Oberfläche verwendet
 - Aus dem gleichen Logo wird automatisch auch das Browser-Tab-Icon (Favicon) erzeugt
-- Optionaler Ein-Klick-Import für das mitgelieferte BauKometra Branding
-- Zusätzliches alternatives BauKometra Preset (zweiter Ein-Klick-Import)
+- Optionaler Ein-Klick-Import für das mitgelieferte **SUPPIX AI** / WorkPass Branding
+- Zusätzliches alternatives Suppix-Technologie-Preset (zweiter Ein-Klick-Import)
 - Super-Admin-Bereich fuer Plattformname, Betreiber, Vermietungsmodell und zukuenftigen Drehkreuz-API-Endpunkt
 - Rollenbasierte Sichtbarkeit: Firmen-Admins sehen nur ihre Firma, Drehkreuz-Login bekommt nur Zutrittsfunktionen
 - Bearbeiten und Loeschen von Mitarbeitern sowie Firmenstatus-Steuerung

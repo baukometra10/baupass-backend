@@ -1,4 +1,4 @@
-# Google Wallet Setup Guide
+﻿# Google Wallet Setup Guide
 
 **Goal:** Enable Google Wallet API and generate credentials for issuing digital passes to Android users.
 
@@ -23,7 +23,7 @@ To generate Google Wallet passes, you need:
 2. Click **"Sign up for Google Play Console"**
 3. Sign in with your Google account (or create one)
 4. Enter Developer Profile info:
-   - Name: Company name (e.g., "Baukometra")
+   - Name: Company name (e.g., "Suppix Technologie UG")
    - Email: Company email
    - Country: Germany (or your location)
 5. Accept Developer Agreement
@@ -40,7 +40,7 @@ To generate Google Wallet passes, you need:
 2. Sign in with your Google account (same as Play Developer account)
 3. Create a new project:
    - Click **"Select a Project"** (top left) → **"NEW PROJECT"**
-   - Name: `BauPass Wallet` (or similar)
+   - Name: `WorkPass Wallet` (or similar)
    - Organization: Select if available
    - Click **"CREATE"**
 4. Wait for project creation (may take 1–2 minutes)
@@ -149,7 +149,7 @@ This step registers your Issuer ID with Google Wallet system, enabling you to se
    - Use Issuer ID from Step 6
    - Authorize Google Wallet to access your project
 5. Add issuer details:
-   - Issuer name: "Baukometra" or "BauPass"
+   - Issuer name: "Suppix Technologie UG" or "WorkPass"
    - Logo URL (optional): Link to company logo
 6. Click **"Save"**
 
@@ -184,7 +184,7 @@ Google Wallet API has quotas:
 - **Default:** 1,000 creates/updates per day (free tier)
 - **Increase:** Contact Google Cloud support to request higher quota if needed
 
-For BauPass:
+For WorkPass:
 - Worker count: ~100–500 (per company)
 - Pass creation: Once per worker setup, updates on access changes
 - Estimated usage: Well below 1,000/day

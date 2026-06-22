@@ -1,4 +1,4 @@
-# BauPass kostenlos online stellen
+﻿# WorkPass kostenlos online stellen
 
 > **GitHub gesperrt („account is flagged“)?**  
 > Render/Railway **mit GitHub** geht dann nicht. → **`docs/github-gesperrt-deploy.md`** (Docker Hub + Railway, ohne GitHub).

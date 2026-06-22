@@ -1,4 +1,4 @@
-# System – Arbeitspakete (der Reihe nach)
+﻿# System – Arbeitspakete (der Reihe nach)
 
 ## 1. Mitarbeiter-PWA
 - Tabs Urlaub / Stunden / Docs mit sichtbarem Inhalt
@@ -6,7 +6,7 @@
 - Build **20260524a** live prüfen: `/worker-build.json`
 
 ## 2. Branding
-- BauPass / ControlPass je nach Firmen-Preset
+- WorkPass / ControlPass je nach Firmen-Preset
 - Karten-Install-Ansicht (`?view=card`)
 
 ## 3. Pakete & Rechte

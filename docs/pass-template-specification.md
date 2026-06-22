@@ -1,4 +1,4 @@
-# Pass Template Specification (Apple Wallet + Google Wallet)
+﻿# Pass Template Specification (Apple Wallet + Google Wallet)
 
 **Goal:** Define visual design and data structure for worker badge passes on both platforms.
 
@@ -24,7 +24,7 @@ This document specifies the design for both Apple Wallet (`.pkpass`) and Google 
 
 ```
 ┌────────────────────────────────────────────────────┐
-│ [LOGO]  Baukometra BauPass  [COMPANY ICON]        │
+│ [LOGO]  Suppix Technologie UG WorkPass  [COMPANY ICON]        │
 ├────────────────────────────────────────────────────┤
 │ PRIMARY FIELD:                                     │
 │ Max Müller                                         │
@@ -49,8 +49,8 @@ This document specifies the design for both Apple Wallet (`.pkpass`) and Google 
 - **Filename:** `logo.png`
 - **Size:** 320×320 pixels
 - **Format:** PNG with transparency (RGBA)
-- **Color:** Baukometra brand color (primary color from `invoice_primary_color`, default `#c78652`)
-- **Content:** Baukometra logo, centered, white background
+- **Color:** Suppix Technologie UG brand color (primary color from `invoice_primary_color`, default `#c78652`)
+- **Content:** Suppix Technologie UG logo, centered, white background
 
 #### 2. Thumbnail
 - **Purpose:** Small preview (lock screen, notification)
@@ -74,7 +74,7 @@ This document specifies the design for both Apple Wallet (`.pkpass`) and Google 
 - **Content:** Company branding background (e.g., construction site photo)
 
 #### 5. Background Color
-- **Primary Color:** `#c78652` (Baukometra orange)
+- **Primary Color:** `#c78652` (Suppix Technologie UG orange)
 - **Secondary Color:** `#8a5230` (Darker brown)
 - **Text Color:** White (`#FFFFFF`) or light gray (`#f6efe2`)
 
@@ -88,9 +88,9 @@ This document specifies the design for both Apple Wallet (`.pkpass`) and Google 
   "passTypeIdentifier": "pass.baukometra.baupass",
   "serialNumber": "W-12345-v1",
   "teamIdentifier": "ABCD1EF2GH",
-  "organizationName": "Baukometra",
-  "description": "BauPass Worker Badge",
-  "logoText": "BauPass",
+  "organizationName": "Suppix Technologie UG",
+  "description": "WorkPass Worker Badge",
+  "logoText": "WorkPass",
   
   "generic": {
     "primaryFields": [
@@ -214,8 +214,8 @@ qr_content = f"{badge_id}-{checksum:02d}"  # "W-12345-23"
 ```json
 {
   "id": "3388655000022476551.baukometra_worker",
-  "issuerName": "Baukometra",
-  "displayName": "BauPass Worker Badge",
+  "issuerName": "Suppix Technologie UG",
+  "displayName": "WorkPass Worker Badge",
   "reviewStatus": "UNDER_REVIEW",
   "multipleDevicesAndHoldersAllowedStatus": "MULTIPLE_USERS",
   
@@ -342,12 +342,12 @@ qr_content = f"{badge_id}-{checksum:02d}"  # "W-12345-23"
 
 | Element | Color | Hex | RGB |
 |---------|-------|-----|-----|
-| **Background** | Baukometra Orange | `#c78652` | (199, 134, 82) |
+| **Background** | Suppix Technologie UG Orange | `#c78652` | (199, 134, 82) |
 | **Secondary** | Dark Brown | `#8a5230` | (138, 82, 48) |
 | **Text** | White | `#FFFFFF` | (255, 255, 255) |
 | **Labels** | Light Cream | `#f6efe2` | (246, 239, 226) |
 
-**Note:** Use `settings.invoice_primary_color` from database as primary color (default: `#0f4c5c` if not set). Baukometra's brand color is `#c78652`.
+**Note:** Use `settings.invoice_primary_color` from database as primary color (default: `#06b6d4` if not set). Suppix Technologie UG's brand color is `#c78652`.
 
 ---
 
@@ -400,11 +400,11 @@ from pypasskit import PKPass
 def create_apple_pass(worker, company, settings):
     p = PKPass()
     p.addMetaData(
-        name="BauPass Badge",
+        name="WorkPass Badge",
         organizationName=company['name'],
         teamIdentifier=os.getenv("APPLE_TEAM_ID"),
         passTypeIdentifier=os.getenv("APPLE_PASS_TYPE_ID"),
-        description="Worker badge for BauPass gate access"
+        description="Worker badge for WorkPass gate access"
     )
     
     # Primary: Worker name
@@ -475,8 +475,8 @@ def create_google_pass_jwt(worker, company, settings):
                 "classId": f"{issuer_id}.baukometra_worker",
                 "classReference": {
                     "id": f"{issuer_id}.baukometra_worker",
-                    "issuerName": "Baukometra",
-                    "displayName": "BauPass Worker Badge",
+                    "issuerName": "Suppix Technologie UG",
+                    "displayName": "WorkPass Worker Badge",
                     "hexBackgroundColor": "#c78652"
                 },
                 "genericObject": {

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 PostgreSQL cutover automation — preflight, migration hint, runtime checklist.
 
@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="BauPass PostgreSQL cutover automation")
+    parser = argparse.ArgumentParser(description="WorkPass PostgreSQL cutover automation")
     parser.add_argument("--sqlite", default=os.getenv("BAUPASS_DB_PATH", "backend/baupass.db"))
     parser.add_argument(
         "--migrate",

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="128" viewBox="0 0 520 128" role="img" aria-label="SUPPIX AI">
+  <defs>
+    <linearGradient id="d-cyan" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="d-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <radialGradient id="d-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g transform="translate(12 14)">
+    <circle cx="50" cy="50" r="46" fill="url(#d-glow)"/>
+    <g fill="none" stroke-linecap="round" stroke-width="7">
+      <path d="M50 10 A40 40 0 0 1 85 38" stroke="url(#d-cyan)"/>
+      <path d="M85 38 A40 40 0 0 1 74 78" stroke="url(#d-cyan)"/>
+      <path d="M74 78 A40 40 0 0 1 26 78" stroke="url(#d-purple)"/>
+      <path d="M26 78 A40 40 0 0 1 15 38" stroke="url(#d-purple)"/>
+      <path d="M15 38 A40 40 0 0 1 50 10" stroke="url(#d-cyan)"/>
+    </g>
+    <circle cx="50" cy="50" r="22" fill="#050816" stroke="url(#d-purple)" stroke-width="1.5"/>
+    <circle cx="50" cy="50" r="14" fill="url(#d-purple)" opacity="0.45"/>
+    <text x="50" y="56" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700" fill="#fff">AI</text>
+  </g>
+
+  <g transform="translate(128 28)">
+    <text x="0" y="42" font-family="Arial,sans-serif" font-size="46" font-weight="700" letter-spacing="1" fill="#f8fafc">SUPPIX</text>
+    <text x="196" y="42" font-family="Arial,sans-serif" font-size="46" font-weight="700" letter-spacing="2" fill="url(#d-cyan)">AI</text>
+    <text x="2" y="68" font-family="Arial,sans-serif" font-size="13" font-weight="600" letter-spacing="3" fill="#94a3b8">Suppix Technologie UG</text>
+    <rect x="0" y="78" width="120" height="3" rx="1.5" fill="url(#d-cyan)" opacity="0.9"/>
+  </g>
+</svg>

@@ -1,4 +1,4 @@
-"""Worker-facing Einsatzplan: persist PDF, in-app notifications, API payloads."""
+﻿"""Worker-facing Einsatzplan: persist PDF, in-app notifications, API payloads."""
 from __future__ import annotations
 
 import secrets
@@ -325,7 +325,7 @@ def build_worker_deployment_pdf_bytes(
 
     branding = resolve_company_pdf_branding(db, str(company_id))
     return build_deployment_plan_pdf(
-        company_name=branding.get("companyName") or "BauPass",
+        company_name=branding.get("companyName") or "WorkPass",
         worker_name=f"{worker['first_name']} {worker['last_name']}".strip(),
         badge_id=worker["badge_id"],
         year=year,

@@ -1,4 +1,4 @@
-"""Optional Microsoft Entra ID (Azure AD) SSO for Control Pass admin users."""
+﻿"""Optional Microsoft Entra ID (Azure AD) SSO for WorkPass admin users."""
 from __future__ import annotations
 
 import json

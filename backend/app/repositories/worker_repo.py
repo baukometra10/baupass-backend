@@ -1,5 +1,5 @@
-"""
-BauPass – Worker Repository
+﻿"""
+WorkPass – Worker Repository
 ============================
 مثال على repository حقيقي يرث من BaseRepository.
 """

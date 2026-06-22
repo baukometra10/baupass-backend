@@ -1,4 +1,4 @@
-"""Optional Google Workspace SSO for Control Pass admin users."""
+﻿"""Optional Google Workspace SSO for WorkPass admin users."""
 from __future__ import annotations
 
 import json

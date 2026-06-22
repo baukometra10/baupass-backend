@@ -1,4 +1,4 @@
-"""SIEM CEF formatting."""
+﻿"""SIEM CEF formatting."""
 from __future__ import annotations
 
 import unittest
@@ -16,7 +16,7 @@ def audit_row_to_cef(row: dict) -> str:
             f"msg={_cef_escape(row.get('message') or '')}",
         ]
     )
-    return f"CEF:0|BauPass|ControlPass|1.0|{_cef_escape(row.get('event_type') or 'audit')}|Audit|{severity}|{ext}"
+    return f"CEF:0|WorkPass|ControlPass|1.0|{_cef_escape(row.get('event_type') or 'audit')}|Audit|{severity}|{ext}"
 
 
 class SiemCefTests(unittest.TestCase):

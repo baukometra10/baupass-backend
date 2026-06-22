@@ -30,7 +30,7 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260614loginfix1" />
+  <link rel="stylesheet" href="styles.css?v=20260621contrast2" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -45,6 +45,10 @@
       <p class="muted small" data-i18n="login.embedRequired">Bitte zuerst im WorkPass anmelden. Betrieb öffnet sich automatisch nach erfolgreicher Anmeldung.</p>
     </section>
     <section id="loginView" class="panel login-panel hidden">
+      <div class="login-brand-block" aria-label="SUPPIX AI">
+        <img class="login-brand-logo" src="/branding/suppix-ai-logo.svg" alt="SUPPIX AI" />
+        <p class="login-brand-product">WorkPass · Betrieb</p>
+      </div>
       <label class="lang-row">
         <span data-i18n="lang">Sprache</span>
         <select id="langSelect" data-lang-select>
@@ -81,8 +85,8 @@
         <aside class="app-sidebar" id="appSidebar" aria-label="Navigation">
           <div class="sidebar-brand">
             <span class="sidebar-logo" aria-hidden="true">
-              <img data-tenant-logo class="tenant-logo-img hidden" alt="" />
-              <span data-tenant-logo-fallback>WP</span>
+              <img data-tenant-logo class="tenant-logo-img" src="/branding/suppix-ai-mark.svg" alt="SUPPIX AI" />
+              <span data-tenant-logo-fallback>AI</span>
             </span>
             <div>
               <strong id="sidebarBrandTitle" data-tenant-brand-title data-i18n="app.title">WorkPass Admin</strong>

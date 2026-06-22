@@ -1,5 +1,5 @@
-/**
- * BauPass KI — ChatGPT-style composer & voice control
+﻿/**
+ * SUPPIX AI — ChatGPT-style composer & voice control
  */
 .bp-ai-composer-wrap {
   padding: 0.5rem 0.65rem 0.35rem;
@@ -252,7 +252,7 @@
 .worker-ai-card .bp-ai-composer {
   --bp-composer-bg: #fff;
   --bp-composer-border: #d1d5db;
-  --bp-composer-focus: #0f4c5c;
+  --bp-composer-focus: #06b6d4;
   --bp-composer-text: #0f172a;
   --bp-composer-placeholder: #64748b;
   --bp-composer-mic: #64748b;
@@ -269,11 +269,11 @@
 
 .worker-ai-card .bp-ai-mic:hover:not(:disabled) {
   background: rgba(15, 76, 92, 0.08);
-  color: #0f4c5c;
+  color: #06b6d4;
 }
 
 .worker-ai-card .bp-ai-send {
-  background: #0f4c5c;
+  background: #06b6d4;
   color: #fff;
 }
 
@@ -321,12 +321,12 @@
   opacity: 0.85;
 }
 
-/* Light theme (Control Pass / worker light mode) */
+/* Light theme (WorkPass / worker light mode) */
 html[data-theme="light"] .bp-ai-composer,
 .worker-ai-card .bp-ai-composer {
   --bp-composer-bg: #ffffff;
   --bp-composer-border: #d1d5db;
-  --bp-composer-focus: #0f4c5c;
+  --bp-composer-focus: #06b6d4;
   --bp-composer-text: #0f172a;
   --bp-composer-placeholder: #64748b;
   --bp-composer-mic: #64748b;
@@ -338,11 +338,11 @@ html[data-theme="light"] .bp-ai-mic {
 
 html[data-theme="light"] .bp-ai-mic:hover:not(:disabled) {
   background: rgba(15, 76, 92, 0.08);
-  color: #0f4c5c;
+  color: #06b6d4;
 }
 
 html[data-theme="light"] .bp-ai-send {
-  background: #0f4c5c;
+  background: #06b6d4;
   color: #fff;
 }
 
@@ -416,5 +416,5 @@ body.ops-app .bp-ai-send {
 }
 
 html[data-theme="light"] .bp-ai-speaker.voice-reply-on {
-  color: #0f4c5c;
+  color: #06b6d4;
 }

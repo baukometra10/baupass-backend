@@ -1,4 +1,4 @@
-# تسجيل الدخول — Google Workspace (SSO)
+﻿# تسجيل الدخول — Google Workspace (SSO)
 
 ## الإعداد في Google Cloud Console
 
@@ -13,7 +13,7 @@
 | `BAUPASS_GOOGLE_CLIENT_ID` | Client ID |
 | `BAUPASS_GOOGLE_CLIENT_SECRET` | Client secret |
 | `BAUPASS_GOOGLE_REDIRECT_URI` | Callback URL الكامل |
-| `BAUPASS_APP_URL` | واجهة Control Pass (لإعادة التوجيه بعد الدخول) |
+| `BAUPASS_APP_URL` | واجهة WorkPass (لإعادة التوجيه بعد الدخول) |
 
 ## ربط المستخدم
 

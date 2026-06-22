@@ -796,7 +796,7 @@ function syncEnterpriseFrame() {
   const q = companyQuery();
   const cid = q ? q.replace(/^\?company_id=/, "") : "";
   const lang = getLang();
-  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260619hub8lang`;
+  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260621enterprise8`;
   frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
   try {
     frame.contentWindow?.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
@@ -3809,6 +3809,8 @@ bindLangSelect($("langSelectDash"));
 window.addEventListener("baupass-admin-lang", (event) => {
   const lang = event?.detail?.lang || getLang();
   broadcastLangToEnterpriseFrame(lang);
+  const activeTab = document.querySelector(".tab.active")?.dataset?.tab;
+  if (activeTab === "enterprise") syncEnterpriseFrame();
   loadSectorTerminologyForAdmin().catch(() => {});
   if ($("dashboardView").classList.contains("hidden")) return;
   const tab = document.querySelector(".tab.active")?.dataset?.tab;

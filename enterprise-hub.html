@@ -446,26 +446,13 @@
 <body>
   <header id="hubHeader">
     <div style="display:flex;align-items:center;gap:0.65rem;">
-      <img id="hubTenantLogo" data-tenant-logo class="hidden" alt="" style="width:40px;height:40px;object-fit:contain;border-radius:8px;background:#0f1419;padding:4px;" />
+      <img id="hubTenantLogo" data-tenant-logo class="tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="SUPPIX AI" />
       <div>
       <h1 id="hubTitle" data-tenant-brand-title>Enterprise Hub</h1>
       <p id="subtitle" style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--muted)"></p>
       </div>
     </div>
     <nav class="nav-links" id="hubNav">
-      <label class="hub-lang-select" style="border:none;padding:0">
-        <span class="muted small" id="hubLangLabel">Lang</span>
-        <select id="hubLangSelect" aria-label="Language">
-          <option value="de">DE</option>
-          <option value="en">EN</option>
-          <option value="ar">AR</option>
-          <option value="tr">TR</option>
-          <option value="fr">FR</option>
-          <option value="es">ES</option>
-          <option value="it">IT</option>
-          <option value="pl">PL</option>
-        </select>
-      </label>
       <a href="/admin-v2/index.html#enterprise" id="navAdminV2">Betrieb</a>
       <a href="/index.html" id="navLegacy">Legacy</a>
       <a href="/ops-command-center.html" id="navOps">Ops</a>
@@ -490,6 +477,19 @@
       <div id="stats" class="stats hub-embed-stats"></div>
       <p id="embedLayersHint" class="hidden" aria-live="polite"></p>
       <div class="toolbar hub-embed-toolbar">
+        <label class="hub-lang-select" style="border:none;padding:0;margin:0;display:flex;align-items:center;gap:0.35rem">
+          <span class="muted small" id="hubLangLabel">Lang</span>
+          <select id="hubLangSelect" aria-label="Language" style="min-width:4.2rem;padding:0.35rem 0.4rem;border-radius:8px;border:1px solid var(--border);background:#0f1419;color:var(--text)">
+            <option value="de">DE</option>
+            <option value="en">EN</option>
+            <option value="ar">AR</option>
+            <option value="tr">TR</option>
+            <option value="fr">FR</option>
+            <option value="es">ES</option>
+            <option value="it">IT</option>
+            <option value="pl">PL</option>
+          </select>
+        </label>
         <select id="companySelect" class="hidden" style="min-width:200px;padding:0.5rem;border-radius:8px;border:1px solid var(--border);background:#0f1419;color:var(--text)"></select>
         <input id="search" type="search" placeholder="" />
         <select id="filterPlan">
@@ -531,7 +531,7 @@
     </aside>
   </div>
 
-  <script src="/enterprise-hub-i18n.js?v=20260619hub8lang"></script>
+  <script src="/enterprise-hub-i18n.js?v=20260621enterprise8"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
   <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
@@ -563,10 +563,16 @@
 
     function setHubLang(code) {
       const lang = normalizeHubLang(code);
-      if (lang === HUB_LANG) return;
       HUB_LANG = lang;
       localStorage.setItem("baupass-ui-lang", lang);
       localStorage.setItem("baupass-admin-v2-lang", lang);
+      try {
+        const u = new URL(location.href);
+        u.searchParams.set("lang", lang);
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      } catch {
+        // ignore
+      }
       applyStaticI18n();
       refreshHubDynamicContent();
       if (window.BaupassAiUi?.bindVoiceInput) {
@@ -585,10 +591,18 @@
 
     function syncHubLangFromParent(lang) {
       const code = normalizeHubLang(lang);
-      if (code === HUB_LANG) return;
       HUB_LANG = code;
       localStorage.setItem("baupass-ui-lang", code);
       localStorage.setItem("baupass-admin-v2-lang", code);
+      try {
+        const u = new URL(location.href);
+        if (u.searchParams.get("lang") !== code) {
+          u.searchParams.set("lang", code);
+          history.replaceState(null, "", u.pathname + u.search + u.hash);
+        }
+      } catch {
+        // ignore
+      }
       applyStaticI18n();
       refreshHubDynamicContent();
       if (window.BaupassAiUi?.bindVoiceInput) {
@@ -609,17 +623,29 @@
     });
 
     function t(key) {
-      return (HUB_I18N[HUB_LANG] || HUB_I18N.de)[key] || (HUB_I18N.de[key] || key);
+      const strings = window.BaupassHubI18n?.STRINGS || HUB_I18N;
+      const pack = strings[HUB_LANG] || strings.en || strings.de || {};
+      return pack[key] || strings.de?.[key] || strings.en?.[key] || key;
     }
 
     function hubCatalogText(obj, field) {
       if (!obj) return "";
       const i18n = obj[`${field}I18n`];
-      if (i18n && typeof i18n === "object" && i18n[HUB_LANG]) {
-        return i18n[HUB_LANG];
+      if (i18n && typeof i18n === "object") {
+        const localized = i18n[HUB_LANG]
+          || HUB_LANGS.map((code) => i18n[code]).find(Boolean)
+          || i18n.en
+          || i18n.de
+          || i18n.ar
+          || "";
+        if (localized) return localized;
       }
       const cap = HUB_LANG.charAt(0).toUpperCase() + HUB_LANG.slice(1);
-      return obj[`${field}${cap}`] || obj[field] || obj[`${field}En`] || obj[`${field}De`] || obj[`${field}Ar`] || "";
+      const direct = obj[`${field}${cap}`];
+      if (direct) return direct;
+      if (HUB_LANG === "de") return obj[`${field}De`] || obj[`${field}En`] || obj[field] || "";
+      if (HUB_LANG === "ar") return obj[`${field}Ar`] || obj[`${field}En`] || obj[field] || "";
+      return obj[`${field}En`] || obj[field] || obj[`${field}De`] || obj[`${field}Ar`] || "";
     }
 
     function layerTitle(layer) {

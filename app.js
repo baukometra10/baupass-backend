@@ -802,7 +802,7 @@ const UI_TRANSLATIONS = {
     sidebarCopy: "Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.",
     sidebarCardTitle: "Vermietungsmodus",
     sidebarCardStrong: "Multi-Firma f\u00e4hig",
-    sidebarCardDesc: "Jede Baufirma verwaltet ihr Team getrennt. Super-Admin beh\u00e4lt Systemkontrolle.",
+    sidebarCardDesc: "Jede Firma verwaltet ihr Team getrennt. Super-Admin beh\u00e4lt Systemkontrolle.",
     navGroupDaily: "Tagesbetrieb",
     navGroupCompliance: "Compliance & System",
     navDrawerTeam: "Team & Ausweise",
@@ -843,7 +843,7 @@ const UI_TRANSLATIONS = {
     deploymentColEnd: "Bis",
     deploymentColNotes: "Hinweis",
     deploymentColDeclines: "Ablehnungen",
-    deploymentLocationPh: "z. B. Baustelle, Adresse",
+    deploymentLocationPh: "z. B. Standort, Adresse",
     deploymentNotesPh: "optional",
     deploymentEditBtn: "Bearbeiten",
     deploymentWorkersHeading: "Schritt 2 — Pläne pro Mitarbeiter",
@@ -1446,7 +1446,7 @@ const UI_TRANSLATIONS = {
     labelEnforceDomain: "Firmen-Domain erzwingen",
     btnSaveAdmin: "Admin-Einstellungen speichern",
     companyNewEyebrow: "Mandanten",
-    companyNewH3: "Neue Baufirma anlegen",
+    companyNewH3: "Neue Firma anlegen",
     labelCompanyName: "Firmenname",
     labelCompanyContact: "Ansprechpartner",
     labelBillingEmail: "Rechnungs-E-Mail",
@@ -1466,7 +1466,7 @@ const UI_TRANSLATIONS = {
     optCompanyLocked: "Gesperrt wegen Zahlungsverzug",
     labelCompanyAdminPassword: "Admin-Startpasswort",
     companyAdminPasswordPlaceholder: "z.B. Sicher!2025",
-    btnCreateCompany: "Baufirma anlegen",
+    btnCreateCompany: "Firma anlegen",
     accountEyebrow: "Konto",
     accountH3: "Passwort \u00e4ndern",
     labelCurrentPassword: "Aktuelles Passwort",
@@ -1691,7 +1691,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Super-Admin",
     optWorkerAppActive: "Aktiv – Ausweis, QR und Badge-Login sind freigegeben",
     optWorkerAppLocked: "Gesperrt – Mobile-App ist deaktiviert",
-    photoAdjustHelp: "Foto nach Aufnahme verschieben, damit es rechts im Ausweis sauber passt.",
+    photoAdjustHelp: "Foto per Drag verschieben, Mausrad zum Zoomen, Pfeiltasten für Feinjustierung — wie in Canva.",
+    photoDragHint: "Ziehen · Mausrad zoomt · Pfeiltasten",
+    btnPhotoUndo: "Rückgängig",
     photoOverrideH3: "Ausstehende Foto-Override-Freigaben",
     photoRequiredHint: "Pflicht: Ohne Foto kann der Ausweis nicht gespeichert werden.",
     photoSharpenLabel: "Schärfe:",
@@ -1847,7 +1849,7 @@ const UI_TRANSLATIONS = {
     operationsEyebrow: "Live-Betrieb",
     operationsH3: "Einsatzlage heute",
     operationsRefreshBtn: "Aktualisieren",
-    opsWorkersOnSite: "Aktuell auf der Baustelle",
+    opsWorkersOnSite: "Aktuell vor Ort",
     opsCheckInsToday: "Anmeldungen heute",
     opsCheckOutsToday: "Abmeldungen heute",
     opsExpiringDocs7: "Dokumente ≤ 7 Tage",
@@ -1990,7 +1992,7 @@ const UI_TRANSLATIONS = {
     sidebarCopy: "Register workers, take photos, generate digital ID cards and control access at turnstiles.",
     sidebarCardTitle: "Rental Mode",
     sidebarCardStrong: "Multi-Company Ready",
-    sidebarCardDesc: "Each construction company manages its team separately. Super admin retains system control.",
+    sidebarCardDesc: "Each company manages its team separately. Super admin retains system control.",
     navGroupDaily: "Daily operations",
     navGroupCompliance: "Compliance & system",
     navDrawerTeam: "Team & badges",
@@ -2590,7 +2592,7 @@ const UI_TRANSLATIONS = {
     labelEnforceDomain: "Enforce company domain",
     btnSaveAdmin: "Save admin settings",
     companyNewEyebrow: "Tenants",
-    companyNewH3: "Create New Construction Company",
+    companyNewH3: "Create new company",
     labelCompanyName: "Company name",
     labelCompanyContact: "Contact person",
     labelBillingEmail: "Billing email",
@@ -2773,7 +2775,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Super Admin",
     optWorkerAppActive: "Active – Badge, QR and badge login enabled",
     optWorkerAppLocked: "Locked – Mobile app disabled",
-    photoAdjustHelp: "Move the photo after capture so it fits neatly on the right side of the badge.",
+    photoAdjustHelp: "Drag the photo, scroll wheel to zoom, arrow keys for fine adjustment — like Canva.",
+    photoDragHint: "Drag · scroll wheel zoom · arrow keys",
+    btnPhotoUndo: "Undo",
     photoOverrideH3: "Pending photo override approvals",
     photoRequiredHint: "Required: Without a photo the badge cannot be saved.",
     photoSharpenLabel: "Sharpness:",
@@ -3536,7 +3540,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Süper Admin",
     optWorkerAppActive: "Aktif – Rozet, QR ve rozet girişi etkin",
     optWorkerAppLocked: "Kilitli – Mobil uygulama devre dışı",
-    photoAdjustHelp: "Fotoğrafı kaydırarak rozetin sağ tarafına düzgün oturtun.",
+    photoAdjustHelp: "Fotoğrafı sürükleyin, tekerlek ile yakınlaştırın, ok tuşları ile ince ayar — Canva gibi.",
+    photoDragHint: "Sürükle · tekerlek · ok tuşları",
+    btnPhotoUndo: "Geri al",
     photoOverrideH3: "Bekleyen fotoğraf geçersiz kılma onayları",
     photoRequiredHint: "Zorunlu: Fotoğraf olmadan rozet kaydedilemez.",
     photoSharpenLabel: "Keskinlik:",
@@ -4517,7 +4523,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "مشرف عام",
     optWorkerAppActive: "نشط – البطاقة وQR وتسجيل الدخول مفعّلة",
     optWorkerAppLocked: "مقفل – التطبيق المحمول معطّل",
-    photoAdjustHelp: "حرك الصورة بعد الالتقاط لتناسب الجانب الأيمن من البطاقة.",
+    photoAdjustHelp: "اسحب الصورة، عجلة الماوس للتكبير، مفاتيح الأسهم للضبط — مثل Canva.",
+    photoDragHint: "سحب · عجلة · أسهم",
+    btnPhotoUndo: "تراجع",
     photoOverrideH3: "طلبات تجاوز الصورة المعلقة",
     photoRequiredHint: "مطلوب: لا يمكن حفظ البطاقة بدون صورة.",
     photoSharpenLabel: "الحدة:",
@@ -5352,7 +5360,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Super Admin",
     optWorkerAppActive: "Actif – Badge, QR et connexion badge activés",
     optWorkerAppLocked: "Verrouillé – Application mobile désactivée",
-    photoAdjustHelp: "Déplacez la photo après la capture pour qu'elle s'ajuste correctement sur le côté droit du badge.",
+    photoAdjustHelp: "Faites glisser la photo, molette pour zoomer, fleches pour ajuster — comme Canva.",
+    photoDragHint: "Glisser · molette · fleches",
+    btnPhotoUndo: "Annuler",
     photoOverrideH3: "Approbations de remplacement photo en attente",
     photoRequiredHint: "Obligatoire : Sans photo, le badge ne peut pas être sauvegardé.",
     photoSharpenLabel: "Netteté :",
@@ -6136,7 +6146,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Super Admin",
     optWorkerAppActive: "Activo – Badge, QR e inicio de sesión habilitados",
     optWorkerAppLocked: "Bloqueado – App móvil desactivada",
-    photoAdjustHelp: "Mueve la foto tras la captura para que encaje correctamente en el lado derecho del credencial.",
+    photoAdjustHelp: "Arrastra la foto, rueda del raton para zoom, flechas para ajustar — como Canva.",
+    photoDragHint: "Arrastrar · rueda · flechas",
+    btnPhotoUndo: "Deshacer",
     photoOverrideH3: "Aprobaciones de anulación de foto pendientes",
     photoRequiredHint: "Obligatorio: Sin foto no se puede guardar el credencial.",
     photoSharpenLabel: "Nitidez:",
@@ -6912,7 +6924,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Super Admin",
     optWorkerAppActive: "Attivo – Badge, QR e login badge abilitati",
     optWorkerAppLocked: "Bloccato – App mobile disabilitata",
-    photoAdjustHelp: "Sposta la foto dopo la cattura per farla rientrare correttamente nel lato destro del badge.",
+    photoAdjustHelp: "Trascina la foto, rotella per lo zoom, frecce per regolare — come Canva.",
+    photoDragHint: "Trascina · rotella · frecce",
+    btnPhotoUndo: "Annulla",
     photoOverrideH3: "Approvazioni di override foto in attesa",
     photoRequiredHint: "Obbligatorio: Senza foto il badge non può essere salvato.",
     photoSharpenLabel: "Nitidezza:",
@@ -7696,7 +7710,9 @@ const UI_TRANSLATIONS = {
     optRoleSuperAdmin: "Super Admin",
     optWorkerAppActive: "Aktywna – Badge, QR i logowanie badge włączone",
     optWorkerAppLocked: "Zablokowana – Aplikacja mobilna wyłączona",
-    photoAdjustHelp: "Przesuń zdjęcie po wykonaniu, aby pasowało do prawej strony identyfikatora.",
+    photoAdjustHelp: "Przeciagnij zdjecie, kolo myszy = zoom, strzalki = dopasowanie — jak Canva.",
+    photoDragHint: "Przeciagnij · kolo · strzalki",
+    btnPhotoUndo: "Cofnij",
     photoOverrideH3: "Oczekujące zatwierdzenia nadpisania zdjęcia",
     photoRequiredHint: "Wymagane: Bez zdjęcia nie można zapisać identyfikatora.",
     photoSharpenLabel: "Ostrość:",
@@ -7953,6 +7969,8 @@ function uiT(key) {
   if (sectorTerm) return sectorTerm;
   const fromPack = UI_TRANSLATIONS[lang]?.[key];
   if (fromPack) return fromPack;
+  const fromEnterpriseShell = window.EnterpriseShellI18n?.[lang]?.[key];
+  if (fromEnterpriseShell) return fromEnterpriseShell;
   const fromRuntime = getRuntimeUiTextsCached()[key];
   if (fromRuntime) return fromRuntime;
   if (lang !== "en" && UI_TRANSLATIONS.en?.[key]) return UI_TRANSLATIONS.en[key];
@@ -8054,7 +8072,7 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Spotkanie, Dostawa, Odbiór",
   },
   hostName: {
-    de: "z. B. Bauleiter Mustafa Yilmaz",
+    de: "z. B. Teamleiter Mustafa Yilmaz",
     en: "e.g. Site manager Michael Miller",
     tr: "örn. Şef Mühendis Mehmet Yılmaz",
     ar: "مثال: مدير الموقع محمد أحمد",
@@ -8464,7 +8482,7 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Bramka Północna",
   },
   deviceLocation: {
-    de: "z.B. Eingang West, Baustelle A",
+    de: "z.B. Eingang West, Standort A",
     en: "e.g. West entrance, Site A",
     tr: "örn. Batı Girişi, Şantiye A",
     ar: "مثال: مدخل الغرب، موقع A",
@@ -8504,7 +8522,7 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "01.04.2026 - 30.04.2026",
   },
   invoiceDescription: {
-    de: "Digitale Baustellen-Ausweise + Zutrittskontrolle",
+    de: "Digitale Ausweise + Zutrittskontrolle",
     en: "Digital site IDs + access control",
     tr: "Dijital şantiye kimlikleri + erişim kontrolü",
     ar: "هويات الموقع الرقمية + التحكم في الوصول",
@@ -8703,6 +8721,10 @@ function setUiLang(lang) {
   invalidateRuntimeUiTextsCache();
   applyUiTranslations();
   broadcastLangToEmbeds();
+  const activeView = getCurrentViewName();
+  if (activeView && ENTERPRISE_EMBED_META[activeView]) {
+    loadEnterpriseEmbed(activeView);
+  }
   if (typeof updateShellChrome === "function") {
     updateShellChrome(getCurrentViewName());
   }
@@ -8712,7 +8734,7 @@ function setUiLang(lang) {
   if (typeof refreshPlatformHealth === "function") {
     refreshPlatformHealth().catch(() => {});
   }
-  applySystemTheme(getStoredSystemTheme(), { persist: false });
+  applySystemTheme(getStoredSystemThemeMode(), { persist: false });
   updateDesktopInstallHint();
   // Re-render dynamic panels that use runtimeText() so labels update immediately
   if (typeof renderStats === "function") renderStats();
@@ -8773,7 +8795,13 @@ const SYSTEM_THEME_AUTO  = "system";
 
 function normalizeSystemTheme(value) {
   if (value === SYSTEM_THEME_BLACK) return SYSTEM_THEME_BLACK;
-  if (value === SYSTEM_THEME_AUTO) {
+  if (value === SYSTEM_THEME_AUTO) return SYSTEM_THEME_AUTO;
+  return SYSTEM_THEME_WHITE;
+}
+
+function resolveEffectiveTheme(mode) {
+  if (mode === SYSTEM_THEME_BLACK) return SYSTEM_THEME_BLACK;
+  if (mode === SYSTEM_THEME_AUTO) {
     try {
       return window.matchMedia("(prefers-color-scheme: dark)").matches
         ? SYSTEM_THEME_BLACK
@@ -8785,16 +8813,16 @@ function normalizeSystemTheme(value) {
   return SYSTEM_THEME_WHITE;
 }
 
-function resolveEffectiveTheme(mode) {
-  return mode === SYSTEM_THEME_BLACK ? SYSTEM_THEME_BLACK : SYSTEM_THEME_WHITE;
-}
-
-function getStoredSystemTheme() {
+function getStoredSystemThemeMode() {
   try {
     return normalizeSystemTheme(window.localStorage.getItem(SYSTEM_THEME_STORAGE_KEY));
   } catch {
     return SYSTEM_THEME_WHITE;
   }
+}
+
+function getStoredSystemTheme() {
+  return resolveEffectiveTheme(getStoredSystemThemeMode());
 }
 
 function getSystemThemeTexts() {
@@ -8804,89 +8832,117 @@ function getSystemThemeTexts() {
       labelPrefix: "Darstellung",
       white: "Weiss",
       dark: "Dunkel",
-      titleWhenDark: "Aktuell Dunkel. Klicken fuer Weiss.",
-      titleWhenWhite: "Aktuell Weiss. Klicken fuer Dunkel."
+      auto: "Auto",
+      titleWhenDark: "Dunkel. Klicken fuer Weiss.",
+      titleWhenWhite: "Weiss. Klicken fuer Dunkel.",
+      titleWhenAuto: "Auto (System). Klicken fuer Weiss."
     },
     en: {
-      labelPrefix: "Window color",
+      labelPrefix: "Theme",
       white: "Light",
       dark: "Dark",
-      titleWhenDark: "Currently dark. Click for light.",
-      titleWhenWhite: "Currently light. Click for dark."
+      auto: "Auto",
+      titleWhenDark: "Dark mode. Click for light.",
+      titleWhenWhite: "Light mode. Click for dark.",
+      titleWhenAuto: "Auto (system). Click for light."
     },
     tr: {
-      labelPrefix: "Pencere rengi",
-      white: "Aydinlik",
+      labelPrefix: "Tema",
+      white: "Acik",
       dark: "Koyu",
-      titleWhenDark: "Su an koyu. Aydinlik icin tiklayin.",
-      titleWhenWhite: "Su an aydinlik. Koyu icin tiklayin."
+      auto: "Otomatik",
+      titleWhenDark: "Koyu mod. Acik icin tiklayin.",
+      titleWhenWhite: "Acik mod. Koyu icin tiklayin.",
+      titleWhenAuto: "Otomatik (sistem). Acik icin tiklayin."
     },
     ar: {
-      labelPrefix: "لون النافذة",
+      labelPrefix: "المظهر",
       white: "فاتح",
       dark: "داكن",
-      titleWhenDark: "الوضع الحالي داكن. انقر للفاتح.",
-      titleWhenWhite: "الوضع الحالي فاتح. انقر للوضع الداكن."
+      auto: "تلقائي",
+      titleWhenDark: "الوضع الداكن. انقر للفاتح.",
+      titleWhenWhite: "الوضع الفاتح. انقر للداكن.",
+      titleWhenAuto: "تلقائي (النظام). انقر للفاتح."
     },
     fr: {
-      labelPrefix: "Couleur de fenetre",
+      labelPrefix: "Theme",
       white: "Clair",
       dark: "Sombre",
-      titleWhenDark: "Mode sombre actif. Cliquer pour clair.",
-      titleWhenWhite: "Mode clair actif. Cliquer pour sombre."
+      auto: "Auto",
+      titleWhenDark: "Mode sombre. Cliquer pour clair.",
+      titleWhenWhite: "Mode clair. Cliquer pour sombre.",
+      titleWhenAuto: "Auto (systeme). Cliquer pour clair."
     },
     es: {
-      labelPrefix: "Color de ventana",
+      labelPrefix: "Tema",
       white: "Claro",
       dark: "Oscuro",
-      titleWhenDark: "Modo oscuro activo. Haz clic para claro.",
-      titleWhenWhite: "Modo claro activo. Haz clic para oscuro."
+      auto: "Auto",
+      titleWhenDark: "Modo oscuro. Clic para claro.",
+      titleWhenWhite: "Modo claro. Clic para oscuro.",
+      titleWhenAuto: "Auto (sistema). Clic para claro."
     },
     it: {
-      labelPrefix: "Colore finestra",
+      labelPrefix: "Tema",
       white: "Chiaro",
       dark: "Scuro",
-      titleWhenDark: "Modalita scura attiva. Clicca per chiaro.",
-      titleWhenWhite: "Modalita chiara attiva. Clicca per scuro."
+      auto: "Auto",
+      titleWhenDark: "Modalita scura. Clicca per chiaro.",
+      titleWhenWhite: "Modalita chiara. Clicca per scuro.",
+      titleWhenAuto: "Auto (sistema). Clicca per chiaro."
     },
     pl: {
-      labelPrefix: "Kolor okna",
+      labelPrefix: "Motyw",
       white: "Jasny",
       dark: "Ciemny",
-      titleWhenDark: "Aktualnie ciemny. Kliknij dla jasnego.",
-      titleWhenWhite: "Aktualnie jasny. Kliknij, aby ustawic ciemny."
+      auto: "Auto",
+      titleWhenDark: "Tryb ciemny. Kliknij jasny.",
+      titleWhenWhite: "Tryb jasny. Kliknij ciemny.",
+      titleWhenAuto: "Auto (system). Kliknij jasny."
     }
   };
   return map[lang] || map.en;
 }
 
+function getThemeModeIcon(mode) {
+  if (mode === SYSTEM_THEME_BLACK) return "\u{1F319}";
+  if (mode === SYSTEM_THEME_AUTO) return "\u{1F4BB}";
+  return "\u{2600}\u{FE0F}";
+}
+
 function getThemeModeLabel(mode) {
   const texts = getSystemThemeTexts();
   if (mode === SYSTEM_THEME_BLACK) return texts.dark;
+  if (mode === SYSTEM_THEME_AUTO) return texts.auto;
   return texts.white;
 }
 
+function updateThemeToggleButton(storedMode) {
+  const button = document.querySelector("#systemThemeToggleButton");
+  if (!button) return;
+  const texts = getSystemThemeTexts();
+  const mode = normalizeSystemTheme(storedMode);
+  button.textContent = `${getThemeModeIcon(mode)} ${texts.labelPrefix}: ${getThemeModeLabel(mode)}`;
+  button.dataset.themeMode = mode;
+  if (mode === SYSTEM_THEME_BLACK) button.title = texts.titleWhenDark;
+  else if (mode === SYSTEM_THEME_AUTO) button.title = texts.titleWhenAuto;
+  else button.title = texts.titleWhenWhite;
+}
+
 function applySystemTheme(mode, { persist = true } = {}) {
+  const storedMode = normalizeSystemTheme(mode);
   if (window.BaupassTheme?.apply) {
-    window.BaupassTheme.apply(mode, { persist, broadcast: true });
-    const selectedMode = window.BaupassTheme.getStoredMode();
-    const button = document.querySelector("#systemThemeToggleButton");
-    if (button) {
-      const texts = getSystemThemeTexts();
-      button.textContent = `${texts.labelPrefix}: ${getThemeModeLabel(selectedMode)}`;
-      if (selectedMode === SYSTEM_THEME_BLACK) button.title = texts.titleWhenDark;
-      else button.title = texts.titleWhenWhite;
-    }
+    window.BaupassTheme.apply(storedMode, { persist, broadcast: true });
+    updateThemeToggleButton(storedMode);
     return;
   }
-  const selectedMode = normalizeSystemTheme(mode);
-  const effective = resolveEffectiveTheme(selectedMode);
+  const effective = resolveEffectiveTheme(storedMode);
   document.body.classList.remove("theme-black", "theme-white");
   document.body.classList.add(effective === SYSTEM_THEME_BLACK ? "theme-black" : "theme-white");
   document.body.style.setProperty("--window-color", effective === SYSTEM_THEME_BLACK ? "#000000" : "#ffffff");
   if (persist) {
     try {
-      window.localStorage.setItem(SYSTEM_THEME_STORAGE_KEY, selectedMode);
+      window.localStorage.setItem(SYSTEM_THEME_STORAGE_KEY, storedMode);
     } catch {
       // ignore storage errors (private mode / blocked storage)
     }
@@ -8896,24 +8952,33 @@ function applySystemTheme(mode, { persist = true } = {}) {
   } catch {
     // ignore storage errors (private mode / blocked storage)
   }
-
-  const button = document.querySelector("#systemThemeToggleButton");
-  if (button) {
-    const texts = getSystemThemeTexts();
-    button.textContent = `${texts.labelPrefix}: ${getThemeModeLabel(selectedMode)}`;
-    if (selectedMode === SYSTEM_THEME_BLACK) button.title = texts.titleWhenDark;
-    else button.title = texts.titleWhenWhite;
-  }
+  updateThemeToggleButton(storedMode);
 }
 
 function toggleSystemTheme() {
-  const currentMode = getStoredSystemTheme();
-  const nextMode = currentMode === SYSTEM_THEME_WHITE ? SYSTEM_THEME_BLACK : SYSTEM_THEME_WHITE;
-  applySystemTheme(nextMode);
+  const currentMode = getStoredSystemThemeMode();
+  const cycle = [SYSTEM_THEME_WHITE, SYSTEM_THEME_BLACK, SYSTEM_THEME_AUTO];
+  const nextIndex = (cycle.indexOf(currentMode) + 1) % cycle.length;
+  applySystemTheme(cycle[nextIndex]);
 }
 
 function initSystemThemeControl() {
-  applySystemTheme(getStoredSystemTheme(), { persist: false });
+  applySystemTheme(getStoredSystemThemeMode(), { persist: false });
+  try {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onSchemeChange = () => {
+      if (getStoredSystemThemeMode() === SYSTEM_THEME_AUTO) {
+        applySystemTheme(SYSTEM_THEME_AUTO, { persist: false });
+      }
+    };
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", onSchemeChange);
+    } else if (typeof media.addListener === "function") {
+      media.addListener(onSchemeChange);
+    }
+  } catch {
+    // ignore matchMedia failures
+  }
 }
 
 let deferredDesktopInstallPrompt = null;
@@ -9014,6 +9079,8 @@ const elements = {
   capturePhotoButton: document.querySelector("#capturePhotoButton"),
   uploadPhotoButton: document.querySelector("#uploadPhotoButton"),
   capturedPhoto: document.querySelector("#capturedPhoto"),
+  photoEditorFrame: document.querySelector("#photoEditorFrame"),
+  photoEditorHint: document.querySelector("#photoEditorHint"),
   companyForm: document.querySelector("#companyForm"),
   invoiceHistoryList: document.querySelector("#invoiceHistoryList"),
   invoiceLogoData: document.querySelector("#invoiceLogoData"),
@@ -9028,6 +9095,7 @@ const elements = {
   photoDebugText: document.querySelector("#photoDebugText"),
   photoMoveButtons: Array.from(document.querySelectorAll(".photo-move-btn")),
   photoResetButton: document.querySelector("#photoResetButton"),
+  photoUndoButton: document.querySelector("#photoUndoButton"),
   photoSharpen: document.querySelector("#photoSharpen"),
   photoSharpenValue: document.querySelector("#photoSharpenValue"),
   photoZoom: document.querySelector("#photoZoom"),
@@ -9256,6 +9324,7 @@ const PHOTO_EDITOR_ZOOM_DEFAULT = 1.18;
 const PHOTO_EDITOR_ZOOM_MIN = 1;
 const PHOTO_EDITOR_ZOOM_MAX = 1.8;
 const PHOTO_EDITOR_STEP = 10;
+const PHOTO_EDITOR_HISTORY_MAX = 24;
 const PHOTO_TARGET_WIDTH = 480;
 const PHOTO_TARGET_HEIGHT = 360;
 const PHOTO_JPEG_QUALITY = 0.92;
@@ -9272,6 +9341,14 @@ let photoDragState = {
   startY: 0,
   baseOffsetX: 0,
   baseOffsetY: 0
+};
+let photoEditorHistory = [];
+let photoPinchState = {
+  active: false,
+  startDistance: 0,
+  startZoom: PHOTO_EDITOR_ZOOM_DEFAULT,
+  wheelPushed: false,
+  wheelTimer: null
 };
 
 function normalizeLog(entry) {
@@ -9338,6 +9415,7 @@ function getRuntimeUiTexts() {
     bulkSelectedCount: "{count} selected",
     photoWhiteBgActive: "Background fully white (active)",
     photoAdjustHelp: "Move the photo after capture so it fits cleanly on the right side of the badge.",
+    photoDragHint: "Drag · scroll wheel zoom · arrow keys",
     photoZoomCropLabel: "Zoom / Crop",
     photoSharpenLabel: "Sharpness:",
     bulkSelectAllLabel: "Select all",
@@ -10151,7 +10229,7 @@ function getRuntimeUiTexts() {
       statsVisitorsTotal: "Besucher gesamt",
       statsCompanies: "Firmen",
       statsAccessToday: "Aktiv am Standort",
-      statsAccessTodaySite: "Aktiv auf der Baustelle",
+      statsAccessTodaySite: "Aktiv vor Ort",
       statsAccessTodayBuilding: "Aktiv im Gebaeude",
       badgePinHintVisitor: "Besucher nutzen den Einmal-Link/QR. Eine Badge-PIN ist fuer Besucher nicht erforderlich.",
       badgePinHintWorker: "Badge-Login in der Mitarbeiter-App funktioniert nur noch mit Badge-ID und dieser PIN. Beim Bearbeiten kannst du hier eine neue PIN setzen.",
@@ -10189,7 +10267,9 @@ function getRuntimeUiTexts() {
       photoRequiredMissing: "Pflicht: Ohne Foto kann der Ausweis nicht gespeichert werden.",
       bulkSelectedCount: "{count} ausgewaehlt",
       photoWhiteBgActive: "Hintergrund komplett weiss (aktiv)",
-      photoAdjustHelp: "Foto nach Aufnahme verschieben, damit es rechts im Ausweis sauber passt.",
+      photoAdjustHelp: "Foto per Drag verschieben, Mausrad zum Zoomen, Pfeiltasten für Feinjustierung — wie in Canva.",
+      photoDragHint: "Ziehen · Mausrad zoomt · Pfeiltasten",
+      btnPhotoUndo: "Rückgängig",
       photoZoomCropLabel: "Zoom / Zuschneiden",
       photoSharpenLabel: "Schaerfe:",
       bulkSelectAllLabel: "Alle auswaehlen",
@@ -10247,9 +10327,9 @@ function getRuntimeUiTexts() {
       porterTotal: "Gesamt",
       porterPersonSingular: "Person",
       porterPersonPlural: "Personen",
-      manualEntryContextSite: "Manueller Einlass fuer aktuell aktive Personen auf der Baustelle",
+      manualEntryContextSite: "Manueller Einlass fuer aktuell aktive Personen vor Ort",
       manualEntryContextBuilding: "Manueller Einlass fuer aktuell aktive Personen im Gebaeude",
-      manualEntryLocationSite: "auf Baustelle",
+      manualEntryLocationSite: "vor Ort",
       manualEntryLocationBuilding: "im Gebaeude",
       manualEntryWorkTimesTitle: "Arbeitszeiten dieser Firma",
       manualEntryWorkTimesSaveBtn: "Arbeitszeiten speichern",
@@ -15884,6 +15964,10 @@ function applyRuntimeUiTexts() {
   }
   if (photoWhiteBgLabel) photoWhiteBgLabel.textContent = runtimeText("photoWhiteBgActive");
   if (photoAdjustHelp) photoAdjustHelp.textContent = runtimeText("photoAdjustHelp");
+  const photoEditorHint = document.querySelector("#photoEditorHint");
+  if (photoEditorHint) photoEditorHint.textContent = runtimeText("photoDragHint");
+  const photoUndoButton = document.querySelector("#photoUndoButton");
+  if (photoUndoButton) photoUndoButton.textContent = runtimeText("btnPhotoUndo") || uiT("btnPhotoUndo") || "Undo";
   if (photoZoomCropLabel) photoZoomCropLabel.textContent = runtimeText("photoZoomCropLabel");
   if (photoSharpenLabel) photoSharpenLabel.textContent = runtimeText("photoSharpenLabel");
   if (photoRequiredHint && photoRequiredHint.classList.contains("helper-text-warning")) {
@@ -16745,6 +16829,7 @@ function setPhotoEditorSource(source, { resetOffset = false } = {}) {
   photoEditorSourceData = source || "";
   if (resetOffset) {
     photoEditorOffset = { x: 0, y: 0 };
+    clearPhotoEditorHistory();
   }
   if (elements.photoData) {
     elements.photoData.value = photoEditorSourceData;
@@ -16752,9 +16837,13 @@ function setPhotoEditorSource(source, { resetOffset = false } = {}) {
   if (elements.capturedPhoto) {
     elements.capturedPhoto.src = photoEditorSourceData;
     elements.capturedPhoto.style.display = photoEditorSourceData ? "inline-block" : "none";
-    elements.capturedPhoto.style.transform = "translate(0px, 0px)";
-    elements.capturedPhoto.setAttribute("data-x", "0");
-    elements.capturedPhoto.setAttribute("data-y", "0");
+    elements.capturedPhoto.style.transform = "";
+    elements.capturedPhoto.removeAttribute("data-x");
+    elements.capturedPhoto.removeAttribute("data-y");
+    elements.capturedPhoto.classList.toggle("has-image", Boolean(photoEditorSourceData));
+  }
+  if (elements.photoEditorFrame) {
+    elements.photoEditorFrame.classList.toggle("has-photo", Boolean(photoEditorSourceData));
   }
   if (typeof updatePhotoAdjustControlsState === "function") {
     updatePhotoAdjustControlsState();
@@ -17515,12 +17604,22 @@ async function loadPublicBranding() {
   }
 }
 
+function resolveSidebarBrandLogo(logoSrc) {
+  const src = String(logoSrc || "").trim();
+  if (!src || src.includes("data:")) return src || DEFAULT_BRAND_LOGO.replace("suppix-ai-logo.svg", "suppix-ai-logo-dark.svg");
+  if (src.includes("suppix-ai-logo") && !src.includes("-dark")) {
+    return src.replace("suppix-ai-logo.svg", "suppix-ai-logo-dark.svg");
+  }
+  return src;
+}
+
 function applyWebsiteLogo(dataUrl) {
   const logoSrc = String(dataUrl || "").trim() || DEFAULT_BRAND_LOGO;
+  const sidebarSrc = resolveSidebarBrandLogo(logoSrc);
   const hasLogo = Boolean(logoSrc);
   document.querySelectorAll(".website-logo-sync").forEach((img) => {
     if (hasLogo) {
-      img.src = logoSrc;
+      img.src = img.classList.contains("website-logo-sidebar") ? sidebarSrc : logoSrc;
     }
     img.classList.toggle("hidden", !hasLogo && img.classList.contains("website-logo-sidebar"));
   });
@@ -17939,8 +18038,8 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-  }
-  if (item.version) {
+    params.push("v=20260621enterprise8");
+  } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
   if (item.path.includes("/admin-v2/") && pendingAdminV2EinsatzplanFocus) {
@@ -18124,12 +18223,18 @@ function loadEnterpriseEmbed(viewName) {
   if (iframe && token) {
     const syncToken = () => {
       broadcastSessionToEmbeds();
+      const lang = getStoredUiLang();
       try {
+        iframe.contentWindow?.postMessage(
+          { type: "baupass-sync-lang", lang },
+          window.location.origin,
+        );
         iframe.contentWindow?.postMessage(
           {
             type: "baupass-sync-token",
             token,
             companyId: getEffectiveUiCompanyId(),
+            lang,
           },
           window.location.origin,
         );
@@ -18301,6 +18406,12 @@ function canViewPlatformHealth() {
   return role === "superadmin" || role === "company-admin";
 }
 
+function platformHealthStatusGlyph(cardClass) {
+  if (cardClass === "is-ok") return "\u2713 ";
+  if (cardClass === "is-fail") return "\u2717 ";
+  return "\u26A0 ";
+}
+
 function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
   const grid = document.getElementById("platformHealthGrid");
   const foot = document.getElementById("platformHealthFoot");
@@ -18338,7 +18449,7 @@ function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
   cards.push(`
     <div class="platform-health-card ${overallCls}">
       <p class="platform-health-label">${escapeHtml(uiT("platformHealthEyebrow") || "Plattform")}</p>
-      <p class="platform-health-value">${escapeHtml(overallLabel || overall)}</p>
+      <p class="platform-health-value">${platformHealthStatusGlyph(overallCls)}${escapeHtml(overallLabel || overall)}</p>
       <p class="platform-health-detail">${escapeHtml(payload?.cloud?.provider || "")} · ${escapeHtml(payload?.cloud?.host || "")}</p>
     </div>`);
 
@@ -18347,7 +18458,7 @@ function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
   cards.push(`
     <div class="platform-health-card ${dbOk ? "is-ok" : "is-fail"}">
       <p class="platform-health-label">${escapeHtml(uiT("platformHealthProbeDb") || "Datenbank")}</p>
-      <p class="platform-health-value">${dbOk ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthFail") || "Fail")}</p>
+      <p class="platform-health-value">${platformHealthStatusGlyph(dbOk ? "is-ok" : "is-fail")}${dbOk ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthFail") || "Fail")}</p>
       <p class="platform-health-detail">${escapeHtml(String(db.backend || db.path || "").slice(0, 48))}</p>
     </div>`);
 
@@ -18359,7 +18470,7 @@ function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
     cards.push(`
       <div class="platform-health-card ${ok ? "is-ok" : "is-fail"}">
         <p class="platform-health-label">${escapeHtml(label || key)}</p>
-        <p class="platform-health-value">${ok ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthFail") || "Fail")}</p>
+        <p class="platform-health-value">${platformHealthStatusGlyph(ok ? "is-ok" : "is-fail")}${ok ? escapeHtml(uiT("platformHealthOk") || "OK") : escapeHtml(uiT("platformHealthFail") || "Fail")}</p>
         <p class="platform-health-detail">${escapeHtml(probe.detail || "")}${probe.latencyMs != null ? ` · ${probe.latencyMs} ms` : ""}</p>
       </div>`);
   });
@@ -32961,6 +33072,7 @@ function resetPhotoEditor() {
   photoEditorImage = null;
   photoEditorOffset = { x: 0, y: 0 };
   photoEditorZoom = PHOTO_EDITOR_ZOOM_DEFAULT;
+  photoEditorHistory = [];
   photoDragState = {
     active: false,
     pointerId: null,
@@ -32969,10 +33081,94 @@ function resetPhotoEditor() {
     baseOffsetX: 0,
     baseOffsetY: 0
   };
+  photoPinchState = {
+    active: false,
+    startDistance: 0,
+    startZoom: PHOTO_EDITOR_ZOOM_DEFAULT,
+    wheelPushed: false,
+    wheelTimer: null
+  };
   elements.photoData.value = "";
   elements.capturedPhoto.src = "";
   elements.capturedPhoto.classList.remove("has-image", "dragging");
+  clearPhotoEditorHistory();
   updatePhotoAdjustControlsState();
+}
+
+function snapshotPhotoEditorState() {
+  return {
+    offset: { x: photoEditorOffset.x, y: photoEditorOffset.y },
+    zoom: photoEditorZoom,
+  };
+}
+
+function pushPhotoEditorHistory() {
+  if (!photoEditorSourceData) return;
+  photoEditorHistory.push(snapshotPhotoEditorState());
+  if (photoEditorHistory.length > PHOTO_EDITOR_HISTORY_MAX) {
+    photoEditorHistory.shift();
+  }
+  if (elements.photoUndoButton) {
+    elements.photoUndoButton.disabled = photoEditorHistory.length === 0;
+  }
+}
+
+function clearPhotoEditorHistory() {
+  photoEditorHistory = [];
+  if (elements.photoUndoButton) {
+    elements.photoUndoButton.disabled = true;
+  }
+}
+
+function undoPhotoEditorChange() {
+  const previous = photoEditorHistory.pop();
+  if (!previous || !photoEditorSourceData) {
+    updatePhotoAdjustControlsState();
+    return;
+  }
+  photoEditorOffset = { ...previous.offset };
+  photoEditorZoom = previous.zoom;
+  applyPhotoEditorTransform();
+  if (elements.photoUndoButton) {
+    elements.photoUndoButton.disabled = photoEditorHistory.length === 0;
+  }
+}
+
+function getTouchPairDistance(touches) {
+  if (!touches || touches.length < 2) return 0;
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+
+function handlePhotoPinchStart(event) {
+  if (!photoEditorSourceData || event.touches.length < 2) return;
+  event.preventDefault();
+  pushPhotoEditorHistory();
+  photoPinchState.active = true;
+  photoPinchState.startDistance = getTouchPairDistance(event.touches);
+  photoPinchState.startZoom = photoEditorZoom;
+}
+
+function handlePhotoPinchMove(event) {
+  if (!photoPinchState.active || event.touches.length < 2) return;
+  event.preventDefault();
+  const distance = getTouchPairDistance(event.touches);
+  if (!photoPinchState.startDistance) return;
+  const scale = distance / photoPinchState.startDistance;
+  photoEditorZoom = Math.min(
+    PHOTO_EDITOR_ZOOM_MAX,
+    Math.max(PHOTO_EDITOR_ZOOM_MIN, photoPinchState.startZoom * scale)
+  );
+  if (elements.photoZoom) {
+    elements.photoZoom.value = String(photoEditorZoom);
+  }
+  applyPhotoEditorTransform();
+}
+
+function handlePhotoPinchEnd() {
+  photoPinchState.active = false;
+  photoPinchState.startDistance = 0;
 }
 
 function updatePhotoAdjustControlsState() {
@@ -32988,6 +33184,10 @@ function updatePhotoAdjustControlsState() {
 
   if (elements.photoResetButton) {
     elements.photoResetButton.disabled = !hasPhoto;
+  }
+
+  if (elements.photoUndoButton) {
+    elements.photoUndoButton.disabled = !hasPhoto || photoEditorHistory.length === 0;
   }
 
   if (elements.photoAdjustStatus) {
@@ -33034,67 +33234,115 @@ function updatePhotoAdjustControlsState() {
       elements.photoRequiredHint.classList.add("helper-text-warning");
     }
   }
+
+  if (elements.photoEditorFrame) {
+    elements.photoEditorFrame.classList.toggle("has-photo", hasPhoto);
+  }
 }
 
-function updatePhotoAdjustControlsState() {
-  // Aktiviere die Bearbeitungsbuttons immer, wenn ein Foto vorhanden ist
-  const hasPhoto = Boolean(elements.capturedPhoto && elements.capturedPhoto.src && elements.capturedPhoto.src.startsWith("data:image"));
-  elements.photoMoveButtons.forEach((button) => {
-    button.disabled = !hasPhoto;
-  });
-  if (elements.photoResetButton) {
-    elements.photoResetButton.disabled = !hasPhoto;
+function initPhotoEditorControls() {
+  if (elements.photoZoom) {
+    elements.photoZoom.addEventListener("input", handlePhotoZoomInput);
   }
-  if (elements.photoAdjustStatus) {
-    elements.photoAdjustStatus.textContent = runtimeTextTemplate("photoPosition", {
-      x: photoEditorOffset.x,
-      y: photoEditorOffset.y,
-    });
+  if (elements.photoResetButton) {
+    elements.photoResetButton.addEventListener("click", resetCapturedPhotoPosition);
+  }
+  if (elements.photoUndoButton) {
+    elements.photoUndoButton.addEventListener("click", undoPhotoEditorChange);
   }
   if (elements.photoZoom) {
-    elements.photoZoom.disabled = !hasPhoto;
-    elements.photoZoom.value = String(photoEditorZoom);
-  }
-  if (elements.photoZoomValue) {
-    elements.photoZoomValue.textContent = runtimeTextTemplate("photoZoomValue", {
-      value: formatUiNumber(photoEditorZoom, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
+    elements.photoZoom.addEventListener("pointerdown", () => {
+      if (photoEditorSourceData) pushPhotoEditorHistory();
     });
   }
-  if (elements.photoSharpen) {
-    elements.photoSharpen.disabled = !hasPhoto;
-    elements.photoSharpen.value = String(photoSharpenAmount);
+  elements.photoMoveButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!photoEditorSourceData) return;
+      moveCapturedPhoto(button.dataset.photoMove || "");
+    });
+  });
+  if (elements.capturedPhoto) {
+    elements.capturedPhoto.addEventListener("pointerdown", startPhotoDrag);
+    elements.capturedPhoto.addEventListener("pointermove", movePhotoDrag);
+    elements.capturedPhoto.addEventListener("pointerup", endPhotoDrag);
+    elements.capturedPhoto.addEventListener("pointercancel", endPhotoDrag);
   }
-  if (elements.photoSharpenValue) {
-    let label = runtimeText("photoSharpenNormal");
-    if (photoSharpenAmount < 0.13) label = runtimeText("photoSharpenSoft");
-    else if (photoSharpenAmount > 0.45) label = runtimeText("photoSharpenVerySharp");
-    elements.photoSharpenValue.textContent = label;
+  if (elements.photoEditorFrame) {
+    elements.photoEditorFrame.addEventListener("keydown", handlePhotoEditorKeyDown);
+    elements.photoEditorFrame.addEventListener("wheel", handlePhotoEditorWheel, { passive: false });
+    elements.photoEditorFrame.addEventListener("touchstart", handlePhotoPinchStart, { passive: false });
+    elements.photoEditorFrame.addEventListener("touchmove", handlePhotoPinchMove, { passive: false });
+    elements.photoEditorFrame.addEventListener("touchend", handlePhotoPinchEnd);
+    elements.photoEditorFrame.addEventListener("touchcancel", handlePhotoPinchEnd);
   }
 }
 
-// Bearbeitungsfunktionen für Foto-Verschiebung
-elements.photoMoveButtons.forEach((button) => {
-  button.onclick = () => {
-    if (!elements.capturedPhoto || !elements.capturedPhoto.src.startsWith("data:image")) return;
-    const direction = button.dataset.photoMove;
-    // Hole aktuelle Position aus Style oder setze Standard
-    let x = parseInt(elements.capturedPhoto.getAttribute('data-x') || '0', 10);
-    let y = parseInt(elements.capturedPhoto.getAttribute('data-y') || '0', 10);
-    if (direction === "left") x -= 10;
-    if (direction === "right") x += 10;
-    if (direction === "up") y -= 10;
-    if (direction === "down") y += 10;
-    elements.capturedPhoto.style.transform = `translate(${x}px, ${y}px)`;
-    elements.capturedPhoto.setAttribute('data-x', x);
-    elements.capturedPhoto.setAttribute('data-y', y);
-    if (elements.photoAdjustStatus) {
-      elements.photoAdjustStatus.textContent = runtimeTextTemplate("photoPosition", { x, y });
-    }
+function handlePhotoEditorKeyDown(event) {
+  if (!photoEditorSourceData) return;
+  const directionMap = {
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
   };
-});
+  if (directionMap[event.key]) {
+    event.preventDefault();
+    moveCapturedPhoto(directionMap[event.key]);
+    return;
+  }
+  if (event.key === "Home" || event.key === "0") {
+    event.preventDefault();
+    resetCapturedPhotoPosition();
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+    event.preventDefault();
+    undoPhotoEditorChange();
+    return;
+  }
+  if (event.key === "+" || event.key === "=") {
+    event.preventDefault();
+    pushPhotoEditorHistory();
+    photoEditorZoom = Math.min(PHOTO_EDITOR_ZOOM_MAX, photoEditorZoom + 0.04);
+    if (elements.photoZoom) elements.photoZoom.value = String(photoEditorZoom);
+    applyPhotoEditorTransform();
+    return;
+  }
+  if (event.key === "-" || event.key === "_") {
+    event.preventDefault();
+    pushPhotoEditorHistory();
+    photoEditorZoom = Math.max(PHOTO_EDITOR_ZOOM_MIN, photoEditorZoom - 0.04);
+    if (elements.photoZoom) elements.photoZoom.value = String(photoEditorZoom);
+    applyPhotoEditorTransform();
+  }
+}
+
+function handlePhotoEditorWheel(event) {
+  if (!photoEditorSourceData) return;
+  event.preventDefault();
+  if (!photoPinchState.wheelPushed) {
+    pushPhotoEditorHistory();
+    photoPinchState.wheelPushed = true;
+    if (photoPinchState.wheelTimer) {
+      window.clearTimeout(photoPinchState.wheelTimer);
+    }
+    photoPinchState.wheelTimer = window.setTimeout(() => {
+      photoPinchState.wheelPushed = false;
+      photoPinchState.wheelTimer = null;
+    }, 400);
+  }
+  const delta = event.deltaY > 0 ? -0.03 : 0.03;
+  photoEditorZoom = Math.min(
+    PHOTO_EDITOR_ZOOM_MAX,
+    Math.max(PHOTO_EDITOR_ZOOM_MIN, photoEditorZoom + delta)
+  );
+  if (elements.photoZoom) {
+    elements.photoZoom.value = String(photoEditorZoom);
+  }
+  applyPhotoEditorTransform();
+}
+
+initPhotoEditorControls();
 
 function handlePhotoZoomInput(event) {
   const rawValue = Number(event.target.value || PHOTO_EDITOR_ZOOM_DEFAULT);
@@ -33120,6 +33368,7 @@ function resetCapturedPhotoPosition() {
   if (!photoEditorSourceData) {
     return;
   }
+  pushPhotoEditorHistory();
   photoEditorOffset = { x: 0, y: 0 };
   applyPhotoEditorTransform();
 }
@@ -33128,6 +33377,7 @@ function moveCapturedPhoto(direction) {
   if (!photoEditorSourceData) {
     return;
   }
+  pushPhotoEditorHistory();
 
   if (direction === "left") {
     photoEditorOffset.x -= PHOTO_EDITOR_STEP;
@@ -33203,6 +33453,9 @@ function renderPhotoEditorImage(image) {
   elements.capturedPhoto.src = adjusted;
   elements.capturedPhoto.style.display = "inline-block";
   elements.capturedPhoto.classList.add("has-image");
+  if (elements.photoEditorFrame && !photoDragState.active) {
+    elements.photoEditorFrame.focus({ preventScroll: true });
+  }
   updatePhotoAdjustControlsState();
 }
 
@@ -33210,6 +33463,10 @@ function startPhotoDrag(event) {
   if (!photoEditorSourceData) {
     return;
   }
+  if (event.pointerType === "touch" && event.isPrimary === false) {
+    return;
+  }
+  pushPhotoEditorHistory();
   photoDragState = {
     active: true,
     pointerId: event.pointerId,

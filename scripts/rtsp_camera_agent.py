@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Send camera events / heartbeats / snapshots to BauPass RTSP ingest (local NVR bridge).
+Send camera events / heartbeats / snapshots to WorkPass RTSP ingest (local NVR bridge).
 
 Usage:
   set BAUPASS_API_URL=https://baupass-production.up.railway.app
@@ -83,8 +83,8 @@ def post_payload(
         data=data,
         headers={
             "Content-Type": "application/json",
-            "X-BauPass-Rtsp-Token": token,
-            "X-BauPass-Company-Id": company_id,
+            "X-WorkPass-Rtsp-Token": token,
+            "X-WorkPass-Company-Id": company_id,
         },
         method="POST",
     )
@@ -126,7 +126,7 @@ def send_once(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="BauPass RTSP/camera bridge agent")
+    parser = argparse.ArgumentParser(description="WorkPass RTSP/camera bridge agent")
     parser.add_argument("--api-url", default=os.getenv("BAUPASS_API_URL", "http://127.0.0.1:8000"))
     parser.add_argument("--token", default=os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN", ""))
     parser.add_argument("--company-id", default=os.getenv("BAUPASS_COMPANY_ID", ""))

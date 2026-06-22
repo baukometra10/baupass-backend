@@ -1,4 +1,4 @@
-"""Parse OpenAI / Azure OpenAI HTTP error bodies into stable BauPass codes."""
+﻿"""Parse OpenAI / Azure OpenAI HTTP error bodies into stable WorkPass codes."""
 from __future__ import annotations
 
 import json

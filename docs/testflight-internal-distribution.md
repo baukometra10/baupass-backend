@@ -1,4 +1,4 @@
-# TestFlight & internal distribution (BauPass Worker)
+﻿# TestFlight & internal distribution (WorkPass Worker)
 
 ## Overview
 
@@ -47,7 +47,7 @@ BAUPASS_TESTFLIGHT_URL=https://testflight.apple.com/join/XXXXXXXX
 
 ### Steps
 
-1. **App Store Connect** → My Apps → **+** → New App → iOS, name *BauPass Worker*.
+1. **App Store Connect** → My Apps → **+** → New App → iOS, name *WorkPass Worker*.
 2. **Certificates & Profiles** → iOS Distribution certificate + App Store profile for the bundle ID.
 3. Enable **NFC Tag Reading** capability (Core NFC) — matches `Info.plist` usage string.
 4. Build IPA locally:
@@ -76,7 +76,7 @@ BAUPASS_TESTFLIGHT_URL=https://testflight.apple.com/join/XXXXXXXX
 1. Admin: **Admin v2** → Workers → **QR تفعيل** (or legacy admin **App-Link**).
 2. Employee scans QR with the phone camera.
 3. Browser opens `join.html`:
-   - **Open in BauPass app** (`baupass://join?access=...`) if installed
+   - **Open in WorkPass app** (`baupass://join?access=...`) if installed
    - **Android APK** / **TestFlight** buttons from config
    - **PWA fallback** if needed
 4. After install, scan again or tap **In App öffnen** — Flutter logs in via one-time `accessToken`.

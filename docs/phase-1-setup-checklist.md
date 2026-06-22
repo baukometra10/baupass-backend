@@ -1,4 +1,4 @@
-# Phase 1: Setup Checklist (Weeks 1–2)
+﻿# Phase 1: Setup Checklist (Weeks 1–2)
 
 **Goal:** Establish developer accounts, PassKit infrastructure, and design specifications for wallet pass generation.
 
@@ -54,7 +54,7 @@
   - Requirement: Google Account + valid payment method
   
 - [ ] Enable Google Wallet API
-  - Go to Google Cloud Console > New Project (e.g., "BauPass Wallet")
+  - Go to Google Cloud Console > New Project (e.g., "WorkPass Wallet")
   - Enable APIs: Wallet API (formerly Google Pay API)
   - Create OAuth 2.0 Client ID
     - Application type: Service Account
@@ -156,7 +156,7 @@
 **Owner:** Designer / Product Lead  
 **Timeline:** 6–8 hours (cumulative across week 2)
 
-**Design Goal:** Create professional pass templates for Baukometra/BauPass brand.
+**Design Goal:** Create professional pass templates for Suppix Technologie UG/WorkPass brand.
 
 **Apple Wallet Pass (`.pkpass`) Structure:**
 - [ ] Define pass layout (boarding pass, generic, event, or store card style)
@@ -211,7 +211,7 @@
 - [ ] Company Name
 - [ ] Validity Period (valid_until date)
 - [ ] QR/Badge barcode
-- [ ] Issuer name (BauPass)
+- [ ] Issuer name (WorkPass)
 
 **Deliverable:** `docs/pass-template-specification.md` with:
 - [ ] Apple Wallet pass design spec (JSON example)

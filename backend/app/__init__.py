@@ -1,5 +1,5 @@
-"""
-BauPass – Flask Application Factory
+﻿"""
+WorkPass – Flask Application Factory
 ====================================
 الغرض: إنشاء تطبيق Flask بطريقة factory تدعم بيئات متعددة (dev/test/prod)
        وتفصل التهيئة عن تعريف التطبيق.

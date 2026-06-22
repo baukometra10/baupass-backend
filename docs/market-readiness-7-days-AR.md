@@ -1,4 +1,4 @@
-# BauPass — خطة 7 أيام للسوق (PWA فقط)
+﻿# WorkPass — خطة 7 أيام للسوق (PWA فقط)
 
 > **الهدف:** جاهزية بيع وعرض — ليس بناء كل قائمة enterprise.  
 > **لا native apps** — Worker PWA + Admin PWA كما هو اليوم.

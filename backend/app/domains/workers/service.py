@@ -1,4 +1,4 @@
-"""Workers domain — business logic."""
+﻿"""Workers domain — business logic."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -1402,12 +1402,12 @@ class WorkersService:
 
         settings = self.repo.get_settings_row(db)
         platform_label = (
-            str(settings["platform_name"] or "BauPass").strip() if settings else "BauPass"
+            str(settings["platform_name"] or "WorkPass").strip() if settings else "WorkPass"
         )
         primary_color = (
-            str(settings["invoice_primary_color"] or "#0f4c5c").strip()
+            str(settings["invoice_primary_color"] or "#06b6d4").strip()
             if settings
-            else "#0f4c5c"
+            else "#06b6d4"
         )
 
         clause, params = visible_worker_clause(user, prefix="w.")

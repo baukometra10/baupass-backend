@@ -1,4 +1,4 @@
-# PassKit Python Library Evaluation
+﻿# PassKit Python Library Evaluation
 
 **Goal:** Select the best Python library for generating Apple Wallet (`.pkpass`) and Google Wallet passes.
 
@@ -56,8 +56,8 @@ from pypasskit import PKPass
 # Create pass
 p = PKPass()
 p.addMetaData(
-    name="BauPass Badge",
-    organizationName="Baukometra",
+    name="WorkPass Badge",
+    organizationName="Suppix Technologie UG",
     teamIdentifier="ABCD1EF2GH",
     passTypeIdentifier="pass.baukometra.baupass"
 )
@@ -105,7 +105,7 @@ p.create(
 - ❌ **Proprietary cost** — $$$, commercial licensing
 - ❌ **Vendor lock-in** — requires Passkit service
 - ❌ **Limited documentation** — requires SDK tutorials
-- ⚠️ **Overkill for BauPass** — more features than needed
+- ⚠️ **Overkill for WorkPass** — more features than needed
 
 #### Best For:
 - Enterprise pass management
@@ -256,7 +256,7 @@ def test_simple_pass():
     p = PKPass()
     p.addMetaData(
         name="Test Badge",
-        organizationName="Baukometra",
+        organizationName="Suppix Technologie UG",
         teamIdentifier="ABCD1EF2GH",  # Your Team ID
         passTypeIdentifier="pass.baukometra.baupass"  # Your Pass Type ID
     )

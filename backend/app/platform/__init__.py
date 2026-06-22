@@ -1,5 +1,5 @@
-"""
-BauPass enterprise platform layer (optional modules — failures are non-fatal).
+﻿"""
+WorkPass enterprise platform layer (optional modules — failures are non-fatal).
 """
 from __future__ import annotations
 

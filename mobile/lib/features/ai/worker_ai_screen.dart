@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,7 +8,7 @@ import 'package:record/record.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
 
-/// On-site assistant for workers (HR agent, live BauPass data).
+/// On-site assistant for workers (HR agent, live WorkPass data).
 class WorkerAiScreen extends StatefulWidget {
   const WorkerAiScreen({super.key, required this.session, required this.ai});
 
@@ -206,7 +206,7 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BauPass Assistent'),
+        title: const Text('SUPPIX AI Assistent'),
         actions: [
           Icon(
             _configured ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,

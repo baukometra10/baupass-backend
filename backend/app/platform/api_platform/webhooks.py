@@ -1,4 +1,4 @@
-"""
+﻿"""
 Outbound webhooks — register endpoints, sign payloads, deliver with retry.
 """
 from __future__ import annotations
@@ -170,8 +170,8 @@ def _deliver_one(db, row) -> bool:
             data=payload_bytes,
             headers={
                 "Content-Type": "application/json",
-                "X-BauPass-Signature": f"sha256={signature}",
-                "X-BauPass-Delivery": delivery_id,
+                "X-WorkPass-Signature": f"sha256={signature}",
+                "X-WorkPass-Delivery": delivery_id,
             },
             method="POST",
         )

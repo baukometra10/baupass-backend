@@ -1,5 +1,5 @@
-/**
- * BauPass ops live feed — Socket.IO when supported, otherwise silent HTTP polling.
+﻿/**
+ * WorkPass ops live feed — Socket.IO when supported, otherwise silent HTTP polling.
  */
 (function (global) {
   function formatEventLine(evt) {
@@ -216,5 +216,5 @@
     return startPolling({ companyId, feedEl, onMode, onEvent });
   }
 
-  global.BauPassOpsRealtime = { start, formatEventLine, renderFeed };
+  global.WorkPassOpsRealtime = { start, formatEventLine, renderFeed };
 })(typeof window !== "undefined" ? window : globalThis);

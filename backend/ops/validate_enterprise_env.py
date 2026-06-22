@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Enterprise go-live validation — env vars + optional live HTTP checks (no secrets printed).
 
@@ -329,7 +329,7 @@ def _check_http(base: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate BauPass enterprise go-live readiness")
+    parser = argparse.ArgumentParser(description="Validate WorkPass enterprise go-live readiness")
     parser.add_argument("--base-url", default=os.getenv("PUBLIC_BASE_URL", "").strip())
     parser.add_argument(
         "--strict",
@@ -362,7 +362,7 @@ def main() -> int:
     if args.json_only:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print("BauPass Enterprise Go-Live Validation")
+        print("WorkPass Enterprise Go-Live Validation")
         print("=" * 40)
         if env_report:
             print(

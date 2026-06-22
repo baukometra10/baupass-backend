@@ -1,13 +1,13 @@
-{
+﻿{
   "id": "/emp-app.html?v=20260524a",
-  "name": "BauPass – Mitarbeiter",
-  "short_name": "BauPass",
+  "name": "WorkPass – Mitarbeiter",
+  "short_name": "WorkPass",
   "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
   "start_url": "/emp-app.html?view=card&v=20260524a",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
-  "background_color": "#f6f1e8",
-  "theme_color": "#d4b597",
+  "background_color": "#050816",
+  "theme_color": "#050816",
   "scope": "/",
   "orientation": "portrait",
   "categories": ["business", "productivity", "utilities"],
@@ -15,7 +15,7 @@
     {
       "name": "Meine Karte anzeigen",
       "short_name": "Karte",
-      "description": "BauPass direkt öffnen",
+      "description": "WorkPass direkt öffnen",
       "url": "/emp-app.html?view=card&v=20260524a",
       "icons": [
         { "src": "/worker-icon-192-20260511f.png", "sizes": "192x192", "type": "image/png" }

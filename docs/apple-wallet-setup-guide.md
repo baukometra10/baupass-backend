@@ -1,4 +1,4 @@
-# Apple Developer Account & PassKit Setup Guide
+﻿# Apple Developer Account & PassKit Setup Guide
 
 **Goal:** Complete Apple Developer enrollment and generate PassKit credentials for signing wallet passes.
 
@@ -52,7 +52,7 @@ To generate Apple Wallet (`.pkpass`) passes, you need:
    - Select **"Pass Type IDs"** → Click **"Continue"**
 
 2. Enter Pass Type ID details:
-   - **Description:** "BauPass Worker Badge" (or your company name)
+   - **Description:** "WorkPass Worker Badge" (or your company name)
    - **Identifier:** `pass.baukometra.baupass` 
      - Format: `pass.{reverse-domain}.{pass-type}`
      - Example: `pass.yourcompany.com.worker-badge`
@@ -90,7 +90,7 @@ PassKit requires you to sign each `.pkpass` file with a certificate. Here's how:
 2. **macOS Instructions:**
    - Keychain Access → Certificate Assistant → Request a Certificate from a CA
    - Email: `admin@baukometra.de`
-   - Common Name: `BauPass PassKit`
+   - Common Name: `WorkPass PassKit`
    - CA Email: Leave blank
    - Request: Saved to disk → Choose a location (e.g., Desktop)
    - **Save as:** `PassKitRequest.certSigningRequest`
@@ -100,8 +100,8 @@ PassKit requires you to sign each `.pkpass` file with a certificate. Here's how:
    # If OpenSSL not installed, download from https://slproweb.com/products/Win32OpenSSL.html
    openssl req -new -keyout passkit-key.pem -out PassKitRequest.csr
    # Fill in prompts:
-   # Common Name: BauPass PassKit
-   # Organization: Baukometra (optional)
+   # Common Name: WorkPass PassKit
+   # Organization: Suppix Technologie UG (optional)
    ```
 
 **Outcome:** CSR file saved (to be uploaded to Apple)
@@ -141,7 +141,7 @@ PassKit requires both the certificate and private key together in `.p12` format.
 
 **macOS:**
 1. Open **Keychain Access**
-2. Find the certificate you just imported (search for "BauPass PassKit")
+2. Find the certificate you just imported (search for "WorkPass PassKit")
 3. Select it → Right-click → **"Export"**
 4. Format: **"Personal Information Exchange (.p12)"**
 5. Save as: `passkit-cert.p12`

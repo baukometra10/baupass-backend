@@ -1,6 +1,6 @@
-# رؤية منصة BauPass — منصة تشغيل وامتثال للمؤسسات والحكومة
+﻿# رؤية منصة WorkPass — منصة تشغيل وامتثال للمؤسسات والحكومة
 
-> **إعادة التموضع (2026):** BauPass = **هوية مؤسسية + تحكم تشغيلي + امتثال** — وليس «منصة بناء» فقط.  
+> **إعادة التموضع (2026):** WorkPass = **هوية مؤسسية + تحكم تشغيلي + امتثال** — وليس «منصة بناء» فقط.  
 > قطاعات: بناء، صناعة، لوجستيات، أمن، قطاع عام، حكومة. التفاصيل: [`product-repositioning-AR.md`](./product-repositioning-AR.md).  
 > الأولوية: **استقرار واختبارات** قبل مزايا جديدة — [`engineering/stability-charter-AR.md`](./engineering/stability-charter-AR.md).
 
@@ -29,7 +29,7 @@
 | DATEV CSV + OAuth DATEV | ✅ (يتطلب مفاتيح Env) |
 | 6 طبقات Enterprise + Physical Operations | ✅ |
 | محرك أتمتة (Automation Rules) | ✅ |
-| BauPass KI (صوت، نوايا، إجراءات) | ✅ |
+| SUPPIX AI (صوت، نوايا، إجراءات) | ✅ |
 | إشعارات العامل (Push + مركز إشعارات) | ✅ |
 | توقيع الامتثال على الكرت (Compliance Signature) | ✅ في لوحة الإدارة |
 | كاميرا / أحداث أمن (Webhook API) | ✅ `security-cameras/events` |
@@ -58,7 +58,7 @@
 
 ### 3.3 مكتمل / قادم
 
-- ✅ واجهة عربية لـ Control Pass (~870 مفتاح، فجوات متبقية فقط في i18n-packs).
+- ✅ واجهة عربية لـ WorkPass (~870 مفتاح، فجوات متبقية فقط في i18n-packs).
 - ✅ RTSP + Azure Face اختياري + وكيل `scripts/rtsp_camera_agent.py`.
 - ✅ SSO Entra + Google (`docs/sso-entra-AR.md`, `docs/sso-google-AR.md`) + Helm.
 - ✅ PDF الحوادث والزوار: `POST /api/reporting/email-incidents-visits-pdf`.
@@ -125,7 +125,7 @@
 **مقترح نشر حكومي:**
 
 ```text
-Kubernetes (أو VM) → Ingress TLS → BauPass API
+Kubernetes (أو VM) → Ingress TLS → WorkPass API
                  → PostgreSQL HA
                  → Redis (RQ jobs)
                  → Object Storage (S3-compatible)

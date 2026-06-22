@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import 'core/api_client.dart';
 import 'core/auth_repository.dart';
@@ -185,7 +185,7 @@ class _WorkerAppState extends State<WorkerApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
-      title: 'BauPass Mitarbeiter',
+      title: 'WorkPass Mitarbeiter',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E8C)),
         useMaterial3: true,

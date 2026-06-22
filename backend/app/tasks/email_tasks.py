@@ -1,5 +1,5 @@
-"""
-BauPass – Email Tasks (Background)
+﻿"""
+WorkPass – Email Tasks (Background)
 =====================================
 جميع إرسالات الإيميل تعمل خارج Flask request cycle.
 
@@ -25,7 +25,7 @@ def send_email_task(
     subject: str,
     body_html: str,
     body_text: str,
-    from_name: str = "BauPass",
+    from_name: str = "WorkPass",
     reply_to: Optional[str] = None,
     smtp_config: Optional[dict] = None,
     resend_config: Optional[dict] = None,
@@ -281,9 +281,9 @@ def send_invoice_email(
     resend_config: dict,
 ) -> dict:
     """إرسال فاتورة للشركة."""
-    subject = f"Rechnung {invoice_number} – BauPass"
+    subject = f"Rechnung {invoice_number} – WorkPass"
     body_html = f"""
-    <h2>Ihre Rechnung von BauPass</h2>
+    <h2>Ihre Rechnung von WorkPass</h2>
     <p>Sehr geehrte Damen und Herren von {company_name},</p>
     <p>anbei erhalten Sie Rechnung <strong>{invoice_number}</strong> 
        über <strong>{amount:.2f} €</strong>, fällig am {due_date}.</p>

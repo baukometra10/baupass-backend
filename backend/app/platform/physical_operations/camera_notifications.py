@@ -1,4 +1,4 @@
-"""Email + inbox notifications for camera violations and offline cameras."""
+﻿"""Email + inbox notifications for camera violations and offline cameras."""
 from __future__ import annotations
 
 import html
@@ -65,7 +65,7 @@ def _send_admin_emails(
                     "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
                 ).fetchone()
                 sender_email = (settings["smtp_sender_email"] if settings else "") or "noreply@baupass.de"
-                sender_name = (settings["smtp_sender_name"] if settings else "") or "BauPass"
+                sender_name = (settings["smtp_sender_name"] if settings else "") or "WorkPass"
                 ok, _, _ = _send_via_any_api(
                     subject,
                     sender_email,
@@ -154,11 +154,11 @@ def notify_camera_violation(
     except Exception:
         pdf_bytes = None
 
-    subject = f"BauPass Kamera-Alarm — {camera_name or camera_id}"
+    subject = f"WorkPass Kamera-Alarm — {camera_name or camera_id}"
     text_body = (
         f"{message}\n\n"
         + "\n".join(f"- {line}" for line in alert_lines)
-        + "\n\nBitte Live-Ansicht und Ereignisliste im Control Pass prüfen."
+        + "\n\nBitte Live-Ansicht und Ereignisliste im WorkPass prüfen."
     )
     msg_safe = html.escape(message)
     alerts_html = "".join(f"<li>{html.escape(line)}</li>" for line in alert_lines)
@@ -245,7 +245,7 @@ def notify_camera_offline(
     except Exception:
         pdf_bytes = None
 
-    subject = f"BauPass — Kamera offline ({camera_name or camera_id})"
+    subject = f"WorkPass — Kamera offline ({camera_name or camera_id})"
     text_body = message + "\n\nBitte RTSP-Agent / Netzwerk vor Ort prüfen."
     html_body = f"<html><body><p>{html.escape(message)}</p></body></html>"
     emails_sent = _send_admin_emails(

@@ -1,4 +1,4 @@
-"""Read-only AI tools — safe live queries against BauPass operations data."""
+﻿"""Read-only AI tools — safe live queries against WorkPass operations data."""
 from __future__ import annotations
 
 import json

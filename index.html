@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de" translate="no">
 <head>
   <meta charset="UTF-8" />
@@ -8,16 +8,16 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <meta name="description" content="BauPass – Admin-Portal für Desktop und Pforte. Installierbar als Programm auf Windows und anderen Rechnern." />
+  <meta name="description" content="WorkPass – Admin-Portal für Desktop und Pforte. Installierbar als Programm auf Windows und anderen Rechnern." />
   <meta name="theme-color" content="#050816" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="BauPass" />
-  <meta name="application-name" content="BauPass" />
-  <title data-ui-i18n="appTitle">BauPass</title>
+  <meta name="apple-mobile-web-app-title" content="WorkPass" />
+  <meta name="application-name" content="WorkPass" />
+  <title data-ui-i18n="appTitle">WorkPass</title>
     <script>
       (function enforceLatestBuild() {
-          const buildTag = "20260615localpreview3";
+          const buildTag = "20260621contrast2";
         const storageKey = "baupass-control-build";
         try {
           const url = new URL(window.location.href);
@@ -83,14 +83,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
-  <link rel="stylesheet" href="./styles.css?v=20260615localpreview2" />
+  <link rel="stylesheet" href="./styles.css?v=20260621contrast2" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
-    <link rel="stylesheet" href="./platform-health.css?v=20260603inv1" />
+    <link rel="stylesheet" href="./platform-health.css?v=20260621contrast1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
-    <div class="desktop-titlebar-brand">BauPass</div>
+    <div class="desktop-titlebar-brand">WorkPass</div>
     <div class="desktop-titlebar-spacer"></div>
     <div class="desktop-titlebar-actions">
       <button id="desktopMinimizeBtn" class="desktop-titlebar-btn" type="button" aria-label="Verkleinern" title="Verkleinern"><svg width="10" height="1" viewBox="0 0 10 1" aria-hidden="true"><line x1="0" y1="0.5" x2="10" y2="0.5" stroke="currentColor" stroke-width="1"/></svg></button>
@@ -106,8 +106,7 @@
   <div id="authOverlay" class="auth-overlay">
     <div class="auth-panel">
       <div class="auth-intro-head">
-        <img class="website-logo-sync website-logo website-logo-auth" src="./branding/baukometra-logo.svg" alt="Firmenlogo" onerror="this.onerror=null;this.src='data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22210%22%20height%3D%2284%22%20viewBox%3D%220%200%20210%2084%22%3E%3Crect%20width%3D%22210%22%20height%3D%2284%22%20rx%3D%2212%22%20fill%3D%22%230f4c5c%22/%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2254%25%22%20text-anchor%3D%22middle%22%20dominant-baseline%3D%22middle%22%20font-family%3D%22Arial%22%20font-size%3D%2232%22%20font-weight%3D%22700%22%20fill%3D%22white%22%3EBK%3C/text%3E%3C/svg%3E';" />
-        <label class="auth-lang-field auth-lang-field-compact" aria-label="Sprache">
+        <label class="auth-lang-field auth-lang-field-compact auth-lang-field-top" aria-label="Sprache">
         <div id="uiLangAuthShell" class="auth-lang-select-shell">
           <button
             id="uiLangAuthTrigger"
@@ -143,17 +142,22 @@
         </div>
       </label>
       </div>
+      <div class="auth-brand-block" aria-label="SUPPIX AI">
+        <div class="auth-brand-glow" aria-hidden="true"></div>
+        <img class="website-logo-sync website-logo website-logo-auth" src="./branding/suppix-ai-logo.svg" alt="SUPPIX AI Logo" />
+        <p class="auth-brand-product">WorkPass</p>
+      </div>
       <div class="auth-intro">
-        <h2 data-ui-i18n="authTitle">Sicher in BauPass anmelden</h2>
+        <h2 data-ui-i18n="authTitle">Sicher in WorkPass anmelden</h2>
         <p class="auth-copy" data-ui-i18n="authCopy">Super-Admin behält die Systemhoheit. Firmen-Admins sehen nur ihre Firma. Der Drehkreuz-Login bekommt einen schnellen Zutrittsmodus.</p>
         <div class="auth-system-grid">
           <article class="auth-system-card">
             <span data-ui-i18n="authPlatform">Plattform</span>
-            <strong id="loginPlatformName">BauPass</strong>
+            <strong id="loginPlatformName">WorkPass</strong>
           </article>
           <article class="auth-system-card">
             <span data-ui-i18n="authOperator">Betreiber</span>
-            <strong id="loginOperatorName">Baukometra</strong>
+            <strong id="loginOperatorName">Suppix Technologie UG</strong>
           </article>
           <article class="auth-system-card full-width">
             <span data-ui-i18n="authTurnstile">Drehkreuz-Endpunkt</span>
@@ -252,9 +256,9 @@
   <div id="mainShell" class="shell locked" style="display:none;" hidden aria-hidden="true">
     <aside class="sidebar">
       <div>
-        <img class="website-logo-sync website-logo website-logo-sidebar hidden" alt="Firmenlogo" />
+        <img class="website-logo-sync website-logo website-logo-sidebar" src="./branding/suppix-ai-logo-dark.svg" alt="SUPPIX AI" />
         <p class="eyebrow" data-ui-i18n="sidebarEyebrow">Firmenportal</p>
-        <h1 data-ui-i18n="appTitle">BauPass</h1>
+        <h1 data-ui-i18n="appTitle">WorkPass</h1>
         <p class="sidebar-copy" data-ui-i18n="sidebarCopy">Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.</p>
       </div>
       <div id="superadminSidebarCompanyPicker" class="sidebar-company-picker hidden" aria-label="Firmenvorschau">
@@ -297,7 +301,7 @@
       <div class="sidebar-card">
         <p class="sidebar-card-label" data-ui-i18n="sidebarCardTitle">Vermietungsmodus</p>
         <strong data-ui-i18n="sidebarCardStrong">Multi-Firma fähig</strong>
-        <span data-ui-i18n="sidebarCardDesc">Jede Baufirma verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.</span>
+        <span data-ui-i18n="sidebarCardDesc">Jede Firma verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.</span>
       </div>
     </aside>
 
@@ -309,7 +313,7 @@
         </div>
         <div class="topbar-actions">
           <span id="topbarSupportReadOnlyBadge" class="support-readonly-badge hidden" aria-live="polite" aria-hidden="true"></span>
-          <button id="systemThemeToggleButton" class="ghost-button" type="button" title="Aktuell Weiß. Klicken für Dunkel.">Darstellung: Weiß</button>
+          <button id="systemThemeToggleButton" class="ghost-button theme-toggle-btn" type="button" title="Weiss. Klicken fuer Dunkel.">☀️ Darstellung: Weiss</button>
           <details class="topbar-more-menu">
             <summary class="ghost-button" data-ui-i18n="topbarMore">Mehr</summary>
             <div class="topbar-more-panel" role="group">
@@ -366,7 +370,7 @@
         </nav>
         <div class="hero-panel">
           <div>
-            <p class="eyebrow" data-ui-i18n="dashEyebrow">Enterprise Control Pass</p>
+            <p class="eyebrow" data-ui-i18n="dashEyebrow">Enterprise WorkPass</p>
             <h3 data-ui-i18n="dashHeading">Digitale Ausweise mit Foto, Badge-ID und Check-in am Drehkreuz</h3>
             <p data-ui-i18n="dashSubtext">Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfähig für Behörden und Unternehmen.</p>
           </div>
@@ -513,10 +517,10 @@
       <section class="view view-embed" data-view="ai-assistant">
         <div class="enterprise-embed-shell">
           <div class="enterprise-embed-toolbar">
-            <span class="enterprise-embed-title" data-ui-i18n="navBaupassAi">BauPass KI</span>
+            <span class="enterprise-embed-title" data-ui-i18n="navBaupassAi">SUPPIX AI</span>
             <a id="aiAssistantExternalLink" href="/ai-command-center.html" target="_blank" rel="noopener noreferrer" class="ghost-button small-button" data-ui-i18n="enterpriseEmbedOpenTab">In neuem Tab öffnen</a>
           </div>
-          <iframe id="aiAssistantFrame" class="enterprise-embed-frame" title="BauPass KI" loading="lazy"></iframe>
+          <iframe id="aiAssistantFrame" class="enterprise-embed-frame" title="SUPPIX AI" loading="lazy"></iframe>
         </div>
       </section>
 
@@ -641,7 +645,7 @@
                   </label>
                   <label>
                     <span data-ui-i18n="labelHostName">Ansprechpartner vor Ort</span>
-                    <input id="hostName" type="text" placeholder="z. B. Bauleiter Mustafa Yilmaz" />
+                    <input id="hostName" type="text" placeholder="z. B. Teamleiter Mustafa Yilmaz" />
                   </label>
                   <label>
                     <span data-ui-i18n="labelVisitEndAt">Besuchsende</span>
@@ -683,29 +687,38 @@
                   <span id="photoWhiteBgLabel" data-ui-i18n="photoWhiteBgLabel">Hintergrund komplett weiß (aktiv)</span>
                 </label>
                 <canvas id="photoCanvas" width="480" height="360" hidden></canvas>
-                <div class="photo-preview-block" style="margin: 12px 0; text-align: center;">
-                  <img id="capturedPhoto" src="" alt="Foto-Vorschau" style="max-width: 220px; max-height: 280px; border-radius: 10px; border: 1px solid #ccc; background: #fff; display: none;" />
+                <div class="photo-editor-stage">
+                  <div id="photoEditorFrame" class="photo-editor-frame" tabindex="0" aria-label="Foto-Vorschau — ziehen oder Pfeiltasten">
+                    <img id="capturedPhoto" class="captured-photo" src="" alt="Foto-Vorschau" draggable="false" />
+                    <div class="photo-editor-guide" aria-hidden="true"></div>
+                    <span id="photoEditorHint" class="photo-editor-hint" data-ui-i18n="photoDragHint">Ziehen zum Verschieben</span>
+                  </div>
                 </div>
-                <div style="text-align:center; margin-bottom: 8px;">
-                  <button type="button" id="validatePhotoBtn" class="ghost-button" style="font-size:0.85rem;" data-ui-i18n="btnValidatePhoto">Foto prüfen</button>
-                  <div id="photoValidationResult" style="margin-top:8px; font-size:0.82rem;"></div>
+                <div class="photo-validate-row">
+                  <button type="button" id="validatePhotoBtn" class="ghost-button photo-validate-btn" data-ui-i18n="btnValidatePhoto">Foto prüfen</button>
+                  <div id="photoValidationResult" class="photo-validation-result"></div>
                 </div>
                 <div class="photo-adjust-controls">
-                  <p id="photoAdjustHelp" class="helper-text" data-ui-i18n="photoAdjustHelp">Foto nach Aufnahme verschieben, damit es rechts im Ausweis sauber passt.</p>
+                  <p id="photoAdjustHelp" class="helper-text" data-ui-i18n="photoAdjustHelp">Foto per Drag verschieben oder Zoom nutzen — wie in Canva. So passt es rechts im Ausweis.</p>
                   <p id="photoRequiredHint" class="helper-text helper-text-warning" data-ui-i18n="photoRequiredHint">Pflicht: Ohne Foto kann der Ausweis nicht gespeichert werden.</p>
-                  <label class="photo-zoom-row">
-                    <span id="photoZoomCropLabel" data-ui-i18n="photoZoomCropLabel">Zoom / Zuschneiden</span>
-                    <input id="photoZoom" type="range" min="1" max="1.8" step="0.02" value="1.18" disabled />
-                    <span id="photoZoomValue">1.18x</span>
-                  </label>
-                  <div class="photo-adjust-grid">
-                    <button type="button" class="ghost-button photo-move-btn" data-photo-move="up" disabled data-ui-i18n="btnPhotoUp">↑ Hoch</button>
-                    <button type="button" class="ghost-button photo-move-btn" data-photo-move="left" disabled data-ui-i18n="btnPhotoLeft">← Links</button>
-                    <button type="button" class="ghost-button photo-move-btn" data-photo-move="right" disabled data-ui-i18n="btnPhotoRight">Rechts →</button>
-                    <button type="button" class="ghost-button photo-move-btn" data-photo-move="down" disabled data-ui-i18n="btnPhotoDown">Runter ↓</button>
-                    <button type="button" id="photoResetButton" class="ghost-button" disabled data-ui-i18n="btnPhotoReset">Position zurücksetzen</button>
+                  <div class="photo-adjust-panel">
+                    <label class="photo-zoom-row">
+                      <span id="photoZoomCropLabel" data-ui-i18n="photoZoomCropLabel">Zoom / Zuschneiden</span>
+                      <input id="photoZoom" type="range" min="1" max="1.8" step="0.02" value="1.18" disabled />
+                      <span id="photoZoomValue" class="photo-zoom-value">1.18x</span>
+                    </label>
+                    <div class="photo-dpad-wrap">
+                      <div class="photo-dpad" role="group" aria-label="Feinjustierung">
+                        <button type="button" class="ghost-button photo-move-btn photo-dpad-btn photo-dpad-up" data-photo-move="up" disabled aria-label="Hoch" title="Hoch">↑</button>
+                        <button type="button" class="ghost-button photo-move-btn photo-dpad-btn photo-dpad-left" data-photo-move="left" disabled aria-label="Links" title="Links">←</button>
+                        <button type="button" id="photoResetButton" class="ghost-button photo-dpad-btn photo-dpad-center" disabled aria-label="Position zurücksetzen" title="Zurücksetzen">⟲</button>
+                        <button type="button" class="ghost-button photo-move-btn photo-dpad-btn photo-dpad-right" data-photo-move="right" disabled aria-label="Rechts" title="Rechts">→</button>
+                        <button type="button" class="ghost-button photo-move-btn photo-dpad-btn photo-dpad-down" data-photo-move="down" disabled aria-label="Runter" title="Runter">↓</button>
+                      </div>
+                      <p id="photoAdjustStatus" class="photo-adjust-status helper-text">Position: X 0 | Y 0</p>
+                      <button type="button" id="photoUndoButton" class="ghost-button photo-undo-btn" disabled data-ui-i18n="btnPhotoUndo">Rückgängig</button>
+                    </div>
                   </div>
-                  <p id="photoAdjustStatus" class="helper-text">Position: X 0 | Y 0</p>
                 </div>
               </div>
 
@@ -1326,7 +1339,7 @@
               </label>
               <label>
                 <span data-ui-i18n="labelDeviceLocation">Standort</span>
-                <input id="deviceLocation" type="text" placeholder="z. B. Eingang West, Baustelle A" />
+                <input id="deviceLocation" type="text" placeholder="z. B. Eingang West, Standort A" />
               </label>
               <label>
                 <span data-ui-i18n="labelDeviceType">Typ / Protokoll</span>
@@ -1353,7 +1366,7 @@
               <button type="button" id="camerasEventsRefreshBtn" class="ghost-button small-button" data-ui-i18n="camerasRefreshBtn">Ereignisse</button>
             </div>
           </div>
-          <p class="helper-text" data-ui-i18n="camerasHint">Lokaler RTSP-Agent oder Webhook an <code>/api/integrations/cameras/rtsp-ingest</code> (Header: <code>X-BauPass-Rtsp-Token</code> oder <code>X-Device-API-Key</code>).</p>
+          <p class="helper-text" data-ui-i18n="camerasHint">Lokaler RTSP-Agent oder Webhook an <code>/api/integrations/cameras/rtsp-ingest</code> (Header: <code>X-WorkPass-Rtsp-Token</code> oder <code>X-Device-API-Key</code>).</p>
           <div id="cameraSummaryBar" class="meta-box hidden"></div>
           <div class="panel-grid two-columns" style="margin-top:12px;">
             <article class="panel" style="margin:0;">
@@ -1365,7 +1378,7 @@
                 </label>
                 <label>
                   <span data-ui-i18n="labelCameraLocation">Standort</span>
-                  <input id="cameraLocation" type="text" placeholder="Baustelle A" />
+                  <input id="cameraLocation" type="text" placeholder="Standort A" />
                 </label>
                 <label>
                   <span data-ui-i18n="labelCameraRtsp">RTSP-URL (optional)</span>
@@ -1517,7 +1530,7 @@
               </div>
               <label>
                 <span data-ui-i18n="labelPlatformName">Plattformname</span>
-                <input id="platformName" type="text" placeholder="BauPass" required />
+                <input id="platformName" type="text" placeholder="WorkPass" required />
               </label>
               <label>
                 <span data-ui-i18n="labelOperatorName">Betreiber</span>
@@ -1543,17 +1556,17 @@
               </label>
               <label>
                 Hauptton
-                <input id="invoicePrimaryColor" type="color" value="#0f4c5c" />
+                <input id="invoicePrimaryColor" type="color" value="#06b6d4" />
               </label>
               <label>
                 Akzent
-                <input id="invoiceAccentColor" type="color" value="#e36414" />
+                <input id="invoiceAccentColor" type="color" value="#a855f7" />
               </label>
               <label class="full-width">
                 Firmenlogo für Rechnungen
                 <input id="invoiceLogoFile" type="file" accept="image/*" />
               </label>
-              <button id="loadCustomBrandButton" type="button" class="ghost-button full-width" data-ui-i18n="btnLoadDefaultBrand">BauKometra Branding laden</button>
+              <button id="loadCustomBrandButton" type="button" class="ghost-button full-width" data-ui-i18n="btnLoadDefaultBrand">Suppix Technologie UG Branding laden</button>
               <button id="loadCustomBrandAltButton" type="button" class="ghost-button full-width" data-ui-i18n="btnLoadAltBrand">Alternative laden</button>
               <input id="invoiceLogoData" type="hidden" />
               <img id="invoiceLogoPreview" class="invoice-logo-preview hidden" alt="Logo Vorschau" />
@@ -1888,7 +1901,7 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow" data-ui-i18n="companyNewEyebrow">Mandanten</p>
-                <h3 data-ui-i18n="companyNewH3">Neue Baufirma anlegen</h3>
+                <h3 data-ui-i18n="companyNewH3">Neue Firma anlegen</h3>
               </div>
             </div>
             <form id="companyForm" class="form-grid compact-grid">
@@ -1987,7 +2000,7 @@
                 <span data-ui-i18n="turnstileCountLabel">Anzahl Drehkreuze</span>
                 <input id="companyTurnstileCount" type="number" min="1" max="20" step="1" value="1" />
               </label>
-              <button type="submit" class="ghost-button full-width" data-ui-i18n="btnCreateCompany">Baufirma anlegen</button>
+              <button type="submit" class="ghost-button full-width" data-ui-i18n="btnCreateCompany">Firma anlegen</button>
             </form>
             </div><!-- /data-superadmin-only -->
 
@@ -2262,7 +2275,8 @@
   <script src="./control-pass-theme.js?v=20260619theme1"></script>
   <script src="./support-assist-client.js?v=20260620assist5"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./app.js?v=20260620assist5"></script>
+  <script src="./enterprise-shell-i18n.js?v=20260621enterprise8"></script>
+  <script src="./app.js?v=20260621enterprise8"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {
@@ -2295,7 +2309,20 @@
           }
         }
         if (b.logoData && b.logoData.startsWith('data:image/')) {
-          document.querySelectorAll('.website-logo-auth, .website-logo-sync').forEach(function(el) { el.src = b.logoData; el.classList.remove('hidden'); });
+          document.querySelectorAll('.website-logo-auth, .website-logo-sync').forEach(function(el) {
+            var isSidebar = el.classList.contains('website-logo-sidebar');
+            el.src = b.logoData;
+            el.classList.remove('hidden');
+          });
+        } else {
+          document.querySelectorAll('.website-logo-auth, .website-logo-sync').forEach(function(el) {
+            if (el.classList.contains('website-logo-sidebar')) {
+              el.src = '/branding/suppix-ai-logo-dark.svg';
+            } else if (!el.getAttribute('src') || el.getAttribute('src').indexOf('suppix-ai') === -1) {
+              el.src = '/branding/suppix-ai-logo.svg';
+            }
+            el.classList.remove('hidden');
+          });
         }
         if (b.preset || b.brandingPreset) {
           document.body.setAttribute('data-branding-preset', b.preset || b.brandingPreset);

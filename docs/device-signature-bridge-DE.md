@@ -1,8 +1,8 @@
-# Signatur-Pad / USB-Bridge
+﻿# Signatur-Pad / USB-Bridge
 
 ## Herstellerunabhängig (Browser)
 
-BauPass erkennt automatisch installierte lokale Bridges:
+WorkPass erkennt automatisch installierte lokale Bridges:
 
 | Anbieter | Software auf dem Admin-PC | Datei im Projekt |
 |----------|---------------------------|------------------|
@@ -12,7 +12,7 @@ BauPass erkennt automatisch installierte lokale Bridges:
 | **Topaz** | SigWeb | `vendor/topaz/SigWebTablet.js` |
 | **Beliebig** | — | Unterschrift auf der **Canvas** (USB-Stift als Maus) |
 
-Control Pass → Mitarbeiter → **Signaturgerät**
+WorkPass → Mitarbeiter → **Signaturgerät**
 
 Details: [signature-pad-setup-AR.md](./signature-pad-setup-AR.md) · Signotec: [signotec-setup-AR.md](./signotec-setup-AR.md)
 
@@ -23,8 +23,8 @@ Details: [signature-pad-setup-AR.md](./signature-pad-setup-AR.md) · Signotec: [
 ## Authentifizierung (eine Option)
 
 1. **IoT-Gerät:** Header `X-Device-API-Key` (wie Gate-Heartbeat)
-2. **Desktop-Agent:** Header `X-BauPass-Signature-Token` = `BAUPASS_SIGNATURE_BRIDGE_TOKEN` (+ optional `X-BauPass-Company-Id`)
-3. **Admin-Session:** Cookie/Bearer wie Control Pass
+2. **Desktop-Agent:** Header `X-WorkPass-Signature-Token` = `BAUPASS_SIGNATURE_BRIDGE_TOKEN` (+ optional `X-WorkPass-Company-Id`)
+3. **Admin-Session:** Cookie/Bearer wie WorkPass
 
 ## Body (JSON)
 

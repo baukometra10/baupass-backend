@@ -1,4 +1,4 @@
-# إدارة التغيير والإصدارات — BauPass
+﻿# إدارة التغيير والإصدارات — WorkPass
 
 ## Release channels
 

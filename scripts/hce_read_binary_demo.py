@@ -1,4 +1,4 @@
-"""Minimal READ BINARY loop demo for BauPass HCE APDU v2.
+﻿"""Minimal READ BINARY loop demo for WorkPass HCE APDU v2.
 
 This script demonstrates how a reader can fetch a token from the Android HCE card
 using SELECT AID + READ BINARY chunking until SW=9000.

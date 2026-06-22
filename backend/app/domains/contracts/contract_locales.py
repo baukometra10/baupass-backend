@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from typing import Any
@@ -346,7 +346,7 @@ def signature_labels(lang: str, employee_gender: str = "") -> tuple[str, str, st
 
 
 def footer_text(lang: str) -> str:
-    return _t(lang, "Erstellt mit BauPass", "Created with BauPass", "أُنشئ بواسطة BauPass")
+    return _t(lang, "Erstellt mit WorkPass", "Created with WorkPass", "أُنشئ بواسطة WorkPass")
 
 
 def section_prefix(lang: str) -> str:
