@@ -1,14 +1,17 @@
 import { STRINGS as BASE_STRINGS } from "./i18n-strings.js";
 import { EXT_STRINGS } from "./i18n-strings-ext.js";
+import { EXTRA_LANG_STRINGS } from "./i18n-strings-langs.js";
 
 const LANGS_8 = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
 
-const STRINGS = Object.fromEntries(
-  LANGS_8.map((lang) => [
-    lang,
-    { ...(BASE_STRINGS[lang] || BASE_STRINGS.en || {}), ...(EXT_STRINGS[lang] || EXT_STRINGS.en || {}) },
-  ]),
-);
+function buildLangPack(lang) {
+  const base = BASE_STRINGS[lang] || BASE_STRINGS.en || {};
+  const ext = EXT_STRINGS[lang] || EXT_STRINGS.en || {};
+  const extra = EXTRA_LANG_STRINGS[lang] || {};
+  return { ...base, ...ext, ...extra };
+}
+
+const STRINGS = Object.fromEntries(LANGS_8.map((lang) => [lang, buildLangPack(lang)]));
 
 /** Maps admin-v2 i18n keys → sector-config term keys from /api/platform/sector-config */
 const SECTOR_I18N_MAP = {
@@ -60,6 +63,7 @@ export function t(key, vars = {}) {
   let text =
     sectorTermOverrides[key]
     || STRINGS[lang]?.[key]
+    || (lang !== "de" && lang !== "ar" ? STRINGS.en?.[key] : undefined)
     || STRINGS.de[key]
     || STRINGS.en[key]
     || key;

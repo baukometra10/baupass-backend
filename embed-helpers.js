@@ -406,9 +406,18 @@
       : "/branding/suppix-ai-logo-dark.svg";
     applyTenantFavicon({ logoData: resolvedLogo, title: displayName });
     document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
-      const useChip = img.classList.contains("tenant-logo-chip") || img.classList.contains("foreman-header-logo");
-      img.src = logoData || (useChip ? chipFallback : resolvedSidebarLogo);
+      const useChip = img.classList.contains("tenant-logo-chip")
+        || img.classList.contains("foreman-header-logo")
+        || img.classList.contains("tenant-logo-img");
+      const fallback = useChip ? chipFallback : resolvedSidebarLogo;
+      const nextSrc = logoData ? logoData : fallback;
+      img.src = nextSrc;
       img.classList.remove("hidden");
+      img.onerror = function onTenantLogoError() {
+        this.onerror = null;
+        if (this.src !== fallback) this.src = fallback;
+        this.classList.remove("hidden");
+      };
     });
     document.querySelectorAll(".website-logo-auth, .website-logo-sync.website-logo-auth").forEach((img) => {
       img.src = resolvedLogo;

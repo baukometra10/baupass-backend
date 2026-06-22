@@ -342,8 +342,25 @@ window.addEventListener("message", (event) => {
     }
     return;
   }
-  if (event.data.type !== "baupass-sync-token" || !event.data.token) return;
-  const token = String(event.data.token).trim();
+  if (event.data.type === "baupass-sync-lang") {
+    const lang = String(event.data.lang || "").trim().slice(0, 2);
+    if (lang) {
+      setLang(lang);
+      document.querySelectorAll("[data-lang-select]").forEach((sel) => {
+        if (sel.value !== lang) sel.value = lang;
+      });
+    }
+    return;
+  }
+  if (event.data.type !== "baupass-sync-token") return;
+  const langFromParent = String(event.data.lang || "").trim().slice(0, 2);
+  if (langFromParent) {
+    setLang(langFromParent);
+    document.querySelectorAll("[data-lang-select]").forEach((sel) => {
+      if (sel.value !== langFromParent) sel.value = langFromParent;
+    });
+  }
+  const token = String(event.data.token || "").trim();
   if (!token) return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(CONTROL_TOKEN_KEY, token);

@@ -17613,11 +17613,46 @@ function resolveSidebarBrandLogo(logoSrc) {
   return src;
 }
 
+function normalizeWebsiteLogoSrc(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  if (value.startsWith("data:image/")) return value;
+  if (value.startsWith("/branding/")) return value;
+  try {
+    const parsed = new URL(value, window.location.origin);
+    const host = String(parsed.hostname || "").toLowerCase();
+    const local = host === "localhost" || host === "127.0.0.1" || host === "::1";
+    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && local)) {
+      return parsed.href;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+function bindWebsiteLogoFallback(img) {
+  if (!img || img.dataset.logoFallbackBound) return;
+  img.dataset.logoFallbackBound = "1";
+  img.addEventListener("error", () => {
+    const sidebarFallback = DEFAULT_BRAND_LOGO.replace("suppix-ai-logo.svg", "suppix-ai-logo-dark.svg");
+    const chipFallback = `${window.location.origin}/branding/suppix-ai-mark.svg`;
+    const fallback = img.classList.contains("website-logo-sidebar")
+      ? sidebarFallback
+      : (img.classList.contains("tenant-logo-img") ? chipFallback : DEFAULT_BRAND_LOGO);
+    if (img.src !== fallback) {
+      img.src = fallback;
+    }
+    img.classList.remove("hidden");
+  });
+}
+
 function applyWebsiteLogo(dataUrl) {
-  const logoSrc = String(dataUrl || "").trim() || DEFAULT_BRAND_LOGO;
+  const logoSrc = normalizeWebsiteLogoSrc(dataUrl) || DEFAULT_BRAND_LOGO;
   const sidebarSrc = resolveSidebarBrandLogo(logoSrc);
   const hasLogo = Boolean(logoSrc);
-  document.querySelectorAll(".website-logo-sync").forEach((img) => {
+  document.querySelectorAll(".website-logo-sync, [data-tenant-logo], .tenant-logo-img").forEach((img) => {
+    bindWebsiteLogoFallback(img);
     if (hasLogo) {
       img.src = img.classList.contains("website-logo-sidebar") ? sidebarSrc : logoSrc;
     }
