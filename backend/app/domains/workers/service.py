@@ -324,6 +324,12 @@ class WorkersService:
             badge_pin_hash=badge_pin_hash,
             physical_card_id=physical_card_id,
         )
+        from backend.server import apply_worker_site_coordinates_from_payload
+
+        try:
+            apply_worker_site_coordinates_from_payload(db, worker_id, payload)
+        except ValueError as error:
+            return {"error": {"error": str(error)}, "status": 400}
         try:
             _persist_worker_compliance_fields(db, worker_id, payload, user, is_new=True)
         except ValueError as error:
@@ -549,6 +555,13 @@ class WorkersService:
         except ValueError as error:
             code = str(error)
             return {"error": {"error": code}, "status": 400}
+
+        from backend.server import apply_worker_site_coordinates_from_payload
+
+        try:
+            apply_worker_site_coordinates_from_payload(db, worker_id, payload, dict(worker))
+        except ValueError as error:
+            return {"error": {"error": str(error)}, "status": 400}
 
         self.repo.update_worker(
             db,

@@ -2304,6 +2304,24 @@ async function resolveLoginLocation() {
     return null;
   }
 
+  if (typeof capturePreciseGeolocation === "function") {
+    try {
+      const position = await capturePreciseGeolocation({
+        minSamples: 2,
+        maxSamples: 5,
+        maxWaitMs: 14000,
+        targetAccuracyMeters: 25,
+      });
+      return {
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+      };
+    } catch {
+      // fall through to single reading
+    }
+  }
+
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -2317,7 +2335,7 @@ async function resolveLoginLocation() {
         // Permission denied or unavailable – let the server decide if geolocation is required
         resolve(null);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   });
 }
@@ -4724,6 +4742,7 @@ async function pollProximityLoginCandidate() {
       "proximity_login_disabled",
       "outside_site_radius",
       "worker_geolocation_required",
+      "worker_geolocation_inaccurate",
     ]);
     if (!quietCodes.has(error.code)) {
       console.warn("[proximity-login]", error.code || error.message);
@@ -4909,6 +4928,9 @@ function workerLoginErrorMessage(error) {
   }
   if (error.code === "worker_geolocation_required") {
     return t("geolocationRequired");
+  }
+  if (error.code === "worker_geolocation_inaccurate") {
+    return error.message || t("geolocationInaccurate");
   }
   if (error.code === "outside_site_radius") {
     return error.message || t("outsideSiteRadius");

@@ -92,6 +92,7 @@ WORKER_LOGIN_MAX_DISTANCE_METERS = 100
 WORKER_SITE_GEOFENCE_DEFAULT_METERS = 20
 WORKER_SITE_GEOFENCE_MIN_METERS = 10
 WORKER_SITE_GEOFENCE_MAX_METERS = 40
+WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 80
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -1700,6 +1701,12 @@ def serialize_worker_record(row):
         "workerType": normalize_worker_type(row["worker_type"]),
         "role": row["role"],
         "site": row["site"],
+        "siteLatitude": float(row["site_latitude"])
+        if hasattr(row, "keys") and "site_latitude" in row.keys() and row["site_latitude"] is not None
+        else None,
+        "siteLongitude": float(row["site_longitude"])
+        if hasattr(row, "keys") and "site_longitude" in row.keys() and row["site_longitude"] is not None
+        else None,
         "validUntil": row["valid_until"],
         "visitorCompany": row["visitor_company"],
         "visitPurpose": row["visit_purpose"],
@@ -10836,6 +10843,11 @@ def worker_location_login_error_response(db, worker, exc):
     error_code = str(exc)
     if error_code == "worker_geolocation_required":
         return jsonify({"error": error_code, "message": "Bitte Standortfreigabe aktivieren und direkt am Standort anmelden."}), 400
+    if error_code == "worker_geolocation_inaccurate":
+        return jsonify({
+            "error": error_code,
+            "message": "GPS-Signal zu ungenau. Bitte kurz warten, ins Freie gehen und erneut versuchen.",
+        }), 400
     if error_code == "site_location_unavailable":
         return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden. Bitte Admin informieren."}), 403
     return jsonify({
@@ -10908,6 +10920,60 @@ def get_effective_work_end_time(db, worker_id):
     return str(row["company_work_end_time"] or row["global_work_end_time"] or "").strip()
 
 
+def _worker_location_accuracy_meters(location):
+    if not isinstance(location, dict):
+        return None
+    accuracy = _normalize_float(location.get("accuracy"))
+    if accuracy is None:
+        accuracy = _normalize_float(location.get("accuracyMeters"))
+    return accuracy
+
+
+def _validate_worker_location_accuracy_or_raise(location):
+    accuracy = _worker_location_accuracy_meters(location)
+    if accuracy is not None and accuracy > WORKER_GEOLOCATION_MAX_ACCURACY_METERS:
+        raise ValueError("worker_geolocation_inaccurate")
+
+
+def _effective_geofence_distance_meters(distance_meters, accuracy_meters):
+    distance = max(0.0, float(distance_meters))
+    accuracy = _normalize_float(accuracy_meters)
+    if accuracy is not None and accuracy > 0:
+        distance = max(0.0, distance - accuracy)
+    return distance
+
+
+def _validate_site_coordinate_pair(latitude, longitude):
+    lat = _normalize_float(latitude)
+    lng = _normalize_float(longitude)
+    if lat is None or lng is None:
+        return None
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
+        raise ValueError("invalid_site_coordinates")
+    return lat, lng
+
+
+def apply_worker_site_coordinates_from_payload(db, worker_id, payload, existing_worker=None):
+    if "siteLatitude" not in payload and "siteLongitude" not in payload:
+        return
+
+    coords = _validate_site_coordinate_pair(payload.get("siteLatitude"), payload.get("siteLongitude"))
+    if coords:
+        db.execute(
+            "UPDATE workers SET site_latitude = ?, site_longitude = ? WHERE id = ?",
+            (coords[0], coords[1], worker_id),
+        )
+        return
+
+    previous_site = str((existing_worker or {}).get("site") or "").strip()
+    next_site = str(payload.get("site") if payload.get("site") is not None else previous_site).strip()
+    if next_site != previous_site:
+        db.execute(
+            "UPDATE workers SET site_latitude = NULL, site_longitude = NULL WHERE id = ?",
+            (worker_id,),
+        )
+
+
 def measure_worker_site_distance(db, worker, location):
     if normalize_worker_type(worker["worker_type"]) != "worker":
         return None
@@ -10916,20 +10982,30 @@ def measure_worker_site_distance(db, worker, location):
         return None
     if not isinstance(location, dict):
         raise ValueError("worker_geolocation_required")
+    _validate_worker_location_accuracy_or_raise(location)
     device_latitude = _normalize_float(location.get("latitude"))
     device_longitude = _normalize_float(location.get("longitude"))
     if device_latitude is None or device_longitude is None:
         raise ValueError("worker_geolocation_required")
-    distance_meters = _haversine_meters(
+    raw_distance_meters = _haversine_meters(
         site_coordinates[0], site_coordinates[1], device_latitude, device_longitude
     )
-    return {
-        "distanceMeters": int(round(distance_meters)),
+    accuracy_meters = _worker_location_accuracy_meters(location)
+    effective_distance_meters = _effective_geofence_distance_meters(
+        raw_distance_meters, accuracy_meters
+    )
+    result = {
+        "distanceMeters": int(round(effective_distance_meters)),
         "siteLatitude": float(site_coordinates[0]),
         "siteLongitude": float(site_coordinates[1]),
         "deviceLatitude": float(device_latitude),
         "deviceLongitude": float(device_longitude),
     }
+    if raw_distance_meters != effective_distance_meters:
+        result["rawDistanceMeters"] = int(round(raw_distance_meters))
+    if accuracy_meters is not None:
+        result["accuracyMeters"] = int(round(accuracy_meters))
+    return result
 
 
 def maybe_site_app_auto_checkin(db, worker):
@@ -12339,7 +12415,13 @@ def worker_app_site_presence():
     location = payload.get("location") if isinstance(payload, dict) else payload
     try:
         measured = measure_worker_site_distance(db, worker, location)
-    except ValueError:
+    except ValueError as error:
+        error_code = str(error)
+        if error_code == "worker_geolocation_inaccurate":
+            return jsonify({
+                "error": error_code,
+                "message": "GPS-Signal zu ungenau. Bitte kurz warten und erneut versuchen.",
+            }), 400
         return jsonify({"error": "worker_geolocation_required", "message": "Standort erforderlich."}), 400
     if not measured:
         return jsonify({"error": "site_location_unavailable", "message": "Standort der Firma ist nicht konfiguriert."}), 403

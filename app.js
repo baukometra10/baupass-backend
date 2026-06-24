@@ -16723,6 +16723,40 @@ async function refreshSubcompaniesForSelectedCompany() {
   populateSubcompanySelects();
 }
 
+function setWorkerSiteCoordinates(latitude, longitude) {
+  const latInput = document.querySelector("#siteLatitude");
+  const lngInput = document.querySelector("#siteLongitude");
+  if (latInput) {
+    latInput.value = latitude != null && Number.isFinite(Number(latitude)) ? String(latitude) : "";
+  }
+  if (lngInput) {
+    lngInput.value = longitude != null && Number.isFinite(Number(longitude)) ? String(longitude) : "";
+  }
+}
+
+function readWorkerSiteCoordinates() {
+  const latitude = Number(document.querySelector("#siteLatitude")?.value);
+  const longitude = Number(document.querySelector("#siteLongitude")?.value);
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    return { siteLatitude: latitude, siteLongitude: longitude };
+  }
+  return { siteLatitude: null, siteLongitude: null };
+}
+
+function populateWorkerSiteFields(worker) {
+  const siteInput = document.querySelector("#site");
+  if (siteInput) {
+    siteInput.value = worker?.site || "";
+  }
+  if (worker?.siteLatitude != null && worker?.siteLongitude != null) {
+    setWorkerSiteCoordinates(worker.siteLatitude, worker.siteLongitude);
+  } else {
+    setWorkerSiteCoordinates(null, null);
+  }
+}
+
+let siteCoordsFromGps = false;
+
 async function fillSiteFromCurrentLocation() {
   const siteInput = document.querySelector("#site");
   const btn = document.getElementById("siteGeoLocateBtn");
@@ -16734,29 +16768,31 @@ async function fillSiteFromCurrentLocation() {
     btn.disabled = true;
     btn.classList.add("is-loading");
   }
-  showToast(uiT("siteGeoLocating"), "info", 2500);
+  showToast(uiT("siteGeoLocating"), "info", 4000);
   try {
-    const getPosition = (options) =>
-      new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    let position = null;
+    if (typeof capturePreciseGeolocation === "function") {
+      position = await capturePreciseGeolocation({
+        minSamples: 3,
+        maxWaitMs: 16000,
+        targetAccuracyMeters: 15,
       });
-    let position;
-    try {
-      // Fast path: use a fresh-ish cached reading first so the UI responds within about a second.
-      position = await getPosition({
-        enableHighAccuracy: false,
-        timeout: 1000,
-        maximumAge: 300000,
+    } else {
+      const reading = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 0,
+        });
       });
-    } catch {
-      position = await getPosition({
-        enableHighAccuracy: true,
-        timeout: 4000,
-        maximumAge: 60000,
-      });
+      position = {
+        latitude: reading.coords.latitude,
+        longitude: reading.coords.longitude,
+        accuracy: reading.coords.accuracy,
+      };
     }
-    const lat = position?.coords?.latitude;
-    const lon = position?.coords?.longitude;
+    const lat = position?.latitude;
+    const lon = position?.longitude;
     const data = await apiRequest(
       `${API_BASE}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
     );
@@ -16764,8 +16800,13 @@ async function fillSiteFromCurrentLocation() {
     if (!address) {
       throw new Error("reverse_geocode_failed");
     }
+    siteCoordsFromGps = true;
     siteInput.value = address;
-    showToast(uiT("siteGeoLocateDone"), "success", 3500);
+    setWorkerSiteCoordinates(lat, lon);
+    siteCoordsFromGps = false;
+    const accuracyMeters = Math.round(Number(position?.accuracy) || 0);
+    const accuracyHint = accuracyMeters > 0 ? ` (±${accuracyMeters} m)` : "";
+    showToast(`${uiT("siteGeoLocateDone")}${accuracyHint}`, "success", 4500);
   } catch (error) {
     const code = Number(error?.code);
     if (code === 1) {
@@ -16797,6 +16838,16 @@ function wireWorkerFormEnhancements() {
     geoBtn.dataset.wired = "1";
     geoBtn.addEventListener("click", () => {
       void fillSiteFromCurrentLocation();
+    });
+  }
+
+  const siteInput = document.querySelector("#site");
+  if (siteInput && siteInput.dataset.coordsWired !== "1") {
+    siteInput.dataset.coordsWired = "1";
+    siteInput.addEventListener("input", () => {
+      if (!siteCoordsFromGps) {
+        setWorkerSiteCoordinates(null, null);
+      }
     });
   }
 
@@ -17470,6 +17521,7 @@ function clearWorkerEditor() {
   if (badgePinInput) {
     badgePinInput.value = "";
   }
+  setWorkerSiteCoordinates(null, null);
   state.editingWorkerId = null;
   setPhotoEditorSource("", { resetOffset: true });
   resetComplianceSignatureEditor();
@@ -23524,7 +23576,7 @@ function bindWorkerRowActions() {
       document.querySelector("#insuranceNumber").value = worker.insuranceNumber || "";
       if (elements.workerType) elements.workerType.value = isVisitorWorker(worker) ? "visitor" : "worker";
       document.querySelector("#role").value = worker.role || "";
-      document.querySelector("#site").value = worker.site || "";
+      populateWorkerSiteFields(worker);
       document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
       document.querySelector("#validUntil").value = worker.validUntil || "";
       if (elements.visitorCompany) elements.visitorCompany.value = worker.visitorCompany || "";
@@ -26766,7 +26818,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
       document.querySelector("#lastName").value = worker.lastName;
       document.querySelector("#insuranceNumber").value = worker.insuranceNumber;
       document.querySelector("#role").value = worker.role;
-      document.querySelector("#site").value = worker.site;
+      populateWorkerSiteFields(worker);
       document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
       document.querySelector("#validUntil").value = worker.validUntil;
       document.querySelector("#workerStatus").value = worker.status;
@@ -27091,7 +27143,7 @@ function renderBadge() {
         document.querySelector("#lastName").value = worker.lastName || "";
         document.querySelector("#insuranceNumber").value = worker.insuranceNumber || "";
         document.querySelector("#role").value = worker.role || "";
-        document.querySelector("#site").value = worker.site || "";
+        populateWorkerSiteFields(worker);
         document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
         document.querySelector("#validUntil").value = worker.validUntil || "";
         document.querySelector("#workerStatus").value = worker.status || "aktiv";
@@ -28199,6 +28251,7 @@ async function handleWorkerSubmit(event) {
     insuranceNumber: document.querySelector("#insuranceNumber").value.trim(),
     role: document.querySelector("#role").value.trim(),
     site: document.querySelector("#site").value.trim(),
+    ...readWorkerSiteCoordinates(),
     physicalCardId: document.querySelector("#physicalCardId").value.trim(),
     validUntil: document.querySelector("#validUntil").value,
     visitorCompany: elements.visitorCompany?.value.trim() || "",

@@ -608,6 +608,8 @@
               <label>
                 <span data-ui-i18n="labelSite">Standort</span>
                 <div class="site-input-shell">
+                  <input id="siteLatitude" type="hidden" />
+                  <input id="siteLongitude" type="hidden" />
                   <input id="site" type="text" placeholder="z. B. Musterstr. 12, 80333 München" required />
                   <button id="siteGeoLocateBtn" type="button" class="site-geo-btn" data-ui-i18n="siteGeoLocateBtn" data-ui-i18n-attr="aria-label,title">
                     <svg class="site-geo-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -615,7 +617,7 @@
                     </svg>
                   </button>
                 </div>
-                <small class="field-hint" data-ui-i18n="siteFieldHint">Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt</small>
+                <small class="field-hint" data-ui-i18n="siteFieldHint">GPS-Button für exakte Koordinaten – Adresse für Anzeige und Geofence</small>
               </label>
               <label>
                 <span data-ui-i18n="labelPhysicalCard">Physische Karten-ID (NFC/RFID)</span>
@@ -2272,6 +2274,7 @@
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
   <script src="./embed-helpers.js?v=20260603nav1"></script>
+  <script src="./geo-precision.js?v=20260622geofence1"></script>
   <script src="./control-pass-theme.js?v=20260619theme1"></script>
   <script src="./support-assist-client.js?v=20260620assist5"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>

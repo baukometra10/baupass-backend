@@ -129,25 +129,44 @@ export function refreshGeofenceMap() {
 }
 
 /** Fill lat/lng from browser geolocation and center the map. */
-export function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { onStatus } = {}) {
+export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { onStatus } = {}) {
   const map = mapEl?._baupassLeafletMap || document.getElementById("geofenceMap")?._baupassLeafletMap;
   if (!navigator.geolocation) {
     onStatus?.("unsupported");
     return;
   }
   onStatus?.("loading");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const { latitude, longitude } = pos.coords;
-      if (map?._baupassApplyCoords) {
-        map._baupassApplyCoords(latitude, longitude, { center: true });
-      } else {
-        if (latInput) latInput.value = latitude.toFixed(6);
-        if (lngInput) lngInput.value = longitude.toFixed(6);
-      }
-      onStatus?.("ok");
-    },
-    () => onStatus?.("denied"),
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-  );
+  try {
+    let position = null;
+    if (typeof globalThis.capturePreciseGeolocation === "function") {
+      position = await globalThis.capturePreciseGeolocation({
+        minSamples: 3,
+        maxWaitMs: 16000,
+        targetAccuracyMeters: 15,
+      });
+    } else {
+      position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) =>
+            resolve({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            }),
+          reject,
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      });
+    }
+    const { latitude, longitude } = position;
+    if (map?._baupassApplyCoords) {
+      map._baupassApplyCoords(latitude, longitude, { center: true });
+    } else {
+      if (latInput) latInput.value = latitude.toFixed(6);
+      if (lngInput) lngInput.value = longitude.toFixed(6);
+    }
+    onStatus?.("ok");
+  } catch {
+    onStatus?.("denied");
+  }
 }
