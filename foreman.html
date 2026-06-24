@@ -692,7 +692,7 @@
     const API_BASE = `/api`;
 
     // Current session token (SUPPIX / Admin v2)
-    const TOKEN_KEYS = ['baupass-control-token', 'baupass-admin-v2-token', 'baupass_admin_session'];
+    const TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || ['workpass-session-token', 'workpass-admin-token', 'workpass-admin-session'];
     function getSessionToken() {
       if (window.BaupassAuth?.getSessionToken) {
         return window.BaupassAuth.getSessionToken() || '';

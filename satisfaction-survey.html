@@ -60,7 +60,7 @@
     <p id="successBox" class="muted hidden" style="text-align:center;padding:2rem 0">Vielen Dank für Ihre Bewertung!</p>
   </div>
   <script>
-    const TOKEN_KEYS = ["baupass-admin-v2-token", "baupass-control-token", "baupass-token"];
+    const TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || ["workpass-admin-token", "workpass-session-token", "workpass-token"];
     function token() {
       for (const k of TOKEN_KEYS) {
         const v = (localStorage.getItem(k) || "").trim();

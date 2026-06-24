@@ -270,6 +270,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
+  <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
   <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
@@ -685,7 +686,7 @@
     function authHeaders(extra = {}) {
       if (window.BaupassAuth) return window.BaupassAuth.authHeaders(extra);
       const headers = { ...extra };
-      const token = (localStorage.getItem("baupass-control-token") || localStorage.getItem("baupass-admin-v2-token") || "").trim();
+      const token = (window.WorkPassStorage?.readSessionToken?.() || localStorage.getItem("workpass-session-token") || localStorage.getItem("workpass-admin-token") || "").trim();
       if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
       return headers;
     }
