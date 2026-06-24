@@ -2,10 +2,23 @@
 import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
-const TOKEN_KEY = "baupass-admin-v2-token";
-const USER_KEY = "baupass-admin-v2-user";
-const COMPANY_KEY = "baupass-admin-v2-company";
-const CONTROL_TOKEN_KEY = "baupass-control-token";
+const WP = window.WorkPassStorage;
+const TOKEN_KEY = WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token";
+const USER_KEY = WP?.KEYS?.ADMIN_USER || "workpass-admin-user";
+const COMPANY_KEY = WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company";
+const CONTROL_TOKEN_KEY = WP?.KEYS?.SESSION_TOKEN || "workpass-session-token";
+
+function wpGet(key) {
+  return WP ? WP.getItem(key) : localStorage.getItem(key);
+}
+function wpSet(key, value) {
+  if (WP) WP.setItem(key, value);
+  else localStorage.setItem(key, value);
+}
+function wpRemove(key) {
+  if (WP) WP.removeItem(key);
+  else localStorage.removeItem(key);
+}
 
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 
@@ -38,7 +51,7 @@ async function tryEmbedSessionFromControlPass() {
   }
   document.documentElement.classList.add("embed-document");
   document.body.classList.add("embed-mode", "admin-v2-embed");
-  const parentToken = (localStorage.getItem(CONTROL_TOKEN_KEY) || "").trim();
+  const parentToken = (wpGet(CONTROL_TOKEN_KEY) || "").trim();
   if (!parentToken) {
     return false;
   }
@@ -54,15 +67,15 @@ async function tryEmbedSessionFromControlPass() {
       return false;
     }
     const data = await res.json();
-    localStorage.setItem(TOKEN_KEY, parentToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
+    wpSet(TOKEN_KEY, parentToken);
+    wpSet(USER_KEY, JSON.stringify(data.user || {}));
     const qsCid = new URLSearchParams(location.search).get("company_id") || "";
     if (qsCid) {
-      localStorage.setItem(COMPANY_KEY, qsCid);
+      wpSet(COMPANY_KEY, qsCid);
     } else if (data.user?.preview_company_id && String(data.user?.role || "") === "superadmin") {
-      localStorage.setItem(COMPANY_KEY, data.user.preview_company_id);
+      wpSet(COMPANY_KEY, data.user.preview_company_id);
     } else if (data.user?.company_id) {
-      localStorage.setItem(COMPANY_KEY, data.user.company_id);
+      wpSet(COMPANY_KEY, data.user.company_id);
     }
     return true;
   } catch {
@@ -226,8 +239,8 @@ function showEmbedAuthRequired(message) {
 }
 
 function clearSessionAndShowLogin(message) {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  wpRemove(TOKEN_KEY);
+  wpRemove(USER_KEY);
   if (isEmbedMode()) {
     showEmbedAuthRequired(message || t("login.embedRequired"));
     return;
@@ -253,10 +266,10 @@ async function probeSessionToken(token) {
 }
 
 async function adoptControlPassTokenIfValid() {
-  const controlToken = (localStorage.getItem(CONTROL_TOKEN_KEY) || "").trim();
+  const controlToken = (wpGet(CONTROL_TOKEN_KEY) || "").trim();
   if (!controlToken) return false;
   if (!(await probeSessionToken(controlToken))) return false;
-  localStorage.setItem(TOKEN_KEY, controlToken);
+  wpSet(TOKEN_KEY, controlToken);
   return true;
 }
 
@@ -269,7 +282,7 @@ async function applyTenantBrandingFromApi() {
   const user = getUser();
   let cid = String(user?.company_id || "").trim();
   if (user?.role === "superadmin") {
-    cid = String(localStorage.getItem(COMPANY_KEY) || "").trim();
+    cid = String(wpGet(COMPANY_KEY) || "").trim();
   }
   try {
     if (window.BaupassAuth?.resolveTenantBranding) {
@@ -291,7 +304,7 @@ function resolveAdminCompanyId() {
   const user = getUser();
   let cid = String(user?.company_id || "").trim();
   if (user?.role === "superadmin") {
-    cid = String(localStorage.getItem(COMPANY_KEY) || "").trim();
+    cid = String(wpGet(COMPANY_KEY) || "").trim();
   }
   return cid;
 }
@@ -314,7 +327,7 @@ async function loadSectorTerminologyForAdmin() {
 function applyParentCompanyId(companyId) {
   const cid = String(companyId || "").trim();
   if (!cid) return;
-  localStorage.setItem(COMPANY_KEY, cid);
+  wpSet(COMPANY_KEY, cid);
   const select = $("companyPicker");
   if (select && select.options.length) {
     const has = Array.from(select.options).some((o) => o.value === cid);
@@ -362,8 +375,8 @@ window.addEventListener("message", (event) => {
   }
   const token = String(event.data.token || "").trim();
   if (!token) return;
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(CONTROL_TOKEN_KEY, token);
+  wpSet(TOKEN_KEY, token);
+  wpSet(CONTROL_TOKEN_KEY, token);
   if (event.data.companyId) {
     applyParentCompanyId(event.data.companyId);
   }
@@ -411,7 +424,7 @@ function tryFocusEinsatzplanFromParent() {
 
 function getUser() {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || "{}");
+    return JSON.parse(wpGet(USER_KEY) || "{}");
   } catch {
     return {};
   }
@@ -440,7 +453,7 @@ function companyQuery() {
   if (user.role !== "superadmin") {
     return "";
   }
-  const cid = localStorage.getItem(COMPANY_KEY) || "";
+  const cid = wpGet(COMPANY_KEY) || "";
   return cid ? `?company_id=${encodeURIComponent(cid)}` : "";
 }
 
@@ -486,7 +499,7 @@ function apiBase() {
 }
 
 async function api(path, options = {}) {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = wpGet(TOKEN_KEY);
   const headers = {
     Accept: "application/json",
     ...(options.headers || {}),
@@ -540,7 +553,7 @@ function $(id) {
 }
 
 async function apiMultipart(path, { fields = {}, fileField = "file", file } = {}) {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = wpGet(TOKEN_KEY);
   const form = new FormData();
   Object.entries(fields).forEach(([key, value]) => {
     if (value != null && String(value).trim() !== "") form.append(key, String(value));
@@ -605,7 +618,7 @@ function setupCompanyPicker(user) {
     if (!select.value) {
       return;
     }
-    localStorage.setItem(COMPANY_KEY, select.value);
+    wpSet(COMPANY_KEY, select.value);
     void applyTenantBrandingFromApi();
     syncEnterpriseFrame();
     startAdminRealtime().catch(() => {});
@@ -632,7 +645,7 @@ async function loadCompanies() {
     select.innerHTML = `<option value="" disabled selected>${t("common.selectCompany")}</option>`;
     return;
   }
-  const saved = localStorage.getItem(COMPANY_KEY) || "";
+  const saved = wpGet(COMPANY_KEY) || "";
   select.innerHTML = rows
     .map((c) => `<option value="${c.id}">${c.name || c.id}</option>`)
     .join("");
@@ -640,7 +653,7 @@ async function loadCompanies() {
     select.value = saved;
   } else {
     select.value = rows[0].id;
-    localStorage.setItem(COMPANY_KEY, rows[0].id);
+    wpSet(COMPANY_KEY, rows[0].id);
   }
 }
 
@@ -707,7 +720,7 @@ function showActionToast(message, isError) {
 
 function activeCompanyId() {
   const user = getUser();
-  const stored = localStorage.getItem(COMPANY_KEY) || "";
+  const stored = wpGet(COMPANY_KEY) || "";
   if (user.role === "superadmin") {
     return stored;
   }
@@ -1423,7 +1436,7 @@ let deploymentBrandingPdfPreviewUrl = "";
 
 async function fetchDeploymentBrandingPdfBlob() {
   const q = companyQuery();
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = wpGet(TOKEN_KEY);
   const res = await fetch(`/api/workforce/deployment-plan/pdf/branding-preview${q}`, {
     method: "POST",
     headers: {
@@ -1467,7 +1480,7 @@ async function fetchDeploymentPdfBlob() {
   const q = companyQuery();
   const { year, month } = deploymentMonthParts();
   await saveDeploymentPlan();
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = wpGet(TOKEN_KEY);
   const res = await fetch(`/api/workforce/deployment-plan/pdf${q}`, {
     method: "POST",
     headers: {
@@ -1511,7 +1524,7 @@ async function previewCompanyBrandingPdf() {
     showActionToast(t("common.error"), true);
     return;
   }
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = wpGet(TOKEN_KEY);
   const res = await fetch(
     `/api/workforce/deployment-plan/pdf/branding-preview?company_id=${encodeURIComponent(cid)}`,
     {
@@ -1832,7 +1845,7 @@ async function loadPlatform() {
         const aiBody = { question: q, use_agent: true, agent_id: "operations", lang: getLang().slice(0, 2) };
         const user = getUser();
         const cid =
-          localStorage.getItem(COMPANY_KEY) ||
+          wpGet(COMPANY_KEY) ||
           user.preview_company_id ||
           user.company_id ||
           "";
@@ -3217,7 +3230,7 @@ async function loadOverview() {
 }
 
 async function loadQrImage(link) {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = wpGet(TOKEN_KEY);
   const res = await fetch(`/api/qr.png?data=${encodeURIComponent(link)}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -3586,7 +3599,7 @@ async function loadAccess() {
   if (exportLink) {
     exportLink.href = `/api/access-logs/export.csv${q}`;
     exportLink.onclick = (e) => {
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = wpGet(TOKEN_KEY);
       if (!token) return;
       e.preventDefault();
       fetch(exportLink.href, { headers: { Authorization: `Bearer ${token}` } })
@@ -3654,7 +3667,7 @@ $("copilotForm")?.addEventListener("submit", async (e) => {
 
 function superadminNeedsCompany() {
   const user = getUser();
-  return user.role === "superadmin" && !(localStorage.getItem(COMPANY_KEY) || "").trim();
+  return user.role === "superadmin" && !(wpGet(COMPANY_KEY) || "").trim();
 }
 
 async function refreshActiveTab() {
@@ -3686,7 +3699,7 @@ async function bootSession() {
   if (isEmbedMode()) {
     await tryEmbedSessionFromControlPass();
   }
-  let token = (localStorage.getItem(TOKEN_KEY) || "").trim();
+  let token = (wpGet(TOKEN_KEY) || "").trim();
   if (forceLoginForm && !isEmbedMode()) {
     showLogin();
     return;
@@ -3694,7 +3707,7 @@ async function bootSession() {
   if (!token || !(await probeSessionToken(token))) {
     const adopted = await adoptControlPassTokenIfValid();
     if (adopted) {
-      token = localStorage.getItem(TOKEN_KEY);
+      token = wpGet(TOKEN_KEY);
     }
   }
   if (!token || !(await probeSessionToken(token))) {
@@ -3710,9 +3723,9 @@ async function bootSession() {
   try {
     const data = await api("/api/v2/auth/session");
     if (data.user) {
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      if (data.user.company_id && !localStorage.getItem(COMPANY_KEY)) {
-        localStorage.setItem(COMPANY_KEY, data.user.company_id);
+      wpSet(USER_KEY, JSON.stringify(data.user));
+      if (data.user.company_id && !wpGet(COMPANY_KEY)) {
+        wpSet(COMPANY_KEY, data.user.company_id);
       }
     }
     await loadCompanies();
@@ -3754,10 +3767,10 @@ $("loginBtn").addEventListener("click", async () => {
     if (!payload.ok || !payload.token) {
       throw new Error(payload.error || "login_failed");
     }
-    localStorage.setItem(TOKEN_KEY, payload.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(payload.user || {}));
+    wpSet(TOKEN_KEY, payload.token);
+    wpSet(USER_KEY, JSON.stringify(payload.user || {}));
     if (payload.user?.company_id) {
-      localStorage.setItem(COMPANY_KEY, payload.user.company_id);
+      wpSet(COMPANY_KEY, payload.user.company_id);
     }
     await loadCompanies();
     showDashboard();
@@ -3783,8 +3796,8 @@ $("logoutBtn").addEventListener("click", async () => {
   } catch {
     // ignore
   }
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  wpRemove(TOKEN_KEY);
+  wpRemove(USER_KEY);
   showLogin();
 });
 

@@ -2,7 +2,8 @@
  * SUPPIX window theme (light / dark) — shared across app.js, admin-v2, embeds.
  */
 (function initControlPassTheme(global) {
-  const STORAGE_KEY = "baupass-system-theme";
+  const WP = global.WorkPassStorage;
+  const STORAGE_KEY = WP?.KEYS?.SYSTEM_THEME || "workpass-system-theme";
   const WHITE = "white";
   const BLACK = "black";
 
@@ -20,7 +21,8 @@
 
   function getStoredMode() {
     try {
-      return normalizeMode(global.localStorage.getItem(STORAGE_KEY));
+      const raw = WP?.getItem ? WP.getItem(STORAGE_KEY) : global.localStorage.getItem(STORAGE_KEY);
+      return normalizeMode(raw);
     } catch {
       return WHITE;
     }
@@ -62,7 +64,8 @@
     applyAdminPalette(effective);
     if (persist) {
       try {
-        global.localStorage.setItem(STORAGE_KEY, selected);
+        if (WP?.setItem) WP.setItem(STORAGE_KEY, selected);
+        else global.localStorage.setItem(STORAGE_KEY, selected);
       } catch {
         // ignore
       }
