@@ -15,21 +15,26 @@
   <meta name="apple-mobile-web-app-title" content="WorkPass" />
   <meta name="application-name" content="WorkPass" />
   <title data-ui-i18n="appTitle">WorkPass</title>
+  <script src="./workpass-storage.js?v=20260624storage1"></script>
     <script>
       (function enforceLatestBuild() {
           const buildTag = "20260621contrast2";
-        const storageKey = "baupass-control-build";
+        const WP = window.WorkPassStorage;
+        const storageKey = WP?.KEYS?.BUILD_TAG || "workpass-build-tag";
+        const wpGet = (key) => (WP?.getItem ? WP.getItem(key) : window.localStorage.getItem(key));
+        const wpSet = (key, val) => (WP?.setItem ? WP.setItem(key, val) : window.localStorage.setItem(key, val));
+        const wpRemove = (key) => (WP?.removeItem ? WP.removeItem(key) : window.localStorage.removeItem(key));
         try {
           const url = new URL(window.location.href);
           const hasCurrentVersion = url.searchParams.get("v") === buildTag;
-          const seenBuild = window.localStorage.getItem(storageKey);
+          const seenBuild = wpGet(storageKey);
           if (!hasCurrentVersion && seenBuild !== buildTag) {
             url.searchParams.set("v", buildTag);
-            window.localStorage.setItem(storageKey, buildTag);
+            wpSet(storageKey, buildTag);
             window.location.replace(url.toString());
             return;
           }
-          window.localStorage.setItem(storageKey, buildTag);
+          wpSet(storageKey, buildTag);
           const host = String(window.location.hostname || "").toLowerCase();
           const isLocalHost =
             host === "localhost"
@@ -39,9 +44,9 @@
             || host.endsWith(".local");
           if (isLocalHost) {
             try {
-              window.localStorage.removeItem("baupass-api-base");
-              window.localStorage.removeItem("baupass-preview-company-id");
-              window.localStorage.removeItem("baupass-admin-v2-company");
+              wpRemove(WP?.KEYS?.API_BASE || "workpass-api-base");
+              wpRemove(WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id");
+              wpRemove(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company");
             } catch {
               // no-op
             }
@@ -2273,8 +2278,8 @@
   <script src="./signotec-bridge-setup.js?v=20260601signotec1" defer></script>
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
-  <script src="./embed-helpers.js?v=20260603nav1"></script>
   <script src="./workpass-storage.js?v=20260624wp1"></script>
+  <script src="./embed-helpers.js?v=20260624wp1"></script>
   <script src="./geo-precision.js?v=20260624geofence13"></script>
   <script src="./control-pass-theme.js?v=20260619theme1"></script>
   <script src="./support-assist-client.js?v=20260620assist5"></script>

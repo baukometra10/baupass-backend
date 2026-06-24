@@ -235,13 +235,15 @@
     bindEnterpriseIframe,
   };
 
-  const TOKEN_KEYS = ["baupass-control-token", "baupass-admin-v2-token"];
-  const COMPANY_STORAGE_KEYS = ["baupass-preview-company-id", "baupass-admin-v2-company"];
+  const TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || ["workpass-session-token", "workpass-admin-token"];
+  const COMPANY_STORAGE_KEYS = window.WorkPassStorage?.COMPANY_STORAGE_KEYS || ["workpass-preview-company-id", "workpass-admin-company"];
+  const WP = window.WorkPassStorage;
 
   function readStoredCompanyId() {
+    if (WP?.readStoredCompanyId) return WP.readStoredCompanyId();
     for (const key of COMPANY_STORAGE_KEYS) {
       try {
-        const val = (localStorage.getItem(key) || "").trim();
+        const val = (WP?.getItem ? WP.getItem(key) : localStorage.getItem(key) || "").trim();
         if (val) return val;
       } catch {
         // ignore
@@ -267,15 +269,20 @@
     const cid = String(companyId || "").trim();
     if (!cid) return;
     try {
-      localStorage.setItem("baupass-preview-company-id", cid);
+      if (WP?.persistCompanyId) {
+        WP.persistCompanyId(cid);
+        return;
+      }
+      localStorage.setItem(WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id", cid);
     } catch {
       // ignore
     }
   }
 
   function getSessionToken() {
+    if (WP?.readSessionToken) return WP.readSessionToken();
     for (const key of TOKEN_KEYS) {
-      const val = (localStorage.getItem(key) || "").trim();
+      const val = String((WP?.getItem ? WP.getItem(key) : localStorage.getItem(key)) || "").trim();
       if (val) return val;
     }
     return "";
@@ -284,6 +291,10 @@
   function persistSessionToken(token) {
     const val = String(token || "").trim();
     if (!val) return;
+    if (WP?.persistSessionToken) {
+      WP.persistSessionToken(val);
+      return;
+    }
     TOKEN_KEYS.forEach((key) => {
       try {
         localStorage.setItem(key, val);
@@ -540,9 +551,13 @@
 
   function clearEmbeddedSession() {
     try {
-      global.localStorage.removeItem("baupass-control-token");
-      global.localStorage.removeItem("baupass-admin-v2-token");
-      global.localStorage.removeItem("baupass-admin-v2-user");
+      if (WP?.clearSessionTokens) {
+        WP.clearSessionTokens();
+      } else {
+        global.localStorage.removeItem("workpass-session-token");
+        global.localStorage.removeItem("workpass-admin-token");
+        global.localStorage.removeItem("workpass-admin-user");
+      }
     } catch {
       // ignore
     }
@@ -567,7 +582,7 @@
       const lang = String(event.data.lang || "").trim().slice(0, 2);
       if (lang) {
         try {
-          global.localStorage.setItem("baupass-ui-lang", lang);
+          global.localStorage.setItem(WP?.KEYS?.UI_LANG || "workpass-ui-lang", lang);
         } catch {
           // ignore
         }
@@ -578,7 +593,7 @@
       const lang = String(event.data.lang || "").trim().slice(0, 2);
       if (!lang) return;
       try {
-        global.localStorage.setItem("baupass-ui-lang", lang);
+        global.localStorage.setItem(WP?.KEYS?.UI_LANG || "workpass-ui-lang", lang);
       } catch {
         // ignore
       }
