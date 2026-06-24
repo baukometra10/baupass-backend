@@ -2915,6 +2915,14 @@ select:focus {
   cursor: crosshair;
 }
 
+.signature-canvas-hint {
+  margin: 0;
+  padding: 6px 10px 8px;
+  font-size: 0.82rem;
+  color: rgba(23, 23, 23, 0.55);
+  text-align: center;
+}
+
 .worker-detail-signature {
   margin-top: 12px;
   padding: 12px;
