@@ -3054,7 +3054,7 @@ async function loadSurveyInvitePanel(q) {
         ${mailBanner}
         <p class="muted small">${t("survey.mailHint")}: <a href="${escapeHtml(mail.surveyUrl || "/satisfaction-survey.html")}" target="_blank" rel="noopener">${escapeHtml(mail.surveyUrl || "/satisfaction-survey.html")}</a></p>
         <div class="survey-invite-actions">
-          <button type="button" id="surveySendAllBtn" class="ghost" ${!mailReady ? "disabled" : ""}>${t("survey.sendAll")}</button>
+          <button type="button" id="surveySendAllBtn" class="ghost" ${!mailReady || !candidates.length ? "disabled" : ""}>${t("survey.sendAll")}</button>
         </div>
         ${rows
           ? `<div class="table-wrap"><table class="data-table"><thead><tr>
@@ -3078,30 +3078,53 @@ async function loadSurveyInvitePanel(q) {
   }
 }
 
+function surveyInviteResultMessage(result) {
+  const sent = Number(result?.sent) || 0;
+  const skipped = Number(result?.skipped) || 0;
+  if (sent > 0 && skipped > 0) {
+    return { message: t("survey.sentBatch", { sent, skipped }), isError: false };
+  }
+  if (sent > 0) {
+    return { message: t("survey.sentOk", { email: `${sent}` }), isError: false };
+  }
+  if (result?.error === "mail_not_configured") {
+    return { message: result.hint || t("survey.mailPending"), isError: true };
+  }
+  if (result?.error === "no_recipients") {
+    return { message: t("survey.noCandidates"), isError: true };
+  }
+  if (result?.error === "all_skipped") {
+    return { message: t("survey.allSkipped", { skipped }), isError: true };
+  }
+  const detail = result?.errors?.[0]?.error || result?.error || "—";
+  return { message: t("survey.sentFail", { error: detail }), isError: true };
+}
+
 async function sendSurveyInvite(body) {
+  const q = companyQuery();
+  const btn = $("surveySendAllBtn");
+  if (btn) btn.disabled = true;
   try {
-    const result = await api("/api/v2/admin/satisfaction-survey/invite", {
+    const result = await api(`/api/v2/admin/satisfaction-survey/invite${q}`, {
       method: "POST",
       body: JSON.stringify(body || {}),
     });
-    if (result.sent > 0) {
-      showActionToast(t("survey.sentOk", { email: `${result.sent}` }));
-    } else if (result.error === "mail_not_configured") {
-      showActionToast(result.hint || t("survey.mailPending"), true);
-    } else {
-      showActionToast(
-        t("survey.sentFail", { error: result.errors?.[0]?.error || result.error || "—" }),
-        true,
-      );
-    }
-    await loadSurveyInvitePanel(companyQuery());
+    const toast = surveyInviteResultMessage(result);
+    showActionToast(toast.message, toast.isError);
+    await loadSurveyInvitePanel(q);
   } catch (err) {
     const data = err.data || {};
-    if (data.error === "mail_not_configured" || err.status === 503) {
+    const toast = surveyInviteResultMessage(data);
+    if (toast.message) {
+      showActionToast(toast.message, toast.isError);
+    } else if (data.error === "mail_not_configured" || err.status === 503) {
       showActionToast(data.hint || t("survey.mailPending"), true);
     } else {
       showActionToast(t("survey.sentFail", { error: err.message || "—" }), true);
     }
+    await loadSurveyInvitePanel(q);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 

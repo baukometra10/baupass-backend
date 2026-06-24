@@ -340,6 +340,8 @@ def send_survey_invites_batch(
     skip_usage_check: bool = False,
     skip_cooldown: bool = False,
 ) -> dict[str, Any]:
+    if send_all:
+        skip_usage_check = True
     mail_status = check_mail_provider_ready(db)
     if not mail_status.get("configured"):
         return {
@@ -397,13 +399,18 @@ def send_survey_invites_batch(
             if result.get("error") == "mail_not_configured":
                 break
 
-    return {
+    out: dict[str, Any] = {
         "ok": sent > 0 and not errors,
         "sent": sent,
         "skipped": skipped,
         "errors": errors,
         "mail": mail_status,
     }
+    if sent == 0 and skipped > 0 and not errors:
+        out["error"] = "all_skipped"
+    elif sent == 0 and errors:
+        out["error"] = errors[0].get("error") or "send_failed"
+    return out
 
 
 def maybe_send_survey_invite_on_login(db, user: dict[str, Any]) -> dict[str, Any]:

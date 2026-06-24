@@ -162,7 +162,9 @@ def register_admin_blueprint(flask_app: Flask) -> None:
         data = request.get_json(force=True, silent=True) or {}
         user_id = str(data.get("user_id") or data.get("userId") or "").strip() or None
         send_all = bool(data.get("send_all") or data.get("sendAll"))
-        skip_usage = bool(data.get("skip_usage_check") or data.get("skipUsageCheck"))
+        skip_usage = bool(
+            data.get("skip_usage_check") or data.get("skipUsageCheck") or send_all
+        )
         skip_cooldown = bool(data.get("skip_cooldown") or data.get("skipCooldown"))
         result = send_survey_invites_batch(
             get_db(),
@@ -176,10 +178,7 @@ def register_admin_blueprint(flask_app: Flask) -> None:
             return jsonify(result), 503
         if result.get("error") == "user_not_found":
             return jsonify(result), 404
-        if result.get("error") == "no_recipients":
-            return jsonify(result), 400
-        status = 200 if result.get("sent") else 400
-        return jsonify(result), status
+        return jsonify(result), 200
 
     @admin_v2_bp.post("/usage/event")
     @require_auth
