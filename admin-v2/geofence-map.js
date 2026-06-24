@@ -138,13 +138,18 @@ export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { on
   onStatus?.("loading");
   try {
     let position = null;
-    if (typeof globalThis.captureInstantGeolocation === "function") {
+    if (typeof globalThis.capturePointGeolocation === "function") {
+      position = await globalThis.capturePointGeolocation({
+        maxWaitMs: 5000,
+        earlyBestMs: 3000,
+      });
+    } else if (typeof globalThis.captureInstantGeolocation === "function") {
       position = await globalThis.captureInstantGeolocation();
     } else if (typeof globalThis.getCurrentGeolocationReading === "function") {
       position = await globalThis.getCurrentGeolocationReading({
         enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 30000,
+        timeout: 20000,
+        maximumAge: 0,
       });
     } else {
       position = await new Promise((resolve, reject) => {
@@ -156,11 +161,11 @@ export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { on
               accuracy: pos.coords.accuracy,
             }),
           reject,
-          { enableHighAccuracy: true, timeout: 1000, maximumAge: 15000 },
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
         );
       });
     }
-    const { latitude, longitude } = position || {};
+    const { latitude, longitude, accuracy } = position || {};
     if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
       onStatus?.("failed");
       return;
@@ -171,9 +176,13 @@ export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { on
       if (latInput) latInput.value = latitude.toFixed(6);
       if (lngInput) lngInput.value = longitude.toFixed(6);
     }
-    onStatus?.("ok");
+    onStatus?.("ok", { accuracyMeters: accuracy });
   } catch (error) {
     const code = Number(error?.code);
+    if (code === 4 || error?.message === "geolocation_inaccurate") {
+      onStatus?.("inaccurate", { accuracyMeters: error?.accuracyMeters });
+      return;
+    }
     if (code === 1) {
       onStatus?.("denied");
       return;

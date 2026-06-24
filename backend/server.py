@@ -50,6 +50,10 @@ if str(BASE_DIR) not in sys.path:
 if __name__ == "__main__" and "backend.server" not in sys.modules:
     sys.modules["backend.server"] = sys.modules[__name__]
 
+from backend.app.core.platform_env import default_noreply_email, mirror_platform_env  # noqa: E402
+
+mirror_platform_env()
+
 
 def _load_local_env_files():
     """Load local .env files without overriding already-exported environment variables."""
@@ -89,11 +93,11 @@ def _blueprint_retry_enabled() -> bool:
 
 
 WORKER_LOGIN_MAX_DISTANCE_METERS = 100
-WORKER_SITE_GEOFENCE_DEFAULT_METERS = 20
-WORKER_SITE_GEOFENCE_MIN_METERS = 10
-WORKER_SITE_GEOFENCE_MAX_METERS = 40
-WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 40
-WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 12
+WORKER_SITE_GEOFENCE_DEFAULT_METERS = 10
+WORKER_SITE_GEOFENCE_MIN_METERS = 5
+WORKER_SITE_GEOFENCE_MAX_METERS = 10
+WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 25
+WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 5
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -535,8 +539,8 @@ def feature_not_available_response(feature_key, plan_value):
         "requiredPlan": required,
     }), 403
 
-DEFAULT_PLATFORM_NAME = "SUPPIX"
-DEFAULT_OPERATOR_NAME = "Suppix Technologie UG"
+DEFAULT_PLATFORM_NAME = "WorkPass"
+DEFAULT_OPERATOR_NAME = "Suppix AI"
 DEFAULT_BRAND_PRIMARY = "#06b6d4"
 DEFAULT_BRAND_ACCENT = "#a855f7"
 
@@ -2026,7 +2030,7 @@ def _default_brand_logo_fallback_svg():
         '<svg xmlns="http://www.w3.org/2000/svg" width="210" height="84" viewBox="0 0 210 84">'
         f'<rect width="210" height="84" rx="12" fill="{DEFAULT_BRAND_PRIMARY}"/>'
         '<text x="50%" y="44%" text-anchor="middle" dominant-baseline="middle" '
-        'font-family="Arial" font-size="20" font-weight="700" fill="white">SUPPIX</text>'
+        'font-family="Arial" font-size="20" font-weight="700" fill="white">WorkPass</text>'
         '<text x="50%" y="68%" text-anchor="middle" dominant-baseline="middle" '
         'font-family="Arial" font-size="16" font-weight="700" fill="#e0f2fe">AI</text>'
         "</svg>"
@@ -2517,9 +2521,9 @@ def _wallet_build_google_save_url(pass_object_id: str, worker: dict, company_nam
                     "id": object_id,
                     "classId": class_id,
                     "state": "ACTIVE",
-                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "SUPPIX"}},
+                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "WorkPass"}},
                     "header": {"defaultValue": {"language": "de-DE", "value": worker_name}},
-                    "subheader": {"defaultValue": {"language": "de-DE", "value": company_name or "Suppix Technologie UG"}},
+                    "subheader": {"defaultValue": {"language": "de-DE", "value": company_name or "Suppix AI"}},
                     "barcode": {"type": "QR_CODE", "value": badge_id, "alternateText": badge_id},
                     "textModulesData": [
                         {"id": "badge-id", "header": "Badge ID", "body": badge_id},
@@ -2607,15 +2611,15 @@ def _wallet_build_apple_pkpass(pass_object_id: str, worker: dict, company_name: 
         "passTypeIdentifier": pass_type_id,
         "serialNumber": pass_object_id,
         "teamIdentifier": team_id,
-        "organizationName": company_name or "Suppix Technologie UG",
-        "description": "SUPPIX Worker Badge",
-        "logoText": "SUPPIX",
+        "organizationName": company_name or "Suppix AI",
+        "description": "WorkPass Worker Badge",
+        "logoText": "WorkPass",
         "generic": {
             "primaryFields": [
                 {"key": "worker_name", "label": "Mitarbeiter", "value": worker_name}
             ],
             "secondaryFields": [
-                {"key": "company", "label": "Firma", "value": company_name or "Suppix Technologie UG"},
+                {"key": "company", "label": "Firma", "value": company_name or "Suppix AI"},
                 {"key": "badge", "label": "Badge", "value": badge_id},
             ],
             "auxiliaryFields": [
@@ -2782,7 +2786,7 @@ def init_db():
             smtp_username TEXT NOT NULL DEFAULT '',
             smtp_password TEXT NOT NULL DEFAULT '',
             smtp_sender_email TEXT NOT NULL DEFAULT '',
-            smtp_sender_name TEXT NOT NULL DEFAULT 'SUPPIX',
+            smtp_sender_name TEXT NOT NULL DEFAULT 'WorkPass',
             smtp_use_tls INTEGER NOT NULL DEFAULT 1,
             resend_api_key TEXT NOT NULL DEFAULT '',
             resend_from_email TEXT NOT NULL DEFAULT '',
@@ -3232,16 +3236,20 @@ def init_db():
     if "card_print_rotation_deg" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN card_print_rotation_deg REAL NOT NULL DEFAULT 0")
     cur.execute(
-        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'WorkPass', 'SUPPIX')",
+        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'WorkPass', 'WorkPass', 'WorkPass', 'SUPPIX')",
         (DEFAULT_PLATFORM_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass', 'WorkPass', 'SUPPIX', 'Baukometra', 'BauKometra')",
+        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'WorkPass', 'WorkPass', 'WorkPass', 'SUPPIX', 'Suppix Technologie UG', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'WorkPass', 'SUPPIX', 'Baukometra', 'BauKometra')",
-        (DEFAULT_OPERATOR_NAME,),
+        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'WorkPass', 'WorkPass', 'WorkPass', 'SUPPIX', 'Suppix AI', 'Suppix Technologie UG', 'Baukometra', 'BauKometra')",
+        (DEFAULT_PLATFORM_NAME,),
+    )
+    cur.execute(
+        "UPDATE settings SET smtp_sender_email = ? WHERE id = 1 AND LOWER(COALESCE(TRIM(smtp_sender_email), '')) LIKE '%baupass%'",
+        (default_noreply_email(),),
     )
     default_logo = _default_brand_logo_data_url()
     if default_logo:
@@ -5601,7 +5609,7 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     if not recipient:
         return False, "Empfänger-E-Mail fehlt"
 
-    platform_name = str(global_settings["platform_name"] or "SUPPIX").strip()
+    platform_name = str(global_settings["platform_name"] or "WorkPass").strip()
     primary_color = str(global_settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
     accent_color = str(global_settings.get("invoice_accent_color") or DEFAULT_BRAND_ACCENT).strip() or DEFAULT_BRAND_ACCENT
     operator_name = str(global_settings["operator_name"] or platform_name).strip()
@@ -5719,7 +5727,7 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     if resend_key or company_brevo_key:
         ok, err, provider = _send_via_any_api(
             subject=subject,
-            sender_email=smtp_sender or "noreply@baupass.app",
+            sender_email=smtp_sender or default_noreply_email(),
             sender_name=sender_name,
             recipient=recipient,
             text_body=text_body,
@@ -6062,7 +6070,7 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "SUPPIX/1.0 (resend-client; python-urllib)",
+            "User-Agent": "WorkPass/1.0 (resend-client; python-urllib)",
         },
         method="POST",
     )
@@ -6258,8 +6266,8 @@ def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html
         "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
-    sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (settings.get("smtp_sender_name") or "SUPPIX").strip()
+    sender_email = (settings.get("smtp_sender_email") or "").strip() or default_noreply_email()
+    sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
     try:
         _send_via_any_api(subject, sender_email, sender_name, email, text_body, html_body)
         return True
@@ -6885,7 +6893,7 @@ def check_visitor_card_expiry_notifications(db):
             f"die Besucherkarte von {worker['first_name']} {worker['last_name']} "
             f"(Badge {worker['badge_id']}, Firma {worker['company_name']}) "
             f"läuft am {expire_label} Uhr ab.\n\n"
-            f"Bitte verlängern oder löschen Sie die Karte im SUPPIX-Admin-Panel.\n\n"
+            f"Bitte verlängern oder löschen Sie die Karte in WorkPass-Admin-Panel.\n\n"
             f"Viele Grüße\n{settings['operator_name']}"
         )
         mail_sent = False
@@ -6903,7 +6911,7 @@ def check_visitor_card_expiry_notifications(db):
                 f"die Besucherkarte von {worker['first_name']} {worker['last_name']} "
                 f"(Badge {worker['badge_id']}, Firma {worker['company_name']}) "
                 f"l\u00e4uft am {expire_label} Uhr ab.\n\n"
-                f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im SUPPIX-Admin-Panel.\n\n"
+                f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte in WorkPass-Admin-Panel.\n\n"
                 f"Viele Gr\u00fc\u00dfe\n{settings['operator_name']}"
             )
             fallback_ok, _, _provider_used = _send_via_any_api(
@@ -7601,7 +7609,7 @@ def start_background_jobs():
                     "SELECT COUNT(*) AS c FROM invoices WHERE paid_at IS NULL AND status NOT IN ('bezahlt','draft')"
                 ).fetchone()["c"]
 
-                platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
+                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 summary_text = (
                     f"{platform_label} Tageszusammenfassung für {yesterday}:\n\n"
@@ -7731,7 +7739,7 @@ def start_background_jobs():
                         }
                     by_company[cid]["workers"].append(row)
 
-                platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
+                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
 
@@ -7859,7 +7867,7 @@ def start_background_jobs():
                         }
                     by_company[cid]["docs"].append(row)
 
-                platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
+                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
 
@@ -8529,8 +8537,8 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
 def _platform_branding_payload(db):
     ui_build = (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()
     fallback = {
-        "platformName": "SUPPIX",
-        "operatorName": "Suppix Technologie UG",
+        "platformName": "WorkPass",
+        "operatorName": "Suppix AI",
         "primaryColor": DEFAULT_BRAND_PRIMARY,
         "accentColor": DEFAULT_BRAND_ACCENT,
         "logoData": _default_brand_logo_data_url(),
@@ -8547,8 +8555,8 @@ def _platform_branding_payload(db):
     if not row:
         return fallback
     return {
-        "platformName": str(row["platform_name"] or "SUPPIX"),
-        "operatorName": str(row["operator_name"] or "Suppix Technologie UG"),
+        "platformName": str(row["platform_name"] or "WorkPass"),
+        "operatorName": str(row["operator_name"] or "Suppix AI"),
         "primaryColor": str(row["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY),
         "accentColor": str(row["invoice_accent_color"] or DEFAULT_BRAND_ACCENT),
         "logoData": str(row["invoice_logo_data"] or "").strip() or _default_brand_logo_data_url(),
@@ -8659,7 +8667,7 @@ def phone_test_page():
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
     <meta name=\"google\" content=\"notranslate\" />
     <meta http-equiv=\"Content-Language\" content=\"de\" />
-    <title>SUPPIX Telefon-Test</title>
+    <title>WorkPass Telefon-Test</title>
     <style>
         body {{
             margin: 0;
@@ -8689,7 +8697,7 @@ def phone_test_page():
 </head>
 <body>
     <main class=\"card\">
-        <p class=\"ok\">SUPPIX Telefon-Test: ERREICHBAR</p>
+        <p class=\"ok\">WorkPass Telefon-Test: ERREICHBAR</p>
         <p class=\"row\"><strong>Zeit:</strong> {now_value}</p>
         <p class=\"row\"><strong>Host:</strong> {host}</p>
         <p class=\"row\"><strong>Client-IP:</strong> {remote_addr}</p>
@@ -9402,10 +9410,10 @@ def resend_test():
         return jsonify({"ok": False, "error": "missing_recipient"})
 
     sender_email = ""
-    sender_name = "SUPPIX"
+    sender_name = "WorkPass"
     if settings:
         sender_email = str(settings["smtp_sender_email"] or "").strip()
-        sender_name = str(settings["smtp_sender_name"] or "SUPPIX").strip() or "SUPPIX"
+        sender_name = str(settings["smtp_sender_name"] or "WorkPass").strip() or "WorkPass"
 
     env_presence = _collect_resend_env_presence()
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
@@ -9438,7 +9446,7 @@ def resend_test():
             "resendCacheDebug": f"cache_key_len={len(_resend_key_cache.get('key',''))}",
         })
 
-    subject = "SUPPIX: API Direkt-Test"
+    subject = "WorkPass: API Direkt-Test"
     text_body = (
         "Dieser Test wurde direkt ueber die HTTPS API-Fallback-Zustellung versendet.\n"
         "Wenn diese Mail ankommt, funktioniert die API-Zustellung korrekt im Container."
@@ -10504,7 +10512,7 @@ def download_worker_akte_pdf(worker_id):
             pass
 
     pdf.setFont("Helvetica", 8)
-    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | SUPPIX Mitarbeiterakte")
+    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | WorkPass Mitarbeiterakte")
     pdf.showPage()
     pdf.save()
     buf.seek(0)
@@ -10948,7 +10956,7 @@ def _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters):
     accuracy = _normalize_float(accuracy_meters)
     if accuracy is None or accuracy <= 0:
         return radius
-    # Allow GPS uncertainty like map pin sharing: radius + min(reported accuracy, 15 m).
+    # Allow GPS uncertainty: radius + min(reported accuracy, 5 m) — total tolerance ~5–10 m.
     return radius + min(accuracy, WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS)
 
 
@@ -11128,7 +11136,7 @@ def _geocode_site_address(site_label):
     request_obj = Request(
         geocode_url,
         headers={
-            "User-Agent": "SUPPIX/1.0 (worker geofence)",
+            "User-Agent": "WorkPass/1.0 (worker geofence)",
             "Accept": "application/json",
         },
     )
@@ -11196,7 +11204,7 @@ def _reverse_geocode_coordinates(latitude, longitude):
         return _reverse_geocode_cache[cache_key]
 
     headers = {
-        "User-Agent": "SUPPIX/1.0 (worker geofence)",
+        "User-Agent": "WorkPass/1.0 (worker geofence)",
         "Accept": "application/json",
     }
     payloads = []
@@ -11228,11 +11236,20 @@ def _reverse_geocode_coordinates(latitude, longitude):
 def reverse_geocode_coordinates():
     lat = request.args.get("lat")
     lon = request.args.get("lon")
-    label = _reverse_geocode_coordinates(lat, lon)
-    if not label:
-        return jsonify({"error": "reverse_geocode_failed"}), 404
     lat_value = _normalize_float(lat)
     lon_value = _normalize_float(lon)
+    if lat_value is None or lon_value is None:
+        return jsonify({"error": "invalid_coordinates"}), 400
+    label = _reverse_geocode_coordinates(lat, lon)
+    if not label:
+        return jsonify({
+            "address": "",
+            "lat": lat,
+            "lon": lon,
+            "latitude": lat_value,
+            "longitude": lon_value,
+            "reverseGeocodeFailed": True,
+        })
     return jsonify({
         "address": label,
         "lat": lat,
@@ -15674,7 +15691,7 @@ def request_password_reset():
     base_url = request.host_url.rstrip("/")
     reset_link = f"{base_url}/?resetToken={raw_token}"
     msg = __import__("email.message", fromlist=["EmailMessage"]).EmailMessage()
-    platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
+    platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
     operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
     smtp_sender_name = str(settings["smtp_sender_name"] or operator_label).strip() or operator_label
     msg["Subject"] = f"Passwort zurücksetzen – {platform_label}"
@@ -16401,11 +16418,11 @@ def reporting_email_pdf():
     company_name = str(snapshot.get("companyName") or "")
     if not company_name and user.get("company_id"):
         row = db.execute("SELECT name FROM companies WHERE id = ?", (user["company_id"],)).fetchone()
-        company_name = row["name"] if row else "SUPPIX"
+        company_name = row["name"] if row else "WorkPass"
 
     pdf_bytes = build_operations_report_pdf(
         title="SUPPIX Operations Report",
-        company_name=company_name or "SUPPIX",
+        company_name=company_name or "WorkPass",
         snapshot=snapshot,
         guidance=guidance,
     )
@@ -16648,7 +16665,7 @@ def reporting_email_enterprise_pdf():
         return jsonify({"error": "missing_company", "message": "companyId erforderlich für Enterprise-PDF."}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "SUPPIX"
+    company_name = row["name"] if row else "WorkPass"
     role = str(user.get("role") or "company-admin")
 
     pdf_bytes = build_enterprise_ops_pdf(
@@ -16733,7 +16750,7 @@ def reporting_email_executive_pdf():
         return jsonify({"error": "missing_company"}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "SUPPIX"
+    company_name = row["name"] if row else "WorkPass"
     snapshot = _operations_snapshot_for_user(db, user)
     snapshot["guidance"] = build_operational_guidance(snapshot)
 
@@ -16786,12 +16803,12 @@ def reporting_email_incidents_visits_pdf():
     if user["role"] == "superadmin" and payload.get("companyId"):
         company_id = str(payload.get("companyId")).strip()
 
-    company_name = "SUPPIX"
+    company_name = "WorkPass"
     if company_id:
         row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
         company_name = row["name"] if row else company_name
 
-    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "SUPPIX"))
+    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "WorkPass"))
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-incidents-visitors-{period}.pdf"
     subject = clean_text_input(
@@ -18421,7 +18438,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     attachment_payload = []
     safe_invoice_no = re.sub(r"[^A-Za-z0-9._-]+", "-", str(invoice_row["invoice_number"] or "rechnung")).strip("-") or "rechnung"
     pdf_filename = f"rechnung-von-baupass-{safe_invoice_no}.pdf"
-    platform_label = str(settings_row["platform_name"] or "SUPPIX").strip() or "SUPPIX"
+    platform_label = str(settings_row["platform_name"] or "WorkPass").strip() or "WorkPass"
     operator_label = str(settings_row["operator_name"] or platform_label).strip() or platform_label
     mail_subject = f"Rechnung von {platform_label} - {invoice_row['invoice_number']}"
     # ── Mehrsprachigkeit ─────────────────────────────────────────────────────────
@@ -18636,7 +18653,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.drawCentredString(x + 8 * mm, y + 5.8 * mm, "AI")
             pdf.setFillColor(c_dark)
             pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "SUPPIX")[:28])
+            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "WorkPass")[:28])
 
         # ════════════════════════════════════════════════════════════
         # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende
@@ -21315,7 +21332,7 @@ def invoice_reminder_letter_pdf(invoice_id):
     original_due_str = str(invoice["due_date"] or "")
     total_amount = float(invoice["total_amount"] or 0)
 
-    operator_name = str(settings["operator_name"] or settings["platform_name"] or "SUPPIX").strip() if settings else "SUPPIX"
+    operator_name = str(settings["operator_name"] or settings["platform_name"] or "WorkPass").strip() if settings else "WorkPass"
     operator_street = str(settings["invoice_operator_street"] or "").strip() if settings else ""
     operator_zip_city = str(settings["invoice_operator_zip_city"] or "").strip() if settings else ""
     operator_phone = str(settings["invoice_operator_phone"] or "").strip() if settings else ""
@@ -23355,7 +23372,7 @@ def reply_to_inbox_email(inbox_id):
         settings_row["smtp_sender_name"]
         or settings_row["operator_name"]
         or settings_row["platform_name"]
-        or "SUPPIX"
+        or "WorkPass"
     ).strip()
 
     original_message_id = clean_text_input(inbox_row["message_id"] or "", max_len=500)
@@ -24079,7 +24096,7 @@ def signotec_setup_helper_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
 title SUPPIX Signotec Bridge
-echo SUPPIX: Signotec bridge setup (once per PC, needs admin once)...
+echo WorkPass: Signotec bridge setup (once per PC, needs admin once)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p"
 echo.
 pause
@@ -24099,7 +24116,7 @@ def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
 title SUPPIX Signotec Bridge starten
-echo SUPPIX: STPadServer starten (Port 49494, Admin)...
+echo WorkPass: STPadServer starten (Port 49494, Admin)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
 echo.
 pause
@@ -24660,7 +24677,7 @@ def worker_submit_leave_request():
     <p style="color:#444;font-size:16px;"><strong>{worker_name}</strong> ({worker['badge_id']}) hat einen neuen Antrag eingereicht:</p>
     <p style="font-size:18px;font-weight:700;color:#1a1a2e;">{req_type_label} · {start_date} – {end_date}</p>
     {note_html}
-    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt in SUPPIX Admin-Portal prüfen und genehmigen oder ablehnen.</p>
+    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt in WorkPass Admin-Portal prüfen und genehmigen oder ablehnen.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
     text_mail = f"Neuer Antrag von {worker_name}: {req_type_label} {start_date}–{end_date}." + (f"\nNotiz: {note}" if note else "")
@@ -24675,8 +24692,8 @@ def worker_submit_leave_request():
         "SELECT smtp_sender_email, smtp_sender_name, smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls FROM settings WHERE id = 1"
     ).fetchone()
     s = dict(settings_row) if settings_row else {}
-    sender_email = (s.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (s.get("smtp_sender_name") or "SUPPIX").strip()
+    sender_email = (s.get("smtp_sender_email") or "").strip() or default_noreply_email()
+    sender_name = (s.get("smtp_sender_name") or "WorkPass").strip()
 
     pdf_payload = {
         "id": req_id,
@@ -25223,7 +25240,7 @@ def worker_send_leave_request_email(req_id):
     <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:600px;width:100%;">
       <tr><td style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:28px 36px;">
         <h1 style="margin:0;color:#fff;font-size:22px;">Abwesenheitsantrag</h1>
-        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über SUPPIX Worker App</p>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über WorkPass Worker App</p>
       </td></tr>
       <tr><td style="padding:28px 36px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eee;border-radius:8px;overflow:hidden;border-spacing:0;">
@@ -25235,7 +25252,7 @@ def worker_send_leave_request_email(req_id):
           {note_html}
           <tr><td style="padding:10px 12px;color:#555;">Eingereicht am</td><td style="padding:10px 12px;">{req_row['created_at'][:10]}</td></tr>
         </table>
-        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag in SUPPIX Admin-Portal.</p>
+        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag in WorkPass Admin-Portal.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -25254,8 +25271,8 @@ def worker_send_leave_request_email(req_id):
         "SELECT smtp_sender_email, smtp_sender_name, smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls FROM settings WHERE id = 1"
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
-    sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (settings.get("smtp_sender_name") or "SUPPIX").strip()
+    sender_email = (settings.get("smtp_sender_email") or "").strip() or default_noreply_email()
+    sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
 
     # HTML-Datei als Anhang (base64)
     import base64 as _b64

@@ -2379,11 +2379,19 @@ async function loadTools() {
     const gpsStatus = $("geofenceGpsStatus");
     $("geofenceGpsBtn")?.addEventListener("click", () => {
       useGeofenceCurrentLocation(latIn, lngIn, $("geofenceMap"), {
-        onStatus: (state) => {
+        onStatus: (state, details = {}) => {
           if (!gpsStatus) return;
           if (state === "loading") gpsStatus.textContent = t("tools.gpsLoading");
-          else if (state === "ok") gpsStatus.textContent = t("tools.gpsOk");
-          else if (state === "denied") gpsStatus.textContent = t("tools.gpsDenied");
+          else if (state === "ok") {
+            const meters = Math.round(Number(details.accuracyMeters) || 0);
+            gpsStatus.textContent =
+              meters > 0
+                ? t("tools.gpsOkMeters").replace("{meters}", String(meters))
+                : t("tools.gpsOk");
+          } else if (state === "inaccurate") {
+            const meters = Math.round(Number(details.accuracyMeters) || 0);
+            gpsStatus.textContent = t("tools.gpsInaccurate").replace("{meters}", String(meters || "?"));
+          } else if (state === "denied") gpsStatus.textContent = t("tools.gpsDenied");
           else if (state === "timeout") gpsStatus.textContent = t("tools.gpsTimeout");
           else if (state === "failed") gpsStatus.textContent = t("tools.gpsFailed");
           else if (state === "unsupported") gpsStatus.textContent = t("tools.gpsUnsupported");

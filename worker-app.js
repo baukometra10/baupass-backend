@@ -2304,6 +2304,22 @@ async function resolveLoginLocation() {
     return null;
   }
 
+  if (typeof capturePointGeolocation === "function") {
+    try {
+      const position = await capturePointGeolocation({
+        maxWaitMs: 5000,
+        earlyBestMs: 3000,
+      });
+      return {
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+      };
+    } catch {
+      // fall through to instant reading
+    }
+  }
+
   if (typeof captureInstantGeolocation === "function") {
     try {
       const position = await captureInstantGeolocation();
