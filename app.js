@@ -1496,6 +1496,18 @@ const UI_TRANSLATIONS = {
     labelAuditRole: "Rolle",
     btnAuditCsv: "Audit-CSV exportieren",
     loginForgotPassword: "Passwort vergessen",
+    pwResetPanelTitle: "Neues Passwort festlegen",
+    toastReassignSuperadminOnly: "Neu zuordnen ist nur für Superadmin erlaubt.",
+    toastDatevDownloaded: "DATEV-CSV wurde heruntergeladen.",
+    toastInvalidEmail: "Bitte gültige E-Mail eingeben.",
+    toastOk: "OK",
+    toastInvalidCompanyStatus: "Ungültiger Status. Erlaubt: aktiv, test, pausiert, gesperrt",
+    toastInvalidDateFormat: "Ungültiges Datumsformat. Bitte YYYY-MM-DD verwenden.",
+    toastSelectCompanyPreview: "Bitte zuerst eine Firma in der Vorschau wählen.",
+    toastInvoiceNumberDigitsOnly: "Rechnungsnummer darf nur Ziffern enthalten.",
+    toastInvoiceNumberLength: "Rechnungsnummer muss zwischen 3 und 20 Ziffern haben.",
+    toastDemoDisabledProduction: "Demo-Daten sind in der Produktionsumgebung deaktiviert (Enterprise-Modus).",
+    toastLeaveRejected: "Antrag abgelehnt",
     legalImpressum: "Impressum",
     legalPrivacy: "Datenschutz",
     legalCloseTitle: "Schliessen",
@@ -2642,6 +2654,18 @@ const UI_TRANSLATIONS = {
     labelAuditRole: "Role",
     btnAuditCsv: "Export audit CSV",
     loginForgotPassword: "Forgot password",
+    pwResetPanelTitle: "Set new password",
+    toastReassignSuperadminOnly: "Reassignment is only allowed for superadmin.",
+    toastDatevDownloaded: "DATEV CSV downloaded.",
+    toastInvalidEmail: "Please enter a valid email address.",
+    toastOk: "OK",
+    toastInvalidCompanyStatus: "Invalid status. Allowed: active, test, paused, locked",
+    toastInvalidDateFormat: "Invalid date format. Please use YYYY-MM-DD.",
+    toastSelectCompanyPreview: "Please select a company in preview first.",
+    toastInvoiceNumberDigitsOnly: "Invoice number must contain digits only.",
+    toastInvoiceNumberLength: "Invoice number must be between 3 and 20 digits.",
+    toastDemoDisabledProduction: "Demo data is disabled in production (enterprise mode).",
+    toastLeaveRejected: "Request rejected",
     legalImpressum: "Legal notice",
     legalPrivacy: "Privacy",
     legalCloseTitle: "Close",
@@ -7969,12 +7993,16 @@ function uiT(key) {
   if (sectorTerm) return sectorTerm;
   const fromPack = UI_TRANSLATIONS[lang]?.[key];
   if (fromPack) return fromPack;
+  const fromExtra = window.AppI18nExtra?.[lang]?.[key];
+  if (fromExtra) return fromExtra;
   const fromEnterpriseShell = window.EnterpriseShellI18n?.[lang]?.[key];
   if (fromEnterpriseShell) return fromEnterpriseShell;
   const fromRuntime = getRuntimeUiTextsCached()[key];
   if (fromRuntime) return fromRuntime;
   if (lang !== "en" && UI_TRANSLATIONS.en?.[key]) return UI_TRANSLATIONS.en[key];
-  if (lang !== UI_FALLBACK_LANG && UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key]) {
+  if (lang !== "en" && window.AppI18nExtra?.en?.[key]) return window.AppI18nExtra.en[key];
+  const noDeFallbackLangs = new Set(["tr", "fr", "es", "it", "pl", "en", "ar"]);
+  if (!noDeFallbackLangs.has(lang) && lang !== UI_FALLBACK_LANG && UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key]) {
     return UI_TRANSLATIONS[UI_FALLBACK_LANG][key];
   }
   return key;
@@ -19715,7 +19743,7 @@ async function triggerDocumentInboxSync(button) {
 async function rematchDocumentInboxLinks(button) {
   const isAllowed = getEffectiveUiRole() === "superadmin" && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
   if (!isAllowed) {
-    showToast("Neu zuordnen ist nur fuer Superadmin erlaubt.");
+    showToast(uiT("toastReassignSuperadminOnly"));
     return;
   }
   button.disabled = true;
@@ -19730,7 +19758,7 @@ async function rematchDocumentInboxLinks(button) {
   } catch (error) {
     const isForbidden = Number(error?.status || 0) === 403 || String(error?.code || error?.message || "").toLowerCase().includes("forbidden");
     if (isForbidden) {
-      showToast("Neu zuordnen ist nur fuer Superadmin erlaubt.");
+      showToast(uiT("toastReassignSuperadminOnly"));
     } else {
       showToast(uiT("alertGenericError").replace("{error}", error.message));
     }
@@ -19783,7 +19811,7 @@ function bindDocumentInboxControls() {
       datevButton.disabled = true;
       try {
         await downloadPayrollDatevCsv();
-        showToast("DATEV-CSV wurde heruntergeladen.");
+        showToast(uiT("toastDatevDownloaded"));
       } catch (error) {
         showToast(uiT("alertGenericError").replace("{error}", error.message));
       } finally {
@@ -22931,7 +22959,7 @@ async function sendReportingPdfByEmail() {
   const email = window.prompt("E-Mail für PDF-Bericht:", String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim());
   if (email === null) return;
   if (!email.includes("@")) {
-    showToast("Bitte gültige E-Mail eingeben.");
+    showToast(uiT("toastInvalidEmail"));
     return;
   }
   const result = await apiRequest(`${API_BASE}/api/reporting/email-pdf`, {
@@ -22979,14 +23007,14 @@ async function sendReportingCompaniesPdfByEmail() {
     return;
   }
   await apiRequest(`${API_BASE}/api/reporting/email-companies-pdf`, { method: "POST", body: { email } });
-  showToast("OK");
+  showToast(uiT("toastOk"));
 }
 
 async function sendReportingDatevCsvByEmail() {
   const email = window.prompt("E-Mail für DATEV-Lohn-CSV:", String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim());
   if (email === null) return;
   if (!email.includes("@")) {
-    showToast("Bitte gültige E-Mail eingeben.");
+    showToast(uiT("toastInvalidEmail"));
     return;
   }
   await apiRequest(`${API_BASE}/api/reporting/email-datev-csv`, {
@@ -23025,7 +23053,7 @@ function bindReportingEmailIncidentsVisitsButton() {
       );
       if (email === null) return;
       if (!email.includes("@")) {
-        showToast("Bitte gültige E-Mail eingeben.");
+        showToast(uiT("toastInvalidEmail"));
         return;
       }
       await apiRequest(`${API_BASE}/api/reporting/email-incidents-visits-pdf`, {
@@ -24768,7 +24796,7 @@ function bindCompanyRowActions() {
 
       const nextStatus = String(nextStatusInput || "").trim().toLowerCase();
       if (!["aktiv", "test", "pausiert", "gesperrt"].includes(nextStatus)) {
-        showToast("Ungueltiger Status. Erlaubt: aktiv, test, pausiert, gesperrt");
+        showToast(uiT("toastInvalidCompanyStatus"));
         return;
       }
 
@@ -24781,7 +24809,7 @@ function bindCompanyRowActions() {
         }
         trialEndsAt = String(trialInput || "").trim();
         if (trialEndsAt && !/^\d{4}-\d{2}-\d{2}$/.test(trialEndsAt)) {
-          showToast("Ungueltiges Datumsformat. Bitte YYYY-MM-DD verwenden.");
+          showToast(uiT("toastInvalidDateFormat"));
           return;
         }
       }
@@ -25965,7 +25993,7 @@ async function downloadPayrollDatevCsv() {
       companyId = String(state.companies[0].id || "").trim();
     }
     if (!companyId) {
-      showToast("Bitte zuerst eine Firma in der Vorschau wählen.");
+      showToast(uiT("toastSelectCompanyPreview"));
       return;
     }
   }
@@ -29594,7 +29622,7 @@ async function handleInvoiceSend() {
       return;
     }
     if (String(error.message || "") === "invalid_invoice_number_format") {
-      showToast("Rechnungsnummer darf nur Ziffern enthalten.");
+      showToast(uiT("toastInvoiceNumberDigitsOnly"));
       return;
     }
     showToast(uiT("alertInvoiceSendFailed").replace("{error}", error.message));
@@ -29639,7 +29667,7 @@ async function buildInvoiceDraft(options = {}) {
 
   if (invoiceNumber.length < 3 || invoiceNumber.length > 20) {
     if (!silent) {
-      showToast("Rechnungsnummer muss zwischen 3 und 20 Ziffern haben.");
+      showToast(uiT("toastInvoiceNumberLength"));
     }
     return null;
   }
@@ -30068,7 +30096,7 @@ async function handleCompanySubmit(event) {
   const companyTrialEndsAtRaw = String(document.querySelector("#companyTrialEndsAt")?.value || "").trim();
   const companyTrialEndsAt = companyStatusValue === "test" ? companyTrialEndsAtRaw : "";
   if (companyTrialEndsAt && !/^\d{4}-\d{2}-\d{2}$/.test(companyTrialEndsAt)) {
-    showToast("Ungueltiges Datumsformat. Bitte YYYY-MM-DD verwenden.");
+    showToast(uiT("toastInvalidDateFormat"));
     return;
   }
   const rawCompanyName = document.querySelector("#companyName").value.trim();
@@ -33697,7 +33725,7 @@ async function exportState(options = {}) {
 
 async function loadDemoData() {
   if (window.__baupassEnterprise?.demoAllowed === false) {
-    showToast("Demo-Daten sind in der Produktionsumgebung deaktiviert (Enterprise-Modus).");
+    showToast(uiT("toastDemoDisabledProduction"));
     return;
   }
   if (!userCanManageWorkers()) {
@@ -36551,7 +36579,7 @@ async function rejectLeaveRequest(requestId) {
         },
       });
 
-      showToast("Antrag abgelehnt", "info");
+      showToast(uiT("toastLeaveRejected"), "info");
       loadLeaveRequests();
     } catch (error) {
       if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
