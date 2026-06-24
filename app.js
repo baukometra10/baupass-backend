@@ -90,24 +90,24 @@ function resolveApiBase() {
   if (onLocalHost) {
     if (!queryValue) {
       try {
-        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+        wpRemove(API_BASE_STORAGE_KEY);
       } catch {
         // ignore
       }
       return "";
     }
-    window.localStorage.setItem(API_BASE_STORAGE_KEY, queryValue);
+    wpSet(API_BASE_STORAGE_KEY, queryValue);
     return queryValue;
   }
 
-  const rawStoredValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
+  const rawStoredValue = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
   let storedValue = rawStoredValue;
   if (storedValue) {
     try {
       const storedHost = new URL(storedValue).hostname;
       if (isLocalHostName(storedHost)) {
         storedValue = "";
-        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+        wpRemove(API_BASE_STORAGE_KEY);
       }
     } catch {
       storedValue = "";
@@ -119,7 +119,7 @@ function resolveApiBase() {
       const configuredHost = new URL(configuredValue).hostname.toLowerCase();
       if (!onLocalHost && isLocalHostName(configuredHost)) {
         configuredValue = "";
-        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+        wpRemove(API_BASE_STORAGE_KEY);
       }
     } catch {
       configuredValue = "";
@@ -127,12 +127,12 @@ function resolveApiBase() {
   }
 
   if (configuredValue) {
-    window.localStorage.setItem(API_BASE_STORAGE_KEY, configuredValue);
+    wpSet(API_BASE_STORAGE_KEY, configuredValue);
     return configuredValue;
   }
 
-  if (!configuredValue && window.localStorage.getItem(API_BASE_STORAGE_KEY)) {
-    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+  if (!configuredValue && wpGet(API_BASE_STORAGE_KEY)) {
+    wpRemove(API_BASE_STORAGE_KEY);
   }
 
   if (onStaticFrontend) {
@@ -218,17 +218,18 @@ let API_BASE = resolveApiBase();
 const DEFAULT_BRAND_LOGO = API_BASE
   ? `${API_BASE}/branding/suppix-ai-logo.svg`
   : `${window.location.origin}/branding/suppix-ai-logo.svg`;
-const SESSION_TOKEN_STORAGE_KEY = "baupass-control-token";
-const SUPPORT_LOGIN_CONTEXT_KEY = "baupass-support-login-context";
-const SUPPORT_PHONE_STORAGE_KEY = "baupass-support-phone";
-const UI_LANG_STORAGE_KEY = "baupass-ui-lang";
-const INVOICE_FILTERS_STORAGE_KEY = "baupass-invoice-filters-v1";
+const SESSION_TOKEN_STORAGE_KEY = WP?.KEYS?.SESSION_TOKEN || "workpass-session-token";
+const SUPPORT_LOGIN_CONTEXT_KEY = WP?.KEYS?.SUPPORT_LOGIN_CONTEXT || "workpass-support-login-context";
+const SUPPORT_PHONE_STORAGE_KEY = WP?.KEYS?.SUPPORT_PHONE || "workpass-support-phone";
+const UI_LANG_STORAGE_KEY = WP?.KEYS?.UI_LANG || "workpass-ui-lang";
+const INVOICE_FILTERS_STORAGE_KEY = WP?.KEYS?.INVOICE_FILTERS || "workpass-invoice-filters-v1";
+const PREVIEW_COMPANY_STORAGE_KEY = WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id";
 const UI_FALLBACK_LANG = "de";
 const WORKER_PWA_BUILD_TAG = "20260525b";
 
 function loadStoredSessionToken() {
   try {
-    return (window.localStorage.getItem(SESSION_TOKEN_STORAGE_KEY) || "").trim();
+    return String(wpGet(SESSION_TOKEN_STORAGE_KEY) || "").trim();
   } catch {
     return "";
   }
@@ -238,9 +239,9 @@ function persistSessionToken(value) {
   try {
     const next = String(value || "").trim();
     if (next) {
-      window.localStorage.setItem(SESSION_TOKEN_STORAGE_KEY, next);
+      wpSet(SESSION_TOKEN_STORAGE_KEY, next);
     } else {
-      window.localStorage.removeItem(SESSION_TOKEN_STORAGE_KEY);
+      wpRemove(SESSION_TOKEN_STORAGE_KEY);
     }
   } catch {
     // ignore storage failures (private mode / quota)
@@ -259,7 +260,7 @@ function switchApiBaseForSession(nextBase) {
   }
   API_BASE = normalized;
   try {
-    window.localStorage.setItem(API_BASE_STORAGE_KEY, normalized);
+    wpSet(API_BASE_STORAGE_KEY, normalized);
   } catch {
     // ignore storage failures
   }
@@ -271,7 +272,7 @@ async function ensureControlPassApiBase() {
     // Production serves API on same origin — never probe other Railway hosts (CORS).
     API_BASE = "";
     try {
-      window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      wpRemove(API_BASE_STORAGE_KEY);
     } catch {
       // ignore
     }
@@ -7990,7 +7991,7 @@ function normalizeUiLang(value) {
 }
 
 function getStoredUiLang() {
-  return normalizeUiLang(window.localStorage.getItem(UI_LANG_STORAGE_KEY));
+  return normalizeUiLang(wpGet(UI_LANG_STORAGE_KEY));
 }
 
 async function loadSectorTerminology() {
@@ -8778,7 +8779,7 @@ function broadcastLangToEmbeds() {
 
 function setUiLang(lang) {
   const normalized = normalizeUiLang(lang);
-  window.localStorage.setItem(UI_LANG_STORAGE_KEY, normalized);
+  wpSet(UI_LANG_STORAGE_KEY, normalized);
   invalidateRuntimeUiTextsCache();
   applyUiTranslations();
   broadcastLangToEmbeds();
@@ -8813,7 +8814,7 @@ function setUiLang(lang) {
 
 function initUiLanguageControl() {
   const initial = getStoredUiLang();
-  window.localStorage.setItem(UI_LANG_STORAGE_KEY, initial);
+  wpSet(UI_LANG_STORAGE_KEY, initial);
   const authSelect = document.querySelector("#uiLangAuthSelect");
   const authShell = document.querySelector("#uiLangAuthShell");
   const authTrigger = document.querySelector("#uiLangAuthTrigger");
@@ -8849,7 +8850,7 @@ function initUiLanguageControl() {
   applyUiTranslations();
 }
 
-const SYSTEM_THEME_STORAGE_KEY = "baupass-system-theme";
+const SYSTEM_THEME_STORAGE_KEY = WP?.KEYS?.SYSTEM_THEME || "workpass-system-theme";
 const SYSTEM_THEME_WHITE = "white";
 const SYSTEM_THEME_BLACK = "black";
 const SYSTEM_THEME_AUTO  = "system";
@@ -8876,7 +8877,7 @@ function resolveEffectiveTheme(mode) {
 
 function getStoredSystemThemeMode() {
   try {
-    return normalizeSystemTheme(window.localStorage.getItem(SYSTEM_THEME_STORAGE_KEY));
+    return normalizeSystemTheme(wpGet(SYSTEM_THEME_STORAGE_KEY));
   } catch {
     return SYSTEM_THEME_WHITE;
   }
@@ -9003,13 +9004,13 @@ function applySystemTheme(mode, { persist = true } = {}) {
   document.body.style.setProperty("--window-color", effective === SYSTEM_THEME_BLACK ? "#000000" : "#ffffff");
   if (persist) {
     try {
-      window.localStorage.setItem(SYSTEM_THEME_STORAGE_KEY, storedMode);
+      wpSet(SYSTEM_THEME_STORAGE_KEY, storedMode);
     } catch {
       // ignore storage errors (private mode / blocked storage)
     }
   }
   try {
-    window.localStorage.removeItem("baupass-system-theme-color");
+    wpRemove(WP?.KEYS?.SYSTEM_THEME_COLOR || "workpass-system-theme-color");
   } catch {
     // ignore storage errors (private mode / blocked storage)
   }
@@ -16641,11 +16642,11 @@ function syncWorkerTypeUi() {
   syncWorkerFormPhase();
 }
 
-const WORKER_FORM_DEFAULTS_KEY = "baupass-worker-form-defaults-v1";
+const WORKER_FORM_DEFAULTS_KEY = WP?.KEYS?.WORKER_FORM_DEFAULTS || "workpass-worker-form-defaults-v1";
 
 function readWorkerFormDefaultsStore() {
   try {
-    const raw = window.localStorage.getItem(WORKER_FORM_DEFAULTS_KEY);
+    const raw = wpGet(WORKER_FORM_DEFAULTS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -16655,7 +16656,7 @@ function readWorkerFormDefaultsStore() {
 
 function writeWorkerFormDefaultsStore(store) {
   try {
-    window.localStorage.setItem(WORKER_FORM_DEFAULTS_KEY, JSON.stringify(store || {}));
+    wpSet(WORKER_FORM_DEFAULTS_KEY, JSON.stringify(store || {}));
   } catch {
     // ignore storage failures
   }
@@ -20438,7 +20439,7 @@ function refreshAll() {
 }
 
 // ── Login Greeting ──────────────────────────────────────────────────────────
-const GREETING_SHOWN_KEY = "baupass-greeting-date";
+const GREETING_SHOWN_KEY = WP?.KEYS?.GREETING_DATE || "workpass-greeting-date";
 const GREET_DISPLAY_MS = 4200;
 
 function getGreetingMeta(lang) {
@@ -20717,9 +20718,9 @@ function showLoginGreeting() {
 
   // Nur einmal pro Tag anzeigen
   const today = new Date().toISOString().slice(0, 10); // "2026-04-21"
-  const lastShown = localStorage.getItem(GREETING_SHOWN_KEY);
+  const lastShown = wpGet(GREETING_SHOWN_KEY);
   if (lastShown === today) return;
-  localStorage.setItem(GREETING_SHOWN_KEY, today);
+  wpSet(GREETING_SHOWN_KEY, today);
 
   const lang = getStoredUiLang();
   const greetingMeta = getGreetingMeta(lang);
@@ -22229,7 +22230,7 @@ async function openCompanyBrandingPdfPreview(companyId, { persistFirst = true } 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        lang: (localStorage.getItem(UI_LANG_STORAGE_KEY) || "de").slice(0, 2),
+        lang: (wpGet(UI_LANG_STORAGE_KEY) || "de").slice(0, 2),
         branding: brandingOverride
           ? {
               companyName: brandingOverride.companyName,
@@ -22285,7 +22286,7 @@ async function clearSuperadminPreviewMode({ refresh = true } = {}) {
   superadminUiPreviewCompanyId = "";
   companyBrandingPreviewOverride = "";
   try {
-    localStorage.removeItem("baupass-preview-company-id");
+    wpRemove(PREVIEW_COMPANY_STORAGE_KEY);
   } catch {
     // ignore
   }
@@ -22329,7 +22330,7 @@ async function setSuperadminPreviewCompany(companyId, { refresh = true } = {}) {
     companyBrandingPreviewOverride = getCompanyBrandingPreset(company);
   }
   try {
-    localStorage.setItem("baupass-preview-company-id", selectedCompanyId);
+    wpSet(PREVIEW_COMPANY_STORAGE_KEY, selectedCompanyId);
   } catch {
     // ignore
   }
@@ -27987,12 +27988,12 @@ function triggerAutoDayCloseAlert() {
   }
 
   const companyScope = getCurrentUser()?.companyId || "system";
-  const key = `baupass-day-close-alert-${companyScope}-${date}`;
-  if (localStorage.getItem(key) === "1") {
+  const key = `workpass-day-close-alert-${companyScope}-${date}`;
+  if (wpGet(key) === "1") {
     return;
   }
 
-  localStorage.setItem(key, "1");
+  wpSet(key, "1");
   showToast(runtimeTextTemplate("dayCloseAlertAt18", { count }));
 }
 
@@ -29123,9 +29124,9 @@ async function handleSettingsSubmit(event) {
     const supportPhoneInput = String(document.querySelector("#supportPhone")?.value || "").trim();
     try {
       if (supportPhoneInput) {
-        window.localStorage.setItem(SUPPORT_PHONE_STORAGE_KEY, supportPhoneInput);
+        wpSet(SUPPORT_PHONE_STORAGE_KEY, supportPhoneInput);
       } else {
-        window.localStorage.removeItem(SUPPORT_PHONE_STORAGE_KEY);
+        wpRemove(SUPPORT_PHONE_STORAGE_KEY);
       }
     } catch {
       // ignore storage failures (private mode / quota)
@@ -32145,7 +32146,7 @@ function renderCollectionsList() {
 }
 
 function getSupportPhoneForLockScreen() {
-  const fromStorage = String(window.localStorage.getItem(SUPPORT_PHONE_STORAGE_KEY) || "").trim();
+  const fromStorage = String(wpGet(SUPPORT_PHONE_STORAGE_KEY) || "").trim();
   return fromStorage || LOGIN_SUPPORT_PHONE_FALLBACK;
 }
 
@@ -32331,7 +32332,7 @@ async function handleLoginSubmit(event) {
       superadminUiPreviewCompanyId = "";
       companyBrandingPreviewOverride = "";
       try {
-        localStorage.removeItem("baupass-preview-company-id");
+        wpRemove(PREVIEW_COMPANY_STORAGE_KEY);
       } catch {
         // ignore
       }
@@ -34722,7 +34723,7 @@ window.addEventListener("message", (event) => {
       if (cid && getEffectiveUiRole() === "superadmin") {
         superadminUiPreviewCompanyId = cid;
         try {
-          localStorage.setItem("baupass-preview-company-id", cid);
+          wpSet(PREVIEW_COMPANY_STORAGE_KEY, cid);
         } catch {
           // ignore
         }
@@ -35743,7 +35744,7 @@ function filterInvoicesForManagement(sourceInvoices, filters) {
 function persistInvoiceFiltersFromUi() {
   try {
     const filters = getCurrentInvoiceFilterValues();
-    window.localStorage.setItem(INVOICE_FILTERS_STORAGE_KEY, JSON.stringify({
+    wpSet(INVOICE_FILTERS_STORAGE_KEY, JSON.stringify({
       company: filters.company,
       invoiceNumber: filters.invoiceNumber,
       status: filters.status,
@@ -35759,7 +35760,7 @@ function persistInvoiceFiltersFromUi() {
 
 function restoreInvoiceFiltersFromStorage() {
   try {
-    const raw = String(window.localStorage.getItem(INVOICE_FILTERS_STORAGE_KEY) || "").trim();
+    const raw = String(wpGet(INVOICE_FILTERS_STORAGE_KEY) || "").trim();
     if (!raw) return;
     const parsed = JSON.parse(raw);
     const setValue = (selector, value) => {
@@ -37088,7 +37089,7 @@ function showConfirmDialog(message) {
  */
 function getCurrentLang() {
   try {
-    return window.localStorage.getItem(UI_LANG_STORAGE_KEY) || "de";
+    return wpGet(UI_LANG_STORAGE_KEY) || "de";
   } catch {
     return "de";
   }
