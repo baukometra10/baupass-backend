@@ -177,7 +177,7 @@ def execute_action(
         from .mailer import send_ai_briefing_email
 
         to = str(params.get("to") or "").strip()
-        subject = str(params.get("subject") or "SUPPIX AI Tagesbriefing").strip()
+        subject = str(params.get("subject") or "Suppix AI Tagesbriefing").strip()
         body = (briefing_text or params.get("body") or "").strip()
         if not to or not body:
             return {"ok": False, "error": "to_and_body_required"}
@@ -223,7 +223,7 @@ def execute_action(
 
     if action == "notify_worker":
         worker_id = str(params.get("worker_id") or "").strip()
-        title = str(params.get("title") or "SUPPIX").strip()[:120]
+        title = str(params.get("title") or "WorkPass").strip()[:120]
         body = str(params.get("body") or params.get("message") or "").strip()[:500]
         if not worker_id or not body:
             return {"ok": False, "error": "worker_id_and_body_required"}

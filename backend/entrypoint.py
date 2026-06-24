@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import logging
@@ -7,14 +7,20 @@ import socket
 import sys
 from pathlib import Path
 
-# Waitress cannot upgrade HTTP to WebSocket — disable Socket.IO unless explicitly enabled.
-os.environ.setdefault("BAUPASS_SERVE_ENGINE", "waitress")
-if not os.getenv("BAUPASS_WEBSOCKET_ENABLED", "").strip():
-    os.environ["BAUPASS_WEBSOCKET_ENABLED"] = "0"
-
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+
+from backend.app.core.platform_env import mirror_platform_env  # noqa: E402
+
+mirror_platform_env()
+
+# Waitress cannot upgrade HTTP to WebSocket — disable Socket.IO unless explicitly enabled.
+os.environ.setdefault("SUPPIX_SERVE_ENGINE", "waitress")
+os.environ.setdefault("BAUPASS_SERVE_ENGINE", os.environ["SUPPIX_SERVE_ENGINE"])
+if not (os.getenv("SUPPIX_WEBSOCKET_ENABLED") or os.getenv("BAUPASS_WEBSOCKET_ENABLED") or "").strip():
+    os.environ["SUPPIX_WEBSOCKET_ENABLED"] = "0"
+    os.environ["BAUPASS_WEBSOCKET_ENABLED"] = "0"
 
 from waitress import serve  # noqa: E402
 from backend.app.config import ProductionConfig  # noqa: E402

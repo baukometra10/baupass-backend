@@ -1,5 +1,5 @@
 ﻿/**
- * Shared SUPPIX AI UI — ChatGPT-style voice + composer (Enterprise Hub, Command Center, Worker).
+ * Shared Suppix AI UI — ChatGPT-style voice + composer (Enterprise Hub, Command Center, Worker).
  */
 (function initBaupassAiUi(global) {
   const LANG_MAP = {

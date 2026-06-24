@@ -1,5 +1,5 @@
-﻿"""
-SUPPIX – Flask Application Factory
+"""
+WorkPass – Flask Application Factory
 ====================================
 الغرض: إنشاء تطبيق Flask بطريقة factory تدعم بيئات متعددة (dev/test/prod)
        وتفصل التهيئة عن تعريف التطبيق.
@@ -21,6 +21,10 @@ import logging
 import os
 import atexit
 from typing import Optional
+
+from backend.app.core.platform_env import mirror_platform_env
+
+mirror_platform_env()
 
 from flask import Flask
 

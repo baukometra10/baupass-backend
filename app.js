@@ -15,7 +15,19 @@ async function loadEnterpriseFlags() {
   }
 }
 const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
-const API_BASE_STORAGE_KEY = "baupass-api-base";
+const WP = window.WorkPassStorage;
+function wpGet(key) {
+  return WP ? WP.getItem(key) : window.localStorage.getItem(key);
+}
+function wpSet(key, value) {
+  if (WP) WP.setItem(key, value);
+  else window.localStorage.setItem(key, value);
+}
+function wpRemove(key) {
+  if (WP) WP.removeItem(key);
+  else window.localStorage.removeItem(key);
+}
+const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
 const LOCAL_API_BASE_FALLBACKS = [
   "http://127.0.0.1:8000",
   "http://localhost:8000",
@@ -1125,7 +1137,12 @@ const UI_TRANSLATIONS = {
     signatureProviderStepover: "StepOver",
     signatureProviderTopaz: "Topaz",
     workerMissingDocsBlocked: "Mitarbeiter gespeichert, aber gesperrt — Pflichtdokumente (Ausweis + Mindestlohnnachweis) fehlen.",
+    workerMissingSignatureBlocked: "Mitarbeiter gespeichert — Ausweis bleibt gesperrt bis zur Unterschrift bei Ausgabe.",
     workerBadgeBlockedDocs: "Ausweis nicht aktiv — Pflichtdokumente fehlen oder sind abgelaufen.",
+    workerBadgeBlockedSignature: "Ausweis nicht aktiv — Unterschrift bei Ausgabe fehlt noch.",
+    btnHandoverSignLink: "Signatur-Link senden",
+    handoverSignLinkCreated: "Signatur-Link erstellt — an den Mitarbeiter senden.",
+    handoverSignLinkFailed: "Signatur-Link konnte nicht erstellt werden: {error}",
     workerDetailSignatureHeading: "Unterschrift (Ausweisübergabe)",
     workerDetailIdHandover: "Ausweis übergeben",
     workerHceHeading: "HCE-Geraete",
@@ -2224,7 +2241,12 @@ const UI_TRANSLATIONS = {
     signatureProviderTopaz: "Topaz",
     signatureProviderCanvas: "On-screen",
     workerMissingDocsBlocked: "Worker saved but locked — required documents (ID + minimum wage proof) are missing.",
+    workerMissingSignatureBlocked: "Worker saved — badge stays locked until handover signature is captured.",
     workerBadgeBlockedDocs: "Badge inactive — required documents missing or expired.",
+    workerBadgeBlockedSignature: "Badge inactive — handover signature is still missing.",
+    btnHandoverSignLink: "Send signature link",
+    handoverSignLinkCreated: "Signature link created — send it to the worker.",
+    handoverSignLinkFailed: "Could not create signature link: {error}",
     idHandoverDateLabel: "ID handed over on",
     workerDetailSignatureHeading: "Signature (ID handover)",
     workerDetailIdHandover: "ID handed over",
@@ -4378,7 +4400,12 @@ const UI_TRANSLATIONS = {
     signatureProviderTopaz: "Topaz",
     signatureProviderCanvas: "الشاشة",
     workerMissingDocsBlocked: "تم حفظ العامل لكنه مُقفل — المستندات المطلوبة (الهوية + إثبات الحد الأدنى للأجر) ناقصة.",
+    workerMissingSignatureBlocked: "تم حفظ العامل — تبقى البطاقة مغلقة حتى توقيع الاستلام.",
     workerBadgeBlockedDocs: "البطاقة غير نشطة — مستندات مطلوبة ناقصة أو منتهية.",
+    workerBadgeBlockedSignature: "البطاقة غير نشطة — توقيع الاستلام ما زال مفقوداً.",
+    btnHandoverSignLink: "إرسال رابط التوقيع",
+    handoverSignLinkCreated: "تم إنشاء رابط التوقيع — أرسله للموظف.",
+    handoverSignLinkFailed: "تعذر إنشاء رابط التوقيع: {error}",
     idHandoverDateLabel: "تاريخ تسليم الهوية",
     workerDetailSignatureHeading: "التوقيع (تسليم الهوية)",
     workerDetailIdHandover: "تم تسليم الهوية",
@@ -16200,7 +16227,7 @@ function applySupportReadOnlyUiState() {
     ".worker-doc-upload-form input, .worker-doc-upload-form select, .worker-doc-upload-form textarea, .worker-doc-upload-form button",
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
-    "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
+    "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-handover-sign], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
     "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
     "[data-company-mail-provider], [data-company-mail-sender-email], [data-company-mail-sender-name], [data-company-mail-imap-host], [data-company-mail-imap-port], [data-company-mail-imap-username], [data-company-mail-imap-password], [data-company-mail-imap-tls], [data-company-mail-smtp-host], [data-company-mail-smtp-port], [data-company-mail-smtp-username], [data-company-mail-smtp-password], [data-company-mail-smtp-tls], [data-company-mail-brevo-key], [data-company-mail-save], [data-company-mail-test-inbound], [data-company-mail-test-outbound]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
@@ -17130,6 +17157,21 @@ function hasComplianceSignatureReady() {
   return false;
 }
 
+function isWorkerIdentityBlocked(worker) {
+  if (!worker || isVisitorWorker(worker)) return false;
+  if (String(worker.status || "").toLowerCase() === "gesperrt") return true;
+  if (worker.identityBlocked || worker.badgeBlocked) return true;
+  const code = String(worker.lockReasonCode || "").trim();
+  return ["missing_documents", "expired_documents", "missing_handover_signature"].includes(code);
+}
+
+function workerIdentityBlockMessage(worker) {
+  if (worker?.lockReason) return worker.lockReason;
+  const code = String(worker?.lockReasonCode || "").trim();
+  if (code === "missing_handover_signature") return uiT("workerBadgeBlockedSignature");
+  return uiT("workerBadgeBlockedDocs");
+}
+
 function syncWorkerFormPhase() {
   const isVisitor = (elements.workerType?.value || "worker") === "visitor";
   const phaseBasics = document.getElementById("workerFormPhaseBasics");
@@ -17425,12 +17467,9 @@ async function captureComplianceSignatureFromDevice() {
   showToast(uiT("signatureDeviceDetecting"), "info", 4000);
 
   try {
-    const probes = await withSignatureDeviceTimeout(
-      bridge.probeProviders(true, { onlyIds: ["signotec"] }),
-      20000,
-    );
-    const active = probes.filter((p) => p.ok && p.id === "signotec");
-    const providerId = active[0]?.id || "";
+    const probes = await withSignatureDeviceTimeout(bridge.probeProviders(true), 20000);
+    const hardware = probes.filter((p) => p.ok && p.id !== "canvas");
+    const providerId = hardware[0]?.id || "";
     if (!providerId) {
       const hint = probes.find((p) => p.id !== "canvas" && p.detail);
       if (hint?.detail) {
@@ -17438,14 +17477,12 @@ async function captureComplianceSignatureFromDevice() {
       }
       throw new Error("signature_pad_none_available");
     }
-    if (providerId) {
-      showToast(signatureCapturingMessage(providerId), "info", 6000);
-    }
+    showToast(signatureCapturingMessage(providerId), "info", 6000);
 
     const result = await withSignatureDeviceTimeout(
       bridge.captureSignature({
         mode: "auto",
-        providerId: "signotec",
+        providerId,
         fieldName: uiT("complianceSignatureHeading"),
         customText: workerLabel || uiT("complianceSignatureHeading"),
         canvas,
@@ -23371,6 +23408,7 @@ function renderWorkerList() {
               <span style="font-size:0.72em;color:#6b7280;min-width:80px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${uiT("workerSectionProfile")}</span>
               ${!visitor && !deleted ? `<button type="button" class="ghost-button small-button" data-worker-docs="${escapeHtml(worker.id)}">${uiT("btnWorkerDocs")}</button>` : ""}
               <button type="button" class="ghost-button small-button" data-worker-edit="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>✏️ ${uiT("btnEdit")}</button>
+              ${!visitor && !deleted && !worker.hasComplianceSignature ? `<button type="button" class="ghost-button small-button" data-worker-handover-sign="${escapeHtml(worker.id)}">✍️ ${uiT("btnHandoverSignLink")}</button>` : ""}
               <button type="button" class="ghost-button small-button" data-worker-app-link="${escapeHtml(worker.id)}" ${deleted ? "disabled" : ""}>📲 ${uiT("btnAppLink")}</button>
               ${!visitor && !deleted ? `<button type="button" class="ghost-button small-button" data-worker-reset-pin="${escapeHtml(worker.id)}">🔑 ${uiT("btnResetPin")}</button>` : ""}
             </div>
@@ -23657,6 +23695,27 @@ function bindWorkerRowActions() {
         refreshAll();
       } catch (error) {
         showToast(uiT("alertRestoreWorkerFailed").replace("{error}", error.message), "error", 3600);
+      }
+    };
+  });
+
+  elements.workerList.querySelectorAll("[data-worker-handover-sign]").forEach((button) => {
+    button.onclick = async () => {
+      const workerId = button.dataset.workerHandoverSign;
+      try {
+        const payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/handover-sign-link`, {
+          method: "POST",
+          body: { renew: true },
+        });
+        const link = payload.absoluteUrl || payload.signUrl || "";
+        if (link && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(link);
+          showToast(uiT("handoverSignLinkCreated"), "success", 8000);
+        } else {
+          window.prompt(uiT("handoverSignLinkCreated"), link);
+        }
+      } catch (error) {
+        showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
       }
     };
   });
@@ -26896,6 +26955,27 @@ window.triggerWorkerAccess = triggerWorkerAccess;
     });
   });
 
+  elements.workerList.querySelectorAll("[data-worker-handover-sign]").forEach((button) => {
+    button.onclick = async () => {
+      const workerId = button.dataset.workerHandoverSign;
+      try {
+        const payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/handover-sign-link`, {
+          method: "POST",
+          body: { renew: true },
+        });
+        const link = payload.absoluteUrl || payload.signUrl || "";
+        if (link && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(link);
+          showToast(uiT("handoverSignLinkCreated"), "success", 8000);
+        } else {
+          window.prompt(uiT("handoverSignLinkCreated"), link);
+        }
+      } catch (error) {
+        showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
+      }
+    };
+  });
+
   elements.workerList.querySelectorAll("[data-worker-app-link]").forEach((button) => {
     button.addEventListener("click", async () => {
       try {
@@ -27118,15 +27198,11 @@ function renderBadge() {
   const visitor = isVisitorWorker(worker);
 
   elements.badgePreview.className = "badge-shell";
-  const docsBlocked = !visitor && (
-    String(worker.status || "").toLowerCase() === "gesperrt"
-    || worker.lockReasonCode === "missing_documents"
-    || worker.lockReasonCode === "expired_documents"
-  );
+  const identityBlocked = isWorkerIdentityBlocked(worker);
   const siteMapHref = worker.site ? `https://www.google.com/maps/search/${encodeURIComponent(worker.site)}` : "#";
   const validUntilLabel = formatDate(worker.validUntil);
   elements.badgePreview.innerHTML = `
-    ${docsBlocked ? `<div class="helper-text helper-text-warning" style="margin-bottom:10px;">${escapeHtml(uiT("workerBadgeBlockedDocs"))}${worker.lockReason ? `<br>${escapeHtml(worker.lockReason)}` : ""}</div>` : ""}
+    ${identityBlocked ? `<div class="helper-text helper-text-warning" style="margin-bottom:10px;">${escapeHtml(workerIdentityBlockMessage(worker))}</div>` : ""}
     <div class="badge-card-stage">
       ${buildPrintableWorkerCardMarkup(worker, company)}
       <div class="badge-card-note">
@@ -28357,17 +28433,13 @@ async function handleWorkerSubmit(event) {
       state.selectedWorkerId = targetWorkerId;
     }
     const savedWorker = state.workers.find((entry) => entry.id === targetWorkerId) || null;
-    if (
-      savedWorker
-      && (
-        savedWorker.lockReasonCode === "missing_documents"
-        || savedWorker.lockReasonCode === "expired_documents"
-        || String(savedWorker.status || "").toLowerCase() === "gesperrt"
-      )
-    ) {
+    if (savedWorker && isWorkerIdentityBlocked(savedWorker)) {
       refreshAll();
-      showToast(uiT("workerMissingDocsBlocked"), "warning", 9000);
-      setView("workers");
+      const toastKey = savedWorker.lockReasonCode === "missing_handover_signature"
+        ? "workerMissingSignatureBlocked"
+        : "workerMissingDocsBlocked";
+      showToast(uiT(toastKey), "warning", 9000);
+      setView(savedWorker.lockReasonCode === "missing_handover_signature" ? "badge" : "workers");
       return;
     }
     refreshAll();

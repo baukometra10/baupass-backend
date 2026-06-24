@@ -355,7 +355,7 @@ def send_worker_plan(
 
     branding = resolve_company_pdf_branding(db, str(company_id))
     pdf_bytes = build_deployment_plan_pdf(
-        company_name=branding.get("companyName") or "SUPPIX",
+        company_name=branding.get("companyName") or "WorkPass",
         worker_name=f"{w['first_name']} {w['last_name']}".strip(),
         badge_id=w["badge_id"],
         year=year,

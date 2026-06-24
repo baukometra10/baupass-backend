@@ -33,7 +33,7 @@ def _post_json(url: str, payload: dict[str, Any], *, timeout: int = 15) -> tuple
         return False, str(exc)[:200]
 
 
-def slack_payload(text: str, *, title: str = "SUPPIX AI") -> dict[str, Any]:
+def slack_payload(text: str, *, title: str = "Suppix AI") -> dict[str, Any]:
     """Slack incoming webhook compatible body."""
     return {
         "text": title,
@@ -44,7 +44,7 @@ def slack_payload(text: str, *, title: str = "SUPPIX AI") -> dict[str, Any]:
     }
 
 
-def teams_payload(text: str, *, title: str = "SUPPIX AI") -> dict[str, Any]:
+def teams_payload(text: str, *, title: str = "Suppix AI") -> dict[str, Any]:
     return {
         "@type": "MessageCard",
         "@context": "https://schema.org/extensions",
@@ -59,7 +59,7 @@ def send_webhook_notification(
     url: str,
     text: str,
     *,
-    title: str = "SUPPIX AI Tagesbriefing",
+    title: str = "Suppix AI Tagesbriefing",
     channel: str = "auto",
 ) -> tuple[bool, str]:
     """Send to Slack, Teams, or generic JSON webhook."""
@@ -86,7 +86,7 @@ def dispatch_briefing_notifications(
     text: str,
     *,
     company_id: str | None = None,
-    title: str = "SUPPIX AI Tagesbriefing",
+    title: str = "Suppix AI Tagesbriefing",
 ) -> dict[str, Any]:
     """Send briefing to all configured global webhooks."""
     results: list[dict[str, Any]] = []

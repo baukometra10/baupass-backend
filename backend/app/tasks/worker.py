@@ -1,5 +1,5 @@
 ﻿"""
-SUPPIX – RQ Worker Startup
+WorkPass – RQ Worker Startup
 =============================
 تشغيل:
     python -m backend.app.tasks.worker

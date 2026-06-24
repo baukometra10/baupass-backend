@@ -1093,6 +1093,17 @@ def worker_required_document_issues(db, worker_id, today_value=None):
     return missing_types, expired_types
 
 
+def worker_has_compliance_signature(worker_row):
+    if not worker_row:
+        return False
+    if str(worker_row["worker_type"] or "worker").strip().lower() != "worker":
+        return True
+    sig = ""
+    if hasattr(worker_row, "keys") and "compliance_signature_data" in worker_row.keys():
+        sig = (worker_row["compliance_signature_data"] or "").strip()
+    return bool(sig)
+
+
 def get_worker_lock_metadata(db, worker_row, today_value=None):
     if not worker_row:
         return {}
@@ -1100,24 +1111,72 @@ def get_worker_lock_metadata(db, worker_row, today_value=None):
     if worker_type != "worker":
         return {}
 
+    reasons = []
     missing_types, expired_types = worker_required_document_issues(
         db, worker_row["id"], today_value=today_value
     )
     if missing_types:
         labels = [_REQUIRED_DOC_LABELS.get(item, item) for item in missing_types]
-        return {
-            "lockReasonCode": "missing_documents",
-            "lockReason": f"Automatisch gesperrt — fehlende Pflichtdokumente: {', '.join(labels)}",
-            "missingRequiredDocTypes": missing_types,
-        }
+        reasons.append(
+            {
+                "code": "missing_documents",
+                "message": f"Automatisch gesperrt — fehlende Pflichtdokumente: {', '.join(labels)}",
+            }
+        )
     if expired_types:
         labels = [_REQUIRED_DOC_LABELS.get(item, item) for item in expired_types]
-        return {
-            "lockReasonCode": "expired_documents",
-            "lockReason": f"Automatisch gesperrt wegen abgelaufener Pflichtdokumente: {', '.join(labels)}",
-            "expiredRequiredDocTypes": expired_types,
-        }
-    return {}
+        reasons.append(
+            {
+                "code": "expired_documents",
+                "message": f"Automatisch gesperrt wegen abgelaufener Pflichtdokumente: {', '.join(labels)}",
+            }
+        )
+    if not worker_has_compliance_signature(worker_row):
+        reasons.append(
+            {
+                "code": "missing_handover_signature",
+                "message": "Ausweis gesperrt — Unterschrift bei Ausgabe fehlt noch.",
+            }
+        )
+
+    if not reasons:
+        return {}
+
+    primary = reasons[0]
+    combined = " | ".join(item["message"] for item in reasons) if len(reasons) > 1 else primary["message"]
+    payload = {
+        "lockReasonCode": primary["code"],
+        "lockReason": combined,
+        "lockReasons": reasons,
+        "identityBlocked": True,
+        "badgeBlocked": True,
+    }
+    if missing_types:
+        payload["missingRequiredDocTypes"] = missing_types
+    if expired_types:
+        payload["expiredRequiredDocTypes"] = expired_types
+    return payload
+
+
+def worker_identity_access_block(db, worker_row, today_value=None):
+    """Return API block payload when badge/identity must stay inactive."""
+    if not worker_row:
+        return None
+    if str(worker_row["worker_type"] or "worker").strip().lower() != "worker":
+        return None
+
+    doc_block = worker_document_access_block(db, worker_row, today_value=today_value)
+    if doc_block:
+        return doc_block
+
+    if worker_has_compliance_signature(worker_row):
+        return None
+
+    return {
+        "error": "handover_signature_missing",
+        "message": "Ausweis gesperrt — Unterschrift bei Ausgabe fehlt noch.",
+        "lockReasonCode": "missing_handover_signature",
+    }
 
 
 def worker_has_expired_required_documents(db, worker_id, today_value=None):
@@ -3142,11 +3201,27 @@ def init_db():
             notes TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(worker_id) REFERENCES workers(id)
         );
+
+        CREATE TABLE IF NOT EXISTS worker_handover_sign_sessions (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT 'pending',
+            signature_data TEXT NOT NULL DEFAULT '',
+            signed_at TEXT,
+            expires_at TEXT NOT NULL,
+            created_by_user_id TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        );
         """
     )
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_worker_timestamp ON access_logs(worker_id, timestamp DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_documents_worker_type_created ON worker_documents(worker_id, doc_type, created_at DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_handover_sign_token ON worker_handover_sign_sessions(token)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_handover_sign_worker ON worker_handover_sign_sessions(worker_id, status)")
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_passes_worker_platform_unique ON worker_passes(worker_id, platform)")
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_passes_object_unique ON worker_passes(pass_object_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_worker_passes_company_status ON worker_passes(company_id, status)")
@@ -10305,6 +10380,73 @@ def put_worker_compliance_signature(worker_id):
     return jsonify(result["body"])
 
 
+@require_auth
+@require_roles("superadmin", "company-admin")
+def create_worker_handover_sign_link(worker_id):
+    worker = get_db().execute(
+        "SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL",
+        (worker_id,),
+    ).fetchone()
+    if not worker:
+        return jsonify({"error": "worker_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and worker["company_id"] != g.current_user.get("company_id"):
+        return jsonify({"error": "forbidden_worker"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    expires_days = int(payload.get("expiresDays") or payload.get("expires_days") or 7)
+    renew = bool(payload.get("renew"))
+    db = get_db()
+    try:
+        from backend.app.domains.workers.handover_sign import WorkerHandoverSignService
+
+        result = WorkerHandoverSignService(db).create_sign_invite(
+            worker_id,
+            str(worker["company_id"]),
+            actor_user_id=str(g.current_user.get("id") or ""),
+            expires_days=expires_days,
+            renew=renew,
+        )
+        db.commit()
+    except ValueError as exc:
+        code = str(exc)
+        status = 404 if code == "worker_not_found" else 409 if code == "signature_already_present" else 400
+        return jsonify({"error": code}), status
+    return jsonify(result), 201
+
+
+def public_worker_handover_sign_view(token):
+    db = get_db()
+    from backend.app.domains.workers.handover_sign import WorkerHandoverSignService
+
+    view = WorkerHandoverSignService(db).get_public_view(token)
+    if not view:
+        return jsonify({"error": "sign_session_not_found"}), 404
+    if view.get("error"):
+        status = 410 if view["error"] in {"sign_link_expired", "already_signed"} else 400
+        return jsonify(view), status
+    db.commit()
+    return jsonify(view)
+
+
+def public_worker_handover_sign_submit(token):
+    data = request.get_json(silent=True) or {}
+    db = get_db()
+    from backend.app.domains.workers.handover_sign import WorkerHandoverSignService
+
+    try:
+        result = WorkerHandoverSignService(db).submit_signature(
+            token,
+            signature_data=str(data.get("signature_data") or data.get("signatureData") or ""),
+            consent_accepted=bool(data.get("consent_accepted") or data.get("consentAccepted")),
+        )
+        db.commit()
+    except ValueError as exc:
+        code = str(exc)
+        status = 404 if code == "sign_session_not_found" else 410 if code in {"sign_link_expired", "already_signed"} else 400
+        return jsonify({"error": code}), status
+    return jsonify(result)
+
+
 def _operations_company_filter_sql(user, alias="w"):
     if user["role"] == "superadmin":
         return "", []
@@ -12395,9 +12537,11 @@ def worker_app_me():
     work_end = get_effective_work_end_time(db, worker["id"])
     work_start = get_effective_work_start_time(db, worker["id"])
     open_checkin = worker_has_open_checkin_today(db, worker["id"])
+    identity_lock = get_worker_lock_metadata(db, worker)
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker, db=db),
+            "identityLock": identity_lock if identity_lock.get("identityBlocked") else None,
             "company": {
                 "name": company["name"] if company else "",
                 "brandingPreset": normalize_branding_preset(company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"),
@@ -14767,6 +14911,11 @@ def worker_app_hce_device_register():
 def worker_app_dynamic_qr():
     """Return a fresh short-lived signed QR token for the worker's badge."""
     worker = g.worker
+    db = get_db()
+    identity_block = worker_identity_access_block(db, worker)
+    if identity_block:
+        db.commit()
+        return jsonify(identity_block), 403
     badge_id = str(worker["badge_id"] or "").strip()
     if not badge_id:
         return jsonify({"error": "badge_id_missing"}), 422
@@ -17204,6 +17353,21 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         )
         db.commit()
         return doc_block, 403
+
+    identity_block = worker_identity_access_block(db, worker)
+    if identity_block and identity_block.get("error") == "handover_signature_missing":
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            status="deny",
+            direction=direction if direction in {"check-in", "check-out"} else "",
+            gate=gate_name,
+            message=str(identity_block.get("message") or "Unterschrift bei Ausgabe fehlt."),
+            reason_code="missing_handover_signature",
+        )
+        db.commit()
+        return identity_block, 403
 
     if requested_direction in {"", "auto", "toggle"}:
         latest_log = db.execute(

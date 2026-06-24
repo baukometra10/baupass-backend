@@ -7,7 +7,7 @@ import json
 from urllib import request as urlrequest
 
 
-class BauPassClient:
+class WorkPassClient:
     def __init__(self, base_url: str, api_key: str) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -61,4 +61,4 @@ class BauPassClient:
         return self._post("/api/ops-os/copilot", body)
 
 
-WorkPassClient = BauPassClient
+WorkPassClient = WorkPassClient

@@ -1,4 +1,4 @@
-﻿const path = require("path");
+const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const https = require("https");
@@ -15,8 +15,8 @@ if (!gotTheLock) {
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const LOCAL_DESKTOP_URL = "http://127.0.0.1:8000";
-const REMOTE_DESKTOP_URL = "https://baupass-control.up.railway.app";
-let resolvedDesktopUrl = (process.env.BAUPASS_DESKTOP_URL || "").trim();
+const REMOTE_DESKTOP_URL = "https://baupass-production.up.railway.app";
+let resolvedDesktopUrl = (process.env.WORKPASS_DESKTOP_URL || process.env.BAUPASS_DESKTOP_URL || "").trim();
 // Backend auto-start only makes sense when pointing at localhost.
 let IS_LOCAL = false;
 const AUTOSTART_BACKEND = IS_LOCAL && String(process.env.BAUPASS_DESKTOP_AUTOSTART_BACKEND || "1").trim() !== "0";
@@ -297,7 +297,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
-    updateSplashProgress(100, "Bereit", "Willkommen in SUPPIX");
+    updateSplashProgress(100, "Bereit", "Willkommen in WorkPass");
     revealMainWindow(0);
   });
 

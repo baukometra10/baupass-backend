@@ -29,7 +29,7 @@
 | DATEV CSV + OAuth DATEV | ✅ (يتطلب مفاتيح Env) |
 | 6 طبقات Enterprise + Physical Operations | ✅ |
 | محرك أتمتة (Automation Rules) | ✅ |
-| SUPPIX AI (صوت، نوايا، إجراءات) | ✅ |
+| Suppix AI (صوت، نوايا، إجراءات) | ✅ |
 | إشعارات العامل (Push + مركز إشعارات) | ✅ |
 | توقيع الامتثال على الكرت (Compliance Signature) | ✅ في لوحة الإدارة |
 | كاميرا / أحداث أمن (Webhook API) | ✅ `security-cameras/events` |

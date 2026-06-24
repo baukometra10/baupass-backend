@@ -1,5 +1,5 @@
 ﻿"""
-SUPPIX – Health Check Routes (نموذج على blueprint)
+WorkPass – Health Check Routes (نموذج على blueprint)
 =====================================================
 مثال على أول route منقول من server.py إلى Architecture الجديدة.
 """

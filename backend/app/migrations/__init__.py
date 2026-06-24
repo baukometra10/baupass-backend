@@ -1,5 +1,5 @@
 ﻿"""
-SUPPIX – Database Migrations Registry
+WorkPass – Database Migrations Registry
 ========================================
 Schema الفعلي (baupass.db):
   - workers: id, company_id, badge_id, badge_id_lookup, contact_email, status, deleted_at
@@ -1141,6 +1141,34 @@ ALL_MIGRATIONS: list[Migration] = [
                 ON employment_contracts(parent_contract_id);
         """,
         down_sql="SELECT 1;",
+    ),
+
+    Migration(
+        version="031",
+        name="worker_handover_sign_sessions",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS worker_handover_sign_sessions (
+                id TEXT PRIMARY KEY,
+                worker_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT 'pending',
+                signature_data TEXT NOT NULL DEFAULT '',
+                signed_at TEXT,
+                expires_at TEXT NOT NULL,
+                created_by_user_id TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_worker_handover_sign_token
+                ON worker_handover_sign_sessions(token);
+            CREATE INDEX IF NOT EXISTS idx_worker_handover_sign_worker
+                ON worker_handover_sign_sessions(worker_id, status);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_worker_handover_sign_worker;
+            DROP INDEX IF EXISTS idx_worker_handover_sign_token;
+            DROP TABLE IF EXISTS worker_handover_sign_sessions;
+        """,
     ),
 
 ]

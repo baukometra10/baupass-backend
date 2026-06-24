@@ -1,4 +1,4 @@
-# Build BauPass worker APK (release, debug-signed) and upload as artifact.
+# Build WorkPass worker APK (release, debug-signed) and upload as artifact.
 # Pipeline: git push main → this workflow → Artifacts → baupass-worker-apk
 # Download: GitHub → Actions → latest run → Artifacts → baupass-worker-apk
 name: Build worker APK
@@ -119,7 +119,7 @@ jobs:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
         run: |
           {
-            echo "## BauPass Worker APK"
+            echo "## WorkPass Worker APK"
             echo ""
             echo "- **API URL baked in:** \`$API_URL\`"
             echo "- **Artifact:** \`baupass-worker-apk\` → \`app-release.apk\`"

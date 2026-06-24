@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import secrets
@@ -523,7 +523,7 @@ class ContractsService:
         subject, text_body, html_body = self._sign_invite_email_bodies(
             lang=lang,
             role=role,
-            company_name=str(self._load_company(company_id).get("name") or "SUPPIX"),
+            company_name=str(self._load_company(company_id).get("name") or "WorkPass"),
             contract_title=title,
             sign_url=absolute_url,
             expires_at=str((invite.get("session") or {}).get("expires_at") or ""),
@@ -867,17 +867,18 @@ class ContractsService:
 
     def _send_email(self, recipient: str, subject: str, text_body: str, html_body: str) -> bool:
         try:
+            from backend.app.core.platform_env import default_noreply_email
             from backend.server import _send_via_any_api
 
             settings_row = self.db.execute(
                 "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
             ).fetchone()
-            sender_email = "noreply@baupass.de"
-            sender_name = "SUPPIX"
+            sender_email = default_noreply_email()
+            sender_name = "WorkPass"
             if settings_row:
                 settings = dict(settings_row)
                 sender_email = (settings.get("smtp_sender_email") or "").strip() or sender_email
-                sender_name = (settings.get("smtp_sender_name") or "SUPPIX").strip()
+                sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
             ok, _err, _provider = _send_via_any_api(
                 subject, sender_email, sender_name, recipient, text_body, html_body
             )
@@ -937,10 +938,10 @@ class ContractsService:
     def _sign_invite_sms_body(*, lang: str, contract_title: str, sign_url: str) -> str:
         lang = normalize_lang(lang)
         if lang == "en":
-            return f"SUPPIX: Please sign \"{contract_title}\": {sign_url}"
+            return f"WorkPass: Please sign \"{contract_title}\": {sign_url}"
         if lang == "ar":
-            return f"SUPPIX: يرجى توقيع «{contract_title}»: {sign_url}"
-        return f"SUPPIX: Bitte unterschreiben Sie „{contract_title}“: {sign_url}"
+            return f"WorkPass: يرجى توقيع «{contract_title}»: {sign_url}"
+        return f"WorkPass: Bitte unterschreiben Sie „{contract_title}“: {sign_url}"
 
     def list_worker_app_contracts(self, worker_id: str, company_id: str, *, base_url: str = "") -> list[dict[str, Any]]:
         rows = self.list_contracts_for_worker(worker_id, company_id)
@@ -1005,7 +1006,7 @@ class ContractsService:
         title = str(session.get("contract_title") or contract.get("title") or "")
         sign_url = f"{base_url.rstrip('/')}/contract-sign.html?token={token}"
         company = self._load_company(company_id)
-        company_name = str(company.get("portal_display_name") or company.get("name") or "SUPPIX")
+        company_name = str(company.get("portal_display_name") or company.get("name") or "WorkPass")
         recipient = ""
         if role == "employee":
             recipient = str(form.get("employee_email") or "").strip()
@@ -1045,15 +1046,15 @@ class ContractsService:
         lang = normalize_lang(contract.get("language"))
         title = str(contract.get("title") or "")
         company = self._load_company(company_id)
-        company_name = str(company.get("portal_display_name") or company.get("name") or "SUPPIX")
+        company_name = str(company.get("portal_display_name") or company.get("name") or "WorkPass")
         if role == "employee":
             recipient = str(company.get("document_email") or company.get("billing_email") or "").strip()
             if lang == "en":
                 subject = f"Contract signed by employee — {title}"
-                text = f"The employee has signed \"{title}\" for {company_name}. Please add the employer signature in SUPPIX admin."
+                text = f"The employee has signed \"{title}\" for {company_name}. Please add the employer signature in WorkPass admin."
             else:
                 subject = f"Vertrag vom Mitarbeiter unterschrieben — {title}"
-                text = f"Der Mitarbeiter hat „{title}“ für {company_name} unterschrieben. Bitte Arbeitgeber-Signatur in SUPPIX ergänzen."
+                text = f"Der Mitarbeiter hat „{title}“ für {company_name} unterschrieben. Bitte Arbeitgeber-Signatur in WorkPass ergänzen."
         else:
             recipient = str(form.get("employee_email") or "").strip()
             worker_id = contract.get("worker_id")

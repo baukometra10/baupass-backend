@@ -733,7 +733,7 @@
 
     signotecInstallCaptureHandlers();
 
-    const fieldName = String(options.fieldName || "SUPPIX").trim() || "SUPPIX";
+    const fieldName = String(options.fieldName || "WorkPass").trim() || "WorkPass";
 
     const customText = String(options.customText || options.hint || "").trim();
 
@@ -873,7 +873,7 @@
 
 
 
-    const hint = String(options.customText || options.hint || options.fieldName || "SUPPIX").trim();
+    const hint = String(options.customText || options.hint || options.fieldName || "WorkPass").trim();
 
 
 
@@ -1674,7 +1674,7 @@
 
   async function stepoverCapture(options = {}) {
 
-    const hint = String(options.customText || options.hint || options.fieldName || "SUPPIX").trim();
+    const hint = String(options.customText || options.hint || options.fieldName || "WorkPass").trim();
 
     const client = new StepOverClient();
 

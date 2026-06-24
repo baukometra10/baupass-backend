@@ -1,4 +1,4 @@
-﻿"""Notify company admins (inbox, system alert, e-mail) about worker events."""
+"""Notify company admins (inbox, system alert, e-mail) about worker events."""
 from __future__ import annotations
 
 import html
@@ -109,14 +109,15 @@ def notify_company_deployment_day_declined(
     recipients = _company_admin_recipients(db, company_id)
     if recipients:
         try:
+            from backend.app.core.platform_env import default_noreply_email
             from backend.server import _send_via_any_api, get_public_base_url
 
             settings = db.execute("SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1").fetchone()
-            sender_email = (settings["smtp_sender_email"] if settings else "") or "noreply@baupass.de"
-            sender_name = (settings["smtp_sender_name"] if settings else "") or "SUPPIX"
+            sender_email = (settings["smtp_sender_email"] if settings else "") or default_noreply_email()
+            sender_name = (settings["smtp_sender_name"] if settings else "") or "WorkPass"
             base = get_public_base_url().rstrip("/")
             admin_hint = f"{base}/admin-v2/index.html" if base else ""
-            subject = f"SUPPIX: Einsatz abgelehnt — {worker_name} ({work_date})"
+            subject = f"WorkPass: Einsatz abgelehnt — {worker_name} ({work_date})"
             text_body = (
                 f"{message}\n\n"
                 f"Bitte Einsatzplan im Betrieb-Portal prüfen und ggf. anpassen.\n"

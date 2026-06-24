@@ -99,7 +99,7 @@ def _load_help_context(db, company_id: str) -> dict[str, Any]:
         """
     ).fetchone()
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    platform = (settings["platform_name"] if settings else "") or "SUPPIX"
+    platform = (settings["platform_name"] if settings else "") or "WorkPass"
     operator = (settings["operator_name"] if settings else "") or "Support"
     phone = (settings["invoice_operator_phone"] if settings else "") or ""
     website = (settings["invoice_operator_website"] if settings else "") or public_base

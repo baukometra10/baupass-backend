@@ -1,11 +1,12 @@
-﻿"""Send AI briefing emails via platform SMTP env or settings row."""
+"""Send AI briefing emails via platform SMTP env or settings row."""
 from __future__ import annotations
 
 import os
 import smtplib
 from email.message import EmailMessage
-
 from typing import Tuple
+
+from backend.app.core.platform_env import default_noreply_email, platform_env
 
 
 def send_ai_briefing_email(*, to: str, subject: str, body_text: str) -> Tuple[bool, str]:
@@ -14,8 +15,8 @@ def send_ai_briefing_email(*, to: str, subject: str, body_text: str) -> Tuple[bo
     user = (os.getenv("SMTP_USERNAME") or "").strip()
     password = (os.getenv("SMTP_PASSWORD") or "").strip()
     use_tls = str(os.getenv("SMTP_USE_TLS", "1")).strip().lower() in {"1", "true", "yes"}
-    sender = (os.getenv("SMTP_SENDER_EMAIL") or user or "noreply@baupass.de").strip()
-    sender_name = (os.getenv("SMTP_SENDER_NAME") or "SUPPIX AI").strip()
+    sender = (os.getenv("SMTP_SENDER_EMAIL") or user or default_noreply_email()).strip()
+    sender_name = (os.getenv("SMTP_SENDER_NAME") or "Suppix AI").strip()
 
     if not host:
         return False, "SMTP_HOST nicht konfiguriert (Railway Variables)."
@@ -30,7 +31,7 @@ def send_ai_briefing_email(*, to: str, subject: str, body_text: str) -> Tuple[bo
     msg.add_alternative(f"<html><body style='font-family:sans-serif'>{html}</body></html>", subtype="html")
 
     try:
-        timeout = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "12")))
+        timeout = max(5, int(platform_env("SMTP_TIMEOUT_SECONDS", "12") or "12"))
         if port == 465:
             with smtplib.SMTP_SSL(host, port, timeout=timeout) as smtp:
                 if user:

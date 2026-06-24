@@ -1,6 +1,8 @@
-﻿# WorkPass Production Environment Variables
+# WorkPass Production Environment Variables
 
 Vollständige Dokumentation aller erforderlichen und optionalen Umgebungsvariablen für den Produktionsbetrieb.
+
+**Namenskonvention:** Kanonisches Präfix ist `SUPPIX_*`. Legacy `BAUPASS_*` wird beim Start gespiegelt (beide funktionieren). Plattformname in der UI: **WorkPass**. Betreiber/Firma: **Suppix AI**.
 
 ## ✅ Erforderliche Variablen (Startup-Blockierung)
 

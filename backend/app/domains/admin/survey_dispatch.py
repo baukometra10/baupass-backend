@@ -1,4 +1,4 @@
-﻿"""Send system satisfaction survey invites after sufficient product usage."""
+"""Send system satisfaction survey invites after sufficient product usage."""
 from __future__ import annotations
 
 import uuid
@@ -154,7 +154,7 @@ def _build_survey_bodies(name: str, usage_days: int, survey_link: str) -> tuple[
         from backend.server import _build_email_html
 
         html_body = _build_email_html(
-            "SUPPIX",
+            "WorkPass",
             "#1B5E8C",
             "#A66A3D",
             "Ihre Meinung zählt",
@@ -207,14 +207,15 @@ def send_survey_invite_email(
 
     provider = None
     try:
+        from backend.app.core.platform_env import default_noreply_email
         from backend.server import _send_via_any_api
 
         settings_row = db.execute(
             "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
         ).fetchone()
         settings = dict(settings_row) if settings_row else {}
-        sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-        sender_name = (settings.get("smtp_sender_name") or "SUPPIX").strip()
+        sender_email = (settings.get("smtp_sender_email") or "").strip() or default_noreply_email()
+        sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
         ok, err, provider = _send_via_any_api(
             subject, sender_email, sender_name, email, text_body, html_body
         )

@@ -1,7 +1,7 @@
 ﻿{
   "id": "/emp-app.html?v=20260524a",
-  "name": "SUPPIX – Mitarbeiter",
-  "short_name": "SUPPIX",
+  "name": "WorkPass – Mitarbeiter",
+  "short_name": "WorkPass",
   "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
   "start_url": "/emp-app.html?view=card&v=20260524a",
   "display": "standalone",

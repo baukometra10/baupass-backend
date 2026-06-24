@@ -3,7 +3,7 @@
 const TRANSLATIONS = {
   de: {
     pageTitle: "Mitarbeiter-App",
-    appTitle: "SUPPIX Mobile",
+    appTitle: "WorkPass Mobile",
     appEyebrow: "Mitarbeiter-App",
     appLead: "Dein Ausweis, dein Arbeitsweg und dein Einlass an einem Ort. Schnell, sauber und direkt auf dem Homescreen.",
     languageLabel: "Sprache",
@@ -245,7 +245,7 @@ const TRANSLATIONS = {
     documentsDownload: "PDF öffnen",
     documentsReceived: "Eingang",
     workerAiKicker: "Assistent",
-    workerAiTitle: "SUPPIX AI",
+    workerAiTitle: "Suppix AI",
     workerAiHint: "Fragen zu Kontakt, Dokumenten, Zeiten — per Text oder Mikrofon.",
     workerAiPlaceholder: "z. B. Wo sind meine Kontaktdaten?",
     workerAiSend: "Fragen",
@@ -330,7 +330,7 @@ const TRANSLATIONS = {
   },
   en: {
     pageTitle: "Worker App",
-    appTitle: "SUPPIX Mobile",
+    appTitle: "WorkPass Mobile",
     appEyebrow: "Worker App",
     appLead: "Your ID, your route, and your site access in one place. Fast, clean, and right on your home screen.",
     languageLabel: "Language",
@@ -478,7 +478,7 @@ const TRANSLATIONS = {
     leaveRequestKicker: "Absence",
     leaveRequestTitle: "Leave Request",
     workerAiKicker: "Assistant",
-    workerAiTitle: "SUPPIX AI",
+    workerAiTitle: "Suppix AI",
     workerAiHint: "Ask about contact, documents, hours — by text or microphone.",
     workerAiPlaceholder: "e.g. Where are my contact details?",
     workerAiSend: "Ask",
@@ -821,7 +821,7 @@ const TRANSLATIONS = {
     documentsDownload: "فتح PDF",
     documentsReceived: "تاريخ الاستلام",
     workerAiKicker: "المساعد",
-    workerAiTitle: "SUPPIX AI",
+    workerAiTitle: "Suppix AI",
     workerAiHint: "أسئلة حول الاتصال والمستندات والساعات — نص أو ميكروفون.",
     workerAiPlaceholder: "مثال: أين بيانات الاتصال الخاصة بي؟",
     workerAiSend: "اسأل",
@@ -1631,7 +1631,7 @@ Object.assign(TRANSLATIONS.pl, {
 });
 
 Object.assign(TRANSLATIONS.fr, {
-  appTitle: "SUPPIX Mobile",
+  appTitle: "WorkPass Mobile",
   appLead: "Votre badge, votre trajet et votre accès au chantier en un seul endroit.",
   installBtn: "Installer l'application",
   forceRefreshBtn: "Actualiser maintenant",
@@ -1769,7 +1769,7 @@ Object.assign(TRANSLATIONS.fr, {
 });
 
 Object.assign(TRANSLATIONS.es, {
-  appTitle: "SUPPIX Mobile",
+  appTitle: "WorkPass Mobile",
   appLead: "Tu credencial, tu ruta y tu acceso a obra en un solo lugar.",
   installBtn: "Instalar aplicación",
   forceRefreshBtn: "Actualizar ahora",
@@ -1921,7 +1921,7 @@ Object.assign(TRANSLATIONS.es, {
 });
 
 Object.assign(TRANSLATIONS.it, {
-  appTitle: "SUPPIX Mobile",
+  appTitle: "WorkPass Mobile",
   appLead: "Il tuo badge, il tuo percorso e l'accesso al cantiere in un unico posto.",
   installBtn: "Installa app",
   forceRefreshBtn: "Aggiorna ora",
@@ -2079,7 +2079,7 @@ Object.assign(TRANSLATIONS.it, {
 });
 
 Object.assign(TRANSLATIONS.pl, {
-  appTitle: "SUPPIX Mobile",
+  appTitle: "WorkPass Mobile",
   appLead: "Twoja karta, trasa i dostęp do budowy w jednym miejscu.",
   installBtn: "Zainstaluj aplikację",
   forceRefreshBtn: "Odśwież teraz",

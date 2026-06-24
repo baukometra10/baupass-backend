@@ -1,5 +1,5 @@
 ﻿"""
-SUPPIX – Migration CLI Runner
+WorkPass – Migration CLI Runner
 ================================
 تشغيل:
     python -m backend.app.migrations.runner --migrate

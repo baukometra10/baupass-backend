@@ -1,4 +1,4 @@
-﻿const WORKER_BUILD = "20260606a";
+const WORKER_BUILD = "20260606a";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -130,9 +130,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "SUPPIX", body: event.data ? event.data.text() : "" };
+    data = { title: "WorkPass", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "SUPPIX";
+  const title = data.title || "WorkPass";
   const tag = data.tag || "baupass-notification";
   let defaultUrl = data.url || "/worker-install.html?launch=1";
   if (tag === "deployment-plan") {

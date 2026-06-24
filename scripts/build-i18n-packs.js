@@ -31,7 +31,7 @@ const PACKS = {
     loginSetupEmailPlaceholder: "you@email.com",
   },
   tr: {
-    appTitle: "SUPPIX",
+    appTitle: "WorkPass",
     dashOverviewEyebrow: "Envanter",
     dashOverviewH3: "Ana veriler ve durum",
     enterpriseHubEyebrow: "Yeni — Kurumsal platform",
@@ -156,7 +156,7 @@ const PACKS = {
     gateOpsWindow240: "240 dk",
   },
   ar: {
-    appTitle: "SUPPIX",
+    appTitle: "WorkPass",
     imapPlusAliasWarning: "ملاحظة: على GMX/Web.de، رسائل مستندات الشركة التلقائية معطّلة. أنشئ اسمًا مستعارًا/صندوق بريد حقيقيًا لكل عنوان شركة أو استخدم نطاق catch-all.",
     loginSecurityTitle: "تنبيه أمني",
     loginSecurityHint: "تم رصد 3 محاولات تسجيل دخول فاشلة.",
@@ -217,7 +217,7 @@ const PACKS = {
     gateOpsWindow240: "240 د",
   },
   fr: {
-    appTitle: "SUPPIX",
+    appTitle: "WorkPass",
     dashOverviewEyebrow: "Stock",
     dashOverviewH3: "Données de base et statut",
     enterpriseHubEyebrow: "Nouveau — Plateforme entreprise",
@@ -316,7 +316,7 @@ const PACKS = {
     gateOpsWindow240: "240 min",
   },
   es: {
-    appTitle: "SUPPIX",
+    appTitle: "WorkPass",
     dashOverviewEyebrow: "Inventario",
     dashOverviewH3: "Datos maestros y estado",
     enterpriseHubEyebrow: "Nuevo — Plataforma enterprise",
@@ -423,7 +423,7 @@ const PACKS = {
     gateOpsWindow240: "240 min",
   },
   it: {
-    appTitle: "SUPPIX",
+    appTitle: "WorkPass",
     dashOverviewEyebrow: "Stock",
     dashOverviewH3: "Dati anagrafici e stato",
     enterpriseHubEyebrow: "Nuovo — Piattaforma enterprise",
@@ -522,7 +522,7 @@ const PACKS = {
     gateOpsWindow240: "240 min",
   },
   pl: {
-    appTitle: "SUPPIX",
+    appTitle: "WorkPass",
     dashOverviewEyebrow: "Stan",
     dashOverviewH3: "Dane podstawowe i status",
     enterpriseHubEyebrow: "Nowe — Platforma enterprise",

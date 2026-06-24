@@ -1,5 +1,5 @@
-﻿"""
-SUPPIX – Configuration Management
+"""
+WorkPass – Configuration Management
 ====================================
 بيئات:
   - DevelopmentConfig : للتطوير المحلي
@@ -15,6 +15,10 @@ import os
 import secrets
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from backend.app.core.platform_env import mirror_platform_env, platform_env
+
+mirror_platform_env()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent  # workspace root
 
@@ -36,7 +40,7 @@ def _require_env(key: str) -> str:
 
 class BaseConfig:
     # ── Flask Core ────────────────────────────────────────────────────────────
-    SECRET_KEY: str = os.getenv("BAUPASS_SECRET_KEY", "")
+    SECRET_KEY: str = platform_env("SECRET_KEY", "")
     DEBUG: bool = False
     TESTING: bool = False
 
@@ -44,7 +48,7 @@ class BaseConfig:
     # تحديد مسار SQLite أو DATABASE_URL لـ PostgreSQL مستقبلاً
     DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
     DATABASE_READ_REPLICA_URL: str = os.getenv("DATABASE_READ_REPLICA_URL", "").strip()
-    SQLITE_PATH: str = os.getenv("BAUPASS_DB_PATH", "").strip()
+    SQLITE_PATH: str = platform_env("DB_PATH", "")
     DB_POOL_MIN_SIZE: int = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
     DB_POOL_MAX_SIZE: int = int(os.getenv("DB_POOL_MAX_SIZE", "20"))
     DB_POOL_TIMEOUT_SECONDS: int = int(os.getenv("DB_POOL_TIMEOUT_SECONDS", "10"))
@@ -88,7 +92,7 @@ class BaseConfig:
     SESSION_COOKIE_SAMESITE: str = "Lax"
     PERMANENT_SESSION_LIFETIME_SECONDS: int = 8 * 3600  # 8 ساعات
     WTF_CSRF_ENABLED: bool = True
-    ENFORCE_HTTPS: bool = _env_flag_enabled("BAUPASS_ENFORCE_HTTPS", "1")
+    ENFORCE_HTTPS: bool = _env_flag_enabled("SUPPIX_ENFORCE_HTTPS") or _env_flag_enabled("BAUPASS_ENFORCE_HTTPS", "1")
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list = []  # override in subclasses
@@ -101,7 +105,7 @@ class BaseConfig:
 
     # ── Observability ─────────────────────────────────────────────────────────
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
-    STRUCTURED_LOGS: bool = _env_flag_enabled("BAUPASS_STRUCTURED_LOGS", "1")
+    STRUCTURED_LOGS: bool = _env_flag_enabled("SUPPIX_STRUCTURED_LOGS") or _env_flag_enabled("BAUPASS_STRUCTURED_LOGS", "1")
 
     # ── Object Storage ────────────────────────────────────────────────────────
     UPLOAD_BACKEND: str = os.getenv("UPLOAD_BACKEND", "local")  # "local" | "s3"
@@ -168,24 +172,26 @@ class ProductionConfig(BaseConfig):
         """تحقق من أن جميع المتغيرات الضرورية موجودة قبل بدء التشغيل."""
         errors = []
 
-        if not os.getenv("BAUPASS_SECRET_KEY", "").strip():
-            errors.append("BAUPASS_SECRET_KEY is not set")
-        elif len(os.getenv("BAUPASS_SECRET_KEY", "").strip()) < 32:
-            errors.append("BAUPASS_SECRET_KEY must be at least 32 characters")
+        if not platform_env("SECRET_KEY", "").strip():
+            errors.append("SUPPIX_SECRET_KEY (or legacy BAUPASS_SECRET_KEY) is not set")
+        elif len(platform_env("SECRET_KEY", "").strip()) < 32:
+            errors.append("SUPPIX_SECRET_KEY must be at least 32 characters")
 
         database_url = os.getenv("DATABASE_URL", "").strip()
-        allow_sqlite_prod = _env_flag_enabled("BAUPASS_ALLOW_SQLITE_PRODUCTION", "0")
+        allow_sqlite_prod = _env_flag_enabled("SUPPIX_ALLOW_SQLITE_PRODUCTION") or _env_flag_enabled(
+            "BAUPASS_ALLOW_SQLITE_PRODUCTION", "0"
+        )
         if not database_url and not allow_sqlite_prod:
             errors.append(
                 "DATABASE_URL (PostgreSQL) is required in production. "
-                "Set BAUPASS_ALLOW_SQLITE_PRODUCTION=1 only for temporary emergency fallback."
+                "Set SUPPIX_ALLOW_SQLITE_PRODUCTION=1 only for temporary emergency fallback."
             )
         if database_url and not database_url.startswith("postgres"):
             errors.append("DATABASE_URL must point to PostgreSQL (postgres:// or postgresql://)")
 
-        audit_key = os.getenv("BAUPASS_AUDIT_SIGNING_KEY", "").strip()
+        audit_key = platform_env("AUDIT_SIGNING_KEY", "").strip()
         if len(audit_key) < 32:
-            errors.append("BAUPASS_AUDIT_SIGNING_KEY must be at least 32 characters")
+            errors.append("SUPPIX_AUDIT_SIGNING_KEY must be at least 32 characters")
 
         public_base_url = cls._resolve_public_base_url()
         if not public_base_url:
@@ -214,7 +220,7 @@ class ProductionConfig(BaseConfig):
             )
 
     # في الإنتاج تُقرأ المفاتيح من البيئة مع التحقق
-    SECRET_KEY: str = os.getenv("BAUPASS_SECRET_KEY", "")
+    SECRET_KEY: str = platform_env("SECRET_KEY", "")
 
 
 config_map: dict = {

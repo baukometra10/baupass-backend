@@ -84,7 +84,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
         guidance = build_operational_guidance(snapshot)
         pdf_bytes = build_operations_report_pdf(
             title="SUPPIX Daily Operations Report",
-            company_name=str(company["name"] or "SUPPIX"),
+            company_name=str(company["name"] or "WorkPass"),
             snapshot=snapshot,
             guidance=guidance,
         )

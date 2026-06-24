@@ -783,7 +783,7 @@ class CompaniesService:
 
         settings = get_company_mail_settings(db, company_id)
         smtp_sender_email = str(settings.get("sender_email") or "").strip()
-        smtp_sender_name = str(settings.get("sender_name") or "SUPPIX").strip() or "SUPPIX"
+        smtp_sender_name = str(settings.get("sender_name") or "WorkPass").strip() or "WorkPass"
         smtp_host = str(settings.get("smtp_host") or "").strip()
         smtp_port = int(settings.get("smtp_port") or 587)
         smtp_use_tls = int(settings.get("smtp_use_tls") or 0)

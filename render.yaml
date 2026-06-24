@@ -2,7 +2,7 @@
 # Für dauerhafte DB: Render Dashboard → Disk hinzufügen (kostenpflichtiger Plan)
 services:
   - type: web
-    name: baupass
+    name: workpass
     runtime: python
     plan: free
     buildCommand: pip install -r backend/requirements.txt

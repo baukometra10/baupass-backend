@@ -70,7 +70,7 @@ def build_enterprise_ops_pdf(
     guidance = build_operational_guidance(snapshot)
     return build_operations_report_pdf(
         title="SUPPIX Enterprise & Operations Report",
-        company_name=company_name or "SUPPIX",
+        company_name=company_name or "WorkPass",
         snapshot=snapshot,
         guidance=guidance,
     )

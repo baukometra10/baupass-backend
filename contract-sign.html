@@ -40,8 +40,8 @@
 <body>
   <header>
     <div>
-      <img id="companyLogo" class="logo" src="/branding/suppix-ai-logo-dark.svg" alt="SUPPIX AI" />
-      <strong id="companyName">SUPPIX</strong>
+      <img id="companyLogo" class="logo" src="/branding/suppix-ai-logo-dark.svg" alt="Suppix AI" />
+      <strong id="companyName">WorkPass</strong>
       <div class="muted" id="pageHint">Vertrag lesen und unterschreiben</div>
     </div>
     <span id="roleBadge" class="muted"></span>
@@ -190,7 +190,7 @@
       }
       view = data;
       applyUi();
-      document.getElementById("companyName").textContent = data.companyName || "SUPPIX";
+      document.getElementById("companyName").textContent = data.companyName || "WorkPass";
       if (data.logoData) {
         const logo = document.getElementById("companyLogo");
         logo.src = data.logoData;

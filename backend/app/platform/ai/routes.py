@@ -582,7 +582,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             company_id=company_id,
             user_id=_user_id(),
             action="send_briefing_email",
-            params={"to": to, "subject": data.get("subject") or "SUPPIX AI Tagesbriefing"},
+            params={"to": to, "subject": data.get("subject") or "Suppix AI Tagesbriefing"},
             briefing_text=body,
         )
         result["briefingPreview"] = body[:500]
@@ -607,7 +607,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         briefing = generate_operations_briefing(company_id, ctx, lang=lang)
         body = briefing.get("answer") or ""
         dispatch = dispatch_briefing_notifications(
-            body, company_id=company_id, title=data.get("title") or "SUPPIX AI Tagesbriefing"
+            body, company_id=company_id, title=data.get("title") or "Suppix AI Tagesbriefing"
         )
         dispatch["briefingPreview"] = body[:400]
         return jsonify(dispatch), (200 if dispatch.get("sent") else 400)

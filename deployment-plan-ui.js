@@ -1,5 +1,5 @@
 ﻿/**
- * Einsatzplan direkt im SUPPIX (ohne iframe).
+ * Einsatzplan direkt in WorkPass (ohne iframe).
  */
 (function initBaupassDeploymentPlan(global) {
   let modalWorkerId = null;

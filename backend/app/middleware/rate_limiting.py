@@ -1,5 +1,5 @@
 ﻿"""
-SUPPIX – Distributed Rate Limiting Middleware (Redis-based)
+WorkPass – Distributed Rate Limiting Middleware (Redis-based)
 =============================================================
 يحل المشكلة الأساسية في server.py الحالي:
   - الـ rate limiting الحالي مخزَّن في ذاكرة Python process واحد

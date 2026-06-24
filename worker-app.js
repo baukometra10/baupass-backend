@@ -3068,7 +3068,9 @@ function renderWorker(payload) {
   }
 
   dqrWorkerBadgeId = workerBadgeId;
-  const qrPayload = buildQrPayload(worker);
+  const identityLock = payload.identityLock || null;
+  const identityBlocked = !isVisitor && Boolean(identityLock?.identityBlocked);
+  const qrPayload = identityBlocked ? "" : buildQrPayload(worker);
   const isCompactViewport = window.matchMedia("(max-width: 520px)").matches;
   const workerQrSize = isCompactViewport ? 520 : 460;
   const gateQrSize = isCompactViewport ? 520 : 420;
@@ -3118,7 +3120,10 @@ function renderWorker(payload) {
     
     elements.workerStatusBanner.classList.remove("status-banner-hidden");
     
-    if (banned) {
+    if (identityBlocked) {
+      elements.workerStatusBanner.className = "status-banner warning";
+      elements.workerStatusText.textContent = identityLock?.lockReason || identityLock?.message || "Badge inactive";
+    } else if (banned) {
       elements.workerStatusBanner.className = "status-banner error";
       elements.workerStatusText.textContent = t("statusRevoked");
     } else if (isExpired) {
@@ -3225,7 +3230,13 @@ function renderWorker(payload) {
   clearCardEntranceAnimation();
   
   // Start dynamic QR lifecycle as soon as pass is visible.
-  startDynamicQrRefresh();
+  if (identityBlocked) {
+    stopDynamicQrRefresh();
+    showWorkerNotice(identityLock?.lockReason || identityLock?.message || "Badge inactive");
+  } else {
+    hideWorkerNotice();
+    startDynamicQrRefresh();
+  }
   if (elements.workerQuickMenu) {
     elements.workerQuickMenu.classList.add("hidden");
   }
@@ -3937,7 +3948,25 @@ async function fetchAndDisplayDynamicQr() {
       _updateQrCountdownDisplay();
       scheduleNextDynamicQrRefresh();
     }
-  } catch {
+  } catch (error) {
+    if (
+      error?.code === "handover_signature_missing"
+      || error?.payload?.lockReasonCode === "missing_handover_signature"
+      || error?.code === "worker_documents_missing"
+      || error?.code === "worker_documents_expired"
+    ) {
+      stopDynamicQrRefresh();
+      if (elements.workerQr) {
+        elements.workerQr.removeAttribute("src");
+        elements.workerQr.classList.add("hidden");
+      }
+      if (elements.qrFallbackText) {
+        elements.qrFallbackText.textContent = error.message || t("noQrAvailable");
+        elements.qrFallbackText.classList.remove("hidden");
+      }
+      showWorkerNotice(error.message || t("noQrAvailable"));
+      return;
+    }
     // offline or expired session — keep showing last token
     if (elements.gateScannerOverlay && !elements.gateScannerOverlay.classList.contains("hidden")) {
       setGateScannerFeedbackState("error", t("gateScanSyncDelayed"));

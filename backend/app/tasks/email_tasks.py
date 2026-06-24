@@ -1,5 +1,5 @@
-﻿"""
-SUPPIX – Email Tasks (Background)
+"""
+WorkPass – Email Tasks (Background)
 =====================================
 جميع إرسالات الإيميل تعمل خارج Flask request cycle.
 
@@ -25,7 +25,7 @@ def send_email_task(
     subject: str,
     body_html: str,
     body_text: str,
-    from_name: str = "SUPPIX",
+    from_name: str = "WorkPass",
     reply_to: Optional[str] = None,
     smtp_config: Optional[dict] = None,
     resend_config: Optional[dict] = None,
@@ -127,7 +127,9 @@ def _send_via_resend(
         import json
 
         api_key = config["api_key"]
-        from_email = config.get("from_email", f"noreply@baupass.app")
+        from backend.app.core.platform_env import default_noreply_email
+
+        from_email = config.get("from_email", default_noreply_email())
 
         payload = {
             "from": f"{from_name} <{from_email}>",

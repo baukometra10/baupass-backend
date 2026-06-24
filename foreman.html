@@ -7,7 +7,7 @@
   <meta name="google" content="notranslate" />
   <meta name="description" content="Foreman Dashboard – Team-Verwaltung und Analytics." />
   <meta name="theme-color" content="#06b6d4" />
-  <title>SUPPIX – Foreman Dashboard</title>
+  <title>WorkPass – Foreman Dashboard</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -520,7 +520,7 @@
     <!-- Header -->
     <div class="foreman-header">
       <div class="foreman-header-brand">
-        <img data-tenant-logo class="foreman-header-logo tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="SUPPIX AI" />
+        <img data-tenant-logo class="foreman-header-logo tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="Suppix AI" />
         <div>
           <h1 data-tenant-brand-title data-i18n="foremanTitle">Foreman Dashboard</h1>
           <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
@@ -736,7 +736,7 @@
       });
 
       if (response.status === 401) {
-        throw new Error('Bitte zuerst in SUPPIX anmelden.');
+        throw new Error('Bitte zuerst in WorkPass anmelden.');
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

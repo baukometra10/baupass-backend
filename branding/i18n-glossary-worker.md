@@ -14,7 +14,7 @@ Use these core terms consistently in worker-facing translations.
 
 ## Style Rules
 
-- Keep product names untranslated: WorkPass, SUPPIX AI, QR, PIN.
+- Keep product names untranslated: WorkPass, Suppix AI, QR, PIN.
 - Prefer short, action-oriented button labels.
 - Use sentence case for notices and errors.
 - Avoid mixing "visitor card" and "visitor ID" in the same locale.

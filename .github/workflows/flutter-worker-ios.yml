@@ -104,7 +104,7 @@ jobs:
         if: success()
         run: |
           {
-            echo "## BauPass Worker iOS (unsigned)"
+            echo "## WorkPass Worker iOS (unsigned)"
             echo ""
             echo "- **Artifact:** \`baupass-worker-ios-unsigned\`"
             echo "- **TestFlight:** lokal signieren → \`docs/testflight-internal-distribution.md\`"

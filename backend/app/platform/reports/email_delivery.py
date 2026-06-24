@@ -1,7 +1,7 @@
-﻿"""Email delivery for PDF reports."""
-from __future__ import annotations
+"""Email delivery for PDF reports."""
+from backend.app.core.platform_env import default_noreply_email, mirror_platform_env
 
-import os
+mirror_platform_env()
 import smtplib
 from email.message import EmailMessage
 
@@ -14,8 +14,8 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
     user = (os.getenv("SMTP_USERNAME") or "").strip()
     password = (os.getenv("SMTP_PASSWORD") or "").strip()
     use_tls = str(os.getenv("SMTP_USE_TLS", "1")).strip().lower() in {"1", "true", "yes"}
-    sender = (os.getenv("SMTP_SENDER_EMAIL") or user or "noreply@baupass.de").strip()
-    sender_name = (os.getenv("SMTP_SENDER_NAME") or "SUPPIX").strip()
+    sender = (os.getenv("SMTP_SENDER_EMAIL") or user or default_noreply_email()).strip()
+    sender_name = (os.getenv("SMTP_SENDER_NAME") or "WorkPass").strip()
     if host:
         return host, port, user, password, use_tls, sender, sender_name
     from backend.server import get_db
@@ -35,8 +35,8 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
         str(row["smtp_username"] or "").strip(),
         str(row["smtp_password"] or ""),
         int(row["smtp_use_tls"] or 0) == 1,
-        str(row["smtp_sender_email"] or row["smtp_username"] or "noreply@baupass.de").strip(),
-        str(row["smtp_sender_name"] or "SUPPIX").strip(),
+        str(row["smtp_sender_email"] or row["smtp_username"] or default_noreply_email()).strip(),
+        str(row["smtp_sender_name"] or "WorkPass").strip(),
     )
 
 

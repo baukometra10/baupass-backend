@@ -117,7 +117,7 @@
     fb.setAttribute("role", "alert");
     fb.innerHTML = `
       <div class="embed-frame-fallback-card">
-        <p class="embed-frame-fallback-eyebrow">SUPPIX</p>
+        <p class="embed-frame-fallback-eyebrow">WorkPass</p>
         <h3 class="embed-frame-fallback-title">${title || "Modul"}</h3>
         <p class="embed-frame-fallback-msg" data-embed-fallback-msg>
           Verbindung zum Server fehlgeschlagen. Bitte prüfen Sie, ob die Anwendung auf Railway läuft, oder öffnen Sie das Modul im Vollbild.

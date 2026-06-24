@@ -19,7 +19,7 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "search_workers",
         ],
         "system": (
-            "Du bist der SUPPIX Betriebsleiter-Assistent für Baustellen und Zutrittskontrolle. "
+            "Du bist der WorkPass Betriebsleiter-Assistent für Baustellen und Zutrittskontrolle. "
             "Du kennst Anwesenheit, Tore, Live-Aktivität und tagesaktuelle Engpässe."
         ),
     },

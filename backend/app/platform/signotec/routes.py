@@ -56,7 +56,7 @@ def _signotec_setup_ps1_content(base: str) -> str:
 def _setup_bat_response(base: str) -> Response:
     bat = f"""@echo off
 title SUPPIX Signotec Bridge
-echo SUPPIX: Signotec bridge setup (once per PC, needs admin once)...
+echo WorkPass: Signotec bridge setup (once per PC, needs admin once)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p"
 echo.
 pause
@@ -144,7 +144,7 @@ def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
 title SUPPIX Signotec Bridge starten
-echo SUPPIX: STPadServer starten (Port 49494, Admin)...
+echo WorkPass: STPadServer starten (Port 49494, Admin)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
 echo.
 pause

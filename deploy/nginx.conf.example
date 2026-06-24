@@ -11,7 +11,7 @@ server {
     ssl_certificate /etc/letsencrypt/live/baupass.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/baupass.example.com/privkey.pem;
     ssl_session_timeout 1d;
-    ssl_session_cache shared:BauPassSSL:10m;
+    ssl_session_cache shared:WorkPassSSL:10m;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
 

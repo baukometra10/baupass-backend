@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Enterprise go-live validation — env vars + optional live HTTP checks (no secrets printed).
 
@@ -22,6 +22,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from backend.app.core.platform_env import mirror_platform_env, platform_env  # noqa: E402
+
+mirror_platform_env()
+
 _WEAK_SECRET_PATTERNS = (
     r"^change-me",
     r"^secret$",
@@ -38,11 +42,21 @@ def _fetch_json(url: str, timeout: int = 25) -> tuple[int, dict]:
 
 
 def _present(name: str) -> bool:
-    return bool((os.getenv(name) or "").strip())
+    suffix = name
+    for prefix in ("SUPPIX_", "BAUPASS_"):
+        if suffix.startswith(prefix):
+            suffix = suffix[len(prefix) :]
+            break
+    return bool(platform_env(suffix))
 
 
 def _weak_secret(name: str, min_len: int = 24) -> str | None:
-    raw = (os.getenv(name) or "").strip()
+    suffix = name
+    for prefix in ("SUPPIX_", "BAUPASS_"):
+        if suffix.startswith(prefix):
+            suffix = suffix[len(prefix) :]
+            break
+    raw = platform_env(suffix)
     if not raw:
         return None
     if len(raw) < min_len:
@@ -82,8 +96,8 @@ def _check_env() -> dict[str, Any]:
 
     # ── Security (critical) ─────────────────────────────────────────────
     for var, min_len in (
-        ("BAUPASS_SECRET_KEY", 32),
-        ("BAUPASS_AUDIT_SIGNING_KEY", 24),
+        ("SUPPIX_SECRET_KEY", 32),
+        ("SUPPIX_AUDIT_SIGNING_KEY", 24),
     ):
         weak = _weak_secret(var, min_len)
         add(
@@ -94,19 +108,19 @@ def _check_env() -> dict[str, Any]:
         )
 
     add(
-        "BAUPASS_DB_PATH",
-        ok=_present("BAUPASS_DB_PATH"),
-        hint="Mount Railway volume at /data and set BAUPASS_DB_PATH=/data/baupass.db",
+        "SUPPIX_DB_PATH",
+        ok=_present("SUPPIX_DB_PATH"),
+        hint="Mount Railway volume at /data and set SUPPIX_DB_PATH=/data/baupass.db",
     )
 
     if hosted:
         add(
-            "BAUPASS_ALLOW_DEMO",
-            ok=not _present("BAUPASS_ALLOW_DEMO")
-            or os.getenv("BAUPASS_ALLOW_DEMO", "").strip().lower() in {"0", "false", "no", "off"},
+            "SUPPIX_ALLOW_DEMO",
+            ok=not _present("SUPPIX_ALLOW_DEMO")
+            or platform_env("ALLOW_DEMO", "").lower() in {"0", "false", "no", "off"},
             severity="critical",
-            hint="Demo seed must stay off on production (omit or BAUPASS_ALLOW_DEMO=0).",
-            value_hint=os.getenv("BAUPASS_ALLOW_DEMO", "unset"),
+            hint="Demo seed must stay off on production (omit or SUPPIX_ALLOW_DEMO=0).",
+            value_hint=platform_env("ALLOW_DEMO", "unset"),
         )
 
     add(
@@ -121,14 +135,14 @@ def _check_env() -> dict[str, Any]:
     add("REDIS_URL", ok=redis_ok, severity="recommended", hint="Railway Redis + worker service.")
     if redis_ok:
         rq_modes = [
-            os.getenv("BAUPASS_DAILY_JOBS_MODE", "inline"),
-            os.getenv("BAUPASS_DUNNING_MODE", "inline"),
+            platform_env("DAILY_JOBS_MODE", "inline"),
+            platform_env("DUNNING_MODE", "inline"),
         ]
         add(
-            "BAUPASS_*_JOBS_MODE=rq",
+            "SUPPIX_*_JOBS_MODE=rq",
             ok=all(m == "rq" for m in rq_modes),
             severity="recommended",
-            hint="Set BAUPASS_DAILY_JOBS_MODE=rq and BAUPASS_DUNNING_MODE=rq with a worker process.",
+            hint="Set SUPPIX_DAILY_JOBS_MODE=rq and SUPPIX_DUNNING_MODE=rq with a worker process.",
             value_hint=",".join(rq_modes),
         )
 
@@ -149,24 +163,24 @@ def _check_env() -> dict[str, Any]:
         add("FCM_V1_ONLY", ok=True, severity="recommended", value_hint="enabled")
 
     add(
-        "BAUPASS_WORKER_APK_URL",
-        ok=_present("BAUPASS_WORKER_APK_URL"),
+        "SUPPIX_WORKER_APK_URL",
+        ok=_present("SUPPIX_WORKER_APK_URL"),
         severity="recommended",
         hint="Hosted APK for join.html hybrid distribution.",
     )
     add(
-        "BAUPASS_TESTFLIGHT_URL",
-        ok=_present("BAUPASS_TESTFLIGHT_URL"),
+        "SUPPIX_TESTFLIGHT_URL",
+        ok=_present("SUPPIX_TESTFLIGHT_URL"),
         severity="recommended",
         hint="TestFlight invite link for iPhone worker app (join.html).",
     )
-    weak_jwt = _weak_secret("BAUPASS_WORKER_JWT_SECRET", 32)
+    weak_jwt = _weak_secret("SUPPIX_WORKER_JWT_SECRET", 32)
     add(
-        "BAUPASS_WORKER_JWT_SECRET",
-        ok=_present("BAUPASS_WORKER_JWT_SECRET") and not weak_jwt,
+        "SUPPIX_WORKER_JWT_SECRET",
+        ok=_present("SUPPIX_WORKER_JWT_SECRET") and not weak_jwt,
         severity="critical" if hosted else "recommended",
         hint="Worker session JWT signing — 32+ random chars; do not rely on dev fallback.",
-        value_hint="weak" if weak_jwt else ("set" if _present("BAUPASS_WORKER_JWT_SECRET") else "missing"),
+        value_hint="weak" if weak_jwt else ("set" if _present("SUPPIX_WORKER_JWT_SECRET") else "missing"),
     )
 
     # ── AI / Copilot ────────────────────────────────────────────────────
@@ -210,11 +224,11 @@ def _check_env() -> dict[str, Any]:
     except Exception:
         pass
     add(
-        "BAUPASS_STRIPE_TRIAL_DAYS",
-        ok=_present("BAUPASS_STRIPE_TRIAL_DAYS") or True,
+        "SUPPIX_STRIPE_TRIAL_DAYS",
+        ok=_present("SUPPIX_STRIPE_TRIAL_DAYS") or True,
         severity="recommended",
         hint="Checkout trial length in days (default 14). Set 0 to disable.",
-        value_hint=os.getenv("BAUPASS_STRIPE_TRIAL_DAYS", "14 (default)"),
+        value_hint=platform_env("STRIPE_TRIAL_DAYS", "14 (default)"),
     )
 
     # ── Email ─────────────────────────────────────────────────────────────
@@ -227,8 +241,8 @@ def _check_env() -> dict[str, Any]:
     )
 
     add(
-        "BAUPASS_CONTACT_EMAIL",
-        ok=_present("BAUPASS_CONTACT_EMAIL") or _present("VAPID_EMAIL"),
+        "SUPPIX_CONTACT_EMAIL",
+        ok=_present("SUPPIX_CONTACT_EMAIL") or _present("VAPID_EMAIL"),
         severity="recommended",
         hint="Used for Web Push (legacy PWA) and operational contact — not admin@example.com.",
     )
@@ -236,8 +250,8 @@ def _check_env() -> dict[str, Any]:
     # ── Observability ───────────────────────────────────────────────────
     add("SENTRY_DSN", ok=_present("SENTRY_DSN"), severity="recommended")
     add(
-        "BAUPASS_BACKUP_ON_BOOT",
-        ok=_present("BAUPASS_BACKUP_ON_BOOT"),
+        "SUPPIX_BACKUP_ON_BOOT",
+        ok=_present("SUPPIX_BACKUP_ON_BOOT"),
         severity="recommended",
         hint="Automatic DB backup when persistent volume is mounted.",
     )

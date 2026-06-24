@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorkPass — Ausweisübergabe unterschreiben</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <style>
+    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --danger:#f87171; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    header { padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); }
+    main { max-width:720px; margin:0 auto; padding:1rem 1.25rem 2.5rem; display:grid; gap:1rem; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:1rem; }
+    .muted { color:var(--muted); font-size:0.85rem; line-height:1.5; }
+    .sign-pad-wrap { border:1px dashed var(--border); border-radius:10px; padding:0.5rem; background:#0f1419; margin:0.75rem 0; }
+    canvas { width:100%; height:180px; touch-action:none; display:block; background:#fff; border-radius:8px; cursor:crosshair; }
+    button { padding:0.65rem 1rem; border-radius:10px; border:1px solid var(--border); background:#164e63; color:var(--text); cursor:pointer; font:inherit; }
+    button.secondary { background:#0f1419; }
+    button:disabled { opacity:0.55; cursor:not-allowed; }
+    .actions { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem; }
+    .consent-row { display:flex; gap:0.5rem; align-items:flex-start; margin:0.75rem 0; }
+    .consent-row label { margin:0; flex:1; font-size:0.82rem; }
+    .error-box { border-color:rgba(248,113,113,0.45); background:rgba(63,29,29,0.35); }
+    .success-box { border-color:rgba(94,234,212,0.35); background:rgba(22,78,99,0.22); }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong id="companyName">WorkPass</strong>
+    <div class="muted" id="pageHint">Unterschrift bei Ausweisübergabe</div>
+  </header>
+  <main>
+    <section id="errorPanel" class="panel error-box hidden"></section>
+    <section id="donePanel" class="panel success-box hidden">
+      <h2 id="doneTitle">Vielen Dank — Unterschrift gespeichert</h2>
+      <p class="muted" id="doneHint">Ihr Ausweis kann jetzt freigeschaltet werden.</p>
+    </section>
+    <section id="signPanel" class="panel hidden">
+      <h2 id="signHeading">Ausweisübergabe bestätigen</h2>
+      <p class="muted" id="workerLine"></p>
+      <p class="muted" id="legalNote"></p>
+      <div class="sign-pad-wrap">
+        <canvas id="signCanvas" width="800" height="220"></canvas>
+      </div>
+      <p class="muted" id="drawHint">Unterschrift mit Finger oder Stift zeichnen.</p>
+      <div class="consent-row">
+        <input type="checkbox" id="consentCheck" />
+        <label for="consentCheck" id="consentLabel">Ich bestätige den Erhalt meines Ausweises.</label>
+      </div>
+      <div class="actions">
+        <button type="button" class="secondary" id="clearSignBtn">Löschen</button>
+        <button type="button" id="submitSignBtn">Unterschrift speichern</button>
+      </div>
+      <p id="statusLine" class="muted" style="margin-top:0.75rem;"></p>
+    </section>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token") || "";
+    const UI = {
+      de: { hint:"Unterschrift bei Ausweisübergabe", sign:"Ausweisübergabe bestätigen", drawHint:"Unterschrift mit Finger oder Stift zeichnen.", clear:"Löschen", submit:"Unterschrift speichern", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Ihr Ausweis kann jetzt freigeschaltet werden.", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…", consent:"Ich bestätige den Erhalt meines Ausweises.", consentRequired:"Bitte bestätigen Sie den Erhalt.", legal:"Mit Ihrer Unterschrift bestätigen Sie den Erhalt des Ausweises gemäß den Vorgaben Ihres Arbeitgebers.", worker:"Mitarbeiter" },
+      en: { hint:"Sign ID handover", sign:"Confirm ID handover", drawHint:"Draw your signature with finger or stylus.", clear:"Clear", submit:"Save signature", done:"Thank you — signature saved", doneHint:"Your badge can now be activated.", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…", consent:"I confirm receipt of my ID badge.", consentRequired:"Please confirm receipt.", legal:"Your signature confirms receipt of the ID badge per your employer's policy.", worker:"Employee" },
+      ar: { hint:"توقيع تسليم الهوية", sign:"تأكيد تسليم الهوية", drawHint:"ارسم توقيعك بالإصبع أو القلم.", clear:"مسح", submit:"حفظ التوقيع", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكن الآن تفعيل بطاقتك.", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…", consent:"أؤكد استلام بطاقة الهوية.", consentRequired:"يرجى تأكيد الاستلام.", legal:"توقيعك يؤكد استلام بطاقة الهوية وفق سياسة صاحب العمل.", worker:"موظف" },
+    };
+    let view = null;
+    const canvas = document.getElementById("signCanvas");
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+    let hasStroke = false;
+
+    function ui(key) {
+      const lang = (navigator.language || "de").slice(0, 2);
+      return (UI[lang] || UI.de)[key] || UI.de[key] || key;
+    }
+
+    function applyStaticUi() {
+      document.getElementById("pageHint").textContent = ui("hint");
+      document.getElementById("signHeading").textContent = ui("sign");
+      document.getElementById("drawHint").textContent = ui("drawHint");
+      document.getElementById("clearSignBtn").textContent = ui("clear");
+      document.getElementById("submitSignBtn").textContent = ui("submit");
+      document.getElementById("doneTitle").textContent = ui("done");
+      document.getElementById("doneHint").textContent = ui("doneHint");
+      document.getElementById("consentLabel").textContent = ui("consent");
+      document.getElementById("legalNote").textContent = ui("legal");
+    }
+
+    function showError(message) {
+      const panel = document.getElementById("errorPanel");
+      panel.textContent = message;
+      panel.classList.remove("hidden");
+      document.getElementById("signPanel").classList.add("hidden");
+    }
+
+    function canvasPos(event) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const source = event.touches ? event.touches[0] : event;
+      return { x: (source.clientX - rect.left) * scaleX, y: (source.clientY - rect.top) * scaleY };
+    }
+
+    function startDraw(event) {
+      drawing = true;
+      hasStroke = true;
+      const p = canvasPos(event);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      event.preventDefault();
+    }
+
+    function moveDraw(event) {
+      if (!drawing) return;
+      const p = canvasPos(event);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#111";
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      event.preventDefault();
+    }
+
+    function endDraw() { drawing = false; }
+
+    canvas.addEventListener("mousedown", startDraw);
+    canvas.addEventListener("mousemove", moveDraw);
+    canvas.addEventListener("mouseup", endDraw);
+    canvas.addEventListener("mouseleave", endDraw);
+    canvas.addEventListener("touchstart", startDraw, { passive: false });
+    canvas.addEventListener("touchmove", moveDraw, { passive: false });
+    canvas.addEventListener("touchend", endDraw);
+
+    document.getElementById("clearSignBtn").onclick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasStroke = false;
+    };
+
+    async function loadView() {
+      applyStaticUi();
+      if (!token) {
+        showError(ui("missing"));
+        return;
+      }
+      const response = await fetch(`/api/public/workers/handover-sign/${encodeURIComponent(token)}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const code = data.error || "";
+        if (code === "sign_link_expired") showError(ui("expired"));
+        else if (code === "already_signed") showError(ui("signed"));
+        else showError(ui("missing"));
+        return;
+      }
+      view = data;
+      document.getElementById("companyName").textContent = data.companyName || "WorkPass";
+      document.getElementById("workerLine").textContent = `${ui("worker")}: ${data.workerName || "—"}`;
+      document.getElementById("signPanel").classList.remove("hidden");
+    }
+
+    document.getElementById("submitSignBtn").onclick = async () => {
+      if (!document.getElementById("consentCheck").checked) {
+        document.getElementById("statusLine").textContent = ui("consentRequired");
+        return;
+      }
+      if (!hasStroke) {
+        document.getElementById("statusLine").textContent = ui("drawHint");
+        return;
+      }
+      const btn = document.getElementById("submitSignBtn");
+      btn.disabled = true;
+      document.getElementById("statusLine").textContent = ui("saving");
+      try {
+        const signatureData = canvas.toDataURL("image/png");
+        const response = await fetch(`/api/public/workers/handover-sign/${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signatureData, consentAccepted: true }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const code = data.error || "";
+          if (code === "sign_link_expired") showError(ui("expired"));
+          else if (code === "already_signed") showError(ui("signed"));
+          else document.getElementById("statusLine").textContent = code || "error";
+          btn.disabled = false;
+          return;
+        }
+        document.getElementById("signPanel").classList.add("hidden");
+        document.getElementById("donePanel").classList.remove("hidden");
+      } catch (err) {
+        document.getElementById("statusLine").textContent = String(err?.message || err);
+        btn.disabled = false;
+      }
+    };
+
+    loadView().catch(() => showError(ui("missing")));
+  </script>
+</body>
+</html>

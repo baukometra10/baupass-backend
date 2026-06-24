@@ -1,9 +1,10 @@
-﻿"""Platform founder / operator profile for AI founder questions."""
+"""Platform founder / operator profile for AI founder questions."""
 from __future__ import annotations
 
 import os
 import re
-from typing import Any
+
+from backend.app.core.platform_env import DEFAULT_PLATFORM_EMAIL, platform_env
 
 _IMPRESSUM_NAME = re.compile(
     r"(?:Vertreten durch|Represented by|Managing director|Geschäftsführer|Geschaeftsfuehrer)\s*:\s*(.+?)(?:\n|$)",
@@ -11,7 +12,7 @@ _IMPRESSUM_NAME = re.compile(
 )
 
 _DEFAULT_FOUNDER_NAME = "Sherif Mohamed"
-_DEFAULT_FOUNDER_EMAIL = "baupass-control@outlook.de"
+_DEFAULT_FOUNDER_EMAIL = DEFAULT_PLATFORM_EMAIL
 
 _DEFAULT_TITLES = {
     "de": "Gründer und Geschäftsführer",
@@ -51,23 +52,23 @@ def load_founder_profile(db) -> dict[str, Any]:
         """
     ).fetchone()
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    platform = (settings["platform_name"] if settings else "") or "SUPPIX"
-    company = (os.getenv("BAUPASS_FOUNDER_COMPANY") or "").strip() or (
-        (settings["operator_name"] if settings else "") or "Suppix Technologie UG"
+    platform = (settings["platform_name"] if settings else "") or "WorkPass"
+    company = (platform_env("FOUNDER_COMPANY") or "").strip() or (
+        (settings["operator_name"] if settings else "") or "Suppix AI"
     )
     impressum = (settings["impressum_text"] if settings else "") or ""
     name = (
-        (os.getenv("BAUPASS_FOUNDER_NAME") or "").strip()
+        (platform_env("FOUNDER_NAME") or "").strip()
         or _parse_impressum_name(impressum)
         or _DEFAULT_FOUNDER_NAME
     )
-    title = (os.getenv("BAUPASS_FOUNDER_TITLE") or "").strip()
+    title = (platform_env("FOUNDER_TITLE") or "").strip()
     phone = (settings["invoice_operator_phone"] if settings else "") or ""
     website = (
         (settings["invoice_operator_website"] if settings else "") or public_base or ""
     ).strip()
     email = (
-        (os.getenv("BAUPASS_FOUNDER_EMAIL") or "").strip()
+        (platform_env("FOUNDER_EMAIL") or "").strip()
         or (settings["invoice_operator_email"] if settings else "")
         or (settings["smtp_sender_email"] if settings else "")
         or _DEFAULT_FOUNDER_EMAIL
@@ -75,7 +76,7 @@ def load_founder_profile(db) -> dict[str, Any]:
     street = (settings["invoice_operator_street"] if settings else "") or ""
     zip_city = (settings["invoice_operator_zip_city"] if settings else "") or ""
     address = ", ".join(p for p in (street, zip_city) if p).strip()
-    bio_env = (os.getenv("BAUPASS_FOUNDER_BIO") or "").strip()
+    bio_env = (platform_env("FOUNDER_BIO") or "").strip()
     return {
         "name": name,
         "title": title,
@@ -93,13 +94,13 @@ def _resolve_bio(profile: dict[str, Any], lang: str) -> str:
     lang = (lang or "de")[:2]
     if profile.get("bioEnv"):
         return str(profile["bioEnv"])
-    lang_bio = (os.getenv(f"BAUPASS_FOUNDER_BIO_{lang.upper()}") or "").strip()
+    lang_bio = (platform_env(f"FOUNDER_BIO_{lang.upper()}") or "").strip()
     if lang_bio:
         return lang_bio
     template = _DEFAULT_BIOS.get(lang) or _DEFAULT_BIOS["de"]
     return template.format(
-        company=profile.get("company") or "Suppix Technologie UG",
-        platform=profile.get("platform") or "SUPPIX",
+        company=profile.get("company") or "Suppix AI",
+        platform=profile.get("platform") or "WorkPass",
     )
 
 
@@ -107,7 +108,7 @@ def _resolve_title(profile: dict[str, Any], lang: str) -> str:
     lang = (lang or "de")[:2]
     if profile.get("title"):
         return str(profile["title"])
-    lang_title = (os.getenv(f"BAUPASS_FOUNDER_TITLE_{lang.upper()}") or "").strip()
+    lang_title = (platform_env(f"FOUNDER_TITLE_{lang.upper()}") or "").strip()
     if lang_title:
         return lang_title
     return _DEFAULT_TITLES.get(lang) or _DEFAULT_TITLES["de"]
@@ -116,8 +117,8 @@ def _resolve_title(profile: dict[str, Any], lang: str) -> str:
 def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
     lang = (lang or "de")[:2]
     name = str(profile.get("name") or "").strip()
-    company = str(profile.get("company") or "Suppix Technologie UG").strip()
-    platform = str(profile.get("platform") or "SUPPIX").strip()
+    company = str(profile.get("company") or "Suppix AI").strip()
+    platform = str(profile.get("platform") or "WorkPass").strip()
     title = _resolve_title(profile, lang)
     bio = _resolve_bio(profile, lang)
     phone = str(profile.get("phone") or "").strip()

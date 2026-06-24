@@ -1,4 +1,4 @@
-﻿"""Email + inbox notifications for camera violations and offline cameras."""
+"""Email + inbox notifications for camera violations and offline cameras."""
 from __future__ import annotations
 
 import html
@@ -59,13 +59,14 @@ def _send_admin_emails(
                 sent += 1
         except Exception:
             try:
+                from backend.app.core.platform_env import default_noreply_email
                 from backend.server import _send_via_any_api, get_public_base_url
 
                 settings = db.execute(
                     "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
                 ).fetchone()
-                sender_email = (settings["smtp_sender_email"] if settings else "") or "noreply@baupass.de"
-                sender_name = (settings["smtp_sender_name"] if settings else "") or "SUPPIX"
+                sender_email = (settings["smtp_sender_email"] if settings else "") or default_noreply_email()
+                sender_name = (settings["smtp_sender_name"] if settings else "") or "WorkPass"
                 ok, _, _ = _send_via_any_api(
                     subject,
                     sender_email,
@@ -158,7 +159,7 @@ def notify_camera_violation(
     text_body = (
         f"{message}\n\n"
         + "\n".join(f"- {line}" for line in alert_lines)
-        + "\n\nBitte Live-Ansicht und Ereignisliste im SUPPIX prüfen."
+        + "\n\nBitte Live-Ansicht und Ereignisliste in WorkPass prüfen."
     )
     msg_safe = html.escape(message)
     alerts_html = "".join(f"<li>{html.escape(line)}</li>" for line in alert_lines)

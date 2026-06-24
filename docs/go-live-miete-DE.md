@@ -38,7 +38,7 @@ Unter **Firmen → Design speichern**: Portal-Titel, Akzentfarbe, Logo.
 
 ## 5. KI & Enterprise
 
-- Plan **Professional+** für Enterprise-Navigation, Ops, SUPPIX AI.
+- Plan **Professional+** für Enterprise-Navigation, Ops, Suppix AI.
 - OpenAI/API-Key nur in Railway/Server-Umgebung.
 
 ## 6. Technischer Betrieb
