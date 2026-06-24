@@ -280,7 +280,6 @@ def list_invite_candidates(db, company_id: str | None = None) -> dict[str, Any]:
     if company_id:
         where += " AND company_id = ?"
         params.append(company_id)
-    where += " AND COALESCE(email, '') != ''"
 
     rows = db.execute(
         f"""
@@ -300,7 +299,10 @@ def list_invite_candidates(db, company_id: str | None = None) -> dict[str, Any]:
         usage_days = _user_usage_age_days(db, uid, str(user.get("company_id") or ""))
         eligible = True
         reason = ""
-        if _recent_survey_submission(db, uid):
+        if not str(user.get("email") or "").strip():
+            eligible = False
+            reason = "missing_email"
+        elif _recent_survey_submission(db, uid):
             eligible = False
             reason = "recent_submission"
         elif _recent_survey_invite(db, uid):
@@ -363,7 +365,16 @@ def send_survey_invites_batch(
     else:
         payload = list_invite_candidates(db, company_id)
         for c in payload.get("candidates") or []:
-            if send_all or c.get("eligible"):
+            if send_all:
+                if c.get("ineligibleReason") == "missing_email":
+                    continue
+                row = db.execute(
+                    "SELECT id, username, name, role, company_id, email FROM users WHERE id = ?",
+                    (c["id"],),
+                ).fetchone()
+                if row:
+                    targets.append(dict(row))
+            elif c.get("eligible"):
                 row = db.execute(
                     "SELECT id, username, name, role, company_id, email FROM users WHERE id = ?",
                     (c["id"],),

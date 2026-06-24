@@ -2921,6 +2921,7 @@ async function loadAnalytics() {
     $("usageTrendsPanel").innerHTML = "";
     $("moduleAlertsPanel").innerHTML = "";
     $("featureUsagePanel").innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
+    await loadSurveyInvitePanel(q);
     return;
   }
   const periodQs = `${q}${q ? "&" : "?"}period=${encodeURIComponent(analyticsPeriod)}`;
@@ -3011,17 +3012,28 @@ async function loadAnalytics() {
 async function loadSurveyInvitePanel(q) {
   const panel = $("surveyInvitePanel");
   if (!panel) return;
+  const user = getUser();
+  if (user.role === "superadmin" && !q) {
+    panel.innerHTML = `
+      <div class="card survey-invite-card">
+        <h3 class="section-title">${t("section.analytics.satisfaction")} — E-Mail</h3>
+        <p class="survey-mail-banner survey-mail-pending">${t("survey.selectCompanyFirst")}</p>
+      </div>`;
+    return;
+  }
   try {
     const data = await api(`/api/v2/admin/satisfaction-survey/invite-candidates${q}`);
     const mail = data.mail || {};
     const candidates = data.candidates || [];
     const mailReady = Boolean(mail.configured);
+    const withEmail = candidates.filter((c) => String(c.email || "").trim());
     const mailBanner = mailReady
       ? `<p class="survey-mail-banner survey-mail-ok">${t("survey.mailReady", { provider: (mail.providers || []).join(", ") || "—" })}</p>`
       : `<p class="survey-mail-banner survey-mail-pending">${t("survey.mailPending")}</p>`;
 
     const reasonLabel = (c) => {
       if (c.eligible) return t("survey.eligible");
+      if (c.ineligibleReason === "missing_email") return t("survey.missingEmail");
       if (c.ineligibleReason === "usage_too_short") {
         const need = Math.max(0, (data.usageDaysRequired || 30) - (c.usageDays || 0));
         return t("survey.waitUsage", { days: need });
@@ -3041,7 +3053,7 @@ async function loadSurveyInvitePanel(q) {
               <td class="muted small">${escapeHtml(reasonLabel(c))}</td>
               <td>
                 <button type="button" class="ghost small survey-send-btn" data-user-id="${escapeHtml(c.id)}"
-                  ${!mailReady ? "disabled" : ""}>${t("survey.sendOne")}</button>
+                  ${!mailReady || !String(c.email || "").trim() ? "disabled" : ""}>${t("survey.sendOne")}</button>
               </td>
             </tr>`,
           )
@@ -3053,8 +3065,10 @@ async function loadSurveyInvitePanel(q) {
         <h3 class="section-title">${t("section.analytics.satisfaction")} — E-Mail</h3>
         ${mailBanner}
         <p class="muted small">${t("survey.mailHint")}: <a href="${escapeHtml(mail.surveyUrl || "/satisfaction-survey.html")}" target="_blank" rel="noopener">${escapeHtml(mail.surveyUrl || "/satisfaction-survey.html")}</a></p>
+        <div id="surveyInviteFeedback" class="survey-invite-feedback hidden" role="status" aria-live="polite"></div>
         <div class="survey-invite-actions">
-          <button type="button" id="surveySendAllBtn" class="ghost" ${!mailReady || !candidates.length ? "disabled" : ""}>${t("survey.sendAll")}</button>
+          <button type="button" id="surveySendAllBtn" class="primary survey-send-all-btn">${t("survey.sendAll")}</button>
+          <span class="muted small survey-invite-hint">${withEmail.length ? t("survey.sendAllHint", { count: withEmail.length }) : t("survey.noEmailUsers")}</span>
         </div>
         ${rows
           ? `<div class="table-wrap"><table class="data-table"><thead><tr>
@@ -3062,20 +3076,54 @@ async function loadSurveyInvitePanel(q) {
             </tr></thead><tbody>${rows}</tbody></table></div>`
           : `<p class="muted">${t("survey.noCandidates")}</p>`}
       </div>`;
-
-    panel.querySelector("#surveySendAllBtn")?.addEventListener("click", () => {
-      sendSurveyInvite({ send_all: true }).catch(notifyTabError);
-    });
-    panel.querySelectorAll(".survey-send-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const uid = btn.getAttribute("data-user-id");
-        if (!uid) return;
-        sendSurveyInvite({ user_id: uid }).catch(notifyTabError);
-      });
-    });
   } catch (err) {
     panel.innerHTML = `<p class="muted">${escapeHtml(err.message || String(err))}</p>`;
   }
+}
+
+function showSurveyInviteFeedback(message, isError) {
+  const el = document.getElementById("surveyInviteFeedback");
+  if (el) {
+    el.textContent = message;
+    el.className = `survey-invite-feedback ${isError ? "err" : "ok"}`;
+    el.classList.remove("hidden");
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+  showActionToast(message, isError);
+}
+
+function setSurveyInviteBusy(busy) {
+  const btn = document.getElementById("surveySendAllBtn");
+  if (!btn) return;
+  btn.disabled = Boolean(busy);
+  btn.setAttribute("aria-busy", busy ? "true" : "false");
+  if (busy) {
+    btn.dataset.prevLabel = btn.textContent || "";
+    btn.textContent = t("survey.sending");
+  } else if (btn.dataset.prevLabel) {
+    btn.textContent = btn.dataset.prevLabel;
+    delete btn.dataset.prevLabel;
+  }
+}
+
+function bindSurveyInvitePanelActions() {
+  const panel = $("surveyInvitePanel");
+  if (!panel || panel.dataset.surveyInviteBound === "1") return;
+  panel.dataset.surveyInviteBound = "1";
+  panel.addEventListener("click", (event) => {
+    const allBtn = event.target.closest("#surveySendAllBtn, .survey-send-all-btn");
+    if (allBtn) {
+      event.preventDefault();
+      sendSurveyInvite({ send_all: true }).catch(notifyTabError);
+      return;
+    }
+    const oneBtn = event.target.closest(".survey-send-btn");
+    if (oneBtn) {
+      event.preventDefault();
+      const uid = oneBtn.getAttribute("data-user-id");
+      if (uid) sendSurveyInvite({ user_id: uid }).catch(notifyTabError);
+    }
+  });
 }
 
 function surveyInviteResultMessage(result) {
@@ -3091,7 +3139,7 @@ function surveyInviteResultMessage(result) {
     return { message: result.hint || t("survey.mailPending"), isError: true };
   }
   if (result?.error === "no_recipients") {
-    return { message: t("survey.noCandidates"), isError: true };
+    return { message: t("survey.noEmailUsers"), isError: true };
   }
   if (result?.error === "all_skipped") {
     return { message: t("survey.allSkipped", { skipped }), isError: true };
@@ -3102,29 +3150,33 @@ function surveyInviteResultMessage(result) {
 
 async function sendSurveyInvite(body) {
   const q = companyQuery();
-  const btn = $("surveySendAllBtn");
-  if (btn) btn.disabled = true;
+  const user = getUser();
+  if (user.role === "superadmin" && !companyIdFromQuery()) {
+    showSurveyInviteFeedback(t("survey.selectCompanyFirst"), true);
+    return;
+  }
+  setSurveyInviteBusy(true);
   try {
     const result = await api(`/api/v2/admin/satisfaction-survey/invite${q}`, {
       method: "POST",
       body: JSON.stringify(body || {}),
     });
     const toast = surveyInviteResultMessage(result);
-    showActionToast(toast.message, toast.isError);
+    showSurveyInviteFeedback(toast.message, toast.isError);
     await loadSurveyInvitePanel(q);
   } catch (err) {
     const data = err.data || {};
     const toast = surveyInviteResultMessage(data);
     if (toast.message) {
-      showActionToast(toast.message, toast.isError);
+      showSurveyInviteFeedback(toast.message, toast.isError);
     } else if (data.error === "mail_not_configured" || err.status === 503) {
-      showActionToast(data.hint || t("survey.mailPending"), true);
+      showSurveyInviteFeedback(data.hint || t("survey.mailPending"), true);
     } else {
-      showActionToast(t("survey.sentFail", { error: err.message || "—" }), true);
+      showSurveyInviteFeedback(t("survey.sentFail", { error: err.message || "—" }), true);
     }
     await loadSurveyInvitePanel(q);
   } finally {
-    if (btn) btn.disabled = false;
+    setSurveyInviteBusy(false);
   }
 }
 
@@ -3984,3 +4036,4 @@ $("satisfactionSurveyForm")?.addEventListener("submit", async (ev) => {
 });
 
 bootSession();
+bindSurveyInvitePanelActions();

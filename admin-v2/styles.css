@@ -617,6 +617,48 @@ main {
 
 .survey-invite-actions {
   margin: 0.75rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.survey-send-all-btn {
+  min-width: 12rem;
+}
+
+.survey-send-all-btn[aria-busy="true"] {
+  opacity: 0.85;
+  cursor: wait;
+}
+
+.survey-invite-hint {
+  flex: 1 1 14rem;
+}
+
+.survey-invite-feedback {
+  margin: 0.65rem 0 0.25rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.survey-invite-feedback.ok {
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.1);
+  color: #bbf7d0;
+}
+
+.survey-invite-feedback.err {
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+}
+
+button:disabled,
+button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .satisfaction-form label {
