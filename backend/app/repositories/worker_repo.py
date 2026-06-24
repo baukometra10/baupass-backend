@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Worker Repository
+SUPPIX – Worker Repository
 ============================
 مثال على repository حقيقي يرث من BaseRepository.
 """

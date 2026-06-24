@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Health Check Routes (نموذج على blueprint)
+SUPPIX – Health Check Routes (نموذج على blueprint)
 =====================================================
 مثال على أول route منقول من server.py إلى Architecture الجديدة.
 """
@@ -107,7 +107,7 @@ def liveness():
 
 @health_bp.get("/health/platform")
 def platform_health():
-    """Embed + Railway readiness for WorkPass dashboard."""
+    """Embed + Railway readiness for SUPPIX dashboard."""
     from backend.app.health.platform_probe import collect_platform_health
 
     host = (request.host or "").strip()

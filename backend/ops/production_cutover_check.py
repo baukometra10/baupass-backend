@@ -27,7 +27,7 @@ def _fetch_json(url: str, timeout: int = 20) -> tuple[int, dict]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate WorkPass production cutover readiness")
+    parser = argparse.ArgumentParser(description="Validate SUPPIX production cutover readiness")
     parser.add_argument("--base-url", default=os.getenv("PUBLIC_BASE_URL", "").strip())
     args = parser.parse_args()
     base = (args.base_url or "").rstrip("/")

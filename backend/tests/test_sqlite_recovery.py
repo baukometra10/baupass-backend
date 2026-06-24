@@ -19,7 +19,7 @@ def _seed_minimal_db(path: Path) -> None:
         conn.executescript(
             """
             CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK (id = 1), platform_name TEXT);
-            INSERT INTO settings (id, platform_name) VALUES (1, 'WorkPass');
+            INSERT INTO settings (id, platform_name) VALUES (1, 'SUPPIX');
             CREATE TABLE users (
                 id TEXT PRIMARY KEY,
                 username TEXT NOT NULL,

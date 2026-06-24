@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Tenant Isolation Middleware
+SUPPIX – Tenant Isolation Middleware
 ======================================
 يضمن:
   1. كل طلب authenticated له company_id مرتبط

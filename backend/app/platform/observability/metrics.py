@@ -1,5 +1,5 @@
 ﻿"""
-Prometheus metrics for WorkPass.
+Prometheus metrics for SUPPIX.
 """
 from __future__ import annotations
 

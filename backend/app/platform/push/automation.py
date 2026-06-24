@@ -130,7 +130,7 @@ def push_security_alert(
     delivery = push_to_worker(
         db,
         worker_id,
-        "WorkPass Sicherheit",
+        "SUPPIX Sicherheit",
         (title or "Sicherheitshinweis")[:200],
         tag="ops-notify",
         company_id=company_id,

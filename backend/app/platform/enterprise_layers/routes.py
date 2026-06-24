@@ -156,7 +156,7 @@ def register_enterprise_layers(flask_app) -> None:
             actor = row_to_dict(user)
             scope_company_id = str(actor.get("company_id") or "").strip() or None
             if actor.get("role") == "superadmin":
-                scope_company_id = str(request.headers.get("X-WorkPass-Company-Id") or request.args.get("company_id") or "").strip() or scope_company_id
+                scope_company_id = str(request.headers.get("X-SUPPIX-Company-Id") or request.args.get("company_id") or "").strip() or scope_company_id
 
         payload = request.get_json(silent=True) or {}
         company_id = str(payload.get("companyId") or payload.get("company_id") or scope_company_id or _cid() or "").strip()

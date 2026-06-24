@@ -68,7 +68,7 @@ def maybe_notify_guardian(
 
     failed = snapshot.get("failedProbes") or []
     host = ((snapshot.get("cloud") or {}).get("host") or "").strip()
-    title = "WorkPass Platform Guardian"
+    title = "SUPPIX Platform Guardian"
     if is_recovery:
         text = (
             "*Status wieder OK*\n"

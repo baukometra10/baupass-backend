@@ -1,6 +1,6 @@
-# WorkPass — Suppix Technologie UG
+# SUPPIX — Suppix Technologie UG
 
-Enterprise-Plattform **WorkPass** von **Suppix Technologie UG** fuer digitale Identitaet, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfaehig (Bau, Industrie, Logistik, Luftfahrt, Sicherheit, oeffentlicher Sektor, Behoerden).
+Enterprise-Plattform **SUPPIX** von **Suppix Technologie UG** fuer digitale Identitaet, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfaehig (Bau, Industrie, Logistik, Luftfahrt, Sicherheit, oeffentlicher Sektor, Behoerden).
 
 ## Enthaltene Funktionen
 

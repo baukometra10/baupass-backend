@@ -1,1 +1,1 @@
-﻿"""Sector templates and terminology (multi-vertical WorkPass)."""
+﻿"""Sector templates and terminology (multi-vertical SUPPIX)."""

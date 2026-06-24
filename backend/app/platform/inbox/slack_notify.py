@@ -53,7 +53,7 @@ def maybe_notify_inbox_slack(
     text = f"*{title}*\n{message}\n_Firma:_ `{cid}` · _Quelle:_ `{source}`"
     sent = 0
     for url in urls:
-        ok, _ = send_webhook_notification(url, text, title="WorkPass Ops Posteingang")
+        ok, _ = send_webhook_notification(url, text, title="SUPPIX Ops Posteingang")
         if ok:
             sent += 1
     if sent:

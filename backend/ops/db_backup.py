@@ -191,7 +191,7 @@ def latest_backup(backup_dir: Path) -> Path | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create and verify SQLite backups for WorkPass.")
+    parser = argparse.ArgumentParser(description="Create and verify SQLite backups for SUPPIX.")
     parser.add_argument("command", choices=["backup", "verify-restore"], help="Operation mode")
     parser.add_argument("--db-path", dest="db_path", default="", help="Path to source SQLite DB")
     parser.add_argument("--backup-dir", dest="backup_dir", default=str(DEFAULT_BACKUP_DIR), help="Backup directory")

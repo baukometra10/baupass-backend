@@ -346,7 +346,7 @@ _CHAT_SYSTEM = (
 )
 
 _BRIEFING_SYSTEM = (
-    "You are WorkPass operations lead. Produce a concise daily site briefing from the JSON context. "
+    "You are SUPPIX operations lead. Produce a concise daily site briefing from the JSON context. "
     "Use the user's language. Sections: Lage / On-site, Sicherheit, Anwesenheit & Risiko, "
     "Empfohlene Maßnahmen (numbered). Max 12 bullets total. No invented data."
 )

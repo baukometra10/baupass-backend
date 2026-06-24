@@ -290,7 +290,7 @@ def maybe_notify_security(security: dict[str, Any]) -> dict[str, Any]:
     )
     sent = 0
     for url in urls:
-        ok, _ = send_webhook_notification(url, text, title="WorkPass Security Guardian")
+        ok, _ = send_webhook_notification(url, text, title="SUPPIX Security Guardian")
         if ok:
             sent += 1
     return {"sent": sent, "total": len(urls), "severity": severity}

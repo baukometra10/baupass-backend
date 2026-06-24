@@ -346,7 +346,7 @@ def signature_labels(lang: str, employee_gender: str = "") -> tuple[str, str, st
 
 
 def footer_text(lang: str) -> str:
-    return _t(lang, "Erstellt mit WorkPass", "Created with WorkPass", "أُنشئ بواسطة WorkPass")
+    return _t(lang, "Erstellt mit SUPPIX", "Created with SUPPIX", "أُنشئ بواسطة SUPPIX")
 
 
 def section_prefix(lang: str) -> str:

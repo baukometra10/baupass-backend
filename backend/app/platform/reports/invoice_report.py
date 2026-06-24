@@ -52,7 +52,7 @@ def build_invoices_report_pdf(db, *, company_id: str | None = None, company_name
     from backend.server import now_iso
 
     rows = fetch_invoice_report_rows(db, company_id=company_id)
-    title = "WorkPass Rechnungsübersicht"
+    title = "SUPPIX Rechnungsübersicht"
     if company_name:
         title = f"{title} — {company_name}"
     subtitle = f"Erstellt: {now_iso()[:19]} UTC · {len(rows)} Position(en)"

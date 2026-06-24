@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Worker App API (Blueprint)
+SUPPIX – Worker App API (Blueprint)
 =====================================
 Mitarbeiter-PWA routes migrated from server.py.
 View logic stays in backend.server; this module mounts URLs on a blueprint.

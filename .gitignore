@@ -52,6 +52,12 @@ backend/tests/*.db-shm
 emp-app.tmp.html
 backend/tmp_inspect_db.py
 
+backend/baustelle.db
+backend/uploads/
+scripts/translation-cache.json
+scripts/missing-keys-en.json
+scripts/i18n-extra-draft.json
+
 # Electron build output
 dist/
 *.exe

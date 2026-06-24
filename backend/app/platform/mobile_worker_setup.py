@@ -1,4 +1,4 @@
-﻿"""Public readiness report for WorkPass hybrid worker mobile (no secret values)."""
+﻿"""Public readiness report for SUPPIX hybrid worker mobile (no secret values)."""
 from __future__ import annotations
 
 import os

@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – RQ Worker Startup
+SUPPIX – RQ Worker Startup
 =============================
 تشغيل:
     python -m backend.app.tasks.worker
@@ -8,7 +8,7 @@ WorkPass – RQ Worker Startup
 
 في الإنتاج (systemd):
     [Unit]
-    Description=WorkPass RQ Worker
+    Description=SUPPIX RQ Worker
     After=network.target redis.service
 
     [Service]
@@ -72,7 +72,7 @@ def _dead_letter_exception_handler(job, exc_type, exc_value, tb):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="WorkPass RQ Background Worker")
+    parser = argparse.ArgumentParser(description="SUPPIX RQ Background Worker")
     parser.add_argument(
         "--queues",
         nargs="+",

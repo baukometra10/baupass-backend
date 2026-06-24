@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="WorkPass PostgreSQL cutover automation")
+    parser = argparse.ArgumentParser(description="SUPPIX PostgreSQL cutover automation")
     parser.add_argument("--sqlite", default=os.getenv("BAUPASS_DB_PATH", "backend/baupass.db"))
     parser.add_argument(
         "--migrate",

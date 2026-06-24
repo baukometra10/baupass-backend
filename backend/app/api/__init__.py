@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – API Blueprints Registry
+SUPPIX – API Blueprints Registry
 ===================================
 كل blueprint يمثل domain منفصل.
 يُضاف blueprint جديد هنا عند نقله من server.py.

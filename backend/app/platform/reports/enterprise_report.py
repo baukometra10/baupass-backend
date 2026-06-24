@@ -69,8 +69,8 @@ def build_enterprise_ops_pdf(
     snapshot["enterpriseLayers"] = build_enterprise_layers_snapshot(db, company_id)
     guidance = build_operational_guidance(snapshot)
     return build_operations_report_pdf(
-        title="WorkPass Enterprise & Operations Report",
-        company_name=company_name or "WorkPass",
+        title="SUPPIX Enterprise & Operations Report",
+        company_name=company_name or "SUPPIX",
         snapshot=snapshot,
         guidance=guidance,
     )

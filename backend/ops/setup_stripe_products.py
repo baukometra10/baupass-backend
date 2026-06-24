@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python3
 """
-Create WorkPass Stripe products/prices and print Railway env vars.
+Create SUPPIX Stripe products/prices and print Railway env vars.
 
 Usage:
   set STRIPE_SECRET_KEY=sk_test_...
@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bootstrap WorkPass Stripe catalog")
+    parser = argparse.ArgumentParser(description="Bootstrap SUPPIX Stripe catalog")
     parser.add_argument("--dry-run", action="store_true", help="Preview without Stripe API calls")
     args = parser.parse_args()
 

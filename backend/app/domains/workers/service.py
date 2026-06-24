@@ -1415,7 +1415,7 @@ class WorkersService:
 
         settings = self.repo.get_settings_row(db)
         platform_label = (
-            str(settings["platform_name"] or "WorkPass").strip() if settings else "WorkPass"
+            str(settings["platform_name"] or "SUPPIX").strip() if settings else "SUPPIX"
         )
         primary_color = (
             str(settings["invoice_primary_color"] or "#06b6d4").strip()

@@ -1,4 +1,4 @@
-﻿"""Agent runner — OpenAI tool-calling loop with specialized WorkPass agents."""
+﻿"""Agent runner — OpenAI tool-calling loop with specialized SUPPIX agents."""
 from __future__ import annotations
 
 import json

@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Database Layer
+SUPPIX – Database Layer
 =========================
 مسؤوليات هذا الملف:
   1. إدارة اتصالات SQLite بشكل آمن (WAL, busy_timeout, row_factory)

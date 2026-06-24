@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Background Task Queue (Redis + RQ)
+SUPPIX – Background Task Queue (Redis + RQ)
 =============================================
 يفصل المهام الثقيلة عن Flask request cycle:
   - إرسال الإيميلات

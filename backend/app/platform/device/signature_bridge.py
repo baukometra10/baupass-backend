@@ -16,9 +16,9 @@ def authorize_device_signature_request(request, db) -> tuple[dict[str, Any] | No
     from backend.server import clean_id_input
 
     bridge_expected = (os.getenv("BAUPASS_SIGNATURE_BRIDGE_TOKEN") or "").strip()
-    bridge_token = (request.headers.get("X-WorkPass-Signature-Token") or "").strip()
+    bridge_token = (request.headers.get("X-SUPPIX-Signature-Token") or "").strip()
     if bridge_expected and bridge_token and secrets.compare_digest(bridge_expected, bridge_token):
-        company_id = clean_id_input(request.headers.get("X-WorkPass-Company-Id") or "")
+        company_id = clean_id_input(request.headers.get("X-SUPPIX-Company-Id") or "")
         return (
             {"role": "device-bridge", "id": "signature-bridge", "company_id": company_id or None},
             company_id or None,

@@ -4,17 +4,17 @@ from __future__ import annotations
 from backend import server
 
 
-def test_effective_geofence_distance_subtracts_accuracy():
-    distance = server._effective_geofence_distance_meters(42.0, 10.0)
-    assert distance == 32.0
+def test_geofence_radius_allows_accuracy_buffer():
+    allowed = server._geofence_radius_with_accuracy_buffer(20, 10)
+    assert allowed == 30
 
 
-def test_effective_geofence_distance_never_negative():
-    distance = server._effective_geofence_distance_meters(8.0, 20.0)
-    assert distance == 0.0
+def test_worker_within_site_geofence_uses_accuracy_buffer():
+    assert server.worker_within_site_geofence(28, 20, 10) is True
+    assert server.worker_within_site_geofence(35, 20, 10) is False
 
 
-def test_measure_worker_site_distance_uses_accuracy_buffer(worker_client):
+def test_measure_worker_site_distance_reports_raw_distance(worker_client):
     with server.app.app_context():
         db = server.get_db()
         db.execute(
@@ -58,12 +58,13 @@ def test_measure_worker_site_distance_uses_accuracy_buffer(worker_client):
     measured = server.measure_worker_site_distance(
         db,
         worker,
-        {"latitude": 52.52, "longitude": 13.405, "accuracy": 12},
+        {"latitude": 52.52, "longitude": 13.405, "accuracy": 8},
     )
     assert measured is not None
     assert measured["distanceMeters"] == 0
-    assert measured["rawDistanceMeters"] == 0
-    assert measured["accuracyMeters"] == 12
+    assert measured["onSite"] is True
+    assert measured["accuracyMeters"] == 8
+    assert measured["allowedRadiusMeters"] == 28
 
 
 def test_measure_worker_site_distance_rejects_inaccurate_reading(worker_client):

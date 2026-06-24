@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass enterprise platform layer (optional modules — failures are non-fatal).
+SUPPIX enterprise platform layer (optional modules — failures are non-fatal).
 """
 from __future__ import annotations
 

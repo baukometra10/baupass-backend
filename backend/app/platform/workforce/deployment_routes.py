@@ -185,7 +185,7 @@ def register_workforce_blueprint(flask_app) -> None:
         plan = get_company_plan(db, cid)
         tier = "enterprise" if plan_includes(plan, "enterprise") else "professional"
         pdf_bytes = build_deployment_plan_pdf(
-            company_name=branding.get("companyName") or "WorkPass",
+            company_name=branding.get("companyName") or "SUPPIX",
             worker_name=f"{w['first_name']} {w['last_name']}".strip(),
             badge_id=w["badge_id"],
             year=year,
@@ -234,7 +234,7 @@ def register_workforce_blueprint(flask_app) -> None:
             "ar": "معاينة · خطة توزيع",
         }.get(lang[:2], "Muster · Einsatzplan-Vorschau")
         pdf_bytes = build_deployment_plan_pdf(
-            company_name=branding.get("companyName") or "WorkPass",
+            company_name=branding.get("companyName") or "SUPPIX",
             worker_name=worker_label,
             badge_id="VORSCHAU",
             year=year,
@@ -304,7 +304,7 @@ def register_workforce_blueprint(flask_app) -> None:
                 if not any(str(d.get("location") or "").strip() for d in days):
                     continue
                 pdf_bytes = build_deployment_plan_pdf(
-                    company_name=branding.get("companyName") or "WorkPass",
+                    company_name=branding.get("companyName") or "SUPPIX",
                     worker_name=f"{w['first_name']} {w['last_name']}".strip(),
                     badge_id=w["badge_id"],
                     year=year,

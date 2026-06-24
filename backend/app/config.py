@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Configuration Management
+SUPPIX – Configuration Management
 ====================================
 بيئات:
   - DevelopmentConfig : للتطوير المحلي
@@ -28,7 +28,7 @@ def _require_env(key: str) -> str:
     value = os.getenv(key, "").strip()
     if not value:
         raise RuntimeError(
-            f"[WorkPass] Missing required environment variable: {key}\n"
+            f"[SUPPIX] Missing required environment variable: {key}\n"
             f"Set it in your .env file or deployment configuration."
         )
     return value
@@ -208,7 +208,7 @@ class ProductionConfig(BaseConfig):
         if errors:
             msg = "\n".join(f"  - {e}" for e in errors)
             raise RuntimeError(
-                f"[WorkPass] Production configuration errors:\n{msg}\n\n"
+                f"[SUPPIX] Production configuration errors:\n{msg}\n\n"
                 f"Run: python -c \"import secrets; print(secrets.token_hex(32))\"\n"
                 f"to generate a secure SECRET_KEY."
             )

@@ -170,8 +170,8 @@ def _deliver_one(db, row) -> bool:
             data=payload_bytes,
             headers={
                 "Content-Type": "application/json",
-                "X-WorkPass-Signature": f"sha256={signature}",
-                "X-WorkPass-Delivery": delivery_id,
+                "X-SUPPIX-Signature": f"sha256={signature}",
+                "X-SUPPIX-Delivery": delivery_id,
             },
             method="POST",
         )

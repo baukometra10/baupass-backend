@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Auth Routes (blueprint; delegates to AuthService).
+SUPPIX – Auth Routes (blueprint; delegates to AuthService).
 """
 from __future__ import annotations
 

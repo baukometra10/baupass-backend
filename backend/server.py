@@ -3232,15 +3232,15 @@ def init_db():
     if "card_print_rotation_deg" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN card_print_rotation_deg REAL NOT NULL DEFAULT 0")
     cur.execute(
-        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'SUPPIX')",
+        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'WorkPass', 'SUPPIX')",
         (DEFAULT_PLATFORM_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass', 'SUPPIX', 'Baukometra', 'BauKometra')",
+        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass', 'WorkPass', 'SUPPIX', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'SUPPIX', 'Baukometra', 'BauKometra')",
+        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'WorkPass', 'SUPPIX', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
     )
     default_logo = _default_brand_logo_data_url()

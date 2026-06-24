@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Runtime integration for legacy server.py
+SUPPIX – Runtime integration for legacy server.py
 ===================================================
 Wires migrations, distributed rate limiting, and security middleware
 into the monolithic Flask app without replacing server.py yet.

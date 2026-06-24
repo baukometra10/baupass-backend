@@ -83,8 +83,8 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
         snapshot["companyName"] = str(company["name"] or "")
         guidance = build_operational_guidance(snapshot)
         pdf_bytes = build_operations_report_pdf(
-            title="WorkPass Daily Operations Report",
-            company_name=str(company["name"] or "WorkPass"),
+            title="SUPPIX Daily Operations Report",
+            company_name=str(company["name"] or "SUPPIX"),
             snapshot=snapshot,
             guidance=guidance,
         )
@@ -101,7 +101,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             recipient = str(admin["email"] or "").strip()
             if not recipient or "@" not in recipient:
                 continue
-            subject = f"WorkPass Tagesbericht {period} — {company['name']}"
+            subject = f"SUPPIX Tagesbericht {period} — {company['name']}"
             body = (
                 f"Guten Tag,\n\n"
                 f"anbei der automatische Tagesbericht (PDF) für {company['name']}.\n"
@@ -109,7 +109,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             )
             if extra_attachments:
                 body += "Zusätzlich: DATEV-Lohn-CSV für den aktuellen Monat.\n"
-            body += "\nWorkPass / Auto-Report"
+            body += "\nSUPPIX / Auto-Report"
 
             ok, err = send_pdf_report_email(
                 to=recipient,

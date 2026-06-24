@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Structured Logging Middleware
+SUPPIX – Structured Logging Middleware
 =========================================
 يُضيف:
   1. Request/Response logging منظَّم (JSON)

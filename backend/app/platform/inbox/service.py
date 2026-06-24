@@ -101,7 +101,7 @@ def build_operations_inbox(
                                     "action": "notify_worker",
                                     "params": {
                                         "worker_id": r["worker_id"],
-                                        "title": "WorkPass Sicherheit",
+                                        "title": "SUPPIX Sicherheit",
                                         "body": (r["title"] or "Security-Hinweis")[:200],
                                     },
                                     "label": "Push an MA",

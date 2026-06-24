@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Database Migrations Registry
+SUPPIX – Database Migrations Registry
 ========================================
 Schema الفعلي (baupass.db):
   - workers: id, company_id, badge_id, badge_id_lookup, contact_email, status, deleted_at
@@ -1117,10 +1117,10 @@ ALL_MIGRATIONS: list[Migration] = [
         version="029",
         name="workers_personal_fields",
         up_sql="""
-            ALTER TABLE workers ADD COLUMN home_address TEXT NOT NULL DEFAULT '';
-            ALTER TABLE workers ADD COLUMN birth_date TEXT NOT NULL DEFAULT '';
-            ALTER TABLE workers ADD COLUMN gender TEXT NOT NULL DEFAULT '';
-            ALTER TABLE workers ADD COLUMN contact_phone TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN IF NOT EXISTS home_address TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN IF NOT EXISTS birth_date TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN IF NOT EXISTS gender TEXT NOT NULL DEFAULT '';
+            ALTER TABLE workers ADD COLUMN IF NOT EXISTS contact_phone TEXT NOT NULL DEFAULT '';
         """,
         down_sql="""
             -- SQLite cannot DROP COLUMN easily; no-op downgrade
@@ -1132,11 +1132,11 @@ ALL_MIGRATIONS: list[Migration] = [
         version="030",
         name="employment_contracts_enhancements",
         up_sql="""
-            ALTER TABLE employment_contracts ADD COLUMN parent_contract_id TEXT;
-            ALTER TABLE employment_contract_sign_sessions ADD COLUMN sign_latitude REAL;
-            ALTER TABLE employment_contract_sign_sessions ADD COLUMN sign_longitude REAL;
-            ALTER TABLE employment_contract_sign_sessions ADD COLUMN consent_accepted INTEGER NOT NULL DEFAULT 0;
-            ALTER TABLE employment_contract_sign_sessions ADD COLUMN reminder_sent_at TEXT;
+            ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS parent_contract_id TEXT;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN IF NOT EXISTS sign_latitude REAL;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN IF NOT EXISTS sign_longitude REAL;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN IF NOT EXISTS consent_accepted INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE employment_contract_sign_sessions ADD COLUMN IF NOT EXISTS reminder_sent_at TEXT;
             CREATE INDEX IF NOT EXISTS idx_contract_parent
                 ON employment_contracts(parent_contract_id);
         """,

@@ -1,4 +1,4 @@
-﻿"""Specialized AI agent profiles for WorkPass workforce operations."""
+﻿"""Specialized AI agent profiles for SUPPIX workforce operations."""
 from __future__ import annotations
 
 from typing import Any
@@ -19,7 +19,7 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "search_workers",
         ],
         "system": (
-            "Du bist der WorkPass Betriebsleiter-Assistent für Baustellen und Zutrittskontrolle. "
+            "Du bist der SUPPIX Betriebsleiter-Assistent für Baustellen und Zutrittskontrolle. "
             "Du kennst Anwesenheit, Tore, Live-Aktivität und tagesaktuelle Engpässe."
         ),
     },
@@ -38,7 +38,7 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_worker_profile",
         ],
         "system": (
-            "Du bist der WorkPass Sicherheits-Analyst. "
+            "Du bist der SUPPIX Sicherheits-Analyst. "
             "Du untersuchst Betrugs-Signale, Alerts und auffällige Zutrittsmuster."
         ),
     },
@@ -57,7 +57,7 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_attendance_risk",
         ],
         "system": (
-            "Du bist der WorkPass Compliance-Assistent. "
+            "Du bist der SUPPIX Compliance-Assistent. "
             "Du hilfst bei abgelaufenen Dokumenten, Sperren und Workforce-Risiko."
         ),
     },
@@ -75,7 +75,7 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_on_site_workers",
         ],
         "system": (
-            "Du bist der WorkPass HR-Assistent für Belegschaft und Anwesenheit. "
+            "Du bist der SUPPIX HR-Assistent für Belegschaft und Anwesenheit. "
             "Du findest Mitarbeiter, erklärst Profile und Anwesenheitsmuster."
         ),
     },
@@ -94,7 +94,7 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_site_intelligence",
         ],
         "system": (
-            "Du bist der WorkPass Executive-Assistent für die Geschäftsführung. "
+            "Du bist der SUPPIX Executive-Assistent für die Geschäftsführung. "
             "Du fasst KPIs, Risiken und Prioritäten knapp zusammen."
         ),
     },

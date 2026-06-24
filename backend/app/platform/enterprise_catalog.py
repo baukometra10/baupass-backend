@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass Enterprise Catalog — maps vision layers to real UI surfaces and APIs.
+SUPPIX Enterprise Catalog — maps vision layers to real UI surfaces and APIs.
 Used by /api/platform/enterprise-catalog and enterprise-hub.html
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ _SURFACE_LABELS = {
 
 
 def _cp_view(view: str) -> str:
-    """WorkPass shell uses ?view= — not legacy #hash routes."""
+    """SUPPIX shell uses ?view= — not legacy #hash routes."""
     return f"/index.html?view={view}"
 
 
@@ -334,7 +334,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             stats[it["surface"]] = stats.get(it["surface"], 0) + 1
 
     catalog = {
-        "product": "WorkPass Enterprise Platform",
+        "product": "SUPPIX Enterprise Platform",
         "layerCount": len(layers),
         "surfaceLabels": _SURFACE_LABELS,
         "stats": stats,

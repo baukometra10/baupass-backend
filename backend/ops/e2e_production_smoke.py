@@ -134,7 +134,7 @@ def run_smoke(base: str, token: str | None) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="WorkPass production E2E smoke")
+    parser = argparse.ArgumentParser(description="SUPPIX production E2E smoke")
     parser.add_argument("--base-url", default=os.getenv("PUBLIC_BASE_URL", "").strip())
     parser.add_argument("--json-only", action="store_true")
     args = parser.parse_args()

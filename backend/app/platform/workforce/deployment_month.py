@@ -355,7 +355,7 @@ def send_worker_plan(
 
     branding = resolve_company_pdf_branding(db, str(company_id))
     pdf_bytes = build_deployment_plan_pdf(
-        company_name=branding.get("companyName") or "WorkPass",
+        company_name=branding.get("companyName") or "SUPPIX",
         worker_name=f"{w['first_name']} {w['last_name']}".strip(),
         badge_id=w["badge_id"],
         year=year,
@@ -370,7 +370,7 @@ def send_worker_plan(
     if to_email:
         ok, err = send_pdf_report_email(
             to=to_email,
-            subject=f"Einsatzplan {month:02d}/{year} — {company['name'] if company else 'WorkPass'}",
+            subject=f"Einsatzplan {month:02d}/{year} — {company['name'] if company else 'SUPPIX'}",
             body_text=f"Ihr Einsatzplan für {month:02d}/{year} ist im Anhang (PDF).",
             pdf_bytes=pdf_bytes,
             filename=f"einsatzplan-{year}-{month:02d}.pdf",

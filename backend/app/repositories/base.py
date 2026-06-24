@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Base Repository with Tenant Isolation
+SUPPIX – Base Repository with Tenant Isolation
 ================================================
 جميع repositories ترث من BaseRepository.
 

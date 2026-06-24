@@ -113,10 +113,10 @@ def notify_company_deployment_day_declined(
 
             settings = db.execute("SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1").fetchone()
             sender_email = (settings["smtp_sender_email"] if settings else "") or "noreply@baupass.de"
-            sender_name = (settings["smtp_sender_name"] if settings else "") or "WorkPass"
+            sender_name = (settings["smtp_sender_name"] if settings else "") or "SUPPIX"
             base = get_public_base_url().rstrip("/")
             admin_hint = f"{base}/admin-v2/index.html" if base else ""
-            subject = f"WorkPass: Einsatz abgelehnt — {worker_name} ({work_date})"
+            subject = f"SUPPIX: Einsatz abgelehnt — {worker_name} ({work_date})"
             text_body = (
                 f"{message}\n\n"
                 f"Bitte Einsatzplan im Betrieb-Portal prüfen und ggf. anpassen.\n"

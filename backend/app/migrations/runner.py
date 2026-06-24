@@ -1,5 +1,5 @@
 ﻿"""
-WorkPass – Migration CLI Runner
+SUPPIX – Migration CLI Runner
 ================================
 تشغيل:
     python -m backend.app.migrations.runner --migrate
@@ -37,7 +37,7 @@ def _safe_print(message: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="WorkPass Database Migration Runner",
+        description="SUPPIX Database Migration Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

@@ -1,5 +1,5 @@
 ﻿"""
-Canonical WorkPass SaaS pricing — single source of truth for admin, billing, Stripe, and UI.
+Canonical SUPPIX SaaS pricing — single source of truth for admin, billing, Stripe, and UI.
 
 Plans (net EUR, excl. VAT):
 - Tageskarte: 19/day

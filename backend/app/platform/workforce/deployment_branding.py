@@ -90,10 +90,10 @@ def resolve_company_pdf_branding(db, company_id: str) -> dict[str, Any]:
     if company:
         display_name = str(company["portal_display_name"] or company["name"] or "").strip()
     if not display_name and settings:
-        display_name = str(settings["platform_name"] or "WorkPass").strip()
+        display_name = str(settings["platform_name"] or "SUPPIX").strip()
 
     return {
-        "companyName": display_name or "WorkPass",
+        "companyName": display_name or "SUPPIX",
         "logoData": logo_data,
         "accent": accent,
         "accentLight": theme["accent_light"],

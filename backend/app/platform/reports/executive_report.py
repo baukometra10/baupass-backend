@@ -32,7 +32,7 @@ def build_executive_summary_pdf(
         y -= 5.5 * mm
 
     pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(margin, y, "WorkPass Executive Summary")
+    pdf.drawString(margin, y, "SUPPIX Executive Summary")
     y -= 10 * mm
     line(f"Organization: {company_name or '-'}", size=9)
     line(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", size=9)

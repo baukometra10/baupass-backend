@@ -30,6 +30,10 @@
       "styles.css",
       "control-manifest.json",
       "control-sw.js",
+      "branding/suppix-icon-192.png",
+      "branding/suppix-icon-512.png",
+      "branding/suppix-ai-mark.svg",
+      "branding/suppix-ai-logo.svg",
       "worker-icon-192.png",
       "worker-icon-512.png",
       "worker-icon-512.ico"

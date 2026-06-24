@@ -73,7 +73,7 @@ def test_founder_intent_arabic(client_and_db, db_with_company):
     assert out is not None
     assert out["intent"] == "platform_founder"
     assert "Sherif Mohamed" in out["answer"]
-    assert "Suppix Technologie UG" in out["answer"] or "WorkPass" in out["answer"]
+    assert "Suppix Technologie UG" in out["answer"] or "SUPPIX" in out["answer"]
 
 
 def test_founder_intent_german(client_and_db, db_with_company):
@@ -83,7 +83,7 @@ def test_founder_intent_german(client_and_db, db_with_company):
         out = try_intent_response(
             db,
             db_with_company,
-            "Wer hat WorkPass gegründet?",
+            "Wer hat SUPPIX gegründet?",
             lang="de",
         )
     assert out is not None

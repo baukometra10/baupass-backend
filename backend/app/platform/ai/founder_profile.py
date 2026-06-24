@@ -51,7 +51,7 @@ def load_founder_profile(db) -> dict[str, Any]:
         """
     ).fetchone()
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    platform = (settings["platform_name"] if settings else "") or "WorkPass"
+    platform = (settings["platform_name"] if settings else "") or "SUPPIX"
     company = (os.getenv("BAUPASS_FOUNDER_COMPANY") or "").strip() or (
         (settings["operator_name"] if settings else "") or "Suppix Technologie UG"
     )
@@ -99,7 +99,7 @@ def _resolve_bio(profile: dict[str, Any], lang: str) -> str:
     template = _DEFAULT_BIOS.get(lang) or _DEFAULT_BIOS["de"]
     return template.format(
         company=profile.get("company") or "Suppix Technologie UG",
-        platform=profile.get("platform") or "WorkPass",
+        platform=profile.get("platform") or "SUPPIX",
     )
 
 
@@ -117,7 +117,7 @@ def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
     lang = (lang or "de")[:2]
     name = str(profile.get("name") or "").strip()
     company = str(profile.get("company") or "Suppix Technologie UG").strip()
-    platform = str(profile.get("platform") or "WorkPass").strip()
+    platform = str(profile.get("platform") or "SUPPIX").strip()
     title = _resolve_title(profile, lang)
     bio = _resolve_bio(profile, lang)
     phone = str(profile.get("phone") or "").strip()

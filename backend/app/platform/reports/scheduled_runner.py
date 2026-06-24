@@ -49,7 +49,7 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
             recipients = [r["email"] for r in admins]
 
         company = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-        company_name = company["name"] if company else "WorkPass"
+        company_name = company["name"] if company else "SUPPIX"
         report_type = str(job["report_type"] or "daily_ops")
 
         for email in recipients:
@@ -70,7 +70,7 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
                         snapshot=snapshot,
                     )
                     filename = f"executive-summary-{day_key}.pdf"
-                    subject = f"WorkPass Executive Summary {day_key}"
+                    subject = f"SUPPIX Executive Summary {day_key}"
                 else:
                     from backend.app.platform.reports.pdf_reports import build_operations_report_pdf
 
@@ -82,13 +82,13 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
                     snapshot = _operations_snapshot_for_user(db, user_dict)
                     guidance = build_operational_guidance(snapshot)
                     pdf = build_operations_report_pdf(
-                        title="WorkPass Operations Report",
+                        title="SUPPIX Operations Report",
                         company_name=company_name,
                         snapshot=snapshot,
                         guidance=guidance,
                     )
                     filename = f"ops-report-{day_key}.pdf"
-                    subject = f"WorkPass Operations Report {day_key}"
+                    subject = f"SUPPIX Operations Report {day_key}"
 
                 ok, err = send_pdf_report_email(
                     to=email,
