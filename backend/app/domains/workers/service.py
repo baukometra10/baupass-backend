@@ -236,22 +236,24 @@ class WorkersService:
         if worker_type != "visitor":
             from backend.server import sanitize_compliance_signature_data
 
-            try:
-                sanitize_compliance_signature_data(payload.get("complianceSignatureData"), required=True)
-            except ValueError as error:
-                code = str(error)
-                message = (
-                    "Unterschrift bei Ausweisübergabe ist Pflicht, bevor der Ausweis erstellt wird."
-                    if code == "signature_required"
-                    else "Ungültige Unterschrift."
-                )
-                return {
-                    "error": {
-                        "error": "compliance_signature_required" if code == "signature_required" else code,
-                        "message": message,
-                    },
-                    "status": 400,
-                }
+            sig_raw = payload.get("complianceSignatureData")
+            if sig_raw not in (None, "") and str(sig_raw).strip():
+                try:
+                    sanitize_compliance_signature_data(sig_raw, required=True)
+                except ValueError as error:
+                    code = str(error)
+                    message = (
+                        "Ungültige Unterschrift."
+                        if code != "signature_required"
+                        else "Ungültige Unterschrift."
+                    )
+                    return {
+                        "error": {
+                            "error": code,
+                            "message": message,
+                        },
+                        "status": 400,
+                    }
 
         badge_pin_hash = ""
         if worker_type != "visitor":

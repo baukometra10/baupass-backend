@@ -10900,6 +10900,35 @@ def activate_worker_hce_device(worker_id, device_id):
     return jsonify(result["body"])
 
 
+_ONBOARDING_LOCK_CODES = frozenset({
+    "missing_handover_signature",
+    "missing_documents",
+    "expired_documents",
+})
+
+
+def worker_admin_onboarding_provision_allowed(db, worker_row, actor_user):
+    """Admins may issue app join links while worker is still in onboarding lock."""
+    role = str((actor_user or {}).get("role") or "").strip().lower()
+    if role not in {"superadmin", "company-admin"}:
+        return False
+    if not worker_row:
+        return False
+    if str(worker_row["worker_type"] or "worker").strip().lower() != "worker":
+        return False
+    lock_meta = get_worker_lock_metadata(db, worker_row)
+    if not lock_meta:
+        return True
+    codes = {
+        str(item.get("code") or "").strip()
+        for item in (lock_meta.get("lockReasons") or [])
+        if str(item.get("code") or "").strip()
+    }
+    if not codes:
+        return True
+    return codes.issubset(_ONBOARDING_LOCK_CODES)
+
+
 def build_worker_app_access_payload(db, worker_id, actor_user):
     worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
     if not worker:
@@ -10914,12 +10943,14 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     if worker_visit_has_expired(worker):
         return None, (jsonify({"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}), 400)
 
+    onboarding_provision = worker_admin_onboarding_provision_allowed(db, worker, actor_user)
+
     doc_block = worker_document_access_block(db, worker)
-    if doc_block:
+    if doc_block and not onboarding_provision:
         db.commit()
         return None, (jsonify(doc_block), 403)
 
-    if str(worker["status"] or "").strip().lower() != "aktiv":
+    if str(worker["status"] or "").strip().lower() != "aktiv" and not onboarding_provision:
         return None, (jsonify({
             "error": "worker_not_active",
             "message": "Mitarbeiter ist gesperrt oder inaktiv — Pflichtdokumente prüfen.",

@@ -1145,6 +1145,10 @@ const UI_TRANSLATIONS = {
     btnHandoverSignLink: "Signatur-Link senden",
     handoverSignLinkCreated: "Signatur-Link erstellt — an den Mitarbeiter senden.",
     handoverSignLinkFailed: "Signatur-Link konnte nicht erstellt werden: {error}",
+    handoverSignSaveWorkerFirst: "Bitte zuerst Mitarbeiter speichern (Foto & PIN), dann Signatur-Link senden.",
+    handoverSignAlreadyPresent: "Bereits unterschrieben — kein Signatur-Link nötig.",
+    handoverSignBadgeBtn: "✍️ Signatur-Link fürs Handy",
+    alertForbidden: "Keine Berechtigung für diese Aktion.",
     workerDetailSignatureHeading: "Unterschrift (Ausweisübergabe)",
     workerDetailIdHandover: "Ausweis übergeben",
     workerHceHeading: "HCE-Geraete",
@@ -2250,6 +2254,10 @@ const UI_TRANSLATIONS = {
     btnHandoverSignLink: "Send signature link",
     handoverSignLinkCreated: "Signature link created — send it to the worker.",
     handoverSignLinkFailed: "Could not create signature link: {error}",
+    handoverSignSaveWorkerFirst: "Save the worker first (photo & PIN), then send the signature link.",
+    handoverSignAlreadyPresent: "Already signed — no signature link needed.",
+    handoverSignBadgeBtn: "✍️ Signature link for phone",
+    alertForbidden: "You are not allowed to perform this action.",
     idHandoverDateLabel: "ID handed over on",
     workerDetailSignatureHeading: "Signature (ID handover)",
     workerDetailIdHandover: "ID handed over",
@@ -4410,6 +4418,10 @@ const UI_TRANSLATIONS = {
     btnHandoverSignLink: "إرسال رابط التوقيع",
     handoverSignLinkCreated: "تم إنشاء رابط التوقيع — أرسله للموظف.",
     handoverSignLinkFailed: "تعذر إنشاء رابط التوقيع: {error}",
+    handoverSignSaveWorkerFirst: "احفظ الموظف أولاً (الصورة ورمز PIN)، ثم أرسل رابط التوقيع.",
+    handoverSignAlreadyPresent: "تم التوقيع مسبقاً — لا حاجة لرابط توقيع.",
+    handoverSignBadgeBtn: "✍️ رابط التوقيع للجوال",
+    alertForbidden: "ليس لديك صلاحية لهذا الإجراء.",
     idHandoverDateLabel: "تاريخ تسليم الهوية",
     workerDetailSignatureHeading: "التوقيع (تسليم الهوية)",
     workerDetailIdHandover: "تم تسليم الهوية",
@@ -9103,6 +9115,7 @@ const elements = {
   badgeActionRow: document.querySelector("#badgeActionRow"),
   printBadgeButton: document.querySelector("#printBadgeButton"),
   appLinkBadgeButton: document.querySelector("#appLinkBadgeButton"),
+  handoverSignBadgeButton: document.querySelector("#handoverSignBadgeButton"),
   loginGreetingToast: document.querySelector("#loginGreetingToast"),
   deviceStatusList: document.querySelector("#deviceStatusList"),
   deviceApiKeyResult: document.querySelector("#deviceApiKeyResult"),
@@ -17259,9 +17272,7 @@ function advanceWorkerFormToBadge() {
   }
   if (!validateWorkerFormBasicsFields()) return;
   if (!hasComplianceSignatureReady()) {
-    showToast(uiT("complianceSignatureRequired"), "warning", 9000);
-    document.getElementById("complianceSignatureBlock")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    return;
+    showToast(uiT("complianceSignatureBeforeBadgeHint"), "info", 7000);
   }
   workerFormPhase = "badge";
   syncWorkerFormPhase();
@@ -17298,9 +17309,42 @@ function getComplianceSignatureElements() {
   };
 }
 
+function mapHandoverSignLinkError(error) {
+  const code = String(error?.code || error?.message || error || "").trim();
+  const payload = error?.payload || {};
+  if (code === "signature_already_present" || code === "already_signed") {
+    return uiT("handoverSignAlreadyPresent");
+  }
+  if (code === "forbidden" || code === "forbidden_worker") {
+    return uiT("alertForbidden");
+  }
+  if (payload?.message) return String(payload.message);
+  if (code === "http_403") return uiT("alertForbidden");
+  return code || uiT("genericUnknownError");
+}
+
+function mapWorkerAppLinkError(error) {
+  const code = String(error?.code || error?.message || error || "").trim();
+  const payload = error?.payload || {};
+  if (payload?.message) return String(payload.message);
+  if (code === "worker_documents_missing") {
+    return uiT("workerMissingDocsBlocked");
+  }
+  if (code === "worker_not_active") {
+    return uiT("workerBadgeBlockedDocs");
+  }
+  if (code === "forbidden" || code === "forbidden_worker") {
+    return uiT("alertForbidden");
+  }
+  return code || uiT("genericUnknownError");
+}
+
 async function createWorkerHandoverSignLink(workerId) {
   const id = String(workerId || "").trim();
-  if (!id) return;
+  if (!id) {
+    showToast(uiT("handoverSignSaveWorkerFirst"), "info", 9000);
+    return false;
+  }
   const payload = await apiRequest(`${API_BASE}/api/workers/${id}/handover-sign-link`, {
     method: "POST",
     body: { renew: true },
@@ -17312,6 +17356,7 @@ async function createWorkerHandoverSignLink(workerId) {
   } else {
     window.prompt(uiT("handoverSignLinkCreated"), link);
   }
+  return true;
 }
 
 function syncComplianceHandoverLinkBtn(worker) {
@@ -17333,7 +17378,7 @@ function wireComplianceHandoverLinkButton() {
   btn.addEventListener("click", () => {
     const workerId = state.editingWorkerId;
     createWorkerHandoverSignLink(workerId).catch((error) => {
-      showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
+      showToast(uiT("handoverSignLinkFailed").replace("{error}", mapHandoverSignLinkError(error)), "error", 8000);
     });
   });
 }
@@ -23763,7 +23808,7 @@ function bindWorkerRowActions() {
       try {
         await createWorkerHandoverSignLink(workerId);
       } catch (error) {
-        showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
+        showToast(uiT("handoverSignLinkFailed").replace("{error}", mapHandoverSignLinkError(error)), "error", 8000);
       }
     };
   });
@@ -23776,7 +23821,7 @@ function bindWorkerRowActions() {
         const worker = state.workers.find((entry) => entry.id === button.dataset.workerAppLink) || null;
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
-        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", error.message), "error", 3600);
+        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", mapWorkerAppLinkError(error)), "error", 3600);
       }
     };
   });
@@ -27009,7 +27054,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
       try {
         await createWorkerHandoverSignLink(workerId);
       } catch (error) {
-        showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
+        showToast(uiT("handoverSignLinkFailed").replace("{error}", mapHandoverSignLinkError(error)), "error", 8000);
       }
     };
   });
@@ -27351,10 +27396,25 @@ function renderBadge() {
         const absoluteLink = normalizeWorkerAppLink(payload.link);
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
-        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", error.message));
+        showToast(uiT("alertAppLinkCreateFailed").replace("{error}", mapWorkerAppLinkError(error)));
       } finally {
         elements.appLinkBadgeButton.disabled = false;
         elements.appLinkBadgeButton.textContent = runtimeText("appLinkPhoneButton");
+      }
+    };
+  }
+
+  if (elements.handoverSignBadgeButton) {
+    const showHandover = !isVisitorWorker(worker) && !worker.hasComplianceSignature;
+    elements.handoverSignBadgeButton.classList.toggle("hidden", !showHandover);
+    elements.handoverSignBadgeButton.onclick = async () => {
+      elements.handoverSignBadgeButton.disabled = true;
+      try {
+        await createWorkerHandoverSignLink(worker.id);
+      } catch (error) {
+        showToast(uiT("handoverSignLinkFailed").replace("{error}", mapHandoverSignLinkError(error)), "error", 8000);
+      } finally {
+        elements.handoverSignBadgeButton.disabled = false;
       }
     };
   }
@@ -28369,13 +28429,6 @@ async function handleWorkerSubmit(event) {
     advanceWorkerFormToBadge();
     return;
   }
-  if (workerType !== "visitor" && !hasComplianceSignatureReady()) {
-    workerFormPhase = "basics";
-    syncWorkerFormPhase();
-    showToast(uiT("complianceSignatureRequired"), "warning", 9000);
-    document.getElementById("complianceSignatureBlock")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-    return;
-  }
 
   const firstName = document.querySelector("#firstName").value.trim();
   const lastName = document.querySelector("#lastName").value.trim();
@@ -28478,6 +28531,12 @@ async function handleWorkerSubmit(event) {
         : "workerMissingDocsBlocked";
       showToast(uiT(toastKey), "warning", 9000);
       setView(savedWorker.lockReasonCode === "missing_handover_signature" ? "badge" : "workers");
+      if (savedWorker.lockReasonCode === "missing_handover_signature") {
+        renderBadge();
+        void createWorkerHandoverSignLink(savedWorker.id).catch((error) => {
+          showToast(uiT("handoverSignLinkFailed").replace("{error}", mapHandoverSignLinkError(error)), "error", 8000);
+        });
+      }
       return;
     }
     refreshAll();
