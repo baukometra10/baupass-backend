@@ -89,7 +89,8 @@ function applyEmbedStartupTab() {
 
 function applyStartupTab() {
   const params = new URLSearchParams(location.search);
-  let tab = params.get("tab");
+  const hashTab = String(location.hash || "").replace(/^#/, "").trim();
+  let tab = params.get("tab") || hashTab;
   if (tab === "analytics" && !canAccessAnalyticsTab()) {
     tab = "overview";
   }
@@ -443,6 +444,7 @@ function applyRoleNavigation() {
   document.querySelectorAll('.tab[data-tab="analytics"]').forEach((el) => {
     el.classList.toggle("hidden", !showAnalytics);
   });
+  $("enterpriseAnalyticsShortcut")?.classList.toggle("hidden", !showAnalytics);
   if (!showAnalytics && document.querySelector('.tab.active[data-tab="analytics"]')) {
     switchToTab("overview");
   }
@@ -906,6 +908,14 @@ function bindTabNavigation() {
       refreshActiveTab().catch(notifyTabError);
     });
   });
+  const gotoAnalytics = $("gotoAnalyticsBtn");
+  if (gotoAnalytics && gotoAnalytics.dataset.bound !== "1") {
+    gotoAnalytics.dataset.bound = "1";
+    gotoAnalytics.addEventListener("click", () => {
+      switchToTab("analytics");
+      refreshActiveTab().catch(notifyTabError);
+    });
+  }
 }
 
 function switchToTab(tabId) {
@@ -2876,7 +2886,41 @@ async function loadAnalytics() {
   bindAnalyticsPeriodButtons();
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
+    const surveys = await api("/api/v2/admin/satisfaction-surveys");
+    const sum = surveys.summary || {};
     $("usageStatCards").innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
+    $("satisfactionSummaryCards").innerHTML = `
+    <div class="card"><span class="muted">${t("analytics.avgScore")}</span><strong>${sum.avgSatisfactionScore ?? "—"}</strong></div>
+    <div class="card"><span class="muted">${t("analytics.recommendRate")}</span><strong>${sum.recommendRate != null ? `${Math.round(sum.recommendRate * 100)}%` : "—"}</strong></div>
+    <div class="card"><span class="muted">${t("analytics.avgTimeSaved")}</span><strong>${sum.avgTimeSavedHours ?? "—"}</strong></div>
+    <div class="card"><span class="muted">${t("analytics.avgCostSaved")}</span><strong>${sum.avgCostSavedEstimate != null ? `€${sum.avgCostSavedEstimate}` : "—"}</strong></div>
+  `;
+    const rows = surveys.surveys || [];
+    $("satisfactionSurveysList").innerHTML = rows.length
+      ? `<table class="data-table"><thead><tr>
+        <th>${t("table.time")}</th><th>${t("login.user")}</th><th>Score</th><th>✓</th><th>Feature</th><th>ROI</th>
+      </tr></thead><tbody>${rows
+        .map((r) => {
+          const roi = [
+            r.time_saved_hours != null ? `${r.time_saved_hours}h` : "",
+            r.cost_saved_estimate != null ? `€${r.cost_saved_estimate}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return `<tr>
+            <td>${escapeHtml((r.created_at || "").slice(0, 16))}</td>
+            <td>${escapeHtml(r.actor_username || "—")}</td>
+            <td>${r.satisfaction_score ?? "—"}</td>
+            <td>${r.would_recommend ? "✓" : "—"}</td>
+            <td>${escapeHtml(r.best_feature || "—")}</td>
+            <td>${escapeHtml(roi || "—")}</td>
+          </tr>`;
+        })
+        .join("")}</tbody></table>`
+      : `<p class="muted">${t("analytics.noSurveys")}</p>`;
+    $("usageTrendsPanel").innerHTML = "";
+    $("moduleAlertsPanel").innerHTML = "";
+    $("featureUsagePanel").innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;
   }
   const periodQs = `${q}${q ? "&" : "?"}period=${encodeURIComponent(analyticsPeriod)}`;

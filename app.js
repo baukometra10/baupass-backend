@@ -1088,7 +1088,8 @@ const UI_TRANSLATIONS = {
     workerAkteLabel: "Mitarbeiter-Akte",
     complianceSignatureEyebrow: "Mitarbeiterakte",
     complianceSignatureHeading: "Unterschrift bei Ausweisübergabe",
-    complianceSignatureHelp: "Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.",
+    complianceSignatureHelp: "Zeichnen Sie die Unterschrift mit Maus oder Stift in die weiße Fläche, nutzen Sie optional ein Signaturgerät, oder senden Sie einen Link an den Mitarbeiter (Mobil-App).",
+    complianceSignatureCanvasHint: "Hier unterschreiben (Maus, Touch oder Stift)",
     complianceSignatureClear: "Unterschrift löschen",
     complianceSignatureSaved: "Unterschrift in der Akte gespeichert.",
     complianceSignatureEmpty: "Noch keine Unterschrift hinterlegt.",
@@ -2191,7 +2192,8 @@ const UI_TRANSLATIONS = {
     workerAkteLabel: "Worker File",
     complianceSignatureEyebrow: "Employee file",
     complianceSignatureHeading: "Signature on ID handover",
-    complianceSignatureHelp: "Captured in admin only – not in the worker app. Stored in the employee file.",
+    complianceSignatureHelp: "Draw the signature with mouse or stylus in the white area, use a signature pad if available, or send a link to the employee (mobile app).",
+    complianceSignatureCanvasHint: "Sign here (mouse, touch, or stylus)",
     complianceSignatureClear: "Clear signature",
     complianceSignatureSaved: "Signature saved to file.",
     complianceSignatureEmpty: "No signature on file yet.",
@@ -4350,7 +4352,8 @@ const UI_TRANSLATIONS = {
     workerAkteLabel: "ملف العامل",
     complianceSignatureEyebrow: "ملف الموظف",
     complianceSignatureHeading: "توقيع عند تسليم الهوية",
-    complianceSignatureHelp: "يُسجَّل في لوحة الإدارة فقط — وليس في تطبيق الموظف. يُخزَّن في ملف الموظف.",
+    complianceSignatureHelp: "ارسم التوقيع بالماوس أو القلم في المساحة البيضاء، أو استخدم جهاز توقيع إن وُجد، أو أرسل رابطاً للموظف (تطبيق الجوال).",
+    complianceSignatureCanvasHint: "وقّع هنا (ماوس، لمس أو قلم)",
     complianceSignatureClear: "مسح التوقيع",
     complianceSignatureSaved: "تم حفظ التوقيع في الملف.",
     complianceSignatureEmpty: "لا يوجد توقيع بعد.",
@@ -17282,7 +17285,48 @@ function getComplianceSignatureElements() {
     status: document.getElementById("complianceSignatureStatus"),
     clearBtn: document.getElementById("complianceSignatureClearBtn"),
     handoverInput: document.getElementById("idHandoverAt"),
+    handoverLinkBtn: document.getElementById("complianceHandoverLinkBtn"),
   };
+}
+
+async function createWorkerHandoverSignLink(workerId) {
+  const id = String(workerId || "").trim();
+  if (!id) return;
+  const payload = await apiRequest(`${API_BASE}/api/workers/${id}/handover-sign-link`, {
+    method: "POST",
+    body: { renew: true },
+  });
+  const link = payload.absoluteUrl || payload.signUrl || "";
+  if (link && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(link);
+    showToast(uiT("handoverSignLinkCreated"), "success", 8000);
+  } else {
+    window.prompt(uiT("handoverSignLinkCreated"), link);
+  }
+}
+
+function syncComplianceHandoverLinkBtn(worker) {
+  const btn = document.getElementById("complianceHandoverLinkBtn");
+  if (!btn) return;
+  const workerType = elements.workerType?.value || "worker";
+  const workerId = worker?.id || state.editingWorkerId;
+  const hasSig = Boolean(worker?.hasComplianceSignature)
+    || complianceSignatureState.hasStroke
+    || String(document.getElementById("complianceSignatureData")?.value || "").trim();
+  const show = workerType !== "visitor" && workerId && !hasSig;
+  btn.classList.toggle("hidden", !show);
+}
+
+function wireComplianceHandoverLinkButton() {
+  const btn = document.getElementById("complianceHandoverLinkBtn");
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+  btn.addEventListener("click", () => {
+    const workerId = state.editingWorkerId;
+    createWorkerHandoverSignLink(workerId).catch((error) => {
+      showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
+    });
+  });
 }
 
 function drawComplianceSignatureImage(dataUrl) {
@@ -17348,6 +17392,7 @@ function initComplianceSignaturePad() {
     const { hidden, status: statusEl } = getComplianceSignatureElements();
     if (hidden) hidden.value = canvas.toDataURL("image/png");
     if (statusEl) statusEl.textContent = uiT("complianceSignatureStatusNew");
+    syncComplianceHandoverLinkBtn(state.workers.find((entry) => entry.id === state.editingWorkerId) || null);
   };
   const endStroke = () => {
     canvas._sigDrawing = false;
@@ -17529,19 +17574,20 @@ function resetComplianceSignatureEditor() {
   complianceSignatureState.loadedForWorkerId = null;
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireComplianceHandoverLinkButton();
   wireSignotecBridgeSetup();
-  void maybeShowSignotecBridgeSetup();
   wireWorkerFormPhaseButtons();
   drawComplianceSignatureImage("");
   const { handoverInput } = getComplianceSignatureElements();
   if (handoverInput) handoverInput.value = "";
+  syncComplianceHandoverLinkBtn(null);
 }
 
 async function loadComplianceSignatureForWorker(worker) {
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireComplianceHandoverLinkButton();
   wireSignotecBridgeSetup();
-  void maybeShowSignotecBridgeSetup();
   complianceSignatureState.touched = false;
   complianceSignatureState.loadedForWorkerId = worker?.id || null;
   const { handoverInput } = getComplianceSignatureElements();
@@ -17550,6 +17596,7 @@ async function loadComplianceSignatureForWorker(worker) {
   }
   if (!worker?.id || !worker?.hasComplianceSignature) {
     drawComplianceSignatureImage("");
+    syncComplianceHandoverLinkBtn(worker);
     resetWorkerFormPhaseForWorker(worker);
     return;
   }
@@ -17562,6 +17609,7 @@ async function loadComplianceSignatureForWorker(worker) {
   } catch (_error) {
     drawComplianceSignatureImage("");
   }
+  syncComplianceHandoverLinkBtn(worker);
   resetWorkerFormPhaseForWorker(worker);
 }
 
@@ -23704,17 +23752,7 @@ function bindWorkerRowActions() {
     button.onclick = async () => {
       const workerId = button.dataset.workerHandoverSign;
       try {
-        const payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/handover-sign-link`, {
-          method: "POST",
-          body: { renew: true },
-        });
-        const link = payload.absoluteUrl || payload.signUrl || "";
-        if (link && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(link);
-          showToast(uiT("handoverSignLinkCreated"), "success", 8000);
-        } else {
-          window.prompt(uiT("handoverSignLinkCreated"), link);
-        }
+        await createWorkerHandoverSignLink(workerId);
       } catch (error) {
         showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
       }
@@ -26960,17 +26998,7 @@ window.triggerWorkerAccess = triggerWorkerAccess;
     button.onclick = async () => {
       const workerId = button.dataset.workerHandoverSign;
       try {
-        const payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/handover-sign-link`, {
-          method: "POST",
-          body: { renew: true },
-        });
-        const link = payload.absoluteUrl || payload.signUrl || "";
-        if (link && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(link);
-          showToast(uiT("handoverSignLinkCreated"), "success", 8000);
-        } else {
-          window.prompt(uiT("handoverSignLinkCreated"), link);
-        }
+        await createWorkerHandoverSignLink(workerId);
       } catch (error) {
         showToast(uiT("handoverSignLinkFailed").replace("{error}", error.message), "error", 8000);
       }
@@ -34910,8 +34938,8 @@ if (workerForm) {
   workerForm.addEventListener("submit", handleWorkerSubmit);
   initComplianceSignaturePad();
   wireSignatureDeviceButton();
+  wireComplianceHandoverLinkButton();
   wireSignotecBridgeSetup();
-  void maybeShowSignotecBridgeSetup();
   wireWorkerFormPhaseButtons();
   wireWorkerFormEnhancements();
   syncWorkerFormPhase();

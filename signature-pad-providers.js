@@ -32,20 +32,21 @@
 
 
 
+  const vendorProbeCache = new Map();
+
   async function vendorAssetExists(src) {
-
-    try {
-
-      const res = await fetch(src, { method: "HEAD", credentials: "omit" });
-
-      return res.ok;
-
-    } catch {
-
-      return false;
-
+    if (vendorProbeCache.has(src)) {
+      return vendorProbeCache.get(src);
     }
-
+    try {
+      const res = await fetch(src, { method: "HEAD", credentials: "omit" });
+      const ok = res.ok;
+      vendorProbeCache.set(src, ok);
+      return ok;
+    } catch {
+      vendorProbeCache.set(src, false);
+      return false;
+    }
   }
 
 
@@ -2198,30 +2199,6 @@
     capture: canvasCapture,
 
   });
-
-
-
-  if (global.document) {
-
-    const preloadSignotec = () => {
-
-      signotecBindGlobals();
-
-      void signotecLoadLib();
-
-    };
-
-    if (global.document.readyState === "loading") {
-
-      global.document.addEventListener("DOMContentLoaded", preloadSignotec, { once: true });
-
-    } else {
-
-      preloadSignotec();
-
-    }
-
-  }
 
 
 

@@ -26,12 +26,27 @@
     return "";
   }
 
+  function resolveCompanyId() {
+    const WP = global.WorkPassStorage;
+    if (WP?.readStoredCompanyId) {
+      const stored = String(WP.readStoredCompanyId() || "").trim();
+      if (stored) return stored;
+    }
+    return "";
+  }
+
   function resolveEndpoint(source) {
     const workerSources = new Set(["worker-app", "worker-pwa", "mobile"]);
     if (workerSources.has(source)) {
       return { url: "/api/worker-app/usage/event", token: readToken(WORKER_TOKEN_KEYS) };
     }
-    return { url: "/api/v2/usage/event", token: readToken(ADMIN_TOKEN_KEYS) };
+    const companyId = resolveCompanyId();
+    const base = "/api/v2/usage/event";
+    return {
+      url: companyId ? `${base}?company_id=${encodeURIComponent(companyId)}` : base,
+      token: readToken(ADMIN_TOKEN_KEYS),
+      companyId,
+    };
   }
 
   function track(featureId, source) {
@@ -44,8 +59,9 @@
     if (lastSent.has(key) && now - lastSent.get(key) < THROTTLE_MS) return;
     lastSent.set(key, now);
 
-    const { url, token } = resolveEndpoint(src);
+    const { url, token, companyId } = resolveEndpoint(src);
     if (!token) return;
+    if (url.includes("/api/v2/usage/event") && !companyId) return;
 
     global.fetch(url, {
       method: "POST",

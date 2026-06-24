@@ -80,10 +80,11 @@
       background: rgba(255, 251, 245, 0.98) !important;
     }
   </style>
-  <link rel="manifest" href="./control-manifest.json" />
-  <link rel="apple-touch-icon" sizes="192x192" href="./branding/suppix-icon-192.png" />
-  <link rel="icon" type="image/svg+xml" sizes="192x192" href="./branding/suppix-ai-mark.svg" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="./branding/suppix-icon-192.png" />
+  <link rel="manifest" href="./control-manifest.json?v=workpass20260624" />
+  <link rel="shortcut icon" href="/favicon.ico?v=workpass20260624" />
+  <link rel="apple-touch-icon" sizes="192x192" href="./branding/suppix-icon-192.png?v=workpass20260624" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="./branding/suppix-ai-mark.svg?v=workpass20260624" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="./branding/suppix-icon-192.png?v=workpass20260624" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
@@ -732,18 +733,20 @@
               <div id="complianceSignatureBlock" class="compliance-signature-block full-width">
                 <p class="eyebrow" data-ui-i18n="complianceSignatureEyebrow">Mitarbeiterakte</p>
                 <h4 data-ui-i18n="complianceSignatureHeading">Unterschrift bei Ausweisübergabe</h4>
-                <p class="helper-text" data-ui-i18n="complianceSignatureHelp">Die Unterschrift wird nur hier im Admin erfasst – nicht in der Mitarbeiter-App. Sie wird in der Mitarbeiterakte gespeichert.</p>
+                <p class="helper-text" data-ui-i18n="complianceSignatureHelp">Zeichnen Sie die Unterschrift mit Maus oder Stift in die weiße Fläche, nutzen Sie optional ein Signaturgerät, oder senden Sie einen Link an den Mitarbeiter (Mobil-App).</p>
                 <label>
                   <span data-ui-i18n="idHandoverDateLabel">Ausweis übergeben am</span>
                   <input id="idHandoverAt" type="datetime-local" />
                 </label>
                 <div class="signature-pad-wrap">
                   <canvas id="complianceSignatureCanvas" width="520" height="160" aria-label="Unterschrift"></canvas>
+                  <p class="helper-text signature-canvas-hint" data-ui-i18n="complianceSignatureCanvasHint">Hier unterschreiben (Maus, Touch oder Stift)</p>
                 </div>
                 <input id="complianceSignatureData" type="hidden" />
                 <p id="complianceSignatureStatus" class="helper-text"></p>
                 <div class="button-row">
                   <button type="button" id="complianceSignatureDeviceBtn" class="ghost-button" data-ui-i18n="signatureDeviceBtn">Signaturgerät</button>
+                  <button type="button" id="complianceHandoverLinkBtn" class="ghost-button hidden" data-ui-i18n="btnHandoverSignLink">Signatur-Link senden</button>
                   <button type="button" id="complianceSignatureClearBtn" class="ghost-button" data-ui-i18n="complianceSignatureClear">Unterschrift löschen</button>
                 </div>
                 <div id="signotecBridgeSetup" class="signotec-bridge-setup hidden" aria-live="polite">
@@ -2274,7 +2277,7 @@
   </script>
   <script src="/vendor/signotec/STPadServerLib.js?v=3.5.0"></script>
   <script src="./signature-pad-bridge.js?v=20260609worker15" defer></script>
-  <script src="./signature-pad-providers.js?v=20260609worker15" defer></script>
+  <script src="./signature-pad-providers.js?v=20260624sig1" defer></script>
   <script src="./signotec-bridge-setup.js?v=20260601signotec1" defer></script>
   <script src="./i18n-packs.js?v=20260528f"></script>
   <script src="./deployment-plan-ui.js?v=20260603g"></script>
@@ -2283,10 +2286,10 @@
   <script src="./geo-precision.js?v=20260624geofence13"></script>
   <script src="./control-pass-theme.js?v=20260619theme1"></script>
   <script src="./support-assist-client.js?v=20260620assist5"></script>
-  <script src="./usage-tracker.js?v=20260619usage1"></script>
+  <script src="./usage-tracker.js?v=20260624usage2"></script>
   <script src="./enterprise-shell-i18n.js?v=20260621enterprise8"></script>
   <script src="./app-i18n-extra-langs.js?v=20260622i18nfull"></script>
-  <script src="./app.js?v=20260624wp1"></script>
+  <script src="./app.js?v=20260624sig1"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

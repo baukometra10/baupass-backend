@@ -117,12 +117,33 @@ WORKER_ICON_TEXT_RGBA = (246, 239, 226, 255)  # #f6efe2
 
 
 def _generate_icon_png(size: int) -> bytes:
-    """Erzeugt ein PNG-Icon (size×size) mit Baupass-Branding."""
+    """PNG icon for PWA/manifest — prefer branding/suppix-icon-*.png (WorkPass)."""
     if size in _icon_png_cache:
         return _icon_png_cache[size]
 
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
     import io as _io
+
+    for candidate in (
+        BASE_DIR / "branding" / f"suppix-icon-{size}.png",
+        BASE_DIR / "branding" / "suppix-icon-192.png",
+        BASE_DIR / "branding" / "suppix-icon-512.png",
+    ):
+        if not candidate.is_file():
+            continue
+        try:
+            img = Image.open(candidate).convert("RGBA")
+            if img.size != (size, size):
+                img = img.resize((size, size), Image.Resampling.LANCZOS)
+            buf = _io.BytesIO()
+            img.save(buf, "PNG")
+            data = buf.getvalue()
+            _icon_png_cache[size] = data
+            return data
+        except Exception:
+            continue
+
+    from PIL import ImageDraw, ImageFont
 
     r1, g1, b1 = WORKER_ICON_PRIMARY_RGB
     r2, g2, b2 = WORKER_ICON_SECONDARY_RGB
@@ -160,7 +181,7 @@ def _generate_icon_png(size: int) -> bytes:
     result.paste(img_raw, mask=mask)
 
     draw = ImageDraw.Draw(result)
-    text = "BP"
+    text = "WP"
     font_size = max(48, int(size * 0.375))
     font = None
     for fp in ["segoeuib.ttf", "arialbd.ttf", "arial.ttf", "DejaVuSans-Bold.ttf",
@@ -24156,7 +24177,21 @@ def worker_icon_png(icon_size: int):
     if not data:
         return jsonify({"error": "icon_generation_failed"}), 500
     response = Response(data, mimetype="image/png")
-    response.headers["Cache-Control"] = "public, max-age=86400"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
+
+def favicon_ico():
+    """Browser tab icon — WorkPass / Suppix branding (not legacy BauPass)."""
+    for name in ("suppix-icon-192.png", "suppix-icon-512.png"):
+        target = BASE_DIR / "branding" / name
+        if target.is_file():
+            response = send_from_directory(BASE_DIR / "branding", name, mimetype="image/png")
+            response.headers["Cache-Control"] = "public, max-age=604800"
+            return response
+    data = _generate_icon_png(192)
+    response = Response(data, mimetype="image/png")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
 
 

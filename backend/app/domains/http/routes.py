@@ -16,6 +16,7 @@ def _register_http_routes() -> None:
     from backend.server import (
         admin_v2_entry,
         enterprise_hub_entry,
+        favicon_ico,
         phone_test_page,
         review_page,
         root,
@@ -31,6 +32,7 @@ def _register_http_routes() -> None:
         http_bp,
         (
             ("/", root, ("GET",)),
+            ("/favicon.ico", favicon_ico, ("GET",)),
             ("/enterprise", enterprise_hub_entry, ("GET",)),
             ("/enterprise/", enterprise_hub_entry, ("GET",)),
             ("/admin", admin_v2_entry, ("GET",)),
