@@ -2452,10 +2452,16 @@ def get_public_base_url():
     if has_request_context() and request.host:
         forwarded_proto = (request.headers.get("X-Forwarded-Proto") or "").split(",", 1)[0].strip().lower()
         scheme = forwarded_proto if forwarded_proto in {"http", "https"} else request.scheme
-        hostname = (request.host.split(":", 1)[0] or "").strip()
+        host_header = str(request.host or "").strip()
+        hostname = (host_header.split(":", 1)[0] or "").strip()
+        port_suffix = f":{host_header.split(':', 1)[1]}" if ":" in host_header else ""
+        if hostname.lower() in {"127.0.0.1", "localhost", "::1"}:
+            preferred_ip = get_preferred_local_ip()
+            if preferred_ip:
+                hostname = preferred_ip
         if scheme == "http" and hostname and not is_private_or_local_host(hostname):
             scheme = "https"
-        return f"{scheme}://{request.host}"
+        return f"{scheme}://{hostname}{port_suffix}"
 
     preferred_ip = get_preferred_local_ip() or "127.0.0.1"
     port = (os.getenv("PORT") or "8000").strip() or "8000"

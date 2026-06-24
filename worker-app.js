@@ -72,11 +72,36 @@ function isStaticFrontendHost(hostname) {
   return host.endsWith("github.io") || host.endsWith(".pages.dev") || host.endsWith(".web.app");
 }
 
+function isUnreachableLocalApiBase(value) {
+  const normalized = sanitizeApiBase(value);
+  if (!normalized) {
+    return false;
+  }
+  try {
+    const host = new URL(normalized).hostname.toLowerCase();
+    return isLocalWorkerHost(host) && !isLocalWorkerHost(window.location.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function resolveSameOriginWorkerApiBase() {
+  if (window.location.protocol === "file:") {
+    return "";
+  }
+  const origin = String(window.location.origin || "").replace(/\/+$/, "");
+  if (!origin || origin === "null") {
+    return "";
+  }
+  return `${origin}/api/worker-app`;
+}
+
 function resolveWorkerApiBase() {
   const params = new URL(window.location.href).searchParams;
   const queryValue = sanitizeApiBase(params.get("apiBase"));
   const currentHost = window.location.hostname.toLowerCase();
   const staticHost = isStaticFrontendHost(currentHost);
+  const sameOriginApi = resolveSameOriginWorkerApiBase();
 
   if (isLocalWorkerHost(currentHost)) {
     if (queryValue) {
@@ -88,7 +113,7 @@ function resolveWorkerApiBase() {
     } catch {
       // ignore
     }
-    return "/api/worker-app";
+    return sameOriginApi || "/api/worker-app";
   }
 
   let storedValue = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
@@ -107,19 +132,21 @@ function resolveWorkerApiBase() {
       wpRemove(API_BASE_STORAGE_KEY);
     }
   }
-  const configuredValue = queryValue || storedValue;
+
+  let configuredValue = queryValue || storedValue;
+  if (configuredValue && isUnreachableLocalApiBase(configuredValue)) {
+    configuredValue = "";
+    wpRemove(API_BASE_STORAGE_KEY);
+  }
 
   if (configuredValue) {
     try {
       const configuredHost = new URL(configuredValue).hostname.toLowerCase();
-      if (isLocalWorkerHost(configuredHost)) {
-        return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
-      }
       if (staticHost && configuredHost === currentHost) {
         return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
       }
     } catch {
-      return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
+      return sameOriginApi || `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
     }
     wpSet(API_BASE_STORAGE_KEY, configuredValue);
     return `${configuredValue}/api/worker-app`;
@@ -133,11 +160,20 @@ function resolveWorkerApiBase() {
     return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
   }
 
+  if (sameOriginApi) {
+    return sameOriginApi;
+  }
+
   return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
 }
 
-const API_BASE = resolveWorkerApiBase();
-const API_ROOT = resolveApiRoot(API_BASE);
+let API_BASE = resolveWorkerApiBase();
+let API_ROOT = resolveApiRoot(API_BASE);
+
+function refreshWorkerApiBase() {
+  API_BASE = resolveWorkerApiBase();
+  API_ROOT = resolveApiRoot(API_BASE);
+}
 const WORKER_TOKEN_KEY = WP?.KEYS?.WORKER_TOKEN || "workpass-worker-token";
 const WORKER_ACCESS_TOKEN_KEY = WP?.KEYS?.WORKER_ACCESS_TOKEN || "workpass-worker-access-token";
 const PENDING_ACCESS_TOKEN_KEY = WP?.KEYS?.PENDING_ACCESS_TOKEN || "workpass-pending-access-token";
@@ -1693,6 +1729,11 @@ async function init() {
   }
   
   const params = new URL(window.location.href).searchParams;
+  const urlApiBase = sanitizeApiBase(params.get("apiBase"));
+  if (urlApiBase) {
+    wpSet(API_BASE_STORAGE_KEY, urlApiBase);
+  }
+  refreshWorkerApiBase();
   const bootstrapAccessToken = readBootstrapAccessToken(params);
   const viewParam = (params.get("view") || "").trim().toLowerCase();
   if (viewParam === "card") {
@@ -2734,6 +2775,14 @@ async function forceRefreshApp() {
   window.location.reload();
 }
 
+function workerLoginConnectionErrorMessage(error) {
+  refreshWorkerApiBase();
+  if (typeof tf === "function") {
+    return tf("loginServerUnreachable", { server: API_BASE });
+  }
+  return `${t("connError")} (${API_BASE})`;
+}
+
 async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent = false, locationPayload = null } = {}) {
   if (!accessToken) {
     if (!silent) {
@@ -2787,6 +2836,15 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     initializeSessionInactivityProtection();
     void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
+    if (isWorkerLoginNetworkError(error)) {
+      clearBootstrapAccessTokens();
+      if (!silent) {
+        showWorkerNotice(workerLoginConnectionErrorMessage(error));
+      } else {
+        showLogin();
+      }
+      return;
+    }
     if (error.code === "access_token_already_used") {
       clearBootstrapAccessTokens();
       // If the worker already has an active session, just load that instead of showing the login screen
@@ -2905,9 +2963,14 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
         return;
       }
       if (!silent) {
-        const notice = restoreResult.message
-          || (isWorkerLoginNetworkError(error) ? `${t("loginFailed")}: ${t("offlineLoginFailed")}` : `${t("loginFailed")}: ${workerLoginErrorMessage(error)}`);
-        showWorkerNotice(notice);
+        const notice = restoreResult.restored
+          ? ""
+          : (isWorkerLoginNetworkError(error)
+            ? workerLoginConnectionErrorMessage(error)
+            : (restoreResult.message || `${t("loginFailed")}: ${workerLoginErrorMessage(error)}`));
+        if (notice) {
+          showWorkerNotice(notice);
+        }
       }
       return;
     }
