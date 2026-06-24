@@ -26,7 +26,7 @@
   display: none !important;
 }
 
-/* Embedded in WorkPass shell: no nested Enterprise hub (parent sidebar) */
+/* Embedded in SUPPIX shell: no nested Enterprise hub (parent sidebar) */
 body.admin-v2-embed .nav-group:has(.nav-item-enterprise),
 body.admin-v2-embed #tab-enterprise {
   display: none !important;

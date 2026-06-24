@@ -1,5 +1,5 @@
 ﻿/**
- * Same-origin iframe embed: add embed=1 to links and optional parent navigation (WorkPass).
+ * Same-origin iframe embed: add embed=1 to links and optional parent navigation (SUPPIX).
  */
 (function initBaupassEmbedHelpers(global) {
   function isEmbedMode() {
@@ -117,7 +117,7 @@
     fb.setAttribute("role", "alert");
     fb.innerHTML = `
       <div class="embed-frame-fallback-card">
-        <p class="embed-frame-fallback-eyebrow">WorkPass</p>
+        <p class="embed-frame-fallback-eyebrow">SUPPIX</p>
         <h3 class="embed-frame-fallback-title">${title || "Modul"}</h3>
         <p class="embed-frame-fallback-msg" data-embed-fallback-msg>
           Verbindung zum Server fehlgeschlagen. Bitte prüfen Sie, ob die Anwendung auf Railway läuft, oder öffnen Sie das Modul im Vollbild.
@@ -471,7 +471,7 @@
   }
 
   function applyTenantFavicon({ logoData, title } = {}) {
-    const iconHref = String(logoData || "").trim() || new URL("/worker-icon-192.png", global.location.origin).href;
+    const iconHref = String(logoData || "").trim() || new URL("/branding/suppix-icon-192.png", global.location.origin).href;
     const appFavicon = ensureBrandingLink("#appFavicon", "icon");
     appFavicon.id = "appFavicon";
     appFavicon.type = "image/png";

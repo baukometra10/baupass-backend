@@ -2604,6 +2604,63 @@ label {
   box-sizing: border-box;
 }
 
+.site-coords-display {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.site-location-panel {
+  margin-top: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface-strong);
+}
+
+.site-location-map {
+  display: block;
+  width: 100%;
+  height: 180px;
+  border: 0;
+}
+
+.site-location-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.site-map-open-link {
+  font-size: 0.85rem;
+  color: var(--teal);
+  text-decoration: none;
+}
+
+.site-map-open-link:hover {
+  text-decoration: underline;
+}
+
+.site-distance-display {
+  display: block;
+  padding: 0 0.7rem 0.65rem;
+}
+
+.site-distance-display.is-ok {
+  color: #15803d;
+}
+
+.site-distance-display.is-warn {
+  color: #b45309;
+}
+
+.site-distance-display.is-bad {
+  color: #b91c1c;
+}
+
 input,
 select {
   width: 100%;
@@ -8938,7 +8995,7 @@ body.theme-black .invoice-toolbar-refresh:active {
   }
 }
 
-/* —— Einsatzplan (WorkPass + shared modal) —— */
+/* —— Einsatzplan (SUPPIX + shared modal) —— */
 .deployment-month-bar {
   margin: 0 0 1rem;
   padding: 1rem 1.1rem;

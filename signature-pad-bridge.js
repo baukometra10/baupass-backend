@@ -1,5 +1,5 @@
 ﻿/**
- * WorkPass — vendor-agnostic signature pad bridge (core registry)
+ * SUPPIX — vendor-agnostic signature pad bridge (core registry)
  * Providers register via signature-pad-providers.js
  * @see docs/signature-pad-setup-AR.md
  */

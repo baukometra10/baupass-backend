@@ -1,5 +1,5 @@
 ﻿/**
- * WorkPass — Signotec one-page setup (single download flow).
+ * SUPPIX — Signotec one-page setup (single download flow).
  */
 (function initSignotecBridgeSetup(global) {
   const SETUP_PAGE = "/signotec-setup.html";

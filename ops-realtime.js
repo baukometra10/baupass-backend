@@ -1,5 +1,5 @@
 ﻿/**
- * WorkPass ops live feed — Socket.IO when supported, otherwise silent HTTP polling.
+ * SUPPIX ops live feed — Socket.IO when supported, otherwise silent HTTP polling.
  */
 (function (global) {
   function formatEventLine(evt) {
@@ -216,5 +216,5 @@
     return startPolling({ companyId, feedEl, onMode, onEvent });
   }
 
-  global.WorkPassOpsRealtime = { start, formatEventLine, renderFeed };
+  global.SUPPIXOpsRealtime = { start, formatEventLine, renderFeed };
 })(typeof window !== "undefined" ? window : globalThis);

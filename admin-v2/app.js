@@ -151,7 +151,7 @@ async function activateCommandItem(item) {
 
 function ensureEmbedQuickNav() {
   if (!isEmbedMode()) return;
-  /* Parent WorkPass sidebar owns navigation — no duplicate quick bar in embed */
+  /* Parent SUPPIX sidebar owns navigation — no duplicate quick bar in embed */
   return;
   const main = document.querySelector(".app-main");
   if (!main || document.getElementById("embedQuickNav")) return;
@@ -777,14 +777,14 @@ function scheduleInboxReload() {
 }
 
 async function startAdminRealtime() {
-  if (!window.WorkPassOpsRealtime) return;
+  if (!window.SUPPIXOpsRealtime) return;
   if (adminRealtimeStop) {
     adminRealtimeStop();
     adminRealtimeStop = null;
   }
   const cid = companyIdFromQuery();
   if (!cid && getUser().role === "superadmin") return;
-  adminRealtimeStop = await window.WorkPassOpsRealtime.start({
+  adminRealtimeStop = await window.SUPPIXOpsRealtime.start({
     companyId: cid,
     feedEl: null,
     onEvent: (evt) => {
@@ -2384,6 +2384,8 @@ async function loadTools() {
           if (state === "loading") gpsStatus.textContent = t("tools.gpsLoading");
           else if (state === "ok") gpsStatus.textContent = t("tools.gpsOk");
           else if (state === "denied") gpsStatus.textContent = t("tools.gpsDenied");
+          else if (state === "timeout") gpsStatus.textContent = t("tools.gpsTimeout");
+          else if (state === "failed") gpsStatus.textContent = t("tools.gpsFailed");
           else if (state === "unsupported") gpsStatus.textContent = t("tools.gpsUnsupported");
         },
       });
@@ -3477,14 +3479,15 @@ async function loadWorkers() {
     return;
   }
   await loadDeploymentMonthBar();
-  const data = await api(`/api/v2/workers${q}`);
-  const rows = data.workers || [];
-  window.__adminV2WorkersCache = rows;
-  const container = $("workersTable");
-  if (!rows.length) {
-    container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noWorkers")}</p>`;
-    return;
-  }
+  try {
+    const data = await api(`/api/v2/workers${q}`);
+    const rows = data.workers || [];
+    window.__adminV2WorkersCache = rows;
+    const container = $("workersTable");
+    if (!rows.length) {
+      container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noWorkers")}</p>`;
+      return;
+    }
   const head = `
     <tr>
       <th>${t("workers.colName")}</th>
@@ -3545,6 +3548,9 @@ async function loadWorkers() {
       location.href = `/admin-v2/contracts.html${q}&worker_id=${encodeURIComponent(wid)}`;
     });
   });
+  } catch (error) {
+    $("workersTable").innerHTML = `<p class="muted" style="padding:1rem">${error?.message || "Mitarbeiter konnten nicht geladen werden."}</p>`;
+  }
 }
 
 async function loadAccess() {

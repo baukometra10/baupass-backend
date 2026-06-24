@@ -1,16 +1,16 @@
 ﻿/**
- * Unified embed + app-shell layout (WorkPass parent + iframe children).
+ * Unified embed + app-shell layout (SUPPIX parent + iframe children).
  * One viewport, one scroll region per surface — no nested scroll chaos.
  */
 
-/* Logged-in WorkPass: lock page scroll; views scroll internally */
+/* Logged-in SUPPIX: lock page scroll; views scroll internally */
 body:not(.auth-locked) {
   overflow: hidden;
   height: 100dvh;
   max-height: 100dvh;
 }
 
-/* ── WorkPass: main column is a flex stack ── */
+/* ── SUPPIX: main column is a flex stack ── */
 .shell {
   height: 100vh;
   height: 100dvh;
@@ -233,7 +233,7 @@ body.embed-mode .embed-scroll-main::-webkit-scrollbar-thumb:hover {
   background: rgba(56, 189, 248, 0.5);
 }
 
-/* Custom scrollbars on main content column (WorkPass views) */
+/* Custom scrollbars on main content column (SUPPIX views) */
 .content .view.active:not(.view-embed) {
   scrollbar-width: thin;
   scrollbar-color: rgba(56, 189, 248, 0.45) rgba(5, 8, 22, 0.55);
@@ -270,7 +270,7 @@ body.embed-mode .embed-panel-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Enterprise Hub inside WorkPass iframe — 100vh bug fix */
+/* Enterprise Hub inside SUPPIX iframe — 100vh bug fix */
 html.embed-document body.embed-mode #mainLayout.embed-layout-split {
   height: 100%;
   min-height: 0;
@@ -315,7 +315,7 @@ body.embed-mode .embed-panel-fixed #aiLog {
   min-height: 0;
 }
 
-/* Admin v2 inside WorkPass iframe */
+/* Admin v2 inside SUPPIX iframe */
 html.embed-document body.embed-mode.admin-v2-embed {
   height: 100%;
   min-height: 0;

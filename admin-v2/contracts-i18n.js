@@ -1,4 +1,4 @@
-﻿/** Contract page UI — 8 languages aligned with WorkPass. */
+﻿/** Contract page UI — 8 languages aligned with SUPPIX. */
 window.ContractPageI18n = {
   de: {
     pageTitle: "Arbeitsverträge — alle Branchen",

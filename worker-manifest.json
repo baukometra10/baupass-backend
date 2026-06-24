@@ -1,7 +1,7 @@
 ﻿{
   "id": "/emp-app.html?v=20260511i",
-  "name": "WorkPass – Mitarbeiter",
-  "short_name": "WorkPass",
+  "name": "SUPPIX – Mitarbeiter",
+  "short_name": "SUPPIX",
   "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
   "start_url": "/emp-app.html?view=card&v=20260511i",
   "display": "standalone",
@@ -15,34 +15,34 @@
     {
       "name": "Meine Karte anzeigen",
       "short_name": "Karte",
-      "description": "WorkPass direkt öffnen",
+      "description": "SUPPIX direkt öffnen",
       "url": "/emp-app.html?view=card&v=20260511i",
       "icons": [
-        { "src": "/worker-icon-192-20260511f.png", "sizes": "192x192", "type": "image/png" }
+        { "src": "/branding/suppix-icon-192.png", "sizes": "192x192", "type": "image/png" }
       ]
     }
   ],
   "icons": [
     {
-      "src": "/worker-icon-192-20260511f.png",
+      "src": "/branding/suppix-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/worker-icon-512-20260511f.png",
+      "src": "/branding/suppix-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/worker-icon-192-20260511f.svg",
+      "src": "/branding/suppix-ai-mark.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/worker-icon-512-20260511f.svg",
+      "src": "/branding/suppix-ai-mark.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

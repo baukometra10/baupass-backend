@@ -321,7 +321,7 @@
   opacity: 0.85;
 }
 
-/* Light theme (WorkPass / worker light mode) */
+/* Light theme (SUPPIX / worker light mode) */
 html[data-theme="light"] .bp-ai-composer,
 .worker-ai-card .bp-ai-composer {
   --bp-composer-bg: #ffffff;

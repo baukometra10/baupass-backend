@@ -92,7 +92,8 @@ WORKER_LOGIN_MAX_DISTANCE_METERS = 100
 WORKER_SITE_GEOFENCE_DEFAULT_METERS = 20
 WORKER_SITE_GEOFENCE_MIN_METERS = 10
 WORKER_SITE_GEOFENCE_MAX_METERS = 40
-WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 80
+WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 40
+WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 12
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -534,7 +535,7 @@ def feature_not_available_response(feature_key, plan_value):
         "requiredPlan": required,
     }), 403
 
-DEFAULT_PLATFORM_NAME = "WorkPass"
+DEFAULT_PLATFORM_NAME = "SUPPIX"
 DEFAULT_OPERATOR_NAME = "Suppix Technologie UG"
 DEFAULT_BRAND_PRIMARY = "#06b6d4"
 DEFAULT_BRAND_ACCENT = "#a855f7"
@@ -1701,11 +1702,11 @@ def serialize_worker_record(row):
         "workerType": normalize_worker_type(row["worker_type"]),
         "role": row["role"],
         "site": row["site"],
-        "siteLatitude": float(row["site_latitude"])
-        if hasattr(row, "keys") and "site_latitude" in row.keys() and row["site_latitude"] is not None
+        "siteLatitude": _normalize_float(row["site_latitude"])
+        if hasattr(row, "keys") and "site_latitude" in row.keys()
         else None,
-        "siteLongitude": float(row["site_longitude"])
-        if hasattr(row, "keys") and "site_longitude" in row.keys() and row["site_longitude"] is not None
+        "siteLongitude": _normalize_float(row["site_longitude"])
+        if hasattr(row, "keys") and "site_longitude" in row.keys()
         else None,
         "validUntil": row["valid_until"],
         "visitorCompany": row["visitor_company"],
@@ -2516,7 +2517,7 @@ def _wallet_build_google_save_url(pass_object_id: str, worker: dict, company_nam
                     "id": object_id,
                     "classId": class_id,
                     "state": "ACTIVE",
-                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "WorkPass"}},
+                    "cardTitle": {"defaultValue": {"language": "de-DE", "value": "SUPPIX"}},
                     "header": {"defaultValue": {"language": "de-DE", "value": worker_name}},
                     "subheader": {"defaultValue": {"language": "de-DE", "value": company_name or "Suppix Technologie UG"}},
                     "barcode": {"type": "QR_CODE", "value": badge_id, "alternateText": badge_id},
@@ -2607,8 +2608,8 @@ def _wallet_build_apple_pkpass(pass_object_id: str, worker: dict, company_name: 
         "serialNumber": pass_object_id,
         "teamIdentifier": team_id,
         "organizationName": company_name or "Suppix Technologie UG",
-        "description": "WorkPass Worker Badge",
-        "logoText": "WorkPass",
+        "description": "SUPPIX Worker Badge",
+        "logoText": "SUPPIX",
         "generic": {
             "primaryFields": [
                 {"key": "worker_name", "label": "Mitarbeiter", "value": worker_name}
@@ -2781,7 +2782,7 @@ def init_db():
             smtp_username TEXT NOT NULL DEFAULT '',
             smtp_password TEXT NOT NULL DEFAULT '',
             smtp_sender_email TEXT NOT NULL DEFAULT '',
-            smtp_sender_name TEXT NOT NULL DEFAULT 'WorkPass',
+            smtp_sender_name TEXT NOT NULL DEFAULT 'SUPPIX',
             smtp_use_tls INTEGER NOT NULL DEFAULT 1,
             resend_api_key TEXT NOT NULL DEFAULT '',
             resend_from_email TEXT NOT NULL DEFAULT '',
@@ -3231,15 +3232,15 @@ def init_db():
     if "card_print_rotation_deg" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN card_print_rotation_deg REAL NOT NULL DEFAULT 0")
     cur.execute(
-        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass')",
+        "UPDATE settings SET platform_name = ? WHERE id = 1 AND COALESCE(TRIM(platform_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'SUPPIX')",
         (DEFAULT_PLATFORM_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass', 'Baukometra', 'BauKometra')",
+        "UPDATE settings SET operator_name = ? WHERE id = 1 AND COALESCE(TRIM(operator_name), '') IN ('', 'Deine Betriebsfirma', 'Deine Firma', 'Your company', 'BauPass', 'BauPass Control', 'Control Pass', 'SUPPIX', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
     )
     cur.execute(
-        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'Baukometra', 'BauKometra')",
+        "UPDATE settings SET smtp_sender_name = ? WHERE id = 1 AND COALESCE(TRIM(smtp_sender_name), '') IN ('', 'BauPass', 'BauPass Control', 'Control Pass', 'SUPPIX', 'Baukometra', 'BauKometra')",
         (DEFAULT_OPERATOR_NAME,),
     )
     default_logo = _default_brand_logo_data_url()
@@ -5600,7 +5601,7 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     if not recipient:
         return False, "Empfänger-E-Mail fehlt"
 
-    platform_name = str(global_settings["platform_name"] or "WorkPass").strip()
+    platform_name = str(global_settings["platform_name"] or "SUPPIX").strip()
     primary_color = str(global_settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
     accent_color = str(global_settings.get("invoice_accent_color") or DEFAULT_BRAND_ACCENT).strip() or DEFAULT_BRAND_ACCENT
     operator_name = str(global_settings["operator_name"] or platform_name).strip()
@@ -6061,7 +6062,7 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "WorkPass/1.0 (resend-client; python-urllib)",
+            "User-Agent": "SUPPIX/1.0 (resend-client; python-urllib)",
         },
         method="POST",
     )
@@ -6258,7 +6259,7 @@ def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
     sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
+    sender_name = (settings.get("smtp_sender_name") or "SUPPIX").strip()
     try:
         _send_via_any_api(subject, sender_email, sender_name, email, text_body, html_body)
         return True
@@ -6884,7 +6885,7 @@ def check_visitor_card_expiry_notifications(db):
             f"die Besucherkarte von {worker['first_name']} {worker['last_name']} "
             f"(Badge {worker['badge_id']}, Firma {worker['company_name']}) "
             f"läuft am {expire_label} Uhr ab.\n\n"
-            f"Bitte verlängern oder löschen Sie die Karte im WorkPass-Admin-Panel.\n\n"
+            f"Bitte verlängern oder löschen Sie die Karte im SUPPIX-Admin-Panel.\n\n"
             f"Viele Grüße\n{settings['operator_name']}"
         )
         mail_sent = False
@@ -6902,7 +6903,7 @@ def check_visitor_card_expiry_notifications(db):
                 f"die Besucherkarte von {worker['first_name']} {worker['last_name']} "
                 f"(Badge {worker['badge_id']}, Firma {worker['company_name']}) "
                 f"l\u00e4uft am {expire_label} Uhr ab.\n\n"
-                f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im WorkPass-Admin-Panel.\n\n"
+                f"Bitte verl\u00e4ngern oder l\u00f6schen Sie die Karte im SUPPIX-Admin-Panel.\n\n"
                 f"Viele Gr\u00fc\u00dfe\n{settings['operator_name']}"
             )
             fallback_ok, _, _provider_used = _send_via_any_api(
@@ -7600,7 +7601,7 @@ def start_background_jobs():
                     "SELECT COUNT(*) AS c FROM invoices WHERE paid_at IS NULL AND status NOT IN ('bezahlt','draft')"
                 ).fetchone()["c"]
 
-                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
+                platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 summary_text = (
                     f"{platform_label} Tageszusammenfassung für {yesterday}:\n\n"
@@ -7730,7 +7731,7 @@ def start_background_jobs():
                         }
                     by_company[cid]["workers"].append(row)
 
-                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
+                platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
 
@@ -7858,7 +7859,7 @@ def start_background_jobs():
                         }
                     by_company[cid]["docs"].append(row)
 
-                platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
+                platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
                 operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
                 _primary = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
 
@@ -8528,7 +8529,7 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
 def _platform_branding_payload(db):
     ui_build = (os.getenv("BAUPASS_UI_BUILD") or os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12] or "").strip()
     fallback = {
-        "platformName": "WorkPass",
+        "platformName": "SUPPIX",
         "operatorName": "Suppix Technologie UG",
         "primaryColor": DEFAULT_BRAND_PRIMARY,
         "accentColor": DEFAULT_BRAND_ACCENT,
@@ -8546,7 +8547,7 @@ def _platform_branding_payload(db):
     if not row:
         return fallback
     return {
-        "platformName": str(row["platform_name"] or "WorkPass"),
+        "platformName": str(row["platform_name"] or "SUPPIX"),
         "operatorName": str(row["operator_name"] or "Suppix Technologie UG"),
         "primaryColor": str(row["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY),
         "accentColor": str(row["invoice_accent_color"] or DEFAULT_BRAND_ACCENT),
@@ -8658,7 +8659,7 @@ def phone_test_page():
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
     <meta name=\"google\" content=\"notranslate\" />
     <meta http-equiv=\"Content-Language\" content=\"de\" />
-    <title>WorkPass Telefon-Test</title>
+    <title>SUPPIX Telefon-Test</title>
     <style>
         body {{
             margin: 0;
@@ -8688,7 +8689,7 @@ def phone_test_page():
 </head>
 <body>
     <main class=\"card\">
-        <p class=\"ok\">WorkPass Telefon-Test: ERREICHBAR</p>
+        <p class=\"ok\">SUPPIX Telefon-Test: ERREICHBAR</p>
         <p class=\"row\"><strong>Zeit:</strong> {now_value}</p>
         <p class=\"row\"><strong>Host:</strong> {host}</p>
         <p class=\"row\"><strong>Client-IP:</strong> {remote_addr}</p>
@@ -9401,10 +9402,10 @@ def resend_test():
         return jsonify({"ok": False, "error": "missing_recipient"})
 
     sender_email = ""
-    sender_name = "WorkPass"
+    sender_name = "SUPPIX"
     if settings:
         sender_email = str(settings["smtp_sender_email"] or "").strip()
-        sender_name = str(settings["smtp_sender_name"] or "WorkPass").strip() or "WorkPass"
+        sender_name = str(settings["smtp_sender_name"] or "SUPPIX").strip() or "SUPPIX"
 
     env_presence = _collect_resend_env_presence()
     resend_api_key, resend_key_source = _get_resend_api_key_and_source()
@@ -9437,7 +9438,7 @@ def resend_test():
             "resendCacheDebug": f"cache_key_len={len(_resend_key_cache.get('key',''))}",
         })
 
-    subject = "WorkPass: API Direkt-Test"
+    subject = "SUPPIX: API Direkt-Test"
     text_body = (
         "Dieser Test wurde direkt ueber die HTTPS API-Fallback-Zustellung versendet.\n"
         "Wenn diese Mail ankommt, funktioniert die API-Zustellung korrekt im Container."
@@ -10503,7 +10504,7 @@ def download_worker_akte_pdf(worker_id):
             pass
 
     pdf.setFont("Helvetica", 8)
-    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | WorkPass Mitarbeiterakte")
+    pdf.drawString(40, 36, f"Erstellt: {now_iso()} | SUPPIX Mitarbeiterakte")
     pdf.showPage()
     pdf.save()
     buf.seek(0)
@@ -10849,7 +10850,10 @@ def worker_location_login_error_response(db, worker, exc):
             "message": "GPS-Signal zu ungenau. Bitte kurz warten, ins Freie gehen und erneut versuchen.",
         }), 400
     if error_code == "site_location_unavailable":
-        return jsonify({"error": error_code, "message": "Fuer diese Baustelle konnten noch keine Koordinaten ermittelt werden. Bitte Admin informieren."}), 403
+        return jsonify({
+            "error": error_code,
+            "message": "Fuer diesen Standort fehlen GPS-Koordinaten. Bitte im Admin den GPS-Button am Standortfeld nutzen und speichern.",
+        }), 403
     return jsonify({
         "error": error_code or "location_check_failed",
         "message": "Standortpruefung fehlgeschlagen. Bitte erneut versuchen.",
@@ -10936,11 +10940,21 @@ def _validate_worker_location_accuracy_or_raise(location):
 
 
 def _effective_geofence_distance_meters(distance_meters, accuracy_meters):
-    distance = max(0.0, float(distance_meters))
+    return max(0.0, float(distance_meters))
+
+
+def _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters):
+    radius = max(0.0, float(radius_meters))
     accuracy = _normalize_float(accuracy_meters)
-    if accuracy is not None and accuracy > 0:
-        distance = max(0.0, distance - accuracy)
-    return distance
+    if accuracy is None or accuracy <= 0:
+        return radius
+    # Allow GPS uncertainty like map pin sharing: radius + min(reported accuracy, 15 m).
+    return radius + min(accuracy, WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS)
+
+
+def worker_within_site_geofence(distance_meters, radius_meters, accuracy_meters):
+    allowed_radius = _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters)
+    return float(distance_meters) <= allowed_radius
 
 
 def _validate_site_coordinate_pair(latitude, longitude):
@@ -10950,22 +10964,23 @@ def _validate_site_coordinate_pair(latitude, longitude):
         return None
     if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lng <= 180.0):
         raise ValueError("invalid_site_coordinates")
-    return lat, lng
+    return round(lat, 7), round(lng, 7)
 
 
 def apply_worker_site_coordinates_from_payload(db, worker_id, payload, existing_worker=None):
-    if "siteLatitude" not in payload and "siteLongitude" not in payload:
+    if "siteLatitude" in payload and "siteLongitude" in payload:
+        coords = _validate_site_coordinate_pair(payload.get("siteLatitude"), payload.get("siteLongitude"))
+        if coords:
+            db.execute(
+                "UPDATE workers SET site_latitude = ?, site_longitude = ? WHERE id = ?",
+                (coords[0], coords[1], worker_id),
+            )
+            return
+
+    if not existing_worker:
         return
 
-    coords = _validate_site_coordinate_pair(payload.get("siteLatitude"), payload.get("siteLongitude"))
-    if coords:
-        db.execute(
-            "UPDATE workers SET site_latitude = ?, site_longitude = ? WHERE id = ?",
-            (coords[0], coords[1], worker_id),
-        )
-        return
-
-    previous_site = str((existing_worker or {}).get("site") or "").strip()
+    previous_site = str(existing_worker.get("site") or "").strip()
     next_site = str(payload.get("site") if payload.get("site") is not None else previous_site).strip()
     if next_site != previous_site:
         db.execute(
@@ -10991,18 +11006,19 @@ def measure_worker_site_distance(db, worker, location):
         site_coordinates[0], site_coordinates[1], device_latitude, device_longitude
     )
     accuracy_meters = _worker_location_accuracy_meters(location)
-    effective_distance_meters = _effective_geofence_distance_meters(
-        raw_distance_meters, accuracy_meters
-    )
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    radius_meters = int(site_cfg["siteGeofenceRadiusMeters"])
+    allowed_radius_meters = _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters)
     result = {
-        "distanceMeters": int(round(effective_distance_meters)),
+        "distanceMeters": int(round(raw_distance_meters)),
         "siteLatitude": float(site_coordinates[0]),
         "siteLongitude": float(site_coordinates[1]),
         "deviceLatitude": float(device_latitude),
         "deviceLongitude": float(device_longitude),
+        "radiusMeters": radius_meters,
+        "allowedRadiusMeters": int(round(allowed_radius_meters)),
+        "onSite": worker_within_site_geofence(raw_distance_meters, radius_meters, accuracy_meters),
     }
-    if raw_distance_meters != effective_distance_meters:
-        result["rawDistanceMeters"] = int(round(raw_distance_meters))
     if accuracy_meters is not None:
         result["accuracyMeters"] = int(round(accuracy_meters))
     return result
@@ -11105,11 +11121,14 @@ def _geocode_site_address(site_label):
         return _site_geocode_cache[cache_key]
 
     encoded_query = quote(normalized)
-    geocode_url = f"https://nominatim.openstreetmap.org/search?q={encoded_query}&format=jsonv2&limit=1"
+    geocode_url = (
+        f"https://nominatim.openstreetmap.org/search?q={encoded_query}"
+        f"&format=jsonv2&limit=1&addressdetails=1&layer=address"
+    )
     request_obj = Request(
         geocode_url,
         headers={
-            "User-Agent": "WorkPass/1.0 (worker geofence)",
+            "User-Agent": "SUPPIX/1.0 (worker geofence)",
             "Accept": "application/json",
         },
     )
@@ -11177,7 +11196,7 @@ def _reverse_geocode_coordinates(latitude, longitude):
         return _reverse_geocode_cache[cache_key]
 
     headers = {
-        "User-Agent": "WorkPass/1.0 (worker geofence)",
+        "User-Agent": "SUPPIX/1.0 (worker geofence)",
         "Accept": "application/json",
     }
     payloads = []
@@ -11212,7 +11231,15 @@ def reverse_geocode_coordinates():
     label = _reverse_geocode_coordinates(lat, lon)
     if not label:
         return jsonify({"error": "reverse_geocode_failed"}), 404
-    return jsonify({"address": label, "lat": lat, "lon": lon})
+    lat_value = _normalize_float(lat)
+    lon_value = _normalize_float(lon)
+    return jsonify({
+        "address": label,
+        "lat": lat,
+        "lon": lon,
+        "latitude": lat_value,
+        "longitude": lon_value,
+    })
 
 
 def ensure_worker_site_coordinates(db, worker):
@@ -11220,18 +11247,8 @@ def ensure_worker_site_coordinates(db, worker):
     longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
     if latitude is not None and longitude is not None:
         return float(latitude), float(longitude)
-
-    geocoded = _geocode_site_address(worker["site"])
-    if not geocoded:
-        return None
-
-    latitude, longitude = geocoded
-    db.execute(
-        "UPDATE workers SET site_latitude = ?, site_longitude = ? WHERE id = ?",
-        (latitude, longitude, worker["id"]),
-    )
-    db.commit()
-    return latitude, longitude
+    # Geofence uses GPS anchor only — address text geocoding is often 50–200 m off.
+    return None
 
 
 def validate_worker_login_distance_or_raise(db, worker, payload):
@@ -11249,7 +11266,10 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
 
     site_cfg = get_company_site_access_config(db, worker["company_id"])
     max_distance = int(site_cfg["siteGeofenceRadiusMeters"])
-    if measured["distanceMeters"] > max_distance:
+    accuracy_meters = measured.get("accuracyMeters")
+    if not worker_within_site_geofence(
+        measured["distanceMeters"], max_distance, accuracy_meters
+    ):
         raise PermissionError(f"outside_site_radius:{measured['distanceMeters']}")
 
     measured["radiusMeters"] = max_distance
@@ -11299,7 +11319,7 @@ def normalize_device_protocol(value):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Reader Adapter Layer  (Enterprise Point 4)
-# Each adapter normalises a raw device payload into a standard WorkPass event.
+# Each adapter normalises a raw device payload into a standard SUPPIX event.
 # New reader brands can be supported by adding a new subclass.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -12428,12 +12448,14 @@ def worker_app_site_presence():
 
     site_cfg = get_company_site_access_config(db, worker["company_id"])
     radius = int(site_cfg["siteGeofenceRadiusMeters"])
-    on_site = measured["distanceMeters"] <= radius
+    on_site = bool(measured.get("onSite"))
     return jsonify(
         {
             "onSite": on_site,
             "distanceMeters": measured["distanceMeters"],
             "radiusMeters": radius,
+            "allowedRadiusMeters": measured.get("allowedRadiusMeters", radius),
+            "accuracyMeters": measured.get("accuracyMeters"),
             "accessMode": site_cfg["accessMode"],
             "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
             "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
@@ -12458,7 +12480,7 @@ def worker_app_site_leave():
         return jsonify({"error": "worker_geolocation_required"}), 400
 
     radius = int(site_cfg["siteGeofenceRadiusMeters"])
-    if measured and measured["distanceMeters"] <= radius:
+    if measured and measured.get("onSite"):
         return jsonify({"error": "still_on_site", "distanceMeters": measured["distanceMeters"]}), 409
 
     checkout_log_id = None
@@ -12579,13 +12601,14 @@ def record_worker_app_nfc_attendance(
         if not measured:
             return {"ok": False, "error": "site_location_unavailable", "status": 403}
         radius = int(site_cfg["siteGeofenceRadiusMeters"])
-        if measured["distanceMeters"] > radius:
+        if not measured.get("onSite"):
             return {
                 "ok": False,
                 "error": "outside_geofence",
                 "status": 403,
                 "distanceMeters": measured["distanceMeters"],
                 "radiusMeters": radius,
+                "allowedRadiusMeters": measured.get("allowedRadiusMeters", radius),
             }
 
     requested_direction = str(direction_requested or "auto").strip().lower()
@@ -15651,7 +15674,7 @@ def request_password_reset():
     base_url = request.host_url.rstrip("/")
     reset_link = f"{base_url}/?resetToken={raw_token}"
     msg = __import__("email.message", fromlist=["EmailMessage"]).EmailMessage()
-    platform_label = str(settings["platform_name"] or "WorkPass").strip() or "WorkPass"
+    platform_label = str(settings["platform_name"] or "SUPPIX").strip() or "SUPPIX"
     operator_label = str(settings["operator_name"] or platform_label).strip() or platform_label
     smtp_sender_name = str(settings["smtp_sender_name"] or operator_label).strip() or operator_label
     msg["Subject"] = f"Passwort zurücksetzen – {platform_label}"
@@ -16024,7 +16047,7 @@ def export_access_csv():
 
     def draw_access_hdr(y):
         pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(36, y, f"WorkPass - Zutrittsjournal{period_label}")
+        pdf.drawString(36, y, f"SUPPIX - Zutrittsjournal{period_label}")
         y -= 14
         pdf.setFont("Helvetica", 8)
         pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')} | {len(rows)} Einträge")
@@ -16378,21 +16401,21 @@ def reporting_email_pdf():
     company_name = str(snapshot.get("companyName") or "")
     if not company_name and user.get("company_id"):
         row = db.execute("SELECT name FROM companies WHERE id = ?", (user["company_id"],)).fetchone()
-        company_name = row["name"] if row else "WorkPass"
+        company_name = row["name"] if row else "SUPPIX"
 
     pdf_bytes = build_operations_report_pdf(
-        title="WorkPass Operations Report",
-        company_name=company_name or "WorkPass",
+        title="SUPPIX Operations Report",
+        company_name=company_name or "SUPPIX",
         snapshot=snapshot,
         guidance=guidance,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-report-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"WorkPass Bericht {period}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"SUPPIX Bericht {period}"), max_len=200)
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei finden Sie Ihren aktuellen WorkPass-Betriebsbericht als PDF.\n\nMit freundlichen Grüßen\nWorkPass",
+            "Anbei finden Sie Ihren aktuellen SUPPIX-Betriebsbericht als PDF.\n\nMit freundlichen Grüßen\nSUPPIX",
         ),
         max_len=4000,
     )
@@ -16465,9 +16488,9 @@ def reporting_email_datev_csv():
         return jsonify({"error": "no_payroll_data", "message": "Keine DATEV-Exportdaten für diese Firma."}), 404
 
     period_label = period or datetime.now(timezone.utc).strftime("%Y-%m")
-    subject = clean_text_input(payload.get("subject", f"WorkPass DATEV Lohn-CSV {period_label}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"SUPPIX DATEV Lohn-CSV {period_label}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label}.\n\nWorkPass"),
+        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label}.\n\nSUPPIX"),
         max_len=4000,
     )
     ok, err = send_attachments_email(
@@ -16537,9 +16560,9 @@ def reporting_email_invoices_pdf():
     pdf_bytes = build_invoices_report_pdf(db, company_id=company_id, company_name=company_name)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-invoices-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"WorkPass Rechnungsübersicht {period}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"SUPPIX Rechnungsübersicht {period}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", "Anbei die Rechnungsübersicht als PDF.\n\nWorkPass"),
+        payload.get("body", "Anbei die Rechnungsübersicht als PDF.\n\nSUPPIX"),
         max_len=4000,
     )
     ok, err = send_pdf_report_email(
@@ -16580,8 +16603,8 @@ def reporting_email_companies_pdf():
     pdf_bytes = build_companies_document_email_pdf(db)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-companies-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"WorkPass Firmenübersicht {period}"), max_len=200)
-    body = clean_text_input(payload.get("body", "Anbei die Firmen-Dokument-E-Mail-Übersicht.\n\nWorkPass"), max_len=4000)
+    subject = clean_text_input(payload.get("subject", f"SUPPIX Firmenübersicht {period}"), max_len=200)
+    body = clean_text_input(payload.get("body", "Anbei die Firmen-Dokument-E-Mail-Übersicht.\n\nSUPPIX"), max_len=4000)
     ok, err = send_pdf_report_email(
         to=recipient,
         subject=subject,
@@ -16625,7 +16648,7 @@ def reporting_email_enterprise_pdf():
         return jsonify({"error": "missing_company", "message": "companyId erforderlich für Enterprise-PDF."}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "WorkPass"
+    company_name = row["name"] if row else "SUPPIX"
     role = str(user.get("role") or "company-admin")
 
     pdf_bytes = build_enterprise_ops_pdf(
@@ -16637,13 +16660,13 @@ def reporting_email_enterprise_pdf():
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-enterprise-{company_id}-{period}.pdf"
     subject = clean_text_input(
-        payload.get("subject", f"WorkPass Enterprise-Bericht {period}"),
+        payload.get("subject", f"SUPPIX Enterprise-Bericht {period}"),
         max_len=200,
     )
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei der Enterprise- und Operations-Bericht (6 Ebenen, KPIs, Lohn/Compliance, Guidance).\n\nWorkPass",
+            "Anbei der Enterprise- und Operations-Bericht (6 Ebenen, KPIs, Lohn/Compliance, Guidance).\n\nSUPPIX",
         ),
         max_len=4000,
     )
@@ -16710,16 +16733,16 @@ def reporting_email_executive_pdf():
         return jsonify({"error": "missing_company"}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "WorkPass"
+    company_name = row["name"] if row else "SUPPIX"
     snapshot = _operations_snapshot_for_user(db, user)
     snapshot["guidance"] = build_operational_guidance(snapshot)
 
     pdf_bytes = build_executive_summary_pdf(company_name=str(company_name or ""), snapshot=snapshot)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-executive-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"WorkPass Executive Summary {period}"), max_len=200)
+    subject = clean_text_input(payload.get("subject", f"SUPPIX Executive Summary {period}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary).\n\nWorkPass"),
+        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary).\n\nSUPPIX"),
         max_len=4000,
     )
     ok, err = send_pdf_report_email(
@@ -16763,22 +16786,22 @@ def reporting_email_incidents_visits_pdf():
     if user["role"] == "superadmin" and payload.get("companyId"):
         company_id = str(payload.get("companyId")).strip()
 
-    company_name = "WorkPass"
+    company_name = "SUPPIX"
     if company_id:
         row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
         company_name = row["name"] if row else company_name
 
-    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "WorkPass"))
+    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "SUPPIX"))
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"baupass-incidents-visitors-{period}.pdf"
     subject = clean_text_input(
-        payload.get("subject", f"WorkPass Incidents & Visitors {period}"),
+        payload.get("subject", f"SUPPIX Incidents & Visitors {period}"),
         max_len=200,
     )
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei: PDF mit Sicherheitsvorfaellen / Incidents und aktiven Besuchern auf der Baustelle.\n\nWorkPass",
+            "Anbei: PDF mit Sicherheitsvorfaellen / Incidents und aktiven Besuchern auf der Baustelle.\n\nSUPPIX",
         ),
         max_len=4000,
     )
@@ -18398,7 +18421,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
     attachment_payload = []
     safe_invoice_no = re.sub(r"[^A-Za-z0-9._-]+", "-", str(invoice_row["invoice_number"] or "rechnung")).strip("-") or "rechnung"
     pdf_filename = f"rechnung-von-baupass-{safe_invoice_no}.pdf"
-    platform_label = str(settings_row["platform_name"] or "WorkPass").strip() or "WorkPass"
+    platform_label = str(settings_row["platform_name"] or "SUPPIX").strip() or "SUPPIX"
     operator_label = str(settings_row["operator_name"] or platform_label).strip() or platform_label
     mail_subject = f"Rechnung von {platform_label} - {invoice_row['invoice_number']}"
     # ── Mehrsprachigkeit ─────────────────────────────────────────────────────────
@@ -18613,7 +18636,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             pdf.drawCentredString(x + 8 * mm, y + 5.8 * mm, "AI")
             pdf.setFillColor(c_dark)
             pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "WorkPass")[:28])
+            pdf.drawString(x + 18 * mm, y + 7.2 * mm, str(operator_label or platform_label or "SUPPIX")[:28])
 
         # ════════════════════════════════════════════════════════════
         # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende
@@ -19833,7 +19856,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
         )
 
     alert_text = (
-        "WorkPass hat eine kritische Lage in der Rechnungs-Retry-Queue erkannt.\n\n"
+        "SUPPIX hat eine kritische Lage in der Rechnungs-Retry-Queue erkannt.\n\n"
         f"Schweregrad: {severity}\n"
         f"Kritische Faelle (Score >= 70): {critical_count}\n"
         f"Hoechster Score: {int(summary.get('maxScore', 0))}\n\n"
@@ -19842,7 +19865,7 @@ def send_invoice_retry_backlog_alert_email(db, summary, severity):
         "Bitte im Admin-Panel den Rechnungsbereich oeffnen und die Queue pruefen."
     )
     message = EmailMessage()
-    message["Subject"] = f"[WorkPass] {'KRITISCH' if severity == 'critical' else 'Warnung'}: {critical_count} kritische Retry-Faelle"
+    message["Subject"] = f"[SUPPIX] {'KRITISCH' if severity == 'critical' else 'Warnung'}: {critical_count} kritische Retry-Faelle"
     message["From"] = f"{settings['smtp_sender_name']} <{smtp_sender}>"
     message["To"] = ", ".join(recipients)
     message.set_content(alert_text)
@@ -20912,7 +20935,7 @@ def export_invoice_retry_queue_csv():
 
     def draw_rq_hdr(y):
         pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(36, y, "WorkPass - Rechnungs-Retry-Queue")
+        pdf.drawString(36, y, "SUPPIX - Rechnungs-Retry-Queue")
         y -= 14
         pdf.setFont("Helvetica", 8)
         pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')} | {len(rows)} Einträge")
@@ -20986,7 +21009,7 @@ def export_invoice_incidents_csv():
 
     y = ph - 36
     pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(36, y, "WorkPass - Rechnungs-Incident-Report")
+    pdf.drawString(36, y, "SUPPIX - Rechnungs-Incident-Report")
     y -= 16
     pdf.setFont("Helvetica", 9)
     pdf.drawString(36, y, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
@@ -21292,7 +21315,7 @@ def invoice_reminder_letter_pdf(invoice_id):
     original_due_str = str(invoice["due_date"] or "")
     total_amount = float(invoice["total_amount"] or 0)
 
-    operator_name = str(settings["operator_name"] or settings["platform_name"] or "WorkPass").strip() if settings else "WorkPass"
+    operator_name = str(settings["operator_name"] or settings["platform_name"] or "SUPPIX").strip() if settings else "SUPPIX"
     operator_street = str(settings["invoice_operator_street"] or "").strip() if settings else ""
     operator_zip_city = str(settings["invoice_operator_zip_city"] or "").strip() if settings else ""
     operator_phone = str(settings["invoice_operator_phone"] or "").strip() if settings else ""
@@ -23332,7 +23355,7 @@ def reply_to_inbox_email(inbox_id):
         settings_row["smtp_sender_name"]
         or settings_row["operator_name"]
         or settings_row["platform_name"]
-        or "WorkPass"
+        or "SUPPIX"
     ).strip()
 
     original_message_id = clean_text_input(inbox_row["message_id"] or "", max_len=500)
@@ -24012,7 +24035,7 @@ def signotec_lib_status():
             "setupHelperUrl": "/api/signotec/setup-helper.bat",
             "setupHelperPs1Url": "/api/signotec/setup-helper.ps1",
             "trustUrl": "https://localhost:49494/",
-            "note": "Library is on WorkPass server; signoPAD-API/Web runs once per PC with USB pad.",
+            "note": "Library is on SUPPIX server; signoPAD-API/Web runs once per PC with USB pad.",
         },
     })
 
@@ -24036,7 +24059,7 @@ def _signotec_setup_ps1_content(base: str) -> str:
     script_path = BASE_DIR / "scripts" / "baupass-signotec-bridge-setup.ps1"
     if script_path.exists() and script_path.is_file():
         return script_path.read_text(encoding="utf-8").replace("{{BASE_URL}}", base)
-    return f"""# WorkPass Signotec Bridge fallback
+    return f"""# SUPPIX Signotec Bridge fallback
 $ErrorActionPreference = 'Stop'
 Write-Host 'Setup script missing on server. Download installer from {base}/api/signotec/installer'
 pause
@@ -24055,8 +24078,8 @@ def signotec_setup_helper():
 def signotec_setup_helper_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title WorkPass Signotec Bridge
-echo WorkPass: Signotec bridge setup (once per PC, needs admin once)...
+title SUPPIX Signotec Bridge
+echo SUPPIX: Signotec bridge setup (once per PC, needs admin once)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p"
 echo.
 pause
@@ -24075,8 +24098,8 @@ def signotec_setup_bat():
 def signotec_start_bridge_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title WorkPass Signotec Bridge starten
-echo WorkPass: STPadServer starten (Port 49494, Admin)...
+title SUPPIX Signotec Bridge starten
+echo SUPPIX: STPadServer starten (Port 49494, Admin)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-setup.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/setup-helper.ps1' -OutFile $p -UseBasicParsing; & $p -SkipInstall"
 echo.
 pause
@@ -24102,7 +24125,7 @@ def signotec_check_helper():
 def signotec_check_bat():
     base = request.url_root.rstrip("/")
     bat = f"""@echo off
-title WorkPass Signotec Diagnose
+title SUPPIX Signotec Diagnose
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'baupass-signotec-check.ps1'; Invoke-WebRequest -Uri '{base}/api/signotec/check.ps1' -OutFile $p -UseBasicParsing; & $p"
 """
     response = Response(bat, mimetype="application/octet-stream")
@@ -24528,7 +24551,7 @@ def _build_leave_request_pdf_bytes(payload: dict) -> bytes | None:
     y = page_h - 50
 
     pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(40, y, "WorkPass - Abwesenheitsantrag")
+    pdf.drawString(40, y, "SUPPIX - Abwesenheitsantrag")
     y -= 18
     pdf.setFont("Helvetica", 9)
     pdf.drawString(40, y, f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
@@ -24637,7 +24660,7 @@ def worker_submit_leave_request():
     <p style="color:#444;font-size:16px;"><strong>{worker_name}</strong> ({worker['badge_id']}) hat einen neuen Antrag eingereicht:</p>
     <p style="font-size:18px;font-weight:700;color:#1a1a2e;">{req_type_label} · {start_date} – {end_date}</p>
     {note_html}
-    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt in WorkPass Admin-Portal prüfen und genehmigen oder ablehnen.</p>
+    <p style="margin-top:24px;color:#888;font-size:13px;">Jetzt in SUPPIX Admin-Portal prüfen und genehmigen oder ablehnen.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
     text_mail = f"Neuer Antrag von {worker_name}: {req_type_label} {start_date}–{end_date}." + (f"\nNotiz: {note}" if note else "")
@@ -24653,7 +24676,7 @@ def worker_submit_leave_request():
     ).fetchone()
     s = dict(settings_row) if settings_row else {}
     sender_email = (s.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (s.get("smtp_sender_name") or "WorkPass").strip()
+    sender_name = (s.get("smtp_sender_name") or "SUPPIX").strip()
 
     pdf_payload = {
         "id": req_id,
@@ -25200,7 +25223,7 @@ def worker_send_leave_request_email(req_id):
     <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:600px;width:100%;">
       <tr><td style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:28px 36px;">
         <h1 style="margin:0;color:#fff;font-size:22px;">Abwesenheitsantrag</h1>
-        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über WorkPass Worker App</p>
+        <p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Eingereicht über SUPPIX Worker App</p>
       </td></tr>
       <tr><td style="padding:28px 36px;">
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eee;border-radius:8px;overflow:hidden;border-spacing:0;">
@@ -25212,7 +25235,7 @@ def worker_send_leave_request_email(req_id):
           {note_html}
           <tr><td style="padding:10px 12px;color:#555;">Eingereicht am</td><td style="padding:10px 12px;">{req_row['created_at'][:10]}</td></tr>
         </table>
-        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag in WorkPass Admin-Portal.</p>
+        <p style="margin:24px 0 0;color:#777;font-size:13px;">Bitte prüfen Sie diesen Antrag in SUPPIX Admin-Portal.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -25232,7 +25255,7 @@ def worker_send_leave_request_email(req_id):
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
     sender_email = (settings.get("smtp_sender_email") or "").strip() or "noreply@baupass.de"
-    sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
+    sender_name = (settings.get("smtp_sender_name") or "SUPPIX").strip()
 
     # HTML-Datei als Anhang (base64)
     import base64 as _b64
@@ -25690,7 +25713,7 @@ def _patch_api_route(path: str, view_func, methods: tuple[str, ...], endpoint: s
 
 
 def _ensure_critical_api_routes() -> None:
-    """Safety net when domain blueprints fail — keeps WorkPass admin usable."""
+    """Safety net when domain blueprints fail — keeps SUPPIX admin usable."""
     missing_core = not (
         {"GET", "POST"}.issubset(_route_methods_for("/api/companies"))
         and "PUT" in _route_methods_for("/api/companies/<company_id>")

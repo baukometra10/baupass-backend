@@ -13,10 +13,10 @@ const SHELL_ASSETS = [
   "/branding/suppix-ai-logo-dark.svg",
   "/branding/suppix-ai-invoice.svg",
   "/branding/suppix-ai-mark.svg",
-  "/worker-icon-192.png",
-  "/worker-icon-512.png",
-  "/worker-icon-192.svg",
-  "/worker-icon-512.svg",
+  "/branding/suppix-icon-192.png",
+  "/branding/suppix-icon-512.png",
+  "/branding/suppix-ai-mark.svg",
+  "/branding/suppix-ai-mark.svg",
 ];
 
 self.addEventListener("install", (event) => {

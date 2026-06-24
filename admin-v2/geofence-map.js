@@ -138,11 +138,13 @@ export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { on
   onStatus?.("loading");
   try {
     let position = null;
-    if (typeof globalThis.capturePreciseGeolocation === "function") {
-      position = await globalThis.capturePreciseGeolocation({
-        minSamples: 3,
-        maxWaitMs: 16000,
-        targetAccuracyMeters: 15,
+    if (typeof globalThis.captureInstantGeolocation === "function") {
+      position = await globalThis.captureInstantGeolocation();
+    } else if (typeof globalThis.getCurrentGeolocationReading === "function") {
+      position = await globalThis.getCurrentGeolocationReading({
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 30000,
       });
     } else {
       position = await new Promise((resolve, reject) => {
@@ -154,11 +156,15 @@ export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { on
               accuracy: pos.coords.accuracy,
             }),
           reject,
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+          { enableHighAccuracy: true, timeout: 1000, maximumAge: 15000 },
         );
       });
     }
-    const { latitude, longitude } = position;
+    const { latitude, longitude } = position || {};
+    if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+      onStatus?.("failed");
+      return;
+    }
     if (map?._baupassApplyCoords) {
       map._baupassApplyCoords(latitude, longitude, { center: true });
     } else {
@@ -166,7 +172,16 @@ export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { on
       if (lngInput) lngInput.value = longitude.toFixed(6);
     }
     onStatus?.("ok");
-  } catch {
-    onStatus?.("denied");
+  } catch (error) {
+    const code = Number(error?.code);
+    if (code === 1) {
+      onStatus?.("denied");
+      return;
+    }
+    if (code === 3) {
+      onStatus?.("timeout");
+      return;
+    }
+    onStatus?.("failed");
   }
 }

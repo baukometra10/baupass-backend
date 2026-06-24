@@ -1,8 +1,8 @@
 ﻿{
   "id": "/index.html",
-  "name": "WorkPass",
-  "short_name": "WorkPass",
-  "description": "Installierbares WorkPass Portal fuer Admin und Pforte auf dem Desktop.",
+  "name": "SUPPIX",
+  "short_name": "SUPPIX",
+  "description": "Installierbares SUPPIX Portal fuer Admin und Pforte auf dem Desktop.",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
@@ -13,25 +13,25 @@
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/worker-icon-192.png",
+      "src": "/branding/suppix-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/worker-icon-512.png",
+      "src": "/branding/suppix-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/worker-icon-192.svg",
+      "src": "/branding/suppix-ai-mark.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/worker-icon-512.svg",
+      "src": "/branding/suppix-ai-mark.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

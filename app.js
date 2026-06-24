@@ -729,7 +729,7 @@ function syncSupportAssistSpectatorWatch() {
 const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
-    authTitle: "Sicher in WorkPass anmelden",
+    authTitle: "Sicher in SUPPIX anmelden",
     authTitleTenant: "Bei {company} anmelden",
     authCopyTenant: "Melden Sie sich mit Ihrem Firmenkonto bei {company} an.",
     authCopy: "Digitale Ausweise, Zutrittskontrolle und Compliance für Unternehmen, Teams und Standorte.",
@@ -780,7 +780,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop-App",
     desktopInstallHint: "Dieses Portal kann auf dem Computer wie ein Programm installiert werden.",
     desktopInstallButton: "Auf diesem Computer installieren",
-    appTitle: "WorkPass",
+    appTitle: "SUPPIX",
     navBetrieb: "Betrieb",
     topbarHeadingDashboard: "Übersicht — Ausweise, Zutritt & Betrieb",
     topbarHeadingWorkers: "Mitarbeiter verwalten",
@@ -798,7 +798,7 @@ const UI_TRANSLATIONS = {
     alertInstallUnavailable: "Die Installation ist in diesem Browser gerade nicht direkt verfuegbar. In Chrome oder Edge kannst du im Browser-Menue 'App installieren' waehlen.",
     alertSessionExpired: "Sitzung abgelaufen. Bitte neu anmelden.",
     // Shell
-    sidebarEyebrow: "WorkPass Plattform",
+    sidebarEyebrow: "SUPPIX Plattform",
     sidebarCopy: "Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.",
     sidebarCardTitle: "Vermietungsmodus",
     sidebarCardStrong: "Multi-Firma f\u00e4hig",
@@ -824,7 +824,7 @@ const UI_TRANSLATIONS = {
     deploymentPdfPrint: "Drucken",
     deploymentPlanBetriebHint: "Der vollständige Editor (Monat, Mitarbeiter, PDF, Versand) liegt unter Betrieb — nicht nur diese Kurzanleitung.",
     deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
-    deploymentPlanLoginRequired: "Bitte zuerst in WorkPass anmelden — danach öffnet sich der Einsatzplan-Editor.",
+    deploymentPlanLoginRequired: "Bitte zuerst in SUPPIX anmelden — danach öffnet sich der Einsatzplan-Editor.",
     loginMissingFields: "Bitte Benutzername und Passwort eingeben.",
     loginAlreadyActive: "Sie sind bereits angemeldet als {user} ({role}). Zum Wechseln bitte zuerst abmelden.",
     deploymentStep1Title: "1. Monat wählen",
@@ -899,7 +899,7 @@ const UI_TRANSLATIONS = {
     btnExport: "System exportieren",
     btnImport: "System importieren",
     btnLogout: "Sicher abmelden",
-    dashEyebrow: "Enterprise WorkPass",
+    dashEyebrow: "Enterprise SUPPIX",
     dashHeading: "Digitale Ausweise mit Foto, Badge-ID und Check-in am Drehkreuz",
     dashSubtext: "Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting \u2014 mandantenf\u00e4hig f\u00fcr Beh\u00f6rden und Unternehmen.",
     dashBadge1: "Fotoaufnahme",
@@ -1116,7 +1116,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer läuft nicht — wenn https://localhost:49494 im Browser nicht öffnet: „Einrichtung starten“ als Administrator ausführen.",
     signotecBridgeServerDown: "Wenn Firefox „Verbindung unterbrochen“ zeigt: Bridge ist nicht installiert/gestartet. setup.bat als Admin → Log auf dem Desktop prüfen.",
     signotecBridgeStatusCert: "Bridge läuft, Zertifikat fehlt — „Zertifikat bestätigen“, dann Verbindung prüfen.",
-    signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann WorkPass mit Strg+Shift+R neu laden.",
+    signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann SUPPIX mit Strg+Shift+R neu laden.",
     signotecBridgeStatusFirefox: "Signotec-Bridge fehlt oder Zertifikat in Firefox noch nicht bestätigt — zuerst Einrichtung starten, dann Zertifikat.",
     signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
@@ -1180,6 +1180,16 @@ const UI_TRANSLATIONS = {
     siteGeoLocateDone: "Adresse aus GPS übernommen.",
     siteGeoLocateFailed: "GPS-Adresse konnte nicht ermittelt werden.",
     siteGeoLocateDenied: "Standortzugriff verweigert — bitte im Browser erlauben.",
+    siteGeoLocateTimeout: "GPS-Zeitüberschreitung — bitte erneut versuchen oder Standortdienste aktivieren.",
+    siteGeoLocateProgress: "GPS ±{meters} m — warte auf genaueres Signal wie bei Maps…",
+    siteGeoLocateWeakAccuracy: "Nur ±{meters} m erreicht. Für 5–10 m bitte draußen kurz warten und GPS erneut tippen.",
+    siteFieldHint: "GPS-Button setzt den exakten Punkt für den Geofence. Karte und „Standort prüfen“ zeigen die Abweichung in Metern.",
+    siteVerifyBtn: "Standort prüfen",
+    siteMapOpen: "In Karte öffnen",
+    siteNoGpsAnchor: "Zuerst GPS-Button nutzen, um einen exakten Punkt zu setzen.",
+    siteDistanceFromAnchor: "Aktuell {distance} m vom GPS-Punkt · Gerät ±{accuracy} m",
+    siteDistanceGood: "Passt — du stehst am GPS-Punkt ({distance} m).",
+    siteGpsRefined: "GPS verfeinert auf ±{meters} m.",
     visitorDurationLabel: "Besuchsdauer (Schnellauswahl)",
     visitorDuration1h: "1 Std.",
     visitorDuration2h: "2 Std.",
@@ -1191,7 +1201,6 @@ const UI_TRANSLATIONS = {
     labelInsuranceNumber: "Rentenversicherungsnummer",
     labelRoleField: "Funktion",
     labelSite: "Standort",
-    siteFieldHint: "Vollständige Adresse eingeben – wird für GPS-Prüfung beim Login benötigt",
     labelPhysicalCard: "Physische Karten-ID (NFC/RFID)",
     labelValidUntil: "G\u00fcltig bis",
     labelVisitorCompany: "Besucherfirma",
@@ -1919,7 +1928,7 @@ const UI_TRANSLATIONS = {
   en: {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
-    authTitle: "Secure sign-in to WorkPass",
+    authTitle: "Secure sign-in to SUPPIX",
     authTitleTenant: "Sign in to {company}",
     authCopyTenant: "Sign in with your {company} account.",
     authCopy: "Digital badges, access control and compliance for companies, teams and sites.",
@@ -1973,7 +1982,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop App",
     desktopInstallHint: "This portal can be installed on your computer like a native app.",
     desktopInstallButton: "Install on this computer",
-    appTitle: "WorkPass",
+    appTitle: "SUPPIX",
     navBetrieb: "Operations",
     topbarHeadingDashboard: "Overview — badges, access & operations",
     topbarHeadingBetrieb: "Operations — inbox, shifts & workforce",
@@ -2022,7 +2031,7 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Deployment plan — monthly",
     deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
     deploymentPlanLockedToast: "Deployment plan requires Professional plan or higher.",
-    deploymentPlanLoginRequired: "Please sign in to WorkPass first — then the deployment plan editor opens.",
+    deploymentPlanLoginRequired: "Please sign in to SUPPIX first — then the deployment plan editor opens.",
     loginMissingFields: "Please enter username and password.",
     loginAlreadyActive: "You are already signed in as {user} ({role}). Sign out first to switch accounts.",
     deploymentStep1Title: "1. Pick month",
@@ -2097,7 +2106,7 @@ const UI_TRANSLATIONS = {
     btnExport: "Export system",
     btnImport: "Import system",
     btnLogout: "Sign out securely",
-    dashEyebrow: "Enterprise WorkPass",
+    dashEyebrow: "Enterprise SUPPIX",
     dashHeading: "Digital badges with photo, badge ID and check-in at turnstile",
     dashSubtext: "Enterprise identity, access control, workforce, compliance, documents and reporting \u2014 multi-tenant for agencies and enterprises.",
     dashBadge1: "Photo capture",
@@ -2211,7 +2220,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer not running — if https://localhost:49494 won't open in the browser, run Start setup as Administrator.",
     signotecBridgeServerDown: "If Firefox shows connection interrupted: bridge not installed/started. Run setup.bat as Admin, check Desktop log.",
     signotecBridgeStatusCert: "Bridge is running; certificate not trusted — click Trust certificate, then test again.",
-    signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload WorkPass with Ctrl+Shift+R.",
+    signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload SUPPIX with Ctrl+Shift+R.",
     signotecBridgeStatusFirefox: "Signotec bridge missing or Firefox certificate not trusted — run setup first, then trust the certificate.",
     signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
@@ -2277,6 +2286,7 @@ const UI_TRANSLATIONS = {
     siteGeoLocateDone: "Address filled from GPS.",
     siteGeoLocateFailed: "Could not resolve GPS address.",
     siteGeoLocateDenied: "Location access denied — please allow it in the browser.",
+    siteGeoLocateTimeout: "GPS timed out — try again or enable location services.",
     visitorDurationLabel: "Visit duration (quick pick)",
     visitorDuration1h: "1 h",
     visitorDuration2h: "2 h",
@@ -2391,7 +2401,7 @@ const UI_TRANSLATIONS = {
     passwordSetDialogMismatch: "Passwords do not match.",
     turnstilePasswordDialogTitle: "Reset turnstile password",
     alertCompanyCreate405: "Company could not be created (405). Request landed on {target}. The backend does not accept POST there — check the API URL or wait for deploy.",
-    accountPasswordHint: "Change your personal WorkPass login here. Set company admin passwords in the company list (\"Set password\" button).",
+    accountPasswordHint: "Change your personal SUPPIX login here. Set company admin passwords in the company list (\"Set password\" button).",
     companyAdminStartPasswordHint: "Initial password for the new company admin login of \"{company}\".",
     btnDocInboxRematch: "Re-assign",
     manualEntryBtn: "Manual Entry",
@@ -2995,7 +3005,7 @@ const UI_TRANSLATIONS = {
   },
   tr: {
     authEyebrow: "Giriş Sayfası",
-    authTitle: "WorkPass'a Güvenli Giriş",
+    authTitle: "SUPPIX'a Güvenli Giriş",
     authCopy: "Süper admin tüm sistem kontrolünü elinde tutar. Firma adminleri yalnızca kendi firmalarını görür. Turnike girişi hızlı geçiş moduna sahiptir.",
     authPlatform: "Platform",
     authOperator: "İşletmeci",
@@ -3755,7 +3765,7 @@ const UI_TRANSLATIONS = {
   },
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
-    authTitle: "تسجيل دخول آمن إلى WorkPass",
+    authTitle: "تسجيل دخول آمن إلى SUPPIX",
     authCopy: "منصة الهوية المؤسسية والتحكم التشغيلي والامتثال — للمشرف العام ومدير المستأجر ونقاط الدخول.",
     labelOperatingSector: "القطاع التشغيلي",
     optSectorConstruction: "البناء",
@@ -3848,7 +3858,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
     enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
-    appTitle: "WorkPass",
+    appTitle: "SUPPIX",
     navBetrieb: "التشغيل",
     navEnterpriseSection: "الذكاء والتكامل",
     topbarHeadingDashboard: "نظرة عامة — البطاقات والدخول والتشغيل",
@@ -4362,7 +4372,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer غير شغّال — إن لم يفتح https://localhost:49494 في المتصفح: شغّل «بدء الإعداد» كمسؤول (Admin).",
     signotecBridgeServerDown: "إذا ظهر «انقطع الاتصال» في Firefox: الجسر غير مثبت/غير شغّال. شغّل setup.bat كمسؤول وتحقق من ملف السجل على سطح المكتب.",
     signotecBridgeStatusCert: "الجسر يعمل؛ الشهادة غير مقبولة — اضغط تأكيد الشهادة ثم اختبر مجدداً.",
-    signotecBridgeFirefoxHint: "Firefox: افتح https://localhost:49494 (وليس 127.0.0.1)، اضغط «متقدم» → «قبول المخاطرة»، ثم Ctrl+Shift+R لإعادة تحميل WorkPass.",
+    signotecBridgeFirefoxHint: "Firefox: افتح https://localhost:49494 (وليس 127.0.0.1)، اضغط «متقدم» → «قبول المخاطرة»، ثم Ctrl+Shift+R لإعادة تحميل SUPPIX.",
     signotecBridgeStatusFirefox: "جسر Signotec غير موجود أو الشهادة غير مقبولة في Firefox — شغّل الإعداد أولاً ثم أكّد الشهادة.",
     signatureDeviceTimeout: "جهاز التوقيع لا يستجيب — أعد المحاولة أو وقّع في المساحة البيضاء.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA غير جاهز — ثبّت وشغّل برنامج Wacom على هذا الجهاز.",
@@ -4789,7 +4799,7 @@ const UI_TRANSLATIONS = {
   },
   fr: {
     authEyebrow: "Page de connexion",
-    authTitle: "Connexion sécurisée à WorkPass",
+    authTitle: "Connexion sécurisée à SUPPIX",
     authCopy: "Le super admin garde le contrôle total du système. Les admins d'entreprise ne voient que leur entreprise. Le login tourniquet offre un mode d'accès rapide.",
     authPlatform: "Plateforme",
     authOperator: "Opérateur",
@@ -5575,7 +5585,7 @@ const UI_TRANSLATIONS = {
   },
   es: {
     authEyebrow: "Página de acceso",
-    authTitle: "Inicio de sesión seguro en WorkPass",
+    authTitle: "Inicio de sesión seguro en SUPPIX",
     authCopy: "El super admin mantiene el control completo del sistema. Los admins de empresa solo ven su empresa. El acceso de torniquete ofrece un modo rápido.",
     authPlatform: "Plataforma",
     authOperator: "Operador",
@@ -6353,7 +6363,7 @@ const UI_TRANSLATIONS = {
   },
   it: {
     authEyebrow: "Pagina di accesso",
-    authTitle: "Accesso sicuro a WorkPass",
+    authTitle: "Accesso sicuro a SUPPIX",
     authCopy: "Il super admin mantiene il controllo completo del sistema. Gli admin aziendali vedono solo la propria azienda. L'accesso tornello ha una modalità rapida.",
     authPlatform: "Piattaforma",
     authOperator: "Operatore",
@@ -7139,7 +7149,7 @@ const UI_TRANSLATIONS = {
   },
   pl: {
     authEyebrow: "Strona logowania",
-    authTitle: "Bezpieczne logowanie do WorkPass",
+    authTitle: "Bezpieczne logowanie do SUPPIX",
     authCopy: "Super administrator zachowuje pełną kontrolę nad systemem. Administratorzy firm widzą tylko swoją firmę. Logowanie bramki ma szybki tryb dostępu.",
     authPlatform: "Platforma",
     authOperator: "Operator",
@@ -8150,14 +8160,14 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Bramka Północna",
   },
   platformName: {
-    de: "WorkPass",
-    en: "WorkPass",
-    tr: "WorkPass",
-    ar: "WorkPass",
-    fr: "WorkPass",
-    es: "WorkPass",
-    it: "WorkPass",
-    pl: "WorkPass",
+    de: "SUPPIX",
+    en: "SUPPIX",
+    tr: "SUPPIX",
+    ar: "SUPPIX",
+    fr: "SUPPIX",
+    es: "SUPPIX",
+    it: "SUPPIX",
+    pl: "SUPPIX",
   },
   operatorName: {
     de: "Suppix Technologie UG",
@@ -9265,7 +9275,7 @@ const state = {
   currentUser: null,
   supportLoginContext: loadSupportLoginContext(),
   settings: {
-    platformName: "WorkPass",
+    platformName: "SUPPIX",
     operatorName: "Suppix Technologie UG",
     turnstileEndpoint: ""
   },
@@ -10134,7 +10144,7 @@ function getRuntimeUiTexts() {
     ttsFallbackEnglish: "Until installation is complete, the greeting uses <strong>English</strong> as fallback.",
     ttsVoiceCountOne: "{count} voice",
     ttsVoiceCountMany: "{count} voices",
-    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in WorkPass",
+    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in SUPPIX",
     ttsLoadingVoices: "Loading voices...",
     smtpEnvCheckPrefix: "Env check",
     smtpEnvSet: "set",
@@ -10988,7 +10998,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Bis zur Installation spricht die Begruessung auf <strong>Englisch</strong> als Fallback.",
       ttsVoiceCountOne: "{count} Stimme",
       ttsVoiceCountMany: "{count} Stimmen",
-      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in WorkPass genutzte Sprachen",
+      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in SUPPIX genutzte Sprachen",
       ttsLoadingVoices: "Lade Stimmen...",
       smtpEnvCheckPrefix: "Env-Check",
       smtpEnvSet: "gesetzt",
@@ -11802,7 +11812,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Kurulum tamamlanana kadar karşılama yedek olarak <strong>English</strong> kullanır.",
       ttsVoiceCountOne: "{count} ses",
       ttsVoiceCountMany: "{count} ses",
-      ttsLegend: "🖥️ = yerel ses &nbsp; ☁️ = bulut sesi &nbsp; <strong>Bold</strong> = WorkPass içinde kullanılan diller",
+      ttsLegend: "🖥️ = yerel ses &nbsp; ☁️ = bulut sesi &nbsp; <strong>Bold</strong> = SUPPIX içinde kullanılan diller",
       ttsLoadingVoices: "Sesler yükleniyor...",
       smtpEnvCheckPrefix: "Ortam kontrolü",
       smtpEnvSet: "ayarlı",
@@ -12610,7 +12620,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "إلى أن يكتمل التثبيت، يستخدم الترحيب <strong>English</strong> كبديل.",
       ttsVoiceCountOne: "{count} صوت",
       ttsVoiceCountMany: "{count} أصوات",
-      ttsLegend: "🖥️ = صوت محلي &nbsp; ☁️ = صوت سحابي &nbsp; <strong>Bold</strong> = اللغات المستخدمة في WorkPass",
+      ttsLegend: "🖥️ = صوت محلي &nbsp; ☁️ = صوت سحابي &nbsp; <strong>Bold</strong> = اللغات المستخدمة في SUPPIX",
       ttsLoadingVoices: "جارٍ تحميل الأصوات...",
       smtpEnvCheckPrefix: "فحص البيئة",
       smtpEnvSet: "مُعيّن",
@@ -13417,7 +13427,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Jusqu'à la fin de l'installation, le message d'accueil utilise <strong>English</strong> comme solution de repli.",
       ttsVoiceCountOne: "{count} voix",
       ttsVoiceCountMany: "{count} voix",
-      ttsLegend: "🖥️ = voix locale &nbsp; ☁️ = voix cloud &nbsp; <strong>Bold</strong> = langues utilisées dans WorkPass",
+      ttsLegend: "🖥️ = voix locale &nbsp; ☁️ = voix cloud &nbsp; <strong>Bold</strong> = langues utilisées dans SUPPIX",
       ttsLoadingVoices: "Chargement des voix...",
       smtpEnvCheckPrefix: "Vérification env",
       smtpEnvSet: "défini",
@@ -14224,7 +14234,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Hasta que finalice la instalación, el saludo usa <strong>English</strong> como alternativa.",
       ttsVoiceCountOne: "{count} voz",
       ttsVoiceCountMany: "{count} voces",
-      ttsLegend: "🖥️ = voz local &nbsp; ☁️ = voz en la nube &nbsp; <strong>Bold</strong> = idiomas usados en WorkPass",
+      ttsLegend: "🖥️ = voz local &nbsp; ☁️ = voz en la nube &nbsp; <strong>Bold</strong> = idiomas usados en SUPPIX",
       ttsLoadingVoices: "Cargando voces...",
       smtpEnvCheckPrefix: "Comprobación de entorno",
       smtpEnvSet: "configurado",
@@ -15031,7 +15041,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Fino al completamento dell'installazione, il saluto usa <strong>English</strong> come fallback.",
       ttsVoiceCountOne: "{count} voce",
       ttsVoiceCountMany: "{count} voci",
-      ttsLegend: "🖥️ = voce locale &nbsp; ☁️ = voce cloud &nbsp; <strong>Bold</strong> = lingue usate in WorkPass",
+      ttsLegend: "🖥️ = voce locale &nbsp; ☁️ = voce cloud &nbsp; <strong>Bold</strong> = lingue usate in SUPPIX",
       ttsLoadingVoices: "Caricamento voci...",
       smtpEnvCheckPrefix: "Controllo env",
       smtpEnvSet: "impostato",
@@ -15838,7 +15848,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Do czasu zakończenia instalacji powitanie używa <strong>English</strong> jako języka zastępczego.",
       ttsVoiceCountOne: "{count} głos",
       ttsVoiceCountMany: "{count} głosy",
-      ttsLegend: "🖥️ = głos lokalny &nbsp; ☁️ = głos chmurowy &nbsp; <strong>Bold</strong> = języki używane w WorkPass",
+      ttsLegend: "🖥️ = głos lokalny &nbsp; ☁️ = głos chmurowy &nbsp; <strong>Bold</strong> = języki używane w SUPPIX",
       ttsLoadingVoices: "Ładowanie głosów...",
       smtpEnvCheckPrefix: "Sprawdzenie env",
       smtpEnvSet: "ustawione",
@@ -16381,14 +16391,14 @@ function updateDesktopInstallHint() {
 
   const lang = getStoredUiLang();
   const installHintInstalledByLang = {
-    de: "WorkPass ist auf diesem Geraet bereits als Desktop-App installiert.",
-    en: "WorkPass is already installed as a desktop app on this device.",
-    tr: "WorkPass bu cihazda zaten masaustu uygulamasi olarak kurulu.",
-    ar: "WorkPass مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
-    fr: "WorkPass est deja installe comme application de bureau sur cet appareil.",
-    es: "WorkPass ya esta instalado como aplicacion de escritorio en este dispositivo.",
-    it: "WorkPass e gia installato come app desktop su questo dispositivo.",
-    pl: "WorkPass jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
+    de: "SUPPIX ist auf diesem Geraet bereits als Desktop-App installiert.",
+    en: "SUPPIX is already installed as a desktop app on this device.",
+    tr: "SUPPIX bu cihazda zaten masaustu uygulamasi olarak kurulu.",
+    ar: "SUPPIX مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
+    fr: "SUPPIX est deja installe comme application de bureau sur cet appareil.",
+    es: "SUPPIX ya esta instalado como aplicacion de escritorio en este dispositivo.",
+    it: "SUPPIX e gia installato come app desktop su questo dispositivo.",
+    pl: "SUPPIX jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
   };
   const installHintDefaultByLang = {
     de: "Dieses Portal kann auf Windows, macOS und Linux wie ein lokales Programm installiert werden.",
@@ -16723,7 +16733,76 @@ async function refreshSubcompaniesForSelectedCompany() {
   populateSubcompanySelects();
 }
 
-function setWorkerSiteCoordinates(latitude, longitude) {
+function haversineDistanceMeters(latitudeA, longitudeA, latitudeB, longitudeB) {
+  const earthRadiusMeters = 6371000;
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const lat1 = toRadians(Number(latitudeA));
+  const lat2 = toRadians(Number(latitudeB));
+  const dLat = lat2 - lat1;
+  const dLon = toRadians(Number(longitudeB)) - toRadians(Number(longitudeA));
+  const haversine =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
+
+function renderSiteLocationMap(latitude, longitude, accuracyMeters = null) {
+  const panel = document.getElementById("siteLocationPanel");
+  const mapFrame = document.getElementById("siteLocationMap");
+  const openLink = document.getElementById("siteMapOpenLink");
+  if (!panel || !mapFrame) {
+    return;
+  }
+  if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+    panel.classList.add("hidden");
+    mapFrame.removeAttribute("src");
+    if (openLink) {
+      openLink.href = "#";
+    }
+    return;
+  }
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  const accuracy = Number(accuracyMeters);
+  const delta = Number.isFinite(accuracy) && accuracy > 0 ? Math.max(0.00025, accuracy / 90000) : 0.0012;
+  const bbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
+  mapFrame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}`;
+  if (openLink) {
+    openLink.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=19/${lat}/${lon}`;
+  }
+  panel.classList.remove("hidden");
+}
+
+function updateSiteDistanceDisplay(distanceMeters, accuracyMeters = null) {
+  const display = document.getElementById("siteDistanceDisplay");
+  if (!display) {
+    return;
+  }
+  if (!Number.isFinite(Number(distanceMeters))) {
+    display.textContent = "";
+    display.className = "field-hint site-distance-display";
+    return;
+  }
+  const distance = Math.round(Number(distanceMeters));
+  const accuracy = Math.round(Number(accuracyMeters) || 0);
+  display.className = "field-hint site-distance-display";
+  if (distance <= 10) {
+    display.classList.add("is-ok");
+    display.textContent = uiT("siteDistanceGood").replace("{distance}", String(distance));
+  } else if (distance <= 35) {
+    display.classList.add("is-warn");
+    display.textContent = uiT("siteDistanceFromAnchor")
+      .replace("{distance}", String(distance))
+      .replace("{accuracy}", String(accuracy || "?"));
+  } else {
+    display.classList.add("is-bad");
+    display.textContent = uiT("siteDistanceFromAnchor")
+      .replace("{distance}", String(distance))
+      .replace("{accuracy}", String(accuracy || "?"));
+  }
+}
+
+function setWorkerSiteCoordinates(latitude, longitude, accuracyMeters = null) {
   const latInput = document.querySelector("#siteLatitude");
   const lngInput = document.querySelector("#siteLongitude");
   if (latInput) {
@@ -16731,6 +16810,124 @@ function setWorkerSiteCoordinates(latitude, longitude) {
   }
   if (lngInput) {
     lngInput.value = longitude != null && Number.isFinite(Number(longitude)) ? String(longitude) : "";
+  }
+  updateSiteCoordsDisplay(latitude, longitude, accuracyMeters);
+  renderSiteLocationMap(latitude, longitude, accuracyMeters);
+  if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+    updateSiteDistanceDisplay(null);
+  }
+}
+
+function formatSiteCoordinateLabel(latitude, longitude, accuracyMeters = null) {
+  if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+    return "";
+  }
+  const accuracy = Number(accuracyMeters);
+  const accuracySuffix =
+    Number.isFinite(accuracy) && accuracy > 0 ? ` · ±${Math.round(accuracy)} m` : "";
+  return `${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}${accuracySuffix}`;
+}
+
+function updateSiteCoordsDisplay(latitude, longitude, accuracyMeters = null) {
+  const display = document.getElementById("siteCoordsDisplay");
+  if (!display) {
+    return;
+  }
+  const label = formatSiteCoordinateLabel(latitude, longitude, accuracyMeters);
+  if (!label) {
+    display.textContent = "";
+    display.classList.add("hidden");
+    return;
+  }
+  display.textContent = `GPS-Punkt (Geofence): ${label}`;
+  display.classList.remove("hidden");
+}
+
+async function refineWorkerSiteCoordinatesIfNeeded(latitude, longitude, accuracyMeters) {
+  const accuracy = Number(accuracyMeters);
+  if (!Number.isFinite(accuracy) || accuracy <= 15 || typeof capturePreciseGeolocation !== "function") {
+    return;
+  }
+  try {
+    const refined = await capturePreciseGeolocation({
+      preset: "balanced",
+      freshTimeoutMs: 8000,
+      cachedTimeoutMs: 2500,
+    });
+    if (!refined || !Number.isFinite(Number(refined.accuracy))) {
+      return;
+    }
+    const improved =
+      Number(refined.accuracy) < accuracy - 2 ||
+      haversineDistanceMeters(latitude, longitude, refined.latitude, refined.longitude) > 8;
+    if (!improved) {
+      return;
+    }
+    setWorkerSiteCoordinates(refined.latitude, refined.longitude, refined.accuracy);
+    showToast(
+      uiT("siteGpsRefined").replace("{meters}", String(Math.round(refined.accuracy))),
+      "success",
+      3500,
+    );
+  } catch {
+    // keep first reading
+  }
+}
+
+async function verifyWorkerSiteLocation() {
+  const anchorLat = Number(document.querySelector("#siteLatitude")?.value);
+  const anchorLng = Number(document.querySelector("#siteLongitude")?.value);
+  if (!Number.isFinite(anchorLat) || !Number.isFinite(anchorLng)) {
+    showToast(uiT("siteNoGpsAnchor"), "warning", 5000);
+    return;
+  }
+  const verifyBtn = document.getElementById("siteVerifyBtn");
+  if (verifyBtn) {
+    verifyBtn.disabled = true;
+  }
+  showToast(uiT("siteGeoLocating"), "info", 2000);
+  try {
+    let position = null;
+    if (typeof captureInstantGeolocation === "function") {
+      position = await captureInstantGeolocation();
+    } else if (navigator.geolocation) {
+      position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (reading) =>
+            resolve({
+              latitude: reading.coords.latitude,
+              longitude: reading.coords.longitude,
+              accuracy: reading.coords.accuracy,
+            }),
+          reject,
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+        );
+      });
+    }
+    if (!position) {
+      throw new Error("geolocation_failed");
+    }
+    const distance = haversineDistanceMeters(
+      anchorLat,
+      anchorLng,
+      position.latitude,
+      position.longitude,
+    );
+    updateSiteDistanceDisplay(distance, position.accuracy);
+    renderSiteLocationMap(anchorLat, anchorLng, position.accuracy);
+  } catch (error) {
+    const code = Number(error?.code);
+    if (code === 1) {
+      showToast(uiT("siteGeoLocateDenied"), "warning", 5000);
+    } else if (code === 3) {
+      showToast(uiT("siteGeoLocateTimeout"), "warning", 5000);
+    } else {
+      showToast(uiT("siteGeoLocateFailed"), "error", 4000);
+    }
+  } finally {
+    if (verifyBtn) {
+      verifyBtn.disabled = false;
+    }
   }
 }
 
@@ -16740,7 +16937,7 @@ function readWorkerSiteCoordinates() {
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     return { siteLatitude: latitude, siteLongitude: longitude };
   }
-  return { siteLatitude: null, siteLongitude: null };
+  return {};
 }
 
 function populateWorkerSiteFields(worker) {
@@ -16768,21 +16965,37 @@ async function fillSiteFromCurrentLocation() {
     btn.disabled = true;
     btn.classList.add("is-loading");
   }
-  showToast(uiT("siteGeoLocating"), "info", 4000);
+  const startedAt = Date.now();
+  showToast(uiT("siteGeoLocating"), "info", 2500);
   try {
     let position = null;
-    if (typeof capturePreciseGeolocation === "function") {
-      position = await capturePreciseGeolocation({
-        minSamples: 3,
-        maxWaitMs: 16000,
-        targetAccuracyMeters: 15,
+    if (typeof captureInstantGeolocation === "function") {
+      position = await captureInstantGeolocation({
+        onAttempt: ({ index, reading }) => {
+          if (index > 0) {
+            showToast(uiT("siteGeoLocating"), "info", 3500);
+          }
+          if (reading?.accuracy) {
+            showToast(
+              uiT("siteGeoLocateProgress").replace("{meters}", String(Math.round(reading.accuracy))),
+              "info",
+              2200,
+            );
+          }
+        },
+      });
+    } else if (typeof getCurrentGeolocationReading === "function") {
+      position = await getCurrentGeolocationReading({
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 30000,
       });
     } else {
       const reading = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 12000,
-          maximumAge: 0,
+          maximumAge: 30000,
         });
       });
       position = {
@@ -16793,24 +17006,32 @@ async function fillSiteFromCurrentLocation() {
     }
     const lat = position?.latitude;
     const lon = position?.longitude;
-    const data = await apiRequest(
-      `${API_BASE}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
-    );
+    const [data] = await Promise.all([
+      apiRequest(
+        `${API_BASE}/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+      ),
+    ]);
     const address = String(data?.address || "").trim();
-    if (!address) {
-      throw new Error("reverse_geocode_failed");
-    }
+    const coordLabel = formatSiteCoordinateLabel(lat, lon, position?.accuracy);
     siteCoordsFromGps = true;
-    siteInput.value = address;
-    setWorkerSiteCoordinates(lat, lon);
+    siteInput.value = address || coordLabel;
+    setWorkerSiteCoordinates(lat, lon, position?.accuracy);
     siteCoordsFromGps = false;
     const accuracyMeters = Math.round(Number(position?.accuracy) || 0);
+    const elapsedMs = Date.now() - startedAt;
     const accuracyHint = accuracyMeters > 0 ? ` (±${accuracyMeters} m)` : "";
-    showToast(`${uiT("siteGeoLocateDone")}${accuracyHint}`, "success", 4500);
+    showToast(
+      `${uiT("siteGeoLocateDone")}${accuracyHint} · ${Math.max(1, Math.round(elapsedMs / 100) / 10)} s`,
+      "success",
+      4000,
+    );
+    void refineWorkerSiteCoordinatesIfNeeded(lat, lon, accuracyMeters);
   } catch (error) {
     const code = Number(error?.code);
     if (code === 1) {
       showToast(uiT("siteGeoLocateDenied"), "warning", 6000);
+    } else if (code === 3) {
+      showToast(uiT("siteGeoLocateTimeout"), "warning", 6000);
     } else {
       showToast(uiT("siteGeoLocateFailed"), "error", 5000);
     }
@@ -16838,6 +17059,14 @@ function wireWorkerFormEnhancements() {
     geoBtn.dataset.wired = "1";
     geoBtn.addEventListener("click", () => {
       void fillSiteFromCurrentLocation();
+    });
+  }
+
+  const verifyBtn = document.getElementById("siteVerifyBtn");
+  if (verifyBtn && verifyBtn.dataset.wired !== "1") {
+    verifyBtn.dataset.wired = "1";
+    verifyBtn.addEventListener("click", () => {
+      void verifyWorkerSiteLocation();
     });
   }
 
@@ -22079,7 +22308,7 @@ async function collectBrandingPayloadFromCard(companyId) {
   };
   const theme = themeMap[preset] || themeMap.construction;
   return {
-    companyName: portalName || company.name || "WorkPass",
+    companyName: portalName || company.name || "SUPPIX",
     logoData: brandingLogoData,
     accent,
     accentLight: theme.accentLight,
@@ -23955,7 +24184,7 @@ function renderCompanyList() {
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
               <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailSenderLabel"))}</label>
               <input data-company-mail-sender-email="${escapeHtml(companyId)}" type="email" placeholder="sender@company.tld" value="${escapeAttr(companyMail.senderEmail)}" ${canManageMail ? "" : "disabled"} />
-              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="WorkPass" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="SUPPIX" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
               <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailImapLabel"))}</label>
@@ -29528,7 +29757,7 @@ async function loadCustomBrandingPreset() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "WorkPass";
+    document.querySelector("#platformName").value = "SUPPIX";
     document.querySelector("#operatorName").value = "Suppix Technologie UG";
     document.querySelector("#invoicePrimaryColor").value = "#06b6d4";
     document.querySelector("#invoiceAccentColor").value = "#a855f7";
@@ -29554,7 +29783,7 @@ async function loadCustomBrandingPresetAlt() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "WorkPass";
+    document.querySelector("#platformName").value = "SUPPIX";
     document.querySelector("#operatorName").value = "Suppix Technologie UG";
     document.querySelector("#invoicePrimaryColor").value = "#24324a";
     document.querySelector("#invoiceAccentColor").value = "#9333ea";

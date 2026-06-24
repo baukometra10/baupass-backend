@@ -2,7 +2,7 @@
   "name": "baupass-control-e2e",
   "private": true,
   "version": "1.0.0",
-  "description": "WorkPass test and desktop shell",
+  "description": "SUPPIX test and desktop shell",
   "main": "desktop/main.js",
   "scripts": {
     "desktop": "electron desktop/main.js",
@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.baupass.control",
-    "productName": "WorkPass",
+    "productName": "SUPPIX",
     "directories": {
       "output": "dist"
     },

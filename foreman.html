@@ -7,7 +7,7 @@
   <meta name="google" content="notranslate" />
   <meta name="description" content="Foreman Dashboard – Team-Verwaltung und Analytics." />
   <meta name="theme-color" content="#06b6d4" />
-  <title>WorkPass – Foreman Dashboard</title>
+  <title>SUPPIX – Foreman Dashboard</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -691,7 +691,7 @@
     // API Base URL
     const API_BASE = `/api`;
 
-    // Current session token (WorkPass / Admin v2)
+    // Current session token (SUPPIX / Admin v2)
     const TOKEN_KEYS = ['baupass-control-token', 'baupass-admin-v2-token', 'baupass_admin_session'];
     function getSessionToken() {
       if (window.BaupassAuth?.getSessionToken) {
@@ -736,7 +736,7 @@
       });
 
       if (response.status === 401) {
-        throw new Error('Bitte zuerst in WorkPass anmelden.');
+        throw new Error('Bitte zuerst in SUPPIX anmelden.');
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="apple-mobile-web-app-title" content="WorkPass Enterprise Hub" />
-  <meta name="application-name" content="WorkPass Enterprise Hub" />
-  <title>WorkPass — Enterprise Hub</title>
-  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
-  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Enterprise Hub" />
+  <meta name="application-name" content="SUPPIX Enterprise Hub" />
+  <title>SUPPIX — Enterprise Hub</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
@@ -892,7 +892,7 @@
     function applyStaticI18n() {
       document.documentElement.lang = HUB_LANG;
       document.documentElement.dir = HUB_LANG === "ar" ? "rtl" : "ltr";
-      document.title = `WorkPass — ${t("title")}`;
+      document.title = `SUPPIX — ${t("title")}`;
       const h1 = document.querySelector("#hubHeader h1");
       if (h1) h1.textContent = t("title");
       const sub = document.getElementById("subtitle");
@@ -1115,7 +1115,7 @@
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || selectedCompanyId || "";
       const plan = String(planKey || "professional").trim();
-      const subject = `WorkPass Tarif-Upgrade: ${plan}`;
+      const subject = `SUPPIX Tarif-Upgrade: ${plan}`;
       const body = `Gewünschter Tarif: ${plan}\nFirma-ID: ${companyId || "—"}\n\nBitte kontaktieren Sie uns für ein Angebot.`;
       const mailUrl = `mailto:support@baupass.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       const fallbackText = `${t("planUpgradeMailFallback")}\nsupport@baupass.de\n\n${subject}`;

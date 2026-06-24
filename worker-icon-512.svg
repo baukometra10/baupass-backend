@@ -1,23 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="SUPPIX AI">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0891b2"/>
+    <linearGradient id="mk-cyan" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="mk-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
       <stop offset="100%" stop-color="#6366f1"/>
     </linearGradient>
-    <linearGradient id="purple" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c084fc"/>
-      <stop offset="100%" stop-color="#4f46e5"/>
-    </linearGradient>
+    <radialGradient id="mk-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="118" fill="#050816"/>
-  <circle cx="256" cy="256" r="180" fill="#a855f7" opacity="0.12"/>
-  <g transform="translate(256 256)" fill="none" stroke-linecap="round" stroke-width="22">
-    <path d="M0 -120 A120 120 0 0 1 114 -36" stroke="url(#bg)"/>
-    <path d="M114 -36 A120 120 0 0 1 74 96" stroke="url(#bg)"/>
-    <path d="M74 96 A120 120 0 0 1 -74 96" stroke="url(#purple)"/>
-    <path d="M-74 96 A120 120 0 0 1 -114 -36" stroke="url(#purple)"/>
-    <path d="M-114 -36 A120 120 0 0 1 0 -120" stroke="url(#bg)"/>
+  <rect width="192" height="192" rx="40" fill="#050816"/>
+  <circle cx="96" cy="96" r="78" fill="url(#mk-glow)"/>
+  <g transform="translate(96 96)" fill="none" stroke-linecap="round" stroke-width="8">
+    <path d="M0 -58 A58 58 0 0 1 55 -18" stroke="url(#mk-cyan)"/>
+    <path d="M55 -18 A58 58 0 0 1 36 46" stroke="url(#mk-cyan)"/>
+    <path d="M36 46 A58 58 0 0 1 -36 46" stroke="url(#mk-purple)"/>
+    <path d="M-36 46 A58 58 0 0 1 -55 -18" stroke="url(#mk-purple)"/>
+    <path d="M-55 -18 A58 58 0 0 1 0 -58" stroke="url(#mk-cyan)"/>
   </g>
-  <circle cx="256" cy="256" r="62" fill="#0b1020" stroke="url(#purple)" stroke-width="4"/>
-  <text x="256" y="276" text-anchor="middle" font-family="'Space Grotesk', Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff">AI</text>
+  <circle cx="96" cy="96" r="30" fill="#0b1020" stroke="url(#mk-purple)" stroke-width="2"/>
+  <circle cx="96" cy="96" r="18" fill="url(#mk-purple)" opacity="0.35"/>
+  <text x="96" y="104" text-anchor="middle" font-family="'Space Grotesk', Arial, sans-serif" font-size="18" font-weight="700" fill="#ffffff">AI</text>
 </svg>

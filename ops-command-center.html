@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="apple-mobile-web-app-title" content="WorkPass Ops Center" />
-  <meta name="application-name" content="WorkPass Ops Center" />
-  <title>WorkPass — Ops Center</title>
-  <link rel="apple-touch-icon" sizes="192x192" href="/worker-icon-192.png" />
-  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/worker-icon-192.svg" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Ops Center" />
+  <meta name="application-name" content="SUPPIX Ops Center" />
+  <title>SUPPIX — Ops Center</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
@@ -143,7 +143,7 @@
         liveEvents: "Live-Ereignisse (SSE)",
         connecting: "Verbinde…",
         connectingStream: "Verbinde Live-Stream…",
-        authError: "Bitte in WorkPass anmelden, dann diese Seite öffnen.",
+        authError: "Bitte in SUPPIX anmelden, dann diese Seite öffnen.",
         promptOnsite: "Wer ist gerade auf allen Baustellen und wo gibt es Engpässe?",
         promptEmergency: "Gibt es aktive Notfälle und was sind die Sofortmaßnahmen?",
         promptSecurity: "Fasse offene Security-Alerts zusammen und priorisiere.",
@@ -201,7 +201,7 @@
         liveEvents: "Live events (SSE)",
         connecting: "Connecting…",
         connectingStream: "Connecting live stream…",
-        authError: "Please sign in via WorkPass, then open this page.",
+        authError: "Please sign in via SUPPIX, then open this page.",
         promptOnsite: "Who is currently on all sites and where are there bottlenecks?",
         promptEmergency: "Are there active emergencies and what are the immediate actions?",
         promptSecurity: "Summarize open security alerts and prioritize.",
@@ -259,7 +259,7 @@
         liveEvents: "أحداث مباشرة (SSE)",
         connecting: "جارٍ الاتصال…",
         connectingStream: "جارٍ الاتصال بالبث المباشر…",
-        authError: "يرجى تسجيل الدخول عبر WorkPass ثم فتح هذه الصفحة.",
+        authError: "يرجى تسجيل الدخول عبر SUPPIX ثم فتح هذه الصفحة.",
         promptOnsite: "من موجود حالياً على جميع المواقع وأين توجد نقاط ضغط؟",
         promptEmergency: "هل توجد حالات طوارئ نشطة وما الإجراءات الفورية؟",
         promptSecurity: "لخّص التنبيهات الأمنية المفتوحة ورتّب الأولويات.",
@@ -290,7 +290,7 @@
       const isAr = OPS_LANG === "ar";
       document.documentElement.lang = OPS_LANG;
       document.documentElement.dir = isAr ? "rtl" : "ltr";
-      document.title = `WorkPass — ${tr("title")}`;
+      document.title = `SUPPIX — ${tr("title")}`;
       const titleEl = document.getElementById("opsTitle");
       if (titleEl) titleEl.textContent = tr("title");
       const navMap = {
@@ -573,10 +573,10 @@
 
     async function startEventStream() {
       const feed = document.getElementById("eventFeed");
-      if (!feed || !window.WorkPassOpsRealtime) return;
+      if (!feed || !window.SUPPIXOpsRealtime) return;
       if (stopRealtime) stopRealtime();
       feed.innerHTML = `<span class="muted">${tr("connectingStream")}</span>`;
-      stopRealtime = await window.WorkPassOpsRealtime.start({
+      stopRealtime = await window.SUPPIXOpsRealtime.start({
         companyId,
         feedEl: feed,
         onMode: (mode) => {

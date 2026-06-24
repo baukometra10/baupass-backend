@@ -1,8 +1,0 @@
-Firmenname: BauKometra
-Slogan: Digitale Baustellenkontrolle
-Datei: branding/baukometra-logo.svg
-
-Hinweis:
-- Das Logo ist von mir neu erstellt und kein Marken-Klon.
-- Eine rechtliche 100%-Garantie auf weltweite Einzigartigkeit kann ich nicht geben.
-- Vor offizieller Nutzung bitte Markenrecherche (DPMA/EUIPO) durchfuehren.

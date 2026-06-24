@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WorkPass — Vertrag unterschreiben</title>
-  <link rel="icon" type="image/png" sizes="192x192" href="/worker-icon-192.png" />
+  <title>SUPPIX — Vertrag unterschreiben</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <style>
     :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --danger:#f87171; }
     * { box-sizing:border-box; }
@@ -41,7 +41,7 @@
   <header>
     <div>
       <img id="companyLogo" class="logo" src="/branding/suppix-ai-logo-dark.svg" alt="SUPPIX AI" />
-      <strong id="companyName">WorkPass</strong>
+      <strong id="companyName">SUPPIX</strong>
       <div class="muted" id="pageHint">Vertrag lesen und unterschreiben</div>
     </div>
     <span id="roleBadge" class="muted"></span>
@@ -190,7 +190,7 @@
       }
       view = data;
       applyUi();
-      document.getElementById("companyName").textContent = data.companyName || "WorkPass";
+      document.getElementById("companyName").textContent = data.companyName || "SUPPIX";
       if (data.logoData) {
         const logo = document.getElementById("companyLogo");
         logo.src = data.logoData;

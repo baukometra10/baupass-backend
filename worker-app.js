@@ -908,7 +908,7 @@ function applyTranslations() {
   const dir = LANG_META[lang]?.dir || "ltr";
   document.documentElement.lang = lang;
   document.documentElement.dir = dir;
-  // Use company brand title (KontrolPass/WorkPass) if already loaded, otherwise fallback to i18n key
+  // Use company brand title (KontrolPass/SUPPIX) if already loaded, otherwise fallback to i18n key
   const brandPrefix = currentAppBrandTitle || "";
   document.title = brandPrefix ? brandPrefix + " – " + t("pageTitle") : t("pageTitle");
 
@@ -930,7 +930,7 @@ function applyTranslations() {
       el.textContent = t(key);
     }
   });
-  // Re-apply company brand label after translations (preserves KontrolPass / WorkPass)
+  // Re-apply company brand label after translations (preserves KontrolPass / SUPPIX)
   if (currentAppBrandTitle) {
     const appTitleEl = document.getElementById("workerAppTitle");
     if (appTitleEl) appTitleEl.textContent = currentAppBrandTitle;
@@ -973,7 +973,7 @@ let lastCameraPhotoDataUrl = null;
 let lastCameraPhotoRotation = 0;
 let wakeLockHandle = null;
 let dynamicManifestUrl = "";
-let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / WorkPass)
+let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / SUPPIX)
 let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
 
@@ -2304,14 +2304,9 @@ async function resolveLoginLocation() {
     return null;
   }
 
-  if (typeof capturePreciseGeolocation === "function") {
+  if (typeof captureInstantGeolocation === "function") {
     try {
-      const position = await capturePreciseGeolocation({
-        minSamples: 2,
-        maxSamples: 5,
-        maxWaitMs: 14000,
-        targetAccuracyMeters: 25,
-      });
+      const position = await captureInstantGeolocation();
       return {
         latitude: position.latitude,
         longitude: position.longitude,

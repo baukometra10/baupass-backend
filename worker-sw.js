@@ -7,10 +7,10 @@ const STATIC_ASSETS = [
   { path: "/worker.css", rev: WORKER_BUILD },
   { path: "/worker-app.js", rev: WORKER_BUILD },
   { path: "/emp-app-manifest.json", rev: WORKER_BUILD },
-  { path: "/worker-icon-192.png" },
-  { path: "/worker-icon-512.png" },
-  { path: "/worker-icon-192.svg" },
-  { path: "/worker-icon-512.svg" },
+  { path: "/branding/suppix-icon-192.png" },
+  { path: "/branding/suppix-icon-512.png" },
+  { path: "/branding/suppix-ai-mark.svg" },
+  { path: "/branding/suppix-ai-mark.svg" },
   { path: "/branding/suppix-ai-mark.svg" },
   { path: "/branding/suppix-ai-logo.svg" }
 ];
@@ -130,9 +130,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "WorkPass", body: event.data ? event.data.text() : "" };
+    data = { title: "SUPPIX", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "WorkPass";
+  const title = data.title || "SUPPIX";
   const tag = data.tag || "baupass-notification";
   let defaultUrl = data.url || "/worker-install.html?launch=1";
   if (tag === "deployment-plan") {
@@ -145,8 +145,8 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "",
     tag,
-    icon: "/worker-icon-192-20260511f.png",
-    badge: "/worker-icon-192-20260511f.png",
+    icon: "/branding/suppix-icon-192.png",
+    badge: "/branding/suppix-icon-192.png",
     vibrate: [200, 100, 200],
     data: { url: defaultUrl },
     actions: data.actions || []
@@ -201,8 +201,8 @@ self.addEventListener("message", (event) => {
       self.registration.showNotification("Vergessen auszustempeln?", {
         body: `${workerName || "Hallo"} – deine Schicht endet gleich. Bitte auschecken!`,
         tag: "checkout-reminder",
-        icon: "/worker-icon-192-20260511f.png",
-        badge: "/worker-icon-192-20260511f.png",
+        icon: "/branding/suppix-icon-192.png",
+        badge: "/branding/suppix-icon-192.png",
         vibrate: [300, 150, 300],
         data: { url: "/worker-install.html?launch=1" }
       });

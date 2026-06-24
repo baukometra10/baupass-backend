@@ -233,7 +233,7 @@ function createSplashWindow() {
   });
 
   splashWindow.webContents.on("did-finish-load", () => {
-    updateSplashProgress(8, "WorkPass startet", "Arbeitsbereich wird aufgebaut");
+    updateSplashProgress(8, "SUPPIX startet", "Arbeitsbereich wird aufgebaut");
   });
 
   splashWindow.on("closed", () => {
@@ -297,7 +297,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
-    updateSplashProgress(100, "Bereit", "Willkommen in WorkPass");
+    updateSplashProgress(100, "Bereit", "Willkommen in SUPPIX");
     revealMainWindow(0);
   });
 
