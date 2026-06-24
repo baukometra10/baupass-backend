@@ -1,6 +1,7 @@
 import { STRINGS as BASE_STRINGS } from "./i18n-strings.js";
 import { EXT_STRINGS } from "./i18n-strings-ext.js";
 import { EXTRA_LANG_STRINGS } from "./i18n-strings-langs.js";
+import { FEATURE_STRINGS } from "./i18n-features.js";
 
 const LANGS_8 = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
 
@@ -8,7 +9,8 @@ function buildLangPack(lang) {
   const base = BASE_STRINGS[lang] || BASE_STRINGS.en || {};
   const ext = EXT_STRINGS[lang] || EXT_STRINGS.en || {};
   const extra = EXTRA_LANG_STRINGS[lang] || {};
-  return { ...base, ...ext, ...extra };
+  const features = FEATURE_STRINGS[lang] || FEATURE_STRINGS.en || {};
+  return { ...base, ...ext, ...extra, ...features };
 }
 
 const STRINGS = Object.fromEntries(LANGS_8.map((lang) => [lang, buildLangPack(lang)]));
@@ -71,6 +73,45 @@ export function t(key, vars = {}) {
     text = text.replaceAll(`{${k}}`, String(v ?? ""));
   }
   return text;
+}
+
+export function featureLabel(featureId, fallback = "") {
+  const key = `feature.${String(featureId || "").trim()}`;
+  const val = t(key);
+  return val !== key ? val : (fallback || featureId || "");
+}
+
+export function widgetLabel(widget) {
+  if (widget?.labelKey) return t(widget.labelKey);
+  return widget?.label || widget?.id || "";
+}
+
+export function widgetValue(widget) {
+  if (widget?.valueKey) return t(widget.valueKey);
+  return widget?.value ?? "—";
+}
+
+export function widgetDetail(widget) {
+  if (widget?.detailKey) return t(widget.detailKey, widget.detailVars || {});
+  return widget?.detail || "";
+}
+
+export function moduleAlertMessage(alert) {
+  const label = featureLabel(alert?.featureId, alert?.label);
+  const days = alert?.daysSinceUse ?? 30;
+  if (!alert?.lastUsedAt) return t("analytics.moduleUnusedDays", { label, days });
+  return t("analytics.moduleLastUsedDays", { label, days });
+}
+
+export function formatForecastSummary(fc = {}) {
+  const day = typeof fc.weekday === "number" ? t(`weekday.${fc.weekday}`) : (fc.weekdayLabel || "");
+  return t("overview.forecastSummary", {
+    day,
+    date: fc.date || "",
+    onSite: fc.expectedOnSite ?? 0,
+    total: fc.totalActive ?? 0,
+    absent: fc.expectedAbsent ?? 0,
+  });
 }
 
 function applyAttr(el, attr, key) {

@@ -316,9 +316,9 @@ def sector_config(sector_id: str, *, lang: str = "de") -> dict[str, Any]:
     terms_raw = SECTOR_TERM_KEYS.get(sector_id, {})
     admin_terms = ADMIN_V2_TERM_KEYS.get(sector_id, ADMIN_V2_TERM_KEYS["construction"])
     merged_terms = {**terms_raw, **admin_terms}
-    terms = {k: (v.get(lang) or v.get("de") or "") for k, v in merged_terms.items()}
-    label = meta["labels"].get(lang) or meta["labels"]["de"]
-    product_line = meta["productLine"].get(lang) or meta["productLine"]["de"]
+    terms = {k: (v.get(lang) or v.get("en") or v.get("de") or "") for k, v in merged_terms.items()}
+    label = meta["labels"].get(lang) or meta["labels"].get("en") or meta["labels"]["de"]
+    product_line = meta["productLine"].get(lang) or meta["productLine"].get("en") or meta["productLine"]["de"]
     return {
         "sector": sector_id,
         "label": label,
@@ -328,7 +328,7 @@ def sector_config(sector_id: str, *, lang: str = "de") -> dict[str, Any]:
         "availableSectors": [
             {
                 "id": sid,
-                "label": SECTOR_META[sid]["labels"].get(lang) or SECTOR_META[sid]["labels"]["de"],
+                "label": SECTOR_META[sid]["labels"].get(lang) or SECTOR_META[sid]["labels"].get("en") or SECTOR_META[sid]["labels"]["de"],
             }
             for sid in sorted(VALID_SECTORS)
         ],

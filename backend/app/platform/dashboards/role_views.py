@@ -23,8 +23,8 @@ def build_role_dashboard(db, *, role: str, company_id: str | None, user: dict) -
         except Exception:
             companies = 0
         base["widgets"] = [
-            {"id": "companies", "label": "Firmen", "value": int(companies or 0), "severity": "info"},
-            {"id": "hint", "label": "Modus", "value": "Global", "severity": "info"},
+            {"id": "companies", "labelKey": "widget.companies", "value": int(companies or 0), "severity": "info"},
+            {"id": "hint", "labelKey": "widget.mode", "valueKey": "overview.modeGlobal", "severity": "info"},
         ]
         base["quickLinks"] = [
             {"label": "Ops Command Center", "url": "/ops-command-center.html"},
@@ -49,17 +49,18 @@ def build_role_dashboard(db, *, role: str, company_id: str | None, user: dict) -
 
     if role == "company-admin":
         base["widgets"] = [
-            {"id": "on_site", "label": "Heute on-site", "value": on_site, "severity": "info"},
+            {"id": "on_site", "labelKey": "widget.onSiteToday", "value": on_site, "severity": "info"},
             {
                 "id": "tomorrow",
-                "label": "Morgen (Prognose)",
+                "labelKey": "widget.tomorrowForecast",
                 "value": forecast.get("expectedOnSite"),
-                "detail": f"−{forecast.get('expectedAbsent')} Risiko",
+                "detailKey": "widget.tomorrowRiskDetail",
+                "detailVars": {"absent": forecast.get("expectedAbsent", 0)},
                 "severity": "medium" if forecast.get("expectedAbsent", 0) > 2 else "low",
             },
             {
                 "id": "inbox",
-                "label": "Posteingang",
+                "labelKey": "overview.inbox",
                 "value": inbox.get("counts", {}).get("open", 0),
                 "severity": "high" if inbox.get("counts", {}).get("critical") else "medium",
             },
@@ -75,8 +76,8 @@ def build_role_dashboard(db, *, role: str, company_id: str | None, user: dict) -
 
     # foreman / default
     base["widgets"] = [
-        {"id": "on_site", "label": "Team on-site", "value": on_site, "severity": "info"},
-        {"id": "tomorrow", "label": "Morgen Prognose", "value": forecast.get("expectedOnSite"), "severity": "info"},
+        {"id": "on_site", "labelKey": "widget.onSiteToday", "value": on_site, "severity": "info"},
+        {"id": "tomorrow", "labelKey": "widget.tomorrowShort", "value": forecast.get("expectedOnSite"), "severity": "info"},
     ]
     base["forecast"] = forecast
     base["quickLinks"] = [

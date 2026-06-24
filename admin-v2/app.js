@@ -1,4 +1,4 @@
-﻿import { applyI18n, getLang, setLang, setSectorTermOverrides, t } from "./i18n.js";
+﻿import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
 import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -2924,11 +2924,11 @@ async function loadAnalytics() {
     <div class="analytics-feature-grid">
       <div class="card">
         <h3 class="section-title">${t("analytics.dailyUsed")}</h3>
-        ${daily.length ? `<ul class="analytics-list">${daily.map((m) => `<li><strong>${escapeHtml(m.label)}</strong> — ${m.hits} hits / ${m.activeDays}d</li>`).join("")}</ul>` : `<p class="muted">${t("analytics.noFeatures")}</p>`}
+        ${daily.length ? `<ul class="analytics-list">${daily.map((m) => `<li><strong>${escapeHtml(featureLabel(m.featureId, m.label))}</strong> — ${m.hits} hits / ${m.activeDays}d</li>`).join("")}</ul>` : `<p class="muted">${t("analytics.noFeatures")}</p>`}
       </div>
       <div class="card">
         <h3 class="section-title">${t("analytics.unused")}</h3>
-        ${unused.length ? `<ul class="analytics-list">${unused.map((m) => `<li>${escapeHtml(m.label)}</li>`).join("")}</ul>` : `<p class="muted">—</p>`}
+        ${unused.length ? `<ul class="analytics-list">${unused.map((m) => `<li>${escapeHtml(featureLabel(m.featureId, m.label))}</li>`).join("")}</ul>` : `<p class="muted">—</p>`}
       </div>
       <div class="card">
         <h3 class="section-title">${t("analytics.frequentRequests")}</h3>
@@ -3093,8 +3093,8 @@ function renderModuleAlerts(alerts) {
       ${alerts
         .map(
           (a) => `<div class="analytics-alert analytics-alert-${escapeHtml(a.severity || "info")}">
-            <strong>${escapeHtml(a.label || a.featureId)}</strong>
-            <span class="muted small">${escapeHtml(a.message || "")}</span>
+            <strong>${escapeHtml(featureLabel(a.featureId, a.label))}</strong>
+            <span class="muted small">${escapeHtml(moduleAlertMessage(a))}</span>
           </div>`,
         )
         .join("")}
@@ -3136,7 +3136,7 @@ async function loadOverview() {
   const extraCards = dashWidgets
     .map(
       (w) =>
-        `<div class="card"><span class="muted">${w.label || w.id}</span><strong>${w.value ?? "—"}</strong>${w.detail ? `<small class="muted">${w.detail}</small>` : ""}</div>`,
+        `<div class="card"><span class="muted">${escapeHtml(widgetLabel(w))}</span><strong>${widgetValue(w)}</strong>${widgetDetail(w) ? `<small class="muted">${escapeHtml(widgetDetail(w))}</small>` : ""}</div>`,
     )
     .join("");
   $("statCards").innerHTML = `
@@ -3159,10 +3159,10 @@ async function loadOverview() {
     fp.innerHTML = `
       <div class="card forecast-card">
         <div class="forecast-head">
-          <span class="muted">${t("overview.forecastTomorrow", { day: fc.weekdayLabel || "", date: fc.date })}</span>
+          <span class="muted">${t("overview.forecastTomorrow", { day: typeof fc.weekday === "number" ? t(`weekday.${fc.weekday}`) : (fc.weekdayLabel || ""), date: fc.date })}</span>
           <span class="badge">${fc.confidence === "high" ? t("overview.confidenceHigh") : t("overview.confidenceMed")}</span>
         </div>
-        <p class="forecast-summary">${fc.summary || ""}</p>
+        <p class="forecast-summary">${formatForecastSummary(fc)}</p>
         <div class="cards forecast-stats">
           <div><span class="muted">${t("overview.expectedOnSite")}</span><strong>${fc.expectedOnSite ?? "—"}</strong></div>
           <div><span class="muted">${t("overview.absentRisk")}</span><strong>${fc.expectedAbsent ?? "—"}</strong></div>
