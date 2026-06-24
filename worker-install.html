@@ -87,7 +87,15 @@
     const shouldAutoLaunch = params.get("launch") === "1" || window.matchMedia?.("(display-mode: standalone)")?.matches || Boolean(window.navigator.standalone);
     if (accessToken) {
       try {
-        localStorage.setItem("baupass-worker-access-token", accessToken);
+        const tokenKeys = [
+          "baupass-worker-access-token",
+          "workpass-worker-access-token",
+          "baupass-pending-access-token",
+          "workpass-pending-access-token",
+        ];
+        tokenKeys.forEach((key) => {
+          localStorage.setItem(key, accessToken);
+        });
       } catch {
         // ignore storage failures
       }
@@ -95,7 +103,9 @@
 
     if (apiBase) {
       try {
-        localStorage.setItem("baupass-api-base", apiBase);
+        ["baupass-api-base", "workpass-api-base"].forEach((key) => {
+          localStorage.setItem(key, apiBase);
+        });
       } catch {
         // ignore storage failures
       }

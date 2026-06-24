@@ -10929,7 +10929,32 @@ def worker_admin_onboarding_provision_allowed(db, worker_row, actor_user):
     return codes.issubset(_ONBOARDING_LOCK_CODES)
 
 
-def build_worker_app_access_payload(db, worker_id, actor_user):
+def _compose_worker_app_access_response(access_token, access_expires_at, worker_id, *, created=True, reused=False):
+    build_tag = _get_worker_build_info().get("build") or "latest"
+    public_base = get_public_base_url().rstrip("/")
+    api_base_param = urlencode({"apiBase": public_base}) if public_base else ""
+    join_query = f"access={access_token}&v={build_tag}&launch=1"
+    if api_base_param:
+        join_query = f"{join_query}&{api_base_param}"
+    link = f"{public_base}/join.html?{join_query}"
+    pwa_link = f"{public_base}/worker-install.html?access={access_token}&v={build_tag}&launch=1"
+    if api_base_param:
+        pwa_link = f"{pwa_link}&{api_base_param}"
+    return {
+        "accessToken": access_token,
+        "link": link,
+        "joinLink": link,
+        "pwaLink": pwa_link,
+        "deepLink": f"baupass://join?access={access_token}",
+        "created": created,
+        "reused": reused,
+        "oneTime": True,
+        "accessExpiresAt": access_expires_at,
+        "workerId": worker_id,
+    }
+
+
+def build_worker_app_access_payload(db, worker_id, actor_user, *, issue_new_token=True):
     worker = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
     if not worker:
         return None, (jsonify({"error": "worker_not_found"}), 404)
@@ -10957,6 +10982,26 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
         }), 403)
 
     now = now_iso()
+    if not issue_new_token:
+        existing = db.execute(
+            """
+            SELECT token, expires_at
+            FROM worker_app_tokens
+            WHERE worker_id = ? AND revoked_at IS NULL AND expires_at >= ?
+            ORDER BY expires_at DESC
+            LIMIT 1
+            """,
+            (worker_id, now),
+        ).fetchone()
+        if existing:
+            return _compose_worker_app_access_response(
+                existing["token"],
+                existing["expires_at"],
+                worker_id,
+                created=False,
+                reused=True,
+            ), None
+
     db.execute(
         "UPDATE worker_app_tokens SET revoked_at = ? WHERE worker_id = ? AND revoked_at IS NULL AND expires_at >= ?",
         (now, worker_id, now),
@@ -10970,27 +11015,13 @@ def build_worker_app_access_payload(db, worker_id, actor_user):
     )
     db.commit()
 
-    build_tag = _get_worker_build_info().get("build") or "latest"
-    public_base = get_public_base_url().rstrip("/")
-    api_base_param = urlencode({"apiBase": public_base}) if public_base else ""
-    join_query = f"access={access_token}&v={build_tag}&launch=1"
-    if api_base_param:
-        join_query = f"{join_query}&{api_base_param}"
-    link = f"{public_base}/join.html?{join_query}"
-    pwa_link = f"{public_base}/worker-install.html?access={access_token}&v={build_tag}"
-    if api_base_param:
-        pwa_link = f"{pwa_link}&{api_base_param}"
-    return {
-        "accessToken": access_token,
-        "link": link,
-        "joinLink": link,
-        "pwaLink": pwa_link,
-        "deepLink": f"baupass://join?access={access_token}",
-        "created": True,
-        "oneTime": True,
-        "accessExpiresAt": access_expires_at,
-        "workerId": worker_id,
-    }, None
+    return _compose_worker_app_access_response(
+        access_token,
+        access_expires_at,
+        worker_id,
+        created=True,
+        reused=False,
+    ), None
 
 
 def normalize_company_access_mode(value):

@@ -140,6 +140,19 @@ const API_BASE = resolveWorkerApiBase();
 const API_ROOT = resolveApiRoot(API_BASE);
 const WORKER_TOKEN_KEY = WP?.KEYS?.WORKER_TOKEN || "workpass-worker-token";
 const WORKER_ACCESS_TOKEN_KEY = WP?.KEYS?.WORKER_ACCESS_TOKEN || "workpass-worker-access-token";
+const PENDING_ACCESS_TOKEN_KEY = WP?.KEYS?.PENDING_ACCESS_TOKEN || "workpass-pending-access-token";
+function readBootstrapAccessToken(params) {
+  const urlToken = (params.get("access") || "").trim();
+  if (urlToken) return urlToken;
+  const storedAccess = String(wpGet(WORKER_ACCESS_TOKEN_KEY) || "").trim();
+  if (storedAccess) return storedAccess;
+  return String(wpGet(PENDING_ACCESS_TOKEN_KEY) || "").trim();
+}
+
+function clearBootstrapAccessTokens() {
+  wpRemove(WORKER_ACCESS_TOKEN_KEY);
+  wpRemove(PENDING_ACCESS_TOKEN_KEY);
+}
 const WORKER_BADGE_LOGIN_KEY = WP?.KEYS?.WORKER_BADGE_LOGIN || "workpass-worker-badge-login";
 const LOCAL_LAST_PHOTO_KEY = WP?.KEYS?.LOCAL_LAST_PHOTO || "workpass-last-local-photo";
 const OFFLINE_PHOTO_QUEUE_KEY = WP?.KEYS?.OFFLINE_PHOTO_QUEUE || "workpass-offline-photo-queue";
@@ -1680,16 +1693,14 @@ async function init() {
   }
   
   const params = new URL(window.location.href).searchParams;
-  const urlToken = (params.get("access") || "").trim();
+  const bootstrapAccessToken = readBootstrapAccessToken(params);
   const viewParam = (params.get("view") || "").trim().toLowerCase();
   if (viewParam === "card") {
     document.body.classList.add("worker-card-install");
   }
   const urlBadgeParam = normalizeBadgeIdInput(params.get("badge") || "");
   const urlFastLogin = params.get("fast") === "1" || params.get("launch") === "1";
-  const storedAccessToken = (window.localStorage.getItem(WORKER_ACCESS_TOKEN_KEY) || "").trim();
   const storedBadgeId = (window.localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
-  const bootstrapAccessToken = urlToken || storedAccessToken;
 
   if (bootstrapAccessToken) {
     window.wpSet(WORKER_ACCESS_TOKEN_KEY, bootstrapAccessToken);
@@ -1703,9 +1714,9 @@ async function init() {
   initBatteryTelemetry();
   updateWorkerPulsePanel();
 
-  if (urlToken) {
+  if (bootstrapAccessToken && (params.get("access") || "").trim()) {
     if (elements.workerAccessToken) {
-      elements.workerAccessToken.value = urlToken;
+      elements.workerAccessToken.value = bootstrapAccessToken;
     }
     // If already logged in with a valid session, just use it (token may be already used)
     if (workerToken) {
@@ -1717,7 +1728,7 @@ async function init() {
     const locationPayload = await resolveLoginLocation();
     // keepUrlToken: false → URL wird sofort bereinigt, damit ein Seitenrefresh
     // nicht denselben (bereits verbrauchten) Einmalcode nochmals sendet.
-    await loginWithAccessToken(urlToken, { keepUrlToken: false, silent: false, locationPayload });
+    await loginWithAccessToken(bootstrapAccessToken, { keepUrlToken: false, silent: false, locationPayload });
     return;
   }
 
@@ -1728,12 +1739,12 @@ async function init() {
     }
   }
 
-  if (storedAccessToken) {
+  if (bootstrapAccessToken) {
     if (elements.workerAccessToken) {
-      elements.workerAccessToken.value = storedAccessToken;
+      elements.workerAccessToken.value = bootstrapAccessToken;
     }
     const locationPayload = await resolveLoginLocation();
-    await loginWithAccessToken(storedAccessToken, { keepUrlToken: false, silent: true, locationPayload });
+    await loginWithAccessToken(bootstrapAccessToken, { keepUrlToken: false, silent: true, locationPayload });
     if (workerToken) {
       applyWorkerPageView("badgeCard");
       return;
@@ -2753,7 +2764,7 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
 
     // Einmaltoken ist jetzt verbraucht – aus Storage löschen, damit beim nächsten
     // App-Start kein Fehler „Anmeldung fehlgeschlagen" wegen ungültigem Token entsteht.
-    wpRemove(WORKER_ACCESS_TOKEN_KEY);
+    clearBootstrapAccessTokens();
     // Badge-ID für nächste Session speichern (Feld wird beim nächsten Start vorausgefüllt).
     try {
       const cached = JSON.parse(wpGet(WORKER_CACHED_PAYLOAD_KEY) || "{}");
@@ -2777,7 +2788,7 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
     if (error.code === "access_token_already_used") {
-      wpRemove(WORKER_ACCESS_TOKEN_KEY);
+      clearBootstrapAccessTokens();
       // If the worker already has an active session, just load that instead of showing the login screen
       const existingToken = wpGet(WORKER_TOKEN_KEY);
       if (existingToken) {
@@ -2806,12 +2817,12 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
       return;
     }
     if (["invalid_access_token", "access_token_revoked", "access_token_expired"].includes(error.code)) {
-      wpRemove(WORKER_ACCESS_TOKEN_KEY);
+      clearBootstrapAccessTokens();
       showWorkerNotice(t("qrLinkInvalidRescan"));
       return;
     }
     if (error.code === "visitor_visit_expired") {
-      wpRemove(WORKER_ACCESS_TOKEN_KEY);
+      clearBootstrapAccessTokens();
       showWorkerNotice(t("visitorExpiredNeedLink"));
       return;
     }
@@ -2819,7 +2830,7 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
       showLogin();
       return;
     }
-    if (error.code === "worker_app_disabled") {
+    if (error.code === "worker_app_disabled" || error.code === "feature_not_available") {
       showWorkerNotice(t("workerAppDisabled"));
       return;
     }

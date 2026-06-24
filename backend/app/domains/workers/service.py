@@ -1597,7 +1597,9 @@ class WorkersService:
         if feature_err:
             return feature_err
 
-        payload, error_response = build_worker_app_access_payload(db, worker_id, user)
+        payload, error_response = build_worker_app_access_payload(
+            db, worker_id, user, issue_new_token=False
+        )
         if error_response:
             return {"error_response": error_response}
         return {"body": payload}
@@ -1612,7 +1614,9 @@ class WorkersService:
         if feature_err:
             return feature_err
 
-        payload, error_response = build_worker_app_access_payload(db, worker_id, user)
+        payload, error_response = build_worker_app_access_payload(
+            db, worker_id, user, issue_new_token=True
+        )
         if error_response:
             return {"error_response": error_response}
 

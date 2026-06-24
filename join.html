@@ -63,7 +63,7 @@
       <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener">iPhone: TestFlight</a>
       <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener">Google Play</a>
       <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener">App Store</a>
-      <a id="pwaBtn" class="btn secondary hidden" href="#" style="font-size:0.9rem;opacity:0.85">Browser-Fallback (alt, nur wenn nötig)</a>
+      <a id="pwaBtn" class="btn primary hidden" href="#" style="font-size:1rem">PWA im Browser nutzen (bis native App aktiv)</a>
     </div>
     <p class="muted" id="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
   </main>
@@ -85,13 +85,20 @@
 
     function storePending() {
       if (!accessToken) return;
-      try {
-        localStorage.setItem(PENDING_KEY, accessToken);
-      } catch { /* ignore */ }
+      const tokenKeys = [
+        PENDING_KEY,
+        "workpass-pending-access-token",
+        "baupass-worker-access-token",
+        "workpass-worker-access-token",
+      ];
+      tokenKeys.forEach((key) => {
+        try { localStorage.setItem(key, accessToken); } catch { /* ignore */ }
+      });
       if (apiBase) {
-        try {
-          localStorage.setItem(API_BASE_KEY, apiBase);
-        } catch { /* ignore */ }
+        const baseKeys = [API_BASE_KEY, "workpass-api-base"];
+        baseKeys.forEach((key) => {
+          try { localStorage.setItem(key, apiBase); } catch { /* ignore */ }
+        });
       }
     }
 
