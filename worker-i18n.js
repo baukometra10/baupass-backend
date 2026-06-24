@@ -2643,7 +2643,7 @@ const LANG_META = {
   pl: { label: "PL", flag: "🇵🇱", dir: "ltr" },
 };
 
-const DEFAULT_LANG_STORAGE_KEY = "baupass-worker-lang";
+const DEFAULT_LANG_STORAGE_KEY = window.WorkPassStorage?.KEYS?.WORKER_LANG || "workpass-worker-lang";
 
 let currentLang = localStorage.getItem(DEFAULT_LANG_STORAGE_KEY) || "de";
 if (!TRANSLATIONS[currentLang]) {

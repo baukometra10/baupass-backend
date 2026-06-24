@@ -64,11 +64,14 @@
       </div>
     </section>
   </main>
+  <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script>
+    const WP = window.WorkPassStorage;
+    const wpGet = (key) => (WP?.getItem ? WP.getItem(key) : localStorage.getItem(key));
     const params = new URLSearchParams(location.search);
-    const companyId = params.get("company_id") || localStorage.getItem("baupass-admin-v2-company") || "";
-    const token = localStorage.getItem("baupass-admin-v2-token") || localStorage.getItem("baupass-control-token") || "";
+    const companyId = params.get("company_id") || wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "";
+    const token = wpGet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token") || wpGet(WP?.KEYS?.SESSION_TOKEN || "workpass-session-token") || "";
     const backLink = document.getElementById("backLink");
     if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
     let threads = [];

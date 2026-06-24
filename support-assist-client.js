@@ -431,7 +431,7 @@
     const payload = pendingMouse;
     pendingMouse = null;
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    const token = global.localStorage?.getItem("baupass-control-token") || "";
+    const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
     if (token) headers.Authorization = `Bearer ${token}`;
     fetch(`${apiBase()}/api/support-assist/pulse`, {
       method: "POST",
@@ -501,7 +501,7 @@
     }
     if (state?.companyId && state?.watchToken) {
       const headers = { "Content-Type": "application/json", Accept: "application/json" };
-      const token = global.localStorage?.getItem("baupass-control-token") || "";
+      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
       if (token) headers.Authorization = `Bearer ${token}`;
       try {
         await fetch(`${apiBase()}/api/support-assist/end`, {
@@ -530,7 +530,7 @@
     }
     if (state?.companyId && state?.watchToken) {
       const headers = { "Content-Type": "application/json", Accept: "application/json" };
-      const token = global.localStorage?.getItem("baupass-control-token") || "";
+      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
       if (token) headers.Authorization = `Bearer ${token}`;
       fetch(`${apiBase()}/api/support-assist/end`, {
         method: "POST",
@@ -545,7 +545,7 @@
   async function pulse(state, type, payload) {
     if (!state?.companyId || !state?.watchToken) return;
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    const token = global.localStorage?.getItem("baupass-control-token") || "";
+    const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
     if (token) headers.Authorization = `Bearer ${token}`;
     await fetch(`${apiBase()}/api/support-assist/pulse`, {
       method: "POST",
@@ -562,7 +562,7 @@
 
   async function startAssistSession(companyId, actorName) {
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    const token = global.localStorage?.getItem("baupass-control-token") || "";
+    const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${apiBase()}/api/support-assist/start`, {
       method: "POST",

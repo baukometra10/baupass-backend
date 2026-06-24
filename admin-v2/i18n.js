@@ -27,8 +27,8 @@ const SECTOR_I18N_MAP = {
 
 export { STRINGS };
 
-const LANG_KEY = "baupass-admin-v2-lang";
-const SHARED_LANG_KEY = "baupass-ui-lang";
+const LANG_KEY = window.WorkPassStorage?.KEYS?.ADMIN_LANG || "workpass-admin-lang";
+const SHARED_LANG_KEY = window.WorkPassStorage?.KEYS?.UI_LANG || "workpass-ui-lang";
 
 let sectorTermOverrides = {};
 

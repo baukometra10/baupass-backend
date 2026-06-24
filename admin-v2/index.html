@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#050816" />
   <meta name="apple-mobile-web-app-title" content="WorkPass Betrieb" />
   <meta name="application-name" content="WorkPass Betrieb" />
-  <title>SUPPIX — Betrieb</title>
+  <title>WorkPass — Betrieb</title>
+  <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script>
     (function clearLocalPreviewState() {
       try {
@@ -18,8 +19,10 @@
           || host === "0.0.0.0"
           || host.endsWith(".local");
         if (isLocalHost) {
-          window.localStorage.removeItem("baupass-preview-company-id");
-          window.localStorage.removeItem("baupass-admin-v2-company");
+          const WP = window.WorkPassStorage;
+          const wpRemove = (key) => (WP?.removeItem ? WP.removeItem(key) : window.localStorage.removeItem(key));
+          wpRemove(WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id");
+          wpRemove(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company");
         }
       } catch {
         // no-op
@@ -468,7 +471,6 @@
     </div>
   </div>
 
-  <script src="/workpass-storage.js?v=20260624wp1"></script>
   <script src="/geo-precision.js?v=20260624geofence12"></script>
   <script src="/embed-helpers.js?v=20260624wp1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>

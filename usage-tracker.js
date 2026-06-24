@@ -6,17 +6,18 @@
   const THROTTLE_MS = 15000;
   const lastSent = new Map();
 
-  const ADMIN_TOKEN_KEYS = [
-    "baupass-admin-v2-token",
-    "baupass-control-token",
-    "baupass-token",
+  const ADMIN_TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || [
+    "workpass-admin-token",
+    "workpass-session-token",
+    "workpass-token",
   ];
-  const WORKER_TOKEN_KEYS = ["baupass-worker-token", "worker_app_token"];
+  const WORKER_TOKEN_KEYS = [window.WorkPassStorage?.KEYS?.WORKER_TOKEN || "workpass-worker-token", "worker_app_token"];
 
   function readToken(keys) {
+    const WP = window.WorkPassStorage;
     for (const key of keys) {
       try {
-        const value = String(global.localStorage?.getItem(key) || "").trim();
+        const value = String((WP?.getItem ? WP.getItem(key) : global.localStorage?.getItem(key)) || "").trim();
         if (value) return value;
       } catch {
         // no-op
