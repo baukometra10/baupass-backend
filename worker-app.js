@@ -1,5 +1,17 @@
 ﻿const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
-const API_BASE_STORAGE_KEY = "baupass-api-base";
+const WP = window.WorkPassStorage;
+function wpGet(key) {
+  return WP ? WP.getItem(key) : window.localStorage.getItem(key);
+}
+function wpSet(key, value) {
+  if (WP) WP.setItem(key, value);
+  else window.localStorage.setItem(key, value);
+}
+function wpRemove(key) {
+  if (WP) WP.removeItem(key);
+  else window.localStorage.removeItem(key);
+}
+const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
 const WORKER_BUILD_TAG = "20260606a";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
@@ -68,18 +80,18 @@ function resolveWorkerApiBase() {
 
   if (isLocalWorkerHost(currentHost)) {
     if (queryValue) {
-      window.localStorage.setItem(API_BASE_STORAGE_KEY, queryValue);
+      wpSet(API_BASE_STORAGE_KEY, queryValue);
       return `${queryValue}/api/worker-app`;
     }
     try {
-      window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      wpRemove(API_BASE_STORAGE_KEY);
     } catch {
       // ignore
     }
     return "/api/worker-app";
   }
 
-  let storedValue = sanitizeApiBase(window.localStorage.getItem(API_BASE_STORAGE_KEY));
+  let storedValue = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
   if (storedValue) {
     try {
       const storedHost = new URL(storedValue).hostname.toLowerCase();
@@ -88,11 +100,11 @@ function resolveWorkerApiBase() {
         || (storedHost !== currentHost && currentHost.endsWith(".up.railway.app"))
       ) {
         storedValue = "";
-        window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+        wpRemove(API_BASE_STORAGE_KEY);
       }
     } catch {
       storedValue = "";
-      window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+      wpRemove(API_BASE_STORAGE_KEY);
     }
   }
   const configuredValue = queryValue || storedValue;
@@ -109,12 +121,12 @@ function resolveWorkerApiBase() {
     } catch {
       return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
     }
-    window.localStorage.setItem(API_BASE_STORAGE_KEY, configuredValue);
+    wpSet(API_BASE_STORAGE_KEY, configuredValue);
     return `${configuredValue}/api/worker-app`;
   }
 
-  if (!configuredValue && window.localStorage.getItem(API_BASE_STORAGE_KEY)) {
-    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+  if (!configuredValue && wpGet(API_BASE_STORAGE_KEY)) {
+    wpRemove(API_BASE_STORAGE_KEY);
   }
 
   if (staticHost) {
@@ -126,23 +138,23 @@ function resolveWorkerApiBase() {
 
 const API_BASE = resolveWorkerApiBase();
 const API_ROOT = resolveApiRoot(API_BASE);
-const WORKER_TOKEN_KEY = "baupass-worker-token";
-const WORKER_ACCESS_TOKEN_KEY = "baupass-worker-access-token";
-const WORKER_BADGE_LOGIN_KEY = "baupass-worker-badge-login";
-const LOCAL_LAST_PHOTO_KEY = "baupass-last-local-photo";
-const OFFLINE_PHOTO_QUEUE_KEY = "baupass-offline-photo-queue";
-const OFFLINE_EVENT_QUEUE_KEY = "baupass-offline-event-queue";
-const WORKER_OFFLINE_LOGIN_PROFILE_KEY = "baupass-worker-offline-login-profile";
-const QR_CACHE_PREFIX = "baupass-worker-qr-cache";
-const QR_HIGH_CONTRAST_KEY = "baupass-qr-high-contrast";
-const AUTO_OPEN_SCANNER_KEY = "baupass-auto-open-scanner";
-const WORKER_CACHED_PAYLOAD_KEY = "baupass-worker-cached-payload";
-const WORKER_LANG_KEY = "baupass-worker-lang";
+const WORKER_TOKEN_KEY = WP?.KEYS?.WORKER_TOKEN || "workpass-worker-token";
+const WORKER_ACCESS_TOKEN_KEY = WP?.KEYS?.WORKER_ACCESS_TOKEN || "workpass-worker-access-token";
+const WORKER_BADGE_LOGIN_KEY = WP?.KEYS?.WORKER_BADGE_LOGIN || "workpass-worker-badge-login";
+const LOCAL_LAST_PHOTO_KEY = WP?.KEYS?.LOCAL_LAST_PHOTO || "workpass-last-local-photo";
+const OFFLINE_PHOTO_QUEUE_KEY = WP?.KEYS?.OFFLINE_PHOTO_QUEUE || "workpass-offline-photo-queue";
+const OFFLINE_EVENT_QUEUE_KEY = WP?.KEYS?.OFFLINE_EVENT_QUEUE || "workpass-offline-event-queue";
+const WORKER_OFFLINE_LOGIN_PROFILE_KEY = WP?.KEYS?.WORKER_OFFLINE_LOGIN_PROFILE || "workpass-worker-offline-login-profile";
+const QR_CACHE_PREFIX = WP?.KEYS?.QR_CACHE_PREFIX || "workpass-worker-qr-cache";
+const QR_HIGH_CONTRAST_KEY = WP?.KEYS?.QR_HIGH_CONTRAST || "workpass-qr-high-contrast";
+const AUTO_OPEN_SCANNER_KEY = WP?.KEYS?.AUTO_OPEN_SCANNER || "workpass-auto-open-scanner";
+const WORKER_CACHED_PAYLOAD_KEY = WP?.KEYS?.WORKER_CACHED_PAYLOAD || "workpass-worker-cached-payload";
+const WORKER_LANG_KEY = WP?.KEYS?.WORKER_LANG || "workpass-worker-lang";
 const WORKER_INACTIVITY_TIMEOUT_MS = 60 * 1000;
 const WORKER_PASS_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
-const WORKER_THEME_KEY = "baupass-worker-theme";
-const WORKER_DAY_PLANNER_KEY = "baupass-worker-day-planner";
-const SMART_HUB_NOTIFY_KEY = "baupass-smart-hub-notify";
+const WORKER_THEME_KEY = WP?.KEYS?.WORKER_THEME || "workpass-worker-theme";
+const WORKER_DAY_PLANNER_KEY = WP?.KEYS?.WORKER_DAY_PLANNER || "workpass-worker-day-planner";
+const SMART_HUB_NOTIFY_KEY = WP?.KEYS?.SMART_HUB_NOTIFY || "workpass-smart-hub-notify";
 
 // i18n runtime is loaded from worker-i18n.js to keep this file focused on app behavior.
 const I18N_RUNTIME = window.WorkerI18N;
@@ -209,7 +221,7 @@ function applyWorkerBrandLabels(brandTitle) {
   if (metaAppTitle) metaAppTitle.setAttribute("content", title);
   const metaAppName = document.querySelector('meta[name="application-name"]');
   if (metaAppName) metaAppName.setAttribute("content", `${title} Mitarbeiter-App`);
-  const storedToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
+  const storedToken = wpGet(WORKER_TOKEN_KEY) || "";
   if (storedToken) applyDynamicManifestStartUrl(storedToken, title);
 }
 
@@ -484,12 +496,12 @@ function notifySmartHub(type, title, body) {
   }
   const today = new Date().toISOString().slice(0, 10);
   const key = `${SMART_HUB_NOTIFY_KEY}:${type}:${today}`;
-  if (localStorage.getItem(key) === "1") {
+  if (wpGet(key) === "1") {
     return;
   }
   try {
     new Notification(title, { body, tag: `${type}-${today}` });
-    localStorage.setItem(key, "1");
+    wpSet(key, "1");
     
     // Also store in notification history
     addNotificationToHistory({ type, title, body, timestamp: now_iso() });
@@ -499,12 +511,12 @@ function notifySmartHub(type, title, body) {
 }
 
 // ─ ENHANCED NOTIFICATION SYSTEM ─────────────────────────────────────────────
-const NOTIFICATION_HISTORY_KEY = "baupass-notification-history";
+const NOTIFICATION_HISTORY_KEY = WP?.KEYS?.NOTIFICATION_HISTORY || "workpass-notification-history";
 const MAX_NOTIFICATIONS_STORED = 50;
 
 function addNotificationToHistory(notif) {
   try {
-    const history = JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_KEY) || "[]");
+    const history = JSON.parse(wpGet(NOTIFICATION_HISTORY_KEY) || "[]");
     const newNotif = {
       id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: notif.type || "general",
@@ -520,7 +532,7 @@ function addNotificationToHistory(notif) {
       history.pop();
     }
     
-    localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
+    wpSet(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
   } catch (err) {
     console.error("Failed to add notification to history:", err);
   }
@@ -528,23 +540,23 @@ function addNotificationToHistory(notif) {
 
 function getNotificationHistory() {
   try {
-    return JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_KEY) || "[]");
+    return JSON.parse(wpGet(NOTIFICATION_HISTORY_KEY) || "[]");
   } catch {
     return [];
   }
 }
 
 function clearNotificationHistory() {
-  localStorage.removeItem(NOTIFICATION_HISTORY_KEY);
+  wpRemove(NOTIFICATION_HISTORY_KEY);
 }
 
 function markNotificationAsRead(notifId) {
   try {
-    const history = JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_KEY) || "[]");
+    const history = JSON.parse(wpGet(NOTIFICATION_HISTORY_KEY) || "[]");
     const notif = history.find(n => n.id === notifId);
     if (notif) {
       notif.read = true;
-      localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
+      wpSet(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
     }
   } catch (err) {
     console.error("Failed to mark notification as read:", err);
@@ -706,11 +718,11 @@ async function refreshWorkerNotificationCenter(options = {}) {
 }
 
 // ─ OFFLINE SYNC CONFLICT DETECTION & RESOLUTION ────────────────────────────
-const SYNC_CONFLICTS_KEY = "baupass-sync-conflicts";
+const SYNC_CONFLICTS_KEY = WP?.KEYS?.SYNC_CONFLICTS || "workpass-sync-conflicts";
 
 function reportSyncConflict(conflictType, localData, serverData) {
   try {
-    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    const conflicts = JSON.parse(wpGet(SYNC_CONFLICTS_KEY) || "[]");
     const newConflict = {
       id: `conflict-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       conflictType: conflictType,
@@ -725,7 +737,7 @@ function reportSyncConflict(conflictType, localData, serverData) {
       conflicts.pop();
     }
     
-    localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
+    wpSet(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
     return newConflict.id;
   } catch (err) {
     console.error("Failed to report sync conflict:", err);
@@ -734,7 +746,7 @@ function reportSyncConflict(conflictType, localData, serverData) {
 
 function getSyncConflicts(resolution = 'pending') {
   try {
-    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    const conflicts = JSON.parse(wpGet(SYNC_CONFLICTS_KEY) || "[]");
     return resolution ? conflicts.filter(c => c.resolution === resolution) : conflicts;
   } catch {
     return [];
@@ -743,12 +755,12 @@ function getSyncConflicts(resolution = 'pending') {
 
 function resolveSyncConflict(conflictId, resolution) {
   try {
-    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    const conflicts = JSON.parse(wpGet(SYNC_CONFLICTS_KEY) || "[]");
     const conflict = conflicts.find(c => c.id === conflictId);
     if (conflict) {
       conflict.resolution = resolution;
       conflict.resolvedAt = new Date().toISOString();
-      localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
+      wpSet(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
     }
   } catch (err) {
     console.error("Failed to resolve sync conflict:", err);
@@ -757,14 +769,14 @@ function resolveSyncConflict(conflictId, resolution) {
 
 function autoResolveSyncConflicts(strategy = 'server_win') {
   try {
-    const conflicts = JSON.parse(localStorage.getItem(SYNC_CONFLICTS_KEY) || "[]");
+    const conflicts = JSON.parse(wpGet(SYNC_CONFLICTS_KEY) || "[]");
     conflicts.forEach(c => {
       if (c.resolution === 'pending') {
         c.resolution = strategy;
         c.resolvedAt = new Date().toISOString();
       }
     });
-    localStorage.setItem(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
+    wpSet(SYNC_CONFLICTS_KEY, JSON.stringify(conflicts));
   } catch (err) {
     console.error("Failed to auto-resolve sync conflicts:", err);
   }
@@ -965,8 +977,8 @@ let showcaseTimeoutId = null;
 let currentActiveTab = "home";
 let bottomTabNavInitialized = false;
 // One-time QR/link codes must not survive a cold start; bearer session may persist for PWA/offline sync.
-localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
-workerToken = (localStorage.getItem(WORKER_TOKEN_KEY) || "").trim();
+wpRemove(WORKER_ACCESS_TOKEN_KEY);
+workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
 let deferredInstallPrompt = null;
 let cameraStream = null;
 let lastCameraPhotoDataUrl = null;
@@ -978,13 +990,13 @@ let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
 
 let inactivityCheckInterval = null;
-let qrHighContrastEnabled = localStorage.getItem(QR_HIGH_CONTRAST_KEY) === "1";
+let qrHighContrastEnabled = wpGet(QR_HIGH_CONTRAST_KEY) === "1";
 let sessionExpiringSoonNotified = false;
 let ambientLightSensorHandle = null;
 let ambientLowLightRecommended = false;
 let gateAutoOpenTriggered = false;
 let lastUserInteractionAt = Date.now();
-let autoOpenScannerEnabled = localStorage.getItem(AUTO_OPEN_SCANNER_KEY) !== "0";
+let autoOpenScannerEnabled = wpGet(AUTO_OPEN_SCANNER_KEY) !== "0";
 let offlineWorkerSessionActive = false;
 let siteGeofenceWatchTimer = null;
 let siteOffSiteStrikeCount = 0;
@@ -1648,7 +1660,7 @@ function applyWorkerPageView(targetId = "") {
 init().finally(dismissSplash);
 
 async function init() {
-  workerToken = (localStorage.getItem(WORKER_TOKEN_KEY) || "").trim();
+  workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
   applyTranslations();
   updateWorkerBuildBadge();
   bindEvents();
@@ -1680,7 +1692,7 @@ async function init() {
   const bootstrapAccessToken = urlToken || storedAccessToken;
 
   if (bootstrapAccessToken) {
-    window.localStorage.setItem(WORKER_ACCESS_TOKEN_KEY, bootstrapAccessToken);
+    window.wpSet(WORKER_ACCESS_TOKEN_KEY, bootstrapAccessToken);
     applyDynamicManifestStartUrl(bootstrapAccessToken);
   }
 
@@ -1737,7 +1749,7 @@ async function init() {
         return;
       }
     }
-    localStorage.setItem(WORKER_BADGE_LOGIN_KEY, urlBadgeParam);
+    wpSet(WORKER_BADGE_LOGIN_KEY, urlBadgeParam);
     showLogin();
     if (urlFastLogin) {
       applyQrFastLoginUi(urlBadgeParam);
@@ -1887,7 +1899,7 @@ function bindEvents() {
 
   if (elements.workerResumeLoginButton) {
     elements.workerResumeLoginButton.addEventListener("click", () => {
-      const savedBadgeId = normalizeBadgeIdInput(localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "");
+      const savedBadgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
       if (!savedBadgeId || !elements.workerAccessToken) {
         return;
       }
@@ -1962,7 +1974,7 @@ function bindEvents() {
   if (elements.autoOpenScannerToggle) {
     elements.autoOpenScannerToggle.addEventListener("change", () => {
       autoOpenScannerEnabled = Boolean(elements.autoOpenScannerToggle?.checked);
-      localStorage.setItem(AUTO_OPEN_SCANNER_KEY, autoOpenScannerEnabled ? "1" : "0");
+      wpSet(AUTO_OPEN_SCANNER_KEY, autoOpenScannerEnabled ? "1" : "0");
       applyAutoOpenScannerState();
     });
   }
@@ -2227,18 +2239,18 @@ function bindEvents() {
 function savePhotoToOfflineQueue(dataUrl) {
   let queue = [];
   try {
-    queue = JSON.parse(localStorage.getItem(OFFLINE_PHOTO_QUEUE_KEY) || "[]");
+    queue = JSON.parse(wpGet(OFFLINE_PHOTO_QUEUE_KEY) || "[]");
   } catch {
     queue = [];
   }
   queue.push({ dataUrl, timestamp: Date.now() });
-  localStorage.setItem(OFFLINE_PHOTO_QUEUE_KEY, JSON.stringify(queue));
+  wpSet(OFFLINE_PHOTO_QUEUE_KEY, JSON.stringify(queue));
   updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
 }
 
 function readStoredJson(key, fallbackValue) {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = wpGet(key);
     if (!raw) {
       return fallbackValue;
     }
@@ -2249,12 +2261,12 @@ function readStoredJson(key, fallbackValue) {
 }
 
 function writeStoredJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  wpSet(key, JSON.stringify(value));
 }
 
 function clearOfflineLoginData() {
-  localStorage.removeItem(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
-  localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
+  wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+  wpRemove(WORKER_CACHED_PAYLOAD_KEY);
 }
 
 function resolveExpiryTimestamp(value) {
@@ -2401,8 +2413,8 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
   // No GPS available or no site location configured → allow PIN-based offline login
 
   offlineWorkerSessionActive = true;
-  workerToken = localStorage.getItem(WORKER_TOKEN_KEY) || "";
-  localStorage.setItem(WORKER_BADGE_LOGIN_KEY, normalizedBadgeId);
+  workerToken = wpGet(WORKER_TOKEN_KEY) || "";
+  wpSet(WORKER_BADGE_LOGIN_KEY, normalizedBadgeId);
   renderWorker(cachedPayload);
   updateConnectionState();
   if (elements.lastSyncInfo) {
@@ -2420,7 +2432,7 @@ async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
 async function syncOfflinePhotoQueue() {
   let queue = [];
   try {
-    queue = JSON.parse(localStorage.getItem(OFFLINE_PHOTO_QUEUE_KEY) || "[]");
+    queue = JSON.parse(wpGet(OFFLINE_PHOTO_QUEUE_KEY) || "[]");
   } catch {
     queue = [];
   }
@@ -2445,7 +2457,7 @@ async function syncOfflinePhotoQueue() {
     }
   }
 
-  localStorage.setItem(OFFLINE_PHOTO_QUEUE_KEY, JSON.stringify(pending));
+  wpSet(OFFLINE_PHOTO_QUEUE_KEY, JSON.stringify(pending));
   updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
 }
 
@@ -2561,7 +2573,7 @@ function registerWorkerSw() {
 
 function enforceWorkerBuildFreshness() {
   const buildTag = WORKER_BUILD_TAG;
-  const LAST_BUILD_VERSION_KEY = "baupass-worker-last-build-tag";
+  const LAST_BUILD_VERSION_KEY = WP?.KEYS?.WORKER_LAST_BUILD_TAG || "workpass-worker-last-build-tag";
   const lastBuildTag = window.localStorage.getItem(LAST_BUILD_VERSION_KEY);
   
   // Detect version change and clear old caches
@@ -2583,15 +2595,15 @@ function enforceWorkerBuildFreshness() {
     }
 
     try {
-      localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
-      localStorage.removeItem(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+      wpRemove(WORKER_CACHED_PAYLOAD_KEY);
+      wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
     } catch {
       // ignore localStorage failures
     }
   }
   
   // Always record current version
-  window.localStorage.setItem(LAST_BUILD_VERSION_KEY, buildTag);
+  window.wpSet(LAST_BUILD_VERSION_KEY, buildTag);
 
   try {
     const url = new URL(window.location.href);
@@ -2616,7 +2628,7 @@ function enforceWorkerBuildFreshness() {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key.startsWith("baupass-worker-") && !key.includes(buildTag))
+          .filter((key) => key.startsWith("workpass-worker-") && !key.includes(buildTag))
           .map((key) => caches.delete(key))
       ))
       .catch(() => {});
@@ -2692,7 +2704,7 @@ async function forceRefreshApp() {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith("baupass-worker-"))
+          .filter((key) => key.startsWith("workpass-worker-"))
           .map((key) => caches.delete(key))
       );
     } catch {
@@ -2732,22 +2744,22 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
 
     offlineWorkerSessionActive = false;
     workerToken = payload.token;
-    localStorage.setItem(WORKER_TOKEN_KEY, workerToken);
-    localStorage.setItem(WORKER_ACCESS_TOKEN_KEY, accessToken);
-    localStorage.removeItem(WORKER_BADGE_LOGIN_KEY);
+    wpSet(WORKER_TOKEN_KEY, workerToken);
+    wpSet(WORKER_ACCESS_TOKEN_KEY, accessToken);
+    wpRemove(WORKER_BADGE_LOGIN_KEY);
     applyDynamicManifestStartUrl(accessToken);
     await loadWorkerData();
     finishWorkerLoginUi();
 
     // Einmaltoken ist jetzt verbraucht – aus Storage löschen, damit beim nächsten
     // App-Start kein Fehler „Anmeldung fehlgeschlagen" wegen ungültigem Token entsteht.
-    localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+    wpRemove(WORKER_ACCESS_TOKEN_KEY);
     // Badge-ID für nächste Session speichern (Feld wird beim nächsten Start vorausgefüllt).
     try {
-      const cached = JSON.parse(localStorage.getItem(WORKER_CACHED_PAYLOAD_KEY) || "{}");
+      const cached = JSON.parse(wpGet(WORKER_CACHED_PAYLOAD_KEY) || "{}");
       const badgeId = cached.worker?.badgeId || cached.badgeId || "";
       if (badgeId) {
-        localStorage.setItem(WORKER_BADGE_LOGIN_KEY, badgeId);
+        wpSet(WORKER_BADGE_LOGIN_KEY, badgeId);
       }
     } catch {
       // Nicht kritisch
@@ -2765,9 +2777,9 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
     if (error.code === "access_token_already_used") {
-      localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+      wpRemove(WORKER_ACCESS_TOKEN_KEY);
       // If the worker already has an active session, just load that instead of showing the login screen
-      const existingToken = localStorage.getItem(WORKER_TOKEN_KEY);
+      const existingToken = wpGet(WORKER_TOKEN_KEY);
       if (existingToken) {
         workerToken = existingToken;
         const loaded = await loadWorkerData();
@@ -2777,7 +2789,7 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
       }
       const fallbackBadgeId = normalizeBadgeIdInput(error?.payload?.badgeId || error?.payload?.badge_id || "");
       if (fallbackBadgeId) {
-        localStorage.setItem(WORKER_BADGE_LOGIN_KEY, fallbackBadgeId);
+        wpSet(WORKER_BADGE_LOGIN_KEY, fallbackBadgeId);
         if (elements.workerAccessToken) {
           elements.workerAccessToken.value = fallbackBadgeId;
         }
@@ -2794,12 +2806,12 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
       return;
     }
     if (["invalid_access_token", "access_token_revoked", "access_token_expired"].includes(error.code)) {
-      localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+      wpRemove(WORKER_ACCESS_TOKEN_KEY);
       showWorkerNotice(t("qrLinkInvalidRescan"));
       return;
     }
     if (error.code === "visitor_visit_expired") {
-      localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+      wpRemove(WORKER_ACCESS_TOKEN_KEY);
       showWorkerNotice(t("visitorExpiredNeedLink"));
       return;
     }
@@ -2845,9 +2857,9 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
 
     offlineWorkerSessionActive = false;
     workerToken = payload.token;
-    localStorage.setItem(WORKER_TOKEN_KEY, workerToken);
-    localStorage.setItem(WORKER_BADGE_LOGIN_KEY, normalizedBadgeId);
-    localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+    wpSet(WORKER_TOKEN_KEY, workerToken);
+    wpSet(WORKER_BADGE_LOGIN_KEY, normalizedBadgeId);
+    wpRemove(WORKER_ACCESS_TOKEN_KEY);
     if (elements.workerAccessToken) {
       elements.workerAccessToken.value = normalizedBadgeId;
     }
@@ -2893,7 +2905,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       return;
     }
     if (error.code === "visitor_visit_expired") {
-      localStorage.removeItem(WORKER_BADGE_LOGIN_KEY);
+      wpRemove(WORKER_BADGE_LOGIN_KEY);
       showWorkerNotice(t("visitorExpiredBadgeLogin"));
       return;
     }
@@ -2927,7 +2939,7 @@ async function loadWorkerData() {
       return false;
     }
     console.log("[loadWorkerData] Success:", payload);
-    localStorage.setItem(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
+    wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
     offlineWorkerSessionActive = false;
     renderWorker(payload);
     markWorkerSyncedNow();
@@ -2947,7 +2959,7 @@ async function loadWorkerData() {
     }
     // Network error — show cached data if available
     console.warn("[loadWorkerData] Network error:", error.message);
-    const cachedRaw = localStorage.getItem(WORKER_CACHED_PAYLOAD_KEY);
+    const cachedRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
     if (cachedRaw) {
       try {
         const cachedPayload = JSON.parse(cachedRaw);
@@ -2965,7 +2977,7 @@ async function loadWorkerData() {
       }
     }
     console.warn("[loadWorkerData] No cache available – showing login");
-    localStorage.removeItem(WORKER_TOKEN_KEY);
+    wpRemove(WORKER_TOKEN_KEY);
     workerToken = "";
     clearWorkerSessionExpiryTimer();
     showWorkerNotice(`${t("connError")}: ${error.message}`);
@@ -3058,9 +3070,9 @@ function renderWorker(payload) {
   if (elements.workerPhoto) {
     if (worker.photoData && String(worker.photoData).startsWith("data:image")) {
       elements.workerPhoto.src = worker.photoData;
-      localStorage.setItem(LOCAL_LAST_PHOTO_KEY, worker.photoData);
+      wpSet(LOCAL_LAST_PHOTO_KEY, worker.photoData);
     } else {
-      const localPhoto = localStorage.getItem(LOCAL_LAST_PHOTO_KEY);
+      const localPhoto = wpGet(LOCAL_LAST_PHOTO_KEY);
       elements.workerPhoto.src = localPhoto && localPhoto.startsWith("data:image")
         ? localPhoto
         : createAvatar(worker.firstName, worker.lastName);
@@ -3166,7 +3178,7 @@ function renderWorker(payload) {
         if (worker.photoData && String(worker.photoData).startsWith("data:image")) {
           visitorPhoto.src = worker.photoData;
         } else {
-          const localPhoto = localStorage.getItem(LOCAL_LAST_PHOTO_KEY);
+          const localPhoto = wpGet(LOCAL_LAST_PHOTO_KEY);
           visitorPhoto.src = localPhoto && localPhoto.startsWith("data:image")
             ? localPhoto
             : createAvatar(worker.firstName, worker.lastName);
@@ -3609,12 +3621,12 @@ async function workerLogout() {
   stopDynamicQrRefresh();
   const tokenForRevoke = workerToken;
 
-  localStorage.removeItem(WORKER_TOKEN_KEY);
-  localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
-  localStorage.removeItem(WORKER_BADGE_LOGIN_KEY);
-  localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
-  localStorage.removeItem(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
-  localStorage.removeItem(OFFLINE_EVENT_QUEUE_KEY);
+  wpRemove(WORKER_TOKEN_KEY);
+  wpRemove(WORKER_ACCESS_TOKEN_KEY);
+  wpRemove(WORKER_BADGE_LOGIN_KEY);
+  wpRemove(WORKER_CACHED_PAYLOAD_KEY);
+  wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+  wpRemove(OFFLINE_EVENT_QUEUE_KEY);
   try { sessionStorage.removeItem("_wpf"); } catch (_) {}
   offlineWorkerSessionActive = false;
   workerToken = "";
@@ -3687,7 +3699,7 @@ function applyQrContrastState() {
 
 function toggleQrContrastMode() {
   qrHighContrastEnabled = !qrHighContrastEnabled;
-  localStorage.setItem(QR_HIGH_CONTRAST_KEY, qrHighContrastEnabled ? "1" : "0");
+  wpSet(QR_HIGH_CONTRAST_KEY, qrHighContrastEnabled ? "1" : "0");
   applyQrContrastState();
 }
 
@@ -4155,7 +4167,7 @@ function getQrCacheKey(payload, size) {
 
 function getCachedQr(payload, size) {
   const key = getQrCacheKey(payload, size);
-  return localStorage.getItem(key) || "";
+  return wpGet(key) || "";
 }
 
 function setCachedQr(payload, size, dataUrl) {
@@ -4163,7 +4175,7 @@ function setCachedQr(payload, size, dataUrl) {
     return;
   }
   const key = getQrCacheKey(payload, size);
-  localStorage.setItem(key, dataUrl);
+  wpSet(key, dataUrl);
 }
 
 async function fetchQrAsDataUrl(payload, size) {
@@ -4594,7 +4606,7 @@ function confirmCameraPhoto() {
   if (elements.workerPhoto) {
     elements.workerPhoto.src = lastCameraPhotoDataUrl;
   }
-  localStorage.setItem(LOCAL_LAST_PHOTO_KEY, lastCameraPhotoDataUrl);
+  wpSet(LOCAL_LAST_PHOTO_KEY, lastCameraPhotoDataUrl);
 
   uploadPhotoToBackend(lastCameraPhotoDataUrl).catch(() => {
     savePhotoToOfflineQueue(lastCameraPhotoDataUrl);
@@ -4622,7 +4634,7 @@ function handlePhotoSelected(event) {
     if (elements.workerPhoto) {
       elements.workerPhoto.src = dataUrl;
     }
-    localStorage.setItem(LOCAL_LAST_PHOTO_KEY, dataUrl);
+    wpSet(LOCAL_LAST_PHOTO_KEY, dataUrl);
 
     uploadPhotoToBackend(dataUrl).catch(() => {
       savePhotoToOfflineQueue(dataUrl);
@@ -4693,7 +4705,7 @@ function startProximityLoginWatcher() {
   if (workerToken || offlineWorkerSessionActive) {
     return;
   }
-  const badgeId = normalizeBadgeIdInput(localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "");
+  const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
   const badgePin = getStoredBadgePinForProximity();
   if (!badgeId || isVisitorBadgeId(badgeId) || !badgePin || !navigator.geolocation) {
     return;
@@ -4708,7 +4720,7 @@ async function pollProximityLoginCandidate() {
   if (workerToken || proximityLoginInProgress || !navigator.onLine) {
     return;
   }
-  const badgeId = normalizeBadgeIdInput(localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "");
+  const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
   const badgePin = getStoredBadgePinForProximity();
   if (!badgeId || !badgePin) {
     stopProximityLoginWatcher();
@@ -4762,9 +4774,9 @@ async function pollProximityLoginCandidate() {
     stopProximityLoginWatcher();
     offlineWorkerSessionActive = false;
     workerToken = payload.token;
-    localStorage.setItem(WORKER_TOKEN_KEY, workerToken);
-    localStorage.setItem(WORKER_BADGE_LOGIN_KEY, badgeId);
-    localStorage.removeItem(WORKER_ACCESS_TOKEN_KEY);
+    wpSet(WORKER_TOKEN_KEY, workerToken);
+    wpSet(WORKER_BADGE_LOGIN_KEY, badgeId);
+    wpRemove(WORKER_ACCESS_TOKEN_KEY);
     await loadWorkerData();
     await persistOfflineBadgeProfile(badgeId, badgePin, payload);
     finishWorkerLoginUi();
@@ -4924,8 +4936,8 @@ function startSiteGeofenceMonitor(cfg) {
 function invalidateWorkerSession({ showNotice = true } = {}) {
   stopSiteGeofenceMonitor();
   stopProximityLoginWatcher();
-  localStorage.removeItem(WORKER_TOKEN_KEY);
-  localStorage.removeItem(WORKER_CACHED_PAYLOAD_KEY);
+  wpRemove(WORKER_TOKEN_KEY);
+  wpRemove(WORKER_CACHED_PAYLOAD_KEY);
   offlineWorkerSessionActive = false;
   workerToken = "";
   clearWorkerSessionExpiryTimer();
@@ -5242,7 +5254,7 @@ function clearWorkerSessionExpiryTimer() {
 }
 
 function expireDailyCardInClient() {
-  localStorage.removeItem(WORKER_TOKEN_KEY);
+  wpRemove(WORKER_TOKEN_KEY);
   workerToken = "";
   clearWorkerSessionExpiryTimer();
   closeGateMode();
@@ -5287,12 +5299,12 @@ function createAvatar(firstName, lastName) {
 // ═════════════════════════════════════════════════════════════════════
 
 function toggleTheme() {
-  const current = localStorage.getItem(WORKER_THEME_KEY) || "auto";
+  const current = wpGet(WORKER_THEME_KEY) || "auto";
   let next = "auto";
   if (current === "auto") next = "light";
   else if (current === "light") next = "dark";
   applyTheme(next);
-  localStorage.setItem(WORKER_THEME_KEY, next);
+  wpSet(WORKER_THEME_KEY, next);
 }
 
 function applyTheme(theme) {
@@ -7310,7 +7322,7 @@ function initVoiceCommands() {
 }
 
 function getWorkerLang() {
-  return String(localStorage.getItem("baupass-worker-lang") || "de").slice(0, 2);
+  return String(wpGet(WORKER_LANG_KEY) || "de").slice(0, 2);
 }
 
 function formatWorkerAiAnswerHtml(text) {
@@ -7437,7 +7449,7 @@ async function initOfflineStorage() {
   }
   
   try {
-    const db = indexedDB.open("baupass-offline", 1);
+    const db = indexedDB.open("workpass-offline", 1);
     db.onupgradeneeded = (event) => {
       const idb = event.target.result;
       if (!idb.objectStoreNames.contains("events")) {
@@ -7454,7 +7466,7 @@ async function initOfflineStorage() {
 // ═════════════════════════════════════════════════════════════════════
 
 // Apply stored theme on load
-const storedTheme = localStorage.getItem(WORKER_THEME_KEY) || "auto";
+const storedTheme = wpGet(WORKER_THEME_KEY) || "auto";
 applyTheme(storedTheme);
 
 // Initialize offline storage
@@ -7477,7 +7489,7 @@ if (workerToken) {
 console.log("[worker-app init] workerToken:", workerToken ? "present" : "missing");
 
 if (workerToken) {
-  const cachedPayloadRaw = localStorage.getItem(WORKER_CACHED_PAYLOAD_KEY);
+  const cachedPayloadRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
   if (cachedPayloadRaw) {
     try {
       const cachedPayload = JSON.parse(cachedPayloadRaw);
