@@ -17185,6 +17185,15 @@ function syncWorkerFormPhase() {
   const backBtn = document.getElementById("workerFormBackToSignatureBtn");
   const submitBtn = document.getElementById("workerSubmitButton");
 
+  if (!phaseBasics || !phaseBadge || !continueBtn) {
+    phaseBasics?.classList.remove("hidden");
+    phaseBadge?.classList.remove("hidden");
+    continueBtn?.classList.add("hidden");
+    backBtn?.classList.add("hidden");
+    if (submitBtn) submitBtn.classList.remove("hidden");
+    return;
+  }
+
   if (stepIndicator) {
     stepIndicator.classList.toggle("hidden", isVisitor);
     stepIndicator.setAttribute("aria-hidden", isVisitor ? "true" : "false");
