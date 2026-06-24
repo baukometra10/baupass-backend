@@ -83,6 +83,15 @@
       return "other";
     }
 
+    function apiBaseMatchesOrigin(base) {
+      if (!base) return false;
+      try {
+        return new URL(base).origin === window.location.origin;
+      } catch {
+        return false;
+      }
+    }
+
     function storePending() {
       if (!accessToken) return;
       const tokenKeys = [
@@ -94,10 +103,14 @@
       tokenKeys.forEach((key) => {
         try { localStorage.setItem(key, accessToken); } catch { /* ignore */ }
       });
-      if (apiBase) {
-        const baseKeys = [API_BASE_KEY, "workpass-api-base"];
+      const baseKeys = [API_BASE_KEY, "workpass-api-base"];
+      if (apiBaseMatchesOrigin(apiBase)) {
         baseKeys.forEach((key) => {
           try { localStorage.setItem(key, apiBase); } catch { /* ignore */ }
+        });
+      } else {
+        baseKeys.forEach((key) => {
+          try { localStorage.removeItem(key); } catch { /* ignore */ }
         });
       }
     }
@@ -105,14 +118,14 @@
     function deepLinkUrl() {
       const q = new URLSearchParams();
       if (accessToken) q.set("access", accessToken);
-      if (apiBase) q.set("apiBase", apiBase);
+      if (apiBaseMatchesOrigin(apiBase)) q.set("apiBase", apiBase);
       return `baupass://join?${q.toString()}`;
     }
 
     function pwaFallbackUrl() {
       const u = new URL("./worker-install.html", window.location.origin);
       if (accessToken) u.searchParams.set("access", accessToken);
-      if (apiBase) u.searchParams.set("apiBase", apiBase);
+      if (apiBaseMatchesOrigin(apiBase)) u.searchParams.set("apiBase", apiBase);
       u.searchParams.set("launch", "1");
       return u.toString();
     }

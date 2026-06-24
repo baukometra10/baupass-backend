@@ -101,10 +101,27 @@
       }
     }
 
-    if (apiBase) {
+    function apiBaseMatchesOrigin(base) {
+      if (!base) return false;
+      try {
+        return new URL(base).origin === window.location.origin;
+      } catch {
+        return false;
+      }
+    }
+
+    if (apiBaseMatchesOrigin(apiBase)) {
       try {
         ["baupass-api-base", "workpass-api-base"].forEach((key) => {
           localStorage.setItem(key, apiBase);
+        });
+      } catch {
+        // ignore storage failures
+      }
+    } else {
+      try {
+        ["baupass-api-base", "workpass-api-base"].forEach((key) => {
+          localStorage.removeItem(key);
         });
       } catch {
         // ignore storage failures
@@ -128,7 +145,7 @@
       if (accessToken) {
         target.searchParams.set("access", accessToken);
       }
-      if (apiBase) {
+      if (apiBaseMatchesOrigin(apiBase)) {
         target.searchParams.set("apiBase", apiBase);
       }
       return target.toString();

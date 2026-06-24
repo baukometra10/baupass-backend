@@ -102,10 +102,14 @@ function resolveApiBase() {
 
   const rawStoredValue = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
   let storedValue = rawStoredValue;
+  const currentHost = String(window.location.hostname || "").toLowerCase();
   if (storedValue) {
     try {
-      const storedHost = new URL(storedValue).hostname;
+      const storedHost = new URL(storedValue).hostname.toLowerCase();
       if (isLocalHostName(storedHost)) {
+        storedValue = "";
+        wpRemove(API_BASE_STORAGE_KEY);
+      } else if (onProductionHost && storedHost !== currentHost) {
         storedValue = "";
         wpRemove(API_BASE_STORAGE_KEY);
       }
@@ -118,6 +122,9 @@ function resolveApiBase() {
     try {
       const configuredHost = new URL(configuredValue).hostname.toLowerCase();
       if (!onLocalHost && isLocalHostName(configuredHost)) {
+        configuredValue = "";
+        wpRemove(API_BASE_STORAGE_KEY);
+      } else if (onProductionHost && configuredHost !== currentHost) {
         configuredValue = "";
         wpRemove(API_BASE_STORAGE_KEY);
       }
@@ -20087,17 +20094,32 @@ function normalizeWorkerAppLink(rawLink) {
   try {
     const normalized = new URL(candidate, window.location.origin);
     const workerApiBase = normalizeApiBase(API_BASE || window.location.origin);
+    const sameOriginApi = (() => {
+      try {
+        return new URL(workerApiBase).origin === window.location.origin;
+      } catch {
+        return true;
+      }
+    })();
     if (normalized.pathname.endsWith("/worker.html")) {
       // Access links should land on the install handoff page to avoid stale homescreen installs.
       if (normalized.searchParams.get("access")) {
         normalized.pathname = "/worker-install.html";
       }
       normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
-      normalized.searchParams.set("apiBase", workerApiBase);
+      if (sameOriginApi) {
+        normalized.searchParams.delete("apiBase");
+      } else {
+        normalized.searchParams.set("apiBase", workerApiBase);
+      }
     }
     if (normalized.pathname.endsWith("/worker-install.html")) {
       normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
-      normalized.searchParams.set("apiBase", workerApiBase);
+      if (sameOriginApi) {
+        normalized.searchParams.delete("apiBase");
+      } else {
+        normalized.searchParams.set("apiBase", workerApiBase);
+      }
     }
     return normalized.toString();
   } catch {

@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260606a";
+const WORKER_BUILD_TAG = "20260624a";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 30000;
@@ -21,7 +21,6 @@ const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
 ]);
-const PREFERRED_WORKER_API_HOST = "baupass-production.up.railway.app";
 const WORKER_PLAN_TAB_FEATURES = {
   vacation: "leave_management",
   timesheet: "worker_hours_report",
@@ -55,11 +54,24 @@ function sanitizeApiBase(value) {
 
   const host = (parsed.hostname || "").toLowerCase();
   if (RETIRED_WORKER_API_HOSTS.has(host)) {
-    parsed.hostname = PREFERRED_WORKER_API_HOST;
-    return parsed.toString().replace(/\/+$/, "");
+    return "";
   }
 
   return parsed.toString().replace(/\/+$/, "");
+}
+
+function apiBaseMatchesCurrentOrigin(value) {
+  const normalized = sanitizeApiBase(value);
+  if (!normalized) {
+    return false;
+  }
+  try {
+    const configuredOrigin = new URL(normalized).origin.replace(/\/+$/, "");
+    const currentOrigin = String(window.location.origin || "").replace(/\/+$/, "");
+    return configuredOrigin === currentOrigin;
+  } catch {
+    return false;
+  }
 }
 
 function isLocalWorkerHost(hostname) {
@@ -116,52 +128,53 @@ function resolveWorkerApiBase() {
     return sameOriginApi || "/api/worker-app";
   }
 
-  let storedValue = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
-  if (storedValue) {
-    try {
-      const storedHost = new URL(storedValue).hostname.toLowerCase();
-      if (
-        RETIRED_WORKER_API_HOSTS.has(storedHost)
-        || (storedHost !== currentHost && currentHost.endsWith(".up.railway.app"))
-      ) {
-        storedValue = "";
+  // Platform deployment: API always lives on the same host as the PWA shell.
+  if (!staticHost && sameOriginApi) {
+    const storedValue = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
+    if (storedValue && !apiBaseMatchesCurrentOrigin(storedValue)) {
+      try {
         wpRemove(API_BASE_STORAGE_KEY);
+      } catch {
+        // ignore
       }
-    } catch {
-      storedValue = "";
-      wpRemove(API_BASE_STORAGE_KEY);
     }
+    if (queryValue && !apiBaseMatchesCurrentOrigin(queryValue)) {
+      try {
+        wpRemove(API_BASE_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+    } else if (queryValue) {
+      wpSet(API_BASE_STORAGE_KEY, queryValue);
+    }
+    return sameOriginApi;
   }
 
-  let configuredValue = queryValue || storedValue;
+  let configuredValue = queryValue || sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
   if (configuredValue && isUnreachableLocalApiBase(configuredValue)) {
     configuredValue = "";
     wpRemove(API_BASE_STORAGE_KEY);
   }
-
   if (configuredValue) {
     try {
       const configuredHost = new URL(configuredValue).hostname.toLowerCase();
-      if (staticHost && configuredHost === currentHost) {
-        return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
+      if (RETIRED_WORKER_API_HOSTS.has(configuredHost)) {
+        configuredValue = "";
+        wpRemove(API_BASE_STORAGE_KEY);
       }
     } catch {
-      return sameOriginApi || `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
+      configuredValue = "";
+      wpRemove(API_BASE_STORAGE_KEY);
     }
+  }
+
+  if (configuredValue) {
     wpSet(API_BASE_STORAGE_KEY, configuredValue);
     return `${configuredValue}/api/worker-app`;
   }
 
-  if (!configuredValue && wpGet(API_BASE_STORAGE_KEY)) {
+  if (wpGet(API_BASE_STORAGE_KEY)) {
     wpRemove(API_BASE_STORAGE_KEY);
-  }
-
-  if (staticHost) {
-    return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
-  }
-
-  if (sameOriginApi) {
-    return sameOriginApi;
   }
 
   return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;

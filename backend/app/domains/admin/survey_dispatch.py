@@ -94,19 +94,28 @@ def _survey_url() -> str:
 def check_mail_provider_ready(db) -> dict[str, Any]:
     """Whether outbound API mail can send survey invites (Resend/Brevo). SMTP is reported separately."""
     providers: list[str] = []
+    brevo_invalid = False
     try:
-        from backend.server import _get_brevo_api_key, _get_resend_api_key_and_source
+        from backend.server import (
+            _get_brevo_api_key,
+            _get_resend_api_key_and_source,
+            _is_valid_brevo_api_key,
+        )
 
         resend_key, _ = _get_resend_api_key_and_source()
         if resend_key:
             providers.append("resend")
-        if _get_brevo_api_key():
-            providers.append("brevo")
+        brevo_key = _get_brevo_api_key()
+        if brevo_key:
+            if _is_valid_brevo_api_key(brevo_key):
+                providers.append("brevo")
+            else:
+                brevo_invalid = True
     except Exception:
         pass
 
     settings_row = db.execute(
-        "SELECT smtp_sender_email, smtp_host FROM settings WHERE id = 1"
+        "SELECT smtp_sender_email, smtp_host, smtp_password FROM settings WHERE id = 1"
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
     smtp_ready = bool(
@@ -117,16 +126,21 @@ def check_mail_provider_ready(db) -> dict[str, Any]:
         providers.append("smtp")
 
     configured = bool(providers)
+    hint = "Noch nicht bereit — bitte Resend- oder Brevo-API-Key in den Einstellungen hinterlegen (oder SMTP konfigurieren)."
+    if configured:
+        hint = "Bereit — Umfrage-E-Mails können versendet werden."
+    elif brevo_invalid:
+        hint = (
+            "Brevo-API-Key ungültig (xkeysib-… erforderlich, nicht SMTP-Key) — "
+            "bitte korrigieren oder SMTP vollständig konfigurieren."
+        )
     return {
         "configured": configured,
         "providers": providers,
         "primaryProvider": providers[0] if providers else None,
-        "hint": (
-            "Bereit — Umfrage-E-Mails können versendet werden."
-            if configured
-            else "Noch nicht bereit — bitte Resend- oder Brevo-API-Key in den Einstellungen hinterlegen (oder SMTP konfigurieren)."
-        ),
+        "hint": hint,
         "surveyUrl": _survey_url(),
+        "brevoKeyInvalid": brevo_invalid,
     }
 
 
@@ -208,7 +222,7 @@ def send_survey_invite_email(
     provider = None
     try:
         from backend.app.core.platform_env import default_noreply_email
-        from backend.server import _send_via_any_api
+        from backend.server import _send_email_api_then_smtp
 
         settings_row = db.execute(
             "SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1"
@@ -216,8 +230,14 @@ def send_survey_invite_email(
         settings = dict(settings_row) if settings_row else {}
         sender_email = (settings.get("smtp_sender_email") or "").strip() or default_noreply_email()
         sender_name = (settings.get("smtp_sender_name") or "WorkPass").strip()
-        ok, err, provider = _send_via_any_api(
-            subject, sender_email, sender_name, email, text_body, html_body
+        ok, err, provider = _send_email_api_then_smtp(
+            db,
+            subject=subject,
+            sender_email=sender_email,
+            sender_name=sender_name,
+            recipient=email,
+            text_body=text_body,
+            html_body=html_body,
         )
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:200]}

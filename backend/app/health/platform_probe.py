@@ -53,7 +53,8 @@ def collect_platform_health(
                 }
             )
 
-    db_health = get_database_health()
+    with app.app_context():
+        db_health = get_database_health()
     ready = db_health.get("status") == "ok"
     if not ready:
         overall = "degraded" if overall != "down" else overall

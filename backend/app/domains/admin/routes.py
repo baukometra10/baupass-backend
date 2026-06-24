@@ -174,8 +174,6 @@ def register_admin_blueprint(flask_app: Flask) -> None:
             skip_usage_check=skip_usage,
             skip_cooldown=skip_cooldown,
         )
-        if result.get("error") == "mail_not_configured":
-            return jsonify(result), 503
         if result.get("error") == "user_not_found":
             return jsonify(result), 404
         return jsonify(result), 200

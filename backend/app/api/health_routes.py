@@ -113,7 +113,7 @@ def platform_health():
     host = (request.host or "").strip()
     payload = collect_platform_health(current_app._get_current_object(), host=host, public_url=request.url_root.rstrip("/"))
     overall = str(payload.get("status") or "ok").lower()
-    return jsonify(payload), 200 if overall == "ok" else 503
+    return jsonify(payload), 200 if overall in ("ok", "degraded") else 503
 
 
 @health_bp.get("/health/queues")

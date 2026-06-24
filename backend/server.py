@@ -2444,10 +2444,18 @@ def build_worker_badge_deeplink(badge_id, *, view="card", fast_login=True):
     return f"{get_public_base_url().rstrip('/')}/worker.html?{query}"
 
 
+def _public_url_host(url_value: str) -> str:
+    try:
+        return (urlsplit(str(url_value or "").strip()).netloc or "").lower().split(":", 1)[0]
+    except Exception:
+        return ""
+
+
 def get_public_base_url():
     configured = (os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
-    if configured:
-        return configured
+    railway_domain = (os.getenv("RAILWAY_PUBLIC_DOMAIN") or "").strip().rstrip("/")
+    if railway_domain and not railway_domain.startswith(("http://", "https://")):
+        railway_domain = f"https://{railway_domain}"
 
     if has_request_context() and request.host:
         forwarded_proto = (request.headers.get("X-Forwarded-Proto") or "").split(",", 1)[0].strip().lower()
@@ -2461,7 +2469,23 @@ def get_public_base_url():
                 hostname = preferred_ip
         if scheme == "http" and hostname and not is_private_or_local_host(hostname):
             scheme = "https"
-        return f"{scheme}://{hostname}{port_suffix}"
+        request_url = f"{scheme}://{hostname}{port_suffix}"
+        request_host = _public_url_host(request_url)
+        for candidate in (configured, railway_domain):
+            candidate_host = _public_url_host(candidate)
+            if candidate and candidate_host and candidate_host != request_host:
+                app.logger.warning(
+                    "Configured public base %s differs from request host %s; using request host",
+                    candidate,
+                    request_host,
+                )
+                return request_url
+        return configured or railway_domain or request_url
+
+    if configured:
+        return configured
+    if railway_domain:
+        return railway_domain
 
     preferred_ip = get_preferred_local_ip() or "127.0.0.1"
     port = (os.getenv("PORT") or "8000").strip() or "8000"
@@ -6400,6 +6424,62 @@ def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, 
         return False, f"resend: {resend_err}", "resend"
 
     return False, "no_api_provider_configured (set Resend or Brevo key in Einstellungen)", "none"
+
+
+def _send_email_api_then_smtp(
+    db,
+    *,
+    subject: str,
+    sender_email: str,
+    sender_name: str,
+    recipient: str,
+    text_body: str,
+    html_body: str,
+    attachments=None,
+) -> tuple[bool, str, str]:
+    """Try Resend/Brevo first, then global SMTP settings (same pattern as OTP/dunning mail)."""
+    ok, err, provider = _send_via_any_api(
+        subject,
+        sender_email,
+        sender_name,
+        recipient,
+        text_body,
+        html_body,
+        attachments=attachments,
+    )
+    if ok:
+        return True, "", provider
+
+    settings_row = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    if not settings_row:
+        return False, err or "mail_not_configured", provider
+
+    smtp_settings = _resolve_smtp_settings(dict(settings_row))
+    smtp_host = (smtp_settings.get("smtp_host") or "").strip()
+    smtp_sender = (smtp_settings.get("smtp_sender_email") or sender_email or "").strip()
+    if not smtp_host or not smtp_sender:
+        return False, err or "mail_not_configured", provider
+
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = f'"{sender_name}" <{smtp_sender}>' if sender_name else smtp_sender
+        msg["To"] = recipient
+        msg.set_content(text_body)
+        msg.add_alternative(html_body, subtype="html")
+        with _smtp_connect(
+            smtp_settings["smtp_host"],
+            smtp_settings["smtp_port"],
+            smtp_settings["smtp_use_tls"],
+        ) as smtp:
+            smtp_username = (smtp_settings.get("smtp_username") or "").strip()
+            if smtp_username:
+                smtp.login(smtp_username, smtp_settings.get("smtp_password") or "")
+            smtp.send_message(msg)
+        return True, "", "smtp"
+    except Exception as exc:
+        combined = f"{err}; SMTP: {exc}" if err else str(exc)
+        return False, combined[:300], provider or "smtp"
 
 
 def _build_email_html(platform_name: str, primary_color: str, accent_color: str, title: str, body_html: str, footer_name: str) -> str:
@@ -10938,14 +11018,9 @@ def worker_admin_onboarding_provision_allowed(db, worker_row, actor_user):
 def _compose_worker_app_access_response(access_token, access_expires_at, worker_id, *, created=True, reused=False):
     build_tag = _get_worker_build_info().get("build") or "latest"
     public_base = get_public_base_url().rstrip("/")
-    api_base_param = urlencode({"apiBase": public_base}) if public_base else ""
     join_query = f"access={access_token}&v={build_tag}&launch=1"
-    if api_base_param:
-        join_query = f"{join_query}&{api_base_param}"
     link = f"{public_base}/join.html?{join_query}"
     pwa_link = f"{public_base}/worker-install.html?access={access_token}&v={build_tag}&launch=1"
-    if api_base_param:
-        pwa_link = f"{pwa_link}&{api_base_param}"
     return {
         "accessToken": access_token,
         "link": link,
