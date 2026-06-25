@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260626e";
+const WORKER_BUILD_TAG = "20260627a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2933,6 +2933,11 @@ function registerWorkerSw() {
 
     const handleControllerChange = () => {
       updateWorkerBuildBadge();
+      if (sessionStorage.getItem("workpass-sw-reloaded")) {
+        return;
+      }
+      sessionStorage.setItem("workpass-sw-reloaded", "1");
+      window.location.reload();
     };
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
@@ -2959,9 +2964,25 @@ function registerWorkerSw() {
   }).catch(() => {});
 }
 
+function workerSwCachePrefixes() {
+  return ["baupass-worker-", "workpass-worker-"];
+}
+
+function deleteStaleWorkerCaches(exceptBuild = WORKER_BUILD_TAG) {
+  if (!("caches" in window)) {
+    return Promise.resolve();
+  }
+  return caches.keys().then((keys) => Promise.all(
+    keys
+      .filter((key) => workerSwCachePrefixes().some((prefix) => key.startsWith(prefix)) && !key.includes(exceptBuild))
+      .map((key) => caches.delete(key))
+  ));
+}
+
 function enforceWorkerBuildFreshness() {
   const buildTag = WORKER_BUILD_TAG;
   const LAST_BUILD_VERSION_KEY = WP?.KEYS?.WORKER_LAST_BUILD_TAG || "workpass-worker-last-build-tag";
+  const RELOAD_GUARD_KEY = `workpass-build-reload-${buildTag}`;
   const lastBuildTag = window.localStorage.getItem(LAST_BUILD_VERSION_KEY);
   
   // Detect version change and clear old caches
@@ -2988,6 +3009,22 @@ function enforceWorkerBuildFreshness() {
     } catch {
       // ignore localStorage failures
     }
+
+    void deleteStaleWorkerCaches(buildTag);
+
+    if (!sessionStorage.getItem(RELOAD_GUARD_KEY)) {
+      sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
+      window.localStorage.setItem(LAST_BUILD_VERSION_KEY, buildTag);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("v", buildTag);
+        url.searchParams.set("refresh", "1");
+        window.location.replace(url.toString());
+      } catch {
+        window.location.reload();
+      }
+      return;
+    }
   }
   
   // Always record current version
@@ -3006,19 +3043,11 @@ function enforceWorkerBuildFreshness() {
     // ignore URL rewrite failures
   }
 
+  void deleteStaleWorkerCaches(buildTag);
+
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistrations()
       .then((regs) => Promise.all(regs.map((reg) => reg.update().catch(() => {}))))
-      .catch(() => {});
-  }
-
-  if ("caches" in window) {
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys
-          .filter((key) => key.startsWith("workpass-worker-") && !key.includes(buildTag))
-          .map((key) => caches.delete(key))
-      ))
       .catch(() => {});
   }
 }
@@ -3089,12 +3118,7 @@ async function forceRefreshApp() {
 
   if ("caches" in window) {
     try {
-      const keys = await caches.keys();
-      await Promise.all(
-        keys
-          .filter((key) => key.startsWith("workpass-worker-"))
-          .map((key) => caches.delete(key))
-      );
+      await deleteStaleWorkerCaches();
     } catch {
       // ignore cache failures
     }

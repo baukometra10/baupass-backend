@@ -1,5 +1,14 @@
-const WORKER_BUILD = "20260626e";
+const WORKER_BUILD = "20260627a";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
+const SHELL_NETWORK_FIRST = new Set([
+  "/worker-app.js",
+  "/worker.css",
+  "/worker-layout-v2.css",
+  "/worker-polish.css",
+  "/worker-login.css",
+  "/emp-app-manifest.json",
+  "/worker-manifest.json",
+]);
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
 // users always get the latest version without needing to clear the cache.
@@ -74,8 +83,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Keep app shell code current in installed iOS/Android app.
-  if (requestUrl.pathname === "/worker-app.js" || requestUrl.pathname === "/worker.css" || requestUrl.pathname === "/emp-app-manifest.json" || requestUrl.pathname === "/worker-manifest.json") {
+  // Keep app shell assets current in installed iOS/Android/PWA.
+  if (SHELL_NETWORK_FIRST.has(requestUrl.pathname)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
