@@ -1093,19 +1093,49 @@ body.worker-card-install.worker-loaded #workerHubPanel:not(.hidden) {
 }
 
 body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden) {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
+  overflow: hidden;
 }
 
 body.worker-loaded.worker-feature-tab-active #leaveRequestCard:not(.hidden),
 body.worker-loaded.worker-feature-tab-active #timesheetCard:not(.hidden),
-body.worker-loaded.worker-feature-tab-active #documentsCard:not(.hidden) {
-  display: block !important;
-  margin-top: 12px !important;
-  min-height: 120px;
+body.worker-loaded.worker-feature-tab-active #documentsCard:not(.hidden),
+body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden) {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0 !important;
+  overflow: hidden;
+}
+
+body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  margin-bottom: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose {
+  flex-shrink: 0;
+  display: grid !important;
+  gap: 8px;
+  margin-top: 10px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+}
+
+body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose textarea {
+  min-height: 52px;
+  max-height: 96px;
 }
 
 .worker-panel-error {
@@ -3531,9 +3561,6 @@ body {
 }
 [data-theme="dark"] .documents-list { border-color: rgba(255,255,255,.1); }
 
-.documents-list
-}
-
 .document-item {
   display: flex;
   justify-content: space-between;
@@ -3684,9 +3711,6 @@ body.worker-card-install.worker-loaded:not(.worker-feature-tab-active) #chatCard
 
 .worker-chat-attachment-btn:active {
   transform: scale(0.98);
-}
-  display: grid;
-  gap: 0.6rem;
 }
 
 .worker-chat-compose textarea {

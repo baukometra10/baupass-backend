@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627d";
+const WORKER_BUILD_TAG = "20260627e";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1764,6 +1764,11 @@ function getWorkerPageSections() {
 }
 
 const WORKER_CHAT_SHELL_FIX_CSS = [
+  "body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages{flex:1;min-height:0;max-height:none!important;margin-bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{flex-shrink:0;display:grid!important;gap:8px;margin-top:10px;padding-bottom:max(4px,env(safe-area-inset-bottom,0px))}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose textarea{min-height:52px;max-height:96px;width:100%}",
   "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:10px}",
   "#chatCard .worker-chat-row{display:flex;width:100%}",
   "#chatCard .worker-chat-row.is-company{justify-content:flex-start;padding-right:18%}",
@@ -1779,13 +1784,48 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
 ].join("");
 
 function ensureWorkerChatShellStyles() {
-  if (document.getElementById("workerChatShellFix")) {
+  let style = document.getElementById("workerChatShellFix");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "workerChatShellFix";
+    document.head.appendChild(style);
+  }
+  if (style.textContent !== WORKER_CHAT_SHELL_FIX_CSS) {
+    style.textContent = WORKER_CHAT_SHELL_FIX_CSS;
+  }
+}
+
+function applyWorkerChatTabLayout(chatCard) {
+  const card = chatCard || elements.chatCard || document.getElementById("chatCard");
+  if (!card || currentActiveTab !== "chat") {
     return;
   }
-  const style = document.createElement("style");
-  style.id = "workerChatShellFix";
-  style.textContent = WORKER_CHAT_SHELL_FIX_CSS;
-  document.head.appendChild(style);
+  card.classList.add("worker-feature-chat-card");
+  const hubPanel = card.closest("#workerHubPanel") || elements.workerHubPanel || document.getElementById("workerHubPanel");
+  if (hubPanel) {
+    hubPanel.style.setProperty("display", "flex", "important");
+    hubPanel.style.flexDirection = "column";
+    hubPanel.style.flex = "1";
+    hubPanel.style.minHeight = "0";
+    hubPanel.style.overflow = "hidden";
+  }
+  card.style.setProperty("display", "flex", "important");
+  card.style.flexDirection = "column";
+  card.style.flex = "1";
+  card.style.minHeight = "0";
+  card.style.overflow = "hidden";
+  const messages = card.querySelector(".worker-chat-messages");
+  if (messages) {
+    messages.style.flex = "1";
+    messages.style.minHeight = "0";
+    messages.style.maxHeight = "none";
+    messages.style.overflowY = "auto";
+  }
+  const compose = card.querySelector(".worker-chat-compose");
+  if (compose) {
+    compose.style.flexShrink = "0";
+    compose.style.display = "grid";
+  }
 }
 
 function ensureWorkerChatNavDom() {
@@ -1891,6 +1931,9 @@ function ensureWorkerChatDom() {
   elements.workerChatFileInput = document.getElementById("workerChatFileInput");
   elements.workerChatFileHint = document.getElementById("workerChatFileHint");
   placeWorkerChatCard(chatCard);
+  if (currentActiveTab === "chat") {
+    applyWorkerChatTabLayout(chatCard);
+  }
   return chatCard;
 }
 
@@ -5804,6 +5847,7 @@ function refreshWorkerChatPanel(options = {}) {
     startWorkerChatPolling();
     void loadWorkerChat();
   }
+  applyWorkerChatTabLayout(chatCard);
 }
 
 function startWorkerNotificationPolling() {
@@ -6939,6 +6983,7 @@ function switchToTab(tabName) {
   } else if (tabName === "chat") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("chatCard");
+    applyWorkerChatTabLayout();
     refreshWorkerChatPanel();
     if (!workerPlanAllowsFeature("worker_chat")) {
       if (elements.workerChatMessages) {
@@ -7919,7 +7964,6 @@ function renderWorkerChatMessages(messages) {
   elements.workerChatMessages.innerHTML = messages
     .map((msg) => {
       const side = workerChatSenderSide(msg);
-      const label = side === "company" ? t("workerChatFromCompany") : t("workerChatFromYou");
       const body = escapeHtmlBasic(String(msg.body || ""));
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
@@ -7929,14 +7973,9 @@ function renderWorkerChatMessages(messages) {
       const readHtml = readLabel
         ? `<span class="worker-chat-read${read ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
         : "";
-      const senderHtml =
-        side === "mine"
-          ? `<div class="worker-chat-sender">${escapeHtmlBasic(label)}</div>`
-          : "";
       return `
         <div class="worker-chat-row is-${side}">
           <div class="worker-chat-bubble is-${side}">
-            ${senderHtml}
             ${bodyHtml}
             ${attachHtml}
             <div class="worker-chat-meta">
