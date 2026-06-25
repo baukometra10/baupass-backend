@@ -120,8 +120,7 @@
         .replace(/"/g, "&quot;");
     }
     async function downloadChatAttachment(attachmentId, filename, contentType) {
-      const qs = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
-      const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download${qs}`, {
+      const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
         headers: headers(),
         credentials: "include",
       });

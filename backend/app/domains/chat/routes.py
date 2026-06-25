@@ -30,6 +30,18 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return None, None
         return str(worker.get("id") or ""), str(worker.get("company_id") or "")
 
+    def _admin_can_access_company(company_id: str) -> bool:
+        user = getattr(g, "current_user", None) or {}
+        role = str(user.get("role") or "")
+        target = str(company_id or "")
+        if not target:
+            return False
+        if role == "superadmin":
+            return True
+        if role == "company-admin":
+            return str(user.get("company_id") or "") == target
+        return False
+
     @chat_core_bp.get("/chat/threads")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -171,14 +183,14 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("worker_chat")
     def download_chat_attachment(attachment_id: str):
-        cid = company_id_from_user()
-        if not cid:
-            return forbidden_company()
         row = get_db().execute(
             "SELECT filename, content_type, file_path, company_id FROM chat_attachments WHERE id = ?",
             (attachment_id,),
         ).fetchone()
-        if not row or str(row["company_id"]) != str(cid):
+        if not row:
+            return jsonify({"error": "attachment_not_found"}), 404
+        attachment_company_id = str(row["company_id"] or "")
+        if not _admin_can_access_company(attachment_company_id):
             return jsonify({"error": "attachment_not_found"}), 404
         file_path = ChatService.resolve_storage_path(str(row["file_path"] or ""))
         if not file_path:

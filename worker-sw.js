@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260606a";
+const WORKER_BUILD = "20260625f";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 // worker.html is intentionally excluded from STATIC_FILES so it is always
 // fetched from the network (network-first). This ensures Android and iOS
@@ -10,12 +10,10 @@ const STATIC_ASSETS = [
   { path: "/branding/suppix-icon-192.png" },
   { path: "/branding/suppix-icon-512.png" },
   { path: "/branding/suppix-ai-mark.svg" },
-  { path: "/branding/suppix-ai-mark.svg" },
-  { path: "/branding/suppix-ai-mark.svg" },
   { path: "/branding/suppix-ai-logo.svg" }
 ];
 const STATIC_PATHS = new Set(STATIC_ASSETS.map((asset) => asset.path));
-const STATIC_FILES = STATIC_ASSETS.map((asset) => (asset.rev ? `${asset.path}?v=${asset.rev}` : asset.path));
+const STATIC_FILES = [...new Set(STATIC_ASSETS.map((asset) => (asset.rev ? `${asset.path}?v=${asset.rev}` : asset.path)))];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -53,6 +51,11 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(() => new Response(JSON.stringify({ offline: true }), { status: 503, headers: { "Content-Type": "application/json" } }))
     );
+    return;
+  }
+  // Chat/API downloads must never be cached by the worker shell.
+  if (requestUrl.pathname.startsWith("/api/chat/")) {
+    event.respondWith(fetch(event.request));
     return;
   }
   // Launcher + app shell: always prefer network so installed apps pull the latest build.
