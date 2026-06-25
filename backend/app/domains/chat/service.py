@@ -206,7 +206,10 @@ class ChatService:
         publish_event("chat.message_created", company_id, event_payload, actor_id=sender_user_id or sender_worker_id or "")
 
         if sender_type == "worker":
-            self._notify_company_side(company_id, worker_id, body.strip())
+            try:
+                self._notify_company_side(company_id, worker_id, body.strip())
+            except Exception:
+                pass
         else:
             notify_worker_mitteilung(
                 self.db,
@@ -294,9 +297,9 @@ class ChatService:
         self.db.execute(
             """
             INSERT INTO notifications
-            (id, worker_id, notif_type, title, message, action_url, is_read, created_at)
-            VALUES (?, ?, 'worker_chat_admin', 'Neue Mitarbeiter-Nachricht', ?, '/admin-v2/index.html', 0, ?)
+            (id, worker_id, company_id, type, title, message, action_url, created_at)
+            VALUES (?, ?, ?, 'worker_chat_admin', 'Neue Mitarbeiter-Nachricht', ?, '/admin-v2/index.html', ?)
             """,
-            (f"notif-{uuid.uuid4().hex[:16]}", worker_id, body[:280], utc_now_iso()),
+            (f"notif-{uuid.uuid4().hex[:16]}", worker_id, company_id, body[:280], utc_now_iso()),
         )
         self.db.commit()

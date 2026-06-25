@@ -169,3 +169,29 @@ def test_chat_thread_message_and_attachment(client_and_db):
     )
     assert attach.status_code == 200
     assert attach.get_json()["attachment"]["id"]
+
+
+def test_worker_chat_send_persists_message(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "WorkerChatSendCo")
+    worker_id = _create_worker_direct(db_path, company_id)
+
+    from backend.app.domains.chat.service import ChatService
+    from backend.server import get_db
+
+    with client.application.app_context():
+        service = ChatService(get_db())
+        thread_id = service.get_or_create_worker_thread(company_id=company_id, worker_id=worker_id, subject="general")
+        message = service.create_message(
+            thread_id=thread_id,
+            company_id=company_id,
+            worker_id=worker_id,
+            sender_type="worker",
+            sender_user_id=None,
+            sender_worker_id=worker_id,
+            body="Antwort vom Mitarbeiter",
+        )
+        assert message["id"]
+        rows = service.list_messages(thread_id, company_id)
+        assert any(row.get("body") == "Antwort vom Mitarbeiter" for row in rows)

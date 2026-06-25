@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from flask import Blueprint, Flask, g, jsonify, request, send_file
@@ -243,7 +244,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": str(exc), "message": "Nachricht fehlt oder ist ungueltig."}), 400
+        except Exception:
+            logging.getLogger(__name__).exception("worker_chat_send failed for thread %s", thread_id)
+            return jsonify({"error": "chat_send_failed", "message": "Nachricht konnte nicht gesendet werden."}), 500
 
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/attachments")
     @require_worker_session

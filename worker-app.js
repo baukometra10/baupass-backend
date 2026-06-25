@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260624d";
+const WORKER_BUILD_TAG = "20260624e";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 12000;
@@ -2522,7 +2522,38 @@ async function captureLoginGeolocation({ showProgress = false } = {}) {
   if (showProgress) {
     showWorkerNotice(t("geolocationCapturing"));
   }
-  const location = await resolveLoginLocation();
+  let location = await resolveLoginLocation();
+  if (!location && navigator.geolocation.watchPosition) {
+    location = await new Promise((resolve) => {
+      let watchId = 0;
+      const stop = (value) => {
+        if (watchId) {
+          try {
+            navigator.geolocation.clearWatch(watchId);
+          } catch {
+            // ignore
+          }
+        }
+        resolve(value);
+      };
+      const timer = setTimeout(() => stop(null), 12000);
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          clearTimeout(timer);
+          stop({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+        },
+        () => {
+          clearTimeout(timer);
+          stop(null);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 }
+      );
+    });
+  }
   if (location) {
     return { location, reason: "" };
   }
@@ -5293,11 +5324,17 @@ function workerLoginErrorMessage(error) {
   if (error.code === "outside_site_radius") {
     return error.message || t("outsideSiteRadius");
   }
+  if (error.code === "chat_send_failed" || error.code === "message_required") {
+    return error.message || t("workerChatSendFailed");
+  }
   if (error.code === "not_scheduled_today") {
     return t("proximityNotScheduledToday");
   }
   if (error.code === "on_approved_leave") {
     return t("proximityOnLeave");
+  }
+  if (error.code === "feature_not_available") {
+    return formatWorkerApiError(error);
   }
   if (error.code === "login_server_error" || error.code === "internal_server_error") {
     return t("loginServerError");
@@ -7512,8 +7549,16 @@ async function sendWorkerChatMessage() {
     });
     elements.workerChatInput.value = "";
     await loadWorkerChat();
+    showWorkerNotice(t("workerChatSent"));
   } catch (error) {
-    showWorkerNotice(formatWorkerApiError(error));
+    const message = formatWorkerApiError(error);
+    showWorkerNotice(message);
+    if (elements.workerChatMessages) {
+      const notice = document.createElement("p");
+      notice.className = "muted-info worker-chat-error";
+      notice.textContent = message;
+      elements.workerChatMessages.appendChild(notice);
+    }
   } finally {
     elements.workerChatSendBtn?.removeAttribute("disabled");
   }
