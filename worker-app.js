@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260624b";
+const WORKER_BUILD_TAG = "20260624c";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 12000;
@@ -744,6 +744,10 @@ function openWorkerNotificationTarget(action) {
     void openWorkerDeploymentPlanScreen();
     return;
   }
+  if (raw === "chat" || raw === "worker_chat" || raw.includes("chat")) {
+    void openWorkerChatScreen();
+    return;
+  }
   if (raw === "leave" || raw === "leave_request" || raw.includes("leave")) {
     switchToTab("vacation");
     if (workerToken) void loadLeaveRequests();
@@ -764,6 +768,9 @@ async function refreshWorkerNotificationCenter(options = {}) {
   const merged = [...serverItems, ...localItems].slice(0, 50);
   const unreadCount = merged.filter((item) => !item.isRead && !item.read).length;
   updateNotificationBadge(unreadCount);
+  if (activeWorkerPageTarget === "chatCard" && workerToken) {
+    void loadWorkerChat();
+  }
   if (
     options.notifyNew &&
     !workerNotificationGreeted &&
@@ -1100,6 +1107,8 @@ let gateFeedbackResetTimeout = null;
 let gateEventPollTimeout = null;
 let gateEventPollInFlight = false;
 let gateLastSeenEventId = "";
+let workerChatThreadId = "";
+let workerNotificationPollTimer = null;
 
 const elements = {
   loginCard: document.querySelector("#loginCard"),
@@ -1258,6 +1267,10 @@ const elements = {
   companyModeFeatureList: document.querySelector("#companyModeFeatureList"),
   documentsCard: document.querySelector("#documentsCard"),
   documentsList: document.querySelector("#documentsList"),
+  chatCard: document.querySelector("#chatCard"),
+  workerChatMessages: document.querySelector("#workerChatMessages"),
+  workerChatInput: document.querySelector("#workerChatInput"),
+  workerChatSendBtn: document.querySelector("#workerChatSendBtn"),
   deploymentPlanCard: document.querySelector("#deploymentPlanCard"),
   deploymentPlanList: document.querySelector("#deploymentPlanList"),
   deploymentPlanMonthSelect: document.querySelector("#deploymentPlanMonthSelect"),
@@ -1592,6 +1605,7 @@ function showOnlyWorkerFeaturePanel(panelId) {
     "leaveRequestCard",
     "timesheetCard",
     "documentsCard",
+    "chatCard",
     "deploymentPlanCard",
     "incidentCard",
     "notificationBanner",
@@ -1654,6 +1668,7 @@ function getWorkerPageTitle(targetId) {
   if (targetId === "incidentCard") return t("incidentTitle");
   if (targetId === "timesheetCard") return t("timesheetCardTitle");
   if (targetId === "documentsCard") return t("documentsTitle");
+  if (targetId === "chatCard") return t("workerChatTitle");
   if (targetId === "deploymentPlanCard") return t("deploymentPlanTitle");
   return t("workerPageDefault");
 }
@@ -1670,6 +1685,7 @@ function getWorkerPageSections() {
     elements.incidentCard,
     elements.timesheetCard,
     elements.documentsCard,
+    elements.chatCard,
     elements.deploymentPlanCard,
   ].filter(Boolean);
 }
@@ -2163,6 +2179,10 @@ function bindEvents() {
           void openWorkerDeploymentPlanScreen();
           return;
         }
+        if (targetId === "chatCard") {
+          void openWorkerChatScreen();
+          return;
+        }
         applyWorkerPageView(targetId);
         const target = document.getElementById(targetId);
         if (target) {
@@ -2188,6 +2208,20 @@ function bindEvents() {
     });
   }
   bindDeploymentPlanInteractions();
+
+  if (elements.workerChatSendBtn) {
+    elements.workerChatSendBtn.addEventListener("click", () => {
+      void sendWorkerChatMessage();
+    });
+  }
+  if (elements.workerChatInput) {
+    elements.workerChatInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void sendWorkerChatMessage();
+      }
+    });
+  }
 
   if (elements.workerPageBackButton) {
     elements.workerPageBackButton.addEventListener("click", () => {
@@ -3163,6 +3197,7 @@ function renderWorker(payload) {
   }
   updateWorkerNextStepPanel({ worker, companyPreset, isVisitor });
   void refreshWorkerNotificationCenter({ silent: true, notifyNew: true });
+  startWorkerNotificationPolling();
   updateSmartWorkHub(payload, lastTimesheetRows);
   applySiteAccessUi(payload);
   if (elements.workerBadgeId) elements.workerBadgeId.textContent = workerBadgeId || "-";
@@ -3405,6 +3440,7 @@ function renderWorker(payload) {
   const planFeatures = payload.planFeatures || {};
   applyWorkerPlanNavState(planFeatures);
   applyWorkerDeploymentMenuState(planFeatures);
+  applyWorkerChatMenuState(planFeatures);
   void refreshHomeDeploymentTeaser().catch(() => {});
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
 
@@ -5004,13 +5040,15 @@ async function pollProximityLoginCandidate() {
       "deployment_declined",
       "outside_shift_window",
       "not_a_workday",
-      "proximity_login_disabled",
-      "outside_site_radius",
       "worker_geolocation_required",
       "worker_geolocation_inaccurate",
     ]);
     if (!quietCodes.has(error.code)) {
-      console.warn("[proximity-login]", error.code || error.message);
+      if (error.code === "proximity_login_disabled" || error.code === "outside_site_radius") {
+        showWorkerNotice(error.message || t("proximityLoginFailed"));
+      } else {
+        console.warn("[proximity-login]", error.code || error.message);
+      }
     }
   } finally {
     proximityLoginInProgress = false;
@@ -5074,7 +5112,7 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   }
 
   stopSiteGeofenceMonitor();
-  if (cfg.siteApp && cfg.autoLogout && cfg.siteLocation && workerToken && !offlineWorkerSessionActive) {
+  if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && cfg.siteLocation) {
     startSiteGeofenceMonitor(cfg);
   }
 }
@@ -5121,6 +5159,9 @@ async function pollSitePresence(cfg) {
       },
       body: JSON.stringify({ location: locationPayload }),
     });
+    if (presence?.autoCheckInLogId) {
+      showWorkerNotice(t("siteAutoCheckIn"));
+    }
     if (presence?.onSite === false) {
       siteOffSiteStrikeCount += 1;
       if (siteOffSiteStrikeCount >= SITE_OFF_SITE_STRIKES_REQUIRED) {
@@ -5266,6 +5307,7 @@ function workerPlanAllowsFeature(featureKey) {
   const features = lastWorkerPayload?.planFeatures;
   if (!features || typeof features !== "object") return true;
   if (featureKey === "deployment_plan" && features[featureKey] === undefined) return true;
+  if (featureKey === "worker_chat" && features[featureKey] === undefined) return true;
   if (features[featureKey] === false) return false;
   return Boolean(features[featureKey]);
 }
@@ -5289,12 +5331,40 @@ function applyWorkerDeploymentMenuState(planFeatures = {}) {
   }
 }
 
+function applyWorkerChatMenuState(planFeatures = {}) {
+  const allowed = workerPlanAllowsFeature("worker_chat");
+  document.querySelectorAll(".worker-menu-btn-chat, [data-worker-page-target='chatCard']").forEach((btn) => {
+    btn.classList.toggle("hidden", !allowed);
+    btn.classList.toggle("worker-menu-btn-locked", !allowed);
+    btn.toggleAttribute("disabled", !allowed);
+    btn.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed) {
+      btn.title = planFeatureBlockedMessage("worker_chat");
+    } else {
+      btn.removeAttribute("title");
+    }
+  });
+}
+
+function startWorkerNotificationPolling() {
+  if (workerNotificationPollTimer) {
+    return;
+  }
+  workerNotificationPollTimer = setInterval(() => {
+    if (!workerToken) {
+      return;
+    }
+    void refreshWorkerNotificationCenter({ silent: true, notifyNew: true });
+  }, 30000);
+}
+
 function planFeatureBlockedMessage(featureKey) {
   const labels = {
     worker_hours_report: "Arbeitsstunden",
     document_upload: "Dokumente",
     leave_management: "Urlaubsanträge",
     deployment_plan: "Einsatzplan",
+    worker_chat: "Chat",
   };
   const label = labels[featureKey] || "Diese Funktion";
   return `${label} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.`;
@@ -6238,6 +6308,7 @@ function enforceUiVisibilityGuard() {
     "leaveRequestCard",
     "timesheetCard",
     "documentsCard",
+    "chatCard",
     "deploymentPlanCard",
     "workerBottomNav",
     "topPanel",
@@ -6343,6 +6414,7 @@ function switchToTab(tabName) {
     "leaveRequestCard",
     "timesheetCard",
     "documentsCard",
+    "chatCard",
     "deploymentPlanCard",
     "workerDashboard",
     "homeCompactInfo"
@@ -7282,6 +7354,130 @@ async function downloadWorkerDocument(docId, filename) {
   anchor.download = filename || "dokument.pdf";
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+async function ensureWorkerChatThread() {
+  if (!workerToken) {
+    return "";
+  }
+  if (workerChatThreadId) {
+    return workerChatThreadId;
+  }
+  const threadsPayload = await fetchJson(`${API_BASE}/chat/threads`, {
+    headers: { Authorization: `Bearer ${workerToken}` },
+  });
+  const threads = Array.isArray(threadsPayload?.threads) ? threadsPayload.threads : [];
+  const existing = threads.find((row) => String(row.subject || "general") === "general") || threads[0];
+  if (existing?.id) {
+    workerChatThreadId = String(existing.id);
+    return workerChatThreadId;
+  }
+  const created = await fetchJson(`${API_BASE}/chat/threads`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${workerToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ subject: "general" }),
+  });
+  workerChatThreadId = String(created?.threadId || "");
+  return workerChatThreadId;
+}
+
+function renderWorkerChatMessages(messages) {
+  if (!elements.workerChatMessages) {
+    return;
+  }
+  if (!Array.isArray(messages) || !messages.length) {
+    elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatEmpty")}</p>`;
+    return;
+  }
+  elements.workerChatMessages.innerHTML = messages
+    .map((msg) => {
+      const senderType = String(msg.senderType || "").toLowerCase();
+      const label = senderType === "admin" ? t("workerChatFromCompany") : t("workerChatFromYou");
+      const body = escapeHtmlBasic(String(msg.body || ""));
+      const time = formatNotificationTimestamp(msg.createdAt);
+      return `
+        <div class="worker-chat-bubble ${escapeHtmlBasic(senderType)}">
+          <strong>${escapeHtmlBasic(label)}</strong>
+          ${time ? `<div class="muted-info" style="font-size:0.8rem;margin-top:0.15rem;">${escapeHtmlBasic(time)}</div>` : ""}
+          <div style="margin-top:0.35rem;">${body}</div>
+        </div>
+      `;
+    })
+    .join("");
+  elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+}
+
+async function loadWorkerChat() {
+  if (!workerToken || !elements.workerChatMessages) {
+    return;
+  }
+  elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatLoading")}</p>`;
+  try {
+    const threadId = await ensureWorkerChatThread();
+    if (!threadId) {
+      elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatUnavailable")}</p>`;
+      return;
+    }
+    const payload = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
+    renderWorkerChatMessages(payload?.messages || []);
+  } catch (error) {
+    elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(formatWorkerApiError(error))}</p>`;
+  }
+}
+
+async function sendWorkerChatMessage() {
+  if (!workerToken || !elements.workerChatInput) {
+    return;
+  }
+  const body = String(elements.workerChatInput.value || "").trim();
+  if (!body) {
+    return;
+  }
+  try {
+    const threadId = await ensureWorkerChatThread();
+    if (!threadId) {
+      showWorkerNotice(t("workerChatUnavailable"));
+      return;
+    }
+    elements.workerChatSendBtn?.setAttribute("disabled", "true");
+    await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${workerToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body }),
+    });
+    elements.workerChatInput.value = "";
+    await loadWorkerChat();
+  } catch (error) {
+    showWorkerNotice(formatWorkerApiError(error));
+  } finally {
+    elements.workerChatSendBtn?.removeAttribute("disabled");
+  }
+}
+
+async function openWorkerChatScreen() {
+  if (!workerToken) {
+    showWorkerNotice(t("enterBadgeId"));
+    return;
+  }
+  if (!workerPlanAllowsFeature("worker_chat")) {
+    showWorkerNotice(planFeatureBlockedMessage("worker_chat"));
+    return;
+  }
+  switchToTab("home");
+  applyWorkerPageView("chatCard");
+  const card = elements.chatCard || document.getElementById("chatCard");
+  if (card) {
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  await loadWorkerChat();
 }
 
 async function loadMyDocuments() {

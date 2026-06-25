@@ -654,6 +654,17 @@
               <span class="worker-menu-label" data-i18n="deploymentPlanTitle">Mein Einsatzplan</span>
             </button>
 
+            <!-- Chat mit Firma -->
+            <button type="button" class="worker-menu-btn worker-menu-btn-chat" data-worker-page-target="chatCard">
+              <span class="worker-menu-icon" aria-hidden="true">
+                <svg class="worker-menu-svg" viewBox="0 0 48 48" fill="none">
+                  <path d="M8 10h32v22H14l-6 6V10z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M14 20h20M14 26h12" stroke="#f4c400" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <span class="worker-menu-label" data-i18n="workerChatTitle">Chat mit Firma</span>
+            </button>
+
             <!-- Dokumente -->
             <button type="button" class="worker-menu-btn" data-worker-page-target="documentsCard">
               <span class="worker-menu-icon" aria-hidden="true">
@@ -986,6 +997,21 @@
           </div>
         </div>
 
+        <!-- Chat -->
+        <div id="chatCard" class="below-card chat-card hidden">
+          <div class="section-head compact-head">
+            <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
+            <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+          </div>
+          <div id="workerChatMessages" class="worker-chat-messages">
+            <p class="muted-info" data-i18n="workerChatLoading">Lade Nachrichten…</p>
+          </div>
+          <div class="worker-chat-compose">
+            <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+            <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+          </div>
+        </div>
+
       </div>
 
       <input type="file" id="photoInput" class="hidden-control" accept="image/*" capture="environment" aria-label="Foto auswählen" title="Foto auswählen" />
@@ -1099,6 +1125,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260624pwa4"></script>
+  <script src="./worker-app.js?v=20260624c"></script>
 </body>
 </html>

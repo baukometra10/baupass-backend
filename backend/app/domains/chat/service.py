@@ -227,6 +227,8 @@ class ChatService:
                 company_id=company_id,
             )
 
+        self.db.commit()
+
         return {
             "id": message_id,
             "threadId": thread_id,

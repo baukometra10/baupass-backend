@@ -12981,6 +12981,16 @@ def worker_app_site_presence():
     site_cfg = get_company_site_access_config(db, worker["company_id"])
     radius = int(site_cfg["siteGeofenceRadiusMeters"])
     on_site = bool(measured.get("onSite"))
+    auto_checkin_log_id = None
+    if (
+        on_site
+        and site_cfg["accessMode"] == "site_app"
+        and site_cfg["siteAutoCheckin"]
+        and not worker_has_open_checkin_today(db, worker["id"])
+    ):
+        auto_checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+        if auto_checkin_log_id:
+            db.commit()
     return jsonify(
         {
             "onSite": on_site,
@@ -12991,6 +13001,7 @@ def worker_app_site_presence():
             "accessMode": site_cfg["accessMode"],
             "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
             "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
+            "autoCheckInLogId": auto_checkin_log_id,
         }
     )
 
