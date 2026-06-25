@@ -11150,10 +11150,19 @@ def worker_location_login_error_response(db, worker, exc):
     if isinstance(exc, PermissionError):
         distance_text = str(exc).split(":", 1)[1] if ":" in str(exc) else ""
         site_cfg = get_company_site_access_config(db, worker["company_id"])
-        max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+        zones = _ordered_geofence_zones_for_worker(db, worker)
+        if zones:
+            max_radius = int(zones[0].get("radius_meters") or site_cfg["siteGeofenceRadiusMeters"])
+            site_hint = str(zones[0].get("site_name") or "").strip()
+        else:
+            max_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+            site_hint = ""
+        message = f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt."
+        if site_hint:
+            message = f"{message} Standort: {site_hint}."
         return jsonify({
             "error": "outside_site_radius",
-            "message": f"Login nur direkt am Standort moeglich (max. {max_radius} m). Aktuell ca. {distance_text} m entfernt.",
+            "message": message,
         }), 403
     error_code = str(exc)
     if error_code == "worker_geolocation_required":
@@ -11306,9 +11315,6 @@ def apply_worker_site_coordinates_from_payload(db, worker_id, payload, existing_
 def measure_worker_site_distance(db, worker, location):
     if normalize_worker_type(worker["worker_type"]) != "worker":
         return None
-    site_coordinates = ensure_worker_site_coordinates(db, worker)
-    if not site_coordinates:
-        return None
     if not isinstance(location, dict):
         raise ValueError("worker_geolocation_required")
     _validate_worker_location_accuracy_or_raise(location)
@@ -11316,12 +11322,49 @@ def measure_worker_site_distance(db, worker, location):
     device_longitude = _normalize_float(location.get("longitude"))
     if device_latitude is None or device_longitude is None:
         raise ValueError("worker_geolocation_required")
+    accuracy_meters = _worker_location_accuracy_meters(location)
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    default_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+
+    zones = _ordered_geofence_zones_for_worker(db, worker)
+    best_outside = None
+    for zone in zones:
+        zone_lat = float(zone["latitude"])
+        zone_lng = float(zone["longitude"])
+        radius_meters = int(zone.get("radius_meters") or default_radius)
+        raw_distance_meters = _haversine_meters(
+            zone_lat, zone_lng, device_latitude, device_longitude
+        )
+        allowed_radius_meters = _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters)
+        candidate = {
+            "distanceMeters": int(round(raw_distance_meters)),
+            "siteLatitude": zone_lat,
+            "siteLongitude": zone_lng,
+            "deviceLatitude": float(device_latitude),
+            "deviceLongitude": float(device_longitude),
+            "radiusMeters": radius_meters,
+            "allowedRadiusMeters": int(round(allowed_radius_meters)),
+            "onSite": worker_within_site_geofence(raw_distance_meters, radius_meters, accuracy_meters),
+            "siteName": str(zone.get("site_name") or "").strip(),
+            "geofenceId": zone.get("id"),
+            "source": "admin_geofence",
+        }
+        if accuracy_meters is not None:
+            candidate["accuracyMeters"] = int(round(accuracy_meters))
+        if candidate["onSite"]:
+            return candidate
+        if best_outside is None or candidate["distanceMeters"] < best_outside["distanceMeters"]:
+            best_outside = candidate
+    if best_outside:
+        return best_outside
+
+    site_coordinates = ensure_worker_site_coordinates(db, worker)
+    if not site_coordinates:
+        return None
     raw_distance_meters = _haversine_meters(
         site_coordinates[0], site_coordinates[1], device_latitude, device_longitude
     )
-    accuracy_meters = _worker_location_accuracy_meters(location)
-    site_cfg = get_company_site_access_config(db, worker["company_id"])
-    radius_meters = int(site_cfg["siteGeofenceRadiusMeters"])
+    radius_meters = default_radius
     allowed_radius_meters = _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters)
     result = {
         "distanceMeters": int(round(raw_distance_meters)),
@@ -11332,6 +11375,7 @@ def measure_worker_site_distance(db, worker, location):
         "radiusMeters": radius_meters,
         "allowedRadiusMeters": int(round(allowed_radius_meters)),
         "onSite": worker_within_site_geofence(raw_distance_meters, radius_meters, accuracy_meters),
+        "source": "worker_anchor",
     }
     if accuracy_meters is not None:
         result["accuracyMeters"] = int(round(accuracy_meters))
@@ -11372,18 +11416,38 @@ def maybe_site_app_auto_checkin(db, worker):
 
 def serialize_worker_for_app(worker, db=None, company_id=None):
     site_location = None
-    latitude = worker["site_latitude"] if hasattr(worker, "keys") and "site_latitude" in worker.keys() else None
-    longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
-    radius_meters = WORKER_LOGIN_MAX_DISTANCE_METERS
     if db is not None:
         cid = company_id or worker["company_id"]
-        radius_meters = get_company_site_access_config(db, cid)["siteGeofenceRadiusMeters"]
-    if latitude is not None and longitude is not None:
-        site_location = {
-            "latitude": float(latitude),
-            "longitude": float(longitude),
-            "radiusMeters": radius_meters,
-        }
+        site_cfg = get_company_site_access_config(db, cid)
+        default_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+        zones = _ordered_geofence_zones_for_worker(db, worker)
+        if zones:
+            zone = zones[0]
+            site_location = {
+                "latitude": float(zone["latitude"]),
+                "longitude": float(zone["longitude"]),
+                "radiusMeters": int(zone.get("radius_meters") or default_radius),
+                "siteName": str(zone.get("site_name") or "").strip(),
+            }
+        else:
+            latitude = worker["site_latitude"] if hasattr(worker, "keys") and "site_latitude" in worker.keys() else None
+            longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
+            if latitude is not None and longitude is not None:
+                site_location = {
+                    "latitude": float(latitude),
+                    "longitude": float(longitude),
+                    "radiusMeters": default_radius,
+                }
+    else:
+        latitude = worker["site_latitude"] if hasattr(worker, "keys") and "site_latitude" in worker.keys() else None
+        longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
+        radius_meters = WORKER_LOGIN_MAX_DISTANCE_METERS
+        if latitude is not None and longitude is not None:
+            site_location = {
+                "latitude": float(latitude),
+                "longitude": float(longitude),
+                "radiusMeters": radius_meters,
+            }
     return {
         "id": worker["id"],
         "subcompanyId": worker["subcompany_id"],
@@ -11565,7 +11629,47 @@ def reverse_geocode_coordinates():
     })
 
 
+def _list_active_company_geofences(db, company_id):
+    if not company_id:
+        return []
+    try:
+        rows = db.execute(
+            """
+            SELECT id, site_name, latitude, longitude, radius_meters
+            FROM geofences
+            WHERE company_id = ? AND active = 1
+            ORDER BY site_name
+            """,
+            (str(company_id),),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    except Exception:
+        return []
+
+
+def _ordered_geofence_zones_for_worker(db, worker):
+    zones = _list_active_company_geofences(db, worker["company_id"])
+    if not zones:
+        return []
+    site_label = str(worker["site"] or "").strip().casefold()
+    if not site_label:
+        return zones
+    matched = [
+        zone
+        for zone in zones
+        if str(zone.get("site_name") or "").strip().casefold() == site_label
+    ]
+    if not matched:
+        return zones
+    others = [zone for zone in zones if zone not in matched]
+    return matched + others
+
+
 def ensure_worker_site_coordinates(db, worker):
+    zones = _ordered_geofence_zones_for_worker(db, worker)
+    if zones:
+        zone = zones[0]
+        return float(zone["latitude"]), float(zone["longitude"])
     latitude = worker["site_latitude"] if hasattr(worker, "keys") and "site_latitude" in worker.keys() else None
     longitude = worker["site_longitude"] if hasattr(worker, "keys") and "site_longitude" in worker.keys() else None
     if latitude is not None and longitude is not None:
@@ -11588,11 +11692,8 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
         return None
 
     site_cfg = get_company_site_access_config(db, worker["company_id"])
-    max_distance = int(site_cfg["siteGeofenceRadiusMeters"])
-    accuracy_meters = measured.get("accuracyMeters")
-    if not worker_within_site_geofence(
-        measured["distanceMeters"], max_distance, accuracy_meters
-    ):
+    max_distance = int(measured.get("radiusMeters") or site_cfg["siteGeofenceRadiusMeters"])
+    if not measured.get("onSite"):
         raise PermissionError(f"outside_site_radius:{measured['distanceMeters']}")
 
     measured["radiusMeters"] = max_distance
