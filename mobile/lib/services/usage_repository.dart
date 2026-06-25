@@ -9,7 +9,8 @@ class UsageRepository {
     0: 'worker-badge',
     1: 'worker-attendance',
     2: 'worker-tasks',
-    3: 'worker-profile',
+    3: 'worker-chat',
+    4: 'worker-profile',
   };
 
   Future<void> trackFeature({

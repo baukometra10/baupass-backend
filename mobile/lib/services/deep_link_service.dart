@@ -34,11 +34,11 @@ class DeepLinkService {
         return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 3);
       case 'chat':
       case 'messages':
-        return const WorkerAppRoute(tabIndex: 3, openChat: true);
+        return const WorkerAppRoute(tabIndex: 3);
       case 'contract-sign':
         return WorkerAppRoute(tabIndex: 0, externalUrl: uri.queryParameters['url']);
       case 'profile':
-        return const WorkerAppRoute(tabIndex: 3);
+        return const WorkerAppRoute(tabIndex: 4);
       default:
         return const WorkerAppRoute(tabIndex: 0);
     }

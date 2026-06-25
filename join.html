@@ -63,7 +63,7 @@
       <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener">iPhone: TestFlight</a>
       <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener">Google Play</a>
       <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener">App Store</a>
-      <a id="pwaBtn" class="btn primary hidden" href="#" style="font-size:1rem">PWA im Browser nutzen (bis native App aktiv)</a>
+      <a id="pwaBtn" class="btn secondary hidden" href="#" style="font-size:0.95rem">Browser-PWA (Fallback, wenn keine App installiert)</a>
     </div>
     <p class="muted" id="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
   </main>
@@ -122,11 +122,15 @@
       return `baupass://join?${q.toString()}`;
     }
 
-    function pwaFallbackUrl() {
-      const u = new URL("./worker-install.html", window.location.origin);
+    function pwaFallbackUrl(buildMeta) {
+      const legacy = String(buildMeta?.legacyPwa || "./emp-app.html").trim();
+      const u = new URL(legacy, window.location.origin);
+      u.searchParams.set("worker", "1");
+      u.searchParams.set("view", "card");
+      const build = String(buildMeta?.build || "").trim();
+      if (build) u.searchParams.set("v", build);
       if (accessToken) u.searchParams.set("access", accessToken);
       if (apiBaseMatchesOrigin(apiBase)) u.searchParams.set("apiBase", apiBase);
-      u.searchParams.set("launch", "1");
       return u.toString();
     }
 
@@ -143,6 +147,14 @@
       if (isError) box.classList.add("error");
     }
 
+    async function loadBuildMeta() {
+      try {
+        const res = await fetch(`/worker-build.json?t=${Date.now()}`, { cache: "no-store" });
+        if (res.ok) return await res.json();
+      } catch { /* ignore */ }
+      return {};
+    }
+
     async function loadConfig() {
       try {
         const res = await fetch(`/worker-join-config.json?t=${Date.now()}`, { cache: "no-store" });
@@ -155,6 +167,7 @@
       storePending();
       const platform = detectPlatform();
       const cfg = await loadConfig();
+      const buildMeta = await loadBuildMeta();
       const openApp = document.getElementById("openAppBtn");
       openApp.href = deepLinkUrl();
 
@@ -200,7 +213,7 @@
         }
       }
 
-      document.getElementById("pwaBtn").href = pwaFallbackUrl();
+      document.getElementById("pwaBtn").href = pwaFallbackUrl(buildMeta);
       setVisible("pwaBtn", true);
 
       if (launch && accessToken) {

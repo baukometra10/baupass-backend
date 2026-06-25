@@ -373,6 +373,83 @@ body.worker-feature-tab-active .leave-request-form textarea {
   border-radius: 0 0 14px 14px;
 }
 
+/* ── Login (Haupt-PWA Fallback) ────────────────────────────────────── */
+body:not(.worker-loaded) .login-sparkasse {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+body:not(.worker-loaded) .login-header-sparkasse {
+  padding: 8px 4px 0;
+}
+
+body:not(.worker-loaded) .login-content-sparkasse {
+  margin-top: 12px;
+}
+
+body:not(.worker-loaded) .login-btn-primary {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+body:not(.worker-loaded) .form-input-sparkasse {
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+body:not(.worker-loaded) .login-resume-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--corp-border);
+}
+
+/* ── Hub-Menü ───────────────────────────────────────────────────────── */
+body.worker-loaded #workerHubPanel.worker-hub-panel {
+  gap: 12px;
+}
+
+body.worker-loaded #workerQuickMenu.worker-menu-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.worker-loaded #workerPageNav {
+  margin-bottom: 8px;
+}
+
+/* ── Gate-Scanner Overlay ───────────────────────────────────────────── */
+#gateScannerOverlay.gate-overlay:not(.hidden) {
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px 16px;
+}
+
+#gateScannerOverlay .gate-panel {
+  width: min(100%, 440px);
+  margin: 0 auto;
+  border-radius: var(--w-layout-radius);
+}
+
+/* ── PIN-Sperre ─────────────────────────────────────────────────────── */
+#pinLockOverlay.pin-lock-overlay:not(.hidden) {
+  padding: max(20px, env(safe-area-inset-top, 0px)) 16px 16px;
+}
+
+#pinLockOverlay .pin-lock-card {
+  width: min(100%, 420px);
+  margin: 0 auto;
+  border-radius: var(--w-layout-radius);
+}
+
+#pinLockOverlay .pin-lock-form input {
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+#pinLockOverlay .pin-lock-form button {
+  min-height: 48px;
+  border-radius: 12px;
+}
+
 /* ── Kleine Screens ──────────────────────────────────────────────────── */
 @media (max-width: 380px) {
   #homeCompactInfo.home-compact-info {

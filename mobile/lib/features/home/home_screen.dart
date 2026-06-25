@@ -12,6 +12,7 @@ import '../chat/chat_screen.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/worker_home_chat_panel.dart';
 import '../notifications/notifications_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class HomeScreen extends StatefulWidget {
     required this.onOpenAttendance,
     this.onOpenTasks,
     this.onOpenDeploymentPlan,
+    this.onOpenChat,
   });
 
   final WorkerSession session;
@@ -39,6 +41,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback onOpenAttendance;
   final VoidCallback? onOpenTasks;
   final VoidCallback? onOpenDeploymentPlan;
+  final VoidCallback? onOpenChat;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -106,6 +109,18 @@ class _HomeScreenState extends State<HomeScreen> {
     ).then((_) => _refreshNotifications());
   }
 
+  void _openChatFullScreen() {
+    if (widget.onOpenChat != null) {
+      widget.onOpenChat!();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
+      ),
+    );
+  }
+
   Future<void> _refreshQr() async {
     try {
       final qr = await widget.digitalCard.fetchDynamicQr(
@@ -120,6 +135,41 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
+  Widget _infoTile(String label, String value, {Widget? valueWidget}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            valueWidget ??
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final worker = _profile?['worker'] as Map<String, dynamic>?;
@@ -127,6 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final subcompany = _profile?['subcompany'] as Map<String, dynamic>?;
     final siteAccess = _profile?['siteAccess'] as Map<String, dynamic>?;
     final openCheckIn = siteAccess?['openCheckInToday'] == true;
+    final status = worker?['status'] as String? ?? 'aktiv';
 
     return Scaffold(
       appBar: AppBar(
@@ -155,14 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             tooltip: 'Chat mit Firma',
             icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
-                  builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
-                ),
-              );
-            },
+            onPressed: _openChatFullScreen,
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
@@ -170,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             if (worker != null)
               DigitalPassCard(
@@ -181,11 +225,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 companyName: company?['name'] as String? ?? '',
                 subcompany: subcompany?['name'] as String?,
                 validUntil: worker['validUntil'] as String? ?? '-',
-                status: worker['status'] as String? ?? 'aktiv',
+                status: status,
                 photoData: worker['photoData'] as String?,
                 dynamicQr: _dynamicQr,
               ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _infoTile('Status', status),
+                const SizedBox(width: 8),
+                _infoTile('Standort', worker?['site'] as String? ?? '–'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _infoTile('Firma', company?['name'] as String? ?? '–'),
+                const SizedBox(width: 8),
+                _infoTile('Gültig bis', worker?['validUntil'] as String? ?? '–'),
+              ],
+            ),
+            const SizedBox(height: 12),
             Card(
               child: ListTile(
                 leading: Icon(
@@ -196,14 +256,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 subtitle: worker?['site'] != null ? Text('Baustelle: ${worker!['site']}') : null,
               ),
             ),
-            if (widget.session.hasDeviceBinding) ...[
-              const SizedBox(height: 8),
-              const ListTile(
-                leading: Icon(Icons.phonelink_lock),
-                title: Text('Gerät gebunden'),
-                subtitle: Text('Nur dieses Gerät darf Check-ins senden.'),
-              ),
-            ],
+            const SizedBox(height: 12),
+            WorkerHomeChatPanel(
+              session: widget.session,
+              chat: widget.chat,
+              onOpenFullScreen: _openChatFullScreen,
+            ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: widget.onOpenAttendance,
@@ -228,22 +286,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               },
-              icon: const Icon(Icons.chat_outlined),
+              icon: const Icon(Icons.smart_toy_outlined),
               label: const Text('SUPPIX AI Assistent'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ChatScreen(session: widget.session, tasks: widget.tasks),
-                    builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('Chat mit Firma'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
             ),
           ],

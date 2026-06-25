@@ -154,10 +154,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final threadLabel = _threadId == null ? 'Firma' : 'Thread ${_threadId!.substring(0, _threadId!.length.clamp(0, 10))}';
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chat mit Firma · $threadLabel'),
+        title: const Text('Chat mit Firma'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

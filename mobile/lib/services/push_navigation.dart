@@ -32,9 +32,9 @@ class PushNavigation {
         return const WorkerAppRoute(tabIndex: 0, openAi: true);
       case 'foreman-alert':
       case 'ops-notify':
-        return const WorkerAppRoute(tabIndex: 3);
+        return const WorkerAppRoute(tabIndex: 4);
       case 'worker-chat':
-        return const WorkerAppRoute(tabIndex: 3, openChat: true);
+        return const WorkerAppRoute(tabIndex: 3);
       case 'contract-sign':
         final signUrl = (data['signUrl'] ?? data['sign_url'] ?? '').trim();
         if (signUrl.isNotEmpty) {

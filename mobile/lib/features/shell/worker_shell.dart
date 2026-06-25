@@ -92,9 +92,16 @@ class WorkerShellState extends State<WorkerShell> {
       return;
     }
     setState(() {
-      _index = route.tabIndex.clamp(0, 3);
+      _index = route.openChat ? 3 : route.tabIndex.clamp(0, 4);
       _tasksSubTab = route.tasksSubTab.clamp(0, 3);
     });
+    if (route.openChat && mounted) {
+      widget.usage.trackFeature(
+        featureId: 'worker-chat',
+        bearerToken: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+      );
+    }
     if (route.openAi && mounted) {
       widget.usage.trackFeature(
         featureId: 'worker-ai',
@@ -104,18 +111,6 @@ class WorkerShellState extends State<WorkerShell> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
-        ),
-      );
-    }
-    if (route.openChat && mounted) {
-      widget.usage.trackFeature(
-        featureId: 'worker-chat',
-        bearerToken: widget.session.bearer,
-        deviceId: widget.session.deviceId,
-      );
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ChatScreen(session: widget.session, chat: widget.chat),
         ),
       );
     }
@@ -181,6 +176,7 @@ class WorkerShellState extends State<WorkerShell> {
           _index = 2;
           _tasksSubTab = 0;
         }),
+        onOpenChat: () => setState(() => _index = 3),
       ),
       AttendanceScreen(
         session: widget.session,
@@ -201,6 +197,7 @@ class WorkerShellState extends State<WorkerShell> {
         workerCache: widget.workerCache,
         initialTab: _tasksSubTab,
       ),
+      ChatScreen(session: widget.session, chat: widget.chat),
       ProfileScreen(
         session: widget.session,
         auth: widget.auth,
@@ -239,6 +236,7 @@ class WorkerShellState extends State<WorkerShell> {
             label: 'Check-in',
           ),
           const NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
+          const NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
           const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
