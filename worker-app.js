@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260624c";
+const WORKER_BUILD_TAG = "20260624d";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 12000;
@@ -1588,6 +1588,7 @@ function showOnlyWorkerFeaturePanel(panelId) {
     leaveRequestCard: "worker-leave",
     timesheetCard: "worker-timesheets",
     documentsCard: "worker-documents",
+    chatCard: "worker-chat",
     deploymentPlanCard: "worker-deployment",
     workerAiCard: "worker-ai",
   };
@@ -1727,6 +1728,9 @@ function applyWorkerPageView(targetId = "") {
     const shouldShow = section.id === targetId;
     section.classList.toggle("hidden", !shouldShow);
     section.classList.toggle("worker-page-active", shouldShow);
+    if (shouldShow) {
+      section.style.removeProperty("display");
+    }
   });
 
   if (elements.workerPageNav) {
@@ -2003,7 +2007,17 @@ function bindEvents() {
     elements.workerLoginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const credential = (elements.workerAccessToken?.value || "").trim();
-      const locationPayload = await resolveLoginLocation();
+      let locationPayload = null;
+      if (looksLikeBadgeId(credential) && !isVisitorBadgeId(credential)) {
+        const captured = await captureLoginGeolocation({ showProgress: true });
+        locationPayload = captured.location;
+        if (!locationPayload) {
+          showWorkerNotice(t("geolocationRequired"));
+          return;
+        }
+      } else {
+        locationPayload = await resolveLoginLocation();
+      }
       if (looksLikeBadgeId(credential)) {
         const badgePin = isVisitorBadgeId(credential) ? "" : (elements.workerBadgePin?.value || "").trim();
         await loginWithBadgeId(credential, badgePin, { locationPayload });
@@ -2422,11 +2436,11 @@ async function resolveLoginLocation() {
     try {
       const position = await capturePreciseGeolocation({
         preset: "fast",
-        maxWaitMs: 10000,
-        targetAccuracyMeters: 30,
-        acceptAccuracyMeters: 80,
+        maxWaitMs: 18000,
+        targetAccuracyMeters: 40,
+        acceptAccuracyMeters: 100,
         minSamples: 1,
-        maxSamples: 8,
+        maxSamples: 10,
       });
       if (
         position &&
@@ -2447,8 +2461,8 @@ async function resolveLoginLocation() {
   if (typeof capturePointGeolocation === "function") {
     try {
       const position = await capturePointGeolocation({
-        maxWaitMs: 6000,
-        cachedMaximumAgeMs: 15000,
+        maxWaitMs: 15000,
+        cachedMaximumAgeMs: 300000,
       });
       return {
         latitude: position.latitude,
@@ -2483,12 +2497,36 @@ async function resolveLoginLocation() {
         });
       },
       () => {
-        // Permission denied or unavailable – let the server decide if geolocation is required
-        resolve(null);
+        // Permission denied or unavailable – try one relaxed cached reading before giving up.
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+            });
+          },
+          () => resolve(null),
+          { enableHighAccuracy: false, timeout: 25000, maximumAge: 600000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 120000 }
     );
   });
+}
+
+async function captureLoginGeolocation({ showProgress = false } = {}) {
+  if (!navigator.geolocation) {
+    return { location: null, reason: "unsupported" };
+  }
+  if (showProgress) {
+    showWorkerNotice(t("geolocationCapturing"));
+  }
+  const location = await resolveLoginLocation();
+  if (location) {
+    return { location, reason: "" };
+  }
+  return { location: null, reason: "unavailable" };
 }
 
 async function persistOfflineBadgeProfile(badgeId, badgePin, payload) {
@@ -2996,11 +3034,25 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     hideWorkerNotice();
   }
 
+  let effectiveLocation = locationPayload;
+  if (!effectiveLocation && !visitorLogin && navigator.geolocation) {
+    const captured = await captureLoginGeolocation({ showProgress: !silent });
+    effectiveLocation = captured.location;
+    if (!effectiveLocation) {
+      if (!silent) {
+        showWorkerNotice(
+          captured.reason === "unsupported" ? t("geolocationUnsupported") : t("geolocationRequired")
+        );
+      }
+      return;
+    }
+  }
+
   try {
     const payload = await fetchJson(`${API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ badgeId: normalizedBadgeId, badgePin: normalizedBadgePin, location: locationPayload })
+      body: JSON.stringify({ badgeId: normalizedBadgeId, badgePin: normalizedBadgePin, location: effectiveLocation })
     });
 
     offlineWorkerSessionActive = false;
@@ -6560,6 +6612,11 @@ function initBottomTabNavigation() {
 
   const syncFromHash = () => {
     const hash = (window.location.hash || "").toLowerCase();
+    if (hash === "#chat") {
+      switchToTab("home");
+      void openWorkerChatScreen();
+      return;
+    }
     if (hash === "#einsatzplan" || hash === "#deployment") {
       switchToTab("home");
       void openWorkerDeploymentPlanScreen();
@@ -7472,10 +7529,12 @@ async function openWorkerChatScreen() {
     return;
   }
   switchToTab("home");
+  ensureWorkerFeatureHubVisible();
+  showOnlyWorkerFeaturePanel("chatCard");
   applyWorkerPageView("chatCard");
-  const card = elements.chatCard || document.getElementById("chatCard");
-  if (card) {
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollWorkerFeaturePanelIntoView("chatCard");
+  if (window.location.hash !== "#chat") {
+    history.replaceState(null, "", "#chat");
   }
   await loadWorkerChat();
 }
