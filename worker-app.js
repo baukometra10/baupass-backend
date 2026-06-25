@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627e";
+const WORKER_BUILD_TAG = "20260627f";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1765,10 +1765,12 @@ function getWorkerPageSections() {
 
 const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages{flex:1;min-height:0;max-height:none!important;margin-bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{flex-shrink:0;display:grid!important;gap:8px;margin-top:10px;padding-bottom:max(4px,env(safe-area-inset-bottom,0px))}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose textarea{min-height:52px;max-height:96px;width:100%}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;padding:0;border:none;border-radius:0;background:transparent;box-shadow:none;overflow:hidden}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages{flex:1 1 auto;min-height:0;max-height:none!important;margin:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{flex:0 0 auto;flex-shrink:0;display:block!important;margin:0;padding:8px 10px max(8px,env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid rgba(60,94,139,.22);box-shadow:0 -4px 18px rgba(8,28,54,.07)}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar{display:flex;align-items:flex-end;gap:8px}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:42px;max-height:120px;border-radius:22px}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
   "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:10px}",
   "#chatCard .worker-chat-row{display:flex;width:100%}",
   "#chatCard .worker-chat-row.is-company{justify-content:flex-start;padding-right:18%}",
@@ -1793,6 +1795,49 @@ function ensureWorkerChatShellStyles() {
   if (style.textContent !== WORKER_CHAT_SHELL_FIX_CSS) {
     style.textContent = WORKER_CHAT_SHELL_FIX_CSS;
   }
+}
+
+function ensureWorkerChatComposeBar() {
+  const compose = document.querySelector("#chatCard .worker-chat-compose");
+  if (!compose || compose.querySelector(".worker-chat-compose-bar")) {
+    return;
+  }
+  const fileHint = compose.querySelector("#workerChatFileHint");
+  const fileLabel = compose.querySelector(".worker-chat-file-label");
+  const input = compose.querySelector("#workerChatInput");
+  const sendBtn = compose.querySelector("#workerChatSendBtn");
+  if (!input || !sendBtn) {
+    return;
+  }
+  const bar = document.createElement("div");
+  bar.className = "worker-chat-compose-bar";
+  if (fileLabel) {
+    fileLabel.classList.add("worker-chat-compose-attach");
+    bar.appendChild(fileLabel);
+  }
+  input.rows = 1;
+  sendBtn.classList.remove("primary", "small-btn");
+  sendBtn.classList.add("worker-chat-send-btn");
+  if (!sendBtn.querySelector("svg")) {
+    sendBtn.textContent = "";
+    sendBtn.insertAdjacentHTML(
+      "beforeend",
+      `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    );
+  }
+  bar.appendChild(input);
+  bar.appendChild(sendBtn);
+  compose.textContent = "";
+  if (fileHint) {
+    compose.appendChild(fileHint);
+  }
+  compose.appendChild(bar);
+  elements.workerChatInput = input;
+  elements.workerChatSendBtn = sendBtn;
+  elements.workerChatFileInput = compose.querySelector("#workerChatFileInput");
+  elements.workerChatFileHint = fileHint || document.getElementById("workerChatFileHint");
+  bindWorkerChatComposeEvents();
+  applyTranslations();
 }
 
 function applyWorkerChatTabLayout(chatCard) {
@@ -1823,8 +1868,9 @@ function applyWorkerChatTabLayout(chatCard) {
   }
   const compose = card.querySelector(".worker-chat-compose");
   if (compose) {
+    compose.style.flex = "0 0 auto";
     compose.style.flexShrink = "0";
-    compose.style.display = "grid";
+    compose.style.display = "block";
   }
 }
 
@@ -1907,13 +1953,23 @@ function ensureWorkerChatDom() {
         <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
       </div>
       <div class="worker-chat-compose">
-        <label class="worker-chat-file-label" for="workerChatFileInput">
-          <span data-i18n="workerChatAttach">Unterlage anfügen</span>
-          <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
-        </label>
         <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
-        <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
-        <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+        <div class="worker-chat-compose-bar">
+          <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span class="sr-only" data-i18n="workerChatAttach">Unterlage anfügen</span>
+            <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+          </label>
+          <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+          <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
     `;
     if (anchor.id === "badgeCard" || anchor.id === "homeCompactInfo") {
@@ -1931,6 +1987,7 @@ function ensureWorkerChatDom() {
   elements.workerChatFileInput = document.getElementById("workerChatFileInput");
   elements.workerChatFileHint = document.getElementById("workerChatFileHint");
   placeWorkerChatCard(chatCard);
+  ensureWorkerChatComposeBar();
   if (currentActiveTab === "chat") {
     applyWorkerChatTabLayout(chatCard);
   }
@@ -2054,6 +2111,7 @@ async function init() {
   ensureWorkerChatShellStyles();
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
+  ensureWorkerChatComposeBar();
   applyTranslations();
   updateWorkerBuildBadge();
   bindEvents();
@@ -8762,6 +8820,7 @@ function initWorkerAppShell() {
   ensureWorkerChatShellStyles();
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
+  ensureWorkerChatComposeBar();
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
 }

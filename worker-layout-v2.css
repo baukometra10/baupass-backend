@@ -202,23 +202,23 @@ body.worker-feature-tab-active #documentsCard:not(.hidden) .documents-list {
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Chat Feature-Tab (neben Stunden/Docs) ──────────────────────────── */
+/* ── Chat Feature-Tab (WhatsApp-Layout: scroll oben, Eingabe fix unten) ─ */
 body.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden) {
   display: flex !important;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   margin: 0;
-  padding: var(--w-layout-pad);
-  border-radius: var(--w-layout-radius);
-  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.28));
-  background: var(--corp-surface, #fff);
-  box-shadow: var(--ui-shadow-sm);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   overflow: hidden;
 }
 
 html[data-theme="dark"] body.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden) {
-  background: var(--corp-surface, #0f1e34);
+  background: transparent;
 }
 
 #chatCard .worker-feature-chat-head {
@@ -242,11 +242,14 @@ body.worker-feature-tab-active #chatCard .worker-feature-chat-head {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.22));
-  background: var(--ui-surface-soft, #f6f9fd);
+  padding: 12px 14px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--ui-surface-soft, #eef3f9);
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -369,18 +372,106 @@ html[data-theme="dark"] .worker-chat-bubble.is-mine {
 }
 
 #chatCard .worker-chat-compose {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 6;
+  display: block;
+  margin: 0;
+  padding: 8px 10px max(8px, env(safe-area-inset-bottom, 0px));
+  background: var(--corp-surface, #fff);
+  border-top: 1px solid var(--corp-border, rgba(60, 94, 139, 0.22));
+  box-shadow: 0 -4px 18px rgba(8, 28, 54, 0.07);
+}
+
+html[data-theme="dark"] #chatCard .worker-chat-compose {
+  background: var(--corp-surface, #0f1e34);
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.28);
+}
+
+#chatCard .worker-chat-file-hint {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+}
+
+#chatCard .worker-chat-compose-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+#chatCard .worker-chat-compose-bar textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  max-height: 120px;
+  resize: none;
+  margin: 0;
+  border-radius: 22px;
+  padding: 10px 14px;
+  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.28));
+  background: var(--ui-surface-soft, #f6f9fd);
+  font: inherit;
+  line-height: 1.35;
+}
+
+#chatCard .worker-chat-compose-attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.28));
+  background: var(--ui-surface-soft, #f6f9fd);
+  color: var(--corp-primary, #0a57c0);
+  cursor: pointer;
+}
+
+#chatCard .worker-chat-compose-attach input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+#chatCard .worker-chat-send-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--corp-primary, #0a57c0);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(10, 87, 192, 0.28);
+}
+
+#chatCard .worker-chat-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+#chatCard .worker-chat-send-btn:not(:disabled):active {
+  transform: scale(0.96);
 }
 
 #chatCard .worker-chat-compose textarea {
-  min-height: 52px;
-  max-height: 96px;
+  min-height: 42px;
+  max-height: 120px;
   resize: none;
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 22px;
+  padding: 10px 14px;
 }
 
 #chatCard .worker-chat-file-label {

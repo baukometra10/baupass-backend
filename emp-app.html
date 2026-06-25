@@ -62,7 +62,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260627e" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260627f" />
   <title>WorkPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -71,11 +71,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260627e" />
+  <link rel="stylesheet" href="./worker.css?v=20260627f" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260627e" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260627e" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260627e" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260627f" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260627f" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260627f" />
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:10px}
@@ -182,7 +182,7 @@
       <span id="workerBrandChip" class="sr-only">WorkPass</span>
       <span id="installPlatformHint" class="sr-only" data-i18n="installHint"></span>
       <span id="lastSyncInfo" class="sr-only" data-i18n="lastSyncInitial">-</span>
-      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260627e</span>
+      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260627f</span>
       <div id="workerPulsePanel" class="sr-only" aria-live="polite">
         <strong id="pulseNetworkValue" data-i18n="online">Online</strong>
         <strong id="pulseSyncValue">-</strong>
@@ -1040,7 +1040,7 @@
 
         <!-- Chat mit Firma (Feature-Tab neben Stunden/Docs) -->
         <div id="chatCard" class="below-card chat-card worker-feature-chat-card hidden">
-          <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627e</p>
+          <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627f</p>
           <div class="section-head compact-head worker-feature-chat-head">
             <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
             <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
@@ -1049,13 +1049,23 @@
             <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
           </div>
           <div class="worker-chat-compose">
-            <label class="worker-chat-file-label" for="workerChatFileInput">
-              <span data-i18n="workerChatAttach">Unterlage anfügen</span>
-              <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
-            </label>
             <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
-            <textarea id="workerChatInput" rows="2" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
-            <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+            <div class="worker-chat-compose-bar">
+              <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput" title="Unterlage anfügen">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="sr-only" data-i18n="workerChatAttach">Unterlage anfügen</span>
+                <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+              </label>
+              <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+              <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1199,6 +1209,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260627e"></script>
+  <script src="./worker-app.js?v=20260627f"></script>
 </body>
 </html>
