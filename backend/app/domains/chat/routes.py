@@ -123,17 +123,34 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         worker_id = str(request.form.get("worker_id") or "").strip()
         upload = request.files.get("file")
         if not message_id or not worker_id or upload is None:
-            return jsonify({"error": "attachment_payload_required"}), 400
-        attachment = ChatService(get_db()).save_attachment(
-            message_id=message_id,
-            company_id=cid,
-            worker_id=worker_id,
-            filename=str(upload.filename or "upload.bin"),
-            content_type=str(upload.mimetype or "application/octet-stream"),
-            blob=upload.read(),
-            storage_root=Path(BASE_DIR) / "backend" / "uploads",
-        )
-        return jsonify({"ok": True, "attachment": attachment, "threadId": thread_id})
+            return jsonify({"error": "attachment_payload_required", "message": "Datei oder Nachricht fehlt."}), 400
+        db = get_db()
+        thread = db.execute(
+            "SELECT id, worker_id FROM chat_threads WHERE id = ? AND company_id = ?",
+            (thread_id, cid),
+        ).fetchone()
+        if not thread or str(thread["worker_id"]) != worker_id:
+            return jsonify({"error": "thread_not_found", "message": "Chat nicht gefunden."}), 404
+        message = db.execute(
+            "SELECT id FROM chat_messages WHERE id = ? AND thread_id = ? AND company_id = ? AND worker_id = ?",
+            (message_id, thread_id, cid, worker_id),
+        ).fetchone()
+        if not message:
+            return jsonify({"error": "message_not_found", "message": "Nachricht nicht gefunden."}), 404
+        try:
+            attachment = ChatService(db).save_attachment(
+                message_id=message_id,
+                company_id=cid,
+                worker_id=worker_id,
+                filename=str(upload.filename or "upload.bin"),
+                content_type=str(upload.mimetype or "application/octet-stream"),
+                blob=upload.read(),
+                storage_root=Path(BASE_DIR) / "backend" / "uploads",
+            )
+            return jsonify({"ok": True, "attachment": attachment, "threadId": thread_id})
+        except Exception:
+            logging.getLogger(__name__).exception("admin_chat_attachment failed for thread %s", thread_id)
+            return jsonify({"error": "attachment_upload_failed", "message": "Anhang konnte nicht hochgeladen werden."}), 500
 
     @chat_core_bp.post("/chat/messages/<message_id>/mark-read")
     @require_auth
@@ -163,8 +180,8 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         ).fetchone()
         if not row or str(row["company_id"]) != str(cid):
             return jsonify({"error": "attachment_not_found"}), 404
-        file_path = Path(str(row["file_path"] or ""))
-        if not file_path.exists():
+        file_path = ChatService.resolve_storage_path(str(row["file_path"] or ""))
+        if not file_path:
             return jsonify({"error": "attachment_missing"}), 404
         return send_file(file_path, mimetype=str(row["content_type"] or "application/octet-stream"), as_attachment=True, download_name=str(row["filename"] or "attachment.bin"))
 
@@ -242,8 +259,8 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         ).fetchone()
         if not row or str(row["worker_id"]) != worker_id:
             return jsonify({"error": "attachment_not_found"}), 404
-        file_path = Path(str(row["file_path"] or ""))
-        if not file_path.exists():
+        file_path = ChatService.resolve_storage_path(str(row["file_path"] or ""))
+        if not file_path:
             return jsonify({"error": "attachment_missing"}), 404
         return send_file(file_path, mimetype=str(row["content_type"] or "application/octet-stream"), as_attachment=True, download_name=str(row["filename"] or "attachment.bin"))
 

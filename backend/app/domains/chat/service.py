@@ -438,6 +438,33 @@ class ChatService:
             "fileSize": len(blob),
         }
 
+    @staticmethod
+    def resolve_storage_path(stored: str) -> Path | None:
+        from backend.server import BASE_DIR
+
+        raw = str(stored or "").strip()
+        if not raw:
+            return None
+        candidates: list[Path] = [Path(raw)]
+        base = Path(BASE_DIR)
+        path = Path(raw)
+        if not path.is_absolute():
+            candidates.append(base / raw)
+        chat_marker = f"{Path('chat')}{Path('/')}"
+        normalized = raw.replace("\\", "/")
+        chat_idx = normalized.find("/chat/")
+        if chat_idx >= 0:
+            chat_tail = normalized[chat_idx + 1 :]
+            candidates.append(base / "backend" / "uploads" / chat_tail)
+            candidates.append(base / chat_tail)
+        for candidate in candidates:
+            try:
+                if candidate.is_file():
+                    return candidate
+            except OSError:
+                continue
+        return None
+
     def mark_thread_read(self, *, thread_id: str, company_id: str, reader_type: str) -> None:
         now = utc_now_iso()
         if reader_type == "worker":

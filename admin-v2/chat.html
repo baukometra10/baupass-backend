@@ -36,6 +36,22 @@
     button { padding:0.65rem 0.9rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); cursor:pointer; }
     button.primary { background:#164e63; border-color:#5eead4; }
     .muted { color:var(--muted); }
+    .chat-attachment-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+      padding: 0.45rem 0.7rem;
+      border-radius: 10px;
+      border: 1px solid rgba(94, 234, 212, 0.28);
+      background: rgba(22, 78, 99, 0.18);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+      word-break: break-word;
+    }
+    .chat-attachment-btn:hover { border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -59,7 +75,7 @@
       <div id="threadMeta" class="muted" style="margin-bottom:0.75rem;">Noch kein Chat ausgewählt.</div>
       <div id="messageList" class="message-list"></div>
       <div class="actions" style="margin-bottom:0.75rem;">
-        <input id="chatFile" type="file" />
+        <input id="chatFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
       </div>
       <textarea id="chatReply" placeholder="Antwort schreiben…"></textarea>
       <div class="actions" style="margin-top:0.75rem;">
@@ -94,8 +110,42 @@
       if (file) form.append(fileField, file);
       const res = await fetch(path, { method: "POST", headers: headers(), body: form, credentials: "include" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || res.statusText);
+      if (!res.ok) throw new Error(data.message || data.error || res.statusText);
       return data;
+    }
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+    }
+    async function downloadChatAttachment(attachmentId, filename, contentType) {
+      const qs = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+      const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download${qs}`, {
+        headers: headers(),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || data.error || res.statusText);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const mime = String(contentType || blob.type || "");
+      const isImage = /^image\//i.test(mime);
+      if (isImage) {
+        window.open(url, "_blank", "noopener");
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        return;
+      }
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename || "download";
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
     }
     function formatChatTimestamp(value) {
       const raw = String(value || "").trim();
@@ -125,9 +175,15 @@
       const time = formatChatTimestamp(msg.createdAt);
       const read = chatReadLabel(msg);
       const attach = Array.isArray(msg.attachments) && msg.attachments.length
-        ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename}</a>`).join("<br>")}</div>`
+        ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => {
+            const id = escapeHtml(a.id || "");
+            const name = escapeHtml(a.filename || "Anhang");
+            const type = escapeHtml(a.contentType || "");
+            return `<button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">📎 ${name}</button>`;
+          }).join("<br>")}</div>`
         : "";
-      return `<div class="bubble ${msg.senderType === "admin" ? "admin" : ""}"><strong>${who}</strong><br><span>${msg.body || ""}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}</div></div>`;
+      const body = escapeHtml(msg.body || "");
+      return `<div class="bubble ${msg.senderType === "admin" ? "admin" : ""}"><strong>${who}</strong><br><span>${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}</div></div>`;
     }
     function renderThreads() {
       const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
@@ -206,6 +262,17 @@
       }, 5000);
     }
     document.getElementById("threadSearch").addEventListener("input", renderThreads);
+    document.getElementById("messageList").addEventListener("click", (event) => {
+      const btn = event.target instanceof Element ? event.target.closest("[data-attachment-id]") : null;
+      if (!btn) return;
+      const attachmentId = btn.getAttribute("data-attachment-id") || "";
+      const filename = btn.getAttribute("data-filename") || "download";
+      const contentType = btn.getAttribute("data-content-type") || "";
+      if (!attachmentId) return;
+      downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
+        document.getElementById("threadMeta").textContent = error.message || String(error);
+      });
+    });
     document.getElementById("sendReplyBtn").addEventListener("click", async () => {
       if (!currentThreadId || !currentWorkerId) return;
       const body = document.getElementById("chatReply").value.trim();
