@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import sqlite3
 from contextlib import closing
+from pathlib import Path
 
 
 def _superadmin_headers(client):
@@ -168,7 +169,70 @@ def test_chat_thread_message_and_attachment(client_and_db):
         content_type="multipart/form-data",
     )
     assert attach.status_code == 200
-    assert attach.get_json()["attachment"]["id"]
+    attachment_id = attach.get_json()["attachment"]["id"]
+
+    download = client.get(
+        f"/api/chat/attachments/{attachment_id}/download?company_id={company_id}",
+        headers=headers,
+    )
+    assert download.status_code == 200, download.get_data(as_text=True)
+    assert download.data == b"hello"
+
+
+def test_chat_attachment_download_falls_back_to_worker_document(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "ChatFallbackCo")
+    worker_id = _create_worker_direct(db_path, company_id)
+
+    from backend.app.domains.chat.service import ChatService
+    from backend.server import CHAT_UPLOAD_DIR, get_db
+
+    with client.application.app_context():
+        service = ChatService(get_db())
+        thread_id = service.get_or_create_worker_thread(company_id=company_id, worker_id=worker_id, subject="general")
+        message = service.create_message(
+            thread_id=thread_id,
+            company_id=company_id,
+            worker_id=worker_id,
+            sender_type="worker",
+            sender_user_id=None,
+            sender_worker_id=worker_id,
+            body="Datei im Chat",
+        )
+        attachment = service.save_attachment(
+            message_id=str(message["id"]),
+            company_id=company_id,
+            worker_id=worker_id,
+            filename="fallback.txt",
+            content_type="text/plain",
+            blob=b"from chat volume",
+        )
+        service.register_worker_chat_submission(
+            worker_id=worker_id,
+            company_id=company_id,
+            filename="fallback.txt",
+            content_type="text/plain",
+            blob=b"from worker docs",
+            doc_type_raw="sonstiges",
+        )
+        attachment_id = attachment["id"]
+        stored = get_db().execute(
+            "SELECT file_path FROM chat_attachments WHERE id = ?",
+            (attachment_id,),
+        ).fetchone()["file_path"]
+        chat_file = CHAT_UPLOAD_DIR / company_id / worker_id / Path(stored).name
+        if not chat_file.is_file():
+            chat_file = Path(stored)
+        if chat_file.is_file():
+            chat_file.unlink()
+
+    download = client.get(
+        f"/api/chat/attachments/{attachment_id}/download?company_id={company_id}",
+        headers=headers,
+    )
+    assert download.status_code == 200, download.get_data(as_text=True)
+    assert download.data == b"from worker docs"
 
 
 def test_worker_chat_threads_with_worker_session(client_and_db):

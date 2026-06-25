@@ -413,22 +413,25 @@ class ChatService:
         filename: str,
         content_type: str,
         blob: bytes,
-        storage_root: Path,
+        storage_root: Path | None = None,
     ) -> dict[str, Any]:
+        from backend.server import CHAT_UPLOAD_DIR, _stored_file_path
+
         attachment_id = f"att-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
-        target_dir = storage_root / "chat" / company_id / worker_id
+        target_dir = CHAT_UPLOAD_DIR / company_id / worker_id
         target_dir.mkdir(parents=True, exist_ok=True)
         safe_name = f"{attachment_id}_{Path(filename or 'upload.bin').name}"
         file_path = target_dir / safe_name
         file_path.write_bytes(blob)
+        stored_path = _stored_file_path(file_path)
         self.db.execute(
             """
             INSERT INTO chat_attachments
             (id, message_id, company_id, worker_id, filename, content_type, file_path, file_size, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (attachment_id, message_id, company_id, worker_id, filename or "upload.bin", content_type or "application/octet-stream", str(file_path), len(blob), now),
+            (attachment_id, message_id, company_id, worker_id, filename or "upload.bin", content_type or "application/octet-stream", stored_path, len(blob), now),
         )
         self.db.commit()
         return {
@@ -440,7 +443,7 @@ class ChatService:
 
     @staticmethod
     def resolve_storage_path(stored: str) -> Path | None:
-        from backend.server import BASE_DIR
+        from backend.server import BASE_DIR, CHAT_UPLOAD_DIR
 
         raw = str(stored or "").strip()
         if not raw:
@@ -450,13 +453,13 @@ class ChatService:
         path = Path(raw)
         if not path.is_absolute():
             candidates.append(base / raw)
-        chat_marker = f"{Path('chat')}{Path('/')}"
         normalized = raw.replace("\\", "/")
         chat_idx = normalized.find("/chat/")
         if chat_idx >= 0:
-            chat_tail = normalized[chat_idx + 1 :]
-            candidates.append(base / "backend" / "uploads" / chat_tail)
-            candidates.append(base / chat_tail)
+            chat_tail = normalized[chat_idx + len("/chat/") :]
+            if chat_tail:
+                candidates.append(CHAT_UPLOAD_DIR / chat_tail)
+                candidates.append(base / "backend" / "uploads" / "chat" / chat_tail)
         for candidate in candidates:
             try:
                 if candidate.is_file():
@@ -464,6 +467,29 @@ class ChatService:
             except OSError:
                 continue
         return None
+
+    def resolve_attachment_path(self, row) -> Path | None:
+        file_path = self.resolve_storage_path(str(row["file_path"] or ""))
+        if file_path:
+            return file_path
+        worker_id = str(row["worker_id"] or "")
+        company_id = str(row["company_id"] or "")
+        filename = str(row["filename"] or "")
+        if not worker_id or not filename:
+            return None
+        doc = self.db.execute(
+            """
+            SELECT file_path FROM worker_documents
+            WHERE worker_id = ? AND company_id = ?
+              AND (filename = ? OR file_path LIKE ?)
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (worker_id, company_id, filename, f"%{filename}"),
+        ).fetchone()
+        if not doc:
+            return None
+        return self.resolve_storage_path(str(doc["file_path"] or ""))
 
     def mark_thread_read(self, *, thread_id: str, company_id: str, reader_type: str) -> None:
         now = utc_now_iso()
@@ -505,7 +531,7 @@ class ChatService:
         sender_type: str,
         sender_user_id: str | None = None,
         sender_worker_id: str | None = None,
-        storage_root: Path,
+        storage_root: Path | None = None,
         subject: str = "general",
     ) -> dict[str, Any]:
         """Attach a file to the worker chat thread (admin or worker sender)."""
@@ -533,7 +559,6 @@ class ChatService:
             filename=filename,
             content_type=content_type,
             blob=blob,
-            storage_root=storage_root,
         )
         message["attachments"] = [attachment]
         return {"threadId": thread_id, "message": message}

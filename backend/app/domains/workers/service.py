@@ -1007,7 +1007,6 @@ class WorkersService:
                 body=f"{document_type_label(doc_type)}: {safe_name}",
                 sender_type="admin",
                 sender_user_id=str(user.get("id") or ""),
-                storage_root=BASE_DIR / "backend" / "uploads",
             )
         except Exception:
             pass

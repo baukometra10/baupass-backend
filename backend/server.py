@@ -23082,6 +23082,33 @@ except OSError:
     DOCS_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "documents"
     DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+CHAT_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "chat"
+if _railway_data_dir.is_dir() and os.access(_railway_data_dir, os.W_OK):
+    CHAT_UPLOAD_DIR = _railway_data_dir / "uploads" / "chat"
+    _old_chat_dir = BASE_DIR / "backend" / "uploads" / "chat"
+    if _old_chat_dir.exists():
+        try:
+            import shutil as _shutil
+
+            CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            for src in _old_chat_dir.rglob("*"):
+                if not src.is_file():
+                    continue
+                rel = src.relative_to(_old_chat_dir)
+                dest = CHAT_UPLOAD_DIR / rel
+                if dest.exists():
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                _shutil.copy2(str(src), str(dest))
+            print(f"[baupass] Auto-migrated chat uploads from {_old_chat_dir} to {CHAT_UPLOAD_DIR}", flush=True)
+        except Exception as _chat_err:
+            print(f"[baupass] WARNING: Chat uploads auto-migration failed: {_chat_err}", flush=True)
+try:
+    CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    CHAT_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "chat"
+    CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def _parse_imap_attachment_limit_bytes() -> int:
     raw = os.getenv("BAUPASS_IMAP_MAX_ATTACHMENT_MB", "15")
