@@ -78,6 +78,7 @@
     let threads = [];
     let currentThreadId = "";
     let currentWorkerId = "";
+    let chatPollTimer = null;
     const headers = () => ({ "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) });
     const api = async (path, options = {}) => {
       const res = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) }, credentials: "include" });
@@ -129,7 +130,8 @@
           row.hasThread = true;
         }
         await loadMessages(resolvedId, workerId);
-        await loadThreads();
+        startChatPolling();
+        renderThreads();
       } catch (error) {
         document.getElementById("threadMeta").textContent = error.message || String(error);
       }
@@ -139,17 +141,35 @@
       threads = data.threads || [];
       renderThreads();
     }
-    async function loadMessages(threadId, workerId) {
+    async function loadMessages(threadId, workerId, options = {}) {
+      const quiet = Boolean(options.quiet);
       currentThreadId = threadId || "";
       currentWorkerId = workerId || "";
       const row = threads.find((item) => String(item.worker_id) === String(workerId));
       const name = row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : workerId;
       const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
       const messages = data.messages || [];
-      document.getElementById("threadMeta").textContent = name ? `Chat mit ${name}` : `Thread: ${currentThreadId}`;
+      if (!quiet) {
+        document.getElementById("threadMeta").textContent = name ? `Chat mit ${name}` : `Thread: ${currentThreadId}`;
+      }
       document.getElementById("messageList").innerHTML = messages.length
         ? messages.map((msg) => `<div class="bubble ${msg.senderType === 'admin' ? 'admin' : ''}"><strong>${msg.senderType === 'worker' ? 'Mitarbeiter' : 'Firma'}</strong><br><span>${msg.body || ''}</span>${Array.isArray(msg.attachments) && msg.attachments.length ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename}</a>`).join('<br>')}</div>` : ''}</div>`).join("")
         : `<p class="muted">Noch keine Nachrichten.</p>`;
+      const list = document.getElementById("messageList");
+      list.scrollTop = list.scrollHeight;
+    }
+    function stopChatPolling() {
+      if (chatPollTimer) {
+        clearInterval(chatPollTimer);
+        chatPollTimer = null;
+      }
+    }
+    function startChatPolling() {
+      stopChatPolling();
+      chatPollTimer = setInterval(() => {
+        if (!currentThreadId || !currentWorkerId) return;
+        loadMessages(currentThreadId, currentWorkerId, { quiet: true }).catch(() => {});
+      }, 5000);
     }
     document.getElementById("threadSearch").addEventListener("input", renderThreads);
     document.getElementById("sendReplyBtn").addEventListener("click", async () => {
@@ -157,21 +177,34 @@
       const body = document.getElementById("chatReply").value.trim();
       const file = document.getElementById("chatFile").files[0] || null;
       if (!body && !file) return;
-      const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ worker_id: currentWorkerId, body }),
-      });
-      if (file && res?.message?.id) {
-        await apiMultipart(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/attachments?company_id=${encodeURIComponent(companyId)}`, {
-          fields: { message_id: String(res.message.id), worker_id: currentWorkerId },
-          file,
+      const sendBtn = document.getElementById("sendReplyBtn");
+      sendBtn.disabled = true;
+      try {
+        const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ worker_id: currentWorkerId, body }),
         });
+        if (file && res?.message?.id) {
+          await apiMultipart(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/attachments?company_id=${encodeURIComponent(companyId)}`, {
+            fields: { message_id: String(res.message.id), worker_id: currentWorkerId },
+            file,
+          });
+        }
+        document.getElementById("chatReply").value = "";
+        document.getElementById("chatFile").value = "";
+        await loadMessages(currentThreadId, currentWorkerId);
+        const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
+        if (row) {
+          row.hasThread = true;
+          row.id = currentThreadId;
+        }
+        renderThreads();
+      } catch (error) {
+        document.getElementById("threadMeta").textContent = error.message || String(error);
+      } finally {
+        sendBtn.disabled = false;
       }
-      document.getElementById("chatReply").value = "";
-      document.getElementById("chatFile").value = "";
-      await loadMessages(currentThreadId, currentWorkerId);
-      await loadThreads();
     });
     loadThreads().catch((e) => { document.getElementById("threadMeta").textContent = e.message; });
   </script>

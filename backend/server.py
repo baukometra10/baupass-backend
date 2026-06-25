@@ -4209,6 +4209,65 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifications_worker_created ON notifications(worker_id, created_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifications_company_type ON notifications(company_id, type, created_at DESC)")
 
+    # ── Worker ↔ Admin Chat (WhatsApp-style threads) ───────────────────────
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_threads (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            subject TEXT NOT NULL DEFAULT 'general',
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_message_at TEXT,
+            last_worker_read_at TEXT,
+            last_admin_read_at TEXT,
+            created_by_user_id TEXT,
+            FOREIGN KEY(company_id) REFERENCES companies(id),
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_chat_threads_company ON chat_threads(company_id, updated_at DESC)")
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            sender_type TEXT NOT NULL,
+            sender_user_id TEXT,
+            sender_worker_id TEXT,
+            body TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            read_at TEXT,
+            FOREIGN KEY(thread_id) REFERENCES chat_threads(id),
+            FOREIGN KEY(company_id) REFERENCES companies(id),
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at ASC)")
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_attachments (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            content_type TEXT NOT NULL DEFAULT '',
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(message_id) REFERENCES chat_messages(id)
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_chat_attachments_message ON chat_attachments(message_id)")
+
     # ── Neu: Sync-Konflikt-Tracking ──────────────────────────
     cur.execute(
         """

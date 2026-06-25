@@ -232,6 +232,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         company_id = str(g.current_worker["company_id"])
         data = request.get_json(silent=True) or {}
         service = ChatService(get_db())
+        thread = get_db().execute(
+            "SELECT id, worker_id FROM chat_threads WHERE id = ? AND company_id = ?",
+            (thread_id, company_id),
+        ).fetchone()
+        if not thread or str(thread["worker_id"]) != worker_id:
+            return jsonify({"error": "thread_not_found", "message": "Chat nicht gefunden."}), 404
         try:
             message = service.create_message(
                 thread_id=thread_id,

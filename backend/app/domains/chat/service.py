@@ -17,6 +17,85 @@ def utc_now_iso() -> str:
 class ChatService:
     def __init__(self, db):
         self.db = db
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        try:
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_threads (
+                    id TEXT PRIMARY KEY,
+                    company_id TEXT NOT NULL,
+                    worker_id TEXT NOT NULL,
+                    subject TEXT NOT NULL DEFAULT 'general',
+                    status TEXT NOT NULL DEFAULT 'open',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_message_at TEXT,
+                    last_worker_read_at TEXT,
+                    last_admin_read_at TEXT,
+                    created_by_user_id TEXT
+                )
+                """
+            )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id TEXT PRIMARY KEY,
+                    thread_id TEXT NOT NULL,
+                    company_id TEXT NOT NULL,
+                    worker_id TEXT NOT NULL,
+                    sender_type TEXT NOT NULL,
+                    sender_user_id TEXT,
+                    sender_worker_id TEXT,
+                    body TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    read_at TEXT
+                )
+                """
+            )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_attachments (
+                    id TEXT PRIMARY KEY,
+                    message_id TEXT NOT NULL,
+                    company_id TEXT NOT NULL,
+                    worker_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL DEFAULT '',
+                    file_path TEXT NOT NULL,
+                    file_size INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            thread_cols = {
+                str(row[1])
+                for row in self.db.execute("PRAGMA table_info(chat_threads)").fetchall()
+            }
+            for column, ddl in (
+                ("last_worker_read_at", "ALTER TABLE chat_threads ADD COLUMN last_worker_read_at TEXT"),
+                ("last_admin_read_at", "ALTER TABLE chat_threads ADD COLUMN last_admin_read_at TEXT"),
+                ("last_message_at", "ALTER TABLE chat_threads ADD COLUMN last_message_at TEXT"),
+                ("created_by_user_id", "ALTER TABLE chat_threads ADD COLUMN created_by_user_id TEXT"),
+            ):
+                if column not in thread_cols:
+                    try:
+                        self.db.execute(ddl)
+                    except Exception:
+                        pass
+            message_cols = {
+                str(row[1])
+                for row in self.db.execute("PRAGMA table_info(chat_messages)").fetchall()
+            }
+            if "read_at" not in message_cols:
+                try:
+                    self.db.execute("ALTER TABLE chat_messages ADD COLUMN read_at TEXT")
+                except Exception:
+                    pass
+            self.db.commit()
+        except Exception:
+            pass
 
     def list_threads(self, company_id: str, *, worker_id: str | None = None) -> list[dict[str, Any]]:
         params: list[Any] = [company_id]
@@ -203,34 +282,43 @@ class ChatService:
             "senderType": sender_type,
             "preview": body.strip()[:120],
         }
-        publish_event("chat.message_created", company_id, event_payload, actor_id=sender_user_id or sender_worker_id or "")
+        try:
+            publish_event("chat.message_created", company_id, event_payload, actor_id=sender_user_id or sender_worker_id or "")
+        except Exception:
+            pass
 
-        if sender_type == "worker":
-            try:
+        try:
+            if sender_type == "worker":
                 self._notify_company_side(company_id, worker_id, body.strip())
-            except Exception:
-                pass
-        else:
-            notify_worker_mitteilung(
-                self.db,
-                worker_id,
-                notif_type="worker_chat",
-                title="Neue Nachricht",
-                message=body.strip()[:280],
-                action_url="chat",
-                push_tag="worker-chat",
-                send_email=False,
-            )
-            deliver_worker_push(
-                self.db,
-                worker_id,
-                "Neue Nachricht",
-                body.strip()[:180],
-                tag="worker-chat",
-                company_id=company_id,
-            )
+            else:
+                notify_worker_mitteilung(
+                    self.db,
+                    worker_id,
+                    notif_type="worker_chat",
+                    title="Neue Nachricht",
+                    message=body.strip()[:280],
+                    action_url="chat",
+                    push_tag="worker-chat",
+                    send_email=False,
+                )
+                try:
+                    deliver_worker_push(
+                        self.db,
+                        worker_id,
+                        "Neue Nachricht",
+                        body.strip()[:180],
+                        tag="worker-chat",
+                        company_id=company_id,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-        self.db.commit()
+        try:
+            self.db.commit()
+        except Exception:
+            pass
 
         return {
             "id": message_id,
