@@ -1,0 +1,389 @@
+/**
+ * Worker PWA layout v2 — emp-app.html (Haupt-PWA)
+ * Einheitliches Raster, Start-Tab, Feature-Tabs, Chat, Navigation
+ */
+
+:root {
+  --w-layout-gap: 14px;
+  --w-layout-radius: 16px;
+  --w-layout-pad: 16px;
+  --w-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── App shell ─────────────────────────────────────────────────────── */
+body.worker-loaded .app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w-layout-gap);
+  max-width: 480px;
+  margin: 0 auto;
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(var(--w-nav-height) + 12px);
+}
+
+body.worker-loaded.worker-feature-tab-active .app-shell {
+  padding-bottom: calc(var(--w-nav-height) + 8px);
+}
+
+/* ── Start: Ausweis ────────────────────────────────────────────────── */
+body.worker-card-install.worker-loaded #badgeCard {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.worker-card-install.worker-loaded #badgeCard .pass-stage {
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+body.worker-card-install.worker-loaded #badgeCard .wallet-card {
+  margin: 0 auto;
+  width: min(100%, 420px);
+}
+
+body.worker-card-install.worker-loaded .worker-hub-toggle-row {
+  margin-top: 4px;
+}
+
+body.worker-card-install.worker-loaded .worker-hub-toggle {
+  width: 100%;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 600;
+}
+
+/* ── Start: Info-Kacheln ───────────────────────────────────────────── */
+#homeCompactInfo.home-compact-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+#homeCompactInfo .home-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border-radius: var(--w-layout-radius);
+  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.28));
+  background: var(--corp-surface, #fff);
+  box-shadow: var(--ui-shadow-sm, 0 4px 14px rgba(18, 41, 70, 0.08));
+}
+
+html[data-theme="dark"] #homeCompactInfo .home-info-item {
+  background: var(--corp-surface, #0f1e34);
+  border-color: var(--corp-border, #29466c);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) #homeCompactInfo .home-info-item {
+    background: var(--corp-surface, #0f1e34);
+    border-color: var(--corp-border, #29466c);
+  }
+}
+
+#homeCompactInfo .home-info-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--corp-muted, #607995);
+}
+
+#homeCompactInfo .home-info-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--corp-text, #142a44);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#homeCompactInfo .home-info-item:nth-child(1) {
+  grid-column: 1 / -1;
+}
+
+#homeCompactInfo .site-inline-link {
+  color: var(--corp-primary, #0a57c0);
+  text-decoration: none;
+}
+
+#homeCompactInfo .site-inline-link[aria-disabled="true"] {
+  color: var(--corp-text, #142a44);
+  pointer-events: none;
+}
+
+/* ── Start: Chat ───────────────────────────────────────────────────── */
+#chatCard.home-chat-card {
+  border-radius: var(--w-layout-radius);
+  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.28));
+  background: var(--corp-surface, #fff);
+  box-shadow: var(--ui-shadow-sm);
+  padding: var(--w-layout-pad);
+  margin: 0;
+}
+
+html[data-theme="dark"] #chatCard.home-chat-card {
+  background: var(--corp-surface, #0f1e34);
+}
+
+#chatCard .section-head.compact-head {
+  margin-bottom: 10px;
+}
+
+#chatCard .section-head.compact-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+#chatCard .worker-chat-messages {
+  max-height: min(42vh, 320px);
+  min-height: 120px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--corp-border, rgba(60, 94, 139, 0.22));
+  background: var(--ui-surface-soft, #f6f9fd);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-theme="dark"] #chatCard .worker-chat-messages {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#chatCard .worker-chat-compose {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#chatCard .worker-chat-compose textarea {
+  min-height: 72px;
+  resize: vertical;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+#chatCard .worker-chat-file-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#chatCard .worker-chat-bubble {
+  max-width: 92%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+#chatCard .worker-chat-bubble.admin {
+  margin-right: auto;
+  border-bottom-left-radius: 4px;
+}
+
+#chatCard .worker-chat-bubble.worker {
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+
+/* ── Feature-Tabs (Urlaub, Stunden, Docs) ──────────────────────────── */
+body.worker-feature-tab-active #badgeCard .pass-stage,
+body.worker-feature-tab-active #badgeCard .worker-hub-toggle-row,
+body.worker-feature-tab-active #homeCompactInfo,
+body.worker-feature-tab-active #chatCard.home-chat-card {
+  display: none !important;
+}
+
+body.worker-feature-tab-active #workerHubPanel {
+  display: block !important;
+  margin: 0;
+  padding: 0;
+}
+
+body.worker-feature-tab-active #workerPageNav {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--w-layout-radius);
+  border: 1px solid var(--corp-border);
+  background: color-mix(in srgb, var(--corp-surface, #fff) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+body.worker-feature-tab-active #workerPageLabel {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--corp-text);
+  text-align: center;
+  flex: 1;
+}
+
+body.worker-feature-tab-active #leaveRequestCard:not(.hidden),
+body.worker-feature-tab-active #timesheetCard:not(.hidden),
+body.worker-feature-tab-active #documentsCard:not(.hidden) {
+  display: block !important;
+  margin: 0;
+  padding: var(--w-layout-pad);
+  border-radius: var(--w-layout-radius);
+  border: 1px solid var(--corp-border);
+  background: var(--corp-surface);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+body.worker-feature-tab-active .section-head.compact-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+body.worker-feature-tab-active .section-kicker {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--corp-primary);
+}
+
+/* Listen & Formulare in Feature-Tabs */
+body.worker-feature-tab-active .leave-request-list,
+body.worker-feature-tab-active .timesheet-list,
+body.worker-feature-tab-active .documents-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+body.worker-feature-tab-active .leave-request-item,
+body.worker-feature-tab-active .timesheet-item,
+body.worker-feature-tab-active .document-item {
+  border-radius: 12px;
+  border: 1px solid var(--corp-border);
+  background: var(--ui-surface-soft);
+  padding: 12px 14px;
+}
+
+body.worker-feature-tab-active .leave-request-form label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+body.worker-feature-tab-active .leave-request-form input,
+body.worker-feature-tab-active .leave-request-form select,
+body.worker-feature-tab-active .leave-request-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* ── Bottom Navigation ───────────────────────────────────────────────── */
+.worker-bottom-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: min(100%, 480px);
+  height: var(--w-nav-height);
+  padding: 6px max(10px, env(safe-area-inset-left, 0px)) env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--corp-border);
+  background: color-mix(in srgb, var(--corp-surface, #fff) 94%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+  z-index: 120;
+}
+
+.worker-bottom-nav .nav-tab {
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  padding: 4px 2px;
+  border-radius: 12px;
+  color: var(--corp-muted);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.worker-bottom-nav .nav-tab.active {
+  color: var(--corp-primary);
+  background: color-mix(in srgb, var(--corp-primary) 10%, transparent);
+}
+
+.worker-bottom-nav .nav-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── Bereiche-Grid (Hub) ───────────────────────────────────────────── */
+.worker-menu-grid {
+  gap: 10px;
+}
+
+.worker-menu-btn {
+  min-height: 92px;
+  padding: 12px 10px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.worker-menu-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────── */
+.sparkasse-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 130;
+  border-radius: 0 0 14px 14px;
+}
+
+/* ── Kleine Screens ──────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+  #homeCompactInfo.home-compact-info {
+    grid-template-columns: 1fr;
+  }
+
+  #homeCompactInfo .home-info-item:nth-child(1) {
+    grid-column: auto;
+  }
+
+  .worker-bottom-nav .nav-label {
+    font-size: 0.62rem;
+  }
+}

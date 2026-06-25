@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260614loginfix1" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260626a" />
   <title>WorkPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -25,11 +25,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260625h" />
+  <link rel="stylesheet" href="./worker.css?v=20260626a" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260626a" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260626a" />
   <link rel="stylesheet" href="./worker-login.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
   <script>
     (function markLocalDev() {
       const host = window.location.hostname;
@@ -287,26 +287,6 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Home: compact info under the card -->
-      <div id="homeCompactInfo" class="home-compact-info">
-        <div class="home-info-item">
-          <span class="home-info-label">Status</span>
-          <span id="homeInfoStatus" class="home-info-value">Aktiv</span>
-        </div>
-        <div class="home-info-item">
-          <span class="home-info-label" data-i18n="fieldSite">Standort</span>
-          <a id="homeInfoSite" class="home-info-value site-inline-link" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">-</a>
-        </div>
-        <div class="home-info-item">
-          <span class="home-info-label">Firma</span>
-          <span id="homeInfoCompany" class="home-info-value">Baufirma</span>
-        </div>
-        <div class="home-info-item">
-          <span class="home-info-label">Gueltig bis</span>
-          <span id="homeInfoValidUntil" class="home-info-value">-</span>
         </div>
       </div>
 
@@ -1021,6 +1001,26 @@
 
     </section>
 
+    <!-- Start: kompakte Infos unter dem Ausweis (card + dashboard) -->
+    <div id="homeCompactInfo" class="home-compact-info hidden">
+      <div class="home-info-item">
+        <span class="home-info-label">Status</span>
+        <span id="homeInfoStatus" class="home-info-value">Aktiv</span>
+      </div>
+      <div class="home-info-item">
+        <span class="home-info-label" data-i18n="fieldSite">Standort</span>
+        <a id="homeInfoSite" class="home-info-value site-inline-link" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">-</a>
+      </div>
+      <div class="home-info-item">
+        <span class="home-info-label">Firma</span>
+        <span id="homeInfoCompany" class="home-info-value">Baufirma</span>
+      </div>
+      <div class="home-info-item">
+        <span class="home-info-label" data-i18n="fieldValidUntil">Gültig bis</span>
+        <span id="homeInfoValidUntil" class="home-info-value">-</span>
+      </div>
+    </div>
+
     <!-- Chat unter Ausweis (Start-Tab); ausserhalb workerDashboard damit view=card sichtbar bleibt -->
     <div id="chatCard" class="below-card chat-card home-chat-card hidden">
       <div class="section-head compact-head">
@@ -1130,6 +1130,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260625h"></script>
+  <script src="./worker-app.js?v=20260626a"></script>
 </body>
 </html>

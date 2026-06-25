@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260625h";
+const WORKER_BUILD_TAG = "20260626a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1575,7 +1575,7 @@ function updateWorkerShellForTab(tabName) {
   }
 
   if (homeInfo) {
-    const showHomeInfo = isHome && !cardInstall;
+    const showHomeInfo = isHome;
     homeInfo.classList.toggle("hidden", !showHomeInfo);
     if (showHomeInfo) {
       homeInfo.style.removeProperty("display");
@@ -5827,6 +5827,27 @@ function ensureWorkerFeatureHubVisible() {
   clearCardEntranceAnimation();
 }
 
+function getFeatureTabTitle(tabName) {
+  const titles = {
+    vacation: t("leaveRequestTitle"),
+    timesheet: t("timesheetTitle"),
+    documents: t("documentsTitle"),
+  };
+  return String(titles[tabName] || "").trim();
+}
+
+function updateFeatureTabPageNav(tabName) {
+  if (!elements.workerPageNav || !elements.workerPageLabel) return;
+  const title = getFeatureTabTitle(tabName);
+  if (!title) {
+    elements.workerPageNav.classList.add("hidden");
+    elements.workerPageLabel.textContent = "";
+    return;
+  }
+  elements.workerPageNav.classList.remove("hidden");
+  elements.workerPageLabel.textContent = title;
+}
+
 function scrollWorkerFeaturePanelIntoView(panelId) {
   const panel = document.getElementById(panelId);
   if (!panel) return;
@@ -6883,6 +6904,8 @@ function switchToTab(tabName) {
 
   // Scroll to top of content
   window.scrollTo(0, 0);
+
+  updateFeatureTabPageNav(tabName);
 
   const workerFeatureMap = {
     home: "worker-badge",
