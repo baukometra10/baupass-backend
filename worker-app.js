@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260626c";
+const WORKER_BUILD_TAG = "20260626d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -715,9 +715,13 @@ function workerChatReadLabel(msg, senderType) {
     return "";
   }
   if (msg.readByRecipient) {
-    return t("workerChatRead");
+    return `✓✓ ${t("workerChatRead")}`;
   }
-  return t("workerChatDelivered");
+  return `✓ ${t("workerChatDelivered")}`;
+}
+
+function workerChatSenderSide(senderType) {
+  return String(senderType || "").toLowerCase() === "worker" ? "mine" : "company";
 }
 
 function renderNotificationCenterList(items) {
@@ -7798,23 +7802,26 @@ function renderWorkerChatMessages(messages) {
   elements.workerChatMessages.innerHTML = messages
     .map((msg) => {
       const senderType = String(msg.senderType || "").toLowerCase();
-      const label = senderType === "admin" ? t("workerChatFromCompany") : t("workerChatFromYou");
+      const side = workerChatSenderSide(senderType);
+      const label = side === "company" ? t("workerChatFromCompany") : t("workerChatFromYou");
       const body = escapeHtmlBasic(String(msg.body || ""));
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
-      const bodyHtml = body ? `<div style="margin-top:0.35rem;">${body}</div>` : "";
+      const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
       const time = formatChatTimestamp(msg.createdAt);
       const readLabel = workerChatReadLabel(msg, senderType);
       const readHtml = readLabel
         ? `<span class="worker-chat-read${msg.readByRecipient ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
         : "";
       return `
-        <div class="worker-chat-bubble ${escapeHtmlBasic(senderType)}">
-          <strong>${escapeHtmlBasic(label)}</strong>
-          ${bodyHtml}
-          ${attachHtml}
-          <div class="worker-chat-meta">
-            ${time ? `<span>${escapeHtmlBasic(time)}</span>` : ""}
-            ${readHtml}
+        <div class="worker-chat-row is-${side}">
+          <div class="worker-chat-bubble is-${side}">
+            <div class="worker-chat-sender">${escapeHtmlBasic(label)}</div>
+            ${bodyHtml}
+            ${attachHtml}
+            <div class="worker-chat-meta">
+              ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
+              ${readHtml}
+            </div>
           </div>
         </div>
       `;

@@ -3546,12 +3546,26 @@ body {
 }
 
 .worker-chat-messages {
-  display: grid;
-  gap: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
   max-height: min(52vh, 420px);
   overflow: auto;
   margin-bottom: 0.75rem;
   padding: 0.25rem 0;
+}
+
+.worker-chat-row {
+  display: flex;
+  width: 100%;
+}
+
+.worker-chat-row.is-company {
+  justify-content: flex-start;
+}
+
+.worker-chat-row.is-mine {
+  justify-content: flex-end;
 }
 
 .home-chat-card,
@@ -3595,19 +3609,26 @@ body.worker-card-install.worker-loaded:not(.worker-feature-tab-active) #chatCard
 }
 
 .worker-chat-bubble {
+  max-width: min(88%, 320px);
   padding: 0.75rem 0.85rem;
   border-radius: 14px;
   border: 1px solid rgba(0,0,0,.08);
   background: rgba(0,0,0,.03);
+  word-break: break-word;
 }
 
+.worker-chat-bubble.is-company,
 .worker-chat-bubble.admin {
   background: rgba(22, 78, 99, 0.12);
   border-color: rgba(94, 234, 212, 0.22);
+  border-bottom-left-radius: 4px;
 }
 
+.worker-chat-bubble.is-mine,
 .worker-chat-bubble.worker {
-  background: rgba(255,255,255,.72);
+  background: rgba(10, 87, 192, 0.1);
+  border-color: rgba(10, 87, 192, 0.22);
+  border-bottom-right-radius: 4px;
 }
 
 .worker-chat-compose {

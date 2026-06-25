@@ -152,6 +152,25 @@ class _ChatScreenState extends State<ChatScreen> {
     await OpenFile.open(file.path);
   }
 
+  bool _isWorkerMessage(Map<String, dynamic> item) {
+    return String(item['senderType'] ?? '').toLowerCase() == 'worker';
+  }
+
+  String _readStatusLabel(Map<String, dynamic> item) {
+    if (!_isWorkerMessage(item)) return '';
+    final read = item['readByRecipient'] == true;
+    return read ? '✓✓ Gelesen' : '✓ Zugestellt';
+  }
+
+  String _formatTime(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return '';
+    final date = DateTime.tryParse(raw);
+    if (date == null) return '';
+    final h = date.hour.toString().padLeft(2, '0');
+    final m = date.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -176,46 +195,112 @@ class _ChatScreenState extends State<ChatScreen> {
                           itemCount: _messages.length,
                           itemBuilder: (context, index) {
                             final item = _messages[index];
-                            final isWorker = item['senderType'] == 'worker';
+                            final isWorker = _isWorkerMessage(item);
                             final attachments = (item['attachments'] as List?) ?? const [];
-                            return Align(
-                              alignment: isWorker ? Alignment.centerRight : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(12),
-                                constraints: const BoxConstraints(maxWidth: 320),
-                                decoration: BoxDecoration(
-                                  color: isWorker
-                                      ? Theme.of(context).colorScheme.primaryContainer
-                                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      isWorker ? 'Du' : 'Firma',
-                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                            final readLabel = _readStatusLabel(item);
+                            final timeLabel = _formatTime(item['createdAt'] as String?);
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Row(
+                                mainAxisAlignment:
+                                    isWorker ? MainAxisAlignment.end : MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.sizeOf(context).width * 0.82,
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(item['body'] as String? ?? ''),
-                                    if (attachments.isNotEmpty) ...[
-                                      const SizedBox(height: 8),
-                                      ...attachments.map((att) {
-                                        final map = Map<String, dynamic>.from(att as Map);
-                                        return InkWell(
-                                          onTap: () => _openAttachment(map),
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(top: 4),
-                                            child: Text('📎 ${map['filename'] ?? 'Anhang'}'),
+                                    child: Container(
+                                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                                      decoration: BoxDecoration(
+                                        color: isWorker
+                                            ? Theme.of(context).colorScheme.primaryContainer
+                                            : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        borderRadius: BorderRadius.only(
+                                          topLeft: const Radius.circular(16),
+                                          topRight: const Radius.circular(16),
+                                          bottomLeft: Radius.circular(isWorker ? 16 : 4),
+                                          bottomRight: Radius.circular(isWorker ? 4 : 16),
+                                        ),
+                                        border: Border.all(
+                                          color: isWorker
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withValues(alpha: 0.25)
+                                              : Theme.of(context).colorScheme.outlineVariant,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: isWorker
+                                            ? CrossAxisAlignment.end
+                                            : CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            isWorker ? 'Du' : 'Firma',
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 0.4,
+                                                  color: isWorker
+                                                      ? Theme.of(context).colorScheme.primary
+                                                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                ),
                                           ),
-                                        );
-                                      }),
-                                    ],
-                                  ],
-                                ),
+                                          const SizedBox(height: 4),
+                                          if ((item['body'] as String? ?? '').trim().isNotEmpty)
+                                            Text(
+                                              item['body'] as String? ?? '',
+                                              style: Theme.of(context).textTheme.bodyMedium,
+                                            ),
+                                          if (attachments.isNotEmpty) ...[
+                                            const SizedBox(height: 6),
+                                            ...attachments.map((att) {
+                                              final map = Map<String, dynamic>.from(att as Map);
+                                              return InkWell(
+                                                onTap: () => _openAttachment(map),
+                                                child: Padding(
+                                                  padding: const EdgeInsets.only(top: 2),
+                                                  child: Text(
+                                                    '📎 ${map['filename'] ?? 'Anhang'}',
+                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                          decoration: TextDecoration.underline,
+                                                        ),
+                                                  ),
+                                                ),
+                                              );
+                                            }),
+                                          ],
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            mainAxisAlignment: MainAxisAlignment.end,
+                                            children: [
+                                              if (timeLabel.isNotEmpty)
+                                                Text(
+                                                  timeLabel,
+                                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              if (readLabel.isNotEmpty) ...[
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  readLabel,
+                                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: (item['readByRecipient'] == true)
+                                                            ? Theme.of(context).colorScheme.primary
+                                                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           },
