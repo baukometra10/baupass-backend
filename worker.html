@@ -9,18 +9,18 @@
   <meta http-equiv="expires" content="0" />
   <script>
     (function () {
-      var BUILD = "20260525b";
+      var FALLBACK_BUILD = "20260627d";
 
-      function buildTargetUrl() {
+      function buildTargetUrl(build) {
         var url = new URL(window.location.href);
         var target = new URL("/emp-app.html", window.location.origin);
         url.searchParams.forEach(function (value, key) {
-          if (key !== "refresh") {
+          if (key !== "refresh" && key !== "boot") {
             target.searchParams.set(key, value);
           }
         });
         target.searchParams.set("worker", "1");
-        target.searchParams.set("v", BUILD);
+        target.searchParams.set("v", build || FALLBACK_BUILD);
         target.searchParams.set("apiBase", window.location.origin);
         if (!target.searchParams.get("view")) {
           target.searchParams.set("view", "card");
@@ -55,23 +55,31 @@
         return Promise.all(jobs);
       }
 
-      try {
-        var target = buildTargetUrl();
+      function redirectWithBuild(build) {
+        var target = buildTargetUrl(build);
         var timeout = new Promise(function (resolve) { window.setTimeout(resolve, 900); });
         Promise.race([clearOldWorkerRuntime(), timeout]).finally(function () {
           window.location.replace(target.toString());
         });
-      } catch (err) {
-        window.location.href = "/emp-app.html?worker=1&view=card&v=20260524a";
       }
+
+      fetch("/worker-build.json?t=" + Date.now(), { cache: "no-store" })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (meta) {
+          var build = String((meta && meta.build) || FALLBACK_BUILD).trim() || FALLBACK_BUILD;
+          redirectWithBuild(build);
+        })
+        .catch(function () {
+          redirectWithBuild(FALLBACK_BUILD);
+        });
     })();
   </script>
   <noscript>
-    <meta http-equiv="refresh" content="0;url=/emp-app.html?worker=1&view=card&v=20260524a" />
+    <meta http-equiv="refresh" content="0;url=/emp-app.html?worker=1&view=card&v=20260627d" />
   </noscript>
 </head>
 <body>
   <p>Weiterleitung zur Mitarbeiter-App…</p>
-  <p><a href="/emp-app.html?worker=1&view=card&v=20260524a">Weiter</a></p>
+  <p><a href="/emp-app.html?worker=1&view=card&v=20260627d">Weiter</a></p>
 </body>
 </html>

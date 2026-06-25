@@ -6502,6 +6502,7 @@ body:not(.worker-loaded) #topPanel {
 .nav-tab:nth-child(2).active::after { left: calc(50% + 10px); }
 .nav-tab:nth-child(3).active::after { left: calc(50% + 9px); }
 .nav-tab:nth-child(4).active::after { left: calc(50% + 9px); }
+.nav-tab:nth-child(5).active::after { left: calc(50% + 9px); }
 
 .nav-tab:hover {
   background-color: rgba(10, 87, 192, 0.08);

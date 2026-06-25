@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627c";
+const WORKER_BUILD_TAG = "20260627d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1763,6 +1763,59 @@ function getWorkerPageSections() {
   ].filter(Boolean);
 }
 
+const WORKER_CHAT_SHELL_FIX_CSS = [
+  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:10px}",
+  "#chatCard .worker-chat-row{display:flex;width:100%}",
+  "#chatCard .worker-chat-row.is-company{justify-content:flex-start;padding-right:18%}",
+  "#chatCard .worker-chat-row.is-mine{justify-content:flex-end;padding-left:18%}",
+  "#chatCard .worker-chat-bubble{max-width:100%;width:fit-content;padding:10px 12px 8px;border-radius:18px;word-break:break-word}",
+  "#chatCard .worker-chat-bubble.is-company{background:#fff;border:1px solid rgba(60,94,139,.22);border-bottom-left-radius:6px}",
+  "#chatCard .worker-chat-bubble.is-mine{background:linear-gradient(145deg,#dbeafe,#eff6ff);border:1px solid rgba(10,87,192,.22);border-bottom-right-radius:6px}",
+  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:6px;font-size:.72rem;color:#607995}",
+  "#chatCard .worker-chat-read.is-read{color:#0a57c0;font-weight:700}",
+  "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#e8f4ff;color:#0a57c0;font-size:.72rem;font-weight:700;text-align:center}",
+  "body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}",
+  ".stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}",
+].join("");
+
+function ensureWorkerChatShellStyles() {
+  if (document.getElementById("workerChatShellFix")) {
+    return;
+  }
+  const style = document.createElement("style");
+  style.id = "workerChatShellFix";
+  style.textContent = WORKER_CHAT_SHELL_FIX_CSS;
+  document.head.appendChild(style);
+}
+
+function ensureWorkerChatNavDom() {
+  let navChat = document.getElementById("navChat");
+  if (navChat) {
+    return navChat;
+  }
+  const navContainer = document.getElementById("workerBottomNav");
+  if (!navContainer) {
+    return null;
+  }
+  navChat = document.createElement("button");
+  navChat.id = "navChat";
+  navChat.className = "nav-tab";
+  navChat.type = "button";
+  navChat.setAttribute("role", "tab");
+  navChat.setAttribute("aria-selected", "false");
+  navChat.dataset.tab = "chat";
+  navChat.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 6.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9.4L5 20.5V8.5a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <path d="M8.2 11h7.6M8.2 14.2h4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span class="nav-label" data-i18n="navChat">Chat</span>
+  `;
+  navContainer.appendChild(navChat);
+  applyTranslations();
+  return navChat;
+}
+
 function resolveWorkerChatAnchor() {
   const hubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
   const documentsCard = elements.documentsCard || document.getElementById("documentsCard");
@@ -1805,6 +1858,7 @@ function ensureWorkerChatDom() {
     chatCard.id = "chatCard";
     chatCard.className = "below-card chat-card worker-feature-chat-card hidden";
     chatCard.innerHTML = `
+      <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v${WORKER_BUILD_TAG}</p>
       <div class="section-head compact-head">
         <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
         <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
@@ -1954,6 +2008,8 @@ init().finally(dismissSplash);
 
 async function init() {
   workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
+  ensureWorkerChatShellStyles();
+  ensureWorkerChatNavDom();
   ensureWorkerChatDom();
   applyTranslations();
   updateWorkerBuildBadge();
@@ -8605,6 +8661,8 @@ function stopVisitorCountdownTimer() {
 // Initialize bottom tab navigation on page load and also when script runs
 // after DOMContentLoaded (webview/service-worker cache edge cases).
 function initWorkerAppShell() {
+  ensureWorkerChatShellStyles();
+  ensureWorkerChatNavDom();
   ensureWorkerChatDom();
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
