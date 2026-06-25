@@ -3566,6 +3566,25 @@ body {
   max-height: min(38vh, 280px);
 }
 
+body.worker-loaded:not(.worker-feature-tab-active) #workerDashboard:not(.hidden) #chatCard.home-chat-card {
+  display: block !important;
+}
+
+.worker-chat-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  font-size: 0.75rem;
+  opacity: 0.72;
+}
+
+.worker-chat-read.is-read {
+  color: #5eead4;
+  font-weight: 600;
+}
+
 .worker-chat-bubble {
   padding: 0.75rem 0.85rem;
   border-radius: 14px;

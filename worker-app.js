@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260625a";
+const WORKER_BUILD_TAG = "20260625b";
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
 const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -677,6 +677,37 @@ function formatNotificationTimestamp(value) {
   }
 }
 
+function formatChatTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  const locale = getWorkerLang() === "en" ? "en-GB" : "de-DE";
+  const timeStr = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return timeStr;
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `${t("chatYesterday")}, ${timeStr}`;
+  }
+  const dateStr = date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${dateStr}, ${timeStr}`;
+}
+
+function workerChatReadLabel(msg, senderType) {
+  const isOwn = senderType === "worker";
+  if (!isOwn) {
+    return "";
+  }
+  if (msg.readByRecipient) {
+    return t("workerChatRead");
+  }
+  return t("workerChatDelivered");
+}
+
 function renderNotificationCenterList(items) {
   const list = elements.notificationCenterList;
   if (!list) return;
@@ -770,7 +801,7 @@ async function refreshWorkerNotificationCenter(options = {}) {
   const merged = [...serverItems, ...localItems].slice(0, 50);
   const unreadCount = merged.filter((item) => !item.isRead && !item.read).length;
   updateNotificationBadge(unreadCount);
-  const onHome = document.querySelector('.nav-tab[data-tab="home"]')?.classList.contains("active");
+  const onHome = currentActiveTab === "home";
   if (workerToken && workerPlanAllowsFeature("worker_chat") && onHome) {
     void loadWorkerChat({ quiet: true });
   }
@@ -1583,6 +1614,16 @@ function updateWorkerShellForTab(tabName) {
       hubPanel.style.removeProperty("display");
     } else {
       hubPanel.style.setProperty("display", "none", "important");
+    }
+  }
+
+  if (isHome) {
+    refreshHomeWorkerChatPanel();
+  } else {
+    const chatCard = document.getElementById("chatCard");
+    if (chatCard) {
+      chatCard.classList.add("hidden");
+      chatCard.style.setProperty("display", "none", "important");
     }
   }
 }
@@ -5476,7 +5517,7 @@ function refreshHomeWorkerChatPanel(options = {}) {
   if (!chatCard) {
     return;
   }
-  const onHome = document.querySelector('.nav-tab[data-tab="home"]')?.classList.contains("active");
+  const onHome = currentActiveTab === "home";
   const allowed = workerPlanAllowsFeature("worker_chat");
   const show = Boolean(workerToken && onHome);
   chatCard.classList.toggle("hidden", !show);
@@ -5485,6 +5526,7 @@ function refreshHomeWorkerChatPanel(options = {}) {
     return;
   }
   chatCard.style.removeProperty("display");
+  chatCard.classList.remove("hidden");
   if (elements.workerChatInput) {
     elements.workerChatInput.disabled = !allowed;
   }
@@ -5576,7 +5618,7 @@ function formatWorkerApiError(error) {
   if (code === "decline_save_failed") {
     return t("deploymentPlanDeclineErrSave");
   }
-  if (code === "chat_send_failed" || code === "thread_not_found") {
+  if (code === "chat_send_failed" || code === "thread_not_found" || code === "chat_load_failed") {
     return t("workerChatSendFailed");
   }
   return String(error?.message || "Daten konnten nicht geladen werden.");
@@ -6574,8 +6616,6 @@ function switchToTab(tabName) {
     "timesheetCard",
     "documentsCard",
     "deploymentPlanCard",
-    "workerDashboard",
-    "homeCompactInfo"
   ];
   managedPanels.forEach((panelId) => {
     const panel = document.getElementById(panelId);
@@ -6604,7 +6644,6 @@ function switchToTab(tabName) {
       workerHubPanel.classList.add("hidden");
       workerHubPanel.style.setProperty("display", "none", "important");
     }
-    refreshHomeWorkerChatPanel();
   } else if (tabName === "chat") {
     switchToTab("home");
     scrollWorkerFeaturePanelIntoView("chatCard");
@@ -7569,12 +7608,19 @@ function renderWorkerChatMessages(messages) {
       const senderType = String(msg.senderType || "").toLowerCase();
       const label = senderType === "admin" ? t("workerChatFromCompany") : t("workerChatFromYou");
       const body = escapeHtmlBasic(String(msg.body || ""));
-      const time = formatNotificationTimestamp(msg.createdAt);
+      const time = formatChatTimestamp(msg.createdAt);
+      const readLabel = workerChatReadLabel(msg, senderType);
+      const readHtml = readLabel
+        ? `<span class="worker-chat-read${msg.readByRecipient ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
+        : "";
       return `
         <div class="worker-chat-bubble ${escapeHtmlBasic(senderType)}">
           <strong>${escapeHtmlBasic(label)}</strong>
-          ${time ? `<div class="muted-info" style="font-size:0.8rem;margin-top:0.15rem;">${escapeHtmlBasic(time)}</div>` : ""}
           <div style="margin-top:0.35rem;">${body}</div>
+          <div class="worker-chat-meta">
+            ${time ? `<span>${escapeHtmlBasic(time)}</span>` : ""}
+            ${readHtml}
+          </div>
         </div>
       `;
     })

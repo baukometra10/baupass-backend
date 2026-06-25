@@ -220,6 +220,12 @@ class ChatService:
         return thread_id
 
     def list_messages(self, thread_id: str, company_id: str) -> list[dict[str, Any]]:
+        thread_row = self.db.execute(
+            "SELECT last_worker_read_at, last_admin_read_at FROM chat_threads WHERE id = ? AND company_id = ?",
+            (thread_id, company_id),
+        ).fetchone()
+        last_worker_read = str(thread_row["last_worker_read_at"] or "") if thread_row else ""
+        last_admin_read = str(thread_row["last_admin_read_at"] or "") if thread_row else ""
         rows = self.db.execute(
             """
             SELECT m.*, a.id AS attachment_id, a.filename AS attachment_filename, a.content_type AS attachment_content_type, a.file_size AS attachment_file_size
@@ -258,7 +264,15 @@ class ChatService:
                         "fileSize": row["attachment_file_size"],
                     }
                 )
-        return list(messages.values())
+        result = list(messages.values())
+        for entry in result:
+            created = str(entry.get("createdAt") or "")
+            sender = str(entry.get("senderType") or "")
+            if sender == "worker":
+                entry["readByRecipient"] = bool(last_admin_read and created and last_admin_read >= created)
+            else:
+                entry["readByRecipient"] = bool(last_worker_read and created and last_worker_read >= created)
+        return result
 
     def create_message(
         self,

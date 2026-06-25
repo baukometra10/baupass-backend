@@ -27,6 +27,8 @@
     .message-list { display:grid; gap:0.6rem; max-height:420px; overflow:auto; margin-bottom:0.8rem; }
     .bubble { padding:0.75rem; border-radius:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); }
     .bubble.admin { background:rgba(22,78,99,0.24); border-color:rgba(94,234,212,0.18); }
+    .bubble-meta { display:flex; justify-content:flex-end; gap:0.4rem; margin-top:0.45rem; font-size:0.75rem; color:var(--muted); }
+    .bubble-read.is-read { color:#5eead4; font-weight:600; }
     textarea, input, button { font:inherit; }
     textarea, input { width:100%; padding:0.65rem 0.75rem; border-radius:10px; border:1px solid var(--border); background:#0f1419; color:var(--text); }
     textarea { min-height:110px; resize:vertical; }
@@ -95,6 +97,38 @@
       if (!res.ok) throw new Error(data.error || data.message || res.statusText);
       return data;
     }
+    function formatChatTimestamp(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return raw;
+      const timeStr = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      const now = new Date();
+      if (date.toDateString() === now.toDateString()) return timeStr;
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) return `Gestern, ${timeStr}`;
+      return `${date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}, ${timeStr}`;
+    }
+    function chatReadLabel(msg) {
+      const sender = String(msg.senderType || "");
+      if (sender === "admin") {
+        return msg.readByRecipient ? "Gelesen" : "Zugestellt";
+      }
+      if (sender === "worker" && msg.readByRecipient) {
+        return "Gelesen";
+      }
+      return "";
+    }
+    function renderChatBubble(msg) {
+      const who = msg.senderType === "worker" ? "Mitarbeiter" : "Firma";
+      const time = formatChatTimestamp(msg.createdAt);
+      const read = chatReadLabel(msg);
+      const attach = Array.isArray(msg.attachments) && msg.attachments.length
+        ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename}</a>`).join("<br>")}</div>`
+        : "";
+      return `<div class="bubble ${msg.senderType === "admin" ? "admin" : ""}"><strong>${who}</strong><br><span>${msg.body || ""}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}</div></div>`;
+    }
     function renderThreads() {
       const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
       const host = document.getElementById("threadList");
@@ -153,7 +187,7 @@
         document.getElementById("threadMeta").textContent = name ? `Chat mit ${name}` : `Thread: ${currentThreadId}`;
       }
       document.getElementById("messageList").innerHTML = messages.length
-        ? messages.map((msg) => `<div class="bubble ${msg.senderType === 'admin' ? 'admin' : ''}"><strong>${msg.senderType === 'worker' ? 'Mitarbeiter' : 'Firma'}</strong><br><span>${msg.body || ''}</span>${Array.isArray(msg.attachments) && msg.attachments.length ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename}</a>`).join('<br>')}</div>` : ''}</div>`).join("")
+        ? messages.map((msg) => renderChatBubble(msg)).join("")
         : `<p class="muted">Noch keine Nachrichten.</p>`;
       const list = document.getElementById("messageList");
       list.scrollTop = list.scrollHeight;
