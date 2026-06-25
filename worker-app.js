@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260626d";
+const WORKER_BUILD_TAG = "20260626e";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -709,19 +709,28 @@ function formatChatTimestamp(value) {
   return `${dateStr}, ${timeStr}`;
 }
 
-function workerChatReadLabel(msg, senderType) {
-  const isOwn = senderType === "worker";
-  if (!isOwn) {
+function workerChatReadLabel(msg, side) {
+  if (side !== "mine") {
     return "";
   }
-  if (msg.readByRecipient) {
+  const read = msg.readByRecipient === true || msg.read_by_recipient === true;
+  if (read) {
     return `✓✓ ${t("workerChatRead")}`;
   }
   return `✓ ${t("workerChatDelivered")}`;
 }
 
-function workerChatSenderSide(senderType) {
-  return String(senderType || "").toLowerCase() === "worker" ? "mine" : "company";
+function workerChatSenderSide(msg) {
+  const senderType = String(msg?.senderType || msg?.sender_type || "").toLowerCase();
+  if (senderType === "worker") {
+    return "mine";
+  }
+  const senderWorkerId = String(msg?.senderWorkerId || msg?.sender_worker_id || "").trim();
+  const currentWorkerId = String(lastWorkerPayload?.worker?.id || "").trim();
+  if (senderWorkerId && currentWorkerId && senderWorkerId === currentWorkerId) {
+    return "mine";
+  }
+  return "company";
 }
 
 function renderNotificationCenterList(items) {
@@ -7801,21 +7810,25 @@ function renderWorkerChatMessages(messages) {
   }
   elements.workerChatMessages.innerHTML = messages
     .map((msg) => {
-      const senderType = String(msg.senderType || "").toLowerCase();
-      const side = workerChatSenderSide(senderType);
+      const side = workerChatSenderSide(msg);
       const label = side === "company" ? t("workerChatFromCompany") : t("workerChatFromYou");
       const body = escapeHtmlBasic(String(msg.body || ""));
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
-      const time = formatChatTimestamp(msg.createdAt);
-      const readLabel = workerChatReadLabel(msg, senderType);
+      const time = formatChatTimestamp(msg.createdAt || msg.created_at);
+      const readLabel = workerChatReadLabel(msg, side);
+      const read = msg.readByRecipient === true || msg.read_by_recipient === true;
       const readHtml = readLabel
-        ? `<span class="worker-chat-read${msg.readByRecipient ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
+        ? `<span class="worker-chat-read${read ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
         : "";
+      const senderHtml =
+        side === "mine"
+          ? `<div class="worker-chat-sender">${escapeHtmlBasic(label)}</div>`
+          : "";
       return `
         <div class="worker-chat-row is-${side}">
           <div class="worker-chat-bubble is-${side}">
-            <div class="worker-chat-sender">${escapeHtmlBasic(label)}</div>
+            ${senderHtml}
             ${bodyHtml}
             ${attachHtml}
             <div class="worker-chat-meta">

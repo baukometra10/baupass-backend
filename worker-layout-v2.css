@@ -254,51 +254,55 @@ body.worker-feature-tab-active #chatCard .worker-feature-chat-head {
   display: flex;
   width: 100%;
   clear: both;
+  margin-bottom: 2px;
 }
 
 .worker-chat-row.is-company {
   justify-content: flex-start;
+  padding-right: 18%;
 }
 
 .worker-chat-row.is-mine {
   justify-content: flex-end;
+  padding-left: 18%;
 }
 
 .worker-chat-bubble {
-  max-width: min(88%, 320px);
-  padding: 10px 12px;
-  border-radius: 16px;
+  max-width: 100%;
+  width: fit-content;
+  min-width: 72px;
+  padding: 10px 12px 8px;
+  border-radius: 18px;
   line-height: 1.45;
-  font-size: 0.92rem;
+  font-size: 0.94rem;
   border: 1px solid transparent;
   word-break: break-word;
 }
 
 .worker-chat-bubble.is-company {
-  background: var(--corp-surface, #fff);
-  border-color: var(--corp-border, rgba(60, 94, 139, 0.28));
-  border-bottom-left-radius: 4px;
-  box-shadow: var(--ui-shadow-sm, 0 2px 8px rgba(18, 41, 70, 0.06));
+  background: #fff;
+  border-color: var(--corp-border, rgba(60, 94, 139, 0.22));
+  border-bottom-left-radius: 6px;
+  box-shadow: 0 2px 10px rgba(18, 41, 70, 0.07);
+  color: var(--corp-text, #142a44);
 }
 
 .worker-chat-bubble.is-mine {
-  background: color-mix(in srgb, var(--corp-primary, #0a57c0) 14%, #fff);
-  border-color: color-mix(in srgb, var(--corp-primary, #0a57c0) 28%, transparent);
-  border-bottom-right-radius: 4px;
+  background: linear-gradient(145deg, #dbeafe, #eff6ff);
+  border-color: rgba(10, 87, 192, 0.22);
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 2px 10px rgba(10, 87, 192, 0.12);
+  color: #0f2744;
 }
 
 .worker-chat-sender {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--corp-muted, #607995);
-  margin-bottom: 4px;
-}
-
-.worker-chat-bubble.is-mine .worker-chat-sender {
-  text-align: right;
   color: var(--corp-primary, #0a57c0);
+  margin-bottom: 3px;
+  text-align: right;
 }
 
 .worker-chat-body {

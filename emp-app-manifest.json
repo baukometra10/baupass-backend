@@ -1,9 +1,9 @@
 ﻿{
-  "id": "/emp-app.html?v=20260626d",
+  "id": "/emp-app.html?v=20260626e",
   "name": "WorkPass – Mitarbeiter",
   "short_name": "WorkPass",
   "description": "Dein digitaler Mitarbeiterausweis. Schneller Einlass am Drehkreuz, immer dabei.",
-  "start_url": "/emp-app.html?view=card&v=20260626d",
+  "start_url": "/emp-app.html?view=card&v=20260626e",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#050816",
@@ -16,7 +16,7 @@
       "name": "Meine Karte anzeigen",
       "short_name": "Karte",
       "description": "SUPPIX direkt öffnen",
-      "url": "/emp-app.html?view=card&v=20260626d",
+      "url": "/emp-app.html?view=card&v=20260626e",
       "icons": [
         { "src": "/branding/suppix-icon-192.png", "sizes": "192x192", "type": "image/png" }
       ]
