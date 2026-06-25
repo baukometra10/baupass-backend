@@ -93,11 +93,11 @@ def _blueprint_retry_enabled() -> bool:
 
 
 WORKER_LOGIN_MAX_DISTANCE_METERS = 100
-WORKER_SITE_GEOFENCE_DEFAULT_METERS = 10
-WORKER_SITE_GEOFENCE_MIN_METERS = 5
-WORKER_SITE_GEOFENCE_MAX_METERS = 10
-WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 120
-WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 60
+WORKER_SITE_GEOFENCE_DEFAULT_METERS = 80
+WORKER_SITE_GEOFENCE_MIN_METERS = 15
+WORKER_SITE_GEOFENCE_MAX_METERS = 500
+WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 200
+WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 80
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -11770,6 +11770,34 @@ def _list_active_company_geofences(db, company_id):
         return []
 
 
+def _site_zones_payload_for_worker(db, worker):
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    default_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+    zones = _ordered_geofence_zones_for_worker(db, worker)
+    site_zones = []
+    for zone in zones:
+        site_zones.append(
+            {
+                "latitude": float(zone["latitude"]),
+                "longitude": float(zone["longitude"]),
+                "radiusMeters": int(zone.get("radius_meters") or default_radius),
+                "siteName": str(zone.get("site_name") or "").strip(),
+            }
+        )
+    if not site_zones:
+        lat = worker["site_latitude"] if "site_latitude" in worker.keys() else None
+        lng = worker["site_longitude"] if "site_longitude" in worker.keys() else None
+        if lat is not None and lng is not None:
+            site_zones.append(
+                {
+                    "latitude": float(lat),
+                    "longitude": float(lng),
+                    "radiusMeters": default_radius,
+                }
+            )
+    return site_zones
+
+
 def _ordered_geofence_zones_for_worker(db, worker):
     zones = _list_active_company_geofences(db, worker["company_id"])
     if not zones:
@@ -13008,6 +13036,7 @@ def worker_app_me():
     work_end = get_effective_work_end_time(db, worker["id"])
     work_start = get_effective_work_start_time(db, worker["id"])
     open_checkin = worker_has_open_checkin_today(db, worker["id"])
+    site_zones = _site_zones_payload_for_worker(db, worker)
     identity_lock = get_worker_lock_metadata(db, worker)
     return jsonify(
         {
@@ -13054,6 +13083,7 @@ def worker_app_me():
                 "workEndTime": work_end or site_access["workEndTime"],
                 "openCheckInToday": open_checkin,
                 "isWorkdayToday": is_company_workday_today(),
+                "siteZones": site_zones,
             },
         }
     )
@@ -13082,13 +13112,23 @@ def worker_app_site_presence():
     radius = int(site_cfg["siteGeofenceRadiusMeters"])
     on_site = bool(measured.get("onSite"))
     auto_checkin_log_id = None
+    attendance_blocked = None
     if (
         on_site
         and site_cfg["accessMode"] == "site_app"
         and site_cfg["siteAutoCheckin"]
         and not worker_has_open_checkin_today(db, worker["id"])
     ):
-        auto_checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+        attendance = worker_may_auto_attend_today(db, worker)
+        if attendance.get("ok"):
+            auto_checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+        else:
+            attendance_blocked = {
+                "reason": attendance.get("reason"),
+                "message": attendance.get("message"),
+            }
         if auto_checkin_log_id:
             db.commit()
     return jsonify(
@@ -13102,6 +13142,7 @@ def worker_app_site_presence():
             "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
             "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
             "autoCheckInLogId": auto_checkin_log_id,
+            "attendanceBlocked": attendance_blocked,
         }
     )
 

@@ -24,8 +24,8 @@ const WORKER_DEBUG = (() => {
 function workerDebug(...args) {
   if (WORKER_DEBUG) console.log(...args);
 }
-const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
-const WORKER_GEO_MAX_ACCURACY_METERS = 120;
+const WORKER_GEO_ACCURACY_BUFFER_METERS = 80;
+const WORKER_GEO_MAX_ACCURACY_METERS = 200;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 12000;
@@ -2746,19 +2746,28 @@ function calculateDistanceMeters(latitudeA, longitudeA, latitudeB, longitudeB) {
 }
 
 async function resolveLoginLocation() {
+  return resolveSiteLocation({ preferFast: true });
+}
+
+async function resolveSiteLocation({ preferFast = false } = {}) {
   if (!navigator.geolocation) {
     return null;
   }
 
+  const precisePreset = preferFast ? "fast" : "site";
+  const preciseMaxWait = preferFast ? 18000 : 12000;
+  const preciseTargetAccuracy = preferFast ? 40 : 25;
+  const preciseAcceptAccuracy = preferFast ? 100 : 200;
+
   if (typeof capturePreciseGeolocation === "function") {
     try {
       const position = await capturePreciseGeolocation({
-        preset: "fast",
-        maxWaitMs: 18000,
-        targetAccuracyMeters: 40,
-        acceptAccuracyMeters: 100,
+        preset: precisePreset,
+        maxWaitMs: preciseMaxWait,
+        targetAccuracyMeters: preciseTargetAccuracy,
+        acceptAccuracyMeters: preciseAcceptAccuracy,
         minSamples: 1,
-        maxSamples: 10,
+        maxSamples: preferFast ? 10 : 8,
       });
       if (
         position &&
@@ -5424,9 +5433,10 @@ async function pollProximityLoginCandidate() {
     return;
   }
 
-  const locationPayload = await resolveLoginLocation();
+  const locationPayload = await resolveSiteLocation({ preferFast: false });
   if (!locationPayload) {
     proximityInsideSince = 0;
+    showWorkerNotice(t("geolocationRequired"));
     return;
   }
 
@@ -5435,6 +5445,8 @@ async function pollProximityLoginCandidate() {
   const preview = siteHint?.locationPreview;
   if (preview && typeof preview.onSite === "boolean") {
     inside = preview.onSite;
+  } else if (preview?.error === "worker_geolocation_inaccurate") {
+    inside = null;
   } else {
     inside = isInsideSiteZones(
       locationPayload,
@@ -5445,6 +5457,18 @@ async function pollProximityLoginCandidate() {
   if (inside === false) {
     proximityInsideSince = 0;
     proximityLoginNoticeShownAt = 0;
+    if (typeof preview?.distanceMeters === "number") {
+      showWorkerNotice(
+        t("siteOutsideRadius", {
+          distance: preview.distanceMeters,
+          allowed: preview.allowedRadiusMeters || siteHint?.siteGeofenceRadiusMeters || 80,
+        })
+      );
+    }
+    return;
+  }
+  if (inside === null && preview?.error === "worker_geolocation_inaccurate") {
+    showWorkerNotice(t("geolocationInaccurate"));
     return;
   }
 
@@ -5515,7 +5539,10 @@ function getSiteAccessFromPayload(payload = lastWorkerPayload) {
   const company = payload?.company || {};
   const siteAccess = payload?.siteAccess || {};
   const worker = payload?.worker || {};
-  const siteLocation = worker.siteLocation || null;
+  const siteLocation = worker.siteLocation || siteAccess.siteLocation || null;
+  const siteZones = Array.isArray(siteAccess.siteZones) && siteAccess.siteZones.length
+    ? siteAccess.siteZones
+    : (Array.isArray(worker.siteZones) && worker.siteZones.length ? worker.siteZones : []);
   const accessMode = String(company.accessMode || siteAccess.accessMode || "gate").trim().toLowerCase();
   return {
     accessMode,
@@ -5525,14 +5552,23 @@ function getSiteAccessFromPayload(payload = lastWorkerPayload) {
       company.siteGeofenceRadiusMeters ||
         siteAccess.siteGeofenceRadiusMeters ||
         siteLocation?.radiusMeters ||
-        20
+        siteZones[0]?.radiusMeters ||
+        80
     ),
     autoLogout: company.siteAutoLogoutOnLeave !== false && siteAccess.siteAutoLogoutOnLeave !== false,
     workStart: String(company.workStartTime || siteAccess.workStartTime || "").trim(),
     workEnd: String(company.workEndTime || siteAccess.workEndTime || "").trim(),
     isWorkdayToday: siteAccess.isWorkdayToday !== false,
-    siteLocation,
+    siteLocation: siteLocation || siteZones[0] || null,
+    siteZones,
   };
+}
+
+function hasSiteGeofenceConfig(cfg) {
+  return Boolean(
+    cfg?.siteLocation ||
+      (Array.isArray(cfg?.siteZones) && cfg.siteZones.length)
+  );
 }
 
 function applySiteAccessUi(payload = lastWorkerPayload) {
@@ -5568,8 +5604,10 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   }
 
   stopSiteGeofenceMonitor();
-  if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && cfg.siteLocation) {
+  if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && hasSiteGeofenceConfig(cfg)) {
     startSiteGeofenceMonitor(cfg);
+  } else if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && !hasSiteGeofenceConfig(cfg)) {
+    showWorkerNotice(t("siteGpsNotConfigured"));
   }
 }
 
@@ -5602,8 +5640,12 @@ async function pollSitePresence(cfg) {
   if (!workerToken || offlineWorkerSessionActive || siteGeofenceLeaveInProgress) return;
   let locationPayload = null;
   try {
-    locationPayload = await resolveLoginLocation();
+    locationPayload = await resolveSiteLocation({ preferFast: false });
   } catch {
+    return;
+  }
+  if (!locationPayload) {
+    showWorkerNotice(t("geolocationRequired"));
     return;
   }
   try {
@@ -5617,6 +5659,15 @@ async function pollSitePresence(cfg) {
     });
     if (presence?.autoCheckInLogId) {
       showWorkerNotice(t("siteAutoCheckIn"));
+    } else if (presence?.onSite && presence?.attendanceBlocked?.message) {
+      showWorkerNotice(presence.attendanceBlocked.message);
+    } else if (presence?.onSite === false && typeof presence?.distanceMeters === "number") {
+      showWorkerNotice(
+        t("siteOutsideRadius", {
+          distance: presence.distanceMeters,
+          allowed: presence.allowedRadiusMeters || presence.radiusMeters || cfg?.radiusMeters || 80,
+        })
+      );
     }
     if (presence?.onSite === false) {
       siteOffSiteStrikeCount += 1;
@@ -5628,6 +5679,14 @@ async function pollSitePresence(cfg) {
     }
   } catch (error) {
     if (isWorkerSessionAuthError(error?.code)) {
+      return;
+    }
+    if (error.code === "worker_geolocation_inaccurate") {
+      showWorkerNotice(error.message || t("geolocationInaccurate"));
+      return;
+    }
+    if (error.code === "site_location_unavailable") {
+      showWorkerNotice(t("siteGpsNotConfigured"));
       return;
     }
     console.warn("[site-presence]", error);

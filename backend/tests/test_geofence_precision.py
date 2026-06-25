@@ -121,7 +121,7 @@ def test_measure_worker_site_distance_reports_raw_distance(worker_client):
     assert measured["distanceMeters"] == 0
     assert measured["onSite"] is True
     assert measured["accuracyMeters"] == 8
-    assert measured["allowedRadiusMeters"] == 20
+    assert measured["allowedRadiusMeters"] == 88
 
 
 def test_measure_worker_site_distance_rejects_inaccurate_reading(worker_client):
@@ -133,7 +133,7 @@ def test_measure_worker_site_distance_rejects_inaccurate_reading(worker_client):
         server.measure_worker_site_distance(
             db,
             worker,
-            {"latitude": 52.52, "longitude": 13.405, "accuracy": 120},
+            {"latitude": 52.52, "longitude": 13.405, "accuracy": 250},
         )
         raised = False
     except ValueError as error:
