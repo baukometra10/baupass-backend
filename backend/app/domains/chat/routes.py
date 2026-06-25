@@ -17,8 +17,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     from backend.server import BASE_DIR, get_db, require_auth, require_roles, require_worker_session
 
     def _worker_chat_allowed(company_id: str):
-        blocked = capability_blocked_response(get_db(), company_id, "worker_chat")
-        return blocked
+        from backend.server import company_has_feature, get_company_plan
+
+        plan = get_company_plan(get_db(), company_id)
+        if company_has_feature(plan, "worker_chat") or company_has_feature(plan, "worker_app"):
+            return None
+        return capability_blocked_response(get_db(), company_id, "worker_chat")
 
     @chat_core_bp.get("/chat/threads")
     @require_auth
@@ -180,12 +184,16 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         company_id = str(g.current_worker["company_id"])
         data = request.get_json(silent=True) or {}
         subject = str(data.get("subject") or "general").strip() or "general"
-        thread_id = ChatService(get_db()).get_or_create_worker_thread(
-            company_id=company_id,
-            worker_id=worker_id,
-            subject=subject,
-        )
-        return jsonify({"ok": True, "threadId": thread_id})
+        try:
+            thread_id = ChatService(get_db()).get_or_create_worker_thread(
+                company_id=company_id,
+                worker_id=worker_id,
+                subject=subject,
+            )
+            return jsonify({"ok": True, "threadId": thread_id})
+        except Exception:
+            logging.getLogger(__name__).exception("worker_create_thread failed for worker %s", worker_id)
+            return jsonify({"error": "chat_thread_failed", "message": "Chat konnte nicht gestartet werden."}), 500
 
     @chat_core_bp.get("/worker-app/chat/threads/<thread_id>/messages")
     @require_worker_session
@@ -197,10 +205,17 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         worker_id = str(g.current_worker["id"])
         company_id = str(g.current_worker["company_id"])
         service = ChatService(get_db())
-        messages = service.list_messages(thread_id, company_id)
-        messages = [msg for msg in messages if str(msg.get("workerId")) == worker_id]
-        service.mark_thread_read(thread_id=thread_id, company_id=company_id, reader_type="worker")
-        return jsonify({"messages": messages})
+        try:
+            messages = service.list_messages(thread_id, company_id)
+            messages = [msg for msg in messages if str(msg.get("workerId")) == worker_id]
+            try:
+                service.mark_thread_read(thread_id=thread_id, company_id=company_id, reader_type="worker")
+            except Exception:
+                pass
+            return jsonify({"messages": messages})
+        except Exception:
+            logging.getLogger(__name__).exception("worker_chat_messages failed for thread %s", thread_id)
+            return jsonify({"error": "chat_load_failed", "message": "Nachrichten konnten nicht geladen werden.", "messages": []}), 500
 
     @chat_core_bp.get("/worker-app/chat/attachments/<attachment_id>/download")
     @require_worker_session

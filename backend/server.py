@@ -4268,6 +4268,33 @@ def init_db():
     )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_chat_attachments_message ON chat_attachments(message_id)")
 
+    chat_thread_columns = [row[1] for row in cur.execute("PRAGMA table_info(chat_threads)").fetchall()]
+    for column, ddl in (
+        ("last_worker_read_at", "ALTER TABLE chat_threads ADD COLUMN last_worker_read_at TEXT"),
+        ("last_admin_read_at", "ALTER TABLE chat_threads ADD COLUMN last_admin_read_at TEXT"),
+        ("last_message_at", "ALTER TABLE chat_threads ADD COLUMN last_message_at TEXT"),
+        ("created_by_user_id", "ALTER TABLE chat_threads ADD COLUMN created_by_user_id TEXT"),
+        ("subject", "ALTER TABLE chat_threads ADD COLUMN subject TEXT NOT NULL DEFAULT 'general'"),
+        ("status", "ALTER TABLE chat_threads ADD COLUMN status TEXT NOT NULL DEFAULT 'open'"),
+    ):
+        if column not in chat_thread_columns:
+            try:
+                cur.execute(ddl)
+            except Exception:
+                pass
+    chat_message_columns = [row[1] for row in cur.execute("PRAGMA table_info(chat_messages)").fetchall()]
+    for column, ddl in (
+        ("sender_user_id", "ALTER TABLE chat_messages ADD COLUMN sender_user_id TEXT"),
+        ("sender_worker_id", "ALTER TABLE chat_messages ADD COLUMN sender_worker_id TEXT"),
+        ("read_at", "ALTER TABLE chat_messages ADD COLUMN read_at TEXT"),
+        ("body", "ALTER TABLE chat_messages ADD COLUMN body TEXT NOT NULL DEFAULT ''"),
+    ):
+        if column not in chat_message_columns:
+            try:
+                cur.execute(ddl)
+            except Exception:
+                pass
+
     # ── Neu: Sync-Konflikt-Tracking ──────────────────────────
     cur.execute(
         """

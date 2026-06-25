@@ -33,6 +33,8 @@ def _worker_app_link(action_url: str) -> str:
         "deployment-plan": "/emp-app.html#einsatzplan",
         "deployment_plan": "/emp-app.html#einsatzplan",
         "leave": "/emp-app.html#leave",
+        "chat": "/emp-app.html#chat",
+        "worker_chat": "/emp-app.html#chat",
     }
     key = str(action_url or "").strip().lower()
     return f"{base}{path_map.get(key, '/emp-app.html')}"
