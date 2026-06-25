@@ -11533,6 +11533,24 @@ def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False):
         "Automatischer Check-in nach Standort-Login",
         worker_type=worker["worker_type"],
     )
+    try:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event(
+            "access.check_in",
+            str(worker["company_id"]),
+            {
+                "worker_id": str(worker["id"]),
+                "workerId": str(worker["id"]),
+                "badge_id": worker.get("badge_id"),
+                "gate": "Mitarbeiter-App (Standort)",
+                "log_id": log_id,
+                "proximity": bool(via_proximity),
+            },
+            actor_id=str(worker["id"]),
+        )
+    except Exception:
+        app.logger.debug("access.check_in publish skipped for worker %s", worker["id"], exc_info=True)
     _notify_worker_site_checkin(db, worker, via_proximity=via_proximity)
     return log_id
 
@@ -12905,6 +12923,21 @@ def worker_app_proximity_login():
             target_id=worker["id"],
             company_id=worker["company_id"],
         )
+        try:
+            from backend.app.platform.events.bus import publish_event
+
+            publish_event(
+                "worker.proximity_login",
+                str(worker["company_id"]),
+                {
+                    "workerId": str(worker["id"]),
+                    "checkinLogId": checkin_log_id,
+                    "attendanceBlocked": not bool(attendance.get("ok")),
+                },
+                actor_id=str(worker["id"]),
+            )
+        except Exception:
+            app.logger.debug("worker.proximity_login publish skipped for worker %s", worker["id"], exc_info=True)
         db.commit()
         return jsonify(session_data)
     except Exception:

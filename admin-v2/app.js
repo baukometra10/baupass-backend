@@ -738,7 +738,9 @@ function companyIdFromQuery() {
 
 function shouldRefreshOnEvent(evt) {
   const t = String(evt?.type || evt?.event_type || "");
-  return /inbox|security|leave|access|push|emergency|alert|document/i.test(t);
+  return /inbox|security|leave|access|push|emergency|alert|document|site_checkin|proximity|worker_app|check_in|check_out/i.test(
+    t,
+  );
 }
 
 function paintInboxBadge(el, open, critical) {

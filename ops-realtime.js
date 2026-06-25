@@ -14,6 +14,14 @@
         at: evt.created_at || evt.at || p.at || "",
       };
     }
+    if (type === "worker.site_checkin" || type === "worker.proximity_login") {
+      const worker = p.workerId || p.worker_id || "?";
+      const label = type === "worker.proximity_login" ? "Standort-Login" : "Eingestempelt";
+      return {
+        html: `<strong>${worker}</strong> ${label}${p.proximity ? " (GPS)" : ""}`,
+        at: evt.created_at || "",
+      };
+    }
     if (type === "inbox.changed") {
       return {
         html: "<strong>Posteingang</strong> aktualisiert",
