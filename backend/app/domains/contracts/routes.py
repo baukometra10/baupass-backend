@@ -435,8 +435,8 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.get("/worker-app/employment-contracts")
     @require_worker_session
     def worker_app_employment_contracts():
-        worker_id = str(g.current_worker["id"])
-        company_id = str(g.current_worker["company_id"])
+        worker_id = str(g.worker["id"])
+        company_id = str(g.worker["company_id"])
         base = str(request.host_url or "").rstrip("/")
         contracts = ContractsService(get_db()).list_worker_app_contracts(worker_id, company_id, base_url=base)
         return jsonify({"contracts": contracts})

@@ -24,6 +24,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return None
         return capability_blocked_response(get_db(), company_id, "worker_chat")
 
+    def _worker_session_identity():
+        worker = getattr(g, "worker", None)
+        if not worker:
+            return None, None
+        return str(worker.get("id") or ""), str(worker.get("company_id") or "")
+
     @chat_core_bp.get("/chat/threads")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -165,23 +171,27 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/worker-app/chat/threads")
     @require_worker_session
     def worker_chat_threads():
-        company_id = str(g.current_worker["company_id"])
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
-        worker_id = str(g.current_worker["id"])
-        company_id = str(g.current_worker["company_id"])
-        return jsonify({"threads": ChatService(get_db()).list_threads(company_id, worker_id=worker_id)})
+        try:
+            return jsonify({"threads": ChatService(get_db()).list_threads(company_id, worker_id=worker_id)})
+        except Exception:
+            logging.getLogger(__name__).exception("worker_chat_threads failed for worker %s", worker_id)
+            return jsonify({"error": "chat_load_failed", "message": "Chat konnte nicht geladen werden.", "threads": []}), 500
 
     @chat_core_bp.post("/worker-app/chat/threads")
     @require_worker_session
     def worker_create_thread():
-        company_id = str(g.current_worker["company_id"])
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
-        worker_id = str(g.current_worker["id"])
-        company_id = str(g.current_worker["company_id"])
         data = request.get_json(silent=True) or {}
         subject = str(data.get("subject") or "general").strip() or "general"
         try:
@@ -198,12 +208,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/worker-app/chat/threads/<thread_id>/messages")
     @require_worker_session
     def worker_chat_messages(thread_id: str):
-        company_id = str(g.current_worker["company_id"])
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
-        worker_id = str(g.current_worker["id"])
-        company_id = str(g.current_worker["company_id"])
         service = ChatService(get_db())
         try:
             messages = service.list_messages(thread_id, company_id)
@@ -220,11 +230,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.get("/worker-app/chat/attachments/<attachment_id>/download")
     @require_worker_session
     def worker_chat_attachment_download(attachment_id: str):
-        company_id = str(g.current_worker["company_id"])
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
-        worker_id = str(g.current_worker["id"])
         row = get_db().execute(
             "SELECT filename, content_type, file_path, worker_id FROM chat_attachments WHERE id = ?",
             (attachment_id,),
@@ -239,12 +250,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/messages")
     @require_worker_session
     def worker_chat_send(thread_id: str):
-        company_id = str(g.current_worker["company_id"])
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
-        worker_id = str(g.current_worker["id"])
-        company_id = str(g.current_worker["company_id"])
         data = request.get_json(silent=True) or {}
         service = ChatService(get_db())
         thread = get_db().execute(
@@ -273,12 +284,12 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/attachments")
     @require_worker_session
     def worker_chat_attachment(thread_id: str):
-        company_id = str(g.current_worker["company_id"])
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
-        worker_id = str(g.current_worker["id"])
-        company_id = str(g.current_worker["company_id"])
         message_id = str(request.form.get("message_id") or "").strip()
         upload = request.files.get("file")
         if not message_id or upload is None:

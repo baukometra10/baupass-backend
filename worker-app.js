@@ -5714,8 +5714,11 @@ function formatWorkerApiError(error) {
   if (code === "decline_save_failed") {
     return t("deploymentPlanDeclineErrSave");
   }
-  if (code === "chat_send_failed" || code === "thread_not_found" || code === "chat_load_failed") {
+  if (code === "chat_send_failed" || code === "thread_not_found") {
     return t("workerChatSendFailed");
+  }
+  if (code === "chat_load_failed" || code === "chat_thread_failed") {
+    return t("workerChatUnavailable");
   }
   return String(error?.message || "Daten konnten nicht geladen werden.");
 }
@@ -7818,10 +7821,7 @@ async function sendWorkerChatMessage() {
     const message = formatWorkerApiError(error);
     showWorkerNotice(message);
     if (elements.workerChatMessages) {
-      const notice = document.createElement("p");
-      notice.className = "muted-info worker-chat-error";
-      notice.textContent = message;
-      elements.workerChatMessages.appendChild(notice);
+      elements.workerChatMessages.innerHTML = `<p class="muted-info worker-chat-error">${escapeHtmlBasic(message)}</p>`;
     }
   } finally {
     elements.workerChatSendBtn?.removeAttribute("disabled");

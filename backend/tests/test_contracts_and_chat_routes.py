@@ -171,6 +171,57 @@ def test_chat_thread_message_and_attachment(client_and_db):
     assert attach.get_json()["attachment"]["id"]
 
 
+def test_worker_chat_threads_with_worker_session(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "WorkerChatSessionCo")
+    worker_id = _create_worker_direct(db_path, company_id)
+
+    import sqlite3
+    from contextlib import closing
+    from datetime import datetime, timedelta
+    import uuid
+
+    token = str(uuid.uuid4())
+    expires = (datetime.utcnow() + timedelta(hours=2)).isoformat() + "Z"
+    with closing(sqlite3.connect(db_path)) as db:
+        db.execute(
+            "INSERT INTO worker_app_sessions (worker_id, token, expires_at) VALUES (?, ?, ?)",
+            (worker_id, token, expires),
+        )
+        db.commit()
+
+    worker_headers = {"Authorization": f"Bearer {token}"}
+    create = client.post(
+        "/api/worker-app/chat/threads",
+        json={"subject": "general"},
+        headers=worker_headers,
+    )
+    assert create.status_code == 200, create.get_data(as_text=True)
+    thread_id = create.get_json().get("threadId")
+    assert thread_id
+
+    listed = client.get("/api/worker-app/chat/threads", headers=worker_headers)
+    assert listed.status_code == 200, listed.get_data(as_text=True)
+    threads = listed.get_json().get("threads") or []
+    assert any(str(row.get("id")) == str(thread_id) for row in threads)
+
+    send = client.post(
+        f"/api/worker-app/chat/threads/{thread_id}/messages",
+        json={"body": "Hallo Firma"},
+        headers=worker_headers,
+    )
+    assert send.status_code == 200, send.get_data(as_text=True)
+
+    messages = client.get(
+        f"/api/worker-app/chat/threads/{thread_id}/messages",
+        headers=worker_headers,
+    )
+    assert messages.status_code == 200, messages.get_data(as_text=True)
+    rows = messages.get_json().get("messages") or []
+    assert any(row.get("body") == "Hallo Firma" for row in rows)
+
+
 def test_worker_chat_send_persists_message(client_and_db):
     client, db_path = client_and_db
     headers = _superadmin_headers(client)
