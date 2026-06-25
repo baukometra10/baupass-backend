@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260625c";
+const WORKER_BUILD_TAG = "20260625d";
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
 const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -1620,7 +1620,7 @@ function updateWorkerShellForTab(tabName) {
   if (isHome) {
     refreshHomeWorkerChatPanel();
   } else {
-    const chatCard = document.getElementById("chatCard");
+    const chatCard = ensureWorkerChatDom();
     if (chatCard) {
       chatCard.classList.add("hidden");
       chatCard.style.setProperty("display", "none", "important");
@@ -1736,47 +1736,88 @@ function getWorkerPageSections() {
   ].filter(Boolean);
 }
 
+function resolveWorkerChatAnchor() {
+  const cardInstall = document.body.classList.contains("worker-card-install");
+  if (cardInstall) {
+    return document.getElementById("badgeCard");
+  }
+  return document.getElementById("homeCompactInfo")
+    || document.getElementById("workerDashboard");
+}
+
+function placeWorkerChatCard(chatCard) {
+  if (!chatCard) {
+    return;
+  }
+  const anchor = resolveWorkerChatAnchor();
+  if (!anchor) {
+    return;
+  }
+  if (anchor.id === "badgeCard") {
+    if (anchor.nextElementSibling === chatCard) {
+      return;
+    }
+    anchor.insertAdjacentElement("afterend", chatCard);
+    return;
+  }
+  if (anchor.id === "homeCompactInfo") {
+    if (anchor.nextElementSibling === chatCard) {
+      return;
+    }
+    anchor.insertAdjacentElement("afterend", chatCard);
+    return;
+  }
+  const homeInfo = document.getElementById("homeCompactInfo");
+  if (homeInfo) {
+    if (homeInfo.nextElementSibling === chatCard) {
+      return;
+    }
+    homeInfo.insertAdjacentElement("afterend", chatCard);
+    return;
+  }
+  if (chatCard.parentElement === anchor && anchor.lastElementChild === chatCard) {
+    return;
+  }
+  anchor.appendChild(chatCard);
+}
+
 /** Inject chat UI when Safari/PWA still serves cached emp-app.html without #chatCard. */
 function ensureWorkerChatDom() {
   let chatCard = document.getElementById("chatCard");
-  if (chatCard) {
-    elements.chatCard = chatCard;
-    elements.workerChatMessages = document.getElementById("workerChatMessages");
-    elements.workerChatInput = document.getElementById("workerChatInput");
-    elements.workerChatSendBtn = document.getElementById("workerChatSendBtn");
-    return chatCard;
-  }
-  const anchor = document.getElementById("homeCompactInfo") || document.getElementById("workerDashboard");
-  if (!anchor) {
-    return null;
-  }
-  chatCard = document.createElement("div");
-  chatCard.id = "chatCard";
-  chatCard.className = "below-card chat-card home-chat-card hidden";
-  chatCard.innerHTML = `
-    <div class="section-head compact-head">
-      <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
-      <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
-    </div>
-    <div id="workerChatMessages" class="worker-chat-messages">
-      <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
-    </div>
-    <div class="worker-chat-compose">
-      <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
-      <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
-    </div>
-  `;
-  if (anchor.id === "homeCompactInfo") {
-    anchor.insertAdjacentElement("afterend", chatCard);
-  } else {
-    anchor.appendChild(chatCard);
+  if (!chatCard) {
+    const anchor = resolveWorkerChatAnchor() || document.querySelector(".app-shell");
+    if (!anchor) {
+      return null;
+    }
+    chatCard = document.createElement("div");
+    chatCard.id = "chatCard";
+    chatCard.className = "below-card chat-card home-chat-card hidden";
+    chatCard.innerHTML = `
+      <div class="section-head compact-head">
+        <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
+        <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+      </div>
+      <div id="workerChatMessages" class="worker-chat-messages">
+        <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
+      </div>
+      <div class="worker-chat-compose">
+        <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+        <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+      </div>
+    `;
+    if (anchor.id === "badgeCard" || anchor.id === "homeCompactInfo") {
+      anchor.insertAdjacentElement("afterend", chatCard);
+    } else {
+      anchor.appendChild(chatCard);
+    }
+    applyTranslations();
+    bindWorkerChatComposeEvents();
   }
   elements.chatCard = chatCard;
-  elements.workerChatMessages = chatCard.querySelector("#workerChatMessages");
-  elements.workerChatInput = chatCard.querySelector("#workerChatInput");
-  elements.workerChatSendBtn = chatCard.querySelector("#workerChatSendBtn");
-  applyTranslations();
-  bindWorkerChatComposeEvents();
+  elements.workerChatMessages = document.getElementById("workerChatMessages");
+  elements.workerChatInput = document.getElementById("workerChatInput");
+  elements.workerChatSendBtn = document.getElementById("workerChatSendBtn");
+  placeWorkerChatCard(chatCard);
   return chatCard;
 }
 

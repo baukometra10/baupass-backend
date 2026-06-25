@@ -3554,6 +3554,7 @@ body {
   padding: 0.25rem 0;
 }
 
+.home-chat-card,
 .worker-dashboard .home-chat-card {
   margin-top: 0.85rem;
   border-radius: 16px;
@@ -3562,14 +3563,20 @@ body {
   padding: 0.9rem 1rem 1rem;
 }
 
+.home-chat-card .worker-chat-messages,
 .worker-dashboard .home-chat-card .worker-chat-messages {
   max-height: min(38vh, 280px);
 }
 
-body.worker-loaded:not(.worker-feature-tab-active) #workerDashboard:not(.hidden) #chatCard.home-chat-card {
+body.worker-loaded:not(.worker-feature-tab-active) #chatCard.home-chat-card {
   display: block !important;
   visibility: visible !important;
   min-height: 120px;
+}
+
+body.worker-card-install.worker-loaded:not(.worker-feature-tab-active) #chatCard.home-chat-card {
+  display: block !important;
+  margin-top: 0.85rem;
 }
 
 .worker-chat-meta {

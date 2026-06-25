@@ -25,7 +25,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260625c" />
+  <link rel="stylesheet" href="./worker.css?v=20260625d" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
   <link rel="stylesheet" href="./worker-polish.css?v=20260531b" />
   <link rel="stylesheet" href="./worker-login.css?v=20260614loginfix1" />
@@ -307,21 +307,6 @@
         <div class="home-info-item">
           <span class="home-info-label">Gueltig bis</span>
           <span id="homeInfoValidUntil" class="home-info-value">-</span>
-        </div>
-      </div>
-
-      <!-- Chat direkt unter dem Ausweis (Start-Tab) -->
-      <div id="chatCard" class="below-card chat-card home-chat-card hidden">
-        <div class="section-head compact-head">
-          <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
-          <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
-        </div>
-        <div id="workerChatMessages" class="worker-chat-messages">
-          <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
-        </div>
-        <div class="worker-chat-compose">
-          <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
-          <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
         </div>
       </div>
 
@@ -1036,6 +1021,21 @@
 
     </section>
 
+    <!-- Chat unter Ausweis (Start-Tab); ausserhalb workerDashboard damit view=card sichtbar bleibt -->
+    <div id="chatCard" class="below-card chat-card home-chat-card hidden">
+      <div class="section-head compact-head">
+        <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
+        <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+      </div>
+      <div id="workerChatMessages" class="worker-chat-messages">
+        <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
+      </div>
+      <div class="worker-chat-compose">
+        <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+        <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+      </div>
+    </div>
+
     <!-- Bottom Tab Navigation (hidden until card showcase completes) -->
     <nav id="workerBottomNav" class="worker-bottom-nav hidden" role="tablist" aria-label="App-Navigation">
       <button id="navHome" class="nav-tab active" role="tab" aria-selected="true" data-tab="home">
@@ -1125,6 +1125,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260625c"></script>
+  <script src="./worker-app.js?v=20260625d"></script>
 </body>
 </html>
