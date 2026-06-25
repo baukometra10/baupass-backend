@@ -12,7 +12,9 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260624f";
+const WORKER_BUILD_TAG = "20260624g";
+const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
+const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 12000;
@@ -4950,27 +4952,34 @@ function clearProximityPin() {
   }
 }
 
-async function fetchProximitySiteHint(badgeId) {
+async function fetchProximitySiteHint(badgeId, locationPayload = null) {
   const normalizedBadgeId = normalizeBadgeIdInput(badgeId);
   if (!normalizedBadgeId) {
     return null;
   }
+  const cacheKey = locationPayload
+    ? `${normalizedBadgeId}:${Math.round(Number(locationPayload.latitude) * 1000)}:${Math.round(Number(locationPayload.longitude) * 1000)}`
+    : normalizedBadgeId;
   if (
     proximitySiteHintCache
-    && proximitySiteHintCacheBadgeId === normalizedBadgeId
+    && proximitySiteHintCacheBadgeId === cacheKey
     && proximitySiteHintCache.fetchedAt
     && Date.now() - proximitySiteHintCache.fetchedAt < 5 * 60 * 1000
   ) {
     return proximitySiteHintCache;
   }
   try {
+    const body = { badgeId: normalizedBadgeId };
+    if (locationPayload) {
+      body.location = locationPayload;
+    }
     const hint = await fetchJson(`${API_BASE}/proximity-site-hint`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ badgeId: normalizedBadgeId }),
+      body: JSON.stringify(body),
     });
     proximitySiteHintCache = { ...hint, fetchedAt: Date.now() };
-    proximitySiteHintCacheBadgeId = normalizedBadgeId;
+    proximitySiteHintCacheBadgeId = cacheKey;
     return proximitySiteHintCache;
   } catch {
     return null;
@@ -4998,7 +5007,10 @@ function isInsideSiteZones(locationPayload, siteZones, fallbackSiteLocation) {
     );
     const radius = Number(zone.radiusMeters || 20);
     const accuracy = Number(locationPayload.accuracy || locationPayload.accuracyMeters || 0);
-    const allowedRadius = radius + (accuracy > 0 ? Math.min(accuracy, 10) : 0);
+    if (accuracy > WORKER_GEO_MAX_ACCURACY_METERS) {
+      continue;
+    }
+    const allowedRadius = radius + (accuracy > 0 ? Math.min(accuracy, WORKER_GEO_ACCURACY_BUFFER_METERS) : 0);
     if (distanceMeters <= allowedRadius) {
       return true;
     }
@@ -5054,12 +5066,12 @@ async function pollProximityLoginCandidate() {
     return;
   }
 
-  const siteHint = await fetchProximitySiteHint(badgeId);
-  if (siteHint && siteHint.siteAutoProximityLogin === false) {
+  const siteHintBase = await fetchProximitySiteHint(badgeId);
+  if (siteHintBase && siteHintBase.siteAutoProximityLogin === false) {
     stopProximityLoginWatcher();
     return;
   }
-  if (siteHint && String(siteHint.accessMode || "").toLowerCase() !== "site_app") {
+  if (siteHintBase && String(siteHintBase.accessMode || "").toLowerCase() !== "site_app") {
     stopProximityLoginWatcher();
     return;
   }
@@ -5070,9 +5082,18 @@ async function pollProximityLoginCandidate() {
     return;
   }
 
-  const siteZones = siteHint?.siteZones || null;
-  const fallbackSiteLocation = siteHint?.siteLocation || getCachedWorkerSiteLocation();
-  const inside = isInsideSiteZones(locationPayload, siteZones, fallbackSiteLocation);
+  const siteHint = (await fetchProximitySiteHint(badgeId, locationPayload)) || siteHintBase;
+  let inside = null;
+  const preview = siteHint?.locationPreview;
+  if (preview && typeof preview.onSite === "boolean") {
+    inside = preview.onSite;
+  } else {
+    inside = isInsideSiteZones(
+      locationPayload,
+      siteHint?.siteZones,
+      siteHint?.siteLocation || getCachedWorkerSiteLocation()
+    );
+  }
   if (inside === false) {
     proximityInsideSince = 0;
     proximityLoginNoticeShownAt = 0;
@@ -5131,6 +5152,8 @@ async function pollProximityLoginCandidate() {
     if (!quietCodes.has(error.code)) {
       if (error.code === "proximity_login_disabled" || error.code === "outside_site_radius") {
         showWorkerNotice(error.message || t("proximityLoginFailed"));
+      } else if (error.code === "not_scheduled_today" || error.code === "outside_shift_window") {
+        showWorkerNotice(error.message || t("proximityNotScheduledToday"));
       } else {
         console.warn("[proximity-login]", error.code || error.message);
       }

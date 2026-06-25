@@ -16756,6 +16756,11 @@ function applyVisitorDurationEndOfDay() {
 
 async function refreshSubcompaniesForSelectedCompany() {
   const companyId = String(document.querySelector("#companySelect")?.value || getEffectiveUiCompanyId() || "").trim();
+  const hasSubcompaniesFeature = hasCompanyFeatureForCompanyId(companyId || getEffectiveUiCompanyId(), "subcompanies");
+  if (companyId && !hasSubcompaniesFeature) {
+    populateSubcompanySelects();
+    return;
+  }
   let url = `${API_BASE}/api/subcompanies`;
   if (companyId) {
     url += `?companyId=${encodeURIComponent(companyId)}`;
@@ -20245,10 +20250,12 @@ async function loadAllData() {
   const latestAccessUrl = `${API_BASE}/api/access-logs/latest`;
 
   const reportUrl = `${API_BASE}/api/reporting/summary`;
+  const bootstrapCompanyId = String(getEffectiveUiCompanyId() || "").trim();
+  const loadSubcompanies = !bootstrapCompanyId || hasCompanyFeatureForCompanyId(bootstrapCompanyId, "subcompanies");
   const requests = await Promise.allSettled([
     apiRequest(`${API_BASE}/api/settings`),
     apiRequest(`${API_BASE}/api/companies`),
-    apiRequest(`${API_BASE}/api/subcompanies`),
+    loadSubcompanies ? apiRequest(`${API_BASE}/api/subcompanies`) : Promise.resolve([]),
     apiRequest(`${API_BASE}/api/workers`),
     apiRequest(accessLogsRequest.url),
     apiRequest(latestAccessUrl),

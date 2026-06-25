@@ -12815,14 +12815,6 @@ def worker_app_proximity_login():
     from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
 
     attendance = worker_may_auto_attend_today(db, worker)
-    if not attendance.get("ok"):
-        return jsonify(
-            {
-                "error": attendance.get("reason") or "not_scheduled_today",
-                "message": attendance.get("message") or "Heute keine automatische Anmeldung moeglich.",
-                "dayType": attendance.get("dayType"),
-            }
-        ), 403
 
     try:
         validate_worker_login_distance_or_raise(db, worker, payload)
@@ -12833,12 +12825,17 @@ def worker_app_proximity_login():
         session_data = create_worker_app_session(db, worker, device_payload=device_payload)
         session_data["proximityLogin"] = True
         session_data["attendanceDayType"] = attendance.get("dayType")
+        if not attendance.get("ok"):
+            session_data["attendanceBlocked"] = attendance.get("reason")
+            session_data["attendanceMessage"] = attendance.get("message")
         if dwell_seconds is not None:
             try:
                 session_data["proximityDwellSeconds"] = int(dwell_seconds)
             except (TypeError, ValueError):
                 pass
-        checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=True)
+        checkin_log_id = None
+        if attendance.get("ok"):
+            checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=True)
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
         log_audit(
@@ -12910,12 +12907,24 @@ def worker_app_proximity_site_hint():
             }
             site_zones.append(site_location)
 
+    location_preview = None
+    location = payload.get("location") if isinstance(payload.get("location"), dict) else None
+    if location:
+        try:
+            location_preview = measure_worker_site_distance(db, worker, location)
+        except ValueError as exc:
+            location_preview = {"error": str(exc), "onSite": False}
+        except Exception:
+            location_preview = None
+
     return jsonify(
         {
             "accessMode": site_cfg["accessMode"],
             "siteAutoProximityLogin": bool(site_cfg.get("siteAutoProximityLogin")),
+            "siteGeofenceRadiusMeters": default_radius,
             "siteLocation": site_location,
             "siteZones": site_zones,
+            "locationPreview": location_preview,
         }
     )
 
