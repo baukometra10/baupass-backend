@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627a";
+const WORKER_BUILD_TAG = "20260627b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1520,10 +1520,17 @@ function focusWorkerPassOnLoad() {
 
 let vapidMissingLogged = false;
 let userHasGestured = false;
+let hapticUnlocked = false;
 
 function markUserInteraction() {
   lastUserInteractionAt = Date.now();
   userHasGestured = true;
+}
+
+function unlockHaptic() {
+  hapticUnlocked = true;
+  userHasGestured = true;
+  lastUserInteractionAt = Date.now();
 }
 
 function isIosDevice() {
@@ -2083,6 +2090,14 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
   fetch(`./emp-app-manifest.json?v=${WORKER_BUILD_TAG}`, { cache: "no-store" })
     .then((response) => response.json())
     .then((manifest) => {
+      const origin = window.location.origin;
+      const abs = (path) => {
+        const p = String(path || "").trim();
+        if (!p) return `${origin}/`;
+        if (/^https?:\/\//i.test(p)) return p;
+        return `${origin}${p.startsWith("/") ? p : `/${p}`}`;
+      };
+
       const params = new URLSearchParams();
       params.set("access", accessToken);
 
@@ -2093,14 +2108,27 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
 
       params.set("view", "card");
       params.set("v", WORKER_BUILD_TAG);
-      manifest.start_url = `/emp-app.html?${params.toString()}`;
-      // White-label: update manifest names dynamically
+      const startUrl = `${origin}/emp-app.html?${params.toString()}`;
+
+      // Blob-Manifest: alle URLs müssen absolut sein, sonst „URL is invalid“.
+      manifest.id = `${origin}/emp-app.html`;
+      manifest.start_url = startUrl;
+      manifest.scope = `${origin}/`;
+      if (Array.isArray(manifest.icons)) {
+        manifest.icons = manifest.icons.map((icon) => ({ ...icon, src: abs(icon.src) }));
+      }
       if (platformName) {
-        manifest.name = platformName + " – Mitarbeiter";
+        manifest.name = `${platformName} – Mitarbeiter`;
         manifest.short_name = platformName;
-        if (manifest.shortcuts) {
-          manifest.shortcuts.forEach((s) => { s.url = `/emp-app.html?${params.toString()}`; });
-        }
+      }
+      if (Array.isArray(manifest.shortcuts)) {
+        manifest.shortcuts = manifest.shortcuts.map((shortcut) => ({
+          ...shortcut,
+          url: startUrl,
+          icons: Array.isArray(shortcut.icons)
+            ? shortcut.icons.map((icon) => ({ ...icon, src: abs(icon.src) }))
+            : shortcut.icons,
+        }));
       }
 
       const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
@@ -2130,8 +2158,8 @@ function bindEvents() {
     }
   });
   window.addEventListener("offline", updateConnectionState);
-  window.addEventListener("pointerdown", markUserInteraction, { passive: true });
-  window.addEventListener("touchstart", markUserInteraction, { passive: true });
+  window.addEventListener("pointerdown", unlockHaptic, { passive: true });
+  window.addEventListener("touchstart", unlockHaptic, { passive: true });
   window.addEventListener("keydown", markUserInteraction, { passive: true });
   window.addEventListener("scroll", markUserInteraction, { passive: true });
   document.addEventListener("visibilitychange", () => {
@@ -4341,7 +4369,7 @@ function buildQrPayload(worker) {
 
 /** Vibrate the device (silent fail on unsupported devices) */
 function haptic(pattern) {
-  if (!userHasGestured) return;
+  if (!hapticUnlocked) return;
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
 }
 
