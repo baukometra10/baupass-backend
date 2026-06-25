@@ -28,7 +28,37 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         if not cid:
             return forbidden_company()
         worker_id = str(request.args.get("worker_id") or "").strip() or None
-        return jsonify({"threads": ChatService(get_db()).list_threads(cid, worker_id=worker_id)})
+        service = ChatService(get_db())
+        if worker_id:
+            return jsonify({"threads": service.list_threads(cid, worker_id=worker_id)})
+        return jsonify({"threads": service.list_admin_chat_directory(cid)})
+
+    @chat_core_bp.post("/chat/threads")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_create_thread():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        worker_id = str(data.get("worker_id") or "").strip()
+        if not worker_id:
+            return jsonify({"error": "worker_required"}), 400
+        worker = get_db().execute(
+            "SELECT id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
+            (worker_id, cid),
+        ).fetchone()
+        if not worker:
+            return jsonify({"error": "worker_not_found"}), 404
+        subject = str(data.get("subject") or "general").strip() or "general"
+        thread_id = ChatService(get_db()).get_or_create_worker_thread(
+            company_id=cid,
+            worker_id=worker_id,
+            subject=subject,
+            created_by_user_id=str(g.current_user.get("id") or ""),
+        )
+        return jsonify({"ok": True, "threadId": thread_id})
 
     @chat_core_bp.get("/chat/threads/<thread_id>")
     @require_auth

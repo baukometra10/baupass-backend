@@ -48,6 +48,7 @@
     <section class="panel">
       <h3>Chats</h3>
       <input id="threadSearch" type="search" placeholder="Mitarbeiter oder Thema suchen" />
+      <p class="muted" style="font-size:0.85rem;margin:0.5rem 0 0;">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
       <div id="threadList" class="thread-list" style="margin-top:0.75rem;"></div>
     </section>
     <section class="panel">
@@ -96,13 +97,42 @@
     function renderThreads() {
       const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
       const host = document.getElementById("threadList");
-      const rows = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""}`).toLowerCase().includes(q));
+      const rows = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
       host.innerHTML = rows.length
-        ? rows.map((row) => `<button type="button" class="thread-item" data-id="${row.id}" data-worker="${row.worker_id}"><strong>${row.subject || 'general'}</strong><br><span class="muted">${row.first_name || ''} ${row.last_name || ''}</span></button>`).join("")
-        : `<p class="muted">Keine Chats gefunden.</p>`;
-      host.querySelectorAll("[data-id]").forEach((btn) => {
-        btn.addEventListener("click", () => loadMessages(btn.getAttribute("data-id"), btn.getAttribute("data-worker")));
+        ? rows.map((row) => {
+            const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.badge_id || 'Mitarbeiter';
+            const meta = row.hasThread ? (row.subject || 'general') : 'Neuer Chat';
+            return `<button type="button" class="thread-item" data-id="${row.id || ''}" data-worker="${row.worker_id}"><strong>${name}</strong><br><span class="muted">${meta}</span></button>`;
+          }).join("")
+        : `<p class="muted">Keine Mitarbeiter gefunden.</p>`;
+      host.querySelectorAll("[data-worker]").forEach((btn) => {
+        btn.addEventListener("click", () => openThread(btn.getAttribute("data-id"), btn.getAttribute("data-worker"), btn));
       });
+    }
+    async function ensureThread(threadId, workerId) {
+      if (threadId) return threadId;
+      const res = await api(`/api/chat/threads?company_id=${encodeURIComponent(companyId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ worker_id: workerId, subject: "general" }),
+      });
+      return res.threadId || "";
+    }
+    async function openThread(threadId, workerId, buttonEl) {
+      try {
+        const resolvedId = await ensureThread(threadId, workerId);
+        if (!resolvedId) throw new Error("Chat konnte nicht geöffnet werden.");
+        if (buttonEl) buttonEl.setAttribute("data-id", resolvedId);
+        const row = threads.find((item) => String(item.worker_id) === String(workerId));
+        if (row) {
+          row.id = resolvedId;
+          row.hasThread = true;
+        }
+        await loadMessages(resolvedId, workerId);
+        await loadThreads();
+      } catch (error) {
+        document.getElementById("threadMeta").textContent = error.message || String(error);
+      }
     }
     async function loadThreads() {
       const data = await api(`/api/chat/threads?company_id=${encodeURIComponent(companyId)}`);
@@ -112,9 +142,11 @@
     async function loadMessages(threadId, workerId) {
       currentThreadId = threadId || "";
       currentWorkerId = workerId || "";
+      const row = threads.find((item) => String(item.worker_id) === String(workerId));
+      const name = row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : workerId;
       const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
       const messages = data.messages || [];
-      document.getElementById("threadMeta").textContent = `Thread: ${currentThreadId}`;
+      document.getElementById("threadMeta").textContent = name ? `Chat mit ${name}` : `Thread: ${currentThreadId}`;
       document.getElementById("messageList").innerHTML = messages.length
         ? messages.map((msg) => `<div class="bubble ${msg.senderType === 'admin' ? 'admin' : ''}"><strong>${msg.senderType === 'worker' ? 'Mitarbeiter' : 'Firma'}</strong><br><span>${msg.body || ''}</span>${Array.isArray(msg.attachments) && msg.attachments.length ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => `<a href="/api/chat/attachments/${a.id}/download" target="_blank" rel="noopener">📎 ${a.filename}</a>`).join('<br>')}</div>` : ''}</div>`).join("")
         : `<p class="muted">Noch keine Nachrichten.</p>`;

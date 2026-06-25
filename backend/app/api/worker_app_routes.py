@@ -14,6 +14,7 @@ from flask import Blueprint
 WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/login", "worker_app_login", ["POST"]),
     ("/proximity-login", "worker_app_proximity_login", ["POST"]),
+    ("/proximity-site-hint", "worker_app_proximity_site_hint", ["POST"]),
     ("/me", "worker_app_me", ["GET"]),
     ("/team-snapshot", "worker_app_team_snapshot", ["GET"]),
     ("/offline-events", "worker_app_sync_offline_events", ["POST"]),

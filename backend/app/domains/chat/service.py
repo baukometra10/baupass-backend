@@ -36,6 +36,62 @@ class ChatService:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_admin_chat_directory(self, company_id: str) -> list[dict[str, Any]]:
+        """All active workers for admin chat, with optional existing thread metadata."""
+        workers = self.db.execute(
+            """
+            SELECT id, first_name, last_name, badge_id, status
+            FROM workers
+            WHERE company_id = ?
+              AND deleted_at IS NULL
+              AND worker_type = 'worker'
+            ORDER BY last_name COLLATE NOCASE, first_name COLLATE NOCASE
+            """,
+            (company_id,),
+        ).fetchall()
+        threads = self.list_threads(company_id)
+        thread_by_worker: dict[str, dict[str, Any]] = {}
+        for thread in threads:
+            wid = str(thread.get("worker_id") or "")
+            if not wid:
+                continue
+            existing = thread_by_worker.get(wid)
+            if not existing:
+                thread_by_worker[wid] = thread
+                continue
+            existing_ts = str(existing.get("last_message_at") or existing.get("updated_at") or "")
+            next_ts = str(thread.get("last_message_at") or thread.get("updated_at") or "")
+            if next_ts > existing_ts:
+                thread_by_worker[wid] = thread
+
+        directory: list[dict[str, Any]] = []
+        for worker in workers:
+            wid = str(worker["id"])
+            thread = thread_by_worker.get(wid)
+            directory.append(
+                {
+                    "id": str(thread["id"]) if thread else "",
+                    "worker_id": wid,
+                    "first_name": worker["first_name"],
+                    "last_name": worker["last_name"],
+                    "badge_id": worker["badge_id"],
+                    "status": worker["status"],
+                    "subject": str(thread["subject"]) if thread else "general",
+                    "last_message_at": thread.get("last_message_at") if thread else None,
+                    "updated_at": thread.get("updated_at") if thread else None,
+                    "hasThread": bool(thread),
+                }
+            )
+
+        directory.sort(
+            key=lambda row: (
+                0 if row.get("last_message_at") else 1,
+                str(row.get("last_message_at") or row.get("updated_at") or ""),
+            ),
+            reverse=True,
+        )
+        return directory
+
     def get_or_create_worker_thread(
         self,
         *,

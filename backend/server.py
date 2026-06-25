@@ -11382,7 +11382,38 @@ def measure_worker_site_distance(db, worker, location):
     return result
 
 
-def maybe_site_app_auto_checkin(db, worker):
+def _notify_worker_site_checkin(db, worker, *, via_proximity: bool = False) -> None:
+    try:
+        from backend.app.platform.events.bus import publish_event
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+
+        if via_proximity:
+            title = "Automatisch angemeldet"
+            message = "Am Standort automatisch angemeldet und eingestempelt."
+        else:
+            title = "Eingestempelt"
+            message = "Am Standort eingestempelt (Arbeitstag)."
+        notify_worker_mitteilung(
+            db,
+            str(worker["id"]),
+            notif_type="site_checkin",
+            title=title,
+            message=message,
+            action_url="",
+            push_tag="site-checkin",
+            send_email=False,
+        )
+        publish_event(
+            "worker.site_checkin",
+            str(worker["company_id"]),
+            {"workerId": str(worker["id"]), "proximity": bool(via_proximity)},
+            actor_id=str(worker["id"]),
+        )
+    except Exception:
+        app.logger.warning("site check-in notification failed for worker %s", worker["id"], exc_info=True)
+
+
+def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False):
     company_id = worker["company_id"]
     site_cfg = get_company_site_access_config(db, company_id)
     if site_cfg["accessMode"] != "site_app" or not site_cfg["siteAutoCheckin"]:
@@ -11411,6 +11442,7 @@ def maybe_site_app_auto_checkin(db, worker):
         "Automatischer Check-in nach Standort-Login",
         worker_type=worker["worker_type"],
     )
+    _notify_worker_site_checkin(db, worker, via_proximity=via_proximity)
     return log_id
 
 
@@ -12581,7 +12613,19 @@ def worker_app_login():
                 "badgeId": (fallback_badge_row["badge_id"] if fallback_badge_row else ""),
             }), 401
 
+        checkin_log_id = None
+        location = payload.get("location") if isinstance(payload.get("location"), dict) else None
+        if location:
+            try:
+                measured = measure_worker_site_distance(db, worker, location)
+                if measured and measured.get("onSite"):
+                    checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+            except (ValueError, PermissionError):
+                pass
+
         session_data = create_worker_app_session(db, worker, device_payload=device_payload)
+        if checkin_log_id:
+            session_data["autoCheckInLogId"] = checkin_log_id
         log_audit(
             "worker_app.login",
             f"Besucher {worker['first_name']} {worker['last_name']} (Badge {worker['badge_id']}) hat sich per Einmal-Link angemeldet",
@@ -12633,7 +12677,7 @@ def worker_app_login():
 
     try:
         session_data = create_worker_app_session(db, worker, device_payload=device_payload)
-        checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+        checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
         login_type = "Besucher" if is_visitor else "Mitarbeiter"
@@ -12735,7 +12779,7 @@ def worker_app_proximity_login():
                 session_data["proximityDwellSeconds"] = int(dwell_seconds)
             except (TypeError, ValueError):
                 pass
-        checkin_log_id = maybe_site_app_auto_checkin(db, worker)
+        checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=True)
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
         log_audit(
@@ -12753,6 +12797,68 @@ def worker_app_proximity_login():
             "error": "login_server_error",
             "message": "Anmeldung voruebergehend nicht moeglich. Bitte erneut versuchen.",
         }), 500
+
+
+@require_rate_limit("worker_login")
+def worker_app_proximity_site_hint():
+    """Public site zones for badge-based proximity pre-check (no session required)."""
+    payload = request.get_json(silent=True) or {}
+    badge_id = normalize_badge_id(payload.get("badgeId"))
+    if not badge_id:
+        return jsonify({"error": "missing_badge_id"}), 400
+
+    db = get_db()
+    worker = db.execute(
+        """
+        SELECT *
+        FROM workers
+        WHERE badge_id_lookup = ?
+          AND deleted_at IS NULL
+        ORDER BY id
+        LIMIT 1
+        """,
+        (badge_id,),
+    ).fetchone()
+    if not worker:
+        return jsonify({"error": "invalid_badge_id"}), 404
+    if normalize_worker_type(worker["worker_type"]) != "worker":
+        return jsonify({"error": "visitor_badge"}), 403
+
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    zones = _ordered_geofence_zones_for_worker(db, worker)
+    default_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+    site_zones = []
+    for zone in zones:
+        site_zones.append(
+            {
+                "latitude": float(zone["latitude"]),
+                "longitude": float(zone["longitude"]),
+                "radiusMeters": int(zone.get("radius_meters") or default_radius),
+                "siteName": str(zone.get("site_name") or "").strip(),
+            }
+        )
+    site_location = None
+    if site_zones:
+        site_location = site_zones[0]
+    else:
+        lat = worker["site_latitude"] if "site_latitude" in worker.keys() else None
+        lng = worker["site_longitude"] if "site_longitude" in worker.keys() else None
+        if lat is not None and lng is not None:
+            site_location = {
+                "latitude": float(lat),
+                "longitude": float(lng),
+                "radiusMeters": default_radius,
+            }
+            site_zones.append(site_location)
+
+    return jsonify(
+        {
+            "accessMode": site_cfg["accessMode"],
+            "siteAutoProximityLogin": bool(site_cfg.get("siteAutoProximityLogin")),
+            "siteLocation": site_location,
+            "siteZones": site_zones,
+        }
+    )
 
 
 @require_worker_session

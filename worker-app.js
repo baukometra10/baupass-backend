@@ -12,11 +12,11 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260624a";
+const WORKER_BUILD_TAG = "20260624b";
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
-const PROXIMITY_LOGIN_POLL_MS = 30000;
-const PROXIMITY_LOGIN_DWELL_MS = 90000;
+const PROXIMITY_LOGIN_POLL_MS = 12000;
+const PROXIMITY_LOGIN_DWELL_MS = 20000;
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
@@ -207,6 +207,7 @@ const LOCAL_LAST_PHOTO_KEY = WP?.KEYS?.LOCAL_LAST_PHOTO || "workpass-last-local-
 const OFFLINE_PHOTO_QUEUE_KEY = WP?.KEYS?.OFFLINE_PHOTO_QUEUE || "workpass-offline-photo-queue";
 const OFFLINE_EVENT_QUEUE_KEY = WP?.KEYS?.OFFLINE_EVENT_QUEUE || "workpass-offline-event-queue";
 const WORKER_OFFLINE_LOGIN_PROFILE_KEY = WP?.KEYS?.WORKER_OFFLINE_LOGIN_PROFILE || "workpass-worker-offline-login-profile";
+const WORKER_PROXIMITY_PIN_KEY = WP?.KEYS?.WORKER_PROXIMITY_PIN || "workpass-worker-proximity-pin";
 const QR_CACHE_PREFIX = WP?.KEYS?.QR_CACHE_PREFIX || "workpass-worker-qr-cache";
 const QR_HIGH_CONTRAST_KEY = WP?.KEYS?.QR_HIGH_CONTRAST || "workpass-qr-high-contrast";
 const AUTO_OPEN_SCANNER_KEY = WP?.KEYS?.AUTO_OPEN_SCANNER || "workpass-auto-open-scanner";
@@ -1067,6 +1068,8 @@ let proximityLoginWatchTimer = null;
 let proximityInsideSince = 0;
 let proximityLoginInProgress = false;
 let proximityLoginNoticeShownAt = 0;
+let proximitySiteHintCache = null;
+let proximitySiteHintCacheBadgeId = "";
 let pinLockEnabled = false; // Wird vom Backend gesetzt
 let isPassLocked = false; // Aktueller Status
 let lastPassInteractionAt = Date.now();
@@ -2849,6 +2852,9 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     applyDynamicManifestStartUrl(accessToken);
     await loadWorkerData();
     finishWorkerLoginUi();
+    if (payload.autoCheckInLogId) {
+      showWorkerNotice(t("siteAutoCheckIn"));
+    }
 
     // Einmaltoken ist jetzt verbraucht – aus Storage löschen, damit beim nächsten
     // App-Start kein Fehler „Anmeldung fehlgeschlagen" wegen ungültigem Token entsteht.
@@ -2977,6 +2983,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     // Store PIN in sessionStorage for offline fallback (not persisted, not in DOM)
     if (normalizedBadgePin) {
       try { sessionStorage.setItem("_wpf", normalizedBadgePin); } catch (_) {}
+      storeProximityPin(normalizedBadgePin);
     }
     await loadWorkerData();
     await persistOfflineBadgeProfile(normalizedBadgeId, normalizedBadgePin, payload);
@@ -3524,13 +3531,18 @@ function showLogin() {
   updateWalletImmersiveMode();
   updateWorkerPulsePanel();
 
-  // Auto-login disabled: always show fresh login form
+  // Keep stored badge for GPS auto-login; only clear one-time tokens from the field.
+  const storedBadgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
   if (elements.workerAccessToken) {
-    elements.workerAccessToken.value = "";
+    elements.workerAccessToken.value = storedBadgeId || "";
   }
   const pinWrapper = document.querySelector("#pinFieldWrapper");
   if (pinWrapper) {
-    pinWrapper.classList.add("hidden");
+    if (storedBadgeId && !isVisitorBadgeId(storedBadgeId)) {
+      pinWrapper.classList.remove("hidden");
+    } else {
+      pinWrapper.classList.add("hidden");
+    }
   }
   const pinInput = document.querySelector("#workerBadgePin");
   if (pinInput) {
@@ -3541,6 +3553,7 @@ function showLogin() {
   if (resumeRow) {
     resumeRow.classList.add("hidden");
   }
+  startProximityLoginWatcher();
 }
 
 function updateConnectionState() {
@@ -3736,11 +3749,9 @@ async function workerLogout() {
 
   wpRemove(WORKER_TOKEN_KEY);
   wpRemove(WORKER_ACCESS_TOKEN_KEY);
-  wpRemove(WORKER_BADGE_LOGIN_KEY);
   wpRemove(WORKER_CACHED_PAYLOAD_KEY);
   wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
   wpRemove(OFFLINE_EVENT_QUEUE_KEY);
-  try { sessionStorage.removeItem("_wpf"); } catch (_) {}
   offlineWorkerSessionActive = false;
   workerToken = "";
   clearWorkerSessionExpiryTimer();
@@ -3754,6 +3765,7 @@ async function workerLogout() {
   }
   closeGateMode();
   showLogin();
+  startProximityLoginWatcher();
 
   // Revoke backend session in best-effort mode without blocking UI logout.
   if (tokenForRevoke) {
@@ -4796,12 +4808,93 @@ function getCachedWorkerSiteLocation() {
   return cached?.worker?.siteLocation || null;
 }
 
+function storeProximityPin(badgePin) {
+  const normalized = normalizeBadgePinInput(badgePin);
+  if (!normalized) {
+    return;
+  }
+  try {
+    wpSet(WORKER_PROXIMITY_PIN_KEY, normalized);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function clearProximityPin() {
+  wpRemove(WORKER_PROXIMITY_PIN_KEY);
+  try {
+    sessionStorage.removeItem("_wpf");
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchProximitySiteHint(badgeId) {
+  const normalizedBadgeId = normalizeBadgeIdInput(badgeId);
+  if (!normalizedBadgeId) {
+    return null;
+  }
+  if (
+    proximitySiteHintCache
+    && proximitySiteHintCacheBadgeId === normalizedBadgeId
+    && proximitySiteHintCache.fetchedAt
+    && Date.now() - proximitySiteHintCache.fetchedAt < 5 * 60 * 1000
+  ) {
+    return proximitySiteHintCache;
+  }
+  try {
+    const hint = await fetchJson(`${API_BASE}/proximity-site-hint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ badgeId: normalizedBadgeId }),
+    });
+    proximitySiteHintCache = { ...hint, fetchedAt: Date.now() };
+    proximitySiteHintCacheBadgeId = normalizedBadgeId;
+    return proximitySiteHintCache;
+  } catch {
+    return null;
+  }
+}
+
+function isInsideSiteZones(locationPayload, siteZones, fallbackSiteLocation) {
+  const zones = Array.isArray(siteZones) && siteZones.length
+    ? siteZones
+    : (fallbackSiteLocation ? [fallbackSiteLocation] : []);
+  if (!zones.length || !locationPayload) {
+    return null;
+  }
+  for (const zone of zones) {
+    if (typeof zone.latitude !== "number" || typeof zone.longitude !== "number") {
+      continue;
+    }
+    const distanceMeters = Math.round(
+      calculateDistanceMeters(
+        zone.latitude,
+        zone.longitude,
+        locationPayload.latitude,
+        locationPayload.longitude
+      )
+    );
+    const radius = Number(zone.radiusMeters || 20);
+    const accuracy = Number(locationPayload.accuracy || locationPayload.accuracyMeters || 0);
+    const allowedRadius = radius + (accuracy > 0 ? Math.min(accuracy, 10) : 0);
+    if (distanceMeters <= allowedRadius) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function getStoredBadgePinForProximity() {
   try {
-    return normalizeBadgePinInput(sessionStorage.getItem("_wpf") || "");
+    const sessionPin = normalizeBadgePinInput(sessionStorage.getItem("_wpf") || "");
+    if (sessionPin) {
+      return sessionPin;
+    }
   } catch {
-    return "";
+    // ignore
   }
+  return normalizeBadgePinInput(wpGet(WORKER_PROXIMITY_PIN_KEY) || "");
 }
 
 function stopProximityLoginWatcher() {
@@ -4840,32 +4933,38 @@ async function pollProximityLoginCandidate() {
     return;
   }
 
+  const siteHint = await fetchProximitySiteHint(badgeId);
+  if (siteHint && siteHint.siteAutoProximityLogin === false) {
+    stopProximityLoginWatcher();
+    return;
+  }
+  if (siteHint && String(siteHint.accessMode || "").toLowerCase() !== "site_app") {
+    stopProximityLoginWatcher();
+    return;
+  }
+
   const locationPayload = await resolveLoginLocation();
   if (!locationPayload) {
     proximityInsideSince = 0;
     return;
   }
 
-  const siteLocation = getCachedWorkerSiteLocation();
-  if (siteLocation && typeof siteLocation.latitude === "number" && typeof siteLocation.longitude === "number") {
-    const distanceMeters = Math.round(
-      calculateDistanceMeters(
-        siteLocation.latitude,
-        siteLocation.longitude,
-        locationPayload.latitude,
-        locationPayload.longitude
-      )
-    );
-    const radius = Number(siteLocation.radiusMeters || 20);
-    if (distanceMeters > radius) {
-      proximityInsideSince = 0;
-      return;
-    }
+  const siteZones = siteHint?.siteZones || null;
+  const fallbackSiteLocation = siteHint?.siteLocation || getCachedWorkerSiteLocation();
+  const inside = isInsideSiteZones(locationPayload, siteZones, fallbackSiteLocation);
+  if (inside === false) {
+    proximityInsideSince = 0;
+    proximityLoginNoticeShownAt = 0;
+    return;
   }
 
   const now = Date.now();
   if (!proximityInsideSince) {
     proximityInsideSince = now;
+    if (!proximityLoginNoticeShownAt) {
+      proximityLoginNoticeShownAt = now;
+      showWorkerNotice(t("proximityLoginWaiting"));
+    }
     return;
   }
   if (now - proximityInsideSince < PROXIMITY_LOGIN_DWELL_MS) {
@@ -4889,6 +4988,7 @@ async function pollProximityLoginCandidate() {
     workerToken = payload.token;
     wpSet(WORKER_TOKEN_KEY, workerToken);
     wpSet(WORKER_BADGE_LOGIN_KEY, badgeId);
+    storeProximityPin(badgePin);
     wpRemove(WORKER_ACCESS_TOKEN_KEY);
     await loadWorkerData();
     await persistOfflineBadgeProfile(badgeId, badgePin, payload);
