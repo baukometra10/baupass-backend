@@ -26,6 +26,7 @@ _CSP_DIRECTIVES = {
     "script-src":   ["'self'", "'strict-dynamic'", "https://cdn.jsdelivr.net"],
     "style-src":    ["'self'", "'unsafe-inline'"],
     "img-src":      ["'self'", "data:", "blob:"],
+    "manifest-src": ["'self'", "blob:"],
     "font-src":     ["'self'", "data:"],
     "connect-src":  ["'self'", "wss:", "ws:"],
     "frame-src":    ["'none'"],

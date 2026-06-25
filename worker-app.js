@@ -12,7 +12,18 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260625g";
+const WORKER_BUILD_TAG = "20260625h";
+const WORKER_DEBUG = (() => {
+  try {
+    return new URLSearchParams(window.location.search).get("debug") === "1"
+      || localStorage.getItem("worker-debug") === "1";
+  } catch {
+    return false;
+  }
+})();
+function workerDebug(...args) {
+  if (WORKER_DEBUG) console.log(...args);
+}
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
 const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -1493,9 +1504,12 @@ function focusWorkerPassOnLoad() {
   }
 }
 
-// ── Globale User-Interaktions-Tracking-Funktion ──
+let vapidMissingLogged = false;
+let userHasGestured = false;
+
 function markUserInteraction() {
   lastUserInteractionAt = Date.now();
+  userHasGestured = true;
 }
 
 function isIosDevice() {
@@ -3354,7 +3368,7 @@ async function loadWorkerData() {
   }
   const tokenAtRequest = workerToken;
 
-  console.log("[loadWorkerData] Starting fetch for /me...");
+  workerDebug("[loadWorkerData] Starting fetch for /me...");
   try {
     const payload = await fetchJson(`${API_BASE}/me`, {
       headers: { Authorization: `Bearer ${tokenAtRequest}` }
@@ -3363,7 +3377,7 @@ async function loadWorkerData() {
       // Ignore stale response after logout/login switch.
       return false;
     }
-    console.log("[loadWorkerData] Success:", payload);
+    workerDebug("[loadWorkerData] Success:", payload);
     wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
     offlineWorkerSessionActive = false;
     renderWorker(payload);
@@ -3388,7 +3402,7 @@ async function loadWorkerData() {
     if (cachedRaw) {
       try {
         const cachedPayload = JSON.parse(cachedRaw);
-        console.log("[loadWorkerData] Rendering cached payload:", cachedPayload);
+        workerDebug("[loadWorkerData] Rendering cached payload:", cachedPayload);
         offlineWorkerSessionActive = true;
         renderWorker(cachedPayload);
         if (elements.lastSyncInfo) {
@@ -4314,6 +4328,7 @@ function buildQrPayload(worker) {
 
 /** Vibrate the device (silent fail on unsupported devices) */
 function haptic(pattern) {
+  if (!userHasGestured) return;
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch {}
 }
 
@@ -4575,6 +4590,12 @@ function updateSiteMapLink(site) {
 
 function resolveApiRoot(workerApiBase) {
   return String(workerApiBase || "").replace(/\/api\/worker-app\/?$/, "");
+}
+
+function apiPath(path) {
+  const clean = String(path || "").replace(/^\//, "");
+  const root = String(API_ROOT || "").replace(/\/$/, "");
+  return clean.startsWith("api/") ? `${root}/${clean}` : `${root}/api/${clean}`;
 }
 
 function buildQrImageUrl(payload, size = 280) {
@@ -6043,7 +6064,10 @@ async function subscribePushNotifications() {
       ).trim();
 
       if (!vapidPublicKey) {
-        console.warn("No VAPID public key from server — set VAPID_PUBLIC_KEY on Railway");
+        if (!vapidMissingLogged) {
+          vapidMissingLogged = true;
+          workerDebug("Push notifications skipped: VAPID_PUBLIC_KEY not configured on server.");
+        }
         if (elements.notificationBanner) {
           elements.notificationBanner.classList.remove("hidden");
         }
@@ -6069,7 +6093,7 @@ async function subscribePushNotifications() {
       }),
     });
 
-    console.log("✓ Push subscription registered");
+    workerDebug("Push subscription registered");
   } catch (error) {
     console.error("Push subscription failed:", error);
   }
@@ -6303,7 +6327,7 @@ async function addWorkerPassToWallet(platform) {
 async function loadIncidents() {
   if (!workerToken || !elements.incidentList) return;
   try {
-    const payload = await fetchJson(`${API_ROOT}/incidents`, {
+    const payload = await fetchJson(apiPath("incidents"), {
       headers: { Authorization: `Bearer ${workerToken}` },
     });
     const incidents = Array.isArray(payload?.incidents) ? payload.incidents : [];
@@ -6327,8 +6351,8 @@ async function loadIncidents() {
       </div>`;
     }).join("");
   } catch (error) {
-    console.warn("Could not load incidents:", error);
-    elements.incidentList.innerHTML = `<p class="muted-info">${t("incidentSubmitFailed")}</p>`;
+    workerDebug("Could not load incidents:", error);
+    elements.incidentList.innerHTML = `<p class="muted-info">${t("incidentNoReports")}</p>`;
   }
 }
 
@@ -6342,7 +6366,7 @@ async function submitIncidentReport() {
     return;
   }
   try {
-    await fetchJson(`${API_ROOT}/incidents`, {
+    await fetchJson(apiPath("incidents"), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${workerToken}`,
@@ -8391,14 +8415,14 @@ if (workerToken) {
 // STARTUP: Force immediate card render if worker data exists
 // ─────────────────────────────────────────────────────────────────────
 
-console.log("[worker-app init] workerToken:", workerToken ? "present" : "missing");
+workerDebug("[worker-app init] workerToken:", workerToken ? "present" : "missing");
 
 if (workerToken) {
   const cachedPayloadRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
   if (cachedPayloadRaw) {
     try {
       const cachedPayload = JSON.parse(cachedPayloadRaw);
-      console.log("[worker-app init] Found cached payload, rendering immediately...");
+      workerDebug("[worker-app init] Found cached payload, rendering immediately...");
       // Render cached data immediately without waiting for network
       renderWorker(cachedPayload);
       focusWorkerPassOnLoad();
@@ -8409,11 +8433,11 @@ if (workerToken) {
       void loadWorkerData();
     }
   } else {
-    console.log("[worker-app init] No cached payload, fetching fresh...");
+    workerDebug("[worker-app init] No cached payload, fetching fresh...");
     void loadWorkerData();
   }
 } else {
-  console.log("[worker-app init] No token, showing login");
+  workerDebug("[worker-app init] No token, showing login");
   showLogin();
 }
 

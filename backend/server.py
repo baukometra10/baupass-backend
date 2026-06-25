@@ -1891,6 +1891,7 @@ def apply_security_headers(response):
         "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
+        "manifest-src 'self' blob:; "
         "connect-src 'self' https: "
         "wss://localhost:49494 wss://127.0.0.1:49494 "
         "wss://signsocket.stepover.com:57357; "
