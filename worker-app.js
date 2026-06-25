@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260626b";
+const WORKER_BUILD_TAG = "20260626c";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -38,6 +38,7 @@ const WORKER_PLAN_TAB_FEATURES = {
   vacation: "leave_management",
   timesheet: "worker_hours_report",
   documents: "document_upload",
+  chat: "worker_chat",
 };
 
 function normalizeApiBase(value) {
@@ -813,7 +814,7 @@ async function refreshWorkerNotificationCenter(options = {}) {
   const unreadCount = merged.filter((item) => !item.isRead && !item.read).length;
   updateNotificationBadge(unreadCount);
   const onHome = currentActiveTab === "home";
-  if (workerToken && workerPlanAllowsFeature("worker_chat") && onHome) {
+  if (workerToken && workerPlanAllowsFeature("worker_chat") && currentActiveTab === "chat") {
     void loadWorkerChat({ quiet: true });
   }
   if (
@@ -1632,16 +1633,6 @@ function updateWorkerShellForTab(tabName) {
       hubPanel.style.setProperty("display", "none", "important");
     }
   }
-
-  if (isHome) {
-    refreshHomeWorkerChatPanel();
-  } else {
-    const chatCard = ensureWorkerChatDom();
-    if (chatCard) {
-      chatCard.classList.add("hidden");
-      chatCard.style.setProperty("display", "none", "important");
-    }
-  }
 }
 
 function showOnlyWorkerFeaturePanel(panelId) {
@@ -1736,7 +1727,6 @@ function getWorkerPageTitle(targetId) {
 }
 
 function getWorkerPageSections() {
-  // chatCard lives on the home tab under the badge — not a standalone page section.
   return [
     document.querySelector("#routeCard"),
     document.querySelector("#sessionInfoCard"),
@@ -1748,17 +1738,18 @@ function getWorkerPageSections() {
     elements.incidentCard,
     elements.timesheetCard,
     elements.documentsCard,
+    elements.chatCard,
     elements.deploymentPlanCard,
   ].filter(Boolean);
 }
 
 function resolveWorkerChatAnchor() {
-  const cardInstall = document.body.classList.contains("worker-card-install");
-  if (cardInstall) {
-    return document.getElementById("badgeCard");
+  const hubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
+  const documentsCard = elements.documentsCard || document.getElementById("documentsCard");
+  if (documentsCard?.parentElement === hubPanel) {
+    return documentsCard;
   }
-  return document.getElementById("homeCompactInfo")
-    || document.getElementById("workerDashboard");
+  return hubPanel || documentsCard || document.querySelector(".app-shell");
 }
 
 function placeWorkerChatCard(chatCard) {
@@ -1769,26 +1760,11 @@ function placeWorkerChatCard(chatCard) {
   if (!anchor) {
     return;
   }
-  if (anchor.id === "badgeCard") {
+  if (anchor.id === "documentsCard") {
     if (anchor.nextElementSibling === chatCard) {
       return;
     }
     anchor.insertAdjacentElement("afterend", chatCard);
-    return;
-  }
-  if (anchor.id === "homeCompactInfo") {
-    if (anchor.nextElementSibling === chatCard) {
-      return;
-    }
-    anchor.insertAdjacentElement("afterend", chatCard);
-    return;
-  }
-  const homeInfo = document.getElementById("homeCompactInfo");
-  if (homeInfo) {
-    if (homeInfo.nextElementSibling === chatCard) {
-      return;
-    }
-    homeInfo.insertAdjacentElement("afterend", chatCard);
     return;
   }
   if (chatCard.parentElement === anchor && anchor.lastElementChild === chatCard) {
@@ -1807,7 +1783,7 @@ function ensureWorkerChatDom() {
     }
     chatCard = document.createElement("div");
     chatCard.id = "chatCard";
-    chatCard.className = "below-card chat-card home-chat-card hidden";
+    chatCard.className = "below-card chat-card worker-feature-chat-card hidden";
     chatCard.innerHTML = `
       <div class="section-head compact-head">
         <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
@@ -1929,7 +1905,7 @@ function applyWorkerPageView(targetId = "") {
     if (elements.workerPageLabel) {
       elements.workerPageLabel.textContent = "";
     }
-    refreshHomeWorkerChatPanel();
+    refreshWorkerChatPanel();
     return;
   }
 
@@ -2151,7 +2127,7 @@ function bindEvents() {
       updateWorkerPulsePanel();
       ensureWorkerChatDom();
       if (workerToken) {
-        refreshHomeWorkerChatPanel();
+        refreshWorkerChatPanel();
         void requestWakeLock();
         void fetchAndDisplayDynamicQr();
         void loadWorkerData();
@@ -2165,7 +2141,7 @@ function bindEvents() {
     updateWorkerPulsePanel();
     ensureWorkerChatDom();
     if (workerToken) {
-      refreshHomeWorkerChatPanel();
+      refreshWorkerChatPanel();
       void requestWakeLock();
       void fetchAndDisplayDynamicQr();
     }
@@ -5673,17 +5649,17 @@ function applyWorkerChatMenuState(planFeatures = {}) {
       btn.removeAttribute("title");
     }
   });
-  refreshHomeWorkerChatPanel({ skipLoad: !allowed });
+  refreshWorkerChatPanel({ skipLoad: !allowed });
 }
 
-function refreshHomeWorkerChatPanel(options = {}) {
+function refreshWorkerChatPanel(options = {}) {
   const chatCard = ensureWorkerChatDom();
   if (!chatCard) {
     return;
   }
-  const onHome = currentActiveTab === "home";
+  const onChatTab = currentActiveTab === "chat";
   const allowed = workerPlanAllowsFeature("worker_chat");
-  const show = Boolean(workerToken && onHome);
+  const show = Boolean(workerToken && onChatTab);
   chatCard.classList.toggle("hidden", !show);
   if (!show) {
     chatCard.style.setProperty("display", "none", "important");
@@ -5832,6 +5808,7 @@ function getFeatureTabTitle(tabName) {
     vacation: t("leaveRequestTitle"),
     timesheet: t("timesheetTitle"),
     documents: t("documentsTitle"),
+    chat: t("workerChatTitle"),
   };
   return String(titles[tabName] || "").trim();
 }
@@ -6839,9 +6816,18 @@ function switchToTab(tabName) {
       workerHubPanel.style.setProperty("display", "none", "important");
     }
   } else if (tabName === "chat") {
-    switchToTab("home");
-    scrollWorkerFeaturePanelIntoView("chatCard");
-    return;
+    ensureWorkerFeatureHubVisible();
+    showOnlyWorkerFeaturePanel("chatCard");
+    refreshWorkerChatPanel();
+    if (!workerPlanAllowsFeature("worker_chat")) {
+      if (elements.workerChatMessages) {
+        elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(planFeatureBlockedMessage("worker_chat"))}</p>`;
+      }
+    } else if (workerToken) {
+      void loadWorkerChat();
+    } else if (elements.workerChatMessages) {
+      elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic("Bitte zuerst mit Badge-ID und PIN anmelden.")}</p>`;
+    }
   } else if (tabName === "vacation") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("leaveRequestCard");
@@ -6883,6 +6869,7 @@ function switchToTab(tabName) {
     vacation: "urlaub",
     timesheet: "stunden",
     documents: "docs",
+    chat: "chat",
     actions: "aktionen"
   };
   const nextHash = hashByTab[tabName];
@@ -6952,17 +6939,13 @@ function initBottomTabNavigation() {
     "#stunden": "timesheet",
     "#docs": "documents",
     "#documents": "documents",
+    "#chat": "chat",
     "#einsatzplan": "deployment",
     "#deployment": "deployment",
   };
 
   const syncFromHash = () => {
     const hash = (window.location.hash || "").toLowerCase();
-    if (hash === "#chat") {
-      switchToTab("home");
-      scrollWorkerFeaturePanelIntoView("chatCard");
-      return;
-    }
     if (hash === "#einsatzplan" || hash === "#deployment") {
       switchToTab("home");
       void openWorkerDeploymentPlanScreen();
@@ -8016,8 +7999,7 @@ async function openWorkerChatScreen() {
     showWorkerNotice(planFeatureBlockedMessage("worker_chat"));
     return;
   }
-  switchToTab("home");
-  scrollWorkerFeaturePanelIntoView("chatCard");
+  switchToTab("chat");
   if (elements.workerChatInput) {
     elements.workerChatInput.focus();
   }

@@ -12,7 +12,6 @@ import '../chat/chat_screen.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
 import '../../widgets/digital_pass_card.dart';
-import '../../widgets/worker_home_chat_panel.dart';
 import '../notifications/notifications_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -255,12 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: Text(openCheckIn ? 'Heute eingecheckt' : 'Noch nicht eingecheckt'),
                 subtitle: worker?['site'] != null ? Text('Baustelle: ${worker!['site']}') : null,
               ),
-            ),
-            const SizedBox(height: 12),
-            WorkerHomeChatPanel(
-              session: widget.session,
-              chat: widget.chat,
-              onOpenFullScreen: _openChatFullScreen,
             ),
             const SizedBox(height: 12),
             FilledButton.icon(

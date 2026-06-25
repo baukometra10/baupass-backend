@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260626b" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260626c" />
   <title>WorkPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -25,11 +25,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260626b" />
+  <link rel="stylesheet" href="./worker.css?v=20260626c" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260626b" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260626b" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260626b" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260626c" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260626c" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260626c" />
   <script>
     (function markLocalDev() {
       const host = window.location.hostname;
@@ -977,6 +977,26 @@
           </div>
         </div>
 
+        <!-- Chat mit Firma (Feature-Tab neben Stunden/Docs) -->
+        <div id="chatCard" class="below-card chat-card worker-feature-chat-card hidden">
+          <div class="section-head compact-head worker-feature-chat-head">
+            <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
+            <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+          </div>
+          <div id="workerChatMessages" class="worker-chat-messages">
+            <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
+          </div>
+          <div class="worker-chat-compose">
+            <label class="worker-chat-file-label" for="workerChatFileInput">
+              <span data-i18n="workerChatAttach">Unterlage anfügen</span>
+              <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+            </label>
+            <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
+            <textarea id="workerChatInput" rows="2" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+            <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+          </div>
+        </div>
+
       </div>
 
       <input type="file" id="photoInput" class="hidden-control" accept="image/*" capture="environment" aria-label="Foto auswählen" title="Foto auswählen" />
@@ -1021,26 +1041,6 @@
       </div>
     </div>
 
-    <!-- Chat unter Ausweis (Start-Tab); ausserhalb workerDashboard damit view=card sichtbar bleibt -->
-    <div id="chatCard" class="below-card chat-card home-chat-card hidden">
-      <div class="section-head compact-head">
-        <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
-        <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
-      </div>
-      <div id="workerChatMessages" class="worker-chat-messages">
-        <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
-      </div>
-      <div class="worker-chat-compose">
-        <label class="worker-chat-file-label" for="workerChatFileInput">
-          <span data-i18n="workerChatAttach">Unterlage anfügen</span>
-          <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
-        </label>
-        <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
-        <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
-        <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
-      </div>
-    </div>
-
     <!-- Bottom Tab Navigation (hidden until card showcase completes) -->
     <nav id="workerBottomNav" class="worker-bottom-nav hidden" role="tablist" aria-label="App-Navigation">
       <button id="navHome" class="nav-tab active" role="tab" aria-selected="true" data-tab="home">
@@ -1071,6 +1071,13 @@
           <path d="M9.4 12h5.8M9.4 15.2h5.8" stroke="currentColor" stroke-width="1.8"/>
         </svg>
         <span class="nav-label" data-i18n="navDocuments">Docs</span>
+      </button>
+      <button id="navChat" class="nav-tab" role="tab" aria-selected="false" data-tab="chat">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 6.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9.4L5 20.5V8.5a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M8.2 11h7.6M8.2 14.2h4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="nav-label" data-i18n="navChat">Chat</span>
       </button>
     </nav>
 
@@ -1130,6 +1137,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260626b"></script>
+  <script src="./worker-app.js?v=20260626c"></script>
 </body>
 </html>
