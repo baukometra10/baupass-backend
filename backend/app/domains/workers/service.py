@@ -994,6 +994,24 @@ class WorkersService:
         )
         unlock_worker_if_documents_valid(db, worker, actor=user)
         try:
+            from backend.app.domains.chat.service import ChatService
+            from backend.app.platform.notifications.worker_mitteilung import document_type_label
+            from backend.server import BASE_DIR
+
+            ChatService(db).share_file_in_worker_thread(
+                company_id=str(worker["company_id"]),
+                worker_id=worker_id,
+                filename=safe_name,
+                content_type=mime,
+                blob=file_data,
+                body=f"{document_type_label(doc_type)}: {safe_name}",
+                sender_type="admin",
+                sender_user_id=str(user.get("id") or ""),
+                storage_root=BASE_DIR / "backend" / "uploads",
+            )
+        except Exception:
+            pass
+        try:
             from backend.app.platform.notifications.worker_mitteilung import (
                 notify_worker_new_document,
             )

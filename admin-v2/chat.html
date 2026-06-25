@@ -217,7 +217,7 @@
         const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ worker_id: currentWorkerId, body }),
+          body: JSON.stringify({ worker_id: currentWorkerId, body: body || (file ? `📎 ${file.name}` : "") }),
         });
         if (file && res?.message?.id) {
           await apiMultipart(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/attachments?company_id=${encodeURIComponent(companyId)}`, {

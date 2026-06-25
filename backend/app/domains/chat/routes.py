@@ -294,16 +294,46 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         upload = request.files.get("file")
         if not message_id or upload is None:
             return jsonify({"error": "attachment_payload_required"}), 400
-        attachment = ChatService(get_db()).save_attachment(
-            message_id=message_id,
-            company_id=company_id,
-            worker_id=worker_id,
-            filename=str(upload.filename or "upload.bin"),
-            content_type=str(upload.mimetype or "application/octet-stream"),
-            blob=upload.read(),
-            storage_root=Path(BASE_DIR) / "backend" / "uploads",
-        )
-        return jsonify({"ok": True, "attachment": attachment, "threadId": thread_id})
+        db = get_db()
+        thread = db.execute(
+            "SELECT id, worker_id FROM chat_threads WHERE id = ? AND company_id = ?",
+            (thread_id, company_id),
+        ).fetchone()
+        if not thread or str(thread["worker_id"]) != worker_id:
+            return jsonify({"error": "thread_not_found", "message": "Chat nicht gefunden."}), 404
+        message = db.execute(
+            "SELECT id FROM chat_messages WHERE id = ? AND thread_id = ? AND company_id = ? AND worker_id = ?",
+            (message_id, thread_id, company_id, worker_id),
+        ).fetchone()
+        if not message:
+            return jsonify({"error": "message_not_found", "message": "Nachricht nicht gefunden."}), 404
+        blob = upload.read()
+        filename = str(upload.filename or "upload.bin")
+        content_type = str(upload.mimetype or "application/octet-stream")
+        service = ChatService(db)
+        try:
+            attachment = service.save_attachment(
+                message_id=message_id,
+                company_id=company_id,
+                worker_id=worker_id,
+                filename=filename,
+                content_type=content_type,
+                blob=blob,
+                storage_root=Path(BASE_DIR) / "backend" / "uploads",
+            )
+            doc_type = str(request.form.get("doc_type") or "sonstiges").strip() or "sonstiges"
+            document_id = service.register_worker_chat_submission(
+                worker_id=worker_id,
+                company_id=company_id,
+                filename=filename,
+                content_type=content_type,
+                blob=blob,
+                doc_type_raw=doc_type,
+            )
+            return jsonify({"ok": True, "attachment": attachment, "threadId": thread_id, "documentId": document_id})
+        except Exception:
+            logging.getLogger(__name__).exception("worker_chat_attachment failed for thread %s", thread_id)
+            return jsonify({"error": "attachment_upload_failed", "message": "Anhang konnte nicht hochgeladen werden."}), 500
 
     register_blueprint_once(flask_app, chat_core_bp, url_prefix="/api")
     print("[baupass] domain/chat: worker-company chat routes registered", flush=True)

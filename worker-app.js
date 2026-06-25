@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260625d";
+const WORKER_BUILD_TAG = "20260625e";
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
 const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -1306,6 +1306,8 @@ const elements = {
   workerChatMessages: document.querySelector("#workerChatMessages"),
   workerChatInput: document.querySelector("#workerChatInput"),
   workerChatSendBtn: document.querySelector("#workerChatSendBtn"),
+  workerChatFileInput: document.querySelector("#workerChatFileInput"),
+  workerChatFileHint: document.querySelector("#workerChatFileHint"),
   deploymentPlanCard: document.querySelector("#deploymentPlanCard"),
   deploymentPlanList: document.querySelector("#deploymentPlanList"),
   deploymentPlanMonthSelect: document.querySelector("#deploymentPlanMonthSelect"),
@@ -1801,6 +1803,11 @@ function ensureWorkerChatDom() {
         <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
       </div>
       <div class="worker-chat-compose">
+        <label class="worker-chat-file-label" for="workerChatFileInput">
+          <span data-i18n="workerChatAttach">Unterlage anfügen</span>
+          <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+        </label>
+        <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
         <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
         <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
       </div>
@@ -1817,6 +1824,8 @@ function ensureWorkerChatDom() {
   elements.workerChatMessages = document.getElementById("workerChatMessages");
   elements.workerChatInput = document.getElementById("workerChatInput");
   elements.workerChatSendBtn = document.getElementById("workerChatSendBtn");
+  elements.workerChatFileInput = document.getElementById("workerChatFileInput");
+  elements.workerChatFileHint = document.getElementById("workerChatFileHint");
   placeWorkerChatCard(chatCard);
   return chatCard;
 }
@@ -1824,6 +1833,7 @@ function ensureWorkerChatDom() {
 function bindWorkerChatComposeEvents() {
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
   const input = elements.workerChatInput || document.getElementById("workerChatInput");
+  const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
   if (sendBtn && !sendBtn.dataset.chatBound) {
     sendBtn.dataset.chatBound = "1";
     sendBtn.addEventListener("click", () => {
@@ -1839,6 +1849,43 @@ function bindWorkerChatComposeEvents() {
       }
     });
   }
+  if (fileInput && !fileInput.dataset.chatBound) {
+    fileInput.dataset.chatBound = "1";
+    fileInput.addEventListener("change", () => {
+      updateWorkerChatFileHint();
+    });
+  }
+  const messagesHost = elements.workerChatMessages || document.getElementById("workerChatMessages");
+  if (messagesHost && !messagesHost.dataset.chatDownloadBound) {
+    messagesHost.dataset.chatDownloadBound = "1";
+    messagesHost.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target.closest("[data-attachment-id]") : null;
+      if (!target) {
+        return;
+      }
+      const attachmentId = target.getAttribute("data-attachment-id") || "";
+      const filename = target.getAttribute("data-filename") || "download";
+      if (attachmentId) {
+        void downloadWorkerChatAttachment(attachmentId, filename);
+      }
+    });
+  }
+}
+
+function updateWorkerChatFileHint() {
+  const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+  const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
+  if (!hint || !fileInput) {
+    return;
+  }
+  const file = fileInput.files?.[0];
+  if (!file) {
+    hint.textContent = "";
+    hint.classList.add("hidden");
+    return;
+  }
+  hint.textContent = tf("workerChatFileSelected", { name: file.name });
+  hint.classList.remove("hidden");
 }
 
 function applyWorkerPageView(targetId = "") {
@@ -5720,6 +5767,9 @@ function formatWorkerApiError(error) {
   if (code === "chat_load_failed" || code === "chat_thread_failed") {
     return t("workerChatUnavailable");
   }
+  if (code === "attachment_upload_failed" || code === "attachment_payload_required") {
+    return t("workerChatDocumentSubmitFailed");
+  }
   return String(error?.message || "Daten konnten nicht geladen werden.");
 }
 
@@ -7694,6 +7744,19 @@ async function ensureWorkerChatThread(forceRefresh = false) {
   return workerChatThreadId;
 }
 
+function renderWorkerChatAttachmentHtml(attachments) {
+  if (!Array.isArray(attachments) || !attachments.length) {
+    return "";
+  }
+  return `<div class="worker-chat-attachments">${attachments
+    .map((attachment) => {
+      const id = escapeHtmlBasic(String(attachment.id || ""));
+      const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
+      return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}">📎 ${name}</button>`;
+    })
+    .join("")}</div>`;
+}
+
 function renderWorkerChatMessages(messages) {
   if (!elements.workerChatMessages) {
     return;
@@ -7707,6 +7770,8 @@ function renderWorkerChatMessages(messages) {
       const senderType = String(msg.senderType || "").toLowerCase();
       const label = senderType === "admin" ? t("workerChatFromCompany") : t("workerChatFromYou");
       const body = escapeHtmlBasic(String(msg.body || ""));
+      const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
+      const bodyHtml = body ? `<div style="margin-top:0.35rem;">${body}</div>` : "";
       const time = formatChatTimestamp(msg.createdAt);
       const readLabel = workerChatReadLabel(msg, senderType);
       const readHtml = readLabel
@@ -7715,7 +7780,8 @@ function renderWorkerChatMessages(messages) {
       return `
         <div class="worker-chat-bubble ${escapeHtmlBasic(senderType)}">
           <strong>${escapeHtmlBasic(label)}</strong>
-          <div style="margin-top:0.35rem;">${body}</div>
+          ${bodyHtml}
+          ${attachHtml}
           <div class="worker-chat-meta">
             ${time ? `<span>${escapeHtmlBasic(time)}</span>` : ""}
             ${readHtml}
@@ -7725,6 +7791,57 @@ function renderWorkerChatMessages(messages) {
     })
     .join("");
   elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+}
+
+async function downloadWorkerChatAttachment(attachmentId, filename) {
+  if (!workerToken || !attachmentId) {
+    return;
+  }
+  try {
+    const response = await fetch(`${API_BASE}/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
+      headers: { Authorization: `Bearer ${workerToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename || "download";
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    showWorkerNotice(formatWorkerApiError(error));
+  }
+}
+
+async function uploadWorkerChatAttachment(threadId, messageId, file) {
+  const form = new FormData();
+  form.append("message_id", messageId);
+  form.append("file", file);
+  form.append("doc_type", "sonstiges");
+  const response = await fetch(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/attachments`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${workerToken}` },
+    body: form,
+  });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) {
+    const error = new Error(payload?.message || payload?.error || `HTTP ${response.status}`);
+    error.code = payload?.error || "";
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
 }
 
 async function loadWorkerChat(options = {}) {
@@ -7781,8 +7898,13 @@ async function sendWorkerChatMessage() {
   if (!workerToken || !elements.workerChatInput) {
     return;
   }
-  const body = String(elements.workerChatInput.value || "").trim();
-  if (!body) {
+  const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
+  const file = fileInput?.files?.[0] || null;
+  let body = String(elements.workerChatInput.value || "").trim();
+  if (!body && file) {
+    body = t("workerChatAttachmentOnly");
+  }
+  if (!body && !file) {
     return;
   }
   const postMessage = async (threadId) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
@@ -7800,8 +7922,10 @@ async function sendWorkerChatMessage() {
       return;
     }
     elements.workerChatSendBtn?.setAttribute("disabled", "true");
+    let messageId = "";
     try {
-      await postMessage(threadId);
+      const sent = await postMessage(threadId);
+      messageId = String(sent?.message?.id || "");
     } catch (error) {
       if (error?.code === "thread_not_found" || error?.code === "chat_send_failed") {
         workerChatThreadId = "";
@@ -7809,14 +7933,22 @@ async function sendWorkerChatMessage() {
         if (!threadId) {
           throw error;
         }
-        await postMessage(threadId);
+        const sent = await postMessage(threadId);
+        messageId = String(sent?.message?.id || "");
       } else {
         throw error;
       }
     }
+    if (file && messageId) {
+      await uploadWorkerChatAttachment(threadId, messageId, file);
+    }
     elements.workerChatInput.value = "";
+    if (fileInput) {
+      fileInput.value = "";
+      updateWorkerChatFileHint();
+    }
     await loadWorkerChat();
-    showWorkerNotice(t("workerChatSent"));
+    showWorkerNotice(file ? t("workerChatDocumentSubmitted") : t("workerChatSent"));
   } catch (error) {
     const message = formatWorkerApiError(error);
     showWorkerNotice(message);

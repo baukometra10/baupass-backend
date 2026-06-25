@@ -169,14 +169,14 @@ def notify_worker_new_document(
         title = f"Neues Dokument: {label}"
         action_url = "documents"
         push_tag = "worker-document"
-    message = f"{name} ist in der Mitarbeiter-App unter Dokumente verfügbar."
+    message = f"{name} ist im Chat unter «Chat mit Firma» zum Download bereit."
     return notify_worker_mitteilung(
         db,
         worker_id,
         notif_type=notif_type,
         title=title,
         message=message,
-        action_url=action_url,
+        action_url="chat",
         push_tag=push_tag,
     )
 

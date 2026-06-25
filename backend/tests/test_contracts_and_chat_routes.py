@@ -221,6 +221,26 @@ def test_worker_chat_threads_with_worker_session(client_and_db):
     rows = messages.get_json().get("messages") or []
     assert any(row.get("body") == "Hallo Firma" for row in rows)
 
+    attach = client.post(
+        f"/api/worker-app/chat/threads/{thread_id}/attachments",
+        data={
+            "message_id": send.get_json()["message"]["id"],
+            "file": (io.BytesIO(b"%PDF-1.4 worker doc"), "unterlage.pdf"),
+            "doc_type": "sonstiges",
+        },
+        headers=worker_headers,
+        content_type="multipart/form-data",
+    )
+    assert attach.status_code == 200, attach.get_data(as_text=True)
+    assert attach.get_json().get("attachment", {}).get("id")
+
+    with closing(sqlite3.connect(db_path)) as db:
+        doc_count = db.execute(
+            "SELECT COUNT(*) FROM worker_documents WHERE worker_id = ? AND notes = ?",
+            (worker_id, "Eingereicht über Chat"),
+        ).fetchone()[0]
+    assert int(doc_count) >= 1
+
 
 def test_worker_chat_send_persists_message(client_and_db):
     client, db_path = client_and_db

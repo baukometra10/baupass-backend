@@ -321,6 +321,7 @@ class ChatService:
         sender_user_id: str | None,
         sender_worker_id: str | None,
         body: str,
+        silent_side_effects: bool = False,
     ) -> dict[str, Any]:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
@@ -357,30 +358,31 @@ class ChatService:
             pass
 
         try:
-            if sender_type == "worker":
-                self._notify_company_side(company_id, worker_id, body.strip())
-            else:
-                notify_worker_mitteilung(
-                    self.db,
-                    worker_id,
-                    notif_type="worker_chat",
-                    title="Neue Nachricht",
-                    message=body.strip()[:280],
-                    action_url="chat",
-                    push_tag="worker-chat",
-                    send_email=False,
-                )
-                try:
-                    deliver_worker_push(
+            if not silent_side_effects:
+                if sender_type == "worker":
+                    self._notify_company_side(company_id, worker_id, body.strip())
+                else:
+                    notify_worker_mitteilung(
                         self.db,
                         worker_id,
-                        "Neue Nachricht",
-                        body.strip()[:180],
-                        tag="worker-chat",
-                        company_id=company_id,
+                        notif_type="worker_chat",
+                        title="Neue Nachricht",
+                        message=body.strip()[:280],
+                        action_url="chat",
+                        push_tag="worker-chat",
+                        send_email=False,
                     )
-                except Exception:
-                    pass
+                    try:
+                        deliver_worker_push(
+                            self.db,
+                            worker_id,
+                            "Neue Nachricht",
+                            body.strip()[:180],
+                            tag="worker-chat",
+                            company_id=company_id,
+                        )
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -463,3 +465,131 @@ class ChatService:
             self.db.commit()
         except Exception:
             pass
+
+    def share_file_in_worker_thread(
+        self,
+        *,
+        company_id: str,
+        worker_id: str,
+        filename: str,
+        content_type: str,
+        blob: bytes,
+        body: str,
+        sender_type: str,
+        sender_user_id: str | None = None,
+        sender_worker_id: str | None = None,
+        storage_root: Path,
+        subject: str = "general",
+    ) -> dict[str, Any]:
+        """Attach a file to the worker chat thread (admin or worker sender)."""
+        clean_body = str(body or "").strip() or f"📎 {Path(filename or 'Unterlage').name}"
+        thread_id = self.get_or_create_worker_thread(
+            company_id=company_id,
+            worker_id=worker_id,
+            subject=subject,
+            created_by_user_id=sender_user_id,
+        )
+        message = self._create_message_record(
+            thread_id=thread_id,
+            company_id=company_id,
+            worker_id=worker_id,
+            sender_type=sender_type,
+            sender_user_id=sender_user_id,
+            sender_worker_id=sender_worker_id,
+            body=clean_body,
+            silent_side_effects=True,
+        )
+        attachment = self.save_attachment(
+            message_id=str(message["id"]),
+            company_id=company_id,
+            worker_id=worker_id,
+            filename=filename,
+            content_type=content_type,
+            blob=blob,
+            storage_root=storage_root,
+        )
+        message["attachments"] = [attachment]
+        return {"threadId": thread_id, "message": message}
+
+    def register_worker_chat_submission(
+        self,
+        *,
+        worker_id: str,
+        company_id: str,
+        filename: str,
+        content_type: str,
+        blob: bytes,
+        doc_type_raw: str = "sonstiges",
+    ) -> str | None:
+        """Store a worker chat attachment also in worker_documents for HR review."""
+        import secrets
+
+        from backend.app.platform.worker_documents import normalize_doc_type
+        from backend.server import (
+            ALLOWED_UPLOAD_MIMETYPES,
+            DOCS_UPLOAD_DIR,
+            MAX_IMAP_ATTACHMENT_BYTES,
+            _sanitize_attachment_filename,
+            _stored_file_path,
+            now_iso,
+            unlock_worker_if_documents_valid,
+            utc_now,
+        )
+
+        doc_type = normalize_doc_type(str(doc_type_raw or "sonstiges").strip() or "sonstiges")
+        mime = str(content_type or "application/octet-stream").lower().split(";")[0].strip()
+        if mime not in ALLOWED_UPLOAD_MIMETYPES or not blob:
+            return None
+        if len(blob) > MAX_IMAP_ATTACHMENT_BYTES:
+            return None
+
+        worker = self.db.execute(
+            "SELECT id, company_id, badge_id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
+            (worker_id, company_id),
+        ).fetchone()
+        if not worker:
+            return None
+
+        worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
+        base_upload_root = DOCS_UPLOAD_DIR.resolve()
+        if worker_doc_dir != base_upload_root and base_upload_root not in worker_doc_dir.parents:
+            return None
+        worker_doc_dir.mkdir(parents=True, exist_ok=True)
+
+        safe_name = _sanitize_attachment_filename(filename or "upload.bin")
+        ts = utc_now().strftime("%Y%m%d_%H%M%S")
+        file_path = (worker_doc_dir / f"{doc_type}_{ts}_{safe_name}").resolve()
+        if worker_doc_dir not in file_path.parents:
+            return None
+        file_path.write_bytes(blob)
+        stored_path = _stored_file_path(file_path)
+        doc_id = f"doc-{secrets.token_hex(8)}"
+        self.db.execute(
+            """
+            INSERT INTO worker_documents
+               (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                doc_id,
+                worker_id,
+                company_id,
+                doc_type,
+                safe_name,
+                stored_path,
+                len(blob),
+                "",
+                None,
+                "",
+                now_iso(),
+                "Eingereicht über Chat",
+                None,
+            ),
+        )
+        try:
+            unlock_worker_if_documents_valid(self.db, dict(worker), actor={"id": worker_id, "role": "worker"})
+        except Exception:
+            pass
+        self.db.commit()
+        return doc_id

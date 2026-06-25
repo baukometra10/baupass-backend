@@ -3612,6 +3612,59 @@ body.worker-card-install.worker-loaded:not(.worker-feature-tab-active) #chatCard
 
 .worker-chat-compose {
   display: grid;
+  gap: 0.65rem;
+}
+
+.worker-chat-file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  padding: 0.55rem 0.8rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(94, 234, 212, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.worker-chat-file-label input[type="file"] {
+  max-width: 180px;
+  font-size: 0.82rem;
+}
+
+.worker-chat-file-hint {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.worker-chat-attachments {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.worker-chat-attachment-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  background: rgba(22, 78, 99, 0.18);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  word-break: break-word;
+}
+
+.worker-chat-attachment-btn:active {
+  transform: scale(0.98);
+}
+  display: grid;
   gap: 0.6rem;
 }
 
