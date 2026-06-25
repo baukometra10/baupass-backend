@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260624g";
+const WORKER_BUILD_TAG = "20260624h";
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
 const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -27,7 +27,6 @@ const WORKER_PLAN_TAB_FEATURES = {
   vacation: "leave_management",
   timesheet: "worker_hours_report",
   documents: "document_upload",
-  chat: "worker_chat",
 };
 
 function normalizeApiBase(value) {
@@ -5458,6 +5457,30 @@ function applyWorkerChatMenuState(planFeatures = {}) {
       btn.removeAttribute("title");
     }
   });
+  refreshHomeWorkerChatPanel({ skipLoad: !allowed });
+}
+
+function refreshHomeWorkerChatPanel(options = {}) {
+  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  if (!chatCard) {
+    return;
+  }
+  const onHome = document.querySelector('.nav-tab[data-tab="home"]')?.classList.contains("active");
+  const allowed = workerPlanAllowsFeature("worker_chat");
+  const show = Boolean(workerToken && allowed && onHome);
+  chatCard.classList.toggle("hidden", !show);
+  if (show) {
+    chatCard.style.removeProperty("display");
+    if (!options.skipLoad) {
+      startWorkerChatPolling();
+      void loadWorkerChat();
+    }
+  } else {
+    chatCard.style.setProperty("display", "none", "important");
+    if (!onHome) {
+      stopWorkerChatPolling();
+    }
+  }
 }
 
 function startWorkerNotificationPolling() {
@@ -6557,7 +6580,7 @@ function switchToTab(tabName) {
   document.body.classList.remove("worker-tile-overview");
   activeWorkerPageTarget = "";
 
-  if (tabName !== "chat") {
+  if (tabName !== "home") {
     stopWorkerChatPolling();
   }
 
@@ -6567,6 +6590,11 @@ function switchToTab(tabName) {
       workerHubPanel.classList.add("hidden");
       workerHubPanel.style.setProperty("display", "none", "important");
     }
+    refreshHomeWorkerChatPanel();
+  } else if (tabName === "chat") {
+    switchToTab("home");
+    scrollWorkerFeaturePanelIntoView("chatCard");
+    return;
   } else if (tabName === "vacation") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("leaveRequestCard");
@@ -6600,23 +6628,6 @@ function switchToTab(tabName) {
       renderWorkerListMessage(elements.documentsList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
     }
     scrollWorkerFeaturePanelIntoView("documentsCard");
-  } else if (tabName === "chat") {
-    ensureWorkerFeatureHubVisible();
-    showOnlyWorkerFeaturePanel("chatCard");
-    applyWorkerPageView("chatCard");
-    if (!workerPlanAllowsFeature("worker_chat")) {
-      if (elements.workerChatMessages) {
-        elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(planFeatureBlockedMessage("worker_chat"))}</p>`;
-      }
-      stopWorkerChatPolling();
-    } else if (workerToken) {
-      startWorkerChatPolling();
-      void loadWorkerChat();
-    } else if (elements.workerChatMessages) {
-      elements.workerChatMessages.innerHTML = `<p class="muted-info">Bitte zuerst mit Badge-ID und PIN anmelden.</p>`;
-      stopWorkerChatPolling();
-    }
-    scrollWorkerFeaturePanelIntoView("chatCard");
   }
 
   // Update hash for browser history
@@ -6625,7 +6636,6 @@ function switchToTab(tabName) {
     vacation: "urlaub",
     timesheet: "stunden",
     documents: "docs",
-    chat: "chat",
     actions: "aktionen"
   };
   const nextHash = hashByTab[tabName];
@@ -6693,7 +6703,6 @@ function initBottomTabNavigation() {
     "#stunden": "timesheet",
     "#docs": "documents",
     "#documents": "documents",
-    "#chat": "chat",
     "#einsatzplan": "deployment",
     "#deployment": "deployment",
   };
@@ -6701,7 +6710,8 @@ function initBottomTabNavigation() {
   const syncFromHash = () => {
     const hash = (window.location.hash || "").toLowerCase();
     if (hash === "#chat") {
-      switchToTab("chat");
+      switchToTab("home");
+      scrollWorkerFeaturePanelIntoView("chatCard");
       return;
     }
     if (hash === "#einsatzplan" || hash === "#deployment") {
@@ -7596,7 +7606,8 @@ function startWorkerChatPolling() {
   stopWorkerChatPolling();
   workerChatPollTimer = setInterval(() => {
     const chatCard = document.getElementById("chatCard");
-    if (!workerToken || !chatCard || chatCard.classList.contains("hidden")) {
+    const onHome = document.querySelector('.nav-tab[data-tab="home"]')?.classList.contains("active");
+    if (!workerToken || !chatCard || chatCard.classList.contains("hidden") || !onHome) {
       return;
     }
     void loadWorkerChat({ quiet: true });
@@ -7652,7 +7663,11 @@ async function openWorkerChatScreen() {
     showWorkerNotice(planFeatureBlockedMessage("worker_chat"));
     return;
   }
-  switchToTab("chat");
+  switchToTab("home");
+  scrollWorkerFeaturePanelIntoView("chatCard");
+  if (elements.workerChatInput) {
+    elements.workerChatInput.focus();
+  }
 }
 
 async function loadMyDocuments() {

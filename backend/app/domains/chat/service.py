@@ -19,6 +19,24 @@ class ChatService:
         self.db = db
         self._ensure_schema()
 
+    def _table_columns(self, table: str) -> set[str]:
+        try:
+            return {
+                str(row[1])
+                for row in self.db.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+        except Exception:
+            try:
+                return {
+                    str(row[0])
+                    for row in self.db.execute(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
+                        (table,),
+                    ).fetchall()
+                }
+            except Exception:
+                return set()
+
     def _ensure_schema(self) -> None:
         try:
             self.db.execute(
@@ -69,30 +87,32 @@ class ChatService:
                 )
                 """
             )
-            thread_cols = {
-                str(row[1])
-                for row in self.db.execute("PRAGMA table_info(chat_threads)").fetchall()
-            }
+            thread_cols = self._table_columns("chat_threads")
             for column, ddl in (
                 ("last_worker_read_at", "ALTER TABLE chat_threads ADD COLUMN last_worker_read_at TEXT"),
                 ("last_admin_read_at", "ALTER TABLE chat_threads ADD COLUMN last_admin_read_at TEXT"),
                 ("last_message_at", "ALTER TABLE chat_threads ADD COLUMN last_message_at TEXT"),
                 ("created_by_user_id", "ALTER TABLE chat_threads ADD COLUMN created_by_user_id TEXT"),
+                ("subject", "ALTER TABLE chat_threads ADD COLUMN subject TEXT NOT NULL DEFAULT 'general'"),
+                ("status", "ALTER TABLE chat_threads ADD COLUMN status TEXT NOT NULL DEFAULT 'open'"),
             ):
                 if column not in thread_cols:
                     try:
                         self.db.execute(ddl)
                     except Exception:
                         pass
-            message_cols = {
-                str(row[1])
-                for row in self.db.execute("PRAGMA table_info(chat_messages)").fetchall()
-            }
-            if "read_at" not in message_cols:
-                try:
-                    self.db.execute("ALTER TABLE chat_messages ADD COLUMN read_at TEXT")
-                except Exception:
-                    pass
+            message_cols = self._table_columns("chat_messages")
+            for column, ddl in (
+                ("sender_user_id", "ALTER TABLE chat_messages ADD COLUMN sender_user_id TEXT"),
+                ("sender_worker_id", "ALTER TABLE chat_messages ADD COLUMN sender_worker_id TEXT"),
+                ("read_at", "ALTER TABLE chat_messages ADD COLUMN read_at TEXT"),
+                ("body", "ALTER TABLE chat_messages ADD COLUMN body TEXT NOT NULL DEFAULT ''"),
+            ):
+                if column not in message_cols:
+                    try:
+                        self.db.execute(ddl)
+                    except Exception:
+                        pass
             self.db.commit()
         except Exception:
             pass
@@ -253,6 +273,41 @@ class ChatService:
     ) -> dict[str, Any]:
         if not body.strip():
             raise ValueError("message_required")
+        try:
+            return self._create_message_record(
+                thread_id=thread_id,
+                company_id=company_id,
+                worker_id=worker_id,
+                sender_type=sender_type,
+                sender_user_id=sender_user_id,
+                sender_worker_id=sender_worker_id,
+                body=body,
+            )
+        except ValueError:
+            raise
+        except Exception:
+            self._ensure_schema()
+            return self._create_message_record(
+                thread_id=thread_id,
+                company_id=company_id,
+                worker_id=worker_id,
+                sender_type=sender_type,
+                sender_user_id=sender_user_id,
+                sender_worker_id=sender_worker_id,
+                body=body,
+            )
+
+    def _create_message_record(
+        self,
+        *,
+        thread_id: str,
+        company_id: str,
+        worker_id: str,
+        sender_type: str,
+        sender_user_id: str | None,
+        sender_worker_id: str | None,
+        body: str,
+    ) -> dict[str, Any]:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         self.db.execute(
@@ -382,12 +437,15 @@ class ChatService:
         self.db.commit()
 
     def _notify_company_side(self, company_id: str, worker_id: str, body: str) -> None:
-        self.db.execute(
-            """
-            INSERT INTO notifications
-            (id, worker_id, company_id, type, title, message, action_url, created_at)
-            VALUES (?, ?, ?, 'worker_chat_admin', 'Neue Mitarbeiter-Nachricht', ?, '/admin-v2/index.html', ?)
-            """,
-            (f"notif-{uuid.uuid4().hex[:16]}", worker_id, company_id, body[:280], utc_now_iso()),
-        )
-        self.db.commit()
+        try:
+            self.db.execute(
+                """
+                INSERT INTO notifications
+                (id, worker_id, company_id, type, title, message, action_url, created_at)
+                VALUES (?, ?, ?, 'worker_chat_admin', 'Neue Mitarbeiter-Nachricht', ?, '/admin-v2/index.html', ?)
+                """,
+                (f"notif-{uuid.uuid4().hex[:16]}", worker_id, company_id, body[:280], utc_now_iso()),
+            )
+            self.db.commit()
+        except Exception:
+            pass

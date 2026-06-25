@@ -310,6 +310,21 @@
         </div>
       </div>
 
+      <!-- Chat direkt unter dem Ausweis (Start-Tab) -->
+      <div id="chatCard" class="below-card chat-card home-chat-card hidden">
+        <div class="section-head compact-head">
+          <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
+          <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+        </div>
+        <div id="workerChatMessages" class="worker-chat-messages">
+          <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
+        </div>
+        <div class="worker-chat-compose">
+          <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+          <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+        </div>
+      </div>
+
       <button type="button" id="homeDeploymentTeaser" class="home-deployment-teaser hidden" data-worker-page-target="deploymentPlanCard">
         <span class="home-deployment-kicker" data-i18n="deploymentPlanHomeKicker">Heutiger Einsatz</span>
         <strong id="homeDeploymentTeaserTitle" class="home-deployment-title">—</strong>
@@ -997,21 +1012,6 @@
           </div>
         </div>
 
-        <!-- Chat -->
-        <div id="chatCard" class="below-card chat-card hidden">
-          <div class="section-head compact-head">
-            <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
-            <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
-          </div>
-          <div id="workerChatMessages" class="worker-chat-messages">
-            <p class="muted-info" data-i18n="workerChatLoading">Lade Nachrichten…</p>
-          </div>
-          <div class="worker-chat-compose">
-            <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
-            <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
-          </div>
-        </div>
-
       </div>
 
       <input type="file" id="photoInput" class="hidden-control" accept="image/*" capture="environment" aria-label="Foto auswählen" title="Foto auswählen" />
@@ -1066,13 +1066,6 @@
           <path d="M9.4 12h5.8M9.4 15.2h5.8" stroke="currentColor" stroke-width="1.8"/>
         </svg>
         <span class="nav-label" data-i18n="navDocuments">Docs</span>
-      </button>
-      <button id="navChat" class="nav-tab" role="tab" aria-selected="false" data-tab="chat">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 6.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4.5 3.5V8.5a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-          <path d="M8.5 11h7M8.5 14h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-        <span class="nav-label" data-i18n="navChat">Chat</span>
       </button>
     </nav>
 
@@ -1132,6 +1125,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260624g"></script>
+  <script src="./worker-app.js?v=20260624h"></script>
 </body>
 </html>
