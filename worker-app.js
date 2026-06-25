@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260625b";
+const WORKER_BUILD_TAG = "20260625c";
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 60;
 const WORKER_GEO_MAX_ACCURACY_METERS = 120;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
@@ -1720,6 +1720,7 @@ function getWorkerPageTitle(targetId) {
 }
 
 function getWorkerPageSections() {
+  // chatCard lives on the home tab under the badge — not a standalone page section.
   return [
     document.querySelector("#routeCard"),
     document.querySelector("#sessionInfoCard"),
@@ -1731,9 +1732,72 @@ function getWorkerPageSections() {
     elements.incidentCard,
     elements.timesheetCard,
     elements.documentsCard,
-    elements.chatCard,
     elements.deploymentPlanCard,
   ].filter(Boolean);
+}
+
+/** Inject chat UI when Safari/PWA still serves cached emp-app.html without #chatCard. */
+function ensureWorkerChatDom() {
+  let chatCard = document.getElementById("chatCard");
+  if (chatCard) {
+    elements.chatCard = chatCard;
+    elements.workerChatMessages = document.getElementById("workerChatMessages");
+    elements.workerChatInput = document.getElementById("workerChatInput");
+    elements.workerChatSendBtn = document.getElementById("workerChatSendBtn");
+    return chatCard;
+  }
+  const anchor = document.getElementById("homeCompactInfo") || document.getElementById("workerDashboard");
+  if (!anchor) {
+    return null;
+  }
+  chatCard = document.createElement("div");
+  chatCard.id = "chatCard";
+  chatCard.className = "below-card chat-card home-chat-card hidden";
+  chatCard.innerHTML = `
+    <div class="section-head compact-head">
+      <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
+      <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+    </div>
+    <div id="workerChatMessages" class="worker-chat-messages">
+      <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
+    </div>
+    <div class="worker-chat-compose">
+      <textarea id="workerChatInput" rows="3" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+      <button type="button" id="workerChatSendBtn" class="primary small-btn" data-i18n="workerChatSend">Senden</button>
+    </div>
+  `;
+  if (anchor.id === "homeCompactInfo") {
+    anchor.insertAdjacentElement("afterend", chatCard);
+  } else {
+    anchor.appendChild(chatCard);
+  }
+  elements.chatCard = chatCard;
+  elements.workerChatMessages = chatCard.querySelector("#workerChatMessages");
+  elements.workerChatInput = chatCard.querySelector("#workerChatInput");
+  elements.workerChatSendBtn = chatCard.querySelector("#workerChatSendBtn");
+  applyTranslations();
+  bindWorkerChatComposeEvents();
+  return chatCard;
+}
+
+function bindWorkerChatComposeEvents() {
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  const input = elements.workerChatInput || document.getElementById("workerChatInput");
+  if (sendBtn && !sendBtn.dataset.chatBound) {
+    sendBtn.dataset.chatBound = "1";
+    sendBtn.addEventListener("click", () => {
+      void sendWorkerChatMessage();
+    });
+  }
+  if (input && !input.dataset.chatBound) {
+    input.dataset.chatBound = "1";
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void sendWorkerChatMessage();
+      }
+    });
+  }
 }
 
 function applyWorkerPageView(targetId = "") {
@@ -1763,6 +1827,7 @@ function applyWorkerPageView(targetId = "") {
     if (elements.workerPageLabel) {
       elements.workerPageLabel.textContent = "";
     }
+    refreshHomeWorkerChatPanel();
     return;
   }
 
@@ -1791,6 +1856,7 @@ init().finally(dismissSplash);
 
 async function init() {
   workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
+  ensureWorkerChatDom();
   applyTranslations();
   updateWorkerBuildBadge();
   bindEvents();
@@ -1981,7 +2047,9 @@ function bindEvents() {
     if (document.visibilityState === "visible") {
       markUserInteraction();
       updateWorkerPulsePanel();
+      ensureWorkerChatDom();
       if (workerToken) {
+        refreshHomeWorkerChatPanel();
         void requestWakeLock();
         void fetchAndDisplayDynamicQr();
         void loadWorkerData();
@@ -1993,7 +2061,9 @@ function bindEvents() {
   window.addEventListener("pageshow", () => {
     updateWalletImmersiveMode();
     updateWorkerPulsePanel();
+    ensureWorkerChatDom();
     if (workerToken) {
+      refreshHomeWorkerChatPanel();
       void requestWakeLock();
       void fetchAndDisplayDynamicQr();
     }
@@ -2268,27 +2338,12 @@ function bindEvents() {
   }
   bindDeploymentPlanInteractions();
 
-  if (elements.workerChatSendBtn) {
-    elements.workerChatSendBtn.addEventListener("click", () => {
-      void sendWorkerChatMessage();
-    });
-  }
-  if (elements.workerChatInput) {
-    elements.workerChatInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        void sendWorkerChatMessage();
-      }
-    });
-  }
+  bindWorkerChatComposeEvents();
 
   if (elements.workerPageBackButton) {
     elements.workerPageBackButton.addEventListener("click", () => {
       applyWorkerPageView("");
-      const route = document.getElementById("routeCard");
-      if (route) {
-        route.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      switchToTab("home");
     });
   }
 
@@ -5513,7 +5568,7 @@ function applyWorkerChatMenuState(planFeatures = {}) {
 }
 
 function refreshHomeWorkerChatPanel(options = {}) {
-  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  const chatCard = ensureWorkerChatDom();
   if (!chatCard) {
     return;
   }
@@ -8276,6 +8331,7 @@ function stopVisitorCountdownTimer() {
 // Initialize bottom tab navigation on page load and also when script runs
 // after DOMContentLoaded (webview/service-worker cache edge cases).
 function initWorkerAppShell() {
+  ensureWorkerChatDom();
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
 }

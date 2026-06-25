@@ -3568,6 +3568,8 @@ body {
 
 body.worker-loaded:not(.worker-feature-tab-active) #workerDashboard:not(.hidden) #chatCard.home-chat-card {
   display: block !important;
+  visibility: visible !important;
+  min-height: 120px;
 }
 
 .worker-chat-meta {
