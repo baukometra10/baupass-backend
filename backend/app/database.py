@@ -308,11 +308,17 @@ def postgres_replica_preflight(config: Optional[dict[str, Any]] = None) -> dict[
 def get_database_health(config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Unified database health check for readiness and observability."""
     if is_postgres_configured(config):
-        return {
-            "backend": "postgres",
-            **postgres_preflight(config),
-            "read_replica": postgres_replica_preflight(config),
-        }
+        try:
+            from backend.app.db.runtime import postgres_runtime_enabled
+
+            if postgres_runtime_enabled():
+                return {
+                    "backend": "postgres",
+                    **postgres_preflight(config),
+                    "read_replica": postgres_replica_preflight(config),
+                }
+        except Exception:
+            pass
 
     try:
         db_path = get_db_path()

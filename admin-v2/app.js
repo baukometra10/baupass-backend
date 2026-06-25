@@ -2424,17 +2424,33 @@ async function loadTools() {
     $("geofenceForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.target);
-      await api(`/api/geofences/admin${q}`, {
-        method: "POST",
-        body: JSON.stringify({
-          site_name: fd.get("site_name"),
-          latitude: parseFloat(fd.get("latitude")),
-          longitude: parseFloat(fd.get("longitude")),
-          radius_meters: parseInt(fd.get("radius_meters") || "50", 10),
-        }),
-      });
-      ev.target.reset();
-      await loadTools();
+      let latitude = Number(fd.get("latitude"));
+      let longitude = Number(fd.get("longitude"));
+      const map = $("geofenceMap")?._baupassLeafletMap;
+      if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && map?._baupassMarker) {
+        const point = map._baupassMarker.getLatLng();
+        latitude = point.lat;
+        longitude = point.lng;
+      }
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        alert(t("tools.coordsRequired"));
+        return;
+      }
+      try {
+        await api(`/api/geofences/admin${q}`, {
+          method: "POST",
+          body: JSON.stringify({
+            site_name: fd.get("site_name"),
+            latitude,
+            longitude,
+            radius_meters: parseInt(fd.get("radius_meters") || "50", 10),
+          }),
+        });
+        ev.target.reset();
+        await loadTools();
+      } catch (error) {
+        alert(error?.message || t("tools.coordsRequired"));
+      }
     });
     $("automationForm").addEventListener("submit", async (ev) => {
       ev.preventDefault();

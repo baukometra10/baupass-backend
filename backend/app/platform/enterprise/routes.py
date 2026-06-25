@@ -31,6 +31,34 @@ def _company_id() -> str:
     return str(user.get("company_id") or "").strip()
 
 
+def _parse_geofence_coordinates(data: dict) -> tuple[float, float] | None:
+    raw_lat = data.get("latitude")
+    raw_lng = data.get("longitude")
+    if raw_lat is None or raw_lng is None:
+        return None
+    try:
+        lat = float(raw_lat)
+        lng = float(raw_lng)
+    except (TypeError, ValueError):
+        return None
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        return None
+    return lat, lng
+
+
+def _validate_geofence_company(db, company_id: str):
+    cid = str(company_id or "").strip()
+    if not cid:
+        return None, (jsonify({"error": "company_required", "message": "Bitte zuerst eine Firma auswählen."}), 400)
+    row = db.execute(
+        "SELECT id FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (cid,),
+    ).fetchone()
+    if not row:
+        return None, (jsonify({"error": "company_not_found", "message": "Firma nicht gefunden."}), 400)
+    return cid, None
+
+
 def _post_form_with_retry(url: str, payload: dict[str, str], bearer: str, timeout_s: int = 30) -> dict:
     """Simple retry wrapper for third-party integration HTTP posts."""
     from urllib import parse, request as urlrequest
@@ -78,24 +106,40 @@ def register_enterprise_routes(flask_app):
         from backend.server import get_db
 
         data = request.get_json(silent=True) or {}
-        cid = _company_id()
+        db = get_db()
+        cid, company_error = _validate_geofence_company(db, _company_id())
+        if company_error:
+            return company_error
+
+        site_name = str(data.get("site_name", "")).strip()
+        if not site_name:
+            return jsonify({"error": "site_name_required", "message": "Baustellenname fehlt."}), 400
+
+        coords = _parse_geofence_coordinates(data)
+        if not coords:
+            return jsonify(
+                {
+                    "error": "invalid_coordinates",
+                    "message": "Ungültige Koordinaten — bitte Karte anklicken oder GPS nutzen.",
+                }
+            ), 400
+        lat, lng = coords
+
+        try:
+            radius = int(data.get("radius_meters", 25))
+        except (TypeError, ValueError):
+            radius = 25
+        radius = max(5, min(radius, 5000))
+
         gf_id = f"gf-{uuid.uuid4().hex[:10]}"
-        get_db().execute(
+        db.execute(
             """
             INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
             VALUES (?, ?, ?, ?, ?, ?, 1, ?)
             """,
-            (
-                gf_id,
-                str(cid),
-                str(data.get("site_name", "")).strip(),
-                float(data.get("latitude", 0)),
-                float(data.get("longitude", 0)),
-                int(data.get("radius_meters", 25)),
-                _now_iso(),
-            ),
+            (gf_id, cid, site_name, lat, lng, radius, _now_iso()),
         )
-        get_db().commit()
+        db.commit()
         return jsonify({"id": gf_id}), 201
 
     @enterprise_bp.put("/geofences/admin/<gf_id>")
@@ -105,8 +149,27 @@ def register_enterprise_routes(flask_app):
         from backend.server import get_db
 
         data = request.get_json(silent=True) or {}
-        cid = str(_company_id())
-        get_db().execute(
+        db = get_db()
+        cid, company_error = _validate_geofence_company(db, _company_id())
+        if company_error:
+            return company_error
+
+        lat = data.get("latitude") if "latitude" in data else None
+        lng = data.get("longitude") if "longitude" in data else None
+        if lat is not None or lng is not None:
+            coords = _parse_geofence_coordinates({"latitude": lat, "longitude": lng})
+            if not coords:
+                return jsonify({"error": "invalid_coordinates", "message": "Ungültige Koordinaten."}), 400
+            lat, lng = coords
+
+        radius = data.get("radius_meters")
+        if radius is not None:
+            try:
+                radius = max(5, min(int(radius), 5000))
+            except (TypeError, ValueError):
+                return jsonify({"error": "invalid_radius", "message": "Ungültiger Radius."}), 400
+
+        db.execute(
             """
             UPDATE geofences
             SET site_name = COALESCE(?, site_name),
@@ -118,15 +181,15 @@ def register_enterprise_routes(flask_app):
             """,
             (
                 data.get("site_name"),
-                data.get("latitude"),
-                data.get("longitude"),
-                data.get("radius_meters"),
+                lat,
+                lng,
+                radius,
                 data.get("active"),
                 gf_id,
                 cid,
             ),
         )
-        get_db().commit()
+        db.commit()
         return jsonify({"ok": True})
 
     # ── Workforce heatmap ─────────────────────────────────────────────────────

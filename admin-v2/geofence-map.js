@@ -79,6 +79,7 @@ export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
   map._baupassInvalidate = invalidate;
 
   map.whenReady(() => {
+    applyCoords(lat, lng);
     invalidate();
     setTimeout(invalidate, 50);
     setTimeout(invalidate, 300);

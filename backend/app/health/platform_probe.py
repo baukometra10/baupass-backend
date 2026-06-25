@@ -54,8 +54,14 @@ def collect_platform_health(
             )
 
     with app.app_context():
-        db_health = get_database_health()
-    ready = db_health.get("status") == "ok"
+        try:
+            from backend.app.health.readiness import _database_status
+            from backend.server import DB_PATH
+
+            db_health = _database_status(Path(DB_PATH))
+        except Exception:
+            db_health = get_database_health()
+    ready = bool(db_health.get("ok"))
     if not ready:
         overall = "degraded" if overall != "down" else overall
 
