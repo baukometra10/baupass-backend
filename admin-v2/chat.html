@@ -52,6 +52,22 @@
       word-break: break-word;
     }
     .chat-attachment-btn:hover { border-color: var(--accent); }
+    .chat-image-preview {
+      display: block;
+      max-width: min(240px, 100%);
+      margin-top: 0.45rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.12);
+    }
+    .chat-image-preview:hover { border-color: var(--accent); }
+    .chat-image-actions {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
   </style>
 </head>
 <body>
@@ -119,9 +135,17 @@
         .replace(/</g, "&lt;")
         .replace(/"/g, "&quot;");
     }
+    function isImageAttachment(filename, contentType) {
+      const mime = String(contentType || "").toLowerCase();
+      if (/^image\//i.test(mime)) return true;
+      return /\.(jpe?g|png|webp|gif)$/i.test(String(filename || ""));
+    }
+    function downloadHeaders() {
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
     async function downloadChatAttachment(attachmentId, filename, contentType) {
       const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
-        headers: headers(),
+        headers: downloadHeaders(),
         credentials: "include",
       });
       if (!res.ok) {
@@ -130,21 +154,45 @@
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const mime = String(contentType || blob.type || "");
-      const isImage = /^image\//i.test(mime);
-      if (isImage) {
-        window.open(url, "_blank", "noopener");
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-        return;
-      }
+      const safeName = filename || (isImageAttachment(filename, contentType) ? "bild.jpg" : "download");
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = filename || "download";
+      anchor.download = safeName;
       anchor.rel = "noopener";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    async function loadChatImagePreview(img) {
+      const attachmentId = img.getAttribute("data-attachment-id") || "";
+      const filename = img.getAttribute("data-filename") || "bild.jpg";
+      const contentType = img.getAttribute("data-content-type") || "";
+      if (!attachmentId || img.dataset.loaded === "1") return;
+      try {
+        const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
+          headers: downloadHeaders(),
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        img.src = url;
+        img.dataset.loaded = "1";
+        img.title = `${filename} — Klicken zum Speichern`;
+        img.addEventListener("click", () => {
+          downloadChatAttachment(attachmentId, filename, contentType || blob.type).catch((error) => {
+            document.getElementById("threadMeta").textContent = error.message || String(error);
+          });
+        });
+      } catch {
+        img.remove();
+      }
+    }
+    function hydrateChatImagePreviews() {
+      document.querySelectorAll("img.chat-image-preview[data-attachment-id]").forEach((img) => {
+        loadChatImagePreview(img);
+      });
     }
     function formatChatTimestamp(value) {
       const raw = String(value || "").trim();
@@ -178,6 +226,13 @@
             const id = escapeHtml(a.id || "");
             const name = escapeHtml(a.filename || "Anhang");
             const type = escapeHtml(a.contentType || "");
+            const image = isImageAttachment(a.filename, a.contentType);
+            if (image) {
+              return `<div class="chat-image-actions">
+                <button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">⬇ ${name}</button>
+              </div>
+              <img class="chat-image-preview" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}" alt="${name}" loading="lazy" />`;
+            }
             return `<button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">📎 ${name}</button>`;
           }).join("<br>")}</div>`
         : "";
@@ -246,6 +301,7 @@
         : `<p class="muted">Noch keine Nachrichten.</p>`;
       const list = document.getElementById("messageList");
       list.scrollTop = list.scrollHeight;
+      hydrateChatImagePreviews();
     }
     function stopChatPolling() {
       if (chatPollTimer) {
