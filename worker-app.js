@@ -2381,11 +2381,37 @@ async function resolveLoginLocation() {
     return null;
   }
 
+  if (typeof capturePreciseGeolocation === "function") {
+    try {
+      const position = await capturePreciseGeolocation({
+        preset: "fast",
+        maxWaitMs: 10000,
+        targetAccuracyMeters: 30,
+        acceptAccuracyMeters: 80,
+        minSamples: 1,
+        maxSamples: 8,
+      });
+      if (
+        position &&
+        Number.isFinite(Number(position.latitude)) &&
+        Number.isFinite(Number(position.longitude))
+      ) {
+        return {
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracy: position.accuracy,
+        };
+      }
+    } catch {
+      // fall through to lighter readers
+    }
+  }
+
   if (typeof capturePointGeolocation === "function") {
     try {
       const position = await capturePointGeolocation({
-        maxWaitMs: 5000,
-        earlyBestMs: 3000,
+        maxWaitMs: 6000,
+        cachedMaximumAgeMs: 15000,
       });
       return {
         latitude: position.latitude,

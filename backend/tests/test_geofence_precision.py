@@ -6,12 +6,12 @@ from backend import server
 
 def test_geofence_radius_allows_accuracy_buffer():
     allowed = server._geofence_radius_with_accuracy_buffer(10, 10)
-    assert allowed == 15
+    assert allowed == 20
 
 
 def test_worker_within_site_geofence_uses_accuracy_buffer():
     assert server.worker_within_site_geofence(14, 10, 10) is True
-    assert server.worker_within_site_geofence(16, 10, 10) is False
+    assert server.worker_within_site_geofence(21, 10, 10) is False
 
 
 def test_measure_worker_site_distance_reports_raw_distance(worker_client):
@@ -64,7 +64,7 @@ def test_measure_worker_site_distance_reports_raw_distance(worker_client):
     assert measured["distanceMeters"] == 0
     assert measured["onSite"] is True
     assert measured["accuracyMeters"] == 8
-    assert measured["allowedRadiusMeters"] == 15
+    assert measured["allowedRadiusMeters"] == 20
 
 
 def test_measure_worker_site_distance_rejects_inaccurate_reading(worker_client):

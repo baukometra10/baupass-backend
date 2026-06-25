@@ -96,8 +96,8 @@ WORKER_LOGIN_MAX_DISTANCE_METERS = 100
 WORKER_SITE_GEOFENCE_DEFAULT_METERS = 10
 WORKER_SITE_GEOFENCE_MIN_METERS = 5
 WORKER_SITE_GEOFENCE_MAX_METERS = 10
-WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 25
-WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 5
+WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 80
+WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 10
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -11262,7 +11262,7 @@ def _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters):
     accuracy = _normalize_float(accuracy_meters)
     if accuracy is None or accuracy <= 0:
         return radius
-    # Allow GPS uncertainty: radius + min(reported accuracy, 5 m) — total tolerance ~5–10 m.
+    # Allow GPS uncertainty: radius + min(reported accuracy, 10 m) for practical mobile tolerance.
     return radius + min(accuracy, WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS)
 
 
