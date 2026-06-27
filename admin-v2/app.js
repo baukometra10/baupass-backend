@@ -1189,16 +1189,19 @@ function bindWorkTimesPanelOnce(host) {
       feedback.textContent = "";
       feedback.className = "work-times-feedback hidden";
     }
+    const accessMode = String(fd.get("accessMode") || cfg.accessMode || "gate");
+    const siteApp = accessMode === "site_app";
     try {
       const saved = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
         method: "PUT",
         body: JSON.stringify({
           workStartTime: toHm(fd.get("workStartTime")),
           workEndTime: toHm(fd.get("workEndTime")),
-          accessMode: cfg.accessMode || "gate",
-          siteGeofenceRadiusMeters: cfg.siteGeofenceRadiusMeters,
-          siteAutoCheckin: cfg.siteAutoCheckin,
-          siteAutoLogoutOnLeave: cfg.siteAutoLogoutOnLeave,
+          accessMode,
+          siteGeofenceRadiusMeters: Number(fd.get("siteGeofenceRadiusMeters") || cfg.siteGeofenceRadiusMeters || 80),
+          siteAutoCheckin: siteApp ? fd.get("siteAutoCheckin") === "on" : cfg.siteAutoCheckin !== false,
+          siteAutoLogoutOnLeave: siteApp ? fd.get("siteAutoLogoutOnLeave") === "on" : cfg.siteAutoLogoutOnLeave !== false,
+          siteAutoProximityLogin: siteApp ? fd.get("siteAutoProximityLogin") === "on" : cfg.siteAutoProximityLogin !== false,
         }),
       });
       host._workTimesCfg = { ...cfg, ...saved };
@@ -1241,6 +1244,9 @@ async function loadCompanyWorkTimesForm(companyId) {
     host._workTimesCfg = cfg;
     const start = (cfg.workStartTime || "08:00").slice(0, 5);
     const end = (cfg.workEndTime || "17:00").slice(0, 5);
+    const accessMode = String(cfg.accessMode || "gate").toLowerCase() === "site_app" ? "site_app" : "gate";
+    const siteRadius = Number(cfg.siteGeofenceRadiusMeters || 80);
+    const siteFieldsHidden = accessMode !== "site_app";
     host.innerHTML = `
       <h3>${t("workTimes.title")}</h3>
       <p class="muted small">${t("workTimes.hint")}</p>
@@ -1248,8 +1254,31 @@ async function loadCompanyWorkTimesForm(companyId) {
       <form id="workTimesForm" class="tool-form">
         <label>${t("workTimes.start")} <input name="workStartTime" type="time" value="${start}" /></label>
         <label>${t("workTimes.end")} <input name="workEndTime" type="time" value="${end}" /></label>
+        <label>${t("workTimes.accessMode")}
+          <select name="accessMode" id="workTimesAccessMode">
+            <option value="gate"${accessMode === "gate" ? " selected" : ""}>${t("workTimes.accessGate")}</option>
+            <option value="site_app"${accessMode === "site_app" ? " selected" : ""}>${t("workTimes.accessSiteApp")}</option>
+          </select>
+        </label>
+        <fieldset id="workTimesSiteFieldset" class="tool-fieldset${siteFieldsHidden ? " hidden" : ""}">
+          <legend>${t("workTimes.siteAccessLegend")}</legend>
+          <label>${t("workTimes.siteRadius")}
+            <input name="siteGeofenceRadiusMeters" type="number" min="20" max="500" step="5" value="${siteRadius}" />
+          </label>
+          <label class="checkbox-row"><input name="siteAutoProximityLogin" type="checkbox"${cfg.siteAutoProximityLogin !== false ? " checked" : ""} /> ${t("workTimes.siteAutoProximity")}</label>
+          <label class="checkbox-row"><input name="siteAutoCheckin" type="checkbox"${cfg.siteAutoCheckin !== false ? " checked" : ""} /> ${t("workTimes.siteAutoCheckin")}</label>
+          <label class="checkbox-row"><input name="siteAutoLogoutOnLeave" type="checkbox"${cfg.siteAutoLogoutOnLeave !== false ? " checked" : ""} /> ${t("workTimes.siteAutoLogout")}</label>
+          <p class="muted small">${t("workTimes.siteAccessHint")}</p>
+        </fieldset>
         <button type="submit">${t("workTimes.save")}</button>
       </form>`;
+    const accessModeEl = host.querySelector("#workTimesAccessMode");
+    const siteFieldset = host.querySelector("#workTimesSiteFieldset");
+    const syncSiteAccessFields = () => {
+      const siteApp = accessModeEl?.value === "site_app";
+      siteFieldset?.classList.toggle("hidden", !siteApp);
+    };
+    accessModeEl?.addEventListener("change", syncSiteAccessFields);
   } catch (e) {
     host.innerHTML = `<p class="error">${e.message}</p>`;
   }
@@ -3360,7 +3389,10 @@ async function loadOverview() {
   renderTable($("recentAccess"), overview.recentAccess || [], [
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },
-    { label: t("table.direction"), render: (r) => r.direction || "-" },
+    {
+      label: t("table.direction"),
+      render: (r) => (r.direction === "app-login" ? t("access.appLogin") : r.direction || "-"),
+    },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
     { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
   ]);

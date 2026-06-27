@@ -11504,6 +11504,59 @@ def _notify_worker_site_checkin(db, worker, *, via_proximity: bool = False) -> N
         app.logger.warning("site check-in notification failed for worker %s", worker["id"], exc_info=True)
 
 
+SITE_APP_LOGIN_GATE = "Mitarbeiter-App (Standort-Anmeldung)"
+
+
+def worker_has_site_app_login_today(db, worker_id):
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    row = db.execute(
+        """
+        SELECT id
+        FROM access_logs
+        WHERE worker_id = ?
+          AND timestamp LIKE ?
+          AND (direction = 'app-login' OR gate = ?)
+        LIMIT 1
+        """,
+        (worker_id, f"{today_prefix}%", SITE_APP_LOGIN_GATE),
+    ).fetchone()
+    return bool(row)
+
+
+def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung"):
+    """Visible in admin recent access; does not count as on-site check-in."""
+    if worker_has_open_checkin_today(db, worker["id"]):
+        return None
+    if worker_has_site_app_login_today(db, worker["id"]):
+        return None
+    log_id = create_access_log_entry(
+        db,
+        worker["id"],
+        "app-login",
+        SITE_APP_LOGIN_GATE,
+        note,
+        worker_type=worker["worker_type"],
+    )
+    try:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event(
+            "access.app_login",
+            str(worker["company_id"]),
+            {
+                "worker_id": str(worker["id"]),
+                "workerId": str(worker["id"]),
+                "badge_id": worker.get("badge_id"),
+                "gate": SITE_APP_LOGIN_GATE,
+                "log_id": log_id,
+            },
+            actor_id=str(worker["id"]),
+        )
+    except Exception:
+        app.logger.debug("access.app_login publish skipped for worker %s", worker["id"], exc_info=True)
+    return log_id
+
+
 def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False):
     company_id = worker["company_id"]
     site_cfg = get_company_site_access_config(db, company_id)
@@ -12916,6 +12969,14 @@ def worker_app_proximity_login():
             checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=True)
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
+        else:
+            login_log_id = record_site_app_login_activity(
+                db,
+                worker,
+                note="Standort-Auto-Login (ohne Einstempeln)",
+            )
+            if login_log_id:
+                session_data["siteLoginLogId"] = login_log_id
         log_audit(
             "worker_app.proximity_login",
             f"Mitarbeiter {worker['first_name']} {worker['last_name']} (Badge {badge_id}) per Standort-Auto-Login angemeldet",

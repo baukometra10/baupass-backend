@@ -22,6 +22,13 @@
         at: evt.created_at || "",
       };
     }
+    if (type === "access.app_login") {
+      const worker = p.workerId || p.worker_id || "?";
+      return {
+        html: `<strong>${worker}</strong> Standort-Anmeldung`,
+        at: evt.created_at || "",
+      };
+    }
     if (type === "inbox.changed") {
       return {
         html: "<strong>Posteingang</strong> aktualisiert",
