@@ -1067,6 +1067,40 @@ textarea:focus-visible,
   text-align: center;
 }
 
+.worker-site-gps-status {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--ui-radius-md, 12px);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-align: center;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  background: rgba(248, 250, 252, 0.95);
+  color: #334155;
+}
+
+.worker-site-gps-status[data-tone="ok"] {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+  color: #065f46;
+}
+
+.worker-site-gps-status[data-tone="warn"] {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+.worker-site-gps-status[data-tone="pending"] {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.1);
+  color: #1e40af;
+}
+
+.worker-site-gps-status.hidden {
+  display: none;
+}
+
 body.site-app-mode .gate-mode-entry,
 body.site-app-mode #gateModeButton,
 body.site-app-mode #quickGateModeButton {

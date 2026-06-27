@@ -26,7 +26,7 @@ function workerDebug(...args) {
 }
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 80;
 const WORKER_GEO_MAX_ACCURACY_METERS = 200;
-const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
+const SITE_GEOFENCE_WATCH_INTERVAL_MS = 10000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
 const PROXIMITY_LOGIN_POLL_MS = 10000;
 const PROXIMITY_LOGIN_DWELL_MS = 15000;
@@ -5486,11 +5486,14 @@ async function pollProximityLoginCandidate() {
   }
 
   const siteHintBase = await fetchProximitySiteHint(badgeId);
+  const hintCfg = siteAccessCfgFromHint(siteHintBase);
   if (siteHintBase && siteHintBase.siteAutoProximityLogin === false) {
+    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase.locationPreview });
     stopProximityLoginWatcher();
     return;
   }
   if (siteHintBase && String(siteHintBase.accessMode || "").toLowerCase() !== "site_app") {
+    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase.locationPreview });
     stopProximityLoginWatcher();
     return;
   }
@@ -5519,6 +5522,7 @@ async function pollProximityLoginCandidate() {
   if (inside === false) {
     proximityInsideSince = 0;
     proximityLoginNoticeShownAt = 0;
+    updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(siteHint), preview });
     if (typeof preview?.distanceMeters === "number") {
       showWorkerNotice(
         t("siteOutsideRadius", {
@@ -5530,9 +5534,16 @@ async function pollProximityLoginCandidate() {
     return;
   }
   if (inside === null && preview?.error === "worker_geolocation_inaccurate") {
+    updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(siteHint), preview });
     showWorkerNotice(t("geolocationInaccurate"));
     return;
   }
+
+  updateSiteGpsStatusBar({
+    cfg: siteAccessCfgFromHint(siteHint),
+    preview: inside ? { onSite: true, ...(preview || {}) } : preview,
+    phase: proximityInsideSince ? "proximity-wait" : undefined,
+  });
 
   const now = Date.now();
   if (!proximityInsideSince) {
@@ -5633,6 +5644,97 @@ function hasSiteGeofenceConfig(cfg) {
   );
 }
 
+function workerApiHostLabel() {
+  try {
+    return new URL(API_BASE).host;
+  } catch {
+    return String(API_BASE || "").replace(/^https?:\/\//, "").split("/")[0] || "—";
+  }
+}
+
+function siteAccessCfgFromHint(hint) {
+  if (!hint) return null;
+  return {
+    accessMode: String(hint.accessMode || "gate").toLowerCase(),
+    siteApp: String(hint.accessMode || "").toLowerCase() === "site_app",
+    siteLocation: hint.siteLocation || null,
+    siteZones: Array.isArray(hint.siteZones) ? hint.siteZones : [],
+    radiusMeters: Number(hint.siteGeofenceRadiusMeters || 80),
+    workStart: "",
+    workEnd: "",
+    isWorkdayToday: true,
+  };
+}
+
+function ensureSiteGpsStatusBar() {
+  let bar = document.getElementById("workerSiteGpsStatus");
+  if (bar) return bar;
+  bar = document.createElement("div");
+  bar.id = "workerSiteGpsStatus";
+  bar.className = "worker-site-gps-status";
+  bar.setAttribute("role", "status");
+  const banner = document.getElementById("workerWorkHoursBanner");
+  if (banner?.parentNode) {
+    banner.insertAdjacentElement("afterend", bar);
+  } else {
+    const anchor = elements.workerHubPanel || document.querySelector(".app-shell");
+    anchor?.prepend(bar);
+  }
+  return bar;
+}
+
+function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
+  const bar = ensureSiteGpsStatusBar();
+  const server = workerApiHostLabel();
+  if (!cfg) {
+    bar.textContent = "";
+    bar.classList.add("hidden");
+    bar.removeAttribute("data-tone");
+    return;
+  }
+  bar.classList.remove("hidden");
+  if (!cfg.siteApp) {
+    bar.textContent = t("siteGpsStatusGateMode", { server });
+    bar.dataset.tone = "warn";
+    return;
+  }
+  if (!hasSiteGeofenceConfig(cfg)) {
+    bar.textContent = t("siteGpsStatusNoGeofence", { server });
+    bar.dataset.tone = "warn";
+    return;
+  }
+  if (preview?.onSite) {
+    bar.textContent = t("siteGpsStatusOnSite", {
+      distance: preview.distanceMeters ?? "—",
+      allowed: preview.allowedRadiusMeters ?? cfg.radiusMeters ?? 80,
+      server,
+    });
+    bar.dataset.tone = "ok";
+    return;
+  }
+  if (typeof preview?.distanceMeters === "number") {
+    bar.textContent = t("siteGpsStatusOutside", {
+      distance: preview.distanceMeters,
+      allowed: preview.allowedRadiusMeters ?? cfg.radiusMeters ?? 80,
+      server,
+    });
+    bar.dataset.tone = "warn";
+    return;
+  }
+  if (preview?.error === "worker_geolocation_inaccurate") {
+    bar.textContent = `${t("geolocationInaccurate")} · ${server}`;
+    bar.dataset.tone = "warn";
+    return;
+  }
+  if (phase === "proximity-wait") {
+    bar.textContent = t("proximityLoginWaiting");
+    bar.dataset.tone = "pending";
+    return;
+  }
+  bar.textContent = t("siteGpsStatusWaiting", { server });
+  bar.dataset.tone = "pending";
+}
+
 function applySiteAccessUi(payload = lastWorkerPayload) {
   const cfg = getSiteAccessFromPayload(payload);
   document.body.classList.toggle("site-app-mode", cfg.siteApp);
@@ -5678,6 +5780,7 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   if (cfg.siteApp) {
     siteAccessGateModeNoticeShown = false;
   }
+  updateSiteGpsStatusBar({ cfg });
 }
 
 async function handleSiteLeaveDetected() {
@@ -5725,6 +5828,15 @@ async function pollSitePresence(cfg) {
         Authorization: `Bearer ${workerToken}`,
       },
       body: JSON.stringify({ location: locationPayload }),
+    });
+    updateSiteGpsStatusBar({
+      cfg,
+      preview: {
+        onSite: presence?.onSite,
+        distanceMeters: presence?.distanceMeters,
+        allowedRadiusMeters: presence?.allowedRadiusMeters || presence?.radiusMeters,
+        error: presence?.error,
+      },
     });
     if (presence?.autoCheckInLogId) {
       const noticeKey = `checkin:${presence.autoCheckInLogId}`;

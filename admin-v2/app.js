@@ -2374,7 +2374,7 @@ async function loadTools() {
             <button type="button" id="geofenceGpsBtn" class="btn-link" title="${t("tools.useGps")}">📍 ${t("tools.useGps")}</button>
           </div>
           <span id="geofenceGpsStatus" class="muted small"></span>
-          <input name="radius_meters" type="number" value="50" placeholder="${t("tools.radius")}" />
+          <input name="radius_meters" type="number" value="100" min="20" max="500" placeholder="${t("tools.radius")}" />
           <button type="submit">${t("tools.addZone")}</button>
         </form>
         <div class="table-wrap" id="geofenceTable"></div>
@@ -2474,7 +2474,7 @@ async function loadTools() {
             site_name: fd.get("site_name"),
             latitude,
             longitude,
-            radius_meters: parseInt(fd.get("radius_meters") || "50", 10),
+            radius_meters: parseInt(fd.get("radius_meters") || "100", 10),
           }),
         });
         ev.target.reset();
