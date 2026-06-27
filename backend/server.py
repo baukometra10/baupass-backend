@@ -12867,9 +12867,30 @@ def worker_app_login():
 
     try:
         session_data = create_worker_app_session(db, worker, device_payload=device_payload)
-        checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+        checkin_log_id = None
+        login_log_id = None
+        location = payload.get("location") if isinstance(payload.get("location"), dict) else None
+        measured = None
+        if location:
+            try:
+                measured = measure_worker_site_distance(db, worker, location)
+            except (ValueError, PermissionError):
+                measured = None
+        site_cfg = get_company_site_access_config(db, worker["company_id"])
+        on_site = bool(measured and measured.get("onSite"))
+        if on_site and site_cfg["accessMode"] == "site_app":
+            if site_cfg["siteAutoCheckin"]:
+                checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+            if not checkin_log_id:
+                login_log_id = record_site_app_login_activity(
+                    db,
+                    worker,
+                    note="Manuelle Anmeldung am Standort",
+                )
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
+        if login_log_id:
+            session_data["siteLoginLogId"] = login_log_id
         login_type = "Besucher" if is_visitor else "Mitarbeiter"
         log_audit(
             "worker_app.login",
@@ -13206,24 +13227,30 @@ def worker_app_site_presence():
     radius = int(site_cfg["siteGeofenceRadiusMeters"])
     on_site = bool(measured.get("onSite"))
     auto_checkin_log_id = None
+    site_login_log_id = None
     attendance_blocked = None
-    if (
-        on_site
-        and site_cfg["accessMode"] == "site_app"
-        and site_cfg["siteAutoCheckin"]
-        and not worker_has_open_checkin_today(db, worker["id"])
-    ):
-        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+    if on_site and site_cfg["accessMode"] == "site_app":
+        if (
+            site_cfg["siteAutoCheckin"]
+            and not worker_has_open_checkin_today(db, worker["id"])
+        ):
+            from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
 
-        attendance = worker_may_auto_attend_today(db, worker)
-        if attendance.get("ok"):
-            auto_checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
-        else:
-            attendance_blocked = {
-                "reason": attendance.get("reason"),
-                "message": attendance.get("message"),
-            }
-        if auto_checkin_log_id:
+            attendance = worker_may_auto_attend_today(db, worker)
+            if attendance.get("ok"):
+                auto_checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+            else:
+                attendance_blocked = {
+                    "reason": attendance.get("reason"),
+                    "message": attendance.get("message"),
+                }
+        if not auto_checkin_log_id and not worker_has_open_checkin_today(db, worker["id"]):
+            site_login_log_id = record_site_app_login_activity(
+                db,
+                worker,
+                note="Standort erkannt (GPS)",
+            )
+        if auto_checkin_log_id or site_login_log_id:
             db.commit()
     return jsonify(
         {
@@ -13236,6 +13263,7 @@ def worker_app_site_presence():
             "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
             "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
             "autoCheckInLogId": auto_checkin_log_id,
+            "siteLoginLogId": site_login_log_id,
             "attendanceBlocked": attendance_blocked,
         }
     )

@@ -28,8 +28,8 @@ const WORKER_GEO_ACCURACY_BUFFER_METERS = 80;
 const WORKER_GEO_MAX_ACCURACY_METERS = 200;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 20000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
-const PROXIMITY_LOGIN_POLL_MS = 12000;
-const PROXIMITY_LOGIN_DWELL_MS = 20000;
+const PROXIMITY_LOGIN_POLL_MS = 10000;
+const PROXIMITY_LOGIN_DWELL_MS = 15000;
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "web-production-c21ed.up.railway.app",
@@ -1130,6 +1130,8 @@ let offlineWorkerSessionActive = false;
 let siteGeofenceWatchTimer = null;
 let siteOffSiteStrikeCount = 0;
 let siteGeofenceLeaveInProgress = false;
+let lastSitePresenceNoticeKey = "";
+let siteAccessGateModeNoticeShown = false;
 let proximityLoginWatchTimer = null;
 let proximityInsideSince = 0;
 let proximityLoginInProgress = false;
@@ -3516,6 +3518,8 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     finishWorkerLoginUi();
     if (payload.autoCheckInLogId) {
       showWorkerNotice(t("siteAutoCheckIn"));
+    } else if (payload.siteLoginLogId) {
+      showWorkerNotice(t("siteGpsRegistered"));
     }
 
     if (!isStandaloneMode() && elements.installButton) {
@@ -5565,7 +5569,7 @@ async function pollProximityLoginCandidate() {
     await loadWorkerData();
     await persistOfflineBadgeProfile(badgeId, badgePin, payload);
     finishWorkerLoginUi();
-    showWorkerNotice(payload.autoCheckInLogId ? t("proximityLoginCheckIn") : t("proximityLoginSuccess"));
+    showWorkerNotice(payload.autoCheckInLogId ? t("proximityLoginCheckIn") : payload.siteLoginLogId ? t("siteGpsRegistered") : t("proximityLoginSuccess"));
     initializeSessionInactivityProtection();
     void ensureWorkerPushNotifications({ promptIfNeeded: false });
   } catch (error) {
@@ -5662,10 +5666,17 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   }
 
   stopSiteGeofenceMonitor();
+  lastSitePresenceNoticeKey = "";
   if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && hasSiteGeofenceConfig(cfg)) {
     startSiteGeofenceMonitor(cfg);
   } else if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && !hasSiteGeofenceConfig(cfg)) {
     showWorkerNotice(t("siteGpsNotConfigured"));
+  } else if (workerToken && !cfg.siteApp && !siteAccessGateModeNoticeShown) {
+    siteAccessGateModeNoticeShown = true;
+    showWorkerNotice(t("siteAccessGateModeHint"));
+  }
+  if (cfg.siteApp) {
+    siteAccessGateModeNoticeShown = false;
   }
 }
 
@@ -5716,9 +5727,23 @@ async function pollSitePresence(cfg) {
       body: JSON.stringify({ location: locationPayload }),
     });
     if (presence?.autoCheckInLogId) {
-      showWorkerNotice(t("siteAutoCheckIn"));
+      const noticeKey = `checkin:${presence.autoCheckInLogId}`;
+      if (noticeKey !== lastSitePresenceNoticeKey) {
+        lastSitePresenceNoticeKey = noticeKey;
+        showWorkerNotice(t("siteAutoCheckIn"));
+      }
+    } else if (presence?.siteLoginLogId) {
+      const noticeKey = `login:${presence.siteLoginLogId}`;
+      if (noticeKey !== lastSitePresenceNoticeKey) {
+        lastSitePresenceNoticeKey = noticeKey;
+        showWorkerNotice(t("siteGpsRegistered"));
+      }
     } else if (presence?.onSite && presence?.attendanceBlocked?.message) {
-      showWorkerNotice(presence.attendanceBlocked.message);
+      const noticeKey = `blocked:${presence.attendanceBlocked.reason || presence.attendanceBlocked.message}`;
+      if (noticeKey !== lastSitePresenceNoticeKey) {
+        lastSitePresenceNoticeKey = noticeKey;
+        showWorkerNotice(presence.attendanceBlocked.message);
+      }
     } else if (presence?.onSite === false && typeof presence?.distanceMeters === "number") {
       showWorkerNotice(
         t("siteOutsideRadius", {
@@ -5754,6 +5779,7 @@ async function pollSitePresence(cfg) {
 function startSiteGeofenceMonitor(cfg) {
   stopSiteGeofenceMonitor();
   siteOffSiteStrikeCount = 0;
+  lastSitePresenceNoticeKey = "";
   void pollSitePresence(cfg);
   siteGeofenceWatchTimer = setInterval(() => {
     void pollSitePresence(cfg);
