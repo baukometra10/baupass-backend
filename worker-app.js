@@ -2404,11 +2404,7 @@ function bindEvents() {
       let locationPayload = null;
       if (looksLikeBadgeId(credential) && !isVisitorBadgeId(credential)) {
         const captured = await captureLoginGeolocation({ showProgress: true });
-        locationPayload = captured.location;
-        if (!locationPayload) {
-          showWorkerNotice(t("geolocationRequired"));
-          return;
-        }
+        locationPayload = captured.location || null;
       } else {
         locationPayload = await resolveLoginLocation();
       }
@@ -3480,22 +3476,18 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
   let effectiveLocation = locationPayload;
   if (!effectiveLocation && !visitorLogin && navigator.geolocation) {
     const captured = await captureLoginGeolocation({ showProgress: !silent });
-    effectiveLocation = captured.location;
-    if (!effectiveLocation) {
-      if (!silent) {
-        showWorkerNotice(
-          captured.reason === "unsupported" ? t("geolocationUnsupported") : t("geolocationRequired")
-        );
-      }
-      return;
-    }
+    effectiveLocation = captured.location || null;
   }
 
   try {
     const payload = await fetchJson(`${API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ badgeId: normalizedBadgeId, badgePin: normalizedBadgePin, location: effectiveLocation })
+      body: JSON.stringify({
+        badgeId: normalizedBadgeId,
+        badgePin: normalizedBadgePin,
+        ...(effectiveLocation ? { location: effectiveLocation } : {}),
+      })
     });
 
     offlineWorkerSessionActive = false;
@@ -4282,6 +4274,28 @@ async function workerLogout() {
   stopSiteGeofenceMonitor();
   stopDynamicQrRefresh();
   const tokenForRevoke = workerToken;
+  const cfg = lastSiteAccessCfg;
+
+  if (tokenForRevoke && cfg?.siteApp) {
+    try {
+      const locationPayload = await Promise.race([
+        resolveSiteLocation({ preferFast: true }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+      if (locationPayload) {
+        await fetchJson(`${API_BASE}/site-leave`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokenForRevoke}`,
+          },
+          body: JSON.stringify({ location: locationPayload }),
+        });
+      }
+    } catch {
+      // best-effort; backend logout still records app-logout when needed
+    }
+  }
 
   wpRemove(WORKER_TOKEN_KEY);
   wpRemove(WORKER_ACCESS_TOKEN_KEY);
@@ -5806,18 +5820,27 @@ async function handleSiteLeaveDetected() {
     console.warn("[site-leave]", error);
   }
   if (tokenForLeave === workerToken) {
-    invalidateWorkerSession({ showNotice: false });
-    showWorkerNotice(t("siteLeaveAutoLogout"));
-    showWorkerNotice(t("siteReturnProximityHint"));
-    lastSitePresenceNoticeKey = "";
-    const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
-    if (badgeId && getStoredBadgePinForProximity()) {
-      startProximityLoginWatcher();
-      try {
-        const hint = await fetchProximitySiteHint(badgeId);
-        updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(hint) || cfg || undefined });
-      } catch {
-        updateSiteGpsStatusBar({ cfg: cfg || undefined });
+    const fullLogout = leavePayload?.loggedOut === true;
+    if (fullLogout) {
+      invalidateWorkerSession({ showNotice: false });
+      showWorkerNotice(t("siteLeaveAutoLogout"));
+      showWorkerNotice(t("siteReturnProximityHint"));
+      lastSitePresenceNoticeKey = "";
+      const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+      if (badgeId && getStoredBadgePinForProximity()) {
+        startProximityLoginWatcher();
+        try {
+          const hint = await fetchProximitySiteHint(badgeId);
+          updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(hint) || cfg || undefined });
+        } catch {
+          updateSiteGpsStatusBar({ cfg: cfg || undefined });
+        }
+      }
+    } else {
+      showWorkerNotice(t("siteLeaveAttendanceOnly"));
+      siteOffSiteStrikeCount = 0;
+      if (cfg) {
+        startSiteGeofenceMonitor(cfg);
       }
     }
   }
@@ -5834,7 +5857,6 @@ async function pollSitePresence(cfg) {
     return;
   }
   if (!locationPayload) {
-    showWorkerNotice(t("geolocationRequired"));
     return;
   }
   try {
@@ -5873,7 +5895,11 @@ async function pollSitePresence(cfg) {
         lastSitePresenceNoticeKey = noticeKey;
         showWorkerNotice(presence.attendanceBlocked.message);
       }
-    } else if (presence?.onSite === false && typeof presence?.distanceMeters === "number") {
+    } else if (
+      presence?.onSite === false
+      && typeof presence?.distanceMeters === "number"
+      && (presence?.openCheckInToday || presence?.siteSessionOpen)
+    ) {
       showWorkerNotice(
         tf("siteOutsideRadius", {
           distance: presence.distanceMeters,
@@ -5881,7 +5907,8 @@ async function pollSitePresence(cfg) {
         })
       );
     }
-    if (presence?.onSite === false && cfg?.autoLogout !== false) {
+    const registeredOnSite = Boolean(presence?.openCheckInToday || presence?.siteSessionOpen);
+    if (presence?.onSite === false && cfg?.autoLogout !== false && registeredOnSite) {
       siteOffSiteStrikeCount += 1;
       if (siteOffSiteStrikeCount >= SITE_OFF_SITE_STRIKES_REQUIRED) {
         await handleSiteLeaveDetected();

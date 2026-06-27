@@ -10666,28 +10666,9 @@ def _operations_snapshot_with_db(db):
     today_prefix = utc_now().strftime("%Y-%m-%d")
     company_sql, company_params = _operations_company_filter_sql(user, "w")
 
-    present_row = db.execute(
-        f"""
-        SELECT COUNT(*) AS total
-        FROM (
-            SELECT al.worker_id, al.direction
-            FROM access_logs al
-            JOIN workers w ON w.id = al.worker_id
-            WHERE w.deleted_at IS NULL
-              {company_sql}
-              AND al.timestamp LIKE ?
-              AND al.timestamp = (
-                  SELECT MAX(al2.timestamp)
-                  FROM access_logs al2
-                  WHERE al2.worker_id = al.worker_id
-                    AND al2.timestamp LIKE ?
-              )
-        ) latest
-        WHERE latest.direction IN ('check-in', 'app-login')
-        """,
-        tuple(company_params + [f"{today_prefix}%", f"{today_prefix}%"]),
-    ).fetchone()
-    workers_on_site = int((present_row["total"] if present_row else 0) or 0)
+    from backend.app.platform.physical_operations._common import count_on_site_filtered
+
+    workers_on_site = count_on_site_filtered(db, company_sql, list(company_params), today_prefix)
 
     checkins_row = db.execute(
         f"""
@@ -11523,17 +11504,22 @@ def _last_access_log_today(db, worker_id):
 
 
 def worker_has_open_site_app_session_today(db, worker_id):
-    """True while worker is considered on-site via app-login or open check-in."""
+    """True while worker is on-site via GPS app-login with an active app session."""
     if worker_has_open_checkin_today(db, worker_id):
         return True
     row = _last_access_log_today(db, worker_id)
     if not row:
         return False
     direction = str(row["direction"] or "").lower()
-    gate = str(row["gate"] or "")
-    if direction == "app-login" or gate == SITE_APP_LOGIN_GATE:
-        return True
-    return False
+    if direction in ("app-logout", "check-out"):
+        return False
+    if direction != "app-login":
+        return False
+    session = db.execute(
+        "SELECT 1 FROM worker_app_sessions WHERE worker_id = ? AND expires_at >= ? LIMIT 1",
+        (worker_id, now_iso()),
+    ).fetchone()
+    return bool(session)
 
 
 def worker_has_site_app_login_today(db, worker_id):
@@ -12005,6 +11991,11 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
     site_cfg = get_company_site_access_config(db, worker["company_id"])
     max_distance = int(measured.get("radiusMeters") or site_cfg["siteGeofenceRadiusMeters"])
     if not measured.get("onSite"):
+        if site_cfg["accessMode"] == "site_app":
+            measured["radiusMeters"] = max_distance
+            measured["accessMode"] = site_cfg["accessMode"]
+            measured["onSite"] = False
+            return measured
         raise PermissionError(f"outside_site_radius:{measured['distanceMeters']}")
 
     measured["radiusMeters"] = max_distance
@@ -13350,6 +13341,7 @@ def worker_app_site_presence():
             "accuracyMeters": measured.get("accuracyMeters"),
             "accessMode": site_cfg["accessMode"],
             "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
+            "siteSessionOpen": worker_has_open_site_app_session_today(db, worker["id"]),
             "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
             "autoCheckInLogId": auto_checkin_log_id,
             "siteLoginLogId": site_login_log_id,
@@ -13410,8 +13402,10 @@ def worker_app_site_leave():
             app.logger.debug("worker.site_leave publish skipped for worker %s", worker["id"], exc_info=True)
 
     token = getattr(g, "worker_token", "")
-    if token:
+    logged_out = False
+    if site_cfg["siteAutoLogoutOnLeave"] and token:
         db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
+        logged_out = True
     db.commit()
     log_audit(
         "worker_app.site_leave",
@@ -13425,7 +13419,7 @@ def worker_app_site_leave():
             "ok": True,
             "checkoutLogId": checkout_log_id,
             "siteLeaveLogId": leave_log_id,
-            "loggedOut": True,
+            "loggedOut": logged_out,
         }
     )
 
@@ -13693,29 +13687,14 @@ def build_worker_team_snapshot(db, worker_row):
     ).fetchone()
     expected = int((expected_row["total"] if expected_row else 0) or 0)
 
-    live_params = list(worker_filter_params)
-    live_params.extend([f"{today_prefix}%", f"{today_prefix}%"])
-    present_row = db.execute(
-        f"""
-        SELECT COUNT(*) AS total
-        FROM (
-            SELECT al.worker_id, al.direction
-            FROM access_logs al
-            JOIN workers w ON w.id = al.worker_id
-            WHERE {worker_filter_sql}
-              AND al.timestamp LIKE ?
-              AND al.timestamp = (
-                  SELECT MAX(al2.timestamp)
-                  FROM access_logs al2
-                  WHERE al2.worker_id = al.worker_id
-                    AND al2.timestamp LIKE ?
-              )
-        ) latest
-        WHERE latest.direction IN ('check-in', 'app-login')
-        """,
-        tuple(live_params),
-    ).fetchone()
-    present = int((present_row["total"] if present_row else 0) or 0)
+    from backend.app.platform.physical_operations._common import count_on_site_filtered
+
+    present = count_on_site_filtered(
+        db,
+        f"AND {worker_filter_sql}",
+        list(worker_filter_params),
+        today_prefix,
+    )
 
     open_checkout_params = list(worker_filter_params)
     open_checkout_params.extend([f"{today_prefix}%", f"{today_prefix}%"])
@@ -13831,6 +13810,11 @@ def worker_app_sync_offline_events():
 @require_worker_session
 def worker_app_logout():
     db = get_db()
+    worker = g.worker
+    if worker_has_open_checkin_today(db, worker["id"]):
+        pass
+    elif worker_has_open_site_app_session_today(db, worker["id"]):
+        record_site_app_leave_activity(db, worker, note="Abmeldung über App")
     db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (g.worker_token,))
     db.commit()
     return jsonify({"ok": True})
@@ -16869,6 +16853,11 @@ def list_latest_access_logs():
     ).fetchall()
 
     items = [row_to_dict(row) for row in rows]
+    from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
+
+    for item in items:
+        worker_id = str(item.get("worker_id") or item.get("workerId") or "").strip()
+        item["presentOnSite"] = is_worker_present_on_site_today(db, worker_id) if worker_id else False
     return jsonify(
         {
             "items": items,

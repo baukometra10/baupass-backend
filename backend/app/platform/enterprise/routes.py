@@ -1091,29 +1091,15 @@ def register_enterprise_routes(flask_app):
 
         cid = _company_id()
         today_prefix = utc_now().strftime("%Y-%m-%d")
+        from backend.app.platform.physical_operations._common import count_on_site
+
         with get_read_connection() as db:
-            on_site_row = db.execute(
-                """
-                SELECT COUNT(*) AS c
-                FROM (
-                    SELECT al.worker_id, al.direction
-                    FROM access_logs al
-                    JOIN workers w ON w.id = al.worker_id
-                    WHERE w.company_id = ? AND w.deleted_at IS NULL AND al.timestamp LIKE ?
-                      AND al.timestamp = (
-                          SELECT MAX(al2.timestamp) FROM access_logs al2
-                          WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
-                      )
-                ) latest
-                WHERE latest.direction IN ('check-in', 'app-login')
-                """,
-                (cid, f"{today_prefix}%", f"{today_prefix}%"),
-            ).fetchone()
+            workers_on_site = count_on_site(db, cid, today_prefix)
         events = list_recent_events(cid, limit=30)
         return jsonify(
             {
                 "date": today_prefix,
-                "workersOnSite": int((on_site_row["c"] if on_site_row else 0) or 0),
+                "workersOnSite": workers_on_site,
                 "recent_events": events,
             }
         )

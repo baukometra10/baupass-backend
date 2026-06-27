@@ -29,24 +29,9 @@ class WorkersRepository:
         return dict(row) if row else None
 
     def count_on_site_today(self, db, company_id: str, today_prefix: str) -> int:
-        row = db.execute(
-            """
-            SELECT COUNT(*) AS c
-            FROM (
-                SELECT al.worker_id, al.direction
-                FROM access_logs al
-                JOIN workers w ON w.id = al.worker_id
-                WHERE w.company_id = ? AND w.deleted_at IS NULL AND al.timestamp LIKE ?
-                  AND al.timestamp = (
-                      SELECT MAX(al2.timestamp) FROM access_logs al2
-                      WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
-                  )
-            ) latest
-            WHERE latest.direction IN ('check-in', 'app-login')
-            """,
-            (company_id, f"{today_prefix}%", f"{today_prefix}%"),
-        ).fetchone()
-        return int((row["c"] if row else 0) or 0)
+        from backend.app.platform.physical_operations._common import count_on_site
+
+        return count_on_site(db, company_id, today_prefix)
 
     def update_physical_card_id(
         self, db, company_id: str, worker_id: str, physical_card_id: str | None

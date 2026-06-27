@@ -8,28 +8,15 @@ from typing import Any
 
 
 def workforce_optimization(db, company_id: int) -> dict[str, Any]:
+    from backend.app.platform.physical_operations._common import count_on_site
+
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    on_site = db.execute(
-        """
-        SELECT COUNT(*) AS c FROM (
-            SELECT al.worker_id, al.direction
-            FROM access_logs al
-            JOIN workers w ON w.id = al.worker_id
-            WHERE w.company_id = ? AND w.deleted_at IS NULL AND al.timestamp LIKE ?
-              AND al.timestamp = (
-                  SELECT MAX(al2.timestamp) FROM access_logs al2
-                  WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
-              )
-        ) x WHERE x.direction IN ('check-in', 'app-login')
-        """,
-        (company_id, f"{today}%", f"{today}%"),
-    ).fetchone()
     active_workers = db.execute(
         "SELECT COUNT(*) AS c FROM workers WHERE company_id = ? AND deleted_at IS NULL AND status = 'aktiv'",
         (company_id,),
     ).fetchone()
     total = int((active_workers["c"] if active_workers else 0) or 0)
-    present = int((on_site["c"] if on_site else 0) or 0)
+    present = count_on_site(db, str(company_id), today)
     utilization = round(present / max(1, total), 3)
     return {
         "date": today,

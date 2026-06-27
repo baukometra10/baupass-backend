@@ -15,6 +15,7 @@ def today_prefix() -> str:
 
 
 ON_SITE_DIRECTIONS = ("check-in", "app-login")
+OFF_SITE_DIRECTIONS = ("check-out", "app-logout")
 
 
 def is_on_site_direction(direction: str | None) -> bool:
@@ -23,6 +24,68 @@ def is_on_site_direction(direction: str | None) -> bool:
 
 def on_site_direction_sql(column: str = "latest.direction") -> str:
     return f"{column} IN ('check-in', 'app-login')"
+
+
+def _present_on_site_sql_body(*, worker_ref: str = "w.id") -> str:
+    """Shared SQL: worker currently present on site (open check-in or active GPS session)."""
+    return f"""
+        (
+            EXISTS (
+                SELECT 1 FROM access_logs al_in
+                WHERE al_in.worker_id = {worker_ref}
+                  AND al_in.timestamp LIKE ?
+                  AND al_in.direction = 'check-in'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM access_logs al_out
+                      WHERE al_out.worker_id = al_in.worker_id
+                        AND al_out.timestamp > al_in.timestamp
+                        AND al_out.timestamp LIKE ?
+                        AND al_out.direction = 'check-out'
+                  )
+            )
+            OR (
+                EXISTS (
+                    SELECT 1 FROM access_logs al
+                    WHERE al.worker_id = {worker_ref}
+                      AND al.timestamp LIKE ?
+                      AND al.direction = 'app-login'
+                      AND al.timestamp = (
+                          SELECT MAX(al2.timestamp) FROM access_logs al2
+                          WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+                      )
+                )
+                AND EXISTS (
+                    SELECT 1 FROM worker_app_sessions was
+                    WHERE was.worker_id = {worker_ref} AND was.expires_at >= ?
+                )
+            )
+        )
+    """
+
+
+def _present_on_site_params(today: str, now: str | None = None) -> tuple[str, str, str, str, str]:
+    prefix = f"{today}%"
+    return prefix, prefix, prefix, prefix, now or now_iso()
+
+
+def is_worker_present_on_site_today(db, worker_id: str, today: str | None = None) -> bool:
+    today = today or today_prefix()
+    wid = str(worker_id or "").strip()
+    if not wid:
+        return False
+    now = now_iso()
+    prefix, p2, p3, p4, p5 = _present_on_site_params(today, now)
+    row = db.execute(
+        f"""
+        SELECT 1
+        FROM workers w
+        WHERE w.id = ? AND w.deleted_at IS NULL
+          AND {_present_on_site_sql_body(worker_ref="w.id")}
+        LIMIT 1
+        """,
+        (wid, prefix, p2, p3, p4, p5),
+    ).fetchone()
+    return bool(row)
 
 
 def as_company_id(value: Any) -> str:
@@ -58,14 +121,26 @@ def _cid_param(company_id: str) -> str:
 
 
 def count_on_site(db, company_id: str, today: str | None = None) -> int:
+    return count_on_site_filtered(db, "AND w.company_id = ?", [_cid_param(company_id)], today)
+
+
+def count_on_site_filtered(
+    db,
+    company_sql: str,
+    company_params: list[Any],
+    today: str | None = None,
+) -> int:
     today = today or today_prefix()
-    cid = _cid_param(company_id)
+    prefix, p2, p3, p4, p5 = _present_on_site_params(today)
     row = db.execute(
         f"""
-        SELECT COUNT(*) AS c FROM ({workers_on_site_sql("w")}) latest
-        WHERE {on_site_direction_sql()}
+        SELECT COUNT(DISTINCT w.id) AS c
+        FROM workers w
+        WHERE w.deleted_at IS NULL
+          {company_sql}
+          AND {_present_on_site_sql_body(worker_ref="w.id")}
         """,
-        (cid, f"{today}%", f"{today}%"),
+        tuple(company_params + [prefix, p2, p3, p4, p5]),
     ).fetchone()
     return int((row["c"] if row else 0) or 0)
 
@@ -136,16 +211,27 @@ def resolve_map_coordinates(
 def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[dict]:
     today = today or today_prefix()
     cid = _cid_param(company_id)
+    prefix, p2, p3, p4, p5 = _present_on_site_params(today)
     rows = db.execute(
         f"""
         SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                w.site_latitude, w.site_longitude,
-               latest.gate, latest.timestamp AS last_access
-        FROM ({workers_on_site_sql("w")}) latest
-        JOIN workers w ON w.id = latest.worker_id
-        WHERE {on_site_direction_sql()}
-        ORDER BY latest.timestamp DESC
+               COALESCE(latest.gate, '') AS gate,
+               COALESCE(latest.timestamp, '') AS last_access
+        FROM workers w
+        LEFT JOIN (
+            SELECT al.worker_id, al.direction, al.gate, al.timestamp
+            FROM access_logs al
+            WHERE al.timestamp LIKE ?
+              AND al.timestamp = (
+                  SELECT MAX(al2.timestamp) FROM access_logs al2
+                  WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+              )
+        ) latest ON latest.worker_id = w.id
+        WHERE w.company_id = ? AND w.deleted_at IS NULL
+          AND {_present_on_site_sql_body(worker_ref="w.id")}
+        ORDER BY last_access DESC
         """,
-        (cid, f"{today}%", f"{today}%"),
+        (prefix, prefix, cid, prefix, p2, p3, p4, p5),
     ).fetchall()
     return [dict(r) for r in rows]

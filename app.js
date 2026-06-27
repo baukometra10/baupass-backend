@@ -9443,7 +9443,12 @@ function normalizeLog(entry) {
     direction: entry?.direction || "",
     gate: entry?.gate || "",
     note: entry?.note || "",
-    timestamp: entry?.timestamp || ""
+    timestamp: entry?.timestamp || "",
+    presentOnSite: typeof entry?.presentOnSite === "boolean"
+      ? entry.presentOnSite
+      : typeof entry?.present_on_site === "boolean"
+        ? entry.present_on_site
+        : undefined
   };
 }
 
@@ -27532,6 +27537,13 @@ function isWorkerPresentOnSite(direction) {
   return normalized === "check-in" || normalized === "app-login";
 }
 
+function isAccessEntryPresentOnSite(entry) {
+  if (entry && typeof entry.presentOnSite === "boolean") {
+    return entry.presentOnSite;
+  }
+  return isWorkerPresentOnSite(entry?.direction);
+}
+
 function formatDashboardAccessDirection(direction) {
   const normalized = String(direction || "").trim().toLowerCase();
   if (normalized === "check-in") return runtimeText("dashboardDirectionCheckin");
@@ -27549,7 +27561,7 @@ function getPorterOnSiteByCompany() {
   for (const entry of latestEntries) {
     const workerId = entry?.workerId || "";
     const direction = entry?.direction || "";
-    if (!isWorkerPresentOnSite(direction)) {
+    if (!isAccessEntryPresentOnSite(entry)) {
       continue;
     }
     const worker = workerById.get(workerId);
