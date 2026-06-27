@@ -9513,6 +9513,8 @@ function getRuntimeUiTexts() {
     dashboardLastAccessHeading: "Latest access",
     dashboardDirectionCheckin: "Check-in",
     dashboardDirectionCheckout: "Check-out",
+    dashboardDirectionAppLogin: "Site login",
+    dashboardDirectionAppLogout: "Site leave",
     unknownPerson: "Unknown",
     unknownCompany: "Unknown company",
     unknownTurnstile: "Unknown turnstile",
@@ -10367,6 +10369,8 @@ function getRuntimeUiTexts() {
       dashboardLastAccessHeading: "Letzter Zutritt",
       dashboardDirectionCheckin: "Anmeldung",
       dashboardDirectionCheckout: "Abmeldung",
+      dashboardDirectionAppLogin: "Standort-Anmeldung",
+      dashboardDirectionAppLogout: "Standort verlassen",
       unknownPerson: "Unbekannt",
       unknownCompany: "Unbekannte Firma",
       unknownTurnstile: "Unbekanntes Drehkreuz",
@@ -27523,6 +27527,20 @@ function renderRecentAccess() {
   });
 }
 
+function isWorkerPresentOnSite(direction) {
+  const normalized = String(direction || "").trim().toLowerCase();
+  return normalized === "check-in" || normalized === "app-login";
+}
+
+function formatDashboardAccessDirection(direction) {
+  const normalized = String(direction || "").trim().toLowerCase();
+  if (normalized === "check-in") return runtimeText("dashboardDirectionCheckin");
+  if (normalized === "app-login") return runtimeText("dashboardDirectionAppLogin");
+  if (normalized === "app-logout") return runtimeText("dashboardDirectionAppLogout");
+  if (normalized === "check-out") return runtimeText("dashboardDirectionCheckout");
+  return String(direction || "").trim();
+}
+
 function getPorterOnSiteByCompany() {
   const workerById = new Map(getUiVisibleWorkers().map((worker) => [worker.id, worker]));
   const latestEntries = getUiVisibleLatestAccessEntries();
@@ -27531,7 +27549,7 @@ function getPorterOnSiteByCompany() {
   for (const entry of latestEntries) {
     const workerId = entry?.workerId || "";
     const direction = entry?.direction || "";
-    if (direction !== "check-in") {
+    if (!isWorkerPresentOnSite(direction)) {
       continue;
     }
     const worker = workerById.get(workerId);
@@ -27582,14 +27600,12 @@ function renderDashboardPorterLivePanel() {
   const worker = state.workers.find((entry) => entry.id === latest.workerId) || null;
   const company = worker ? state.companies.find((entry) => entry.id === getWorkerCompanyId(worker)) : null;
   const subcompanyLabel = getSubcompanyLabel(worker);
-  const directionLabel = latest.direction === "check-in"
-    ? runtimeText("dashboardDirectionCheckin")
-    : runtimeText("dashboardDirectionCheckout");
+  const directionLabel = formatDashboardAccessDirection(latest.direction);
   const photoSrc = worker
     ? sanitizeImageSrc(worker.photoData, createAvatar(worker))
     : createAvatar({ firstName: "?", lastName: "?" });
   const workerName = worker ? `${worker.firstName} ${worker.lastName}` : runtimeText("unknownPerson");
-  const eventClass = latest.direction === "check-in" ? "porter-event" : "porter-event muted";
+  const eventClass = isWorkerPresentOnSite(latest.direction) ? "porter-event" : "porter-event muted";
 
   panel.className = "porter-live-card";
   panel.innerHTML = `
@@ -27849,9 +27865,7 @@ function renderDashboardWorkerDetail(worker, options = {}) {
   };
   const statusLabel = statusValueMap[String(worker.status || "").trim().toLowerCase()] || worker.status;
   const latestDirectionLabel = latestAccess
-    ? latestAccess.direction === "check-in"
-      ? runtimeText("dashboardDirectionCheckin")
-      : runtimeText("dashboardDirectionCheckout")
+    ? formatDashboardAccessDirection(latestAccess.direction)
     : "";
   detail.innerHTML = `
     <button class="close-btn" title="${escapeHtml(uiT("detailCloseTitle"))}">&times;</button>
@@ -28214,7 +28228,7 @@ function renderAccessItem(log, options = {}) {
               <strong>${escapeHtml(workerName)}</strong>
               <span>${escapeHtml(log.gate)}${subcompanyLabel ? ` | ${escapeHtml(subcompanyLabel)}` : ""}</span>
             </div>
-            <span class="status-pill status-${escapeHtml(log.direction)}">${escapeHtml(log.direction)}</span>
+            <span class="status-pill status-${escapeHtml(log.direction)}">${escapeHtml(formatDashboardAccessDirection(log.direction))}</span>
             ${log.checked_in_late == 1 ? `<span class="status-pill status-late" title="${uiT("checkedInLate")}">${uiT("checkedInLate")}</span>` : ""}
           </header>
           <span>${formatTimestamp(log.timestamp)}</span>
@@ -35275,7 +35289,7 @@ if (accessForm) {
     const { start } = getEffectiveWorkTimes();
     if (!start) return false;
     const latest = getLatestAccessForWorker(w.id);
-    if (latest?.direction === "check-in") return false; // already in
+    if (isWorkerPresentOnSite(latest?.direction)) return false; // already in
     const [hh, mm] = start.split(":").map(Number);
     const now = new Date();
     return (now.getHours() * 60 + now.getMinutes()) > (hh * 60 + mm);
@@ -35421,8 +35435,8 @@ if (accessForm) {
       const full = `${w.firstName} ${w.lastName} ${w.badgeId}`.toLowerCase();
       return full.includes(q);
     }).sort((a, b) => {
-      const aIn = getLatestAccessForWorker(a.id)?.direction === "check-in";
-      const bIn = getLatestAccessForWorker(b.id)?.direction === "check-in";
+      const aIn = isWorkerPresentOnSite(getLatestAccessForWorker(a.id)?.direction);
+      const bIn = isWorkerPresentOnSite(getLatestAccessForWorker(b.id)?.direction);
       if (aIn !== bIn) return aIn ? 1 : -1;
       const aLate = isWorkerLate(a);
       const bLate = isWorkerLate(b);
@@ -35442,7 +35456,7 @@ if (accessForm) {
       const companyName = escapeHtml(company?.name || "");
       const badgeId = escapeHtml(w.badgeId);
       const latest = getLatestAccessForWorker(w.id);
-      const isCheckedIn = latest?.direction === "check-in";
+      const isCheckedIn = isWorkerPresentOnSite(latest?.direction);
       const late = isWorkerLate(w);
       const statusPill = latest
         ? `<span class="status-pill manual-entry-status ${isCheckedIn ? "status-active" : "status-inactive"}">${isCheckedIn ? runtimeText("dashboardDirectionCheckin") : runtimeText("dashboardDirectionCheckout")}</span>`

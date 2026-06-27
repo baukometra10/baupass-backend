@@ -10683,7 +10683,7 @@ def _operations_snapshot_with_db(db):
                     AND al2.timestamp LIKE ?
               )
         ) latest
-        WHERE latest.direction = 'check-in'
+        WHERE latest.direction IN ('check-in', 'app-login')
         """,
         tuple(company_params + [f"{today_prefix}%", f"{today_prefix}%"]),
     ).fetchone()
@@ -11505,6 +11505,35 @@ def _notify_worker_site_checkin(db, worker, *, via_proximity: bool = False) -> N
 
 
 SITE_APP_LOGIN_GATE = "Mitarbeiter-App (Standort-Anmeldung)"
+SITE_APP_LEAVE_GATE = "Mitarbeiter-App (Standort verlassen)"
+
+
+def _last_access_log_today(db, worker_id):
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    return db.execute(
+        """
+        SELECT id, direction, gate, timestamp
+        FROM access_logs
+        WHERE worker_id = ? AND timestamp LIKE ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """,
+        (worker_id, f"{today_prefix}%"),
+    ).fetchone()
+
+
+def worker_has_open_site_app_session_today(db, worker_id):
+    """True while worker is considered on-site via app-login or open check-in."""
+    if worker_has_open_checkin_today(db, worker_id):
+        return True
+    row = _last_access_log_today(db, worker_id)
+    if not row:
+        return False
+    direction = str(row["direction"] or "").lower()
+    gate = str(row["gate"] or "")
+    if direction == "app-login" or gate == SITE_APP_LOGIN_GATE:
+        return True
+    return False
 
 
 def worker_has_site_app_login_today(db, worker_id):
@@ -11524,10 +11553,10 @@ def worker_has_site_app_login_today(db, worker_id):
 
 
 def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung"):
-    """Visible in admin recent access; does not count as on-site check-in."""
+    """Visible in admin recent access and dashboard on-site counts."""
     if worker_has_open_checkin_today(db, worker["id"]):
         return None
-    if worker_has_site_app_login_today(db, worker["id"]):
+    if worker_has_open_site_app_session_today(db, worker["id"]):
         return None
     log_id = create_access_log_entry(
         db,
@@ -11555,6 +11584,66 @@ def record_site_app_login_activity(db, worker, *, note="Automatische Standort-An
     except Exception:
         app.logger.debug("access.app_login publish skipped for worker %s", worker["id"], exc_info=True)
     return log_id
+
+
+def record_site_app_leave_activity(db, worker, *, note="Standort verlassen (GPS)"):
+    """Visible in admin recent access when worker leaves site without formal check-out."""
+    log_id = create_access_log_entry(
+        db,
+        worker["id"],
+        "app-logout",
+        SITE_APP_LEAVE_GATE,
+        note,
+        worker_type=worker["worker_type"],
+    )
+    try:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event(
+            "access.app_logout",
+            str(worker["company_id"]),
+            {
+                "worker_id": str(worker["id"]),
+                "workerId": str(worker["id"]),
+                "badge_id": worker.get("badge_id"),
+                "gate": SITE_APP_LEAVE_GATE,
+                "log_id": log_id,
+            },
+            actor_id=str(worker["id"]),
+        )
+    except Exception:
+        app.logger.debug("access.app_logout publish skipped for worker %s", worker["id"], exc_info=True)
+    return log_id
+
+
+def _publish_site_checkout_event(db, worker, log_id, *, via_leave: bool = False) -> None:
+    try:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event(
+            "access.check_out",
+            str(worker["company_id"]),
+            {
+                "worker_id": str(worker["id"]),
+                "workerId": str(worker["id"]),
+                "badge_id": worker.get("badge_id"),
+                "gate": "Mitarbeiter-App (Standort)",
+                "log_id": log_id,
+                "siteLeave": bool(via_leave),
+            },
+            actor_id=str(worker["id"]),
+        )
+        publish_event(
+            "worker.site_leave",
+            str(worker["company_id"]),
+            {
+                "workerId": str(worker["id"]),
+                "checkoutLogId": log_id,
+            },
+            actor_id=str(worker["id"]),
+        )
+    except Exception:
+        app.logger.debug("site leave publish skipped for worker %s", worker["id"], exc_info=True)
 
 
 def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False):
@@ -13290,6 +13379,7 @@ def worker_app_site_leave():
         return jsonify({"error": "still_on_site", "distanceMeters": measured["distanceMeters"]}), 409
 
     checkout_log_id = None
+    leave_log_id = None
     if worker_has_open_checkin_today(db, worker["id"]):
         checkout_log_id = create_access_log_entry(
             db,
@@ -13299,6 +13389,25 @@ def worker_app_site_leave():
             "Automatischer Check-out beim Verlassen des Standorts",
             worker_type=worker["worker_type"],
         )
+        _publish_site_checkout_event(db, worker, checkout_log_id, via_leave=True)
+    elif worker_has_open_site_app_session_today(db, worker["id"]):
+        leave_log_id = record_site_app_leave_activity(
+            db,
+            worker,
+            note="Automatische Abmeldung beim Verlassen des Standorts",
+        )
+    else:
+        try:
+            from backend.app.platform.events.bus import publish_event
+
+            publish_event(
+                "worker.site_leave",
+                str(worker["company_id"]),
+                {"workerId": str(worker["id"]), "checkoutLogId": None},
+                actor_id=str(worker["id"]),
+            )
+        except Exception:
+            app.logger.debug("worker.site_leave publish skipped for worker %s", worker["id"], exc_info=True)
 
     token = getattr(g, "worker_token", "")
     if token:
@@ -13311,7 +13420,14 @@ def worker_app_site_leave():
         target_id=worker["id"],
         company_id=worker["company_id"],
     )
-    return jsonify({"ok": True, "checkoutLogId": checkout_log_id, "loggedOut": True})
+    return jsonify(
+        {
+            "ok": True,
+            "checkoutLogId": checkout_log_id,
+            "siteLeaveLogId": leave_log_id,
+            "loggedOut": True,
+        }
+    )
 
 
 def _access_log_has_client_event_id(db, worker_id, client_event_id):
@@ -13595,7 +13711,7 @@ def build_worker_team_snapshot(db, worker_row):
                     AND al2.timestamp LIKE ?
               )
         ) latest
-        WHERE latest.direction = 'check-in'
+        WHERE latest.direction IN ('check-in', 'app-login')
         """,
         tuple(live_params),
     ).fetchone()

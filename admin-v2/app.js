@@ -738,9 +738,18 @@ function companyIdFromQuery() {
 
 function shouldRefreshOnEvent(evt) {
   const t = String(evt?.type || evt?.event_type || "");
-  return /inbox|security|leave|access|push|emergency|alert|document|site_checkin|proximity|worker_app|check_in|check_out/i.test(
+  return /inbox|security|leave|access|push|emergency|alert|document|site_checkin|site_leave|proximity|worker_app|check_in|check_out|app_login|app_logout/i.test(
     t,
   );
+}
+
+function formatAccessDirection(direction) {
+  const d = String(direction || "").trim().toLowerCase();
+  if (d === "app-login") return t("access.appLogin");
+  if (d === "app-logout") return t("access.appLogout");
+  if (d === "check-in") return t("access.checkIn");
+  if (d === "check-out") return t("access.checkOut");
+  return direction || "-";
 }
 
 function paintInboxBadge(el, open, critical) {
@@ -3391,7 +3400,7 @@ async function loadOverview() {
     { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },
     {
       label: t("table.direction"),
-      render: (r) => (r.direction === "app-login" ? t("access.appLogin") : r.direction || "-"),
+      render: (r) => formatAccessDirection(r.direction),
     },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
     { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
@@ -3787,7 +3796,7 @@ async function loadAccess() {
   const data = await api(`/api/v2/access/live${q}`);
   renderTable($("accessTable"), data.access_logs || [], [
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
-    { label: t("table.direction"), render: (r) => r.direction || "-" },
+    { label: t("table.direction"), render: (r) => formatAccessDirection(r.direction) },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
     { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
   ]);

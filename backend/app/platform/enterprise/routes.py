@@ -1105,7 +1105,7 @@ def register_enterprise_routes(flask_app):
                           WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
                       )
                 ) latest
-                WHERE latest.direction = 'check-in'
+                WHERE latest.direction IN ('check-in', 'app-login')
                 """,
                 (cid, f"{today_prefix}%", f"{today_prefix}%"),
             ).fetchone()

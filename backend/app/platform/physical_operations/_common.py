@@ -14,6 +14,17 @@ def today_prefix() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+ON_SITE_DIRECTIONS = ("check-in", "app-login")
+
+
+def is_on_site_direction(direction: str | None) -> bool:
+    return str(direction or "").strip().lower() in ON_SITE_DIRECTIONS
+
+
+def on_site_direction_sql(column: str = "latest.direction") -> str:
+    return f"{column} IN ('check-in', 'app-login')"
+
+
 def as_company_id(value: Any) -> str:
     """Company ids are strings like cmp-abc123 — never int()."""
     return str(value or "").strip()
@@ -52,7 +63,7 @@ def count_on_site(db, company_id: str, today: str | None = None) -> int:
     row = db.execute(
         f"""
         SELECT COUNT(*) AS c FROM ({workers_on_site_sql("w")}) latest
-        WHERE latest.direction = 'check-in'
+        WHERE {on_site_direction_sql()}
         """,
         (cid, f"{today}%", f"{today}%"),
     ).fetchone()
@@ -132,7 +143,7 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
                latest.gate, latest.timestamp AS last_access
         FROM ({workers_on_site_sql("w")}) latest
         JOIN workers w ON w.id = latest.worker_id
-        WHERE latest.direction = 'check-in'
+        WHERE {on_site_direction_sql()}
         ORDER BY latest.timestamp DESC
         """,
         (cid, f"{today}%", f"{today}%"),

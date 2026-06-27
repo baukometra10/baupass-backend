@@ -29,6 +29,34 @@
         at: evt.created_at || "",
       };
     }
+    if (type === "access.app_logout") {
+      const worker = p.workerId || p.worker_id || "?";
+      return {
+        html: `<strong>${worker}</strong> Standort verlassen`,
+        at: evt.created_at || "",
+      };
+    }
+    if (type === "access.check_out") {
+      const worker = p.workerId || p.worker_id || "?";
+      return {
+        html: `<strong>${worker}</strong> Ausgestempelt (Standort verlassen)`,
+        at: evt.created_at || "",
+      };
+    }
+    if (type === "access.check_in") {
+      const worker = p.workerId || p.worker_id || "?";
+      return {
+        html: `<strong>${worker}</strong> Eingestempelt @ ${p.gate || "Standort"}`,
+        at: evt.created_at || "",
+      };
+    }
+    if (type === "worker.site_leave") {
+      const worker = p.workerId || p.worker_id || "?";
+      return {
+        html: `<strong>${worker}</strong> hat den Standort verlassen`,
+        at: evt.created_at || "",
+      };
+    }
     if (type === "inbox.changed") {
       return {
         html: "<strong>Posteingang</strong> aktualisiert",

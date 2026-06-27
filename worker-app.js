@@ -1132,6 +1132,7 @@ let siteOffSiteStrikeCount = 0;
 let siteGeofenceLeaveInProgress = false;
 let lastSitePresenceNoticeKey = "";
 let siteAccessGateModeNoticeShown = false;
+let lastSiteAccessCfg = null;
 let proximityLoginWatchTimer = null;
 let proximityInsideSince = 0;
 let proximityLoginInProgress = false;
@@ -5737,6 +5738,7 @@ function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
 
 function applySiteAccessUi(payload = lastWorkerPayload) {
   const cfg = getSiteAccessFromPayload(payload);
+  lastSiteAccessCfg = cfg;
   document.body.classList.toggle("site-app-mode", cfg.siteApp);
 
   [elements.gateModeButton, elements.quickGateModeButton].forEach((btn) => {
@@ -5788,9 +5790,11 @@ async function handleSiteLeaveDetected() {
   siteGeofenceLeaveInProgress = true;
   stopSiteGeofenceMonitor();
   const tokenForLeave = workerToken;
+  const cfg = lastSiteAccessCfg;
+  let leavePayload = null;
   try {
-    const locationPayload = await resolveLoginLocation();
-    await fetchJson(`${API_BASE}/site-leave`, {
+    const locationPayload = await resolveSiteLocation({ preferFast: false });
+    leavePayload = await fetchJson(`${API_BASE}/site-leave`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -5804,12 +5808,25 @@ async function handleSiteLeaveDetected() {
   if (tokenForLeave === workerToken) {
     invalidateWorkerSession({ showNotice: false });
     showWorkerNotice(t("siteLeaveAutoLogout"));
+    showWorkerNotice(t("siteReturnProximityHint"));
+    lastSitePresenceNoticeKey = "";
+    const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+    if (badgeId && getStoredBadgePinForProximity()) {
+      startProximityLoginWatcher();
+      try {
+        const hint = await fetchProximitySiteHint(badgeId);
+        updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(hint) || cfg || undefined });
+      } catch {
+        updateSiteGpsStatusBar({ cfg: cfg || undefined });
+      }
+    }
   }
   siteGeofenceLeaveInProgress = false;
 }
 
 async function pollSitePresence(cfg) {
   if (!workerToken || offlineWorkerSessionActive || siteGeofenceLeaveInProgress) return;
+  lastSiteAccessCfg = cfg;
   let locationPayload = null;
   try {
     locationPayload = await resolveSiteLocation({ preferFast: false });
@@ -5864,7 +5881,7 @@ async function pollSitePresence(cfg) {
         })
       );
     }
-    if (presence?.onSite === false) {
+    if (presence?.onSite === false && cfg?.autoLogout !== false) {
       siteOffSiteStrikeCount += 1;
       if (siteOffSiteStrikeCount >= SITE_OFF_SITE_STRIKES_REQUIRED) {
         await handleSiteLeaveDetected();

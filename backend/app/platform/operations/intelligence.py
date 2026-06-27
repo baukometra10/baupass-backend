@@ -20,7 +20,7 @@ def workforce_optimization(db, company_id: int) -> dict[str, Any]:
                   SELECT MAX(al2.timestamp) FROM access_logs al2
                   WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
               )
-        ) x WHERE x.direction = 'check-in'
+        ) x WHERE x.direction IN ('check-in', 'app-login')
         """,
         (company_id, f"{today}%", f"{today}%"),
     ).fetchone()

@@ -42,7 +42,7 @@ class WorkersRepository:
                       WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
                   )
             ) latest
-            WHERE latest.direction = 'check-in'
+            WHERE latest.direction IN ('check-in', 'app-login')
             """,
             (company_id, f"{today_prefix}%", f"{today_prefix}%"),
         ).fetchone()

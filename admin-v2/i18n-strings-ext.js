@@ -171,6 +171,9 @@ export const EXT_STRINGS = {
     "workTimes.siteAutoLogout": "Automatisch abmelden beim Verlassen",
     "workTimes.siteAccessHint": "Geofence unter Werkzeuge setzen oder GPS am Mitarbeiter-Standort. Badge-PIN einmal manuell anmelden.",
     "access.appLogin": "Anmeldung",
+    "access.appLogout": "Standort verlassen",
+    "access.checkIn": "Einstempeln",
+    "access.checkOut": "Ausstempeln",
   },
   en: {
     "platform.banner.maturity": "Platform maturity",
@@ -343,6 +346,9 @@ export const EXT_STRINGS = {
     "workTimes.siteAutoLogout": "Auto logout when leaving site",
     "workTimes.siteAccessHint": "Set geofence under Tools or GPS on worker site. Worker must log in once manually for badge PIN.",
     "access.appLogin": "App login",
+    "access.appLogout": "Left site",
+    "access.checkIn": "Check-in",
+    "access.checkOut": "Check-out",
   },
   ar: {
     "platform.banner.maturity": "نضج المنصة",
