@@ -5525,7 +5525,7 @@ async function pollProximityLoginCandidate() {
     updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(siteHint), preview });
     if (typeof preview?.distanceMeters === "number") {
       showWorkerNotice(
-        t("siteOutsideRadius", {
+        tf("siteOutsideRadius", {
           distance: preview.distanceMeters,
           allowed: preview.allowedRadiusMeters || siteHint?.siteGeofenceRadiusMeters || 80,
         })
@@ -5694,17 +5694,17 @@ function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
   }
   bar.classList.remove("hidden");
   if (!cfg.siteApp) {
-    bar.textContent = t("siteGpsStatusGateMode", { server });
+    bar.textContent = tf("siteGpsStatusGateMode", { server });
     bar.dataset.tone = "warn";
     return;
   }
   if (!hasSiteGeofenceConfig(cfg)) {
-    bar.textContent = t("siteGpsStatusNoGeofence", { server });
+    bar.textContent = tf("siteGpsStatusNoGeofence", { server });
     bar.dataset.tone = "warn";
     return;
   }
   if (preview?.onSite) {
-    bar.textContent = t("siteGpsStatusOnSite", {
+    bar.textContent = tf("siteGpsStatusOnSite", {
       distance: preview.distanceMeters ?? "—",
       allowed: preview.allowedRadiusMeters ?? cfg.radiusMeters ?? 80,
       server,
@@ -5713,7 +5713,7 @@ function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
     return;
   }
   if (typeof preview?.distanceMeters === "number") {
-    bar.textContent = t("siteGpsStatusOutside", {
+    bar.textContent = tf("siteGpsStatusOutside", {
       distance: preview.distanceMeters,
       allowed: preview.allowedRadiusMeters ?? cfg.radiusMeters ?? 80,
       server,
@@ -5731,7 +5731,7 @@ function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
     bar.dataset.tone = "pending";
     return;
   }
-  bar.textContent = t("siteGpsStatusWaiting", { server });
+  bar.textContent = tf("siteGpsStatusWaiting", { server });
   bar.dataset.tone = "pending";
 }
 
@@ -5858,7 +5858,7 @@ async function pollSitePresence(cfg) {
       }
     } else if (presence?.onSite === false && typeof presence?.distanceMeters === "number") {
       showWorkerNotice(
-        t("siteOutsideRadius", {
+        tf("siteOutsideRadius", {
           distance: presence.distanceMeters,
           allowed: presence.allowedRadiusMeters || presence.radiusMeters || cfg?.radiusMeters || 80,
         })
