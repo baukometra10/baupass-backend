@@ -1,12 +1,95 @@
 /* Worker PWA — notifications, chat contrast, download buttons, layout polish */
 
-/* ── Top bar: bell + badge ── */
+/* ── Top bar layout ── */
+.sparkasse-top-bar {
+  overflow: visible;
+}
+
+.sparkasse-top-bar .stb-inner {
+  max-width: none;
+  width: 100%;
+  min-height: 56px;
+  height: auto;
+  padding: 0 2px;
+  gap: 8px;
+  overflow: visible;
+}
+
+.sparkasse-top-bar .stb-left {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sparkasse-top-bar .stb-brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sparkasse-top-bar .stb-right {
+  gap: 6px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.sparkasse-top-bar .stb-connection-stack {
+  min-width: 34px;
+}
+
+@media (max-width: 440px) {
+  .sparkasse-top-bar .stb-brand-arrow,
+  .sparkasse-top-bar .stb-connection-label {
+    display: none;
+  }
+
+  .sparkasse-top-bar .stb-logout-text {
+    display: none;
+  }
+
+  .sparkasse-top-bar .stb-logout-btn {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+
+  .sparkasse-top-bar .stb-logout-icon {
+    display: block;
+  }
+}
+
+@media (min-width: 441px) {
+  .sparkasse-top-bar .stb-logout-icon {
+    display: none;
+  }
+}
+
+.sparkasse-top-bar .stb-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.sparkasse-top-bar .stb-build-tag {
+  display: none;
+}
+
+/* ── Top bar: bell + download ── */
 .notification-center-btn.stb-icon-btn,
 .worker-documents-quick-btn.stb-icon-btn {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
   width: 46px;
   height: 46px;
   background: rgba(10, 87, 192, 0.06);
   border: 1px solid rgba(10, 87, 192, 0.12);
+  touch-action: manipulation;
 }
 
 .notification-center-btn.stb-icon-btn svg,
@@ -22,11 +105,8 @@
   background: rgba(10, 87, 192, 0.14);
 }
 
-.sparkasse-top-bar .stb-right {
-  gap: 8px;
-}
-
 .notification-badge {
+  position: absolute;
   top: 0;
   right: 0;
   min-width: 22px;
@@ -36,10 +116,28 @@
   font-weight: 800;
   line-height: 22px;
   box-shadow: 0 2px 8px rgba(220, 38, 38, 0.45);
+  pointer-events: none;
+  z-index: 3;
 }
 
 /* ── Notification sheet ── */
 .notification-center-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 12px;
+  overflow: hidden;
+}
+
+.notification-center-panel.hidden {
+  display: none !important;
+}
+
+body.notification-center-open {
   overflow: hidden;
 }
 
@@ -83,9 +181,11 @@
   text-align: left;
   padding: 14px 14px;
   border-radius: 14px;
-  border-width: 1.5px;
+  border: 1.5px solid var(--line, rgba(0, 0, 0, 0.08));
+  background: var(--surface, #f9fafb);
+  cursor: pointer;
   overflow: hidden;
-  transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease, margin 0.22s ease, padding 0.22s ease;
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
 .notification-center-item.is-dismissing {

@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627h";
+const WORKER_BUILD_TAG = "20260627i";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -799,15 +799,70 @@ function renderNotificationCenterList(items) {
   });
 }
 
+function refreshTopBarElements() {
+  elements.topPanel = document.getElementById("topPanel");
+  elements.notificationCenterBtn = document.getElementById("notificationCenterBtn");
+  elements.workerDocumentsQuickBtn = document.getElementById("workerDocumentsQuickBtn");
+  elements.notificationCenterPanel = document.getElementById("notificationCenterPanel");
+  elements.notificationCenterList = document.getElementById("notificationCenterList");
+  elements.notificationCenterClose = document.getElementById("notificationCenterClose");
+  elements.notificationBadge = document.getElementById("notificationBadge");
+  elements.topLogoutButton = document.getElementById("topLogoutButton");
+  elements.forceRefreshButton = document.getElementById("forceRefreshButton");
+  elements.installButton = document.getElementById("installButton");
+}
+
+function bindTopBarActions() {
+  refreshTopBarElements();
+  const topPanel = elements.topPanel;
+  if (topPanel && !topPanel.dataset.topBarBound) {
+    topPanel.dataset.topBarBound = "1";
+    topPanel.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (target.closest("#notificationCenterBtn")) {
+        event.preventDefault();
+        event.stopPropagation();
+        openNotificationCenter();
+        return;
+      }
+      if (target.closest("#workerDocumentsQuickBtn")) {
+        event.preventDefault();
+        event.stopPropagation();
+        openWorkerDocumentsQuickScreen();
+      }
+    });
+  }
+  if (elements.notificationCenterClose && !elements.notificationCenterClose.dataset.bound) {
+    elements.notificationCenterClose.dataset.bound = "1";
+    elements.notificationCenterClose.addEventListener("click", closeNotificationCenter);
+  }
+  if (elements.notificationCenterPanel && !elements.notificationCenterPanel.dataset.bound) {
+    elements.notificationCenterPanel.dataset.bound = "1";
+    elements.notificationCenterPanel.addEventListener("click", (event) => {
+      if (event.target === elements.notificationCenterPanel) {
+        closeNotificationCenter();
+      }
+    });
+  }
+}
+
 function openNotificationCenter() {
-  const panel = elements.notificationCenterPanel;
+  refreshTopBarElements();
+  const panel = elements.notificationCenterPanel || document.getElementById("notificationCenterPanel");
   if (!panel) return;
   panel.classList.remove("hidden");
+  panel.setAttribute("aria-hidden", "false");
+  document.body.classList.add("notification-center-open");
   void refreshWorkerNotificationCenter();
 }
 
 function closeNotificationCenter() {
-  elements.notificationCenterPanel?.classList.add("hidden");
+  const panel = elements.notificationCenterPanel || document.getElementById("notificationCenterPanel");
+  if (!panel) return;
+  panel.classList.add("hidden");
+  panel.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("notification-center-open");
 }
 
 function openWorkerDocumentsQuickScreen() {
@@ -1263,6 +1318,7 @@ const elements = {
   refreshButton: document.querySelector("#refreshButton"),
   logoutButton: document.querySelector("#logoutButton"),
   topLogoutButton: document.querySelector("#topLogoutButton"),
+  topPanel: document.querySelector("#topPanel"),
   installButton: document.querySelector("#installButton"),
   forceRefreshButton: document.querySelector("#forceRefreshButton"),
   installPlatformHint: document.querySelector("#installPlatformHint"),
@@ -2217,6 +2273,8 @@ async function init() {
   ensureWorkerChatComposeBar();
   applyTranslations();
   updateWorkerBuildBadge();
+  refreshTopBarElements();
+  bindTopBarActions();
   bindEvents();
   initBottomTabNavigation();
   updateWalletImmersiveMode();
@@ -2627,26 +2685,7 @@ function bindEvents() {
     elements.enableNotificationsBtn.addEventListener("click", requestNotificationPermission);
   }
 
-  if (elements.notificationCenterBtn) {
-    elements.notificationCenterBtn.addEventListener("click", () => {
-      openNotificationCenter();
-    });
-  }
-  if (elements.workerDocumentsQuickBtn) {
-    elements.workerDocumentsQuickBtn.addEventListener("click", () => {
-      openWorkerDocumentsQuickScreen();
-    });
-  }
-  if (elements.notificationCenterClose) {
-    elements.notificationCenterClose.addEventListener("click", closeNotificationCenter);
-  }
-  if (elements.notificationCenterPanel) {
-    elements.notificationCenterPanel.addEventListener("click", (event) => {
-      if (event.target === elements.notificationCenterPanel) {
-        closeNotificationCenter();
-      }
-    });
-  }
+  bindTopBarActions();
   
   if (elements.leaveRequestToggleBtn) {
     elements.leaveRequestToggleBtn.addEventListener("click", toggleLeaveRequestForm);
@@ -9157,6 +9196,8 @@ function initWorkerAppShell() {
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
   ensureWorkerChatComposeBar();
+  refreshTopBarElements();
+  bindTopBarActions();
   enforceUiVisibilityGuard();
   initBottomTabNavigation();
 }
