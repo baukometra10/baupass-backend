@@ -9521,6 +9521,9 @@ function getRuntimeUiTexts() {
     dashboardDirectionAppLogin: "Site login",
     dashboardDirectionAppLogout: "Site leave",
     accessEventToday: "Today",
+    accessSessionDurationOnSite: "{duration} on site",
+    accessTodayTotalOnSite: "Today total: {duration}",
+    accessStillOnSite: "Still on site: {duration}",
     unknownPerson: "Unknown",
     unknownCompany: "Unknown company",
     unknownTurnstile: "Unknown turnstile",
@@ -10378,6 +10381,9 @@ function getRuntimeUiTexts() {
       dashboardDirectionAppLogin: "Standort-Anmeldung",
       dashboardDirectionAppLogout: "Standort verlassen",
       accessEventToday: "Heute",
+      accessSessionDurationOnSite: "{duration} am Standort",
+      accessTodayTotalOnSite: "Heute gesamt: {duration}",
+      accessStillOnSite: "Noch vor Ort: {duration}",
       unknownPerson: "Unbekannt",
       unknownCompany: "Unbekannte Firma",
       unknownTurnstile: "Unbekanntes Drehkreuz",
@@ -27506,6 +27512,116 @@ function isAccessArrivalDirection(direction) {
   return normalized === "check-in" || normalized === "app-login";
 }
 
+function isAccessDepartureDirection(direction) {
+  const normalized = String(direction || "").trim().toLowerCase();
+  return normalized === "check-out" || normalized === "app-logout";
+}
+
+function minutesBetweenAccessTimestamps(start, end) {
+  const inTime = new Date(String(start || ""));
+  const outTime = new Date(String(end || ""));
+  if (Number.isNaN(inTime.getTime()) || Number.isNaN(outTime.getTime()) || outTime <= inTime) {
+    return null;
+  }
+  const seconds = Math.floor((outTime - inTime) / 1000);
+  if (seconds <= 0) return null;
+  return Math.min(Math.max(1, Math.ceil(seconds / 60)), 1439);
+}
+
+function pairPresenceSessions(events) {
+  const ordered = [...(events || [])].sort((left, right) =>
+    String(left.timestamp || "").localeCompare(String(right.timestamp || ""))
+  );
+  const sessions = [];
+  let pendingIn = null;
+
+  for (const ev of ordered) {
+    const direction = String(ev.direction || "").trim().toLowerCase();
+    if (isAccessArrivalDirection(direction)) {
+      if (!pendingIn) pendingIn = ev;
+      continue;
+    }
+    if (!isAccessDepartureDirection(direction)) continue;
+
+    if (pendingIn) {
+      sessions.push({
+        checkIn: pendingIn.timestamp,
+        checkOut: ev.timestamp,
+        durationMinutes: minutesBetweenAccessTimestamps(pendingIn.timestamp, ev.timestamp),
+      });
+      pendingIn = null;
+    } else {
+      sessions.push({
+        checkIn: null,
+        checkOut: ev.timestamp,
+        durationMinutes: null,
+      });
+    }
+  }
+
+  if (pendingIn) {
+    sessions.push({
+      checkIn: pendingIn.timestamp,
+      checkOut: null,
+      durationMinutes: minutesBetweenAccessTimestamps(pendingIn.timestamp, new Date().toISOString()),
+    });
+  }
+
+  return sessions;
+}
+
+function formatDurationLabelShort(minutes) {
+  const safe = Math.max(0, Number(minutes) || 0);
+  if (safe < 60) return `${safe} Min.`;
+  const hours = Math.floor(safe / 60);
+  const rest = safe % 60;
+  if (rest === 0) return `${hours} Std.`;
+  return `${hours}:${String(rest).padStart(2, "0")} Std.`;
+}
+
+let todayPresenceMetaCache = { sig: "", sessionByKey: {}, totalByWorker: {} };
+
+function getTodayPresenceMeta(accessLogs) {
+  const day = new Date().toISOString().slice(0, 10);
+  const latestTs = (accessLogs || []).reduce((max, entry) => {
+    const ts = String(entry.timestamp || "");
+    return ts > max ? ts : max;
+  }, "");
+  const sig = `${day}|${(accessLogs || []).length}|${latestTs}`;
+  if (todayPresenceMetaCache.sig === sig) {
+    return todayPresenceMetaCache;
+  }
+
+  const byWorker = {};
+  for (const entry of accessLogs || []) {
+    const ts = String(entry.timestamp || "");
+    if (!ts.startsWith(day)) continue;
+    const workerId = String(entry.workerId || "");
+    if (!workerId) continue;
+    if (!byWorker[workerId]) byWorker[workerId] = [];
+    byWorker[workerId].push(entry);
+  }
+
+  const sessionByKey = {};
+  const totalByWorker = {};
+  for (const [workerId, events] of Object.entries(byWorker)) {
+    const sessions = pairPresenceSessions(events);
+    let total = 0;
+    for (const session of sessions) {
+      if (typeof session.durationMinutes === "number" && session.durationMinutes > 0) {
+        total += session.durationMinutes;
+        if (session.checkOut) {
+          sessionByKey[`${workerId}|${session.checkOut}`] = session.durationMinutes;
+        }
+      }
+    }
+    totalByWorker[workerId] = total;
+  }
+
+  todayPresenceMetaCache = { sig, sessionByKey, totalByWorker };
+  return todayPresenceMetaCache;
+}
+
 function formatAccessClockLabel(timestamp) {
   const raw = String(timestamp || "").trim();
   if (!raw) return "";
@@ -27645,6 +27761,15 @@ function renderDashboardPorterLivePanel() {
     : createAvatar({ firstName: "?", lastName: "?" });
   const workerName = worker ? `${worker.firstName} ${worker.lastName}` : runtimeText("unknownPerson");
   const eventClass = isWorkerPresentOnSite(latest.direction) ? "porter-event" : "porter-event muted";
+  const presenceMeta = getTodayPresenceMeta(state.accessLogs);
+  const sessionKey = `${String(latest.workerId || "")}|${String(latest.timestamp || "")}`;
+  const sessionMinutes = presenceMeta.sessionByKey[sessionKey];
+  const todayTotalMinutes = presenceMeta.totalByWorker[String(latest.workerId || "")];
+  const durationLine = typeof sessionMinutes === "number"
+    ? runtimeTextTemplate("accessSessionDurationOnSite", { duration: formatDurationLabelShort(sessionMinutes) })
+    : (typeof todayTotalMinutes === "number" && todayTotalMinutes > 0
+      ? runtimeTextTemplate("accessTodayTotalOnSite", { duration: formatDurationLabelShort(todayTotalMinutes) })
+      : "");
 
   panel.className = "porter-live-card";
   panel.innerHTML = `
@@ -27659,6 +27784,7 @@ function renderDashboardPorterLivePanel() {
         <span>${escapeHtml(company?.name || runtimeText("unknownCompany"))}</span>
         ${subcompanyLabel ? `<span>${escapeHtml(subcompanyLabel)}</span>` : ""}
         <span>${escapeHtml(latest.gate || runtimeText("unknownTurnstile"))}</span>
+        ${durationLine ? `<span>${escapeHtml(durationLine)}</span>` : ""}
       </div>
     </div>
     <div class="${eventClass}">${escapeHtml(directionLabel)}${latest.note ? ` | ${escapeHtml(latest.note)}` : ""}</div>
@@ -27906,6 +28032,10 @@ function renderDashboardWorkerDetail(worker, options = {}) {
   const latestDirectionLabel = latestAccess
     ? formatDashboardAccessDirection(latestAccess.direction)
     : "";
+  const todayPresenceTotal = getTodayPresenceMeta(state.accessLogs).totalByWorker[String(worker.id)] || 0;
+  const todayOnSiteLabel = todayPresenceTotal > 0
+    ? runtimeTextTemplate("accessTodayTotalOnSite", { duration: formatDurationLabelShort(todayPresenceTotal) })
+    : "";
   detail.innerHTML = `
     <button class="close-btn" title="${escapeHtml(uiT("detailCloseTitle"))}">&times;</button>
     <div class="worker-detail-card">
@@ -27924,6 +28054,7 @@ function renderDashboardWorkerDetail(worker, options = {}) {
       <p><strong>${escapeHtml(runtimeText("dashboardLastAccessHeading"))}:</strong> ${escapeHtml(latestDirectionLabel || runtimeText("dashboardLastAccessPlaceholder"))}</p>
       ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("accessWarningGate"))}:</strong> ${escapeHtml(latestAccess.gate || runtimeText("unknownTurnstile"))}</p>` : ""}
       ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("summaryLastBooking"))}:</strong> ${escapeHtml(formatTimestamp(latestAccess.timestamp))}</p>` : ""}
+      ${todayOnSiteLabel ? `<p><strong>${escapeHtml(runtimeText("statsAccessToday"))}:</strong> ${escapeHtml(todayOnSiteLabel)}</p>` : ""}
       <div class="button-row dashboard-worker-detail-actions">
         <button type="button" class="primary-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-in" data-source-view="${escapeHtml(sourceView)}">${escapeHtml(uiT("detailCheckinBtn"))}</button>
         <button type="button" class="ghost-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-out" data-source-view="${escapeHtml(sourceView)}">${escapeHtml(uiT("detailCheckoutBtn"))}</button>
@@ -28251,6 +28382,11 @@ function renderAccessItem(log, options = {}) {
   const worker = state.workers.find((entry) => entry.id === log.workerId);
   const monthHours = worker ? state.accessHoursByWorker?.[worker.id] : null;
   const monthHoursLabel = monthHours == null ? "" : `⏱ ${formatHoursCompact(monthHours)} h (${state.accessHoursMonth})`;
+  const presenceMeta = getTodayPresenceMeta(state.accessLogs);
+  const workerId = String(log.workerId || "");
+  const sessionKey = `${workerId}|${String(log.timestamp || "")}`;
+  const sessionMinutes = presenceMeta.sessionByKey[sessionKey];
+  const todayTotalMinutes = presenceMeta.totalByWorker[workerId];
   const subcompanyLabel = getSubcompanyLabel(worker);
   const photoSrc = worker
     ? sanitizeImageSrc(worker.photoData, createAvatar(worker))
@@ -28263,6 +28399,12 @@ function renderAccessItem(log, options = {}) {
     : `list-item recent-access-item clickable access-entry-${arrival ? "arrival" : "departure"}`;
   const clockLabel = formatAccessClockLabel(log.timestamp);
   const dayLabel = formatAccessDayLabel(log.timestamp);
+  const durationLabel = typeof sessionMinutes === "number"
+    ? runtimeTextTemplate("accessSessionDurationOnSite", { duration: formatDurationLabelShort(sessionMinutes) })
+    : "";
+  const todayTotalLabel = typeof todayTotalMinutes === "number" && todayTotalMinutes > 0
+    ? runtimeTextTemplate("accessTodayTotalOnSite", { duration: formatDurationLabelShort(todayTotalMinutes) })
+    : "";
   return `
     <article class="${itemClass}" data-worker-id="${worker ? escapeHtml(worker.id) : ""}">
       <div class="access-entry-layout">
@@ -28280,6 +28422,8 @@ function renderAccessItem(log, options = {}) {
             <span class="access-entry-clock">${escapeHtml(clockLabel)}</span>
             ${dayLabel ? `<span class="access-entry-day">${escapeHtml(dayLabel)}</span>` : ""}
           </div>
+          ${durationLabel ? `<span class="access-entry-duration">${escapeHtml(durationLabel)}</span>` : ""}
+          ${todayTotalLabel ? `<span class="access-entry-total">${escapeHtml(todayTotalLabel)}</span>` : ""}
           ${monthHoursLabel ? `<span>${escapeHtml(monthHoursLabel)}</span>` : ""}
           ${log.note ? `<span class="access-entry-note">${escapeHtml(log.note)}</span>` : ""}
         </div>

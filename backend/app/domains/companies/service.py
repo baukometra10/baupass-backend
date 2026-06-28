@@ -1379,7 +1379,6 @@ class CompaniesService:
         self, db, user: dict[str, Any], company_id: str, *, month_param: str
     ) -> dict[str, Any]:
         from collections import defaultdict
-        from datetime import datetime as dt
 
         denied = self.check_turnstile_list_access(user, company_id)
         if denied:
@@ -1412,22 +1411,15 @@ class CompaniesService:
             entry["badgeId"] = row.get("badge_id") or ""
             entry["role"] = row.get("worker_role") or ""
 
+        from backend.app.platform.physical_operations._common import pair_presence_sessions
+
         for worker_id, events in by_worker.items():
-            pending_checkin = None
-            for ev in events:
-                if ev["direction"] == "check-in":
-                    pending_checkin = ev["timestamp"]
-                elif ev["direction"] == "check-out" and pending_checkin:
-                    try:
-                        t_in = dt.fromisoformat(pending_checkin[:19])
-                        t_out = dt.fromisoformat(ev["timestamp"][:19])
-                        diff = int((t_out - t_in).total_seconds() / 60)
-                        if 0 < diff < 1440:
-                            worker_data[worker_id]["totalMinutes"] += diff
-                            worker_data[worker_id]["daysWorked"].add(pending_checkin[:10])
-                    except Exception:
-                        pass
-                    pending_checkin = None
+            for session in pair_presence_sessions(events):
+                minutes = session.get("durationMinutes")
+                check_in = session.get("checkIn")
+                if isinstance(minutes, int) and minutes > 0 and check_in:
+                    worker_data[worker_id]["totalMinutes"] += minutes
+                    worker_data[worker_id]["daysWorked"].add(str(check_in)[:10])
 
         result = []
         for worker_id, data in worker_data.items():
@@ -1455,7 +1447,6 @@ class CompaniesService:
         month_param: str,
     ) -> dict[str, Any]:
         from collections import OrderedDict
-        from datetime import datetime as dt
 
         denied = self.check_turnstile_list_access(user, company_id)
         if denied:
@@ -1482,46 +1473,16 @@ class CompaniesService:
                 }
             )
 
+        from backend.app.platform.physical_operations._common import pair_presence_sessions
+
         days = []
         for day, events in by_day.items():
-            sessions = []
-            pending_in = None
-            day_minutes = 0
-            for ev in events:
-                if ev["direction"] == "check-in":
-                    pending_in = ev
-                elif ev["direction"] == "check-out":
-                    duration = None
-                    if pending_in:
-                        try:
-                            t_in = dt.fromisoformat(pending_in["timestamp"][:19])
-                            t_out = dt.fromisoformat(ev["timestamp"][:19])
-                            diff = int((t_out - t_in).total_seconds() / 60)
-                            if 0 < diff < 1440:
-                                duration = diff
-                                day_minutes += diff
-                        except Exception:
-                            pass
-                    sessions.append(
-                        {
-                            "checkIn": pending_in["timestamp"] if pending_in else None,
-                            "checkOut": ev["timestamp"],
-                            "gateIn": pending_in["gate"] if pending_in else "",
-                            "gateOut": ev["gate"],
-                            "durationMinutes": duration,
-                        }
-                    )
-                    pending_in = None
-            if pending_in:
-                sessions.append(
-                    {
-                        "checkIn": pending_in["timestamp"],
-                        "checkOut": None,
-                        "gateIn": pending_in["gate"],
-                        "gateOut": "",
-                        "durationMinutes": None,
-                    }
-                )
+            sessions = pair_presence_sessions(events)
+            day_minutes = sum(
+                int(session["durationMinutes"])
+                for session in sessions
+                if isinstance(session.get("durationMinutes"), int)
+            )
             days.append({"date": day, "sessions": sessions, "dayMinutes": day_minutes})
 
         return {

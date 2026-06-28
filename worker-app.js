@@ -444,23 +444,14 @@ function extractTodayTimesheetSummary(rows) {
     return { hasRows: false, totalMin: 0, isOpen: false };
   }
 
-  const checkins = todayRows.filter((row) => isAccessLogCheckIn(row.direction));
-  const checkouts = todayRows.filter((row) => isAccessLogCheckOut(row.direction));
-  const pairCount = Math.min(checkins.length, checkouts.length);
-  let totalMin = 0;
-
-  for (let i = 0; i < pairCount; i++) {
-    const inTime = new Date(checkins[i].timestamp);
-    const outTime = new Date(checkouts[i].timestamp);
-    if (outTime > inTime) {
-      totalMin += Math.round((outTime - inTime) / 60000);
-    }
-  }
+  const sessions = pairWorkerPresenceSessions(todayRows);
+  const totalMin = summarizeWorkerPresenceMinutes(todayRows);
+  const isOpen = sessions.some((session) => session.checkIn && !session.checkOut);
 
   return {
     hasRows: true,
     totalMin,
-    isOpen: checkins.length > checkouts.length,
+    isOpen,
   };
 }
 
@@ -6114,12 +6105,65 @@ async function fetchJson(url, options = {}) {
 
 function isAccessLogCheckIn(direction) {
   const value = String(direction || "").trim().toLowerCase();
-  return value === "in" || value === "check-in" || value === "check_in" || value === "entry";
+  return value === "in" || value === "check-in" || value === "check_in" || value === "entry" || value === "app-login";
 }
 
 function isAccessLogCheckOut(direction) {
   const value = String(direction || "").trim().toLowerCase();
-  return value === "out" || value === "check-out" || value === "check_out" || value === "exit";
+  return value === "out" || value === "check-out" || value === "check_out" || value === "exit" || value === "app-logout";
+}
+
+function minutesBetweenWorkerAccessTimestamps(start, end) {
+  const inTime = new Date(String(start || ""));
+  const outTime = new Date(String(end || ""));
+  if (Number.isNaN(inTime.getTime()) || Number.isNaN(outTime.getTime()) || outTime <= inTime) {
+    return null;
+  }
+  const seconds = Math.floor((outTime - inTime) / 1000);
+  if (seconds <= 0) return null;
+  return Math.min(Math.max(1, Math.ceil(seconds / 60)), 1439);
+}
+
+function pairWorkerPresenceSessions(events) {
+  const ordered = [...(events || [])].sort((left, right) =>
+    String(left.timestamp || "").localeCompare(String(right.timestamp || ""))
+  );
+  const sessions = [];
+  let pendingIn = null;
+
+  for (const ev of ordered) {
+    if (isAccessLogCheckIn(ev.direction)) {
+      if (!pendingIn) pendingIn = ev;
+      continue;
+    }
+    if (!isAccessLogCheckOut(ev.direction)) continue;
+
+    if (pendingIn) {
+      sessions.push({
+        checkIn: pendingIn,
+        checkOut: ev,
+        durationMinutes: minutesBetweenWorkerAccessTimestamps(pendingIn.timestamp, ev.timestamp),
+      });
+      pendingIn = null;
+    }
+  }
+
+  if (pendingIn) {
+    sessions.push({
+      checkIn: pendingIn,
+      checkOut: null,
+      durationMinutes: minutesBetweenWorkerAccessTimestamps(pendingIn.timestamp, new Date().toISOString()),
+    });
+  }
+
+  return sessions;
+}
+
+function summarizeWorkerPresenceMinutes(events) {
+  return pairWorkerPresenceSessions(events).reduce((sum, session) => {
+    const minutes = Number(session.durationMinutes) || 0;
+    return sum + (minutes > 0 ? minutes : 0);
+  }, 0);
 }
 
 function workerPlanAllowsFeature(featureKey) {
@@ -7620,22 +7664,13 @@ function updateDailyInsightsFromTimesheets(rows) {
     return;
   }
 
+  const sessions = pairWorkerPresenceSessions(todayRows);
+  const totalMin = summarizeWorkerPresenceMinutes(todayRows);
   const checkins = todayRows.filter((row) => isAccessLogCheckIn(row.direction));
   const checkouts = todayRows.filter((row) => isAccessLogCheckOut(row.direction));
-
-  let totalMin = 0;
-  const pairCount = Math.min(checkins.length, checkouts.length);
-  for (let i = 0; i < pairCount; i++) {
-    const inTime = new Date(checkins[i].timestamp);
-    const outTime = new Date(checkouts[i].timestamp);
-    if (outTime > inTime) {
-      totalMin += Math.round((outTime - inTime) / 60000);
-    }
-  }
-
+  const isOpen = sessions.some((session) => session.checkIn && !session.checkOut);
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;
-  const isOpen = checkins.length > checkouts.length;
 
   if (elements.dailyCheckinsValue) elements.dailyCheckinsValue.textContent = String(checkins.length);
   if (elements.dailyCheckoutsValue) elements.dailyCheckoutsValue.textContent = String(checkouts.length);
@@ -7674,17 +7709,14 @@ async function loadMyTimesheets() {
     const daysHiddenCount = Math.max(0, dayGroups.length - visibleDayGroups.length);
 
     const dayMarkup = visibleDayGroups.map(([date, entries]) => {
-        // Pair IN/OUT entries to calculate total hours
-        const ins = entries.filter((e) => isAccessLogCheckIn(e.direction)).sort((a, b) => (a.timestamp > b.timestamp ? 1 : -1));
-        const outs = entries.filter((e) => isAccessLogCheckOut(e.direction)).sort((a, b) => (a.timestamp > b.timestamp ? 1 : -1));
-        let totalMin = 0;
-        const pairCount = Math.min(ins.length, outs.length);
-        for (let i = 0; i < pairCount; i++) {
-          const inTime = new Date(ins[i].timestamp);
-          const outTime = new Date(outs[i].timestamp);
-          if (outTime > inTime) totalMin += (outTime - inTime) / 60000;
-        }
-        const totalLabel = totalMin > 0 ? `${Math.floor(totalMin/60)}:${String(Math.round(totalMin%60)).padStart(2,"0")} h` : "";
+        const sessions = pairWorkerPresenceSessions(entries);
+        const totalMin = summarizeWorkerPresenceMinutes(entries);
+        const totalLabel = totalMin > 0 ? `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, "0")} h` : "";
+        const sessionDurationByOut = new Map(
+          sessions
+            .filter((session) => session.checkOut && session.durationMinutes)
+            .map((session) => [String(session.checkOut.timestamp || ""), session.durationMinutes])
+        );
         return `<div class="timesheet-day">
         <div class="timesheet-date-row">
           <span class="timesheet-date">${formatDate(date)}</span>
@@ -7692,9 +7724,14 @@ async function loadMyTimesheets() {
         </div>
         ${entries.map((e) => {
           const isIn = isAccessLogCheckIn(e.direction);
+          const sessionMinutes = sessionDurationByOut.get(String(e.timestamp || ""));
+          const durationLabel = typeof sessionMinutes === "number"
+            ? `<span class="entry-duration">${sessionMinutes} Min.</span>`
+            : "";
           return `<div class="timesheet-entry ${isIn ? "entry-in" : "entry-out"}">
             <span class="entry-direction">${isIn ? t("timesheetDirectionIn") : t("timesheetDirectionOut")}</span>
             <span class="entry-time">${(e.timestamp || "").slice(11, 16)}</span>
+            ${durationLabel}
             ${e.gate ? `<span class="entry-gate">${e.gate}</span>` : ""}
           </div>`;
         }).join("")}

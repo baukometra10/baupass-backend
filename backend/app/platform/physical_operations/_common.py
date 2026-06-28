@@ -22,6 +22,96 @@ def is_on_site_direction(direction: str | None) -> bool:
     return str(direction or "").strip().lower() in ON_SITE_DIRECTIONS
 
 
+def is_off_site_direction(direction: str | None) -> bool:
+    return str(direction or "").strip().lower() in OFF_SITE_DIRECTIONS
+
+
+def _parse_access_timestamp(value: str | None) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw[:19])
+    except ValueError:
+        return None
+
+
+def minutes_between_access_timestamps(start: str | None, end: str | None) -> int | None:
+    """Positive elapsed minutes between access events; rounds up (min 1 min)."""
+    t_in = _parse_access_timestamp(start)
+    t_out = _parse_access_timestamp(end)
+    if not t_in or not t_out or t_out <= t_in:
+        return None
+    seconds = int((t_out - t_in).total_seconds())
+    if seconds <= 0:
+        return None
+    return min(max(1, (seconds + 59) // 60), 1439)
+
+
+def pair_presence_sessions(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Chronologically pair check-in/app-login with check-out/app-logout."""
+    ordered = sorted(events, key=lambda item: str(item.get("timestamp") or ""))
+    sessions: list[dict[str, Any]] = []
+    pending_in: dict[str, Any] | None = None
+
+    for ev in ordered:
+        direction = str(ev.get("direction") or "").strip().lower()
+        if is_on_site_direction(direction):
+            if pending_in is None:
+                pending_in = ev
+            continue
+        if not is_off_site_direction(direction):
+            continue
+
+        duration = None
+        if pending_in:
+            duration = minutes_between_access_timestamps(
+                pending_in.get("timestamp"), ev.get("timestamp")
+            )
+            sessions.append(
+                {
+                    "checkIn": pending_in.get("timestamp"),
+                    "checkOut": ev.get("timestamp"),
+                    "gateIn": pending_in.get("gate") or "",
+                    "gateOut": ev.get("gate") or "",
+                    "durationMinutes": duration,
+                }
+            )
+            pending_in = None
+        else:
+            sessions.append(
+                {
+                    "checkIn": None,
+                    "checkOut": ev.get("timestamp"),
+                    "gateIn": "",
+                    "gateOut": ev.get("gate") or "",
+                    "durationMinutes": None,
+                }
+            )
+
+    if pending_in:
+        sessions.append(
+            {
+                "checkIn": pending_in.get("timestamp"),
+                "checkOut": None,
+                "gateIn": pending_in.get("gate") or "",
+                "gateOut": "",
+                "durationMinutes": None,
+            }
+        )
+
+    return sessions
+
+
+def total_presence_minutes(events: list[dict[str, Any]]) -> int:
+    total = 0
+    for session in pair_presence_sessions(events):
+        minutes = session.get("durationMinutes")
+        if isinstance(minutes, int) and minutes > 0:
+            total += minutes
+    return total
+
+
 def on_site_direction_sql(column: str = "latest.direction") -> str:
     return f"{column} IN ('check-in', 'app-login')"
 
