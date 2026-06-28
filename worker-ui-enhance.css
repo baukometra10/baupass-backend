@@ -1,21 +1,29 @@
 /* Worker PWA — notifications, chat contrast, download buttons, layout polish */
 
 /* ── Top bar: bell + badge ── */
-.notification-center-btn.stb-icon-btn {
+.notification-center-btn.stb-icon-btn,
+.worker-documents-quick-btn.stb-icon-btn {
   width: 46px;
   height: 46px;
   background: rgba(10, 87, 192, 0.06);
   border: 1px solid rgba(10, 87, 192, 0.12);
 }
 
-.notification-center-btn.stb-icon-btn svg {
+.notification-center-btn.stb-icon-btn svg,
+.worker-documents-quick-btn.stb-icon-btn svg {
   width: 24px;
   height: 24px;
 }
 
 .notification-center-btn.stb-icon-btn:hover,
-.notification-center-btn.stb-icon-btn:focus-visible {
+.notification-center-btn.stb-icon-btn:focus-visible,
+.worker-documents-quick-btn.stb-icon-btn:hover,
+.worker-documents-quick-btn.stb-icon-btn:focus-visible {
   background: rgba(10, 87, 192, 0.14);
+}
+
+.sparkasse-top-bar .stb-right {
+  gap: 8px;
 }
 
 .notification-badge {
@@ -31,9 +39,14 @@
 }
 
 /* ── Notification sheet ── */
+.notification-center-panel {
+  overflow: hidden;
+}
+
 .notification-center-sheet {
   max-height: 82vh;
   border-radius: 20px 20px 0 0;
+  overflow: hidden;
 }
 
 .notification-center-head {
@@ -48,13 +61,64 @@
 .notification-center-list {
   padding: 10px 14px 22px;
   gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.notification-center-empty {
+  text-align: center;
+  padding: 24px 12px;
 }
 
 .notification-center-item {
-  gap: 6px;
-  padding: 16px 16px 14px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 14px 14px;
   border-radius: 14px;
   border-width: 1.5px;
+  overflow: hidden;
+  transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease, margin 0.22s ease, padding 0.22s ease;
+}
+
+.notification-center-item.is-dismissing {
+  opacity: 0;
+  transform: translateX(18px);
+  pointer-events: none;
+}
+
+.notification-center-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(10, 87, 192, 0.1);
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.notification-center-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.notification-center-item-chevron {
+  color: #94a3b8;
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .notification-center-item.unread {
@@ -63,14 +127,16 @@
   box-shadow: 0 4px 14px rgba(10, 87, 192, 0.1);
 }
 
+.notification-center-item.unread .notification-center-item-icon {
+  background: rgba(10, 87, 192, 0.16);
+}
+
 .notification-center-item.unread .notification-center-item-title {
   color: #0a3d8f;
 }
 
 .notification-center-item-type {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: block;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -85,17 +151,23 @@
 .notification-center-item-title {
   font-size: 1.02rem;
   line-height: 1.35;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .notification-center-item-body {
   font-size: 0.94rem;
   line-height: 1.45;
   color: #334155;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .notification-center-item-time {
   font-size: 0.78rem;
   margin-top: 2px;
+  color: #64748b;
 }
 
 html[data-theme="dark"] .notification-center-item-body {

@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627g";
+const WORKER_BUILD_TAG = "20260627h";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -631,6 +631,23 @@ function markNotificationAsRead(notifId) {
   }
 }
 
+function dismissLocalNotification(notifId) {
+  try {
+    const history = getNotificationHistory().filter((entry) => entry.id !== notifId);
+    wpSet(NOTIFICATION_HISTORY_KEY, JSON.stringify(history));
+  } catch (err) {
+    console.error("Failed to dismiss notification:", err);
+  }
+}
+
+function isNotificationUnread(item) {
+  return !item?.isRead && !item?.read;
+}
+
+function getUnreadNotifications(items) {
+  return (items || []).filter(isNotificationUnread);
+}
+
 async function fetchServerNotifications() {
   if (!workerToken) return [];
   try {
@@ -738,24 +755,28 @@ function notificationCenterTypeMeta(item) {
 function renderNotificationCenterList(items) {
   const list = elements.notificationCenterList;
   if (!list) return;
-  if (!items.length) {
-    list.innerHTML = `<p class="muted-info">${escapeHtmlBasic(t("notificationsEmpty"))}</p>`;
+  const unreadItems = getUnreadNotifications(items);
+  if (!unreadItems.length) {
+    list.innerHTML = `<p class="muted-info notification-center-empty">${escapeHtmlBasic(t("notificationsEmpty"))}</p>`;
     return;
   }
-  list.innerHTML = items
+  list.innerHTML = unreadItems
     .map((item) => {
-      const unread = !item.isRead && !item.read;
       const title = String(item.title || "").trim() || t("notificationsDefaultTitle");
       const message = String(item.message || item.body || "").trim();
       const createdAt = formatNotificationTimestamp(item.createdAt || item.timestamp);
       const actionUrl = String(item.actionUrl || "").trim().toLowerCase();
       const typeMeta = notificationCenterTypeMeta({ ...item, actionUrl });
       return `
-        <button type="button" class="notification-center-item${unread ? " unread" : ""}" data-notif-id="${escapeHtmlBasic(String(item.id || ""))}" data-notif-action="${escapeHtmlBasic(actionUrl)}">
-          <span class="notification-center-item-type">${typeMeta.icon} ${escapeHtmlBasic(typeMeta.label)}</span>
-          <span class="notification-center-item-title">${escapeHtmlBasic(title)}</span>
-          ${message ? `<span class="notification-center-item-body">${escapeHtmlBasic(message)}</span>` : ""}
-          ${createdAt ? `<span class="notification-center-item-time">${escapeHtmlBasic(createdAt)}</span>` : ""}
+        <button type="button" class="notification-center-item unread" data-notif-id="${escapeHtmlBasic(String(item.id || ""))}" data-notif-action="${escapeHtmlBasic(actionUrl)}">
+          <span class="notification-center-item-icon" aria-hidden="true">${typeMeta.icon}</span>
+          <span class="notification-center-item-content">
+            <span class="notification-center-item-type">${escapeHtmlBasic(typeMeta.label)}</span>
+            <span class="notification-center-item-title">${escapeHtmlBasic(title)}</span>
+            ${message ? `<span class="notification-center-item-body">${escapeHtmlBasic(message)}</span>` : ""}
+            ${createdAt ? `<span class="notification-center-item-time">${escapeHtmlBasic(createdAt)}</span>` : ""}
+          </span>
+          <span class="notification-center-item-chevron" aria-hidden="true">›</span>
         </button>
       `;
     })
@@ -764,10 +785,12 @@ function renderNotificationCenterList(items) {
     btn.addEventListener("click", async () => {
       const notifId = btn.getAttribute("data-notif-id") || "";
       const action = btn.getAttribute("data-notif-action") || "";
+      btn.classList.add("is-dismissing");
+      await new Promise((resolve) => window.setTimeout(resolve, 220));
       if (notifId.startsWith("notif-")) {
         await markServerNotificationRead(notifId);
       } else {
-        markNotificationAsRead(notifId);
+        dismissLocalNotification(notifId);
       }
       closeNotificationCenter();
       openWorkerNotificationTarget(action);
@@ -785,6 +808,14 @@ function openNotificationCenter() {
 
 function closeNotificationCenter() {
   elements.notificationCenterPanel?.classList.add("hidden");
+}
+
+function openWorkerDocumentsQuickScreen() {
+  closeNotificationCenter();
+  switchToTab("documents");
+  if (workerToken && workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.documents)) {
+    void loadMyDocuments();
+  }
 }
 
 let workerNotificationGreeted = false;
@@ -828,8 +859,8 @@ async function refreshWorkerNotificationCenter(options = {}) {
     actionUrl: "",
   }));
   const merged = [...serverItems, ...localItems].slice(0, 50);
-  const unreadCount = merged.filter((item) => !item.isRead && !item.read).length;
-  updateNotificationBadge(unreadCount);
+  const unreadItems = getUnreadNotifications(merged);
+  updateNotificationBadge(unreadItems.length);
   const onHome = currentActiveTab === "home";
   if (workerToken && workerPlanAllowsFeature("worker_chat") && currentActiveTab === "chat") {
     void loadWorkerChat({ quiet: true });
@@ -837,16 +868,16 @@ async function refreshWorkerNotificationCenter(options = {}) {
   if (
     options.notifyNew &&
     !workerNotificationGreeted &&
-    unreadCount > 0 &&
+    unreadItems.length > 0 &&
     workerToken
   ) {
     workerNotificationGreeted = true;
-    const firstUnread = merged.find((item) => !item.isRead && !item.read);
+    const firstUnread = unreadItems[0];
     const title = String(firstUnread?.title || "").trim() || t("notificationsDefaultTitle");
     showWorkerNotice(tf("notificationsNewArrival", { title }));
   }
   if (!options.silent || !elements.notificationCenterPanel?.classList.contains("hidden")) {
-    renderNotificationCenterList(merged);
+    renderNotificationCenterList(unreadItems);
   }
 }
 
@@ -1284,6 +1315,7 @@ const elements = {
   enableNotificationsBtn: document.querySelector("#enableNotificationsBtn"),
   notificationBanner: document.querySelector("#notificationBanner"),
   notificationCenterBtn: document.querySelector("#notificationCenterBtn"),
+  workerDocumentsQuickBtn: document.querySelector("#workerDocumentsQuickBtn"),
   notificationCenterPanel: document.querySelector("#notificationCenterPanel"),
   notificationCenterList: document.querySelector("#notificationCenterList"),
   notificationCenterClose: document.querySelector("#notificationCenterClose"),
@@ -2598,6 +2630,11 @@ function bindEvents() {
   if (elements.notificationCenterBtn) {
     elements.notificationCenterBtn.addEventListener("click", () => {
       openNotificationCenter();
+    });
+  }
+  if (elements.workerDocumentsQuickBtn) {
+    elements.workerDocumentsQuickBtn.addEventListener("click", () => {
+      openWorkerDocumentsQuickScreen();
     });
   }
   if (elements.notificationCenterClose) {
