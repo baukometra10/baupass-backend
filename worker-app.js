@@ -1648,7 +1648,7 @@ function updateWorkerShellForTab(tabName) {
   }
 
   if (hubPanel) {
-    const showHub = !isHome;
+    const showHub = !isHome || Boolean(activeWorkerPageTarget);
     hubPanel.classList.toggle("hidden", !showHub);
     if (showHub) {
       hubPanel.style.removeProperty("display");
@@ -1697,6 +1697,57 @@ function showOnlyWorkerFeaturePanel(panelId) {
     } else {
       panel.style.setProperty("display", "none", "important");
     }
+  });
+  applyWorkerFeaturePanelLayout(panelId);
+}
+
+function applyWorkerFeaturePanelLayout(panelId) {
+  const hubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
+  const badgeCard = elements.badgeCard || document.getElementById("badgeCard");
+  if (badgeCard) {
+    badgeCard.style.setProperty("display", "flex", "important");
+    badgeCard.style.flexDirection = "column";
+    badgeCard.style.flex = "1";
+    badgeCard.style.minHeight = "0";
+    badgeCard.style.overflow = "hidden";
+  }
+  if (!hubPanel || !panelId) return;
+  hubPanel.style.setProperty("display", "flex", "important");
+  hubPanel.style.flexDirection = "column";
+  hubPanel.style.flex = "1";
+  hubPanel.style.minHeight = "0";
+  hubPanel.style.overflow = "hidden";
+
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  if (panelId === "chatCard") {
+    applyWorkerChatTabLayout(panel);
+    return;
+  }
+
+  panel.style.setProperty("display", "flex", "important");
+  panel.style.flexDirection = "column";
+  panel.style.flex = "1";
+  panel.style.minHeight = "0";
+  panel.style.overflowY = "auto";
+  panel.style.overflowX = "hidden";
+  panel.style.webkitOverflowScrolling = "touch";
+
+  const scrollTargets = [
+    ".timesheet-list",
+    ".leave-request-list",
+    ".documents-list",
+    ".deployment-plan-list",
+    ".worker-chat-messages",
+  ];
+  scrollTargets.forEach((selector) => {
+    panel.querySelectorAll(selector).forEach((el) => {
+      el.style.flex = "1";
+      el.style.minHeight = "0";
+      el.style.overflowY = "auto";
+      el.style.webkitOverflowScrolling = "touch";
+    });
   });
 }
 
@@ -2062,8 +2113,9 @@ function applyWorkerPageView(targetId = "") {
   activeWorkerPageTarget = useFocusMode ? targetId : "";
 
   if (!useFocusMode) {
-    if (useTileOverview) {
-      document.body.classList.add("worker-tile-overview");
+    document.body.classList.remove("worker-page-focus");
+    if (currentActiveTab === "home") {
+      document.body.classList.remove("worker-feature-tab-active");
     }
     sections.forEach((section) => {
       if (useTileOverview) {
@@ -2097,6 +2149,11 @@ function applyWorkerPageView(targetId = "") {
       section.style.removeProperty("display");
     }
   });
+
+  document.body.classList.add("worker-page-focus", "worker-feature-tab-active");
+  ensureWorkerFeatureHubVisible();
+  showOnlyWorkerFeaturePanel(targetId);
+  applyWorkerFeaturePanelLayout(targetId);
 
   if (elements.workerPageNav) {
     elements.workerPageNav.classList.remove("hidden");
@@ -7318,6 +7375,7 @@ function switchToTab(tabName) {
   } else if (tabName === "documents") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("documentsCard");
+    applyWorkerFeaturePanelLayout("documentsCard");
     if (!workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.documents)) {
       renderWorkerListMessage(elements.documentsList, planFeatureBlockedMessage(WORKER_PLAN_TAB_FEATURES.documents), "error");
     } else if (workerToken) {
@@ -7967,7 +8025,7 @@ async function openWorkerDeploymentPlanScreen(year = null, month = null) {
   const now = new Date();
   deploymentPlanViewYear = year || deploymentPlanViewYear || now.getFullYear();
   deploymentPlanViewMonth = month || deploymentPlanViewMonth || now.getMonth() + 1;
-  switchToTab("home");
+  document.body.classList.add("worker-feature-tab-active", "worker-page-focus");
   ensureWorkerFeatureHubVisible();
   showOnlyWorkerFeaturePanel("deploymentPlanCard");
   applyWorkerPageView("deploymentPlanCard");

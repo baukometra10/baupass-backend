@@ -120,13 +120,15 @@ html[data-theme="dark"] #homeCompactInfo .home-info-item {
   pointer-events: none;
 }
 
-/* ── Feature-Tabs: kein Seiten-Scroll, nur Panel-Inhalt ─────────────── */
-body.worker-loaded.worker-feature-tab-active {
+/* ── Feature-Tabs: kein Seiten-Scroll, Panel-Inhalt scrollt ─────────── */
+body.worker-loaded.worker-feature-tab-active,
+body.worker-loaded.worker-page-focus {
   overflow: hidden;
   height: 100dvh;
 }
 
-body.worker-loaded.worker-feature-tab-active .app-shell {
+body.worker-loaded.worker-feature-tab-active .app-shell,
+body.worker-loaded.worker-page-focus .app-shell {
   flex: 1;
   min-height: 0;
   height: calc(100dvh - var(--w-nav-height));
@@ -136,6 +138,15 @@ body.worker-loaded.worker-feature-tab-active .app-shell {
   gap: 8px;
 }
 
+body.worker-feature-tab-active #badgeCard,
+body.worker-page-focus #badgeCard {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 body.worker-feature-tab-active #badgeCard .pass-stage,
 body.worker-feature-tab-active #badgeCard .worker-hub-toggle-row,
 body.worker-feature-tab-active #homeCompactInfo {
@@ -143,6 +154,16 @@ body.worker-feature-tab-active #homeCompactInfo {
 }
 
 body.worker-feature-tab-active #workerHubPanel {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body.worker-page-focus #workerHubPanel {
   display: flex !important;
   flex-direction: column;
   flex: 1;
@@ -179,7 +200,12 @@ body.worker-feature-tab-active #workerPageLabel {
 
 body.worker-feature-tab-active #leaveRequestCard:not(.hidden),
 body.worker-feature-tab-active #timesheetCard:not(.hidden),
-body.worker-feature-tab-active #documentsCard:not(.hidden) {
+body.worker-feature-tab-active #documentsCard:not(.hidden),
+body.worker-feature-tab-active #deploymentPlanCard:not(.hidden),
+body.worker-page-focus #leaveRequestCard:not(.hidden),
+body.worker-page-focus #timesheetCard:not(.hidden),
+body.worker-page-focus #documentsCard:not(.hidden),
+body.worker-page-focus #deploymentPlanCard:not(.hidden) {
   display: flex !important;
   flex-direction: column;
   flex: 1;
@@ -190,7 +216,10 @@ body.worker-feature-tab-active #documentsCard:not(.hidden) {
   border: 1px solid var(--corp-border);
   background: var(--corp-surface);
   box-shadow: var(--ui-shadow-sm);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.worker-feature-tab-active #leaveRequestCard:not(.hidden) .leave-request-list,

@@ -3586,6 +3586,53 @@ body[data-branding-preset="premium"] {
   box-shadow: 0 2px 12px 0 rgba(202,90,45,0.04);
 }
 
+.access-entry-time-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.access-entry-clock {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--text-primary, #142a44);
+}
+
+.access-entry-day {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted, #607995);
+}
+
+.access-entry-direction {
+  font-weight: 700;
+}
+
+.recent-access-item.access-entry-arrival {
+  border-left: 4px solid #16a34a;
+}
+
+.recent-access-item.access-entry-departure {
+  border-left: 4px solid #64748b;
+}
+
+.recent-access-item.access-entry-arrival .access-entry-direction {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.recent-access-item.access-entry-departure .access-entry-direction {
+  background: rgba(100, 116, 139, 0.12);
+  color: #334155;
+}
+
+.access-entry-note {
+  color: var(--text-muted, #607995);
+  font-size: 0.88rem;
+}
+
 #recentAccessList .recent-access-item {
   padding: 14px 16px;
 }

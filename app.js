@@ -9520,6 +9520,7 @@ function getRuntimeUiTexts() {
     dashboardDirectionCheckout: "Check-out",
     dashboardDirectionAppLogin: "Site login",
     dashboardDirectionAppLogout: "Site leave",
+    accessEventToday: "Today",
     unknownPerson: "Unknown",
     unknownCompany: "Unknown company",
     unknownTurnstile: "Unknown turnstile",
@@ -10376,6 +10377,7 @@ function getRuntimeUiTexts() {
       dashboardDirectionCheckout: "Abmeldung",
       dashboardDirectionAppLogin: "Standort-Anmeldung",
       dashboardDirectionAppLogout: "Standort verlassen",
+      accessEventToday: "Heute",
       unknownPerson: "Unbekannt",
       unknownCompany: "Unbekannte Firma",
       unknownTurnstile: "Unbekanntes Drehkreuz",
@@ -27499,20 +27501,45 @@ async function renderRealQr(elementId, payload) {
   }
 }
 
-function renderRecentAccess() {
-  // Nur den jeweils letzten Eintrag pro Mitarbeiter anzeigen (keine Duplikate)
-  const sortedAll = [...state.accessLogs].sort((left, right) => right.timestamp.localeCompare(left.timestamp));
-  const seenWorkers = new Set();
-  const deduplicated = [];
-  for (const entry of sortedAll) {
-    const key = entry.workerId || entry.id;
-    if (!seenWorkers.has(key)) {
-      seenWorkers.add(key);
-      deduplicated.push(entry);
-    }
-    if (deduplicated.length >= 5) break;
+function isAccessArrivalDirection(direction) {
+  const normalized = String(direction || "").trim().toLowerCase();
+  return normalized === "check-in" || normalized === "app-login";
+}
+
+function formatAccessClockLabel(timestamp) {
+  const raw = String(timestamp || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return formatTimestamp(raw);
   }
-  const recent = deduplicated;
+  return new Intl.DateTimeFormat(getStoredUiLang() === "de" ? "de-DE" : "en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
+function formatAccessDayLabel(timestamp) {
+  const raw = String(timestamp || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const today = new Date();
+  const sameDay = parsed.toDateString() === today.toDateString();
+  if (sameDay) return runtimeText("accessEventToday");
+  return new Intl.DateTimeFormat(getStoredUiLang() === "de" ? "de-DE" : "en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(parsed);
+}
+
+function renderRecentAccess() {
+  const todayPrefix = new Date().toISOString().slice(0, 10);
+  const recent = getUiVisibleAccessLogs()
+    .filter((entry) => String(entry.timestamp || "").startsWith(todayPrefix))
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .slice(0, 15);
 
   if (!recent.length) {
     elements.recentAccessList.innerHTML = `<div class="empty-state">${runtimeText("recentAccessEmpty")}</div>`;
@@ -28229,7 +28256,13 @@ function renderAccessItem(log, options = {}) {
     ? sanitizeImageSrc(worker.photoData, createAvatar(worker))
     : createAvatar({ firstName: "?", lastName: "?" });
   const workerName = worker ? `${worker.firstName} ${worker.lastName}` : "Unbekannt";
-  const itemClass = featured ? "list-item recent-access-item clickable access-entry-featured" : "list-item recent-access-item clickable";
+  const directionLabel = formatDashboardAccessDirection(log.direction);
+  const arrival = isAccessArrivalDirection(log.direction);
+  const itemClass = featured
+    ? `list-item recent-access-item clickable access-entry-featured access-entry-${arrival ? "arrival" : "departure"}`
+    : `list-item recent-access-item clickable access-entry-${arrival ? "arrival" : "departure"}`;
+  const clockLabel = formatAccessClockLabel(log.timestamp);
+  const dayLabel = formatAccessDayLabel(log.timestamp);
   return `
     <article class="${itemClass}" data-worker-id="${worker ? escapeHtml(worker.id) : ""}">
       <div class="access-entry-layout">
@@ -28238,14 +28271,17 @@ function renderAccessItem(log, options = {}) {
           <header>
             <div>
               <strong>${escapeHtml(workerName)}</strong>
-              <span>${escapeHtml(log.gate)}${subcompanyLabel ? ` | ${escapeHtml(subcompanyLabel)}` : ""}</span>
+              <span>${escapeHtml(log.gate || runtimeText("unknownTurnstile"))}${subcompanyLabel ? ` | ${escapeHtml(subcompanyLabel)}` : ""}</span>
             </div>
-            <span class="status-pill status-${escapeHtml(log.direction)}">${escapeHtml(formatDashboardAccessDirection(log.direction))}</span>
+            <span class="status-pill status-${escapeHtml(log.direction)} access-entry-direction">${escapeHtml(directionLabel)}</span>
             ${log.checked_in_late == 1 ? `<span class="status-pill status-late" title="${uiT("checkedInLate")}">${uiT("checkedInLate")}</span>` : ""}
           </header>
-          <span>${formatTimestamp(log.timestamp)}</span>
+          <div class="access-entry-time-row">
+            <span class="access-entry-clock">${escapeHtml(clockLabel)}</span>
+            ${dayLabel ? `<span class="access-entry-day">${escapeHtml(dayLabel)}</span>` : ""}
+          </div>
           ${monthHoursLabel ? `<span>${escapeHtml(monthHoursLabel)}</span>` : ""}
-          <span>${escapeHtml(log.note || "Keine Notiz")}</span>
+          ${log.note ? `<span class="access-entry-note">${escapeHtml(log.note)}</span>` : ""}
         </div>
       </div>
     </article>

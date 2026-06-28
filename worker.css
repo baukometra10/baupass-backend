@@ -1050,8 +1050,13 @@ body.worker-card-install.worker-loaded #workerDashboard {
 }
 
 body.worker-card-install.worker-loaded #badgeCard,
-body.worker-loaded.worker-feature-tab-active #badgeCard {
-  display: block !important;
+body.worker-loaded.worker-feature-tab-active #badgeCard,
+body.worker-loaded.worker-page-focus #badgeCard {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 body.worker-card-install.worker-loaded #badgeCard,
@@ -1092,7 +1097,8 @@ body.worker-card-install.worker-loaded #workerHubPanel:not(.hidden) {
   display: block !important;
 }
 
-body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden) {
+body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden),
+body.worker-loaded.worker-page-focus #workerHubPanel:not(.hidden) {
   display: flex !important;
   flex-direction: column;
   flex: 1;
@@ -1107,12 +1113,25 @@ body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden) {
 body.worker-loaded.worker-feature-tab-active #leaveRequestCard:not(.hidden),
 body.worker-loaded.worker-feature-tab-active #timesheetCard:not(.hidden),
 body.worker-loaded.worker-feature-tab-active #documentsCard:not(.hidden),
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard:not(.hidden),
+body.worker-loaded.worker-page-focus #leaveRequestCard:not(.hidden),
+body.worker-loaded.worker-page-focus #timesheetCard:not(.hidden),
+body.worker-loaded.worker-page-focus #documentsCard:not(.hidden),
+body.worker-loaded.worker-page-focus #deploymentPlanCard:not(.hidden),
 body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden) {
   display: flex !important;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   margin: 0 !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden),
+body.worker-loaded.worker-page-focus #chatCard.worker-feature-chat-card:not(.hidden) {
   overflow: hidden;
 }
 
