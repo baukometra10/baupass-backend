@@ -62,7 +62,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260627f" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260627g" />
   <title>WorkPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -71,22 +71,30 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260627f" />
+  <link rel="stylesheet" href="./worker.css?v=20260627g" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260627f" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260627f" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260627f" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260627g" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260627g" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260627g" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260627g" />
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
-    #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:10px}
-    #chatCard .worker-chat-row{display:flex;width:100%}
-    #chatCard .worker-chat-row.is-company{justify-content:flex-start;padding-right:18%}
-    #chatCard .worker-chat-row.is-mine{justify-content:flex-end;padding-left:18%}
-    #chatCard .worker-chat-bubble{max-width:100%;width:fit-content;padding:10px 12px 8px;border-radius:18px;word-break:break-word}
-    #chatCard .worker-chat-bubble.is-company{background:#fff;border:1px solid rgba(60,94,139,.22);border-bottom-left-radius:6px}
-    #chatCard .worker-chat-bubble.is-mine{background:linear-gradient(145deg,#dbeafe,#eff6ff);border:1px solid rgba(10,87,192,.22);border-bottom-right-radius:6px}
-    #chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:6px;font-size:.72rem;color:#607995}
-    #chatCard .worker-chat-read.is-read{color:#0a57c0;font-weight:700}
+    #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
+    #chatCard .worker-chat-row{display:flex;flex-direction:column;width:100%;gap:4px}
+    #chatCard .worker-chat-row.is-company{align-items:flex-start;padding-right:12%}
+    #chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-left:12%}
+    #chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}
+    #chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}
+    #chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}
+    #chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}
+    #chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-bottom-left-radius:5px}
+    #chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-bottom-right-radius:5px}
+    #chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500}
+    #chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;font-size:.78rem;color:#64748b}
+    #chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:#9a3412}
+    #chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:#2563eb}
+    #chatCard .worker-chat-read.is-read{color:#059669;font-weight:700}
+    #chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%}
     #chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#e8f4ff;color:#0a57c0;font-size:.72rem;font-weight:700;text-align:center}
     body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}
     .stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}
@@ -155,7 +163,7 @@
             <span id="connectionStatusLabel" class="stb-connection-label" data-i18n="online">Online</span>
           </div>
           <button id="notificationCenterBtn" class="stb-icon-btn notification-center-btn" type="button" aria-label="Benachrichtigungen" title="Benachrichtigungen">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"/>
               <path d="M10 20a2 2 0 004 0"/>
             </svg>
@@ -182,7 +190,7 @@
       <span id="workerBrandChip" class="sr-only">WorkPass</span>
       <span id="installPlatformHint" class="sr-only" data-i18n="installHint"></span>
       <span id="lastSyncInfo" class="sr-only" data-i18n="lastSyncInitial">-</span>
-      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260627f</span>
+      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260627g</span>
       <div id="workerPulsePanel" class="sr-only" aria-live="polite">
         <strong id="pulseNetworkValue" data-i18n="online">Online</strong>
         <strong id="pulseSyncValue">-</strong>
@@ -1040,7 +1048,7 @@
 
         <!-- Chat mit Firma (Feature-Tab neben Stunden/Docs) -->
         <div id="chatCard" class="below-card chat-card worker-feature-chat-card hidden">
-          <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627f</p>
+          <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627g</p>
           <div class="section-head compact-head worker-feature-chat-head">
             <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
             <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
@@ -1209,6 +1217,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260627f"></script>
+  <script src="./worker-app.js?v=20260627g"></script>
 </body>
 </html>

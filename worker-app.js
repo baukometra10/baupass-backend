@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627f";
+const WORKER_BUILD_TAG = "20260627g";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -724,6 +724,17 @@ function workerChatSenderSide(msg) {
   return "company";
 }
 
+function notificationCenterTypeMeta(item) {
+  const type = String(item?.type || item?.actionUrl || "").toLowerCase();
+  if (type.includes("document") || type.includes("doc") || type.includes("payroll")) {
+    return { icon: "📄", label: t("documentsTitle") };
+  }
+  if (type.includes("chat") || type.includes("message")) {
+    return { icon: "💬", label: t("workerChatTitle") };
+  }
+  return { icon: "🔔", label: t("notificationsCenterTitle") };
+}
+
 function renderNotificationCenterList(items) {
   const list = elements.notificationCenterList;
   if (!list) return;
@@ -738,8 +749,10 @@ function renderNotificationCenterList(items) {
       const message = String(item.message || item.body || "").trim();
       const createdAt = formatNotificationTimestamp(item.createdAt || item.timestamp);
       const actionUrl = String(item.actionUrl || "").trim().toLowerCase();
+      const typeMeta = notificationCenterTypeMeta({ ...item, actionUrl });
       return `
         <button type="button" class="notification-center-item${unread ? " unread" : ""}" data-notif-id="${escapeHtmlBasic(String(item.id || ""))}" data-notif-action="${escapeHtmlBasic(actionUrl)}">
+          <span class="notification-center-item-type">${typeMeta.icon} ${escapeHtmlBasic(typeMeta.label)}</span>
           <span class="notification-center-item-title">${escapeHtmlBasic(title)}</span>
           ${message ? `<span class="notification-center-item-body">${escapeHtmlBasic(message)}</span>` : ""}
           ${createdAt ? `<span class="notification-center-item-time">${escapeHtmlBasic(createdAt)}</span>` : ""}
@@ -1814,17 +1827,24 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages{flex:1 1 auto;min-height:0;max-height:none!important;margin:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{flex:0 0 auto;flex-shrink:0;display:block!important;margin:0;padding:8px 10px max(8px,env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid rgba(60,94,139,.22);box-shadow:0 -4px 18px rgba(8,28,54,.07)}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar{display:flex;align-items:flex-end;gap:8px}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:42px;max-height:120px;border-radius:22px}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
-  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:10px}",
-  "#chatCard .worker-chat-row{display:flex;width:100%}",
-  "#chatCard .worker-chat-row.is-company{justify-content:flex-start;padding-right:18%}",
-  "#chatCard .worker-chat-row.is-mine{justify-content:flex-end;padding-left:18%}",
-  "#chatCard .worker-chat-bubble{max-width:100%;width:fit-content;padding:10px 12px 8px;border-radius:18px;word-break:break-word}",
-  "#chatCard .worker-chat-bubble.is-company{background:#fff;border:1px solid rgba(60,94,139,.22);border-bottom-left-radius:6px}",
-  "#chatCard .worker-chat-bubble.is-mine{background:linear-gradient(145deg,#dbeafe,#eff6ff);border:1px solid rgba(10,87,192,.22);border-bottom-right-radius:6px}",
-  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:6px;font-size:.72rem;color:#607995}",
-  "#chatCard .worker-chat-read.is-read{color:#0a57c0;font-weight:700}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:46px;max-height:120px;border-radius:22px;font-size:1rem}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
+  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}",
+  "#chatCard .worker-chat-row{display:flex;flex-direction:column;width:100%;gap:4px}",
+  "#chatCard .worker-chat-row.is-company{align-items:flex-start;padding-right:12%}",
+  "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-left:12%}",
+  "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}",
+  "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}",
+  "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}",
+  "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}",
+  "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-bottom-left-radius:5px}",
+  "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-bottom-right-radius:5px}",
+  "#chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500}",
+  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;font-size:.78rem;color:#64748b}",
+  "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:#9a3412}",
+  "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:#2563eb}",
+  "#chatCard .worker-chat-read.is-read{color:#059669;font-weight:700}",
+  "#chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%}",
   "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#e8f4ff;color:#0a57c0;font-size:.72rem;font-weight:700;text-align:center}",
   "body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}",
   ".stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}",
@@ -8342,7 +8362,7 @@ function renderWorkerChatAttachmentHtml(attachments) {
     .map((attachment) => {
       const id = escapeHtmlBasic(String(attachment.id || ""));
       const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
-      return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}">📎 ${name}</button>`;
+      return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
     })
     .join("")}</div>`;
 }
@@ -8358,6 +8378,7 @@ function renderWorkerChatMessages(messages) {
   elements.workerChatMessages.innerHTML = messages
     .map((msg) => {
       const side = workerChatSenderSide(msg);
+      const senderLabel = side === "mine" ? t("workerChatFromYou") : t("workerChatFromCompany");
       const body = escapeHtmlBasic(String(msg.body || ""));
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
@@ -8369,6 +8390,7 @@ function renderWorkerChatMessages(messages) {
         : "";
       return `
         <div class="worker-chat-row is-${side}">
+          <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
           <div class="worker-chat-bubble is-${side}">
             ${bodyHtml}
             ${attachHtml}
@@ -8653,7 +8675,7 @@ async function loadMyDocuments() {
         ? `<button type="button" class="doc-open-plan-btn ghost small-btn" data-open-einsatzplan="1">${t("deploymentPlanOpenInApp")}</button>`
         : "";
       const downloadBtn = doc.id && doc.canDownload !== false
-        ? `<button type="button" class="doc-download-btn" data-doc-id="${escapeHtmlBasic(doc.id)}" data-doc-name="${escapeHtmlBasic(doc.filename || "dokument.pdf")}">${t("documentsDownload")}</button>`
+        ? `<button type="button" class="doc-download-btn" data-doc-id="${escapeHtmlBasic(doc.id)}" data-doc-name="${escapeHtmlBasic(doc.filename || "dokument.pdf")}">⬇ ${t("documentsDownload")}</button>`
         : "";
       return `<div class="document-item ${statusClass}${isPayroll ? " doc-payroll-item" : ""}">
         <div class="doc-type-row">
