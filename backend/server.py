@@ -98,6 +98,7 @@ WORKER_SITE_GEOFENCE_MIN_METERS = 15
 WORKER_SITE_GEOFENCE_MAX_METERS = 500
 WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 200
 WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 100
+SITE_LEAVE_OFF_SITE_POLLS_REQUIRED = 2
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -1397,6 +1398,10 @@ def run_access_maintenance_if_due(db, reference_dt=None):
         auto_close_expired_visitor_entries(db, reference_dt=now_dt)
     if run_midnight_close:
         auto_close_open_entries_after_midnight(db, reference_dt=now_dt)
+    try:
+        auto_close_open_checkins_after_work_end(db, reference_dt=now_dt)
+    except Exception:
+        app.logger.warning("auto_close_open_checkins_after_work_end failed", exc_info=True)
 
 
 def get_rate_limit_key(scope):
@@ -3562,6 +3567,8 @@ def init_db():
     worker_app_session_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_app_sessions)").fetchall()]
     if worker_app_session_columns and "bound_device_id" not in worker_app_session_columns:
         cur.execute("ALTER TABLE worker_app_sessions ADD COLUMN bound_device_id TEXT NOT NULL DEFAULT ''")
+    if worker_app_session_columns and "site_off_site_polls" not in worker_app_session_columns:
+        cur.execute("ALTER TABLE worker_app_sessions ADD COLUMN site_off_site_polls INTEGER NOT NULL DEFAULT 0")
     if "contact_email" not in worker_columns:
         cur.execute("ALTER TABLE workers ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''")
     if "leave_balance" not in worker_columns:
@@ -8750,6 +8757,65 @@ def auto_close_expired_visitor_entries(db, reference_dt=None):
     return auto_closed
 
 
+def auto_close_open_checkins_after_work_end(db, reference_dt=None):
+    """Close open GPS/check-in sessions after configured work end time."""
+    now_dt = reference_dt or datetime.now()
+    today_prefix = now_dt.strftime("%Y-%m-%d")
+    current_hm = now_dt.strftime("%H:%M")
+
+    rows = db.execute(
+        """
+        SELECT w.id AS worker_id, w.company_id, w.first_name, w.last_name, w.badge_id, w.worker_type,
+               al.gate AS checkin_gate
+        FROM workers w
+        JOIN access_logs al ON al.worker_id = w.id
+        WHERE w.deleted_at IS NULL
+          AND al.timestamp LIKE ?
+          AND al.direction = 'check-in'
+          AND NOT EXISTS (
+              SELECT 1 FROM access_logs al_out
+              WHERE al_out.worker_id = al.worker_id
+                AND al_out.timestamp > al.timestamp
+                AND al_out.timestamp LIKE ?
+                AND al_out.direction = 'check-out'
+          )
+        """,
+        (f"{today_prefix}%", f"{today_prefix}%"),
+    ).fetchall()
+
+    auto_closed = []
+    for row in rows:
+        work_end = get_effective_work_end_time(db, row["worker_id"])
+        if not work_end or current_hm < work_end:
+            continue
+        log_id = create_access_log_entry(
+            db,
+            row["worker_id"],
+            "check-out",
+            row["checkin_gate"] or "Mitarbeiter-App (Standort)",
+            f"Automatischer Austritt nach Arbeitsende ({work_end})",
+            worker_type=row["worker_type"],
+        )
+        auto_closed.append(
+            {
+                "workerId": row["worker_id"],
+                "name": f"{row['first_name']} {row['last_name']}",
+                "badgeId": row["badge_id"],
+                "checkoutLogId": log_id,
+            }
+        )
+
+    if auto_closed:
+        db.commit()
+        log_audit(
+            "access.auto_work_end_close",
+            f"{len(auto_closed)} offene Eintritte nach Arbeitsende automatisch ausgestempelt",
+            target_type="access",
+            target_id=today_prefix,
+        )
+    return auto_closed
+
+
 def auto_close_open_entries_after_midnight(db, reference_dt=None):
     day_start = (reference_dt or datetime.now(timezone.utc)).replace(hour=0, minute=0, second=0, microsecond=0)
     day_start_iso = day_start.isoformat().replace("+00:00", "Z")
@@ -11438,6 +11504,179 @@ def measure_worker_site_distance(db, worker, location):
     return result
 
 
+def _parse_geofence_id_from_note(note):
+    match = re.search(r"geofenceId=([^\s;,]+)", str(note or ""))
+    return str(match.group(1)).strip() if match else ""
+
+
+def _append_geofence_id_to_note(note, geofence_id):
+    base = str(note or "").strip()
+    geofence_id = str(geofence_id or "").strip()
+    if not geofence_id:
+        return base
+    if _parse_geofence_id_from_note(base) == geofence_id:
+        return base
+    suffix = f"geofenceId={geofence_id}"
+    return f"{base} | {suffix}" if base else suffix
+
+
+def _get_active_checkin_geofence_id(db, worker_id):
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    row = db.execute(
+        """
+        SELECT note
+        FROM access_logs
+        WHERE worker_id = ?
+          AND timestamp LIKE ?
+          AND direction IN ('check-in', 'app-login')
+          AND NOT EXISTS (
+              SELECT 1 FROM access_logs al_out
+              WHERE al_out.worker_id = access_logs.worker_id
+                AND al_out.timestamp > access_logs.timestamp
+                AND al_out.timestamp LIKE ?
+                AND al_out.direction IN ('check-out', 'app-logout')
+          )
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """,
+        (worker_id, f"{today_prefix}%", f"{today_prefix}%"),
+    ).fetchone()
+    if not row:
+        return ""
+    return _parse_geofence_id_from_note(row["note"])
+
+
+def _measure_worker_at_geofence_zone(db, worker, location, zone, default_radius):
+    if not isinstance(location, dict) or not zone:
+        return None
+    _validate_worker_location_accuracy_or_raise(location)
+    device_latitude = _normalize_float(location.get("latitude"))
+    device_longitude = _normalize_float(location.get("longitude"))
+    if device_latitude is None or device_longitude is None:
+        raise ValueError("worker_geolocation_required")
+    accuracy_meters = _worker_location_accuracy_meters(location)
+    zone_lat = float(zone["latitude"])
+    zone_lng = float(zone["longitude"])
+    radius_meters = int(zone.get("radius_meters") or default_radius)
+    raw_distance_meters = _haversine_meters(zone_lat, zone_lng, device_latitude, device_longitude)
+    allowed_radius_meters = _geofence_radius_with_accuracy_buffer(radius_meters, accuracy_meters)
+    result = {
+        "distanceMeters": int(round(raw_distance_meters)),
+        "siteLatitude": zone_lat,
+        "siteLongitude": zone_lng,
+        "deviceLatitude": float(device_latitude),
+        "deviceLongitude": float(device_longitude),
+        "radiusMeters": radius_meters,
+        "allowedRadiusMeters": int(round(allowed_radius_meters)),
+        "onSite": worker_within_site_geofence(raw_distance_meters, radius_meters, accuracy_meters),
+        "siteName": str(zone.get("site_name") or "").strip(),
+        "geofenceId": zone.get("id"),
+        "source": "admin_geofence",
+    }
+    if accuracy_meters is not None:
+        result["accuracyMeters"] = int(round(accuracy_meters))
+    return result
+
+
+def measure_worker_presence_for_leave(db, worker, location, active_geofence_id=None):
+    """For leave detection: measure against the check-in zone when known (multi-geofence)."""
+    active_geofence_id = str(active_geofence_id or "").strip()
+    if not active_geofence_id:
+        return measure_worker_site_distance(db, worker, location)
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    default_radius = int(site_cfg["siteGeofenceRadiusMeters"])
+    zones = _ordered_geofence_zones_for_worker(db, worker)
+    zone = next((item for item in zones if str(item.get("id") or "") == active_geofence_id), None)
+    if not zone:
+        return measure_worker_site_distance(db, worker, location)
+    return _measure_worker_at_geofence_zone(db, worker, location, zone, default_radius)
+
+
+def _apply_worker_site_leave(db, worker, site_cfg, *, session_token="", note=""):
+    checkout_log_id = None
+    leave_log_id = None
+    if worker_has_open_checkin_today(db, worker["id"]):
+        checkout_log_id = create_access_log_entry(
+            db,
+            worker["id"],
+            "check-out",
+            "Mitarbeiter-App (Standort)",
+            note or "Automatischer Check-out beim Verlassen des Standorts",
+            worker_type=worker["worker_type"],
+        )
+        _publish_site_checkout_event(db, worker, checkout_log_id, via_leave=True)
+    elif worker_has_open_site_app_session_today(db, worker["id"]):
+        leave_log_id = record_site_app_leave_activity(
+            db,
+            worker,
+            note=note or "Automatische Abmeldung beim Verlassen des Standorts",
+        )
+    else:
+        try:
+            from backend.app.platform.events.bus import publish_event
+
+            publish_event(
+                "worker.site_leave",
+                str(worker["company_id"]),
+                {"workerId": str(worker["id"]), "checkoutLogId": None},
+                actor_id=str(worker["id"]),
+            )
+        except Exception:
+            app.logger.debug("worker.site_leave publish skipped for worker %s", worker["id"], exc_info=True)
+
+    logged_out = False
+    if site_cfg.get("siteAutoLogoutOnLeave") and session_token:
+        db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (session_token,))
+        logged_out = True
+    elif session_token:
+        db.execute(
+            "UPDATE worker_app_sessions SET site_off_site_polls = 0 WHERE token = ?",
+            (session_token,),
+        )
+    return {
+        "checkoutLogId": checkout_log_id,
+        "siteLeaveLogId": leave_log_id,
+        "loggedOut": logged_out,
+    }
+
+
+def _sync_off_site_polls_and_maybe_leave(db, worker, session_token, measured_for_leave, site_cfg):
+    if not measured_for_leave or measured_for_leave.get("onSite"):
+        if session_token:
+            db.execute(
+                "UPDATE worker_app_sessions SET site_off_site_polls = 0 WHERE token = ?",
+                (session_token,),
+            )
+        return None
+    if not (
+        worker_has_open_checkin_today(db, worker["id"])
+        or worker_has_open_site_app_session_today(db, worker["id"])
+    ):
+        return None
+
+    polls = SITE_LEAVE_OFF_SITE_POLLS_REQUIRED
+    if session_token:
+        row = db.execute(
+            "SELECT site_off_site_polls FROM worker_app_sessions WHERE token = ?",
+            (session_token,),
+        ).fetchone()
+        polls = int(row["site_off_site_polls"] or 0) + 1 if row else 1
+        db.execute(
+            "UPDATE worker_app_sessions SET site_off_site_polls = ? WHERE token = ?",
+            (polls, session_token),
+        )
+    if polls < SITE_LEAVE_OFF_SITE_POLLS_REQUIRED:
+        return None
+
+    return _apply_worker_site_leave(
+        db,
+        worker,
+        site_cfg,
+        session_token=session_token,
+        note="Automatischer Check-out nach GPS-Standortverlassen",
+    )
+
+
 def _notify_worker_site_checkin(db, worker, *, via_proximity: bool = False) -> None:
     try:
         from backend.app.platform.events.bus import publish_event
@@ -11522,12 +11761,13 @@ def worker_has_site_app_login_today(db, worker_id):
     return bool(row)
 
 
-def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung"):
+def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung", geofence_id=None):
     """Visible in admin recent access and dashboard on-site counts."""
     if worker_has_open_checkin_today(db, worker["id"]):
         return None
     if worker_has_open_site_app_session_today(db, worker["id"]):
         return None
+    note = _append_geofence_id_to_note(note, geofence_id)
     log_id = create_access_log_entry(
         db,
         worker["id"],
@@ -11616,7 +11856,7 @@ def _publish_site_checkout_event(db, worker, log_id, *, via_leave: bool = False)
         app.logger.debug("site leave publish skipped for worker %s", worker["id"], exc_info=True)
 
 
-def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False):
+def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False, geofence_id=None):
     company_id = worker["company_id"]
     site_cfg = get_company_site_access_config(db, company_id)
     if site_cfg["accessMode"] != "site_app" or not site_cfg["siteAutoCheckin"]:
@@ -11637,12 +11877,16 @@ def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False):
             return None
     if worker_has_open_checkin_today(db, worker["id"]):
         return None
+    checkin_note = _append_geofence_id_to_note(
+        "Automatischer Check-in nach Standort-Login",
+        geofence_id,
+    )
     log_id = create_access_log_entry(
         db,
         worker["id"],
         "check-in",
         "Mitarbeiter-App (Standort)",
-        "Automatischer Check-in nach Standort-Login",
+        checkin_note,
         worker_type=worker["worker_type"],
     )
     try:
@@ -12958,13 +13202,17 @@ def worker_app_login():
         site_cfg = get_company_site_access_config(db, worker["company_id"])
         on_site = bool(measured and measured.get("onSite"))
         if on_site and site_cfg["accessMode"] == "site_app":
+            geofence_id = (measured or {}).get("geofenceId")
             if site_cfg["siteAutoCheckin"]:
-                checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+                checkin_log_id = maybe_site_app_auto_checkin(
+                    db, worker, via_proximity=False, geofence_id=geofence_id
+                )
             if not checkin_log_id:
                 login_log_id = record_site_app_login_activity(
                     db,
                     worker,
                     note="Manuelle Anmeldung am Standort",
+                    geofence_id=geofence_id,
                 )
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
@@ -13065,8 +13313,18 @@ def worker_app_proximity_login():
             except (TypeError, ValueError):
                 pass
         checkin_log_id = None
+        geofence_id = None
+        location = payload.get("location") if isinstance(payload.get("location"), dict) else None
+        if location:
+            try:
+                measured = measure_worker_site_distance(db, worker, location)
+                geofence_id = (measured or {}).get("geofenceId")
+            except (ValueError, PermissionError):
+                geofence_id = None
         if attendance.get("ok"):
-            checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=True)
+            checkin_log_id = maybe_site_app_auto_checkin(
+                db, worker, via_proximity=True, geofence_id=geofence_id
+            )
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
         else:
@@ -13074,6 +13332,7 @@ def worker_app_proximity_login():
                 db,
                 worker,
                 note="Standort-Auto-Login (ohne Einstempeln)",
+                geofence_id=geofence_id,
             )
             if login_log_id:
                 session_data["siteLoginLogId"] = login_log_id
@@ -13305,10 +13564,35 @@ def worker_app_site_presence():
     site_cfg = get_company_site_access_config(db, worker["company_id"])
     radius = int(site_cfg["siteGeofenceRadiusMeters"])
     on_site = bool(measured.get("onSite"))
+    active_geofence_id = _get_active_checkin_geofence_id(db, worker["id"])
+    leave_measured = None
+    on_site_for_leave = on_site
+    if site_cfg["accessMode"] == "site_app" and (
+        worker_has_open_checkin_today(db, worker["id"])
+        or worker_has_open_site_app_session_today(db, worker["id"])
+    ):
+        try:
+            leave_measured = measure_worker_presence_for_leave(
+                db, worker, location, active_geofence_id or measured.get("geofenceId")
+            )
+            on_site_for_leave = bool(leave_measured and leave_measured.get("onSite"))
+        except ValueError:
+            leave_measured = measured
+            on_site_for_leave = on_site
+
     auto_checkin_log_id = None
     site_login_log_id = None
     attendance_blocked = None
+    site_leave_result = None
+    session_token = str(getattr(g, "worker_token", "") or "")
+
+    if site_cfg["accessMode"] == "site_app" and not on_site_for_leave:
+        site_leave_result = _sync_off_site_polls_and_maybe_leave(
+            db, worker, session_token, leave_measured or measured, site_cfg
+        )
+
     if on_site and site_cfg["accessMode"] == "site_app":
+        geofence_id = measured.get("geofenceId")
         if (
             site_cfg["siteAutoCheckin"]
             and not worker_has_open_checkin_today(db, worker["id"])
@@ -13317,7 +13601,9 @@ def worker_app_site_presence():
 
             attendance = worker_may_auto_attend_today(db, worker)
             if attendance.get("ok"):
-                auto_checkin_log_id = maybe_site_app_auto_checkin(db, worker, via_proximity=False)
+                auto_checkin_log_id = maybe_site_app_auto_checkin(
+                    db, worker, via_proximity=False, geofence_id=geofence_id
+                )
             else:
                 attendance_blocked = {
                     "reason": attendance.get("reason"),
@@ -13328,12 +13614,27 @@ def worker_app_site_presence():
                 db,
                 worker,
                 note="Standort erkannt (GPS)",
+                geofence_id=geofence_id,
             )
-        if auto_checkin_log_id or site_login_log_id:
+        if auto_checkin_log_id or site_login_log_id or site_leave_result:
             db.commit()
+    elif site_leave_result:
+        db.commit()
+
+    if site_leave_result:
+        log_audit(
+            "worker_app.site_leave",
+            f"Mitarbeiter {worker['first_name']} {worker['last_name']} automatisch ausgestempelt (GPS)",
+            target_type="worker",
+            target_id=worker["id"],
+            company_id=worker["company_id"],
+        )
+
     return jsonify(
         {
             "onSite": on_site,
+            "onSiteForLeave": on_site_for_leave,
+            "activeGeofenceId": active_geofence_id or measured.get("geofenceId"),
             "distanceMeters": measured["distanceMeters"],
             "radiusMeters": radius,
             "allowedRadiusMeters": measured.get("allowedRadiusMeters", radius),
@@ -13345,6 +13646,10 @@ def worker_app_site_presence():
             "autoCheckInLogId": auto_checkin_log_id,
             "siteLoginLogId": site_login_log_id,
             "attendanceBlocked": attendance_blocked,
+            "siteLeaveApplied": bool(site_leave_result),
+            "checkoutLogId": (site_leave_result or {}).get("checkoutLogId"),
+            "siteLeaveLogId": (site_leave_result or {}).get("siteLeaveLogId"),
+            "loggedOut": bool((site_leave_result or {}).get("loggedOut")),
         }
     )
 
@@ -13360,51 +13665,22 @@ def worker_app_site_leave():
     if site_cfg["accessMode"] != "site_app":
         return jsonify({"error": "not_site_app_mode"}), 400
 
+    active_geofence_id = _get_active_checkin_geofence_id(db, worker["id"])
     try:
-        measured = measure_worker_site_distance(db, worker, location)
+        measured = measure_worker_presence_for_leave(db, worker, location, active_geofence_id)
     except ValueError:
         return jsonify({"error": "worker_geolocation_required"}), 400
 
-    radius = int(site_cfg["siteGeofenceRadiusMeters"])
     if measured and measured.get("onSite"):
         return jsonify({"error": "still_on_site", "distanceMeters": measured["distanceMeters"]}), 409
 
-    checkout_log_id = None
-    leave_log_id = None
-    if worker_has_open_checkin_today(db, worker["id"]):
-        checkout_log_id = create_access_log_entry(
-            db,
-            worker["id"],
-            "check-out",
-            "Mitarbeiter-App (Standort)",
-            "Automatischer Check-out beim Verlassen des Standorts",
-            worker_type=worker["worker_type"],
-        )
-        _publish_site_checkout_event(db, worker, checkout_log_id, via_leave=True)
-    elif worker_has_open_site_app_session_today(db, worker["id"]):
-        leave_log_id = record_site_app_leave_activity(
-            db,
-            worker,
-            note="Automatische Abmeldung beim Verlassen des Standorts",
-        )
-    else:
-        try:
-            from backend.app.platform.events.bus import publish_event
-
-            publish_event(
-                "worker.site_leave",
-                str(worker["company_id"]),
-                {"workerId": str(worker["id"]), "checkoutLogId": None},
-                actor_id=str(worker["id"]),
-            )
-        except Exception:
-            app.logger.debug("worker.site_leave publish skipped for worker %s", worker["id"], exc_info=True)
-
-    token = getattr(g, "worker_token", "")
-    logged_out = False
-    if site_cfg["siteAutoLogoutOnLeave"] and token:
-        db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (token,))
-        logged_out = True
+    leave_result = _apply_worker_site_leave(
+        db,
+        worker,
+        site_cfg,
+        session_token=str(getattr(g, "worker_token", "") or ""),
+        note="Automatischer Check-out beim Verlassen des Standorts",
+    )
     db.commit()
     log_audit(
         "worker_app.site_leave",
@@ -13416,9 +13692,9 @@ def worker_app_site_leave():
     return jsonify(
         {
             "ok": True,
-            "checkoutLogId": checkout_log_id,
-            "siteLeaveLogId": leave_log_id,
-            "loggedOut": logged_out,
+            "checkoutLogId": leave_result.get("checkoutLogId"),
+            "siteLeaveLogId": leave_result.get("siteLeaveLogId"),
+            "loggedOut": leave_result.get("loggedOut"),
         }
     )
 

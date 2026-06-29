@@ -71,6 +71,64 @@ def test_measure_worker_site_distance_uses_admin_geofence_zone():
     assert measured["radiusMeters"] == 80
 
 
+def test_measure_worker_presence_for_leave_uses_active_geofence_zone():
+    with server.app.app_context():
+        db = server.get_db()
+        db.execute(
+            """
+            INSERT OR IGNORE INTO companies (id, name, contact, plan, status, access_mode)
+            VALUES ('cmp-geo-2zone', 'Two Zone Co', '', 'professional', 'active', 'site_app')
+            """
+        )
+        db.execute("DELETE FROM geofences WHERE company_id = 'cmp-geo-2zone'")
+        db.execute(
+            """
+            INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
+            VALUES
+              ('gf-a', 'cmp-geo-2zone', 'Zone A', 52.5200, 13.4050, 80, 1, '2099-01-01T00:00:00Z'),
+              ('gf-b', 'cmp-geo-2zone', 'Zone B', 52.5300, 13.4200, 80, 1, '2099-01-01T00:00:00Z')
+            """
+        )
+        db.execute("DELETE FROM workers WHERE id = 'wrk-geo-2zone'")
+        db.execute(
+            """
+            INSERT INTO workers (
+                id, company_id, first_name, last_name, insurance_number,
+                worker_type, role, site, valid_until, status, photo_data,
+                badge_id, badge_id_lookup, badge_pin_hash, physical_card_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "wrk-geo-2zone",
+                "cmp-geo-2zone",
+                "Two",
+                "Zone",
+                "INS-2ZONE",
+                "worker",
+                "arbeiter",
+                "Zone A",
+                "2099-12-31",
+                "aktiv",
+                "",
+                "BP-2ZONE",
+                "BP-2ZONE",
+                server.generate_password_hash("1234"),
+                None,
+            ),
+        )
+        db.commit()
+        worker = db.execute("SELECT * FROM workers WHERE id = ?", ("wrk-geo-2zone",)).fetchone()
+        at_zone_b = {"latitude": 52.5300, "longitude": 13.4200, "accuracy": 8}
+        anywhere = server.measure_worker_site_distance(db, worker, at_zone_b)
+        leave_a = server.measure_worker_presence_for_leave(db, worker, at_zone_b, "gf-a")
+
+    assert anywhere is not None
+    assert anywhere["onSite"] is True
+    assert leave_a is not None
+    assert leave_a["onSite"] is False
+    assert leave_a["geofenceId"] == "gf-a"
+
+
 def test_measure_worker_site_distance_reports_raw_distance(worker_client):
     with server.app.app_context():
         db = server.get_db()

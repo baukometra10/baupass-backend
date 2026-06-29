@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627j";
+const WORKER_BUILD_TAG = "20260627k";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2528,6 +2528,10 @@ function bindEvents() {
         void requestWakeLock();
         void fetchAndDisplayDynamicQr();
         void loadWorkerData();
+        if (lastSiteAccessCfg?.siteApp && hasSiteGeofenceConfig(lastSiteAccessCfg)) {
+          siteOffSiteStrikeCount = 0;
+          void pollSitePresence(lastSiteAccessCfg);
+        }
       }
     } else {
       releaseWakeLock();
@@ -6056,17 +6060,39 @@ async function pollSitePresence(cfg) {
         lastSitePresenceNoticeKey = noticeKey;
         showWorkerNotice(t("siteGpsRegistered"));
       }
+    } else if (presence?.siteLeaveApplied) {
+      const leaveKey = `leave:${presence.checkoutLogId || presence.siteLeaveLogId || "applied"}`;
+      if (leaveKey !== lastSitePresenceNoticeKey) {
+        lastSitePresenceNoticeKey = leaveKey;
+        if (presence.loggedOut) {
+          invalidateWorkerSession({ showNotice: false });
+          showWorkerNotice(t("siteLeaveAutoLogout"));
+          showWorkerNotice(t("siteReturnProximityHint"));
+          const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+          if (badgeId && getStoredBadgePinForProximity()) {
+            startProximityLoginWatcher();
+          }
+        } else {
+          showWorkerNotice(t("siteLeaveAttendanceOnly"));
+        }
+      }
+      siteOffSiteStrikeCount = 0;
+      void loadMyTimesheets();
+      if (!presence.loggedOut && cfg) {
+        startSiteGeofenceMonitor(cfg);
+      }
+      return;
     } else if (presence?.onSite && presence?.attendanceBlocked?.message) {
       const noticeKey = `blocked:${presence.attendanceBlocked.reason || presence.attendanceBlocked.message}`;
       if (noticeKey !== lastSitePresenceNoticeKey) {
         lastSitePresenceNoticeKey = noticeKey;
         showWorkerNotice(presence.attendanceBlocked.message);
       }
-    } else if (
-      presence?.onSite === false
-      && typeof presence?.distanceMeters === "number"
-      && (presence?.openCheckInToday || presence?.siteSessionOpen)
-    ) {
+    }
+    const offSiteForLeave = presence?.onSiteForLeave === false
+      || (presence?.onSiteForLeave === undefined && presence?.onSite === false);
+    const registeredOnSite = Boolean(presence?.openCheckInToday || presence?.siteSessionOpen);
+    if (offSiteForLeave && typeof presence?.distanceMeters === "number" && registeredOnSite) {
       showWorkerNotice(
         tf("siteOutsideRadius", {
           distance: presence.distanceMeters,
@@ -6074,8 +6100,7 @@ async function pollSitePresence(cfg) {
         })
       );
     }
-    const registeredOnSite = Boolean(presence?.openCheckInToday || presence?.siteSessionOpen);
-    if (presence?.onSite === false && cfg?.autoLogout !== false && registeredOnSite) {
+    if (offSiteForLeave && cfg?.autoLogout !== false && registeredOnSite && !presence?.siteLeaveApplied) {
       siteOffSiteStrikeCount += 1;
       if (siteOffSiteStrikeCount >= SITE_OFF_SITE_STRIKES_REQUIRED) {
         await handleSiteLeaveDetected();
