@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627i";
+const WORKER_BUILD_TAG = "20260627j";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -430,14 +430,52 @@ function formatHoursFromMinutes(totalMin) {
   return `${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
+function getLocalIsoDate(date = new Date()) {
+  const parsed = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getLocalIsoDateFromTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw.slice(0, 10);
+  }
+  return getLocalIsoDate(parsed);
+}
+
+function formatAccessTimeLocal(value) {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    const raw = String(value);
+    return raw.length >= 16 ? raw.slice(11, 16) : raw;
+  }
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
+}
+
 function extractTodayTimesheetSummary(rows) {
   if (!Array.isArray(rows) || rows.length === 0) {
     return { hasRows: false, totalMin: 0, isOpen: false };
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalIsoDate();
   const todayRows = rows
-    .filter((row) => String(row.timestamp || "").slice(0, 10) === today)
+    .filter((row) => getLocalIsoDateFromTimestamp(row.timestamp) === today)
     .sort((a, b) => String(a.timestamp || "") > String(b.timestamp || "") ? 1 : -1);
 
   if (todayRows.length === 0) {
@@ -465,10 +503,10 @@ function getOfflineQueueCount() {
 
 function summarizeDocuments(rows, companyPreset) {
   const safeRows = Array.isArray(rows) ? rows : [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalIsoDate();
   const soon = new Date();
   soon.setDate(soon.getDate() + 30);
-  const soonStr = soon.toISOString().slice(0, 10);
+  const soonStr = getLocalIsoDate(soon);
   const expired = safeRows.filter((doc) => doc.expiry_date && doc.expiry_date <= today);
   const expiringSoon = safeRows.filter((doc) => doc.expiry_date && doc.expiry_date > today && doc.expiry_date <= soonStr);
   const presentTypes = new Set(safeRows.map((doc) => String(doc.doc_type || "").trim().toLowerCase()).filter(Boolean));
@@ -492,7 +530,7 @@ function summarizeDocuments(rows, companyPreset) {
 
 function getPlannerStorageKey(worker) {
   const badge = normalizeBadgeIdInput(worker?.badgeId || worker?.badge_id || "unknown");
-  const dateKey = new Date().toISOString().slice(0, 10);
+  const dateKey = getLocalIsoDate();
   return `${WORKER_DAY_PLANNER_KEY}:${badge}:${dateKey}`;
 }
 
@@ -562,7 +600,7 @@ function notifySmartHub(type, title, body) {
   if (!("Notification" in window) || Notification.permission !== "granted") {
     return;
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalIsoDate();
   const key = `${SMART_HUB_NOTIFY_KEY}:${type}:${today}`;
   if (wpGet(key) === "1") {
     return;
@@ -2560,10 +2598,7 @@ function bindEvents() {
       event.preventDefault();
       const credential = (elements.workerAccessToken?.value || "").trim();
       let locationPayload = null;
-      if (looksLikeBadgeId(credential) && !isVisitorBadgeId(credential)) {
-        const captured = await captureLoginGeolocation({ showProgress: true });
-        locationPayload = captured.location || null;
-      } else {
+      if (!looksLikeBadgeId(credential) || isVisitorBadgeId(credential)) {
         locationPayload = await resolveLoginLocation();
       }
       if (looksLikeBadgeId(credential)) {
@@ -3617,11 +3652,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     hideWorkerNotice();
   }
 
-  let effectiveLocation = locationPayload;
-  if (!effectiveLocation && !visitorLogin && navigator.geolocation) {
-    const captured = await captureLoginGeolocation({ showProgress: !silent });
-    effectiveLocation = captured.location || null;
-  }
+  const effectiveLocation = locationPayload || null;
 
   try {
     const payload = await fetchJson(`${API_BASE}/login`, {
@@ -5660,7 +5691,7 @@ async function pollProximityLoginCandidate() {
   const locationPayload = await resolveSiteLocation({ preferFast: false });
   if (!locationPayload) {
     proximityInsideSince = 0;
-    showWorkerNotice(t("geolocationRequired"));
+    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase?.locationPreview });
     return;
   }
 
@@ -5682,14 +5713,6 @@ async function pollProximityLoginCandidate() {
     proximityInsideSince = 0;
     proximityLoginNoticeShownAt = 0;
     updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(siteHint), preview });
-    if (typeof preview?.distanceMeters === "number") {
-      showWorkerNotice(
-        tf("siteOutsideRadius", {
-          distance: preview.distanceMeters,
-          allowed: preview.allowedRadiusMeters || siteHint?.siteGeofenceRadiusMeters || 80,
-        })
-      );
-    }
     return;
   }
   if (inside === null && preview?.error === "worker_geolocation_inaccurate") {
@@ -7749,9 +7772,9 @@ function updateDailyInsightsFromTimesheets(rows) {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalIsoDate();
   const todayRows = rows
-    .filter((row) => String(row.timestamp || "").slice(0, 10) === today)
+    .filter((row) => getLocalIsoDateFromTimestamp(row.timestamp) === today)
     .sort((a, b) => String(a.timestamp || "") > String(b.timestamp || "") ? 1 : -1);
 
   if (todayRows.length === 0) {
@@ -7793,7 +7816,7 @@ async function loadMyTimesheets() {
     // Group by date
     const byDate = {};
     for (const row of rows) {
-      const date = (row.timestamp || "").slice(0, 10);
+      const date = getLocalIsoDateFromTimestamp(row.timestamp);
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push(row);
     }
@@ -7826,7 +7849,7 @@ async function loadMyTimesheets() {
             : "";
           return `<div class="timesheet-entry ${isIn ? "entry-in" : "entry-out"}">
             <span class="entry-direction">${isIn ? t("timesheetDirectionIn") : t("timesheetDirectionOut")}</span>
-            <span class="entry-time">${(e.timestamp || "").slice(11, 16)}</span>
+            <span class="entry-time">${formatAccessTimeLocal(e.timestamp)}</span>
             ${durationLabel}
             ${e.gate ? `<span class="entry-gate">${e.gate}</span>` : ""}
           </div>`;
@@ -8678,9 +8701,9 @@ async function loadMyDocuments() {
       updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalIsoDate();
     const soon = new Date(); soon.setDate(soon.getDate() + 30);
-    const soonStr = soon.toISOString().slice(0, 10);
+    const soonStr = getLocalIsoDate(soon);
 
     // Ablauf-Warnung Banner
     const expiringSoon = rows.filter(d => d.expiry_date && d.expiry_date > today && d.expiry_date <= soonStr);

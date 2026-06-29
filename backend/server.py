@@ -11983,19 +11983,34 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
     if not site_coordinates:
         return None
 
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
     location = payload.get("location") if isinstance(payload, dict) else None
+
+    # site_app: session from anywhere; GPS only records on-site presence when sent.
+    if site_cfg["accessMode"] == "site_app":
+        if not isinstance(location, dict):
+            return None
+        try:
+            measured = measure_worker_site_distance(db, worker, location)
+        except (ValueError, PermissionError):
+            return None
+        if not measured:
+            return None
+        max_distance = int(measured.get("radiusMeters") or site_cfg["siteGeofenceRadiusMeters"])
+        measured["radiusMeters"] = max_distance
+        measured["accessMode"] = site_cfg["accessMode"]
+        if not measured.get("onSite"):
+            measured["onSite"] = False
+        return measured
+
+    if not isinstance(location, dict):
+        raise ValueError("worker_geolocation_required")
     measured = measure_worker_site_distance(db, worker, location)
     if not measured:
         return None
 
-    site_cfg = get_company_site_access_config(db, worker["company_id"])
     max_distance = int(measured.get("radiusMeters") or site_cfg["siteGeofenceRadiusMeters"])
     if not measured.get("onSite"):
-        if site_cfg["accessMode"] == "site_app":
-            measured["radiusMeters"] = max_distance
-            measured["accessMode"] = site_cfg["accessMode"]
-            measured["onSite"] = False
-            return measured
         raise PermissionError(f"outside_site_radius:{measured['distanceMeters']}")
 
     measured["radiusMeters"] = max_distance
