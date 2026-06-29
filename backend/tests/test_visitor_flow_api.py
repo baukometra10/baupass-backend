@@ -440,6 +440,52 @@ def test_worker_with_missing_required_documents_is_auto_locked_and_access_blocke
     assert access_response.get_json().get("error") == "worker_documents_missing"
 
 
+def test_company_admin_can_create_app_access_for_worker_missing_required_documents(client_and_db):
+    client, _db_path = client_and_db
+    headers, _login = _company_admin_auth_headers(client)
+
+    create_response = client.post(
+        "/api/workers",
+        json=_worker_payload("cmp-default", "CARD-APP-MISS-1"),
+        headers=headers,
+    )
+    assert create_response.status_code == 201
+    worker_id = create_response.get_json()["id"]
+
+    access_response = client.post(f"/api/workers/{worker_id}/app-access", headers=headers)
+    assert access_response.status_code == 200
+    payload = access_response.get_json()
+    assert payload.get("accessToken")
+    assert payload.get("link")
+
+
+def test_worker_document_upload_accepts_octet_stream_pdf(client_and_db):
+    client, _db_path = client_and_db
+    headers = _auth_headers(client)
+
+    create_response = client.post(
+        "/api/workers",
+        json=_worker_payload("cmp-default", "CARD-OCTET-1"),
+        headers=headers,
+    )
+    assert create_response.status_code == 201
+    worker_id = create_response.get_json()["id"]
+
+    upload_response = client.post(
+        f"/api/workers/{worker_id}/documents/upload",
+        data={
+            "docType": "mindestlohnnachweis",
+            "notes": "Windows octet-stream test",
+            "expiryDate": "",
+            "file": (io.BytesIO(b"%PDF-1.4 test"), "mindestlohn.pdf", "application/octet-stream"),
+        },
+        headers=headers,
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 200
+    assert upload_response.get_json().get("ok") is True
+
+
 def test_worker_is_auto_unlocked_after_uploading_new_valid_required_document(client_and_db):
     client, db_path = client_and_db
     headers = _auth_headers(client)

@@ -903,6 +903,7 @@ class WorkersService:
             _sanitize_attachment_filename,
             _stored_file_path,
             clean_text_input,
+            normalize_upload_mimetype,
             now_iso,
             unlock_worker_if_documents_valid,
             utc_now,
@@ -931,7 +932,7 @@ class WorkersService:
         if not filename:
             return {"error": {"error": "missing_file"}, "status": 400}
 
-        mime = (mimetype or "").lower().split(";")[0].strip()
+        mime = normalize_upload_mimetype(mimetype, filename)
         if mime not in ALLOWED_UPLOAD_MIMETYPES:
             return {"error": {"error": "invalid_file_type"}, "status": 400}
         if not file_data:

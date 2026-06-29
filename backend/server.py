@@ -11058,13 +11058,6 @@ def activate_worker_hce_device(worker_id, device_id):
     return jsonify(result["body"])
 
 
-_ONBOARDING_LOCK_CODES = frozenset({
-    "missing_handover_signature",
-    "missing_documents",
-    "expired_documents",
-})
-
-
 def worker_admin_onboarding_provision_allowed(db, worker_row, actor_user):
     """Admins may issue app join links while worker is still in onboarding lock."""
     role = str((actor_user or {}).get("role") or "").strip().lower()
@@ -11074,17 +11067,8 @@ def worker_admin_onboarding_provision_allowed(db, worker_row, actor_user):
         return False
     if str(worker_row["worker_type"] or "worker").strip().lower() != "worker":
         return False
-    lock_meta = get_worker_lock_metadata(db, worker_row)
-    if not lock_meta:
-        return True
-    codes = {
-        str(item.get("code") or "").strip()
-        for item in (lock_meta.get("lockReasons") or [])
-        if str(item.get("code") or "").strip()
-    }
-    if not codes:
-        return True
-    return codes.issubset(_ONBOARDING_LOCK_CODES)
+    # Firmen-Admins duerfen Join-Links auch bei gesperrten/fehlenden Pflichtdokumenten erzeugen.
+    return True
 
 
 def _compose_worker_app_access_response(access_token, access_expires_at, worker_id, *, created=True, reused=False):
@@ -23348,6 +23332,28 @@ ALLOWED_UPLOAD_MIMETYPES = {
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
+
+_UPLOAD_MIMETYPE_BY_EXTENSION = {
+    ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+def normalize_upload_mimetype(mimetype, filename):
+    """Accept common browser octet-stream uploads when the file extension is known."""
+    mime = str(mimetype or "").lower().split(";")[0].strip()
+    if mime in ALLOWED_UPLOAD_MIMETYPES:
+        return mime
+    if mime and mime not in {"", "application/octet-stream", "binary/octet-stream"}:
+        return mime
+    ext = Path(str(filename or "")).suffix.lower()
+    return _UPLOAD_MIMETYPE_BY_EXTENSION.get(ext, mime)
 
 DOCS_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "documents"
 

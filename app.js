@@ -17359,6 +17359,13 @@ function mapWorkerAppLinkError(error) {
   if (code === "worker_documents_missing") {
     return uiT("workerMissingDocsBlocked");
   }
+  if (code === "worker_documents_expired") {
+    return uiT("workerExpiredDocsBlocked") || "Pflichtdokumente abgelaufen — bitte Dokumente erneuern.";
+  }
+  if (code === "feature_not_available") {
+    const required = payload?.requiredPlan || "starter";
+    return `Paket-Feature nicht verfügbar (benötigt: ${required}).`;
+  }
   if (code === "worker_not_active") {
     return uiT("workerBadgeBlockedDocs");
   }
@@ -27470,7 +27477,16 @@ function renderBadge() {
 
 async function renderWorkerBadgeAppQr(workerId, qrId, fallbackBadgeId) {
   try {
-    const payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/app-access`);
+    let payload;
+    try {
+      payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/app-access`);
+    } catch (getError) {
+      const role = getCurrentUser()?.role || "";
+      if (!["superadmin", "company-admin"].includes(role)) {
+        throw getError;
+      }
+      payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/app-access`, { method: "POST" });
+    }
     const appLink = normalizeWorkerAppLink(payload?.link || "");
     if (!appLink) {
       throw new Error("missing_app_link");
@@ -27994,7 +28010,20 @@ function renderWorkerDocuments(docs, workerId, container) {
           { method: "POST", headers: { Authorization: `Bearer ${token}` }, credentials: "include", body: formData }
         );
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result?.error || `HTTP ${response.status}`);
+        if (!response.ok) {
+          const errCode = String(result?.error || "").trim();
+          const errMessage = String(result?.message || "").trim();
+          if (errCode === "document_expiry_required") {
+            throw new Error(errMessage || uiT("docExpiryRequired") || "Bitte Gueltigkeitsdatum angeben.");
+          }
+          if (errCode === "invalid_file_type") {
+            throw new Error(errMessage || "Dateityp nicht erlaubt (PDF, JPG, PNG, DOC).");
+          }
+          if (errCode === "feature_not_available") {
+            throw new Error(errMessage || "Dokument-Upload ist in Ihrem Paket nicht enthalten.");
+          }
+          throw new Error(errMessage || errCode || `HTTP ${response.status}`);
+        }
 
         showToast(uiT("docUploadSuccess"), "success");
         const updatedDocs = await loadWorkerDocuments(workerId);
