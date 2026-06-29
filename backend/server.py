@@ -26190,16 +26190,37 @@ def export_leave_request_pdf(req_id):
 
 @require_worker_session
 def worker_app_my_timesheets():
+    from backend.app.platform.physical_operations._common import total_presence_minutes
+
     db = get_db()
     worker = g.worker
     plan_value = get_company_plan(db, worker["company_id"])
     if not company_has_feature(plan_value, "worker_hours_report"):
         return feature_not_available_response("worker_hours_report", plan_value)
+
+    month_param = (request.args.get("month") or "").strip()
+    if month_param and len(month_param) >= 7:
+        month_prefix = month_param[:7]
+    else:
+        month_prefix = datetime.now(timezone.utc).strftime("%Y-%m")
+
     rows = db.execute(
-        "SELECT direction, gate, note, timestamp FROM access_logs WHERE worker_id = ? ORDER BY timestamp DESC LIMIT 60",
-        (worker["id"],),
+        """
+        SELECT direction, gate, note, timestamp
+        FROM access_logs
+        WHERE worker_id = ? AND timestamp LIKE ?
+        ORDER BY timestamp DESC
+        """,
+        (worker["id"], f"{month_prefix}%"),
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    events = [dict(r) for r in rows]
+    return jsonify(
+        {
+            "month": month_prefix,
+            "monthTotalMinutes": total_presence_minutes(events),
+            "rows": events,
+        }
+    )
 
 
 # ── Company-Admin: Arbeitsstunden-Uebersicht pro Mitarbeiter/Monat ────────

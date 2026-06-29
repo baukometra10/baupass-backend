@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627k";
+const WORKER_BUILD_TAG = "20260627l";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -850,14 +850,37 @@ function refreshTopBarElements() {
   elements.installButton = document.getElementById("installButton");
 }
 
+function bindWorkerLogoutButtons() {
+  const selectors = ["#topLogoutButton", "#logoutButton", "#pinLockLogoutButton"];
+  selectors.forEach((selector) => {
+    const button = document.querySelector(selector);
+    if (!button || button.dataset.logoutBound === "1") {
+      return;
+    }
+    button.dataset.logoutBound = "1";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void workerLogout();
+    });
+  });
+}
+
 function bindTopBarActions() {
   refreshTopBarElements();
+  bindWorkerLogoutButtons();
   const topPanel = elements.topPanel;
   if (topPanel && !topPanel.dataset.topBarBound) {
     topPanel.dataset.topBarBound = "1";
     topPanel.addEventListener("click", (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      if (target.closest("#topLogoutButton")) {
+        event.preventDefault();
+        event.stopPropagation();
+        void workerLogout();
+        return;
+      }
       if (target.closest("#notificationCenterBtn")) {
         event.preventDefault();
         event.stopPropagation();
@@ -2618,13 +2641,7 @@ function bindEvents() {
     elements.refreshButton.addEventListener("click", loadWorkerData);
   }
 
-  if (elements.logoutButton) {
-    elements.logoutButton.addEventListener("click", workerLogout);
-  }
-
-  if (elements.topLogoutButton) {
-    elements.topLogoutButton.addEventListener("click", workerLogout);
-  }
+  bindWorkerLogoutButtons();
 
   if (elements.installButton) {
     elements.installButton.addEventListener("click", triggerInstall);
@@ -2700,9 +2717,6 @@ function bindEvents() {
     });
   }
 
-  if (elements.pinLockLogoutButton) {
-    elements.pinLockLogoutButton.addEventListener("click", workerLogout);
-  }
 
   // ── Tracking für Pass-Interaktionen ──
   if (elements.badgeCard) {
@@ -2799,7 +2813,10 @@ function bindEvents() {
   bindWorkerChatComposeEvents();
 
   if (elements.workerPageBackButton) {
-    elements.workerPageBackButton.addEventListener("click", () => {
+    elements.workerPageBackButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      document.body.classList.remove("worker-page-focus", "worker-feature-tab-active");
       applyWorkerPageView("");
       switchToTab("home");
     });
@@ -2989,13 +3006,15 @@ async function resolveLoginLocation() {
   return resolveSiteLocation({ preferFast: true });
 }
 
-async function resolveSiteLocation({ preferFast = false } = {}) {
+async function resolveSiteLocation({ preferFast = false, maxWaitMs = null } = {}) {
   if (!navigator.geolocation) {
     return null;
   }
 
   const precisePreset = preferFast ? "fast" : "site";
-  const preciseMaxWait = preferFast ? 18000 : 12000;
+  const preciseMaxWait = Number.isFinite(Number(maxWaitMs)) && Number(maxWaitMs) > 0
+    ? Number(maxWaitMs)
+    : (preferFast ? 18000 : 12000);
   const preciseTargetAccuracy = preferFast ? 40 : 25;
   const preciseAcceptAccuracy = preferFast ? 100 : 200;
 
@@ -4449,17 +4468,17 @@ function showPassLockError(message) {
   }
 }
 
-async function workerLogout() {
-  stopSiteGeofenceMonitor();
-  stopDynamicQrRefresh();
-  const tokenForRevoke = workerToken;
-  const cfg = lastSiteAccessCfg;
+let workerLogoutInFlight = false;
 
-  if (tokenForRevoke && cfg?.siteApp) {
+async function finalizeWorkerLogoutSession(tokenForRevoke, cfg) {
+  if (!tokenForRevoke) {
+    return;
+  }
+  if (cfg?.siteApp) {
     try {
       const locationPayload = await Promise.race([
-        resolveSiteLocation({ preferFast: true }),
-        new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+        resolveSiteLocation({ preferFast: true, maxWaitMs: 3500 }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 3500)),
       ]);
       if (locationPayload) {
         await fetchJson(`${API_BASE}/site-leave`, {
@@ -4475,35 +4494,50 @@ async function workerLogout() {
       // best-effort; backend logout still records app-logout when needed
     }
   }
+  fetchJson(`${API_BASE}/logout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${tokenForRevoke}` },
+  }).catch(() => {
+    // ignore logout call failures
+  });
+}
 
-  wpRemove(WORKER_TOKEN_KEY);
-  wpRemove(WORKER_ACCESS_TOKEN_KEY);
-  wpRemove(WORKER_CACHED_PAYLOAD_KEY);
-  wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
-  wpRemove(OFFLINE_EVENT_QUEUE_KEY);
-  offlineWorkerSessionActive = false;
-  workerToken = "";
-  clearWorkerSessionExpiryTimer();
-  if (inactivityCheckInterval) {
-    clearInterval(inactivityCheckInterval);
-    inactivityCheckInterval = null;
+async function workerLogout() {
+  if (workerLogoutInFlight) {
+    return;
   }
-  if (leaveRefreshInterval) {
-    clearInterval(leaveRefreshInterval);
-    leaveRefreshInterval = null;
-  }
-  closeGateMode();
-  showLogin();
-  startProximityLoginWatcher();
+  workerLogoutInFlight = true;
+  try {
+    stopSiteGeofenceMonitor();
+    stopDynamicQrRefresh();
+    const tokenForRevoke = workerToken;
+    const cfg = lastSiteAccessCfg;
 
-  // Revoke backend session in best-effort mode without blocking UI logout.
-  if (tokenForRevoke) {
-    fetchJson(`${API_BASE}/logout`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tokenForRevoke}` }
-    }).catch(() => {
-      // ignore logout call failures
-    });
+    wpRemove(WORKER_TOKEN_KEY);
+    wpRemove(WORKER_ACCESS_TOKEN_KEY);
+    wpRemove(WORKER_CACHED_PAYLOAD_KEY);
+    wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+    wpRemove(OFFLINE_EVENT_QUEUE_KEY);
+    offlineWorkerSessionActive = false;
+    workerToken = "";
+    clearWorkerSessionExpiryTimer();
+    if (inactivityCheckInterval) {
+      clearInterval(inactivityCheckInterval);
+      inactivityCheckInterval = null;
+    }
+    if (leaveRefreshInterval) {
+      clearInterval(leaveRefreshInterval);
+      leaveRefreshInterval = null;
+    }
+    closeGateMode();
+    hidePassLockOverlay();
+    isPassLocked = false;
+    showLogin();
+    startProximityLoginWatcher();
+
+    void finalizeWorkerLogoutSession(tokenForRevoke, cfg);
+  } finally {
+    workerLogoutInFlight = false;
   }
 }
 
@@ -6547,6 +6581,44 @@ function scrollWorkerFeaturePanelIntoView(panelId) {
   });
 }
 
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatWorkerHoursMinutes(totalMin) {
+  const minutes = Math.max(0, Number(totalMin) || 0);
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}:${String(mins).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(monthKey) {
+  const normalized = String(monthKey || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(normalized)) {
+    return normalized || "-";
+  }
+  const [year, month] = normalized.split("-").map((part) => Number(part));
+  const date = new Date(year, Math.max(0, month - 1), 1);
+  return new Intl.DateTimeFormat(getCurrentLocale(), { month: "long", year: "numeric" }).format(date);
+}
+
+function normalizeWorkerTimesheetPayload(data) {
+  if (Array.isArray(data)) {
+    return {
+      month: getCurrentMonthKey(),
+      monthTotalMinutes: summarizeWorkerPresenceMinutes(data),
+      rows: data,
+    };
+  }
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  return {
+    month: String(data?.month || getCurrentMonthKey()).slice(0, 7),
+    monthTotalMinutes: Number(data?.monthTotalMinutes) || summarizeWorkerPresenceMinutes(rows),
+    rows,
+  };
+}
+
 function formatDate(value) {
   if (!value) {
     return "-";
@@ -7827,11 +7899,20 @@ async function loadMyTimesheets() {
   if (!workerToken || !elements.timesheetList) return;
   elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetLoading")}</p>`;
   try {
-    const rows = await fetchJson(`${API_BASE}/my-timesheets`, {
+    const monthKey = getCurrentMonthKey();
+    const data = await fetchJson(`${API_BASE}/my-timesheets?month=${encodeURIComponent(monthKey)}`, {
       headers: { Authorization: `Bearer ${workerToken}` }
     });
+    const payload = normalizeWorkerTimesheetPayload(data);
+    const rows = payload.rows;
     if (!Array.isArray(rows) || rows.length === 0) {
-      elements.timesheetList.innerHTML = `<p class="muted-info">${t("timesheetEmpty")}</p>`;
+      elements.timesheetList.innerHTML = `
+        <div class="timesheet-month-summary">
+          <p class="timesheet-month-label">${escapeHtmlBasic(t("timesheetMonthTotalLabel"))}</p>
+          <strong class="timesheet-month-value">${escapeHtmlBasic(formatWorkerHoursMinutes(0))} h</strong>
+          <p class="timesheet-month-meta">${escapeHtmlBasic(formatMonthLabel(payload.month))}</p>
+        </div>
+        <p class="muted-info">${t("timesheetEmpty")}</p>`;
       resetDailyInsights();
       lastTimesheetRows = [];
       updateSmartWorkHub(lastWorkerPayload, []);
@@ -7851,6 +7932,12 @@ async function loadMyTimesheets() {
     });
     const visibleDayGroups = timesheetCompactExpanded ? dayGroups : dayGroups.slice(0, 2);
     const daysHiddenCount = Math.max(0, dayGroups.length - visibleDayGroups.length);
+    const monthSummaryMarkup = `
+      <div class="timesheet-month-summary">
+        <p class="timesheet-month-label">${escapeHtmlBasic(t("timesheetMonthTotalLabel"))}</p>
+        <strong class="timesheet-month-value">${escapeHtmlBasic(formatWorkerHoursMinutes(payload.monthTotalMinutes))} h</strong>
+        <p class="timesheet-month-meta">${escapeHtmlBasic(formatMonthLabel(payload.month))}</p>
+      </div>`;
 
     const dayMarkup = visibleDayGroups.map(([date, entries]) => {
         const sessions = pairWorkerPresenceSessions(entries);
@@ -7886,7 +7973,7 @@ async function loadMyTimesheets() {
       ? `<button id="timesheetCompactToggleBtn" class="ghost small-btn compact-list-toggle" type="button">${timesheetCompactExpanded ? t("compactShowLess") : `${t("compactShowMore")} (+${daysHiddenCount})`}</button>`
       : "";
 
-    elements.timesheetList.innerHTML = dayMarkup + toggleMarkup;
+    elements.timesheetList.innerHTML = monthSummaryMarkup + dayMarkup + toggleMarkup;
 
     const toggleBtn = document.querySelector("#timesheetCompactToggleBtn");
     if (toggleBtn) {

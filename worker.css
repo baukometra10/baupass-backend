@@ -667,9 +667,20 @@ button:hover,
   border-top: none;
 }
 
-.worker-hub-panel #workerPageNav,
 .worker-hub-panel #workerQuickMenu {
   display: none !important;
+}
+
+body.worker-loaded.worker-feature-tab-active .worker-hub-panel #workerPageNav:not(.hidden),
+body.worker-loaded.worker-page-focus .worker-hub-panel #workerPageNav:not(.hidden),
+body.wallet-immersive.wallet-immersive-sections-open #workerPageNav:not(.hidden) {
+  display: grid !important;
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background: var(--corp-bg, #f4f7fb);
+  padding: 8px 0 6px;
+  margin-bottom: 4px;
 }
 
 .worker-menu-card {
@@ -7127,7 +7138,7 @@ body {
 .sparkasse-top-bar {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1300;
   background: #ffffff;
   border-bottom: 1px solid var(--corp-border);
   box-shadow: 0 1px 4px rgba(11, 38, 80, 0.08);
@@ -7237,6 +7248,9 @@ body.worker-loaded .worker-notice {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
+  position: relative;
+  z-index: 2;
   transition: background 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }

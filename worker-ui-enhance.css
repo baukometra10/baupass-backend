@@ -73,6 +73,38 @@
   flex-shrink: 0;
   max-width: 100%;
   white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.timesheet-month-summary {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(10, 87, 192, 0.08);
+  border: 1px solid rgba(10, 87, 192, 0.14);
+}
+
+.timesheet-month-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--corp-muted, #4f6078);
+}
+
+.timesheet-month-value {
+  font-size: 1.65rem;
+  line-height: 1.1;
+  color: var(--corp-primary, #0a57c0);
+}
+
+.timesheet-month-meta {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--corp-muted, #4f6078);
 }
 
 .sparkasse-top-bar .stb-build-tag {
