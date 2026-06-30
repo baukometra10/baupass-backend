@@ -480,13 +480,24 @@ body:not(.worker-loaded) .login-sparkasse {
 
 /* ── Login Notice ──────────────────────────────── */
 .worker-notice {
-  margin: 0;
+  margin: 0 0 12px;
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid rgba(168, 37, 37, .4);
   background: rgba(255, 230, 230, .92);
   color: #7f1d1d;
   font-weight: 600;
+}
+
+.worker-notice.login-error-visible {
+  border-color: rgba(185, 28, 28, 0.65);
+  background: #fee2e2;
+  box-shadow: 0 8px 24px rgba(185, 28, 28, 0.12);
+}
+
+.form-input-sparkasse.input-error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
 }
 
 /* ── Status Banner ─────────────────────────────── */
