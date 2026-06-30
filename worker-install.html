@@ -138,7 +138,7 @@
     }
 
     async function resolveLatestTargetUrl() {
-      let buildInfo = { build: "20260627v", entry: "/emp-app.html" };
+      let buildInfo = { build: "20260627w", entry: "/emp-app.html" };
       try {
         const response = await fetch(`./worker-build.json?t=${Date.now()}`, { cache: "no-store" });
         if (response.ok) {
@@ -150,7 +150,7 @@
 
       const target = new URL(buildInfo.entry || "/emp-app.html", window.location.origin);
       target.searchParams.set("view", "card");
-      target.searchParams.set("v", buildInfo.build || "20260627v");
+      target.searchParams.set("v", buildInfo.build || "20260627w");
       if (accessToken) {
         target.searchParams.set("access", accessToken);
       }

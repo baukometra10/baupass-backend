@@ -232,7 +232,7 @@ const UI_LANG_STORAGE_KEY = WP?.KEYS?.UI_LANG || "workpass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = WP?.KEYS?.INVOICE_FILTERS || "workpass-invoice-filters-v1";
 const PREVIEW_COMPANY_STORAGE_KEY = WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260525b";
+const WORKER_PWA_BUILD_TAG = "20260627w";
 
 function loadStoredSessionToken() {
   try {
@@ -20134,6 +20134,9 @@ function normalizeWorkerAppLink(rawLink) {
       // Access links should land on the install handoff page to avoid stale homescreen installs.
       if (normalized.searchParams.get("access")) {
         normalized.pathname = "/worker-install.html";
+      } else {
+        normalized.pathname = "/emp-app.html";
+        normalized.searchParams.set("worker", "1");
       }
       normalized.searchParams.set("v", WORKER_PWA_BUILD_TAG);
       if (sameOriginApi) {
@@ -21402,13 +21405,13 @@ function buildWorkerBadgeDeepLink(badgeId) {
     return "";
   }
   try {
-    const target = new URL("/worker.html", window.location.origin);
+    const target = new URL("/emp-app.html", window.location.origin);
+    target.searchParams.set("worker", "1");
     target.searchParams.set("badge", normalized);
     target.searchParams.set("view", "card");
     target.searchParams.set("v", WORKER_PWA_BUILD_TAG);
     target.searchParams.set("launch", "1");
     target.searchParams.set("fast", "1");
-    target.searchParams.set("apiBase", normalizeApiBase(API_BASE || window.location.origin));
     return target.toString();
   } catch {
     return "";
@@ -27241,10 +27244,10 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
     permanentLink = buildWorkerBadgeDeepLink(worker.badgeId);
     if (!permanentLink) {
       try {
-        const base = new URL(absoluteLink);
+        const base = new URL(absoluteLink || window.location.origin);
         base.search = "";
-        base.pathname = "/worker.html";
-        base.searchParams.set("apiBase", normalizeApiBase(API_BASE || window.location.origin));
+        base.pathname = "/emp-app.html";
+        base.searchParams.set("worker", "1");
         base.searchParams.set("view", "card");
         base.searchParams.set("v", WORKER_PWA_BUILD_TAG);
         base.searchParams.set("launch", "1");
@@ -27256,7 +27259,8 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
       }
     }
   }
-  const primaryLink = permanentLink || absoluteLink;
+  const primaryLink = absoluteLink || permanentLink;
+  const qrHintPermanent = permanentLink && absoluteLink && permanentLink !== absoluteLink;
 
   const qrId = `workerAppQr-${Date.now()}`;
   dialog.innerHTML = `
@@ -27264,10 +27268,11 @@ function showWorkerAppQrDialog(worker, absoluteLink, payload = null) {
       <h3>${escapeHtml(isVisitorCard ? runtimeText("workerAppQrVisitorHeading") : runtimeText("workerAppQrHeading"))}</h3>
       <p>${escapeHtml(runtimeText("workerAppQrForLabel"))}: <strong>${escapeHtml(workerName)}</strong></p>
       <p>${escapeHtml(isVisitorCard ? runtimeText("workerAppQrVisitorHint") : runtimeText("workerAppQrHint"))}</p>
-      ${permanentLink
-        ? `<p class="helper-text" style="color:#16a34a;">📌 Dauerhafter QR – kein Ablaufdatum, Login per Badge-ID &amp; PIN.</p>`
-        : `<p class="helper-text">${escapeHtml(runtimeTextTemplate("workerAppQrValidUntil", { when: linkExpiresAt }))}</p>
-           ${oneTimeHint ? `<p class="helper-text">${escapeHtml(oneTimeHint)}</p>` : ""}`
+      ${absoluteLink
+        ? `<p class="helper-text">${escapeHtml(runtimeTextTemplate("workerAppQrValidUntil", { when: linkExpiresAt }))}</p>
+           ${oneTimeHint ? `<p class="helper-text">${escapeHtml(oneTimeHint)}</p>` : ""}
+           ${qrHintPermanent ? `<p class="helper-text" style="color:#16a34a;">📌 Zusätzlich: dauerhafter Badge-QR (Badge + PIN) zum Kopieren verfügbar.</p>` : ""}`
+        : `<p class="helper-text" style="color:#16a34a;">📌 Dauerhafter QR – kein Ablaufdatum, Login per Badge-ID &amp; PIN.</p>`
       }
       <img id="${qrId}" alt="${escapeHtml(runtimeText("workerAppQrAlt"))}" />
       <div class="button-row">

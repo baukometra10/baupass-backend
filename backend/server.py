@@ -2437,12 +2437,13 @@ def should_force_https_links(hostname):
 
 
 def build_worker_badge_deeplink(badge_id, *, view="card", fast_login=True):
-    """QR payload: opens worker handoff → emp-app with badge pre-filled and fast PIN login."""
+    """QR payload: opens emp-app with badge pre-filled and fast PIN login."""
     normalized_badge = normalize_badge_id(badge_id)
     if not normalized_badge:
         return ""
     build_tag = _get_worker_build_info().get("build") or "latest"
     params = {
+        "worker": "1",
         "badge": normalized_badge,
         "view": view,
         "v": build_tag,
@@ -2451,7 +2452,7 @@ def build_worker_badge_deeplink(badge_id, *, view="card", fast_login=True):
     if fast_login:
         params["fast"] = "1"
     query = urlencode(params)
-    return f"{get_public_base_url().rstrip('/')}/worker.html?{query}"
+    return f"{get_public_base_url().rstrip('/')}/emp-app.html?{query}"
 
 
 def _public_url_host(url_value: str) -> str:

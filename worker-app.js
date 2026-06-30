@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627v";
+const WORKER_BUILD_TAG = "20260627w";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -251,6 +251,80 @@ function isQrBootstrapEntry(params = null) {
 function markWorkerLoginCompleted() {
   window.__workerLoginCompletedAt = Date.now();
 }
+
+function getOrCreateWorkerDeviceFingerprint() {
+  let fp = String(wpGet(WORKER_DEVICE_FP_KEY) || "").trim();
+  if (fp) {
+    return fp;
+  }
+  try {
+    fp = `wp-${crypto.randomUUID()}`;
+  } catch {
+    fp = `wp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+  wpSet(WORKER_DEVICE_FP_KEY, fp);
+  return fp;
+}
+
+function buildWorkerDevicePayload() {
+  return {
+    fingerprint: getOrCreateWorkerDeviceFingerprint(),
+    name: isIosDevice() ? "iPhone" : (isStandaloneDisplay() ? "Installed PWA" : "Mobile Web"),
+    platform: isIosDevice() ? "ios" : "web",
+  };
+}
+
+function getWorkerAuthorizationValue() {
+  const jwt = String(workerBearerToken || wpGet(WORKER_JWT_KEY) || "").trim();
+  if (jwt.includes(".")) {
+    return jwt;
+  }
+  return String(workerToken || wpGet(WORKER_TOKEN_KEY) || "").trim();
+}
+
+function buildWorkerAuthHeaders(extraHeaders = {}) {
+  const headers = { ...(extraHeaders || {}) };
+  const auth = getWorkerAuthorizationValue();
+  if (auth && !headers.Authorization) {
+    headers.Authorization = `Bearer ${auth}`;
+  }
+  const deviceId = String(wpGet(WORKER_DEVICE_ID_KEY) || "").trim();
+  if (deviceId && !headers["X-Device-Id"]) {
+    headers["X-Device-Id"] = deviceId;
+  }
+  return headers;
+}
+
+function persistWorkerSessionCredentials(payload) {
+  if (!payload) {
+    return;
+  }
+  const sessionToken = String(payload.token || "").trim();
+  if (sessionToken) {
+    workerToken = sessionToken;
+    wpSet(WORKER_TOKEN_KEY, sessionToken);
+  }
+  const jwt = String(payload.jwt || "").trim();
+  if (jwt) {
+    workerBearerToken = jwt;
+    wpSet(WORKER_JWT_KEY, jwt);
+  } else if (sessionToken) {
+    workerBearerToken = sessionToken;
+    wpRemove(WORKER_JWT_KEY);
+  }
+  const deviceId = String(payload.deviceId || "").trim();
+  if (deviceId) {
+    wpSet(WORKER_DEVICE_ID_KEY, deviceId);
+  }
+}
+
+function isWorkerAnonymousRequest(url) {
+  const value = String(url || "");
+  return value.includes("/login")
+    || value.includes("/join-preview")
+    || value.includes("/proximity-site-hint")
+    || value.includes("/proximity-login");
+}
 const WORKER_BADGE_LOGIN_KEY = WP?.KEYS?.WORKER_BADGE_LOGIN || "workpass-worker-badge-login";
 const PENDING_QR_BADGE_KEY = "workpass-qr-pending-badge";
 const LOCAL_LAST_PHOTO_KEY = WP?.KEYS?.LOCAL_LAST_PHOTO || "workpass-last-local-photo";
@@ -262,6 +336,9 @@ const QR_CACHE_PREFIX = WP?.KEYS?.QR_CACHE_PREFIX || "workpass-worker-qr-cache";
 const QR_HIGH_CONTRAST_KEY = WP?.KEYS?.QR_HIGH_CONTRAST || "workpass-qr-high-contrast";
 const AUTO_OPEN_SCANNER_KEY = WP?.KEYS?.AUTO_OPEN_SCANNER || "workpass-auto-open-scanner";
 const WORKER_CACHED_PAYLOAD_KEY = WP?.KEYS?.WORKER_CACHED_PAYLOAD || "workpass-worker-cached-payload";
+const WORKER_JWT_KEY = WP?.KEYS?.WORKER_JWT || "workpass-worker-jwt";
+const WORKER_DEVICE_ID_KEY = WP?.KEYS?.WORKER_DEVICE_ID || "workpass-worker-device-id";
+const WORKER_DEVICE_FP_KEY = WP?.KEYS?.WORKER_DEVICE_FP || "workpass-worker-device-fp";
 const WORKER_LANG_KEY = WP?.KEYS?.WORKER_LANG || "workpass-worker-lang";
 const WORKER_INACTIVITY_TIMEOUT_MS = 60 * 1000;
 const WORKER_PASS_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
@@ -1289,6 +1366,7 @@ function setLang(lang) {
 // ─────────────────────────────────────────────────────────────────────
 
 let workerToken = "";
+let workerBearerToken = "";
 let workerLoginInFlight = false;
 let showcaseTimeoutId = null;
 let currentActiveTab = "home";
@@ -1296,6 +1374,7 @@ let bottomTabNavInitialized = false;
 // One-time QR/link codes must not survive a cold start; bearer session may persist for PWA/offline sync.
 wpRemove(WORKER_ACCESS_TOKEN_KEY);
 workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
+workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
 let deferredInstallPrompt = null;
 let cameraStream = null;
 let lastCameraPhotoDataUrl = null;
@@ -2365,6 +2444,7 @@ init().finally(dismissSplash);
 
 async function init() {
   workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
+  workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
   ensureWorkerChatShellStyles();
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
@@ -2522,7 +2602,9 @@ async function init() {
       }
     }
     if (urlFastLogin) {
-      prepareQrPinOnlyLogin(urlBadgeParam, { tryAutoLogin: true, readOnly: true });
+      prepareQrPinOnlyLogin(urlBadgeParam, { readOnly: true, focusPin: true });
+      startProximityLoginWatcher();
+      window.__workerAppInitDone = true;
       return;
     }
     prefillWorkerBadgeField(urlBadgeParam, { readOnly: false });
@@ -3698,12 +3780,15 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     const payload = await fetchJson(`${API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken, location: locationPayload })
+      body: JSON.stringify({
+        accessToken,
+        location: locationPayload,
+        device: buildWorkerDevicePayload(),
+      })
     });
 
     offlineWorkerSessionActive = false;
-    workerToken = payload.token;
-    wpSet(WORKER_TOKEN_KEY, workerToken);
+    persistWorkerSessionCredentials(payload);
     wpSet(WORKER_ACCESS_TOKEN_KEY, accessToken);
     wpRemove(WORKER_BADGE_LOGIN_KEY);
     applyDynamicManifestStartUrl(accessToken);
@@ -3828,13 +3913,13 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
         badgeId: normalizedBadgeId,
         badgePin: normalizedBadgePin,
         qrLaunch: qrLaunch || isQrLaunchLogin() || document.body.classList.contains("qr-fast-login"),
+        device: buildWorkerDevicePayload(),
         ...(effectiveLocation ? { location: effectiveLocation } : {}),
       })
     });
 
     offlineWorkerSessionActive = false;
-    workerToken = payload.token;
-    wpSet(WORKER_TOKEN_KEY, workerToken);
+    persistWorkerSessionCredentials(payload);
     wpSet(WORKER_BADGE_LOGIN_KEY, normalizedBadgeId);
     wpRemove(WORKER_ACCESS_TOKEN_KEY);
     if (elements.workerAccessToken) {
@@ -3879,7 +3964,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       }
       return;
     }
-    if (silent) {
+    if (silent && !document.body.classList.contains("qr-fast-login")) {
       showLogin();
       return;
     }
@@ -4491,8 +4576,9 @@ function showLoginError(message, { code = "", focusPin = false } = {}) {
   }
   if (elements.workerNotice) {
     elements.workerNotice.textContent = text;
-    elements.workerNotice.classList.remove("hidden");
+    elements.workerNotice.classList.remove("hidden", "force-hidden");
     elements.workerNotice.classList.add("login-error-visible");
+    elements.workerNotice.setAttribute("role", "alert");
     requestAnimationFrame(() => {
       elements.workerNotice.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -6161,6 +6247,9 @@ function stopProximityLoginWatcher() {
 
 function startProximityLoginWatcher() {
   stopProximityLoginWatcher();
+  if (document.body.classList.contains("qr-fast-login")) {
+    return;
+  }
   if (workerToken || offlineWorkerSessionActive) {
     return;
   }
@@ -6645,9 +6734,12 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   stopSiteGeofenceMonitor();
   stopProximityLoginWatcher();
   wpRemove(WORKER_TOKEN_KEY);
+  wpRemove(WORKER_JWT_KEY);
+  wpRemove(WORKER_DEVICE_ID_KEY);
   wpRemove(WORKER_CACHED_PAYLOAD_KEY);
   offlineWorkerSessionActive = false;
   workerToken = "";
+  workerBearerToken = "";
   workerChatThreadId = "";
   stopWorkerChatPolling();
   clearWorkerSessionExpiryTimer();
@@ -6743,9 +6835,13 @@ function workerLoginErrorMessage(error) {
 }
 
 async function fetchJson(url, options = {}) {
+  const requestOptions = { ...(options || {}) };
+  if (isWorkerProtectedApiUrl(url) && !isWorkerAnonymousRequest(url) && getWorkerAuthorizationValue()) {
+    requestOptions.headers = buildWorkerAuthHeaders(requestOptions.headers || {});
+  }
   let response;
   try {
-    response = await fetch(url, options);
+    response = await fetch(url, requestOptions);
   } catch (fetchError) {
     const error = new Error(fetchError?.message || "Network error");
     error.code = "network_error";
@@ -6772,9 +6868,13 @@ async function fetchJson(url, options = {}) {
     error.payload = payload;
     if (isWorkerProtectedApiUrl(url) && isWorkerSessionAuthError(code)) {
       const loginGraceMs = Date.now() - Number(window.__workerLoginCompletedAt || 0);
-      if (!document.body.classList.contains("worker-loaded") && loginGraceMs > 15000) {
+      const keepLoadedShell = document.body.classList.contains("worker-loaded") && loginGraceMs <= 20000;
+      if (!keepLoadedShell) {
         invalidateWorkerSession({ showNotice: true });
       }
+    }
+    if (isWorkerProtectedApiUrl(url) && code === "device_not_bound") {
+      showLoginError(t("loginFailed") + " (Gerät nicht freigegeben – bitte erneut anmelden).", { code });
     }
     throw error;
   }
