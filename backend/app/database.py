@@ -17,6 +17,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -438,6 +439,30 @@ class Migration:
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
+def execute_migration_sql(conn: sqlite3.Connection, sql: str) -> None:
+    """Run migration SQL; SQLite builds here reject ADD COLUMN IF NOT EXISTS."""
+    if re.search(r"ADD COLUMN IF NOT EXISTS", sql, flags=re.IGNORECASE):
+        for raw_stmt in sql.split(";"):
+            stmt = raw_stmt.strip()
+            if not stmt or stmt.startswith("--"):
+                continue
+            normalized = re.sub(
+                r"\bADD COLUMN IF NOT EXISTS\b",
+                "ADD COLUMN",
+                stmt,
+                flags=re.IGNORECASE,
+            )
+            try:
+                conn.execute(normalized)
+            except sqlite3.Error as exc:
+                if "duplicate column name" in str(exc).lower():
+                    continue
+                raise
+        return
+
+    conn.executescript(sql)
+
+
 class MigrationRunner:
     """
     يُشغّل migrations بترتيب ويتحقق من سلامتها.
@@ -512,7 +537,7 @@ class MigrationRunner:
                 logger.info("  Applying migration %s: %s", migration.version, migration.name)
 
                 try:
-                    self.conn.executescript(migration.up_sql)
+                    execute_migration_sql(self.conn, migration.up_sql)
                 except sqlite3.Error as exc:
                     raise RuntimeError(
                         f"Migration {migration.version} ({migration.name}) failed:\n{exc}\n"

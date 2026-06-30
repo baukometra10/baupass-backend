@@ -11149,7 +11149,7 @@ def _compose_worker_app_access_response(
     build_tag = _get_worker_build_info().get("build") or "latest"
     public_base = get_public_base_url().rstrip("/")
     badge_lookup = normalize_badge_id(badge_id) if badge_id else ""
-    badge_query = f"&badge={badge_lookup}&fast=1" if badge_lookup else ""
+    badge_query = f"&badge={quote(badge_lookup, safe='')}&fast=1" if badge_lookup else ""
     join_query = f"access={access_token}&v={build_tag}&launch=1{badge_query}"
     pwa_link = f"{public_base}/worker-install.html?{join_query}"
     native_link = f"{public_base}/join.html?{join_query}"
@@ -13142,10 +13142,13 @@ def worker_app_login():
                 "badgeId": (fallback_badge_row["badge_id"] if fallback_badge_row else ""),
             }), 401
 
-        if token_row["expires_at"] < now_iso():
-            return jsonify({"error": "access_token_expired"}), 401
-
         worker = db.execute("SELECT * FROM workers WHERE id = ?", (token_row["worker_id"],)).fetchone()
+        if token_row["expires_at"] < now_iso():
+            return jsonify({
+                "error": "access_token_expired",
+                "badgeId": normalize_badge_id(worker["badge_id"]) if worker else "",
+            }), 401
+
         if not worker or worker["deleted_at"]:
             return jsonify({"error": "worker_not_available"}), 401
 
