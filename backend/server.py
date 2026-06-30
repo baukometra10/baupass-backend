@@ -13071,6 +13071,37 @@ def worker_badge_qr(worker_id):
 
 
 @require_rate_limit("worker_login")
+def worker_app_join_preview():
+    """Resolve badge ID from a one-time join token without consuming it."""
+    payload = request.get_json(silent=True) or {}
+    access_token = (payload.get("accessToken") or "").strip()
+    if not access_token:
+        return jsonify({"error": "missing_access_token"}), 400
+
+    db = get_db()
+    token_row = db.execute("SELECT * FROM worker_app_tokens WHERE token = ?", (access_token,)).fetchone()
+    if not token_row:
+        return jsonify({"error": "invalid_access_token"}), 404
+
+    worker = db.execute(
+        "SELECT id, badge_id, deleted_at FROM workers WHERE id = ?",
+        (token_row["worker_id"],),
+    ).fetchone()
+    if not worker or worker["deleted_at"]:
+        return jsonify({"error": "worker_not_available"}), 404
+
+    token_used = bool(token_row["revoked_at"])
+    token_expired = token_row["expires_at"] < now_iso()
+    return jsonify({
+        "badgeId": normalize_badge_id(worker["badge_id"]),
+        "workerId": worker["id"],
+        "tokenUsed": token_used,
+        "tokenExpired": token_expired,
+        "tokenValid": not token_used and not token_expired,
+    })
+
+
+@require_rate_limit("worker_login")
 def worker_app_login():
     payload = request.get_json(silent=True) or {}
     access_token = (payload.get("accessToken") or "").strip()

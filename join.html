@@ -128,6 +128,9 @@
       tokenKeys.forEach((key) => {
         try { localStorage.setItem(key, accessToken); } catch { /* ignore */ }
       });
+      if (badgeId) {
+        try { localStorage.setItem("workpass-worker-badge-login", badgeId); } catch { /* ignore */ }
+      }
       const baseKeys = [API_BASE_KEY, "workpass-api-base"];
       if (apiBaseMatchesOrigin(apiBase)) {
         baseKeys.forEach((key) => {

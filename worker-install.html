@@ -101,6 +101,13 @@
         // ignore storage failures
       }
     }
+    if (badgeId) {
+      try {
+        localStorage.setItem("workpass-worker-badge-login", badgeId);
+      } catch {
+        // ignore storage failures
+      }
+    }
 
     function apiBaseMatchesOrigin(base) {
       if (!base) return false;
@@ -130,7 +137,7 @@
     }
 
     async function resolveLatestTargetUrl() {
-      let buildInfo = { build: "20260627q", entry: "/emp-app.html" };
+      let buildInfo = { build: "20260627r", entry: "/emp-app.html" };
       try {
         const response = await fetch(`./worker-build.json?t=${Date.now()}`, { cache: "no-store" });
         if (response.ok) {
@@ -142,7 +149,7 @@
 
       const target = new URL(buildInfo.entry || "/emp-app.html", window.location.origin);
       target.searchParams.set("view", "card");
-      target.searchParams.set("v", buildInfo.build || "20260627q");
+      target.searchParams.set("v", buildInfo.build || "20260627r");
       if (accessToken) {
         target.searchParams.set("access", accessToken);
       }

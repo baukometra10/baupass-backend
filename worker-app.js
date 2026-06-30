@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627q";
+const WORKER_BUILD_TAG = "20260627r";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2363,9 +2363,11 @@ async function init() {
   if (viewParam === "card") {
     document.body.classList.add("worker-card-install");
   }
-  const urlBadgeParam = normalizeBadgeIdInput(params.get("badge") || "");
+  const urlBadgeParam = getQrLaunchBadgeId(params);
   const urlFastLogin = params.get("fast") === "1" || params.get("launch") === "1";
-  const storedBadgeId = (window.localStorage.getItem(WORKER_BADGE_LOGIN_KEY) || "").trim();
+  const storedBadgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+  const accessInUrl = (params.get("access") || "").trim();
+  let qrBadgeId = urlBadgeParam || storedBadgeId;
 
   if (bootstrapAccessToken) {
     window.wpSet(WORKER_ACCESS_TOKEN_KEY, bootstrapAccessToken);
@@ -2379,19 +2381,32 @@ async function init() {
   initBatteryTelemetry();
   updateWorkerPulsePanel();
 
-  if (bootstrapAccessToken && (params.get("access") || "").trim()) {
-    if (urlBadgeParam) {
-      wpSet(WORKER_BADGE_LOGIN_KEY, urlBadgeParam);
+  if (accessInUrl && bootstrapAccessToken && !qrBadgeId) {
+    qrBadgeId = await resolveBadgeIdFromAccessToken(bootstrapAccessToken);
+  }
+
+  if (qrBadgeId && !workerToken) {
+    prefillWorkerBadgeField(qrBadgeId, {
+      readOnly: Boolean(accessInUrl || urlFastLogin),
+      focusPin: Boolean(accessInUrl || urlFastLogin),
+    });
+    if (accessInUrl || urlFastLogin) {
+      document.body.classList.add("qr-fast-login");
+      const loginCopy = document.querySelector(".login-copy-sparkasse");
+      if (loginCopy) {
+        loginCopy.textContent = tf("loginCopyQrFast", { badge: qrBadgeId });
+      }
     }
-    syncLoginPinFieldVisibility(urlBadgeParam);
-    // If already logged in with a valid session, just use it (token may be already used)
+    showLogin();
+  }
+
+  if (bootstrapAccessToken && accessInUrl) {
     if (workerToken) {
       const loaded = await loadWorkerData();
       if (loaded) {
         return;
       }
     }
-    // Einmal-Link zuerst ohne GPS-Wartezeit — Standort optional im Hintergrund.
     void resolveLoginLocation({ timeoutMs: 8000 }).catch(() => null);
     await loginWithAccessToken(bootstrapAccessToken, {
       keepUrlToken: false,
@@ -2401,8 +2416,8 @@ async function init() {
     if (workerToken) {
       return;
     }
-    if (urlBadgeParam) {
-      prepareQrPinOnlyLogin(urlBadgeParam);
+    if (qrBadgeId) {
+      prepareQrPinOnlyLogin(qrBadgeId, { readOnly: true, focusPin: true });
     } else {
       showLogin();
     }
@@ -2438,25 +2453,25 @@ async function init() {
       }
     }
     if (urlFastLogin) {
-      prepareQrPinOnlyLogin(urlBadgeParam, { tryAutoLogin: true });
+      prepareQrPinOnlyLogin(urlBadgeParam, { tryAutoLogin: true, readOnly: true });
       return;
     }
-    wpSet(WORKER_BADGE_LOGIN_KEY, urlBadgeParam);
+    prefillWorkerBadgeField(urlBadgeParam, { readOnly: false });
     showLogin();
-    if (elements.workerAccessToken) {
-      elements.workerAccessToken.value = urlBadgeParam;
-    }
-    syncLoginPinFieldVisibility(urlBadgeParam);
     return;
   }
 
   if (storedBadgeId) {
-    if (elements.workerAccessToken) {
-      elements.workerAccessToken.value = normalizeBadgeIdInput(storedBadgeId);
+    prefillWorkerBadgeField(storedBadgeId, { readOnly: false });
+  }
+  if (!workerToken) {
+    showLogin();
+    if (qrBadgeId || storedBadgeId) {
+      prefillWorkerBadgeField(qrBadgeId || storedBadgeId, { readOnly: false });
     }
   }
-  syncLoginPinFieldVisibility(storedBadgeId || elements.workerAccessToken?.value || "");
   startProximityLoginWatcher();
+  window.__workerAppInitDone = true;
 }
 
 function applyDynamicManifestStartUrl(accessToken, platformName) {
@@ -4318,15 +4333,21 @@ function showLogin() {
   const storedBadgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
   const currentValue = String(elements.workerAccessToken?.value || "").trim();
   if (elements.workerAccessToken) {
+    let nextBadge = storedBadgeId;
     if (currentValue && looksLikeBadgeId(currentValue)) {
-      elements.workerAccessToken.value = normalizeBadgeIdInput(currentValue);
+      nextBadge = normalizeBadgeIdInput(currentValue);
+    } else if (currentValue && !looksLikeAccessToken(currentValue)) {
+      nextBadge = normalizeBadgeIdInput(currentValue) || storedBadgeId;
+    }
+    if (nextBadge) {
+      elements.workerAccessToken.value = nextBadge;
+      wpSet(WORKER_BADGE_LOGIN_KEY, nextBadge);
     } else if (looksLikeAccessToken(currentValue)) {
-      elements.workerAccessToken.value = storedBadgeId || "";
-    } else {
-      elements.workerAccessToken.value = storedBadgeId || currentValue || "";
+      elements.workerAccessToken.value = "";
     }
     if (!document.body.classList.contains("qr-fast-login")) {
       elements.workerAccessToken.readOnly = false;
+      elements.workerAccessToken.removeAttribute("readonly");
       elements.workerAccessToken.removeAttribute("aria-readonly");
       elements.workerAccessToken.classList.remove("form-input-readonly");
     }
@@ -5103,46 +5124,77 @@ function getQrLaunchBadgeId(params = null) {
   }
 }
 
-function prepareQrPinOnlyLogin(badgeId, { tryAutoLogin = false } = {}) {
+function prefillWorkerBadgeField(badgeId, { readOnly = false, focusPin = false } = {}) {
   const normalized = normalizeBadgeIdInput(badgeId || "");
+  if (!normalized) {
+    return "";
+  }
+  wpSet(WORKER_BADGE_LOGIN_KEY, normalized);
+  const badgeInput = elements.workerAccessToken || document.querySelector("#workerAccessToken");
+  if (badgeInput) {
+    badgeInput.value = normalized;
+    badgeInput.readOnly = Boolean(readOnly);
+    badgeInput.toggleAttribute("readonly", Boolean(readOnly));
+    badgeInput.classList.toggle("form-input-readonly", Boolean(readOnly));
+    if (readOnly) {
+      badgeInput.setAttribute("aria-readonly", "true");
+    } else {
+      badgeInput.removeAttribute("aria-readonly");
+    }
+  }
+  syncLoginPinFieldVisibility(normalized);
+  const loginCard = elements.loginCard || document.getElementById("loginCard");
+  if (loginCard) {
+    loginCard.classList.remove("hidden");
+    loginCard.style.removeProperty("display");
+  }
+  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
+  if (pinInput && focusPin) {
+    setTimeout(() => pinInput.focus(), 120);
+  }
+  return normalized;
+}
+
+async function resolveBadgeIdFromAccessToken(accessToken) {
+  const token = String(accessToken || "").trim();
+  if (!token) {
+    return "";
+  }
+  const stored = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+  if (stored) {
+    return stored;
+  }
+  try {
+    const payload = await fetchJson(`${API_BASE}/join-preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: token }),
+    });
+    const badgeId = normalizeBadgeIdInput(payload.badgeId || payload.badge_id || "");
+    if (badgeId) {
+      wpSet(WORKER_BADGE_LOGIN_KEY, badgeId);
+    }
+    return badgeId;
+  } catch {
+    return "";
+  }
+}
+
+function prepareQrPinOnlyLogin(badgeId, { tryAutoLogin = false, readOnly = true, focusPin = true } = {}) {
+  const normalized = prefillWorkerBadgeField(badgeId, { readOnly, focusPin });
   if (!normalized || isVisitorBadgeId(normalized)) {
     return false;
   }
-  wpSet(WORKER_BADGE_LOGIN_KEY, normalized);
-  showLogin();
-  applyQrFastLoginUi(normalized);
+  document.body.classList.add("qr-fast-login");
+  const loginCopy = document.querySelector(".login-copy-sparkasse");
+  if (loginCopy) {
+    loginCopy.textContent = tf("loginCopyQrFast", { badge: normalized });
+  }
   setupQrPinAutoSubmit(normalized);
   if (tryAutoLogin) {
     void tryFastBadgeLoginFromQr(normalized, { qrLaunch: true });
   }
   return true;
-}
-
-function applyQrFastLoginUi(badgeId) {
-  document.body.classList.add("qr-fast-login");
-  const loginCopy = document.querySelector(".login-copy-sparkasse");
-  if (loginCopy) {
-    loginCopy.textContent = tf("loginCopyQrFast", { badge: badgeId });
-  }
-  const badgeInput = elements.workerAccessToken;
-  const badgeGroup = badgeInput?.closest(".form-group");
-  if (badgeGroup) {
-    badgeGroup.classList.remove("hidden");
-  }
-  if (badgeInput) {
-    badgeInput.value = badgeId;
-    badgeInput.readOnly = true;
-    badgeInput.setAttribute("aria-readonly", "true");
-    badgeInput.classList.add("form-input-readonly");
-    badgeInput.removeAttribute("required");
-  }
-  syncLoginPinFieldVisibility(badgeId);
-  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
-  if (pinInput) {
-    pinInput.setAttribute("required", "required");
-    pinInput.value = "";
-    setTimeout(() => pinInput.focus(), 80);
-  }
 }
 
 async function tryFastBadgeLoginFromQr(badgeId, { qrLaunch = true } = {}) {
@@ -9471,9 +9523,8 @@ if (workerToken) {
     workerDebug("[worker-app init] No cached payload, fetching fresh...");
     void loadWorkerData();
   }
-} else {
-  workerDebug("[worker-app init] No token, showing login");
-  showLogin();
+} else if (!window.__workerAppInitDone) {
+  workerDebug("[worker-app init] No token, login handled by init()");
 }
 
 // ════════════════════════════════════════════════════════════════
