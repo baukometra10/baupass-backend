@@ -34,7 +34,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260628a";
+const WORKER_BUILD_TAG = "20260628b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1885,6 +1885,12 @@ function isStandaloneDisplay() {
   return Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches) || Boolean(window.navigator.standalone);
 }
 
+function shouldTreatLoginAsQrLaunch(params = null) {
+  return isQrLaunchLogin(params)
+    || document.body.classList.contains("qr-fast-login")
+    || isStandaloneDisplay();
+}
+
 function updateWalletImmersiveMode() {
   iosWalletImmersive = isIosDevice() && isStandaloneDisplay() && Boolean(workerToken);
   document.body.classList.toggle("wallet-immersive", iosWalletImmersive);
@@ -2720,6 +2726,17 @@ async function init() {
     prefillWorkerBadgeField(storedBadgeId, { readOnly: false });
   }
   if (!workerToken) {
+    if (isStandaloneDisplay()) {
+      const standaloneBadge = normalizeBadgeIdInput(
+        storedBadgeId || readBootstrapBadgeId(params) || wpGet(WORKER_BADGE_LOGIN_KEY) || "",
+      );
+      if (standaloneBadge && !isVisitorBadgeId(standaloneBadge)) {
+        prepareQrPinOnlyLogin(standaloneBadge, { readOnly: true, focusPin: true });
+        startProximityLoginWatcher();
+        window.__workerAppInitDone = true;
+        return;
+      }
+    }
     showLogin();
     if (qrBadgeId || storedBadgeId) {
       prefillWorkerBadgeField(qrBadgeId || storedBadgeId, { readOnly: false });
@@ -2904,7 +2921,7 @@ function bindEvents() {
         submitBtn.textContent = t("loginProgress");
       }
       try {
-        const qrLaunch = isQrLaunchLogin() || document.body.classList.contains("qr-fast-login");
+        const qrLaunch = shouldTreatLoginAsQrLaunch();
         let credential = (elements.workerAccessToken?.value || "").trim();
         if ((!credential || !looksLikeBadgeId(credential)) && qrLaunch) {
           credential = getLoginBadgeCredential();
@@ -4006,7 +4023,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       body: JSON.stringify({
         badgeId: normalizedBadgeId,
         badgePin: normalizedBadgePin,
-        qrLaunch: qrLaunch || isQrLaunchLogin() || document.body.classList.contains("qr-fast-login"),
+        qrLaunch: qrLaunch || shouldTreatLoginAsQrLaunch(),
         ...(devicePayload ? { device: devicePayload } : {}),
         ...(effectiveLocation ? { location: effectiveLocation } : {}),
       })

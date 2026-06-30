@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260628a";
+const WORKER_BUILD = "20260628b";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -67,16 +67,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(event.request));
     return;
   }
-  // Launcher + app shell: always prefer network so installed apps pull the latest build.
+  // Launcher + app shell: network-only — installed PWA must never stick on old emp-app.html.
   if (requestUrl.pathname === "/worker-install.html" || requestUrl.pathname === "/worker-build.json" || requestUrl.pathname === "/emp-app.html" || requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          caches.open(CACHE_NAME).then((c) => c.put(event.request, response.clone())).catch(() => {});
-          return response;
-        })
+      fetch(event.request, { cache: "no-store" })
         .catch(async () => {
-          const cachedPage = await caches.match("/worker-install.html", { ignoreSearch: true }) || await caches.match("/emp-app.html", { ignoreSearch: true });
+          const cachedPage = await caches.match("/emp-app.html", { ignoreSearch: true }) || await caches.match("/worker-install.html", { ignoreSearch: true });
           return cachedPage || new Response("Offline", { status: 503, statusText: "Offline" });
         })
     );
