@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627s";
+const WORKER_BUILD_TAG = "20260627t";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2423,6 +2423,21 @@ async function init() {
         return;
       }
     }
+    let joinPreview = null;
+    try {
+      joinPreview = await fetchJoinPreview(bootstrapAccessToken);
+      if (joinPreview?.badgeId && !qrBadgeId) {
+        qrBadgeId = normalizeBadgeIdInput(joinPreview.badgeId);
+        prefillWorkerBadgeField(qrBadgeId, { readOnly: true });
+      }
+    } catch {
+      // ignore preview failures
+    }
+    if (joinPreview?.tokenUsed && qrBadgeId) {
+      prepareQrPinOnlyLogin(qrBadgeId, { readOnly: true, focusPin: true });
+      showLoginError(t("qrLinkUsedEnterPin"), { focusPin: true });
+      return;
+    }
     void resolveLoginLocation({ timeoutMs: 8000 }).catch(() => null);
     await loginWithAccessToken(bootstrapAccessToken, {
       keepUrlToken: false,
@@ -2658,11 +2673,18 @@ function bindEvents() {
         submitBtn.textContent = t("loginProgress");
       }
       try {
-        const credential = (elements.workerAccessToken?.value || "").trim();
+        const qrLaunch = isQrLaunchLogin() || document.body.classList.contains("qr-fast-login");
+        let credential = (elements.workerAccessToken?.value || "").trim();
+        if ((!credential || !looksLikeBadgeId(credential)) && qrLaunch) {
+          credential = getLoginBadgeCredential();
+        }
         const isBadgeLogin = looksLikeBadgeId(credential);
         const isVisitor = isVisitorBadgeId(credential);
         const isAccessTokenLogin = !isBadgeLogin && looksLikeAccessToken(credential);
-        const qrLaunch = isQrLaunchLogin() || document.body.classList.contains("qr-fast-login");
+
+        if (qrLaunch && isBadgeLogin) {
+          prefillWorkerBadgeField(credential, { readOnly: true });
+        }
 
         if (isBadgeLogin && !isVisitor) {
           syncLoginPinFieldVisibility(credential);
@@ -2671,6 +2693,8 @@ function bindEvents() {
             showLoginError(t("enterPin"), { focusPin: true });
             return;
           }
+          await executeQrPinLogin(credential, badgePin, { qrLaunch, silent: false });
+          return;
         }
 
         let locationPayload = null;
@@ -2680,8 +2704,6 @@ function bindEvents() {
         } else if (isAccessTokenLogin || isVisitor) {
           if (submitBtn) submitBtn.textContent = t("loginGeoProgress");
           locationPayload = await resolveLoginLocation({ timeoutMs: 12000 });
-        } else if (qrLaunch && isBadgeLogin) {
-          void resolveLoginLocation({ timeoutMs: 8000 }).catch(() => null);
         }
         if (submitBtn) submitBtn.textContent = t("loginProgress");
         if (isBadgeLogin) {
@@ -3637,16 +3659,12 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     wpRemove(WORKER_BADGE_LOGIN_KEY);
     applyDynamicManifestStartUrl(accessToken);
     persistLoginBootstrapPayload(payload);
-    await loadWorkerData();
-    finishWorkerLoginUi();
-    if (payload.autoCheckInLogId) {
-      showWorkerNotice(t("siteAutoCheckIn"));
-    }
+    await completeWorkerLogin(payload, {
+      autoCheckInLogId: payload.autoCheckInLogId,
+      showInstallTip: !silent,
+    });
 
-    // Einmaltoken ist jetzt verbraucht – aus Storage löschen, damit beim nächsten
-    // App-Start kein Fehler „Anmeldung fehlgeschlagen" wegen ungültigem Token entsteht.
     clearBootstrapAccessTokens();
-    // Badge-ID für nächste Session speichern (Feld wird beim nächsten Start vorausgefüllt).
     try {
       const cached = JSON.parse(wpGet(WORKER_CACHED_PAYLOAD_KEY) || "{}");
       const badgeId = cached.worker?.badgeId || cached.badgeId || "";
@@ -3656,17 +3674,6 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     } catch {
       // Nicht kritisch
     }
-
-    if (!isStandaloneMode() && elements.installButton) {
-      elements.installButton.hidden = false;
-      if (!silent) {
-        showWorkerNotice(t("installTip"));
-      }
-    }
-
-    // ── Schutzlogik: Session-Inaktivitäts-Monitor starten ──
-    initializeSessionInactivityProtection();
-    void ensureWorkerPushNotifications({ promptIfNeeded: true });
   } catch (error) {
     if (isWorkerLoginNetworkError(error)) {
       clearBootstrapAccessTokens();
@@ -3778,25 +3785,12 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       storeProximityPin(normalizedBadgePin);
     }
     persistLoginBootstrapPayload(payload);
-    await loadWorkerData();
     await persistOfflineBadgeProfile(normalizedBadgeId, normalizedBadgePin, payload);
-    finishWorkerLoginUi();
-    if (payload.autoCheckInLogId) {
-      showWorkerNotice(t("siteAutoCheckIn"));
-    } else if (payload.siteLoginLogId) {
-      showWorkerNotice(t("siteGpsRegistered"));
-    }
-
-    if (!isStandaloneMode() && elements.installButton) {
-      elements.installButton.hidden = false;
-      if (!silent) {
-        showWorkerNotice(t("installTip"));
-      }
-    }
-
-    // ── Schutzlogik: Session-Inaktivitäts-Monitor starten ──
-    initializeSessionInactivityProtection();
-    void ensureWorkerPushNotifications({ promptIfNeeded: true });
+    await completeWorkerLogin(payload, {
+      autoCheckInLogId: payload.autoCheckInLogId,
+      siteLoginLogId: payload.siteLoginLogId,
+      showInstallTip: !silent,
+    });
   } catch (error) {
     if (shouldAttemptOfflineWorkerLogin(error)) {
       const restoreResult = await tryOfflineBadgeLogin(normalizedBadgeId, normalizedBadgePin, locationPayload);
@@ -3850,6 +3844,9 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
       code: error.code || "",
       focusPin: error.code === "invalid_badge_pin" || error.code === "missing_badge_pin",
     });
+    if (normalizedBadgeId) {
+      prepareQrPinOnlyLogin(normalizedBadgeId, { readOnly: true, focusPin: true });
+    }
   }
 }
 
@@ -3908,12 +3905,14 @@ async function loadWorkerData() {
         // corrupt cache — fall through to logout
       }
     }
-    console.warn("[loadWorkerData] No cache available – showing login");
-    wpRemove(WORKER_TOKEN_KEY);
-    workerToken = "";
-    clearWorkerSessionExpiryTimer();
-    showWorkerNotice(`${t("connError")}: ${error.message}`);
-    showLogin();
+    console.warn("[loadWorkerData] No cache available – keeping login shell UI");
+    if (!document.body.classList.contains("worker-loaded")) {
+      wpRemove(WORKER_TOKEN_KEY);
+      workerToken = "";
+      clearWorkerSessionExpiryTimer();
+      showWorkerNotice(`${t("connError")}: ${error.message}`);
+      showLogin();
+    }
     return false;
   }
 }
@@ -5085,6 +5084,109 @@ function syncLoginPinFieldVisibility(credential = "") {
   }
 }
 
+function buildLoginShellPayload(payload) {
+  return {
+    worker: payload?.worker || {},
+    sessionExpiresAt: payload?.sessionExpiresAt || "",
+    cardType: payload?.cardType || "",
+    company: payload?.company || {},
+    subcompany: payload?.subcompany || {},
+    settings: payload?.settings || {},
+    leaveStats: payload?.leaveStats || null,
+  };
+}
+
+async function completeWorkerLogin(payload, extras = {}) {
+  const shell = buildLoginShellPayload(payload);
+  persistLoginBootstrapPayload(payload);
+  wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(shell));
+  offlineWorkerSessionActive = false;
+  renderWorker(shell);
+  markWorkerSyncedNow();
+  updateConnectionState();
+  finishWorkerLoginUi();
+  if (extras.autoCheckInLogId) {
+    showWorkerNotice(t("siteAutoCheckIn"));
+  } else if (extras.siteLoginLogId) {
+    showWorkerNotice(t("siteGpsRegistered"));
+  }
+  if (!isStandaloneMode() && elements.installButton) {
+    elements.installButton.hidden = false;
+    if (extras.showInstallTip) {
+      showWorkerNotice(t("installTip"));
+    }
+  }
+  initializeSessionInactivityProtection();
+  void ensureWorkerPushNotifications({ promptIfNeeded: true });
+  void loadWorkerData();
+  void syncOfflinePhotoQueue();
+  void syncOfflineEventQueue();
+}
+
+function getLoginBadgeCredential() {
+  const fromInput = normalizeBadgeIdInput(elements.workerAccessToken?.value || "");
+  if (fromInput && looksLikeBadgeId(fromInput)) {
+    return fromInput;
+  }
+  const fromHidden = normalizeBadgeIdInput(document.getElementById("workerQrBadgeSeed")?.value || "");
+  if (fromHidden) {
+    return fromHidden;
+  }
+  const fromForm = normalizeBadgeIdInput(elements.workerLoginForm?.dataset?.qrBadge || "");
+  if (fromForm) {
+    return fromForm;
+  }
+  return readBootstrapBadgeId(new URLSearchParams(window.location.search));
+}
+
+async function fetchJoinPreview(accessToken) {
+  const token = String(accessToken || "").trim();
+  if (!token) {
+    return null;
+  }
+  return fetchJson(`${API_BASE}/join-preview?access=${encodeURIComponent(token)}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+}
+
+async function executeQrPinLogin(badgeId, pin, { qrLaunch = true, silent = false } = {}) {
+  const normalizedBadge = normalizeBadgeIdInput(badgeId || getLoginBadgeCredential());
+  const normalizedPin = normalizeBadgePinInput(pin);
+  if (!normalizedBadge) {
+    if (!silent) {
+      showLoginError(t("enterBadgeId"), { code: "invalid_badge_id" });
+    }
+    return false;
+  }
+  if (!normalizedPin || normalizedPin.length < 4) {
+    if (!silent) {
+      showLoginError(t("enterPin"), { focusPin: true });
+    }
+    return false;
+  }
+  prefillWorkerBadgeField(normalizedBadge, { readOnly: true });
+  const submitBtn = elements.workerLoginForm?.querySelector('button[type="submit"]');
+  const submitLabel = submitBtn?.textContent || "";
+  if (submitBtn && !silent) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = t("loginProgress");
+  }
+  try {
+    await loginWithBadgeId(normalizedBadge, normalizedPin, {
+      locationPayload: null,
+      qrLaunch,
+      silent,
+    });
+    return Boolean(workerToken);
+  } finally {
+    if (submitBtn && !silent) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = submitLabel || t("loginBtn");
+    }
+  }
+}
+
 function persistLoginBootstrapPayload(payload) {
   if (!payload || !payload.token) {
     return;
@@ -5171,6 +5273,13 @@ function prefillWorkerBadgeField(badgeId, { readOnly = false, focusPin = false }
       badgeInput.removeAttribute("aria-readonly");
     }
   }
+  const seedInput = document.getElementById("workerQrBadgeSeed");
+  if (seedInput) {
+    seedInput.value = normalized;
+  }
+  if (elements.workerLoginForm) {
+    elements.workerLoginForm.dataset.qrBadge = normalized;
+  }
   syncLoginPinFieldVisibility(normalized);
   const loginCard = elements.loginCard || document.getElementById("loginCard");
   if (loginCard) {
@@ -5194,11 +5303,8 @@ async function resolveBadgeIdFromAccessToken(accessToken) {
     return stored;
   }
   try {
-    const payload = await fetchJson(`${API_BASE}/join-preview?access=${encodeURIComponent(token)}`, {
-      method: "GET",
-      cache: "no-store",
-    });
-    const badgeId = normalizeBadgeIdInput(payload.badgeId || payload.badge_id || "");
+    const payload = await fetchJoinPreview(token);
+    const badgeId = normalizeBadgeIdInput(payload?.badgeId || payload?.badge_id || "");
     if (badgeId) {
       wpSet(WORKER_BADGE_LOGIN_KEY, badgeId);
     }
@@ -5238,16 +5344,7 @@ async function tryFastBadgeLoginFromQr(badgeId, { qrLaunch = true } = {}) {
   if (storedPin.length < 4) {
     return false;
   }
-  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
-  if (pinInput) {
-    pinInput.value = storedPin;
-  }
-  try {
-    await loginWithBadgeId(badgeId, storedPin, { silent: true, locationPayload: null, qrLaunch });
-    return Boolean(workerToken);
-  } catch {
-    return false;
-  }
+  return executeQrPinLogin(badgeId, storedPin, { qrLaunch, silent: true });
 }
 
 function setupQrPinAutoSubmit(badgeId) {
@@ -5255,20 +5352,17 @@ function setupQrPinAutoSubmit(badgeId) {
   if (!pinInput || isVisitorBadgeId(badgeId)) {
     return;
   }
-  let submitPending = false;
-  const onPinInput = async () => {
+  if (pinInput.dataset.qrAutoBound === "1") {
+    return;
+  }
+  pinInput.dataset.qrAutoBound = "1";
+  pinInput.addEventListener("input", async () => {
     const pin = normalizeBadgePinInput(pinInput.value);
-    if (pin.length < 4 || submitPending) {
+    if (pin.length < 4) {
       return;
     }
-    submitPending = true;
-    try {
-      await loginWithBadgeId(badgeId, pin, { locationPayload: null, qrLaunch: true });
-    } finally {
-      submitPending = false;
-    }
-  };
-  pinInput.addEventListener("input", onPinInput);
+    await executeQrPinLogin(badgeId, pin, { qrLaunch: true, silent: false });
+  });
 }
 
 function looksLikeBadgeId(value) {
