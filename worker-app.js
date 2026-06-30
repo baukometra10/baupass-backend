@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627m";
+const WORKER_BUILD_TAG = "20260627n";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2390,7 +2390,7 @@ async function init() {
         return;
       }
     }
-    const locationPayload = await resolveLoginLocation();
+    const locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
     // keepUrlToken: false → URL wird sofort bereinigt, damit ein Seitenrefresh
     // nicht denselben (bereits verbrauchten) Einmalcode nochmals sendet.
     await loginWithAccessToken(bootstrapAccessToken, { keepUrlToken: false, silent: false, locationPayload });
@@ -2408,7 +2408,7 @@ async function init() {
     if (elements.workerAccessToken) {
       elements.workerAccessToken.value = bootstrapAccessToken;
     }
-    const locationPayload = await resolveLoginLocation();
+    const locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
     await loginWithAccessToken(bootstrapAccessToken, { keepUrlToken: false, silent: true, locationPayload });
     if (workerToken) {
       applyWorkerPageView("badgeCard");
@@ -2633,15 +2633,28 @@ function bindEvents() {
       try {
         const credential = (elements.workerAccessToken?.value || "").trim();
         let locationPayload = null;
-        if (!looksLikeBadgeId(credential) || isVisitorBadgeId(credential)) {
-          locationPayload = await resolveLoginLocation();
+        const isBadgeLogin = looksLikeBadgeId(credential);
+        const isVisitor = isVisitorBadgeId(credential);
+        if (isBadgeLogin && !isVisitor) {
+          if (submitBtn) submitBtn.textContent = t("loginGeoProgress");
+          locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
+        } else if (!isBadgeLogin || isVisitor) {
+          if (submitBtn) submitBtn.textContent = t("loginGeoProgress");
+          locationPayload = await resolveLoginLocation({ timeoutMs: 12000 });
         }
-        if (looksLikeBadgeId(credential)) {
-          const badgePin = isVisitorBadgeId(credential) ? "" : (elements.workerBadgePin?.value || "").trim();
+        if (submitBtn) submitBtn.textContent = t("loginProgress");
+        if (isBadgeLogin) {
+          const badgePin = isVisitor ? "" : (elements.workerBadgePin?.value || "").trim();
           await loginWithBadgeId(credential, badgePin, { locationPayload });
           return;
         }
         await loginWithAccessToken(credential, { locationPayload });
+      } catch (error) {
+        console.error("[workerLoginForm] submit failed:", error);
+        showLoginError(
+          workerLoginErrorMessage(error) || t("loginFailed"),
+          { code: error?.code || "" },
+        );
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -3016,8 +3029,13 @@ function calculateDistanceMeters(latitudeA, longitudeA, latitudeB, longitudeB) {
   return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
 }
 
-async function resolveLoginLocation() {
-  return resolveSiteLocation({ preferFast: true });
+async function resolveLoginLocation(options = {}) {
+  const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 10000;
+  const maxWaitMs = Math.max(2500, Math.min(timeoutMs - 500, 8000));
+  return Promise.race([
+    resolveSiteLocation({ preferFast: true, maxWaitMs }),
+    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
 }
 
 async function resolveSiteLocation({ preferFast = false, maxWaitMs = null } = {}) {
@@ -3122,7 +3140,7 @@ async function captureLoginGeolocation({ showProgress = false } = {}) {
   if (showProgress) {
     showWorkerNotice(t("geolocationCapturing"));
   }
-  let location = await resolveLoginLocation();
+  let location = await resolveLoginLocation({ timeoutMs: 10000 });
   if (!location && navigator.geolocation.watchPosition) {
     location = await new Promise((resolve) => {
       let watchId = 0;
@@ -3772,6 +3790,14 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
     }
     if (error.code === "worker_app_disabled") {
       showLoginError(t("workerAppDisabled"));
+      return;
+    }
+    if (error.code === "worker_geolocation_required") {
+      showLoginError(t("geolocationRequiredLogin"), { code: error.code });
+      return;
+    }
+    if (error.code === "outside_site_radius") {
+      showLoginError(error.message || t("outsideSiteRadius"), { code: error.code });
       return;
     }
     if (error.message === "site_location_unavailable") {
@@ -5019,7 +5045,7 @@ async function tryFastBadgeLoginFromQr(badgeId) {
     pinInput.value = storedPin;
   }
   try {
-    const locationPayload = await resolveLoginLocation();
+    const locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
     await loginWithBadgeId(badgeId, storedPin, { silent: true, locationPayload });
     return Boolean(workerToken);
   } catch {
@@ -5040,7 +5066,7 @@ function setupQrPinAutoSubmit(badgeId) {
     }
     submitPending = true;
     try {
-      const locationPayload = await resolveLoginLocation();
+      const locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
       await loginWithBadgeId(badgeId, pin, { locationPayload });
     } finally {
       submitPending = false;
@@ -6298,7 +6324,7 @@ function workerLoginErrorMessage(error) {
     return t("badgePinNotConfigured");
   }
   if (error.code === "worker_geolocation_required") {
-    return t("geolocationRequired");
+    return t("geolocationRequiredLogin");
   }
   if (error.code === "worker_geolocation_inaccurate") {
     return error.message || t("geolocationInaccurate");
