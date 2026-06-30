@@ -114,6 +114,28 @@ def worker_has_deployment_plan_usage(
     return False
 
 
+def _effective_work_times(db, worker_id: str) -> tuple[str, str]:
+    row = db.execute(
+        """
+        SELECT c.work_start_time AS company_work_start_time,
+               c.work_end_time AS company_work_end_time,
+               s.work_start_time AS global_work_start_time,
+               s.work_end_time AS global_work_end_time
+        FROM workers w
+        LEFT JOIN companies c ON c.id = w.company_id
+        LEFT JOIN settings s ON s.id = 1
+        WHERE w.id = ?
+        LIMIT 1
+        """,
+        (str(worker_id),),
+    ).fetchone()
+    if not row:
+        return "", ""
+    work_start = str(row["company_work_start_time"] or row["global_work_start_time"] or "").strip()
+    work_end = str(row["company_work_end_time"] or row["global_work_end_time"] or "").strip()
+    return work_start, work_end
+
+
 def _within_shift_window(shift_start: str, shift_end: str, *, now: datetime | None = None) -> bool:
     start_raw = str(shift_start or "").strip()[:5]
     end_raw = str(shift_end or "").strip()[:5]
@@ -223,7 +245,7 @@ def worker_may_auto_attend_today(
             "shiftEnd": shift_end,
         }
 
-    # No deployment plan in use — fall back to standard workday (Mo–Fr).
+    # No deployment plan in use — fall back to standard workday (Mo–Fr) + company work hours.
     if day == date.today() and not is_company_workday_today():
         return {
             "ok": False,
@@ -237,6 +259,28 @@ def worker_may_auto_attend_today(
             "reason": "not_a_workday",
             "message": "Heute kein Arbeitstag.",
             "dayType": "weekend",
+        }
+
+    work_start, work_end = _effective_work_times(db, worker_id)
+    if work_start and work_end:
+        if not _within_shift_window(work_start, work_end, now=current):
+            return {
+                "ok": False,
+                "reason": "outside_work_hours",
+                "message": "Automatische Anmeldung nur waehrend der Arbeitszeit.",
+                "dayType": "workday",
+                "location": location,
+                "shiftStart": work_start,
+                "shiftEnd": work_end,
+            }
+        return {
+            "ok": True,
+            "reason": "workday",
+            "message": "",
+            "dayType": "workday",
+            "location": location,
+            "shiftStart": work_start,
+            "shiftEnd": work_end,
         }
 
     return {

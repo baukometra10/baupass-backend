@@ -6451,6 +6451,48 @@ function getStoredBadgePinForProximity() {
   return normalizeBadgePinInput(wpGet(WORKER_PROXIMITY_PIN_KEY) || "");
 }
 
+function getAttendanceEligibilityFromHint(hint) {
+  const raw = hint?.attendanceEligibility;
+  if (!raw || typeof raw !== "object") {
+    return { ok: true, reason: "", message: "", dayType: "", shiftStart: "", shiftEnd: "" };
+  }
+  return {
+    ok: raw.ok !== false,
+    reason: String(raw.reason || "").trim(),
+    message: String(raw.message || "").trim(),
+    dayType: String(raw.dayType || "").trim(),
+    shiftStart: String(raw.shiftStart || hint.workStartTime || "").trim(),
+    shiftEnd: String(raw.shiftEnd || hint.workEndTime || "").trim(),
+  };
+}
+
+function shouldAllowProximityAutoLogin(hint) {
+  if (!hint || hint.siteAutoProximityLogin === false) {
+    return false;
+  }
+  if (String(hint.accessMode || "").toLowerCase() !== "site_app") {
+    return false;
+  }
+  return getAttendanceEligibilityFromHint(hint).ok;
+}
+
+function proximityAttendanceBlockedMessage(hint) {
+  const attendance = getAttendanceEligibilityFromHint(hint);
+  if (attendance.ok) {
+    return "";
+  }
+  if (attendance.message) {
+    return attendance.message;
+  }
+  if (attendance.reason === "outside_work_hours" || attendance.reason === "outside_shift_window") {
+    return t("proximityOutsideWorkHours");
+  }
+  if (attendance.reason === "on_approved_leave") {
+    return t("proximityOnLeave");
+  }
+  return t("proximityNotScheduledToday");
+}
+
 function stopProximityLoginWatcher() {
   if (proximityLoginWatchTimer) {
     clearInterval(proximityLoginWatchTimer);
@@ -6499,6 +6541,16 @@ async function pollProximityLoginCandidate() {
   }
   if (siteHintBase && String(siteHintBase.accessMode || "").toLowerCase() !== "site_app") {
     updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase.locationPreview });
+    stopProximityLoginWatcher();
+    return;
+  }
+  if (siteHintBase && !shouldAllowProximityAutoLogin(siteHintBase)) {
+    updateSiteGpsStatusBar({
+      cfg: hintCfg,
+      preview: siteHintBase.locationPreview,
+      phase: "attendance-blocked",
+      blockedMessage: proximityAttendanceBlockedMessage(siteHintBase),
+    });
     stopProximityLoginWatcher();
     return;
   }
@@ -6587,7 +6639,9 @@ async function pollProximityLoginCandidate() {
       "on_approved_leave",
       "deployment_declined",
       "outside_shift_window",
+      "outside_work_hours",
       "not_a_workday",
+      "attendance_not_allowed",
       "worker_geolocation_required",
       "worker_geolocation_inaccurate",
     ]);
@@ -6609,11 +6663,14 @@ function getSiteAccessFromPayload(payload = lastWorkerPayload) {
   const company = payload?.company || {};
   const siteAccess = payload?.siteAccess || {};
   const worker = payload?.worker || {};
+  const attendanceRaw = siteAccess.attendanceEligibility || {};
   const siteLocation = worker.siteLocation || siteAccess.siteLocation || null;
   const siteZones = Array.isArray(siteAccess.siteZones) && siteAccess.siteZones.length
     ? siteAccess.siteZones
     : (Array.isArray(worker.siteZones) && worker.siteZones.length ? worker.siteZones : []);
   const accessMode = String(company.accessMode || siteAccess.accessMode || "gate").trim().toLowerCase();
+  const attendanceShiftStart = String(attendanceRaw.shiftStart || "").trim();
+  const attendanceShiftEnd = String(attendanceRaw.shiftEnd || "").trim();
   return {
     accessMode,
     siteApp: accessMode === "site_app",
@@ -6626,9 +6683,12 @@ function getSiteAccessFromPayload(payload = lastWorkerPayload) {
         80
     ),
     autoLogout: company.siteAutoLogoutOnLeave !== false && siteAccess.siteAutoLogoutOnLeave !== false,
-    workStart: String(company.workStartTime || siteAccess.workStartTime || "").trim(),
-    workEnd: String(company.workEndTime || siteAccess.workEndTime || "").trim(),
+    workStart: attendanceShiftStart || String(company.workStartTime || siteAccess.workStartTime || "").trim(),
+    workEnd: attendanceShiftEnd || String(company.workEndTime || siteAccess.workEndTime || "").trim(),
     isWorkdayToday: siteAccess.isWorkdayToday !== false,
+    attendanceOk: attendanceRaw.ok !== false,
+    attendanceReason: String(attendanceRaw.reason || "").trim(),
+    attendanceMessage: String(attendanceRaw.message || "").trim(),
     siteLocation: siteLocation || siteZones[0] || null,
     siteZones,
   };
@@ -6651,15 +6711,19 @@ function workerApiHostLabel() {
 
 function siteAccessCfgFromHint(hint) {
   if (!hint) return null;
+  const attendance = getAttendanceEligibilityFromHint(hint);
   return {
     accessMode: String(hint.accessMode || "gate").toLowerCase(),
     siteApp: String(hint.accessMode || "").toLowerCase() === "site_app",
     siteLocation: hint.siteLocation || null,
     siteZones: Array.isArray(hint.siteZones) ? hint.siteZones : [],
     radiusMeters: Number(hint.siteGeofenceRadiusMeters || 80),
-    workStart: "",
-    workEnd: "",
-    isWorkdayToday: true,
+    workStart: attendance.shiftStart || String(hint.workStartTime || "").trim(),
+    workEnd: attendance.shiftEnd || String(hint.workEndTime || "").trim(),
+    isWorkdayToday: attendance.ok || !["weekend", "free", "leave"].includes(attendance.dayType),
+    attendanceOk: attendance.ok,
+    attendanceReason: attendance.reason,
+    attendanceMessage: attendance.message,
   };
 }
 
@@ -6680,9 +6744,15 @@ function ensureSiteGpsStatusBar() {
   return bar;
 }
 
-function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
+function updateSiteGpsStatusBar({ cfg, preview, phase, blockedMessage } = {}) {
   const bar = ensureSiteGpsStatusBar();
   const server = workerApiHostLabel();
+  if (!workerToken && document.body.classList.contains("worker-login-shell")) {
+    bar.textContent = "";
+    bar.classList.add("hidden");
+    bar.removeAttribute("data-tone");
+    return;
+  }
   if (!cfg) {
     bar.textContent = "";
     bar.classList.add("hidden");
@@ -6728,6 +6798,11 @@ function updateSiteGpsStatusBar({ cfg, preview, phase } = {}) {
     bar.dataset.tone = "pending";
     return;
   }
+  if (phase === "attendance-blocked") {
+    bar.textContent = blockedMessage || t("proximityNotScheduledToday");
+    bar.dataset.tone = "warn";
+    return;
+  }
   bar.textContent = tf("siteGpsStatusWaiting", { server });
   bar.dataset.tone = "pending";
 }
@@ -6753,7 +6828,9 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   }
   if (banner) {
     if (cfg.siteApp) {
-      if (cfg.workStart && cfg.workEnd) {
+      if (cfg.attendanceOk === false && cfg.attendanceMessage) {
+        banner.textContent = cfg.attendanceMessage;
+      } else if (cfg.workStart && cfg.workEnd) {
         const dayHint = cfg.isWorkdayToday ? "" : ` · ${t("notAWorkdayToday")}`;
         banner.textContent = `${t("workHoursToday")}: ${cfg.workStart} – ${cfg.workEnd}${dayHint}`;
       } else {
@@ -6767,7 +6844,7 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
 
   stopSiteGeofenceMonitor();
   lastSitePresenceNoticeKey = "";
-  if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && hasSiteGeofenceConfig(cfg)) {
+  if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && hasSiteGeofenceConfig(cfg) && cfg.attendanceOk !== false) {
     startSiteGeofenceMonitor(cfg);
   } else if (cfg.siteApp && workerToken && !offlineWorkerSessionActive && !hasSiteGeofenceConfig(cfg)) {
     showWorkerNotice(t("siteGpsNotConfigured"));
@@ -6810,9 +6887,11 @@ async function handleSiteLeaveDetected() {
       lastSitePresenceNoticeKey = "";
       const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
       if (badgeId && getStoredBadgePinForProximity()) {
-        startProximityLoginWatcher();
         try {
           const hint = await fetchProximitySiteHint(badgeId);
+          if (shouldAllowProximityAutoLogin(hint)) {
+            startProximityLoginWatcher();
+          }
           updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(hint) || cfg || undefined });
         } catch {
           updateSiteGpsStatusBar({ cfg: cfg || undefined });
@@ -6881,7 +6960,14 @@ async function pollSitePresence(cfg) {
           showWorkerNotice(t("siteReturnProximityHint"));
           const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
           if (badgeId && getStoredBadgePinForProximity()) {
-            startProximityLoginWatcher();
+            try {
+              const hint = await fetchProximitySiteHint(badgeId);
+              if (shouldAllowProximityAutoLogin(hint)) {
+                startProximityLoginWatcher();
+              }
+            } catch {
+              // ignore
+            }
           }
         } else {
           showWorkerNotice(t("siteLeaveAttendanceOnly"));

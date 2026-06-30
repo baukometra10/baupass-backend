@@ -39,7 +39,8 @@ def db_conn(tmp_path, monkeypatch):
             work_date TEXT NOT NULL,
             location_label TEXT NOT NULL DEFAULT '',
             shift_start TEXT NOT NULL DEFAULT '',
-            shift_end TEXT NOT NULL DEFAULT ''
+            shift_end TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE worker_deployment_day_responses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,6 +57,19 @@ def db_conn(tmp_path, monkeypatch):
             month INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'draft'
         );
+        CREATE TABLE companies (
+            id TEXT PRIMARY KEY,
+            work_start_time TEXT NOT NULL DEFAULT '',
+            work_end_time TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE settings (
+            id INTEGER PRIMARY KEY,
+            work_start_time TEXT NOT NULL DEFAULT '',
+            work_end_time TEXT NOT NULL DEFAULT ''
+        );
+        INSERT INTO companies (id, work_start_time, work_end_time)
+        VALUES ('co-1', '08:00', '17:00');
+        INSERT INTO settings (id) VALUES (1);
         INSERT INTO workers (id, company_id, worker_type, first_name, last_name)
         VALUES ('wrk-1', 'co-1', 'worker', 'Max', 'Muster');
         """
@@ -156,3 +170,23 @@ def test_blocks_declined_assignment(db_conn):
     )
     assert result["ok"] is False
     assert result["reason"] == "deployment_declined"
+
+
+def test_blocks_outside_company_work_hours(db_conn):
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    result = worker_may_auto_attend_today(
+        db_conn, worker, target_date=date(2026, 6, 10), now=__import__("datetime").datetime(2026, 6, 10, 18, 0)
+    )
+    assert result["ok"] is False
+    assert result["reason"] == "outside_work_hours"
+
+
+def test_allows_inside_company_work_hours(db_conn):
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    result = worker_may_auto_attend_today(
+        db_conn, worker, target_date=date(2026, 6, 10), now=__import__("datetime").datetime(2026, 6, 10, 9, 0)
+    )
+    assert result["ok"] is True
+    assert result["dayType"] == "workday"
+    assert result["shiftStart"] == "08:00"
+    assert result["shiftEnd"] == "17:00"

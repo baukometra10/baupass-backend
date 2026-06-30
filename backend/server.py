@@ -13352,6 +13352,11 @@ def worker_app_proximity_login():
     from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
 
     attendance = worker_may_auto_attend_today(db, worker)
+    if not attendance.get("ok"):
+        return jsonify({
+            "error": attendance.get("reason") or "attendance_not_allowed",
+            "message": attendance.get("message") or "Keine automatische Anmeldung.",
+        }), 403
 
     try:
         validate_worker_login_distance_or_raise(db, worker, payload)
@@ -13362,9 +13367,6 @@ def worker_app_proximity_login():
         session_data = create_worker_app_session(db, worker, device_payload=device_payload)
         session_data["proximityLogin"] = True
         session_data["attendanceDayType"] = attendance.get("dayType")
-        if not attendance.get("ok"):
-            session_data["attendanceBlocked"] = attendance.get("reason")
-            session_data["attendanceMessage"] = attendance.get("message")
         if dwell_seconds is not None:
             try:
                 session_data["proximityDwellSeconds"] = int(dwell_seconds)
@@ -13379,10 +13381,9 @@ def worker_app_proximity_login():
                 geofence_id = (measured or {}).get("geofenceId")
             except (ValueError, PermissionError):
                 geofence_id = None
-        if attendance.get("ok"):
-            checkin_log_id = maybe_site_app_auto_checkin(
-                db, worker, via_proximity=True, geofence_id=geofence_id
-            )
+        checkin_log_id = maybe_site_app_auto_checkin(
+            db, worker, via_proximity=True, geofence_id=geofence_id
+        )
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
         else:
@@ -13410,7 +13411,7 @@ def worker_app_proximity_login():
                 {
                     "workerId": str(worker["id"]),
                     "checkinLogId": checkin_log_id,
-                    "attendanceBlocked": not bool(attendance.get("ok")),
+                    "attendanceBlocked": False,
                 },
                 actor_id=str(worker["id"]),
             )
@@ -13488,6 +13489,12 @@ def worker_app_proximity_site_hint():
         except Exception:
             location_preview = None
 
+    from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+    attendance = worker_may_auto_attend_today(db, worker)
+    work_start = get_effective_work_start_time(db, worker["id"])
+    work_end = get_effective_work_end_time(db, worker["id"])
+
     return jsonify(
         {
             "accessMode": site_cfg["accessMode"],
@@ -13496,6 +13503,16 @@ def worker_app_proximity_site_hint():
             "siteLocation": site_location,
             "siteZones": site_zones,
             "locationPreview": location_preview,
+            "workStartTime": work_start or site_cfg.get("workStartTime") or "",
+            "workEndTime": work_end or site_cfg.get("workEndTime") or "",
+            "attendanceEligibility": {
+                "ok": bool(attendance.get("ok")),
+                "reason": attendance.get("reason") or "",
+                "message": attendance.get("message") or "",
+                "dayType": attendance.get("dayType") or "",
+                "shiftStart": attendance.get("shiftStart") or "",
+                "shiftEnd": attendance.get("shiftEnd") or "",
+            },
         }
     )
 
@@ -13549,6 +13566,9 @@ def worker_app_me():
     open_checkin = worker_has_open_checkin_today(db, worker["id"])
     site_zones = _site_zones_payload_for_worker(db, worker)
     identity_lock = get_worker_lock_metadata(db, worker)
+    from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+    attendance = worker_may_auto_attend_today(db, worker)
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker, db=db),
@@ -13593,7 +13613,15 @@ def worker_app_me():
                 "workStartTime": work_start or site_access["workStartTime"],
                 "workEndTime": work_end or site_access["workEndTime"],
                 "openCheckInToday": open_checkin,
-                "isWorkdayToday": is_company_workday_today(),
+                "isWorkdayToday": bool(attendance.get("ok")) or attendance.get("dayType") not in ("weekend", "free", "leave"),
+                "attendanceEligibility": {
+                    "ok": bool(attendance.get("ok")),
+                    "reason": attendance.get("reason") or "",
+                    "message": attendance.get("message") or "",
+                    "dayType": attendance.get("dayType") or "",
+                    "shiftStart": attendance.get("shiftStart") or "",
+                    "shiftEnd": attendance.get("shiftEnd") or "",
+                },
                 "siteZones": site_zones,
             },
         }
@@ -13668,12 +13696,13 @@ def worker_app_site_presence():
                     "message": attendance.get("message"),
                 }
         if not auto_checkin_log_id and not worker_has_open_checkin_today(db, worker["id"]):
-            site_login_log_id = record_site_app_login_activity(
-                db,
-                worker,
-                note="Standort erkannt (GPS)",
-                geofence_id=geofence_id,
-            )
+            if not attendance_blocked:
+                site_login_log_id = record_site_app_login_activity(
+                    db,
+                    worker,
+                    note="Standort erkannt (GPS)",
+                    geofence_id=geofence_id,
+                )
         if auto_checkin_log_id or site_login_log_id or site_leave_result:
             db.commit()
     elif site_leave_result:
