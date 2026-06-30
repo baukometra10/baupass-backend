@@ -13,7 +13,7 @@ from flask import Blueprint
 # (url_suffix, handler attribute on legacy server module, HTTP methods)
 WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/login", "worker_app_login", ["POST"]),
-    ("/join-preview", "worker_app_join_preview", ["POST"]),
+    ("/join-preview", "worker_app_join_preview", ["GET", "POST"]),
     ("/proximity-login", "worker_app_proximity_login", ["POST"]),
     ("/proximity-site-hint", "worker_app_proximity_site_hint", ["POST"]),
     ("/me", "worker_app_me", ["GET"]),

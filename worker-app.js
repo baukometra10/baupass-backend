@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627r";
+const WORKER_BUILD_TAG = "20260627s";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -204,6 +204,22 @@ function refreshWorkerApiBase() {
 const WORKER_TOKEN_KEY = WP?.KEYS?.WORKER_TOKEN || "workpass-worker-token";
 const WORKER_ACCESS_TOKEN_KEY = WP?.KEYS?.WORKER_ACCESS_TOKEN || "workpass-worker-access-token";
 const PENDING_ACCESS_TOKEN_KEY = WP?.KEYS?.PENDING_ACCESS_TOKEN || "workpass-pending-access-token";
+function readBootstrapBadgeId(params) {
+  const urlBadge = getQrLaunchBadgeId(params);
+  if (urlBadge) {
+    return urlBadge;
+  }
+  try {
+    const pending = normalizeBadgeIdInput(sessionStorage.getItem(PENDING_QR_BADGE_KEY) || "");
+    if (pending) {
+      return pending;
+    }
+  } catch {
+    // ignore sessionStorage failures
+  }
+  return normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+}
+
 function readBootstrapAccessToken(params) {
   const urlToken = (params.get("access") || "").trim();
   if (urlToken) return urlToken;
@@ -217,6 +233,7 @@ function clearBootstrapAccessTokens() {
   wpRemove(PENDING_ACCESS_TOKEN_KEY);
 }
 const WORKER_BADGE_LOGIN_KEY = WP?.KEYS?.WORKER_BADGE_LOGIN || "workpass-worker-badge-login";
+const PENDING_QR_BADGE_KEY = "workpass-qr-pending-badge";
 const LOCAL_LAST_PHOTO_KEY = WP?.KEYS?.LOCAL_LAST_PHOTO || "workpass-last-local-photo";
 const OFFLINE_PHOTO_QUEUE_KEY = WP?.KEYS?.OFFLINE_PHOTO_QUEUE || "workpass-offline-photo-queue";
 const OFFLINE_EVENT_QUEUE_KEY = WP?.KEYS?.OFFLINE_EVENT_QUEUE || "workpass-offline-event-queue";
@@ -2365,9 +2382,9 @@ async function init() {
   }
   const urlBadgeParam = getQrLaunchBadgeId(params);
   const urlFastLogin = params.get("fast") === "1" || params.get("launch") === "1";
-  const storedBadgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+  const storedBadgeId = readBootstrapBadgeId(params);
   const accessInUrl = (params.get("access") || "").trim();
-  let qrBadgeId = urlBadgeParam || storedBadgeId;
+  let qrBadgeId = storedBadgeId;
 
   if (bootstrapAccessToken) {
     window.wpSet(WORKER_ACCESS_TOKEN_KEY, bootstrapAccessToken);
@@ -2381,7 +2398,7 @@ async function init() {
   initBatteryTelemetry();
   updateWorkerPulsePanel();
 
-  if (accessInUrl && bootstrapAccessToken && !qrBadgeId) {
+  if (bootstrapAccessToken && !qrBadgeId) {
     qrBadgeId = await resolveBadgeIdFromAccessToken(bootstrapAccessToken);
   }
 
@@ -2397,7 +2414,6 @@ async function init() {
         loginCopy.textContent = tf("loginCopyQrFast", { badge: qrBadgeId });
       }
     }
-    showLogin();
   }
 
   if (bootstrapAccessToken && accessInUrl) {
@@ -2431,9 +2447,13 @@ async function init() {
     }
   }
 
-  if (bootstrapAccessToken) {
-    if (elements.workerAccessToken) {
-      elements.workerAccessToken.value = bootstrapAccessToken;
+  if (bootstrapAccessToken && !accessInUrl && !workerToken) {
+    if (!qrBadgeId) {
+      qrBadgeId = await resolveBadgeIdFromAccessToken(bootstrapAccessToken);
+    }
+    if (qrBadgeId) {
+      prepareQrPinOnlyLogin(qrBadgeId, { readOnly: false, focusPin: true });
+      return;
     }
     const locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
     await loginWithAccessToken(bootstrapAccessToken, { keepUrlToken: false, silent: true, locationPayload });
@@ -2443,7 +2463,6 @@ async function init() {
     }
   }
 
-  // ?badge=WRK-001 → QR deep link: Badge vorausgefuellt, nur PIN (schnell)
   if (urlBadgeParam) {
     if (workerToken) {
       const loaded = await loadWorkerData();
@@ -4330,7 +4349,9 @@ function showLogin() {
   updateWorkerPulsePanel();
 
   // Keep stored badge for GPS auto-login; only clear one-time tokens from the field.
-  const storedBadgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
+  const storedBadgeId = normalizeBadgeIdInput(
+    wpGet(WORKER_BADGE_LOGIN_KEY) || sessionStorage.getItem(PENDING_QR_BADGE_KEY) || "",
+  );
   const currentValue = String(elements.workerAccessToken?.value || "").trim();
   if (elements.workerAccessToken) {
     let nextBadge = storedBadgeId;
@@ -4342,8 +4363,11 @@ function showLogin() {
     if (nextBadge) {
       elements.workerAccessToken.value = nextBadge;
       wpSet(WORKER_BADGE_LOGIN_KEY, nextBadge);
+    } else if (currentValue && looksLikeBadgeId(currentValue)) {
+      elements.workerAccessToken.value = normalizeBadgeIdInput(currentValue);
+      wpSet(WORKER_BADGE_LOGIN_KEY, normalizeBadgeIdInput(currentValue));
     } else if (looksLikeAccessToken(currentValue)) {
-      elements.workerAccessToken.value = "";
+      elements.workerAccessToken.value = storedBadgeId || "";
     }
     if (!document.body.classList.contains("qr-fast-login")) {
       elements.workerAccessToken.readOnly = false;
@@ -5130,6 +5154,11 @@ function prefillWorkerBadgeField(badgeId, { readOnly = false, focusPin = false }
     return "";
   }
   wpSet(WORKER_BADGE_LOGIN_KEY, normalized);
+  try {
+    sessionStorage.setItem(PENDING_QR_BADGE_KEY, normalized);
+  } catch {
+    // ignore sessionStorage failures
+  }
   const badgeInput = elements.workerAccessToken || document.querySelector("#workerAccessToken");
   if (badgeInput) {
     badgeInput.value = normalized;
@@ -5165,10 +5194,9 @@ async function resolveBadgeIdFromAccessToken(accessToken) {
     return stored;
   }
   try {
-    const payload = await fetchJson(`${API_BASE}/join-preview`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: token }),
+    const payload = await fetchJson(`${API_BASE}/join-preview?access=${encodeURIComponent(token)}`, {
+      method: "GET",
+      cache: "no-store",
     });
     const badgeId = normalizeBadgeIdInput(payload.badgeId || payload.badge_id || "");
     if (badgeId) {

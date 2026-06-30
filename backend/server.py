@@ -13074,7 +13074,14 @@ def worker_badge_qr(worker_id):
 def worker_app_join_preview():
     """Resolve badge ID from a one-time join token without consuming it."""
     payload = request.get_json(silent=True) or {}
-    access_token = (payload.get("accessToken") or "").strip()
+    access_token = (
+        payload.get("accessToken")
+        or payload.get("access")
+        or request.args.get("access")
+        or request.args.get("accessToken")
+        or ""
+    )
+    access_token = str(access_token).strip()
     if not access_token:
         return jsonify({"error": "missing_access_token"}), 400
 

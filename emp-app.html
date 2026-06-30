@@ -62,7 +62,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260627r" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260627s" />
   <title>WorkPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -71,12 +71,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260627r" />
+  <link rel="stylesheet" href="./worker.css?v=20260627s" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260627r" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260627r" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260627r" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260627r" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260627s" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260627s" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260627s" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260627s" />
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
@@ -191,7 +191,7 @@
       <span id="workerBrandChip" class="sr-only">WorkPass</span>
       <span id="installPlatformHint" class="sr-only" data-i18n="installHint"></span>
       <span id="lastSyncInfo" class="sr-only" data-i18n="lastSyncInitial">-</span>
-      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260627r</span>
+      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260627s</span>
       <div class="sr-only">
         <button id="forceRefreshButton" type="button" aria-label="Aktualisieren" data-i18n="forceRefreshBtn" data-i18n-attr="aria-label"></button>
         <button id="installButton" type="button" aria-label="App installieren" data-i18n="installBtn" data-i18n-attr="aria-label" hidden></button>
@@ -282,6 +282,66 @@
 
           <button class="login-btn-primary" type="submit" data-i18n="loginBtn">Ausweis laden</button>
         </form>
+
+        <script>
+        (function workerQrFieldBootstrap() {
+          var BADGE_KEY = "workpass-worker-badge-login";
+          var PENDING_BADGE_KEY = "workpass-qr-pending-badge";
+          function normBadge(value) {
+            return String(value || "").trim().toUpperCase()
+              .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, "-")
+              .replace(/\s+/g, "");
+          }
+          function storeBadge(badge) {
+            if (!badge) return;
+            try {
+              localStorage.setItem(BADGE_KEY, badge);
+              sessionStorage.setItem(PENDING_BADGE_KEY, badge);
+            } catch (e) { /* ignore */ }
+          }
+          function paintBadgeField(badge, qrMode) {
+            var badgeInput = document.getElementById("workerAccessToken");
+            var pinInput = document.getElementById("workerBadgePin");
+            var copy = document.querySelector(".login-copy-sparkasse");
+            if (!badgeInput || !badge) return;
+            badgeInput.value = badge;
+            if (qrMode) {
+              badgeInput.readOnly = true;
+              badgeInput.classList.add("form-input-readonly");
+              document.body.classList.add("qr-fast-login");
+              if (copy) copy.textContent = "Badge " + badge + " erkannt – nur noch PIN eingeben.";
+            }
+            if (pinInput) {
+              setTimeout(function () { try { pinInput.focus(); } catch (e) {} }, 250);
+            }
+          }
+          try {
+            var params = new URLSearchParams(window.location.search);
+            var access = (params.get("access") || "").trim();
+            var badge = normBadge(params.get("badge") || "");
+            var qrMode = params.get("launch") === "1" || params.get("fast") === "1" || Boolean(access);
+            if (!badge) {
+              try {
+                badge = normBadge(sessionStorage.getItem(PENDING_BADGE_KEY) || localStorage.getItem(BADGE_KEY) || "");
+              } catch (e2) { /* ignore */ }
+            }
+            if (badge) {
+              storeBadge(badge);
+              paintBadgeField(badge, qrMode);
+            } else if (access) {
+              fetch("/api/worker-app/join-preview?access=" + encodeURIComponent(access), { cache: "no-store" })
+                .then(function (res) { return res.ok ? res.json() : null; })
+                .then(function (data) {
+                  var resolved = normBadge(data && (data.badgeId || data.badge_id));
+                  if (!resolved) return;
+                  storeBadge(resolved);
+                  paintBadgeField(resolved, true);
+                })
+                .catch(function () { /* ignore */ });
+            }
+          } catch (e) { /* ignore */ }
+        })();
+        </script>
 
         <div id="workerResumeLoginRow" class="login-resume-row hidden">
           <p class="login-resume-copy" data-i18n="resumeLoginHint">Auf diesem Gerät ist bereits eine Badge-ID gespeichert.</p>
@@ -1053,7 +1113,7 @@
 
         <!-- Chat mit Firma (Feature-Tab neben Stunden/Docs) -->
         <div id="chatCard" class="below-card chat-card worker-feature-chat-card hidden">
-          <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627r</p>
+          <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627s</p>
           <div class="section-head compact-head worker-feature-chat-head">
             <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
             <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
@@ -1222,6 +1282,6 @@
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
   <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
   <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script src="./worker-app.js?v=20260627r"></script>
+  <script src="./worker-app.js?v=20260627s"></script>
 </body>
 </html>
