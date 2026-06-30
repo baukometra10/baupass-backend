@@ -34,7 +34,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627x";
+const WORKER_BUILD_TAG = "20260627y";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -293,6 +293,9 @@ function getOrCreateWorkerDeviceFingerprint() {
 }
 
 function buildWorkerDevicePayload() {
+  if (!window.FlutterWorkerBridge && !window.workpassNativeDevice) {
+    return null;
+  }
   return {
     fingerprint: getOrCreateWorkerDeviceFingerprint(),
     name: isIosDevice() ? "iPhone" : (isStandaloneDisplay() ? "Installed PWA" : "Mobile Web"),
@@ -301,11 +304,15 @@ function buildWorkerDevicePayload() {
 }
 
 function getWorkerAuthorizationValue() {
+  const session = String(workerToken || wpGet(WORKER_TOKEN_KEY) || "").trim();
+  if (session) {
+    return session;
+  }
   const jwt = String(workerBearerToken || wpGet(WORKER_JWT_KEY) || "").trim();
   if (jwt.includes(".")) {
     return jwt;
   }
-  return String(workerToken || wpGet(WORKER_TOKEN_KEY) || "").trim();
+  return "";
 }
 
 function buildWorkerAuthHeaders(extraHeaders = {}) {
@@ -342,6 +349,23 @@ function persistWorkerSessionCredentials(payload) {
   if (deviceId) {
     wpSet(WORKER_DEVICE_ID_KEY, deviceId);
   }
+}
+
+function shouldKeepWorkerShellAfterSyncError(error = null) {
+  if (!document.body.classList.contains("worker-loaded")) {
+    return false;
+  }
+  const loginGraceMs = Date.now() - Number(window.__workerLoginCompletedAt || 0);
+  if (loginGraceMs <= 120000) {
+    return true;
+  }
+  if (wpGet(WORKER_CACHED_PAYLOAD_KEY)) {
+    return true;
+  }
+  if (error && !isWorkerSessionAuthError(error?.code)) {
+    return true;
+  }
+  return false;
 }
 
 function isWorkerAnonymousRequest(url) {
@@ -3977,6 +4001,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
 
   workerLoginInFlight = true;
   try {
+    const devicePayload = buildWorkerDevicePayload();
     const payload = await fetchJson(`${API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3984,7 +4009,7 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
         badgeId: normalizedBadgeId,
         badgePin: normalizedBadgePin,
         qrLaunch: qrLaunch || isQrLaunchLogin() || document.body.classList.contains("qr-fast-login"),
-        device: buildWorkerDevicePayload(),
+        ...(devicePayload ? { device: devicePayload } : {}),
         ...(effectiveLocation ? { location: effectiveLocation } : {}),
       })
     });
@@ -4101,10 +4126,16 @@ async function loadWorkerData() {
       // Ignore stale request failures after auth state changes.
       return false;
     }
-    // Session expired or revoked — must re-login
+    // Session expired or revoked — keep shell right after login or when cache exists
     if (isWorkerSessionAuthError(error?.code)) {
+      if (shouldKeepWorkerShellAfterSyncError(error)) {
+        return true;
+      }
       invalidateWorkerSession({ showNotice: true });
       return false;
+    }
+    if (shouldKeepWorkerShellAfterSyncError(error)) {
+      return true;
     }
     // Network error — show cached data if available
     console.warn("[loadWorkerData] Network error:", error.message);
@@ -5351,7 +5382,9 @@ async function completeWorkerLogin(payload, extras = {}) {
     registerWorkerSw();
   }
   void ensureWorkerPushNotifications({ promptIfNeeded: true });
-  void loadWorkerData();
+  setTimeout(() => {
+    void loadWorkerData();
+  }, 2500);
   void syncOfflinePhotoQueue();
   void syncOfflineEventQueue();
 }
@@ -5586,6 +5619,9 @@ async function tryFastBadgeLoginFromQr(badgeId, { qrLaunch = true } = {}) {
 function setupQrPinAutoSubmit(badgeId) {
   const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
   if (!pinInput || isVisitorBadgeId(badgeId)) {
+    return;
+  }
+  if (isIosDevice()) {
     return;
   }
   if (pinInput.dataset.qrAutoBound === "1") {
