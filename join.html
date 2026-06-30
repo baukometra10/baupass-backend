@@ -92,6 +92,30 @@
       }
     }
 
+    function redirectToPwa(buildMeta, { replace = true } = {}) {
+      const url = pwaFallbackUrl(buildMeta);
+      showStatus("Ausweis wird in der App geöffnet…");
+      if (replace) {
+        window.location.replace(url);
+      } else {
+        window.location.href = url;
+      }
+    }
+
+    function shouldTryNativeDeepLink(cfg, platform) {
+      if (platform !== "ios" && platform !== "android") {
+        return false;
+      }
+      const apk = String(cfg.apkUrl || "").trim();
+      const play = String(cfg.playStoreUrl || "").trim();
+      const testFlight = String(cfg.testFlightUrl || "").trim();
+      const appStore = String(cfg.appStoreUrl || "").trim();
+      if (platform === "android") {
+        return Boolean(apk || play);
+      }
+      return Boolean(testFlight || appStore);
+    }
+
     function storePending() {
       if (!accessToken) return;
       const tokenKeys = [
@@ -217,15 +241,18 @@
       setVisible("pwaBtn", true);
 
       if (launch && accessToken) {
-        showStatus("App wird geöffnet…");
-        window.location.href = deepLinkUrl();
-        setTimeout(() => {
-          if (platform === "android" && apk) {
-            showStatus("Falls die App nicht installiert ist: APK herunterladen.");
-          } else if (platform === "ios" && testFlight) {
-            showStatus("Falls die App nicht installiert ist: TestFlight öffnen.");
-          }
-        }, 1200);
+        if (shouldTryNativeDeepLink(cfg, platform)) {
+          showStatus("SUPPIX App wird geöffnet…");
+          window.location.href = deepLinkUrl();
+          setTimeout(() => {
+            if (!document.hidden) {
+              redirectToPwa(buildMeta);
+            }
+          }, 2000);
+        } else {
+          redirectToPwa(buildMeta);
+        }
+        return;
       }
     }
 

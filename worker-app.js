@@ -12,7 +12,7 @@ function wpRemove(key) {
   else window.localStorage.removeItem(key);
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627n";
+const WORKER_BUILD_TAG = "20260627o";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2390,10 +2390,13 @@ async function init() {
         return;
       }
     }
-    const locationPayload = await resolveLoginLocation({ timeoutMs: 10000 });
-    // keepUrlToken: false → URL wird sofort bereinigt, damit ein Seitenrefresh
-    // nicht denselben (bereits verbrauchten) Einmalcode nochmals sendet.
-    await loginWithAccessToken(bootstrapAccessToken, { keepUrlToken: false, silent: false, locationPayload });
+    // Einmal-Link zuerst ohne GPS-Wartezeit — Standort optional im Hintergrund.
+    void resolveLoginLocation({ timeoutMs: 8000 }).catch(() => null);
+    await loginWithAccessToken(bootstrapAccessToken, {
+      keepUrlToken: false,
+      silent: false,
+      locationPayload: null,
+    });
     return;
   }
 
@@ -3637,7 +3640,6 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
     }
     if (error.code === "access_token_already_used") {
       clearBootstrapAccessTokens();
-      // If the worker already has an active session, just load that instead of showing the login screen
       const existingToken = wpGet(WORKER_TOKEN_KEY);
       if (existingToken) {
         workerToken = existingToken;
@@ -3658,10 +3660,13 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
           const pinInput = document.querySelector("#workerBadgePin");
           if (pinInput) setTimeout(() => pinInput.focus(), 120);
         }
-        showLoginError(t("qrLinkUsedEnterPin"), { focusPin: true });
+        showLoginError(
+          t("qrLinkUsedEnterPin") + " " + t("oneTimeLinkMobileHint"),
+          { focusPin: true },
+        );
         return;
       }
-      showLoginError(t("qrLinkInvalidRescan"));
+      showLoginError(t("qrLinkInvalidRescan") + " " + t("oneTimeLinkMobileHint"));
       return;
     }
     if (["invalid_access_token", "access_token_revoked", "access_token_expired"].includes(error.code)) {

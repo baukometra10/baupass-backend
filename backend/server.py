@@ -11141,13 +11141,14 @@ def _compose_worker_app_access_response(access_token, access_expires_at, worker_
     build_tag = _get_worker_build_info().get("build") or "latest"
     public_base = get_public_base_url().rstrip("/")
     join_query = f"access={access_token}&v={build_tag}&launch=1"
-    link = f"{public_base}/join.html?{join_query}"
-    pwa_link = f"{public_base}/worker-install.html?access={access_token}&v={build_tag}&launch=1"
+    pwa_link = f"{public_base}/worker-install.html?{join_query}"
+    native_link = f"{public_base}/join.html?{join_query}"
     return {
         "accessToken": access_token,
-        "link": link,
-        "joinLink": link,
+        "link": pwa_link,
+        "joinLink": pwa_link,
         "pwaLink": pwa_link,
+        "nativeJoinLink": native_link,
         "deepLink": f"baupass://join?access={access_token}",
         "created": created,
         "reused": reused,
