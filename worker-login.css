@@ -503,6 +503,22 @@ body:not(.worker-loaded) .login-sparkasse {
   box-shadow: 0 8px 24px rgba(185, 28, 28, 0.12);
 }
 
+.login-inline-error {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 2px solid #dc2626;
+  background: #fef2f2;
+  color: #991b1b;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.login-inline-error:not(.hidden) {
+  display: block;
+}
+
 .form-input-sparkasse.input-error {
   border-color: #dc2626 !important;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);

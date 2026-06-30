@@ -34,7 +34,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627y";
+const WORKER_BUILD_TAG = "20260628a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -274,6 +274,20 @@ function isQrBootstrapEntry(params = null) {
   }
 }
 
+function resetWorkerSessionForQrEntry({ keepBadge = true } = {}) {
+  wpRemove(WORKER_TOKEN_KEY);
+  wpRemove(WORKER_JWT_KEY);
+  wpRemove(WORKER_DEVICE_ID_KEY);
+  wpRemove(WORKER_CACHED_PAYLOAD_KEY);
+  if (!keepBadge) {
+    wpRemove(WORKER_BADGE_LOGIN_KEY);
+  }
+  workerToken = "";
+  workerBearerToken = "";
+  offlineWorkerSessionActive = false;
+  document.body.classList.remove("worker-loaded");
+}
+
 function markWorkerLoginCompleted() {
   window.__workerLoginCompletedAt = Date.now();
 }
@@ -321,7 +335,8 @@ function buildWorkerAuthHeaders(extraHeaders = {}) {
   if (auth && !headers.Authorization) {
     headers.Authorization = `Bearer ${auth}`;
   }
-  const deviceId = String(wpGet(WORKER_DEVICE_ID_KEY) || "").trim();
+  const sendDeviceHeader = Boolean(window.FlutterWorkerBridge || window.workpassNativeDevice);
+  const deviceId = sendDeviceHeader ? String(wpGet(WORKER_DEVICE_ID_KEY) || "").trim() : "";
   if (deviceId && !headers["X-Device-Id"]) {
     headers["X-Device-Id"] = deviceId;
   }
@@ -348,6 +363,8 @@ function persistWorkerSessionCredentials(payload) {
   const deviceId = String(payload.deviceId || "").trim();
   if (deviceId) {
     wpSet(WORKER_DEVICE_ID_KEY, deviceId);
+  } else if (!window.FlutterWorkerBridge && !window.workpassNativeDevice) {
+    wpRemove(WORKER_DEVICE_ID_KEY);
   }
 }
 
@@ -1422,8 +1439,13 @@ let currentActiveTab = "home";
 let bottomTabNavInitialized = false;
 // One-time QR/link codes must not survive a cold start; bearer session may persist for PWA/offline sync.
 wpRemove(WORKER_ACCESS_TOKEN_KEY);
-workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
-workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
+const __workerBootParams = new URLSearchParams(window.location.search);
+if (isQrBootstrapEntry(__workerBootParams)) {
+  resetWorkerSessionForQrEntry({ keepBadge: true });
+} else {
+  workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
+  workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
+}
 let deferredInstallPrompt = null;
 let cameraStream = null;
 let lastCameraPhotoDataUrl = null;
@@ -2507,8 +2529,13 @@ function applyWorkerPageView(targetId = "") {
 init().finally(dismissSplash);
 
 async function init() {
-  workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
-  workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
+  const params = new URL(window.location.href).searchParams;
+  if (isQrBootstrapEntry(params)) {
+    resetWorkerSessionForQrEntry({ keepBadge: true });
+  } else {
+    workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
+    workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
+  }
   ensureWorkerChatShellStyles();
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
@@ -2522,7 +2549,7 @@ async function init() {
   updateWalletImmersiveMode();
   applyQrContrastState();
   applyAutoOpenScannerState();
-  enforceWorkerBuildFreshness();
+  enforceWorkerBuildFreshness(params);
   if ("scrollRestoration" in history) {
     history.scrollRestoration = "manual";
   }
@@ -2532,8 +2559,7 @@ async function init() {
   if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
     document.documentElement.style.colorScheme = "dark";
   }
-  
-  const params = new URL(window.location.href).searchParams;
+
   const urlApiBase = sanitizeApiBase(params.get("apiBase"));
   if (urlApiBase) {
     wpSet(API_BASE_STORAGE_KEY, urlApiBase);
@@ -3690,58 +3716,29 @@ function deleteStaleWorkerCaches(exceptBuild = WORKER_BUILD_TAG) {
   ));
 }
 
-function enforceWorkerBuildFreshness() {
+function enforceWorkerBuildFreshness(params = null) {
   const buildTag = WORKER_BUILD_TAG;
   const LAST_BUILD_VERSION_KEY = WP?.KEYS?.WORKER_LAST_BUILD_TAG || "workpass-worker-last-build-tag";
-  const RELOAD_GUARD_KEY = `workpass-build-reload-${buildTag}`;
   const lastBuildTag = window.localStorage.getItem(LAST_BUILD_VERSION_KEY);
-  
-  // Detect version change and clear old caches
-  const versionChanged = lastBuildTag && lastBuildTag !== buildTag;
-  if (versionChanged) {
-    // Version changed - clear IndexedDB and old caches
-    if ("indexedDB" in window) {
-      try {
-        indexedDB.databases().then((dbs) => {
-          dbs.forEach((db) => {
-            if (db.name && (db.name.includes("baupass") || db.name.includes("worker"))) {
-              indexedDB.deleteDatabase(db.name).catch(() => {});
-            }
-          });
-        }).catch(() => {});
-      } catch {
-        // ignore IndexedDB failures
-      }
-    }
+  const qrBootstrap = isQrBootstrapEntry(params);
 
+  if (lastBuildTag && lastBuildTag !== buildTag) {
+    void deleteStaleWorkerCaches(buildTag);
     try {
-      if (!getWorkerAuthorizationValue() && !document.body.classList.contains("qr-fast-login")) {
+      if (!getWorkerAuthorizationValue() && !qrBootstrap) {
         wpRemove(WORKER_CACHED_PAYLOAD_KEY);
         wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
       }
     } catch {
       // ignore localStorage failures
     }
-
-    void deleteStaleWorkerCaches(buildTag);
-
-    if (!getWorkerAuthorizationValue() && !sessionStorage.getItem(RELOAD_GUARD_KEY)) {
-      sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
-      window.localStorage.setItem(LAST_BUILD_VERSION_KEY, buildTag);
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set("v", buildTag);
-        url.searchParams.set("refresh", "1");
-        window.location.replace(url.toString());
-      } catch {
-        window.location.reload();
-      }
-      return;
-    }
   }
-  
-  // Always record current version
-  window.wpSet(LAST_BUILD_VERSION_KEY, buildTag);
+
+  try {
+    window.localStorage.setItem(LAST_BUILD_VERSION_KEY, buildTag);
+  } catch {
+    // ignore localStorage failures
+  }
 
   try {
     const url = new URL(window.location.href);
@@ -3758,7 +3755,7 @@ function enforceWorkerBuildFreshness() {
 
   void deleteStaleWorkerCaches(buildTag);
 
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && getWorkerAuthorizationValue()) {
     navigator.serviceWorker.getRegistrations()
       .then((regs) => Promise.all(regs.map((reg) => reg.update().catch(() => {}))))
       .catch(() => {});
@@ -3872,13 +3869,14 @@ async function loginWithAccessToken(accessToken, { keepUrlToken = false, silent 
   }
 
   try {
+    const devicePayload = buildWorkerDevicePayload();
     const payload = await fetchJson(`${API_BASE}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accessToken,
         location: locationPayload,
-        device: buildWorkerDevicePayload(),
+        ...(devicePayload ? { device: devicePayload } : {}),
       })
     });
 
@@ -4676,6 +4674,12 @@ function showLoginError(message, { code = "", focusPin = false } = {}) {
     loginCard.classList.remove("hidden");
     loginCard.style.removeProperty("display");
   }
+  const inlineError = document.getElementById("loginInlineError");
+  if (inlineError) {
+    inlineError.textContent = text;
+    inlineError.classList.remove("hidden");
+    inlineError.setAttribute("role", "alert");
+  }
   if (elements.workerNotice) {
     elements.workerNotice.textContent = text;
     elements.workerNotice.classList.remove("hidden", "force-hidden");
@@ -4701,6 +4705,11 @@ function showLoginError(message, { code = "", focusPin = false } = {}) {
 }
 
 function clearLoginError() {
+  const inlineError = document.getElementById("loginInlineError");
+  if (inlineError) {
+    inlineError.textContent = "";
+    inlineError.classList.add("hidden");
+  }
   if (elements.workerNotice) {
     elements.workerNotice.classList.remove("login-error-visible");
   }
@@ -5444,7 +5453,15 @@ async function executeQrPinLogin(badgeId, pin, { qrLaunch = true, silent = false
       qrLaunch,
       silent,
     });
-    return Boolean(workerToken);
+    if (!workerToken) {
+      if (!silent) {
+        showLoginError(t("loginFailed") + " (Sitzung konnte nicht gespeichert werden – bitte erneut versuchen.)", {
+          focusPin: true,
+        });
+      }
+      return false;
+    }
+    return true;
   } finally {
     if (submitBtn && !silent) {
       submitBtn.disabled = false;
@@ -6980,14 +6997,15 @@ async function fetchJson(url, options = {}) {
     error.code = code;
     error.payload = payload;
     if (isWorkerProtectedApiUrl(url) && isWorkerSessionAuthError(code)) {
-      const loginGraceMs = Date.now() - Number(window.__workerLoginCompletedAt || 0);
-      const keepLoadedShell = document.body.classList.contains("worker-loaded") && loginGraceMs <= 20000;
-      if (!keepLoadedShell) {
+      if (!shouldKeepWorkerShellAfterSyncError({ code })) {
         invalidateWorkerSession({ showNotice: true });
       }
     }
     if (isWorkerProtectedApiUrl(url) && code === "device_not_bound") {
-      showLoginError(t("loginFailed") + " (Gerät nicht freigegeben – bitte erneut anmelden).", { code });
+      wpRemove(WORKER_DEVICE_ID_KEY);
+      if (!shouldKeepWorkerShellAfterSyncError({ code })) {
+        showLoginError(t("loginFailed") + " (Gerät nicht freigegeben – bitte erneut anmelden).", { code });
+      }
     }
     throw error;
   }
@@ -9929,7 +9947,8 @@ if (workerToken) {
 
 workerDebug("[worker-app init] workerToken:", workerToken ? "present" : "missing");
 
-if (workerToken) {
+const __workerBootParamsForHydrate = new URLSearchParams(window.location.search);
+if (workerToken && !isQrBootstrapEntry(__workerBootParamsForHydrate)) {
   const cachedPayloadRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
   if (cachedPayloadRaw) {
     try {
@@ -9937,14 +9956,9 @@ if (workerToken) {
       workerDebug("[worker-app init] Found cached payload, rendering immediately...");
       renderWorker(cachedPayload);
       focusWorkerPassOnLoad();
-      void loadWorkerData();
     } catch (err) {
       console.error("[worker-app init] Cache parse failed:", err);
-      void loadWorkerData();
     }
-  } else {
-    workerDebug("[worker-app init] No cached payload, fetching fresh...");
-    void loadWorkerData();
   }
 } else if (!window.__workerAppInitDone) {
   workerDebug("[worker-app init] No token, login handled by init()");

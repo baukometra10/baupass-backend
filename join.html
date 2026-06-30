@@ -201,6 +201,12 @@
       const platform = detectPlatform();
       const cfg = await loadConfig();
       const buildMeta = await loadBuildMeta();
+
+      if (launch && accessToken) {
+        redirectToPwa(buildMeta);
+        return;
+      }
+
       const openApp = document.getElementById("openAppBtn");
       openApp.href = deepLinkUrl();
 
@@ -248,21 +254,6 @@
 
       document.getElementById("pwaBtn").href = pwaFallbackUrl(buildMeta);
       setVisible("pwaBtn", true);
-
-      if (launch && accessToken) {
-        if (shouldTryNativeDeepLink(cfg, platform)) {
-          showStatus("SUPPIX App wird geöffnet…");
-          window.location.href = deepLinkUrl();
-          setTimeout(() => {
-            if (!document.hidden) {
-              redirectToPwa(buildMeta);
-            }
-          }, 2000);
-        } else {
-          redirectToPwa(buildMeta);
-        }
-        return;
-      }
     }
 
     boot().catch(() => showStatus("Konfiguration konnte nicht geladen werden.", true));

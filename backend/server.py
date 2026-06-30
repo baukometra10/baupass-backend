@@ -11152,7 +11152,7 @@ def _compose_worker_app_access_response(
     badge_lookup = normalize_badge_id(badge_id) if badge_id else ""
     badge_query = f"&badge={quote(badge_lookup, safe='')}&fast=1" if badge_lookup else ""
     join_query = f"access={access_token}&v={build_tag}&launch=1{badge_query}"
-    pwa_link = f"{public_base}/worker-install.html?{join_query}"
+    pwa_link = f"{public_base}/emp-app.html?worker=1&view=card&{join_query}"
     native_link = f"{public_base}/join.html?{join_query}"
     return {
         "accessToken": access_token,
