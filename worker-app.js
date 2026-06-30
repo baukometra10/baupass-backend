@@ -1,18 +1,40 @@
 ﻿const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const WP = window.WorkPassStorage;
-function wpGet(key) {
-  return WP ? WP.getItem(key) : window.localStorage.getItem(key);
-}
 function wpSet(key, value) {
   if (WP) WP.setItem(key, value);
   else window.localStorage.setItem(key, value);
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // ignore sessionStorage failures (Safari private mode)
+  }
 }
 function wpRemove(key) {
   if (WP) WP.removeItem(key);
   else window.localStorage.removeItem(key);
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+function wpGet(key) {
+  let value = WP ? WP.getItem(key) : window.localStorage.getItem(key);
+  if (value !== null && value !== "") {
+    return value;
+  }
+  try {
+    value = sessionStorage.getItem(key);
+    if (value !== null && value !== "") {
+      return value;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260627w";
+const WORKER_BUILD_TAG = "20260627x";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -240,9 +262,13 @@ function isWorkerShellAuthenticated() {
 function isQrBootstrapEntry(params = null) {
   try {
     const search = params || new URLSearchParams(window.location.search);
+    if (search.get("session") === "1") {
+      return false;
+    }
     return Boolean((search.get("access") || "").trim())
       || search.get("fast") === "1"
-      || search.get("launch") === "1";
+      || search.get("launch") === "1"
+      || Boolean(normalizeBadgeIdInput(search.get("badge") || ""));
   } catch {
     return false;
   }
@@ -488,7 +514,6 @@ function applyWorkerCompanyBranding({
 
 function finishWorkerLoginUi() {
   stopProximityLoginWatcher();
-  replaceWorkerHistoryAfterLogin();
   if (isWorkerCardInstallEntry()) {
     applyWorkerCardInstallView();
     return;
@@ -1832,13 +1857,28 @@ function isWorkerCardInstallEntry() {
 
 function replaceWorkerHistoryAfterLogin() {
   try {
+    document.body.classList.remove("qr-fast-login");
     const next = new URL(window.location.href);
     next.searchParams.set("worker", "1");
     next.searchParams.set("v", WORKER_BUILD_TAG);
+    next.searchParams.set("session", "1");
     next.searchParams.delete("access");
+    next.searchParams.delete("badge");
+    next.searchParams.delete("fast");
+    next.searchParams.delete("launch");
+    next.searchParams.delete("apiBase");
+    next.searchParams.delete("refresh");
     window.history.replaceState({}, document.title, next.toString());
   } catch {
-    window.history.replaceState({}, document.title, `./emp-app.html?worker=1&v=${WORKER_BUILD_TAG}`);
+    window.history.replaceState({}, document.title, `./emp-app.html?worker=1&session=1&v=${WORKER_BUILD_TAG}`);
+  }
+}
+
+function clearQrBootstrapUiState() {
+  document.body.classList.remove("qr-fast-login");
+  const pinInput = elements.workerBadgePin || document.querySelector("#workerBadgePin");
+  if (pinInput) {
+    pinInput.dataset.qrAutoSubmitting = "0";
   }
 }
 
@@ -2595,9 +2635,23 @@ async function init() {
 
   if (urlBadgeParam) {
     if (workerToken) {
+      const cachedRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
+      if (cachedRaw) {
+        try {
+          renderWorker(JSON.parse(cachedRaw));
+          markWorkerLoginCompleted();
+          finishWorkerLoginUi();
+          void loadWorkerData();
+          window.__workerAppInitDone = true;
+          return;
+        } catch {
+          // fall through to network restore
+        }
+      }
       const loaded = await loadWorkerData();
-      if (loaded) {
+      if (loaded || isWorkerShellAuthenticated()) {
         if (viewParam === "card") applyWorkerPageView("badgeCard");
+        window.__workerAppInitDone = true;
         return;
       }
     }
@@ -3525,6 +3579,12 @@ function registerWorkerSw() {
   if (!("serviceWorker" in navigator)) {
     return;
   }
+
+  // iPhone: SW update reload during PIN entry was logging users out — register after login.
+  if (isIosDevice() && !getWorkerAuthorizationValue()) {
+    window.__deferredWorkerSwRegistration = true;
+    return;
+  }
   
   // CRITICAL: Clear old SW registrations from worker.html path before registering new emp-app.js SW
   if ("serviceWorker" in navigator) {
@@ -3552,6 +3612,15 @@ function registerWorkerSw() {
     const handleControllerChange = () => {
       updateWorkerBuildBadge();
       if (sessionStorage.getItem("workpass-sw-reloaded")) {
+        return;
+      }
+      const loginGraceMs = Date.now() - Number(window.__workerLoginCompletedAt || 0);
+      if (
+        document.body.classList.contains("worker-loaded")
+        || getWorkerAuthorizationValue()
+        || document.body.classList.contains("qr-fast-login")
+        || loginGraceMs <= 120000
+      ) {
         return;
       }
       sessionStorage.setItem("workpass-sw-reloaded", "1");
@@ -3622,15 +3691,17 @@ function enforceWorkerBuildFreshness() {
     }
 
     try {
-      wpRemove(WORKER_CACHED_PAYLOAD_KEY);
-      wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+      if (!getWorkerAuthorizationValue() && !document.body.classList.contains("qr-fast-login")) {
+        wpRemove(WORKER_CACHED_PAYLOAD_KEY);
+        wpRemove(WORKER_OFFLINE_LOGIN_PROFILE_KEY);
+      }
     } catch {
       // ignore localStorage failures
     }
 
     void deleteStaleWorkerCaches(buildTag);
 
-    if (!sessionStorage.getItem(RELOAD_GUARD_KEY)) {
+    if (!getWorkerAuthorizationValue() && !sessionStorage.getItem(RELOAD_GUARD_KEY)) {
       sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
       window.localStorage.setItem(LAST_BUILD_VERSION_KEY, buildTag);
       try {
@@ -4011,9 +4082,7 @@ async function loadWorkerData() {
 
   workerDebug("[loadWorkerData] Starting fetch for /me...");
   try {
-    const payload = await fetchJson(`${API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${tokenAtRequest}` }
-    });
+    const payload = await fetchJson(`${API_BASE}/me`);
     if (!tokenAtRequest || tokenAtRequest !== workerToken) {
       // Ignore stale response after logout/login switch.
       return false;
@@ -4059,10 +4128,12 @@ async function loadWorkerData() {
     console.warn("[loadWorkerData] No cache available – keeping login shell UI");
     if (!document.body.classList.contains("worker-loaded")) {
       wpRemove(WORKER_TOKEN_KEY);
+      wpRemove(WORKER_JWT_KEY);
       workerToken = "";
+      workerBearerToken = "";
       clearWorkerSessionExpiryTimer();
       showWorkerNotice(`${t("connError")}: ${error.message}`);
-      showLogin();
+      showLogin(true);
     }
     return false;
   }
@@ -5256,6 +5327,8 @@ async function completeWorkerLogin(payload, extras = {}) {
   persistLoginBootstrapPayload(payload);
   wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(shell));
   offlineWorkerSessionActive = false;
+  clearQrBootstrapUiState();
+  replaceWorkerHistoryAfterLogin();
   renderWorker(shell);
   markWorkerLoginCompleted();
   markWorkerSyncedNow();
@@ -5273,6 +5346,10 @@ async function completeWorkerLogin(payload, extras = {}) {
     }
   }
   initializeSessionInactivityProtection();
+  if (window.__deferredWorkerSwRegistration) {
+    window.__deferredWorkerSwRegistration = false;
+    registerWorkerSw();
+  }
   void ensureWorkerPushNotifications({ promptIfNeeded: true });
   void loadWorkerData();
   void syncOfflinePhotoQueue();
@@ -9816,18 +9893,14 @@ if (workerToken) {
 
 workerDebug("[worker-app init] workerToken:", workerToken ? "present" : "missing");
 
-const qrBootstrapActive = isQrBootstrapEntry();
-
-if (workerToken && !qrBootstrapActive) {
+if (workerToken) {
   const cachedPayloadRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
   if (cachedPayloadRaw) {
     try {
       const cachedPayload = JSON.parse(cachedPayloadRaw);
       workerDebug("[worker-app init] Found cached payload, rendering immediately...");
-      // Render cached data immediately without waiting for network
       renderWorker(cachedPayload);
       focusWorkerPassOnLoad();
-      // Then refresh from network in background
       void loadWorkerData();
     } catch (err) {
       console.error("[worker-app init] Cache parse failed:", err);
