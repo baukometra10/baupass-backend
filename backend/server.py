@@ -11137,14 +11137,25 @@ def worker_admin_onboarding_provision_allowed(db, worker_row, actor_user):
     return True
 
 
-def _compose_worker_app_access_response(access_token, access_expires_at, worker_id, *, created=True, reused=False):
+def _compose_worker_app_access_response(
+    access_token,
+    access_expires_at,
+    worker_id,
+    *,
+    badge_id=None,
+    created=True,
+    reused=False,
+):
     build_tag = _get_worker_build_info().get("build") or "latest"
     public_base = get_public_base_url().rstrip("/")
-    join_query = f"access={access_token}&v={build_tag}&launch=1"
+    badge_lookup = normalize_badge_id(badge_id) if badge_id else ""
+    badge_query = f"&badge={badge_lookup}&fast=1" if badge_lookup else ""
+    join_query = f"access={access_token}&v={build_tag}&launch=1{badge_query}"
     pwa_link = f"{public_base}/worker-install.html?{join_query}"
     native_link = f"{public_base}/join.html?{join_query}"
     return {
         "accessToken": access_token,
+        "badgeId": badge_lookup or None,
         "link": pwa_link,
         "joinLink": pwa_link,
         "pwaLink": pwa_link,
@@ -11202,6 +11213,7 @@ def build_worker_app_access_payload(db, worker_id, actor_user, *, issue_new_toke
                 existing["token"],
                 existing["expires_at"],
                 worker_id,
+                badge_id=worker["badge_id"],
                 created=False,
                 reused=True,
             ), None
@@ -11223,6 +11235,7 @@ def build_worker_app_access_payload(db, worker_id, actor_user, *, issue_new_toke
         access_token,
         access_expires_at,
         worker_id,
+        badge_id=worker["badge_id"],
         created=True,
         reused=False,
     ), None
@@ -13169,6 +13182,7 @@ def worker_app_login():
         return jsonify({"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}), 401
 
     is_visitor = badge_id.startswith("VS")
+    qr_launch = bool(payload.get("qrLaunch") or payload.get("launchFromQr"))
     if not is_visitor:
         if not worker["badge_pin_hash"]:
             return jsonify({"error": "badge_pin_not_configured", "message": "Fuer diese Karte ist noch keine Badge-PIN hinterlegt."}), 403
@@ -13184,10 +13198,11 @@ def worker_app_login():
     if not company_has_feature(plan_value, "worker_app"):
         return feature_not_available_response("worker_app", plan_value)
 
-    try:
-        validate_worker_login_distance_or_raise(db, worker, payload)
-    except (ValueError, PermissionError) as exc:
-        return worker_location_login_error_response(db, worker, exc)
+    if not qr_launch:
+        try:
+            validate_worker_login_distance_or_raise(db, worker, payload)
+        except (ValueError, PermissionError) as exc:
+            return worker_location_login_error_response(db, worker, exc)
 
     try:
         session_data = create_worker_app_session(db, worker, device_payload=device_payload)

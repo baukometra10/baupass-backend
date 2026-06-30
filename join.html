@@ -73,6 +73,7 @@
     const API_BASE_KEY = "baupass-api-base";
     const params = new URL(window.location.href).searchParams;
     const accessToken = (params.get("access") || "").trim();
+    const badgeId = (params.get("badge") || "").trim();
     const apiBase = (params.get("apiBase") || "").trim();
     const launch = params.get("launch") === "1";
 
@@ -154,6 +155,11 @@
       const build = String(buildMeta?.build || "").trim();
       if (build) u.searchParams.set("v", build);
       if (accessToken) u.searchParams.set("access", accessToken);
+      if (badgeId) {
+        u.searchParams.set("badge", badgeId);
+        u.searchParams.set("fast", "1");
+      }
+      u.searchParams.set("launch", "1");
       if (apiBaseMatchesOrigin(apiBase)) u.searchParams.set("apiBase", apiBase);
       return u.toString();
     }

@@ -256,6 +256,14 @@ body:not(.worker-loaded) .login-sparkasse {
   background: var(--corp-surface);
 }
 
+.form-input-sparkasse.form-input-readonly,
+.form-input-sparkasse[readonly] {
+  background: rgba(10, 87, 192, 0.06);
+  color: var(--corp-text);
+  border-color: rgba(10, 87, 192, 0.22);
+  cursor: default;
+}
+
 .form-input-sparkasse::placeholder {
   color: var(--corp-muted);
 }
