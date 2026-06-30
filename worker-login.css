@@ -127,7 +127,37 @@ body.worker-loaded .worker-pass {
 }
 
 body:not(.worker-loaded) .login-sparkasse {
-  padding-top: clamp(20px, 4vh, 52px);
+  padding-top: clamp(12px, 2vh, 28px);
+}
+
+body.worker-login-shell {
+  overflow: hidden;
+  height: 100dvh;
+}
+
+body.worker-login-shell .app-shell {
+  overflow: hidden;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  padding: 0;
+}
+
+body.worker-login-shell .login-sparkasse {
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+body.worker-login-shell .login-content-sparkasse {
+  justify-content: center;
+  overflow: hidden;
+  padding-top: clamp(12px, 3vh, 28px);
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+body.worker-login-shell #loginCard {
+  min-height: 100dvh;
+  max-height: 100dvh;
 }
 
 .login-header-sparkasse {

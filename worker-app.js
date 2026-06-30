@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260628c";
+const WORKER_BUILD_TAG = "20260628d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1424,6 +1424,13 @@ function applyTranslations() {
     if (!attr && el.id && ["workerAppTitle", "workerBrandChip", "workerSplashTitle", "workerBrandName"].includes(el.id)) {
       return;
     }
+    if (el.classList.contains("login-copy-sparkasse") && document.body.classList.contains("qr-fast-login")) {
+      const badgeLabel = normalizeBadgeIdInput(elements.workerAccessToken?.value || "");
+      if (badgeLabel) {
+        el.textContent = tf("loginCopyQrFast", { badge: badgeLabel });
+        return;
+      }
+    }
     if (attr) {
       el.setAttribute(attr, t(key));
     } else {
@@ -1450,6 +1457,9 @@ function setLang(lang) {
   if (!nextLang) return;
   currentLang = nextLang;
   applyTranslations();
+  if (typeof I18N_RUNTIME.applyDomTranslations === "function") {
+    I18N_RUNTIME.applyDomTranslations(document);
+  }
   updateLastSyncDisplay();
   updateConnectionState();
   updatePlatformInstallHint();
@@ -1574,7 +1584,7 @@ const elements = {
   dayPlannerResetBtn: document.querySelector("#dayPlannerResetBtn"),
   smartHubDocChecklist: document.querySelector("#smartHubDocChecklist"),
   workerPassSubLabels: document.querySelectorAll("[data-pass-sub-label]"),
-  walletCard: document.querySelector(".wallet-card"),
+  walletCard: document.querySelector("#badgeCard .wallet-card"),
   workerStatus: document.querySelector("#workerStatus"),
   workerPhoto: document.querySelector("#workerPhoto"),
   workerBadgeId: document.querySelector("#workerBadgeId"),
@@ -2576,6 +2586,7 @@ async function init() {
   ensureWorkerChatDom();
   ensureWorkerChatComposeBar();
   applyTranslations();
+  enforceUiVisibilityGuard();
   updateWorkerBuildBadge();
   refreshTopBarElements();
   bindTopBarActions();
@@ -2869,7 +2880,10 @@ function bindEvents() {
   const langSelect = document.querySelector("#workerLanguageSelect");
   if (langSelect) {
     langSelect.value = currentLang;
-    langSelect.addEventListener("change", () => setLang(langSelect.value));
+    if (langSelect.dataset.langBound !== "1") {
+      langSelect.dataset.langBound = "1";
+      langSelect.addEventListener("change", () => setLang(langSelect.value));
+    }
   }
 
   window.addEventListener("online", () => {
@@ -4646,7 +4660,7 @@ function showLogin(force = false) {
   if (elements.badgeCard) elements.badgeCard.classList.add("hidden");
   const dashboardEl = document.getElementById("workerDashboard");
   if (dashboardEl) dashboardEl.classList.add("hidden");
-  if (elements.walletCard) elements.walletCard.classList.remove("hidden");
+  if (elements.walletCard) elements.walletCard.classList.add("hidden");
   if (elements.loginCard) {
     elements.loginCard.classList.remove("hidden");
     elements.loginCard.style.removeProperty("display");
@@ -8260,6 +8274,7 @@ function enforceUiVisibilityGuard() {
   const loginCard = document.getElementById("loginCard");
   const interiorIds = [
     "workerDashboard",
+    "badgeCard",
     "homeCompactInfo",
     "leaveRequestCard",
     "timesheetCard",
@@ -8273,19 +8288,25 @@ function enforceUiVisibilityGuard() {
     "routeCard",
     "companyModeCard",
     "dailyInsightsCard",
-    "smartWorkHubCard"
+    "smartWorkHubCard",
+    "workerPageNav",
+    "workerHubPanel",
+    "visitorCardContainer",
+    "quickGateModeButton",
   ];
 
   if (!isLoaded) {
     document.body.classList.remove("wallet-immersive-sections-open", "card-animating", "card-transitioned");
+    document.body.classList.add("worker-login-shell");
     interiorIds.forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.classList.add("hidden");
-      // Never force-hide bottom nav and top panel with inline styles during login
-      if (id !== "workerBottomNav" && id !== "topPanel") {
-        el.style.setProperty("display", "none", "important");
-      }
+      el.style.setProperty("display", "none", "important");
+    });
+    document.querySelectorAll(".worker-hub-toggle-row").forEach((row) => {
+      row.classList.add("hidden");
+      row.style.setProperty("display", "none", "important");
     });
     if (loginCard) {
       loginCard.classList.remove("hidden");
@@ -8293,6 +8314,8 @@ function enforceUiVisibilityGuard() {
     }
     return;
   }
+
+  document.body.classList.remove("worker-login-shell");
 
   if (loginCard) {
     loginCard.classList.add("hidden");

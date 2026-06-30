@@ -6494,6 +6494,18 @@ body:not(.worker-loaded) #topPanel {
   display: none !important;
 }
 
+body:not(.worker-loaded) #badgeCard,
+body:not(.worker-loaded) #workerDashboard,
+body:not(.worker-loaded) #homeCompactInfo,
+body:not(.worker-loaded) #workerHubPanel,
+body:not(.worker-loaded) #workerPageNav,
+body:not(.worker-loaded) #smartWorkHubCard,
+body:not(.worker-loaded) .worker-hub-toggle-row,
+body:not(.worker-loaded) #visitorCardContainer,
+body:not(.worker-loaded) .quick-gate-fab {
+  display: none !important;
+}
+
 /* The floating quick gate FAB clashes with the new bottom tab layout. */
 .quick-gate-fab {
   display: none !important;

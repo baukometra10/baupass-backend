@@ -2776,7 +2776,19 @@ function getCurrentLocale() {
   }
 
   function getCurrentLang(storageKey) {
-    const stored = String(window.localStorage.getItem(storageKey) || "").trim();
+    let stored = "";
+    try {
+      stored = String(window.localStorage.getItem(storageKey) || "").trim();
+    } catch {
+      stored = "";
+    }
+    if (!stored) {
+      try {
+        stored = String(window.sessionStorage.getItem(storageKey) || "").trim();
+      } catch {
+        stored = "";
+      }
+    }
     if (isSupportedLang(stored)) {
       currentLang = stored;
       return stored;
@@ -2791,8 +2803,34 @@ function getCurrentLocale() {
       return null;
     }
     currentLang = nextLang;
-    window.localStorage.setItem(storageKey, nextLang);
+    try {
+      window.localStorage.setItem(storageKey, nextLang);
+    } catch {
+      // ignore localStorage failures (Lockdown Mode / private mode)
+    }
+    try {
+      window.sessionStorage.setItem(storageKey, nextLang);
+    } catch {
+      // ignore sessionStorage failures
+    }
     return nextLang;
+  }
+
+  function applyDomTranslations(root) {
+    const scope = root || document;
+    scope.querySelectorAll("[data-i18n]").forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      if (!key) return;
+      const attr = el.getAttribute("data-i18n-attr");
+      const value = t(key);
+      if (attr) {
+        attr.split(",").map((part) => part.trim()).filter(Boolean).forEach((name) => {
+          el.setAttribute(name, value);
+        });
+      } else {
+        el.textContent = value;
+      }
+    });
   }
 
   window.WorkerI18N = Object.freeze({
@@ -2804,5 +2842,6 @@ function getCurrentLocale() {
     isSupportedLang,
     getCurrentLang,
     setCurrentLang,
+    applyDomTranslations,
   });
 })(window);
