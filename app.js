@@ -232,7 +232,7 @@ const UI_LANG_STORAGE_KEY = WP?.KEYS?.UI_LANG || "workpass-ui-lang";
 const INVOICE_FILTERS_STORAGE_KEY = WP?.KEYS?.INVOICE_FILTERS || "workpass-invoice-filters-v1";
 const PREVIEW_COMPANY_STORAGE_KEY = WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id";
 const UI_FALLBACK_LANG = "de";
-const WORKER_PWA_BUILD_TAG = "20260628b";
+const WORKER_PWA_BUILD_TAG = "20260628c";
 
 function loadStoredSessionToken() {
   try {

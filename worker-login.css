@@ -519,6 +519,14 @@ body:not(.worker-loaded) .login-sparkasse {
   display: block;
 }
 
+.login-build-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #607995;
+  text-align: center;
+}
+
 .form-input-sparkasse.input-error {
   border-color: #dc2626 !important;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);

@@ -87,7 +87,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260628b" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260628c" />
   <title>WorkPass – Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -96,12 +96,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260628b" />
+  <link rel="stylesheet" href="./worker.css?v=20260628c" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260628b" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260628b" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260628b" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260628b" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260628c" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260628c" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260628c" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260628c" />
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
@@ -216,7 +216,7 @@
       <span id="workerBrandChip" class="sr-only">WorkPass</span>
       <span id="installPlatformHint" class="sr-only" data-i18n="installHint"></span>
       <span id="lastSyncInfo" class="sr-only" data-i18n="lastSyncInitial">-</span>
-      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260628b</span>
+      <span id="workerBuildBadge" class="stb-build-tag" aria-live="polite">Build 20260628c</span>
       <div class="sr-only">
         <button id="forceRefreshButton" type="button" aria-label="Aktualisieren" data-i18n="forceRefreshBtn" data-i18n-attr="aria-label"></button>
         <button id="installButton" type="button" aria-label="App installieren" data-i18n="installBtn" data-i18n-attr="aria-label" hidden></button>
@@ -275,6 +275,7 @@
 
         <div id="workerNotice" class="worker-notice hidden" role="alert" aria-live="polite"></div>
         <p id="loginInlineError" class="login-inline-error hidden" role="alert" aria-live="assertive"></p>
+        <p id="loginBuildHint" class="login-build-hint" aria-live="polite"></p>
 
         <form id="workerLoginForm" class="login-form-sparkasse">
           <div class="form-group">
@@ -373,6 +374,137 @@
                 .catch(function () { /* ignore */ });
             }
           } catch (e) { /* ignore */ }
+        })();
+        </script>
+
+        <script>
+        (function workerInlineLoginFallback() {
+          var TOKEN_KEY = "workpass-worker-token";
+          var BADGE_KEY = "workpass-worker-badge-login";
+          var CACHE_KEY = "workpass-worker-cached-payload";
+          var loginInFlight = false;
+
+          function normBadge(v) {
+            return String(v || "").trim().toUpperCase().replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, "-").replace(/\s+/g, "");
+          }
+          function normPin(v) {
+            return String(v || "").trim().replace(/\D/g, "");
+          }
+          function memStore() {
+            window.__workpassMemStore = window.__workpassMemStore || {};
+            return window.__workpassMemStore;
+          }
+          function storeToken(token) {
+            if (!token) return;
+            memStore()[TOKEN_KEY] = token;
+            try { localStorage.setItem(TOKEN_KEY, token); } catch (e) { /* ignore */ }
+            try { sessionStorage.setItem(TOKEN_KEY, token); } catch (e) { /* ignore */ }
+          }
+          function showErr(msg) {
+            var el = document.getElementById("loginInlineError");
+            if (!el) return;
+            el.textContent = msg || "";
+            el.classList.toggle("hidden", !msg);
+          }
+          function storePayload(payload) {
+            var shell = {
+              worker: payload.worker || {},
+              sessionExpiresAt: payload.sessionExpiresAt || "",
+              cardType: payload.cardType || "",
+              company: payload.company || {},
+              subcompany: payload.subcompany || {},
+              settings: payload.settings || {},
+              leaveStats: payload.leaveStats || null
+            };
+            var raw = JSON.stringify(shell);
+            memStore()[CACHE_KEY] = raw;
+            try { localStorage.setItem(CACHE_KEY, raw); } catch (e) { /* ignore */ }
+            try { sessionStorage.setItem(CACHE_KEY, raw); } catch (e) { /* ignore */ }
+          }
+
+          fetch("/worker-build.json?t=" + Date.now(), { cache: "no-store" })
+            .then(function (r) { return r.json(); })
+            .then(function (meta) {
+              var hint = document.getElementById("loginBuildHint");
+              if (hint && meta && meta.build) {
+                hint.textContent = "Build " + meta.build;
+              }
+            })
+            .catch(function () { /* ignore */ });
+
+          function bindInlineLogin() {
+            var form = document.getElementById("workerLoginForm");
+            if (!form || form.dataset.inlineLoginBound === "1") return;
+            form.dataset.inlineLoginBound = "1";
+            form.addEventListener("submit", function (event) {
+              if (window.__workerAppBindReady) return;
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              if (loginInFlight) return;
+              var badgeInput = document.getElementById("workerAccessToken");
+              var pinInput = document.getElementById("workerBadgePin");
+              var badge = normBadge(badgeInput && badgeInput.value);
+              var pin = normPin(pinInput && pinInput.value);
+              if (!badge || badge.length < 4) {
+                showErr("Bitte Badge-ID prüfen.");
+                return;
+              }
+              if (!pin || pin.length < 4) {
+                showErr("Bitte 4–8 stellige PIN eingeben.");
+                return;
+              }
+              loginInFlight = true;
+              showErr("Anmeldung läuft…");
+              var btn = form.querySelector('button[type="submit"]');
+              if (btn) btn.disabled = true;
+              fetch("/api/worker-app/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                cache: "no-store",
+                body: JSON.stringify({ badgeId: badge, badgePin: pin, qrLaunch: true })
+              })
+                .then(function (res) {
+                  return res.json().catch(function () { return {}; }).then(function (body) {
+                    return { ok: res.ok, status: res.status, body: body };
+                  });
+                })
+                .then(function (res) {
+                  loginInFlight = false;
+                  if (btn) btn.disabled = false;
+                  if (!res.ok) {
+                    var msg = (res.body && (res.body.message || res.body.error)) || ("HTTP " + res.status);
+                    if (res.body && res.body.error === "invalid_badge_pin") msg = "PIN ist falsch.";
+                    if (res.body && res.body.error === "invalid_badge_id") msg = "Badge-ID wurde nicht gefunden.";
+                    showErr(msg);
+                    return;
+                  }
+                  storeToken(res.body.token);
+                  try { localStorage.setItem(BADGE_KEY, badge); } catch (e) { /* ignore */ }
+                  storePayload(res.body);
+                  showErr("");
+                  var next = new URL(window.location.href);
+                  next.searchParams.set("session", "1");
+                  next.searchParams.delete("access");
+                  next.searchParams.delete("badge");
+                  next.searchParams.delete("fast");
+                  next.searchParams.delete("launch");
+                  next.searchParams.delete("refresh");
+                  window.location.replace(next.toString());
+                })
+                .catch(function (err) {
+                  loginInFlight = false;
+                  if (btn) btn.disabled = false;
+                  showErr("Verbindungsfehler – bitte erneut versuchen.");
+                });
+            }, true);
+          }
+
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", bindInlineLogin, { once: true });
+          } else {
+            bindInlineLogin();
+          }
         })();
         </script>
 

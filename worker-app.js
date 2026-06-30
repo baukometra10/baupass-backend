@@ -1,8 +1,19 @@
 ﻿const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
 const WP = window.WorkPassStorage;
+function workpassMemoryStore() {
+  window.__workpassMemStore = window.__workpassMemStore || {};
+  return window.__workpassMemStore;
+}
 function wpSet(key, value) {
-  if (WP) WP.setItem(key, value);
-  else window.localStorage.setItem(key, value);
+  if (key) {
+    workpassMemoryStore()[key] = value;
+  }
+  try {
+    if (WP) WP.setItem(key, value);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    // ignore localStorage failures (Lockdown Mode / private mode)
+  }
   try {
     sessionStorage.setItem(key, value);
   } catch {
@@ -10,8 +21,15 @@ function wpSet(key, value) {
   }
 }
 function wpRemove(key) {
-  if (WP) WP.removeItem(key);
-  else window.localStorage.removeItem(key);
+  if (key) {
+    delete workpassMemoryStore()[key];
+  }
+  try {
+    if (WP) WP.removeItem(key);
+    else window.localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
   try {
     sessionStorage.removeItem(key);
   } catch {
@@ -19,13 +37,24 @@ function wpRemove(key) {
   }
 }
 function wpGet(key) {
-  let value = WP ? WP.getItem(key) : window.localStorage.getItem(key);
+  const memoryValue = workpassMemoryStore()[key];
+  if (memoryValue !== undefined && memoryValue !== null && memoryValue !== "") {
+    return memoryValue;
+  }
+  let value = null;
+  try {
+    value = WP ? WP.getItem(key) : window.localStorage.getItem(key);
+  } catch {
+    value = null;
+  }
   if (value !== null && value !== "") {
+    workpassMemoryStore()[key] = value;
     return value;
   }
   try {
     value = sessionStorage.getItem(key);
     if (value !== null && value !== "") {
+      workpassMemoryStore()[key] = value;
       return value;
     }
   } catch {
@@ -34,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260628b";
+const WORKER_BUILD_TAG = "20260628c";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2556,6 +2585,23 @@ async function init() {
   applyQrContrastState();
   applyAutoOpenScannerState();
   enforceWorkerBuildFreshness(params);
+  if (params.get("session") === "1" && workerToken) {
+    const cachedRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
+    if (cachedRaw) {
+      try {
+        renderWorker(JSON.parse(cachedRaw));
+        markWorkerLoginCompleted();
+        finishWorkerLoginUi();
+      } catch {
+        // fall through to network sync
+      }
+    }
+    const loaded = await loadWorkerData();
+    if (loaded || document.body.classList.contains("worker-loaded")) {
+      window.__workerAppInitDone = true;
+      return;
+    }
+  }
   if ("scrollRestoration" in history) {
     history.scrollRestoration = "manual";
   }
@@ -2819,6 +2865,7 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
 }
 
 function bindEvents() {
+  window.__workerAppBindReady = true;
   const langSelect = document.querySelector("#workerLanguageSelect");
   if (langSelect) {
     langSelect.value = currentLang;
@@ -4647,6 +4694,13 @@ function showLogin(force = false) {
     }
   }
   syncLoginPinFieldVisibility(elements.workerAccessToken?.value || storedBadgeId);
+  if (document.body.classList.contains("qr-fast-login") || shouldTreatLoginAsQrLaunch()) {
+    const badgeLabel = normalizeBadgeIdInput(elements.workerAccessToken?.value || storedBadgeId || "");
+    const loginCopy = document.querySelector(".login-copy-sparkasse");
+    if (loginCopy && badgeLabel) {
+      loginCopy.textContent = `Badge ${badgeLabel} erkannt – nur noch PIN eingeben.`;
+    }
+  }
   const pinInput = document.querySelector("#workerBadgePin");
   if (pinInput && !storedBadgeId) {
     pinInput.value = "";
