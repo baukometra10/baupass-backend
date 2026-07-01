@@ -566,8 +566,10 @@ body.worker-feature-tab-active .leave-request-form textarea {
 /* ── Bottom Navigation ───────────────────────────────────────────────── */
 .worker-bottom-nav {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  transform: none;
   bottom: 0;
   width: min(100%, 480px);
   height: var(--w-nav-height);

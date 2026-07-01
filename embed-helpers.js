@@ -415,7 +415,7 @@
         ? "/branding/suppix-ai-logo-dark.svg"
         : logoData)
       : "/branding/suppix-ai-logo-dark.svg";
-    applyTenantFavicon({ logoData: resolvedLogo, title: displayName });
+    applyTenantFavicon({ logoData: resolvedLogo, title: displayName, accentColor: accent || primary });
     document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
       const useChip = img.classList.contains("tenant-logo-chip")
         || img.classList.contains("foreman-header-logo")
@@ -481,8 +481,18 @@
     return link;
   }
 
-  function applyTenantFavicon({ logoData, title } = {}) {
-    const iconHref = String(logoData || "").trim() || new URL("/branding/suppix-icon-192.png", global.location.origin).href;
+  function applyTenantFavicon({ logoData, title, accentColor } = {}) {
+    const displayName = String(title || "").trim();
+    const accent = String(accentColor || "").trim();
+    let iconHref = String(logoData || "").trim();
+    if (!iconHref && global.TenantBrandIcon) {
+      iconHref = global.TenantBrandIcon.resolveTenantIconHref({
+        brandTitle: displayName || "WorkPass",
+        logoData: "",
+        accentColor: accent,
+      });
+    }
+    if (!iconHref) return;
     const appFavicon = ensureBrandingLink("#appFavicon", "icon");
     appFavicon.id = "appFavicon";
     appFavicon.type = "image/png";

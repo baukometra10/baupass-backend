@@ -81,14 +81,13 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="WorkPass" />
-  <meta name="application-name" content="WorkPass Mitarbeiter-App" />
+  <meta name="apple-mobile-web-app-title" content="Mitarbeiter" />
+  <meta name="application-name" content="Mitarbeiter-App" />
   <meta name="format-detection" content="telephone=no" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
-  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260628d" />
-  <title>WorkPass – Mitarbeiter-App</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="data:," id="workerAppFavicon" />
+  <link rel="apple-touch-icon" sizes="192x192" href="data:," id="workerAppTouchIcon" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260629a" />
+  <title>Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta http-equiv="expires" content="0" />
@@ -96,12 +95,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260628d" />
+  <link rel="stylesheet" href="./worker.css?v=20260629a" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260628d" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260628d" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260628d" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260628d" />
+  <link rel="stylesheet" href="./worker-polish.css?v=20260629a" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260629a" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260629a" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260629a" />
+  <script src="./tenant-brand-icon.js?v=20260629a"></script>
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
@@ -138,18 +138,11 @@
   <!-- Splash screen – dismissed by JS after init; auto-hides via CSS after 9s if JS fails -->
   <div id="splashScreen" class="splash-screen" aria-hidden="true">
     <div class="splash-brand">
-      <div class="splash-icon">
-        <svg width="50" height="50" viewBox="0 0 50 50" fill="none" aria-hidden="true">
-          <rect x="19" y="8" width="12" height="5" rx="2.5" fill="rgba(255,216,184,.95)"/>
-          <path d="M6 26C6 16.6 13.8 9 25 9c11.2 0 19 7.6 19 17v4H6z" fill="rgba(255,247,235,.88)"/>
-          <rect x="5" y="28" width="40" height="6" rx="3" fill="rgba(10,18,28,.75)"/>
-          <rect x="10" y="37" width="7" height="11" rx="3.5" fill="rgba(255,247,235,.88)"/>
-          <rect x="21.5" y="34" width="7" height="14" rx="3.5" fill="rgba(255,216,184,.8)"/>
-          <rect x="33" y="37" width="7" height="11" rx="3.5" fill="rgba(255,247,235,.88)"/>
-        </svg>
+      <div class="splash-icon" id="workerSplashIconMark" aria-hidden="true">
+        <span class="wc-brand-initials">··</span>
       </div>
       <div class="splash-wordmark">
-        <span class="splash-title" id="workerSplashTitle">WorkPass</span>
+        <span class="splash-title" id="workerSplashTitle">···</span>
         <span class="splash-sub" data-i18n="splashSub">Mitarbeiter-App</span>
       </div>
     </div>
@@ -173,13 +166,8 @@
     <header id="topPanel" class="sparkasse-top-bar hidden">
       <div class="stb-inner">
         <div class="stb-left">
-          <div class="stb-logo-mark" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M3 17L12 4l9 13H3z" fill="var(--corp-primary)" fill-opacity=".9"/>
-              <rect x="7" y="17" width="10" height="4" rx="1" fill="var(--corp-primary)" fill-opacity=".7"/>
-            </svg>
-          </div>
-          <span class="stb-brand-name">WorkPass</span>
+          <div class="stb-logo-mark" aria-hidden="true"><span class="wc-brand-initials">··</span></div>
+          <span class="stb-brand-name">···</span>
           <span class="stb-brand-arrow" aria-hidden="true">↗</span>
         </div>
         <div class="stb-right">
@@ -249,7 +237,7 @@
       <!-- Sparkasse-Style: Minimal Header -->
       <div class="login-header-sparkasse">
         <div class="login-brand-sparkasse">
-          <h1 class="login-brand-title">WorkPass</h1>
+          <h1 class="login-brand-title">···</h1>
           <p class="login-brand-sub" data-i18n="loginSubtitle">Mitarbeiterausweis</p>
         </div>
         <div class="login-actions-top">
@@ -536,7 +524,7 @@
                 </svg>
               </div>
               <div class="wc-brand-text">
-                <span class="wc-brand-name" id="dashboardBrandName">BAUPASS</span>
+                <span class="wc-brand-name" id="dashboardBrandName">···</span>
                 <span class="wc-brand-sub" data-i18n="workerPassSubLabel">Mitarbeiterausweis</span>
               </div>
             </div>
@@ -660,7 +648,7 @@
               </svg>
             </div>
             <div class="wc-brand-text">
-              <span class="wc-brand-name" id="workerBrandName">BAUPASS</span>
+              <span class="wc-brand-name" id="workerBrandName">···</span>
               <span class="wc-brand-sub" data-pass-sub-label data-i18n="workerPassSubLabel">Mitarbeiterausweis</span>
             </div>
           </div>
@@ -732,7 +720,7 @@
                 </svg>
               </div>
               <div class="wc-brand-text">
-                <span class="wc-brand-name" id="visitorBrandName">BAUPASS</span>
+                <span class="wc-brand-name" id="visitorBrandName">···</span>
                 <span class="wc-brand-sub" data-i18n="visitorPassSubLabel">Besucherkarte</span>
               </div>
             </div>
@@ -1281,7 +1269,7 @@
           <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v20260627w</p>
           <div class="section-head compact-head worker-feature-chat-head">
             <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
-            <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+            <h3 id="workerChatSectionTitle" data-i18n="workerChatTitle">Chat mit Firma</h3>
           </div>
           <div id="workerChatMessages" class="worker-chat-messages">
             <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
@@ -1481,6 +1469,18 @@
         bind();
       }
       window.__workerApplyInlineLang = applyLang;
+    })();
+  </script>
+  <script src="./tenant-brand-icon.js?v=20260629a"></script>
+  <script>
+    (function bootstrapWorkerFavicon() {
+      if (!window.TenantBrandIcon) return;
+      var href = TenantBrandIcon.resolveTenantIconHref({ brandTitle: "WP", accentColor: "#0a57c0", size: 192 });
+      if (!href) return;
+      ["workerAppFavicon", "workerAppTouchIcon"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.href = href;
+      });
     })();
   </script>
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>

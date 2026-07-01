@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260628d";
+const WORKER_BUILD_TAG = "20260629a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -483,11 +483,60 @@ function shadeHexColor(hex, amount) {
   return `#${parts.join("")}`;
 }
 
+function getWorkerBrandTitle() {
+  return String(currentAppBrandTitle || "").trim() || t("workerChatFromCompany");
+}
+
+function resolveWorkerTenantIconHref({ brandTitle, logoData, accentColor } = {}) {
+  if (window.TenantBrandIcon?.resolveTenantIconHref) {
+    return window.TenantBrandIcon.resolveTenantIconHref({
+      brandTitle,
+      logoData,
+      accentColor,
+      size: 192,
+    });
+  }
+  return String(logoData || "").trim();
+}
+
+function applyWorkerAppIcons(iconHref, brandTitle) {
+  const href = String(iconHref || "").trim();
+  if (!href) return;
+  currentWorkerIconHref = href;
+  document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach((link) => {
+    link.href = href;
+  });
+  document.querySelectorAll('link[rel="apple-touch-icon"]').forEach((link) => {
+    link.href = href;
+  });
+  const splashIcon = document.getElementById("workerSplashIconMark") || document.querySelector(".splash-icon");
+  if (splashIcon) {
+    const safeHref = href.replace(/"/g, "&quot;");
+    splashIcon.innerHTML = `<img src="${safeHref}" width="50" height="50" alt="" class="splash-icon-img" />`;
+  }
+  const storedToken = wpGet(WORKER_TOKEN_KEY) || "";
+  if (storedToken) applyDynamicManifestStartUrl(storedToken, brandTitle || currentAppBrandTitle);
+}
+
+function updateWorkerChatBranding(brandTitle) {
+  const title = String(brandTitle || "").trim();
+  if (!title) return;
+  const chatHeading = document.getElementById("workerChatSectionTitle")
+    || document.querySelector("#chatCard .section-head h3");
+  if (chatHeading) {
+    chatHeading.textContent = tf("workerChatWithBrand", { brand: title });
+  }
+  const hubChatLabels = document.querySelectorAll('[data-worker-menu="chat"] .worker-menu-label, [data-tab-link="chat"] .worker-menu-label');
+  hubChatLabels.forEach((el) => {
+    el.textContent = tf("workerChatWithBrand", { brand: title });
+  });
+}
+
 function applyWorkerBrandLabels(brandTitle) {
   const title = String(brandTitle || "").trim();
   if (!title) return;
   currentAppBrandTitle = title;
-  document.title = title;
+  document.title = `${title} – ${t("splashSub")}`;
   const targets = [
     document.getElementById("workerBrandName"),
     document.getElementById("dashboardBrandName"),
@@ -503,36 +552,44 @@ function applyWorkerBrandLabels(brandTitle) {
     const isCardBrand = el.id === "workerBrandName" || el.id === "dashboardBrandName" || el.id === "visitorBrandName";
     el.textContent = isCardBrand ? title.toUpperCase() : title;
   });
+  updateWorkerChatBranding(title);
   const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (metaAppTitle) metaAppTitle.setAttribute("content", title);
   const metaAppName = document.querySelector('meta[name="application-name"]');
-  if (metaAppName) metaAppName.setAttribute("content", `${title} Mitarbeiter-App`);
+  if (metaAppName) metaAppName.setAttribute("content", `${title} ${t("splashSub")}`);
   const storedToken = wpGet(WORKER_TOKEN_KEY) || "";
   if (storedToken) applyDynamicManifestStartUrl(storedToken, title);
 }
-
-const WORKER_CARD_DEFAULT_MARK_HTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 17L12 4l9 13H3z" fill="#fff" fill-opacity=".9"/><rect x="7" y="17" width="10" height="4" rx="1" fill="#fff" fill-opacity=".7"/><rect x="10" y="13" width="4" height="4" fill="#fff" fill-opacity=".5"/></svg>`;
 
 function resolveWorkerCardBrandTitle({ portalDisplayName, companyName } = {}) {
   return String(portalDisplayName || companyName || "").trim() || t("companyFallback");
 }
 
-function applyWorkerBrandMarkElement(mark, logoData) {
+function renderWorkerBrandInitials(mark, brandTitle, accentColor) {
+  if (!mark) return;
+  const initials = window.TenantBrandIcon?.deriveBrandInitials(brandTitle) || "WP";
+  const accent = /^#[0-9a-f]{6}$/i.test(String(accentColor || "").trim()) ? accentColor : "";
+  if (accent) {
+    mark.style.setProperty("--brand-initials-accent", accent);
+    mark.style.background = accent;
+  }
+  mark.innerHTML = `<span class="wc-brand-initials">${initials.replace(/[<>&"]/g, "")}</span>`;
+}
+
+function applyWorkerBrandMarkElement(mark, logoData, brandTitle, accentColor) {
   if (!mark) return;
   const logoSrc = String(logoData || "").trim();
   if (logoSrc) {
     mark.innerHTML = `<img class="wc-brand-logo" src="${logoSrc.replace(/"/g, "&quot;")}" alt="" />`;
+    mark.style.removeProperty("background");
     return;
   }
-  if (!mark.dataset.defaultHtml) {
-    mark.dataset.defaultHtml = mark.innerHTML.trim() || WORKER_CARD_DEFAULT_MARK_HTML;
-  }
-  mark.innerHTML = mark.dataset.defaultHtml || WORKER_CARD_DEFAULT_MARK_HTML;
+  renderWorkerBrandInitials(mark, brandTitle, accentColor);
 }
 
-function applyWorkerLogoMarks(logoData) {
+function applyWorkerLogoMarks(logoData, brandTitle, accentColor) {
   document.querySelectorAll(".wc-brand-mark, .stb-logo-mark").forEach((mark) => {
-    applyWorkerBrandMarkElement(mark, logoData);
+    applyWorkerBrandMarkElement(mark, logoData, brandTitle, accentColor);
   });
 }
 
@@ -562,7 +619,13 @@ function applyWorkerCompanyBranding({
     document.documentElement.style.removeProperty("--corp-primary");
   }
 
-  applyWorkerLogoMarks(logoSrc);
+  applyWorkerLogoMarks(logoSrc, brandTitle, accent);
+  const iconHref = resolveWorkerTenantIconHref({
+    brandTitle,
+    logoData: logoSrc,
+    accentColor: accent,
+  });
+  applyWorkerAppIcons(iconHref, brandTitle);
 
   document.querySelectorAll(".wallet-card").forEach((card) => {
     card.classList.remove("preset-construction", "preset-industry", "preset-premium", "branding-custom");
@@ -580,6 +643,33 @@ function applyWorkerCompanyBranding({
       card.style.setProperty("--worker-card-primary-light", shadeHexColor(accent, 40));
     }
   });
+}
+
+async function preloadWorkerTenantBranding() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const companyId = String(params.get("company_id") || "").trim();
+    const host = window.location.hostname || "";
+    let query = `?host=${encodeURIComponent(host)}`;
+    if (companyId) query += `&company_id=${encodeURIComponent(companyId)}`;
+    const res = await fetch(`/api/public/tenant-branding${query}`, { credentials: "include" });
+    if (!res.ok) return;
+    const branding = await res.json();
+    if (!branding || typeof branding !== "object") return;
+    const displayName = String(
+      branding.portalDisplayName || branding.companyName || branding.platformName || "",
+    ).trim();
+    if (!displayName && !branding.logoData && !branding.brandingLogoData) return;
+    applyWorkerCompanyBranding({
+      companyPreset: branding.preset || branding.brandingPreset,
+      companyName: branding.companyName || displayName,
+      portalDisplayName: displayName,
+      brandingAccentColor: branding.accent || branding.brandingAccentColor || branding.primaryColor,
+      brandingLogoData: branding.logoData || branding.brandingLogoData,
+    });
+  } catch {
+    // optional pre-login branding
+  }
 }
 
 function finishWorkerLoginUi() {
@@ -1410,7 +1500,7 @@ function applyTranslations() {
   document.documentElement.dir = dir;
   // Use company brand title (KontrolPass/SUPPIX) if already loaded, otherwise fallback to i18n key
   const brandPrefix = currentAppBrandTitle || "";
-  document.title = brandPrefix ? brandPrefix + " – " + t("pageTitle") : t("pageTitle");
+  document.title = brandPrefix ? `${brandPrefix} – ${t("splashSub")}` : t("pageTitle");
 
   const langSelect = document.querySelector("#workerLanguageSelect");
   if (langSelect && langSelect.value !== lang) {
@@ -1421,7 +1511,15 @@ function applyTranslations() {
     const key = el.dataset.i18n;
     const attr = el.dataset.i18nAttr;
     // Skip brand title elements – managed dynamically by renderWorker()
-    if (!attr && el.id && ["workerAppTitle", "workerBrandChip", "workerSplashTitle", "workerBrandName"].includes(el.id)) {
+    if (!attr && el.id && [
+      "workerAppTitle",
+      "workerBrandChip",
+      "workerSplashTitle",
+      "workerBrandName",
+      "dashboardBrandName",
+      "visitorBrandName",
+      "workerChatSectionTitle",
+    ].includes(el.id)) {
       return;
     }
     if (el.classList.contains("login-copy-sparkasse") && document.body.classList.contains("qr-fast-login")) {
@@ -1437,16 +1535,9 @@ function applyTranslations() {
       el.textContent = t(key);
     }
   });
-  // Re-apply company brand label after translations (preserves KontrolPass / SUPPIX)
+  // Re-apply company brand label after translations
   if (currentAppBrandTitle) {
-    const appTitleEl = document.getElementById("workerAppTitle");
-    if (appTitleEl) appTitleEl.textContent = currentAppBrandTitle;
-    const brandChipEl = document.getElementById("workerBrandChip");
-    if (brandChipEl) brandChipEl.textContent = currentAppBrandTitle;
-    const splashTitleEl = document.getElementById("workerSplashTitle");
-    if (splashTitleEl) splashTitleEl.textContent = currentAppBrandTitle;
-    const brandNameEl = document.getElementById("workerBrandName");
-    if (brandNameEl) brandNameEl.textContent = currentAppBrandTitle.toUpperCase();
+    applyWorkerBrandLabels(currentAppBrandTitle);
   }
   updateWorkerHubToggleLabel();
 }
@@ -1491,7 +1582,8 @@ let lastCameraPhotoDataUrl = null;
 let lastCameraPhotoRotation = 0;
 let wakeLockHandle = null;
 let dynamicManifestUrl = "";
-let currentAppBrandTitle = ""; // tracks the company-specific brand label (KontrolPass / SUPPIX)
+let currentAppBrandTitle = ""; // tracks the company-specific brand label
+let currentWorkerIconHref = "";
 let workerSessionExpiryTimeout = null;
 let workerSessionCountdownInterval = null;
 
@@ -2646,6 +2738,7 @@ async function init() {
 
   registerWorkerSw();
   wireInstallPrompt();
+  void preloadWorkerTenantBranding();
   updateConnectionState();
   updateWorkerBuildBadge();
   initBatteryTelemetry();
@@ -2846,19 +2939,26 @@ function applyDynamicManifestStartUrl(accessToken, platformName) {
       manifest.id = `${origin}/emp-app.html`;
       manifest.start_url = startUrl;
       manifest.scope = `${origin}/`;
+      const tenantIcon = String(currentWorkerIconHref || "").trim();
       if (Array.isArray(manifest.icons)) {
-        manifest.icons = manifest.icons.map((icon) => ({ ...icon, src: abs(icon.src) }));
+        manifest.icons = manifest.icons.map((icon) => ({
+          ...icon,
+          src: tenantIcon || abs(icon.src),
+        }));
       }
       if (platformName) {
-        manifest.name = `${platformName} – Mitarbeiter`;
-        manifest.short_name = platformName;
+        manifest.name = `${platformName} – ${t("splashSub")}`;
+        manifest.short_name = platformName.length > 12 ? platformName.slice(0, 12) : platformName;
       }
       if (Array.isArray(manifest.shortcuts)) {
         manifest.shortcuts = manifest.shortcuts.map((shortcut) => ({
           ...shortcut,
           url: startUrl,
           icons: Array.isArray(shortcut.icons)
-            ? shortcut.icons.map((icon) => ({ ...icon, src: abs(icon.src) }))
+            ? shortcut.icons.map((icon) => ({
+              ...icon,
+              src: tenantIcon || abs(icon.src),
+            }))
             : shortcut.icons,
         }));
       }
@@ -4282,7 +4382,12 @@ function renderWorker(payload) {
     });
   }
 
-  if (elements.companyName) elements.companyName.textContent = company.name || t("companyFallback");
+  if (elements.companyName) {
+    elements.companyName.textContent = resolveWorkerCardBrandTitle({
+      portalDisplayName: company.portalDisplayName || company.portal_display_name,
+      companyName: company.name || "",
+    }) || t("companyFallback");
+  }
   if (elements.workerSubcompany) {
     const subcompanyName = String(subcompany.name || "").trim();
     if (subcompanyName) {
@@ -9500,7 +9605,7 @@ function renderWorkerChatMessages(messages) {
   elements.workerChatMessages.innerHTML = messages
     .map((msg) => {
       const side = workerChatSenderSide(msg);
-      const senderLabel = side === "mine" ? t("workerChatFromYou") : t("workerChatFromCompany");
+      const senderLabel = side === "mine" ? t("workerChatFromYou") : getWorkerBrandTitle();
       const body = escapeHtmlBasic(String(msg.body || ""));
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
