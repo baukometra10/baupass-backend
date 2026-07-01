@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260629c";
+const WORKER_BUILD_TAG = "20260629d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2584,16 +2584,51 @@ function ensureWorkerChatDom() {
   return chatCard;
 }
 
+function syncWorkerChatComposeRefs() {
+  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  if (!chatCard) {
+    return;
+  }
+  elements.chatCard = chatCard;
+  elements.workerChatMessages = chatCard.querySelector("#workerChatMessages");
+  elements.workerChatInput = chatCard.querySelector("#workerChatInput");
+  elements.workerChatSendBtn = chatCard.querySelector("#workerChatSendBtn");
+  elements.workerChatFileInput = chatCard.querySelector("#workerChatFileInput");
+  elements.workerChatFileHint = chatCard.querySelector("#workerChatFileHint");
+}
+
+function setWorkerChatComposeEnabled(enabled) {
+  syncWorkerChatComposeRefs();
+  if (elements.workerChatInput) {
+    elements.workerChatInput.disabled = !enabled;
+  }
+  if (elements.workerChatSendBtn) {
+    elements.workerChatSendBtn.disabled = !enabled;
+    if (enabled) {
+      elements.workerChatSendBtn.removeAttribute("disabled");
+    } else {
+      elements.workerChatSendBtn.setAttribute("disabled", "true");
+    }
+  }
+}
+
 function bindWorkerChatComposeEvents() {
-  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
-  const input = elements.workerChatInput || document.getElementById("workerChatInput");
-  const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
-  if (sendBtn && !sendBtn.dataset.chatBound) {
-    sendBtn.dataset.chatBound = "1";
-    sendBtn.addEventListener("click", () => {
+  syncWorkerChatComposeRefs();
+  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  const compose = chatCard?.querySelector(".worker-chat-compose");
+  if (compose && !compose.dataset.chatDelegateBound) {
+    compose.dataset.chatDelegateBound = "1";
+    compose.addEventListener("click", (event) => {
+      const sendBtn = event.target instanceof Element ? event.target.closest("#workerChatSendBtn") : null;
+      if (!sendBtn || sendBtn.disabled) {
+        return;
+      }
+      event.preventDefault();
       void sendWorkerChatMessage();
     });
   }
+  const input = elements.workerChatInput || chatCard?.querySelector("#workerChatInput");
+  const fileInput = elements.workerChatFileInput || chatCard?.querySelector("#workerChatFileInput");
   if (input && !input.dataset.chatBound) {
     input.dataset.chatBound = "1";
     input.addEventListener("keydown", (event) => {
@@ -7452,12 +7487,7 @@ function refreshWorkerChatPanel(options = {}) {
   }
   chatCard.style.removeProperty("display");
   chatCard.classList.remove("hidden");
-  if (elements.workerChatInput) {
-    elements.workerChatInput.disabled = !allowed;
-  }
-  if (elements.workerChatSendBtn) {
-    elements.workerChatSendBtn.disabled = !allowed;
-  }
+  setWorkerChatComposeEnabled(allowed);
   if (!allowed) {
     if (elements.workerChatMessages) {
       elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(planFeatureBlockedMessage("worker_chat"))}</p>`;
@@ -7468,6 +7498,7 @@ function refreshWorkerChatPanel(options = {}) {
     startWorkerChatPolling();
     void loadWorkerChat();
   }
+  bindWorkerChatComposeEvents();
   applyWorkerChatTabLayout(chatCard);
 }
 
@@ -9592,13 +9623,31 @@ async function ensureWorkerChatThread(forceRefresh = false) {
   if (workerChatThreadId && !forceRefresh) {
     return workerChatThreadId;
   }
+  const authHeaders = buildWorkerAuthHeaders();
+  try {
+    const threadsPayload = await fetchJson(`${API_BASE}/chat/threads`, {
+      headers: authHeaders,
+    });
+    const threads = Array.isArray(threadsPayload?.threads) ? threadsPayload.threads : [];
+    if (threads.length) {
+      const sorted = [...threads].sort((left, right) =>
+        String(right.last_message_at || right.updated_at || "").localeCompare(
+          String(left.last_message_at || left.updated_at || "")
+        )
+      );
+      const existing = sorted.find((row) => String(row.subject || "general") === "general") || sorted[0];
+      workerChatThreadId = String(existing?.id || existing?.threadId || "");
+      if (workerChatThreadId) {
+        return workerChatThreadId;
+      }
+    }
+  } catch {
+    // fall back to creating a thread
+  }
   try {
     const created = await fetchJson(`${API_BASE}/chat/threads`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${workerToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ subject: "general" }),
     });
     workerChatThreadId = String(created?.threadId || "");
@@ -9606,14 +9655,8 @@ async function ensureWorkerChatThread(forceRefresh = false) {
       return workerChatThreadId;
     }
   } catch {
-    // fall back to listing existing threads
+    // ignore create errors
   }
-  const threadsPayload = await fetchJson(`${API_BASE}/chat/threads`, {
-    headers: { Authorization: `Bearer ${workerToken}` },
-  });
-  const threads = Array.isArray(threadsPayload?.threads) ? threadsPayload.threads : [];
-  const existing = threads.find((row) => String(row.subject || "general") === "general") || threads[0];
-  workerChatThreadId = String(existing?.id || existing?.threadId || "");
   return workerChatThreadId;
 }
 
@@ -9675,7 +9718,7 @@ async function downloadWorkerChatAttachment(attachmentId, filename) {
   }
   try {
     const response = await fetch(`${API_BASE}/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
-      headers: { Authorization: `Bearer ${workerToken}` },
+      headers: buildWorkerAuthHeaders(),
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -9702,7 +9745,7 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
   form.append("doc_type", "sonstiges");
   const response = await fetch(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/attachments`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${workerToken}` },
+    headers: buildWorkerAuthHeaders(),
     body: form,
   });
   let payload = null;
@@ -9722,7 +9765,8 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
 
 async function loadWorkerChat(options = {}) {
   const quiet = Boolean(options.quiet);
-  if (!workerToken || !elements.workerChatMessages) {
+  syncWorkerChatComposeRefs();
+  if (!getWorkerAuthorizationValue() || !elements.workerChatMessages) {
     return;
   }
   if (!quiet) {
@@ -9737,7 +9781,7 @@ async function loadWorkerChat(options = {}) {
       return;
     }
     const payload = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
-      headers: { Authorization: `Bearer ${workerToken}` },
+      headers: buildWorkerAuthHeaders(),
     });
     renderWorkerChatMessages(payload?.messages || []);
   } catch (error) {
@@ -9771,12 +9815,20 @@ function startWorkerChatPolling() {
 }
 
 async function sendWorkerChatMessage() {
-  if (!workerToken || !elements.workerChatInput) {
+  syncWorkerChatComposeRefs();
+  if (!getWorkerAuthorizationValue()) {
+    showWorkerNotice(t("enterBadgeId"));
     return;
   }
+  const input = elements.workerChatInput || document.getElementById("workerChatInput");
+  if (!input) {
+    showWorkerNotice(t("workerChatUnavailable"));
+    return;
+  }
+  elements.workerChatInput = input;
   const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
   const file = fileInput?.files?.[0] || null;
-  let body = String(elements.workerChatInput.value || "").trim();
+  let body = String(input.value || "").trim();
   if (!body && file) {
     body = t("workerChatAttachmentOnly");
   }
@@ -9785,19 +9837,17 @@ async function sendWorkerChatMessage() {
   }
   const postMessage = async (threadId) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${workerToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ body }),
   });
+  const allowed = workerPlanAllowsFeature("worker_chat");
   try {
     let threadId = await ensureWorkerChatThread();
     if (!threadId) {
       showWorkerNotice(t("workerChatUnavailable"));
       return;
     }
-    elements.workerChatSendBtn?.setAttribute("disabled", "true");
+    setWorkerChatComposeEnabled(false);
     let messageId = "";
     try {
       const sent = await postMessage(threadId);
@@ -9818,7 +9868,7 @@ async function sendWorkerChatMessage() {
     if (file && messageId) {
       await uploadWorkerChatAttachment(threadId, messageId, file);
     }
-    elements.workerChatInput.value = "";
+    input.value = "";
     if (fileInput) {
       fileInput.value = "";
       updateWorkerChatFileHint();
@@ -9832,7 +9882,7 @@ async function sendWorkerChatMessage() {
       elements.workerChatMessages.innerHTML = `<p class="muted-info worker-chat-error">${escapeHtmlBasic(message)}</p>`;
     }
   } finally {
-    elements.workerChatSendBtn?.removeAttribute("disabled");
+    setWorkerChatComposeEnabled(allowed);
   }
 }
 

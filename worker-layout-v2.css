@@ -403,7 +403,7 @@ html[data-theme="dark"] .worker-chat-bubble.is-mine {
 #chatCard .worker-chat-compose {
   flex-shrink: 0;
   position: relative;
-  z-index: 6;
+  z-index: 130;
   display: block;
   margin: 0;
   padding: 8px 10px max(8px, env(safe-area-inset-bottom, 0px));
