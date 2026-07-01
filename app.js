@@ -33055,6 +33055,11 @@ async function handlePasswordChange(event) {
     showSupportReadOnlyAlert();
     return;
   }
+  const form = event.currentTarget;
+  if (form && typeof form.reportValidity === "function" && !form.reportValidity()) {
+    showToast("Bitte alle Felder korrekt ausfüllen (neues Passwort mind. 8 Zeichen).", "error");
+    return;
+  }
   const currentPassword = document.querySelector("#currentPassword")?.value || "";
   const newPassword = document.querySelector("#newPassword")?.value || "";
   const confirmPassword = document.querySelector("#confirmPassword")?.value || "";

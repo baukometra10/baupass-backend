@@ -4961,7 +4961,14 @@ def require_auth(handler):
 
             g.enterprise_permissions = user_permissions(db, user_payload)
             if is_auditor_read_only(db, user_payload) and request.method not in {"GET", "HEAD", "OPTIONS"}:
-                allowed_write = {"/api/logout", "/api/v2/auth/revoke", "/api/me/heartbeat"}
+                allowed_write = {
+                    "/api/logout",
+                    "/api/v2/auth/revoke",
+                    "/api/me/heartbeat",
+                    "/api/me/password",
+                    "/api/me/account",
+                    "/api/me/email",
+                }
                 if request.path not in allowed_write:
                     return jsonify({"error": "auditor_read_only"}), 403
         except Exception:
@@ -12961,7 +12968,14 @@ def create_worker_app_session(db, worker, device_payload=None):
         "worker": serialize_worker_for_app(worker_payload, db=db, company_id=worker["company_id"]),
         "sessionExpiresAt": expires_at,
         "cardType": normalize_worker_type(worker["worker_type"]),
+        "company": build_worker_app_company_payload(db, worker["company_id"]),
     }
+    subcompany_id = worker["subcompany_id"] if "subcompany_id" in worker.keys() else None
+    if subcompany_id:
+        subcompany = db.execute("SELECT name FROM subcompanies WHERE id = ?", (subcompany_id,)).fetchone()
+        session_data["subcompany"] = {"name": subcompany["name"] if subcompany else ""}
+    else:
+        session_data["subcompany"] = {"name": ""}
     try:
         session_data.update(enrich_worker_mobile_session(db, worker, session_token, expires_at, device_payload))
     except Exception:
@@ -13126,6 +13140,32 @@ def worker_badge_qr(worker_id):
     )
 
 
+def build_worker_app_company_payload(db, company_id):
+    from backend.app.platform.company_branding import company_white_label_from_row
+
+    company = db.execute("SELECT * FROM companies WHERE id = ?", (str(company_id),)).fetchone()
+    site_access = get_company_site_access_config(db, company_id)
+    wl = company_white_label_from_row(company)
+    company_name = str(company["name"] if company else "").strip()
+    portal = str(wl.get("portalDisplayName") or "").strip() or company_name
+    return {
+        "id": str(company_id),
+        "name": company_name,
+        "portalDisplayName": portal,
+        "brandingPreset": normalize_branding_preset(
+            company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"
+        ),
+        "brandingAccentColor": str(wl.get("brandingAccentColor") or "").strip(),
+        "brandingLogoData": str(wl.get("brandingLogoData") or "").strip(),
+        "accessMode": site_access["accessMode"],
+        "workStartTime": site_access["workStartTime"],
+        "workEndTime": site_access["workEndTime"],
+        "siteGeofenceRadiusMeters": site_access["siteGeofenceRadiusMeters"],
+        "siteAutoLogoutOnLeave": site_access["siteAutoLogoutOnLeave"],
+        "siteAutoProximityLogin": site_access["siteAutoProximityLogin"],
+    }
+
+
 @require_rate_limit("worker_login")
 def worker_app_join_preview():
     """Resolve badge ID from a one-time join token without consuming it."""
@@ -13147,17 +13187,24 @@ def worker_app_join_preview():
         return jsonify({"error": "invalid_access_token"}), 404
 
     worker = db.execute(
-        "SELECT id, badge_id, deleted_at FROM workers WHERE id = ?",
+        "SELECT id, badge_id, company_id, deleted_at FROM workers WHERE id = ?",
         (token_row["worker_id"],),
     ).fetchone()
     if not worker or worker["deleted_at"]:
         return jsonify({"error": "worker_not_available"}), 404
 
+    company_payload = build_worker_app_company_payload(db, worker["company_id"])
     token_used = bool(token_row["revoked_at"])
     token_expired = token_row["expires_at"] < now_iso()
     return jsonify({
         "badgeId": normalize_badge_id(worker["badge_id"]),
         "workerId": worker["id"],
+        "companyId": str(worker["company_id"] or ""),
+        "company": company_payload,
+        "portalDisplayName": company_payload.get("portalDisplayName") or "",
+        "accent": company_payload.get("brandingAccentColor") or "",
+        "logoData": company_payload.get("brandingLogoData") or "",
+        "preset": company_payload.get("brandingPreset") or "construction",
         "tokenUsed": token_used,
         "tokenExpired": token_expired,
         "tokenValid": not token_used and not token_expired,
@@ -13624,21 +13671,12 @@ def worker_app_me():
     from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
 
     attendance = worker_may_auto_attend_today(db, worker)
+    company_payload = build_worker_app_company_payload(db, worker["company_id"])
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker, db=db),
             "identityLock": identity_lock if identity_lock.get("identityBlocked") else None,
-            "company": {
-                "name": company["name"] if company else "",
-                "brandingPreset": normalize_branding_preset(company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"),
-                **(company_white_label_from_row(company) if company else company_white_label_from_row(None)),
-                "accessMode": site_access["accessMode"],
-                "workStartTime": work_start or site_access["workStartTime"],
-                "workEndTime": work_end or site_access["workEndTime"],
-                "siteGeofenceRadiusMeters": site_access["siteGeofenceRadiusMeters"],
-                "siteAutoLogoutOnLeave": site_access["siteAutoLogoutOnLeave"],
-                "siteAutoProximityLogin": site_access["siteAutoProximityLogin"],
-            },
+            "company": company_payload,
             "subcompany": {
                 "name": subcompany["name"] if subcompany else "",
             },

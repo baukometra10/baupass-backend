@@ -80,9 +80,14 @@ def test_join_preview_get_returns_badge_without_consuming_token(client):
     assert preview.get("badgeId") == badge_id
     assert preview.get("tokenValid") is True
     assert preview.get("tokenUsed") is False
+    assert isinstance(preview.get("company"), dict)
+    assert preview["company"].get("name")
 
     login_response = client.post("/api/worker-app/login", json={"accessToken": access_token})
     assert login_response.status_code == 200
+    login_payload = login_response.get_json()
+    assert isinstance(login_payload.get("company"), dict)
+    assert login_payload["company"].get("portalDisplayName") or login_payload["company"].get("name")
 
     preview_after = client.get(f"/api/worker-app/join-preview?access={access_token}")
     assert preview_after.status_code == 200

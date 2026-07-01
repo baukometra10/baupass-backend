@@ -55,8 +55,11 @@ def company_white_label_from_row(row: Any) -> dict[str, str]:
             return ""
         return str(row[col] or "").strip()
 
+    portal = _get("portal_display_name")
+    if not portal and "name" in keys:
+        portal = _get("name")
     return {
-        "portalDisplayName": _get("portal_display_name"),
+        "portalDisplayName": portal,
         "brandingAccentColor": _get("branding_accent_color"),
         "brandingLogoData": _get("branding_logo_data"),
     }

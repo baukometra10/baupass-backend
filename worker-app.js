@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260629b";
+const WORKER_BUILD_TAG = "20260629c";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -593,7 +593,6 @@ function applyWorkerLogoMarks(logoData, brandTitle, accentColor) {
   });
 }
 
-/** Firmen-Branding auf der Mitarbeiter-Karte (Preset aus Admin/Firma, nicht Rechnung). */
 function applyWorkerCompanyBranding({
   companyPreset,
   companyName,
@@ -651,14 +650,46 @@ function applyWorkerCompanyBranding({
   });
 }
 
+function applyWorkerBrandingFromCompanyPayload(company = {}, extras = {}) {
+  if (!company || typeof company !== "object") return;
+  applyWorkerCompanyBranding({
+    companyPreset: company.brandingPreset || company.branding_preset || extras.preset,
+    companyName: company.name || extras.companyName || "",
+    portalDisplayName: company.portalDisplayName || company.portal_display_name || extras.portalDisplayName || "",
+    brandingAccentColor: company.brandingAccentColor || company.branding_accent_color || extras.accent || "",
+    brandingLogoData: company.brandingLogoData || company.branding_logo_data || extras.logoData || "",
+  });
+}
+
+function applyJoinPreviewBranding(preview) {
+  if (!preview || typeof preview !== "object") return;
+  applyWorkerBrandingFromCompanyPayload(preview.company || {}, {
+    preset: preview.preset || preview.brandingPreset,
+    companyName: preview.companyName,
+    portalDisplayName: preview.portalDisplayName,
+    accent: preview.accent || preview.brandingAccentColor,
+    logoData: preview.logoData || preview.brandingLogoData,
+  });
+}
+
 async function preloadWorkerTenantBranding() {
   try {
     const params = new URLSearchParams(window.location.search);
     const companyId = String(params.get("company_id") || "").trim();
+    const accessToken = readBootstrapAccessToken(params);
     const host = window.location.hostname || "";
+
+    if (accessToken && !companyId) {
+      const preview = await fetchJoinPreview(accessToken);
+      if (preview?.company || preview?.portalDisplayName) {
+        applyJoinPreviewBranding(preview);
+        return;
+      }
+    }
+
     let query = `?host=${encodeURIComponent(host)}`;
     if (companyId) query += `&company_id=${encodeURIComponent(companyId)}`;
-    const res = await fetch(`/api/public/tenant-branding${query}`, { credentials: "include" });
+    const res = await fetch(`${resolveApiRoot(API_BASE)}/api/public/tenant-branding${query}`, { credentials: "include" });
     if (!res.ok) return;
     const branding = await res.json();
     if (!branding || typeof branding !== "object") return;
@@ -2785,6 +2816,7 @@ async function init() {
         qrBadgeId = normalizeBadgeIdInput(joinPreview.badgeId);
         prefillWorkerBadgeField(qrBadgeId, { readOnly: true, focusPin: true });
       }
+      applyJoinPreviewBranding(joinPreview);
     } catch {
       // ignore preview failures
     }
@@ -5587,9 +5619,7 @@ async function completeWorkerLogin(payload, extras = {}) {
     registerWorkerSw();
   }
   void ensureWorkerPushNotifications({ promptIfNeeded: true });
-  setTimeout(() => {
-    void loadWorkerData();
-  }, 2500);
+  void loadWorkerData();
   void syncOfflinePhotoQueue();
   void syncOfflineEventQueue();
 }
@@ -8851,7 +8881,7 @@ function syncWorkerDataToDashboard(payload) {
     }
   }
   if (homeInfoCompany && worker.companyName) {
-    homeInfoCompany.textContent = worker.companyName.textContent || "Baufirma";
+    homeInfoCompany.textContent = worker.companyName.textContent || t("companyFallback");
   }
   if (homeInfoValidUntil && worker.validUntil) {
     homeInfoValidUntil.textContent = worker.validUntil.textContent || "-";
