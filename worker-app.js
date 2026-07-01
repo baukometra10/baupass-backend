@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260629d";
+const WORKER_BUILD_TAG = "20260629f";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -7005,12 +7005,18 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   if (banner) {
     if (cfg.siteApp) {
       if (cfg.attendanceOk === false && cfg.attendanceMessage) {
-        banner.textContent = cfg.attendanceMessage;
+        banner.innerHTML = `<span class="worker-work-hours-message">${escapeHtmlBasic(cfg.attendanceMessage)}</span>`;
       } else if (cfg.workStart && cfg.workEnd) {
-        const dayHint = cfg.isWorkdayToday ? "" : ` · ${t("notAWorkdayToday")}`;
-        banner.textContent = `${t("workHoursToday")}: ${cfg.workStart} – ${cfg.workEnd}${dayHint}`;
+        const dayHint = cfg.isWorkdayToday
+          ? ""
+          : `<span class="worker-work-hours-hint">${escapeHtmlBasic(t("notAWorkdayToday"))}</span>`;
+        banner.innerHTML = `
+          <span class="worker-work-hours-label">${escapeHtmlBasic(t("workHoursToday"))}</span>
+          <span class="worker-work-hours-range">${escapeHtmlBasic(cfg.workStart)} – ${escapeHtmlBasic(cfg.workEnd)}</span>
+          ${dayHint}
+        `.trim();
       } else {
-        banner.textContent = t("workHoursConfigureInAdmin");
+        banner.innerHTML = `<span class="worker-work-hours-message">${escapeHtmlBasic(t("workHoursConfigureInAdmin"))}</span>`;
       }
       banner.classList.remove("hidden");
     } else {

@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260629d";
+const WORKER_BUILD = "20260629f";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",

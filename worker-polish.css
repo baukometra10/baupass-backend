@@ -1057,14 +1057,82 @@ textarea:focus-visible,
 
 .worker-work-hours-banner {
   margin: 0 0 12px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border-radius: var(--ui-radius-md, 12px);
-  background: rgba(10, 87, 192, 0.1);
-  border: 1px solid rgba(10, 87, 192, 0.25);
-  color: var(--ui-light-text, #142a44);
-  font-size: 0.92rem;
+  background: color-mix(in srgb, var(--corp-primary, #0a57c0) 10%, var(--corp-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--corp-primary, #0a57c0) 24%, var(--corp-border, #cfdae8));
+  color: var(--corp-text, #142a44);
+  font-size: 1rem;
   font-weight: 600;
+  line-height: 1.45;
   text-align: center;
+}
+
+.worker-work-hours-banner .worker-work-hours-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--corp-muted, #607995);
+  margin-bottom: 2px;
+}
+
+.worker-work-hours-banner .worker-work-hours-range {
+  display: block;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--corp-text, #142a44);
+}
+
+.worker-work-hours-banner .worker-work-hours-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--corp-muted, #607995);
+}
+
+.worker-work-hours-banner .worker-work-hours-message {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--corp-text, #142a44);
+}
+
+html[data-theme="dark"] .worker-work-hours-banner {
+  background: color-mix(in srgb, var(--corp-primary, #2b79ea) 18%, var(--corp-surface, #0f1e34));
+  border-color: color-mix(in srgb, var(--corp-primary, #2b79ea) 38%, var(--corp-border, #29466c));
+  color: var(--corp-text, #e8f1ff);
+}
+
+html[data-theme="dark"] .worker-work-hours-banner .worker-work-hours-label,
+html[data-theme="dark"] .worker-work-hours-banner .worker-work-hours-hint {
+  color: var(--corp-muted, #b8c9de);
+}
+
+html[data-theme="dark"] .worker-work-hours-banner .worker-work-hours-range,
+html[data-theme="dark"] .worker-work-hours-banner .worker-work-hours-message {
+  color: var(--corp-text, #f3f7ff);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .worker-work-hours-banner {
+    background: color-mix(in srgb, var(--corp-primary, #2b79ea) 18%, var(--corp-surface, #0f1e34));
+    border-color: color-mix(in srgb, var(--corp-primary, #2b79ea) 38%, var(--corp-border, #29466c));
+    color: var(--corp-text, #e8f1ff);
+  }
+
+  html:not([data-theme="light"]) .worker-work-hours-banner .worker-work-hours-label,
+  html:not([data-theme="light"]) .worker-work-hours-banner .worker-work-hours-hint {
+    color: var(--corp-muted, #b8c9de);
+  }
+
+  html:not([data-theme="light"]) .worker-work-hours-banner .worker-work-hours-range,
+  html:not([data-theme="light"]) .worker-work-hours-banner .worker-work-hours-message {
+    color: var(--corp-text, #f3f7ff);
+  }
 }
 
 .worker-site-gps-status {

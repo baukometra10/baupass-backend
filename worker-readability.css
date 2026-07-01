@@ -1,0 +1,213 @@
+/**
+ * Worker PWA — Lesbarkeit & stabiles Zoom-Verhalten (iPhone/Android PWA)
+ * Wird als letztes Stylesheet geladen und hebt zu kleine Schrift an.
+ */
+
+:root {
+  --w-readable-body: 1rem;
+  --w-readable-caption: 0.875rem;
+  --w-readable-min: 0.8125rem;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-size: 16px;
+  touch-action: manipulation;
+}
+
+body {
+  touch-action: manipulation;
+  font-size: var(--w-readable-body);
+  line-height: 1.5;
+}
+
+body.worker-loaded {
+  font-size: var(--w-readable-body);
+  line-height: 1.5;
+}
+
+/* iOS zoomt bei Fokus, wenn Inputs kleiner als 16px sind */
+body.worker-loaded input,
+body.worker-loaded select,
+body.worker-loaded textarea,
+.login-sparkasse input,
+.login-sparkasse select,
+.login-sparkasse textarea,
+.form-input-sparkasse,
+#workerAccessToken,
+#workerBadgePin,
+#workerChatInput,
+.worker-chat-compose textarea {
+  font-size: 16px !important;
+  line-height: 1.45;
+}
+
+/* Fließtext & Hilfstexte */
+.worker-loaded .muted-info,
+.worker-loaded p.muted-info,
+.worker-panel-error,
+.login-copy-sparkasse,
+.notification-center-empty {
+  font-size: var(--w-readable-caption) !important;
+  line-height: 1.5;
+}
+
+.worker-loaded .section-kicker,
+.section-kicker,
+.worker-loaded .section-head .section-kicker {
+  font-size: var(--w-readable-caption) !important;
+  letter-spacing: 0.06em;
+}
+
+.worker-loaded .section-head h3,
+.worker-loaded .section-head.compact-head h3,
+#chatCard .section-head h3 {
+  font-size: 1.125rem !important;
+  line-height: 1.35;
+}
+
+/* Navigation & Top-Bar */
+.worker-bottom-nav .nav-label,
+.nav-label {
+  font-size: var(--w-readable-min) !important;
+  line-height: 1.2;
+}
+
+.stb-connection-label {
+  font-size: var(--w-readable-min) !important;
+}
+
+.stb-brand-name {
+  font-size: 1rem !important;
+}
+
+/* Start-Kacheln */
+#homeCompactInfo .home-info-label {
+  font-size: var(--w-readable-caption) !important;
+}
+
+#homeCompactInfo .home-info-value {
+  font-size: 1rem !important;
+  line-height: 1.35;
+}
+
+/* Menü & Listen */
+.worker-menu-label,
+.worker-menu-btn,
+.worker-quick-menu .quick-menu-btn,
+.timesheet-item,
+.leave-request-item,
+.document-item,
+.deployment-plan-row,
+.smart-hub-item-title,
+.smart-hub-item-body {
+  font-size: var(--w-readable-body) !important;
+  line-height: 1.45;
+}
+
+.worker-menu-desc,
+.timesheet-meta,
+.leave-request-meta,
+.document-meta,
+.doc-meta,
+.deployment-plan-meta {
+  font-size: var(--w-readable-caption) !important;
+  line-height: 1.45;
+}
+
+/* Chat */
+.worker-chat-body,
+#chatCard .worker-chat-body,
+#chatCard .worker-chat-bubble {
+  font-size: var(--w-readable-body) !important;
+  line-height: 1.5;
+}
+
+.worker-chat-sender,
+#chatCard .worker-chat-sender {
+  font-size: var(--w-readable-caption) !important;
+}
+
+.worker-chat-meta,
+#chatCard .worker-chat-meta,
+.worker-chat-time,
+.worker-chat-read {
+  font-size: var(--w-readable-min) !important;
+}
+
+/* Benachrichtigungen */
+.notification-center-item-title {
+  font-size: 1rem !important;
+  line-height: 1.35;
+}
+
+.notification-center-item-body {
+  font-size: var(--w-readable-body) !important;
+  line-height: 1.45;
+}
+
+.notification-center-item-type,
+.notification-center-item-time {
+  font-size: var(--w-readable-caption) !important;
+}
+
+/* Arbeitszeit heute — von/bis gut lesbar */
+.worker-work-hours-banner {
+  font-size: 1rem !important;
+}
+
+.worker-work-hours-banner .worker-work-hours-range {
+  font-size: 1.125rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+}
+
+.worker-work-hours-banner .worker-work-hours-label {
+  font-size: 0.875rem !important;
+}
+
+html[data-theme="light"] .worker-work-hours-banner .worker-work-hours-range {
+  color: #0f2744 !important;
+}
+
+html[data-theme="dark"] .worker-work-hours-banner .worker-work-hours-range,
+html[data-theme="dark"] .worker-work-hours-banner .worker-work-hours-message {
+  color: #f3f7ff !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .worker-work-hours-banner .worker-work-hours-range,
+  html:not([data-theme="light"]) .worker-work-hours-banner .worker-work-hours-message {
+    color: #f3f7ff !important;
+  }
+}
+
+button,
+[role="button"],
+.nav-tab,
+.worker-menu-btn,
+.worker-chat-send-btn,
+.primary,
+.ghost,
+.small-btn {
+  touch-action: manipulation;
+}
+
+/* Kontrast für gedämpfte Texte im hellen Modus */
+html[data-theme="light"] .worker-loaded .muted-info,
+html:not([data-theme="dark"]) .worker-loaded .muted-info {
+  color: #4a627e;
+}
+
+html[data-theme="dark"] .worker-loaded .muted-info,
+html[data-theme="dark"] .muted-info {
+  color: #b8c9de;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .worker-loaded .muted-info,
+  html:not([data-theme="light"]) .muted-info {
+    color: #b8c9de;
+  }
+}

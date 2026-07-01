@@ -73,7 +73,7 @@
     })();
   </script>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="Content-Language" content="de" />
   <meta name="google" content="notranslate" />
   <meta name="description" content="Digitaler Mitarbeiterausweis – schneller Check-in am Drehkreuz. Optimiert für iPhone und Android." />
@@ -86,7 +86,7 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" sizes="192x192" href="data:," id="workerAppFavicon" />
   <link rel="apple-touch-icon" sizes="192x192" href="data:," id="workerAppTouchIcon" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260629b" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260629f" />
   <title>Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -94,28 +94,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker-theme.css?v=20260614loginfix1" />
-  <link rel="stylesheet" href="./worker.css?v=20260629b" />
+  <link rel="stylesheet" href="./worker-theme.css?v=20260629f" />
+  <link rel="stylesheet" href="./worker.css?v=20260629f" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260629b" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260629b" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260629b" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260629b" />
-  <script src="./tenant-brand-icon.js?v=20260629b"></script>
+  <link rel="stylesheet" href="./worker-polish.css?v=20260629f" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260629f" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260629f" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260629f" />
+  <link rel="stylesheet" href="./worker-readability.css?v=20260629f" />
+  <script src="./tenant-brand-icon.js?v=20260629f"></script>
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
     #chatCard .worker-chat-row{display:flex;flex-direction:column;width:100%;gap:4px}
     #chatCard .worker-chat-row.is-company{align-items:flex-start;padding-right:12%}
     #chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-left:12%}
-    #chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}
+    #chatCard .worker-chat-sender{font-size:.8125rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}
     #chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}
     #chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}
     #chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}
     #chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-bottom-left-radius:5px}
     #chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-bottom-right-radius:5px}
     #chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500}
-    #chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;font-size:.78rem;color:#64748b}
+    #chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;font-size:.8125rem;color:#64748b}
     #chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:#9a3412}
     #chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:#2563eb}
     #chatCard .worker-chat-read.is-read{color:#059669;font-weight:700}
@@ -1471,7 +1472,7 @@
       window.__workerApplyInlineLang = applyLang;
     })();
   </script>
-  <script src="./tenant-brand-icon.js?v=20260629b"></script>
+  <script src="./tenant-brand-icon.js?v=20260629f"></script>
   <script>
     (function bootstrapWorkerFavicon() {
       if (!window.TenantBrandIcon) return;
