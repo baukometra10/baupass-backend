@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../core/tenant_branding.dart';
 import '../services/digital_card_repository.dart';
+import 'tenant_brand_mark.dart';
 
 class DigitalPassCard extends StatelessWidget {
   const DigitalPassCard({
@@ -18,6 +20,7 @@ class DigitalPassCard extends StatelessWidget {
     this.photoData,
     this.dynamicQr,
     this.subcompany,
+    this.branding,
   });
 
   final String firstName;
@@ -30,13 +33,21 @@ class DigitalPassCard extends StatelessWidget {
   final String? photoData;
   final DynamicQrPayload? dynamicQr;
   final String? subcompany;
+  final TenantBranding? branding;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tenant = branding ?? TenantBrandingScope.of(context);
+    final brandLabel = tenant.displayName.isNotEmpty ? tenant.displayName : companyName;
     final name = '$firstName $lastName'.trim();
     final qrValue = dynamicQr?.qrToken ?? badgeId;
     final remaining = dynamicQr?.remainingSec ?? 0;
+    final gradientStart = tenant.accentColor ?? theme.colorScheme.primary;
+    final gradientEnd = Color.alphaBlend(
+      Colors.white.withValues(alpha: 0.12),
+      tenant.accentColor ?? theme.colorScheme.primaryContainer,
+    );
 
     return Card(
       elevation: 4,
@@ -45,10 +56,7 @@ class DigitalPassCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.primary,
-              theme.colorScheme.primaryContainer.withOpacity(0.95),
-            ],
+            colors: [gradientStart, gradientEnd.withValues(alpha: 0.95)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -59,17 +67,20 @@ class DigitalPassCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.construction, color: Colors.white),
+                TenantBrandMark(branding: tenant, size: 28, borderRadius: 8),
                 const SizedBox(width: 8),
-                Text(
-                  'BAUPASS',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Text(
+                    brandLabel.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 if (remaining > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -121,7 +132,7 @@ class DigitalPassCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Text(companyName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            Text(brandLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
             if (subcompany != null && subcompany!.isNotEmpty)
               Text(subcompany!, style: const TextStyle(color: Colors.white70, fontSize: 12)),
             const SizedBox(height: 8),

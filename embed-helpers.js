@@ -408,27 +408,53 @@
       document.body.setAttribute("data-portal-display-name", displayName);
     }
     const logoData = String(branding.logoData || branding.brandingLogoData || "").trim();
-    const chipFallback = "/branding/suppix-ai-mark.svg";
-    const resolvedLogo = logoData || "/branding/suppix-ai-logo.svg";
-    const resolvedSidebarLogo = logoData
-      ? (logoData.includes("suppix-ai-logo") && !logoData.includes("-dark") && !logoData.startsWith("data:")
-        ? "/branding/suppix-ai-logo-dark.svg"
-        : logoData)
-      : "/branding/suppix-ai-logo-dark.svg";
+    const chipFallback = global.TenantBrandIcon
+      ? global.TenantBrandIcon.resolveTenantIconHref({
+          brandTitle: displayName || "WorkPass",
+          logoData: "",
+          accentColor: accent || primary,
+        })
+      : "";
+    const resolvedLogo = logoData || chipFallback;
+    const resolvedSidebarLogo = logoData || chipFallback;
     applyTenantFavicon({ logoData: resolvedLogo, title: displayName, accentColor: accent || primary });
     document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
       const useChip = img.classList.contains("tenant-logo-chip")
         || img.classList.contains("foreman-header-logo")
         || img.classList.contains("tenant-logo-img");
       const fallback = useChip ? chipFallback : resolvedSidebarLogo;
-      const nextSrc = logoData ? logoData : fallback;
+      const nextSrc = logoData || fallback;
+      if (!nextSrc) {
+        img.classList.add("hidden");
+        return;
+      }
       img.src = nextSrc;
       img.classList.remove("hidden");
       img.onerror = function onTenantLogoError() {
         this.onerror = null;
-        if (this.src !== fallback) this.src = fallback;
+        if (fallback && this.src !== fallback) this.src = fallback;
         this.classList.remove("hidden");
       };
+    });
+    document.querySelectorAll("[data-tenant-logo-fallback]").forEach((el) => {
+      if (!displayName) return;
+      if (global.TenantBrandIcon) {
+        el.textContent = global.TenantBrandIcon.deriveBrandInitials(displayName);
+      }
+      el.classList.toggle("hidden", Boolean(logoData || chipFallback));
+    });
+    document.querySelectorAll(".login-brand-logo").forEach((img) => {
+      const nextSrc = logoData || resolvedLogo;
+      if (!nextSrc) {
+        img.classList.add("hidden");
+        return;
+      }
+      img.src = nextSrc;
+      img.classList.remove("hidden");
+      img.alt = displayName || img.alt || "";
+    });
+    document.querySelectorAll(".login-brand-product").forEach((el) => {
+      if (displayName) el.textContent = `${displayName} · Betrieb`;
     });
     document.querySelectorAll(".website-logo-auth, .website-logo-sync.website-logo-auth").forEach((img) => {
       img.src = resolvedLogo;

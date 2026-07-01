@@ -11,6 +11,8 @@ import '../ai/worker_ai_screen.dart';
 import '../chat/chat_screen.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/worker_cache.dart';
+import '../../core/tenant_branding.dart';
+import '../../widgets/tenant_brand_mark.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../notifications/notifications_sheet.dart';
 
@@ -175,12 +177,26 @@ class _HomeScreenState extends State<HomeScreen> {
     final company = _profile?['company'] as Map<String, dynamic>?;
     final subcompany = _profile?['subcompany'] as Map<String, dynamic>?;
     final siteAccess = _profile?['siteAccess'] as Map<String, dynamic>?;
+    final branding = TenantBranding.fromMePayload(_profile);
+    final brandLabel = branding.displayName;
     final openCheckIn = siteAccess?['openCheckInToday'] == true;
     final status = worker?['status'] as String? ?? 'aktiv';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WorkPass'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TenantBrandMark(branding: branding, size: 28, borderRadius: 8),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                brandLabel,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Mitteilungen',
@@ -221,12 +237,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 lastName: worker['lastName'] as String? ?? '',
                 role: worker['role'] as String? ?? '',
                 badgeId: worker['badgeId'] as String? ?? '-',
-                companyName: company?['name'] as String? ?? '',
+                companyName: brandLabel,
                 subcompany: subcompany?['name'] as String?,
                 validUntil: worker['validUntil'] as String? ?? '-',
                 status: status,
                 photoData: worker['photoData'] as String?,
                 dynamicQr: _dynamicQr,
+                branding: branding,
               ),
             const SizedBox(height: 12),
             Row(
@@ -239,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                _infoTile('Firma', company?['name'] as String? ?? '–'),
+                _infoTile('Firma', brandLabel),
                 const SizedBox(width: 8),
                 _infoTile('Gültig bis', worker?['validUntil'] as String? ?? '–'),
               ],

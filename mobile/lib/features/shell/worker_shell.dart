@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/tenant_branding.dart';
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
@@ -72,6 +73,7 @@ class WorkerShellState extends State<WorkerShell> {
   int _index = 0;
   int _tasksSubTab = 0;
   int _offlinePending = 0;
+  TenantBranding _branding = TenantBranding.fallback;
 
   @override
   void initState() {
@@ -132,11 +134,15 @@ class WorkerShellState extends State<WorkerShell> {
       final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
       if (!mounted) return;
+      setState(() => _branding = TenantBranding.fromMePayload(me));
       _startGeofence(me);
     } catch (_) {
       final cached = await widget.workerCache.loadProfile();
       if (!mounted) return;
-      if (cached != null) _startGeofence(cached);
+      if (cached != null) {
+        setState(() => _branding = TenantBranding.fromMePayload(cached));
+        _startGeofence(cached);
+      }
     }
   }
 
@@ -207,38 +213,48 @@ class WorkerShellState extends State<WorkerShell> {
       ),
     ];
 
-    return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) {
-          setState(() => _index = i);
-          if (i == 1) _refreshBadges();
-          widget.usage.trackTab(
-            tabIndex: i,
-            bearerToken: widget.session.bearer,
-            deviceId: widget.session.deviceId,
-          );
-        },
-        destinations: [
-          const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: _offlinePending > 0,
-              label: Text('$_offlinePending'),
-              child: const Icon(Icons.nfc_outlined),
-            ),
-            selectedIcon: Badge(
-              isLabelVisible: _offlinePending > 0,
-              label: Text('$_offlinePending'),
-              child: const Icon(Icons.nfc),
-            ),
-            label: 'Check-in',
+    return TenantBrandingScope(
+      branding: _branding,
+      child: Theme(
+        data: _branding.accentColor != null
+            ? Theme.of(context).copyWith(
+                colorScheme: ColorScheme.fromSeed(seedColor: _branding.accentColor!),
+              )
+            : Theme.of(context),
+        child: Scaffold(
+          body: IndexedStack(index: _index, children: pages),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: (i) {
+              setState(() => _index = i);
+              if (i == 1) _refreshBadges();
+              widget.usage.trackTab(
+                tabIndex: i,
+                bearerToken: widget.session.bearer,
+                deviceId: widget.session.deviceId,
+              );
+            },
+            destinations: [
+              const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),
+              NavigationDestination(
+                icon: Badge(
+                  isLabelVisible: _offlinePending > 0,
+                  label: Text('$_offlinePending'),
+                  child: const Icon(Icons.nfc_outlined),
+                ),
+                selectedIcon: Badge(
+                  isLabelVisible: _offlinePending > 0,
+                  label: Text('$_offlinePending'),
+                  child: const Icon(Icons.nfc),
+                ),
+                label: 'Check-in',
+              ),
+              const NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
+              const NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
+              const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
+            ],
           ),
-          const NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
-          const NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
-          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
-        ],
+        ),
       ),
     );
   }

@@ -2,8 +2,11 @@
 
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
+import '../../core/tenant_branding.dart';
 import '../../services/location_service.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/tenant_branding_loader.dart';
+import '../../widgets/tenant_brand_mark.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -32,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _tokenController = TextEditingController();
   bool _loading = false;
   String? _error;
+  TenantBranding _branding = TenantBranding.fallback;
 
   @override
   void initState() {
@@ -40,6 +44,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (widget.initialError != null && widget.initialError!.isNotEmpty) {
       _error = widget.initialError;
     }
+    _loadBranding();
+  }
+
+  Future<void> _loadBranding() async {
+    final branding = await TenantBrandingLoader.loadPublic();
+    if (!mounted) return;
+    setState(() => _branding = branding);
   }
 
   @override
@@ -103,7 +114,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WorkPass Mitarbeiter'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TenantBrandMark(branding: _branding, size: 28, borderRadius: 8),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                _branding.displayName,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [

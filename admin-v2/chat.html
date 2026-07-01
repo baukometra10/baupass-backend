@@ -6,10 +6,9 @@
   <meta name="theme-color" content="#050816" />
   <meta name="apple-mobile-web-app-title" content="WorkPass Mitarbeiter-Chat" />
   <meta name="application-name" content="WorkPass Mitarbeiter-Chat" />
-  <title>SUPPIX — Mitarbeiter-Chat</title>
-  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <title>Mitarbeiter-Chat</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="data:," id="chatAppTouchIcon" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="data:," />
   <style>
     :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --input-bg:#0f1419; --item-bg:rgba(255,255,255,0.03); }
     body.theme-white { --item-bg: rgba(15,23,42,0.04); --input-bg: #ffffff; --bg:#f1f5f9; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,0.12); }
@@ -99,6 +98,8 @@
       </div>
     </section>
   </main>
+  <script src="/tenant-brand-icon.js?v=20260629a"></script>
+  <script src="/embed-helpers.js?v=20260629a"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script>
@@ -109,6 +110,9 @@
     const token = wpGet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token") || wpGet(WP?.KEYS?.SESSION_TOKEN || "workpass-session-token") || "";
     const backLink = document.getElementById("backLink");
     if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
+    if (window.BaupassAuth?.resolveTenantBranding) {
+      void window.BaupassAuth.resolveTenantBranding({ companyId: companyId || undefined });
+    }
     let threads = [];
     let currentThreadId = "";
     let currentWorkerId = "";

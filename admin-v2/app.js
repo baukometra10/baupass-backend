@@ -589,6 +589,9 @@ async function apiMultipart(path, { fields = {}, fileField = "file", file } = {}
 function showLogin() {
   hideAllSessionViews();
   $("loginView").classList.remove("hidden");
+  if (window.BaupassAuth?.loadPublicTenantBranding) {
+    void window.BaupassAuth.loadPublicTenantBranding();
+  }
 }
 
 function showDashboard() {
@@ -4095,4 +4098,7 @@ $("satisfactionSurveyForm")?.addEventListener("submit", async (ev) => {
 });
 
 bootSession();
+if (window.BaupassAuth?.loadPublicTenantBranding) {
+  void window.BaupassAuth.loadPublicTenantBranding();
+}
 bindSurveyInvitePanelActions();

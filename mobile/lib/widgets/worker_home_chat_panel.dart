@@ -7,6 +7,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../core/session_store.dart';
+import '../core/tenant_branding.dart';
 import '../services/chat_repository.dart';
 
 /// Kompakter Chat auf dem Start-Tab (wie PWA home-chat-card).
@@ -139,6 +140,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final branding = TenantBrandingScope.of(context);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -153,7 +155,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
             Row(
               children: [
                 Text(
-                  'Chat mit Firma',
+                  branding.chatTitle,
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
@@ -213,7 +215,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isWorker ? 'Du' : 'Firma',
+                              isWorker ? 'Du' : branding.displayName,
                               style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 2),

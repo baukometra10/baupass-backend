@@ -29,10 +29,9 @@
       }
     })();
   </script>
-  <link rel="shortcut icon" href="/favicon.ico?v=workpass20260624" />
-  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png?v=workpass20260624" />
-  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg?v=workpass20260624" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png?v=workpass20260624" />
+  <link rel="shortcut icon" href="data:," id="adminAppFavicon" />
+  <link rel="apple-touch-icon" sizes="192x192" href="data:," id="adminAppTouchIcon" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="data:," />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
   <link rel="stylesheet" href="styles.css?v=20260624geofence1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -49,9 +48,9 @@
       <p class="muted small" data-i18n="login.embedRequired">Bitte zuerst in WorkPass anmelden. Betrieb öffnet sich automatisch nach erfolgreicher Anmeldung.</p>
     </section>
     <section id="loginView" class="panel login-panel hidden">
-      <div class="login-brand-block" aria-label="Suppix AI">
-        <img class="login-brand-logo" src="/branding/suppix-ai-logo.svg" alt="Suppix AI" />
-        <p class="login-brand-product">WorkPass · Betrieb</p>
+      <div class="login-brand-block" aria-label="Tenant brand">
+        <img class="login-brand-logo" data-tenant-logo src="" alt="" hidden />
+        <p class="login-brand-product" data-tenant-brand-title>WorkPass · Betrieb</p>
       </div>
       <label class="lang-row">
         <span data-i18n="lang">Sprache</span>
@@ -89,8 +88,8 @@
         <aside class="app-sidebar" id="appSidebar" aria-label="Navigation">
           <div class="sidebar-brand">
             <span class="sidebar-logo" aria-hidden="true">
-              <img data-tenant-logo class="tenant-logo-img" src="/branding/suppix-ai-mark.svg" alt="Suppix AI" onerror="this.onerror=null;this.src='/branding/suppix-ai-mark.svg'" />
-              <span data-tenant-logo-fallback>AI</span>
+              <img data-tenant-logo class="tenant-logo-img hidden" src="" alt="" />
+              <span data-tenant-logo-fallback>WP</span>
             </span>
             <div>
               <strong id="sidebarBrandTitle" data-tenant-brand-title data-i18n="app.title">WorkPass Admin</strong>
@@ -477,7 +476,8 @@
   </div>
 
   <script src="/geo-precision.js?v=20260624geofence12"></script>
-  <script src="/embed-helpers.js?v=20260624wp1"></script>
+  <script src="/tenant-brand-icon.js?v=20260629a"></script>
+  <script src="/embed-helpers.js?v=20260629a"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>

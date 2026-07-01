@@ -8,6 +8,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/session_store.dart';
+import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -177,9 +178,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final branding = TenantBrandingScope.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat mit Firma'),
+        title: Text(branding.chatTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -254,8 +256,17 @@ class _ChatScreenState extends State<ChatScreen> {
                                                       letterSpacing: 0.4,
                                                       color: Theme.of(context).colorScheme.primary,
                                                     ),
+                                              )
+                                            else
+                                              Text(
+                                                branding.displayName,
+                                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                      fontWeight: FontWeight.w800,
+                                                      letterSpacing: 0.4,
+                                                      color: const Color(0xFFC2410C),
+                                                    ),
                                               ),
-                                            if (isWorker) const SizedBox(height: 4),
+                                            const SizedBox(height: 4),
                                             if ((item['body'] as String? ?? '').trim().isNotEmpty)
                                               Text(
                                                 item['body'] as String? ?? '',

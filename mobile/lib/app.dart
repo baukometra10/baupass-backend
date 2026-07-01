@@ -185,7 +185,7 @@ class _WorkerAppState extends State<WorkerApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
-      title: 'WorkPass Mitarbeiter',
+      title: 'Mitarbeiter',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E8C)),
         useMaterial3: true,
