@@ -84,6 +84,22 @@ class TenantBranding {
 
   String get chatTitle => displayName.isEmpty ? 'Chat mit Firma' : 'Chat mit $displayName';
 
+  static const Color defaultSeed = Color(0xFF1B5E8C);
+
+  Color get effectiveSeed => accentColor ?? defaultSeed;
+
+  Color get onAccentColor {
+    return effectiveSeed.computeLuminance() > 0.55 ? const Color(0xFF111827) : Colors.white;
+  }
+
+  ThemeData themeData({ThemeData? base}) {
+    final scheme = ColorScheme.fromSeed(seedColor: effectiveSeed);
+    if (base == null) {
+      return ThemeData(colorScheme: scheme, useMaterial3: true);
+    }
+    return base.copyWith(colorScheme: scheme);
+  }
+
   static String deriveInitials(String name) {
     final cleaned = name.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (cleaned.isEmpty) return 'MI';

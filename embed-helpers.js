@@ -392,8 +392,14 @@
     ).trim();
     const primary = String(branding.primaryColor || accent || "").trim();
     if (/^#[0-9a-f]{6}$/i.test(accent)) {
-      document.documentElement.style.setProperty("--accent", accent);
-      document.documentElement.style.setProperty("--company-accent", accent);
+      if (global.TenantBrandIcon?.applyAccentVariables) {
+        global.TenantBrandIcon.applyAccentVariables(document.documentElement, accent);
+      } else {
+        document.documentElement.style.setProperty("--accent", accent);
+        document.documentElement.style.setProperty("--company-accent", accent);
+      }
+    } else if (global.TenantBrandIcon?.clearAccentVariables) {
+      global.TenantBrandIcon.clearAccentVariables(document.documentElement);
     }
     if (/^#[0-9a-f]{6}$/i.test(primary)) {
       document.documentElement.style.setProperty("--brand-primary", primary);

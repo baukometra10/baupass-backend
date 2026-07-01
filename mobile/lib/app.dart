@@ -206,10 +206,7 @@ class _WorkerAppState extends State<WorkerApp> {
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
       title: _appBranding.displayName,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E8C)),
-        useMaterial3: true,
-      ),
+      theme: _appBranding.themeData(),
       home: _bootstrapping
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : _session != null

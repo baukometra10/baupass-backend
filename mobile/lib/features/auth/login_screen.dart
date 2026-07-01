@@ -114,7 +114,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return TenantBrandingScope(
+      branding: _branding,
+      child: Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -144,6 +146,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _tokenForm(),
         ],
       ),
+    ),
     );
   }
 

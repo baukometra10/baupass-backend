@@ -17875,9 +17875,14 @@ async function loadPublicBranding() {
       root.style.setProperty("--teal-soft", data.primaryColor);
       root.style.setProperty("--teal", data.primaryColor);
     }
-    if (data.accentColor && /^#[0-9a-fA-F]{6}$/.test(data.accentColor)) {
-      root.style.setProperty("--brand-accent", data.accentColor);
-      root.style.setProperty("--accent", data.accentColor);
+    const accentValue = String(data.accentColor || data.accent || "").trim();
+    if (/^#[0-9a-fA-F]{6}$/i.test(accentValue)) {
+      if (window.TenantBrandIcon?.applyAccentVariables) {
+        window.TenantBrandIcon.applyAccentVariables(root, accentValue);
+      } else {
+        root.style.setProperty("--brand-accent", accentValue);
+        root.style.setProperty("--accent", accentValue);
+      }
     }
     const preset = String(data.preset || data.brandingPreset || "").trim().toLowerCase();
     if (["construction", "industry", "premium"].includes(preset)) {
@@ -25657,8 +25662,14 @@ function applyCompanyWhiteLabelStyles(company) {
   const wl = getCompanyWhiteLabel(company);
   const root = document.documentElement;
   if (/^#[0-9a-f]{6}$/i.test(wl.brandingAccentColor)) {
-    root.style.setProperty("--company-accent", wl.brandingAccentColor);
-    root.style.setProperty("--accent", wl.brandingAccentColor);
+    if (window.TenantBrandIcon?.applyAccentVariables) {
+      window.TenantBrandIcon.applyAccentVariables(root, wl.brandingAccentColor);
+    } else {
+      root.style.setProperty("--company-accent", wl.brandingAccentColor);
+      root.style.setProperty("--accent", wl.brandingAccentColor);
+    }
+  } else if (window.TenantBrandIcon?.clearAccentVariables) {
+    window.TenantBrandIcon.clearAccentVariables(root);
   } else {
     root.style.removeProperty("--company-accent");
   }

@@ -7,6 +7,7 @@
   --accent: #38bdf8;
   --accent-hover: #7dd3fc;
   --accent-soft: rgba(56, 189, 248, 0.14);
+  --accent-on: #ffffff;
   --danger: #fb7185;
   --border: rgba(120, 156, 255, 0.16);
   --sidebar-w: 248px;
@@ -319,7 +320,7 @@ button {
   border-radius: 8px;
   padding: 0.65rem 1rem;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-on, #fff);
   font-weight: 600;
 }
 

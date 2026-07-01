@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260629a";
+const WORKER_BUILD_TAG = "20260629b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -611,9 +611,15 @@ function applyWorkerCompanyBranding({
   const hasCustomBranding = Boolean(logoSrc) || /^#[0-9a-f]{6}$/i.test(accent);
 
   if (/^#[0-9a-f]{6}$/i.test(accent)) {
-    document.documentElement.style.setProperty("--worker-card-accent", accent);
-    document.documentElement.style.setProperty("--accent", accent);
-    document.documentElement.style.setProperty("--corp-primary", accent);
+    if (window.TenantBrandIcon?.applyAccentVariables) {
+      window.TenantBrandIcon.applyAccentVariables(document.documentElement, accent);
+    } else {
+      document.documentElement.style.setProperty("--worker-card-accent", accent);
+      document.documentElement.style.setProperty("--accent", accent);
+      document.documentElement.style.setProperty("--corp-primary", accent);
+    }
+  } else if (window.TenantBrandIcon?.clearAccentVariables) {
+    window.TenantBrandIcon.clearAccentVariables(document.documentElement);
   } else {
     document.documentElement.style.removeProperty("--worker-card-accent");
     document.documentElement.style.removeProperty("--corp-primary");

@@ -270,7 +270,7 @@ body.wallet-immersive .worker-pass {
 
 .quick-menu-btn.active {
   background: var(--accent, #d95d39);
-  color: #fff;
+  color: var(--accent-on, #fff);
   border-color: transparent;
 }
 
@@ -2874,7 +2874,7 @@ body.splash-released .login-card {
 
 .pin-lock-form .primary {
   background: var(--accent);
-  color: white;
+  color: var(--accent-on, #fff);
 }
 
 .pin-lock-form .primary:active {
@@ -7238,7 +7238,7 @@ body.worker-loaded .worker-notice {
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #fff;
+  color: var(--accent-on, #fff);
   line-height: 1;
 }
 

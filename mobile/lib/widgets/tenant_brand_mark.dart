@@ -41,7 +41,7 @@ class TenantBrandMark extends StatelessWidget {
       child: Text(
         branding.initials,
         style: TextStyle(
-          color: Colors.white,
+          color: branding.onAccentColor,
           fontWeight: FontWeight.w800,
           fontSize: size * (branding.initials.length > 1 ? 0.36 : 0.42),
           letterSpacing: 0.5,
