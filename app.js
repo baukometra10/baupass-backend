@@ -1501,6 +1501,19 @@ const UI_TRANSLATIONS = {
     companyAdminPasswordPlaceholder: "z.B. Sicher!2025",
     btnCreateCompany: "Firma anlegen",
     accountEyebrow: "Konto",
+    accountProfileH3: "Anmeldedaten",
+    accountProfileHint: "Benutzername und Anzeigename ändern — aktuelles Passwort zur Bestätigung nötig.",
+    labelDisplayName: "Anzeigename",
+    labelUsername: "Benutzername (Login)",
+    labelAccountConfirmPassword: "Aktuelles Passwort (Bestätigung)",
+    labelConfirmPassword: "Neues Passwort bestätigen",
+    btnSaveAccount: "Anmeldedaten speichern",
+    alertAccountUpdated: "Anmeldedaten gespeichert.",
+    alertAccountUpdateFailed: "Speichern fehlgeschlagen: {error}",
+    alertUsernameTaken: "Benutzername ist bereits vergeben.",
+    alertInvalidUsername: "Benutzername: 3–64 Zeichen, nur Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich.",
+    alertInvalidCurrentPassword: "Aktuelles Passwort ist falsch.",
+    accountPasswordRequired: "Bitte aktuelles Passwort zur Bestätigung eingeben.",
     accountH3: "Passwort \u00e4ndern",
     labelCurrentPassword: "Aktuelles Passwort",
     labelNewPassword: "Neues Passwort",
@@ -2673,6 +2686,19 @@ const UI_TRANSLATIONS = {
     btnCreateCompany: "Create company",
     accountEyebrow: "Account",
     accountH3: "Change Password",
+    accountProfileH3: "Login details",
+    accountProfileHint: "Change username and display name — current password required for confirmation.",
+    labelDisplayName: "Display name",
+    labelUsername: "Username (login)",
+    labelAccountConfirmPassword: "Current password (confirmation)",
+    labelConfirmPassword: "Confirm new password",
+    btnSaveAccount: "Save login details",
+    alertAccountUpdated: "Login details saved.",
+    alertAccountUpdateFailed: "Save failed: {error}",
+    alertUsernameTaken: "Username is already taken.",
+    alertInvalidUsername: "Username: 3–64 characters, letters, digits, dot, hyphen, underscore only.",
+    alertInvalidCurrentPassword: "Current password is incorrect.",
+    accountPasswordRequired: "Please enter your current password to confirm.",
     labelCurrentPassword: "Current password",
     labelNewPassword: "New password",
     btnChangePassword: "Change password",
@@ -20511,6 +20537,8 @@ function refreshAll() {
   renderSystemAlertBanner(loggedIn);
   renderSupportReadOnlyTopbarBadge(loggedIn);
 
+  populateAccountForm();
+
   if (loggedIn && elements.sessionCard) {
     const texts = getRuntimeUiTexts();
     const actualRole = String(state.currentUser?.role || "").toLowerCase();
@@ -32964,6 +32992,63 @@ async function handleLogout(options = {}) {
   syncSupportAssistSpectatorWatch();
 }
 
+function populateAccountForm() {
+  if (!state.currentUser) return;
+  const displayNameEl = document.querySelector("#accountDisplayName");
+  const usernameEl = document.querySelector("#accountUsername");
+  if (displayNameEl && document.activeElement !== displayNameEl) {
+    displayNameEl.value = state.currentUser.name || "";
+  }
+  if (usernameEl && document.activeElement !== usernameEl) {
+    usernameEl.value = state.currentUser.username || "";
+  }
+}
+
+function accountUpdateErrorMessage(error) {
+  const code = String(error?.message || error || "").trim();
+  if (code === "invalid_current_password") return uiT("alertInvalidCurrentPassword");
+  if (code === "username_taken") return uiT("alertUsernameTaken");
+  if (code === "invalid_username") return uiT("alertInvalidUsername");
+  if (code === "current_password_required") return uiT("accountPasswordRequired");
+  if (code === "name_too_long") return uiT("alertAccountUpdateFailed").replace("{error}", code);
+  return uiT("alertAccountUpdateFailed").replace("{error}", code || "unknown");
+}
+
+async function handleAccountUpdate(event) {
+  event.preventDefault();
+  if (isSupportReadOnlyMode()) {
+    showSupportReadOnlyAlert();
+    return;
+  }
+  const username = String(document.querySelector("#accountUsername")?.value || "").trim().toLowerCase();
+  const name = String(document.querySelector("#accountDisplayName")?.value || "").trim();
+  const currentPassword = document.querySelector("#accountCurrentPassword")?.value || "";
+  if (!currentPassword) {
+    showToast(uiT("accountPasswordRequired"), "error");
+    return;
+  }
+  if (!username) {
+    showToast(uiT("alertInvalidUsername"), "error");
+    return;
+  }
+
+  try {
+    const result = await apiRequest(buildApiUrl("/api/me/account"), {
+      method: "PUT",
+      body: { username, name, currentPassword },
+    });
+    if (result?.user) {
+      state.currentUser = { ...state.currentUser, ...result.user };
+    }
+    const confirmField = document.querySelector("#accountCurrentPassword");
+    if (confirmField) confirmField.value = "";
+    showToast(uiT("alertAccountUpdated"), "success");
+    refreshAll();
+  } catch (error) {
+    showToast(accountUpdateErrorMessage(error), "error", 3600);
+  }
+}
+
 async function handlePasswordChange(event) {
   event.preventDefault();
   if (isSupportReadOnlyMode()) {
@@ -32990,7 +33075,16 @@ async function handlePasswordChange(event) {
     showToast(uiT("alertPasswordChanged"), "success");
     await handleLogout();
   } catch (error) {
-    showToast(uiT("alertPasswordChangeFailed").replace("{error}", error.message), "error", 3600);
+    const code = String(error?.message || error || "").trim();
+    if (code === "invalid_current_password") {
+      showToast(uiT("alertInvalidCurrentPassword"), "error", 3600);
+      return;
+    }
+    if (code === "password_too_short") {
+      showToast(runtimeText("companyAdminPasswordMinLength"), "error");
+      return;
+    }
+    showToast(uiT("alertPasswordChangeFailed").replace("{error}", code), "error", 3600);
   }
 }
 
@@ -36702,6 +36796,11 @@ if (elements.bulkDeleteButton) {
 const passwordForm = document.querySelector("#passwordForm");
 if (passwordForm) {
   passwordForm.addEventListener("submit", handlePasswordChange);
+}
+
+const accountForm = document.querySelector("#accountForm");
+if (accountForm) {
+  accountForm.addEventListener("submit", handleAccountUpdate);
 }
 
 const imapTestBtn = document.querySelector("#imapTestBtn");

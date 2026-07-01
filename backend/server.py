@@ -9472,6 +9472,61 @@ def change_password():
 
 
 @require_auth
+def update_me_account():
+    payload = request.get_json(silent=True) or {}
+    current_password = str(payload.get("currentPassword") or "")
+    new_username = str(payload.get("username") or "").strip().lower()
+    new_name = str(payload.get("name") or payload.get("displayName") or "").strip()
+
+    if not current_password:
+        return jsonify({"error": "current_password_required"}), 400
+
+    db = get_db()
+    row = db.execute("SELECT * FROM users WHERE id = ?", (g.current_user["id"],)).fetchone()
+    if not row or not check_password_hash(row["password_hash"], current_password):
+        return jsonify({"error": "invalid_current_password"}), 400
+
+    updates: list[str] = []
+    params: list[object] = []
+    current_username = str(row["username"] or "").strip().lower()
+    current_name = str(row["name"] or "").strip()
+
+    if new_username and new_username != current_username:
+        if not re.match(r"^[a-z0-9._-]{3,64}$", new_username):
+            return jsonify({"error": "invalid_username"}), 400
+        taken = db.execute(
+            "SELECT id FROM users WHERE lower(username) = ? AND id != ?",
+            (new_username, g.current_user["id"]),
+        ).fetchone()
+        if taken:
+            return jsonify({"error": "username_taken"}), 409
+        updates.append("username = ?")
+        params.append(new_username)
+
+    if new_name and new_name != current_name:
+        if len(new_name) > 120:
+            return jsonify({"error": "name_too_long"}), 400
+        updates.append("name = ?")
+        params.append(new_name)
+
+    if not updates:
+        return jsonify({"ok": True, "user": serialize_user(row)})
+
+    params.append(g.current_user["id"])
+    db.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+    log_audit(
+        "security.account_updated",
+        "Anmeldedaten wurden geaendert",
+        target_type="user",
+        target_id=g.current_user["id"],
+        actor=g.current_user,
+    )
+    updated = db.execute("SELECT * FROM users WHERE id = ?", (g.current_user["id"],)).fetchone()
+    return jsonify({"ok": True, "user": serialize_user(updated)})
+
+
+@require_auth
 def get_twofa_status():
     return jsonify({"enabled": int(g.current_user["twofa_enabled"]) == 1})
 

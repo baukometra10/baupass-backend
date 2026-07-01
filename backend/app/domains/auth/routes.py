@@ -27,6 +27,7 @@ def _register_core_auth_routes() -> None:
         request_password_reset,
         session_bootstrap,
         heartbeat,
+        update_me_account,
         update_me_email,
     )
 
@@ -40,6 +41,7 @@ def _register_core_auth_routes() -> None:
         ("/me", me, ("GET",)),
         ("/me/heartbeat", heartbeat, ("POST",)),
         ("/me/email", update_me_email, ("PUT",)),
+        ("/me/account", update_me_account, ("PUT",)),
         ("/me/password", change_password, ("POST",)),
         ("/me/2fa", get_twofa_status, ("GET",)),
         ("/me/2fa/activate", activate_twofa, ("POST",)),
