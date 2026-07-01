@@ -3,6 +3,7 @@
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
+import '../../services/branding_applier.dart';
 import '../../services/location_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/tenant_branding_loader.dart';
@@ -51,6 +52,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     final branding = await TenantBrandingLoader.loadPublic();
     if (!mounted) return;
     setState(() => _branding = branding);
+    await BrandingApplier().apply(branding);
   }
 
   @override

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>WorkPass Worker</string>
+	<string>Mitarbeiter</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -38,11 +38,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NFCReaderUsageDescription</key>
-	<string>WorkPass uses NFC to record your attendance when you tap your employee card.</string>
+	<string>Die App nutzt NFC, um deine Anwesenheit per Mitarbeiterkarte zu erfassen.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>WorkPass uses the microphone for voice questions to the on-site assistant.</string>
+	<string>Das Mikrofon wird für Sprachfragen an den Assistenten vor Ort genutzt.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>WorkPass uses your location to verify you are on site when checking in or out.</string>
+	<string>Der Standort wird genutzt, um zu prüfen, ob du dich auf der Baustelle befindest.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

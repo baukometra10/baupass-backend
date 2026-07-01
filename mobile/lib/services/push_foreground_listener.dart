@@ -1,6 +1,7 @@
 ﻿import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
+import '../core/branding_store.dart';
 import '../firebase_bootstrap.dart';
 import 'deep_link_service.dart';
 import 'push_navigation.dart';
@@ -19,7 +20,9 @@ class PushForegroundListener {
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      final title = message.notification?.title ?? message.data['title'] ?? 'WorkPass';
+      final title = message.notification?.title ??
+          message.data['title'] ??
+          BrandingStore.instance.value.displayName;
       final body = message.notification?.body ?? message.data['body'] ?? '';
       final text = body.isNotEmpty ? '$title: $body' : title;
       final route = PushNavigation.routeFromMessage(message);

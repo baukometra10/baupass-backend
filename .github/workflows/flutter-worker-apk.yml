@@ -58,8 +58,14 @@ jobs:
             mobile/android/app/google-services.json \
             mobile/android/settings.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/android/app/src/main/res/values/strings.xml \
+            mobile/android/app/src/main/res/values/colors.xml \
+            mobile/android/app/src/main/res/drawable/ic_launcher_foreground.xml \
+            mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
+            mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml \
             mobile/lib/firebase_bootstrap.dart \
             mobile/lib/services/push_foreground_listener.dart \
             mobile/lib/services/push_navigation.dart \
@@ -119,7 +125,7 @@ jobs:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
         run: |
           {
-            echo "## WorkPass Worker APK"
+            echo "## Mitarbeiter-App (APK)"
             echo ""
             echo "- **API URL baked in:** \`$API_URL\`"
             echo "- **Artifact:** \`baupass-worker-apk\` → \`app-release.apk\`"

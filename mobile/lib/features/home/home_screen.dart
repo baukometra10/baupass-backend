@@ -213,7 +213,10 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+                  builder: (_) => TenantBrandingScope(
+                    branding: branding,
+                    child: WorkerAiScreen(session: widget.session, ai: widget.ai),
+                  ),
                 ),
               );
             },
@@ -292,12 +295,15 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+                    builder: (_) => TenantBrandingScope(
+                      branding: branding,
+                      child: WorkerAiScreen(session: widget.session, ai: widget.ai),
+                    ),
                   ),
                 );
               },
               icon: const Icon(Icons.smart_toy_outlined),
-              label: const Text('SUPPIX AI Assistent'),
+              label: Text(branding.aiAssistantTitle),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
             ),
           ],

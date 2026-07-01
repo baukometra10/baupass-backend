@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
+import '../../core/tenant_branding.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 
@@ -59,6 +60,8 @@ class _DocumentsTabState extends State<DocumentsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final branding = TenantBrandingScope.of(context);
+    final aiHint = '${branding.aiAssistantTitle} auf der Startseite.';
     if (!widget.enabled) {
       return const Center(
         child: Padding(
@@ -90,7 +93,7 @@ class _DocumentsTabState extends State<DocumentsTab> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
                   child: Text(
-                    'Dein Arbeitgeber kann Nachweise hier bereitstellen. Bei Fragen: SUPPIX AI Assistent auf der Startseite.',
+                    'Dein Arbeitgeber kann Nachweise hier bereitstellen. Bei Fragen: $aiHint',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,

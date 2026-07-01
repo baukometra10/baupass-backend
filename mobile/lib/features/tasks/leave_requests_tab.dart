@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
+import '../../core/tenant_branding.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 import 'leave_request_form.dart';
@@ -100,6 +101,7 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final branding = TenantBrandingScope.of(context);
     if (!widget.enabled) {
       return const Center(
         child: Padding(
@@ -147,7 +149,7 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: Text(
-                          'Stelle einen Antrag — dein Team sieht ihn sofort in WorkPass Admin.',
+                          'Stelle einen Antrag — dein Team sieht ihn sofort im Admin-Portal von ${branding.displayName}.',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,

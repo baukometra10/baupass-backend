@@ -9,6 +9,6 @@ void main() {
     await tester.pumpWidget(const WorkerApp());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('WorkPass Mitarbeiter'), findsOneWidget);
+    expect(find.text('Mitarbeiter'), findsOneWidget);
   });
 }

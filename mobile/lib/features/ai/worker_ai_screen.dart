@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../core/tenant_branding.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
 
-/// On-site assistant for workers (HR agent, live WorkPass data).
+/// On-site assistant for workers (HR agent, live tenant data).
 class WorkerAiScreen extends StatefulWidget {
   const WorkerAiScreen({super.key, required this.session, required this.ai});
 
@@ -204,9 +205,10 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final branding = TenantBrandingScope.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SUPPIX AI Assistent'),
+        title: Text(branding.aiAssistantTitle),
         actions: [
           Icon(
             _configured ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,

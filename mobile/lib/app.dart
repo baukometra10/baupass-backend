@@ -2,7 +2,9 @@
 
 import 'core/api_client.dart';
 import 'core/auth_repository.dart';
+import 'core/branding_store.dart';
 import 'core/session_store.dart';
+import 'core/tenant_branding.dart';
 import 'features/auth/login_screen.dart';
 import 'features/shell/worker_shell.dart';
 import 'services/ai_assistant_service.dart';
@@ -15,6 +17,7 @@ import 'services/location_service.dart';
 import 'services/nfc_service.dart';
 import 'services/offline_attendance_store.dart';
 import 'services/offline_sync_service.dart';
+import 'services/branding_applier.dart';
 import 'services/push_foreground_listener.dart';
 import 'services/push_notification_service.dart';
 import 'services/tasks_repository.dart';
@@ -50,10 +53,13 @@ class _WorkerAppState extends State<WorkerApp> {
   String? _joinError;
   final _shellKey = GlobalKey<WorkerShellState>();
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  final _brandingApplier = BrandingApplier();
+  TenantBranding _appBranding = TenantBranding.fallback;
 
   @override
   void initState() {
     super.initState();
+    BrandingStore.instance.addListener(_onBrandingChanged);
     _api = ApiClient(onSessionExpired: _onSessionExpired);
     _auth = AuthRepository(_api);
     _attendance = AttendanceRepository(_api);
@@ -81,6 +87,19 @@ class _WorkerAppState extends State<WorkerApp> {
       },
     );
     _boot();
+    _restoreBranding();
+  }
+
+  Future<void> _restoreBranding() async {
+    final branding = await BrandingApplier.loadCached();
+    if (!mounted) return;
+    setState(() => _appBranding = branding);
+    await _brandingApplier.apply(branding);
+  }
+
+  void _onBrandingChanged() {
+    if (!mounted) return;
+    setState(() => _appBranding = BrandingStore.instance.value);
   }
 
   Future<void> _boot() async {
@@ -165,6 +184,7 @@ class _WorkerAppState extends State<WorkerApp> {
 
   @override
   void dispose() {
+    BrandingStore.instance.removeListener(_onBrandingChanged);
     _geofence.stop();
     _deepLinks.dispose();
     _api.close();
@@ -185,7 +205,7 @@ class _WorkerAppState extends State<WorkerApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
-      title: 'Mitarbeiter',
+      title: _appBranding.displayName,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E8C)),
         useMaterial3: true,

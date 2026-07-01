@@ -12,7 +12,26 @@ class TenantBranding {
   final String? logoData;
   final Color? accentColor;
 
-  static const TenantBranding fallback = TenantBranding(displayName: 'WorkPass');
+  static const TenantBranding fallback = TenantBranding(displayName: 'Mitarbeiter');
+
+  String get aiAssistantTitle => '$displayName Assistent';
+
+  Map<String, dynamic> toCacheJson() => {
+        'displayName': displayName,
+        if (logoData != null && logoData!.isNotEmpty) 'logoData': logoData,
+        if (accentColor != null)
+          'accentColor': '#${accentColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
+      };
+
+  static TenantBranding fromCacheJson(Map<String, dynamic> json) {
+    final display = _firstNonEmpty([json['displayName']]);
+    if (display.isEmpty) return fallback;
+    return TenantBranding(
+      displayName: display,
+      logoData: _firstNonEmpty([json['logoData']]),
+      accentColor: _parseColor(_firstNonEmpty([json['accentColor']])),
+    );
+  }
 
   static TenantBranding fromMePayload(Map<String, dynamic>? me) {
     if (me == null) return fallback;
@@ -67,7 +86,7 @@ class TenantBranding {
 
   static String deriveInitials(String name) {
     final cleaned = name.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (cleaned.isEmpty) return 'WP';
+    if (cleaned.isEmpty) return 'MI';
     final parts = cleaned.split(RegExp(r'[\s\-–—]+')).where((p) => p.isNotEmpty).toList();
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();

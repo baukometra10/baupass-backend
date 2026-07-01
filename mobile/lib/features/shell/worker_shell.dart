@@ -5,6 +5,7 @@ import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/attendance_repository.dart';
+import '../../services/branding_applier.dart';
 import '../../services/chat_repository.dart';
 import '../../services/digital_card_repository.dart';
 import '../../services/geofence_service.dart';
@@ -74,6 +75,7 @@ class WorkerShellState extends State<WorkerShell> {
   int _tasksSubTab = 0;
   int _offlinePending = 0;
   TenantBranding _branding = TenantBranding.fallback;
+  final _brandingApplier = BrandingApplier();
 
   @override
   void initState() {
@@ -112,7 +114,10 @@ class WorkerShellState extends State<WorkerShell> {
       );
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => WorkerAiScreen(session: widget.session, ai: widget.ai),
+          builder: (_) => TenantBrandingScope(
+            branding: _branding,
+            child: WorkerAiScreen(session: widget.session, ai: widget.ai),
+          ),
         ),
       );
     }
@@ -134,13 +139,17 @@ class WorkerShellState extends State<WorkerShell> {
       final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
       if (!mounted) return;
-      setState(() => _branding = TenantBranding.fromMePayload(me));
+      final branding = TenantBranding.fromMePayload(me);
+      setState(() => _branding = branding);
+      await _brandingApplier.apply(branding);
       _startGeofence(me);
     } catch (_) {
       final cached = await widget.workerCache.loadProfile();
       if (!mounted) return;
       if (cached != null) {
-        setState(() => _branding = TenantBranding.fromMePayload(cached));
+        final branding = TenantBranding.fromMePayload(cached);
+        setState(() => _branding = branding);
+        await _brandingApplier.apply(branding);
         _startGeofence(cached);
       }
     }

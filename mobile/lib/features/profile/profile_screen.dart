@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../core/tenant_branding.dart';
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/worker_cache.dart';
+import '../../widgets/tenant_brand_mark.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -76,13 +78,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final branding = TenantBrandingScope.of(context);
     final worker = _profile?['worker'] as Map<String, dynamic>?;
     final leave = _profile?['leaveStats'] as Map<String, dynamic>?;
     final team = _profile?['teamSnapshot'] as Map<String, dynamic>?;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: const Text('Profil'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ],
@@ -92,15 +95,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                Row(
+                  children: [
+                    TenantBrandMark(branding: branding, size: 48, borderRadius: 12),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            branding.displayName,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          if (worker != null)
+                            Text(
+                              '${worker['firstName'] ?? ''} ${worker['lastName'] ?? ''}'.trim(),
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
                 if (worker != null) ...[
-                  Text(
-                    '${worker['firstName'] ?? ''} ${worker['lastName'] ?? ''}'.trim(),
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 4),
                   Text('Badge: ${worker['badgeId'] ?? '-'}'),
-                  Text('Role: ${worker['role'] ?? '-'}'),
-                  Text('Site: ${worker['site'] ?? '-'}'),
+                  Text('Rolle: ${worker['role'] ?? '-'}'),
+                  Text('Standort: ${worker['site'] ?? '-'}'),
                 ],
                 const SizedBox(height: 16),
                 if (leave != null)
@@ -110,9 +133,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Leave', style: Theme.of(context).textTheme.titleMedium),
-                          Text('Remaining: ${leave['remaining'] ?? '-'} days'),
-                          Text('Taken this year: ${leave['taken'] ?? 0}'),
+                          Text('Urlaub', style: Theme.of(context).textTheme.titleMedium),
+                          Text('Verbleibend: ${leave['remaining'] ?? '-'} Tage'),
+                          Text('Genommen (Jahr): ${leave['taken'] ?? 0}'),
                         ],
                       ),
                     ),
@@ -125,8 +148,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Team on site', style: Theme.of(context).textTheme.titleMedium),
-                          Text('Present: ${team['present'] ?? 0} / ${team['expected'] ?? 0}'),
+                          Text('Team vor Ort', style: Theme.of(context).textTheme.titleMedium),
+                          Text('Anwesend: ${team['present'] ?? 0} / ${team['expected'] ?? 0}'),
                         ],
                       ),
                     ),
@@ -134,17 +157,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
                 const SizedBox(height: 8),
                 SwitchListTile(
-                  title: const Text('Push notifications'),
+                  title: const Text('Push-Benachrichtigungen'),
                   subtitle: Text(
                     _pushServerStatus == null
-                        ? 'Loading push status…'
+                        ? 'Push-Status wird geladen…'
                         : (_pushServerStatus!['fcmConfigured'] == true
                             ? (_pushEnabled
-                                ? 'Hybrid app (FCM). Token syncs on login.'
-                                : 'FCM ready — enable to register this device.')
+                                ? 'Hybrid-App (FCM). Token wird beim Login synchronisiert.'
+                                : 'FCM bereit — aktivieren, um dieses Gerät zu registrieren.')
                             : (_pushServerStatus!['anyChannelReady'] == true
-                                ? 'Push partially configured on server.'
-                                : 'Set FCM_SERVER_KEY on server for native push.')),
+                                ? 'Push auf dem Server teilweise konfiguriert.'
+                                : 'FCM_SERVER_KEY auf dem Server setzen für native Push.')),
                   ),
                   value: _pushEnabled,
                   onChanged: (value) async {
@@ -159,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Push enabled — add google-services.json / GoogleService-Info.plist or BAUPASS_FCM_TOKEN.',
+                              'Push aktiviert — google-services.json / GoogleService-Info.plist oder BAUPASS_FCM_TOKEN ergänzen.',
                             ),
                           ),
                         );
@@ -171,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 OutlinedButton.icon(
                   onPressed: _logout,
                   icon: const Icon(Icons.logout),
-                  label: const Text('Sign out'),
+                  label: const Text('Abmelden'),
                 ),
               ],
             ),
