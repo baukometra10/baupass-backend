@@ -1368,6 +1368,50 @@ function readDeploymentDaysFromForm() {
     d.shiftStart = timeInputToIso(d.date, row.querySelector('[data-dep-field="start"]')?.value);
     d.shiftEnd = timeInputToIso(d.date, row.querySelector('[data-dep-field="end"]')?.value);
     d.notes = row.querySelector('[data-dep-field="notes"]')?.value.trim() || "";
+    d.dayColor = row.querySelector('[data-dep-field="color"]')?.value || "";
+  });
+}
+
+function wireDeploymentDayRowActions() {
+  const host = $("deploymentDaysList");
+  if (!host) return;
+  host.querySelectorAll("[data-dep-clear]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.getAttribute("data-dep-clear"), 10);
+      const d = deploymentModalDays[i];
+      if (!d) return;
+      d.location = "Frei";
+      d.shiftStart = "";
+      d.shiftEnd = "";
+      d.notes = "";
+      d.dayType = "free";
+      renderDeploymentDaysList();
+    });
+  });
+  host.querySelectorAll("[data-dep-free]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.getAttribute("data-dep-free"), 10);
+      const d = deploymentModalDays[i];
+      if (!d) return;
+      d.location = "Frei";
+      d.shiftStart = "";
+      d.shiftEnd = "";
+      d.dayType = "free";
+      if (!d.dayColor) d.dayColor = "#10b981";
+      renderDeploymentDaysList();
+    });
+  });
+  host.querySelectorAll('[data-dep-field="color"]').forEach((input) => {
+    input.addEventListener("input", () => {
+      const row = input.closest(".deployment-day-row");
+      if (!row) return;
+      const value = String(input.value || "").trim();
+      if (value) {
+        row.style.setProperty("--dep-row-color", value);
+      } else {
+        row.style.removeProperty("--dep-row-color");
+      }
+    });
   });
 }
 
@@ -1381,6 +1425,8 @@ function renderDeploymentDaysList() {
       <span>${t("deployment.colStart")}</span>
       <span>${t("deployment.colEnd")}</span>
       <span>${t("deployment.colNotes")}</span>
+      <span>${t("deployment.colColor")}</span>
+      <span></span>
     </div>`;
   const rows = deploymentModalDays
     .map((d, i) => {
@@ -1388,6 +1434,8 @@ function renderDeploymentDaysList() {
       const notes = escapeAttr(d.notes || "");
       const start = escapeAttr(isoToTimeInput(d.shiftStart));
       const end = escapeAttr(isoToTimeInput(d.shiftEnd));
+      const color = escapeAttr(d.dayColor || d.day_color || "#1f6feb");
+      const isFree = !loc || /^(frei|free|off|aus|urlaub)$/i.test(loc.trim());
       const declined =
         String(d.workerResponse || "") === "declined" || Boolean(d.isDeclined);
       const reasonText = String(d.declineReason || "").trim();
@@ -1400,17 +1448,24 @@ function renderDeploymentDaysList() {
           : declined
             ? `<p class="deployment-decline-reason muted small">${escapeAttr(t("deployment.workerDeclined"))} — ${escapeAttr(t("deployment.noDeclineReason"))}</p>`
             : "";
+      const rowColor = escapeAttr(d.dayColor || d.day_color || "");
       return `
-      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}" data-dep-idx="${i}" role="row">
+      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}${isFree ? " is-free-day" : ""}" data-dep-idx="${i}" role="row"${rowColor ? ` style="--dep-row-color:${rowColor}"` : ""}>
         <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}${declineReasonBlock}</span>
         <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(t("deployment.locationPh"))}" aria-label="${escapeAttr(t("deployment.colLocation"))} ${d.date}" />
         <input type="time" data-dep-field="start" value="${start}" aria-label="${escapeAttr(t("deployment.colStart"))} ${d.date}" />
         <input type="time" data-dep-field="end" value="${end}" aria-label="${escapeAttr(t("deployment.colEnd"))} ${d.date}" />
         <input type="text" data-dep-field="notes" value="${notes}" placeholder="${escapeAttr(t("deployment.notesPh"))}" aria-label="${escapeAttr(t("deployment.colNotes"))} ${d.date}" />
+        <input type="color" class="deployment-day-color" data-dep-field="color" value="${color}" title="${escapeAttr(t("deployment.colColor"))}" aria-label="${escapeAttr(t("deployment.colColor"))} ${d.date}" />
+        <div class="deployment-day-actions-inline">
+          <button type="button" class="ghost deployment-day-free" data-dep-free="${i}">${escapeAttr(t("deployment.markFree"))}</button>
+          <button type="button" class="ghost deployment-day-clear" data-dep-clear="${i}">${escapeAttr(t("deployment.clearDay"))}</button>
+        </div>
       </div>`;
     })
     .join("");
   host.innerHTML = header + rows;
+  wireDeploymentDayRowActions();
 }
 
 async function openDeploymentModal(workerId, workerName) {
@@ -1475,6 +1530,8 @@ async function saveDeploymentPlan() {
     notes: d.notes || "",
     shiftStart: d.shiftStart,
     shiftEnd: d.shiftEnd,
+    dayColor: d.dayColor || d.day_color || "",
+    dayType: d.dayType || (/^(frei|free)$/i.test(String(d.location || "").trim()) ? "free" : ""),
   }));
   await api(`/api/workforce/deployment-plan${q}`, {
     method: "PUT",

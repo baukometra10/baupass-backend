@@ -2018,7 +2018,7 @@ html[dir="rtl"] .app-sidebar {
 .deployment-days-header,
 .deployment-day-row {
   display: grid;
-  grid-template-columns: 4.25rem minmax(140px, 1.6fr) 5.25rem 5.25rem minmax(90px, 1fr);
+  grid-template-columns: 4.25rem minmax(140px, 1.6fr) 5.25rem 5.25rem minmax(90px, 1fr) 2.75rem minmax(9rem, auto);
   gap: 0.4rem;
   align-items: center;
   font-size: 0.85rem;
@@ -2044,6 +2044,37 @@ html[dir="rtl"] .app-sidebar {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 6px;
   padding: 0.15rem 0.1rem;
+}
+
+.deployment-day-row.is-free-day {
+  background: rgba(16, 185, 129, 0.12);
+  border-radius: 6px;
+}
+
+.deployment-day-row[style*="--dep-row-color"] {
+  box-shadow: inset 3px 0 0 var(--dep-row-color, transparent);
+}
+
+.deployment-day-color {
+  width: 2.25rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.deployment-day-actions-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.deployment-day-actions-inline .ghost {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.45rem;
 }
 
 .deployment-day-row input[type="text"],
@@ -2304,7 +2335,8 @@ html[dir="rtl"] .app-sidebar {
       "day day"
       "loc loc"
       "start end"
-      "notes notes";
+      "notes notes"
+      "color actions";
     padding: 0.5rem 0.35rem;
     border-bottom: 1px solid var(--border);
   }
@@ -2329,6 +2361,16 @@ html[dir="rtl"] .app-sidebar {
 
   .deployment-day-row input[data-dep-field="notes"] {
     grid-area: notes;
+  }
+
+  .deployment-day-row input[data-dep-field="color"] {
+    grid-area: color;
+    justify-self: start;
+  }
+
+  .deployment-day-actions-inline {
+    grid-area: actions;
+    justify-content: flex-end;
   }
 }
 
