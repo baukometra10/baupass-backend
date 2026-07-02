@@ -9,6 +9,12 @@ This repository follows a multi-component architecture for an enterprise platfor
 - **`.\admin-v2`**: A modernized, lightweight admin dashboard using API v2.
 - **`.\deploy`**: Contains environment-specific orchestration scripts (PowerShell/Bash) for Railway, Hetzner, and Windows Service installation.
 
+## Developer Onboarding
+- **`.\docs\DEVELOPER-ONBOARDING.md`**: Index for new engineers (architecture, tests, security, DB).
+- **`.\docs\SECURITY-MODEL-AR.md`**: Transport vs at-rest encryption, production env vars.
+- **`.\docs\HANDOVER-PLATFORM-AR.md`**: Operations handover without code changes.
+- **`.\backend\app\domains\README.md`**: Domain blueprint rules and migration status.
+
 ## Build, Test, and Development Commands
 ### Backend (Python)
 - **Install dependencies**: `pip install -r .\backend\requirements.txt`

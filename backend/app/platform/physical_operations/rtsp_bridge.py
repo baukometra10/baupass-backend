@@ -12,10 +12,19 @@ def authorize_rtsp_bridge_request(request, db) -> tuple[dict[str, Any] | None, s
 
     from backend.server import clean_id_input
 
-    expected = (os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN") or "").strip()
-    token = (request.headers.get("X-SUPPIX-Rtsp-Token") or request.headers.get("X-SUPPIX-Camera-Token") or "").strip()
+    expected = (os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN") or os.getenv("SUPPIX_RTSP_BRIDGE_TOKEN") or "").strip()
+    token = (
+        (request.headers.get("X-WorkPass-Rtsp-Token") or "").strip()
+        or (request.headers.get("X-SUPPIX-Rtsp-Token") or "").strip()
+        or (request.headers.get("X-SUPPIX-Camera-Token") or "").strip()
+        or (request.headers.get("X-WorkPass-Camera-Token") or "").strip()
+    )
     if expected and token and secrets.compare_digest(expected, token):
-        company_id = clean_id_input(request.headers.get("X-SUPPIX-Company-Id") or "")
+        company_id = clean_id_input(
+            request.headers.get("X-WorkPass-Company-Id")
+            or request.headers.get("X-SUPPIX-Company-Id")
+            or ""
+        )
         return (
             {"role": "rtsp-bridge", "id": "rtsp-bridge", "company_id": company_id or None},
             company_id or None,

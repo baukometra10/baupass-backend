@@ -39,6 +39,8 @@ Enterprise-Plattform **WorkPass** von **Suppix AI** (Suppix Technologie UG) fuer
 
 ## So startest du die Plattform lokal
 
+> **Entwickler:** Siehe [`docs/DEVELOPER-ONBOARDING.md`](docs/DEVELOPER-ONBOARDING.md) für Architektur, Tests und Sicherheit.
+
 1. Python 3.11+ installieren (falls noch nicht vorhanden).
 2. Im Projektordner eine virtuelle Umgebung erstellen und aktivieren.
 3. Abhaengigkeiten installieren: `pip install -r backend/requirements.txt`.

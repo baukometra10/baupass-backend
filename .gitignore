@@ -57,6 +57,9 @@ backend/uploads/
 scripts/translation-cache.json
 scripts/missing-keys-en.json
 scripts/i18n-extra-draft.json
+backend/e2e-doc-uploads/
+test_api.ps1
+plan.md
 
 # Electron build output
 dist/

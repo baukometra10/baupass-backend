@@ -8,6 +8,7 @@ from typing import Any
 from backend.app.platform.events.bus import publish_event
 from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
 from backend.app.platform.push.delivery import deliver_worker_push
+from backend.app.platform.security.field_encryption import maybe_decrypt_field, maybe_encrypt_field
 
 
 def utc_now_iso() -> str:
@@ -249,7 +250,7 @@ class ChatService:
                     "senderType": row["sender_type"],
                     "senderUserId": row["sender_user_id"],
                     "senderWorkerId": row["sender_worker_id"],
-                    "body": row["body"],
+                    "body": maybe_decrypt_field(row["body"]),
                     "createdAt": row["created_at"],
                     "readAt": row["read_at"],
                     "attachments": [],
@@ -325,13 +326,15 @@ class ChatService:
     ) -> dict[str, Any]:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
+        plain_body = body.strip()
+        stored_body = maybe_encrypt_field(plain_body)
         self.db.execute(
             """
             INSERT INTO chat_messages
             (id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, body, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (message_id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, body.strip(), now),
+            (message_id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, stored_body, now),
         )
         self.db.execute(
             """
@@ -350,7 +353,7 @@ class ChatService:
             "messageId": message_id,
             "workerId": worker_id,
             "senderType": sender_type,
-            "preview": body.strip()[:120],
+            "preview": plain_body[:120],
         }
         try:
             publish_event("chat.message_created", company_id, event_payload, actor_id=sender_user_id or sender_worker_id or "")
@@ -360,14 +363,14 @@ class ChatService:
         try:
             if not silent_side_effects:
                 if sender_type == "worker":
-                    self._notify_company_side(company_id, worker_id, body.strip())
+                    self._notify_company_side(company_id, worker_id, plain_body)
                 else:
                     notify_worker_mitteilung(
                         self.db,
                         worker_id,
                         notif_type="worker_chat",
                         title="Neue Nachricht",
-                        message=body.strip()[:280],
+                        message=plain_body[:280],
                         action_url="chat",
                         push_tag="worker-chat",
                         send_email=False,
@@ -377,7 +380,7 @@ class ChatService:
                             self.db,
                             worker_id,
                             "Neue Nachricht",
-                            body.strip()[:180],
+                            plain_body[:180],
                             tag="worker-chat",
                             company_id=company_id,
                         )
@@ -399,7 +402,7 @@ class ChatService:
             "senderType": sender_type,
             "senderUserId": sender_user_id,
             "senderWorkerId": sender_worker_id,
-            "body": body.strip(),
+            "body": plain_body,
             "createdAt": now,
             "attachments": [],
         }
