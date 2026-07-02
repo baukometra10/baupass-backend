@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260630f";
+const WORKER_BUILD_TAG = "20260702a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -4615,7 +4615,13 @@ function restoreWorkerPassLayout(payload) {
 }
 
 function renderWorker(payload) {
-  lastWorkerPayload = payload;
+  const previousPayload = lastWorkerPayload;
+  const planFeatures = payload.planFeatures && Object.keys(payload.planFeatures).length
+    ? payload.planFeatures
+    : (previousPayload?.planFeatures && Object.keys(previousPayload.planFeatures).length
+      ? previousPayload.planFeatures
+      : (payload.planFeatures || {}));
+  lastWorkerPayload = { ...payload, planFeatures };
   const worker = payload.worker || {};
   const company = payload.company || {};
   const subcompany = payload.subcompany || {};
@@ -4917,8 +4923,7 @@ function renderWorker(payload) {
   const lateInfo = payload.lateCheckIn;
   showLateCheckInBanner(lateInfo, isVisitor);
 
-  // Plan-Feature-Gates
-  const planFeatures = payload.planFeatures || {};
+  // Plan-Feature-Gates (keep last known entitlements when offline cache omits planFeatures)
   applyWorkerPlanNavState(planFeatures);
   applyWorkerDeploymentMenuState(planFeatures);
   applyWorkerChatMenuState(planFeatures);
@@ -5804,6 +5809,8 @@ function buildLoginShellPayload(payload) {
     subcompany: payload?.subcompany || {},
     settings: payload?.settings || {},
     leaveStats: payload?.leaveStats || null,
+    planFeatures: payload?.planFeatures || null,
+    siteAccess: payload?.siteAccess || null,
   };
 }
 
@@ -5925,6 +5932,7 @@ function persistLoginBootstrapPayload(payload) {
   if (!worker.id && !badgeId) {
     return;
   }
+  const existing = readStoredJson(WORKER_CACHED_PAYLOAD_KEY, null) || {};
   wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify({
     worker,
     sessionExpiresAt: payload.sessionExpiresAt || "",
@@ -5933,6 +5941,8 @@ function persistLoginBootstrapPayload(payload) {
     subcompany: payload.subcompany || {},
     settings: payload.settings || {},
     leaveStats: payload.leaveStats || null,
+    planFeatures: payload.planFeatures || existing.planFeatures || null,
+    siteAccess: payload.siteAccess || existing.siteAccess || null,
   }));
 }
 
@@ -7610,10 +7620,11 @@ function summarizeWorkerPresenceMinutes(events) {
   }, 0);
 }
 
-function workerPlanAllowsFeature(featureKey) {
+function workerPlanAllowsFeature(featureKey, planFeaturesOverride) {
   if (!featureKey) return true;
-  const features = lastWorkerPayload?.planFeatures;
+  const features = planFeaturesOverride ?? lastWorkerPayload?.planFeatures;
   if (!features || typeof features !== "object") return true;
+  if (!Object.keys(features).length) return true;
   if (featureKey === "deployment_plan" && features[featureKey] === undefined) return true;
   if (featureKey === "worker_chat") {
     if (features.worker_chat === true || features.worker_app === true) return true;
@@ -7718,7 +7729,7 @@ function applyWorkerPlanNavState(planFeatures = {}) {
   Object.entries(WORKER_PLAN_TAB_FEATURES).forEach(([tabName, featureKey]) => {
     const tab = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     if (!tab) return;
-    const allowed = Boolean(planFeatures[featureKey]);
+    const allowed = workerPlanAllowsFeature(featureKey, planFeatures);
     tab.classList.toggle("nav-tab-locked", !allowed);
     tab.setAttribute("aria-disabled", allowed ? "false" : "true");
     if (!allowed) {
@@ -8239,6 +8250,7 @@ async function submitLeaveRequest() {
     elements.leaveRequestForm.reset();
     toggleLeaveRequestForm();
     await loadLeaveRequests();
+    void loadWorkerData({ quiet: true });
     if (currentActiveTab !== "vacation") {
       switchToTab("vacation");
     }

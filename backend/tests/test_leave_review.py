@@ -86,3 +86,24 @@ def test_reject_leave_returns_ok_when_push_succeeds(client_and_db, monkeypatch):
     match = next(item for item in row if item["id"] == leave_id)
     assert match["status"] == "abgelehnt"
     assert match["review_note"] == "Zu wenig Personal in dieser Woche"
+
+
+def test_reject_leave_post_method(client_and_db, monkeypatch):
+    client, _ = client_and_db
+    admin_headers = _superadmin_headers(client)
+    worker_id = _create_worker(client, admin_headers)
+    worker_headers = _worker_session_headers(client, admin_headers, worker_id)
+    leave_id = _submit_leave(client, worker_headers)
+
+    monkeypatch.setattr(
+        "backend.app.platform.push.automation.push_leave_decision",
+        lambda db, row, new_status, review_note="": {"pushSent": 1, "delivered": True},
+    )
+
+    reject = client.post(
+        f"/api/leave-requests/{leave_id}",
+        json={"status": "abgelehnt", "review_note": "Per POST"},
+        headers=admin_headers,
+    )
+    assert reject.status_code == 200
+    assert reject.get_json().get("ok") is True

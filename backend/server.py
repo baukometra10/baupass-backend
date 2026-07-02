@@ -12978,12 +12978,14 @@ def create_worker_app_session(db, worker, device_payload=None):
     if site_coordinates:
         worker_payload["site_latitude"] = float(site_coordinates[0])
         worker_payload["site_longitude"] = float(site_coordinates[1])
+    plan_value = get_company_plan(db, worker["company_id"])
     session_data = {
         "token": session_token,
         "worker": serialize_worker_for_app(worker_payload, db=db, company_id=worker["company_id"]),
         "sessionExpiresAt": expires_at,
         "cardType": normalize_worker_type(worker["worker_type"]),
         "company": build_worker_app_company_payload(db, worker["company_id"]),
+        "planFeatures": get_plan_features(plan_value),
     }
     subcompany_id = worker["subcompany_id"] if "subcompany_id" in worker.keys() else None
     if subcompany_id:
@@ -26294,7 +26296,7 @@ def get_leave_requests():
     return jsonify([row_to_dict(r) for r in rows])
 
 
-@app.route("/api/leave-requests/<req_id>", methods=["PUT"])
+@app.route("/api/leave-requests/<req_id>", methods=["PUT", "POST"])
 @require_auth
 def review_leave_request(req_id):
     user = g.current_user

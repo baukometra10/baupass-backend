@@ -37489,14 +37489,27 @@ async function downloadLeaveRequestPdf(requestId) {
 }
 
 /**
+ * Approve or reject a leave request (PUT with POST fallback for restrictive proxies).
+ */
+async function reviewLeaveRequestApi(requestId, body) {
+  const url = `${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`;
+  try {
+    return await apiRequest(url, { method: "PUT", body });
+  } catch (error) {
+    const code = String(error?.code || error?.message || "");
+    if (code.includes("405") || error?.status === 405) {
+      return await apiRequest(url, { method: "POST", body });
+    }
+    throw error;
+  }
+}
+
+/**
  * Approve a leave request
  */
 async function approveLeaveRequest(requestId) {
   try {
-    await apiRequest(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`, {
-      method: "PUT",
-      body: { status: "genehmigt" },
-    });
+    await reviewLeaveRequestApi(requestId, { status: "genehmigt" });
 
     showAlert("alertApprovalConfirmed");
     loadLeaveRequests();
@@ -37548,12 +37561,9 @@ async function rejectLeaveRequest(requestId) {
       confirmBtn.disabled = true;
       confirmBtn.dataset.busy = "1";
       try {
-        await apiRequest(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`, {
-          method: "PUT",
-          body: {
-            status: "abgelehnt",
-            review_note: reason,
-          },
+        await reviewLeaveRequestApi(requestId, {
+          status: "abgelehnt",
+          review_note: reason,
         });
         modal.classList.add("hidden");
         noteEl.value = "";

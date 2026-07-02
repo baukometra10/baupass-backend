@@ -103,7 +103,7 @@ def _register_core_worker_routes() -> None:
         ("/workers/<worker_id>/documents/<doc_id>/download", download_worker_document, ("GET",)),
         ("/workers/<worker_id>/documents/<doc_id>", delete_worker_document, ("DELETE",)),
         ("/leave-requests", get_leave_requests, ("GET",)),
-        ("/leave-requests/<req_id>", review_leave_request, ("PUT",)),
+        ("/leave-requests/<req_id>", review_leave_request, ("PUT", "POST")),
         ("/leave-requests/<req_id>/export.pdf", export_leave_request_pdf, ("GET",)),
     )
     mount_rules_once("workers", workers_core_bp, rules)
