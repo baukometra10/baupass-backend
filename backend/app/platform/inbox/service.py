@@ -288,11 +288,11 @@ def build_operations_inbox(
                        lr.created_at, w.first_name, w.last_name
                 FROM leave_requests lr
                 JOIN workers w ON w.id = lr.worker_id
-                WHERE w.company_id = ? AND lr.status IN ('pending', 'ausstehend')
+                WHERE (w.company_id = ? OR lr.company_id = ?) AND lr.status IN ('pending', 'ausstehend')
                 ORDER BY lr.created_at DESC
                 LIMIT 30
                 """,
-                (cid,),
+                (cid, cid),
             ).fetchall()
             for r in rows:
                 name = f"{r['first_name']} {r['last_name']}".strip()

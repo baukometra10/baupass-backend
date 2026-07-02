@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260605f";
+window.__BAUPASS_UI_BUILD = "20260702g";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -14,7 +14,21 @@ async function loadEnterpriseFlags() {
     // keep defaults
   }
 }
-const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
+function resolveDefaultProductionApiBase() {
+  try {
+    const host = String(window.location.hostname || "").toLowerCase();
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+    if (host && window.location.protocol !== "file:" && !localHosts.has(host)) {
+      if (host.endsWith(".up.railway.app") || host.endsWith(".onrender.com")) {
+        return String(window.location.origin || "").replace(/\/+$/, "");
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "https://suppix-workpass-ai.up.railway.app";
+}
+const DEFAULT_RENDER_API_BASE = resolveDefaultProductionApiBase();
 const WP = window.WorkPassStorage;
 function wpGet(key) {
   return WP ? WP.getItem(key) : window.localStorage.getItem(key);
@@ -34,10 +48,21 @@ const LOCAL_API_BASE_FALLBACKS = [
   "https://127.0.0.1:8443",
   "https://localhost:8443",
 ];
-// Single canonical production API. Do not add other Railway hostnames — cross-origin CORS fails.
+// Single canonical production API. Retired Railway hostnames must not be used.
+const RETIRED_API_HOSTS = new Set([
+  "baupass-production.up.railway.app",
+  "baupass-control.up.railway.app",
+  "web-production-c21ed.up.railway.app",
+]);
 const REMOTE_API_BASE_FALLBACKS = [
   DEFAULT_RENDER_API_BASE,
-];
+].filter((base) => {
+  try {
+    return !RETIRED_API_HOSTS.has(new URL(base).hostname.toLowerCase());
+  } catch {
+    return true;
+  }
+});
 
 function isKnownProductionApiHost(hostname) {
   const host = String(hostname || "").toLowerCase();
@@ -73,6 +98,11 @@ function sanitizeApiBase(value) {
     if (!localHosts.has(host)) {
       return "";
     }
+  }
+
+  const host = (parsed.hostname || "").toLowerCase();
+  if (RETIRED_API_HOSTS.has(host)) {
+    return "";
   }
 
   return parsed.toString().replace(/\/+$/, "");
@@ -37509,6 +37539,19 @@ let activeLeaveRequestPreviewId = "";
 let leaveRequestPreviewObjectUrl = "";
 let leaveRequestsPollTimer = null;
 
+function getLeaveAdminScopeHint() {
+  const companyId = String(getEffectiveUiCompanyId() || "").trim();
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (companyId) {
+    const company = state.companies.find((entry) => String(entry?.id || "").trim() === companyId);
+    return `Firmenfilter: ${company?.name || companyId}`;
+  }
+  if (role === "superadmin") {
+    return "Firmenfilter: alle Firmen (Superadmin)";
+  }
+  return "Firmenfilter: keine Firma zugeordnet — bitte Firma in der Firmenansicht wählen.";
+}
+
 function buildLeaveRequestsApiQuery(filterStatus = null) {
   const params = new URLSearchParams();
   const role = String(getCurrentUser()?.role || "").toLowerCase();
@@ -37641,7 +37684,11 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
     }
 
     const query = buildLeaveRequestsApiQuery(filterStatus);
-    const response = await fetch(`${API_BASE}/api/leave-requests${query}`, {
+    const requestUrl = `${API_BASE}/api/leave-requests${query}`;
+    if (!silent) {
+      console.info("[WorkPass admin leave] load", requestUrl, getLeaveAdminScopeHint());
+    }
+    const response = await fetch(requestUrl, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${sessionToken}`,
@@ -37739,7 +37786,7 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
           </article>
         `;
       }).join("")
-        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.</p>`}
+        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.<br><small>${escapeHtml(getLeaveAdminScopeHint())} · API: ${escapeHtml(sanitizeApiBase(API_BASE) || window.location.origin)}</small></p>`}
     </div>
   `;
 }

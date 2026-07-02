@@ -26268,6 +26268,7 @@ def worker_submit_leave_request():
     return jsonify({
         "ok": True,
         "id": req_id,
+        "company_id": company_id,
         "mail_sent": bool(sent_recipients),
         "mail_recipients": sent_recipients,
         "mail_failed": failed_recipients,

@@ -1,4 +1,18 @@
-﻿const DEFAULT_RENDER_API_BASE = "https://baupass-production.up.railway.app";
+﻿function resolveDefaultProductionApiBase() {
+  try {
+    const host = String(window.location.hostname || "").toLowerCase();
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+    if (host && window.location.protocol !== "file:" && !localHosts.has(host)) {
+      if (host.endsWith(".up.railway.app") || host.endsWith(".onrender.com")) {
+        return String(window.location.origin || "").replace(/\/+$/, "");
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "https://suppix-workpass-ai.up.railway.app";
+}
+const DEFAULT_RENDER_API_BASE = resolveDefaultProductionApiBase();
 const WP = window.WorkPassStorage;
 function workpassMemoryStore() {
   window.__workpassMemStore = window.__workpassMemStore || {};
@@ -63,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702b";
+const WORKER_BUILD_TAG = "20260702g";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -83,6 +97,7 @@ const PROXIMITY_LOGIN_POLL_MS = 10000;
 const PROXIMITY_LOGIN_DWELL_MS = 15000;
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
+  "baupass-production.up.railway.app",
   "web-production-c21ed.up.railway.app",
 ]);
 const WORKER_PLAN_TAB_FEATURES = {
@@ -245,10 +260,26 @@ function resolveWorkerApiBase() {
   return `${DEFAULT_RENDER_API_BASE}/api/worker-app`;
 }
 
+function purgeRetiredWorkerApiBaseStorage() {
+  const stored = sanitizeApiBase(wpGet(API_BASE_STORAGE_KEY));
+  if (!stored) return;
+  try {
+    const host = new URL(stored).hostname.toLowerCase();
+    if (RETIRED_WORKER_API_HOSTS.has(host)) {
+      wpRemove(API_BASE_STORAGE_KEY);
+    }
+  } catch {
+    wpRemove(API_BASE_STORAGE_KEY);
+  }
+}
+
+purgeRetiredWorkerApiBaseStorage();
+
 let API_BASE = resolveWorkerApiBase();
 let API_ROOT = resolveApiRoot(API_BASE);
 
 function refreshWorkerApiBase() {
+  purgeRetiredWorkerApiBaseStorage();
   API_BASE = resolveWorkerApiBase();
   API_ROOT = resolveApiRoot(API_BASE);
 }
@@ -8230,6 +8261,10 @@ async function submitLeaveRequest() {
     showWorkerNotice(t("leaveRequiresOnlineLogin"));
     return;
   }
+  if (!workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.vacation)) {
+    showWorkerNotice(planFeatureBlockedMessage(WORKER_PLAN_TAB_FEATURES.vacation));
+    return;
+  }
 
   const type = elements.leaveRequestType?.value || "urlaub";
   const start = elements.leaveRequestStart?.value || "";
@@ -8250,8 +8285,10 @@ async function submitLeaveRequest() {
     return;
   }
   
+  const leaveSubmitUrl = `${API_BASE}/leave-requests`;
   try {
-    const result = await fetchJson(`${API_BASE}/leave-requests`, {
+    console.info("[WorkPass leave] submit", leaveSubmitUrl, { type, start, end, apiBase: API_BASE });
+    const result = await fetchJson(leaveSubmitUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -8269,6 +8306,11 @@ async function submitLeaveRequest() {
       throw new Error("leave_request_not_persisted");
     }
     lastSubmittedLeaveRequestId = String(result.id);
+    console.info("[WorkPass leave] created", {
+      id: result.id,
+      companyId: result.company_id || result.companyId || "",
+      apiBase: API_BASE,
+    });
     
     showWorkerNotice(t("leaveRequestSubmitted"));
     if (elements.sendToBossPanel) {
@@ -10774,6 +10816,8 @@ function stopVisitorCountdownTimer() {
 // Initialize bottom tab navigation on page load and also when script runs
 // after DOMContentLoaded (webview/service-worker cache edge cases).
 function initWorkerAppShell() {
+  refreshWorkerApiBase();
+  console.info("[WorkPass worker] API base", API_BASE);
   ensureWorkerChatShellStyles();
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
