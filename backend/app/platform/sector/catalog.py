@@ -309,13 +309,263 @@ OPERATION_TEMPLATES: dict[str, dict[str, Any]] = {
 }
 
 
+def _worker_attendance_msgs(site_de: str, site_en: str, site_ar: str) -> dict[str, dict[str, str]]:
+    """Worker PWA + GPS attendance copy per workplace type."""
+    return {
+        "proximityNotScheduledToday": _t(
+            f"Heute frei laut Einsatzplan – keine automatische Anmeldung ({site_de}).",
+            f"Free day per plan – no automatic sign-in ({site_en}).",
+            f"يوم حر – لا تسجيل تلقائي ({site_ar}).",
+        ),
+        "proximityOnLeave": _t(
+            "Heute genehmigter Urlaub – keine automatische Anmeldung.",
+            "Approved leave today – no automatic sign-in.",
+            "إجازة معتمدة اليوم – لا تسجيل تلقائي.",
+        ),
+        "proximityOutsideWorkHours": _t(
+            "Automatische Anmeldung nur während der geplanten Schichtzeit.",
+            "Automatic sign-in only during scheduled shift hours.",
+            "التسجيل التلقائي فقط خلال وقت الوردية المحدد.",
+        ),
+        "offlineLoginOnSiteOnly": _t(
+            f"Offline-Login nur {site_de} möglich. Aktuell ca. {{meters}} m entfernt.",
+            f"Offline login only {site_en}. Currently about {{meters}} m away.",
+            f"تسجيل دون اتصال فقط {site_ar}. المسافة حوالي {{meters}} م.",
+        ),
+        "geolocationHint": _t(
+            f"Standort optional — {site_de} wird die Anwesenheit automatisch erfasst",
+            f"Location optional — presence is captured automatically at the {site_en}",
+            f"الموقع اختياري — يُسجَّل الحضور تلقائياً في {site_ar}",
+        ),
+        "geolocationRequired": _t(
+            f"Standortfreigabe für automatische Erfassung {site_de} (Login auch ohne GPS möglich).",
+            f"Location permission for automatic capture at {site_en} (login possible without GPS).",
+            f"إذن الموقع للتسجيل التلقائي في {site_ar} (يمكن الدخول بدون GPS).",
+        ),
+        "attendanceNotScheduledToday": _t(
+            f"Heute frei laut Einsatzplan – keine automatische Anmeldung ({site_de}).",
+            f"Free day per plan – no automatic sign-in ({site_en}).",
+            f"يوم حر – لا تسجيل تلقائي ({site_ar}).",
+        ),
+        "attendanceOnLeave": _t(
+            "Heute genehmigter Urlaub – keine automatische Anmeldung.",
+            "Approved leave today – no automatic sign-in.",
+            "إجازة معتمدة اليوم – لا تسجيل تلقائي.",
+        ),
+        "attendanceOutsideShift": _t(
+            "Automatische Anmeldung nur während der geplanten Schichtzeit.",
+            "Automatic sign-in only during scheduled shift hours.",
+            "التسجيل التلقائي فقط خلال وقت الوردية المحدد.",
+        ),
+        "attendanceOutsideWorkHours": _t(
+            "Automatische Anmeldung nur während der Arbeitszeit.",
+            "Automatic sign-in only during work hours.",
+            "التسجيل التلقائي فقط خلال ساعات العمل.",
+        ),
+        "attendanceDeploymentDeclined": _t(
+            "Einsatztag wurde abgelehnt – keine automatische Anmeldung.",
+            "Assignment declined – no automatic sign-in.",
+            "تم رفض يوم التكليف – لا تسجيل تلقائي.",
+        ),
+        "attendanceNotWorkday": _t(
+            "Heute kein Arbeitstag.",
+            "Not a work day today.",
+            "ليس يوم عمل اليوم.",
+        ),
+    }
+
+
+WORKER_SECTOR_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
+    "construction": {
+        **_worker_attendance_msgs("am Standort / Baustelle", "on site", "في الموقع"),
+        "fieldSite": _t("Standort / Baustelle", "Site", "الموقع"),
+        "nextStepConstructionTitle": _t("Standort zuerst", "Site first", "الموقع أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt auf den Standort {site} und die wichtigsten Standortinfos zugreifen.",
+            "Go straight to {site} and the most important site details.",
+            "انتقل مباشرة إلى {site} وأهم معلومات الموقع.",
+        ),
+        "smartHubFocusConstruction": _t("Baustellenfluss", "Site workflow", "سير الموقع"),
+        "companyModeConstructionLead": _t(
+            "Baustellenfokus mit schneller Zutrittsabwicklung.",
+            "Site-focused access workflow.",
+            "تركيز على الموقع مع دخول سريع.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang für Standort-Check-in",
+            "Fast site check-in",
+            "تسجيل دخول سريع في الموقع",
+        ),
+    },
+    "manufacturing": {
+        **_worker_attendance_msgs("im Werk", "in the plant", "في المنشأة"),
+        "fieldSite": _t("Werk / Halle", "Plant / hall", "المصنع / القاعة"),
+        "nextStepConstructionTitle": _t("Werk zuerst", "Plant first", "المصنع أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt ins Werk {site} und zu den wichtigsten Schichtinfos.",
+            "Go straight to plant {site} and key shift details.",
+            "انتقل مباشرة إلى {site} وأهم معلومات الوردية.",
+        ),
+        "smartHubFocusConstruction": _t("Werkfluss", "Plant workflow", "سير المصنع"),
+        "companyModeConstructionLead": _t(
+            "Werkfokus mit Schicht- und Zutrittssteuerung.",
+            "Plant focus with shift and access control.",
+            "تركيز على المصنع مع التحكم بالورديات.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang für Werk-Check-in",
+            "Fast plant check-in",
+            "تسجيل دخول سريع في المصنع",
+        ),
+    },
+    "aviation": {
+        **_worker_attendance_msgs("im Terminal", "in the terminal", "في المبنى"),
+        "fieldSite": _t("Terminal / Zone", "Terminal / zone", "المبنى / المنطقة"),
+        "nextStepConstructionTitle": _t("Terminal zuerst", "Terminal first", "المبنى أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt ins Terminal {site} und zu den wichtigsten Zutrittsinfos.",
+            "Go straight to terminal {site} and key access details.",
+            "انتقل مباشرة إلى {site} وأهم معلومات الدخول.",
+        ),
+        "smartHubFocusConstruction": _t("Terminalfluss", "Terminal workflow", "سير المبنى"),
+        "companyModeConstructionLead": _t(
+            "Terminal-Zutritt mit klaren Zonen und Berechtigungen.",
+            "Terminal access with clear zones and permissions.",
+            "دخول المبنى مع مناطق وصلاحيات واضحة.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang für Terminal-Check-in",
+            "Fast terminal check-in",
+            "تسجيل دخول سريع في المبنى",
+        ),
+    },
+    "logistics": {
+        **_worker_attendance_msgs("im Hub / Depot", "at the hub", "في المركز"),
+        "fieldSite": _t("Depot / Hub", "Depot / hub", "المستودع / المركز"),
+        "nextStepConstructionTitle": _t("Hub zuerst", "Hub first", "المركز أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt zum Hub {site} und zu den wichtigsten Einsatzinfos.",
+            "Go straight to hub {site} and key assignment details.",
+            "انتقل مباشرة إلى {site} وأهم معلومات التكليف.",
+        ),
+        "smartHubFocusConstruction": _t("Hub-Fluss", "Hub workflow", "سير المركز"),
+        "companyModeConstructionLead": _t(
+            "Logistikfokus mit Tor- und Schichtsteuerung.",
+            "Logistics focus with gate and shift control.",
+            "تركيز لوجستي مع التحكم بالبوابات.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang für Hub-Check-in",
+            "Fast hub check-in",
+            "تسجيل دخول سريع في المركز",
+        ),
+    },
+    "security": {
+        **_worker_attendance_msgs("am Einsatzort", "on assignment", "في موقع المهمة"),
+        "fieldSite": _t("Objekt / Einsatzort", "Site / assignment", "الموقع / المهمة"),
+        "nextStepConstructionTitle": _t("Einsatzort zuerst", "Assignment first", "موقع المهمة أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt zum Einsatzort {site} und zu den wichtigsten Objektinfos.",
+            "Go straight to assignment {site} and key site details.",
+            "انتقل مباشرة إلى {site} وأهم معلومات الموقع.",
+        ),
+        "smartHubFocusConstruction": _t("Einsatzfluss", "Assignment workflow", "سير المهمة"),
+        "companyModeConstructionLead": _t(
+            "Objektschutz mit klaren Einsatz- und Kontrollpunkten.",
+            "Security operations with clear assignment checkpoints.",
+            "حماية المواقع مع نقاط تفتيش واضحة.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang am Einsatzort",
+            "Fast on-assignment check-in",
+            "تسجيل دخول سريع في موقع المهمة",
+        ),
+    },
+    "public_sector": {
+        **_worker_attendance_msgs("am Standort / Gebäude", "at the facility", "في المنشأة"),
+        "fieldSite": _t("Standort / Gebäude", "Facility", "المنشأة / المبنى"),
+        "nextStepConstructionTitle": _t("Standort zuerst", "Facility first", "المنشأة أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt zum Standort {site} und zu den wichtigsten Infos.",
+            "Go straight to facility {site} and key details.",
+            "انتقل مباشرة إلى {site} وأهم المعلومات.",
+        ),
+        "smartHubFocusConstruction": _t("Standortfluss", "Facility workflow", "سير المنشأة"),
+        "companyModeConstructionLead": _t(
+            "Standortfokus mit nachvollziehbarem Zutrittsprotokoll.",
+            "Facility focus with auditable access logging.",
+            "تركيز على المنشأة مع سجل دخول قابل للتدقيق.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang am Standort",
+            "Fast facility check-in",
+            "تسجيل دخول سريع في المنشأة",
+        ),
+    },
+    "government": {
+        **_worker_attendance_msgs("in der Dienststelle", "at the office", "في الدائرة"),
+        "fieldSite": _t("Standort / Dienststelle", "Office / site", "الموقع / الدائرة"),
+        "nextStepConstructionTitle": _t("Dienststelle zuerst", "Office first", "الدائرة أولًا"),
+        "nextStepConstructionCopy": _t(
+            "Direkt zur Dienststelle {site} und zu den wichtigsten Zutrittsinfos.",
+            "Go straight to office {site} and key access details.",
+            "انتقل مباشرة إلى {site} وأهم معلومات الدخول.",
+        ),
+        "smartHubFocusConstruction": _t("Dienststellenfluss", "Office workflow", "سير الدائرة"),
+        "companyModeConstructionLead": _t(
+            "Enterprise-Zutritt mit Compliance und Audit-Trail.",
+            "Enterprise access with compliance and audit trail.",
+            "دخول مؤسسي مع امتثال وسجل تدقيق.",
+        ),
+        "companyModeConstructionItem1": _t(
+            "Schneller Zugang in der Dienststelle",
+            "Fast office check-in",
+            "تسجيل دخول سريع في الدائرة",
+        ),
+    },
+}
+
+
+def resolve_company_operating_sector(db, company_id: str) -> str:
+    row = db.execute(
+        "SELECT operating_sector, branding_preset FROM companies WHERE id = ? LIMIT 1",
+        (str(company_id),),
+    ).fetchone()
+    if not row:
+        return DEFAULT_SECTOR
+    keys = row.keys() if hasattr(row, "keys") else []
+    if "operating_sector" in keys and row["operating_sector"]:
+        return normalize_operating_sector(row["operating_sector"])
+    preset = str(row["branding_preset"] or "").lower()
+    if preset == "industry":
+        return "manufacturing"
+    return DEFAULT_SECTOR
+
+
+def sector_attendance_message(
+    db,
+    company_id: str,
+    message_key: str,
+    *,
+    lang: str = "de",
+) -> str:
+    cfg = sector_config(resolve_company_operating_sector(db, company_id), lang=lang)
+    terms = cfg.get("terms") or {}
+    text = str(terms.get(message_key) or "").strip()
+    if text:
+        return text
+    neutral = sector_config("public_sector", lang=lang).get("terms") or {}
+    return str(neutral.get(message_key) or "").strip()
+
+
 def sector_config(sector_id: str, *, lang: str = "de") -> dict[str, Any]:
     sector_id = normalize_operating_sector(sector_id)
     lang = str(lang or "de").strip().lower()[:2] or "de"
     meta = SECTOR_META[sector_id]
     terms_raw = SECTOR_TERM_KEYS.get(sector_id, {})
     admin_terms = ADMIN_V2_TERM_KEYS.get(sector_id, ADMIN_V2_TERM_KEYS["construction"])
-    merged_terms = {**terms_raw, **admin_terms}
+    worker_terms = WORKER_SECTOR_TERM_KEYS.get(sector_id, WORKER_SECTOR_TERM_KEYS["construction"])
+    merged_terms = {**terms_raw, **admin_terms, **worker_terms}
     terms = {k: (v.get(lang) or v.get("en") or v.get("de") or "") for k, v in merged_terms.items()}
     label = meta["labels"].get(lang) or meta["labels"].get("en") or meta["labels"]["de"]
     product_line = meta["productLine"].get(lang) or meta["productLine"].get("en") or meta["productLine"]["de"]

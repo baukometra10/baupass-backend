@@ -3905,6 +3905,9 @@ def init_db():
         ON worker_deployment_day_responses(company_id, worker_id, work_date)
         """
     )
+    wdd_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_deployment_days)").fetchall()]
+    if "day_color" not in wdd_columns:
+        cur.execute("ALTER TABLE worker_deployment_days ADD COLUMN day_color TEXT NOT NULL DEFAULT ''")
 
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
@@ -12918,7 +12921,19 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
     late = 0
     if direction == "check-in" and worker_type != "visitor":
         try:
-            work_start = get_effective_work_start_time(db, worker_id)
+            worker_row = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
+            work_start = ""
+            if worker_row:
+                from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+                attendance = worker_may_auto_attend_today(db, worker_row)
+                shift_start = str(attendance.get("shiftStart") or "").strip()
+                if "T" in shift_start and len(shift_start) >= 16:
+                    work_start = shift_start[11:16]
+                elif shift_start and ":" in shift_start:
+                    work_start = shift_start[:5]
+            if not work_start:
+                work_start = get_effective_work_start_time(db, worker_id)
             if work_start and ":" in work_start:
                 from datetime import datetime as _dt
                 now_local = _dt.now()
@@ -13140,18 +13155,23 @@ def worker_badge_qr(worker_id):
     )
 
 
-def build_worker_app_company_payload(db, company_id):
+def build_worker_app_company_payload(db, company_id, *, lang: str = "de"):
     from backend.app.platform.company_branding import company_white_label_from_row
+    from backend.app.platform.sector.catalog import resolve_company_operating_sector, sector_config
 
     company = db.execute("SELECT * FROM companies WHERE id = ?", (str(company_id),)).fetchone()
     site_access = get_company_site_access_config(db, company_id)
     wl = company_white_label_from_row(company)
     company_name = str(company["name"] if company else "").strip()
     portal = str(wl.get("portalDisplayName") or "").strip() or company_name
+    operating_sector = resolve_company_operating_sector(db, str(company_id))
+    sector_terms = sector_config(operating_sector, lang=str(lang or "de")[:2]).get("terms") or {}
     return {
         "id": str(company_id),
         "name": company_name,
         "portalDisplayName": portal,
+        "operatingSector": operating_sector,
+        "sectorTerms": sector_terms,
         "brandingPreset": normalize_branding_preset(
             company["branding_preset"] if company and "branding_preset" in company.keys() else "construction"
         ),
@@ -13671,7 +13691,8 @@ def worker_app_me():
     from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
 
     attendance = worker_may_auto_attend_today(db, worker)
-    company_payload = build_worker_app_company_payload(db, worker["company_id"])
+    worker_lang = str(request.args.get("lang") or request.headers.get("X-Worker-Lang") or "de")[:2]
+    company_payload = build_worker_app_company_payload(db, worker["company_id"], lang=worker_lang)
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker, db=db),

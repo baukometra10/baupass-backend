@@ -6,9 +6,23 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any
 
+_FREE_MARKERS = frozenset(
+    {"frei", "free", "off", "aus", "-", "–", "—", "x", "urlaub", "free day", "kein einsatz", "no assignment", "off day"}
+)
+
+
+def _is_real_location(location: str | None) -> bool:
+    normalized = str(location or "").strip().lower()
+    return bool(normalized) and normalized not in _FREE_MARKERS
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+
+
+def _normalize_day_color(value: str | None) -> str:
+    raw = str(value or "").strip()
+    return raw.lower() if raw.startswith("#") and len(raw) == 7 else ""
 
 
 def month_bounds(year: int, month: int) -> tuple[str, str]:
@@ -28,7 +42,7 @@ def list_deployment_days(
     try:
         rows = db.execute(
             """
-            SELECT id, work_date, location_label, shift_start, shift_end, notes, source, updated_at
+            SELECT id, work_date, location_label, shift_start, shift_end, notes, day_color, source, updated_at
             FROM worker_deployment_days
             WHERE company_id = ? AND worker_id = ? AND work_date >= ? AND work_date <= ?
             ORDER BY work_date ASC
@@ -51,23 +65,35 @@ def upsert_deployment_days(
     saved = 0
     for item in days:
         work_date = str(item.get("date") or item.get("workDate") or "").strip()[:10]
-        location = str(item.get("location") or item.get("locationLabel") or "").strip()
-        if not work_date or not location:
+        if not work_date:
             continue
+        location = str(item.get("location") or item.get("locationLabel") or "").strip()
+        day_type = str(item.get("dayType") or item.get("day_type") or "").strip().lower()
         notes = str(item.get("notes") or "").strip()[:500]
         shift_start = str(item.get("shiftStart") or item.get("shift_start") or "").strip()[:16]
         shift_end = str(item.get("shiftEnd") or item.get("shift_end") or "").strip()[:16]
+        day_color = _normalize_day_color(item.get("dayColor") or item.get("day_color"))
+
+        if day_type == "free" or (location and not _is_real_location(location)):
+            if not location:
+                location = "Frei"
+            shift_start = ""
+            shift_end = ""
+        elif not location:
+            continue
+
         row_id = f"wdd-{uuid.uuid4().hex[:12]}"
         db.execute(
             """
             INSERT INTO worker_deployment_days
-                (id, company_id, worker_id, work_date, location_label, shift_start, shift_end, notes, source, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, company_id, worker_id, work_date, location_label, shift_start, shift_end, notes, day_color, source, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(company_id, worker_id, work_date) DO UPDATE SET
                 location_label = excluded.location_label,
                 shift_start = excluded.shift_start,
                 shift_end = excluded.shift_end,
                 notes = excluded.notes,
+                day_color = excluded.day_color,
                 source = excluded.source,
                 updated_at = excluded.updated_at
             """,
@@ -80,6 +106,7 @@ def upsert_deployment_days(
                 shift_start,
                 shift_end,
                 notes,
+                day_color,
                 source,
                 _now_iso(),
             ),
@@ -221,15 +248,18 @@ def build_month_calendar(
         key = d.isoformat()
         row = stored.get(key)
         rd = dict(row) if row else {}
+        location = str(rd.get("location_label") or "")
         out.append(
             {
                 "date": key,
                 "weekday": names[d.weekday()],
                 "weekdayIndex": d.weekday(),
-                "location": str(rd.get("location_label") or ""),
+                "location": location,
                 "shiftStart": str(rd.get("shift_start") or ""),
                 "shiftEnd": str(rd.get("shift_end") or ""),
                 "notes": str(rd.get("notes") or ""),
+                "dayColor": str(rd.get("day_color") or ""),
+                "isFree": not _is_real_location(location),
                 "isWeekend": d.weekday() >= 5,
             }
         )

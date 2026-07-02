@@ -40,6 +40,17 @@ def _parse_iso_date(value: str | None) -> date | None:
         return None
 
 
+def _shift_hhmm(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if "T" in raw and len(raw) >= 16:
+        return raw[11:16]
+    if ":" in raw:
+        return raw[:5]
+    return ""
+
+
 def worker_on_approved_leave(db, worker_id: str, target_date: date | None = None) -> bool:
     """True when worker has approved leave covering target_date."""
     day = target_date or date.today()
@@ -63,7 +74,7 @@ def worker_deployment_day_row(
 ) -> dict[str, Any] | None:
     row = db.execute(
         """
-        SELECT work_date, location_label, shift_start, shift_end, notes
+        SELECT work_date, location_label, shift_start, shift_end, notes, day_color
         FROM worker_deployment_days
         WHERE company_id = ? AND worker_id = ? AND work_date = ?
         LIMIT 1
@@ -85,6 +96,31 @@ def worker_deployment_response_for_date(
         (str(company_id), str(worker_id), target_date.isoformat()),
     ).fetchone()
     return str(row["status"] or "").strip().lower() if row else ""
+
+
+def company_deployment_plan_active(db, company_id: str, year: int, month: int) -> bool:
+    """True when the company uses Einsatzplan for attendance in this month."""
+    from .deployment_store import month_bounds
+
+    try:
+        from .deployment_worker import month_plan_published
+
+        if month_plan_published(db, str(company_id), int(year), int(month)):
+            return True
+    except Exception:
+        pass
+    start, end = month_bounds(year, month)
+    row = db.execute(
+        """
+        SELECT 1 FROM worker_deployment_days
+        WHERE company_id = ?
+          AND work_date >= ? AND work_date <= ?
+          AND TRIM(COALESCE(location_label, '')) != ''
+        LIMIT 1
+        """,
+        (str(company_id), start, end),
+    ).fetchone()
+    return bool(row)
 
 
 def worker_has_deployment_plan_usage(
@@ -137,9 +173,9 @@ def _effective_work_times(db, worker_id: str) -> tuple[str, str]:
 
 
 def _within_shift_window(shift_start: str, shift_end: str, *, now: datetime | None = None) -> bool:
-    start_raw = str(shift_start or "").strip()[:5]
-    end_raw = str(shift_end or "").strip()[:5]
-    if not start_raw or not end_raw or ":" not in start_raw or ":" not in end_raw:
+    start_raw = _shift_hhmm(shift_start)
+    end_raw = _shift_hhmm(shift_end)
+    if not start_raw or not end_raw:
         return True
     current = now or datetime.now()
     try:
@@ -150,8 +186,11 @@ def _within_shift_window(shift_start: str, shift_end: str, *, now: datetime | No
     start_minutes = sh * 60 + sm
     end_minutes = eh * 60 + em
     current_minutes = current.hour * 60 + current.minute
-    # Allow check-in from 30 minutes before shift start until shift end.
-    return (start_minutes - 30) <= current_minutes <= end_minutes
+    window_start = start_minutes - 30
+    # Night shift: end before start (e.g. 22:00–06:00)
+    if end_minutes < start_minutes:
+        return current_minutes >= window_start or current_minutes <= end_minutes
+    return window_start <= current_minutes <= end_minutes
 
 
 def worker_may_auto_attend_today(
@@ -160,6 +199,7 @@ def worker_may_auto_attend_today(
     *,
     target_date: date | None = None,
     now: datetime | None = None,
+    lang: str = "de",
 ) -> dict[str, Any]:
     """
     Decide whether automatic attendance (proximity login / site auto check-in) is allowed.
@@ -167,6 +207,7 @@ def worker_may_auto_attend_today(
     Returns {ok, reason, message, dayType, location, shiftStart, shiftEnd}.
     """
     from backend.server import is_company_workday_today, normalize_worker_type
+    from backend.app.platform.sector.catalog import sector_attendance_message
 
     day = target_date or date.today()
     current = now or datetime.now()
@@ -185,7 +226,7 @@ def worker_may_auto_attend_today(
         return {
             "ok": False,
             "reason": "on_approved_leave",
-            "message": "Heute genehmigter Urlaub – keine automatische Anmeldung.",
+            "message": sector_attendance_message(db, company_id, "attendanceOnLeave", lang=lang),
             "dayType": "leave",
         }
 
@@ -196,11 +237,12 @@ def worker_may_auto_attend_today(
         return {
             "ok": False,
             "reason": "deployment_declined",
-            "message": "Einsatztag wurde abgelehnt – keine automatische Anmeldung.",
+            "message": sector_attendance_message(db, company_id, "attendanceDeploymentDeclined", lang=lang),
             "dayType": "declined",
         }
 
-    plan_active = worker_has_deployment_plan_usage(
+    company_plan = company_deployment_plan_active(db, company_id, day.year, day.month)
+    plan_active = company_plan or worker_has_deployment_plan_usage(
         db,
         company_id=company_id,
         worker_id=worker_id,
@@ -219,17 +261,17 @@ def worker_may_auto_attend_today(
             return {
                 "ok": False,
                 "reason": "not_scheduled_today",
-                "message": "Heute frei laut Einsatzplan – keine automatische Anmeldung.",
+                "message": sector_attendance_message(db, company_id, "attendanceNotScheduledToday", lang=lang),
                 "dayType": "free",
-                "location": "",
+                "location": location or "",
                 "shiftStart": shift_start,
                 "shiftEnd": shift_end,
             }
-        if not _within_shift_window(shift_start, shift_end, now=current):
+        if shift_start and shift_end and not _within_shift_window(shift_start, shift_end, now=current):
             return {
                 "ok": False,
                 "reason": "outside_shift_window",
-                "message": "Automatische Anmeldung nur waehrend der geplanten Schichtzeit.",
+                "message": sector_attendance_message(db, company_id, "attendanceOutsideShift", lang=lang),
                 "dayType": "scheduled",
                 "location": location,
                 "shiftStart": shift_start,
@@ -250,14 +292,14 @@ def worker_may_auto_attend_today(
         return {
             "ok": False,
             "reason": "not_a_workday",
-            "message": "Heute kein Arbeitstag.",
+            "message": sector_attendance_message(db, company_id, "attendanceNotWorkday", lang=lang),
             "dayType": "weekend",
         }
     if day.weekday() >= 5:
         return {
             "ok": False,
             "reason": "not_a_workday",
-            "message": "Heute kein Arbeitstag.",
+            "message": sector_attendance_message(db, company_id, "attendanceNotWorkday", lang=lang),
             "dayType": "weekend",
         }
 
@@ -267,7 +309,7 @@ def worker_may_auto_attend_today(
             return {
                 "ok": False,
                 "reason": "outside_work_hours",
-                "message": "Automatische Anmeldung nur waehrend der Arbeitszeit.",
+                "message": sector_attendance_message(db, company_id, "attendanceOutsideWorkHours", lang=lang),
                 "dayType": "workday",
                 "location": location,
                 "shiftStart": work_start,
@@ -289,6 +331,6 @@ def worker_may_auto_attend_today(
         "message": "",
         "dayType": "workday",
         "location": location,
-        "shiftStart": shift_start,
-        "shiftEnd": shift_end,
+        "shiftStart": shift_start or work_start,
+        "shiftEnd": shift_end or work_end,
     }

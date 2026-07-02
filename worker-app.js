@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260630d";
+const WORKER_BUILD_TAG = "20260630f";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -553,6 +553,10 @@ function applyWorkerBrandLabels(brandTitle) {
     el.textContent = isCardBrand ? title.toUpperCase() : title;
   });
   updateWorkerChatBranding(title);
+  const aiTitleEl = document.getElementById("workerAiTitle") || document.querySelector("#workerAiCard h3");
+  if (aiTitleEl) {
+    aiTitleEl.textContent = `${title} AI`;
+  }
   const metaAppTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (metaAppTitle) metaAppTitle.setAttribute("content", title);
   const metaAppName = document.querySelector('meta[name="application-name"]');
@@ -591,6 +595,31 @@ function applyWorkerLogoMarks(logoData, brandTitle, accentColor) {
   document.querySelectorAll(".wc-brand-mark, .stb-logo-mark").forEach((mark) => {
     applyWorkerBrandMarkElement(mark, logoData, brandTitle, accentColor);
   });
+}
+
+function applyWorkerSectorTerms(company = {}) {
+  const terms = company.sectorTerms || company.sector_terms || {};
+  window.__workerSectorTerms = terms && typeof terms === "object" ? terms : {};
+  const sector = String(company.operatingSector || company.operating_sector || "construction").trim();
+  if (sector) {
+    document.body.setAttribute("data-operating-sector", sector);
+  }
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    if (!key || !window.__workerSectorTerms[key]) return;
+    const value = window.__workerSectorTerms[key];
+    if (el.hasAttribute("data-i18n-placeholder")) {
+      el.placeholder = value;
+    } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+      el.placeholder = value;
+    } else {
+      el.textContent = value;
+    }
+  });
+  const smartHubFocus = document.getElementById("smartHubFocusValue");
+  if (smartHubFocus && window.__workerSectorTerms.smartHubFocusConstruction) {
+    smartHubFocus.textContent = window.__workerSectorTerms.smartHubFocusConstruction;
+  }
 }
 
 function applyWorkerCompanyBranding({
@@ -659,6 +688,7 @@ function applyWorkerBrandingFromCompanyPayload(company = {}, extras = {}) {
     brandingAccentColor: company.brandingAccentColor || company.branding_accent_color || extras.accent || "",
     brandingLogoData: company.brandingLogoData || company.branding_logo_data || extras.logoData || "",
   });
+  applyWorkerSectorTerms(company);
 }
 
 function applyJoinPreviewBranding(preview) {
@@ -1577,6 +1607,9 @@ function applyTranslations() {
   // Re-apply company brand label after translations
   if (currentAppBrandTitle) {
     applyWorkerBrandLabels(currentAppBrandTitle);
+  }
+  if (lastWorkerPayload?.company) {
+    applyWorkerSectorTerms(lastWorkerPayload.company);
   }
   updateWorkerHubToggleLabel();
 }
@@ -4480,7 +4513,7 @@ async function loadWorkerData(options = {}) {
 
   workerDebug("[loadWorkerData] Starting fetch for /me...");
   try {
-    const payload = await fetchJson(`${API_BASE}/me`);
+    const payload = await fetchJson(`${API_BASE}/me?lang=${encodeURIComponent(currentLang || "de")}`);
     if (!tokenAtRequest || tokenAtRequest !== workerToken) {
       // Ignore stale response after logout/login switch.
       return false;
@@ -4606,6 +4639,7 @@ function renderWorker(payload) {
     brandingAccentColor: company.brandingAccentColor || company.branding_accent_color,
     brandingLogoData: company.brandingLogoData || company.branding_logo_data,
   });
+  applyWorkerSectorTerms(company);
 
   if (elements.workerPassTitle) {
     elements.workerPassTitle.textContent = isVisitor ? t("visitorCardTitle") : t("workerCardTitle");
@@ -8486,7 +8520,11 @@ async function loadLeaveRequests() {
         const typeMap = { urlaub: "Urlaub", krank: "Krank", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" };
         const typeLabel = typeMap[req.type] || req.type || "–";
         const statusCls = req.status === "genehmigt" ? "leave-status-ok" : req.status === "abgelehnt" ? "leave-status-no" : "leave-status-pending";
-        const statusTxt = req.status === "genehmigt" ? "✓ Genehmigt" : req.status === "abgelehnt" ? "✗ Abgelehnt" : "⏳ Ausstehend";
+        const statusTxt = req.status === "genehmigt"
+          ? t("leaveStatusApproved")
+          : req.status === "abgelehnt"
+            ? t("leaveStatusRejected")
+            : t("leaveStatusPending");
         return `<div class="leave-request-item ${statusCls}">
           <div class="leave-req-row">
             <strong>${typeLabel}</strong>
@@ -9405,17 +9443,44 @@ function closeDeploymentDeclineModal() {
   document.getElementById("deploymentDeclineModal")?.classList.add("hidden");
 }
 
+function formatDeploymentShiftTime(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.includes("T") && raw.length >= 16) return raw.slice(11, 16);
+  if (/^\d{1,2}:\d{2}/.test(raw)) return raw.slice(0, 5);
+  return raw;
+}
+
+function deploymentDayColorStyle(day) {
+  const color = String(day?.dayColor || day?.day_color || "").trim();
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return "";
+  return `--dep-day-color:${color};border-color:${color};background:color-mix(in srgb, ${color} 16%, var(--card, #fff))`;
+}
+
+function renderDeploymentPlanCalendar(days) {
+  const headers = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const first = days[0];
+  const pad = first && Number.isFinite(first.weekdayIndex) ? first.weekdayIndex : 0;
+  const headHtml = headers.map((label) => `<span class="deployment-plan-calendar-head-cell">${label}</span>`).join("");
+  const padHtml = Array.from({ length: pad }, () => `<span class="deployment-plan-calendar-pad" aria-hidden="true"></span>`).join("");
+  const cells = days.map((day) => renderDeploymentPlanDayRow(day)).join("");
+  return `<div class="deployment-plan-calendar"><div class="deployment-plan-calendar-head">${headHtml}</div><div class="deployment-plan-calendar-grid">${padHtml}${cells}</div></div>`;
+}
+
 function deploymentDayIsFree(day) {
   if (deploymentDayIsDeclined(day)) {
     return false;
+  }
+  if (day?.isFree === true) {
+    return true;
   }
   return !deploymentDayHasAssignment(day);
 }
 
 function renderDeploymentPlanDayRow(day) {
   const location = deploymentDayLocationValue(day);
-  const shiftStart = String(day.shiftStart || "").trim();
-  const shiftEnd = String(day.shiftEnd || "").trim();
+  const shiftStart = formatDeploymentShiftTime(day.shiftStart);
+  const shiftEnd = formatDeploymentShiftTime(day.shiftEnd);
   const notes = String(day.notes || "").trim();
   const declineReason = String(day.declineReason || "").trim();
   const isFreeDay = deploymentDayIsFree(day);
@@ -9427,8 +9492,10 @@ function renderDeploymentPlanDayRow(day) {
   const dayNum = dateParts[2] || day.date;
   const declined = deploymentDayIsDeclined(day);
   const declinable = !isFreeDay && deploymentDayIsDeclinable(day);
+  const colorStyle = deploymentDayColorStyle(day);
   const classes = [
     "deployment-plan-day",
+    "deployment-plan-calendar-cell",
     isFreeDay ? "is-free" : "",
     day.isWeekend && !isFreeDay ? "is-weekend" : "",
     !isFreeDay && location ? "has-assignment" : "",
@@ -9463,15 +9530,15 @@ function renderDeploymentPlanDayRow(day) {
     : (location || t("deploymentPlanNoLocation"));
 
   return `
-    <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}">
-      <div>
+    <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}"${colorStyle ? ` style="${colorStyle}"` : ""}>
+      <div class="deployment-plan-day-head">
         <div class="deployment-plan-day-date">${escapeHtmlBasic(dayNum)}</div>
         <div class="deployment-plan-day-weekday">${escapeHtmlBasic(day.weekday || "")}</div>
       </div>
-      <div>
+      <div class="deployment-plan-day-body">
         <div class="deployment-plan-day-location">${escapeHtmlBasic(locationLabel)}</div>
         ${timeText && !isFreeDay ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
-        ${notes && !isFreeDay ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
+        ${notes ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
         ${statusHtml}
       </div>
       ${actionsHtml}
@@ -9757,12 +9824,8 @@ async function loadDeploymentPlan() {
 
     const days = Array.isArray(data.days) ? data.days : [];
     deploymentPlanCachedDays = days;
-    const rows = days
-      .filter((day) => deploymentDayHasAssignment(day) || deploymentDayIsDeclined(day) || !day.isWeekend)
-      .map((day) => renderDeploymentPlanDayRow(day));
-
-    elements.deploymentPlanList.innerHTML = rows.length
-      ? rows.join("")
+    elements.deploymentPlanList.innerHTML = days.length
+      ? renderDeploymentPlanCalendar(days)
       : `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanEmpty"))}</p>`;
   } catch (error) {
     renderWorkerListMessage(elements.deploymentPlanList, formatWorkerApiError(error), "error");

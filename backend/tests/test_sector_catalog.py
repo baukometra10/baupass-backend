@@ -45,7 +45,17 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertNotIn("Baustelle", terms.get("overviewOnSite", ""))
         self.assertIn("Standort", terms["overviewOnSite"])
 
-    def test_all_sectors_public_count(self):
+    def test_worker_sector_terms(self):
+        cfg = sector_config("manufacturing", lang="de")
+        terms = cfg["terms"]
+        self.assertEqual(terms.get("fieldSite"), "Werk / Halle")
+        self.assertIn("Werk", terms.get("proximityNotScheduledToday", ""))
+        self.assertNotIn("Baustelle", terms.get("proximityNotScheduledToday", ""))
+        self.assertEqual(terms.get("nextStepConstructionTitle"), "Werk zuerst")
+
+        aviation = sector_config("aviation", lang="de")["terms"]
+        self.assertIn("Terminal", aviation.get("fieldSite", ""))
+
         sectors = all_sectors_public()
         self.assertGreaterEqual(len(sectors), 7)
         ids = {s["id"] for s in sectors}

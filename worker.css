@@ -3442,6 +3442,111 @@ body {
   gap: 6px;
 }
 
+.deployment-plan-calendar {
+  display: grid;
+  gap: 8px;
+}
+
+.deployment-plan-calendar-head {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.deployment-plan-calendar-head-cell {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+}
+
+.deployment-plan-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.deployment-plan-calendar-pad {
+  min-height: 1px;
+}
+
+.deployment-plan-calendar-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 7.5rem;
+  padding: 8px 8px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--card);
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-date {
+  font-size: 1rem;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-weekday {
+  font-size: 0.68rem;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-location {
+  font-size: 0.82rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-time,
+.deployment-plan-calendar-cell .deployment-plan-day-notes {
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.deployment-plan-calendar-cell.is-free {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.05));
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.deployment-plan-calendar-cell.has-assignment {
+  border-color: rgba(31, 111, 235, 0.35);
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-actions {
+  margin-top: auto;
+  grid-column: auto;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .deployment-plan-calendar-head,
+  .deployment-plan-calendar-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .deployment-plan-calendar-cell {
+    min-height: 5.5rem;
+    padding: 6px 5px 4px;
+  }
+
+  .deployment-plan-calendar-cell .deployment-plan-day-location {
+    font-size: 0.68rem;
+  }
+
+  .deployment-plan-calendar-cell .deployment-plan-day-weekday {
+    display: none;
+  }
+}
+
 .deployment-plan-day {
   display: grid;
   grid-template-columns: minmax(4.5rem, auto) 1fr;

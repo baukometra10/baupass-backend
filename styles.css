@@ -9211,7 +9211,7 @@ body.theme-black .invoice-toolbar-refresh:active {
 .deployment-days-header,
 .deployment-day-row {
   display: grid;
-  grid-template-columns: 4.25rem minmax(120px, 1.5fr) 5rem 5rem minmax(72px, 1fr) auto;
+  grid-template-columns: 4.25rem minmax(120px, 1.5fr) 5rem 5rem minmax(72px, 1fr) 2.75rem minmax(9rem, auto);
   gap: 0.4rem;
   align-items: center;
   font-size: 0.85rem;
@@ -9233,6 +9233,32 @@ body.theme-black .invoice-toolbar-refresh:active {
 .deployment-day-row.weekend {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 6px;
+}
+
+.deployment-day-row.is-free-day {
+  background: rgba(16, 185, 129, 0.12);
+  border-radius: 6px;
+}
+
+.deployment-day-row[style*="--dep-row-color"] {
+  box-shadow: inset 3px 0 0 var(--dep-row-color, transparent);
+}
+
+.deployment-day-color {
+  width: 2.25rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border, #2a3848);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.deployment-day-actions-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: flex-end;
 }
 
 .deployment-day-row input {

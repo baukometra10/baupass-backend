@@ -114,6 +114,7 @@
       d.shiftStart = timeInputToIso(d.date, row.querySelector('[data-dep-field="start"]')?.value);
       d.shiftEnd = timeInputToIso(d.date, row.querySelector('[data-dep-field="end"]')?.value);
       d.notes = row.querySelector('[data-dep-field="notes"]')?.value.trim() || "";
+      d.dayColor = row.querySelector('[data-dep-field="color"]')?.value || "";
     });
   }
 
@@ -168,6 +169,7 @@
         <span>${ui("deploymentColStart")}</span>
         <span>${ui("deploymentColEnd")}</span>
         <span>${ui("deploymentColNotes")}</span>
+        <span>${ui("deploymentColColor") || "Farbe"}</span>
         <span></span>
       </div>`;
     const rows = modalDays
@@ -176,6 +178,8 @@
         const notes = escapeAttr(d.notes || "");
         const start = escapeAttr(isoToTimeInput(d.shiftStart));
         const end = escapeAttr(isoToTimeInput(d.shiftEnd));
+        const color = escapeAttr(d.dayColor || "#1f6feb");
+        const isFree = !loc || /^(frei|free|off|aus|urlaub)$/i.test(loc.trim());
         const declined =
           String(d.workerResponse || "") === "declined" || Boolean(d.isDeclined);
         const reasonText = String(d.declineReason || "").trim();
@@ -187,13 +191,17 @@
             ? `<p class="deployment-decline-reason"><strong>${escapeAttr(ui("deploymentDeclineReasonLabel"))}:</strong> ${escapeAttr(reasonText)}</p>`
             : "";
         return `
-      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}" data-dep-idx="${i}" role="row">
+      <div class="deployment-day-row${d.isWeekend ? " weekend" : ""}${declined ? " worker-declined" : ""}${isFree ? " is-free-day" : ""}" data-dep-idx="${i}" role="row" style="${d.dayColor ? `--dep-row-color:${escapeAttr(d.dayColor)}` : ""}">
         <span class="deployment-day-meta">${d.date.slice(8, 10)}.${d.date.slice(5, 7)}.<br /><span class="deployment-weekday">${d.weekday}</span>${declineHint}${declineReasonBlock}</span>
         <input type="text" data-dep-field="location" value="${loc}" placeholder="${escapeAttr(ui("deploymentLocationPh"))}" />
         <input type="time" data-dep-field="start" value="${start}" />
         <input type="time" data-dep-field="end" value="${end}" />
         <input type="text" data-dep-field="notes" value="${notes}" placeholder="${escapeAttr(ui("deploymentNotesPh"))}" />
-        <button type="button" class="ghost-button deployment-day-clear" data-dep-clear="${i}">${ui("deploymentClearDay")}</button>
+        <input type="color" class="deployment-day-color" data-dep-field="color" value="${color}" title="${escapeAttr(ui("deploymentColColor") || "Farbe")}" />
+        <div class="deployment-day-actions-inline">
+          <button type="button" class="ghost-button deployment-day-free" data-dep-free="${i}">${ui("deploymentMarkFree") || "Frei"}</button>
+          <button type="button" class="ghost-button deployment-day-clear" data-dep-clear="${i}">${ui("deploymentClearDay")}</button>
+        </div>
       </div>`;
       })
       .join("");
@@ -203,10 +211,24 @@
         const i = parseInt(btn.getAttribute("data-dep-clear"), 10);
         const d = modalDays[i];
         if (!d) return;
-        d.location = "";
+        d.location = "Frei";
         d.shiftStart = "";
         d.shiftEnd = "";
         d.notes = "";
+        d.dayType = "free";
+        renderModalDaysList();
+      });
+    });
+    host.querySelectorAll("[data-dep-free]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = parseInt(btn.getAttribute("data-dep-free"), 10);
+        const d = modalDays[i];
+        if (!d) return;
+        d.location = "Frei";
+        d.shiftStart = "";
+        d.shiftEnd = "";
+        d.dayType = "free";
+        if (!d.dayColor) d.dayColor = "#10b981";
         renderModalDaysList();
       });
     });
@@ -286,6 +308,8 @@
       notes: d.notes || "",
       shiftStart: d.shiftStart,
       shiftEnd: d.shiftEnd,
+      dayColor: d.dayColor || "",
+      dayType: d.dayType || (/^(frei|free)$/i.test(String(d.location || "").trim()) ? "free" : ""),
     }));
     await api(`/api/workforce/deployment-plan${q}`, {
       method: "PUT",

@@ -247,9 +247,14 @@ def worker_deployment_plan_payload(
     )
     responses = list_responses_for_month(db, company_id=company_id, worker_id=worker_id, year=year, month=month)
     days = attach_responses_to_days(days, responses)
-    scheduled = [d for d in days if str(d.get("location") or "").strip()]
+    from .attendance_eligibility import is_real_deployment_location
+
+    scheduled = [
+        d for d in days if is_real_deployment_location(str(d.get("location") or ""))
+    ]
+    has_plan_entries = any(str(d.get("location") or "").strip() for d in days)
     has_assignments = bool(scheduled)
-    visible = published or has_assignments
+    visible = published or has_plan_entries or company_published
     months = list_worker_plan_months(db, company_id=company_id, worker_id=worker_id)
     if not visible:
         return {

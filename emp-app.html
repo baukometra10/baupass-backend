@@ -4,7 +4,7 @@
   <script>
     /* Erzwingt aktuelle worker-build.json — PWA: Cache+SW einmal leeren bei neuem Build */
     (function bootstrapWorkerShell() {
-      var INLINE_BUILD = "20260630d";
+      var INLINE_BUILD = "20260630f";
       var params = new URLSearchParams(window.location.search);
       if (params.get("boot") === "done") return;
 
@@ -102,20 +102,20 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" sizes="192x192" href="data:," id="workerAppFavicon" />
   <link rel="apple-touch-icon" sizes="192x192" href="data:," id="workerAppTouchIcon" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260630d" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260630f" />
   <title>Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta http-equiv="expires" content="0" />
-  <link rel="stylesheet" href="./worker-theme.css?v=20260630d" />
-  <link rel="stylesheet" href="./worker.css?v=20260630d" />
+  <link rel="stylesheet" href="./worker-theme.css?v=20260630f" />
+  <link rel="stylesheet" href="./worker.css?v=20260630f" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260630d" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260630d" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260630d" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260630d" />
-  <link rel="stylesheet" href="./worker-readability.css?v=20260630d" />
-  <script src="./tenant-brand-icon.js?v=20260630d"></script>
+  <link rel="stylesheet" href="./worker-polish.css?v=20260630f" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260630f" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260630f" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260630f" />
+  <link rel="stylesheet" href="./worker-readability.css?v=20260630f" />
+  <script src="./tenant-brand-icon.js?v=20260630f"></script>
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
@@ -795,7 +795,7 @@
           </div>
           <div class="info-row">
             <span class="info-icon">📍</span>
-            <span class="info-label" data-i18n="fieldSite">Baustelle</span>
+            <span class="info-label" data-i18n="fieldSite">Standort</span>
             <a id="workerSite" class="info-value site-inline-link" href="#" target="_blank" rel="noopener noreferrer">–</a>
           </div>
         </div>
@@ -974,7 +974,7 @@
             </article>
             <article class="smart-hub-item">
               <p class="smart-hub-label" data-i18n="smartHubFocusLabel">Fokus</p>
-              <strong id="smartHubFocusValue" data-i18n="smartHubFocusConstruction">Baustellenfluss</strong>
+              <strong id="smartHubFocusValue" data-i18n="smartHubFocusConstruction">Standortfluss</strong>
             </article>
             <article class="smart-hub-item">
               <p class="smart-hub-label" data-i18n="smartHubMomentumLabel">Momentum</p>
@@ -1048,9 +1048,9 @@
             <p class="section-kicker" data-i18n="companyModeKicker">Firmenprofil</p>
             <h3 id="companyModeTitle" data-i18n="companyModeTitle">Firmenmodus</h3>
           </div>
-          <p id="companyModeLead" class="company-mode-lead" data-i18n="companyModeConstructionLead">Baustellenfokus mit schneller Zutrittsabwicklung.</p>
+          <p id="companyModeLead" class="company-mode-lead" data-i18n="companyModeConstructionLead">Standortfokus mit schneller Zutrittsabwicklung.</p>
           <ul id="companyModeFeatureList" class="company-mode-feature-list">
-            <li data-i18n="companyModeConstructionItem1">Schneller Zugang für Baustellen-Check-in</li>
+            <li data-i18n="companyModeConstructionItem1">Schneller Zugang für Standort-Check-in</li>
             <li data-i18n="companyModeConstructionItem2">Tagesstatus und Zutrittskontrolle im Vordergrund</li>
             <li data-i18n="companyModeConstructionItem3">Klare Oberfläche für Schichtstart und Schichtende</li>
           </ul>
@@ -1445,7 +1445,7 @@
 
   <script src="./workpass-storage.js?v=20260624storage1"></script>
   <script src="./geo-precision.js?v=20260624login-gps1"></script>
-  <script src="./worker-i18n.js?v=20260624pwa2"></script>
+  <script src="./worker-i18n.js?v=20260630f"></script>
   <script>
     (function workerInlineLangSwitch() {
       function normBadge(value) {
@@ -1485,7 +1485,7 @@
       window.__workerApplyInlineLang = applyLang;
     })();
   </script>
-  <script src="./tenant-brand-icon.js?v=20260630d"></script>
+  <script src="./tenant-brand-icon.js?v=20260630f"></script>
   <script>
     (function bootstrapWorkerFavicon() {
       if (!window.TenantBrandIcon) return;
@@ -1498,7 +1498,7 @@
     })();
   </script>
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
-  <script src="./worker-app.js?v=20260630d" defer></script>
+  <script src="./worker-app.js?v=20260630f" defer></script>
   <script defer>
     window.addEventListener("DOMContentLoaded", function () {
       ["./ai-voice-ui.js?v=20260614loginfix1", "./usage-tracker.js?v=20260619usage1"].forEach(function (src) {
