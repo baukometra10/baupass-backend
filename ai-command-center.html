@@ -195,6 +195,27 @@
     .status-line { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
     .hidden { display: none !important; }
     .err { color: var(--danger); padding: 1rem; }
+    .leave-preview-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-top: 0.35rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+    }
+    .leave-preview-btn:hover { border-color: var(--accent); }
+    .leave-pdf-frame {
+      width: 100%;
+      min-height: 420px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
   </style>
 </head>
 <body class="ops-app">
@@ -264,8 +285,25 @@
         <button type="button" class="secondary" data-topic="attendance">Attendance</button>
         <button type="button" class="secondary" data-topic="executive">Executive</button>
       </div>
-      <div class="scroll" id="insightCards"></div>
+      <div class="scroll">
+        <div id="leaveRequestsPanel"></div>
+        <div id="insightCards"></div>
+      </div>
     </aside>
+  </div>
+
+  <div id="aiLeavePdfModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true" style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:50;">
+    <div style="width:min(920px,100%);max-height:92vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:1rem;">
+      <h3 id="aiLeavePdfTitle" style="margin:0 0 .35rem;">Urlaubsantrag</h3>
+      <p id="aiLeavePdfMeta" class="status-line"></p>
+      <iframe id="aiLeavePdfFrame" class="leave-pdf-frame" title="Urlaubsantrag PDF"></iframe>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;">
+        <button type="button" class="toolbar" id="aiLeaveApproveBtn">✓ Genehmigen</button>
+        <button type="button" class="toolbar secondary" id="aiLeaveRejectBtn">✗ Ablehnen</button>
+        <button type="button" class="toolbar secondary" id="aiLeaveCloseBtn">Schließen</button>
+      </div>
+      <textarea id="aiLeaveRejectNote" rows="2" placeholder="Ablehnungsgrund (optional)" style="width:100%;margin-top:.65rem;padding:.55rem;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);"></textarea>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
@@ -520,9 +558,9 @@
       }
     }
     const CARD_LABELS = {
-      de: { onsite: "Auf Baustelle", security: "Sicherheit", workforceRisk: "Risiko", attendanceRisk: "Ausfallrisiko", fraud: "Betrug", productivity: "Produktivität", emergency: "Notfall", tomorrowForecast: "Prognose morgen" },
-      en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency", tomorrowForecast: "Tomorrow forecast" },
-      ar: { onsite: "على الموقع", security: "الأمن", workforceRisk: "المخاطر", attendanceRisk: "غياب", fraud: "احتيال", productivity: "الإنتاجية", emergency: "طوارئ", tomorrowForecast: "توقعات الغد" },
+      de: { onsite: "Auf Baustelle", security: "Sicherheit", workforceRisk: "Risiko", attendanceRisk: "Ausfallrisiko", fraud: "Betrug", productivity: "Produktivität", emergency: "Notfall", tomorrowForecast: "Prognose morgen", pendingLeave: "Urlaubsanträge" },
+      en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency", tomorrowForecast: "Tomorrow forecast", pendingLeave: "Leave requests" },
+      ar: { onsite: "على الموقع", security: "الأمن", workforceRisk: "المخاطر", attendanceRisk: "غياب", fraud: "احتيال", productivity: "الإنتاجية", emergency: "طوارئ", tomorrowForecast: "توقعات الغد", pendingLeave: "طلبات الإجازة" },
     };
 
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
@@ -656,6 +694,10 @@
             body: JSON.stringify({ action, params: a.params || {}, company_id: selectedCompanyId }),
           });
           appendMsg("bot", r.ok ? `✓ ${action}` : (r.error || "—"), {});
+          if (r.ok) {
+            await loadPendingLeaveRequests();
+            closeAiLeavePreview();
+          }
         } catch (e) {
           appendMsg("bot", e.payload?.hint || e.message, {});
         }
@@ -989,11 +1031,84 @@
     }
 
     let insightsTimer = null;
+    let aiLeavePreviewId = "";
+    let aiLeavePreviewUrl = "";
+
+    function closeAiLeavePreview() {
+      const modal = document.getElementById("aiLeavePdfModal");
+      const frame = document.getElementById("aiLeavePdfFrame");
+      if (frame) frame.removeAttribute("src");
+      if (aiLeavePreviewUrl) {
+        URL.revokeObjectURL(aiLeavePreviewUrl);
+        aiLeavePreviewUrl = "";
+      }
+      aiLeavePreviewId = "";
+      modal?.classList.add("hidden");
+    }
+
+    async function openAiLeavePreview(requestId) {
+      const id = String(requestId || "").trim();
+      if (!id) return;
+      closeAiLeavePreview();
+      aiLeavePreviewId = id;
+      const modal = document.getElementById("aiLeavePdfModal");
+      const frame = document.getElementById("aiLeavePdfFrame");
+      modal?.classList.remove("hidden");
+      try {
+        const response = await fetch(`/api/leave-requests/${encodeURIComponent(id)}/export.pdf?${companyQs()}`, {
+          headers: authHeaders(),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        aiLeavePreviewUrl = URL.createObjectURL(blob);
+        if (frame) frame.src = aiLeavePreviewUrl;
+      } catch (error) {
+        closeAiLeavePreview();
+        showToast(error.message || String(error));
+      }
+    }
+
+    async function loadPendingLeaveRequests() {
+      const host = document.getElementById("leaveRequestsPanel");
+      if (!host || companyRequiredForUi()) {
+        if (host) host.innerHTML = "";
+        return;
+      }
+      try {
+        const rows = await api(`/api/leave-requests?status=ausstehend&${companyQs()}`);
+        if (!Array.isArray(rows) || !rows.length) {
+          host.innerHTML = "";
+          return;
+        }
+        host.innerHTML = `<div class="playbook-block"><h3>${rows.length} offene Urlaubsanträge</h3>` +
+          rows.slice(0, 8).map((row) => {
+            const id = escapeHtml(String(row.id || ""));
+            const name = escapeHtml(String(row.worker_name || row.worker_id || "Mitarbeiter"));
+            const meta = escapeHtml(`${row.type || "-"} · ${row.start_date || "-"} – ${row.end_date || "-"}`);
+            return `<button type="button" class="leave-preview-btn" data-leave-id="${id}"><strong>${name}</strong><span class="status-line">${meta}</span></button>`;
+          }).join("") +
+          `</div>`;
+        host.querySelectorAll("[data-leave-id]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const row = rows.find((item) => String(item.id) === btn.getAttribute("data-leave-id"));
+            const metaEl = document.getElementById("aiLeavePdfMeta");
+            if (metaEl && row) {
+              metaEl.textContent = `${row.worker_name || row.worker_id || "-"} · ${row.type || "-"} · ${row.start_date || "-"} – ${row.end_date || "-"}`;
+            }
+            void openAiLeavePreview(btn.getAttribute("data-leave-id"));
+          });
+        });
+      } catch {
+        host.innerHTML = "";
+      }
+    }
+
     async function loadInsights() {
       if (companyRequiredForUi()) return;
       const data = await api(`/api/ai/insights?${companyQs()}`);
       lastInsightsData = data;
       renderInsights(data);
+      await loadPendingLeaveRequests();
       const ts = new Date().toLocaleTimeString();
       document.getElementById("statusLine").textContent = formatStatusLine(data, ts);
     }
@@ -1380,6 +1495,52 @@
       submitQuestion(q, { spoken });
     };
     document.getElementById("briefingBtn").onclick = runBriefing;
+    document.getElementById("aiLeaveCloseBtn")?.addEventListener("click", closeAiLeavePreview);
+    document.getElementById("aiLeaveApproveBtn")?.addEventListener("click", async () => {
+      if (!aiLeavePreviewId) return;
+      try {
+        const r = await api("/api/ai/actions/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "approve_leave_request",
+            params: { leave_id: aiLeavePreviewId },
+            company_id: selectedCompanyId,
+          }),
+        });
+        showToast(r.ok ? "Antrag genehmigt" : (r.error || "Fehler"));
+        if (r.ok) {
+          closeAiLeavePreview();
+          await loadPendingLeaveRequests();
+          await loadInsights();
+        }
+      } catch (e) {
+        showToast(e.payload?.hint || e.message);
+      }
+    });
+    document.getElementById("aiLeaveRejectBtn")?.addEventListener("click", async () => {
+      if (!aiLeavePreviewId) return;
+      const reviewNote = (document.getElementById("aiLeaveRejectNote")?.value || "").trim();
+      try {
+        const r = await api("/api/ai/actions/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "reject_leave_request",
+            params: { leave_id: aiLeavePreviewId, review_note: reviewNote || "Abgelehnt" },
+            company_id: selectedCompanyId,
+          }),
+        });
+        showToast(r.ok ? "Antrag abgelehnt" : (r.error || "Fehler"));
+        if (r.ok) {
+          closeAiLeavePreview();
+          await loadPendingLeaveRequests();
+          await loadInsights();
+        }
+      } catch (e) {
+        showToast(e.payload?.hint || e.message);
+      }
+    });
     document.getElementById("newChatBtn").onclick = newSession;
     document.getElementById("deleteAllChatsBtn").onclick = () => deleteAllSessions().catch((e) => showToast(e.payload?.hint || e.message));
     document.getElementById("clearChatBtn").onclick = () => clearCurrentChat().catch((e) => showToast(e.payload?.hint || e.message));

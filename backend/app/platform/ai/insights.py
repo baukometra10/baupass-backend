@@ -93,6 +93,26 @@ def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -
             },
         )
 
+    pending_leave = int(ctx.get("pendingLeave") or 0)
+    if pending_leave > 0:
+        cards.insert(
+            0,
+            {
+                "id": "leave",
+                "severity": "medium" if pending_leave < 4 else "high",
+                "titleKey": "pendingLeave",
+                "value": pending_leave,
+                "detail": "Offene Urlaubs- und Krankmeldungen",
+                "actions": [
+                    {
+                        "type": "navigate",
+                        "label": "Anträge öffnen",
+                        "url": "/index.html?view=leave",
+                    }
+                ],
+            },
+        )
+
     issues = ctx.get("operationalIssues") or []
     recommendations: list[str] = []
     if int(sec.get("openFindings") or 0) > 0:

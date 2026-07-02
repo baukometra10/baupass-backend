@@ -19070,6 +19070,10 @@ function setView(viewName) {
     void refreshDashboardDeploymentDeclines();
   }
 
+  if (targetView === "leave") {
+    void loadLeaveRequests();
+  }
+
   document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));
   updateShellChrome(targetView);
   syncPlatformNavLinks();
@@ -34958,6 +34962,34 @@ function bindAdminModalControls() {
       document.getElementById("leaveRejectModal")?.classList.add("hidden");
     }
   });
+  document.getElementById("leaveExportCsvBtn")?.addEventListener("click", () => {
+    void exportLeaveCsv();
+  });
+  document.getElementById("leaveRefreshBtn")?.addEventListener("click", () => {
+    void loadLeaveRequests();
+  });
+  document.getElementById("leavePdfCloseBtn")?.addEventListener("click", closeLeaveRequestPreview);
+  document.getElementById("leavePdfDownloadBtn")?.addEventListener("click", () => {
+    if (activeLeaveRequestPreviewId) {
+      void downloadLeaveRequestPdf(activeLeaveRequestPreviewId);
+    }
+  });
+  document.getElementById("leavePdfApproveBtn")?.addEventListener("click", () => {
+    if (activeLeaveRequestPreviewId) {
+      void approveLeaveRequest(activeLeaveRequestPreviewId).then(() => closeLeaveRequestPreview());
+    }
+  });
+  document.getElementById("leavePdfRejectBtn")?.addEventListener("click", () => {
+    if (activeLeaveRequestPreviewId) {
+      closeLeaveRequestPreview();
+      rejectLeaveRequest(activeLeaveRequestPreviewId);
+    }
+  });
+  document.getElementById("leavePdfModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "leavePdfModal") {
+      closeLeaveRequestPreview();
+    }
+  });
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", bindAdminModalControls);
@@ -37007,6 +37039,93 @@ if (loadCustomBrandAltButton) {
 
 // ============ ADMIN PANEL: LEAVE REQUESTS, EXPORTS, PUSH NOTIFICATIONS ============
 
+let activeLeaveRequestPreviewId = "";
+let leaveRequestPreviewObjectUrl = "";
+
+function updateLeavePendingBadge(count) {
+  const pendingBadge = document.getElementById("leavePendingBadge");
+  if (!pendingBadge) return;
+  const pendingCount = Math.max(0, Number(count) || 0);
+  pendingBadge.textContent = String(pendingCount);
+  pendingBadge.classList.toggle("hidden", pendingCount === 0);
+}
+
+function closeLeaveRequestPreview() {
+  const modal = document.getElementById("leavePdfModal");
+  const frame = document.getElementById("leavePdfFrame");
+  if (frame) frame.removeAttribute("src");
+  if (leaveRequestPreviewObjectUrl) {
+    URL.revokeObjectURL(leaveRequestPreviewObjectUrl);
+    leaveRequestPreviewObjectUrl = "";
+  }
+  activeLeaveRequestPreviewId = "";
+  modal?.classList.add("hidden");
+}
+
+async function openLeaveRequestPreview(requestId, metaText = "") {
+  const requestKey = String(requestId || "").trim();
+  if (!requestKey) return;
+  const sessionToken = loadStoredSessionToken();
+  if (!sessionToken) {
+    showAlert("alertSessionExpired");
+    return;
+  }
+  const modal = document.getElementById("leavePdfModal");
+  const frame = document.getElementById("leavePdfFrame");
+  const titleEl = document.getElementById("leavePdfModalTitle");
+  const metaEl = document.getElementById("leavePdfModalMeta");
+  if (!modal || !frame) return;
+  closeLeaveRequestPreview();
+  activeLeaveRequestPreviewId = requestKey;
+  if (titleEl) titleEl.textContent = "Urlaubsantrag";
+  if (metaEl) metaEl.textContent = metaText || "";
+  modal.classList.remove("hidden");
+  try {
+    const response = await fetch(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestKey)}/export.pdf`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    leaveRequestPreviewObjectUrl = URL.createObjectURL(blob);
+    frame.src = leaveRequestPreviewObjectUrl;
+  } catch (error) {
+    closeLeaveRequestPreview();
+    showAlert("alertActionFailed", { error: String(error) });
+  }
+}
+
+async function exportLeaveCsv() {
+  try {
+    const sessionToken = loadStoredSessionToken();
+    if (!sessionToken) {
+      showAlert("alertSessionExpired");
+      return;
+    }
+    const res = await fetch(`${API_BASE}/api/leave-requests`, {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    const cols = ["id", "worker_name", "first_name", "last_name", "type", "start_date", "end_date", "days_count", "status", "review_note", "created_at"];
+    const header = ["ID", "Mitarbeiter", "Vorname", "Nachname", "Art", "Von", "Bis", "Arbeitstage", "Status", "Entscheidungs-Notiz", "Erstellt"];
+    const csv = [header.join(";"), ...rows.map((r) =>
+      cols.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(";"),
+    )].join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `urlaubsantraege_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    showAlert("alertActionFailed", { error: String(error) });
+  }
+}
+
 /**
  * Load and display leave requests list
  * Fetches all pending/approved/rejected leave requests from backend
@@ -37037,7 +37156,17 @@ async function loadLeaveRequests(filterStatus = null) {
     }
 
     const requests = await response.json();
+    updateLeavePendingBadge(requests.filter((req) => req.status === "ausstehend").length);
     renderLeaveRequestsTable(requests, filterStatus);
+    const params = new URLSearchParams(window.location.search);
+    const previewId = String(params.get("leave_id") || "").trim();
+    if (previewId) {
+      const row = requests.find((req) => String(req.id) === previewId);
+      const meta = row
+        ? `${row.worker_name || row.worker_id || "-"} · ${row.type || "-"} · ${row.start_date || "-"} – ${row.end_date || "-"}`
+        : "";
+      void openLeaveRequestPreview(previewId, meta);
+    }
   } catch (error) {
     showAlert("alertActionFailed", { error: String(error) });
   }
@@ -37050,11 +37179,7 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
     : requests;
 
   const pendingCount = requests.filter((req) => req.status === "ausstehend").length;
-  const pendingBadge = document.getElementById("leavePendingBadge");
-  if (pendingBadge) {
-    pendingBadge.textContent = String(pendingCount);
-    pendingBadge.classList.toggle("hidden", pendingCount === 0);
-  }
+  updateLeavePendingBadge(pendingCount);
 
   container.innerHTML = `
     <div class="leave-filter-bar">
@@ -37074,18 +37199,18 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
         const actions = req.status === "ausstehend"
           ? `
             <div class="leave-card-actions">
-              <button class="primary-button btn-approve" onclick="approveLeaveRequest('${requestId}')">✓ Genehmigen</button>
-              <button class="ghost-button btn-danger-solid" onclick="rejectLeaveRequest('${requestId}')">✗ Ablehnen</button>
-              <button class="ghost-button" onclick="downloadLeaveRequestPdf('${requestId}')">⬇ PDF</button>
+              <button class="primary-button btn-approve" onclick="event.stopPropagation(); approveLeaveRequest('${requestId}')">✓ Genehmigen</button>
+              <button class="ghost-button btn-danger-solid" onclick="event.stopPropagation(); rejectLeaveRequest('${requestId}')">✗ Ablehnen</button>
+              <button class="ghost-button" onclick="event.stopPropagation(); openLeaveRequestPreview('${requestId}')">📄 PDF</button>
             </div>
           `
           : `
             <div class="leave-card-actions">
-              <button class="ghost-button" onclick="downloadLeaveRequestPdf('${requestId}')">⬇ PDF</button>
+              <button class="ghost-button" onclick="event.stopPropagation(); openLeaveRequestPreview('${requestId}')">📄 PDF</button>
             </div>
           `;
         return `
-          <article class="${cardClass}">
+          <article class="${cardClass} leave-card-clickable" role="button" tabindex="0" onclick="openLeaveRequestPreview('${requestId}')">
             <div class="leave-card-header">
               <div class="leave-card-worker">${escapeHtml(req.worker_name || req.worker_id || "-")}</div>
               <div class="leave-card-status ${statusClass}">${escapeHtml(req.status || "-")}</div>
@@ -37230,6 +37355,10 @@ async function rejectLeaveRequest(requestId) {
     }
   }, { once: true });
 }
+
+globalThis.openLeaveRequestPreview = openLeaveRequestPreview;
+globalThis.closeLeaveRequestPreview = closeLeaveRequestPreview;
+globalThis.exportLeaveCsv = exportLeaveCsv;
 
 /**
  * Export timesheets as CSV

@@ -309,6 +309,11 @@ def build_operations_inbox(
                         "status": "open",
                         "actions": [
                             {
+                                "type": "navigate",
+                                "url": f"/index.html?view=leave&leave_id={r['id']}",
+                                "label": "PDF ansehen",
+                            },
+                            {
                                 "type": "execute",
                                 "action": "approve_leave_request",
                                 "params": {"leave_id": r["id"]},

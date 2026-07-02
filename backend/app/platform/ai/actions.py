@@ -107,9 +107,9 @@ def suggest_actions(
             {
                 "id": "nav_inbox",
                 "type": "navigate",
-                "labelDe": f"{pending_leave} Urlaubsanträge im Posteingang",
-                "labelEn": f"{pending_leave} leave requests in inbox",
-                "url": "/admin-v2/index.html",
+                "labelDe": f"{pending_leave} Urlaubsanträge prüfen",
+                "labelEn": f"Review {pending_leave} leave requests",
+                "url": "/index.html?view=leave",
             }
         )
 

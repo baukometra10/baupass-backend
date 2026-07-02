@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260630a";
+const WORKER_BUILD_TAG = "20260630b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1860,9 +1860,13 @@ const elements = {
 };
 
 const splashStartedAt = performance.now();
-const SPLASH_MIN_MS = 1050;
+const SPLASH_MIN_MS = 0;
 
 function dismissSplash() {
+  if (document.body.dataset.splashDismissed === "1") {
+    return;
+  }
+  document.body.dataset.splashDismissed = "1";
   const elapsed = performance.now() - splashStartedAt;
   const delay = Math.max(0, SPLASH_MIN_MS - elapsed);
   setTimeout(() => {
@@ -1873,6 +1877,10 @@ function dismissSplash() {
     el.addEventListener("transitionend", () => el.remove(), { once: true });
     setTimeout(() => { if (el.parentNode) el.remove(); }, 800);
   }, delay);
+}
+
+function releaseSplashEarly() {
+  dismissSplash();
 }
 
 function updateWorkerBuildBadge() {
@@ -2851,10 +2859,6 @@ async function init() {
     workerToken = (wpGet(WORKER_TOKEN_KEY) || "").trim();
     workerBearerToken = (wpGet(WORKER_JWT_KEY) || workerToken || "").trim();
   }
-  ensureWorkerChatShellStyles();
-  ensureWorkerChatNavDom();
-  ensureWorkerChatDom();
-  ensureWorkerChatComposeBar();
   applyTranslations();
   enforceUiVisibilityGuard();
   updateWorkerBuildBadge();
@@ -2866,6 +2870,17 @@ async function init() {
   applyQrContrastState();
   applyAutoOpenScannerState();
   enforceWorkerBuildFreshness(params);
+  const deferChatShell = () => {
+    ensureWorkerChatShellStyles();
+    ensureWorkerChatNavDom();
+    ensureWorkerChatDom();
+    ensureWorkerChatComposeBar();
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(deferChatShell, { timeout: 1200 });
+  } else {
+    setTimeout(deferChatShell, 0);
+  }
   if (params.get("session") === "1" && workerToken) {
     const cachedRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
     if (cachedRaw) {
@@ -2873,6 +2888,7 @@ async function init() {
         renderWorker(JSON.parse(cachedRaw));
         markWorkerLoginCompleted();
         finishWorkerLoginUi();
+        releaseSplashEarly();
       } catch {
         // fall through to network sync
       }
@@ -3026,6 +3042,7 @@ async function init() {
           renderWorker(JSON.parse(cachedRaw));
           markWorkerLoginCompleted();
           finishWorkerLoginUi();
+          releaseSplashEarly();
           void loadWorkerData();
           window.__workerAppInitDone = true;
           return;
@@ -4473,8 +4490,9 @@ async function loadWorkerData() {
     renderWorker(payload);
     markWorkerSyncedNow();
     updateConnectionState();
-    await syncOfflinePhotoQueue();
-    await syncOfflineEventQueue();
+    releaseSplashEarly();
+    void syncOfflinePhotoQueue();
+    void syncOfflineEventQueue();
     return true;
   } catch (error) {
     if (!tokenAtRequest || tokenAtRequest !== workerToken) {
@@ -4501,6 +4519,7 @@ async function loadWorkerData() {
         workerDebug("[loadWorkerData] Rendering cached payload:", cachedPayload);
         offlineWorkerSessionActive = true;
         renderWorker(cachedPayload);
+        releaseSplashEarly();
         if (elements.lastSyncInfo) {
           elements.lastSyncInfo.textContent = t("offlineBanner");
         }

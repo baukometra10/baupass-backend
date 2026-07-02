@@ -7960,6 +7960,8 @@ body.theme-black .dashboard-compliance-panel .dashboard-compliance-subhead h4 {
   background: var(--card-bg, #fff);
 }
 .leave-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.leave-card-clickable { cursor: pointer; }
+.leave-card-clickable:focus-visible { outline: 2px solid var(--accent, #0a57c0); outline-offset: 2px; }
 .leave-card-genehmigt { border-left: 4px solid #43a047; }
 .leave-card-abgelehnt { border-left: 4px solid #e53935; }
 .leave-card-ausstehend { border-left: 4px solid #fb8c00; }

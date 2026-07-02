@@ -4,12 +4,28 @@
   <script>
     /* Erzwingt aktuelle worker-build.json — PWA: Cache+SW einmal leeren bei neuem Build */
     (function bootstrapWorkerShell() {
+      var INLINE_BUILD = "20260630b";
       var params = new URLSearchParams(window.location.search);
       if (params.get("boot") === "done") return;
 
       var isStandalone = window.navigator.standalone === true
         || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
       var PWA_SHELL_KEY = "workpass-pwa-shell-build";
+
+      if (!params.get("v")) {
+        var q = new URLSearchParams(window.location.search);
+        q.set("v", INLINE_BUILD);
+        q.set("boot", "done");
+        window.location.replace(window.location.pathname + "?" + q.toString() + window.location.hash);
+        return;
+      }
+
+      if (params.get("v") === INLINE_BUILD && params.get("refresh") !== "1") {
+        if (isStandalone) {
+          try { localStorage.setItem(PWA_SHELL_KEY, INLINE_BUILD); } catch (e) { /* ignore */ }
+        }
+        return;
+      }
 
       function go(next) {
         var q = new URLSearchParams(window.location.search);
@@ -86,23 +102,20 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" sizes="192x192" href="data:," id="workerAppFavicon" />
   <link rel="apple-touch-icon" sizes="192x192" href="data:," id="workerAppTouchIcon" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260630a" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260630b" />
   <title>Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta http-equiv="expires" content="0" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker-theme.css?v=20260630a" />
-  <link rel="stylesheet" href="./worker.css?v=20260630a" />
+  <link rel="stylesheet" href="./worker-theme.css?v=20260630b" />
+  <link rel="stylesheet" href="./worker.css?v=20260630b" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260630a" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260630a" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260630a" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260630a" />
-  <link rel="stylesheet" href="./worker-readability.css?v=20260630a" />
-  <script src="./tenant-brand-icon.js?v=20260630a"></script>
+  <link rel="stylesheet" href="./worker-polish.css?v=20260630b" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260630b" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260630b" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260630b" />
+  <link rel="stylesheet" href="./worker-readability.css?v=20260630b" />
+  <script src="./tenant-brand-icon.js?v=20260630b"></script>
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
@@ -1472,7 +1485,7 @@
       window.__workerApplyInlineLang = applyLang;
     })();
   </script>
-  <script src="./tenant-brand-icon.js?v=20260630a"></script>
+  <script src="./tenant-brand-icon.js?v=20260630b"></script>
   <script>
     (function bootstrapWorkerFavicon() {
       if (!window.TenantBrandIcon) return;
@@ -1485,23 +1498,16 @@
     })();
   </script>
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
-  <script src="./ai-voice-ui.js?v=20260614loginfix1"></script>
-  <script src="./usage-tracker.js?v=20260619usage1"></script>
-  <script>
-    (function loadWorkerAppBundle() {
-      function attach(build) {
-        if (document.getElementById("workerAppBundle")) return;
+  <script src="./worker-app.js?v=20260630b" defer></script>
+  <script defer>
+    window.addEventListener("DOMContentLoaded", function () {
+      ["./ai-voice-ui.js?v=20260614loginfix1", "./usage-tracker.js?v=20260619usage1"].forEach(function (src) {
         var script = document.createElement("script");
-        script.id = "workerAppBundle";
-        script.src = "./worker-app.js?v=" + encodeURIComponent(build || Date.now());
-        script.async = false;
+        script.src = src;
+        script.defer = true;
         document.body.appendChild(script);
-      }
-      fetch("/worker-build.json?t=" + Date.now(), { cache: "no-store" })
-        .then(function (response) { return response.json(); })
-        .then(function (meta) { attach(meta && meta.build); })
-        .catch(function () { attach(""); });
-    })();
+      });
+    }, { once: true });
   </script>
 </body>
 </html>

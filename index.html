@@ -259,6 +259,20 @@
     </div>
   </div>
 
+  <div id="leavePdfModal" class="admin-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="leavePdfModalTitle">
+    <div class="admin-modal-card company-branding-pdf-card">
+      <h3 class="admin-modal-title" id="leavePdfModalTitle">Urlaubsantrag</h3>
+      <p class="admin-modal-desc" id="leavePdfModalMeta"></p>
+      <iframe id="leavePdfFrame" class="company-branding-pdf-frame" title="Urlaubsantrag PDF"></iframe>
+      <div class="admin-modal-actions">
+        <button type="button" class="primary-button" id="leavePdfApproveBtn">✓ Genehmigen</button>
+        <button type="button" class="ghost-button btn-danger-solid" id="leavePdfRejectBtn">✗ Ablehnen</button>
+        <button type="button" class="ghost-button" id="leavePdfDownloadBtn">⬇ PDF</button>
+        <button type="button" class="ghost-button" id="leavePdfCloseBtn">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <div id="mainShell" class="shell locked" style="display:none;" hidden aria-hidden="true">
     <aside class="sidebar">
       <div>
@@ -1328,6 +1342,7 @@
                 <h3 data-ui-i18n="leaveH3">Urlaubsanträge &amp; Abwesenheiten</h3>
               </div>
               <button class="ghost-button" id="leaveExportCsvBtn" title="Als CSV exportieren">⬇ CSV</button>
+              <button class="ghost-button" id="leaveRefreshBtn" type="button" title="Anträge aktualisieren">↻</button>
             </div>
             <div id="leaveRequestsTable"></div>
           </article>
